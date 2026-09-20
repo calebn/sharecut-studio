@@ -6,7 +6,7 @@ import { relatedCommandsFor } from "./relatedCommands";
 
 describe("relatedCommandsFor", () => {
   it("returns commands for clip selection", () => {
-    const cmds = relatedCommandsFor({ kind: "clip", id: "c1" } as any);
+    const cmds = relatedCommandsFor({ kind: "clip", id: "c1", trackId: "t1" });
     expect(cmds).toContain("edit.rippleDelete");
     expect(cmds).toContain("edit.bladeCut");
   });
@@ -16,13 +16,13 @@ describe("relatedCommandsFor", () => {
   });
 
   it("returns empty for unknown kind", () => {
-    expect(relatedCommandsFor({ kind: "unknown" } as any)).toEqual([]);
+    expect(relatedCommandsFor({ kind: "chapter", id: "ch1", time: 0 })).toEqual([]);
   });
 });
 
 describe("RelatedCommands", () => {
   it("renders related command buttons", () => {
-    render(<RelatedCommands selection={{ kind: "clip", id: "c1" } as any} />);
+    render(<RelatedCommands selection={{ kind: "clip", id: "c1", trackId: "t1" }} />);
     expect(screen.getByText("You might also want…")).toBeInTheDocument();
     // Should render buttons for the related commands
     expect(
@@ -37,7 +37,7 @@ describe("RelatedCommands", () => {
 
   it("is axe-clean", async () => {
     const { container } = render(
-      <RelatedCommands selection={{ kind: "clip", id: "c1" } as any} />,
+      <RelatedCommands selection={{ kind: "clip", id: "c1", trackId: "t1" }} />,
     );
     await expectNoA11yViolations(container);
   });
