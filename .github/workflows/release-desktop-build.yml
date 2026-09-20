@@ -261,7 +261,12 @@ jobs:
           stage="$PREPARED_SIDECAR_STAGE"
           mkdir -p "$stage"
           cp -R gui/desktop/binaries/sharecut-runtime "$stage/sharecut-runtime"
-          cp "gui/desktop/binaries/sharecut-sidecar-${{ matrix.triple }}"* "$stage/"
+          launcher="gui/desktop/binaries/sharecut-sidecar-${{ matrix.triple }}"
+          if [[ "${{ matrix.bundle }}" == "nsis" ]]; then
+            launcher="${launcher}.exe"
+          fi
+          test -f "$launcher"
+          cp "$launcher" "$stage/"
           python3 - <<'PY'
           import json
           import os
@@ -554,12 +559,13 @@ jobs:
               raise SystemExit("prepared runtime interpreter is missing")
           if bundle != "nsis" and not os.access(runtime_python, os.X_OK):
               raise SystemExit("prepared runtime interpreter is not executable")
-          launchers = sorted(
-              binaries.glob(f"sharecut-sidecar-{os.environ['PREPARED_RUNTIME_TRIPLE']}*")
+          launcher_suffix = ".exe" if bundle == "nsis" else ""
+          launcher = binaries / (
+              f"sharecut-sidecar-{os.environ['PREPARED_RUNTIME_TRIPLE']}{launcher_suffix}"
           )
-          if len(launchers) != 1 or not launchers[0].is_file():
-              raise SystemExit("expected exactly one prepared sidecar launcher")
-          if bundle != "nsis" and not os.access(launchers[0], os.X_OK):
+          if not launcher.is_file():
+              raise SystemExit("prepared sidecar launcher is missing")
+          if bundle != "nsis" and not os.access(launcher, os.X_OK):
               raise SystemExit("prepared sidecar launcher is not executable")
           expected = json.loads(
               (binaries / "extension-entry-points.json").read_text(encoding="utf-8")
