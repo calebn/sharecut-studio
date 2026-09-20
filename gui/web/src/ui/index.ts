@@ -10,6 +10,7 @@ export { Field } from "./Field";
 export { FieldRow } from "./FieldRow";
 export { FocusPull } from "./FocusPull";
 export { FocusToggle } from "./FocusToggle";
+export { GesturesSheet } from "./GesturesSheet";
 export { Icon, type IconName } from "./Icon";
 export { InlineError } from "./InlineError";
 export { InspectorSeekFooter } from "./InspectorSeekFooter";
