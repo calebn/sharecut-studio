@@ -135,6 +135,11 @@ export async function ingestFiles(
     } else {
       s.announceStatus("Import complete");
     }
+  } catch (err) {
+    // Every call site is fire-and-forget with no rejection handler, so the
+    // error must surface here or the UI stalls on "Importing…" forever (#223).
+    const reason = err instanceof Error ? err.message : String(err);
+    s.announceStatus(`Import failed: ${reason}`);
   } finally {
     s.setIngestBusy(false);
   }

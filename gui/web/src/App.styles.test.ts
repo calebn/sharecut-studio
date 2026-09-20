@@ -79,4 +79,32 @@ describe("App styles", () => {
       /\.focus-pull-pending,[\s\S]*?\.focus-pull-enter\s*\{[^}]*visibility:\s*visible/s,
     );
   });
+
+  it("paints menu focus rings inside scrolling panels", () => {
+    // .ui-menu-panel scrolls (overflow-y: auto); a focus outline with a
+    // positive offset would clip at the scrollport edge (#184), so the
+    // focus-visible rule must paint the ring inside the item instead.
+    const here = dirname(fileURLToPath(import.meta.url));
+    const src = readFileSync(join(here, "styles/partials/ui.css"), "utf8");
+    const rule = src.match(/\.ui-menu-panel[^{]*:focus-visible\s*{([^}]*)}/);
+    expect(rule).toBeTruthy();
+    const body = rule![1] ?? "";
+    expect(body).toMatch(/box-shadow:\s*inset/);
+    expect(body).not.toMatch(/outline-offset/);
+  });
+
+  it("paints dialog focus rings inside the scrolling body", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const src = readFileSync(
+      join(here, "styles/partials/command-palette.css"),
+      "utf8",
+    );
+    const rule = src.match(
+      /\.command-palette-body\s+:is\([^)]*\):focus-visible\s*\{([^}]*)}/,
+    );
+    expect(rule).toBeTruthy();
+    const body = rule![1] ?? "";
+    expect(body).toMatch(/box-shadow:\s*inset/);
+    expect(body).not.toMatch(/outline-offset/);
+  });
 });

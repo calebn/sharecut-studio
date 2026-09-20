@@ -2,6 +2,11 @@ import { useRef } from "react";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { formatTimeShort, rulerTickTimes } from "../utils/time";
 import { MIN_TIMELINE_WIDTH_PX } from "../utils/timelineViewport";
+import {
+  dropCollidingRulerEndTick,
+  estimateRulerLabelWidthPx,
+  RULER_END_EDGE_PX,
+} from "./rulerTicks";
 
 interface TimeRulerProps {
   /**
@@ -35,7 +40,13 @@ export function TimeRuler({
   hidePlayhead = false,
 }: TimeRulerProps) {
   const width = Math.max(durationSec * zoomPxPerSec, MIN_TIMELINE_WIDTH_PX);
-  const ticks = rulerTickTimes(durationSec, zoomPxPerSec);
+  const rawTicks = rulerTickTimes(durationSec, zoomPxPerSec);
+  const ticks = dropCollidingRulerEndTick(
+    rawTicks,
+    zoomPxPerSec,
+    width,
+    estimateRulerLabelWidthPx(rawTicks),
+  );
   const majorStep =
     ticks.length >= 2 ? ticks[1]! - ticks[0]! : Math.max(1, durationSec);
   const sessionEnd = Math.max(0, sessionDurationSec);
@@ -139,7 +150,7 @@ export function TimeRuler({
       {ticks.map((t, i) => {
         const leftPx = t * zoomPxPerSec;
         const endAligned =
-          i === ticks.length - 1 && leftPx > width - 48 && t > 0;
+          i === ticks.length - 1 && leftPx > width - RULER_END_EDGE_PX && t > 0;
         return (
           <span
             key={t}
