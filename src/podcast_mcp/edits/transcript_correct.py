@@ -15,6 +15,8 @@ def correct_word(
         raise ValueError(f"no transcript for track {track_id!r}")
     if word_index < 0 or word_index >= len(tr.words):
         raise ValueError(f"word_index out of range: {word_index}")
+    if not new_text or not new_text.strip():
+        raise ValueError("correction text must not be empty")
     w = tr.words[word_index]
     tr.words[word_index] = w.model_copy(update={"text": new_text, "confidence": 1.0})
     rebuild_combined(project)
