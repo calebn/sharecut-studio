@@ -1,0 +1,1626 @@
+{
+  "version": "2.0",
+  "meta": {
+    "name": "ami bleed 60s",
+    "workspace_dir": ".",
+    "created_at": "2026-06-09T03:19:10.135067+00:00",
+    "schema_id": "podcast-mcp/episode/2",
+    "ingest_alignment": null
+  },
+  "sources": [],
+  "timeline": {
+    "duration_sec": 60.0,
+    "tracks": [
+      {
+        "id": "host",
+        "label": "Speaker A",
+        "role": "dialogue",
+        "speaker": "Speaker A",
+        "media": {
+          "path": "raw/host.wav",
+          "duration_sec": 60.0,
+          "sample_rate": 44100,
+          "channels": 1
+        },
+        "gain_db": 0.0,
+        "muted": false
+      },
+      {
+        "id": "guest",
+        "label": "Speaker B",
+        "role": "dialogue",
+        "speaker": "Speaker B",
+        "media": {
+          "path": "raw/guest.wav",
+          "duration_sec": 60.0,
+          "sample_rate": 44100,
+          "channels": 1
+        },
+        "gain_db": 0.0,
+        "muted": false
+      }
+    ],
+    "clips": [
+      {
+        "id": "clip_host",
+        "track_id": "host",
+        "source_start": 0.0,
+        "source_end": 60.0,
+        "timeline_start": 0.0,
+        "source_id": null,
+        "fade_in_ms": 0,
+        "fade_out_ms": 0
+      },
+      {
+        "id": "clip_guest",
+        "track_id": "guest",
+        "source_start": 0.0,
+        "source_end": 60.0,
+        "timeline_start": 0.0,
+        "source_id": null,
+        "fade_in_ms": 0,
+        "fade_out_ms": 0
+      }
+    ]
+  },
+  "editorial": {
+    "edit_decisions": [],
+    "chapters": []
+  },
+  "transcripts": {
+    "per_track": [
+      {
+        "track_id": "host",
+        "language": "en",
+        "words": [
+          {
+            "text": "Um",
+            "start": 12.569999999999993,
+            "end": 13.219999999999999,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "I",
+            "start": 13.219999999999999,
+            "end": 13.27000000000001,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "just",
+            "start": 13.27000000000001,
+            "end": 13.509999999999991,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "got",
+            "start": 13.509999999999991,
+            "end": 13.780000000000001,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "the",
+            "start": 13.780000000000001,
+            "end": 13.889999999999986,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "project",
+            "start": 13.889999999999986,
+            "end": 14.259999999999991,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "announcement",
+            "start": 14.259999999999991,
+            "end": 15.009999999999991,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "about",
+            "start": 15.009999999999991,
+            "end": 15.180000000000007,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "what",
+            "start": 15.180000000000007,
+            "end": 15.340000000000003,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "the",
+            "start": 15.340000000000003,
+            "end": 15.439999999999998,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "project",
+            "start": 15.439999999999998,
+            "end": 16.169999999999987,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "is",
+            "start": 16.169999999999987,
+            "end": 16.680000000000007,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "Designing",
+            "start": 16.680000000000007,
+            "end": 17.370000000000005,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "a",
+            "start": 17.370000000000005,
+            "end": 17.419999999999987,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "remote",
+            "start": 17.419999999999987,
+            "end": 17.689999999999998,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "control",
+            "start": 17.689999999999998,
+            "end": 18.19999999999999,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "That's",
+            "start": 18.19999999999999,
+            "end": 18.360000000000014,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "about",
+            "start": 18.360000000000014,
+            "end": 18.539999999999992,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "it",
+            "start": 18.539999999999992,
+            "end": 19.150000000000006,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "didn't",
+            "start": 19.150000000000006,
+            "end": 19.72999999999999,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "get",
+            "start": 19.72999999999999,
+            "end": 19.840000000000003,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "anything",
+            "start": 19.840000000000003,
+            "end": 20.099999999999994,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "else",
+            "start": 20.099999999999994,
+            "end": 20.77000000000001,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "Did",
+            "start": 20.77000000000001,
+            "end": 20.870000000000005,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "you",
+            "start": 20.870000000000005,
+            "end": 20.94999999999999,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "get",
+            "start": 20.94999999999999,
+            "end": 21.129999999999995,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "the",
+            "start": 21.129999999999995,
+            "end": 21.189999999999998,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "same",
+            "start": 21.189999999999998,
+            "end": 21.400000000000006,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "thing",
+            "start": 21.400000000000006,
+            "end": 21.97999999999999,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          }
+        ]
+      },
+      {
+        "track_id": "guest",
+        "language": "en",
+        "words": [
+          {
+            "text": "brief",
+            "start": 0.0,
+            "end": 0.7000000000000028,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "as",
+            "start": 0.7000000000000028,
+            "end": 0.7600000000000051,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "it",
+            "start": 0.7600000000000051,
+            "end": 0.8599999999999994,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "were",
+            "start": 0.8599999999999994,
+            "end": 0.980000000000004,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "Um",
+            "start": 0.980000000000004,
+            "end": 1.6500000000000057,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "and",
+            "start": 1.6500000000000057,
+            "end": 3.3400000000000034,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "so",
+            "start": 3.3400000000000034,
+            "end": 3.519999999999996,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "there",
+            "start": 3.519999999999996,
+            "end": 3.8100000000000023,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "are",
+            "start": 3.8100000000000023,
+            "end": 3.8700000000000045,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "three",
+            "start": 3.8700000000000045,
+            "end": 4.099999999999994,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "different",
+            "start": 4.099999999999994,
+            "end": 4.390000000000001,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "stages",
+            "start": 4.390000000000001,
+            "end": 4.8700000000000045,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "to",
+            "start": 4.8700000000000045,
+            "end": 5.010000000000005,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "the",
+            "start": 5.010000000000005,
+            "end": 5.1299999999999955,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "design",
+            "start": 5.1299999999999955,
+            "end": 6.1200000000000045,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "Um",
+            "start": 6.1200000000000045,
+            "end": 6.299999999999997,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "I'm",
+            "start": 6.299999999999997,
+            "end": 6.439999999999998,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "not",
+            "start": 6.439999999999998,
+            "end": 6.530000000000001,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "really",
+            "start": 6.530000000000001,
+            "end": 6.680000000000007,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "sure",
+            "start": 6.680000000000007,
+            "end": 6.959999999999994,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "what",
+            "start": 6.959999999999994,
+            "end": 7.340000000000003,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "what",
+            "start": 7.340000000000003,
+            "end": 7.489999999999995,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "you",
+            "start": 7.489999999999995,
+            "end": 7.590000000000003,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "guys",
+            "start": 7.590000000000003,
+            "end": 7.799999999999997,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "have",
+            "start": 7.799999999999997,
+            "end": 7.959999999999994,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "already",
+            "start": 7.959999999999994,
+            "end": 8.22999999999999,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "received",
+            "start": 8.22999999999999,
+            "end": 9.310000000000002,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "um",
+            "start": 9.310000000000002,
+            "end": 10.580000000000013,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "in",
+            "start": 10.580000000000013,
+            "end": 10.680000000000007,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "your",
+            "start": 10.680000000000007,
+            "end": 10.840000000000003,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "emails",
+            "start": 10.840000000000003,
+            "end": 11.360000000000014,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "What",
+            "start": 11.360000000000014,
+            "end": 11.52000000000001,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "did",
+            "start": 11.52000000000001,
+            "end": 11.680000000000007,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "you",
+            "start": 11.680000000000007,
+            "end": 11.789999999999992,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "get",
+            "start": 11.789999999999992,
+            "end": 12.030000000000001,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "Mm-hmm",
+            "start": 15.080000000000013,
+            "end": 15.439999999999998,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "Is",
+            "start": 20.099999999999994,
+            "end": 20.19999999999999,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "that",
+            "start": 20.19999999999999,
+            "end": 20.349999999999994,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "what",
+            "start": 20.349999999999994,
+            "end": 20.460000000000008,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "everybody",
+            "start": 20.460000000000008,
+            "end": 20.830000000000013,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "got",
+            "start": 20.830000000000013,
+            "end": 21.53,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "Okay",
+            "start": 21.53,
+            "end": 22.659999999999997,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "Um",
+            "start": 22.659999999999997,
+            "end": 24.430000000000007,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "So",
+            "start": 24.430000000000007,
+            "end": 24.539999999999992,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "we're",
+            "start": 24.539999999999992,
+            "end": 24.629999999999995,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "gonna",
+            "start": 24.629999999999995,
+            "end": 24.789999999999992,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "have",
+            "start": 24.789999999999992,
+            "end": 24.94999999999999,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "like",
+            "start": 24.94999999999999,
+            "end": 25.430000000000007,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "individual",
+            "start": 25.430000000000007,
+            "end": 25.97,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "work",
+            "start": 25.97,
+            "end": 26.210000000000008,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "and",
+            "start": 26.210000000000008,
+            "end": 26.310000000000002,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "then",
+            "start": 26.310000000000002,
+            "end": 26.430000000000007,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "a",
+            "start": 26.430000000000007,
+            "end": 26.47999999999999,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "meeting",
+            "start": 26.47999999999999,
+            "end": 26.75,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "about",
+            "start": 26.75,
+            "end": 26.99000000000001,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "it",
+            "start": 26.99000000000001,
+            "end": 27.919999999999987,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "And",
+            "start": 27.919999999999987,
+            "end": 28.789999999999992,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "repeat",
+            "start": 28.789999999999992,
+            "end": 29.22,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "that",
+            "start": 29.22,
+            "end": 29.53,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "process",
+            "start": 29.53,
+            "end": 30.27000000000001,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "three",
+            "start": 30.27000000000001,
+            "end": 30.5,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "times",
+            "start": 30.5,
+            "end": 31.789999999999992,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "Um",
+            "start": 31.789999999999992,
+            "end": 34.47999999999999,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "and",
+            "start": 34.47999999999999,
+            "end": 34.78,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "at",
+            "start": 34.78,
+            "end": 34.870000000000005,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "this",
+            "start": 34.870000000000005,
+            "end": 35.03,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "point",
+            "start": 35.03,
+            "end": 35.25999999999999,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "we",
+            "start": 35.25999999999999,
+            "end": 35.34,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "get",
+            "start": 35.34,
+            "end": 35.59,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "try",
+            "start": 35.59,
+            "end": 35.889999999999986,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "out",
+            "start": 35.889999999999986,
+            "end": 36.09,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "the",
+            "start": 36.09,
+            "end": 36.22,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "whiteboard",
+            "start": 36.22,
+            "end": 36.91999999999999,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "over",
+            "start": 36.91999999999999,
+            "end": 37.09,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "there",
+            "start": 37.09,
+            "end": 38.41,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "Um",
+            "start": 38.41,
+            "end": 39.59,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "So",
+            "start": 39.59,
+            "end": 40.0,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "uh",
+            "start": 40.0,
+            "end": 41.34,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "you",
+            "start": 41.34,
+            "end": 41.44999999999999,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "get",
+            "start": 41.44999999999999,
+            "end": 41.610000000000014,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "to",
+            "start": 41.610000000000014,
+            "end": 41.69,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "draw",
+            "start": 41.69,
+            "end": 41.83000000000001,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "your",
+            "start": 41.83000000000001,
+            "end": 41.96000000000001,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "favourite",
+            "start": 41.96000000000001,
+            "end": 42.27000000000001,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "animal",
+            "start": 42.27000000000001,
+            "end": 42.650000000000006,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "and",
+            "start": 42.650000000000006,
+            "end": 43.56,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "sum",
+            "start": 43.56,
+            "end": 43.879999999999995,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "up",
+            "start": 43.879999999999995,
+            "end": 44.02000000000001,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "your",
+            "start": 44.02000000000001,
+            "end": 44.16,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "favourite",
+            "start": 44.16,
+            "end": 44.46000000000001,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "characteristics",
+            "start": 44.46000000000001,
+            "end": 45.22999999999999,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "of",
+            "start": 45.22999999999999,
+            "end": 45.360000000000014,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "it",
+            "start": 45.360000000000014,
+            "end": 45.91,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "So",
+            "start": 45.91,
+            "end": 46.03999999999999,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "who",
+            "start": 46.03999999999999,
+            "end": 46.18000000000001,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "would",
+            "start": 46.18000000000001,
+            "end": 46.31999999999999,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "like",
+            "start": 46.31999999999999,
+            "end": 46.47999999999999,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "to",
+            "start": 46.47999999999999,
+            "end": 46.59,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "go",
+            "start": 46.59,
+            "end": 46.72,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "first",
+            "start": 46.72,
+            "end": 47.31,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "Very",
+            "start": 47.84,
+            "end": 48.05000000000001,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          },
+          {
+            "text": "good",
+            "start": 48.05000000000001,
+            "end": 48.84,
+            "confidence": 0.99,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null
+          }
+        ]
+      }
+    ],
+    "combined": {
+      "utterances": [
+        {
+          "track_id": "guest",
+          "speaker": "Speaker B",
+          "start": 0.0,
+          "end": 12.030000000000001,
+          "text": "brief as it were Um and so there are three different stages to the design Um I'm not really sure what what you guys have already received um in your emails What did you get"
+        },
+        {
+          "track_id": "host",
+          "speaker": "Speaker A",
+          "start": 12.569999999999993,
+          "end": 21.97999999999999,
+          "text": "Um I just got the project announcement about what the project is Designing a remote control That's about it didn't get anything else Did you get the same thing"
+        },
+        {
+          "track_id": "guest",
+          "speaker": "Speaker B",
+          "start": 15.080000000000013,
+          "end": 15.439999999999998,
+          "text": "Mm-hmm"
+        },
+        {
+          "track_id": "guest",
+          "speaker": "Speaker B",
+          "start": 20.099999999999994,
+          "end": 48.84,
+          "text": "Is that what everybody got Okay Um So we're gonna have like individual work and then a meeting about it And repeat that process three times Um and at this point we get try out the whiteboard over there Um So uh you get to draw your favourite animal and sum up your favourite characteristics of it So who would like to go first Very good"
+        }
+      ]
+    }
+  },
+  "mix": {
+    "processing_chains": [],
+    "automation_envelopes": []
+  },
+  "render": {
+    "last_completed_step": "assemble_timeline",
+    "pipeline_runs": [
+      {
+        "id": "d25abbd6445c",
+        "started_at": "2026-06-09T03:34:04.726765+00:00",
+        "steps": [
+          {
+            "step": "ingest_tracks",
+            "started_at": "2026-06-09T03:34:04.726792+00:00",
+            "finished_at": "2026-06-09T03:34:05.036858+00:00",
+            "status": "ok",
+            "message": null
+          }
+        ]
+      },
+      {
+        "id": "d8a59b9f7f46",
+        "started_at": "2026-06-09T03:34:05.506786+00:00",
+        "steps": [
+          {
+            "step": "assemble_timeline",
+            "started_at": "2026-06-09T03:34:05.508189+00:00",
+            "finished_at": "2026-06-09T03:34:05.524400+00:00",
+            "status": "ok",
+            "message": null
+          }
+        ]
+      }
+    ],
+    "artifacts": {
+      "premix": null,
+      "mastered": null
+    },
+    "reconciliation_stale": true,
+    "last_reconciliation_hash": null
+  },
+  "social": {
+    "clip_candidates": []
+  },
+  "history": {
+    "cursor": 2,
+    "entries": [
+      {
+        "id": "a655327153f6",
+        "label": "before pipeline run",
+        "created_at": "2026-06-09T03:34:04.721553+00:00",
+        "snapshot_file": "history/snapshots/a655327153f6.json"
+      },
+      {
+        "id": "7b70ec43f4e0",
+        "label": "after ingest_tracks",
+        "created_at": "2026-06-09T03:34:05.020917+00:00",
+        "snapshot_file": "history/snapshots/7b70ec43f4e0.json"
+      },
+      {
+        "id": "e8658ea87eb9",
+        "label": "after assemble_timeline",
+        "created_at": "2026-06-09T03:34:05.513113+00:00",
+        "snapshot_file": "history/snapshots/e8658ea87eb9.json"
+      }
+    ]
+  }
+}

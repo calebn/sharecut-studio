@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sharecut.studio/schemas/progress-exemptions.schema.json",
+  "title": "Progress exemptions",
+  "type": "object",
+  "required": ["api_version", "exemptions"],
+  "additionalProperties": false,
+  "properties": {
+    "api_version": { "type": "integer", "const": 1 },
+    "description": { "type": "string" },
+    "exemptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "reason", "approved_by", "date"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Operation id (MCP tool name, CLI command path, pipeline step, guest tool, or gui job kind)."
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["none", "minimal"],
+            "description": "none = do not wrap; minimal = start/end only without requiring phases."
+          },
+          "reason": { "type": "string", "minLength": 1 },
+          "approved_by": { "type": "string", "minLength": 1 },
+          "date": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

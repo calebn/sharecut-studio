@@ -1,0 +1,114 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install package and dev deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,gui,relay]"
+
+      - name: Python lint / format / security / deps
+        run: |
+          ruff check src tests scripts
+          ruff format --check src tests scripts
+          bandit -c pyproject.toml -r src -ll
+          vulture
+          deptry .
+
+      - name: Type check (strict on timebase modules)
+        run: mypy
+
+      - name: Run tests with coverage gate
+        # Exclude HF-backed / nightly tiers (e2e_slow, e2e_real); keep fast e2e for coverage.
+        # Per-test --timeout=60 comes from pyproject addopts (pytest-timeout).
+        # xdist can leave pytest exit 0 even when --cov-fail-under fails; enforce via coverage.
+        run: |
+          pytest -n auto -m "not e2e_slow and not e2e_real"
+          coverage report --fail-under=95
+
+      - name: Upload coverage.xml
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-xml
+          path: coverage.xml
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: gui/web
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: gui/web/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Keymap cheatsheet docs stay generated
+        run: npm run cheatsheet:check
+
+  frontend-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: gui/web/package-lock.json
+
+      - name: Install GUI Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[gui]"
+
+      - name: Install frontend deps and Chromium
+        working-directory: gui/web
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Build Sharecut Studio static assets
+        working-directory: gui/web
+        run: npm run build
+
+      - name: Playwright smoke + axe (aligned_dialogue)
+        working-directory: gui/web
+        run: npm run test:e2e

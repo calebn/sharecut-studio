@@ -1,0 +1,436 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://podcast-mcp.dev/schemas/episode.project.v2.json",
+  "title": "EpisodeProjectV2",
+  "type": "object",
+  "required": ["version", "meta", "timeline", "editorial", "transcripts", "mix", "render"],
+  "properties": {
+    "version": { "const": "2.0" },
+    "meta": { "$ref": "#/$defs/ProjectMeta" },
+    "sources": { "type": "array", "items": { "$ref": "#/$defs/SourceRecording" } },
+    "timeline": { "$ref": "#/$defs/TimelineSection" },
+    "editorial": { "$ref": "#/$defs/EditorialSection" },
+    "transcripts": { "$ref": "#/$defs/TranscriptsSection" },
+    "mix": { "$ref": "#/$defs/MixSection" },
+    "render": { "$ref": "#/$defs/RenderSection" },
+    "social": { "$ref": "#/$defs/SocialSection" },
+    "review": { "$ref": "#/$defs/ReviewSection" },
+    "history": { "$ref": "#/$defs/ProjectHistory" }
+  },
+  "$defs": {
+    "ProjectMeta": {
+      "type": "object",
+      "required": ["name", "workspace_dir", "created_at"],
+      "properties": {
+        "name": { "type": "string" },
+        "workspace_dir": { "type": "string" },
+        "created_at": { "type": "string" },
+        "schema_id": { "type": "string" }
+      }
+    },
+    "SourceRecording": {
+      "type": "object",
+      "required": ["id", "path"],
+      "properties": {
+        "id": { "type": "string" },
+        "path": { "type": "string" },
+        "speaker": { "type": ["string", "null"] },
+        "label": { "type": ["string", "null"] },
+        "offset_sec": { "type": "number" },
+        "duration_sec": { "type": ["number", "null"] },
+        "sample_rate": { "type": ["integer", "null"] },
+        "channels": { "type": ["integer", "null"] }
+      }
+    },
+    "TimelineSection": {
+      "type": "object",
+      "properties": {
+        "duration_sec": { "type": ["number", "null"] },
+        "tracks": { "type": "array", "items": { "$ref": "#/$defs/Track" } },
+        "clips": { "type": "array", "items": { "$ref": "#/$defs/Clip" } }
+      }
+    },
+    "TrackProxy": {
+      "type": "object",
+      "required": ["hash", "chunk_count", "duration_sec"],
+      "properties": {
+        "hash": { "type": "string" },
+        "chunk_sec": { "type": "number" },
+        "overlap_ms": { "type": "integer" },
+        "chunk_count": { "type": "integer" },
+        "duration_sec": { "type": "number" },
+        "codec": { "type": "string" },
+        "bitrate_kbps": { "type": "integer" },
+        "object_store_prefix": { "type": ["string", "null"] },
+        "object_store_uploaded_at": { "type": ["string", "null"] }
+      }
+    },
+    "Track": {
+      "type": "object",
+      "required": ["id", "label", "role"],
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "role": { "enum": ["dialogue", "music", "sfx", "intro", "outro"] },
+        "speaker": { "type": ["string", "null"] },
+        "media": { "$ref": "#/$defs/MediaAsset" },
+        "room_tone": { "$ref": "#/$defs/MediaAsset" },
+        "gain_db": { "type": "number" },
+        "muted": { "type": "boolean" },
+        "transcript_gate": {
+          "type": "boolean",
+          "description": "When true, rendered stems/segments mute outside non-suppressed word intervals (bleed mute)."
+        },
+        "proxy": { "$ref": "#/$defs/TrackProxy" }
+      }
+    },
+    "MediaAsset": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": { "type": "string" },
+        "duration_sec": { "type": ["number", "null"] },
+        "sample_rate": { "type": ["integer", "null"] },
+        "channels": { "type": ["integer", "null"] }
+      }
+    },
+    "ClipMuteRegion": {
+      "type": "object",
+      "required": ["start_s", "end_s"],
+      "description": "Source-media mute span; end_s must be greater than start_s.",
+      "properties": {
+        "start_s": { "type": "number" },
+        "end_s": { "type": "number" }
+      }
+    },
+    "Clip": {
+      "type": "object",
+      "required": ["id", "track_id", "source_start", "source_end", "timeline_start"],
+      "properties": {
+        "id": { "type": "string" },
+        "track_id": { "type": "string" },
+        "source_id": { "type": ["string", "null"] },
+        "source_start": { "type": "number" },
+        "source_end": { "type": "number" },
+        "timeline_start": { "type": "number" },
+        "fade_in_ms": { "type": "integer", "default": 0 },
+        "fade_out_ms": { "type": "integer", "default": 0 },
+        "join_in_mode": {
+          "type": "string",
+          "enum": ["fade", "crossfade", "cut"],
+          "default": "fade"
+        },
+        "mute_regions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ClipMuteRegion" },
+          "default": []
+        }
+      }
+    },
+    "ChapterMarker": {
+      "type": "object",
+      "required": ["time", "title"],
+      "properties": {
+        "time": { "type": "number" },
+        "title": { "type": "string" },
+        "image_url": { "type": ["string", "null"] }
+      }
+    },
+    "EditorialSection": {
+      "type": "object",
+      "properties": {
+        "edit_decisions": { "type": "array", "items": { "$ref": "#/$defs/EditDecision" } },
+        "edit_log": { "type": "array", "items": { "$ref": "#/$defs/AppliedEditRecord" } },
+        "chapters": { "type": "array", "items": { "$ref": "#/$defs/ChapterMarker" } }
+      }
+    },
+    "AppliedEditRecord": {
+      "type": "object",
+      "required": ["id", "applied_at", "operation", "track_ids"],
+      "properties": {
+        "id": { "type": "string" },
+        "applied_at": { "type": "string" },
+        "operation": { "type": "string" },
+        "decision_ids": { "type": "array", "items": { "type": "string" } },
+        "track_ids": { "type": "array", "items": { "type": "string" } },
+        "source_start": { "type": ["number", "null"] },
+        "source_end": { "type": ["number", "null"] },
+        "timeline_start": { "type": ["number", "null"] },
+        "timeline_end": { "type": ["number", "null"] },
+        "reason": { "type": ["string", "null"] },
+        "crossfade_ms": { "type": ["integer", "null"] },
+        "boundary_mode": { "type": ["string", "null"] },
+        "cut_confidence": { "type": ["number", "null"] },
+        "params": { "type": "object" }
+      }
+    },
+    "TranscriptsSection": {
+      "type": "object",
+      "properties": {
+        "per_track": { "type": "array", "items": { "$ref": "#/$defs/Transcript" } },
+        "combined": { "$ref": "#/$defs/CombinedTranscript" }
+      }
+    },
+    "Transcript": {
+      "type": "object",
+      "required": ["track_id", "words"],
+      "properties": {
+        "track_id": { "type": "string" },
+        "language": { "type": "string" },
+        "source_id": {
+          "type": ["string", "null"],
+          "description": "When set, words are source-media seconds for that sources[] row (multi-file speaker)."
+        },
+        "words": { "type": "array", "items": { "$ref": "#/$defs/TranscriptWord" } }
+      }
+    },
+    "TranscriptWord": {
+      "type": "object",
+      "required": ["text", "start", "end"],
+      "properties": {
+        "text": { "type": "string" },
+        "start": { "type": "number" },
+        "end": { "type": "number" },
+        "confidence": { "type": ["number", "null"] },
+        "suppressed": { "type": "boolean", "default": false },
+        "audibility_status": { "type": ["string", "null"] },
+        "dominant_track": { "type": ["string", "null"] }
+      }
+    },
+    "CombinedTranscript": {
+      "type": "object",
+      "properties": {
+        "utterances": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/CombinedUtterance" }
+        }
+      }
+    },
+    "CombinedUtterance": {
+      "type": "object",
+      "required": ["track_id", "speaker", "start", "end", "text"],
+      "properties": {
+        "track_id": { "type": "string" },
+        "speaker": { "type": "string" },
+        "start": { "type": "number" },
+        "end": { "type": "number" },
+        "text": { "type": "string" }
+      }
+    },
+    "EditDecision": {
+      "type": "object",
+      "required": ["id", "track_id", "type", "start", "end"],
+      "properties": {
+        "id": { "type": "string" },
+        "track_id": { "type": "string" },
+        "type": { "enum": ["remove", "mute", "split"] },
+        "start": { "type": "number" },
+        "end": { "type": "number" },
+        "crossfade_ms": { "type": "integer" },
+        "reason": { "type": ["string", "null"] },
+        "review_required": { "type": "boolean" },
+        "applied": { "type": "boolean" },
+        "cut_confidence": { "type": ["number", "null"] },
+        "boundary_mode": { "type": ["string", "null"] },
+        "replace_gap_sec": { "type": ["number", "null"] },
+        "scope": { "type": "string", "enum": ["session", "track"], "default": "session" },
+        "track_ids": {
+          "type": ["array", "null"],
+          "items": { "type": "string" }
+        },
+        "timebase": {
+          "type": "string",
+          "enum": ["source", "timeline"],
+          "default": "source"
+        }
+      }
+    },
+    "MixSection": {
+      "type": "object",
+      "properties": {
+        "processing_chains": { "type": "array", "items": { "$ref": "#/$defs/ProcessingChain" } },
+        "automation_envelopes": { "type": "array", "items": { "$ref": "#/$defs/AutomationEnvelope" } }
+      }
+    },
+    "ProcessingChain": {
+      "type": "object",
+      "required": ["track_id", "effects"],
+      "properties": {
+        "track_id": { "type": "string" },
+        "effects": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ProcessingEffect" }
+        }
+      }
+    },
+    "ProcessingEffect": {
+      "type": "object",
+      "required": ["effect"],
+      "properties": {
+        "effect": { "type": "string" },
+        "params": { "type": "object" },
+        "bypass": { "type": "boolean", "default": false }
+      }
+    },
+    "AutomationEnvelope": {
+      "type": "object",
+      "required": ["track_id", "points"],
+      "properties": {
+        "track_id": { "type": "string" },
+        "parameter": { "type": "string" },
+        "points": { "type": "array" }
+      }
+    },
+    "RenderSection": {
+      "type": "object",
+      "properties": {
+        "last_completed_step": { "type": ["string", "null"] },
+        "pipeline_runs": { "type": "array" },
+        "artifacts": {
+          "type": "object",
+          "properties": {
+            "premix": { "type": ["string", "null"] },
+            "mastered": { "type": ["string", "null"] }
+          }
+        },
+        "reconciliation_stale": { "type": "boolean", "default": false },
+        "last_reconciliation_hash": { "type": ["string", "null"] },
+        "invalidations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/RenderInvalidation" },
+          "default": []
+        }
+      }
+    },
+    "RenderInvalidation": {
+      "type": "object",
+      "required": ["id", "track_ids", "reason", "at"],
+      "properties": {
+        "id": { "type": "string" },
+        "track_ids": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "timeline_start": { "type": ["number", "null"] },
+        "timeline_end": { "type": ["number", "null"] },
+        "reason": {
+          "type": "string",
+          "enum": ["cut", "clip", "envelope", "fx", "gain", "mute", "other"]
+        },
+        "at": { "type": "string" }
+      }
+    },
+    "SocialSection": {
+      "type": "object",
+      "properties": {
+        "clip_candidates": { "type": "array", "items": { "$ref": "#/$defs/SocialClipCandidate" } }
+      }
+    },
+    "SocialClipCandidate": {
+      "type": "object",
+      "required": ["id", "track_id", "start", "end", "score"],
+      "properties": {
+        "id": { "type": "string" },
+        "track_id": { "type": "string" },
+        "start": { "type": "number" },
+        "end": { "type": "number" },
+        "score": { "type": "number" }
+      }
+    },
+    "ReviewSection": {
+      "type": "object",
+      "properties": {
+        "comments": { "type": "array", "items": { "$ref": "#/$defs/TimelineComment" } },
+        "versions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ReviewMixVersion" }
+        },
+        "active_version_id": { "type": ["string", "null"] }
+      }
+    },
+    "ReviewMixVersion": {
+      "type": "object",
+      "required": ["id", "label", "created_at", "audio_relpath"],
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "created_at": { "type": "string" },
+        "audio_relpath": { "type": "string" },
+        "duration_sec": { "type": ["number", "null"] },
+        "sha256": { "type": ["string", "null"] },
+        "source": { "type": ["string", "null"] },
+        "mp3_relpath": { "type": ["string", "null"] },
+        "object_store_key": { "type": ["string", "null"] },
+        "object_store_uploaded_at": { "type": ["string", "null"] }
+      }
+    },
+    "CommentActionItem": {
+      "type": "object",
+      "required": ["id", "text"],
+      "properties": {
+        "id": { "type": "string" },
+        "text": { "type": "string" },
+        "done": { "type": "boolean" },
+        "completed_at": { "type": ["string", "null"] },
+        "completed_by": { "type": ["string", "null"] }
+      }
+    },
+    "CommentReply": {
+      "type": "object",
+      "required": ["id", "body", "author", "created_at"],
+      "properties": {
+        "id": { "type": "string" },
+        "body": { "type": "string" },
+        "author": { "type": "string" },
+        "created_at": { "type": "string" }
+      }
+    },
+    "TimelineComment": {
+      "type": "object",
+      "required": ["id", "body", "author", "created_at", "timeline_start"],
+      "properties": {
+        "id": { "type": "string" },
+        "body": { "type": "string" },
+        "author": { "type": "string" },
+        "created_at": { "type": "string" },
+        "updated_at": { "type": ["string", "null"] },
+        "timeline_start": { "type": "number" },
+        "timeline_end": { "type": ["number", "null"] },
+        "track_ids": { "type": "array", "items": { "type": "string" } },
+        "action_items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/CommentActionItem" }
+        },
+        "replies": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/CommentReply" }
+        },
+        "resolved": { "type": "boolean" },
+        "resolved_at": { "type": ["string", "null"] },
+        "resolved_by": { "type": ["string", "null"] },
+        "review_version_id": { "type": ["string", "null"] },
+        "edit_decision_id": { "type": ["string", "null"] }
+      }
+    },
+    "ProjectHistory": {
+      "type": "object",
+      "properties": {
+        "cursor": { "type": "integer" },
+        "entries": { "type": "array" }
+      }
+    },
+    "ProjectStateSnapshotV2": {
+      "type": "object",
+      "properties": {
+        "sources": { "type": "array" },
+        "timeline": { "type": "object" },
+        "editorial": { "type": "object" },
+        "transcripts": { "type": "object" },
+        "mix": { "type": "object" },
+        "social": { "type": "object" },
+        "review": { "type": "object" },
+        "render_last_completed_step": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

@@ -1,0 +1,63 @@
+# Global transcript precorrect defaults — no show-specific names.
+# Show terms live in {workspace}/show_glossary.yaml; episode overrides in transcript_context.yaml.
+#
+# Example show_glossary.yaml replacements (copy to workspace, do not add here):
+#   - match: Budapest Party
+#     replace: Puro Pinché Party
+#     match_type: phrase
+#   - match: in sight fear
+#     replace: inciting fear
+#     match_type: phrase
+#   - match: wazoo
+#     replace: Wazzu
+#     match_type: word
+#
+# Example garble_patterns (regex, case-insensitive):
+#   - Buddha Pachan
+#   - Charter Truth
+
+filler_tokens:
+  - um
+  - uh
+  - erm
+  - ah
+  - like
+  - you know
+  - sort of
+  - kind of
+
+preserve_tokens: []
+
+replacements: []
+
+cross_track:
+  min_overlap_sec: 0.2
+  min_similarity: 0.55
+  confidence_margin: 0.15
+  # Character-substring boost only when lengths are close (blocks "i" ⊂ "talking").
+  min_substring_len_ratio: 0.6
+  # Skip text rewrite when one ASR word is much longer than the other.
+  max_duration_ratio: 4.0
+  max_word_duration_sec: 2.0
+  min_overlap_of_both_frac: 0.5
+
+transcribe:
+  initial_prompt: true
+  initial_prompt_max_chars: 400
+
+garble_patterns: []
+
+analysis:
+  speaker_id:
+    mode: auto
+    bleed_word_threshold: 50
+    bleed_ratio_threshold: 0.02
+    min_enrollment_sec: 30.0
+    min_window_sec: 0.3
+    min_margin: 0.15
+    min_enrollment_confidence: 0.6
+    auto_suppress: false
+    sample_rate: 16000
+    max_speaker_gap_sec: 0.55
+    gate_window_sec: 0.75
+    gate_hop_sec: 0.25

@@ -1,0 +1,25 @@
+# Podcast MCP developer docs
+
+- Docs: https://docs.sharecut.studio/
+- Capabilities catalog: https://docs.sharecut.studio/#/capabilities
+- Capabilities schema: https://docs.sharecut.studio/schemas/capabilities.manifest.schema.json
+- Document-command schema: https://docs.sharecut.studio/schemas/document-commands.schema.json
+- Guest OpenAPI: https://docs.sharecut.studio/schemas/guest-share.openapi.json
+- UX pack: https://ux.sharecut.studio/
+- Repo: https://github.com/calebn/sharecut-studio
+
+Public API status: alpha (may break without notice).
+
+## For agents
+
+1. Read https://docs.sharecut.studio/#/quickstart
+2. Use share token URLs only — never invent host filesystem paths
+3. Prefer guest_submit_document_command / document-command schema for mutations
+4. Respect caps from the share; call MCP tools/list for the allowed tool set
+5. Host surface matrix (GUI / keys / MCP / skills): https://docs.sharecut.studio/#/capabilities
+
+## Optional
+
+- Engineer docs: https://github.com/calebn/sharecut-studio/tree/main/docs
+- Threat model: https://docs.sharecut.studio/#/threat-model
+- Security: https://docs.sharecut.studio/.well-known/security.txt

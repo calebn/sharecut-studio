@@ -1,0 +1,357 @@
+/* Sharecut Studio UI library layout + control interaction primitive (theme tokens only). */
+
+.ui-menu-root {
+  position: relative;
+  display: inline-flex;
+}
+
+.ui-menu-panel {
+  min-height: 0;
+  max-height: min(90dvh, var(--menu-available-height));
+  overflow-y: auto;
+}
+
+.ui-menu-panel > * {
+  flex-shrink: 0;
+}
+
+.ui-menu-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-overlay-white-12);
+}
+
+.ui-menu-section:first-child {
+  border-top: 0;
+}
+
+.ui-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+
+.ui-field-label {
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+}
+
+.ui-field-hint {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  opacity: 0.75;
+}
+
+.ui-field-control {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.inline-error {
+  margin: 0;
+}
+
+/* --- .ui-control: shared chrome interaction states --- */
+
+.ui-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  box-sizing: border-box;
+  margin: 0;
+  font: inherit;
+  font-size: var(--font-size-ui);
+  font-weight: 600;
+  line-height: 1.2;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-lane);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.ui-control.primary,
+.ui-control[data-variant="primary"] {
+  background: var(--color-accent-solid);
+  border-color: var(--color-accent-solid);
+  color: var(--color-accent-on-solid);
+}
+
+.ui-control.danger,
+.ui-control[data-variant="danger"] {
+  color: var(--color-danger);
+  border-color: var(--color-border-strong);
+  background: var(--color-bg-lane);
+}
+
+.ui-control.linkish,
+.ui-control[data-variant="link"] {
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-accent-fg);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 0.125rem;
+  padding-inline: var(--space-1);
+}
+
+.ui-control--quiet,
+.ui-control[data-ui-kind="tab"] {
+  background: transparent;
+  border-color: transparent;
+  border-radius: 0;
+  border-bottom: var(--space-0) solid transparent;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  padding: var(--space-3) var(--space-4);
+}
+
+.ui-control--compact {
+  padding: var(--space-1) var(--space-3);
+  min-block-size: 2rem;
+  font-size: var(--font-size-small);
+}
+
+.ui-control[aria-pressed="true"],
+.ui-control.active {
+  color: var(--color-text-primary);
+  border-color: var(--color-accent);
+  background: var(--color-accent-muted);
+}
+
+/* Comment mode must keep marker fill over generic pressed paint. */
+.ui-control.comment-mode-btn.active,
+.ui-control.comment-mode-btn[aria-pressed="true"] {
+  background: var(--comment-marker);
+  color: var(--color-bg-canvas);
+  border-color: var(--comment-marker);
+}
+
+.ui-control--quiet[aria-pressed="true"],
+.ui-control--quiet.active,
+.ui-control[data-ui-kind="tab"][aria-pressed="true"],
+.ui-control[data-ui-kind="tab"].active {
+  color: var(--color-text-primary);
+  background: transparent;
+  border-color: transparent;
+  border-bottom-color: var(--color-accent);
+}
+
+.ui-control.primary[aria-pressed="true"],
+.ui-control.primary.active,
+.ui-control[data-variant="primary"][aria-pressed="true"],
+.ui-control[data-variant="primary"].active {
+  background: var(--color-accent-solid);
+  border-color: var(--color-accent-solid);
+  color: var(--color-accent-on-solid);
+}
+
+.ui-control:disabled,
+.ui-control[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ui-control:focus {
+  outline: none;
+}
+
+.ui-control:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.ui-control:active:not(:disabled, [aria-disabled="true"]) {
+  filter: brightness(0.92);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  /* Pills / chips / domain pressed keep their own semantic paint. */
+  .ui-control:hover:not(
+    :disabled,
+    [aria-disabled="true"],
+    .pill,
+    .status-chip,
+    .status-pipeline,
+    .trk-btn.mute,
+    .trk-btn.solo,
+    .comment-mode-btn
+  ) {
+    color: var(--color-text-primary);
+    border-color: var(--color-text-secondary);
+  }
+
+  .ui-control.primary:hover:not(:disabled, [aria-disabled="true"]),
+  .ui-control[data-variant="primary"]:hover:not(
+    :disabled,
+    [aria-disabled="true"]
+  ) {
+    color: var(--color-accent-on-solid);
+    border-color: var(--color-accent-solid);
+    filter: brightness(1.06);
+  }
+
+  .ui-control.danger:hover:not(:disabled, [aria-disabled="true"]),
+  .ui-control[data-variant="danger"]:hover:not(
+    :disabled,
+    [aria-disabled="true"]
+  ) {
+    color: var(--color-danger);
+    border-color: var(--color-danger);
+  }
+
+  .ui-control.linkish:hover:not(:disabled, [aria-disabled="true"]),
+  .ui-control[data-variant="link"]:hover:not(
+    :disabled,
+    [aria-disabled="true"]
+  ) {
+    color: var(--color-accent-fg);
+    border-color: transparent;
+  }
+
+  .ui-control.status-chip:hover:not(:disabled, [aria-disabled="true"]),
+  .ui-control.status-pipeline:hover:not(
+    :disabled,
+    [aria-disabled="true"],
+    .running,
+    .status-pipeline--static
+  ) {
+    color: var(--color-text-primary);
+    border-color: transparent;
+  }
+
+  .ui-control--quiet:hover:not(:disabled, [aria-disabled="true"]),
+  .ui-control[data-ui-kind="tab"]:hover:not(:disabled, [aria-disabled="true"]) {
+    color: var(--color-text-primary);
+    border-color: transparent;
+    background: var(--color-accent-subtle);
+  }
+
+  .ui-control[aria-pressed="true"]:hover:not(
+    :disabled,
+    [aria-disabled="true"],
+    .ui-control--quiet,
+    [data-ui-kind="tab"],
+    .trk-btn.mute,
+    .trk-btn.solo,
+    .comment-mode-btn
+  ),
+  .ui-control.active:hover:not(
+    :disabled,
+    [aria-disabled="true"],
+    .ui-control--quiet,
+    [data-ui-kind="tab"],
+    .trk-btn.mute,
+    .trk-btn.solo,
+    .comment-mode-btn
+  ) {
+    color: var(--color-text-primary);
+    border-color: var(--color-accent);
+  }
+
+  /* Quiet pressed wash — exclude solid segment groups (layout.css owns fill). */
+  .ui-control--quiet[aria-pressed="true"]:hover:not(
+    :disabled,
+    [aria-disabled="true"],
+    .comment-mode-btn
+  ),
+  .ui-control--quiet.active:hover:not(
+    :disabled,
+    [aria-disabled="true"],
+    .comment-mode-btn
+  ),
+  .ui-control[data-ui-kind="tab"][aria-pressed="true"]:hover:not(
+    :disabled,
+    [aria-disabled="true"]
+  ),
+  .ui-control[data-ui-kind="tab"].active:hover:not(
+    :disabled,
+    [aria-disabled="true"]
+  ) {
+    color: var(--color-text-primary);
+    border-top-color: transparent;
+    border-right-color: transparent;
+    border-left-color: transparent;
+    border-bottom-color: var(--color-accent);
+    background: var(--color-accent-subtle);
+  }
+
+  .audition-modes
+    .ui-control--quiet[aria-pressed="true"]:hover:not(
+      :disabled,
+      [aria-disabled="true"]
+    ),
+  .audition-modes
+    .ui-control--quiet.active:hover:not(:disabled, [aria-disabled="true"]),
+  .tool-mode-toggle
+    .ui-control--quiet[aria-pressed="true"]:hover:not(
+      :disabled,
+      [aria-disabled="true"],
+      .comment-mode-btn
+    ),
+  .tool-mode-toggle
+    .ui-control--quiet.active:hover:not(
+      :disabled,
+      [aria-disabled="true"],
+      .comment-mode-btn
+    ) {
+    background: var(--color-accent-solid);
+    color: var(--color-accent-on-solid);
+    border-color: var(--color-accent-solid);
+  }
+
+  .ui-control.comment-mode-btn[aria-pressed="true"]:hover:not(
+    :disabled,
+    [aria-disabled="true"]
+  ),
+  .ui-control.comment-mode-btn.active:hover:not(
+    :disabled,
+    [aria-disabled="true"]
+  ) {
+    background: var(--comment-marker);
+    color: var(--color-bg-canvas);
+    border-color: var(--comment-marker);
+  }
+}
+
+.ui-menu-panel .ui-control--quiet,
+.ui-menu-panel button[role="menuitem"] {
+  display: flex;
+  width: 100%;
+  justify-content: flex-start;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font-weight: 500;
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  text-align: left;
+}
+
+.ui-menu-panel .ui-control--quiet:focus,
+.ui-menu-panel button[role="menuitem"]:focus {
+  outline: none;
+}
+
+.ui-menu-panel .ui-control--quiet:focus-visible,
+.ui-menu-panel button[role="menuitem"]:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ui-menu-panel .ui-control--quiet:hover:not(:disabled),
+  .ui-menu-panel button[role="menuitem"]:hover:not(:disabled) {
+    background: var(--color-accent-subtle);
+    color: var(--color-text-primary);
+    border-color: transparent;
+  }
+}

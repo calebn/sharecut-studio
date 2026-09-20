@@ -1,0 +1,126 @@
+{
+  "version": "2.0",
+  "meta": {
+    "name": "join_continuity",
+    "workspace_dir": ".",
+    "created_at": "2026-07-24T04:48:06.821351+00:00",
+    "schema_id": "podcast-mcp/episode/2",
+    "ingest_alignment": null
+  },
+  "sources": [],
+  "timeline": {
+    "duration_sec": null,
+    "tracks": [
+      {
+        "id": "host",
+        "label": "Host",
+        "role": "dialogue",
+        "speaker": "Host",
+        "media": {
+          "path": "raw/host.wav",
+          "duration_sec": 3.0,
+          "sample_rate": 48000,
+          "channels": 1
+        },
+        "gain_db": 0.0,
+        "muted": false,
+        "transcript_gate": false,
+        "proxy": null
+      },
+      {
+        "id": "guest",
+        "label": "Guest",
+        "role": "dialogue",
+        "speaker": "Guest",
+        "media": {
+          "path": "raw/guest.wav",
+          "duration_sec": 3.0,
+          "sample_rate": 48000,
+          "channels": 1
+        },
+        "gain_db": 0.0,
+        "muted": false,
+        "transcript_gate": false,
+        "proxy": null
+      }
+    ],
+    "clips": [
+      {
+        "id": "h1",
+        "track_id": "host",
+        "source_start": 0.0,
+        "source_end": 1.0,
+        "timeline_start": 0.0,
+        "source_id": null,
+        "fade_in_ms": 0,
+        "fade_out_ms": 0,
+        "join_in_mode": "fade"
+      },
+      {
+        "id": "h2",
+        "track_id": "host",
+        "source_start": 1.5,
+        "source_end": 2.5,
+        "timeline_start": 1.0,
+        "source_id": null,
+        "fade_in_ms": 0,
+        "fade_out_ms": 0,
+        "join_in_mode": "fade"
+      },
+      {
+        "id": "g1",
+        "track_id": "guest",
+        "source_start": 0.0,
+        "source_end": 1.0,
+        "timeline_start": 0.0,
+        "source_id": null,
+        "fade_in_ms": 0,
+        "fade_out_ms": 0,
+        "join_in_mode": "fade"
+      },
+      {
+        "id": "g2",
+        "track_id": "guest",
+        "source_start": 1.4,
+        "source_end": 2.4,
+        "timeline_start": 1.0,
+        "source_id": null,
+        "fade_in_ms": 0,
+        "fade_out_ms": 0,
+        "join_in_mode": "fade"
+      }
+    ]
+  },
+  "editorial": {
+    "edit_decisions": [],
+    "edit_log": [],
+    "chapters": []
+  },
+  "transcripts": {
+    "per_track": [],
+    "combined": null
+  },
+  "mix": {
+    "processing_chains": [],
+    "automation_envelopes": []
+  },
+  "render": {
+    "last_completed_step": null,
+    "pipeline_runs": [],
+    "artifacts": {
+      "premix": null,
+      "mastered": null
+    },
+    "reconciliation_stale": false,
+    "last_reconciliation_hash": null
+  },
+  "social": {
+    "clip_candidates": []
+  },
+  "review": {
+    "comments": [],
+    "versions": [],
+    "active_version_id": null
+  },
+  "history": null
+}

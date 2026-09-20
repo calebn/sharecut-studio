@@ -1,0 +1,134 @@
+/* Home / empty-session / track ingest affordances */
+
+.bootstrap-wizard-header h1 {
+  margin: 0;
+  font-size: var(--s1);
+}
+
+.bootstrap-wizard-header p {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.bootstrap-wizard-list {
+  margin: 0;
+  padding-inline-start: var(--s1);
+  color: var(--color-text-primary);
+}
+
+.bootstrap-wizard-optional {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-emphasis);
+}
+
+.bootstrap-wizard-progress {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.track-add-row {
+  display: block;
+  width: 100%;
+  min-height: var(--tap-min);
+  border: 1px dashed var(--color-border);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  text-align: left;
+  padding: var(--space-2) var(--space-4);
+}
+
+.track-add-row:focus-visible {
+  border-color: var(--color-accent);
+  color: var(--color-text-primary);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .track-add-row:hover {
+    border-color: var(--color-accent);
+    color: var(--color-text-primary);
+  }
+}
+
+.lane-drop-target {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: calc(-1 * var(--focus-ring-offset));
+}
+
+.lane-drop-label {
+  position: absolute;
+  z-index: 5;
+  left: var(--space-3);
+  top: var(--space-2);
+  font-size: var(--font-size-caption);
+  color: var(--color-accent-fg);
+  pointer-events: none;
+}
+
+.empty-session-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.empty-session-drop {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s0);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  margin: var(--space-3);
+  color: var(--color-text-secondary);
+  min-height: 12rem;
+  background: var(--color-bg-lane);
+  cursor: pointer;
+}
+
+.empty-session-drop:focus-visible {
+  border-color: var(--color-accent);
+  color: var(--color-text-primary);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .empty-session-drop:hover {
+    border-color: var(--color-accent);
+    color: var(--color-text-primary);
+  }
+}
+
+.empty-session-coach {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin: 0 var(--space-3) var(--space-3);
+}
+
+.empty-session-coach p {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-text-secondary);
+}
+
+.empty-session-coach-dismiss {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-accent-fg);
+  cursor: pointer;
+  font-size: var(--font-size-body);
+}
+
+.mobile-ingest-hint {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-body);
+  color: var(--color-text-secondary);
+}

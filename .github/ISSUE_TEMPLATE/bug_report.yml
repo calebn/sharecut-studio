@@ -1,0 +1,40 @@
+name: Bug report
+description: Report a Sharecut Studio / Podcast MCP bug
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Do not attach episode audio, transcripts, or project JSON.
+        Attachments on this issue are public. Minted shares may transit the relay; that
+        is unrelated to GitHub attachments.
+
+        Create a sanitized diagnostics zip with **Home → Help → Create diagnostics bundle** or `podcast doctor --bundle`. Nothing is uploaded automatically; attach the zip here if you have one.
+  - type: checkboxes
+    id: diagnostics
+    attributes:
+      label: Diagnostics bundle attached?
+      options:
+        - label: I attached a `sharecut-diagnostics-*.zip` from Home → Help or `podcast doctor --bundle` (optional, but helpful).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you expected vs what you saw.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps if you can.
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: From `podcast doctor` or the diagnostics `report.json` `app_version` field.
+    validations:
+      required: false

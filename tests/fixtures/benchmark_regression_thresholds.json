@@ -1,0 +1,10 @@
+{
+  "aligned_dialogue_timing": {
+    "faster-whisper/base": 30.0,
+    "whisper.cpp/ggml-base.en.bin": 15.0
+  },
+  "asr_gold_wer": {
+    "faster-whisper/base": 0.12
+  },
+  "notes": "Tune after hardware changes. whisper.cpp WER omitted until ggml model quality improves."
+}

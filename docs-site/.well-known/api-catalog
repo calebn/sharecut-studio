@@ -1,0 +1,19 @@
+# Podcast MCP API catalog
+
+- API docs: https://docs.sharecut.studio/
+- Quickstart: https://docs.sharecut.studio/#/quickstart
+- Capabilities: https://docs.sharecut.studio/#/capabilities
+- Capabilities schema: https://docs.sharecut.studio/schemas/capabilities.manifest.schema.json
+- Document commands: https://docs.sharecut.studio/#/document-commands
+- Document-command JSON Schema: https://docs.sharecut.studio/schemas/document-commands.schema.json
+- Guest share OpenAPI (static): https://docs.sharecut.studio/schemas/guest-share.openapi.json
+- Share HTTP: https://docs.sharecut.studio/#/share-http
+- Remote MCP: https://docs.sharecut.studio/#/remote-mcp
+- Errors and rate limits: https://docs.sharecut.studio/#/errors
+- Threat model: https://docs.sharecut.studio/#/threat-model
+- Security contact: https://docs.sharecut.studio/.well-known/security.txt
+- Product UX: https://ux.sharecut.studio/
+- Keyboard shortcuts: https://ux.sharecut.studio/#/shortcuts
+- Source: https://github.com/calebn/sharecut-studio
+
+Status: alpha — public contract may change without notice.

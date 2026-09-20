@@ -1,0 +1,19 @@
+# Host runtime configuration for self-hosted collaboration.
+# Copy to ~/.config/podcast_mcp/relay.yaml and replace example values.
+# Relay fields: CLI/explicit > environment > this YAML > safe loopback default.
+# Object-store fields: environment > this YAML > disabled.
+
+relay_url: wss://relay.example.test/tunnel
+host_token: REPLACE_WITH_A_STRONG_RANDOM_HOST_TOKEN
+public_base_url: https://share.example.test
+local_gui_url: http://127.0.0.1:8765
+
+# Optional S3-compatible media bypass. Remove this entire block to proxy media
+# through the host tunnel. Credentials stay on the host and never reach relay.
+object_store:
+  endpoint_url: https://s3.example.test
+  region: region-1
+  bucket: review-media
+  access_key_id: REDACTED_ACCESS_KEY
+  secret_access_key: REDACTED_SECRET_KEY
+  cdn_endpoint: https://media.example.test

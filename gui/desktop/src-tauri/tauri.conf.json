@@ -1,0 +1,82 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Sharecut Studio Dev",
+  "version": "0.1.0",
+  "identifier": "studio.sharecut.dev",
+  "build": {
+    "beforeDevCommand": "python3 ../../scripts/tauri_sidecar_hook.py --dev-stub",
+    "beforeBuildCommand": "python3 ../../scripts/tauri_sidecar_hook.py --ensure",
+    "devUrl": "http://127.0.0.1:8765",
+    "frontendDist": "../splash"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Sharecut Studio Dev",
+        "width": 1280,
+        "height": 800,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost http://127.0.0.1:* ws://127.0.0.1:*; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["dmg", "app", "msi", "nsis", "appimage", "deb"],
+    "category": "Productivity",
+    "shortDescription": "Podcast DAW with transcript-driven editing",
+    "longDescription": "Sharecut Studio wraps the Podcast MCP FastAPI engine and React UI in a native window. Source of truth stays on the host laptop; share guests use HTTPS.",
+    "macOS": {
+      "minimumSystemVersion": "12.0",
+      "exceptionDomain": "127.0.0.1",
+      "infoPlist": "Info.plist",
+      "entitlements": "Entitlements.plist"
+    },
+    "windows": {
+      "digestAlgorithm": "sha256"
+    },
+    "linux": {
+      "appimage": {
+        "bundleMediaFramework": false
+      }
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "externalBin": ["../binaries/sharecut-sidecar"],
+    "resources": {
+      "../binaries/sharecut-runtime": "sharecut-runtime"
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["sharecut-dev"]
+      },
+      "mobile": [
+        {
+          "scheme": ["https"],
+          "host": "share.example.test",
+          "pathPrefix": ["/r/", "/rec/"],
+          "appLink": false
+        },
+        {
+          "scheme": ["sharecut-dev"],
+          "appLink": false
+        }
+      ]
+    },
+    "shell": {
+      "open": true
+    }
+  }
+}

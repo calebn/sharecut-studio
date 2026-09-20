@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Podcast MCP — UX pack</title>
+    <meta
+      name="description"
+      content="UX onboarding pack for Podcast MCP / Sharecut Studio: brief, screens, guest journeys, glossary, backlog."
+    />
+    <link rel="stylesheet" href="./assets/site.css" />
+    <script src="https://cdn.jsdelivr.net/npm/marked@15.0.7/marked.min.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#content">Skip to content</a>
+    <header class="top">
+      <div class="top__brand">
+        <a href="#/" class="top__title">Podcast MCP · UX pack</a>
+        <span class="top__badge">ux.sharecut.studio</span>
+      </div>
+      <nav class="top__nav" aria-label="UX documents">
+        <a href="#/" data-nav="home">Home</a>
+        <a href="#/brief" data-nav="brief">Brief</a>
+        <a href="#/brand" data-nav="brand">Brand</a>
+        <a href="#/demo" data-nav="demo">See the UI</a>
+        <a href="#/screens" data-nav="screens">Screens</a>
+        <a href="#/journeys" data-nav="journeys">Journeys</a>
+        <a href="#/glossary" data-nav="glossary">Glossary</a>
+        <a href="#/shortcuts" data-nav="shortcuts">Shortcuts</a>
+        <a href="#/backlog" data-nav="backlog">Backlog</a>
+      </nav>
+      <div class="top__actions">
+        <button type="button" id="copy-md" class="btn">Copy Markdown</button>
+        <a
+          id="raw-link"
+          class="btn btn--ghost"
+          href="https://github.com/calebn/sharecut-studio/tree/main/ux/pages"
+          target="_blank"
+          rel="noopener"
+          >Raw on GitHub</a
+        >
+      </div>
+    </header>
+    <main id="content" class="content" tabindex="-1">
+      <p class="loading">Loading…</p>
+    </main>
+    <footer class="foot">
+      <p>
+        Source:
+        <a href="https://github.com/calebn/sharecut-studio/tree/main/ux">ux/</a>
+        · Product repo docs stay under
+        <a href="https://github.com/calebn/sharecut-studio/tree/main/docs">docs/</a>
+      </p>
+    </footer>
+    <script src="./assets/site.js"></script>
+  </body>
+</html>

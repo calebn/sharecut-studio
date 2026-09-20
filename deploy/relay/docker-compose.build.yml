@@ -1,0 +1,11 @@
+# Build a relay image from this checkout for a self-managed production deployment.
+# Usage:
+#   RELAY_DOMAIN=relay.example.com RELAY_IMAGE=podcast-relay:local \
+#     PODCAST_RELAY_HOST_TOKENS=<generated-secret> \
+#     docker compose -f docker-compose.prod.yml -f docker-compose.build.yml up -d --build
+services:
+  podcast-relay:
+    image: ${RELAY_IMAGE:?set RELAY_IMAGE}
+    build:
+      context: ../..
+      dockerfile: deploy/relay/Dockerfile

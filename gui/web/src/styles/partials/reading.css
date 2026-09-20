@@ -1,0 +1,52 @@
+@import "./cover-layout.css";
+
+/* Reading-room chrome. Shared Cover/Stack/Box/Cluster/Center/Switcher/wordmark/lede
+   live in cover-layout.css (synced from deploy/brand/). Timeline z-index is
+   paint order, not elevation. */
+
+.home-screen,
+.loading-screen,
+.error-screen,
+.review-shell,
+.record-shell,
+.bootstrap-wizard {
+  font-size: var(--font-size-review);
+  line-height: 1.5;
+}
+
+.home-screen .modifier-action,
+.bootstrap-wizard .modifier-action {
+  min-block-size: var(--tap-comfortable);
+  padding-inline: var(--s1);
+}
+
+.home-screen-error {
+  color: var(--color-danger);
+  margin: 0;
+}
+
+.home-screen input,
+.home-screen select,
+.record-shell input,
+.record-shell select,
+.bootstrap-wizard select {
+  font: inherit;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-canvas);
+  color: var(--color-text-primary);
+  min-block-size: var(--tap-min);
+  inline-size: 100%;
+}
+
+.home-screen select:disabled,
+.record-shell select:disabled,
+.bootstrap-wizard select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.home-screen .ui-field {
+  margin-bottom: 0;
+}

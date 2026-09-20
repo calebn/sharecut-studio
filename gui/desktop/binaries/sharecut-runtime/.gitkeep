@@ -1,0 +1,2 @@
+# Populated by scripts/build_sidecar.py (CPython + venv + web-dist). Keep this
+# placeholder so `tauri build` can list the resource even before a freeze.

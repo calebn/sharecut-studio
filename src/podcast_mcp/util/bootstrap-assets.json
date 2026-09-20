@@ -1,0 +1,43 @@
+{
+  "$schema": "./bootstrap-assets.schema.json",
+  "version": 1,
+  "cdn_base_env": "PODCAST_BOOTSTRAP_CDN_BASE",
+  "cdn_base_default": null,
+  "assets": {
+    "whisper-base": {
+      "kind": "huggingface",
+      "repo": "Systran/faster-whisper-base",
+      "revision": "main",
+      "license": "MIT",
+      "cdn_prefix": "models/whisper-base",
+      "notes": "Pin to a commit SHA before shipping consumer builds; keep LICENSE in the mirror."
+    },
+    "whisper-large-v3-turbo": {
+      "kind": "huggingface",
+      "repo": "Systran/faster-whisper-large-v3-turbo",
+      "revision": "main",
+      "license": "MIT",
+      "cdn_prefix": "models/whisper-large-v3-turbo",
+      "notes": "Product default; pin revision + per-file sha256 in funnel mirror before consumer SLA."
+    },
+    "rnnoise": {
+      "kind": "http",
+      "url": "https://raw.githubusercontent.com/GregorR/rnnoise-models/master/somnolent-hogwash-2018-09-01/sh.rnnn",
+      "revision_note": "Prefer a commit-pinned raw URL before production mirror",
+      "license": "BSD-style (RNNoise)",
+      "cdn_prefix": "models/rnnoise",
+      "filename": "somnolent-hogwash.rnnn"
+    },
+    "ffmpeg": {
+      "kind": "static-ffmpeg",
+      "license": "LGPL/GPL (build-dependent)",
+      "cdn_prefix": "bin/ffmpeg",
+      "notes": "Mirror platform static builds + license notices under bin/ffmpeg/{darwin-arm64,darwin-x64,windows-x64,linux-x64}/. Runtime skips CDN until sha256_by_platform pins exist for this host. Do not rely on PyPI static-ffmpeg alone for consumer SLA."
+    }
+  },
+  "fallback": {
+    "whisper": "huggingface_hub / faster-whisper default download",
+    "rnnoise": "GitHub raw URL via util.model_assets",
+    "ffmpeg": "system PATH then util.binaries.bootstrap_ffmpeg"
+  }
+}

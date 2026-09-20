@@ -1,0 +1,449 @@
+/* Responsive shells — phone / tablet / desktop focus (docs/gui-mobile.md) */
+
+.timeline-area {
+  position: relative;
+}
+
+.timeline-area--fixed-playhead .playhead--fixed {
+  position: absolute;
+  /* Header-aware center: measured sticky gutter, else 50% of the time column. */
+  inset-inline-start: calc(
+    var(--timeline-header-offset, 0) +
+    (100% - var(--timeline-header-offset, 0)) /
+    2
+  );
+  inset-block: 0;
+  inline-size: 0.125rem;
+  /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- user-approved: playhead half-width center offset */
+  margin-inline-start: -0.0625rem;
+  background: var(--playhead);
+  z-index: var(--z-playhead);
+  pointer-events: none;
+}
+
+/* Desktop focus modes */
+.daw-shell--focus-timeline {
+  grid-template-rows: var(--transport-height) 1fr 0 var(--status-height);
+}
+
+.daw-shell--focus-timeline .bottom-tabs {
+  display: none;
+}
+
+.daw-shell--focus-text {
+  grid-template-rows: var(--transport-height) minmax(7.5rem, 28vh) 1fr var(
+      --status-height
+    );
+}
+
+.daw-shell--focus-review {
+  grid-template-rows: var(--transport-height) minmax(7.5rem, 32vh) 1fr var(
+      --status-height
+    );
+}
+
+.daw-shell--focus-text .daw-main .inspector,
+.daw-shell--focus-review .daw-main .inspector {
+  display: none;
+}
+
+.daw-shell--focus-text .daw-main,
+.daw-shell--focus-review .daw-main {
+  grid-template-columns: var(--header-width) 1fr 0;
+}
+
+.daw-shell--focus-text .daw-main--arrange,
+.daw-shell--focus-review .daw-main--arrange {
+  grid-template-columns: 1fr 0;
+}
+
+/* Transport overflow / declutter */
+.transport--compact h1 {
+  max-width: 28vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-small);
+}
+
+.transport-overflow {
+  margin-left: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  position: relative;
+}
+
+.transport-more-btn,
+.focus-mode-btn {
+  background: var(--bg-lane);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: var(--space-1) var(--space-05);
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  min-width: 2.25rem;
+  min-height: 2rem;
+}
+
+.transport-overflow-menu {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  right: 0;
+  z-index: var(--z-sheet);
+  min-width: 13.75rem;
+  min-height: 0;
+  padding: var(--space-05);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  box-shadow: 0 0.5rem 1.5rem var(--shadow);
+}
+
+/* Status bar: hide low-priority chips when the shell is narrow */
+@container app (inline-size < 56.25rem) {
+  .status-bar {
+    gap: var(--space-05);
+  }
+
+  .status-bar-secondary {
+    display: none;
+  }
+}
+
+.status-chip {
+  /* Interaction paint from .ui-control; link-style chip */
+  background: transparent;
+  border-color: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 500;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 0.125rem;
+  white-space: nowrap;
+}
+
+.status-chip.warning {
+  color: var(--warning);
+  text-decoration: none;
+}
+
+.status-bar .status-chip {
+  color: var(--text-dim);
+}
+
+.snap-guide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px dashed var(--accent);
+  pointer-events: none;
+  z-index: var(--z-overlay);
+  opacity: 0.85;
+}
+
+.clip-block.fade-dragging {
+  outline: 1px solid var(--color-accent-strong);
+}
+
+.fade-handle.end {
+  right: -0.5rem;
+}
+
+.fade-handle.start {
+  left: -0.5rem;
+}
+
+.envelope-overlay .envelope-svg circle {
+  /* stylelint-disable-next-line meowtec/no-px -- user-approved: canvas envelope hit stroke */
+  stroke-width: 12px;
+  stroke: transparent;
+  paint-order: stroke fill;
+}
+
+/* Tablet — peek band ~40–45% of space below transport/status (docs/gui-mobile.md).
+ * Cap against remaining dvh so transport + main + tabs + status never exceed the viewport.
+ * Set on html so portaled sheets inherit the same --tabs-height as the shell grid. */
+html[data-shell="tablet"] {
+  --tabs-height: min(
+    28rem,
+    42dvh,
+    calc((100dvh - var(--transport-height) - var(--status-height)) * 0.45)
+  );
+}
+
+/* Short viewport: prefer timeline; shrink tabs (media so portaled sheets match). */
+/* stylelint-disable-next-line media-feature-name-disallowed-list -- user-approved: tablet short viewport for portaled sheets */
+@media (max-height: 40rem) {
+  html[data-shell="tablet"] {
+    --tabs-height: min(
+      12.5rem,
+      calc((100dvh - var(--transport-height) - var(--status-height)) * 0.38)
+    );
+  }
+}
+
+/* Tablet — empty-session grid only; arrange --header-width comes from @container timeline. */
+.daw-shell--tablet .daw-main {
+  grid-template-columns: minmax(6.25rem, 8.75rem) 1fr;
+}
+
+.daw-shell--tablet .daw-main:not(.daw-main--arrange) .track-headers {
+  --header-width: 8.75rem;
+}
+
+.daw-shell--tablet .daw-main--arrange {
+  grid-template-columns: 1fr;
+}
+
+/* Phone shell */
+.daw-shell--phone {
+  grid-template-rows: var(--transport-height) minmax(0, 1fr) var(
+      --mobile-nav-height
+    );
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+}
+
+.daw-shell--phone.daw-shell-guest {
+  grid-template-rows: auto var(--transport-height) minmax(0, 1fr) var(
+      --mobile-nav-height
+    );
+}
+
+.daw-shell--phone.daw-shell--following {
+  grid-template-rows: auto var(--transport-height) minmax(0, 1fr) var(
+      --mobile-nav-height
+    );
+}
+
+.daw-shell--phone.daw-shell-guest.daw-shell--following {
+  grid-template-rows: auto auto var(--transport-height) minmax(0, 1fr) var(
+      --mobile-nav-height
+    );
+}
+
+/* Listen owns its transport, so the shell has no header row to reserve. */
+.daw-shell--phone.daw-shell--listen {
+  grid-template-rows: minmax(0, 1fr) var(--mobile-nav-height);
+}
+
+.daw-shell--phone.daw-shell--listen.daw-shell-guest,
+.daw-shell--phone.daw-shell--listen.daw-shell--following {
+  grid-template-rows: auto minmax(0, 1fr) var(--mobile-nav-height);
+}
+
+.daw-shell--phone.daw-shell--listen.daw-shell-guest.daw-shell--following {
+  grid-template-rows: auto auto minmax(0, 1fr) var(--mobile-nav-height);
+}
+
+.daw-shell--phone .transport-secondary {
+  display: none;
+}
+
+/* Phone gutter always shows › even if the timeline pane is ≥30rem wide. */
+.daw-shell--phone .track-header-disclose {
+  display: inline-block;
+}
+
+.mobile-mode-body {
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-nav {
+  display: flex;
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
+  min-height: var(--mobile-nav-height);
+  position: relative;
+  z-index: var(--z-shell-chrome);
+}
+
+.mobile-nav button {
+  flex: 1;
+  min-height: 2.75rem;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mobile-nav button.active {
+  color: var(--accent);
+  box-shadow: inset 0 -0.125rem 0 var(--accent);
+}
+
+.mobile-listen {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.mobile-listen-transport {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.mobile-play-lg {
+  min-width: 4.5rem;
+  min-height: 2.75rem;
+  font-size: var(--font-size-emphasis);
+}
+
+.mobile-scrub {
+  width: 100%;
+  min-height: 2rem;
+}
+
+.mobile-nudge {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.mobile-nudge button {
+  min-height: 2.5rem;
+  min-width: 4rem;
+  background: var(--bg-lane);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.mobile-status-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.mobile-status-chips .status-pipeline {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.mobile-comment-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.mobile-comment-list-head h2 {
+  margin: 0;
+  font-size: var(--font-size-body);
+}
+
+.mobile-comment-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.mobile-comment-row {
+  display: flex;
+  gap: var(--space-05);
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  padding: var(--space-4) var(--space-1);
+  cursor: pointer;
+  min-height: 2.75rem;
+}
+
+.mobile-comment-time {
+  flex: 0 0 auto;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-caption);
+  color: var(--text-dim);
+}
+
+.mobile-comment-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.mobile-empty {
+  color: var(--text-dim);
+  font-size: var(--font-size-ui);
+}
+
+.mobile-timeline-mode {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  height: 100%;
+}
+
+.mobile-timeline-mode .timeline-area {
+  flex: 1;
+  min-height: 0;
+}
+
+.mobile-text-mode,
+.mobile-more-mode {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-back {
+  align-self: flex-start;
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-size: var(--font-size-ui);
+  font-weight: 600;
+  padding: var(--space-3) 0;
+  cursor: pointer;
+  min-height: 2.5rem;
+}
+
+.mobile-more-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.mobile-more-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: var(--bg-lane);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius-md);
+  padding: var(--space-45) var(--space-4);
+  margin-bottom: var(--space-3);
+  font-size: var(--font-size-emphasis);
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 3rem;
+}
+
+.mobile-more-settings {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}

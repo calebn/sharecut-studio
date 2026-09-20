@@ -1,0 +1,218 @@
+import { act, renderHook } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { subscribeRecordSignal } from "./monitor/signalBus";
+import { useRecordSync } from "./useRecordSync";
+
+const loadRecordParticipant = vi.fn();
+const saveRecordParticipant = vi.fn();
+const clearRecordParticipant = vi.fn();
+
+vi.mock("../state/offlineStore", () => ({
+  loadRecordParticipant: (...args: unknown[]) => loadRecordParticipant(...args),
+  saveRecordParticipant: (...args: unknown[]) => saveRecordParticipant(...args),
+  clearRecordParticipant: (...args: unknown[]) =>
+    clearRecordParticipant(...args),
+}));
+
+class FakeWebSocket {
+  static OPEN = 1;
+  static instances: FakeWebSocket[] = [];
+  readyState = FakeWebSocket.OPEN;
+  onopen: (() => void) | null = null;
+  onmessage: ((ev: { data: string }) => void) | null = null;
+  onclose: (() => void) | null = null;
+  url: string;
+  sent: string[] = [];
+
+  constructor(url: string) {
+    this.url = url;
+    FakeWebSocket.instances.push(this);
+    queueMicrotask(() => this.onopen?.());
+  }
+
+  send(data: string) {
+    this.sent.push(data);
+  }
+
+  close() {
+    this.onclose?.();
+  }
+
+  emit(msg: unknown) {
+    this.onmessage?.({ data: JSON.stringify(msg) });
+  }
+}
+
+describe("useRecordSync", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    FakeWebSocket.instances = [];
+    loadRecordParticipant.mockReset();
+    saveRecordParticipant.mockReset();
+    clearRecordParticipant.mockReset();
+    loadRecordParticipant.mockResolvedValue(undefined);
+    saveRecordParticipant.mockResolvedValue(undefined);
+    clearRecordParticipant.mockResolvedValue(undefined);
+    vi.stubGlobal("WebSocket", FakeWebSocket as unknown as typeof WebSocket);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("sends Join and caches the Echo lease", async () => {
+    const { result } = renderHook(() => useRecordSync("tok", "Ava"));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const ws = FakeWebSocket.instances[0];
+    expect(JSON.parse(ws.sent[0] || "{}").command_type).toBe("Join");
+    await act(async () => {
+      ws.emit({
+        type: "Echo",
+        plane: "record",
+        participant_id: "p_g",
+        lease: "abc",
+      });
+      ws.emit({
+        type: "Snapshot",
+        plane: "record",
+        snapshot: {
+          session_id: "room1",
+          state: "lobby",
+          take_index: -1,
+          participants: [
+            {
+              participant_id: "p_g",
+              role: "guest",
+              display_name: "Ava",
+              connected: true,
+              consented: null,
+              muted: false,
+              headphones_ack: false,
+            },
+          ],
+          caps: { recorded: 4, producers: 2 },
+        },
+      });
+    });
+    expect(saveRecordParticipant).toHaveBeenCalledWith("tok", {
+      participant_id: "p_g",
+      lease: "abc",
+    });
+    expect(result.current.me?.display_name).toBe("Ava");
+  });
+
+  it("resends cached participant ids on reconnect Join", async () => {
+    loadRecordParticipant.mockResolvedValue({
+      participant_id: "p_g",
+      lease: "abc",
+    });
+    renderHook(() => useRecordSync("tok", "Ava"));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const payload = JSON.parse(FakeWebSocket.instances[0].sent[0] || "{}")
+      .payload as { participant_id?: string; lease?: string };
+    expect(payload.participant_id).toBe("p_g");
+    expect(payload.lease).toBe("abc");
+  });
+
+  it("reconnects after lease_in_use", async () => {
+    vi.useFakeTimers();
+    try {
+      renderHook(() => useRecordSync("tok", "Ava"));
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      const first = FakeWebSocket.instances[0];
+      await act(async () => {
+        first.emit({ type: "Error", code: "lease_in_use" });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      expect(FakeWebSocket.instances.length).toBeGreaterThan(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("clears a forbidden lease and rejoins without it", async () => {
+    vi.useFakeTimers();
+    loadRecordParticipant.mockResolvedValue({
+      participant_id: "p_g",
+      lease: "stale",
+    });
+    try {
+      renderHook(() => useRecordSync("tok", "Ava"));
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      const first = FakeWebSocket.instances[0];
+      expect(
+        JSON.parse(first.sent[0] || "{}").payload as { lease?: string },
+      ).toMatchObject({ lease: "stale" });
+      await act(async () => {
+        first.emit({ type: "Error", code: "forbidden" });
+      });
+      expect(clearRecordParticipant).toHaveBeenCalledWith("tok");
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      const second = FakeWebSocket.instances[1];
+      const payload = JSON.parse(second.sent[0] || "{}").payload as {
+        lease?: string;
+      };
+      expect(payload.lease).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("persists Join client_seq across remounts", async () => {
+    const { unmount } = renderHook(() => useRecordSync("tok", "Ava"));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(
+      JSON.parse(FakeWebSocket.instances[0].sent[0] || "{}").client_seq,
+    ).toBe(1);
+    unmount();
+    renderHook(() => useRecordSync("tok", "Ava"));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const second = FakeWebSocket.instances[1];
+    expect(JSON.parse(second.sent[0] || "{}").client_seq).toBe(2);
+  });
+
+  it("emits inbound Signal frames on the record bus", async () => {
+    const got: string[] = [];
+    const stop = subscribeRecordSignal((msg) => {
+      got.push(msg.to);
+    });
+    renderHook(() => useRecordSync("tok", "Ava"));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      FakeWebSocket.instances[0]?.emit({
+        type: "Signal",
+        plane: "record",
+        from: "p_host",
+        to: "p_g",
+        description: { type: "offer", sdp: "v=0" },
+      });
+    });
+    expect(got).toEqual(["p_g"]);
+    stop();
+  });
+});

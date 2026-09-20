@@ -1,0 +1,257 @@
+/* Inspector / modifier chrome */
+.inspector {
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  padding: var(--space-4);
+  overflow: auto;
+}
+
+.modifier-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-05);
+}
+
+.inspector.modifier-inspector {
+  overflow: hidden;
+  min-height: 0;
+  height: 100%;
+}
+
+.inspector.modifier-inspector--embedded {
+  height: auto;
+  overflow: auto;
+}
+
+.modifier-header {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-05);
+  align-items: flex-start;
+}
+
+.modifier-badge {
+  flex: 0 0 auto;
+  font-size: var(--font-size-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  padding: var(--space-0) var(--space-2);
+  margin-top: var(--space-0);
+}
+
+.modifier-titles h2 {
+  margin: 0;
+}
+
+.modifier-subtitle {
+  margin: var(--space-0) 0 0;
+  font-size: var(--font-size-small);
+  color: var(--text-dim);
+}
+
+.modifier-primary-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.modifier-action {
+  font-size: var(--font-size-small);
+  padding: var(--space-1) var(--space-05);
+}
+
+.modifier-action.primary {
+  border-color: var(--accent);
+}
+
+.modifier-action.danger {
+  color: var(--danger);
+}
+
+.modifier-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.modifier-error {
+  flex: 0 1 auto;
+  min-height: 2.75rem;
+  max-height: 8rem;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+
+.modifier-footer {
+  flex: 0 0 auto;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.modifier-footer-actions {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.track-sheet-mixer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.track-sheet-gain {
+  margin: 0;
+  font-size: var(--font-size-small);
+  color: var(--text-dim);
+}
+
+.pending-ask-thread {
+  margin-top: var(--space-4);
+  min-height: 0;
+}
+
+.pending-ask-thread h3 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-body);
+}
+
+.pending-ask-list {
+  list-style: none;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+}
+
+.nudge-fields {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.nudge-fields input {
+  width: 5.5rem;
+  font-size: var(--font-size-small);
+}
+
+.fx-chain-list {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.fx-chain-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-overlay-white-08);
+  border-radius: var(--radius-md);
+}
+
+.fx-chain-item.bypassed {
+  opacity: 0.55;
+}
+
+.fx-chain-item.bypassed .fx-chain-name {
+  text-decoration: line-through;
+}
+
+.fx-chain-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.fx-chain-name {
+  display: block;
+  font-weight: 600;
+  font-size: var(--font-size-small);
+}
+
+.fx-chain-params {
+  display: block;
+  font-size: var(--font-size-micro);
+  opacity: 0.75;
+  word-break: break-all;
+}
+
+.fx-bypass-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-caption);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.fx-bypass-readonly {
+  font-size: var(--font-size-caption);
+  opacity: 0.7;
+}
+
+.inspector-body {
+  white-space: pre-wrap;
+  margin: var(--space-3) 0;
+}
+
+.inspector-actions {
+  margin: 0;
+  padding-left: var(--space-5);
+}
+
+.inspector-actions.interactive {
+  list-style: none;
+  padding-left: 0;
+}
+
+.inspector-actions.interactive label {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.inspector-actions .done {
+  color: var(--text-dim);
+  text-decoration: line-through;
+}
+
+.playhead {
+  position: absolute;
+  top: 0;
+  width: 0.125rem;
+  background: var(--playhead);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.inspector h2 {
+  font-size: var(--font-size-ui);
+  margin: 0 0 var(--space-3);
+}
+
+.inspector dl {
+  margin: 0;
+}
+
+.inspector dt {
+  color: var(--text-dim);
+  font-size: var(--font-size-caption);
+  margin-top: var(--space-3);
+}
+
+.inspector dd {
+  margin: var(--space-0) 0 0;
+  font-family: ui-monospace, monospace;
+  font-size: var(--font-size-small);
+}

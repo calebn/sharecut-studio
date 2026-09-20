@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# FOSS / contributor sidecar launcher for Tauri.
+# Production builds replace this with a frozen Python entrypoint named sharecut-sidecar.
+# The Tauri host spawns this binary with no extra args (flags are embedded below).
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$ROOT"
+if command -v uv >/dev/null 2>&1; then
+  exec uv run podcast gui --host 127.0.0.1 --port 8765 --no-open "$@"
+fi
+if command -v podcast >/dev/null 2>&1; then
+  exec podcast gui --host 127.0.0.1 --port 8765 --no-open "$@"
+fi
+echo "Sharecut Studio sidecar: install podcast-mcp (uv sync --extra gui) or put podcast on PATH" >&2
+exit 1

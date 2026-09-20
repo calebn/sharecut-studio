@@ -1,0 +1,5 @@
+{
+  "hum_in_window": { "min_precision": 1.0, "min_recall": 1.0 },
+  "clipping_in_window": { "min_precision": 1.0, "min_recall": 1.0 },
+  "notes": "By-construction defect injection. Tune if detector thresholds change."
+}

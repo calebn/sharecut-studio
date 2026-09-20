@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sudo.science/schemas/capabilities.manifest.schema.json",
+  "title": "Podcast MCP capabilities manifest",
+  "type": "object",
+  "required": ["api_version", "capabilities"],
+  "additionalProperties": false,
+  "properties": {
+    "api_version": { "type": "integer", "minimum": 1 },
+    "description": { "type": "string" },
+    "hub_skills": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "untracked_mcp": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "capabilities": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/capability" }
+    }
+  },
+  "$defs": {
+    "capability": {
+      "type": "object",
+      "required": ["id", "label", "surfaces"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "label": { "type": "string" },
+        "tooltip": { "type": "string", "minLength": 1 },
+        "tooltip_pressed": { "type": "string", "minLength": 1 },
+        "toggle": { "type": "boolean" },
+        "service": { "type": "string" },
+        "industry_standard_key": { "type": "boolean" },
+        "gates": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "surfaces": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "command": { "type": "string" },
+            "gui": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "keyboard": { "type": ["string", "null"] },
+            "mcp": {
+              "oneOf": [
+                { "type": "string" },
+                { "type": "array", "items": { "type": "string" } }
+              ]
+            },
+            "cli": { "type": "string" },
+            "skill": {
+              "oneOf": [
+                { "type": "string" },
+                { "type": "array", "items": { "type": "string" } }
+              ]
+            }
+          }
+        },
+        "omit": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "guest": {
+              "type": "boolean",
+              "description": "Documentation-only Host-only column on the capabilities catalog. Not the runtime share ACL (edits/share_capabilities.py has_capability)."
+            },
+            "keyboard_reason": { "type": ["string", "null"] }
+          }
+        },
+        "presence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cursor", "follow"],
+          "properties": {
+            "cursor": { "enum": ["anchor", "time", "none"] },
+            "follow": { "enum": ["look", "hear", "none"] },
+            "guest_fallback": { "enum": ["banner", "hide"] },
+            "anchor": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.:<>-]*$"
+            }
+          }
+        }
+      }
+    }
+  }
+}

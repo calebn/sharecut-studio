@@ -1,0 +1,17 @@
+:8080 {
+	@relay path /healthz /llms.txt /tunnel /r/* /rec/* /api* /mcp* /auth*
+	handle @relay {
+		reverse_proxy podcast-relay:8081
+	}
+
+	respond "Not Found" 404
+
+	log {
+		format filter {
+			wrap console
+			fields {
+				request>uri regexp ^(/r/|/rec/|/mcp/|/api/review/|/api/rec/|/api/mcp/)[^/]+ /$1REDACTED
+			}
+		}
+	}
+}

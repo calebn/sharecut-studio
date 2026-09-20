@@ -1,0 +1,783 @@
+# Reusable Sharecut Studio installer build (Linux AppImage, Windows NSIS,
+# macOS Intel DMG). Secret-guarded signing: Apple Developer ID + notarization
+# and Windows Authenticode run only when `inputs.sign` is true *and* the
+# matching secrets are non-empty. Forks and unsigned dogfood dispatches skip
+# those steps. Artifact names are identical signed or not.
+#
+# Called by a private funnel repo — see
+# docs/desktop-packaging.md § CI signing funnel.
+#
+# Never store cert/key material in this FOSS tree. Declare secret *names* only.
+#
+# Intel runner label: https://docs.github.com/en/actions/reference/runners/github-hosted-runners
+# (`macos-15-intel` is x86_64; last Intel image through Aug 2027). Do not
+# freeze under Rosetta on an arm64 runner and call it x64.
+
+name: release-desktop-build
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Informational version label (bundle version stays tauri.conf.json)
+        type: string
+        required: false
+        default: ""
+      sign:
+        description: Sign macOS/Windows when the matching secrets are present
+        type: boolean
+        required: false
+        default: false
+      source_repository:
+        description: owner/name to checkout (empty = caller repository)
+        type: string
+        required: false
+        default: ""
+      source_ref:
+        description: Git ref to checkout (empty = caller github.sha)
+        type: string
+        required: false
+        default: ""
+      distribution_profile_json:
+        description: Validated public distribution profile JSON (empty = checked-in dev profile)
+        type: string
+        required: false
+        default: ""
+      extension_artifact_name:
+        description: Private artifact containing an extension wheel (empty = no extension runtime)
+        type: string
+        required: false
+        default: ""
+      extension_wheel_sha256:
+        description: SHA-256 of the private extension wheel (required with extension artifact)
+        type: string
+        required: false
+        default: ""
+    secrets:
+      SOURCE_REPOSITORY_SSH_KEY:
+        description: Optional read-only deploy key for the checked-out source repository
+        required: false
+      APPLE_SIGNING_IDENTITY:
+        description: Developer ID Application identity name (not a cert blob)
+        required: false
+      APPLE_CERTIFICATE:
+        description: Base64 PKCS#12 of the Developer ID Application certificate
+        required: false
+      APPLE_CERTIFICATE_PASSWORD:
+        description: Password for APPLE_CERTIFICATE
+        required: false
+      APPLE_TEAM_ID:
+        description: Apple Team ID
+        required: false
+      APPLE_API_KEY:
+        description: App Store Connect API key id (AuthKey_<id>.p8)
+        required: false
+      APPLE_API_ISSUER:
+        description: App Store Connect API issuer UUID
+        required: false
+      APPLE_API_KEY_P8:
+        description: Base64 contents of the App Store Connect .p8
+        required: false
+      WINDOWS_SIGN_CERT_PFX_B64:
+        description: Base64 Authenticode PFX (OV/EV)
+        required: false
+      WINDOWS_SIGN_CERT_PASSWORD:
+        description: Password for WINDOWS_SIGN_CERT_PFX_B64
+        required: false
+# Default read-only. Bundle jobs never push. Secret *values* are never echoed
+# (set +x on those steps).
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify-source:
+    name: verify-source-trust
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      source_repository: ${{ steps.source.outputs.repository }}
+      source_sha: ${{ steps.verify.outputs.source_sha }}
+      trusted: ${{ steps.verify.outputs.trusted }}
+    steps:
+      - name: Validate source coordinates
+        id: source
+        env:
+          SOURCE_REPOSITORY: ${{ inputs.source_repository }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+        run: |
+          set -euo pipefail
+          repository="${SOURCE_REPOSITORY:-$GITHUB_REPOSITORY}"
+          ref="${SOURCE_REF:-$GITHUB_SHA}"
+          if [[ "$repository" != "calebn/sharecut-studio" ]]; then
+            echo "::error::source repository must be calebn/sharecut-studio" >&2
+            exit 1
+          fi
+          if [[ ! "$ref" =~ ^[a-fA-F0-9]{40}$ ]]; then
+            echo "::error::source ref must be a 40-character commit SHA" >&2
+            exit 1
+          fi
+          {
+            printf 'repository=%s\n' "$repository"
+            printf 'ref=%s\n' "$ref"
+          } >> "$GITHUB_OUTPUT"
+
+      # Checkout itself does not execute repository files. The following inline step
+      # verifies the checked-out SHA before any script, package manager, or secret use.
+      - name: Checkout candidate source
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ steps.source.outputs.repository }}
+          ref: ${{ steps.source.outputs.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+          ssh-key: ${{ secrets.SOURCE_REPOSITORY_SSH_KEY }}
+
+      - name: Verify source reachable from protected main
+        id: verify
+        run: |
+          set -euo pipefail
+          candidate="$(git rev-parse HEAD)"
+          # fetch-depth: 0 populated origin/main during checkout while the
+          # read-only deploy key was available. Do not perform authenticated
+          # Git operations after checkout removes that credential.
+          git show-ref --verify --quiet refs/remotes/origin/main
+          trusted=false
+          if git merge-base --is-ancestor "$candidate" origin/main; then
+            trusted=true
+          fi
+          {
+            printf 'source_sha=%s\n' "$candidate"
+            printf 'trusted=%s\n' "$trusted"
+          } >> "$GITHUB_OUTPUT"
+
+  # A private wheel can execute while pip installs it. This job intentionally has
+  # no environment, secrets, or GitHub token permissions. It emits prepared
+  # runtime bytes; credentialed jobs below do not install or import the wheel.
+  prepare-extension-runtime:
+    name: prepare-extension-${{ matrix.name }}
+    if: inputs.extension_artifact_name != ''
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    needs: verify-source
+    permissions: {}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            name: linux
+            bundle: appimage
+            triple: x86_64-unknown-linux-gnu
+          - os: windows-latest
+            name: windows
+            bundle: nsis
+            triple: x86_64-pc-windows-msvc
+          - os: macos-15-intel
+            name: macos-intel
+            bundle: app
+            triple: x86_64-apple-darwin
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: ${{ needs.verify-source.outputs.source_repository }}
+          ref: ${{ needs.verify-source.outputs.source_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          ssh-key: ${{ secrets.SOURCE_REPOSITORY_SSH_KEY }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            gui/web/package-lock.json
+            gui/desktop/package-lock.json
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download private extension wheel
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.extension_artifact_name }}
+          path: ${{ runner.temp }}/extension-wheels
+
+      - name: Verify private extension wheel integrity
+        env:
+          EXPECTED_EXTENSION_WHEEL_SHA256: ${{ inputs.extension_wheel_sha256 }}
+          EXTENSION_WHEELS_DIR: ${{ runner.temp }}/extension-wheels
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import hmac
+          import os
+          from pathlib import Path
+
+          expected = os.environ["EXPECTED_EXTENSION_WHEEL_SHA256"].strip().lower()
+          wheel_dir = Path(os.environ["EXTENSION_WHEELS_DIR"])
+          wheels = sorted(path for path in wheel_dir.iterdir() if path.is_file() and path.suffix == ".whl")
+          nested_wheels = sorted(path for path in wheel_dir.rglob("*.whl") if path.parent != wheel_dir)
+          if len(expected) != 64 or any(char not in "0123456789abcdef" for char in expected):
+              raise SystemExit("extension_wheel_sha256 must be a SHA-256 hex digest")
+          if len(wheels) != 1 or nested_wheels:
+              raise SystemExit("extension artifact must contain exactly one top-level wheel")
+          digest = hashlib.sha256(wheels[0].read_bytes()).hexdigest()
+          if not hmac.compare_digest(digest, expected):
+              raise SystemExit("private extension wheel integrity check failed")
+          PY
+
+      - name: Build Sharecut Studio web dist
+        working-directory: gui/web
+        run: |
+          npm ci
+          npm run build
+
+      - name: Freeze extension sidecar without credentials
+        run: |
+          export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
+          rustc --version
+          python scripts/build_sidecar.py \
+            --extension-wheels-dir "${RUNNER_TEMP}/extension-wheels"
+
+      - name: Stage prepared extension sidecar
+        env:
+          PREPARED_SIDECAR_STAGE: ${{ runner.temp }}/prepared-extension-sidecar
+          PREPARED_RUNTIME_BUNDLE: ${{ matrix.bundle }}
+        run: |
+          set -euo pipefail
+          stage="$PREPARED_SIDECAR_STAGE"
+          mkdir -p "$stage"
+          cp -R gui/desktop/binaries/sharecut-runtime "$stage/sharecut-runtime"
+          cp "gui/desktop/binaries/sharecut-sidecar-${{ matrix.triple }}"* "$stage/"
+          python3 - <<'PY'
+          import json
+          import os
+          from importlib.metadata import distributions
+          from pathlib import Path
+
+          stage = Path(os.environ["PREPARED_SIDECAR_STAGE"])
+          runtime = stage / "sharecut-runtime"
+          if os.environ["PREPARED_RUNTIME_BUNDLE"] == "nsis":
+              site_packages = runtime / "venv" / "Lib" / "site-packages"
+          else:
+              candidates = sorted((runtime / "venv" / "lib").glob("python*/site-packages"))
+              if len(candidates) != 1:
+                  raise SystemExit("prepared runtime must contain exactly one site-packages directory")
+              site_packages = candidates[0]
+          entry_points = sorted(
+              f"{entry.name}={entry.value}"
+              for distribution in distributions(path=[str(site_packages)])
+              for entry in distribution.entry_points
+              if entry.group == "podcast_mcp.extensions"
+          )
+          if not entry_points:
+              raise SystemExit("prepared runtime contains no extension entry-point metadata")
+          (stage / "extension-entry-points.json").write_text(
+              json.dumps(entry_points, indent=2) + "\n", encoding="utf-8"
+          )
+          PY
+          archive_root="$RUNNER_TEMP"
+          if command -v cygpath >/dev/null 2>&1; then
+            archive_root="$(cygpath -u "$RUNNER_TEMP")"
+          fi
+          archive="${archive_root}/prepared-extension-sidecar.tar"
+          tar -C "$stage" -cf "$archive" .
+
+      - name: Upload prepared extension sidecar
+        uses: actions/upload-artifact@v7
+        with:
+          name: prepared-extension-sidecar-${{ matrix.bundle }}
+          # GitHub artifact ZIPs do not preserve executable modes, symlinks, or
+          # dotfiles. The platform-local tar does, including .freeze-complete.
+          path: ${{ runner.temp }}/prepared-extension-sidecar.tar
+          if-no-files-found: error
+          retention-days: 1
+
+  bundle:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    if: ${{ !cancelled() && needs.verify-source.result == 'success' && (inputs.extension_artifact_name == '' || needs.prepare-extension-runtime.result == 'success') }}
+    needs: [verify-source, prepare-extension-runtime]
+    permissions:
+      contents: read
+      actions: write
+    environment: ${{ needs.verify-source.outputs.trusted == 'true' && inputs.sign && matrix.bundle != 'appimage' && 'desktop-signing' || '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            name: linux-appimage
+            bundle: appimage
+            triple: x86_64-unknown-linux-gnu
+            artifact: sharecut-linux-appimage
+            artifact_path: gui/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+          - os: windows-latest
+            name: windows-nsis
+            bundle: nsis
+            triple: x86_64-pc-windows-msvc
+            artifact: sharecut-windows-nsis
+            artifact_path: gui/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+          - os: macos-15-intel
+            name: macos-intel-dmg
+            bundle: app
+            triple: x86_64-apple-darwin
+            artifact: sharecut-macos-x64-dmg
+            artifact_path: gui/desktop/src-tauri/target/release/bundle/dmg/*.dmg
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # This runs before checkout and therefore cannot execute candidate source.
+      - name: Require trusted source for signing
+        if: ${{ inputs.sign && needs.verify-source.outputs.trusted != 'true' }}
+        run: |
+          set -euo pipefail
+          echo "::error::sign=true requires a source commit reachable from protected main" >&2
+          exit 1
+
+      - uses: actions/checkout@v6
+        with:
+          repository: ${{ needs.verify-source.outputs.source_repository }}
+          ref: ${{ needs.verify-source.outputs.source_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          ssh-key: ${{ secrets.SOURCE_REPOSITORY_SSH_KEY }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            gui/web/package-lock.json
+            gui/desktop/package-lock.json
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Configure distribution profile
+        env:
+          DISTRIBUTION_PROFILE_JSON: ${{ inputs.distribution_profile_json }}
+        run: |
+          set +x
+          set -euo pipefail
+          profile_path="${GITHUB_WORKSPACE}/config/distribution.dev.json"
+          if [[ -n "$DISTRIBUTION_PROFILE_JSON" ]]; then
+            profile_path="${RUNNER_TEMP}/distribution-profile.json"
+            printf '%s\n' "$DISTRIBUTION_PROFILE_JSON" > "$profile_path"
+          fi
+          overlay="${RUNNER_TEMP}/tauri-distribution.json"
+          compact_overlay="${RUNNER_TEMP}/tauri-distribution-compact.json"
+          unsigned_overlay="${RUNNER_TEMP}/tauri-distribution-unsigned.json"
+          python3 scripts/generate_distribution_config.py \
+            --profile "$profile_path" \
+            --output "$overlay"
+          python3 scripts/generate_distribution_config.py \
+            --profile "$profile_path" \
+            --output "$compact_overlay" \
+            --compact-product-name
+          python3 - "$overlay" "$unsigned_overlay" <<'PY'
+          import json
+          import sys
+
+          source, output = sys.argv[1:]
+          config = json.load(open(source, encoding="utf-8"))
+          config.setdefault("bundle", {}).setdefault("macOS", {})["signingIdentity"] = None
+          with open(output, "w", encoding="utf-8") as stream:
+              json.dump(config, stream, indent=2)
+              stream.write("\n")
+          PY
+          {
+            printf 'PODCAST_DISTRIBUTION_PROFILE=%s\n' "$profile_path"
+            printf 'PODCAST_DISTRIBUTION_TAURI_CONFIG=%s\n' "$overlay"
+            printf 'PODCAST_DISTRIBUTION_TAURI_COMPACT_CONFIG=%s\n' "$compact_overlay"
+            printf 'PODCAST_DISTRIBUTION_TAURI_UNSIGNED_CONFIG=%s\n' "$unsigned_overlay"
+          } >> "$GITHUB_ENV"
+
+      - name: Resolve signing flags
+        id: signing
+        if: ${{ needs.verify-source.outputs.trusted == 'true' && inputs.sign }}
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          WINDOWS_SIGN_CERT_PFX_B64: ${{ secrets.WINDOWS_SIGN_CERT_PFX_B64 }}
+          WINDOWS_SIGN_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGN_CERT_PASSWORD }}
+        run: |
+          set +x
+          set -euo pipefail
+          apple=no
+          windows=no
+          if [[ "${{ inputs.sign }}" == "true" ]]; then
+            if [[ -n "${APPLE_SIGNING_IDENTITY}" && -n "${APPLE_CERTIFICATE}" && -n "${APPLE_CERTIFICATE_PASSWORD}" && -n "${APPLE_TEAM_ID}" && -n "${APPLE_API_KEY}" && -n "${APPLE_API_ISSUER}" && -n "${APPLE_API_KEY_P8}" ]]; then
+              apple=yes
+            fi
+            if [[ -n "${WINDOWS_SIGN_CERT_PFX_B64}" && -n "${WINDOWS_SIGN_CERT_PASSWORD}" ]]; then
+              windows=yes
+            fi
+          fi
+          printf 'apple=%s\n' "$apple" >> "$GITHUB_OUTPUT"
+          printf 'windows=%s\n' "$windows" >> "$GITHUB_OUTPUT"
+
+      - name: Require signing when requested
+        run: |
+          set -euo pipefail
+          if [[ "${{ inputs.sign }}" != "true" ]]; then
+            exit 0
+          fi
+          case "${{ matrix.bundle }}" in
+            app)
+              if [[ "${{ steps.signing.outputs.apple }}" != "yes" ]]; then
+                echo "::error::sign=true but Apple signing secrets are incomplete on macOS" >&2
+                exit 1
+              fi
+              ;;
+            nsis)
+              if [[ "${{ steps.signing.outputs.windows }}" != "yes" ]]; then
+                echo "::error::sign=true but Windows signing secrets are incomplete" >&2
+                exit 1
+              fi
+              ;;
+          esac
+
+      - name: Require native Intel Mac
+        if: matrix.bundle == 'app'
+        run: |
+          arch="$(uname -m)"
+          if [[ "$arch" != "x86_64" ]]; then
+            echo "error: native Intel job got ${arch} — do not Rosetta-cross from arm64" >&2
+            exit 1
+          fi
+
+      - name: Linux WebKitGTK
+        if: matrix.bundle == 'appimage'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libssl-dev \
+            build-essential \
+            pkg-config \
+            libfuse2 \
+            file \
+            xdg-utils \
+            desktop-file-utils
+
+      - name: Build Sharecut Studio web dist
+        if: matrix.bundle != 'appimage'
+        working-directory: gui/web
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install desktop CLI
+        if: matrix.bundle != 'appimage'
+        working-directory: gui/desktop
+        run: npm ci
+
+      - name: Download prepared extension sidecar
+        if: inputs.extension_artifact_name != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: prepared-extension-sidecar-${{ matrix.bundle }}
+          path: ${{ runner.temp }}/prepared-extension-sidecar
+
+      - name: Restore prepared extension sidecar
+        if: inputs.extension_artifact_name != ''
+        run: |
+          set -euo pipefail
+          archive_root="$RUNNER_TEMP"
+          if command -v cygpath >/dev/null 2>&1; then
+            archive_root="$(cygpath -u "$RUNNER_TEMP")"
+          fi
+          archive="${archive_root}/prepared-extension-sidecar/prepared-extension-sidecar.tar"
+          test -f "$archive"
+          tar -C gui/desktop/binaries -xf "$archive"
+
+      # Read metadata only: never import extension code in this credentialed job.
+      - name: Verify prepared extension runtime
+        if: inputs.extension_artifact_name != ''
+        env:
+          PREPARED_RUNTIME_BUNDLE: ${{ matrix.bundle }}
+          PREPARED_RUNTIME_TRIPLE: ${{ matrix.triple }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from importlib.metadata import distributions
+          from pathlib import Path
+
+          binaries = Path("gui/desktop/binaries")
+          runtime = binaries / "sharecut-runtime"
+          bundle = os.environ["PREPARED_RUNTIME_BUNDLE"]
+          if not (runtime / ".freeze-complete").is_file():
+              raise SystemExit("prepared runtime is missing .freeze-complete")
+          if bundle == "nsis":
+              runtime_python = runtime / "venv" / "Scripts" / "python.exe"
+              site_packages = runtime / "venv" / "Lib" / "site-packages"
+          else:
+              runtime_python = runtime / "venv" / "bin" / "python"
+              candidates = sorted((runtime / "venv" / "lib").glob("python*/site-packages"))
+              if len(candidates) != 1:
+                  raise SystemExit("restored runtime must contain exactly one site-packages directory")
+              site_packages = candidates[0]
+          if not runtime_python.is_file():
+              raise SystemExit("prepared runtime interpreter is missing")
+          if bundle != "nsis" and not os.access(runtime_python, os.X_OK):
+              raise SystemExit("prepared runtime interpreter is not executable")
+          launchers = sorted(
+              binaries.glob(f"sharecut-sidecar-{os.environ['PREPARED_RUNTIME_TRIPLE']}*")
+          )
+          if len(launchers) != 1 or not launchers[0].is_file():
+              raise SystemExit("expected exactly one prepared sidecar launcher")
+          if bundle != "nsis" and not os.access(launchers[0], os.X_OK):
+              raise SystemExit("prepared sidecar launcher is not executable")
+          expected = json.loads(
+              (binaries / "extension-entry-points.json").read_text(encoding="utf-8")
+          )
+          actual = sorted(
+              f"{entry.name}={entry.value}"
+              for distribution in distributions(path=[str(site_packages)])
+              for entry in distribution.entry_points
+              if entry.group == "podcast_mcp.extensions"
+          )
+          if actual != expected:
+              raise SystemExit("restored extension entry-point metadata does not match preparation")
+          PY
+
+      - name: Import Apple signing material
+        if: ${{ needs.verify-source.outputs.trusted == 'true' && inputs.sign && matrix.bundle == 'app' && steps.signing.outputs.apple == 'yes' }}
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          set +x
+          set -euo pipefail
+          keychain_password="$(openssl rand -base64 32)"
+          keychain_path="${RUNNER_TEMP}/sharecut-signing.keychain-db"
+          cert_path="${RUNNER_TEMP}/sharecut-developer-id.p12"
+          p8_dir="${RUNNER_TEMP}/private_keys"
+          p8_path="${p8_dir}/AuthKey_${APPLE_API_KEY}.p8"
+          login_keychain="$(security default-keychain -d user | sed 's/"//g')"
+          {
+            printf 'KEYCHAIN_PATH=%s\n' "$keychain_path"
+            printf 'LOGIN_KEYCHAIN=%s\n' "$login_keychain"
+            printf 'APPLE_API_KEY_PATH=%s\n' "$p8_path"
+          } >> "$GITHUB_ENV"
+          cleanup_apple() {
+            security delete-keychain "$keychain_path" || true
+            if [[ -n "$login_keychain" ]]; then
+              security default-keychain -s "$login_keychain" || true
+              security list-keychains -d user -s "$login_keychain" || true
+            fi
+            rm -f "$cert_path" "$p8_path"
+          }
+          trap cleanup_apple ERR
+          mkdir -p "$p8_dir"
+          printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$cert_path"
+          printf '%s' "$APPLE_API_KEY_P8" | base64 --decode > "$p8_path"
+          chmod 600 "$cert_path" "$p8_path"
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          security import "$cert_path" -k "$keychain_path" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security -T /usr/bin/productbuild
+          security list-keychains -d user -s "$keychain_path" "$login_keychain"
+          security default-keychain -s "$keychain_path"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain_path"
+          {
+            printf 'APPLE_SIGNING_IDENTITY<<EOF\n'
+            printf '%s\n' "$APPLE_SIGNING_IDENTITY"
+            printf 'EOF\n'
+            printf 'APPLE_TEAM_ID<<EOF\n'
+            printf '%s\n' "$APPLE_TEAM_ID"
+            printf 'EOF\n'
+            printf 'APPLE_API_KEY<<EOF\n'
+            printf '%s\n' "$APPLE_API_KEY"
+            printf 'EOF\n'
+            printf 'APPLE_API_ISSUER<<EOF\n'
+            printf '%s\n' "$APPLE_API_ISSUER"
+            printf 'EOF\n'
+          } >> "$GITHUB_ENV"
+          rm -f "$cert_path"
+
+      - name: Freeze sidecar
+        if: matrix.bundle != 'appimage' && inputs.extension_artifact_name == ''
+        run: |
+          export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
+          rustc --version
+          python scripts/build_sidecar.py
+
+      - name: Sign prepared macOS runtime
+        if: ${{ needs.verify-source.outputs.trusted == 'true' && inputs.extension_artifact_name != '' && inputs.sign && matrix.bundle == 'app' && steps.signing.outputs.apple == 'yes' }}
+        run: python scripts/build_sidecar.py --codesign-only
+
+      - name: Sign Windows sidecar
+        if: ${{ needs.verify-source.outputs.trusted == 'true' && inputs.sign && matrix.bundle == 'nsis' && steps.signing.outputs.windows == 'yes' }}
+        env:
+          WINDOWS_SIGN_CERT_PFX_B64: ${{ secrets.WINDOWS_SIGN_CERT_PFX_B64 }}
+          WINDOWS_SIGN_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGN_CERT_PASSWORD }}
+        run: |
+          set +x
+          set -euo pipefail
+          shopt -s nullglob
+          files=(gui/desktop/binaries/sharecut-sidecar-*.exe)
+          if [[ ${#files[@]} -eq 0 ]]; then
+            echo "error: no sharecut-sidecar-*.exe to sign" >&2
+            exit 1
+          fi
+          ./scripts/sign_windows_authenticode.sh "${files[@]}"
+
+      - name: Tauri bundle (Windows NSIS)
+        if: matrix.bundle == 'nsis'
+        working-directory: gui/desktop
+        run: npm run tauri -- build --bundles nsis --config "$PODCAST_DISTRIBUTION_TAURI_COMPACT_CONFIG"
+
+      - name: Sign Windows NSIS installer
+        if: ${{ needs.verify-source.outputs.trusted == 'true' && inputs.sign && matrix.bundle == 'nsis' && steps.signing.outputs.windows == 'yes' }}
+        env:
+          WINDOWS_SIGN_CERT_PFX_B64: ${{ secrets.WINDOWS_SIGN_CERT_PFX_B64 }}
+          WINDOWS_SIGN_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGN_CERT_PASSWORD }}
+        run: |
+          set +x
+          set -euo pipefail
+          shopt -s nullglob
+          files=(gui/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe)
+          if [[ ${#files[@]} -eq 0 ]]; then
+            echo "error: no NSIS *_x64-setup.exe to sign" >&2
+            exit 1
+          fi
+          ./scripts/sign_windows_authenticode.sh "${files[@]}"
+
+      - name: Tauri bundle (macOS Intel app)
+        if: matrix.bundle == 'app'
+        working-directory: gui/desktop
+        env:
+          APPLE_SIGN_ENABLED: ${{ steps.signing.outputs.apple }}
+        run: |
+          set +x
+          if [[ "${APPLE_SIGN_ENABLED}" == "yes" ]]; then
+            npm run tauri -- build --bundles app --config "$PODCAST_DISTRIBUTION_TAURI_CONFIG"
+          else
+            npm run tauri -- build --bundles app --config "$PODCAST_DISTRIBUTION_TAURI_UNSIGNED_CONFIG"
+          fi
+
+      - name: Pack Intel DMG
+        if: matrix.bundle == 'app'
+        run: |
+          set +x
+          set -euo pipefail
+          shopt -s nullglob
+          mkdir -p gui/desktop/src-tauri/target/release/bundle/dmg
+          apps=(gui/desktop/src-tauri/target/release/bundle/macos/*.app)
+          if [[ ${#apps[@]} -ne 1 ]]; then
+            echo "::error::expected exactly one macOS app bundle, found ${#apps[@]}" >&2
+            exit 1
+          fi
+          ./scripts/pack_macos_dmg.sh "${apps[0]}"
+
+      - name: Verify Apple signature
+        if: ${{ matrix.bundle == 'app' && steps.signing.outputs.apple == 'yes' }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          apps=(gui/desktop/src-tauri/target/release/bundle/macos/*.app)
+          if [[ ${#apps[@]} -ne 1 ]]; then
+            echo "::error::expected exactly one macOS app bundle, found ${#apps[@]}" >&2
+            exit 1
+          fi
+          codesign --verify --deep --strict "${apps[0]}"
+
+      - name: Linux AppImage
+        if: matrix.bundle == 'appimage'
+        run: ./scripts/build_linux_appimage.sh
+
+      - name: Clean up Apple keychain
+        if: ${{ always() && matrix.bundle == 'app' }}
+        run: |
+          set +x
+          keychain_path="${KEYCHAIN_PATH:-${RUNNER_TEMP}/sharecut-signing.keychain-db}"
+          if [[ -n "${LOGIN_KEYCHAIN:-}" ]]; then
+            security default-keychain -s "$LOGIN_KEYCHAIN" || true
+            security list-keychains -d user -s "$LOGIN_KEYCHAIN" || true
+          fi
+          security delete-keychain "$keychain_path" || true
+          rm -f "${RUNNER_TEMP}/sharecut-developer-id.p12" \
+            "${RUNNER_TEMP}/sharecut-signing.keychain-db" \
+            "${APPLE_API_KEY_PATH:-}" \
+            "${RUNNER_TEMP}/private_keys"/AuthKey_*.p8 || true
+
+      - name: Clean up Windows signing material
+        if: ${{ always() && matrix.bundle == 'nsis' }}
+        run: |
+          set +x
+          rm -f "${RUNNER_TEMP}"/sharecut-authenticode*.pfx || true
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact_path }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Signing summary
+        if: always()
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          case "${{ matrix.bundle }}" in
+            app) intended="${{ steps.signing.outputs.apple }}" ;;
+            nsis) intended="${{ steps.signing.outputs.windows }}" ;;
+            *) intended=no ;;
+          esac
+          intended="${intended:-no}"
+          if [[ "$intended" != "yes" ]]; then
+            signed=no
+          elif [[ "${{ job.status }}" == "success" ]]; then
+            signed=yes
+          else
+            signed=attempted
+          fi
+          line="${{ matrix.name }}: signed: ${signed}"
+          echo "$line"
+          echo "$line" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "${{ matrix.bundle }}" == "nsis" && "$intended" == "yes" ]]; then
+            echo "windows payload exe: unsigned (NSIS + sidecar only)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [[ -n "$VERSION" ]]; then
+            printf 'version: %s\n' "$VERSION" >> "$GITHUB_STEP_SUMMARY"
+          fi

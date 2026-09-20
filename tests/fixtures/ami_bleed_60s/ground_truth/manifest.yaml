@@ -1,0 +1,33 @@
+source: AMI Meeting Corpus word timings + synthetic audio
+meeting: ES2002a
+slice_sec:
+- 120.0
+- 180.0
+license: CC BY 4.0
+bleed_events:
+- window:
+    start: 14.930000000000012
+    end: 15.589999999999998
+  duck:
+    into: host
+    gain_db: -30
+  inject:
+  - from: guest
+    into: host
+    gain_db: -8.0
+  - from: host
+    into: guest
+    gain_db: -24.0
+- window:
+    start: 19.949999999999996
+    end: 22.12999999999999
+  duck:
+    into: host
+    gain_db: -30
+  inject:
+  - from: guest
+    into: host
+    gain_db: -8.0
+  - from: host
+    into: guest
+    gain_db: -24.0

@@ -1,0 +1,127 @@
+{
+  "source": "openslr.org/31 dev-clean-2",
+  "license": "CC BY 4.0",
+  "utterance_count": 20,
+  "utterances": [
+    {
+      "id": "00_1272-135031-0000",
+      "audio": "audio/00_1272-135031-0000.flac",
+      "reference": "reference/00_1272-135031-0000.txt",
+      "text": "BECAUSE YOU WERE SLEEPING INSTEAD OF CONQUERING THE LOVELY ROSE PRINCESS HAS BECOME A FIDDLE WITHOUT A BOW WHILE POOR SHAGGY SITS THERE A COOING DOVE"
+    },
+    {
+      "id": "01_1272-135031-0001",
+      "audio": "audio/01_1272-135031-0001.flac",
+      "reference": "reference/01_1272-135031-0001.txt",
+      "text": "HE HAS GONE AND GONE FOR GOOD ANSWERED POLYCHROME WHO HAD MANAGED TO SQUEEZE INTO THE ROOM BESIDE THE DRAGON AND HAD WITNESSED THE OCCURRENCES WITH MUCH INTEREST"
+    },
+    {
+      "id": "02_1272-135031-0002",
+      "audio": "audio/02_1272-135031-0002.flac",
+      "reference": "reference/02_1272-135031-0002.txt",
+      "text": "I HAVE REMAINED A PRISONER ONLY BECAUSE I WISHED TO BE ONE AND WITH THIS HE STEPPED FORWARD AND BURST THE STOUT CHAINS AS EASILY AS IF THEY HAD BEEN THREADS"
+    },
+    {
+      "id": "03_1272-135031-0003",
+      "audio": "audio/03_1272-135031-0003.flac",
+      "reference": "reference/03_1272-135031-0003.txt",
+      "text": "THE LITTLE GIRL HAD BEEN ASLEEP BUT SHE HEARD THE RAPS AND OPENED THE DOOR"
+    },
+    {
+      "id": "04_1272-135031-0004",
+      "audio": "audio/04_1272-135031-0004.flac",
+      "reference": "reference/04_1272-135031-0004.txt",
+      "text": "THE KING HAS FLED IN DISGRACE AND YOUR FRIENDS ARE ASKING FOR YOU"
+    },
+    {
+      "id": "05_1272-135031-0005",
+      "audio": "audio/05_1272-135031-0005.flac",
+      "reference": "reference/05_1272-135031-0005.txt",
+      "text": "I BEGGED RUGGEDO LONG AGO TO SEND HIM AWAY BUT HE WOULD NOT DO SO"
+    },
+    {
+      "id": "06_1272-135031-0006",
+      "audio": "audio/06_1272-135031-0006.flac",
+      "reference": "reference/06_1272-135031-0006.txt",
+      "text": "I ALSO OFFERED TO HELP YOUR BROTHER TO ESCAPE BUT HE WOULD NOT GO"
+    },
+    {
+      "id": "07_1272-135031-0007",
+      "audio": "audio/07_1272-135031-0007.flac",
+      "reference": "reference/07_1272-135031-0007.txt",
+      "text": "HE EATS AND SLEEPS VERY STEADILY REPLIED THE NEW KING"
+    },
+    {
+      "id": "08_1272-135031-0008",
+      "audio": "audio/08_1272-135031-0008.flac",
+      "reference": "reference/08_1272-135031-0008.txt",
+      "text": "I HOPE HE DOESN'T WORK TOO HARD SAID SHAGGY"
+    },
+    {
+      "id": "09_1272-135031-0009",
+      "audio": "audio/09_1272-135031-0009.flac",
+      "reference": "reference/09_1272-135031-0009.txt",
+      "text": "HE DOESN'T WORK AT ALL"
+    },
+    {
+      "id": "10_1272-135031-0010",
+      "audio": "audio/10_1272-135031-0010.flac",
+      "reference": "reference/10_1272-135031-0010.txt",
+      "text": "IN FACT THERE IS NOTHING HE CAN DO IN THESE DOMINIONS AS WELL AS OUR NOMES WHOSE NUMBERS ARE SO GREAT THAT IT WORRIES US TO KEEP THEM ALL BUSY"
+    },
+    {
+      "id": "11_1272-135031-0011",
+      "audio": "audio/11_1272-135031-0011.flac",
+      "reference": "reference/11_1272-135031-0011.txt",
+      "text": "NOT EXACTLY RETURNED KALIKO"
+    },
+    {
+      "id": "12_1272-135031-0012",
+      "audio": "audio/12_1272-135031-0012.flac",
+      "reference": "reference/12_1272-135031-0012.txt",
+      "text": "WHERE IS MY BROTHER NOW"
+    },
+    {
+      "id": "13_1272-135031-0013",
+      "audio": "audio/13_1272-135031-0013.flac",
+      "reference": "reference/13_1272-135031-0013.txt",
+      "text": "INQUIRED SHAGGY IN THE METAL FOREST"
+    },
+    {
+      "id": "14_1272-135031-0014",
+      "audio": "audio/14_1272-135031-0014.flac",
+      "reference": "reference/14_1272-135031-0014.txt",
+      "text": "WHERE IS THAT"
+    },
+    {
+      "id": "15_1272-135031-0015",
+      "audio": "audio/15_1272-135031-0015.flac",
+      "reference": "reference/15_1272-135031-0015.txt",
+      "text": "THE METAL FOREST IS IN THE GREAT DOMED CAVERN THE LARGEST IN ALL OUR DOMINIONS REPLIED KALIKO"
+    },
+    {
+      "id": "16_1272-135031-0016",
+      "audio": "audio/16_1272-135031-0016.flac",
+      "reference": "reference/16_1272-135031-0016.txt",
+      "text": "KALIKO HESITATED"
+    },
+    {
+      "id": "17_1272-135031-0017",
+      "audio": "audio/17_1272-135031-0017.flac",
+      "reference": "reference/17_1272-135031-0017.txt",
+      "text": "HOWEVER IF WE LOOK SHARP WE MAY BE ABLE TO DISCOVER ONE OF THESE SECRET WAYS"
+    },
+    {
+      "id": "18_1272-135031-0018",
+      "audio": "audio/18_1272-135031-0018.flac",
+      "reference": "reference/18_1272-135031-0018.txt",
+      "text": "OH NO I'M QUITE SURE HE DIDN'T"
+    },
+    {
+      "id": "19_1272-135031-0019",
+      "audio": "audio/19_1272-135031-0019.flac",
+      "reference": "reference/19_1272-135031-0019.txt",
+      "text": "THAT'S FUNNY REMARKED BETSY THOUGHTFULLY"
+    }
+  ]
+}

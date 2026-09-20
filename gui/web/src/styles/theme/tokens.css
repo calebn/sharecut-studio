@@ -1,0 +1,137 @@
+/**
+ * Sharecut Studio-only scale + legacy aliases.
+ * Shared type/space/brand colors: brand-tokens.css.
+ * Functional colors: theme-dark.css / theme-light.css (same light/dark contract).
+ * Lane/ruler heights stay CSS px for timeline canvas math (see utils/layout.ts).
+ */
+
+:root {
+  /* Typography (Sharecut Studio density) */
+  --font-size-micro: 0.625rem;
+  --font-size-caption: 0.6875rem;
+  --font-size-small: 0.75rem;
+  --font-size-ui: 0.8125rem;
+  --font-size-body: 0.875rem;
+  --font-size-emphasis: 0.9375rem;
+  --font-size-review: 1rem;
+  --font-size-heading: 1.125rem;
+
+  --s3: calc(var(--s2) * var(--ratio));
+
+  /* Spacing scale */
+  --space-0: 0.125rem;
+  --space-1: 0.25rem;
+  --space-2: 0.375rem;
+  --space-05: 0.625rem;
+  --space-3: 0.5rem;
+  --space-4: 0.75rem;
+  --space-45: 0.875rem;
+  --space-5: 1rem;
+  --space-6: 1.5rem;
+
+  /* Radii (xs/sm are Sharecut Studio-only; md/lg from brand-tokens.css) */
+  --radius-xs: 0.125rem;
+  --radius-sm: 0.1875rem;
+  --radius-xl: 0.5rem;
+
+  /* Focus / selection rings — not a spacing step (a11y invariant). */
+  --focus-ring-width: 0.125rem;
+  --focus-ring-offset: 0.125rem;
+
+  /* Z-index scale */
+  --z-clip: 1;
+  --z-fade: 2;
+  --z-overlay: 3;
+  --z-handle: 4;
+  --z-join: 5;
+  --z-bubble: 6;
+  --z-playhead: 10;
+  --z-track-header: 12;
+  --z-sheet: 40;
+  /* Mode nav / bottom tabs above sheet scrim so one tap switches views. */
+  --z-shell-chrome: 50;
+  --z-presence-ghost: 51;
+
+  /* Layout — rem chrome; px canvas (lane/ruler/marker px in utils/layout.ts) */
+  /* stylelint-disable-next-line meowtec/no-px -- user-approved: canvas lane height */
+  --lane-height: 72px;
+  /* stylelint-disable-next-line meowtec/no-px -- user-approved: canvas ruler height */
+  --ruler-height: 24px;
+  /* stylelint-disable-next-line meowtec/no-px -- user-approved: canvas marker lane height */
+  --marker-lane-height: 72px;
+  --header-width: 11.25rem;
+  --inspector-width: 17.5rem;
+  --transport-height: 2.75rem;
+  /* 44pt touch floor at 16px root; phone/tablet follow chrome via @container */
+  --touch-min: 2.75rem;
+  --status-height: 1.75rem;
+  --tabs-height: 12.5rem;
+  --mobile-nav-height: 3.25rem;
+  --menu-available-height: 90dvh;
+
+  /* Legacy aliases → semantic (themes set the semantic names) */
+  --bg-app: var(--color-bg-canvas);
+  --bg-panel: var(--color-bg-surface);
+  --bg-lane: var(--color-bg-lane);
+  --bg-lane-muted: var(--color-bg-lane-muted);
+  /* Header plane + lane floor under sticky track headers. */
+  --bg-timeline-scroll: linear-gradient(
+    to right,
+    var(--bg-panel) 0,
+    var(--bg-panel) var(--header-width),
+    var(--bg-lane) var(--header-width),
+    var(--bg-lane) 100%
+  );
+  --bg: var(--color-bg-canvas);
+  --bg-elevated: var(--color-bg-elevated);
+  --border: var(--color-border);
+  --border-strong: var(--color-border-strong);
+  --text: var(--color-text-primary);
+  --text-dim: var(--color-text-secondary);
+  --text-muted: var(--color-text-secondary);
+  --text-unmapped: var(--color-text-unmapped);
+  --accent: var(--color-accent);
+  --accent-fg: var(--color-accent-fg);
+  --accent-solid: var(--color-accent-solid);
+  --accent-on-solid: var(--color-accent-on-solid);
+  --badge-bg: var(--color-badge-bg);
+  --badge-fg: var(--color-badge-fg);
+  --selection: var(--color-selection);
+  --warning: var(--color-warning);
+  --warning-subtle: var(--color-warning-subtle);
+  --warning-muted: var(--color-warning-muted);
+  --warning-strong: var(--color-warning-strong);
+  --danger: var(--color-danger);
+  --danger-muted: var(--color-danger-muted);
+  --danger-subtle: var(--color-danger-subtle);
+  --success: var(--color-success);
+  --success-subtle: var(--color-success-subtle);
+  --success-muted: var(--color-success-muted);
+  --success-strong: var(--color-success-strong);
+  --success-solid: var(--color-success-solid);
+  --clip-dialogue-0: var(--color-clip-dialogue-0);
+  --clip-dialogue-1: var(--color-clip-dialogue-1);
+  --clip-dialogue-2: var(--color-clip-dialogue-2);
+  --clip-music: var(--color-clip-music);
+  --clip-sfx: var(--color-clip-sfx);
+  --presence-0: var(--color-presence-0);
+  --presence-1: var(--color-presence-1);
+  --presence-2: var(--color-presence-2);
+  --presence-3: var(--color-presence-3);
+  --presence-4: var(--color-presence-4);
+  --presence-5: var(--color-presence-5);
+  --presence-6: var(--color-presence-6);
+  --presence-7: var(--color-presence-7);
+  --pending-edit: var(--color-pending-edit);
+  --pending-edit-stripe: var(--color-pending-edit-stripe);
+  --pending-mute: var(--color-pending-mute);
+  --applied-edit: var(--color-applied-edit);
+  --envelope-line: var(--color-envelope-line);
+  --playhead: var(--color-playhead);
+  --marker: var(--color-marker);
+  --social-marker: var(--color-social-marker);
+  --comment-marker: var(--color-comment-marker);
+  --scrim: var(--color-scrim);
+  --shadow: var(--color-shadow);
+  --shadow-soft: var(--color-shadow-soft);
+}

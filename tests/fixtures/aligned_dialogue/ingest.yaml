@@ -1,0 +1,12 @@
+session:
+  reference_speaker: reference
+
+speakers:
+  - name: reference
+    sources:
+      - reference.wav
+    session_start_in_file_sec: 0
+  - name: guest
+    sources:
+      - guest.wav
+    session_start_in_file_sec: 98

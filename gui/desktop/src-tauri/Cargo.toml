@@ -1,0 +1,64 @@
+[package]
+name = "sharecut"
+version = "0.1.0"
+description = "Sharecut Studio native host (Tauri 2 + Python sidecar)"
+authors = ["Podcast MCP"]
+edition = "2021"
+license = "MIT"
+
+[lib]
+name = "sharecut"
+path = "src/lib.rs"
+
+[[bin]]
+name = "sharecut"
+path = "src/main.rs"
+required-features = ["app"]
+
+# `app` pulls Tauri + system WebView/GTK. Hygiene CI uses --no-default-features
+# so `cargo test --lib` does not need glib/webkit on the runner.
+[features]
+default = ["app"]
+app = [
+    "custom-protocol",
+    "dep:tauri",
+    "dep:tauri-plugin-shell",
+    "dep:tauri-plugin-deep-link",
+    "dep:tauri-plugin-single-instance",
+    "dep:serde",
+    "dep:serde_json",
+    "dep:tauri-build",
+]
+custom-protocol = ["tauri/custom-protocol"]
+
+[dependencies]
+tauri = { version = "2", features = [], optional = true }
+tauri-plugin-shell = { version = "2", optional = true }
+tauri-plugin-deep-link = { version = "2", optional = true }
+tauri-plugin-single-instance = { version = "2", optional = true, features = ["deep-link"] }
+serde = { version = "1", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
+url = "2"
+
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.38"
+windows = "0.61"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+block2 = "0.6"
+objc2 = "0.6"
+objc2-app-kit = "0.3"
+objc2-foundation = "0.3"
+objc2-web-kit = { version = "0.3", features = [
+    "WKFrameInfo",
+    "WKSecurityOrigin",
+    "WKUIDelegate",
+    "WKWebView",
+    "WKWebViewConfiguration",
+    "block2",
+    "objc2-app-kit",
+] }
+
+[build-dependencies]
+tauri-build = { version = "2", features = [], optional = true }
+serde_json = "1"

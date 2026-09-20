@@ -1,0 +1,146 @@
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useDawStore } from "../state/dawStore";
+import { DawProvider } from "../state/store";
+import { minimalProject } from "../test/fixtures";
+import { TrackHeader } from "./TrackHeader";
+
+vi.mock("../commands/execute", () => ({
+  execute: vi.fn(async () => ({ status: "ok" })),
+}));
+
+function projectWithTrack() {
+  return minimalProject({
+    tracks: [
+      {
+        id: "guest",
+        label: "Guest",
+        role: "dialogue",
+        speaker: null,
+        gain_db: 0,
+        muted: false,
+        duration_sec: 60,
+        fx_count: 0,
+        stem_is_fresh: true,
+      },
+    ],
+  });
+}
+
+describe("TrackHeader", () => {
+  beforeEach(() => {
+    useDawStore.getState().hydrate("/tmp/p.json", projectWithTrack());
+  });
+
+  it("selects the track when the full header row is clicked", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    const project = projectWithTrack();
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <div className="daw-shell daw-shell--phone">
+          <TrackHeader
+            track={project.tracks[0]}
+            trackIndex={0}
+            selected={false}
+            onSelect={onSelect}
+          />
+        </div>
+      </DawProvider>,
+    );
+    const details = screen.getByRole("button", {
+      name: /Open track details, Guest/i,
+    });
+    expect(details).toHaveAttribute("aria-expanded", "false");
+    expect(
+      container.querySelector(".daw-shell--phone .track-header-disclose"),
+    ).toBeTruthy();
+    await user.click(details);
+    expect(onSelect).toHaveBeenCalledWith(false);
+  });
+
+  it("marks the open control expanded when the row is selected", () => {
+    const project = projectWithTrack();
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <TrackHeader
+          track={project.tracks[0]}
+          trackIndex={0}
+          selected
+          onSelect={() => undefined}
+        />
+      </DawProvider>,
+    );
+    expect(
+      screen.getByRole("button", { name: /Open track details, Guest/i }),
+    ).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("shows a single FX badge with its effect-count title", () => {
+    const project = projectWithTrack();
+    const track = { ...project.tracks[0], fx_count: 2 };
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <TrackHeader
+          track={track}
+          trackIndex={0}
+          selected={false}
+          onSelect={() => undefined}
+        />
+      </DawProvider>,
+    );
+
+    const badge = screen.getByTitle("2 effects");
+    expect(badge).toHaveClass("badge", "fx");
+    expect(badge).toHaveTextContent("FX 2");
+  });
+
+  it("does not select when Mute is clicked", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    const project = projectWithTrack();
+    const { execute } = await import("../commands/execute");
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <TrackHeader
+          track={project.tracks[0]}
+          trackIndex={0}
+          selected={false}
+          onSelect={onSelect}
+        />
+      </DawProvider>,
+    );
+    await user.click(screen.getByTitle("Mute"));
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(execute).toHaveBeenCalledWith(
+      "track.muteToggle",
+      { trackId: "guest" },
+      { skipWhen: true },
+    );
+    expect(
+      screen.getByTitle("Mute").closest("[data-presence-anchor]"),
+    ).toHaveAttribute("data-presence-anchor", "track:guest:mute");
+  });
+
+  it("exposes the reorder grip as a drag handle, not a button", () => {
+    const project = projectWithTrack();
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <TrackHeader
+          track={project.tracks[0]}
+          trackIndex={0}
+          selected
+          onSelect={() => undefined}
+          reorderEnabled
+        />
+      </DawProvider>,
+    );
+    expect(
+      screen.getByRole("button", { name: /Reorder track Guest/i }),
+    ).toHaveAttribute("tabindex", "-1");
+    expect(
+      screen.getByRole("button", { name: /Reorder track Guest/i }),
+    ).toHaveAttribute("aria-roledescription", "drag handle");
+  });
+});

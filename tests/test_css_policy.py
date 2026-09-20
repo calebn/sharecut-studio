@@ -1,0 +1,236 @@
+"""CSS/JS theme policy: rem, tokens, consent-gated exceptions.
+
+Does not strip comments — `!important` / `@layer` / viewport-size `@media`
+are allowed only when a matching `stylelint-disable` includes
+`-- user-approved:`.
+"""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+_CSS_ROOTS: tuple[Path, ...] = (
+    ROOT / "gui/web/src/styles",
+    ROOT / "gui/web/public",
+    ROOT / "deploy",
+    ROOT / "ux/assets",
+    ROOT / "docs-site/assets",
+    ROOT / "src/podcast_relay/static",
+    ROOT / "gui/desktop/splash",
+)
+_JS_ROOT = ROOT / "gui/web/src"
+_SRC_ROOT = ROOT / "src"
+_PY_CSS_COLOR = re.compile(
+    r"(?:^|[{;,\s])(?:color|background(?:-color)?|border-color|fill|stroke)\s*:\s*"
+    r"(?:\#[0-9a-fA-F]{3,8}|rgba?\(|hsla?\()",
+)
+_APPROVED = re.compile(r"--\s*user-approved:\s*\S")
+_DISABLE = re.compile(r"stylelint-disable(?P<kind>-next-line|-line)?\s+(?P<body>[^;\n*]+)")
+_ENABLE = re.compile(r"stylelint-enable(?:\s+(?P<rules>[^;\n*]+))?")
+_PX = re.compile(r"(?<![\w.-])(-?\d+(?:\.\d+)?)px\b")
+# Sync with gui/web/stylelint.config.js meowtec/no-px ignore ["1px", "-1px"].
+_HAIRLINE_PX = 1.0
+_VIEWPORT_MEDIA = re.compile(
+    r"@media(?:(?!\{).)*\(\s*(?:min-|max-)?(?:width|height)\s*:",
+    re.DOTALL,
+)
+_FONT_62 = re.compile(r"font-size\s*:\s*62\.5%")
+_IMPORTANT = re.compile(r"!important", re.IGNORECASE)
+_LAYER = re.compile(r"@layer\b")
+_JS_STYLE_COLOR = re.compile(
+    r"""\b(?:color|background|backgroundColor|borderColor|fill|stroke)\s*:\s*"""
+    r"""['"](?:\#|rgba?\(|hsla?\()""",
+)
+_JS_STYLE_TYPE = re.compile(
+    r"""\bfontSize\s*:\s*(?!['"]var\()(?:\d+|['"][^'"]*(?:px|rem|em)['"])""",
+)
+_JS_STYLE_SPACE = re.compile(
+    r"""\b(?P<prop>padding(?:Top|Right|Bottom|Left)?|margin(?:Top|Right|Bottom|Left)?|"""
+    r"""gap|rowGap|columnGap|borderRadius)\s*:\s*"""
+    r"""(?!['"]var\()(?!0\b)(?!['"]0(?:px)?['"])"""
+    r"""(?:\d+|['"][^'"]+)""",
+)
+
+
+def _css_files() -> list[Path]:
+    files: list[Path] = []
+    for root in _CSS_ROOTS:
+        if root.is_dir():
+            files.extend(sorted(root.rglob("*.css")))
+    return files
+
+
+def _js_files() -> list[Path]:
+    files: list[Path] = []
+    for path in sorted(_JS_ROOT.rglob("*.ts")):
+        files.append(path)
+    for path in sorted(_JS_ROOT.rglob("*.tsx")):
+        files.append(path)
+    return files
+
+
+def _split_rules(raw: str | None) -> set[str]:
+    if not raw:
+        return set()
+    return {part.strip() for part in raw.split(",") if part.strip()}
+
+
+def _code_without_comments(line: str) -> str:
+    return re.sub(r"/\*.*?\*/", "", line)
+
+
+def _scan_css(path: Path) -> list[str]:
+    hits: list[str] = []
+    rel = path.relative_to(ROOT)
+    text = path.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    block: set[str] = set()
+    pending_next: set[str] = set()
+    active_at: dict[int, set[str]] = {}
+    for i, line in enumerate(lines, 1):
+        loc = f"{rel}:{i}"
+        code = _code_without_comments(line)
+        active = set(block)
+        if pending_next:
+            active |= pending_next
+            pending_next = set()
+        for match in _DISABLE.finditer(line):
+            body = match.group("body").strip()
+            rules_part = body.partition(" -- ")[0]
+            rules = _split_rules(rules_part)
+            if not _APPROVED.search(line):
+                hits.append(
+                    f"{loc}: stylelint-disable must include "
+                    f"`-- user-approved: reason` ({line.strip()})"
+                )
+                continue
+            kind = match.group("kind")
+            if kind == "-next-line":
+                pending_next |= rules
+            elif kind == "-line":
+                active |= rules
+            else:
+                block |= rules
+        for match in _ENABLE.finditer(line):
+            rules = _split_rules(match.group("rules"))
+            if not rules:
+                block.clear()
+            else:
+                block -= rules
+        active_at[i] = set(active)
+        if _FONT_62.search(code):
+            hits.append(f"{loc}: font-size 62.5% is banned (no exceptions)")
+        if _IMPORTANT.search(code) and "declaration-no-important" not in active:
+            hits.append(f"{loc}: !important needs `stylelint-disable` + `-- user-approved:`")
+        if _LAYER.search(code) and "at-rule-disallowed-list" not in active:
+            hits.append(f"{loc}: @layer needs `stylelint-disable` + `-- user-approved:`")
+        for px in _PX.finditer(code):
+            if abs(float(px.group(1))) == _HAIRLINE_PX:
+                continue
+            if "meowtec/no-px" not in active:
+                hits.append(
+                    f"{loc}: `{px.group(0)}` needs "
+                    "`stylelint-disable` + `-- user-approved:` "
+                    "(or use rem / a theme token)"
+                )
+    for match in _VIEWPORT_MEDIA.finditer(text):
+        line_no = text[: match.start()].count("\n") + 1
+        loc = f"{rel}:{line_no}"
+        if "media-feature-name-disallowed-list" not in active_at.get(line_no, set()):
+            hits.append(
+                f"{loc}: viewport-size @media needs `stylelint-disable` + `-- user-approved:`"
+            )
+    return hits
+
+
+def test_stylelint_disables_require_user_approved() -> None:
+    hits: list[str] = []
+    for path in _css_files():
+        hits.extend(h for h in _scan_css(path) if "stylelint-disable must include" in h)
+    assert not hits, "unapproved Stylelint disables:\n" + "\n".join(hits)
+
+
+def test_important_and_layer_are_consent_gated() -> None:
+    hits: list[str] = []
+    for path in _css_files():
+        hits.extend(h for h in _scan_css(path) if "!important" in h or "@layer" in h)
+    assert not hits, "unapproved !important / @layer:\n" + "\n".join(hits)
+
+
+def test_viewport_size_media_is_consent_gated() -> None:
+    hits: list[str] = []
+    for path in _css_files():
+        hits.extend(h for h in _scan_css(path) if "viewport-size @media" in h)
+    assert not hits, "unapproved viewport-size @media:\n" + "\n".join(hits)
+
+
+def test_px_outside_hairlines_is_consent_gated() -> None:
+    hits: list[str] = []
+    for path in _css_files():
+        hits.extend(h for h in _scan_css(path) if "px`" in h)
+    assert not hits, "unapproved px:\n" + "\n".join(hits)
+
+
+def test_root_font_size_62_5_percent_banned() -> None:
+    hits: list[str] = []
+    for path in _css_files():
+        hits.extend(h for h in _scan_css(path) if "62.5%" in h)
+    assert not hits, "62.5% root font-size:\n" + "\n".join(hits)
+
+
+def test_js_inline_styles_use_theme_tokens() -> None:
+    hits: list[str] = []
+    for path in _js_files():
+        text = path.read_text(encoding="utf-8")
+        rel = path.relative_to(ROOT)
+        for i, line in enumerate(text.splitlines(), 1):
+            if _JS_STYLE_COLOR.search(line):
+                hits.append(f"{rel}:{i}: hardcoded color (use var(--…))")
+            if _JS_STYLE_TYPE.search(line):
+                hits.append(f"{rel}:{i}: hardcoded fontSize (use var(--font-size-*))")
+            if _JS_STYLE_SPACE.search(line):
+                hits.append(f"{rel}:{i}: hardcoded padding/margin/gap/radius (use var(--space-*))")
+    assert not hits, "JS inline style magic numbers:\n" + "\n".join(hits)
+
+
+def test_viewport_media_regex_spans_newlines() -> None:
+    assert _VIEWPORT_MEDIA.search("@media\n  (max-width: 40rem)")
+    assert _VIEWPORT_MEDIA.search("@media (max-height: 40rem)")
+    assert not _VIEWPORT_MEDIA.search("@media (hover: hover)")
+
+
+def test_js_inline_space_flags_gap_and_radius() -> None:
+    assert _JS_STYLE_SPACE.search("gap: 8")
+    assert _JS_STYLE_SPACE.search('borderRadius: "4px"')
+    assert _JS_STYLE_SPACE.search("rowGap: 12")
+    assert not _JS_STYLE_SPACE.search('gap: "var(--space-1)"')
+    assert not _JS_STYLE_SPACE.search('padding: "var(--space-2)"')
+    assert not _JS_STYLE_SPACE.search("padding: 0")
+
+
+def _py_files() -> list[Path]:
+    return sorted(p for p in _SRC_ROOT.rglob("*.py") if p.is_file())
+
+
+def test_python_does_not_author_css_colors() -> None:
+    """Embedded HTML/CSS in Python must use var(--…); hex lives in theme CSS files.
+
+    Stylelint never sees relay/splash HTML authored in .py, so this is the gate
+    that would have caught ``color:#222`` in ``podcast_relay/app.py``.
+    """
+    hits: list[str] = []
+    for path in _py_files():
+        rel = path.relative_to(ROOT)
+        for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if _PY_CSS_COLOR.search(line):
+                hits.append(f"{rel}:{i}: hardcoded color in Python (use a .css file + var(--…))")
+    assert not hits, "Python-authored CSS colors:\n" + "\n".join(hits)
+
+
+def test_python_css_color_regex_catches_hex() -> None:
+    assert _PY_CSS_COLOR.search("color:#222")
+    assert _PY_CSS_COLOR.search("background:#f2f2f2")
+    assert not _PY_CSS_COLOR.search("color: var(--color-text-primary)")
+    assert not _PY_CSS_COLOR.search("background: var(--color-bg-elevated)")

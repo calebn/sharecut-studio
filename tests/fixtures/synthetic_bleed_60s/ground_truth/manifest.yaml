@@ -1,0 +1,127 @@
+duration_sec: 60.0
+tracks:
+  host:
+    freq_hz: 440
+    words:
+    - - welcome
+      - 2.0
+      - 2.6
+    - - to
+      - 2.6
+      - 2.9
+    - - the
+      - 2.9
+      - 3.2
+    - - show
+      - 3.2
+      - 3.8
+    - - todae
+      - 10.0
+      - 10.5
+      - 0.5
+    - - we
+      - 10.5
+      - 10.8
+    - - discuss
+      - 10.8
+      - 11.4
+    - - documented
+      - 11.4
+      - 12.2
+    - - stories
+      - 12.2
+      - 12.8
+    - - and
+      - 12.8
+      - 13.1
+    - - real
+      - 13.1
+      - 13.5
+    - - change
+      - 13.5
+      - 14.2
+    - - for
+      - 14.2
+      - 14.5
+    - - people
+      - 14.5
+      - 15.1
+    - - who
+      - 15.1
+      - 15.4
+    - - care
+      - 15.4
+      - 16.0
+  guest:
+    freq_hz: 880
+    words:
+    - - today
+      - 10.0
+      - 10.5
+    - - thanks
+      - 12.0
+      - 12.5
+    - - for
+      - 12.5
+      - 12.8
+    - - having
+      - 12.8
+      - 13.3
+    - - me
+      - 13.3
+      - 13.6
+    - - here
+      - 13.6
+      - 14.1
+    - - today
+      - 14.1
+      - 14.6
+    - - great
+      - 14.6
+      - 15.1
+    - - to
+      - 15.1
+      - 15.3
+    - - be
+      - 15.3
+      - 15.5
+    - - back
+      - 15.5
+      - 16.0
+    - - hello
+      - 40.0
+      - 40.5
+    - - everyone
+      - 40.5
+      - 41.2
+    - - listening
+      - 41.2
+      - 42.0
+    - - 'on'
+      - 42.0
+      - 42.2
+    - - the
+      - 42.2
+      - 42.5
+    - - podcast
+      - 42.5
+      - 43.2
+bleed_events:
+- window:
+    start: 12.0
+    end: 16.0
+  duck:
+    into: host
+    gain_db: -30
+  inject:
+  - from: guest
+    into: host
+    gain_db: -10
+  - from: host
+    into: guest
+    gain_db: -32
+expected_metrics:
+  min_bleed_words_host: 3
+  min_bleed_words_total: 3
+  min_cross_track_precorrect: 1
+  min_overlap_pairs: 1

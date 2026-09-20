@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Sharecut Studio distribution profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "product_name",
+    "bundle_identifier",
+    "deep_link_schemes",
+    "allowed_https_share_origins",
+    "support_url",
+    "privacy_url",
+    "repository_url",
+    "release_manifest_url",
+    "bootstrap_cdn_base"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "const": 1 },
+    "product_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[^\\u0000-\\u001F\\u007F]+$"
+    },
+    "bundle_identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9-]*(\\.[A-Za-z0-9-]+)+$"
+    },
+    "deep_link_schemes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9+.-]*$" }
+    },
+    "allowed_https_share_origins": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^https://[^/:?#]+$" }
+    },
+    "support_url": { "type": "string", "format": "uri", "pattern": "^https://" },
+    "privacy_url": { "type": "string", "format": "uri", "pattern": "^https://" },
+    "repository_url": { "type": "string", "format": "uri", "pattern": "^https://" },
+    "release_manifest_url": {
+      "type": ["string", "null"],
+      "pattern": "^https://"
+    },
+    "bootstrap_cdn_base": {
+      "type": ["string", "null"],
+      "pattern": "^https://"
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "$schema": "../contracts/distribution-profile.schema.json",
+  "version": 1,
+  "product_name": "Sharecut Studio Dev",
+  "bundle_identifier": "studio.sharecut.dev",
+  "deep_link_schemes": ["sharecut-dev"],
+  "allowed_https_share_origins": ["https://share.example.test"],
+  "support_url": "https://github.com/calebn/sharecut-studio/issues",
+  "privacy_url": "https://github.com/calebn/sharecut-studio/blob/main/PRIVACY.md",
+  "repository_url": "https://github.com/calebn/sharecut-studio",
+  "release_manifest_url": null,
+  "bootstrap_cdn_base": null
+}

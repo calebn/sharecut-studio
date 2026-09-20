@@ -1,0 +1,639 @@
+/* Timeline lanes, clips, overlays */
+.lane-row {
+  position: relative;
+  height: var(--lane-height);
+  background: var(--bg-lane);
+  border-bottom: 1px solid var(--border);
+}
+
+.lane-row.muted {
+  background: var(--bg-lane-muted);
+}
+
+.timeline-skeleton-lane {
+  background: var(--bg-lane-muted);
+  opacity: 0.55;
+}
+
+.lane-seek {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.lane-inner {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  pointer-events: none;
+}
+
+.lane-inner > * {
+  pointer-events: auto;
+}
+
+.clip-block {
+  position: absolute;
+  /* stylelint-disable meowtec/no-px -- user-approved: canvas clip inset vs lane height */
+  top: 8px;
+  height: calc(var(--lane-height) - 16px);
+  /* stylelint-enable meowtec/no-px */
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-overlay-white-15);
+  cursor: pointer;
+  overflow: visible;
+  font-size: var(--font-size-micro);
+  padding: var(--space-1) var(--space-2);
+  /* Above applied-tick (z=2); join diamond / trim handles sit above clip-hit. */
+  z-index: 3;
+}
+
+.clip-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+  min-width: 1.5rem;
+  min-height: 1.5rem;
+}
+
+.clip-block:has(.clip-hit-moveable) {
+  cursor: grab;
+}
+
+.clip-hit-moveable {
+  cursor: grab;
+}
+
+.clip-block.clip-moving .clip-hit,
+.timeline-clip-moving .clip-hit-moveable {
+  cursor: grabbing;
+  touch-action: none;
+}
+
+.clip-block.clip-move-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.clip-block.clip-move-ghost {
+  pointer-events: none;
+  opacity: 0.92;
+}
+
+.clip-waveform {
+  position: absolute;
+  top: 0;
+  z-index: 1;
+  height: 100%;
+  pointer-events: none;
+  opacity: 1;
+}
+
+.clip-waveform-overlays {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.clip-waveform-quiet {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--color-waveform-quiet);
+}
+
+.clip-mute-region {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: var(--pending-mute);
+}
+
+.clip-waveform-snap {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--color-waveform-snap);
+}
+
+.clip-label {
+  position: relative;
+  z-index: 3;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  display: block;
+  pointer-events: none;
+  color: var(--accent-on-solid);
+  font-weight: 600;
+  text-shadow: var(--shadow-clip-label);
+}
+
+.clip-block.selected {
+  outline: var(--focus-ring-width) solid var(--selection);
+  z-index: 3;
+}
+
+.clip-block.clip-moving {
+  z-index: 6;
+}
+
+.clip-block.selected.clip-moving {
+  z-index: 6;
+}
+
+.clip-block.join-crossfade {
+  border-style: dashed;
+}
+
+.fade-region {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--color-overlay-black-22);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.fade-in-region {
+  left: 0;
+  border-right: 1px solid var(--color-overlay-white-25);
+}
+
+.fade-out-region {
+  right: 0;
+  border-left: 1px solid var(--color-overlay-white-25);
+}
+
+.fade-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0.5rem;
+  padding: 0;
+  border: 0;
+  cursor: ew-resize;
+  pointer-events: auto;
+  z-index: 4;
+  background: var(--color-overlay-white-15);
+  appearance: none;
+  box-sizing: border-box;
+}
+
+.fade-handle.end {
+  right: -0.25rem;
+}
+
+.fade-handle.start {
+  left: -0.25rem;
+}
+
+.fade-handle-zero.in {
+  left: 0;
+  right: auto;
+}
+
+.fade-handle-zero.out {
+  right: 0;
+  left: auto;
+}
+
+.trim-handle {
+  position: absolute;
+  bottom: 0;
+  width: 0.75rem;
+  height: 45%;
+  padding: 0;
+  cursor: ew-resize;
+  pointer-events: auto;
+  z-index: 6;
+  background: var(--color-overlay-white-25);
+  border: 1px solid var(--color-overlay-white-55);
+  appearance: none;
+  box-sizing: border-box;
+}
+
+.trim-handle.in {
+  left: 0;
+  border-radius: 0 var(--radius-xs) 0 0;
+}
+
+.trim-handle.out {
+  right: 0;
+  border-radius: var(--radius-xs) 0 0;
+}
+
+.clip-block.trim-dragging {
+  z-index: 8;
+}
+
+.clip-trim-ghost {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  /* Shared “expand ghost” look with transcript .edit-ghost-words */
+  opacity: 0.45;
+  pointer-events: none;
+  background: var(--color-overlay-white-10);
+  border-left: 1px dashed var(--color-overlay-white-40);
+  z-index: 2;
+}
+
+.clip-trim-ghost-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.join-diamond {
+  position: absolute;
+  left: -0.4375rem;
+  top: 50%;
+  width: 0.875rem;
+  height: 0.875rem;
+  /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- user-approved: canvas join diamond centering */
+  margin-top: -0.4375rem;
+  padding: 0;
+  border: 1px solid var(--color-overlay-white-55);
+  background: var(--accent);
+  transform: rotate(45deg);
+  z-index: 5;
+  /* Decorative when not a button; editable ClipBlock uses <button.join-diamond>. */
+  pointer-events: none;
+  cursor: ew-resize;
+}
+
+button.join-diamond {
+  pointer-events: auto;
+  appearance: none;
+  box-sizing: border-box;
+}
+
+.join-diamond::after {
+  content: none;
+}
+
+.join-diamond::before {
+  content: none;
+}
+
+.fade-in,
+.fade-out {
+  position: absolute;
+  top: 0;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  pointer-events: none;
+}
+
+.fade-in {
+  left: 0;
+  border-width: 0 0 0.75rem 0.75rem;
+  border-color: transparent transparent var(--color-overlay-black-35)
+    transparent;
+}
+
+.fade-out {
+  right: 0;
+  border-width: 0 0.75rem 0.75rem 0;
+  border-color: transparent var(--color-overlay-black-35) transparent
+    transparent;
+}
+
+.pending-overlay {
+  position: absolute;
+  /* stylelint-disable meowtec/no-px -- user-approved: canvas overlay inset vs lane height */
+  top: 4px;
+  height: calc(var(--lane-height) - 8px);
+  /* stylelint-enable meowtec/no-px */
+  pointer-events: auto;
+  cursor: pointer;
+  z-index: 3;
+}
+
+.pending-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.pending-overlay.remove {
+  background: var(--pending-edit-stripe);
+  border: 1px solid var(--danger);
+}
+
+.pending-overlay.mute {
+  background: var(--pending-mute);
+  border: 1px solid var(--accent);
+}
+
+.pending-overlay.split {
+  background: var(--warning);
+  border: 1px solid var(--warning);
+  min-width: 0.125rem;
+}
+
+.pending-overlay.selected {
+  outline: var(--focus-ring-width) solid var(--danger);
+}
+
+.pending-overlay.mute.selected {
+  outline-color: var(--accent);
+}
+
+.pending-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0.5rem;
+  cursor: ew-resize;
+  z-index: 4;
+  background: transparent;
+}
+
+.pending-handle.start {
+  left: 0;
+}
+
+.pending-handle.end {
+  right: 0;
+}
+
+.pending-overlay.selected .pending-handle {
+  background: var(--color-overlay-white-35);
+}
+
+.applied-tick {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: var(--applied-edit);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.applied-tick.selected {
+  outline: var(--focus-ring-width) solid var(--warning);
+}
+
+.applied-tick::before {
+  content: none;
+}
+
+.envelope-overlay {
+  position: absolute;
+  inset: 0;
+  /* Above clip-block (3) so Levels points are draggable over clips. */
+  z-index: 4;
+  pointer-events: none;
+}
+
+.envelope-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.envelope-overlay .envelope-svg {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.envelope-overlay .envelope-svg circle {
+  pointer-events: auto;
+}
+
+.envelope-overlay .envelope-svg circle.envelope-point-selected {
+  fill: var(--bg);
+  stroke: var(--envelope-line);
+  stroke-width: var(--focus-ring-width);
+}
+
+.marker-lane {
+  position: relative;
+  height: var(--marker-lane-height);
+  background: var(--bg-lane);
+  border-bottom: 1px solid var(--border);
+}
+
+.marker-lane.empty {
+  opacity: 0.4;
+}
+
+.marker-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1.5rem;
+}
+
+.marker-row.chapters {
+  top: 0;
+}
+
+.marker-row.social {
+  top: 1.5rem;
+}
+
+.marker-row.comments {
+  top: 3rem;
+}
+
+.comment-marker {
+  position: absolute;
+  top: 0;
+  height: 1.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  min-width: 1.5rem;
+  box-sizing: border-box;
+}
+
+.comment-marker::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0.4375rem;
+  height: 0.625rem;
+  background: var(--comment-marker);
+  border-radius: var(--radius-xs);
+  pointer-events: none;
+}
+
+.comment-marker.pin {
+  width: 1.5rem;
+  min-width: 1.5rem;
+}
+
+.comment-marker.pin::before {
+  left: 50%;
+  right: auto;
+  top: 50%;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.comment-marker.resolved::before {
+  opacity: 0.35;
+}
+
+.comment-marker.selected {
+  outline: var(--focus-ring-width) solid var(--selection);
+  outline-offset: 1px;
+  z-index: 4;
+}
+
+.comment-selection-overlay {
+  position: absolute;
+  top: 0;
+  z-index: 4;
+  pointer-events: none;
+  box-sizing: border-box;
+  border: var(--space-0) solid var(--selection);
+  background: var(--color-selection-subtle);
+}
+
+.comment-selection-overlay.pin {
+  border-radius: 1px;
+  background: var(--color-selection-muted);
+}
+
+.chapter-marker {
+  position: absolute;
+  top: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.chapter-marker::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.75rem;
+  height: 0.75rem;
+  background: var(--marker);
+  transform: translate(-50%, -50%) rotate(45deg);
+  pointer-events: none;
+}
+
+.social-marker {
+  position: absolute;
+  top: 0;
+  height: 1.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  min-width: 1.5rem;
+  box-sizing: border-box;
+}
+
+.social-marker::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0.4375rem;
+  height: 0.625rem;
+  background: var(--social-marker);
+  border-radius: var(--radius-xs);
+  pointer-events: none;
+}
+
+.social-marker.approved::before {
+  background: var(--color-success-strong);
+}
+
+.time-ruler {
+  position: relative;
+  height: 1.5rem;
+  /* Same recessed well as lanes — avoids a surface strip + dark fit-gutter edge. */
+  background: var(--bg-lane);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.ruler-tick {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-left: 1px solid var(--border);
+  font-size: var(--font-size-micro);
+  color: var(--text-dim);
+  padding-left: var(--space-1);
+  padding-right: var(--space-1);
+  white-space: nowrap;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.ruler-tick--end {
+  transform: translateX(-100%);
+  padding-left: 0;
+  text-align: right;
+  border-left: none;
+  border-right: 1px solid var(--border);
+}
+
+.time-ruler.comment-mode {
+  outline: 1px solid var(--comment-marker);
+  outline-offset: -1px;
+}
+
+.comment-mode-btn.active {
+  background: var(--comment-marker);
+  color: var(--color-bg-canvas);
+}
+
+.theme-toggle-btn {
+  min-width: 2rem;
+}

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Sharecut Studio bootstrap asset pins",
+  "type": "object",
+  "required": ["version", "assets"],
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "cdn_base_env": { "type": "string" },
+    "cdn_base_default": { "type": ["string", "null"] },
+    "assets": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["kind", "cdn_prefix"],
+        "properties": {
+          "kind": { "type": "string" },
+          "repo": { "type": "string" },
+          "revision": { "type": "string" },
+          "url": { "type": "string" },
+          "license": { "type": "string" },
+          "cdn_prefix": { "type": "string" },
+          "filename": { "type": "string" },
+          "sha256": { "type": "string" },
+          "sha256_by_platform": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          },
+          "notes": { "type": "string" },
+          "revision_note": { "type": "string" }
+        }
+      }
+    },
+    "fallback": { "type": "object" }
+  }
+}

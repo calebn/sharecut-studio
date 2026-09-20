@@ -1,0 +1,6787 @@
+{
+  "components": {
+    "schemas": {
+      "AddActionCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/AddActionPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "AddAction",
+            "default": "AddAction",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "AddActionCommand",
+        "type": "object"
+      },
+      "AddActionPayload": {
+        "properties": {
+          "comment_id": {
+            "title": "Comment Id",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "comment_id",
+          "text"
+        ],
+        "title": "AddActionPayload",
+        "type": "object"
+      },
+      "AddChapterCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/AddChapterPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "AddChapter",
+            "default": "AddChapter",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "AddChapterCommand",
+        "type": "object"
+      },
+      "AddChapterPayload": {
+        "properties": {
+          "time": {
+            "title": "Time",
+            "type": "number"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "time",
+          "title"
+        ],
+        "title": "AddChapterPayload",
+        "type": "object"
+      },
+      "AddCommentCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/AddCommentPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "AddComment",
+            "default": "AddComment",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "AddCommentCommand",
+        "type": "object"
+      },
+      "AddCommentPayload": {
+        "properties": {
+          "action_texts": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action Texts"
+          },
+          "author": {
+            "title": "Author",
+            "type": "string"
+          },
+          "body": {
+            "maxLength": 8000,
+            "title": "Body",
+            "type": "string"
+          },
+          "edit_decision_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edit Decision Id"
+          },
+          "timeline_end": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeline End"
+          },
+          "timeline_start": {
+            "title": "Timeline Start",
+            "type": "number"
+          },
+          "track_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Track Ids"
+          }
+        },
+        "required": [
+          "body",
+          "author",
+          "timeline_start"
+        ],
+        "title": "AddCommentPayload",
+        "type": "object"
+      },
+      "AddReplyCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/AddReplyPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "AddReply",
+            "default": "AddReply",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "AddReplyCommand",
+        "type": "object"
+      },
+      "AddReplyPayload": {
+        "properties": {
+          "author": {
+            "title": "Author",
+            "type": "string"
+          },
+          "body": {
+            "maxLength": 8000,
+            "title": "Body",
+            "type": "string"
+          },
+          "comment_id": {
+            "title": "Comment Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "comment_id",
+          "body",
+          "author"
+        ],
+        "title": "AddReplyPayload",
+        "type": "object"
+      },
+      "AddSocialClipCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/AddSocialClipPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "AddSocialClip",
+            "default": "AddSocialClip",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "AddSocialClipCommand",
+        "type": "object"
+      },
+      "AddSocialClipPayload": {
+        "properties": {
+          "end": {
+            "title": "End",
+            "type": "number"
+          },
+          "start": {
+            "title": "Start",
+            "type": "number"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "track_id": {
+            "title": "Track Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "start",
+          "end"
+        ],
+        "title": "AddSocialClipPayload",
+        "type": "object"
+      },
+      "AddTrackCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/AddTrackPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "AddTrack",
+            "default": "AddTrack",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq"
+        ],
+        "title": "AddTrackCommand",
+        "type": "object"
+      },
+      "AddTrackPayload": {
+        "properties": {
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "speaker": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speaker"
+          },
+          "track_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Track Id"
+          }
+        },
+        "title": "AddTrackPayload",
+        "type": "object"
+      },
+      "ApplyFadeRecommendationsCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/ApplyFadeRecommendationsPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "ApplyFadeRecommendations",
+            "default": "ApplyFadeRecommendations",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq"
+        ],
+        "title": "ApplyFadeRecommendationsCommand",
+        "type": "object"
+      },
+      "ApplyFadeRecommendationsPayload": {
+        "properties": {
+          "track_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Track Id"
+          }
+        },
+        "title": "ApplyFadeRecommendationsPayload",
+        "type": "object"
+      },
+      "ApproveEditsCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/ApproveEditsPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "ApproveEdits",
+            "default": "ApproveEdits",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "ApproveEditsCommand",
+        "type": "object"
+      },
+      "ApproveEditsPayload": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "title": "ApproveEditsPayload",
+        "type": "object"
+      },
+      "ClipJoinMode": {
+        "description": "How an incoming clip meets the previous clip at render time.",
+        "enum": [
+          "fade",
+          "crossfade",
+          "cut"
+        ],
+        "title": "ClipJoinMode",
+        "type": "string"
+      },
+      "ClipMoveItem": {
+        "properties": {
+          "clip_id": {
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "timeline_start": {
+            "title": "Timeline Start",
+            "type": "number"
+          },
+          "track_id": {
+            "title": "Track Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "clip_id",
+          "timeline_start",
+          "track_id"
+        ],
+        "title": "ClipMoveItem",
+        "type": "object"
+      },
+      "CorrectTranscriptPhraseCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/CorrectTranscriptPhrasePayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "CorrectTranscriptPhrase",
+            "default": "CorrectTranscriptPhrase",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "CorrectTranscriptPhraseCommand",
+        "type": "object"
+      },
+      "CorrectTranscriptPhrasePayload": {
+        "properties": {
+          "end_word_index": {
+            "title": "End Word Index",
+            "type": "integer"
+          },
+          "start_word_index": {
+            "title": "Start Word Index",
+            "type": "integer"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "track_id": {
+            "title": "Track Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "start_word_index",
+          "end_word_index",
+          "text"
+        ],
+        "title": "CorrectTranscriptPhrasePayload",
+        "type": "object"
+      },
+      "CorrectTranscriptWordCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/CorrectTranscriptWordPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "CorrectTranscriptWord",
+            "default": "CorrectTranscriptWord",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "CorrectTranscriptWordCommand",
+        "type": "object"
+      },
+      "CorrectTranscriptWordPayload": {
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "track_id": {
+            "title": "Track Id",
+            "type": "string"
+          },
+          "word_index": {
+            "title": "Word Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "track_id",
+          "word_index",
+          "text"
+        ],
+        "title": "CorrectTranscriptWordPayload",
+        "type": "object"
+      },
+      "DeleteChapterCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/DeleteChapterPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "DeleteChapter",
+            "default": "DeleteChapter",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "DeleteChapterCommand",
+        "type": "object"
+      },
+      "DeleteChapterPayload": {
+        "properties": {
+          "time": {
+            "title": "Time",
+            "type": "number"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "time",
+          "title"
+        ],
+        "title": "DeleteChapterPayload",
+        "type": "object"
+      },
+      "DeleteClipCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/DeleteClipPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "DeleteClip",
+            "default": "DeleteClip",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "DeleteClipCommand",
+        "type": "object"
+      },
+      "DeleteClipPayload": {
+        "properties": {
+          "clip_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clip Id"
+          },
+          "clip_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clip Ids"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "title": "DeleteClipPayload",
+        "type": "object"
+      },
+      "DeleteCommentCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/DeleteCommentPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "DeleteComment",
+            "default": "DeleteComment",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "DeleteCommentCommand",
+        "type": "object"
+      },
+      "DeleteCommentPayload": {
+        "properties": {
+          "comment_id": {
+            "title": "Comment Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "comment_id"
+        ],
+        "title": "DeleteCommentPayload",
+        "type": "object"
+      },
+      "DeleteSocialClipCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/DeleteSocialClipPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "DeleteSocialClip",
+            "default": "DeleteSocialClip",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "DeleteSocialClipCommand",
+        "type": "object"
+      },
+      "DeleteSocialClipPayload": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "DeleteSocialClipPayload",
+        "type": "object"
+      },
+      "DuplicateSegmentCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/DuplicateSegmentPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "DuplicateSegment",
+            "default": "DuplicateSegment",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "DuplicateSegmentCommand",
+        "type": "object"
+      },
+      "DuplicateSegmentPayload": {
+        "properties": {
+          "insert_at": {
+            "title": "Insert At",
+            "type": "number"
+          },
+          "source_end": {
+            "title": "Source End",
+            "type": "number"
+          },
+          "source_start": {
+            "title": "Source Start",
+            "type": "number"
+          }
+        },
+        "required": [
+          "source_start",
+          "source_end",
+          "insert_at"
+        ],
+        "title": "DuplicateSegmentPayload",
+        "type": "object"
+      },
+      "EnvelopePoint": {
+        "properties": {
+          "time": {
+            "title": "Time",
+            "type": "number"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "time",
+          "value"
+        ],
+        "title": "EnvelopePoint",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "MoveClipsCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/MoveClipsPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "MoveClips",
+            "default": "MoveClips",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "MoveClipsCommand",
+        "type": "object"
+      },
+      "MoveClipsPayload": {
+        "properties": {
+          "clips": {
+            "items": {
+              "$ref": "#/components/schemas/ClipMoveItem"
+            },
+            "minItems": 1,
+            "title": "Clips",
+            "type": "array"
+          }
+        },
+        "required": [
+          "clips"
+        ],
+        "title": "MoveClipsPayload",
+        "type": "object"
+      },
+      "MoveSegmentCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/MoveSegmentPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "MoveSegment",
+            "default": "MoveSegment",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "MoveSegmentCommand",
+        "type": "object"
+      },
+      "MoveSegmentPayload": {
+        "properties": {
+          "insert_at": {
+            "title": "Insert At",
+            "type": "number"
+          },
+          "source_end": {
+            "title": "Source End",
+            "type": "number"
+          },
+          "source_start": {
+            "title": "Source Start",
+            "type": "number"
+          }
+        },
+        "required": [
+          "source_start",
+          "source_end",
+          "insert_at"
+        ],
+        "title": "MoveSegmentPayload",
+        "type": "object"
+      },
+      "PasteExtract": {
+        "additionalProperties": true,
+        "description": "Clipboard extract for PasteSegment (opaque dict-compatible fields).",
+        "properties": {
+          "source_end": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source End"
+          },
+          "source_start": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Start"
+          },
+          "track_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Track Id"
+          }
+        },
+        "title": "PasteExtract",
+        "type": "object"
+      },
+      "PasteSegmentCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/PasteSegmentPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "PasteSegment",
+            "default": "PasteSegment",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "PasteSegmentCommand",
+        "type": "object"
+      },
+      "PasteSegmentPayload": {
+        "properties": {
+          "duration": {
+            "title": "Duration",
+            "type": "number"
+          },
+          "extracts": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PasteExtract"
+                },
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              ]
+            },
+            "title": "Extracts",
+            "type": "array"
+          },
+          "insert_at": {
+            "title": "Insert At",
+            "type": "number"
+          }
+        },
+        "required": [
+          "insert_at",
+          "duration"
+        ],
+        "title": "PasteSegmentPayload",
+        "type": "object"
+      },
+      "RedoHistoryCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/RedoHistoryPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "RedoHistory",
+            "default": "RedoHistory",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq"
+        ],
+        "title": "RedoHistoryCommand",
+        "type": "object"
+      },
+      "RedoHistoryPayload": {
+        "properties": {
+          "rerender": {
+            "default": false,
+            "title": "Rerender",
+            "type": "boolean"
+          }
+        },
+        "title": "RedoHistoryPayload",
+        "type": "object"
+      },
+      "RejectEditsCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/RejectEditsPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "RejectEdits",
+            "default": "RejectEdits",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "RejectEditsCommand",
+        "type": "object"
+      },
+      "RejectEditsPayload": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "title": "RejectEditsPayload",
+        "type": "object"
+      },
+      "RemoveTrackCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/RemoveTrackPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "RemoveTrack",
+            "default": "RemoveTrack",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "RemoveTrackCommand",
+        "type": "object"
+      },
+      "RemoveTrackPayload": {
+        "properties": {
+          "track_id": {
+            "title": "Track Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id"
+        ],
+        "title": "RemoveTrackPayload",
+        "type": "object"
+      },
+      "ReorderTrackCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/ReorderTrackPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "ReorderTrack",
+            "default": "ReorderTrack",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "ReorderTrackCommand",
+        "type": "object"
+      },
+      "ReorderTrackPayload": {
+        "properties": {
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "track_id": {
+            "title": "Track Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "index"
+        ],
+        "title": "ReorderTrackPayload",
+        "type": "object"
+      },
+      "ResolveCommentCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/ResolveCommentPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "ResolveComment",
+            "default": "ResolveComment",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "ResolveCommentCommand",
+        "type": "object"
+      },
+      "ResolveCommentPayload": {
+        "properties": {
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "comment_id": {
+            "title": "Comment Id",
+            "type": "string"
+          },
+          "resolved": {
+            "default": true,
+            "title": "Resolved",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "comment_id",
+          "by"
+        ],
+        "title": "ResolveCommentPayload",
+        "type": "object"
+      },
+      "RestoreAppliedEditCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/RestoreAppliedEditPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "RestoreAppliedEdit",
+            "default": "RestoreAppliedEdit",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "RestoreAppliedEditCommand",
+        "type": "object"
+      },
+      "RestoreAppliedEditPayload": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "RestoreAppliedEditPayload",
+        "type": "object"
+      },
+      "RippleDeleteClipCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/RippleDeleteClipPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "RippleDeleteClip",
+            "default": "RippleDeleteClip",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "RippleDeleteClipCommand",
+        "type": "object"
+      },
+      "RippleDeleteClipPayload": {
+        "properties": {
+          "clip_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clip Id"
+          },
+          "clip_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clip Ids"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "title": "RippleDeleteClipPayload",
+        "type": "object"
+      },
+      "RippleDeleteRangeCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/RippleDeleteRangePayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "RippleDeleteRange",
+            "default": "RippleDeleteRange",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "RippleDeleteRangeCommand",
+        "type": "object"
+      },
+      "RippleDeleteRangePayload": {
+        "properties": {
+          "end": {
+            "title": "End",
+            "type": "number"
+          },
+          "start": {
+            "title": "Start",
+            "type": "number"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ],
+        "title": "RippleDeleteRangePayload",
+        "type": "object"
+      },
+      "RollClipJoinCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/RollClipJoinPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "RollClipJoin",
+            "default": "RollClipJoin",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "RollClipJoinCommand",
+        "type": "object"
+      },
+      "RollClipJoinPayload": {
+        "properties": {
+          "delta_sec": {
+            "title": "Delta Sec",
+            "type": "number"
+          },
+          "left_clip_id": {
+            "title": "Left Clip Id",
+            "type": "string"
+          },
+          "right_clip_id": {
+            "title": "Right Clip Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "left_clip_id",
+          "right_clip_id",
+          "delta_sec"
+        ],
+        "title": "RollClipJoinPayload",
+        "type": "object"
+      },
+      "SetActionDoneCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/SetActionDonePayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "SetActionDone",
+            "default": "SetActionDone",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "SetActionDoneCommand",
+        "type": "object"
+      },
+      "SetActionDonePayload": {
+        "properties": {
+          "action_id": {
+            "title": "Action Id",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "comment_id": {
+            "title": "Comment Id",
+            "type": "string"
+          },
+          "done": {
+            "default": true,
+            "title": "Done",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "comment_id",
+          "action_id",
+          "by"
+        ],
+        "title": "SetActionDonePayload",
+        "type": "object"
+      },
+      "SetClipFadeCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/SetClipFadePayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "SetClipFade",
+            "default": "SetClipFade",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "SetClipFadeCommand",
+        "type": "object"
+      },
+      "SetClipFadePayload": {
+        "properties": {
+          "clip_id": {
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "fade_in_ms": {
+            "title": "Fade In Ms",
+            "type": "integer"
+          },
+          "fade_out_ms": {
+            "title": "Fade Out Ms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "clip_id",
+          "fade_in_ms",
+          "fade_out_ms"
+        ],
+        "title": "SetClipFadePayload",
+        "type": "object"
+      },
+      "SetEffectBypassCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/SetEffectBypassPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "SetEffectBypass",
+            "default": "SetEffectBypass",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "SetEffectBypassCommand",
+        "type": "object"
+      },
+      "SetEffectBypassPayload": {
+        "properties": {
+          "bypass": {
+            "title": "Bypass",
+            "type": "boolean"
+          },
+          "effect_index": {
+            "title": "Effect Index",
+            "type": "integer"
+          },
+          "track_id": {
+            "title": "Track Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "effect_index",
+          "bypass"
+        ],
+        "title": "SetEffectBypassPayload",
+        "type": "object"
+      },
+      "SetEnvelopeCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/SetEnvelopePayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "SetEnvelope",
+            "default": "SetEnvelope",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "SetEnvelopeCommand",
+        "type": "object"
+      },
+      "SetEnvelopePayload": {
+        "properties": {
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/EnvelopePoint"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "track_id": {
+            "title": "Track Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id"
+        ],
+        "title": "SetEnvelopePayload",
+        "type": "object"
+      },
+      "SetJoinModeCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/SetJoinModePayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "SetJoinMode",
+            "default": "SetJoinMode",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "SetJoinModeCommand",
+        "type": "object"
+      },
+      "SetJoinModePayload": {
+        "properties": {
+          "clip_id": {
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "join_in_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "fade",
+                  "crossfade",
+                  "cut"
+                ],
+                "type": "string"
+              },
+              {
+                "$ref": "#/components/schemas/ClipJoinMode"
+              }
+            ],
+            "title": "Join In Mode"
+          }
+        },
+        "required": [
+          "clip_id",
+          "join_in_mode"
+        ],
+        "title": "SetJoinModePayload",
+        "type": "object"
+      },
+      "SetTrackMediaCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/SetTrackMediaPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "SetTrackMedia",
+            "default": "SetTrackMedia",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "SetTrackMediaCommand",
+        "type": "object"
+      },
+      "SetTrackMediaPayload": {
+        "properties": {
+          "rel_path": {
+            "title": "Rel Path",
+            "type": "string"
+          },
+          "track_id": {
+            "title": "Track Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "rel_path"
+        ],
+        "title": "SetTrackMediaPayload",
+        "type": "object"
+      },
+      "SetTrackMetaCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/SetTrackMetaPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "SetTrackMeta",
+            "default": "SetTrackMeta",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "SetTrackMetaCommand",
+        "type": "object"
+      },
+      "SetTrackMetaPayload": {
+        "properties": {
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "speaker": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speaker"
+          },
+          "track_id": {
+            "title": "Track Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id"
+        ],
+        "title": "SetTrackMetaPayload",
+        "type": "object"
+      },
+      "SetTranscriptWordSuppressedCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/SetTranscriptWordSuppressedPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "SetTranscriptWordSuppressed",
+            "default": "SetTranscriptWordSuppressed",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "SetTranscriptWordSuppressedCommand",
+        "type": "object"
+      },
+      "SetTranscriptWordSuppressedPayload": {
+        "properties": {
+          "suppressed": {
+            "title": "Suppressed",
+            "type": "boolean"
+          },
+          "track_id": {
+            "title": "Track Id",
+            "type": "string"
+          },
+          "word_index": {
+            "title": "Word Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "track_id",
+          "word_index",
+          "suppressed"
+        ],
+        "title": "SetTranscriptWordSuppressedPayload",
+        "type": "object"
+      },
+      "ShareActionDoneRequest": {
+        "description": "Guest HTTP twin for MCP guest_set_action_done (no project path).",
+        "properties": {
+          "by": {
+            "default": "guest",
+            "title": "By",
+            "type": "string"
+          },
+          "done": {
+            "default": true,
+            "title": "Done",
+            "type": "boolean"
+          }
+        },
+        "title": "ShareActionDoneRequest",
+        "type": "object"
+      },
+      "ShareCommentRequest": {
+        "properties": {
+          "author": {
+            "title": "Author",
+            "type": "string"
+          },
+          "body": {
+            "maxLength": 8000,
+            "title": "Body",
+            "type": "string"
+          },
+          "edit_decision_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edit Decision Id"
+          },
+          "timeline_end": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeline End"
+          },
+          "timeline_start": {
+            "title": "Timeline Start",
+            "type": "number"
+          },
+          "track_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Track Ids"
+          }
+        },
+        "required": [
+          "body",
+          "author",
+          "timeline_start"
+        ],
+        "title": "ShareCommentRequest",
+        "type": "object"
+      },
+      "ShareReplyRequest": {
+        "properties": {
+          "author": {
+            "title": "Author",
+            "type": "string"
+          },
+          "body": {
+            "maxLength": 8000,
+            "title": "Body",
+            "type": "string"
+          }
+        },
+        "required": [
+          "body",
+          "author"
+        ],
+        "title": "ShareReplyRequest",
+        "type": "object"
+      },
+      "SplitAtTimeCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/SplitAtTimePayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "SplitAtTime",
+            "default": "SplitAtTime",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "SplitAtTimeCommand",
+        "type": "object"
+      },
+      "SplitAtTimePayload": {
+        "properties": {
+          "at_time": {
+            "title": "At Time",
+            "type": "number"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "track_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Track Ids"
+          }
+        },
+        "required": [
+          "at_time"
+        ],
+        "title": "SplitAtTimePayload",
+        "type": "object"
+      },
+      "SuggestPendingEditCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/SuggestPendingEditPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "SuggestPendingEdit",
+            "default": "SuggestPendingEdit",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "SuggestPendingEditCommand",
+        "type": "object"
+      },
+      "SuggestPendingEditPayload": {
+        "properties": {
+          "edit_type": {
+            "default": "remove",
+            "enum": [
+              "remove",
+              "mute"
+            ],
+            "title": "Edit Type",
+            "type": "string"
+          },
+          "end": {
+            "title": "End",
+            "type": "number"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "start": {
+            "title": "Start",
+            "type": "number"
+          },
+          "track_id": {
+            "title": "Track Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "start",
+          "end"
+        ],
+        "title": "SuggestPendingEditPayload",
+        "type": "object"
+      },
+      "TrimClipEdgeCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/TrimClipEdgePayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "TrimClipEdge",
+            "default": "TrimClipEdge",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "TrimClipEdgeCommand",
+        "type": "object"
+      },
+      "TrimClipEdgePayload": {
+        "properties": {
+          "clip_id": {
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "edge": {
+            "enum": [
+              "in",
+              "out"
+            ],
+            "title": "Edge",
+            "type": "string"
+          },
+          "mode": {
+            "const": "ripple",
+            "default": "ripple",
+            "title": "Mode",
+            "type": "string"
+          },
+          "source_sec": {
+            "title": "Source Sec",
+            "type": "number"
+          }
+        },
+        "required": [
+          "clip_id",
+          "edge",
+          "source_sec"
+        ],
+        "title": "TrimClipEdgePayload",
+        "type": "object"
+      },
+      "UndoHistoryCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/UndoHistoryPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "UndoHistory",
+            "default": "UndoHistory",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq"
+        ],
+        "title": "UndoHistoryCommand",
+        "type": "object"
+      },
+      "UndoHistoryPayload": {
+        "properties": {
+          "rerender": {
+            "default": false,
+            "title": "Rerender",
+            "type": "boolean"
+          }
+        },
+        "title": "UndoHistoryPayload",
+        "type": "object"
+      },
+      "UpdateChapterCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/UpdateChapterPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "UpdateChapter",
+            "default": "UpdateChapter",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "UpdateChapterCommand",
+        "type": "object"
+      },
+      "UpdateChapterPayload": {
+        "properties": {
+          "old_time": {
+            "title": "Old Time",
+            "type": "number"
+          },
+          "old_title": {
+            "title": "Old Title",
+            "type": "string"
+          },
+          "time": {
+            "title": "Time",
+            "type": "number"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "old_time",
+          "old_title",
+          "time",
+          "title"
+        ],
+        "title": "UpdateChapterPayload",
+        "type": "object"
+      },
+      "UpdateCommentCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/UpdateCommentPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "UpdateComment",
+            "default": "UpdateComment",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "UpdateCommentCommand",
+        "type": "object"
+      },
+      "UpdateCommentPayload": {
+        "properties": {
+          "body": {
+            "anyOf": [
+              {
+                "maxLength": 8000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body"
+          },
+          "comment_id": {
+            "title": "Comment Id",
+            "type": "string"
+          },
+          "timeline_end": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeline End"
+          },
+          "timeline_start": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeline Start"
+          },
+          "track_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Track Ids"
+          }
+        },
+        "required": [
+          "comment_id"
+        ],
+        "title": "UpdateCommentPayload",
+        "type": "object"
+      },
+      "UpdatePendingEditCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/UpdatePendingEditPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "UpdatePendingEdit",
+            "default": "UpdatePendingEdit",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "UpdatePendingEditCommand",
+        "type": "object"
+      },
+      "UpdatePendingEditPayload": {
+        "properties": {
+          "end": {
+            "title": "End",
+            "type": "number"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "snap": {
+            "default": true,
+            "title": "Snap",
+            "type": "boolean"
+          },
+          "start": {
+            "title": "Start",
+            "type": "number"
+          },
+          "track_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Track Ids"
+          }
+        },
+        "required": [
+          "id",
+          "start",
+          "end"
+        ],
+        "title": "UpdatePendingEditPayload",
+        "type": "object"
+      },
+      "UpdateSocialClipCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/UpdateSocialClipPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "UpdateSocialClip",
+            "default": "UpdateSocialClip",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "UpdateSocialClipCommand",
+        "type": "object"
+      },
+      "UpdateSocialClipPayload": {
+        "properties": {
+          "end": {
+            "title": "End",
+            "type": "number"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "start": {
+            "title": "Start",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "start",
+          "end"
+        ],
+        "title": "UpdateSocialClipPayload",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "ViewProjection": {
+        "description": "Closed ProjectView projections \u2014 HTTP ``?phase=`` and WS slices alias these.",
+        "enum": [
+          "full",
+          "shell",
+          "detail",
+          "tracks",
+          "comments",
+          "clips",
+          "fx",
+          "envelopes"
+        ],
+        "title": "ViewProjection",
+        "type": "string"
+      }
+    }
+  },
+  "info": {
+    "description": "Static export of guest share / remote MCP HTTP paths from the host GUI app. Not served on the public relay. Alpha \u2014 may change without notice. Document commands: schemas/document-commands.schema.json",
+    "title": "Podcast MCP guest share HTTP",
+    "version": "alpha"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/rec/{token}/bootstrap": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/rec/{token}/features": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/rec/{token}/upload": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          },
+          {
+            "description": "keeper or room_tone",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "keeper",
+                    "room_tone"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "keeper or room_tone",
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Record-Participant",
+            "required": true,
+            "schema": {
+              "title": "X-Record-Participant",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Record-Lease",
+            "required": true,
+            "schema": {
+              "title": "X-Record-Lease",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      },
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Record-Participant",
+            "required": true,
+            "schema": {
+              "title": "X-Record-Participant",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Record-Lease",
+            "required": true,
+            "schema": {
+              "title": "X-Record-Lease",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      },
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "take_index",
+            "required": true,
+            "schema": {
+              "title": "Take Index",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "segment_index",
+            "required": true,
+            "schema": {
+              "title": "Segment Index",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "part_seq",
+            "required": true,
+            "schema": {
+              "title": "Part Seq",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sha256",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Sha256",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "file_sha256",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "File Sha256"
+            }
+          },
+          {
+            "in": "query",
+            "name": "final",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Final",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "join_offset_ms",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Join Offset Ms"
+            }
+          },
+          {
+            "description": "keeper or room_tone",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "keeper",
+                    "room_tone"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "keeper or room_tone",
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Record-Participant",
+            "required": true,
+            "schema": {
+              "title": "X-Record-Participant",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Record-Lease",
+            "required": true,
+            "schema": {
+              "title": "X-Record-Lease",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/audio": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/comments": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShareCommentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/comments/{comment_id}/actions/{action_id}/done": {
+      "post": {
+        "description": "HTTP twin for MCP ``guest_set_action_done`` (requires ``action`` cap).",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "comment_id",
+            "required": true,
+            "schema": {
+              "title": "Comment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShareActionDoneRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/comments/{comment_id}/replies": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "comment_id",
+            "required": true,
+            "schema": {
+              "title": "Comment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShareReplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/daw/audio": {
+      "get": {
+        "description": "Guest DAW audio - kind whitelist; ``rerender`` is always rejected.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "default": "premix",
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "track_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Track Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "rerender",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Rerender",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/daw/audition-context": {
+      "get": {
+        "description": "Windowed hear context: captions + PNG URLs (``play`` + ``view``).",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Timeline start seconds",
+            "in": "query",
+            "name": "start",
+            "required": true,
+            "schema": {
+              "description": "Timeline start seconds",
+              "title": "Start",
+              "type": "number"
+            }
+          },
+          {
+            "description": "Timeline end seconds",
+            "in": "query",
+            "name": "end",
+            "required": true,
+            "schema": {
+              "description": "Timeline end seconds",
+              "title": "End",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "visual",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Visual",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/daw/audition-context-image": {
+      "get": {
+        "description": "Waveform or spectrogram of a timeline window (``play`` + ``view``).",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start",
+            "required": true,
+            "schema": {
+              "title": "Start",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end",
+            "required": true,
+            "schema": {
+              "title": "End",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "track_id",
+            "required": true,
+            "schema": {
+              "title": "Track Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "default": "wave",
+              "title": "Kind",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/daw/document/command": {
+      "post": {
+        "description": "Guest document commands - capability-gated Pass 1-2 / suggest set.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "discriminator": {
+                  "mapping": {
+                    "AddAction": "#/components/schemas/AddActionCommand",
+                    "AddChapter": "#/components/schemas/AddChapterCommand",
+                    "AddComment": "#/components/schemas/AddCommentCommand",
+                    "AddReply": "#/components/schemas/AddReplyCommand",
+                    "AddSocialClip": "#/components/schemas/AddSocialClipCommand",
+                    "AddTrack": "#/components/schemas/AddTrackCommand",
+                    "ApplyFadeRecommendations": "#/components/schemas/ApplyFadeRecommendationsCommand",
+                    "ApproveEdits": "#/components/schemas/ApproveEditsCommand",
+                    "CorrectTranscriptPhrase": "#/components/schemas/CorrectTranscriptPhraseCommand",
+                    "CorrectTranscriptWord": "#/components/schemas/CorrectTranscriptWordCommand",
+                    "DeleteChapter": "#/components/schemas/DeleteChapterCommand",
+                    "DeleteClip": "#/components/schemas/DeleteClipCommand",
+                    "DeleteComment": "#/components/schemas/DeleteCommentCommand",
+                    "DeleteSocialClip": "#/components/schemas/DeleteSocialClipCommand",
+                    "DuplicateSegment": "#/components/schemas/DuplicateSegmentCommand",
+                    "MoveClips": "#/components/schemas/MoveClipsCommand",
+                    "MoveSegment": "#/components/schemas/MoveSegmentCommand",
+                    "PasteSegment": "#/components/schemas/PasteSegmentCommand",
+                    "RedoHistory": "#/components/schemas/RedoHistoryCommand",
+                    "RejectEdits": "#/components/schemas/RejectEditsCommand",
+                    "RemoveTrack": "#/components/schemas/RemoveTrackCommand",
+                    "ReorderTrack": "#/components/schemas/ReorderTrackCommand",
+                    "ResolveComment": "#/components/schemas/ResolveCommentCommand",
+                    "RestoreAppliedEdit": "#/components/schemas/RestoreAppliedEditCommand",
+                    "RippleDeleteClip": "#/components/schemas/RippleDeleteClipCommand",
+                    "RippleDeleteRange": "#/components/schemas/RippleDeleteRangeCommand",
+                    "RollClipJoin": "#/components/schemas/RollClipJoinCommand",
+                    "SetActionDone": "#/components/schemas/SetActionDoneCommand",
+                    "SetClipFade": "#/components/schemas/SetClipFadeCommand",
+                    "SetEffectBypass": "#/components/schemas/SetEffectBypassCommand",
+                    "SetEnvelope": "#/components/schemas/SetEnvelopeCommand",
+                    "SetJoinMode": "#/components/schemas/SetJoinModeCommand",
+                    "SetTrackMedia": "#/components/schemas/SetTrackMediaCommand",
+                    "SetTrackMeta": "#/components/schemas/SetTrackMetaCommand",
+                    "SetTranscriptWordSuppressed": "#/components/schemas/SetTranscriptWordSuppressedCommand",
+                    "SplitAtTime": "#/components/schemas/SplitAtTimeCommand",
+                    "SuggestPendingEdit": "#/components/schemas/SuggestPendingEditCommand",
+                    "TrimClipEdge": "#/components/schemas/TrimClipEdgeCommand",
+                    "UndoHistory": "#/components/schemas/UndoHistoryCommand",
+                    "UpdateChapter": "#/components/schemas/UpdateChapterCommand",
+                    "UpdateComment": "#/components/schemas/UpdateCommentCommand",
+                    "UpdatePendingEdit": "#/components/schemas/UpdatePendingEditCommand",
+                    "UpdateSocialClip": "#/components/schemas/UpdateSocialClipCommand"
+                  },
+                  "propertyName": "type"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/AddCommentCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/UpdateCommentCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ResolveCommentCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/DeleteCommentCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/AddReplyCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SetActionDoneCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/AddActionCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/UndoHistoryCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RedoHistoryCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ApproveEditsCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RejectEditsCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/UpdatePendingEditCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RestoreAppliedEditCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SetClipFadeCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/TrimClipEdgeCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RollClipJoinCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SetJoinModeCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ApplyFadeRecommendationsCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SetEffectBypassCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/CorrectTranscriptWordCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/CorrectTranscriptPhraseCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SetTranscriptWordSuppressedCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/AddChapterCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/UpdateChapterCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/DeleteChapterCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/AddSocialClipCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/UpdateSocialClipCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/DeleteSocialClipCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SetEnvelopeCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SuggestPendingEditCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SplitAtTimeCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/DeleteClipCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RippleDeleteClipCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/DuplicateSegmentCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/MoveSegmentCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/MoveClipsCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PasteSegmentCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RippleDeleteRangeCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/AddTrackCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SetTrackMediaCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SetTrackMetaCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RemoveTrackCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ReorderTrackCommand"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/daw/media/upload": {
+      "post": {
+        "description": "Guest ``edit`` only: chunked upload into host ``raw/`` (then SetTrackMedia).",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Original filename (extension required)",
+            "in": "query",
+            "name": "filename",
+            "required": true,
+            "schema": {
+              "description": "Original filename (extension required)",
+              "title": "Filename",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "upload_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Upload Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "chunk_index",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Chunk Index",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "total_chunks",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Total Chunks",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/daw/meta": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/daw/peaks/{track_id}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "track_id",
+            "required": true,
+            "schema": {
+              "title": "Track Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/daw/pending-preview": {
+      "get": {
+        "description": "Listen-first Current / Suggested / A/B WAV (``play`` + ``view``).",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "edit_id",
+            "required": true,
+            "schema": {
+              "title": "Edit Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "default": "suggested",
+              "title": "Mode",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/daw/pending-preview-image": {
+      "get": {
+        "description": "Waveform or spectrogram of a listen-first extract (``play`` + ``view``).",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "edit_id",
+            "required": true,
+            "schema": {
+              "title": "Edit Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "default": "suggested",
+              "title": "Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "default": "wave",
+              "title": "Kind",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/daw/project": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          },
+          {
+            "description": "View projection: full, shell, detail, tracks, comments, clips, fx, envelopes (default shell)",
+            "in": "query",
+            "name": "phase",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ViewProjection"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "View projection: full, shell, detail, tracks, comments, clips, fx, envelopes (default shell)",
+              "title": "Phase"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/daw/proxy/manifest": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/daw/proxy/{track_id}/{proxy_hash}/{chunk_idx}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "track_id",
+            "required": true,
+            "schema": {
+              "title": "Track Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "proxy_hash",
+            "required": true,
+            "schema": {
+              "title": "Proxy Hash",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "chunk_idx",
+            "required": true,
+            "schema": {
+              "title": "Chunk Idx",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/daw/render-preview": {
+      "post": {
+        "description": "Docs Editor (``edit``) may rebuild stems/premix on the host project.\n\nOpt-in via ``PODCAST_GUEST_RENDER=1``. Uses the same ``PipelineJobManager``\nlock as the host GUI so concurrent host/guest renders cannot race.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/daw/waveform-snap": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "track_id",
+            "required": true,
+            "schema": {
+              "title": "Track Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start",
+            "required": true,
+            "schema": {
+              "title": "Start",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end",
+            "required": true,
+            "schema": {
+              "title": "End",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeline",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Timeline",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "focus",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Focus"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/features": {
+      "get": {
+        "description": "Share-scoped feature manifest (relay-safe; guests cannot hit /api/features).",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/project": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/mcp/{token}": {
+      "get": {
+        "description": "Return capability info for the token; 403 if mcp is not granted.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/mcp/{token}/mcp": {
+      "get": {
+        "description": "Capability-scoped guest MCP endpoint (JSON-RPC over Streamable HTTP).",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      },
+      "options": {
+        "description": "Capability-scoped guest MCP endpoint (JSON-RPC over Streamable HTTP).",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      },
+      "post": {
+        "description": "Capability-scoped guest MCP endpoint (JSON-RPC over Streamable HTTP).",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    }
+  }
+}

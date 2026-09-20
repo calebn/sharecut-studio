@@ -1,0 +1,23 @@
+body {
+  font-family: var(--font-family-sans);
+  max-width: 36rem;
+  margin: 4rem auto;
+  padding: 0 var(--s0);
+  color: var(--color-text-primary);
+  background: var(--color-bg-canvas);
+}
+
+h1 {
+  font-size: var(--font-size-display);
+}
+
+p {
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+code {
+  background: var(--color-bg-elevated);
+  padding: 0.1em 0.35em;
+  border-radius: var(--radius-md);
+}

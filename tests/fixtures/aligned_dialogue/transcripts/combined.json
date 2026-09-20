@@ -1,0 +1,53 @@
+{
+  "utterances": [
+    {
+      "track_id": "reference",
+      "speaker": "reference",
+      "start": 2.0,
+      "end": 3.2,
+      "text": "welcome to the show"
+    },
+    {
+      "track_id": "reference",
+      "speaker": "reference",
+      "start": 5.0,
+      "end": 21.0,
+      "text": "so here is why this matters for people who care about documented stories and real change"
+    },
+    {
+      "track_id": "guest",
+      "speaker": "guest",
+      "start": 21.5,
+      "end": 22.4,
+      "text": "life been great"
+    },
+    {
+      "track_id": "reference",
+      "speaker": "reference",
+      "start": 22.0,
+      "end": 22.2,
+      "text": "um"
+    },
+    {
+      "track_id": "reference",
+      "speaker": "reference",
+      "start": 23.0,
+      "end": 23.9,
+      "text": "how is today going"
+    },
+    {
+      "track_id": "guest",
+      "speaker": "guest",
+      "start": 25.0,
+      "end": 41.0,
+      "text": "what if we never stop learning from each other and keep asking how to build something better together"
+    },
+    {
+      "track_id": "guest",
+      "speaker": "guest",
+      "start": 42.0,
+      "end": 44.0,
+      "text": "uh documented people"
+    }
+  ]
+}

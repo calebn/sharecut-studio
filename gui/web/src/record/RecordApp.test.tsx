@@ -1,0 +1,482 @@
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { expectNoA11yViolations } from "../test/a11y";
+import { urlOf } from "../test/urlOf";
+import { MIC_ALLOW_LABEL } from "./micPermission";
+import { RecordApp } from "./RecordApp";
+import {
+  CONSENT_COPY,
+  DECLINED_COPY,
+  FULL_ROOM_COPY,
+  ROOM_TONE_PROMPT_COPY,
+} from "./types";
+
+vi.mock("./monitor/useRecordMonitor", () => ({
+  useRecordMonitor: () => ({ hearing: false, remoteCount: 0, error: null }),
+}));
+
+vi.mock("./keeper/graph", () => ({
+  attachKeeperTap: vi.fn(async () => () => undefined),
+}));
+
+vi.mock("./keeper/store", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./keeper/store")>();
+  return {
+    ...actual,
+    createOpfsSink: async () => new actual.MemorySink(),
+  };
+});
+
+vi.mock("../state/offlineStore", () => ({
+  loadRecordParticipant: vi.fn(async () => undefined),
+  saveRecordParticipant: vi.fn(async () => undefined),
+  clearRecordParticipant: vi.fn(async () => undefined),
+}));
+
+const guestBootstrap = {
+  mode: "record",
+  kind: "record",
+  token: "guest-tok",
+  role: "guest",
+  session_id: "room1",
+  capabilities: ["join", "monitor", "comment"],
+  episode: { name: "Shot of Truth" },
+  room: { recorded_cap: 4, producer_cap: 2 },
+  build: { capture: true, monitor: true, upload: false },
+  expires_at: null,
+};
+
+const producerBootstrap = {
+  ...guestBootstrap,
+  token: "prod-tok",
+  role: "producer",
+  capabilities: ["monitor", "comment"],
+};
+
+const guestSnap = {
+  session_id: "room1",
+  state: "lobby" as const,
+  take_index: -1,
+  recording_ms: 0,
+  start_blockers: ["Ava"],
+  caps: { recorded: 4, producers: 2 },
+  participants: [
+    {
+      participant_id: "p_g",
+      role: "guest" as const,
+      display_name: "Ava",
+      connected: true,
+      consented: null,
+      muted: false,
+      headphones_ack: false,
+    },
+  ],
+};
+
+class FakeSocket {
+  static OPEN = 1;
+  readyState = FakeSocket.OPEN;
+  onopen: (() => void) | null = null;
+  onmessage: ((ev: { data: string }) => void) | null = null;
+  onclose: (() => void) | null = null;
+  sent: string[] = [];
+  reply: "join" | "full" | "declined" = "join";
+
+  send(data: string) {
+    this.sent.push(data);
+    const msg = JSON.parse(data) as {
+      command_type?: string;
+      payload?: { accepted?: boolean };
+    };
+    if (msg.command_type === "Consent") {
+      queueMicrotask(() => {
+        this.onmessage?.({
+          data: JSON.stringify({
+            plane: "record",
+            type: "Echo",
+            command_type: "Consent",
+            participant_id: "p_g",
+            snapshot: {
+              ...guestSnap,
+              start_blockers: [],
+              participants: [
+                {
+                  ...guestSnap.participants[0],
+                  consented: Boolean(msg.payload?.accepted),
+                },
+              ],
+            },
+          }),
+        });
+      });
+      return;
+    }
+    if (msg.command_type !== "Join") {
+      return;
+    }
+    queueMicrotask(() => {
+      if (this.reply === "full") {
+        this.onmessage?.({
+          data: JSON.stringify({
+            plane: "record",
+            type: "Error",
+            code: "room_full",
+          }),
+        });
+        return;
+      }
+      const consented = this.reply === "declined" ? false : null;
+      const state = this.reply === "declined" ? "recording" : "lobby";
+      this.onmessage?.({
+        data: JSON.stringify({
+          plane: "record",
+          type: "Echo",
+          participant_id: "p_g",
+          lease: "lease-1",
+        }),
+      });
+      this.onmessage?.({
+        data: JSON.stringify({
+          plane: "record",
+          type: "Snapshot",
+          snapshot: {
+            ...guestSnap,
+            state,
+            participants: [{ ...guestSnap.participants[0], consented }],
+          },
+        }),
+      });
+    });
+  }
+
+  close() {}
+}
+
+function stubWebSocket(
+  sockets: FakeSocket[],
+  reply: FakeSocket["reply"] = "join",
+) {
+  const ctor = Object.assign(
+    vi.fn(() => {
+      const ws = new FakeSocket();
+      ws.reply = reply;
+      sockets.push(ws);
+      queueMicrotask(() => ws.onopen?.());
+      return ws;
+    }),
+    { OPEN: 1, CONNECTING: 0, CLOSING: 2, CLOSED: 3 },
+  );
+  vi.stubGlobal("WebSocket", ctor);
+}
+
+describe("RecordApp", () => {
+  let sockets: FakeSocket[];
+  let getUserMedia: ReturnType<typeof vi.fn>;
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  beforeEach(() => {
+    sockets = [];
+    stubWebSocket(sockets);
+    getUserMedia = vi.fn(async () => {
+      const track = {
+        stop: vi.fn(),
+        getSettings: () => ({
+          echoCancellation: false,
+          autoGainControl: false,
+          noiseSuppression: false,
+        }),
+      };
+      return {
+        getTracks: () => [track],
+        getAudioTracks: () => [track],
+      };
+    });
+    vi.stubGlobal("navigator", {
+      mediaDevices: {
+        getUserMedia,
+        enumerateDevices: vi.fn(async () => []),
+      },
+    });
+  });
+
+  it("shows guest copy, consent, and is axe-clean", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (urlOf(input).includes("/bootstrap")) {
+          return new Response(JSON.stringify(guestBootstrap), { status: 200 });
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+    const { container } = render(<RecordApp token="guest-tok" />);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Join the recording" }),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText("You will be recorded")).toBeInTheDocument();
+    expect(screen.getByText("Shot of Truth")).toBeInTheDocument();
+    expect(await screen.findByText(CONSENT_COPY)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: MIC_ALLOW_LABEL }),
+    ).toBeInTheDocument();
+    expect(getUserMedia).not.toHaveBeenCalled();
+    const accept = screen.getByRole("button", { name: "Accept" });
+    expect(accept).toBeDisabled();
+    expect(accept).toHaveAttribute("aria-describedby");
+    await expectNoA11yViolations(container);
+  });
+
+  it("requests the dry keeper tap only after Allow microphone", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (urlOf(input).includes("/bootstrap")) {
+          return new Response(JSON.stringify(guestBootstrap), { status: 200 });
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+    render(<RecordApp token="guest-tok" />);
+    await screen.findByRole("button", { name: MIC_ALLOW_LABEL });
+    expect(getUserMedia).not.toHaveBeenCalled();
+    await userEvent.click(
+      screen.getByRole("button", { name: MIC_ALLOW_LABEL }),
+    );
+    await waitFor(() => {
+      expect(getUserMedia).toHaveBeenCalled();
+    });
+    expect(getUserMedia.mock.calls[0]?.[0]).toMatchObject({
+      audio: {
+        echoCancellation: false,
+        autoGainControl: false,
+        noiseSuppression: false,
+        channelCount: 1,
+      },
+    });
+    expect(screen.getByRole("button", { name: "Accept" })).toBeInTheDocument();
+    expect(screen.queryByText(ROOM_TONE_PROMPT_COPY)).toBeNull();
+  });
+
+  it("accepts consent once and waits for the host", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (urlOf(input).includes("/bootstrap")) {
+          return new Response(JSON.stringify(guestBootstrap), { status: 200 });
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+    render(<RecordApp token="guest-tok" />);
+    await screen.findByRole("button", { name: MIC_ALLOW_LABEL });
+    await userEvent.click(
+      screen.getByRole("button", { name: MIC_ALLOW_LABEL }),
+    );
+    await waitFor(() => {
+      expect(getUserMedia).toHaveBeenCalled();
+    });
+    await screen.findByRole("button", { name: "Accept" });
+    await userEvent.click(screen.getByLabelText(/I am wearing headphones/));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Accept" })).toBeEnabled();
+    });
+    const ws = sockets[0];
+    const extraSnap = {
+      plane: "record",
+      type: "Applied",
+      snapshot: guestSnap,
+    };
+    ws.onmessage?.({ data: JSON.stringify(extraSnap) });
+    ws.onmessage?.({ data: JSON.stringify(extraSnap) });
+    await userEvent.click(screen.getByRole("button", { name: "Accept" }));
+    await screen.findByText("Waiting for host");
+    const types = ws.sent.map(
+      (row) => JSON.parse(row) as { command_type?: string },
+    );
+    expect(types.filter((t) => t.command_type === "Consent")).toHaveLength(1);
+    expect(
+      types.filter((t) => t.command_type === "HeadphonesAck").length,
+    ).toBeLessThan(3);
+  });
+
+  it("shows producer copy without a microphone prompt", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (urlOf(input).includes("/bootstrap")) {
+          return new Response(JSON.stringify(producerBootstrap), {
+            status: 200,
+          });
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+    const { container } = render(<RecordApp token="prod-tok" />);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Producer — not recorded" }),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("heading", { name: "Not recorded" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("You are listening only")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Join" })).toBeInTheDocument();
+    expect(screen.queryByText("Microphone")).toBeNull();
+    expect(screen.queryByRole("button", { name: MIC_ALLOW_LABEL })).toBeNull();
+    expect(screen.queryByText(ROOM_TONE_PROMPT_COPY)).toBeNull();
+    expect(getUserMedia).not.toHaveBeenCalled();
+    expect(document.title).toBe("Producer — not recorded — Shot of Truth");
+    expect(sockets).toHaveLength(0);
+    await expectNoA11yViolations(container);
+  });
+
+  it("restores the previous document title after unmount", async () => {
+    document.title = "Sharecut Studio";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify(producerBootstrap), { status: 200 }),
+      ),
+    );
+    const { unmount } = render(<RecordApp token="prod-tok" />);
+
+    await waitFor(() => {
+      expect(document.title).toBe("Producer — not recorded — Shot of Truth");
+    });
+    unmount();
+    expect(document.title).toBe("Sharecut Studio");
+  });
+
+  it("requires skip of room tone when upload is on", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (urlOf(input).includes("/bootstrap")) {
+          return new Response(
+            JSON.stringify({
+              ...guestBootstrap,
+              build: { ...guestBootstrap.build, upload: true },
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+    render(<RecordApp token="guest-tok" />);
+    expect(await screen.findByText(ROOM_TONE_PROMPT_COPY)).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("button", { name: MIC_ALLOW_LABEL }),
+    );
+    await waitFor(() => {
+      expect(getUserMedia).toHaveBeenCalled();
+    });
+    await userEvent.click(screen.getByLabelText(/I am wearing headphones/));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Accept" })).toBeDisabled();
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Skip" }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Accept" })).toBeEnabled();
+    });
+  });
+
+  it("shows live comments after consent once the take is recording", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (urlOf(input).includes("/bootstrap")) {
+          return new Response(JSON.stringify(guestBootstrap), { status: 200 });
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+    render(<RecordApp token="guest-tok" />);
+    await screen.findByRole("button", { name: MIC_ALLOW_LABEL });
+    await userEvent.click(
+      screen.getByRole("button", { name: MIC_ALLOW_LABEL }),
+    );
+    await waitFor(() => {
+      expect(getUserMedia).toHaveBeenCalled();
+    });
+    await screen.findByRole("button", { name: "Accept" });
+    await userEvent.click(screen.getByLabelText(/I am wearing headphones/));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Accept" })).toBeEnabled();
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Accept" }));
+    await screen.findByText("Waiting for host");
+    const ws = sockets[0];
+    ws.onmessage?.({
+      data: JSON.stringify({
+        plane: "record",
+        type: "Snapshot",
+        snapshot: {
+          ...guestSnap,
+          state: "recording",
+          take_index: 0,
+          recording_ms: 800,
+          start_blockers: [],
+          participants: [{ ...guestSnap.participants[0], consented: true }],
+        },
+      }),
+    });
+    expect(
+      await screen.findByRole("heading", { name: "Live comments" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Marker" })).toBeEnabled();
+  });
+
+  it("shows a 404 error state", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("not found", { status: 404 })),
+    );
+    render(<RecordApp token="gone" />);
+    await waitFor(() => {
+      expect(
+        screen.getByText("This recording link is invalid or has ended."),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("routes room_full to the full-room page without a mic prompt", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (urlOf(input).includes("/bootstrap")) {
+          return new Response(JSON.stringify(guestBootstrap), { status: 200 });
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+    stubWebSocket(sockets, "full");
+    render(<RecordApp token="guest-tok" />);
+    expect(await screen.findByText(FULL_ROOM_COPY)).toBeInTheDocument();
+    expect(getUserMedia).not.toHaveBeenCalled();
+  });
+
+  it("routes a declined guest to the declined page while recording", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (urlOf(input).includes("/bootstrap")) {
+          return new Response(JSON.stringify(guestBootstrap), { status: 200 });
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+    stubWebSocket(sockets, "declined");
+    render(<RecordApp token="guest-tok" />);
+    expect(await screen.findByText(DECLINED_COPY)).toBeInTheDocument();
+  });
+});

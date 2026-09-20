@@ -1,0 +1,59 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      RELAY_DOMAIN: ${RELAY_DOMAIN:?set RELAY_DOMAIN}
+    volumes:
+      - ./Caddyfile.prod:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      podcast-relay:
+        condition: service_healthy
+
+  podcast-relay:
+    image: ${RELAY_IMAGE:?set RELAY_IMAGE}
+    environment:
+      PODCAST_RELAY_HOST_TOKENS: ${PODCAST_RELAY_HOST_TOKENS:?set PODCAST_RELAY_HOST_TOKENS}
+      PODCAST_RELAY_PORT: "8081"
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        case "$${PODCAST_RELAY_HOST_TOKENS}" in
+          *dev-host-token*) echo "refusing local development token in production" >&2; exit 1 ;;
+        esac
+        old_ifs="$$IFS"
+        IFS=,
+        set -- $${PODCAST_RELAY_HOST_TOKENS}
+        IFS="$$old_ifs"
+        for entry in "$$@"; do
+          entry="$$(printf '%s' "$$entry" | sed 's/^[[:space:]]*//; s/[[:space:]]*$$//')"
+          [ -n "$$entry" ] || continue
+          case "$$entry" in
+            *:*) secret="$${entry#*:}" ;;
+            *) secret="$$entry" ;;
+          esac
+          secret="$$(printf '%s' "$$secret" | sed 's/^[[:space:]]*//; s/[[:space:]]*$$//')"
+          [ "$${#secret}" -ge 32 ] || {
+            echo "each PODCAST_RELAY_HOST_TOKENS secret must be at least 32 characters" >&2; exit 1;
+          }
+        done
+        exec python -m podcast_relay.app
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8081/healthz')"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:

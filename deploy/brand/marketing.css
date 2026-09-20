@@ -1,0 +1,157 @@
+@import "./brand-tokens.css";
+@import "./cover-layout.css";
+
+/**
+ * Sharecut marketing layout + page helpers.
+ * Cover paints the place (canvas). Box is a durable object (surface).
+ * .box.elevated is a temporary object. .primary is an act.
+ * Scale + brand colors: brand-tokens.css. Cover/Stack/Cluster/Switcher/Box:
+ * cover-layout.css (nest primitives; do not add descendant layout to Box).
+ * Source of truth — copies in sharecut/www/download public dirs must match
+ * (tests/test_public_sites.py). Retint brand-tokens.css; do not restyle each page.
+ */
+
+/* Company page: cooler accent, same scale. :root.company beats brand-tokens on OS light. */
+:root.company {
+  --color-accent: #8aa8a0;
+  --color-accent-solid: #3d5c56;
+  --color-accent-on-solid: #ffffff;
+}
+
+@media (prefers-color-scheme: light) {
+  :root.company {
+    --color-accent: #3d5c56;
+    --color-accent-solid: #3d5c56;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  max-inline-size: var(--measure);
+}
+
+html,
+body,
+div,
+header,
+nav,
+main,
+footer,
+ul,
+ol,
+img,
+svg,
+audio,
+.cover,
+.cluster,
+.box,
+.switcher {
+  max-inline-size: none;
+}
+
+html {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  min-block-size: 100dvh;
+  font-family: var(--font-family-sans);
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--color-text-primary);
+  background: var(--color-bg-canvas);
+}
+
+img {
+  max-inline-size: 100%;
+  block-size: auto;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+.box h2 {
+  font-size: 1.05rem;
+}
+
+a {
+  color: var(--color-accent);
+}
+
+a:focus-visible,
+button:focus-visible {
+  outline: 0.125rem solid var(--color-accent);
+  outline-offset: 0.125rem;
+}
+
+.badge {
+  display: inline-block;
+  margin: 0;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+}
+
+.primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--tap-comfortable);
+  padding-inline: var(--s1);
+  border-radius: var(--radius-lg);
+  background: var(--color-accent-solid);
+  color: var(--color-accent-on-solid);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.primary[aria-disabled="true"] {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+#platform-links a[aria-disabled="true"] {
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  pointer-events: none;
+  cursor: default;
+}
+
+.soon {
+  color: var(--color-text-secondary);
+  font-size: 0.85em;
+}
+
+.note,
+.checksums {
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+}
+
+.checksums {
+  font-family: var(--font-family-mono);
+  font-size: 0.75rem;
+  word-break: break-all;
+}
+
+ul.plain {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+footer {
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+}

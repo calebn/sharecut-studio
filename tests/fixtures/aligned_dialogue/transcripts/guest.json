@@ -1,0 +1,28 @@
+{
+  "track_id": "guest",
+  "language": "en",
+  "words": [
+    {
+      "text": "You",
+      "start": 19.880000000000003,
+      "end": 21.28,
+      "confidence": 0.0030024326406419277,
+      "suppressed": false,
+      "audibility_status": null,
+      "dominant_track": null,
+      "speaker_match_track": null,
+      "speaker_match_score": null
+    },
+    {
+      "text": "You",
+      "start": 57.480000000000004,
+      "end": 58.88,
+      "confidence": 0.01896677166223526,
+      "suppressed": false,
+      "audibility_status": null,
+      "dominant_track": null,
+      "speaker_match_track": null,
+      "speaker_match_score": null
+    }
+  ]
+}

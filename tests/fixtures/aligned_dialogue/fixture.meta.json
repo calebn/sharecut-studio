@@ -1,0 +1,5 @@
+{
+  "duration_sec": 60,
+  "track_ids": ["reference", "guest"],
+  "known_phrases": ["documented", "people", "today", "going", "great"]
+}

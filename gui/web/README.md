@@ -1,0 +1,120 @@
+# Sharecut Studio frontend (`gui/web`)
+
+React + TypeScript + Vite UI for the podcast Sharecut Studio viewer and guest review app.
+
+## Scripts
+
+```bash
+npm install
+npm run dev         # Vite on :5173 (proxy /api → :8765)
+npm run build
+npm run typecheck   # tsc -b (strict)
+npm test            # vitest run (unit + component a11y)
+npm run test:watch  # vitest watch mode
+npm run test:e2e    # Playwright smoke (needs built dist + `podcast gui` / uv; isolated port and post-server fixture cleanup)
+npm run lint        # oxlint (JS/TS + jsx-a11y + hygiene) + Stylelint (tokens, rem, no viewport-size @media; !important/@layer consent-gated)
+npm run lint:css    # Stylelint only
+npm run format      # Biome format + organize imports
+npm run format:check
+```
+
+Repo root:
+
+- `make test-web` — lint + format:check + typecheck + vitest + build (CI `frontend` job)
+- `make test-web-e2e` — build + Playwright against `aligned_dialogue` (CI `frontend-e2e` job)
+
+## Testing
+
+| Kind | Where | Notes |
+|------|-------|-------|
+| Unit | `src/**/*.test.ts` | Pure utils, session dedupe, share mode, theme init |
+| Component + a11y | `src/**/*.test.tsx` | React Testing Library + Deque `axe-core` via `expectNoA11yViolations` |
+| E2E smoke + a11y | `e2e/*.spec.ts` | Playwright + `@axe-core/playwright` via shared `expectPageAxeClean` (dense DAW) or `expectReadingSurfaceAxeClean` (Home / marketing HTML; required for green CI) |
+| Static a11y | oxlint `jsx-a11y` | Interaction + media rules are **errors** — fix the markup; do not add lint suppressions |
+| TS hygiene | oxlint + `oxlint-tsgolint` (see `.oxlintrc.json`) | No explicit `any` / `@ts-*` escapes; `===`; `const`; no `var`; no `console` in `src/` (allowed in `scripts/`); type-aware promise + stringification hygiene (`options.typeAware`) |
+| Theme tokens | Stylelint + pytest | Color, padding, margin, gap, font-size, radius outside `src/styles/theme/` must use `var(--…)`; hex only in theme files. Chrome rem (`meowtec/no-px`); canvas `px` needs `-- user-approved:`. Inline JS styles and Python-authored CSS colors: `tests/test_css_policy.py` |
+| `!important` / `@layer` / viewport `@media` | Stylelint + pytest | Default-off; allowed only with `stylelint-disable` + `-- user-approved:`. `tests/test_css_policy.py` does **not** strip comments. `font-size: 62.5%` is a hard ban |
+| Format | Biome | `format:check` in CI; commit hook runs lint-staged (`biome check --write` on staged files; `make hooks`). Biome linter is off (oxlint + Stylelint own lint) |
+
+Vitest uses `jsdom` ([`vitest.config.ts`](vitest.config.ts)); setup lives in [`src/test/setup.ts`](src/test/setup.ts).
+
+### Lint suppressions
+
+Do **not** add `eslint-disable`, `oxlint-disable`, `biome-ignore`, or `stylelint-disable` without **explicit user approval**. Default is fix the code (or add a theme token). Stylelint exceptions must be `/* stylelint-disable-next-line RULE -- user-approved: reason */`. See [.agents/rules/gui-styling.md](../../.agents/rules/gui-styling.md).
+
+### Adding an axe check
+
+Component (Vitest):
+
+```tsx
+import { render } from "@testing-library/react";
+import { expectNoA11yViolations } from "../test/a11y";
+import { Button } from "./Button";
+
+it("is axe-clean", async () => {
+  const { container } = render(<Button>Save</Button>);
+  await expectNoA11yViolations(container);
+});
+```
+
+Full-page (Playwright): call `expectPageAxeClean(page)` from `e2e/axe.ts` after the dense DAW shell is visible. Reading surfaces (Home without `?project=`, static marketing HTML) use `expectReadingSurfaceAxeClean` so color-contrast and region stay on. Do not copy-paste `AxeBuilder` setup.
+
+Store helpers for inspector/footer tests: `src/test/fixtures.ts` + `useDawStore.getState().hydrate(...)`.
+
+## Theme tokens
+
+Semantic CSS variables live under `src/styles/theme/`:
+
+| File | Role |
+|------|------|
+| `brand-tokens.css` | Shared scale + brand `--color-*` (sync-copy from `deploy/brand/`) |
+| `tokens.css` | Sharecut Studio-only scales (`--space-*`, `--font-size-*`, `--z-*`), layout dims, legacy aliases |
+| `theme-dark.css` | Sharecut Studio-only dark functional colors (`:root` / `[data-theme=dark]`) |
+| `theme-light.css` | Sharecut Studio-only light functional colors + `prefers-color-scheme` when no `data-theme` |
+| `../theme.css` | Imports brand-tokens, then the three above |
+
+Root switching (same CSS contract as marketing):
+
+- `document.documentElement.dataset.theme = "light" | "dark"` overrides OS
+- No `data-theme` → follow `prefers-color-scheme` on `:root:not([data-theme])`
+- Preference persisted in `localStorage` key `daw_theme` via `hooks/useTheme.ts`
+- Transport bar cycles system → dark → light
+
+### Adding a token
+
+1. **Shared brand / scale:** edit `deploy/brand/brand-tokens.css`, copy to public dirs and `src/styles/theme/brand-tokens.css`.
+2. **Sharecut Studio-only:** declare the name in `theme/tokens.css` (legacy alias only if migrating old `var(--…)` call sites) and set values in both `theme-dark.css` and `theme-light.css` using the same selectors as brand-tokens.
+3. Use `var(--…)` in partials / components — **never** invent one-off hex/`rgb` outside `src/styles/theme/`. Stylelint enforces this in CI.
+
+Domain CSS is split into `@import` partials from `src/styles/daw.css` (`partials/layout.css`, `timeline.css`, `inspector.css`, `panels.css`, `review.css`, `bottom-sheet.css`, `responsive.css`).
+
+## Responsive shells
+
+See [`docs/gui-mobile.md`](../../docs/gui-mobile.md). Breakpoints: phone `<768`, tablet `768–1100`, desktop `>1100` (`hooks/useViewportClass.ts`). Phone uses `MobileShell` (Listen / Timeline / Text / More); tablet uses peek `BottomSheet` inspector; desktop keeps the Reaper grid with focus modes (`1`–`4`) and transport **More** overflow.
+
+## UI library (`src/ui/`)
+
+Sharecut Studio chrome library — see [`docs/ui-library.md`](docs/ui-library.md) for charter, command-bus bridge, and catalog. Domain folders (`inspector/`, `panels/`, `timeline/`) stay and **compose** the library.
+
+| Export | Use for |
+|--------|---------|
+| `Button` | `default` / `primary` / `danger` / `link` |
+| `ToggleButton` | Toolbars / mode strips (`aria-pressed` + `.active`) — not exclusive tab panels |
+| `CommandButton` / `useCommand` | Pointer → `execute(commandId)` (default `skipWhen`) |
+| `Menu` / `CommandMenuItem` | Popup menus (Escape, arrows, outside click) |
+| `Dialog` / `useDialogModal` | Modal scrim+panel; trap + inert chrome |
+| `BottomSheet` | Phone/tablet peek sheet (non-modal) |
+| `Field` / `FieldRow` | Labeled control + hint; horizontal nudge row |
+| `InlineError` | Non-pipeline error lines |
+| `LoadingScreen` / `ErrorScreen` | App boot states |
+| `DefinitionList` / `DefItem` | Inspector `<dl>` rows |
+| `InspectorSeekFooter` | Seek + play-around footers |
+| `FocusToggle` | Pane focus control |
+
+Mutations: prefer `hooks/useProjectMutation()` (`busy` / `error` / `run` / `refresh`) over local try/catch boilerplate.
+
+Comments: shared `src/comments/` (`CommentCard`, `CommentCompose`, `useCommentActions`).
+
+## Layout constants
+
+`utils/layout.ts` mirrors CSS layout dims (`--ruler-height`, `--marker-lane-height`, lane height). Keep them in sync when changing chrome geometry.

@@ -1,0 +1,557 @@
+import { type Browser, expect, type Page, test } from "@playwright/test";
+import { expectPageAxeClean } from "./axe";
+import { e2eProjectPath } from "./env";
+import { withShareableProject } from "./shareableProject";
+
+const DESKTOP = { width: 1440, height: 900 };
+const TABLET = { width: 820, height: 1180 };
+const PHONE = { width: 390, height: 844 };
+const PROXY_MANIFEST_TIMEOUT_MS = 15_000;
+
+/**
+ * Wait for lazy proxy setup before the disposable share workspace can be removed.
+ * A successful empty manifest is the documented HTMLAudio fallback when proxies
+ * cannot be ensured, so the route still resolves with HTTP 200 in that case.
+ */
+async function openGuestShare(page: Page, token: string): Promise<void> {
+  const manifestPath = `/api/review/${token}/daw/proxy/manifest`;
+  const manifestResponse = page.waitForResponse(
+    (response) => {
+      const url = new URL(response.url());
+      return (
+        response.request().method() === "GET" && url.pathname === manifestPath
+      );
+    },
+    { timeout: PROXY_MANIFEST_TIMEOUT_MS },
+  );
+  await page.goto(`/r/${token}`);
+  await expect(page.locator(".daw-shell-guest")).toBeVisible({
+    timeout: PROXY_MANIFEST_TIMEOUT_MS,
+  });
+  expect((await manifestResponse).status()).toBe(200);
+}
+
+/** Let host lazy audio/stem requests settle before a share workspace is reused. */
+async function openHostShare(page: Page, projectPath: string): Promise<void> {
+  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await expect(page.locator(".daw-shell")).toBeVisible({
+    timeout: PROXY_MANIFEST_TIMEOUT_MS,
+  });
+  // WebSockets remain open but do not prevent Playwright network idle.
+  await page.waitForLoadState("networkidle", {
+    timeout: PROXY_MANIFEST_TIMEOUT_MS,
+  });
+}
+
+async function transportTimecode(page: Page): Promise<string> {
+  // Phone Listen renders a full pair in its body; other shells use header
+  // transport's compact timecode. Compare the shared playhead portion.
+  const [timecode = ""] = await page
+    .locator(".mobile-listen-transport .timecode, header.transport .timecode")
+    .allTextContents();
+  return timecode.split("/")[0]?.trim() ?? "";
+}
+
+/** Shared GUI process keeps leftover roster entries; prove the peer is this leader. */
+async function seekLeaderPlayhead(leader: Page): Promise<string> {
+  const ruler = leader.getByRole("slider", { name: "Timeline position" });
+  const scrub = leader.locator(".mobile-scrub");
+  if (await ruler.count()) {
+    await expect(ruler).toBeVisible();
+    await ruler.focus();
+    await ruler.press("Home");
+    await expect.poll(() => transportTimecode(leader)).toMatch(/^00:00/);
+    await ruler.press("End");
+  } else {
+    await expect(scrub).toBeVisible();
+    await scrub.evaluate((el) => {
+      const input = el as HTMLInputElement;
+      const max = Number(input.max) || 2;
+      const desc = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      );
+      if (desc?.set) {
+        desc.set.call(input, "0");
+      }
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      if (desc?.set) {
+        desc.set.call(input, String(max));
+      }
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  }
+  await expect
+    .poll(() => transportTimecode(leader), { timeout: 8_000 })
+    .not.toMatch(/^00:00\.000/);
+  return transportTimecode(leader);
+}
+
+async function expectFollowerMatchesLeaderPlayhead(
+  leader: Page,
+  follower: Page,
+): Promise<void> {
+  const expected = await seekLeaderPlayhead(leader);
+  await expect
+    .poll(() => transportTimecode(follower), { timeout: 8_000 })
+    .toBe(expected);
+}
+
+async function stopFollowing(follower: Page): Promise<void> {
+  const banner = follower.locator(".follow-banner");
+  if (!(await banner.isVisible().catch(() => false))) {
+    return;
+  }
+  await follower
+    .getByRole("button", { name: /Stop following/ })
+    .first()
+    .click();
+  await expect(banner).toHaveCount(0);
+}
+
+async function movePointer(
+  page: Page,
+  loc: ReturnType<Page["locator"]>,
+  offset?: { x: number; y: number },
+): Promise<{ x: number; y: number; width: number; height: number }> {
+  await expect(loc).toBeVisible();
+  const box = await loc.boundingBox();
+  expect(box).toBeTruthy();
+  const x = box!.x + (offset?.x ?? box!.width / 2);
+  const y = box!.y + (offset?.y ?? box!.height / 2);
+  await page.mouse.move(x, y);
+  await page.mouse.move(x + 2, y);
+  return box!;
+}
+
+async function expectGuestListeningInMix(page: Page): Promise<void> {
+  await expect(page.locator(".follow-banner")).toContainText(
+    /Listening in Mix/,
+  );
+  await expect(
+    page.locator('[data-presence-anchor="audition:mix"][aria-pressed="true"]'),
+  ).toBeVisible();
+  const fx = page.locator('[data-presence-anchor="audition:fx"]');
+  const raw = page.locator('[data-presence-anchor="audition:raw"]');
+  await expect(fx).toBeDisabled();
+  await expect(raw).toBeDisabled();
+  await expect(fx).not.toHaveAttribute("aria-pressed", "true");
+}
+
+async function followUntilBannerVisible(
+  follower: Page,
+  openMenu: () => Promise<void>,
+): Promise<void> {
+  await openMenu();
+  const people = follower.getByRole("menuitem", { name: /Follow/ });
+  await expect(people.first()).toBeVisible({ timeout: 15_000 });
+  const n = await people.count();
+  for (let i = 0; i < n; i++) {
+    if (i > 0) {
+      await openMenu();
+    }
+    await people.nth(i).evaluate((el) => el.click());
+    if (await follower.locator(".follow-banner").isVisible()) {
+      return;
+    }
+  }
+  throw new Error("no Follow peer showed a banner");
+}
+
+async function followMenuPeerUntilPlayheadMoves(
+  follower: Page,
+  leader: Page,
+  openMenu: () => Promise<void>,
+): Promise<void> {
+  await openMenu();
+  const people = follower.getByRole("menuitem", { name: /Follow/ });
+  await expect(people.first()).toBeVisible({ timeout: 15_000 });
+  const peopleBox = await people.first().boundingBox();
+  expect(peopleBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+  const n = await people.count();
+  for (let i = 0; i < n; i++) {
+    if (i > 0) {
+      await openMenu();
+    }
+    await people.nth(i).evaluate((el) => el.click());
+    if (!(await follower.locator(".follow-banner").isVisible())) {
+      continue;
+    }
+    try {
+      await expectFollowerMatchesLeaderPlayhead(leader, follower);
+      return;
+    } catch {
+      await stopFollowing(follower);
+    }
+  }
+  throw new Error("no live Follow peer mirrored the leader playhead");
+}
+
+async function followUntilLeaderPlayheadMirrors(
+  follower: Page,
+  leader: Page,
+): Promise<void> {
+  const buttons = follower.getByRole("button", { name: /Follow / });
+  await expect(buttons.first()).toBeVisible({ timeout: 15_000 });
+  const n = await buttons.count();
+  for (let i = 0; i < n; i++) {
+    await stopFollowing(follower);
+    await follower
+      .getByRole("button", { name: /Follow / })
+      .nth(i)
+      .click();
+    if (!(await follower.locator(".follow-banner").isVisible())) {
+      continue;
+    }
+    try {
+      await expectFollowerMatchesLeaderPlayhead(leader, follower);
+      return;
+    } catch {
+      await stopFollowing(follower);
+    }
+  }
+  throw new Error("no Follow peer mirrored the leader playhead");
+}
+
+async function twoStudioPages(
+  browser: Browser,
+  viewport: { width: number; height: number },
+): Promise<{
+  pageA: Page;
+  pageB: Page;
+  close: () => Promise<void>;
+}> {
+  const project = encodeURIComponent(e2eProjectPath);
+  const aCtx = await browser.newContext({ viewport });
+  const bCtx = await browser.newContext({ viewport });
+  const pageA = await aCtx.newPage();
+  const pageB = await bCtx.newPage();
+  await pageA.goto(`/?project=${project}`);
+  await pageB.goto(`/?project=${project}`);
+  await expect(pageA.locator(".daw-shell")).toBeVisible();
+  await expect(pageB.locator(".daw-shell")).toBeVisible();
+  return {
+    pageA,
+    pageB,
+    close: async () => {
+      await aCtx.close();
+      await bCtx.close();
+    },
+  };
+}
+
+test.describe("presence follow desktop", () => {
+  test("page B follows page A then unfollows on scroll", async ({
+    browser,
+  }) => {
+    const { pageA, pageB, close } = await twoStudioPages(browser, DESKTOP);
+    try {
+      await followUntilLeaderPlayheadMirrors(pageB, pageA);
+      await expect(
+        pageB.locator(".timeline-area[data-following]"),
+      ).toBeVisible();
+      await expect(pageB.locator(".presence-overlay")).toBeAttached();
+      await expectPageAxeClean(pageB);
+
+      await pageB.locator(".timeline-scroll").evaluate((el) => {
+        el.scrollLeft = 80;
+      });
+      await expect(pageB.locator(".follow-banner")).toHaveCount(0);
+      await expect(pageB.locator(".timeline-area[data-following]")).toHaveCount(
+        0,
+      );
+    } finally {
+      await close();
+    }
+  });
+
+  test("follows Comments tab then unfollows on Transcript click", async ({
+    browser,
+  }) => {
+    const { pageA, pageB, close } = await twoStudioPages(browser, DESKTOP);
+    try {
+      await followUntilLeaderPlayheadMirrors(pageB, pageA);
+      const comments = pageA.locator('[data-presence-anchor="tab:comments"]');
+      await comments.click();
+      await expect(comments).toHaveAttribute("aria-pressed", "true");
+      await expect(
+        pageB.locator('[data-presence-anchor="tab:comments"]'),
+      ).toHaveAttribute("aria-pressed", "true");
+      await expect(pageB.locator(".follow-banner")).toBeVisible();
+      await pageB.locator('[data-presence-anchor="tab:transcript"]').click();
+      await expect(pageB.locator(".follow-banner")).toHaveCount(0);
+    } finally {
+      await close();
+    }
+  });
+
+  test("ghost on chrome then hides off-surface", async ({ browser }) => {
+    const { pageA, pageB, close } = await twoStudioPages(browser, DESKTOP);
+    try {
+      const follow = pageB.getByRole("button", { name: /Follow / }).first();
+      await expect(follow).toBeVisible({ timeout: 15_000 });
+      await pageA.bringToFront();
+      await movePointer(
+        pageA,
+        pageA.locator('[data-presence-anchor="track:guest:mute"]'),
+      );
+      await expect(pageB.locator(".presence-cursor--ghost")).toBeVisible({
+        timeout: 8_000,
+      });
+      await pageA.mouse.move(DESKTOP.width - 4, DESKTOP.height - 4);
+      await expect(pageB.locator(".presence-cursor--ghost")).toHaveCount(0, {
+        timeout: 8_000,
+      });
+    } finally {
+      await close();
+    }
+  });
+
+  test("timeline ghost hides below the last lane", async ({ browser }) => {
+    const { pageA, pageB, close } = await twoStudioPages(browser, DESKTOP);
+    try {
+      await expect(
+        pageB.getByRole("button", { name: /Follow / }).first(),
+      ).toBeVisible({ timeout: 15_000 });
+      await pageA.bringToFront();
+      const lastLane = pageA.locator(".lane-row[data-track-id]").last();
+      await expect(lastLane).toBeVisible();
+      const box = await lastLane.boundingBox();
+      expect(box).toBeTruthy();
+      const laneH = box!.height;
+      await movePointer(pageA, lastLane, {
+        x: Math.max(48, box!.width / 2),
+        y: laneH - 4,
+      });
+      await expect(
+        pageB.locator(".presence-overlay .presence-cursor").first(),
+      ).toBeVisible({ timeout: 8_000 });
+      await pageA.mouse.move(box!.x + 40, box!.y + laneH + 8);
+      await expect(
+        pageB.locator(".presence-overlay .presence-cursor"),
+      ).toHaveCount(0, { timeout: 4_000 });
+    } finally {
+      await close();
+    }
+  });
+
+  test("mirrors FX audition and mute does not unfollow", async ({
+    browser,
+  }) => {
+    const { pageA, pageB, close } = await twoStudioPages(browser, DESKTOP);
+    try {
+      await followUntilLeaderPlayheadMirrors(pageB, pageA);
+      await pageA.locator('[data-presence-anchor="audition:fx"]').click();
+      await expect(
+        pageB.locator(
+          '[data-presence-anchor="audition:fx"][aria-pressed="true"]',
+        ),
+      ).toBeVisible({ timeout: 8_000 });
+      await pageB.locator('[data-presence-anchor="track:guest:mute"]').click();
+      await expect(pageB.locator(".follow-banner")).toBeVisible();
+    } finally {
+      await close();
+    }
+  });
+});
+
+test.describe("presence follow tablet", () => {
+  test("follows from Menu People then unfollows", async ({ browser }) => {
+    const { pageA, pageB, close } = await twoStudioPages(browser, TABLET);
+    try {
+      await expect(pageA.locator(".daw-shell--tablet")).toBeVisible();
+      await expect(pageB.locator(".daw-shell--tablet")).toBeVisible();
+      await followUntilBannerVisible(pageB, async () => {
+        await pageB
+          .getByRole("button", { name: "Menu" })
+          .click({ force: true });
+      });
+      await expect(pageB.locator(".follow-banner")).toBeVisible();
+      await expect(pageB.locator(".presence-overlay")).toBeAttached();
+
+      await pageB
+        .getByRole("button", { name: "Stop following", exact: true })
+        .evaluate((el) => el.click());
+      await expect(pageB.locator(".follow-banner")).toHaveCount(0);
+    } finally {
+      await close();
+    }
+  });
+});
+
+test.describe("presence follow phone", () => {
+  test("follow banner then unfollow on Listen", async ({ browser }) => {
+    const { pageA, pageB, close } = await twoStudioPages(browser, PHONE);
+    try {
+      await expect(pageB.locator(".daw-shell--phone")).toBeVisible();
+      await followMenuPeerUntilPlayheadMoves(pageB, pageA, async () => {
+        await pageB
+          .getByRole("navigation", { name: "Primary" })
+          .getByRole("button", { name: "More" })
+          .click({ force: true });
+      });
+      const banner = pageB.locator(".follow-banner");
+      await expect(banner).toBeVisible();
+      const bannerBox = await banner.boundingBox();
+      const vw = pageB.viewportSize()?.width ?? 390;
+      expect(bannerBox).toBeTruthy();
+      expect(bannerBox!.x).toBeGreaterThanOrEqual(0);
+      expect(bannerBox!.x + bannerBox!.width).toBeLessThanOrEqual(vw + 1);
+
+      await pageB
+        .getByRole("navigation", { name: "Primary" })
+        .getByRole("button", { name: "Listen" })
+        .click();
+      await expect(pageB.locator(".follow-banner")).toHaveCount(0);
+    } finally {
+      await close();
+    }
+  });
+
+  test("follow survives phone to desktop remount", async ({ browser }) => {
+    const aCtx = await browser.newContext({ viewport: DESKTOP });
+    const bCtx = await browser.newContext({ viewport: PHONE });
+    const pageA = await aCtx.newPage();
+    const pageB = await bCtx.newPage();
+    try {
+      const project = encodeURIComponent(e2eProjectPath);
+      await pageA.goto(`/?project=${project}`);
+      await pageB.goto(`/?project=${project}`);
+      await expect(pageA.locator(".daw-shell")).toBeVisible();
+      await expect(pageB.locator(".daw-shell--phone")).toBeVisible();
+      await followUntilBannerVisible(pageB, async () => {
+        await pageB
+          .getByRole("navigation", { name: "Primary" })
+          .getByRole("button", { name: "More" })
+          .click({ force: true });
+      });
+      const banner = pageB.locator(".follow-banner");
+      await expect(banner).toBeVisible();
+      const label =
+        (await pageB.locator(".follow-banner-text").textContent()) ?? "";
+      const followed =
+        label.match(/^Following\s+(.+?)(?:\s+·|$)/)?.[1]?.trim() ?? "";
+      expect(followed).not.toBe("");
+      await pageB.setViewportSize(DESKTOP);
+      await expect(pageB.locator(".daw-shell--phone")).toHaveCount(0, {
+        timeout: 8_000,
+      });
+      await expect(
+        pageB.locator(".daw-shell--desktop.daw-shell--following"),
+      ).toBeVisible();
+      await expect(banner).toBeVisible();
+      await expect(banner).toContainText(`Following ${followed}`);
+    } finally {
+      await aCtx.close();
+      await bCtx.close();
+    }
+  });
+});
+
+test.describe("presence follow guest share", () => {
+  test("guest follows host on a share token", async ({ browser }) => {
+    await withShareableProject(async (projectPath) => {
+      const aCtx = await browser.newContext({ viewport: DESKTOP });
+      const bCtx = await browser.newContext({ viewport: DESKTOP });
+      const pageA = await aCtx.newPage();
+      const pageB = await bCtx.newPage();
+      try {
+        await openHostShare(pageA, projectPath);
+        const created = await pageA.request.post("/api/shares", {
+          data: { path: projectPath, role: "viewer" },
+        });
+        expect(created.ok(), await created.text()).toBeTruthy();
+        const body = (await created.json()) as { share: { token: string } };
+        await openGuestShare(pageB, body.share.token);
+        await pageA.locator('[data-presence-anchor="tab:pipeline"]').click();
+        const follows = pageB.getByRole("button", { name: /Follow / });
+        await expect(follows.first()).toBeVisible({ timeout: 15_000 });
+        const n = await follows.count();
+        for (let i = n - 1; i >= 0; i--) {
+          if (await pageB.locator(".follow-banner").isVisible()) {
+            await pageB
+              .getByRole("button", { name: "Stop following", exact: true })
+              .click();
+          }
+          await follows.nth(i).click();
+          if (!(await pageB.locator(".follow-banner").isVisible())) {
+            continue;
+          }
+          try {
+            await expect(pageB.locator(".follow-banner")).toContainText(
+              /in Pipeline \(host-only\)/,
+              { timeout: 4_000 },
+            );
+            break;
+          } catch {
+            await pageB
+              .getByRole("button", { name: "Stop following", exact: true })
+              .click();
+          }
+        }
+        await expect(pageB.locator(".follow-banner")).toBeVisible();
+        await expect(pageB.locator(".presence-overlay")).toBeAttached();
+        await expect(pageB.locator(".follow-banner")).toContainText(
+          /in Pipeline \(host-only\)/,
+        );
+        await expect(
+          pageB.locator(
+            '[data-presence-anchor="tab:transcript"][aria-pressed="true"]',
+          ),
+        ).toBeVisible();
+
+        await pageA.locator('[data-presence-anchor="audition:fx"]').click();
+        await expect(pageB.locator(".follow-banner")).toContainText(
+          /auditioning FX/,
+        );
+        await expectGuestListeningInMix(pageB);
+      } finally {
+        await aCtx.close();
+        await bCtx.close();
+      }
+    });
+  });
+
+  test("editor guest Mix lock after host FX", async ({ browser }) => {
+    await withShareableProject(async (projectPath) => {
+      const aCtx = await browser.newContext({ viewport: DESKTOP });
+      const bCtx = await browser.newContext({ viewport: DESKTOP });
+      const pageA = await aCtx.newPage();
+      const pageB = await bCtx.newPage();
+      try {
+        const token = await test.step("create editor share", async () => {
+          await openHostShare(pageA, projectPath);
+          const created = await pageA.request.post("/api/shares", {
+            data: { path: projectPath, role: "editor" },
+          });
+          expect(created.ok(), await created.text()).toBeTruthy();
+          const body = (await created.json()) as { share: { token: string } };
+          return body.share.token;
+        });
+        await test.step("open editor guest", async () => {
+          await openGuestShare(pageB, token);
+        });
+        await test.step("publish host FX presence", async () => {
+          await pageA.locator('[data-presence-anchor="audition:fx"]').click();
+        });
+        await test.step("follow host FX presence", async () => {
+          const follows = pageB.getByRole("button", { name: /Follow / });
+          await expect(follows).toHaveCount(1, { timeout: 15_000 });
+          await follows.click();
+          await expect(pageB.locator(".follow-banner")).toContainText(
+            /auditioning FX/,
+            { timeout: 15_000 },
+          );
+        });
+        await test.step("verify guest Mix lock", async () => {
+          await expectGuestListeningInMix(pageB);
+        });
+      } finally {
+        await aCtx.close();
+        await bCtx.close();
+      }
+    });
+  });
+});

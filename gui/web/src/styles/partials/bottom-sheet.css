@@ -1,0 +1,156 @@
+/* Bottom sheet — phone/tablet inspector & quick actions.
+ * Portaled to body; inset above shell chrome via html[data-shell] so tabs /
+ * mode nav stay visible (z-shell-chrome is a hit-test backup). */
+.bottom-sheet-root {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-sheet);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+html[data-shell="phone"] .bottom-sheet-root {
+  bottom: var(--mobile-nav-height);
+}
+
+html[data-shell="tablet"] .bottom-sheet-root {
+  bottom: calc(var(--tabs-height) + var(--status-height));
+}
+
+html[data-shell="tablet"][data-focus="timeline"] .bottom-sheet-root {
+  bottom: var(--status-height);
+}
+
+.bottom-sheet-scrim {
+  position: absolute;
+  inset: 0;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: var(--scrim);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.bottom-sheet {
+  position: relative;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  /* Root is already inset above shell chrome — never grow past that slot. */
+  max-height: 100%;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: 0 -0.5rem 1.5rem var(--shadow);
+  animation: bottom-sheet-up 160ms ease-out;
+}
+
+.bottom-sheet--half {
+  height: min(50%, 26.25rem);
+}
+
+.bottom-sheet--half:has(.modifier-inspector) {
+  height: min(75%, 32rem);
+}
+
+.bottom-sheet--full {
+  height: min(100%, 56.25rem);
+}
+
+/* stylelint-disable-next-line media-feature-name-disallowed-list -- user-approved: tablet short viewport for portaled sheets */
+@media (max-height: 40rem) {
+  .bottom-sheet--half {
+    height: min(45%, 17.5rem);
+  }
+
+  .bottom-sheet--half:has(.modifier-inspector) {
+    height: min(70%, 22rem);
+  }
+}
+
+@keyframes bottom-sheet-up {
+  from {
+    transform: translateY(12%);
+    opacity: 0.85;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.bottom-sheet-chrome {
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--border);
+}
+
+.bottom-sheet-grab {
+  width: 2.25rem;
+  height: 0.25rem;
+  border-radius: var(--radius-xs);
+  background: var(--border);
+  margin: var(--space-3) auto var(--space-1);
+}
+
+.bottom-sheet-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-4) var(--space-05);
+  min-height: 2.75rem;
+}
+
+.bottom-sheet-title {
+  margin: 0;
+  font-size: var(--font-size-ui);
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+}
+
+.bottom-sheet-title-spacer {
+  flex: 1;
+}
+
+.bottom-sheet-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 0 0 auto;
+}
+
+.bottom-sheet-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.bottom-sheet-body > :not(.inspector) {
+  min-height: 0;
+  overflow: auto;
+}
+
+.bottom-sheet-body .inspector:not(.modifier-inspector) {
+  width: 100%;
+  max-width: none;
+  border: none;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  overflow: auto;
+}
+
+.bottom-sheet-body .modifier-inspector {
+  width: 100%;
+  max-width: none;
+  border: none;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}

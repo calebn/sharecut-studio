@@ -1,0 +1,42 @@
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import { recordingClockMs } from "./clock";
+import { RecIndicator } from "./RecIndicator";
+import type { RecordSnapshot } from "./types";
+
+const base: RecordSnapshot = {
+  session_id: "room1",
+  state: "lobby",
+  take_index: -1,
+  recording_ms: 0,
+  participants: [],
+  caps: { recorded: 4, producers: 2 },
+};
+
+describe("RecIndicator", () => {
+  it("computes paused clock without adding wall time", () => {
+    expect(
+      recordingClockMs(
+        { ...base, state: "paused", recording_ms: 70_000 },
+        5_000,
+      ),
+    ).toBe(70_000);
+    expect(
+      recordingClockMs(
+        { ...base, state: "recording", recording_ms: 70_000 },
+        5_000,
+      ),
+    ).toBe(75_000);
+  });
+
+  it("labels REC, PAUSED, and Stopped", () => {
+    const { rerender } = render(
+      <RecIndicator snapshot={{ ...base, state: "recording" }} />,
+    );
+    expect(screen.getByText("REC")).toBeInTheDocument();
+    rerender(<RecIndicator snapshot={{ ...base, state: "paused" }} />);
+    expect(screen.getByText("PAUSED")).toBeInTheDocument();
+    rerender(<RecIndicator snapshot={{ ...base, state: "stopped" }} />);
+    expect(screen.getByText("Stopped")).toBeInTheDocument();
+  });
+});

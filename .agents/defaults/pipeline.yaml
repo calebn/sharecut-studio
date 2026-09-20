@@ -1,0 +1,332 @@
+# Default pipeline parameters — referenced by skills and the engine
+
+performance:
+  # 0 = auto (cpu_count-based, capped at 8 workers); 1 = force serial (debugging/
+  # deterministic reproduction); N = explicit worker cap. Applies to per-track stem
+  # rendering (assemble_timeline/render_dialogue_stems), filler/pause candidate
+  # analysis (analyze_fillers_pauses), and per-format export encoding
+  # (export_deliverables). See docs/pipeline.md#performance.
+  max_workers: 0
+
+master:
+  integrated_lufs: -16.0
+  true_peak_db: -1.5
+  # loudnorm LRA ceiling (pass-through to FFmpeg loudnorm LRA=).
+  lra: 11.0
+  # When first-pass loudnorm under-shoots I on peaky premixes, remaster after this
+  # crest-tame filter (empty string disables the retry).
+  crest_tame_af: "dynaudnorm=f=150:g=15"
+  qc_lufs_tolerance_lu: 0.5
+  qc_true_peak_tolerance_db: 0.3
+
+balance:
+  dialogue_lufs: -20.0
+
+compression:
+  threshold_db: -18.0
+  ratio: 3.0
+  attack_ms: 15.0
+  release_ms: 150.0
+  # 0 when balance_tracks already stages dialogue to dialogue_lufs; non-zero
+  # makeup after gain staging routinely pushes peaks into clip.
+  makeup_db: 0.0
+
+focus:
+  enabled: false
+  auto_apply: false
+  review_required: true
+  # Optional override — leave empty; agents infer theme from full transcript (podcast-focus-episode)
+  episode_promise: null
+  max_candidates: 20
+  max_remove_pct: 0.15
+  segment_merge_gap_sec: 2.5
+  min_segment_sec: 15
+  repeat_window_sec: 300
+  repeat_word_overlap: 0.5
+  long_segment_sec: 90
+  crossfade_ms: 200
+  inaudible_opt: true
+
+tighten:
+  # Default pipeline auto-tighten is OFF until prev→next join quality passes ear QA
+  # (discourse "like" over-cut + broken splice flow). Manual propose/apply still works.
+  # See docs/filler-cut-quality.md § Default pipeline status.
+  enabled: false
+  # ripple = session/track REMOVE (default). mute = silence the filler window
+  # in place (Clip.mute_regions); pause candidates are skipped (muting a pause
+  # is a no-op). See docs/filler-cut-quality.md § Mute vs cut.
+  edit_mode: ripple
+  # Tuning guide: docs/filler-cut-quality.md
+  crossfade_ms: 25
+  max_pause_sec: 1.2
+  # Floor left after trimming a long pause. Turn/dead-air (peer speaking in the
+  # gap) can go this short. Solo same-speaker pauses use the higher floor below
+  # so thinking / list-restart air is not crushed to a hard edit.
+  min_retained_pause_sec: 0.18
+  min_retained_solo_pause_sec: 0.55
+  # After filler / NL hesitation cuts: remove the voiced hesitation, but keep
+  # a fraction of the original inter-word gap as pad (not a fixed 0.3–0.5s —
+  # that band is only the floor for short um/uh; longer "you know" gaps need
+  # more air or neighbors slam together).
+  # pad = clamp(min_gap, gap * retain_fraction, max_pad)
+  min_gap_after_filler_sec: 0.35
+  filler_gap_retain_fraction: 0.85
+  filler_replace_gap_max_sec: 1.0
+  # Keep this much lead-in before the next retained word when replacing a
+  # hesitation (protects onsets like the L in "like" after a silence pad).
+  # Skipped when the next ASR token overlaps the filler (um→you).
+  filler_next_word_lead_in_ms: 80
+  # Keep previous-word release past ASR end (nasals ring). Adaptive to energy
+  # (see recommend_prev_word_lead_out_ms); fixed legacy key alone still works.
+  filler_prev_word_lead_out_min_ms: 40
+  filler_prev_word_lead_out_max_ms: 250
+  filler_prev_word_look_ahead_ms: 300
+  # Tiny declick out of the previous word into the paced pad (not a full 15ms
+  # join fade — that swallows consonant releases once the pad opens a hole).
+  filler_pre_pad_fade_out_ms: 5
+  # Post-pad fade-in is adaptive to resume-edge energy (see cut_quality).
+  # Quiet air → min; hot/late onset within look-ahead → toward max.
+  filler_post_pad_fade_in_min_ms: 15
+  filler_post_pad_fade_in_max_ms: 120
+  filler_post_pad_look_ahead_ms: 120
+  filler_room_tone_replace: true
+  # silence = hard gap (default; good for dry rooms). room_tone = sample air
+  # from the stem (needs a matching bed — see ROADMAP room-tone finder).
+  filler_pad_mode: silence
+  # Cap how far replace may expand a cut toward flanking words.
+  filler_room_tone_max_expand_sec: 2.0
+  # Keep this much clear air beyond ASR word edges (own + peer) when stealing
+  # room tone so inter-word micro-gaps and bleed skirts are not tiled.
+  room_tone_edge_margin_sec: 0.15
+  # Reject room-tone samples quieter than this (digital silence / gated air).
+  room_tone_min_rms_db: -65.0
+  # When another dialogue stem is speaking in the cut window, do not
+  # cross-track ripple (avoids mid-word chops when ASR missed a word).
+  speech_energy_guard:
+    enabled: true
+    # track_local = punch silence on the cut track only; skip = refuse;
+    # review = track_local + mark review_required.
+    on_conflict: track_local
+    min_other_rms_db: -42.0
+    dominance_db: 3.0
+    min_overlap_sec: 0.03
+  inaudible_opt: true
+  min_filler_cluster: 2
+  filler_cluster_gap_sec: 2.0
+  leave_in_if_risky: true
+  max_cut_risk_score: 0.65
+  # Fail-closed perceptual join gate (assess_proposed_cut). Skip candidate when
+  # verdict is fail. DSP-only until ranker is trained; neural may only elevate.
+  join_continuity_gate: true
+  min_filler_confidence: 0.15
+  # Discourse markers stay in filler_words but are cut only with an adjacent
+  # true disfluency/repeat, a pause on either side, or low ASR confidence.
+  # Otherwise they are counted skips (discourse:{token}), including isolated
+  # hits rejected by min_filler_cluster.
+  # Missing key uses DEFAULT_DISCOURSE_MARKERS. Explicit [] disables demotion
+  # (like is a hard filler) and is not the same as omitting the key.
+  # Multi-word entries match split ASR tokens (you + know → you know).
+  discourse_markers:
+    - like
+    - you know
+    - sort of
+    - kind of
+  discourse_pause_sec: 0.35
+  discourse_confidence_max: 0.6
+  filler_words:
+    - um
+    - uh
+    - erm
+    - ah
+    - like
+    - you know
+    - sort of
+    - kind of
+  breath_handling:
+    enabled: true
+    search_before_ms: 400
+    search_after_ms: 250
+    min_duration_ms: 80
+    max_duration_ms: 450
+    attenuate_loud_breaths: false
+    attenuate_db: -9.0
+    # "heuristic" (RMS-percentile band) or "silero" (VAD speech-probability dip,
+    # zero extra install -- bundled with faster-whisper). Falls back to heuristic
+    # automatically if unavailable. See docs/audio-engineering.md before switching.
+    vad_backend: heuristic
+
+render:
+  default_dialogue_join: fade
+  # Allow jump-scaled harsh-join fades (recommend_boundary_fades) without smearing
+  # typical micro-fades; cut-time micro fades still use inaudible_cuts.micro_fade_ms.
+  join_fade_max_ms: 40
+  crossfade_curve: tri
+
+mix:
+  music_under_vo_db: -18.0
+  fade_in_sec: 2.0
+  fade_out_sec: 3.0
+  duck_db: -10.0
+
+transcribe:
+  # Lowest practical WER. Override at setup (`--whisper-model`) or pipeline config.
+  model: large-v3-turbo
+  language: en
+
+align:
+  # Conversation-clock placement after ASR. Uncheck align_tracks for unrelated clips.
+  accept:
+    # require | waive_unattended | off — same semantics as transcript_refine.mode
+    mode: waive_unattended
+  # 0 = auto from longest dialogue file. Gap coarse search is hierarchical
+  # (not a 0.5s walk of the full span). Late-join uses this bound.
+  max_offset_sec: 0
+  coarse_step_sec: 0.5
+  fine_step_sec: 0.02
+  bleed_ngram: 3
+  min_bleed_matches: 2
+  # |bleed Δt| below this → confirm with waveform xcorr (not blind identity).
+  bleed_identity_sec: 1.0
+  acoustic_min_peak: 0.05
+  acoustic_floor_sec: 0.05
+  acoustic_agree_sec: 0.25
+  max_word_audibility_sec: 2.0
+
+analysis:
+  ml_backend: "off"
+  transcript_mode: reconcile
+  reconcile_on_render: true
+  # Agent gate after precorrect: require | waive_unattended | off
+  # waive_unattended hard-blocks interactive/MCP; auto-waives when
+  # PODCAST_BATCH=1 or `podcast pipeline run --unattended`.
+  transcript_refine:
+    mode: waive_unattended
+  speaker_id:
+    mode: auto
+    bleed_word_threshold: 50
+    bleed_ratio_threshold: 0.02
+  heuristics:
+    audibility_rms_db: -42.0
+    bleed_dominance_db: 6.0
+    bleed_min_other_rms_db: -50.0
+    # Skip full-span mean RMS, auto-suppress, and text-match suppress when ASR
+    # word duration exceeds this. Transcribe also soft-flags those spans
+    # (deferred + artifacts/transcript_timing.json) without rewriting start/end.
+    max_word_audibility_sec: 2.0
+    bleed_text_match_enabled: true
+    bleed_text_match_min_overlap_sec: 0.02
+    bleed_ratio_warn_threshold: 0.2
+    gate_onset_drop_db: 15.0
+    boundary_jump_db: 12.0
+    min_fade_ms: 10
+    recommended_fade_ms: 20
+    harsh_fade_max_ms: 80
+
+inaudible_cuts:
+  enabled: true
+  search_window_ms: 40
+  max_shift_ms: 80
+  min_word_margin_ms: 5
+  micro_fade_ms: 10
+  # Short filler/NL: extend cut end through voiced energy that straddles ASR bounds
+  short_cut_max_sec: 1.2
+  trailing_energy_extend_ms: 350
+  trailing_energy_hot_db: -36.0
+  trailing_energy_quiet_db: -45.0
+  trailing_energy_hop_ms: 10
+  # Ripple/restart cuts: absorb quiet air after the cut end up to the next word,
+  # leaving absorb_trailing_silence_retain_sec. Skips when next word is farther
+  # than max_sec (safe for multitrack ripple medians).
+  absorb_trailing_silence: true
+  absorb_trailing_silence_retain_sec: 0.4
+  absorb_trailing_silence_max_sec: 2.0
+  absorb_trailing_silence_quiet_db: -45.0
+  weights:
+    energy: 0.65
+    zero_cross: 0.2
+    continuity: 0.15
+
+export:
+  wav: true
+  formats:
+    - ext: mp3
+      codec: libmp3lame
+      bitrate_kbps: 128
+  # Legacy (when `formats` is omitted): mp3_bitrate_kbps applies to a single MP3.
+  # Add more FFmpeg outputs, e.g.:
+  #   - ext: flac
+  #     codec: flac
+  #   - ext: opus
+  #     codec: libopus
+  #     bitrate_kbps: 96
+  # Optional per-format: format (container -f), sample_rate, channels, extra_args.
+
+effects:
+  noise_reduction:
+    - effect: afftdn
+      params:
+        nr: 12
+        nf: -25
+  deess:
+    - effect: deesser
+      params:
+        intensity: 0.5
+        frequency: 0.5
+  deess_legacy_notch:
+    - effect: bandreject
+      params:
+        f: 6500
+        w: 3000
+  gate:
+    - effect: agate
+      params:
+        threshold_db: -30
+        range_db: -20
+        attack_ms: 5
+        release_ms: 50
+
+social_clips:
+  default_max_sec: 60
+  min_sec: 15
+  padding_ms: 150
+  max_candidates: 12
+  platforms:
+    tiktok:
+      max_sec: 60
+      aspect: "9:16"
+    reels:
+      max_sec: 90
+      aspect: "9:16"
+    linkedin:
+      max_sec: 120
+      aspect: "1:1"
+    youtube_shorts:
+      max_sec: 60
+      aspect: "9:16"
+
+# Perceptual join continuity (FOSS multi-detector fusion). See docs/inaudible-cuts.md.
+join_continuity:
+  side_sec: 0.045
+  sample_rate: 16000
+  pass_below: 0.28
+  review_below: 0.48
+  calibrate: true
+  calibrate_n: 24
+  calibrate_margin: 1.15
+  force_review_multi_hot: true
+  enable_enf: false
+  neural: true
+  weight_click: 1.35
+  weight_level: 0.85
+  weight_spectral_flux: 1.1
+  weight_mfcc: 1.25
+  weight_lsf: 1.2
+  weight_mca: 1.15
+  weight_weighted_spectral: 1.3
+  weight_noise_floor: 0.7
+  weight_f0: 0.9
+  weight_onset: 1.15
+  weight_bicoherence: 0.6
+  weight_late_energy: 0.55
+  weight_nisqa: 1.4
+  weight_wavlm: 1.4

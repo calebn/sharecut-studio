@@ -1,0 +1,54 @@
+{
+  "name": "web",
+  "private": true,
+  "engines": {
+    "node": ">=24"
+  },
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint && npm run lint:css",
+    "lint:css": "stylelint \"{src,public}/**/*.css\"",
+    "typecheck": "tsc -b --pretty false",
+    "format": "biome check --write .",
+    "format:check": "biome check .",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "cheatsheet": "vite-node scripts/generate-keymap-cheatsheet.ts",
+    "cheatsheet:check": "vite-node scripts/generate-keymap-cheatsheet.ts --check",
+    "test:e2e": "vite-node scripts/run-e2e.ts",
+    "test:e2e:install": "playwright install chromium"
+  },
+  "dependencies": {
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
+    "@biomejs/biome": "^2.5.7",
+    "@playwright/test": "^1.61.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^24.13.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "axe-core": "^4.12.1",
+    "jsdom": "^29.1.1",
+    "lint-staged": "^17.3.0",
+    "oxlint": "^1.71.0",
+    "oxlint-tsgolint": "^7.0.2001",
+    "stylelint": "^17.14.1",
+    "stylelint-config-standard": "^40.0.0",
+    "stylelint-declaration-strict-value": "^1.11.1",
+    "stylelint-no-px": "^2.1.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.1",
+    "vitest": "^3.2.7"
+  }
+}

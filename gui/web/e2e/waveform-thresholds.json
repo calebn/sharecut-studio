@@ -1,0 +1,6 @@
+{
+  "max_overview_bytes": 200000,
+  "max_full_audio_bytes": 5000000,
+  "canvas_overscan_slop_px": 1120,
+  "notes": "aligned_dialogue is ~60s. Playwright imports these numbers from this file. Overscan slop is WAVEFORM_OVERSCAN_PX (512) × 2 plus a small layout margin. Guest HTTP contracts live in pytest (share_daw_peaks)."
+}

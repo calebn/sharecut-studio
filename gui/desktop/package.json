@@ -1,0 +1,15 @@
+{
+  "name": "sharecut-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Tauri 2 host shell for Sharecut Studio (Python FastAPI sidecar + WebView)",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "build:unsigned": "tauri build --config '{\"bundle\":{\"macOS\":{\"signingIdentity\":null}}}'"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.5.0"
+  }
+}

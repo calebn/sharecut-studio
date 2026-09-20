@@ -1,0 +1,257 @@
+"""Shared brand tokens: one SoT, one light/dark contract, no consumer redeclare."""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+BRAND_TOKENS = ROOT / "deploy/brand/brand-tokens.css"
+MARKETING_CSS = ROOT / "deploy/brand/marketing.css"
+THEME_CSS = ROOT / "gui/web/src/styles/theme.css"
+THEME_TOKENS = ROOT / "gui/web/src/styles/theme/tokens.css"
+THEME_DARK = ROOT / "gui/web/src/styles/theme/theme-dark.css"
+THEME_LIGHT = ROOT / "gui/web/src/styles/theme/theme-light.css"
+
+SHARED_COLOR_ROLES: tuple[str, ...] = (
+    "--color-bg-canvas",
+    "--color-bg-surface",
+    "--color-bg-elevated",
+    "--color-border",
+    "--color-border-strong",
+    "--color-text-primary",
+    "--color-text-secondary",
+    "--color-accent",
+    "--color-accent-solid",
+    "--color-accent-on-solid",
+    "--color-shadow-soft",
+)
+
+_PROP_RE = re.compile(
+    r"(--color-[a-z0-9-]+)\s*:\s*([^;]+);",
+    re.IGNORECASE | re.DOTALL,
+)
+
+DARK_SELECTOR = re.compile(
+    r":root\s*,\s*:root\[data-theme\s*=\s*[\"']dark[\"']\]\s*\{",
+    re.IGNORECASE | re.DOTALL,
+)
+LIGHT_DATA_SELECTOR = re.compile(
+    r":root\[data-theme\s*=\s*[\"']light[\"']\]\s*\{",
+    re.IGNORECASE,
+)
+LIGHT_PREFERS_SELECTOR = re.compile(
+    r":root:not\(\s*\[\s*data-theme\s*\]\s*\)\s*\{",
+    re.IGNORECASE,
+)
+COMPANY_SELECTOR = re.compile(
+    r":root\.company\s*\{",
+    re.IGNORECASE,
+)
+PREFERS_LIGHT_MEDIA = re.compile(
+    r"@media\s*\(\s*prefers-color-scheme\s*:\s*light\s*\)\s*\{",
+    re.IGNORECASE,
+)
+COMPANY_ACCENT_ROLES: frozenset[str] = frozenset(
+    {
+        "--color-accent",
+        "--color-accent-solid",
+        "--color-accent-on-solid",
+    }
+)
+
+
+def _normalize_value(raw: str) -> str:
+    value = " ".join(raw.split()).strip()
+    if re.fullmatch(r"#[0-9a-fA-F]{3,8}", value):
+        return value.lower()
+    return value
+
+
+def _color_props(block: str, roles: frozenset[str] | None = None) -> dict[str, str]:
+    found: dict[str, str] = {}
+    for name, raw in _PROP_RE.findall(block):
+        if roles is not None and name not in roles:
+            continue
+        if name not in found:
+            found[name] = _normalize_value(raw)
+    return found
+
+
+def _props_from_block(block: str) -> dict[str, str]:
+    return _color_props(block, frozenset(SHARED_COLOR_ROLES))
+
+
+def _extract_balanced_block(css: str, open_brace_at: int) -> str:
+    depth = 0
+    i = open_brace_at
+    while i < len(css):
+        ch = css[i]
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return css[open_brace_at + 1 : i]
+        i += 1
+    raise AssertionError("unbalanced CSS brace while parsing brand/theme block")
+
+
+def _rule_bodies(css: str, compiled: re.Pattern[str]) -> list[str]:
+    bodies: list[str] = []
+    for match in compiled.finditer(css):
+        open_at = css.find("{", match.end() - 1)
+        assert open_at != -1, f"opening brace missing after {compiled.pattern}"
+        bodies.append(_extract_balanced_block(css, open_at))
+    return bodies
+
+
+def _first_rule_body(css: str, compiled: re.Pattern[str]) -> str:
+    bodies = _rule_bodies(css, compiled)
+    assert bodies, f"selector not found: {compiled.pattern}"
+    return bodies[0]
+
+
+def _declarations_of(css: str, name: str) -> list[str]:
+    return re.findall(rf"(?m)^\s*{re.escape(name)}\s*:", css)
+
+
+def brand_dark_roles() -> dict[str, str]:
+    css = BRAND_TOKENS.read_text(encoding="utf-8")
+    return _props_from_block(_first_rule_body(css, DARK_SELECTOR))
+
+
+def brand_light_data_roles() -> dict[str, str]:
+    css = BRAND_TOKENS.read_text(encoding="utf-8")
+    return _props_from_block(_first_rule_body(css, LIGHT_DATA_SELECTOR))
+
+
+def _prefers_light_root_body(css: str, *, missing: str) -> str:
+    media = PREFERS_LIGHT_MEDIA.search(css)
+    assert media is not None, f"{missing} prefers-color-scheme: light missing"
+    media_body = _extract_balanced_block(css, media.end() - 1)
+    return _first_rule_body(media_body, LIGHT_PREFERS_SELECTOR)
+
+
+def brand_light_prefers_roles() -> dict[str, str]:
+    css = BRAND_TOKENS.read_text(encoding="utf-8")
+    return _props_from_block(_prefers_light_root_body(css, missing="brand-tokens"))
+
+
+def test_theme_css_imports_brand_tokens_first() -> None:
+    text = THEME_CSS.read_text(encoding="utf-8")
+    assert text.index('"./theme/brand-tokens.css"') < text.index('"./theme/tokens.css"')
+
+
+def test_brand_tokens_use_theme_contract_selectors() -> None:
+    css = BRAND_TOKENS.read_text(encoding="utf-8")
+    assert DARK_SELECTOR.search(css)
+    assert LIGHT_DATA_SELECTOR.search(css)
+    assert PREFERS_LIGHT_MEDIA.search(css)
+    assert LIGHT_PREFERS_SELECTOR.search(css)
+
+
+def test_daw_themes_use_theme_contract_selectors() -> None:
+    dark = THEME_DARK.read_text(encoding="utf-8")
+    light = THEME_LIGHT.read_text(encoding="utf-8")
+    assert DARK_SELECTOR.search(dark)
+    assert LIGHT_DATA_SELECTOR.search(light)
+    assert PREFERS_LIGHT_MEDIA.search(light)
+    assert LIGHT_PREFERS_SELECTOR.search(light)
+
+
+def test_consumers_do_not_redeclare_shared_brand_colors() -> None:
+    """Except marketing `:root.company` accent overrides."""
+    consumers = (
+        THEME_DARK.read_text(encoding="utf-8"),
+        THEME_LIGHT.read_text(encoding="utf-8"),
+        THEME_TOKENS.read_text(encoding="utf-8"),
+    )
+    for role in SHARED_COLOR_ROLES:
+        for css in consumers:
+            assert not _declarations_of(css, role), f"{role} redeclared outside brand-tokens"
+
+    marketing = MARKETING_CSS.read_text(encoding="utf-8")
+    company_css = "\n".join(_rule_bodies(marketing, COMPANY_SELECTOR))
+    assert company_css, "marketing missing :root.company accent overrides"
+    for role in SHARED_COLOR_ROLES:
+        in_file = _declarations_of(marketing, role)
+        in_company = _declarations_of(company_css, role)
+        if role in COMPANY_ACCENT_ROLES:
+            assert in_company, f"{role} missing from :root.company"
+            assert len(in_file) == len(in_company), f"{role} declared outside :root.company"
+        else:
+            assert not in_file, f"marketing redeclares {role}"
+
+
+def test_company_light_accents_beat_brand_light() -> None:
+    marketing = MARKETING_CSS.read_text(encoding="utf-8")
+    assert marketing.index('@import "./brand-tokens.css"') < marketing.index(":root.company")
+
+    default_company = _props_from_block(_first_rule_body(marketing, COMPANY_SELECTOR))
+    assert default_company["--color-accent"] == "#8aa8a0"
+    assert default_company["--color-accent-solid"] == "#3d5c56"
+    assert default_company["--color-accent-on-solid"] == "#ffffff"
+
+    media = PREFERS_LIGHT_MEDIA.search(marketing)
+    assert media is not None, "marketing prefers-color-scheme: light missing"
+    media_body = _extract_balanced_block(marketing, media.end() - 1)
+    company_light = _props_from_block(_first_rule_body(media_body, COMPANY_SELECTOR))
+    brand_light = brand_light_prefers_roles()
+    assert company_light["--color-accent"] == "#3d5c56"
+    assert company_light["--color-accent-solid"] == "#3d5c56"
+    assert company_light["--color-accent"] != brand_light["--color-accent"]
+    assert company_light["--color-accent-solid"] != brand_light["--color-accent-solid"]
+
+
+def test_brand_tokens_define_all_shared_roles() -> None:
+    dark = brand_dark_roles()
+    light = brand_light_data_roles()
+    missing_d = [r for r in SHARED_COLOR_ROLES if r not in dark]
+    missing_l = [r for r in SHARED_COLOR_ROLES if r not in light]
+    assert not missing_d, f"dark brand-tokens missing {missing_d}"
+    assert not missing_l, f"light brand-tokens missing {missing_l}"
+
+
+def test_brand_light_prefers_matches_data_theme() -> None:
+    primary = brand_light_data_roles()
+    other = brand_light_prefers_roles()
+    missing_p = [r for r in SHARED_COLOR_ROLES if r not in primary]
+    missing_o = [r for r in SHARED_COLOR_ROLES if r not in other]
+    assert not missing_p, f"data-theme light missing {missing_p}"
+    assert not missing_o, f"prefers light missing {missing_o}"
+    for role in SHARED_COLOR_ROLES:
+        assert primary[role] == other[role], (
+            f"{role} mismatch: data-theme={primary[role]!r} prefers={other[role]!r}"
+        )
+
+
+def test_theme_light_prefers_matches_data_theme() -> None:
+    css = THEME_LIGHT.read_text(encoding="utf-8")
+    primary = _color_props(_first_rule_body(css, LIGHT_DATA_SELECTOR))
+    other = _color_props(_prefers_light_root_body(css, missing="theme-light"))
+    assert primary, "theme-light data-theme block has no --color-* props"
+    missing_p = sorted(set(other) - set(primary))
+    missing_o = sorted(set(primary) - set(other))
+    assert not missing_p, f"data-theme light missing {missing_p}"
+    assert not missing_o, f"prefers light missing {missing_o}"
+    for role, value in primary.items():
+        assert other[role] == value, (
+            f"{role} mismatch: data-theme={value!r} prefers={other[role]!r}"
+        )
+
+
+def test_daw_functional_accent_follows_brand_var() -> None:
+    """Echo brand accent where the hue is the same; light fg stays lane-contrast hex."""
+    dark = _color_props(_first_rule_body(THEME_DARK.read_text(encoding="utf-8"), DARK_SELECTOR))
+    assert dark["--color-accent-fg"] == "var(--color-accent)"
+    assert dark["--color-badge-fg"] == "var(--color-accent)"
+    assert dark["--color-selection"] == "var(--color-accent)"
+
+    light = _color_props(
+        _first_rule_body(THEME_LIGHT.read_text(encoding="utf-8"), LIGHT_DATA_SELECTOR)
+    )
+    assert light["--color-selection"] == "var(--color-accent)"
+    assert light["--color-accent-fg"] == "#8a4a20"
+    assert light["--color-badge-fg"] == "#8a4a20"

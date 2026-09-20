@@ -1,0 +1,39 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ux-pack-sync
+        name: UX Pages pack stays in sync with Sharecut Studio
+        entry: python3 scripts/check_ux_pack_sync.py
+        language: system
+        pass_filenames: true
+        files: ^(gui/web/src/layout/|gui/web/src/keymap/|gui/web/src/commands/catalog\.ts|gui/web/src/styles/partials/(responsive|bottom-sheet)\.css|gui/web/src/ui/BottomSheet|docs/gui-(mobile|integration)\.md|docs/daw-editing\.md|docs/host-online-relay\.md|docs/session-sync\.md|schemas/episode\.project\.schema\.json)
+      - id: keymap-cheatsheet
+        name: Keymap cheatsheet docs stay generated
+        entry: bash -c 'cd gui/web && npx vite-node scripts/generate-keymap-cheatsheet.ts --check'
+        language: system
+        pass_filenames: false
+        files: ^(gui/web/src/keymap/|gui/web/src/commands/catalog\.ts|gui/web/scripts/generate-keymap-cheatsheet\.ts|docs/daw-shortcuts\.md|ux/pages/shortcuts\.md)
+      - id: capabilities-manifest
+        name: Capability manifest covers COMMANDS / keymap / MCP / skills
+        entry: bash -c 'python3 scripts/check_capabilities_manifest.py && python3 scripts/export_capabilities_docs.py --check'
+        language: system
+        pass_filenames: false
+        files: ^(contracts/capabilities\.manifest\.json|schemas/capabilities\.manifest\.schema\.json|scripts/check_capabilities_manifest\.py|scripts/export_capabilities_docs\.py|docs-site/pages/capabilities\.md|docs-site/schemas/capabilities\.manifest\.schema\.json|gui/web/src/commands/catalog\.ts|gui/web/src/keymap/registry\.ts|src/podcast_mcp/mcp/tools/|\.agents/skills/)
+      - id: progress-compliance
+        name: Progress framework compliance (warn mode)
+        entry: bash -c 'PODCAST_PROGRESS_COMPLIANCE=warn python3 scripts/check_progress.py'
+        language: system
+        pass_filenames: false
+        files: ^(contracts/progress-exemptions\.json|contracts/progress-richness\.json|schemas/progress-exemptions\.schema\.json|schemas/progress-richness\.schema\.json|scripts/check_progress\.py|src/podcast_mcp/util/progress\.py|src/podcast_mcp/mcp/|src/podcast_mcp/cli/|src/podcast_mcp/pipeline/|src/podcast_mcp/services/remote_mcp/)
+      - id: document-command-schema
+        name: Document-command JSON Schema + docs-site stay generated
+        entry: python3 scripts/export_document_command_schema.py --check
+        language: system
+        pass_filenames: false
+        files: ^(src/podcast_mcp/services/document_sync/payloads\.py|scripts/export_document_command_schema\.py|schemas/document-commands\.schema\.json|docs-site/pages/document-commands\.md|docs-site/schemas/document-commands\.schema\.json)
+      - id: docs-site-contract
+        name: Docs-site share/MCP tables + guest OpenAPI stay generated
+        entry: python3 scripts/export_docs_site_contract.py --check
+        language: system
+        pass_filenames: false
+        files: ^(scripts/export_docs_site_contract\.py|src/podcast_mcp/services/remote_mcp/allowlist\.py|src/podcast_mcp/gui/routes/review_share\.py|src/podcast_mcp/gui/routes/remote_mcp\.py|docs-site/pages/share-http\.md|docs-site/pages/remote-mcp\.md|docs-site/schemas/guest-share\.openapi\.json)

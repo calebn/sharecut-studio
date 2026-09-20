@@ -1,0 +1,6 @@
+{
+  "min_bleed_words_total": 1,
+  "source": "AMI word timings with synthetic overlap bleed",
+  "overlap_windows": 2,
+  "observed_bleed_words": 7
+}

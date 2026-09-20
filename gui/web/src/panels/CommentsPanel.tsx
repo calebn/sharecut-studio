@@ -1,0 +1,261 @@
+import { useMemo, useState } from "react";
+import { createComment } from "../api";
+import { CommentCard, CommentCompose, useCommentActions } from "../comments";
+import { canComment, canReply, canSetAction } from "../shareMode";
+import { useDaw } from "../state/useDaw";
+import type { TimelineComment } from "../types/project";
+import { InlineError, ToggleButton } from "../ui";
+import { loadCommentAuthor, saveCommentAuthor } from "../utils/commentAuthor";
+import { formatTimeShort } from "../utils/time";
+
+type Filter = "open" | "resolved" | "actions" | "all";
+
+export function CommentsPanel({
+  guestShare = false,
+}: {
+  guestShare?: boolean;
+}) {
+  const {
+    project,
+    projectPath,
+    setSelection,
+    setPlayheadSec,
+    setActiveTab,
+    commentMode,
+    commentDraft,
+    setCommentDraft,
+    setCommentMode,
+    selection,
+    shareCapabilities,
+    guestMode,
+  } = useDaw();
+
+  const [filter, setFilter] = useState<Filter>("open");
+  const [author, setAuthor] = useState(loadCommentAuthor);
+  const [body, setBody] = useState("");
+  const [actionLine, setActionLine] = useState("");
+  const [trackIds, setTrackIds] = useState<string[]>([]);
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
+  const [createBusy, setCreateBusy] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const {
+    busy: actionBusy,
+    error: actionError,
+    setError: setActionError,
+    resolve,
+    reply,
+    toggleAction,
+  } = useCommentActions({ author, setAuthor });
+
+  const busy = createBusy || actionBusy;
+  const error = createError ?? actionError;
+
+  const comments = project?.comments;
+
+  const filtered = useMemo(() => {
+    let rows = [...(comments ?? [])];
+    if (filter === "open") {
+      rows = rows.filter((c) => !c.resolved);
+    } else if (filter === "resolved") {
+      rows = rows.filter((c) => c.resolved);
+    } else if (filter === "actions") {
+      rows = rows.filter((c) => c.action_items.some((a) => !a.done));
+    }
+    rows.sort((a, b) => a.timeline_start - b.timeline_start);
+    return rows;
+  }, [comments, filter]);
+
+  const onCreate = async () => {
+    setCreateError(null);
+    setActionError(null);
+    const who = author.trim();
+    if (!who) {
+      setCreateError("Author is required");
+      return;
+    }
+    if (!body.trim()) {
+      setCreateError("Comment body is required");
+      return;
+    }
+    const start = commentDraft?.startSec ?? 0;
+    const end = commentDraft?.endSec ?? null;
+    setCreateBusy(true);
+    try {
+      saveCommentAuthor(who);
+      const actions = actionLine
+        .split("\n")
+        .map((l) => l.trim())
+        .filter(Boolean);
+      const comment = await createComment(projectPath, {
+        body: body.trim(),
+        author: who,
+        timelineStart: start,
+        timelineEnd: end,
+        trackIds,
+        actionTexts: actions,
+      });
+      setBody("");
+      setActionLine("");
+      setCommentDraft(null);
+      setSelection({ kind: "comment", id: comment.id });
+      setPlayheadSec(comment.timeline_start);
+      setActiveTab("comments");
+    } catch (e) {
+      setCreateError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCreateBusy(false);
+    }
+  };
+
+  const toggleTrack = (id: string) => {
+    setTrackIds((prev) =>
+      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id],
+    );
+  };
+
+  if (!project) {
+    return null;
+  }
+
+  const mayComment = canComment(projectPath, guestMode, shareCapabilities);
+  const mayReply = canReply(projectPath, guestMode, shareCapabilities);
+  const mayAction = canSetAction(projectPath, shareCapabilities);
+
+  return (
+    <div className="comments-panel">
+      <div className="comments-toolbar">
+        <label>
+          Author
+          <input
+            value={author}
+            onChange={(e) => setAuthor(e.target.value)}
+            placeholder="your name"
+          />
+        </label>
+        <div className="comments-filters" role="group" aria-label="Filter">
+          {(
+            [
+              ["open", "Open"],
+              ["actions", "Open actions"],
+              ["resolved", "Resolved"],
+              ["all", "All"],
+            ] as const
+          ).map(([id, label]) => (
+            <ToggleButton
+              key={id}
+              pressed={filter === id}
+              onClick={() => setFilter(id)}
+            >
+              {label}
+            </ToggleButton>
+          ))}
+        </div>
+        <ToggleButton
+          pressed={commentMode}
+          onClick={() => setCommentMode(!commentMode)}
+        >
+          {commentMode ? "Comment mode on" : "Comment mode"}
+        </ToggleButton>
+      </div>
+
+      {mayComment && (commentMode || commentDraft) && (
+        <CommentCompose
+          body={body}
+          onBodyChange={setBody}
+          busy={busy}
+          submitDisabled={!commentDraft}
+          onSubmit={() => void onCreate()}
+          hint={
+            <p className="comment-compose-hint">
+              {commentDraft
+                ? `Anchor: ${formatTimeShort(commentDraft.startSec)}${
+                    commentDraft.endSec != null &&
+                    commentDraft.endSec > commentDraft.startSec
+                      ? `–${formatTimeShort(commentDraft.endSec)}`
+                      : " (instant)"
+                  }. Click/drag the ruler in comment mode to change.`
+                : "Click the ruler for an instant, or drag for a span."}
+            </p>
+          }
+        >
+          {!guestShare && (
+            <>
+              <textarea
+                value={actionLine}
+                onChange={(e) => setActionLine(e.target.value)}
+                placeholder="Action items (one per line, optional)"
+                rows={2}
+              />
+              <div className="comment-track-picks">
+                <span>Tracks (empty = session-wide):</span>
+                {project.tracks.map((t) => (
+                  <label key={t.id}>
+                    <input
+                      type="checkbox"
+                      checked={trackIds.includes(t.id)}
+                      onChange={() => toggleTrack(t.id)}
+                    />
+                    {t.label || t.id}
+                  </label>
+                ))}
+              </div>
+            </>
+          )}
+        </CommentCompose>
+      )}
+
+      <InlineError message={error} />
+
+      <ul className="comments-list">
+        {filtered.map((c: TimelineComment) => {
+          const selected =
+            selection?.kind === "comment" && selection.id === c.id;
+          return (
+            <CommentCard
+              key={c.id}
+              comment={c}
+              selected={selected}
+              busy={busy}
+              guestShare={guestShare}
+              replyDraft={replyDrafts[c.id] ?? ""}
+              onReplyDraftChange={
+                mayReply
+                  ? (value) =>
+                      setReplyDrafts((prev) => ({ ...prev, [c.id]: value }))
+                  : undefined
+              }
+              onSelect={() => {
+                setSelection({ kind: "comment", id: c.id });
+                setPlayheadSec(c.timeline_start);
+              }}
+              onReply={
+                mayReply
+                  ? () =>
+                      void reply(c, replyDrafts[c.id] ?? "").then((ok) => {
+                        if (ok) {
+                          setReplyDrafts((prev) => ({ ...prev, [c.id]: "" }));
+                        }
+                      })
+                  : undefined
+              }
+              onResolve={
+                guestShare ? undefined : (resolved) => void resolve(c, resolved)
+              }
+              onToggleAction={
+                mayAction
+                  ? (actionId, done) => void toggleAction(c, actionId, done)
+                  : undefined
+              }
+              showResolve={!guestShare}
+              showReply={mayReply}
+            />
+          );
+        })}
+        {filtered.length === 0 && (
+          <li className="comments-empty">No comments in this filter.</li>
+        )}
+      </ul>
+    </div>
+  );
+}

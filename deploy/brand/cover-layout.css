@@ -1,0 +1,103 @@
+/**
+ * Shared Cover / Stack / Box / Cluster / Center / Switcher / wordmark / lede.
+ * Token-only — consumes --color-*, --s*, --measure, --radius-*, --font-family-*.
+ * Nest primitives (Box + Stack); do not add descendant layout to Box.
+ * `.stack.tight` uses `--s-1` for card/list rhythm.
+ * Source of truth — copies in sharecut/www/download public dirs and
+ * gui/web/src/styles/partials/ must match (tests/test_public_sites.py).
+ */
+
+.wordmark {
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-display);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.lede {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.cover {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 100dvh;
+  padding-block: var(--s1);
+  padding-inline: var(--s1);
+  background: var(--color-bg-canvas);
+}
+
+.cover > * {
+  margin-block: var(--s1);
+}
+
+.cover > .cover-center {
+  margin-block: auto;
+}
+
+.cover > :first-child:not(.cover-center) {
+  margin-block-start: 0;
+}
+
+.cover > :last-child:not(.cover-center) {
+  margin-block-end: 0;
+}
+
+.center {
+  box-sizing: content-box;
+  max-inline-size: var(--measure);
+  margin-inline: auto;
+  padding-inline: var(--s1);
+}
+
+.stack {
+  --stack-space: var(--s1);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+.stack > * {
+  margin-block: 0;
+}
+
+.stack > * + * {
+  margin-block-start: var(--stack-space);
+}
+
+.stack.tight {
+  --stack-space: var(--s-1);
+}
+
+.cluster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+  align-items: center;
+}
+
+.box {
+  padding: var(--s1);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-surface);
+  box-shadow: 0 1px 0.125rem var(--color-shadow-soft);
+}
+
+.box.elevated {
+  background: var(--color-bg-elevated);
+}
+
+.switcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+}
+
+.switcher > * {
+  flex-grow: 1;
+  flex-basis: calc((30rem - 100%) * 999);
+}

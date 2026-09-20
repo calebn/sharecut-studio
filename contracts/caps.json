@@ -1,0 +1,30 @@
+{
+  "api_version": 1,
+  "capabilities": [
+    "view",
+    "play",
+    "comment",
+    "reply",
+    "action",
+    "suggest",
+    "edit",
+    "mcp",
+    "join",
+    "monitor"
+  ],
+  "stable_feature_ids": [
+    "share.routes",
+    "share.mcp_tools",
+    "share.cli",
+    "share.ui.menu",
+    "share.ui.banner",
+    "share.ui.routes",
+    "tunnel.status",
+    "online.account"
+  ],
+  "experimental_feature_ids": [
+    "extension.more.0",
+    "extension.status.0"
+  ],
+  "relay_protocol_version": 1
+}

@@ -1,0 +1,139 @@
+from __future__ import annotations
+
+import json
+from collections.abc import Callable
+from pathlib import Path
+
+from podcast_mcp.config import load_defaults
+from podcast_mcp.history import HistoryManager
+from podcast_mcp.models import AutomationEnvelope, AutomationPoint
+from podcast_mcp.pipeline import PipelineRunner
+from podcast_mcp.pipeline import steps as pipeline_steps
+from podcast_mcp.pipeline.helpers import artifact, ffmpeg
+from podcast_mcp.render import render_preview_result, rerender_preview
+from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.util.progress import ProgressReporter
+
+
+class PipelineService:
+    def __init__(self, workspace: ProjectWorkspace) -> None:
+        self.ws = workspace
+
+    def run(
+        self,
+        *,
+        from_step: str | None = None,
+        only_step: str | None = None,
+        skip_steps: list[str] | None = None,
+        progress: ProgressReporter | None = None,
+        unattended: bool = False,
+        config: dict | None = None,
+        cancel_check=None,
+    ) -> str:
+        from podcast_mcp.services.pipeline_config import (
+            ensure_whisper_cached_for_run,
+            merge_pipeline_config,
+        )
+
+        ensure_whisper_cached_for_run(
+            config=config,
+            from_step=from_step,
+            only_step=only_step,
+            skip_steps=skip_steps,
+        )
+        mgr = HistoryManager(self.ws.path)
+        mgr.record(self.ws.project, "before pipeline run")
+        defaults = merge_pipeline_config(config) if config is not None else None
+        runner = PipelineRunner(defaults=defaults, history=mgr)
+        runner.run(
+            self.ws.project,
+            from_step=from_step,
+            only_step=only_step,
+            skip_steps=skip_steps,
+            on_step_complete=self.ws.save,
+            progress=progress,
+            unattended=unattended,
+            cancel_check=cancel_check,
+        )
+        mgr.record(self.ws.project, "after pipeline run")
+        self.ws.save()
+        return self.ws.project.last_completed_step or ""
+
+    def set_envelope(self, track_id: str, points: list[dict]) -> int:
+        def mutate(p) -> int:
+            pts = [AutomationPoint(time=float(p["time"]), value=float(p["value"])) for p in points]
+            p.automation_envelopes = [e for e in p.automation_envelopes if e.track_id != track_id]
+            p.automation_envelopes.append(AutomationEnvelope(track_id=track_id, points=pts))
+            return len(pts)
+
+        return self.ws.mutate(
+            "before set envelope",
+            f"after set envelope {track_id}",
+            mutate,
+        )
+
+    def render_preview(
+        self, *, rerender: bool = True, progress: ProgressReporter | None = None
+    ) -> dict:
+        if rerender:
+
+            def mutate(p) -> dict:
+                return rerender_preview(p, progress=progress)
+
+            info = self.ws.mutate(
+                "before render preview",
+                "after render preview",
+                mutate,
+                operation="render_preview",
+            )
+            return info
+        return json.loads(render_preview_result(self.ws.project, rerender=False))
+
+    def render_final(self) -> Path:
+        runner = PipelineRunner()
+        runner.run(self.ws.project, from_step="master_loudness")
+        self.ws.save()
+        wav = self.ws.project.export_dir() / f"{self.ws.project.name}.wav"
+        return wav if wav.is_file() else self.ws.project.export_dir()
+
+    def export_audio(
+        self,
+        formats: list[dict] | None = None,
+        *,
+        cancel_check: Callable[[], bool] | None = None,
+    ) -> list[Path]:
+        defaults = load_defaults()
+        export_cfg = dict(defaults.get("export", {}))
+        if formats is not None:
+            export_cfg["formats"] = formats
+        mastered = artifact(self.ws.project, "mastered.wav")
+        from podcast_mcp.export.audio import export_episode_audio
+        from podcast_mcp.util.progress import CancelledProgress, resolve_progress_task
+
+        def raise_if_cancelled() -> None:
+            if cancel_check is not None and cancel_check():
+                raise CancelledProgress("Export cancelled")
+
+        with resolve_progress_task(
+            "export",
+            "Exporting deliverables",
+            total=2,
+            prefer_parent=True,
+        ) as prog:
+            raise_if_cancelled()
+            prog.set_phase("master", "Preparing mastered WAV…")
+            if not mastered.is_file():
+                pipeline_steps.master_loudness(self.ws.project, defaults)
+            prog.advance(1, message="Mastered WAV ready")
+            raise_if_cancelled()
+            prog.set_phase("encode", "Writing deliverables…")
+            paths = export_episode_audio(
+                self.ws.project,
+                ffmpeg(),
+                mastered,
+                export_cfg,
+                max_workers=defaults.get("performance", {}).get("max_workers"),
+            )
+            self.ws.save()
+            prog.advance(1, message="Export complete")
+            return paths

@@ -1,0 +1,32 @@
+{
+  "utterances": [
+    {
+      "track_id": "guest",
+      "speaker": "Speaker B",
+      "start": 0.0,
+      "end": 12.030000000000001,
+      "text": "brief as it were Um and so there are three different stages to the design Um I'm not really sure what what you guys have already received um in your emails What did you get"
+    },
+    {
+      "track_id": "host",
+      "speaker": "Speaker A",
+      "start": 12.569999999999993,
+      "end": 21.97999999999999,
+      "text": "Um I just got the project announcement about what the project is Designing a remote control That's about it didn't get anything else Did you get the same thing"
+    },
+    {
+      "track_id": "guest",
+      "speaker": "Speaker B",
+      "start": 15.080000000000013,
+      "end": 15.439999999999998,
+      "text": "Mm-hmm"
+    },
+    {
+      "track_id": "guest",
+      "speaker": "Speaker B",
+      "start": 20.099999999999994,
+      "end": 48.84,
+      "text": "Is that what everybody got Okay Um So we're gonna have like individual work and then a meeting about it And repeat that process three times Um and at this point we get try out the whiteboard over there Um So uh you get to draw your favourite animal and sum up your favourite characteristics of it So who would like to go first Very good"
+    }
+  ]
+}

@@ -1,0 +1,237 @@
+.ui-avatar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  border-radius: 50%;
+  background: var(--avatar-color, var(--presence-0));
+  color: var(--color-bg-canvas);
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  flex: 0 0 auto;
+}
+
+.ui-avatar--sm {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  font-size: var(--font-size-micro);
+}
+
+.ui-avatar--ring-solid {
+  outline: var(--focus-ring-width) solid var(--avatar-color, var(--presence-0));
+  outline-offset: var(--focus-ring-offset);
+}
+
+.ui-avatar--ring-dashed {
+  outline: var(--focus-ring-width) solid var(--avatar-color, var(--presence-0));
+  outline-style: dashed;
+  outline-offset: var(--focus-ring-offset);
+}
+
+.ui-avatar-badge {
+  position: absolute;
+  inset-block-start: -0.2rem;
+  inset-inline-end: -0.2rem;
+  min-inline-size: 0.9rem;
+  padding: 0 var(--space-0);
+  border-radius: 50%;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-micro);
+  line-height: 0.9rem;
+  text-align: center;
+}
+
+.avatar-stack {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.avatar-stack-btn {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 50%;
+}
+
+.ui-control.avatar-stack-btn,
+.ui-control.avatar-stack-btn[aria-pressed="true"] {
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: inherit;
+  min-block-size: 0;
+}
+
+.avatar-stack-followers {
+  display: inline-flex;
+}
+
+.avatar-stack-more {
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  border-radius: 50%;
+  font-size: var(--font-size-caption);
+}
+
+.presence-ghost-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: var(--z-presence-ghost);
+}
+
+.presence-cursor {
+  position: absolute;
+  inline-size: var(--space-4);
+  block-size: var(--space-05);
+  background: var(--presence-color, var(--presence-0));
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  transform: translate(-50%, -50%) rotate(-20deg);
+  pointer-events: none;
+}
+
+.presence-ghost-layer .presence-cursor--ghost {
+  position: fixed;
+}
+
+.presence-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: var(--z-overlay);
+}
+
+.presence-playhead {
+  position: absolute;
+  inset-block-start: 0;
+  inline-size: 0.125rem;
+  background: var(--presence-color, var(--presence-0));
+  pointer-events: none;
+}
+
+.presence-playhead-chip {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 50%;
+  transform: translate(-50%, -110%);
+}
+
+.presence-cursor-tag {
+  position: absolute;
+  inset-inline-start: var(--space-05);
+  inset-block-start: var(--space-3);
+  padding: var(--space-0) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--presence-color, var(--presence-0));
+  color: var(--color-bg-canvas);
+  font-size: var(--font-size-caption);
+  white-space: nowrap;
+  transform: rotate(20deg);
+}
+
+.presence-cursor.is-idle {
+  opacity: 0.35;
+}
+
+.presence-selection {
+  position: absolute;
+  border: var(--focus-ring-width) solid var(--presence-color, var(--presence-0));
+  background: transparent;
+  pointer-events: none;
+}
+
+.presence-selection::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--presence-color, var(--presence-0));
+  opacity: 0.18;
+}
+
+.presence-ghost-layer .presence-selection--ghost {
+  position: fixed;
+}
+
+.follow-banner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  min-inline-size: 0;
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-ui);
+}
+
+.follow-banner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--presence-color, var(--presence-0));
+  opacity: 0.16;
+  pointer-events: none;
+}
+
+.follow-banner > * {
+  position: relative;
+}
+
+.follow-banner-text {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-area--fixed-playhead[data-following] .playhead--fixed {
+  background: var(--presence-color, var(--playhead));
+}
+
+.playhead-fixed-chip {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 50%;
+  transform: translate(-50%, -110%);
+  pointer-events: none;
+}
+
+/* 48rem / 68.75rem match the phone and desktop shell splits without @media. */
+@container app (inline-size < 68.75rem) {
+  .follow-banner-stop {
+    min-block-size: var(--touch-min);
+    flex: 0 0 auto;
+  }
+
+  .mobile-more-hub [role="menuitem"] {
+    min-block-size: var(--touch-min);
+  }
+}
+
+@container app (inline-size < 68.75rem) {
+  .avatar-stack-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-inline-size: var(--touch-min);
+    min-block-size: var(--touch-min);
+  }
+}
+
+/* Menu is nested in `.transport` (`container: transport / inline-size`). */
+@container transport (inline-size < 68.75rem) {
+  .ui-menu-panel [role="menuitem"] {
+    min-block-size: var(--touch-min);
+  }
+}
+
+.timeline-area[data-following] {
+  box-shadow: inset 0 0 0 0.125rem var(--presence-color, var(--presence-0));
+}

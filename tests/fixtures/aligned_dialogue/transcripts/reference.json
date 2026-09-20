@@ -1,0 +1,28 @@
+{
+  "track_id": "reference",
+  "language": "en",
+  "words": [
+    {
+      "text": "caves.",
+      "start": 4.66,
+      "end": 6.06,
+      "confidence": 1.3273260037749424e-6,
+      "suppressed": false,
+      "audibility_status": null,
+      "dominant_track": null,
+      "speaker_match_track": null,
+      "speaker_match_score": null
+    },
+    {
+      "text": "You",
+      "start": 57.480000000000004,
+      "end": 58.88,
+      "confidence": 0.09849864989519119,
+      "suppressed": false,
+      "audibility_status": null,
+      "dominant_track": null,
+      "speaker_match_track": null,
+      "speaker_match_score": null
+    }
+  ]
+}

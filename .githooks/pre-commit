@@ -1,0 +1,21 @@
+#!/bin/sh
+# Format staged Ruff/Biome files via lint-staged, then run check-only pre-commit hooks.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+export PATH="$PWD/.venv/bin:$PWD/gui/web/node_modules/.bin:$PATH"
+
+if command -v lint-staged >/dev/null 2>&1; then
+  lint-staged --config lint-staged.config.mjs
+else
+  echo "lint-staged is not installed; run: cd gui/web && npm ci" >&2
+  exit 1
+fi
+
+if [ -x .venv/bin/pre-commit ]; then
+  .venv/bin/pre-commit run --hook-stage pre-commit --color always
+elif command -v pre-commit >/dev/null 2>&1; then
+  pre-commit run --hook-stage pre-commit --color always
+else
+  echo "pre-commit is not installed; skipping check-only hooks (ux-pack-sync, schema, capabilities, cheatsheet)." >&2
+  echo "Install with: uv tool install pre-commit   # or: pip install pre-commit" >&2
+fi

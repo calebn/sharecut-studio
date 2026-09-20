@@ -1,0 +1,15 @@
+/* Base reset */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-review);
+  color: var(--text);
+  background: var(--bg-app);
+}

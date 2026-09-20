@@ -1,0 +1,64 @@
+# Unsigned FOSS Tauri **scaffold** (clippy --lib). No installer.
+# Full Win/Linux/mac-x64 bundles use the reusable desktop build workflow.
+# Signed macOS/Windows: same workflow with sign=true + Environment desktop-signing secrets (see docs/desktop-packaging.md).
+
+name: desktop
+
+on:
+  pull_request:
+    paths:
+      - "gui/desktop/**"
+      - "gui/web/**"
+      - "src/podcast_mcp/**"
+      - "scripts/check_desktop.sh"
+      - "scripts/build_desktop.sh"
+      - ".github/workflows/desktop.yml"
+  push:
+    branches: [main]
+    paths:
+      - "gui/desktop/**"
+      - "gui/web/**"
+      - "src/podcast_mcp/**"
+      - "scripts/check_desktop.sh"
+      - "scripts/build_desktop.sh"
+      - ".github/workflows/desktop.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web-dist:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: gui/web
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: gui/web/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-artifact@v7
+        with:
+          name: gui-web-dist
+          path: gui/web/dist
+
+  # Full `tauri build` needs platform runners + icons; scaffold + light Rust hygiene.
+  # Same script as `make test-desktop` / scripts/check_desktop.sh (clippy/tests --lib only).
+  desktop-scaffold:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: web-dist
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Check desktop (scaffold + rustfmt + clippy + lib tests)
+        run: ./scripts/check_desktop.sh

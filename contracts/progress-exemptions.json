@@ -1,0 +1,797 @@
+{
+  "api_version": 1,
+  "description": "Partial Instant set (CRUD/status/gates) approved via plan:progress_tool_logging (2026-09-03). Remaining mute ops still warn until classified.",
+  "exemptions": [
+    {
+      "id": "add_comment_action_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "add_comment_reply_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "add_comment_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "align.brief",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "align.done",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "align.status",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "align.waive",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "align_brief_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "align_done_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "align_status_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "align_waive_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "clean_audio",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "comment.add",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "comment.add-action",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "comment.delete",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "comment.done",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "comment.get",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "comment.list",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "comment.reply",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "comment.resolve",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "comment.update",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "compress_tracks",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "delete_comment_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "doctor",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "edit.list",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "edit.list-applied",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "edit.list-chapters",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "edit.list-clips",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "edit.reconciliation-status",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "edit.render-status",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "edit.search",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "get_comment_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "get_session_state_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "get_session_presence_tool",
+      "kind": "minimal",
+      "reason": "Instant roster read; start/end wrap only (no phases required)",
+      "approved_by": "plan:follow_mode_ghost_cursors",
+      "date": "2026-09-14"
+    },
+    {
+      "id": "get_transcript",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "guest_add_comment",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "guest_add_reply",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "guest_audio_info",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "guest_get_project",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "guest_get_review_summary",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "guest_get_session_presence",
+      "kind": "minimal",
+      "reason": "Instant roster read; start/end wrap only (no phases required)",
+      "approved_by": "plan:follow_mode_ghost_cursors",
+      "date": "2026-09-14"
+    },
+    {
+      "id": "guest_list_applied_edits",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "guest_list_clips",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "guest_list_comments",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "guest_list_pending_edits",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "guest_render_status",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "guest_search_transcript",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "guest_set_action_done",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "history-status",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "history.diff",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "history.goto",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "history.list",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "history.record",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "history_list",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "history_status_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "info",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "list_applied_edits_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "list_chapters_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "list_clips_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "list_comments_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "list_edit_decisions_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "list_effects_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "list_review_versions_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "list_social_clips_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "merge_transcript",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "open_gui_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "pipeline.list",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "pipeline_get_config_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "pipeline_set_config_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "reconciliation_status_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "record.discard-take",
+      "kind": "minimal",
+      "reason": "Instant refuse/tombstone gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:recording_landing",
+      "date": "2026-09-18"
+    },
+    {
+      "id": "record.pause",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:recording_lobby_consent",
+      "date": "2026-09-17"
+    },
+    {
+      "id": "record.resume",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:recording_lobby_consent",
+      "date": "2026-09-17"
+    },
+    {
+      "id": "record.roster",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:recording_lobby_consent",
+      "date": "2026-09-17"
+    },
+    {
+      "id": "record.start",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:recording_lobby_consent",
+      "date": "2026-09-17"
+    },
+    {
+      "id": "record.state",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:recording_lobby_consent",
+      "date": "2026-09-17"
+    },
+    {
+      "id": "record.stop",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:recording_lobby_consent",
+      "date": "2026-09-17"
+    },
+    {
+      "id": "record_discard_take_tool",
+      "kind": "minimal",
+      "reason": "Instant refuse/tombstone gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:recording_landing",
+      "date": "2026-09-18"
+    },
+    {
+      "id": "record_pause_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:recording_lobby_consent",
+      "date": "2026-09-17"
+    },
+    {
+      "id": "record_resume_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:recording_lobby_consent",
+      "date": "2026-09-17"
+    },
+    {
+      "id": "record_start_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:recording_lobby_consent",
+      "date": "2026-09-17"
+    },
+    {
+      "id": "record_state_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:recording_lobby_consent",
+      "date": "2026-09-17"
+    },
+    {
+      "id": "record_stop_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:recording_lobby_consent",
+      "date": "2026-09-17"
+    },
+    {
+      "id": "render_status_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "require_align_accept",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "require_transcript_refine",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "resolve_comment_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "review.list-shares",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "review.list-versions",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "search_transcript_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "seek_session_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "session.mode",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "session.play",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "session.region",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "session.seek",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "session.status",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "session.stop",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "set_comment_action_done_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "set_session_mode_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "set_session_playing_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "set_session_region_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "set_session_selection_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "speaker.doctor",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "stop_session_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "transcript.refine-brief",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "transcript.refine-done",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "transcript.refine-status",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "transcript.refine-waive",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "transcript_refine_brief_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "transcript_refine_done_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "transcript_refine_status_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "transcript_refine_waive_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    },
+    {
+      "id": "update_comment_tool",
+      "kind": "minimal",
+      "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
+      "approved_by": "plan:progress_tool_logging",
+      "date": "2026-09-03"
+    }
+  ]
+}

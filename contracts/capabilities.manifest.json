@@ -1,0 +1,2284 @@
+{
+  "api_version": 1,
+  "description": "Capability registration contract: Sharecut Studio command/GUI/keyboard + MCP/CLI/skills.",
+  "hub_skills": [
+    "podcast-balance-levels",
+    "podcast-chapter-markers",
+    "podcast-cleanup-transcript",
+    "podcast-focus-episode",
+    "podcast-inaudible-cuts",
+    "podcast-ingest-align",
+    "podcast-mix-music",
+    "podcast-mute-bleed",
+    "podcast-pipeline-tune",
+    "podcast-remote-mcp",
+    "podcast-tighten-dialogue",
+    "podcast-transcript-audition",
+    "podcast-transcript-correct",
+    "podcast-transcript-precorrect",
+    "podcast-transcript-reconcile",
+    "podcast-transcript-refine",
+    "podcast-vocal-compression"
+  ],
+  "untracked_mcp": [],
+  "capabilities": [
+    {
+      "id": "daw.transport.togglePlay",
+      "label": "Play / pause",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "layoutFocused"
+      ],
+      "surfaces": {
+        "command": "transport.togglePlay",
+        "gui": [
+          "transport.play"
+        ],
+        "keyboard": "Space",
+        "mcp": [
+          "set_session_playing_tool",
+          "play_audio_tool"
+        ],
+        "skill": "podcast-play-audition"
+      },
+      "omit": {},
+      "tooltip": "Play / pause",
+      "presence": {
+        "cursor": "anchor",
+        "follow": "look",
+        "anchor": "transport:play"
+      }
+    },
+    {
+      "id": "daw.transport.seek",
+      "label": "Seek playhead",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "transport.seek",
+        "mcp": [
+          "seek_session_tool"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "not industry-standard; menu/toolbar or unkeyed"
+      }
+    },
+    {
+      "id": "daw.transport.stop",
+      "label": "Stop playback",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "transport.stop",
+        "gui": [
+          "transport.stop"
+        ],
+        "keyboard": "K",
+        "mcp": [
+          "stop_session_tool"
+        ]
+      },
+      "omit": {},
+      "tooltip": "Stop playback",
+      "presence": {
+        "cursor": "anchor",
+        "follow": "look",
+        "anchor": "transport:stop"
+      }
+    },
+    {
+      "id": "daw.transport.audition",
+      "label": "Audition Mix / FX / Raw",
+      "service": "Sharecut Studio command bus",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "transport.audition",
+        "gui": [
+          "transport.audition"
+        ],
+        "skill": "podcast-play-audition"
+      },
+      "omit": {
+        "keyboard_reason": "not industry-standard; Mix/FX/Raw toggle"
+      },
+      "tooltip": "Audition Mix, FX, or Raw",
+      "presence": {
+        "cursor": "anchor",
+        "follow": "hear",
+        "guest_fallback": "banner",
+        "anchor": "audition:<mode>"
+      }
+    },
+    {
+      "id": "daw.presence.follow",
+      "label": "Follow",
+      "service": "Sharecut Studio command bus \u2192 services/session_sync",
+      "industry_standard_key": false,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "presence.follow",
+        "gui": [
+          "presence.avatarStack"
+        ],
+        "mcp": [
+          "get_session_presence_tool"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "not industry-standard; avatar click"
+      },
+      "tooltip": "Follow this person",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.presence.unfollow",
+      "label": "Stop following",
+      "service": "Sharecut Studio command bus \u2192 services/session_sync",
+      "industry_standard_key": true,
+      "gates": [
+        "following"
+      ],
+      "surfaces": {
+        "command": "presence.unfollow",
+        "gui": [
+          "presence.followBanner"
+        ],
+        "keyboard": "Escape"
+      },
+      "omit": {},
+      "tooltip": "Stop following",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.tool.select",
+      "label": "Select tool",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "timelineAndStructural"
+      ],
+      "surfaces": {
+        "command": "tool.select",
+        "gui": [
+          "toolModeToggle"
+        ],
+        "keyboard": "V"
+      },
+      "omit": {},
+      "tooltip": "Select tool",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.tool.blade",
+      "label": "Blade tool",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "timelineAndStructural"
+      ],
+      "surfaces": {
+        "command": "tool.blade",
+        "gui": [
+          "toolModeToggle"
+        ],
+        "keyboard": "C"
+      },
+      "omit": {},
+      "tooltip": "Blade tool",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.review.exitCommentMode",
+      "label": "Exit comment mode",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "commentMode"
+      ],
+      "surfaces": {
+        "command": "review.exitCommentMode",
+        "gui": [],
+        "keyboard": "Escape"
+      },
+      "omit": {}
+    },
+    {
+      "id": "daw.edit.clearSelection",
+      "label": "Clear selection",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "hasInspectorSelection"
+      ],
+      "surfaces": {
+        "command": "edit.clearSelection",
+        "keyboard": "Escape"
+      },
+      "omit": {},
+      "tooltip": "Clear selection"
+    },
+    {
+      "id": "daw.review.toggleCommentMode",
+      "label": "Toggle comment mode",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "review.toggleCommentMode",
+        "gui": [
+          "transport.comment"
+        ],
+        "keyboard": "Mod+Shift+C"
+      },
+      "omit": {},
+      "tooltip": "Toggle comment mode",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.tighten.applyHit",
+      "label": "Apply tighten hit",
+      "service": "Sharecut Studio command bus \u2192 ApproveEdits",
+      "industry_standard_key": false,
+      "gates": [
+        "tightenPanelOpen"
+      ],
+      "surfaces": {
+        "command": "tighten.applyHit",
+        "gui": [
+          "tightenPanel"
+        ],
+        "keyboard": "Enter",
+        "skill": "podcast-tighten-dialogue"
+      },
+      "omit": {},
+      "tooltip": "Apply the selected filler or pause cut",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.tighten.skipHit",
+      "label": "Skip tighten hit",
+      "service": "Sharecut Studio command bus \u2192 RejectEdits",
+      "industry_standard_key": false,
+      "gates": [
+        "tightenPanelOpen"
+      ],
+      "surfaces": {
+        "command": "tighten.skipHit",
+        "gui": [
+          "tightenPanel"
+        ],
+        "keyboard": "Backspace",
+        "skill": "podcast-tighten-dialogue"
+      },
+      "omit": {},
+      "tooltip": "Skip the selected filler or pause cut",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.tighten.applyAllSafe",
+      "label": "Apply eligible tighten hits",
+      "service": "Sharecut Studio command bus \u2192 ApproveEdits",
+      "industry_standard_key": false,
+      "gates": [
+        "tightenPanelOpen"
+      ],
+      "surfaces": {
+        "command": "tighten.applyAllSafe",
+        "gui": [
+          "tightenPanel"
+        ],
+        "keyboard": "Mod+Shift+Enter",
+        "skill": "podcast-tighten-dialogue"
+      },
+      "omit": {},
+      "tooltip": "Apply listed tighten hits, skipping harsh cuts when enabled",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.tighten.previewHit",
+      "label": "Preview tighten hit",
+      "service": "Sharecut Studio command bus \u2192 listen-first preview",
+      "industry_standard_key": false,
+      "gates": [
+        "tightenPanelOpen"
+      ],
+      "surfaces": {
+        "command": "tighten.previewHit",
+        "gui": [
+          "tightenPanel"
+        ],
+        "keyboard": "P",
+        "skill": "podcast-tighten-dialogue"
+      },
+      "omit": {},
+      "tooltip": "Preview the selected tighten hit",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.tighten.goToHit",
+      "label": "Go to tighten hit",
+      "service": "Sharecut Studio command bus",
+      "industry_standard_key": false,
+      "gates": [
+        "tightenPanelOpen"
+      ],
+      "surfaces": {
+        "command": "tighten.goToHit",
+        "gui": [
+          "tightenPanel"
+        ],
+        "skill": "podcast-tighten-dialogue"
+      },
+      "omit": {
+        "keyboard_reason": "pointer/row action; seek+select"
+      },
+      "tooltip": "Seek the playhead to a tighten hit",
+      "presence": {
+        "cursor": "time",
+        "follow": "look"
+      }
+    },
+    {
+      "id": "daw.focus.default",
+      "label": "Focus: default layout",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "layoutFocused"
+      ],
+      "surfaces": {
+        "command": "focus.default",
+        "gui": [
+          "focusToggle"
+        ],
+        "keyboard": "1"
+      },
+      "omit": {},
+      "tooltip": "Focus: default layout",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.focus.timeline",
+      "label": "Focus: timeline",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "layoutFocused"
+      ],
+      "surfaces": {
+        "command": "focus.timeline",
+        "gui": [
+          "focusToggle"
+        ],
+        "keyboard": "2"
+      },
+      "omit": {},
+      "tooltip": "Focus: timeline",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.focus.text",
+      "label": "Focus: text",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "layoutFocused"
+      ],
+      "surfaces": {
+        "command": "focus.text",
+        "gui": [
+          "focusToggle"
+        ],
+        "keyboard": "3"
+      },
+      "omit": {},
+      "tooltip": "Focus: text",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.focus.review",
+      "label": "Focus: review",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "layoutFocused"
+      ],
+      "surfaces": {
+        "command": "focus.review",
+        "gui": [
+          "focusToggle"
+        ],
+        "keyboard": "4"
+      },
+      "omit": {},
+      "tooltip": "Focus: review",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.focus.cycle",
+      "label": "Cycle focus mode",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "focus.cycle",
+        "gui": [
+          "transport.menu"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "not industry-standard; menu/toolbar or unkeyed"
+      },
+      "tooltip": "Cycle focus mode",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.navigation.nudgePlayheadBack",
+      "label": "Nudge playhead back",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "navigation.nudgePlayheadBack",
+        "keyboard": "ArrowLeft"
+      },
+      "omit": {}
+    },
+    {
+      "id": "daw.navigation.nudgePlayheadForward",
+      "label": "Nudge playhead forward",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "navigation.nudgePlayheadForward",
+        "keyboard": "ArrowRight"
+      },
+      "omit": {}
+    },
+    {
+      "id": "daw.navigation.goToStart",
+      "label": "Go to start",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "navigation.goToStart",
+        "keyboard": "Home"
+      },
+      "omit": {},
+      "tooltip": "Go to start"
+    },
+    {
+      "id": "daw.navigation.goToEnd",
+      "label": "Go to end",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "navigation.goToEnd",
+        "keyboard": "End"
+      },
+      "omit": {},
+      "tooltip": "Go to end"
+    },
+    {
+      "id": "daw.edit.bladeCut",
+      "label": "Blade cut at time",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "canSuggestStructural"
+      ],
+      "surfaces": {
+        "command": "edit.bladeCut",
+        "gui": [
+          "editingToolRail",
+          "timeline"
+        ],
+        "keyboard": "Mod+K",
+        "mcp": [
+          "split_clip_tool"
+        ]
+      },
+      "omit": {},
+      "tooltip": "Blade cut at time",
+      "presence": {
+        "cursor": "time",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.edit.bladeCut.confirm",
+      "label": "Confirm blade cut",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "canSuggestStructural"
+      ],
+      "surfaces": {
+        "command": "edit.bladeCut.confirm",
+        "gui": [
+          "bladeConfirmSheet"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "not industry-standard; menu/toolbar or unkeyed"
+      },
+      "tooltip": "Confirm blade cut",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.edit.bladeCut.cancel",
+      "label": "Cancel blade cut",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "edit.bladeCut.cancel",
+        "gui": [
+          "bladeConfirmSheet"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "not industry-standard; menu/toolbar or unkeyed"
+      },
+      "tooltip": "Cancel blade cut",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.edit.delete",
+      "label": "Delete clip",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "canSuggestStructural"
+      ],
+      "surfaces": {
+        "command": "edit.delete",
+        "gui": [
+          "clipInspector"
+        ],
+        "keyboard": "Backspace"
+      },
+      "omit": {},
+      "tooltip": "Delete clip",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.track.remove",
+      "label": "Remove track",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "canIngestMedia",
+        "trackInspectorSelected"
+      ],
+      "surfaces": {
+        "command": "track.remove",
+        "gui": [
+          "trackInspector",
+          "transport.menu"
+        ],
+        "keyboard": "Backspace",
+        "mcp": [
+          "track_remove_tool"
+        ]
+      },
+      "omit": {},
+      "tooltip": "Remove track",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.track.reorder",
+      "label": "Reorder track",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "canIngestMedia"
+      ],
+      "surfaces": {
+        "command": "track.reorder",
+        "gui": [
+          "trackHeader"
+        ],
+        "mcp": [
+          "track_reorder_tool"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "drag headers or move up/down keys"
+      },
+      "tooltip": "Reorder track",
+      "presence": {
+        "cursor": "anchor",
+        "follow": "none",
+        "anchor": "track:<id>"
+      }
+    },
+    {
+      "id": "daw.track.moveUp",
+      "label": "Move track up",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "trackInspectorSelected"
+      ],
+      "surfaces": {
+        "command": "track.moveUp",
+        "gui": [
+          "transport.menu"
+        ],
+        "keyboard": "ArrowUp"
+      },
+      "omit": {},
+      "tooltip": "Move track up",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.track.moveDown",
+      "label": "Move track down",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "trackInspectorSelected"
+      ],
+      "surfaces": {
+        "command": "track.moveDown",
+        "gui": [
+          "transport.menu"
+        ],
+        "keyboard": "ArrowDown"
+      },
+      "omit": {},
+      "tooltip": "Move track down",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.edit.rippleDelete",
+      "label": "Ripple delete clip",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "canSuggestStructural"
+      ],
+      "surfaces": {
+        "command": "edit.rippleDelete",
+        "gui": [
+          "clipInspector"
+        ],
+        "keyboard": "Mod+Backspace",
+        "mcp": [
+          "ripple_delete_tool"
+        ]
+      },
+      "omit": {},
+      "tooltip": "Ripple delete clip",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.edit.copy",
+      "label": "Copy",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "canApplyPass12"
+      ],
+      "surfaces": {
+        "command": "edit.copy",
+        "keyboard": "Mod+C"
+      },
+      "omit": {}
+    },
+    {
+      "id": "daw.edit.cut",
+      "label": "Cut",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "canApplyPass12"
+      ],
+      "surfaces": {
+        "command": "edit.cut",
+        "keyboard": "Mod+X"
+      },
+      "omit": {}
+    },
+    {
+      "id": "daw.edit.paste",
+      "label": "Paste",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "canApplyPass12"
+      ],
+      "surfaces": {
+        "command": "edit.paste",
+        "keyboard": "Mod+V"
+      },
+      "omit": {}
+    },
+    {
+      "id": "daw.track.selectAll",
+      "label": "Select all tracks",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "timelineFocused"
+      ],
+      "surfaces": {
+        "command": "track.selectAll",
+        "keyboard": "Mod+A"
+      },
+      "omit": {},
+      "tooltip": "Select all tracks"
+    },
+    {
+      "id": "daw.track.deselectAll",
+      "label": "Deselect all tracks",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "timelineFocused"
+      ],
+      "surfaces": {
+        "command": "track.deselectAll",
+        "gui": [
+          "trackHeadersWell"
+        ],
+        "keyboard": "Mod+Shift+A"
+      },
+      "omit": {},
+      "tooltip": "Deselect all tracks",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.track.muteToggle",
+      "label": "Toggle track mute",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "track.muteToggle",
+        "gui": [
+          "trackHeader"
+        ],
+        "keyboard": "M"
+      },
+      "omit": {},
+      "tooltip": "Toggle track mute",
+      "presence": {
+        "cursor": "anchor",
+        "follow": "hear",
+        "anchor": "track:<id>:mute"
+      }
+    },
+    {
+      "id": "daw.track.soloToggle",
+      "label": "Toggle track solo",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "track.soloToggle",
+        "gui": [
+          "trackHeader"
+        ],
+        "keyboard": "S"
+      },
+      "omit": {},
+      "tooltip": "Toggle track solo",
+      "presence": {
+        "cursor": "anchor",
+        "follow": "hear",
+        "anchor": "track:<id>:solo"
+      }
+    },
+    {
+      "id": "daw.view.zoomIn",
+      "label": "Zoom in",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "view.zoomIn",
+        "gui": [
+          "transport.menu"
+        ],
+        "keyboard": "="
+      },
+      "omit": {},
+      "tooltip": "Zoom in",
+      "presence": {
+        "cursor": "none",
+        "follow": "look"
+      }
+    },
+    {
+      "id": "daw.view.zoomOut",
+      "label": "Zoom out",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "view.zoomOut",
+        "gui": [
+          "transport.menu"
+        ],
+        "keyboard": "-"
+      },
+      "omit": {},
+      "tooltip": "Zoom out",
+      "presence": {
+        "cursor": "none",
+        "follow": "look"
+      }
+    },
+    {
+      "id": "daw.view.fit",
+      "label": "Fit session in view",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "view.fit",
+        "gui": [
+          "transport.fit"
+        ],
+        "keyboard": "\\"
+      },
+      "omit": {},
+      "tooltip": "Fit session in view",
+      "presence": {
+        "cursor": "none",
+        "follow": "look"
+      }
+    },
+    {
+      "id": "daw.view.setTab",
+      "label": "Switch editor tab",
+      "service": "Sharecut Studio command bus",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "view.setTab",
+        "gui": [
+          "tabBar"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "not industry-standard; tab click"
+      },
+      "tooltip": "Switch editor tab",
+      "presence": {
+        "cursor": "anchor",
+        "follow": "look",
+        "guest_fallback": "banner",
+        "anchor": "tab:<id>"
+      }
+    },
+    {
+      "id": "daw.view.setMobileMode",
+      "label": "Switch phone mode",
+      "service": "Sharecut Studio command bus",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "view.setMobileMode",
+        "gui": [
+          "mobileNav"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "not industry-standard; tab click"
+      },
+      "tooltip": "Switch phone Listen / Timeline / Text / More",
+      "presence": {
+        "cursor": "anchor",
+        "follow": "look",
+        "anchor": "mobile-nav:<id>"
+      }
+    },
+    {
+      "id": "daw.view.waveformZoomIn",
+      "label": "Waveform amplitude zoom in",
+      "service": "Sharecut Studio command bus",
+      "industry_standard_key": true,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "view.waveformZoomIn",
+        "gui": [
+          "timeline.waveform"
+        ],
+        "keyboard": "ArrowUp"
+      },
+      "omit": {},
+      "tooltip": "Waveform amplitude zoom in",
+      "presence": {
+        "cursor": "time",
+        "follow": "look"
+      }
+    },
+    {
+      "id": "daw.view.waveformZoomOut",
+      "label": "Waveform amplitude zoom out",
+      "service": "Sharecut Studio command bus",
+      "industry_standard_key": true,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "view.waveformZoomOut",
+        "gui": [
+          "timeline.waveform"
+        ],
+        "keyboard": "ArrowDown"
+      },
+      "omit": {},
+      "tooltip": "Waveform amplitude zoom out",
+      "presence": {
+        "cursor": "time",
+        "follow": "look"
+      }
+    },
+    {
+      "id": "daw.history.undo",
+      "label": "Undo",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "history.undo",
+        "gui": [
+          "historyPanel"
+        ],
+        "keyboard": "Mod+Z",
+        "mcp": [
+          "history_undo"
+        ],
+        "cli": "podcast undo",
+        "skill": "podcast-history"
+      },
+      "omit": {},
+      "tooltip": "Undo",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.history.redo",
+      "label": "Redo",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "history.redo",
+        "gui": [
+          "historyPanel"
+        ],
+        "keyboard": "Mod+Shift+Z",
+        "mcp": [
+          "history_redo"
+        ],
+        "cli": "podcast redo",
+        "skill": "podcast-history"
+      },
+      "omit": {},
+      "tooltip": "Redo",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.ui.toggleCommandPalette",
+      "label": "Command cheatsheet",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "ui.toggleCommandPalette",
+        "gui": [
+          "transport.menu"
+        ],
+        "keyboard": "?"
+      },
+      "omit": {},
+      "tooltip": "Command cheatsheet",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.render.refreshMix",
+      "label": "Refresh mix",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "canRefreshMix"
+      ],
+      "surfaces": {
+        "command": "render.refreshMix",
+        "gui": [
+          "staleRenderPill"
+        ],
+        "keyboard": "Mod+B",
+        "mcp": [
+          "render_preview"
+        ],
+        "cli": "podcast render-preview",
+        "skill": "podcast-play-audition"
+      },
+      "omit": {},
+      "tooltip": "Refresh mix",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.export.bounce",
+      "label": "Bounce\u2026",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "canManageProjects"
+      ],
+      "surfaces": {
+        "command": "export.bounce",
+        "gui": [
+          "transport.menu",
+          "BounceDialog"
+        ],
+        "keyboard": "Mod+Shift+B",
+        "mcp": [
+          "bounce_audio_tool"
+        ],
+        "cli": "podcast pipeline bounce",
+        "skill": "podcast-bounce-export"
+      },
+      "omit": {
+        "guest": true
+      },
+      "tooltip": "Bounce\u2026",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.share.manage",
+      "label": "Share\u2026",
+      "service": "ShareService",
+      "industry_standard_key": false,
+      "gates": [
+        "canManageProjects"
+      ],
+      "surfaces": {
+        "command": "share.manage",
+        "gui": [
+          "transport.menu",
+          "ShareDialog"
+        ],
+        "cli": "podcast review share"
+      },
+      "omit": {
+        "keyboard_reason": "dialog from Menu",
+        "guest": true
+      },
+      "tooltip": "Share\u2026",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.record.start",
+      "label": "Start recording",
+      "service": "RecordSessionService",
+      "industry_standard_key": false,
+      "gates": [
+        "canManageProjects"
+      ],
+      "surfaces": {
+        "command": "record.start",
+        "gui": [
+          "RecordPanel",
+          "transport.recChip"
+        ],
+        "cli": "podcast record start",
+        "mcp": [
+          "record_start_tool"
+        ],
+        "skill": "podcast-record-session"
+      },
+      "omit": {
+        "keyboard_reason": "chords in a later PR",
+        "guest": true
+      },
+      "tooltip": "Start recording",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.record.pause",
+      "label": "Pause recording",
+      "service": "RecordSessionService",
+      "industry_standard_key": false,
+      "gates": [
+        "canManageProjects"
+      ],
+      "surfaces": {
+        "command": "record.pause",
+        "gui": [
+          "RecordPanel",
+          "transport.recChip"
+        ],
+        "cli": "podcast record pause",
+        "mcp": [
+          "record_pause_tool"
+        ],
+        "skill": "podcast-record-session"
+      },
+      "omit": {
+        "keyboard_reason": "chords in a later PR",
+        "guest": true
+      },
+      "tooltip": "Pause recording",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.record.resume",
+      "label": "Resume recording",
+      "service": "RecordSessionService",
+      "industry_standard_key": false,
+      "gates": [
+        "canManageProjects"
+      ],
+      "surfaces": {
+        "command": "record.resume",
+        "gui": [
+          "RecordPanel",
+          "transport.recChip"
+        ],
+        "cli": "podcast record resume",
+        "mcp": [
+          "record_resume_tool"
+        ],
+        "skill": "podcast-record-session"
+      },
+      "omit": {
+        "keyboard_reason": "chords in a later PR",
+        "guest": true
+      },
+      "tooltip": "Resume recording",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.record.stop",
+      "label": "Stop recording",
+      "service": "RecordSessionService",
+      "industry_standard_key": false,
+      "gates": [
+        "canManageProjects"
+      ],
+      "surfaces": {
+        "command": "record.stop",
+        "gui": [
+          "RecordPanel",
+          "transport.recChip"
+        ],
+        "cli": "podcast record stop",
+        "mcp": [
+          "record_stop_tool"
+        ],
+        "skill": "podcast-record-session"
+      },
+      "omit": {
+        "keyboard_reason": "chords in a later PR",
+        "guest": true
+      },
+      "tooltip": "Stop recording",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.record.land",
+      "label": "Land recording on timeline",
+      "service": "RecordLandingService",
+      "industry_standard_key": false,
+      "gates": [
+        "canManageProjects"
+      ],
+      "surfaces": {
+        "command": "record.land",
+        "gui": [
+          "RecordPanel"
+        ],
+        "cli": "podcast record land",
+        "mcp": [
+          "record_land_tool"
+        ],
+        "skill": "podcast-record-session"
+      },
+      "omit": {
+        "keyboard_reason": "chords in a later PR",
+        "guest": true
+      },
+      "tooltip": "Land recording on timeline",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.record.discardTake",
+      "label": "Discard recording take",
+      "service": "RecordLandingService",
+      "industry_standard_key": false,
+      "gates": [
+        "canManageProjects"
+      ],
+      "surfaces": {
+        "cli": "podcast record discard-take",
+        "mcp": [
+          "record_discard_take_tool"
+        ],
+        "skill": "podcast-record-session"
+      },
+      "omit": {
+        "keyboard_reason": "host CLI/MCP only",
+        "guest": true
+      },
+      "tooltip": "Discard recording take",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.record.panel",
+      "label": "Record panel",
+      "service": "RecordSessionService",
+      "industry_standard_key": false,
+      "gates": [
+        "canManageProjects"
+      ],
+      "surfaces": {
+        "command": "record.openPanel",
+        "gui": [
+          "RecordPanel"
+        ],
+        "cli": "podcast record state",
+        "mcp": [
+          "record_state_tool"
+        ],
+        "skill": "podcast-record-session"
+      },
+      "omit": {
+        "keyboard_reason": "chords in a later PR",
+        "guest": true
+      },
+      "tooltip": "Record panel",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.record.marker",
+      "label": "Record marker",
+      "service": "RecordSessionService",
+      "industry_standard_key": true,
+      "gates": [
+        "recordPanelOpen"
+      ],
+      "surfaces": {
+        "command": "record.marker",
+        "gui": [
+          "LiveComments"
+        ],
+        "keyboard": "M",
+        "skill": "podcast-record-session"
+      },
+      "omit": {
+        "guest": true
+      },
+      "tooltip": "Record marker",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.mcp.connect",
+      "label": "Connect agent\u2026",
+      "service": "Host Streamable HTTP MCP (mcp SDK)",
+      "industry_standard_key": false,
+      "gates": [
+        "canManageProjects"
+      ],
+      "surfaces": {
+        "command": "mcp.connect",
+        "gui": [
+          "transport.menu",
+          "HostMcpDialog"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "dialog from Menu",
+        "guest": true
+      },
+      "tooltip": "Connect agent\u2026",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.help.diagnosticsBundle",
+      "label": "Help\u2026",
+      "service": "DiagnosticsService",
+      "industry_standard_key": false,
+      "gates": [
+        "canManageProjects"
+      ],
+      "surfaces": {
+        "command": "help.diagnosticsBundle",
+        "gui": [
+          "home.help",
+          "HelpDialog",
+          "transport.menu"
+        ],
+        "cli": "podcast doctor --bundle"
+      },
+      "omit": {
+        "keyboard_reason": "dialog from Home / Menu",
+        "guest": true
+      },
+      "tooltip": "Create a sanitized diagnostics bundle",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.export.deliverables",
+      "label": "Export deliverables",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "canManageProjects"
+      ],
+      "surfaces": {
+        "command": "export.deliverables",
+        "gui": [
+          "transport.menu"
+        ],
+        "keyboard": "Mod+Shift+E",
+        "mcp": [
+          "export_audio_tool"
+        ],
+        "cli": "podcast pipeline export-audio",
+        "skill": "podcast-master-export"
+      },
+      "omit": {
+        "guest": true
+      },
+      "tooltip": "Export deliverables",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.project.new",
+      "label": "New project",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "canManageProjects"
+      ],
+      "surfaces": {
+        "command": "project.new",
+        "gui": [
+          "transport.menu"
+        ],
+        "keyboard": "Mod+N"
+      },
+      "omit": {
+        "guest": true
+      },
+      "tooltip": "New project",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.project.open",
+      "label": "Open project",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "canManageProjects"
+      ],
+      "surfaces": {
+        "command": "project.open",
+        "gui": [
+          "transport.menu"
+        ],
+        "keyboard": "Mod+O"
+      },
+      "omit": {
+        "guest": true
+      },
+      "tooltip": "Open project",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.track.add",
+      "label": "New track",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "canIngestMedia"
+      ],
+      "surfaces": {
+        "command": "track.add",
+        "gui": [
+          "transport.menu",
+          "editingToolRail",
+          "trackLane"
+        ],
+        "keyboard": "Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T)",
+        "mcp": [
+          "track_add_empty_tool",
+          "track_add"
+        ]
+      },
+      "omit": {},
+      "tooltip": "New track",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.media.import",
+      "label": "Import audio",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "canIngestMedia"
+      ],
+      "surfaces": {
+        "command": "media.import",
+        "gui": [
+          "transport.menu",
+          "editingToolRail",
+          "drop"
+        ],
+        "keyboard": "Mod+I",
+        "mcp": [
+          "track_set_media_tool"
+        ]
+      },
+      "omit": {},
+      "tooltip": "Import audio",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "agent.episode",
+      "label": "Episode / track CRUD",
+      "service": "EpisodeProject / track services",
+      "industry_standard_key": false,
+      "gates": [
+        "host"
+      ],
+      "surfaces": {
+        "mcp": [
+          "episode_create",
+          "track_set_meta_tool"
+        ],
+        "cli": "podcast episode / podcast track",
+        "skill": "podcast-setup"
+      },
+      "omit": {
+        "keyboard_reason": "agent-primary workflow",
+        "guest": true
+      }
+    },
+    {
+      "id": "agent.transcript",
+      "label": "Transcript layers",
+      "service": "TranscriptService / refine",
+      "industry_standard_key": false,
+      "gates": [
+        "host"
+      ],
+      "surfaces": {
+        "mcp": [
+          "transcribe_track",
+          "get_transcript",
+          "export_transcript",
+          "precorrect_transcript_tool",
+          "transcript_refine_status_tool",
+          "transcript_refine_brief_tool",
+          "transcript_refine_done_tool",
+          "transcript_refine_waive_tool"
+        ],
+        "cli": "podcast transcript",
+        "skill": "podcast-transcript-workflow"
+      },
+      "omit": {
+        "keyboard_reason": "agent-primary workflow",
+        "guest": true
+      }
+    },
+    {
+      "id": "agent.edits",
+      "label": "Edit decisions / NL cuts",
+      "service": "EditService",
+      "industry_standard_key": false,
+      "gates": [
+        "host"
+      ],
+      "surfaces": {
+        "mcp": [
+          "build_edit_context",
+          "search_transcript_tool",
+          "cut_time_range_tool",
+          "cut_text_match_tool",
+          "cut_utterance_tool",
+          "cut_words_tool",
+          "apply_edit_plan_tool",
+          "preview_inaudible_cut_tool",
+          "suggest_handoff_cut_tool",
+          "join_quality_tool",
+          "join_qa_sweep_tool",
+          "join_label_tool",
+          "list_edit_decisions_tool",
+          "approve_edits_tool",
+          "reject_edits_tool",
+          "update_pending_edit_tool",
+          "revert_applied_edit_tool",
+          "edit_impact_report_tool",
+          "propose_edits",
+          "apply_edits"
+        ],
+        "cli": "podcast edit",
+        "skill": "podcast-edit-natural-language"
+      },
+      "omit": {
+        "keyboard_reason": "agent-primary workflow",
+        "guest": true
+      }
+    },
+    {
+      "id": "agent.timeline",
+      "label": "Timeline / FX / reconcile",
+      "service": "timeline / document sync",
+      "industry_standard_key": false,
+      "gates": [
+        "host"
+      ],
+      "surfaces": {
+        "mcp": [
+          "strip_silence_tool",
+          "ripple_delete_text_tool",
+          "move_segment_tool",
+          "move_by_text_tool",
+          "insert_gap_tool",
+          "fade_joins_tool",
+          "crossfade_joins_tool",
+          "set_clip_fade_tool",
+          "set_join_mode_tool",
+          "shorten_gaps_tool",
+          "duplicate_segment_tool",
+          "list_clips_tool",
+          "list_applied_edits_tool",
+          "render_status_tool",
+          "fill_with_room_tone_tool",
+          "add_chapter_tool",
+          "remove_chapter_tool",
+          "list_chapters_tool",
+          "check_loudness_tool",
+          "correct_transcript_tool",
+          "correct_transcript_phrase_tool",
+          "set_word_suppressed_tool",
+          "apply_transcript_cleanup_tool",
+          "low_confidence_words_tool",
+          "verify_transcript_tool",
+          "add_effect_tool",
+          "remove_effect_tool",
+          "set_effect_bypass_tool",
+          "list_effects_tool",
+          "analyze_cleanup_tool",
+          "audio_diagnostics_tool",
+          "recommend_fades_tool",
+          "apply_fade_recommendations_tool",
+          "low_audibility_words_tool",
+          "apply_low_audibility_suppression_tool",
+          "gate_overreach_tool",
+          "audibility_map_tool",
+          "flagged_words_tool",
+          "reconciliation_status_tool",
+          "reconcile_transcript_tool",
+          "bleed_words_tool",
+          "apply_bleed_suppression_tool",
+          "overlap_duplicates_tool",
+          "apply_transcript_gate_tool"
+        ],
+        "cli": "podcast edit",
+        "skill": "podcast-audio-cleanup"
+      },
+      "omit": {
+        "keyboard_reason": "agent-primary workflow",
+        "guest": true
+      }
+    },
+    {
+      "id": "agent.social_clips",
+      "label": "Social clips",
+      "service": "clips.social",
+      "industry_standard_key": false,
+      "gates": [
+        "host"
+      ],
+      "surfaces": {
+        "mcp": [
+          "propose_social_clips_tool",
+          "list_social_clips_tool",
+          "approve_social_clips_tool",
+          "reject_social_clips_tool",
+          "social_clip_report_tool",
+          "export_social_clips_tool"
+        ],
+        "cli": "podcast clips",
+        "skill": "podcast-social-clips"
+      },
+      "omit": {
+        "keyboard_reason": "agent-primary workflow",
+        "guest": true
+      }
+    },
+    {
+      "id": "agent.comments",
+      "label": "Timeline comments",
+      "service": "CommentService",
+      "industry_standard_key": false,
+      "gates": [
+        "host"
+      ],
+      "surfaces": {
+        "mcp": [
+          "add_comment_tool",
+          "list_comments_tool",
+          "get_comment_tool",
+          "update_comment_tool",
+          "resolve_comment_tool",
+          "add_comment_action_tool",
+          "add_comment_reply_tool",
+          "set_comment_action_done_tool",
+          "delete_comment_tool"
+        ],
+        "cli": "podcast comment",
+        "skill": "podcast-timeline-comments"
+      },
+      "omit": {
+        "keyboard_reason": "agent-primary workflow",
+        "guest": false
+      }
+    },
+    {
+      "id": "agent.review",
+      "label": "Review versions / share",
+      "service": "ShareService / review",
+      "industry_standard_key": false,
+      "gates": [
+        "host"
+      ],
+      "surfaces": {
+        "mcp": [
+          "publish_review_version_tool",
+          "list_review_versions_tool",
+          "set_active_review_version_tool",
+          "create_review_share_tool",
+          "create_record_room_tool",
+          "revoke_record_room_tool"
+        ],
+        "cli": "podcast review",
+        "skill": "podcast-timeline-comments"
+      },
+      "omit": {
+        "keyboard_reason": "agent-primary workflow",
+        "guest": true
+      }
+    },
+    {
+      "id": "agent.pipeline",
+      "label": "Pipeline / master / bounce",
+      "service": "PipelineService / BounceService",
+      "industry_standard_key": false,
+      "gates": [
+        "host"
+      ],
+      "surfaces": {
+        "mcp": [
+          "pipeline_run",
+          "pipeline_get_config_tool",
+          "pipeline_set_config_tool",
+          "pipeline_analyze_tool",
+          "set_envelope",
+          "render_final"
+        ],
+        "cli": "podcast pipeline",
+        "skill": "podcast-pipeline-run"
+      },
+      "omit": {
+        "keyboard_reason": "agent-primary workflow",
+        "guest": true
+      }
+    },
+    {
+      "id": "agent.history",
+      "label": "History",
+      "service": "HistoryManager",
+      "industry_standard_key": false,
+      "gates": [
+        "host"
+      ],
+      "surfaces": {
+        "mcp": [
+          "history_list",
+          "history_status_tool",
+          "history_goto_tool",
+          "history_diff_tool",
+          "history_record"
+        ],
+        "cli": "podcast history",
+        "skill": "podcast-history"
+      },
+      "omit": {
+        "keyboard_reason": "agent-primary workflow",
+        "guest": true
+      }
+    },
+    {
+      "id": "agent.play",
+      "label": "Play / audition",
+      "service": "PlayService",
+      "industry_standard_key": false,
+      "gates": [
+        "host"
+      ],
+      "surfaces": {
+        "mcp": [
+          "play_transcript_query_tool",
+          "audition_context_tool",
+          "play_compose_tool",
+          "play_ab_tool",
+          "play_ab_wavs_tool",
+          "play_pending_preview_tool"
+        ],
+        "cli": "podcast play",
+        "skill": "podcast-play-audition"
+      },
+      "omit": {
+        "keyboard_reason": "agent-primary workflow",
+        "guest": true
+      }
+    },
+    {
+      "id": "agent.session",
+      "label": "DAW session sync",
+      "service": "SessionSyncService",
+      "industry_standard_key": false,
+      "gates": [
+        "host"
+      ],
+      "surfaces": {
+        "mcp": [
+          "get_session_state_tool",
+          "set_session_selection_tool",
+          "set_session_mode_tool",
+          "set_session_region_tool"
+        ],
+        "cli": "podcast session",
+        "skill": "podcast-open-gui"
+      },
+      "omit": {
+        "keyboard_reason": "agent-primary workflow",
+        "guest": true
+      }
+    },
+    {
+      "id": "agent.ingest",
+      "label": "Ingest alignment",
+      "service": "ingest alignment",
+      "industry_standard_key": false,
+      "gates": [
+        "host"
+      ],
+      "surfaces": {
+        "mcp": [
+          "ingest_import_folder_tool",
+          "ingest_suggest_alignment_tool",
+          "ingest_verify_alignment_tool",
+          "play_compare_tool"
+        ],
+        "cli": "podcast ingest",
+        "skill": "podcast-align-audio"
+      },
+      "omit": {
+        "keyboard_reason": "agent-primary workflow",
+        "guest": true
+      }
+    },
+    {
+      "id": "agent.align-accept",
+      "label": "Align accept gate",
+      "service": "align accept",
+      "industry_standard_key": false,
+      "gates": [
+        "host"
+      ],
+      "surfaces": {
+        "mcp": [
+          "align_status_tool",
+          "align_brief_tool",
+          "align_done_tool",
+          "align_waive_tool"
+        ],
+        "cli": "podcast align",
+        "skill": "podcast-align-audio"
+      },
+      "omit": {
+        "keyboard_reason": "agent-primary workflow",
+        "guest": true
+      }
+    },
+    {
+      "id": "agent.speaker",
+      "label": "Speaker attribution",
+      "service": "speaker tools",
+      "industry_standard_key": false,
+      "gates": [
+        "host"
+      ],
+      "surfaces": {
+        "mcp": [
+          "speaker_doctor_tool",
+          "speaker_enroll_tool",
+          "speaker_profiles_tool",
+          "speaker_score_tool",
+          "speaker_compare_window_tool",
+          "speaker_compare_pair_tool",
+          "speaker_label_tool",
+          "speaker_set_count_tool",
+          "speaker_attribute_tool",
+          "speaker_gate_track_tool"
+        ],
+        "cli": "podcast speaker",
+        "skill": "podcast-speaker-attribution"
+      },
+      "omit": {
+        "keyboard_reason": "agent-primary workflow",
+        "guest": true
+      }
+    },
+    {
+      "id": "agent.gui",
+      "label": "Open Sharecut Studio GUI",
+      "service": "gui_launch",
+      "industry_standard_key": false,
+      "gates": [
+        "host"
+      ],
+      "surfaces": {
+        "mcp": [
+          "open_gui_tool"
+        ],
+        "cli": "podcast gui",
+        "skill": "podcast-open-gui"
+      },
+      "omit": {
+        "keyboard_reason": "agent-primary workflow",
+        "guest": true
+      }
+    },
+    {
+      "id": "daw.view.transcriptAnnotate",
+      "label": "Annotate transcript",
+      "tooltip": "Annotate: show edit boundaries, low-confidence words, and cut-away text",
+      "tooltip_pressed": "Hide annotate marks (clean reading view)",
+      "toggle": true,
+      "service": "Sharecut Studio UI",
+      "industry_standard_key": false,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "view.transcriptAnnotate",
+        "gui": [
+          "transcript.annotate"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "toolbar toggle; no industry-standard key"
+      },
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.transcript.correct",
+      "label": "Correct transcript",
+      "tooltip": "Correct: click a word to fix ASR text or suppress",
+      "tooltip_pressed": "Exit Correct (restore seek-on-click)",
+      "toggle": true,
+      "service": "Sharecut Studio UI",
+      "industry_standard_key": false,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "transcript.correctIntent",
+        "gui": [
+          "transcript.correct"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "toolbar toggle; no industry-standard key"
+      },
+      "presence": {
+        "cursor": "anchor",
+        "follow": "look",
+        "anchor": "transcript:word:<track>:<i>"
+      }
+    },
+    {
+      "id": "daw.transcript.select",
+      "label": "Select transcript range",
+      "tooltip": "Select: click/shift/drag words for copy/cut (Mod+C/X/V)",
+      "tooltip_pressed": "Exit Select (restore seek-on-click)",
+      "toggle": true,
+      "service": "Sharecut Studio UI",
+      "industry_standard_key": false,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "transcript.selectIntent",
+        "gui": [
+          "transcript.select"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "toolbar toggle; no industry-standard key"
+      },
+      "presence": {
+        "cursor": "anchor",
+        "follow": "look",
+        "anchor": "transcript:word:<track>:<i>"
+      }
+    },
+    {
+      "id": "daw.view.showCutAway",
+      "label": "Show cut away",
+      "tooltip": "Show words removed by timeline cuts (drag boundaries to restore)",
+      "tooltip_pressed": "Hide cut-away words",
+      "toggle": true,
+      "service": "Sharecut Studio UI",
+      "industry_standard_key": false,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "view.showCutAway",
+        "gui": [
+          "transcript.showCutAway"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "toolbar toggle; no industry-standard key"
+      },
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.edit.trimClipEdge",
+      "label": "Trim clip edge",
+      "tooltip": "Drag clip start or end to expand or trim this clip \u00b7 waveform preview shows restored audio",
+      "service": "Sharecut Studio \u2192 TrimClipEdge document command",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "edit.trimClipEdge",
+        "gui": [
+          "timeline.clip.trimHandle"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "pointer trim handle; no industry-standard key"
+      },
+      "presence": {
+        "cursor": "time",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.edit.moveClips",
+      "label": "Move clips",
+      "tooltip": "Drag clip bodies to move in time or onto another track \u00b7 gaps and overlap allowed",
+      "service": "Sharecut Studio \u2192 MoveClips document command",
+      "industry_standard_key": false,
+      "gates": [
+        "canApplyPass12"
+      ],
+      "surfaces": {
+        "command": "edit.moveClips",
+        "gui": [
+          "timeline.clip.body"
+        ],
+        "mcp": [
+          "move_clips_tool"
+        ],
+        "cli": "podcast edit move-clips"
+      },
+      "omit": {
+        "keyboard_reason": "pointer clip-body drag; arrow keys stay playhead nudge"
+      },
+      "presence": {
+        "cursor": "time",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.edit.rollClipJoin",
+      "label": "Roll clip join",
+      "tooltip": "Drag join to roll both clip edges \u00b7 clips stay flush",
+      "service": "Sharecut Studio \u2192 RollClipJoin document command",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "edit.rollClipJoin",
+        "gui": [
+          "timeline.clip.joinDiamond",
+          "transcript.editBoundary"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "pointer join diamond; no industry-standard key"
+      },
+      "presence": {
+        "cursor": "time",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.edit.setClipFade",
+      "label": "Set clip fade",
+      "tooltip": "Drag to set fade length (distinct from trim)",
+      "service": "Sharecut Studio \u2192 SetClipFade document command",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "edit.setClipFade",
+        "gui": [
+          "timeline.clip.fadeHandle"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "pointer fade handle; no industry-standard key"
+      },
+      "presence": {
+        "cursor": "time",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.view.editBoundary",
+      "label": "Edit boundary",
+      "tooltip": "Edit boundary glyph (Annotate)",
+      "service": "Sharecut Studio UI over edit_boundaries",
+      "industry_standard_key": false,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "view.focusEditBoundary"
+      },
+      "omit": {
+        "keyboard_reason": "inline glyph; no industry-standard key"
+      }
+    },
+    {
+      "id": "daw.view.cutAwayWord",
+      "label": "Cut-away word",
+      "tooltip": "Cut away \u2014 not in the mix \u00b7 drag nearby boundary to restore",
+      "service": "Sharecut Studio UI over edit_boundaries",
+      "industry_standard_key": false,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "view.focusCutAwayWord",
+        "gui": [
+          "transcript.cutAwayWord"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "inline chip; no industry-standard key"
+      },
+      "presence": {
+        "cursor": "anchor",
+        "follow": "look",
+        "anchor": "transcript:word:<track>:<i>"
+      }
+    }
+  ]
+}

@@ -1,0 +1,323 @@
+/* Command cheatsheet / palette */
+.command-palette-root {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+}
+
+.command-palette-scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: var(--scrim);
+  cursor: pointer;
+}
+
+.command-palette-panel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: min(32rem, calc(100vw - 2rem));
+  max-height: min(90dvh, 40rem);
+  min-height: 0;
+  overflow: hidden;
+  padding: var(--space-5) var(--space-5) var(--space-6);
+  border-radius: var(--radius-xl);
+  background: var(--bg-panel);
+  color: var(--text);
+  box-shadow: 0 0.75rem 2.5rem var(--shadow);
+}
+
+.command-palette-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  margin-bottom: var(--space-3);
+}
+
+.command-palette-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+}
+
+.command-palette-header h2 {
+  margin: 0;
+  font-size: var(--font-size-heading);
+}
+
+.command-palette-hint {
+  margin: 0 0 var(--space-4);
+  font-size: var(--font-size-body);
+  opacity: 0.75;
+}
+
+.command-palette-hint kbd {
+  font-size: var(--font-size-small);
+}
+
+.command-palette-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.command-palette-tabs button {
+  font: inherit;
+  font-size: var(--font-size-small);
+  text-transform: capitalize;
+  padding: var(--space-1) var(--space-05);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-overlay-white-15);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.command-palette-tabs button.active {
+  background: var(--color-overlay-white-12);
+  border-color: var(--color-overlay-white-35);
+}
+
+.command-palette-toolbar {
+  margin-bottom: var(--space-3);
+}
+
+.command-palette-remap-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-ui);
+  opacity: 0.85;
+  cursor: pointer;
+}
+
+.command-palette-section h3 {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: var(--font-size-small);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.7;
+}
+
+.command-palette-section ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.command-palette-section li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--color-overlay-white-12);
+}
+
+.command-palette-run {
+  flex: 1 1 12rem;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.command-palette-run:hover {
+  background: var(--color-overlay-white-08);
+}
+
+.command-palette-run kbd {
+  font-size: var(--font-size-ui);
+  opacity: 0.8;
+}
+
+.command-palette-remap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-small);
+  opacity: 0.85;
+}
+
+.command-palette-remap input {
+  width: 3.5rem;
+  padding: var(--space-0) var(--space-2);
+}
+
+.bounce-dialog-panel {
+  width: min(28rem, calc(100vw - 2rem));
+}
+
+.bounce-dialog-fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin: var(--space-4) 0;
+  padding: var(--space-4) var(--space-5);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.bounce-dialog-fieldset legend {
+  padding: 0 var(--space-1);
+  font-weight: 600;
+}
+
+.bounce-dialog-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+}
+
+.bounce-dialog-error {
+  color: var(--danger);
+  margin: var(--space-3) 0;
+}
+
+.bounce-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-5);
+}
+
+.command-palette-panel.share-dialog-panel {
+  width: min(32rem, calc(100vw - 2rem));
+}
+
+.share-dialog-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.share-dialog-select {
+  width: 100%;
+  background: var(--bg-lane);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+}
+
+.share-dialog-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.share-dialog-select:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.share-dialog-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+}
+
+.share-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin: var(--space-3) 0 var(--space-5);
+}
+
+.share-dialog-heading {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: var(--font-size-ui);
+  font-weight: 600;
+}
+
+.share-dialog-scroller,
+.share-dialog-scroller-rooms {
+  min-height: 0;
+}
+
+.share-dialog-empty {
+  margin: var(--space-2) 0 var(--space-4);
+  color: var(--text-muted);
+}
+
+.share-dialog-live {
+  min-height: 1.25rem;
+  margin-top: var(--space-3);
+}
+
+.share-dialog-status {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.share-dialog-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-4);
+}
+
+.share-dialog-row {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-05) var(--space-4);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.share-dialog-row-main {
+  display: grid;
+  gap: var(--space-0);
+}
+
+.share-dialog-token {
+  font-weight: 600;
+}
+
+.share-dialog-meta {
+  color: var(--text-muted);
+}
+
+.share-dialog-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.host-mcp-lead {
+  margin: 0 0 var(--space-3);
+  color: var(--text-muted);
+}
+
+.host-mcp-snippet {
+  width: 100%;
+  min-height: 8rem;
+  resize: vertical;
+  background: var(--bg-lane);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  font-family: ui-monospace, monospace;
+  font-size: var(--font-size-caption);
+  line-height: 1.4;
+}
+
+.host-mcp-snippet:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
+}

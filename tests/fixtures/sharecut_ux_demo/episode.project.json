@@ -1,0 +1,641 @@
+{
+  "version": "2.0",
+  "meta": {
+    "name": "Sharecut Studio UX demo",
+    "workspace_dir": ".",
+    "created_at": "2026-07-11T17:43:01+00:00",
+    "schema_id": "podcast-mcp/episode/2",
+    "ingest_alignment": {
+      "reference": {
+        "session_start_in_file_sec": 0.0,
+        "content_align_sec": 0.0,
+        "align_method": "reference"
+      },
+      "guest": {
+        "session_start_in_file_sec": 98.0,
+        "content_align_sec": 0.0,
+        "align_method": "audio_rejected"
+      }
+    }
+  },
+  "sources": [
+    {
+      "id": "reference_src0",
+      "path": "reference.wav",
+      "speaker": "reference",
+      "label": "reference.wav",
+      "offset_sec": 0.0,
+      "duration_sec": null,
+      "sample_rate": null,
+      "channels": null
+    },
+    {
+      "id": "guest_src0",
+      "path": "guest.wav",
+      "speaker": "guest",
+      "label": "guest.wav",
+      "offset_sec": 0.0,
+      "duration_sec": null,
+      "sample_rate": null,
+      "channels": null
+    }
+  ],
+  "timeline": {
+    "duration_sec": 60.0,
+    "tracks": [
+      {
+        "id": "reference",
+        "label": "reference",
+        "role": "dialogue",
+        "speaker": "reference",
+        "media": {
+          "path": "raw/reference.wav",
+          "duration_sec": 60.0,
+          "sample_rate": 48000,
+          "channels": 1
+        },
+        "gain_db": 0.0,
+        "muted": false
+      },
+      {
+        "id": "guest",
+        "label": "guest",
+        "role": "dialogue",
+        "speaker": "guest",
+        "media": {
+          "path": "raw/guest.wav",
+          "duration_sec": 60.0,
+          "sample_rate": 48000,
+          "channels": 1
+        },
+        "gain_db": 0.0,
+        "muted": false
+      }
+    ],
+    "clips": [
+      {
+        "id": "clip_53f0f87f",
+        "track_id": "reference",
+        "source_start": 0.0,
+        "source_end": 60.0,
+        "timeline_start": 0.0,
+        "source_id": null
+      },
+      {
+        "id": "clip_f71a0cd5",
+        "track_id": "guest",
+        "source_start": 0.0,
+        "source_end": 60.0,
+        "timeline_start": 0.0,
+        "source_id": null
+      }
+    ]
+  },
+  "editorial": {
+    "edit_decisions": [
+      {
+        "id": "ux_pending_um",
+        "track_id": "reference",
+        "type": "remove",
+        "start": 22.0,
+        "end": 22.2,
+        "crossfade_ms": 10,
+        "reason": "Filler: um",
+        "review_required": true,
+        "applied": false,
+        "cut_confidence": 0.82,
+        "boundary_mode": "inaudible"
+      }
+    ],
+    "edit_log": [],
+    "chapters": [
+      {
+        "time": 0.0,
+        "title": "Cold open",
+        "image_url": null
+      },
+      {
+        "time": 21.0,
+        "title": "Guest joins",
+        "image_url": null
+      }
+    ]
+  },
+  "transcripts": {
+    "per_track": [
+      {
+        "track_id": "reference",
+        "language": "en",
+        "words": [
+          {
+            "text": "welcome",
+            "start": 2.0,
+            "end": 2.3,
+            "confidence": 0.95
+          },
+          {
+            "text": "to",
+            "start": 2.3,
+            "end": 2.6,
+            "confidence": 0.95
+          },
+          {
+            "text": "the",
+            "start": 2.6,
+            "end": 2.9,
+            "confidence": 0.95
+          },
+          {
+            "text": "show",
+            "start": 2.9,
+            "end": 3.2,
+            "confidence": 0.95
+          },
+          {
+            "text": "so",
+            "start": 5.0,
+            "end": 6.0,
+            "confidence": 0.95
+          },
+          {
+            "text": "here",
+            "start": 6.0,
+            "end": 7.0,
+            "confidence": 0.95
+          },
+          {
+            "text": "is",
+            "start": 7.0,
+            "end": 8.0,
+            "confidence": 0.95
+          },
+          {
+            "text": "why",
+            "start": 8.0,
+            "end": 9.0,
+            "confidence": 0.95
+          },
+          {
+            "text": "this",
+            "start": 9.0,
+            "end": 10.0,
+            "confidence": 0.95
+          },
+          {
+            "text": "matters",
+            "start": 10.0,
+            "end": 11.0,
+            "confidence": 0.95
+          },
+          {
+            "text": "for",
+            "start": 11.0,
+            "end": 12.0,
+            "confidence": 0.95
+          },
+          {
+            "text": "people",
+            "start": 12.0,
+            "end": 13.0,
+            "confidence": 0.95
+          },
+          {
+            "text": "who",
+            "start": 13.0,
+            "end": 14.0,
+            "confidence": 0.95
+          },
+          {
+            "text": "care",
+            "start": 14.0,
+            "end": 15.0,
+            "confidence": 0.95
+          },
+          {
+            "text": "about",
+            "start": 15.0,
+            "end": 16.0,
+            "confidence": 0.95
+          },
+          {
+            "text": "documented",
+            "start": 16.0,
+            "end": 17.0,
+            "confidence": 0.41
+          },
+          {
+            "text": "stories",
+            "start": 17.0,
+            "end": 18.0,
+            "confidence": 0.95
+          },
+          {
+            "text": "and",
+            "start": 18.0,
+            "end": 19.0,
+            "confidence": 0.95
+          },
+          {
+            "text": "real",
+            "start": 19.0,
+            "end": 20.0,
+            "confidence": 0.95
+          },
+          {
+            "text": "change",
+            "start": 20.0,
+            "end": 21.0,
+            "confidence": 0.95
+          },
+          {
+            "text": "um",
+            "start": 22.0,
+            "end": 22.2,
+            "confidence": 0.95,
+            "suppressed": true,
+            "audibility_status": "bleed_candidate"
+          },
+          {
+            "text": "how",
+            "start": 23.0,
+            "end": 23.23,
+            "confidence": 0.95
+          },
+          {
+            "text": "is",
+            "start": 23.23,
+            "end": 23.45,
+            "confidence": 0.95
+          },
+          {
+            "text": "today",
+            "start": 23.45,
+            "end": 23.67,
+            "confidence": 0.95
+          },
+          {
+            "text": "going",
+            "start": 23.67,
+            "end": 23.9,
+            "confidence": 0.95
+          }
+        ]
+      },
+      {
+        "track_id": "guest",
+        "language": "en",
+        "words": [
+          {
+            "text": "life",
+            "start": 21.5,
+            "end": 21.8,
+            "confidence": 0.95
+          },
+          {
+            "text": "been",
+            "start": 21.8,
+            "end": 22.1,
+            "confidence": 0.95
+          },
+          {
+            "text": "great",
+            "start": 22.1,
+            "end": 22.4,
+            "confidence": 0.95
+          },
+          {
+            "text": "what",
+            "start": 25.0,
+            "end": 25.89,
+            "confidence": 0.95
+          },
+          {
+            "text": "if",
+            "start": 25.89,
+            "end": 26.78,
+            "confidence": 0.95
+          },
+          {
+            "text": "we",
+            "start": 26.78,
+            "end": 27.67,
+            "confidence": 0.95
+          },
+          {
+            "text": "never",
+            "start": 27.67,
+            "end": 28.56,
+            "confidence": 0.95
+          },
+          {
+            "text": "stop",
+            "start": 28.56,
+            "end": 29.44,
+            "confidence": 0.95
+          },
+          {
+            "text": "learning",
+            "start": 29.44,
+            "end": 30.33,
+            "confidence": 0.95
+          },
+          {
+            "text": "from",
+            "start": 30.33,
+            "end": 31.22,
+            "confidence": 0.95
+          },
+          {
+            "text": "each",
+            "start": 31.22,
+            "end": 32.11,
+            "confidence": 0.95
+          },
+          {
+            "text": "other",
+            "start": 32.11,
+            "end": 33.0,
+            "confidence": 0.95
+          },
+          {
+            "text": "and",
+            "start": 33.0,
+            "end": 33.89,
+            "confidence": 0.95
+          },
+          {
+            "text": "keep",
+            "start": 33.89,
+            "end": 34.78,
+            "confidence": 0.95
+          },
+          {
+            "text": "asking",
+            "start": 34.78,
+            "end": 35.67,
+            "confidence": 0.95
+          },
+          {
+            "text": "how",
+            "start": 35.67,
+            "end": 36.56,
+            "confidence": 0.95
+          },
+          {
+            "text": "to",
+            "start": 36.56,
+            "end": 37.44,
+            "confidence": 0.95
+          },
+          {
+            "text": "build",
+            "start": 37.44,
+            "end": 38.33,
+            "confidence": 0.95
+          },
+          {
+            "text": "something",
+            "start": 38.33,
+            "end": 39.22,
+            "confidence": 0.95
+          },
+          {
+            "text": "better",
+            "start": 39.22,
+            "end": 40.11,
+            "confidence": 0.95
+          },
+          {
+            "text": "together",
+            "start": 40.11,
+            "end": 41.0,
+            "confidence": 0.95
+          },
+          {
+            "text": "uh",
+            "start": 42.0,
+            "end": 42.2,
+            "confidence": 0.95
+          },
+          {
+            "text": "documented",
+            "start": 43.0,
+            "end": 43.5,
+            "confidence": 0.95
+          },
+          {
+            "text": "people",
+            "start": 43.5,
+            "end": 44.0,
+            "confidence": 0.95
+          }
+        ]
+      }
+    ],
+    "combined": {
+      "utterances": [
+        {
+          "track_id": "reference",
+          "speaker": "reference",
+          "start": 2.0,
+          "end": 3.2,
+          "text": "welcome to the show"
+        },
+        {
+          "track_id": "reference",
+          "speaker": "reference",
+          "start": 5.0,
+          "end": 21.0,
+          "text": "so here is why this matters for people who care about documented stories and real change"
+        },
+        {
+          "track_id": "guest",
+          "speaker": "guest",
+          "start": 21.5,
+          "end": 22.4,
+          "text": "life been great"
+        },
+        {
+          "track_id": "reference",
+          "speaker": "reference",
+          "start": 22.0,
+          "end": 22.2,
+          "text": "um"
+        },
+        {
+          "track_id": "reference",
+          "speaker": "reference",
+          "start": 23.0,
+          "end": 23.9,
+          "text": "how is today going"
+        },
+        {
+          "track_id": "guest",
+          "speaker": "guest",
+          "start": 25.0,
+          "end": 41.0,
+          "text": "what if we never stop learning from each other and keep asking how to build something better together"
+        },
+        {
+          "track_id": "guest",
+          "speaker": "guest",
+          "start": 42.0,
+          "end": 44.0,
+          "text": "uh documented people"
+        }
+      ]
+    }
+  },
+  "mix": {
+    "processing_chains": [
+      {
+        "track_id": "reference",
+        "effects": [
+          {
+            "effect": "highpass",
+            "params": {
+              "frequency": 80
+            },
+            "bypass": false
+          }
+        ]
+      }
+    ],
+    "automation_envelopes": [
+      {
+        "track_id": "reference",
+        "parameter": "volume",
+        "points": [
+          {
+            "time": 0.0,
+            "value": 1.0
+          },
+          {
+            "time": 30.0,
+            "value": 0.85
+          },
+          {
+            "time": 60.0,
+            "value": 1.0
+          }
+        ]
+      }
+    ]
+  },
+  "render": {
+    "last_completed_step": "mix_with_music",
+    "pipeline_runs": [
+      {
+        "id": "afc4bb03a9c9",
+        "started_at": "2026-05-23T08:27:47.868785+00:00",
+        "steps": [
+          {
+            "step": "assemble_timeline",
+            "started_at": "2026-05-23T08:27:47.870031+00:00",
+            "finished_at": "2026-05-23T08:27:48.005427+00:00",
+            "status": "ok",
+            "message": null
+          }
+        ]
+      },
+      {
+        "id": "6ac8218837e7",
+        "started_at": "2026-05-23T08:27:48.005476+00:00",
+        "steps": [
+          {
+            "step": "mix_with_music",
+            "started_at": "2026-05-23T08:27:48.005501+00:00",
+            "finished_at": "2026-05-23T08:27:48.093025+00:00",
+            "status": "ok",
+            "message": null
+          }
+        ]
+      }
+    ],
+    "artifacts": {
+      "premix": null,
+      "mastered": null
+    }
+  },
+  "social": {
+    "clip_candidates": [
+      {
+        "id": "ux_clip_1",
+        "track_id": "reference",
+        "start": 5.0,
+        "end": 18.0,
+        "score": 0.77,
+        "reasons": [
+          "dense dialogue",
+          "clear hook"
+        ],
+        "title_suggestion": "Why documented stories matter",
+        "caption_suggestion": null,
+        "transcript_excerpt": "here is why this matters for people who care about documented stories",
+        "speaker": "reference",
+        "review_required": true,
+        "approved": false,
+        "exported_path": null
+      }
+    ]
+  },
+  "social_clip_candidates": [],
+  "music": [],
+  "review": {
+    "comments": [
+      {
+        "id": "ux_cmt_level",
+        "body": "Guest level feels low under the host here.",
+        "author": "reviewer",
+        "created_at": "2026-07-11T17:43:01+00:00",
+        "updated_at": null,
+        "timeline_start": 22.0,
+        "timeline_end": 28.0,
+        "track_ids": [
+          "guest"
+        ],
+        "action_items": [
+          {
+            "id": "ux_ai_1",
+            "text": "Nudge guest gain +2 dB",
+            "done": false,
+            "completed_at": null,
+            "completed_by": null
+          }
+        ],
+        "replies": [],
+        "resolved": false,
+        "resolved_at": null,
+        "resolved_by": null,
+        "review_version_id": null
+      },
+      {
+        "id": "ux_cmt_cut",
+        "body": "Approve the filler cut after listen-through?",
+        "author": "host",
+        "created_at": "2026-07-11T17:43:01+00:00",
+        "updated_at": null,
+        "timeline_start": 22.0,
+        "timeline_end": 22.2,
+        "track_ids": [
+          "reference"
+        ],
+        "action_items": [],
+        "replies": [
+          {
+            "id": "ux_reply_1",
+            "body": "Playing Mix around the join first.",
+            "author": "host",
+            "created_at": "2026-07-11T17:43:01+00:00"
+          }
+        ],
+        "resolved": false,
+        "resolved_at": null,
+        "resolved_by": null,
+        "review_version_id": null
+      }
+    ],
+    "versions": [],
+    "active_version_id": null
+  }
+}
