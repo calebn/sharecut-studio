@@ -8,6 +8,7 @@ export { Dialog } from "./Dialog";
 export { ErrorScreen } from "./ErrorScreen";
 export { Field } from "./Field";
 export { FieldRow } from "./FieldRow";
+export { FocusPull } from "./FocusPull";
 export { FocusToggle } from "./FocusToggle";
 export { Icon, type IconName } from "./Icon";
 export { InlineError } from "./InlineError";

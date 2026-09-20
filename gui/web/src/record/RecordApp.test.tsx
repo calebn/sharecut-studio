@@ -306,6 +306,37 @@ describe("RecordApp", () => {
     ).toBeLessThan(3);
   });
 
+  it("transitions from the lobby to the room after consent", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (urlOf(input).includes("/bootstrap")) {
+          return new Response(JSON.stringify(guestBootstrap), { status: 200 });
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+    const { container } = render(<RecordApp token="guest-tok" />);
+    await screen.findByText(CONSENT_COPY);
+
+    sockets[0]?.onmessage?.({
+      data: JSON.stringify({
+        plane: "record",
+        type: "Snapshot",
+        snapshot: {
+          ...guestSnap,
+          participants: [{ ...guestSnap.participants[0], consented: true }],
+        },
+      }),
+    });
+
+    await screen.findByRole("button", { name: "Leave" });
+    expect(container.querySelector(".focus-pull-exit")?.textContent).toContain(
+      CONSENT_COPY,
+    );
+    expect(container.querySelector(".focus-pull-pending")).not.toBeNull();
+  });
+
   it("shows producer copy without a microphone prompt", async () => {
     vi.stubGlobal(
       "fetch",
@@ -333,9 +364,7 @@ describe("RecordApp", () => {
     expect(screen.queryByRole("button", { name: MIC_ALLOW_LABEL })).toBeNull();
     expect(screen.queryByText(ROOM_TONE_PROMPT_COPY)).toBeNull();
     expect(getUserMedia).not.toHaveBeenCalled();
-    await waitFor(() => {
-      expect(document.title).toBe("Producer — not recorded — Shot of Truth");
-    });
+    expect(document.title).toBe("Producer — not recorded — Shot of Truth");
     expect(sockets).toHaveLength(0);
     await expectNoA11yViolations(container);
   });

@@ -355,3 +355,71 @@
     border-color: transparent;
   }
 }
+
+/* FocusPull exits for 200ms, then enters for 250ms. */
+.focus-pull {
+  display: grid;
+}
+
+.focus-pull-exit,
+.focus-pull-pending,
+.focus-pull-enter {
+  grid-area: 1 / 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .focus-pull-exit {
+    animation: focus-pull-out 200ms ease-out forwards;
+  }
+
+  .focus-pull-pending,
+  .focus-pull-enter {
+    opacity: 0;
+    filter: blur(0.375rem);
+    transform: scale(0.99);
+  }
+
+  .focus-pull-pending {
+    visibility: hidden;
+  }
+
+  .focus-pull-enter {
+    visibility: visible;
+    animation: focus-pull-in 250ms ease-out forwards;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .focus-pull-exit {
+    display: none;
+  }
+
+  .focus-pull-pending,
+  .focus-pull-enter {
+    opacity: 1;
+    filter: none;
+    transform: none;
+    visibility: visible;
+  }
+}
+
+@keyframes focus-pull-out {
+  to {
+    opacity: 0;
+    filter: blur(0.375rem);
+    transform: scale(0.99);
+  }
+}
+
+@keyframes focus-pull-in {
+  from {
+    opacity: 0;
+    filter: blur(0.375rem);
+    transform: scale(0.99);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: scale(1);
+  }
+}

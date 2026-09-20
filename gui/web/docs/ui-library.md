@@ -9,7 +9,7 @@ Intentional in-house chrome library under [`src/ui/`](../src/ui/). **No Radix / 
 | Button, ToggleButton, Field, FieldRow, InlineError | ClipBlock, TrackLane, Playhead |
 | Dialog, Menu, BottomSheet, `useDialogModal` | Timeline zoom / selection math |
 | CommandButton, CommandMenuItem, `useCommand` | Pipeline param schemas |
-| Icon (stroke SVGs), LoadingScreen, ErrorScreen, FocusToggle, DefinitionList | Comment domain (`comments/` — use library Button/Field) |
+| Icon (stroke SVGs), LoadingScreen, ErrorScreen, FocusPull, FocusToggle, DefinitionList | Comment domain (`comments/` — use library Button/Field) |
 
 ## Public API
 
@@ -90,6 +90,7 @@ Every interactive library component has Vitest coverage including `expectNoA11yV
 | `BottomSheet` | Phone/tablet peek sheet (non-modal) |
 | `useDialogModal` | Focus trap / Escape / inert / restore (`mode: modal \| sheet`) |
 | `Icon` | Compact stroke icons for transport / tools (`currentColor`) |
+| `FocusPull` | View-keyed lobby/room transition: 200ms outgoing blur/fade, then 250ms incoming fade/sharpen; initial mount stays static and reduced motion visually cuts instantly |
 | `DefinitionList`, screens, `FocusToggle`, `InspectorSeekFooter` | Existing chrome |
 
 ## Overlays
