@@ -35,9 +35,6 @@ class McpProgressSink:
                 return
 
         def _put() -> None:
-            with self._lock:
-                if self._closed:
-                    return
             try:
                 self._queue.put_nowait(payload)
             except asyncio.QueueFull:
@@ -50,6 +47,7 @@ class McpProgressSink:
             self._loop.call_soon_threadsafe(_put)
 
     def close(self) -> None:
+        """Reject future emits while callbacks accepted before close drain."""
         with self._lock:
             self._closed = True
 
