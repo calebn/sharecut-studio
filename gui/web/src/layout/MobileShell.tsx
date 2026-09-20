@@ -146,6 +146,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
   if (!project) {
     return (
       <div className="mobile-listen" aria-busy="true">
+        <h1 className="sr-only">Loading episode…</h1>
         <div className="mobile-listen-transport">
           <CommandButton
             bare
@@ -185,6 +186,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
 
   return (
     <div className="mobile-listen">
+      <h1 className="sr-only">{project.meta.name}</h1>
       <div className="mobile-listen-transport">
         <CommandButton
           bare
@@ -374,7 +376,7 @@ export function MobileShell({ guestShare = false }: { guestShare?: boolean }) {
   return (
     <div
       ref={shellRef}
-      className={`daw-shell daw-shell--phone${guestShare ? " daw-shell-guest" : ""}${followingClientId ? " daw-shell--following" : ""}`}
+      className={`daw-shell daw-shell--phone${mobileMode === "listen" ? " daw-shell--listen" : ""}${guestShare ? " daw-shell-guest" : ""}${followingClientId ? " daw-shell--following" : ""}`}
       data-shell="phone"
     >
       <Slot id={FEATURE_SHARE_UI_BANNER}>

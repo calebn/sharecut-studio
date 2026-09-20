@@ -39,7 +39,7 @@ Phone four-mode chrome is **≤767 CSS px**. DevTools device-mode / CDP viewport
 | **Text** | Transcript panel (follow, edit, cut-away) | Word fix, suggest cut |
 | **More** | Hub → Comments, History, Impact, Tighten, Mix, Pipeline, settings | Long-lived panels |
 
-While `project === null` (progressive load), Listen keeps the compact transport with disabled play and a “Loading episode…” well; Timeline shows skeleton lanes in the same header/gutter grid. That chrome is not the ingest empty-session coach.
+While `project === null` (progressive load), Listen keeps its single body transport with disabled play and a “Loading episode…” well; the shell header row is absent. Timeline shows skeleton lanes below its compact header transport and gutter grid. That chrome is not the ingest empty-session coach.
 
 Selection opens a non-modal **half → full** [`BottomSheet`](../gui/web/src/ui/BottomSheet.tsx) wrapping the same inspector views as desktop (`aria-modal="false"`, Escape + focus restore, no chrome `inert` / Tab trap). Sheets are transient: visible Close, no stacking (drill to a More destination instead).
 
@@ -57,8 +57,8 @@ Example: Clip selected → Related shows Set fade, Ripple delete, Blade cut.
 
 | Desktop region | Phone home |
 |----------------|------------|
-| Transport play/time/audition | Compact transport; audition/zoom in Menu |
-| Comment / Fit | Stay as primary **icons** when collapsed; Fit hidden on Listen (in Menu) |
+| Transport play/time/audition | Listen body transport; compact header transport on Timeline, Text, and More; audition/zoom in Menu |
+| Comment / Fit | Header primary **icons** outside Listen; Fit is available on Timeline and in the non-Listen Menu |
 | Track headers M/S/FX | Lane gutter tap (whole row + ›) → track sheet (**M**/**S** toggles + gain readout; drag Levels for envelopes). Header mixer chrome hidden when the timeline pane is narrow |
 | Timeline overlays | Timeline mode + layer chips |
 | Inspector | Selection sheet |
@@ -84,7 +84,7 @@ Touch gestures for common actions, documented in the **Gestures** cheatsheet (Mo
 ### Phone — Listen
 
 ```
-┌─ Play  Pause  12:34 / 58:39  [⋯] ─┐
+┌─ Play  Stop  12:34 / 58:39 ───────┐
 │ ══════════●═══════════════════    │  ← coarse scrub
 │ ±15s                    Mix▾      │
 │ Pending: 3  ·  Stale render       │  ← chips (Pending → Timeline + first review-required)
