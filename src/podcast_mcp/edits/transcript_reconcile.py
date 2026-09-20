@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from typing import Any
 
 from podcast_mcp.edits.audio_quality import _filter_rows_by_time
@@ -16,6 +15,7 @@ from podcast_mcp.engines.reconciliation_state import (
 from podcast_mcp.engines.transcript_reconcile import reconcile_transcript
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.progress import ProgressReporter
+from podcast_mcp.util.wer import normalize_token
 
 
 def audibility_map(
@@ -36,10 +36,6 @@ def flagged_words(
     progress: ProgressReporter | None = None,
 ) -> list[dict[str, Any]]:
     return list_flagged_words(project, track_id=track_id, policy=policy, progress=progress)
-
-
-def _normalize_token(text: str) -> str:
-    return re.sub(r"[^\w']+", "", text.lower())
 
 
 def overlap_duplicate_report(
@@ -80,8 +76,8 @@ def overlap_duplicate_report(
                     overlap = min(w_a.end, w_b.end) - max(w_a.start, w_b.start)
                     if overlap <= 0:
                         continue
-                    tok_a = _normalize_token(w_a.text)
-                    tok_b = _normalize_token(w_b.text)
+                    tok_a = normalize_token(w_a.text)
+                    tok_b = normalize_token(w_b.text)
                     text_match = tok_a == tok_b and bool(tok_a)
                     row_a = audibility.get((tid_a, i_a), {})
                     row_b = audibility.get((tid_b, i_b), {})

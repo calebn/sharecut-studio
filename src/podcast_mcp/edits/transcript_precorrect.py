@@ -18,6 +18,7 @@ from podcast_mcp.transcript_context import (
     load_transcript_context,
 )
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress_task
+from podcast_mcp.util.wer import normalize_token
 
 
 @dataclass
@@ -42,16 +43,12 @@ class PrecorrectResult:
         }
 
 
-def _normalize_token(text: str) -> str:
-    return re.sub(r"[^\w']+", "", text.lower())
-
-
 def _in_skip_span(start: float, ctx: TranscriptContext) -> bool:
     return any(span.start_sec <= start < span.end_sec for span in ctx.skip_spans)
 
 
 def _is_filler(text: str, ctx: TranscriptContext) -> bool:
-    tok = _normalize_token(text)
+    tok = normalize_token(text)
     return tok in ctx.filler_tokens
 
 
@@ -61,7 +58,7 @@ def _text_similarity(
     *,
     min_substring_len_ratio: float = 0.6,
 ) -> float:
-    na, nb = _normalize_token(a), _normalize_token(b)
+    na, nb = normalize_token(a), normalize_token(b)
     if not na or not nb:
         return 0.0
     if na == nb:
@@ -126,14 +123,14 @@ def _find_glossary_phrase_matches(
         if any(w.suppressed for w in span):
             continue
         span_tokens = word_texts[i : i + n]
-        if any(_normalize_token(t) in preserve for t in span_tokens):
+        if any(normalize_token(t) in preserve for t in span_tokens):
             continue
         joined = " ".join(span_tokens)
         if rule.match_type == "phrase":
             if joined.lower() != rule.match.lower():
                 continue
         else:
-            if _normalize_token(joined) != _normalize_token(rule.match):
+            if normalize_token(joined) != normalize_token(rule.match):
                 continue
         hits.append((i, i + n - 1, rule.replace))
     return hits
@@ -147,13 +144,13 @@ def _find_glossary_word_matches(
     if rule.match_type != "word":
         return []
     hits: list[tuple[int, int, str]] = []
-    target = _normalize_token(rule.match)
+    target = normalize_token(rule.match)
     for i, w in enumerate(words):
         if w.suppressed:
             continue
-        if _normalize_token(w.text) in preserve:
+        if normalize_token(w.text) in preserve:
             continue
-        if _normalize_token(w.text) == target:
+        if normalize_token(w.text) == target:
             hits.append((i, i, rule.replace))
     return hits
 
@@ -339,7 +336,7 @@ def run_cross_track_sync(
             loser_word = tr.words[loser_idx]
             if _in_skip_span(loser_start, ctx) or _is_filler(loser_word.text, ctx):
                 continue
-            if _normalize_token(loser_word.text) == _normalize_token(source_text):
+            if normalize_token(loser_word.text) == normalize_token(source_text):
                 continue
 
             fix = {
