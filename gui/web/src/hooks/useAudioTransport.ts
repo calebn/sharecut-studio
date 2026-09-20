@@ -3,7 +3,7 @@ import { audioUrl } from "../api";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import type { ProjectView } from "../types/project";
-import { anySolo, trackIsAudible } from "../utils/audio";
+import { anySolo, dbToLinear, trackIsAudible } from "../utils/audio";
 import {
   AUDITION_STOP_EPS_SEC,
   nextPlayheadAfterSkip,
@@ -13,10 +13,6 @@ import {
   sourcePointToTimeline,
   timelinePointToSource,
 } from "../utils/timebase";
-
-function dbToLinear(db: number): number {
-  return Math.pow(10, db / 20);
-}
 
 function rawSourceSec(
   project: ProjectView,

@@ -1,4 +1,5 @@
 import type { ClipRow } from "../types/project";
+import { dbToLinear } from "../utils/audio";
 import {
   buildSchedule,
   type ProxyManifest,
@@ -13,10 +14,6 @@ export interface TrackInfo {
 
 const WINDOW_PAD_SEC = 120;
 const LRU_BUDGET_BYTES = 500 * 1024 * 1024;
-
-function dbToLinear(db: number): number {
-  return Math.pow(10, db / 20);
-}
 
 type FetchChunk = (trackId: string, idx: number) => Promise<ArrayBuffer>;
 
