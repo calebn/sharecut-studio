@@ -41,7 +41,7 @@ Phone four-mode chrome is **≤767 CSS px**. DevTools device-mode / CDP viewport
 
 While `project === null` (progressive load), Listen keeps its single body transport with disabled play and a “Loading episode…” well; the shell header row is absent. Timeline shows skeleton lanes below its compact header transport and gutter grid. That chrome is not the ingest empty-session coach.
 
-Selection opens a non-modal **half → full** [`BottomSheet`](../gui/web/src/ui/BottomSheet.tsx) wrapping the same inspector views as desktop (`aria-modal="false"`, Escape + focus restore, no chrome `inert` / Tab trap). Sheets are transient: visible Close, no stacking (drill to a More destination instead).
+Selection opens a non-modal **half → full** [`BottomSheet`](../gui/web/src/ui/BottomSheet.tsx) wrapping the same inspector views as desktop (`aria-modal="false"`, Escape + focus restore, no chrome `inert` / Tab trap). Modifier sheets (pending, clip, track, chapter — any `.modifier-inspector`) pin the mutation error and audition footer; long Ask threads scroll in the body; long mutation errors scroll inside a capped error slot. The taller half peek (`:has(.modifier-inspector)`) applies to every modifier, not only pending. Sheets are transient: visible Close, no stacking (drill to a More destination instead). Deferred: mutation error across shell remount, Firefox layout CI, overlapping Approve — [ROADMAP.md § Follow-up](../ROADMAP.md#follow-up).
 
 ### Feature → home map
 
@@ -155,9 +155,10 @@ Keyboard: `1` default, `2` timeline, `3` text, `4` review (when timeline focused
 1. One job per phone screen (no timeline + full transcript + inspector).
 2. ≥44×44pt targets; fade/envelope hit areas ≥2× visual width.
 3. Sheets: Close + dismiss; never stack.
-4. Snap only to on-screen anchors.
-5. Listen-first: every edit surface keeps Play around / seek footer.
-6. Progressive complexity via `shareMode` capabilities.
+4. Dialog overlays cap to `90dvh` with a single `.command-palette-body` scroller. Menus cap to `min(90dvh, var(--menu-available-height))`, where `--menu-available-height` is remaining space under the trigger (above phone `.mobile-nav` when present), and scroll internally so every item stays reachable on short viewports.
+5. Snap only to on-screen anchors.
+6. Listen-first: every edit surface keeps Play around / seek footer.
+7. Progressive complexity via `shareMode` capabilities.
 
 ## Transport chrome (narrow)
 
@@ -167,7 +168,7 @@ When the transport is **collapsed** (tablet/phone, or bar width ≤720px via Res
 |------|----------|
 | Primary (always visible) | Play/Stop, compact playhead timecode, **Comment** icon, **Fit** (except Listen), Menu icon |
 | Menu → People | Live roster (follow / unfollow) when the bar is collapsed. Rows are `var(--touch-min)` (`2.75rem`) via `@container transport`. |
-| Menu → Project (host) | New / Open, **Connect agent…**, Bounce…, **Share…** (online extension), Export deliverables. Home also has **Connect agent…** |
+| Menu → Project (host) | New / Open, **Connect agent…**, Bounce…, **Share…** (collaboration extension), Export deliverables. Home also has **Connect agent…** |
 | Menu (secondary) | Audition Mix/FX/Raw, layers, zoom, theme, focus, **Refresh mix** when render is stale, Fit if omitted from bar |
 
 ### Editing tool rail (phone / tablet Timeline)
@@ -194,7 +195,7 @@ Do **not** bring phone bottom-nav or CapCut fixed playhead to desktop.
 ## Testing
 
 - Vitest: `useViewportClass`, `BottomSheet`, mobile shell smoke, follow live region + Listen unfollow, focus mode CSS classes
-- Playwright: phone viewport (`390×844`) asserts `.daw-shell--phone` + mode nav; `e2e/presence-follow.spec.ts` two-client follow at 390 / 820 / 1440; desktop smoke unchanged
+- Playwright: phone viewport (`390×844`) asserts `.daw-shell--phone` + mode nav; `e2e/overlay-viewport.spec.ts` Menu + Share dialog reachability at `1280×715` and `390×844`; `e2e/presence-follow.spec.ts` two-client follow at 390 / 820 / 1440; desktop smoke unchanged
 - Manual / guest parity: [`gui/web/e2e/PARITY.md`](../gui/web/e2e/PARITY.md)
 
 See [`gui/web/README.md`](../gui/web/README.md) and [gui-integration.md](gui-integration.md) § Responsive shells.
