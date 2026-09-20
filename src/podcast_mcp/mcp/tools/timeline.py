@@ -60,6 +60,7 @@ def ripple_delete_text_tool(
     query: str,
     use_inaudible_opt: bool | None = None,
 ) -> str:
+    """Ripple-delete every timeline span matching a transcript text query."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(
         EditService(ws).ripple_delete_text(
@@ -75,6 +76,7 @@ def move_segment_tool(
     source_end: float,
     insert_at: float,
 ) -> str:
+    """Cut a timeline segment and reinsert it at a new time (ripple move)."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).move_segment(source_start, source_end, insert_at))
 
@@ -106,6 +108,7 @@ def move_by_text_tool(
     destination_query: str,
     position: str = "after",
 ) -> str:
+    """Move a transcript-matched segment before or after another transcript match."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).move_by_text(source_query, destination_query, position))
 
@@ -131,6 +134,7 @@ def fade_joins_tool(
     fade_ms: int | None = None,
     dry_run: bool = False,
 ) -> str:
+    """Add fades at edit joins on a track; dry_run previews without applying."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(
         EditService(ws).fade_joins(
@@ -149,6 +153,7 @@ def crossfade_joins_tool(
     fade_ms: int | None = None,
     dry_run: bool = False,
 ) -> str:
+    """Add crossfades at edit joins on a track; dry_run previews without applying."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(
         EditService(ws).crossfade_joins(
@@ -166,6 +171,7 @@ def set_clip_fade_tool(
     fade_in_ms: int,
     fade_out_ms: int,
 ) -> str:
+    """Set the fade-in and fade-out duration of a single clip."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).set_clip_fade(clip_id, fade_in_ms, fade_out_ms))
 
@@ -185,6 +191,7 @@ def shorten_gaps_tool(
     max_gap_sec: float = 0.35,
     use_inaudible_opt: bool | None = None,
 ) -> str:
+    """Shorten word gaps longer than max_gap_sec across the timeline."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(
         EditService(ws).shorten_word_gaps(
@@ -239,11 +246,13 @@ def duplicate_segment_tool(
     source_end: float,
     insert_at: float,
 ) -> str:
+    """Duplicate a timeline segment at a new time."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).duplicate_segment(source_start, source_end, insert_at))
 
 
 def list_clips_tool(project_path: str, track_id: str | None = None) -> str:
+    """List clips on a track in timeline order."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).list_clips(track_id))
 
@@ -254,6 +263,7 @@ def list_applied_edits_tool(
     timeline_start: float | None = None,
     timeline_end: float | None = None,
 ) -> str:
+    """List applied edits in a timeline window."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(
         EditService(ws).list_applied_edits(
@@ -265,6 +275,7 @@ def list_applied_edits_tool(
 
 
 def render_status_tool(project_path: str) -> str:
+    """Report render freshness: whether mix stems are stale relative to edits."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).render_status())
 
@@ -274,26 +285,31 @@ def fill_with_room_tone_tool(
     track_id: str | None = None,
     speaker: str | None = None,
 ) -> str:
+    """Fill a track's silences with its own room tone."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).fill_room_tone(track_id=track_id, speaker=speaker))
 
 
 def add_chapter_tool(project_path: str, at_time: float, title: str) -> str:
+    """Add a chapter marker at a timeline time."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).add_chapter(at_time, title))
 
 
 def remove_chapter_tool(project_path: str, title: str) -> str:
+    """Remove a chapter marker by title."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).remove_chapter(title))
 
 
 def list_chapters_tool(project_path: str) -> str:
+    """List chapter markers in timeline order."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).list_chapters())
 
 
 def check_loudness_tool(project_path: str, audio_path: str | None = None) -> str:
+    """Measure integrated loudness (LUFS) of the mix or an audio file."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).check_loudness(audio_path))
 
@@ -304,6 +320,7 @@ def correct_transcript_tool(
     word_index: int,
     new_text: str,
 ) -> str:
+    """Fix the text of one transcript word without changing its timing."""
     ws = ProjectWorkspace.open(project_path)
     EditService(ws).correct_word(track_id, word_index, new_text)
     return to_json({"track_id": track_id, "word_index": word_index, "text": new_text})
@@ -316,6 +333,7 @@ def correct_transcript_phrase_tool(
     end_word_index: int,
     new_text: str,
 ) -> str:
+    """Replace a word range's text with corrected phrase text."""
     ws = ProjectWorkspace.open(project_path)
     EditService(ws).correct_phrase(track_id, start_word_index, end_word_index, new_text)
     return to_json(
@@ -357,6 +375,7 @@ def apply_transcript_cleanup_tool(
 
 
 def low_confidence_words_tool(project_path: str, threshold: float = 0.7) -> str:
+    """List words below a confidence threshold for human review."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).low_confidence_words(threshold))
 
@@ -366,6 +385,7 @@ def verify_transcript_tool(
     track_id: str,
     corrections_json: str,
 ) -> str:
+    """Apply bulk corrections and mark words verified on a track's transcript."""
     ws = ProjectWorkspace.open(project_path)
     corrections = json.loads(corrections_json)
     n = EditService(ws).verify_transcript(track_id, corrections)
@@ -380,6 +400,7 @@ def add_effect_tool(
     effect: str | None = None,
     params_json: str | None = None,
 ) -> str:
+    """Add an effect (or preset) to a track or speaker's effect chain."""
     ws = ProjectWorkspace.open(project_path)
     params = json.loads(params_json) if params_json else None
     return to_json(
@@ -399,6 +420,7 @@ def remove_effect_tool(
     speaker: str | None = None,
     effect: str | None = None,
 ) -> str:
+    """Remove an effect from a track or speaker's effect chain."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).remove_effect(track_id=track_id, speaker=speaker, effect=effect))
 
@@ -427,6 +449,7 @@ def list_effects_tool(
     track_id: str | None = None,
     speaker: str | None = None,
 ) -> str:
+    """List the effect chain for a track or speaker."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).list_effects(track_id=track_id, speaker=speaker))
 
@@ -436,6 +459,7 @@ def analyze_cleanup_tool(
     track_id: str | None = None,
     speaker: str | None = None,
 ) -> str:
+    """Analyze a track for cleanup opportunities (silence, clicks, hum)."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).analyze_cleanup(track_id=track_id, speaker=speaker))
 
@@ -447,6 +471,7 @@ def audio_diagnostics_tool(
     start_sec: float | None = None,
     end_sec: float | None = None,
 ) -> str:
+    """Run audio diagnostics (clipping, hum, level) on a time window."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(
         EditService(ws).audio_diagnostics(
@@ -460,6 +485,7 @@ def recommend_fades_tool(
     track_id: str | None = None,
     speaker: str | None = None,
 ) -> str:
+    """Recommend fades at joins to hide edit artifacts."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).recommend_fades(track_id=track_id, speaker=speaker))
 
@@ -468,6 +494,7 @@ def apply_fade_recommendations_tool(
     project_path: str,
     recommendations_json: str,
 ) -> str:
+    """Apply a JSON array of fade recommendations to the project."""
     ws = ProjectWorkspace.open(project_path)
     recs = json.loads(recommendations_json)
     if not isinstance(recs, list):
@@ -480,6 +507,7 @@ def low_audibility_words_tool(
     track_id: str | None = None,
     speaker: str | None = None,
 ) -> str:
+    """List words too quiet to hear relative to the mix."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).low_audibility_words(track_id=track_id, speaker=speaker))
 
@@ -490,6 +518,7 @@ def apply_low_audibility_suppression_tool(
     speaker: str | None = None,
     words_json: str | None = None,
 ) -> str:
+    """Suppress (gate) low-audibility words, optionally from a JSON word list."""
     ws = ProjectWorkspace.open(project_path)
     words = json.loads(words_json) if words_json else None
     if words is not None and not isinstance(words, list):
@@ -506,6 +535,7 @@ def gate_overreach_tool(
     track_id: str | None = None,
     speaker: str | None = None,
 ) -> str:
+    """Report where noise gating muted speech on a track."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).gate_overreach(track_id=track_id, speaker=speaker))
 
@@ -515,6 +545,7 @@ def audibility_map_tool(
     track_id: str | None = None,
     speaker: str | None = None,
 ) -> str:
+    """Return per-word audibility scores for a track or speaker."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).audibility_map(track_id=track_id, speaker=speaker))
 
@@ -524,11 +555,13 @@ def flagged_words_tool(
     track_id: str | None = None,
     speaker: str | None = None,
 ) -> str:
+    """List words flagged for review (suppressed, low-audibility, or bleed)."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).flagged_words(track_id=track_id, speaker=speaker))
 
 
 def reconciliation_status_tool(project_path: str) -> str:
+    """Report transcript/timeline reconciliation status (stale vs current)."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).reconciliation_status())
 
@@ -541,6 +574,7 @@ def reconcile_transcript_tool(
     start_sec: float | None = None,
     end_sec: float | None = None,
 ) -> str:
+    """Re-run transcript/timeline reconciliation; dry_run previews without applying."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(
         EditService(ws).reconcile_transcript(
@@ -560,6 +594,7 @@ def bleed_words_tool(
     start_sec: float | None = None,
     end_sec: float | None = None,
 ) -> str:
+    """List words contaminated by another speaker's microphone bleed."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(
         EditService(ws).list_bleed_words(
@@ -582,6 +617,7 @@ def apply_bleed_suppression_tool(
     apply: bool = True,
     dry_run: bool = False,
 ) -> str:
+    """Suppress mic-bleed words (dry_run previews without applying)."""
     ws = ProjectWorkspace.open(project_path)
     words = json.loads(words_json) if words_json else None
     exclude = json.loads(exclude_words_json) if exclude_words_json else None
@@ -607,6 +643,7 @@ def overlap_duplicates_tool(
     start_sec: float | None = None,
     end_sec: float | None = None,
 ) -> str:
+    """Find duplicate words across tracks in an overlap window."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).overlap_duplicates(start_sec=start_sec, end_sec=end_sec))
 
@@ -620,6 +657,7 @@ def apply_transcript_gate_tool(
     apply: bool = True,
     dry_run: bool = False,
 ) -> str:
+    """Gate (mute) mic-bleed regions on the transcript; dry_run previews."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(
         EditService(ws).apply_bleed_mute(
@@ -633,6 +671,7 @@ def apply_transcript_gate_tool(
 
 
 def register(mcp: MCPServer) -> None:
+    """Register timeline tools on the MCP server."""
     mutating = {
         strip_silence_tool,
         ripple_delete_tool,

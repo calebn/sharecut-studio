@@ -148,6 +148,7 @@ def delete_comment_tool(project_path: str, comment_id: str) -> str:
 
 
 def register(mcp: MCPServer) -> None:
+    """Register comment tools on the MCP server."""
     for fn in (
         add_comment_tool,
         list_comments_tool,

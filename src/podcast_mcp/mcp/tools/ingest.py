@@ -108,6 +108,7 @@ def play_compare_tool(
 
 
 def register(mcp: MCPServer) -> None:
+    """Register ingest tools on the MCP server."""
     mcp.tool()(ingest_import_folder_tool)
     mcp.tool()(ingest_suggest_alignment_tool)
     mcp.tool()(ingest_verify_alignment_tool)
