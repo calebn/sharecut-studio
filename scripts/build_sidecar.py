@@ -601,14 +601,22 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         default=None,
         help="Directory of private extension wheels to install into the frozen runtime",
     )
+    p.add_argument(
+        "--print-output-name",
+        action="store_true",
+        help="Print the exact sidecar filename for the selected target triple",
+    )
     return p.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     binaries: Path = args.out
-    binaries.mkdir(parents=True, exist_ok=True)
     triple = args.triple or rustc_host_triple()
+    if args.print_output_name:
+        print(sidecar_output_name(triple))
+        return 0
+    binaries.mkdir(parents=True, exist_ok=True)
     windows = is_windows_triple(triple)
     launcher = binaries / sidecar_output_name(triple)
     runtime = binaries / RUNTIME_NAME
