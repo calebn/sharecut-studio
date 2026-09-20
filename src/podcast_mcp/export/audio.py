@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,6 +9,16 @@ from typing import Any
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.parallel import run_parallel
+
+
+def sanitize_export_stem(name: str) -> str:
+    """Make a project name safe for use as an export filename stem.
+
+    Path separators in names (e.g. "Part 1/2") would otherwise create nested
+    directories under export/ instead of a single file.
+    """
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", name).strip("_")
+    return cleaned or "episode"
 
 
 @dataclass(frozen=True)
@@ -141,7 +152,7 @@ def export_episode_audio(
     return write_audio_formats(
         eng,
         source_wav,
-        project.export_dir() / project.name,
+        project.export_dir() / sanitize_export_stem(project.name),
         specs,
         metadata=meta,
         max_workers=max_workers,
