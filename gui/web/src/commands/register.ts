@@ -66,10 +66,15 @@ type BladeRunner = {
 
 let bladeRunner: BladeRunner | null = null;
 let projectOpenInFlight = false;
+let exportDeliverablesInFlight = false;
 let trackMutateChain: Promise<void> = Promise.resolve();
 
 export function _resetProjectOpenInFlightForTests(): void {
   projectOpenInFlight = false;
+}
+
+export function _resetExportDeliverablesInFlightForTests(): void {
+  exportDeliverablesInFlight = false;
 }
 
 export function _resetTrackMutateChainForTests(): void {
@@ -822,6 +827,11 @@ export function registerDawCommands(): void {
     if (!canManageProjects(s.projectPath) || !s.project) {
       return { status: "disabled", reason: "Export deliverables is host-only" };
     }
+    if (exportDeliverablesInFlight) {
+      s.announceStatus("Export already in progress…");
+      return { status: "disabled", reason: "Export already running" };
+    }
+    exportDeliverablesInFlight = true;
     s.announceStatus("Exporting deliverables…");
     try {
       const job = await startExportJob(s.projectPath);
@@ -833,6 +843,8 @@ export function registerDawCommands(): void {
       const reason = err instanceof Error ? err.message : String(err);
       useDawStore.getState().announceStatus(`Export failed: ${reason}`);
       return { status: "disabled", reason };
+    } finally {
+      exportDeliverablesInFlight = false;
     }
   });
 

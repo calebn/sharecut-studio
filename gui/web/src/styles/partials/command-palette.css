@@ -321,3 +321,19 @@
   outline: var(--focus-ring-width) solid var(--color-accent);
   outline-offset: var(--focus-ring-offset);
 }
+
+.command-palette-body
+  :is(
+    .ui-control,
+    button,
+    a,
+    input,
+    select,
+    textarea,
+    [tabindex]
+  ):focus-visible {
+  /* The body is a scrollport, so paint the ring inside the focused control to
+     keep it visible at every scroll edge (#184). */
+  outline: none;
+  box-shadow: inset 0 0 0 var(--focus-ring-width) var(--color-accent);
+}

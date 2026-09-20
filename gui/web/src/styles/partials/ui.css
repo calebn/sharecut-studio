@@ -343,8 +343,10 @@
 
 .ui-menu-panel .ui-control--quiet:focus-visible,
 .ui-menu-panel button[role="menuitem"]:focus-visible {
-  outline: var(--focus-ring-width) solid var(--color-accent);
-  outline-offset: 1px;
+  /* Inset ring: the panel scrolls (overflow-y: auto), so an outline with a
+     positive offset would clip at the scrollport edge (#184). */
+  outline: none;
+  box-shadow: inset 0 0 0 var(--focus-ring-width) var(--color-accent);
 }
 
 @media (hover: hover) and (pointer: fine) {
