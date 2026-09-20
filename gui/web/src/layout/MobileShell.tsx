@@ -1,8 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { execute } from "../commands/execute";
 import { FEATURE_SHARE_UI_BANNER } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
 import { useTimelineFocusRegion } from "../hooks/useTimelineFocusRegion";
+import { useTwoFingerTap } from "../hooks/useTwoFingerTap";
 import { Inspector } from "../inspector/Inspector";
 import { CommentsPanel } from "../panels/CommentsPanel";
 import { HistoryPanel } from "../panels/HistoryPanel";
@@ -20,7 +21,7 @@ import { useDaw } from "../state/useDaw";
 import { TimelineView } from "../timeline/TimelineView";
 import { TrackHeadersColumn } from "../tracks/TrackHeadersColumn";
 import type { PresenceTab } from "../types/session";
-import { BottomSheet, CommandButton, ToggleButton } from "../ui";
+import { BottomSheet, CommandButton, GesturesSheet, ToggleButton } from "../ui";
 import { isPipelineSlotBusy, pipelineChipOpensPanel } from "../utils/pipeline";
 import { formatTimecodePair } from "../utils/time";
 import { AvatarStack } from "./AvatarStack";
@@ -48,6 +49,7 @@ function MoreHub({ guestShare }: { guestShare: boolean }) {
     shareCapabilities,
     project,
   } = useDaw();
+  const [gesturesOpen, setGesturesOpen] = useState(false);
   const running =
     isPipelineSlotBusy(activityJob) || isPipelineSlotBusy(pipelineJob);
   const mayIngest = canIngestMedia(projectPath, guestMode, shareCapabilities);
@@ -104,6 +106,19 @@ function MoreHub({ guestShare }: { guestShare: boolean }) {
       <div className="mobile-more-settings">
         <OverlayLegend />
       </div>
+      <div className="mobile-more-settings">
+        <button
+          type="button"
+          className="mobile-more-item"
+          onClick={() => setGesturesOpen(true)}
+        >
+          Gestures
+        </button>
+      </div>
+      <GesturesSheet
+        open={gesturesOpen}
+        onClose={() => setGesturesOpen(false)}
+      />
       <div role="menu" aria-label="People">
         <AvatarStack variant="menu" />
       </div>
@@ -130,7 +145,6 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
   if (!project) {
     return (
       <div className="mobile-listen" aria-busy="true">
-        <h1 className="sr-only">Loading episode…</h1>
         <div className="mobile-listen-transport">
           <CommandButton
             bare
@@ -170,7 +184,6 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
 
   return (
     <div className="mobile-listen">
-      <h1 className="sr-only">{project.meta.name}</h1>
       <div className="mobile-listen-transport">
         <CommandButton
           bare
@@ -344,6 +357,7 @@ export function MobileShell({ guestShare = false }: { guestShare?: boolean }) {
   );
   const shellRef = useRef<HTMLDivElement>(null);
   usePresenceCursorSource(shellRef);
+  useTwoFingerTap(shellRef);
 
   useEffect(() => {
     if (selection == null) {
@@ -359,7 +373,7 @@ export function MobileShell({ guestShare = false }: { guestShare?: boolean }) {
   return (
     <div
       ref={shellRef}
-      className={`daw-shell daw-shell--phone${mobileMode === "listen" ? " daw-shell--listen" : ""}${guestShare ? " daw-shell-guest" : ""}${followingClientId ? " daw-shell--following" : ""}`}
+      className={`daw-shell daw-shell--phone${guestShare ? " daw-shell-guest" : ""}${followingClientId ? " daw-shell--following" : ""}`}
       data-shell="phone"
     >
       <Slot id={FEATURE_SHARE_UI_BANNER}>
@@ -381,11 +395,9 @@ export function MobileShell({ guestShare = false }: { guestShare?: boolean }) {
       >
         {statusAnnouncement}
       </span>
-      {mobileMode !== "listen" ? (
-        <div ref={transportFocusRef}>
-          <TransportBar compact showFit />
-        </div>
-      ) : null}
+      <div ref={transportFocusRef}>
+        {mobileMode !== "listen" && <TransportBar compact showFit />}
+      </div>
       <main className="mobile-mode-body">
         {mobileMode === "listen" && <ListenMode guestShare={guestShare} />}
         {mobileMode === "timeline" && (
