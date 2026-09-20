@@ -15,6 +15,7 @@ Welcome. This site is the **shareable UX onboarding kit** for Podcast MCP / Shar
 | [Guest journeys](#/journeys) | Step flows for share links |
 | [Domain glossary](#/glossary) | Concepts ↔ project files ↔ UI |
 | [Keyboard shortcuts](#/shortcuts) | Sharecut Studio keys — **Copy Markdown** → Google Docs |
+| [Mobile](#/mobile) | Using Sharecut Studio on your phone |
 | [UX backlog](#/backlog) | Open design decisions |
 
 ## How to use with Google Docs
