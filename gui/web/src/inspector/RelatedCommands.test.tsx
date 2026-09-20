@@ -16,9 +16,9 @@ describe("relatedCommandsFor", () => {
   });
 
   it("returns empty for unknown kind", () => {
-    expect(
-      relatedCommandsFor({ kind: "chapter", id: "ch1", time: 0 }),
-    ).toEqual([]);
+    expect(relatedCommandsFor({ kind: "chapter", id: "ch1", time: 0 })).toEqual(
+      [],
+    );
   });
 });
 
