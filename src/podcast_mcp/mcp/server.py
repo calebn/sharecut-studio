@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sys
+
 from mcp.server import MCPServer
 
 from podcast_mcp import __version__
@@ -184,6 +186,28 @@ from podcast_mcp.mcp.tools.transcript import (  # noqa: E402, F401
 
 
 def main() -> None:
+    if any(arg in ("-h", "--help") for arg in sys.argv[1:]):
+        print(
+            f"podcast-mcp {__version__}\n"
+            "\n"
+            "Sharecut Studio MCP server. Runs on stdio by default so any MCP\n"
+            "harness (Claude Code, Claude Desktop, Cursor, Cline, Windsurf, ...)\n"
+            "can launch it with zero configuration:\n"
+            "\n"
+            '    {"mcpServers": {"podcast": {"command": "podcast-mcp"}}}\n'
+            "\n"
+            "Options:\n"
+            "  -h, --help       Show this help and exit.\n"
+            "  -V, --version    Print the version and exit.\n"
+            "\n"
+            "For co-editing with the DAW open, the GUI also serves MCP over\n"
+            "Streamable HTTP at http://127.0.0.1:8765/mcp (Menu → Connect agent…).\n"
+            "Docs: docs/mcp-setup.md"
+        )
+        return
+    if any(arg in ("-V", "--version") for arg in sys.argv[1:]):
+        print(f"podcast-mcp {__version__}")
+        return
     mcp.run(transport="stdio")
 
 
