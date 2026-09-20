@@ -5,16 +5,6 @@
   display: inline-flex;
 }
 
-.ui-menu-panel {
-  min-height: 0;
-  max-height: min(90dvh, var(--menu-available-height));
-  overflow-y: auto;
-}
-
-.ui-menu-panel > * {
-  flex-shrink: 0;
-}
-
 .ui-menu-section {
   display: flex;
   flex-direction: column;
@@ -447,4 +437,24 @@
 .gesture-detail {
   margin: 0;
   color: var(--color-text-secondary);
+}
+
+/* RelatedCommands: "You might also want…" zone in mobile selection sheet */
+.related-commands {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.related-commands-heading {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--space-2) 0;
+}
+
+.related-commands-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
