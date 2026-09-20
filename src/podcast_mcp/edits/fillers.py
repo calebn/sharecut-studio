@@ -627,6 +627,7 @@ def _analyze_candidate(
                 timebase="source",
                 config=jc_cfg,
                 defaults=defaults,
+                audio_caches={track_id: audio_cache} if audio_cache is not None else None,
             )
             if jc.verdict == "fail":
                 return None
