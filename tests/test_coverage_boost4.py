@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
@@ -170,3 +171,23 @@ def test_cors_origins_extra(monkeypatch):
 
     origins = _cors_origins()
     assert "https://a.test" in origins
+
+
+def test_create_share_rejects_malformed_expires_at(minimal_project, sample_wav):
+    proj = load_project(minimal_project)
+    art = Path(proj.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    save_project(proj, minimal_project)
+    ws = ProjectWorkspace.open(minimal_project)
+    ver = ReviewService(ws).publish(label="s")
+    with pytest.raises(ValueError, match="expires_at must be ISO 8601"):
+        create_share(ws.project, review_version_id=ver["id"], expires_at="tomorrow")
+    with pytest.raises(ValueError, match="expires_at must be ISO 8601"):
+        create_share(ws.project, review_version_id=ver["id"], expires_at="2026-13-45")
+    # valid ISO 8601 still accepted
+    row = create_share(ws.project, review_version_id=ver["id"], expires_at="2026-12-31T23:59:59Z")
+    assert row["expires_at"] == "2026-12-31T23:59:59Z"
+    # None (no expiry) still accepted
+    row2 = create_share(ws.project, review_version_id=ver["id"], expires_at=None)
+    assert row2["expires_at"] is None

@@ -23,6 +23,7 @@ from podcast_mcp.edits.share_registry import (
     SHARE_KIND_REVIEW,
     SHARE_KINDS,
     SHARE_TOKEN_IS_GLOBALLY_UNIQUE,
+    _parse_iso,
     claim_with_mint_retry,
     default_share_registry_db_path,
     get_share_registry,
@@ -83,6 +84,8 @@ def create_share(
     assert SHARE_TOKEN_IS_GLOBALLY_UNIQUE  # documented contract
     if kind not in SHARE_KINDS:
         raise ValueError(f"unknown share kind {kind!r}")
+    if expires_at is not None and _parse_iso(expires_at) is None:
+        raise ValueError(f"expires_at must be ISO 8601, got {expires_at!r}")
     ga = normalize_general_access(general_access)
     if kind == SHARE_KIND_REVIEW:
         get_version(project, review_version_id)
