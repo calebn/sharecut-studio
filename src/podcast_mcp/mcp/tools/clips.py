@@ -14,6 +14,7 @@ def propose_social_clips_tool(
     platform: str | None = None,
     max_clips: int | None = None,
 ) -> str:
+    """Propose short-form social clips for a platform, limited to max_clips."""
     ws = ProjectWorkspace.open(project_path)
     clips = ClipService(ws).propose(platform=platform, max_clips=max_clips)
     return to_json([c.model_dump() for c in clips])
@@ -23,12 +24,14 @@ def list_social_clips_tool(
     project_path: str,
     approved: bool | None = None,
 ) -> str:
+    """List proposed social clips, optionally filtered by approved status."""
     ws = ProjectWorkspace.open(project_path)
     clips = ClipService(ws).list(approved=approved)
     return to_json([c.model_dump() for c in clips])
 
 
 def approve_social_clips_tool(project_path: str, ids_json: str) -> str:
+    """Approve social clips by id from a JSON id array."""
     ws = ProjectWorkspace.open(project_path)
     ids = json.loads(ids_json)
     ClipService(ws).approve(ids)
@@ -36,6 +39,7 @@ def approve_social_clips_tool(project_path: str, ids_json: str) -> str:
 
 
 def reject_social_clips_tool(project_path: str, ids_json: str) -> str:
+    """Reject social clips by id from a JSON id array."""
     ws = ProjectWorkspace.open(project_path)
     ids = json.loads(ids_json)
     ClipService(ws).reject(ids)
@@ -43,11 +47,13 @@ def reject_social_clips_tool(project_path: str, ids_json: str) -> str:
 
 
 def social_clip_report_tool(project_path: str) -> str:
+    """Return the social clip pipeline report (proposed, approved, exported counts)."""
     ws = ProjectWorkspace.open(project_path)
     return ClipService(ws).report()
 
 
 def export_social_clips_tool(project_path: str, ids_json: str | None = None) -> str:
+    """Export social clips to files; omit ids_json to export all approved."""
     ws = ProjectWorkspace.open(project_path)
     ids = json.loads(ids_json) if ids_json else None
     exported = ClipService(ws).export(ids)
@@ -55,6 +61,7 @@ def export_social_clips_tool(project_path: str, ids_json: str | None = None) -> 
 
 
 def register(mcp: MCPServer) -> None:
+    """Register social clip tools on the MCP server."""
     mutating = {
         propose_social_clips_tool,
         approve_social_clips_tool,

@@ -10,6 +10,7 @@ from podcast_mcp.services import EditService, ProjectWorkspace
 
 
 def build_edit_context(project_path: str, max_utterances: int = 200) -> str:
+    """Build the JSON edit-planning context: utterances with word indexes for cut_* tools."""
     ws = ProjectWorkspace.open(project_path)
     return EditService(ws).build_context(max_utterances=max_utterances)
 
@@ -20,6 +21,7 @@ def search_transcript_tool(
     track_id: str | None = None,
     speaker: str | None = None,
 ) -> str:
+    """Search the transcript for text, optionally scoped to a track or speaker."""
     ws = ProjectWorkspace.open(project_path)
     matches = EditService(ws).search(query, track_id=track_id, speaker=speaker)
     return to_json([m.__dict__ for m in matches])
@@ -34,6 +36,7 @@ def cut_time_range_tool(
     review_required: bool = True,
     use_inaudible_opt: bool | None = None,
 ) -> str:
+    """Stage a pending cut of a time range on a track; applies after approve_edits."""
     ws = ProjectWorkspace.open(project_path)
     EditService(ws).cut_time_range(
         track_id,
@@ -56,6 +59,7 @@ def cut_text_match_tool(
     review_required: bool = True,
     use_inaudible_opt: bool | None = None,
 ) -> str:
+    """Stage pending cuts for each transcript match of a text query."""
     ws = ProjectWorkspace.open(project_path)
     EditService(ws).cut_text_match(
         query,
@@ -76,6 +80,7 @@ def cut_utterance_tool(
     review_required: bool = True,
     use_inaudible_opt: bool | None = None,
 ) -> str:
+    """Stage a pending cut of one utterance by its index."""
     ws = ProjectWorkspace.open(project_path)
     EditService(ws).cut_utterance(
         utterance_index,
@@ -101,6 +106,7 @@ def cut_words_tool(
     review_required: bool = True,
     use_inaudible_opt: bool | None = None,
 ) -> str:
+    """Stage a pending cut of a word-index range on a track."""
     ws = ProjectWorkspace.open(project_path)
     EditService(ws).cut_words(
         track_id,
@@ -128,6 +134,7 @@ def apply_edit_plan_tool(
     review_required: bool = True,
     use_inaudible_opt: bool | None = None,
 ) -> str:
+    """Stage a batch of pending cuts from a JSON edit-plan array."""
     ws = ProjectWorkspace.open(project_path)
     raw = json.loads(edits_json)
     n = EditService(ws).apply_plan(
@@ -213,6 +220,7 @@ def join_quality_tool(
     cut_end: float | None = None,
     timebase: str = "timeline",
 ) -> str:
+    """Score an existing or proposed cut join for audibility artifacts (clicks, glitches)."""
     ws = ProjectWorkspace.open(project_path)
     out = EditService(ws).join_quality(
         track_id=track_id,
@@ -229,6 +237,7 @@ def join_qa_sweep_tool(
     project_path: str,
     track_id: str | None = None,
 ) -> str:
+    """Score all joins on a track (or the whole project) for QA review."""
     ws = ProjectWorkspace.open(project_path)
     out = EditService(ws).join_qa_sweep(track_id=track_id)
     return to_json(out)
@@ -246,6 +255,7 @@ def join_label_tool(
     cut_start: float | None = None,
     cut_end: float | None = None,
 ) -> str:
+    """Record a pass/fail label for a join to train the join-quality ranker."""
     ws = ProjectWorkspace.open(project_path)
     out = EditService(ws).join_label(
         track_id=track_id,
@@ -267,6 +277,7 @@ def list_edit_decisions_tool(
     review_required: bool | None = None,
     reason_prefix: str | None = None,
 ) -> str:
+    """List pending or applied edit decisions, filterable by review status and reason."""
     ws = ProjectWorkspace.open(project_path)
     edits = EditService(ws).list_decisions(
         applied=applied,
@@ -277,6 +288,7 @@ def list_edit_decisions_tool(
 
 
 def approve_edits_tool(project_path: str, ids_json: str) -> str:
+    """Approve pending edits by id, applying them to the timeline."""
     ws = ProjectWorkspace.open(project_path)
     ids = json.loads(ids_json)
     n = EditService(ws).approve(ids)
@@ -285,6 +297,7 @@ def approve_edits_tool(project_path: str, ids_json: str) -> str:
 
 
 def reject_edits_tool(project_path: str, ids_json: str) -> str:
+    """Reject pending edits by id, discarding them without applying."""
     ws = ProjectWorkspace.open(project_path)
     ids = json.loads(ids_json)
     n = EditService(ws).reject(ids)
@@ -299,6 +312,7 @@ def update_pending_edit_tool(
     end: float,
     snap: bool = True,
 ) -> str:
+    """Adjust the start/end bounds of a pending edit before approval."""
     ws = ProjectWorkspace.open(project_path)
     edit = EditService(ws).update_pending(edit_id, start=start, end=end, snap=snap)
     agent_mutated(ws)
@@ -306,6 +320,7 @@ def update_pending_edit_tool(
 
 
 def revert_applied_edit_tool(project_path: str, record_id: str) -> str:
+    """Revert an applied edit by its history record id."""
     ws = ProjectWorkspace.open(project_path)
     result = EditService(ws).revert_applied(record_id)
     agent_mutated(ws)
@@ -313,6 +328,7 @@ def revert_applied_edit_tool(project_path: str, record_id: str) -> str:
 
 
 def edit_impact_report_tool(project_path: str, markdown: bool = False) -> str:
+    """Summarize the impact of proposed edits (words and time removed per track)."""
     ws = ProjectWorkspace.open(project_path)
     report = EditService(ws).impact_report(markdown=markdown)
     return report if isinstance(report, str) else to_json(report)
@@ -344,6 +360,7 @@ def propose_edits(project_path: str, edit_mode: str | None = None) -> str:
 
 
 def apply_edits(project_path: str) -> str:
+    """Apply all pending edits that do not require human review."""
     ws = ProjectWorkspace.open(project_path)
     n = EditService(ws).apply_auto()
     agent_mutated(ws)
@@ -351,6 +368,7 @@ def apply_edits(project_path: str) -> str:
 
 
 def register(mcp: MCPServer) -> None:
+    """Register edit tools on the MCP server."""
     for fn in (
         build_edit_context,
         search_transcript_tool,

@@ -9,6 +9,7 @@ from podcast_mcp.services.workspace import ProjectWorkspace
 
 
 def _parse_selection(selection_json: str | None) -> dict | None:
+    """Parse an optional JSON selection object (internal helper, not an MCP tool)."""
     if selection_json is None or selection_json == "":
         return None
     data = json.loads(selection_json)
@@ -116,6 +117,7 @@ def set_session_region_tool(
 
 
 def register(mcp: MCPServer) -> None:
+    """Register session control tools on the MCP server."""
     mcp.tool()(get_session_state_tool)
     mcp.tool()(get_session_presence_tool)
     mcp.tool()(seek_session_tool)

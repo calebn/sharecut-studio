@@ -7,26 +7,31 @@ from podcast_mcp.services import AlignAcceptService, ProjectWorkspace
 
 
 def align_status_tool(project_path: str) -> str:
+    """Report the conversation-clock alignment acceptance gate status (pending/done/waived)."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(AlignAcceptService(ws).status())
 
 
 def align_brief_tool(project_path: str) -> str:
+    """Return the alignment acceptance brief: what the agent must check before marking done."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(AlignAcceptService(ws).brief())
 
 
 def align_done_tool(project_path: str, notes: str | None = None) -> str:
+    """Mark the conversation-clock alignment acceptance gate done, with optional notes."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(AlignAcceptService(ws).mark_done(notes=notes, source="mcp"))
 
 
 def align_waive_tool(project_path: str, reason: str) -> str:
+    """Waive the alignment acceptance gate with a recorded reason."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(AlignAcceptService(ws).waive(reason=reason, source="mcp"))
 
 
 def register(mcp) -> None:
+    """Register alignment acceptance tools on the MCP server."""
     mcp.tool()(align_status_tool)
     mcp.tool()(align_brief_tool)
     mcp.tool()(align_done_tool)

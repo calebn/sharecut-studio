@@ -26,4 +26,5 @@ def open_gui_tool(
 
 
 def register(mcp: MCPServer) -> None:
+    """Register GUI tools on the MCP server."""
     mcp.tool()(open_gui_tool)

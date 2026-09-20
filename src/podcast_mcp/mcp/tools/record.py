@@ -9,6 +9,7 @@ from podcast_mcp.services.workspace import ProjectWorkspace
 
 
 def _ctrl(project_path: str) -> RecordControlService:
+    """Open a RecordControlService for the project (internal helper, not an MCP tool)."""
     return RecordControlService(ProjectWorkspace.open(project_path))
 
 
@@ -52,6 +53,7 @@ def record_discard_take_tool(project_path: str, take_index: int) -> str:
 
 
 def register(mcp: MCPServer) -> None:
+    """Register recording-room tools on the MCP server."""
     mcp.tool()(record_state_tool)
     mcp.tool()(record_start_tool)
     mcp.tool()(record_pause_tool)

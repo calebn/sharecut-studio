@@ -148,6 +148,7 @@ def set_envelope(
     track_id: str,
     points_json: str,
 ) -> str:
+    """Set the volume automation envelope for a track from JSON points."""
     ws = ProjectWorkspace.open(project_path)
     raw = json.loads(points_json)
     n = PipelineService(ws).set_envelope(track_id, raw)
@@ -155,12 +156,14 @@ def set_envelope(
 
 
 def render_preview(project_path: str, rerender: bool = True) -> str:
+    """Render a preview mix and return its status and path."""
     ws = ProjectWorkspace.open(project_path)
     info = PipelineService(ws).render_preview(rerender=rerender)
     return to_json(info)
 
 
 def render_final(project_path: str) -> str:
+    """Render the final mastered export and return its path."""
     ws = ProjectWorkspace.open(project_path)
     path = PipelineService(ws).render_final()
     return str(path)
@@ -222,6 +225,7 @@ def bounce_audio_tool(
 
 
 def register(mcp: MCPServer) -> None:
+    """Register pipeline and render tools on the MCP server."""
     for fn in (
         pipeline_run,
         pipeline_get_config_tool,

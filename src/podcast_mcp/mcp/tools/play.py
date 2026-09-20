@@ -306,6 +306,7 @@ def play_pending_preview_tool(
 
 
 def register(mcp: MCPServer) -> None:
+    """Register audio audition tools on the MCP server."""
     mcp.tool()(play_audio_tool)
     mcp.tool()(play_transcript_query_tool)
     mcp.tool()(audition_context_tool)

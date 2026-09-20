@@ -8,6 +8,7 @@ from podcast_mcp.util.progress import resolve_progress
 
 
 def speaker_doctor_tool() -> str:
+    """Check the speaker-identification backend is configured and working."""
     return to_json(SpeakerService.doctor_static())
 
 
@@ -19,6 +20,7 @@ def speaker_enroll_tool(
     end_sec: float | None = None,
     home_track_id: str | None = None,
 ) -> str:
+    """Enroll a voiceprint for a speaker from a time window on a track."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(
         SpeakerService(ws).enroll(
@@ -33,6 +35,7 @@ def speaker_enroll_tool(
 
 
 def speaker_profiles_tool(project_path: str) -> str:
+    """List enrolled speaker voiceprint profiles."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(SpeakerService(ws).profiles())
 
@@ -43,6 +46,7 @@ def speaker_score_tool(
     start_sec: float,
     end_sec: float,
 ) -> str:
+    """Score how strongly a time window matches the expected speaker."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(SpeakerService(ws).score(track_id, start_sec, end_sec))
 
@@ -52,6 +56,7 @@ def speaker_compare_window_tool(
     start_sec: float,
     end_sec: float,
 ) -> str:
+    """Compare speaker identity across tracks in a time window."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(SpeakerService(ws).compare_window(start_sec, end_sec))
 
@@ -63,6 +68,7 @@ def speaker_label_tool(
     end_sec: float,
     dry_run: bool = True,
 ) -> str:
+    """Assign the window's speaker label on a track (dry_run by default)."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(SpeakerService(ws).label(track_id, start_sec, end_sec, dry_run=dry_run))
 
@@ -71,6 +77,7 @@ def speaker_set_count_tool(
     project_path: str,
     expected_speaker_count: int,
 ) -> str:
+    """Set the expected number of speakers in the project."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(SpeakerService(ws).set_expected_speaker_count(expected_speaker_count))
 
@@ -79,6 +86,7 @@ def speaker_attribute_tool(
     project_path: str,
     dry_run: bool = True,
 ) -> str:
+    """Attribute speaker labels across the project from voiceprints (dry_run by default)."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(SpeakerService(ws).attribute(dry_run=dry_run, progress=resolve_progress()))
 
@@ -88,6 +96,7 @@ def speaker_gate_track_tool(
     track_id: str | None = None,
     dry_run: bool = True,
 ) -> str:
+    """Mute segments where other speakers bleed onto a home track (dry_run by default)."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(
         SpeakerService(ws).gate_track(
@@ -107,6 +116,7 @@ def speaker_compare_pair_tool(
     start_b: float,
     end_b: float,
 ) -> str:
+    """Compare the voices in two time windows to check they are the same speaker."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(
         SpeakerService(ws).compare_pair(track_a, start_a, end_a, track_b, start_b, end_b)
@@ -114,6 +124,7 @@ def speaker_compare_pair_tool(
 
 
 def register(mcp: MCPServer) -> None:
+    """Register speaker tools on the MCP server."""
     mcp.tool()(speaker_doctor_tool)
     mcp.tool()(speaker_enroll_tool)
     mcp.tool()(speaker_profiles_tool)
