@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from podcast_mcp.edits.transcript_correct import (
     apply_transcript_corrections,
     correct_word,
@@ -75,3 +77,21 @@ def test_apply_transcript_corrections_word_and_phrase() -> None:
     assert [w.text for w in words] == ["Shot", "of", "Truth", "done."]
     assert words[0].start == 1.0
     assert words[-1].end == 3.0
+
+
+def test_correct_word_rejects_empty_text() -> None:
+    p = EpisodeProject.create("tc-empty", "/tmp")
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="hello", start=0.0, end=0.5, confidence=0.9),
+            ],
+        )
+    ]
+    with pytest.raises(ValueError, match="must not be empty"):
+        correct_word(p, "host", 0, "")
+    with pytest.raises(ValueError, match="must not be empty"):
+        correct_word(p, "host", 0, "   ")
+    # word left untouched
+    assert p.transcripts[0].words[0].text == "hello"
