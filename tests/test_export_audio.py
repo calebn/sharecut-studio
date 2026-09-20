@@ -10,6 +10,7 @@ from podcast_mcp.export.audio import (
     export_episode_audio,
     export_wav_enabled,
     resolve_export_formats,
+    sanitize_export_stem,
     specs_from_extensions,
     write_audio_formats,
 )
@@ -99,3 +100,25 @@ def test_export_episode_audio_writes_wav_and_encoded(tmp_path: Path):
     assert (tmp_path / "export" / "ep.wav").is_file()
     assert eng.export_audio.called
     assert len(paths) == 2
+
+
+def test_sanitize_export_stem():
+    assert sanitize_export_stem("My Episode: Part 1/2") == "My_Episode_Part_1_2"
+    assert sanitize_export_stem("normal-name") == "normal-name"
+    assert sanitize_export_stem("Q&A") == "Q_A"
+    assert sanitize_export_stem("") == "episode"
+    assert sanitize_export_stem("///") == "episode"
+
+
+def test_export_episode_audio_sanitizes_slash_in_name(tmp_path: Path):
+    project = EpisodeProject.create("My Episode: Part 1/2", str(tmp_path))
+    project.ensure_dirs()
+    mastered = project.artifacts_dir() / "mastered.wav"
+    mastered.write_bytes(b"RIFF")
+    eng = MagicMock()
+    export_cfg = {"wav": True, "formats": []}
+    paths = export_episode_audio(project, eng, mastered, export_cfg)
+    # single file directly under export/, no nested directories
+    assert (tmp_path / "export" / "My_Episode_Part_1_2.wav").is_file()
+    assert not (tmp_path / "export" / "My Episode: Part 1").exists()
+    assert len(paths) == 1
