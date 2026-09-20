@@ -21,7 +21,10 @@ from podcast_mcp.services.guest_progress import (
     reset_guest_progress_hub,
     scrub_guest_progress_text,
 )
-from podcast_mcp.services.remote_mcp.progress import GuestMcpProgressContext
+from podcast_mcp.services.remote_mcp.progress import (
+    GuestMcpProgressContext,
+    McpProgressSink,
+)
 from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
 from podcast_mcp.services.share import ShareService
 from podcast_mcp.util.progress import (
@@ -49,6 +52,22 @@ def _drain(q: asyncio.Queue) -> list[dict]:
     while not q.empty():
         items.append(q.get_nowait())
     return items
+
+
+@pytest.mark.asyncio
+async def test_mcp_progress_sink_preserves_accepted_payload_when_closed() -> None:
+    queue: asyncio.Queue[dict] = asyncio.Queue()
+    sink = McpProgressSink(asyncio.get_running_loop(), queue)
+    payload = {"method": "notifications/progress"}
+
+    sink.emit(payload)
+    sink.close()
+    await asyncio.sleep(0)
+
+    assert queue.get_nowait() == payload
+    sink.emit({"method": "late"})
+    await asyncio.sleep(0)
+    assert queue.empty()
 
 
 def test_scrub_guest_progress_text_drops_host_paths_and_caps_length():
