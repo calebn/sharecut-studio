@@ -214,6 +214,12 @@ GitHub Actions workflow `.github/workflows/test.yml` runs three parallel jobs on
 | `frontend` | In `gui/web`: `npm ci`, `npm run lint` (oxlint + Stylelint tokens/rem/`@container`; `!important`/`@layer` consent-gated), `npm run format:check` (Biome), `npm run typecheck` (strict `tsc`), `npm test` (Vitest + `axe-core` via `expectNoA11yViolations`; keeper PCM/WAV/segment bars in `gui/web/src/record/keeper/`; mix-minus MM1–MM9 in `gui/web/src/audio/mixMinus.test.ts`), `npm run build` |
 | `frontend-e2e` | Build Sharecut Studio, install Chromium, Playwright smoke against a **temp copy** of `aligned_dialogue` (committed uint8 overview JSON under `artifacts/peaks/` so `/api/peaks/` does not need ffmpeg). Ordinary loopback Playwright launches leave `podcast gui` unpinned and explicitly provide each temporary `?project=` path, allowing share and record scenarios to use a fresh relocated fixture. `npm run test:e2e` deletes the live copy after Playwright terminates its web server (sqlite stays in the temp workspace — never rewritten in place). Host→guest follow seeds a temp premix and needs `ffmpeg` on PATH to publish the share mix. Presence follow also covers tab follow, chrome ghosts, lane-bottom no-jump, and guest Pipeline/FX degrade (`e2e/presence-follow.spec.ts`). Full-page axe via `expectPageAxeClean` in `gui/web/e2e/axe.ts`. Firefox pending-inspector layout remains [Follow-up](../ROADMAP.md#follow-up) (original #155 report was Firefox @ 1280). |
 
+The path-filtered `.github/workflows/desktop.yml` also builds the web distribution,
+runs the portable desktop scaffold checks on Linux, and runs `cargo check` for the
+Windows desktop binary. The Windows job compiles WebView2-only adapters that macOS
+and Linux cannot typecheck; installer creation remains in the reusable release
+workflow.
+
 Local mirrors:
 
 ```bash
