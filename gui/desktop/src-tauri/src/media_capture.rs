@@ -65,7 +65,9 @@ fn decide_windows(
     match decide_windows_inner(&args, engine_port) {
         Ok(()) => Ok(()),
         Err(err) => {
-            let _ = args.SetState(COREWEBVIEW2_PERMISSION_STATE_DENY);
+            // SAFETY: `args` is the typed COM interface supplied by WebView2 for
+            // this callback, and DENY is a valid WebView2 permission state.
+            let _ = unsafe { args.SetState(COREWEBVIEW2_PERMISSION_STATE_DENY) };
             Err(err)
         }
     }
@@ -87,9 +89,14 @@ fn decide_windows_inner(
     use windows::core::PWSTR;
 
     let mut kind = COREWEBVIEW2_PERMISSION_KIND::default();
-    args.PermissionKind(&mut kind)?;
     let mut uri = PWSTR::null();
-    args.Uri(&mut uri)?;
+    // SAFETY: WebView2 owns the live permission-request interface for the
+    // duration of this callback, and both out-pointers reference initialized,
+    // writable values with the exact ABI types required by the COM methods.
+    unsafe {
+        args.PermissionKind(&mut kind)?;
+        args.Uri(&mut uri)?;
+    }
     let origin = take_pwstr(uri);
     let mapped = if kind == COREWEBVIEW2_PERMISSION_KIND_MICROPHONE {
         WebviewMediaKind::Microphone
@@ -102,7 +109,9 @@ fn decide_windows_inner(
         WebviewMediaDecision::Allow => COREWEBVIEW2_PERMISSION_STATE_ALLOW,
         WebviewMediaDecision::Deny => COREWEBVIEW2_PERMISSION_STATE_DENY,
     };
-    args.SetState(state)?;
+    // SAFETY: `state` is one of WebView2's declared permission-state values and
+    // `args` remains valid for the duration of the callback.
+    unsafe { args.SetState(state)? };
     Ok(())
 }
 

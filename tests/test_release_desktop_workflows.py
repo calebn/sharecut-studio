@@ -12,6 +12,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / ".github/workflows/release-desktop-build.yml"
+DESKTOP_CHECK = ROOT / ".github/workflows/desktop.yml"
 
 REQUIRED_SECRETS = (
     "SOURCE_REPOSITORY_SSH_KEY",
@@ -88,6 +89,23 @@ def test_reusable_workflow_declares_call_inputs_and_secrets() -> None:
     assert "Clean up Apple keychain" in steps
     assert "Clean up Windows signing material" in steps
     assert "Signing summary" in steps
+
+
+def test_desktop_workflow_compiles_windows_only_adapters() -> None:
+    data = _load(DESKTOP_CHECK)
+    job = data["jobs"]["desktop-windows-check"]
+    assert job["runs-on"] == "windows-latest"
+    assert job["needs"] == "web-dist"
+    steps = job["steps"]
+    download = next(
+        step for step in steps if str(step.get("uses", "")).startswith("actions/download-artifact")
+    )
+    assert download["with"] == {"name": "gui-web-dist", "path": "gui/web/dist"}
+    stage = next(step for step in steps if step.get("name") == "Stage Windows desktop sidecar stub")
+    assert stage["run"] == "python scripts/tauri_sidecar_hook.py --dev-stub"
+    check = next(step for step in steps if step.get("name") == "Check Windows desktop binary")
+    assert check["working-directory"] == "gui/desktop/src-tauri"
+    assert check["run"] == "cargo check --bin sharecut --features app"
 
 
 def test_extension_wheel_freeze_isolated_from_signing_jobs() -> None:
