@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from "react";
+import { type RefObject, useEffect } from "react";
 import { execute } from "../commands/execute";
 
 const TWO_FINGER_TAP_MAX_MS = 300;
