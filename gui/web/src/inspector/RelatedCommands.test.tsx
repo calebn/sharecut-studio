@@ -16,13 +16,17 @@ describe("relatedCommandsFor", () => {
   });
 
   it("returns empty for unknown kind", () => {
-    expect(relatedCommandsFor({ kind: "chapter", id: "ch1", time: 0 })).toEqual([]);
+    expect(
+      relatedCommandsFor({ kind: "chapter", id: "ch1", time: 0 }),
+    ).toEqual([]);
   });
 });
 
 describe("RelatedCommands", () => {
   it("renders related command buttons", () => {
-    render(<RelatedCommands selection={{ kind: "clip", id: "c1", trackId: "t1" }} />);
+    render(
+      <RelatedCommands selection={{ kind: "clip", id: "c1", trackId: "t1" }} />,
+    );
     expect(screen.getByText("You might also want…")).toBeInTheDocument();
     // Should render buttons for the related commands
     expect(
