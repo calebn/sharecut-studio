@@ -151,7 +151,7 @@ def test_extension_wheel_freeze_isolated_from_signing_jobs() -> None:
     assert 'tar -C "$stage" -cf "$archive" .' in stage["run"]
     assert "extension-entry-points.json" in stage["run"]
     assert "distributions(path=[str(site_packages)])" in stage["run"]
-    assert 'launcher="${launcher}.exe"' in stage["run"]
+    assert "--print-output-name" in stage["run"]
     assert 'test -f "$launcher"' in stage["run"]
     assert 'sharecut-sidecar-${{ matrix.triple }}"*' not in stage["run"]
     assert upload["with"]["path"].endswith("prepared-extension-sidecar.tar")
@@ -186,7 +186,8 @@ def test_extension_wheel_freeze_isolated_from_signing_jobs() -> None:
     assert ".freeze-complete" in verify_runtime["run"]
     assert "extension-entry-points.json" in verify_runtime["run"]
     assert "distributions(path=[str(site_packages)])" in verify_runtime["run"]
-    assert 'launcher_suffix = ".exe" if bundle == "nsis" else ""' in verify_runtime["run"]
+    assert "--print-output-name" in verify_runtime["run"]
+    assert 'os.environ["PREPARED_RUNTIME_LAUNCHER"]' in verify_runtime["run"]
     assert '.glob(f"sharecut-sidecar-' not in verify_runtime["run"]
     assert "prepared sidecar launcher is missing" in verify_runtime["run"]
     assert '"$python" -c' not in verify_runtime["run"]

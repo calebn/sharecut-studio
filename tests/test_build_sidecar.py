@@ -87,6 +87,23 @@ def test_sidecar_output_names() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("triple", "expected"),
+    [
+        ("aarch64-apple-darwin", "sharecut-sidecar-aarch64-apple-darwin"),
+        ("x86_64-pc-windows-msvc", "sharecut-sidecar-x86_64-pc-windows-msvc.exe"),
+    ],
+)
+def test_print_output_name(triple: str, expected: str) -> None:
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "--triple", triple, "--print-output-name"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert result.stdout.strip() == expected
+
+
 def test_is_macho_magic(tmp_path: Path) -> None:
     mod = _load_build_sidecar()
     script = tmp_path / "notes.txt"
