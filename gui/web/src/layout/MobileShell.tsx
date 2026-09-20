@@ -395,9 +395,11 @@ export function MobileShell({ guestShare = false }: { guestShare?: boolean }) {
       >
         {statusAnnouncement}
       </span>
-      <div ref={transportFocusRef}>
-        {mobileMode !== "listen" && <TransportBar compact showFit />}
-      </div>
+      {mobileMode !== "listen" ? (
+        <div ref={transportFocusRef}>
+          <TransportBar compact showFit />
+        </div>
+      ) : null}
       <main className="mobile-mode-body">
         {mobileMode === "listen" && <ListenMode guestShare={guestShare} />}
         {mobileMode === "timeline" && (
