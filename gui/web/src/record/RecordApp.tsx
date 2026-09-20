@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ErrorScreen, LoadingScreen } from "../ui";
+import { ErrorScreen, FocusPull, LoadingScreen } from "../ui";
 import "../styles/partials/record-entry.css";
 import { Declined } from "./Declined";
 import { FullRoom } from "./FullRoom";
@@ -235,56 +235,58 @@ export function RecordApp({ token }: { token: string }) {
         </header>
         <p className="record-role">{roleCopy}</p>
         {producer && view !== "room" ? <h2>Not recorded</h2> : null}
-        {view === "room" && snapshot ? (
-          <Room
-            snapshot={snapshot}
-            me={me}
-            onMute={(muted) => send("SetMuted", { muted })}
-            onLeave={() => send("Leave", {})}
-            onMarker={liveComments.postMarker}
-            onSubmitNote={liveComments.submitNote}
-            note={liveComments.note}
-            onNote={liveComments.setNote}
-            connected={connected}
-            recordingLocally={keeper.recordingLocally}
-            keeperError={keeper.error ?? sinkError}
-            hearing={monitor.hearing}
-            monitorError={monitor.error}
-            upload={upload}
-          />
-        ) : (
-          <Lobby
-            producer={!!producer}
-            name={name}
-            onName={setName}
-            headphonesOk={headphonesOk}
-            onHeadphones={setHeadphonesOk}
-            deviceId={deviceId}
-            onDeviceId={setDeviceId}
-            onJoinProducer={() => setProducerJoined(true)}
-            onAccept={() => send("Consent", { accepted: true })}
-            onDecline={() => send("Consent", { accepted: false })}
-            showMic={!!me && error !== "room_full"}
-            stream={mic.stream}
-            devices={mic.devices}
-            micError={mic.error}
-            settingsWarning={mic.settingsWarning}
-            permission={mic.status}
-            onAllowMic={mic.request}
-            onRetryMic={mic.retry}
-            deviceLocked={
-              snapshot?.state === "recording" || snapshot?.state === "paused"
-            }
-            roomToneStatus={roomTone.status}
-            roomToneError={roomTone.error}
-            onRecordRoomTone={roomTone.record}
-            onSkipRoomTone={roomTone.skip}
-            onRetryRoomTone={roomTone.retry}
-            roomToneReady={!bootstrap.build.upload || roomTone.ready}
-            roomToneCaptureReady={roomTone.captureReady}
-            showRoomTone={!!bootstrap.build.upload}
-          />
-        )}
+        <FocusPull viewKey={view}>
+          {view === "room" && snapshot ? (
+            <Room
+              snapshot={snapshot}
+              me={me}
+              onMute={(muted) => send("SetMuted", { muted })}
+              onLeave={() => send("Leave", {})}
+              onMarker={liveComments.postMarker}
+              onSubmitNote={liveComments.submitNote}
+              note={liveComments.note}
+              onNote={liveComments.setNote}
+              connected={connected}
+              recordingLocally={keeper.recordingLocally}
+              keeperError={keeper.error ?? sinkError}
+              hearing={monitor.hearing}
+              monitorError={monitor.error}
+              upload={upload}
+            />
+          ) : (
+            <Lobby
+              producer={!!producer}
+              name={name}
+              onName={setName}
+              headphonesOk={headphonesOk}
+              onHeadphones={setHeadphonesOk}
+              deviceId={deviceId}
+              onDeviceId={setDeviceId}
+              onJoinProducer={() => setProducerJoined(true)}
+              onAccept={() => send("Consent", { accepted: true })}
+              onDecline={() => send("Consent", { accepted: false })}
+              showMic={!!me && error !== "room_full"}
+              stream={mic.stream}
+              devices={mic.devices}
+              micError={mic.error}
+              settingsWarning={mic.settingsWarning}
+              permission={mic.status}
+              onAllowMic={mic.request}
+              onRetryMic={mic.retry}
+              deviceLocked={
+                snapshot?.state === "recording" || snapshot?.state === "paused"
+              }
+              roomToneStatus={roomTone.status}
+              roomToneError={roomTone.error}
+              onRecordRoomTone={roomTone.record}
+              onSkipRoomTone={roomTone.skip}
+              onRetryRoomTone={roomTone.retry}
+              roomToneReady={!bootstrap.build.upload || roomTone.ready}
+              roomToneCaptureReady={roomTone.captureReady}
+              showRoomTone={!!bootstrap.build.upload}
+            />
+          )}
+        </FocusPull>
       </div>
     </main>
   );

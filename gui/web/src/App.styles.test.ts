@@ -64,4 +64,19 @@ describe("App styles", () => {
 
     expect(badgeRule?.groups?.declarations).toMatch(/white-space:\s*nowrap/);
   });
+
+  it("makes FocusPull reduced motion an instant visual cut", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const ui = readFileSync(join(here, "styles/partials/ui.css"), "utf8");
+
+    expect(ui).toMatch(/@media \(prefers-reduced-motion: reduce\)/);
+    expect(ui).toMatch(/\.focus-pull-exit\s*\{[^}]*display:\s*none/s);
+    expect(ui).toMatch(
+      /\.focus-pull-pending,[\s\S]*?\.focus-pull-enter\s*\{[^}]*opacity:\s*1/s,
+    );
+    expect(ui).toMatch(/\.focus-pull-pending\s*\{[^}]*visibility:\s*hidden/s);
+    expect(ui).toMatch(
+      /\.focus-pull-pending,[\s\S]*?\.focus-pull-enter\s*\{[^}]*visibility:\s*visible/s,
+    );
+  });
 });
