@@ -9,7 +9,6 @@ from __future__ import annotations
 import hashlib
 import itertools
 import logging
-import re
 import statistics
 import subprocess
 from collections.abc import Callable
@@ -38,6 +37,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.util.atomic_json import write_json_atomic
 from podcast_mcp.util.progress import resolve_progress_task
+from podcast_mcp.util.wer import normalize_token
 
 log = logging.getLogger(__name__)
 
@@ -115,10 +115,6 @@ class AlignResult:
         return f"{len(moved)} moved ({', '.join(parts)}{extra}); ref={self.reference_track_id}"
 
 
-def _norm_token(text: str) -> str:
-    return re.sub(r"[^\w']+", "", text.lower())
-
-
 def words_to_tokens(words: list[TranscriptWord]) -> list[WordToken]:
     out: list[WordToken] = []
     for w in words:
@@ -163,7 +159,7 @@ def own_speech_tokens(
     """Drop tokens that belong to n-grams shared with a peer (bleed copies)."""
     peer_ngrams: set[str] = set()
     for peer in peers:
-        parts = [_norm_token(w.text) for w in peer if w.confidence >= min_confidence]
+        parts = [normalize_token(w.text) for w in peer if w.confidence >= min_confidence]
         parts = [p for p in parts if p]
         for i in range(len(parts) - n + 1):
             peer_ngrams.add(" ".join(parts[i : i + n]))
@@ -172,7 +168,7 @@ def own_speech_tokens(
         return [w for w in tokens if w.confidence >= min_confidence]
 
     keep = [False] * len(tokens)
-    parts = [_norm_token(w.text) for w in tokens]
+    parts = [normalize_token(w.text) for w in tokens]
     conf_ok = [w.confidence >= min_confidence for w in tokens]
     for i, _w in enumerate(tokens):
         if not conf_ok[i] or not parts[i]:
@@ -211,14 +207,14 @@ def bleed_phrase_offsets(
     then picks the source hit nearest that median (not always ``hits[0]``).
     """
     ref_parts = [
-        (_norm_token(w.text), w.start, w.end)
+        (normalize_token(w.text), w.start, w.end)
         for w in reference
-        if w.confidence >= min_confidence and _norm_token(w.text)
+        if w.confidence >= min_confidence and normalize_token(w.text)
     ]
     src_parts = [
-        (_norm_token(w.text), w.start, w.end)
+        (normalize_token(w.text), w.start, w.end)
         for w in source
-        if w.confidence >= min_confidence and _norm_token(w.text)
+        if w.confidence >= min_confidence and normalize_token(w.text)
     ]
     if len(ref_parts) < n or len(src_parts) < n:
         return None, [], None
