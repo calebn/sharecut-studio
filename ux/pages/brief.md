@@ -94,6 +94,7 @@ Propose tighten/focus/transcript fixes via host MCP/CLI → same project file th
 5. **Same project, many clients** — GUI, CLI, and agent mutate one episode project.
 6. **Progressive complexity** — guests only see capabilities their share token allows (ReviewApp vs Sharecut Studio).
 7. **Primary chrome stays reachable** — on narrow widths, Comment/Fit icons stay visible; secondary controls go under Menu.
+8. **Contextual discovery** — selection sheets show related commands ("You might also want…"); gestures have a cheatsheet. Users shouldn't hunt through menus to find what goes with their current task.
 
 ---
 
@@ -162,6 +163,6 @@ See [Screen inventory](#/screens), [Guest journeys](#/journeys), [Domain glossar
 - [gui-mobile.md](https://github.com/calebn/sharecut-studio/blob/main/docs/gui-mobile.md) — responsive shells (implementation)
 - [episode-format-v2.md](https://github.com/calebn/sharecut-studio/blob/main/docs/episode-format-v2.md) — project file truth
 - [daw-editing.md](https://github.com/calebn/sharecut-studio/blob/main/docs/daw-editing.md) — modifier / document-command model
-- [host-online-relay.md](https://github.com/calebn/sharecut-studio/blob/main/docs/host-online-relay.md) — share links, proxy media, object storage, remote MCP
+- [host-online-relay.md](https://github.com/calebn/sharecut-studio/blob/main/docs/host-online-relay.md) — share links, proxy media, Spaces, remote MCP
 - [session-sync.md](https://github.com/calebn/sharecut-studio/blob/main/docs/session-sync.md) — live sync, presence, guest offline queue
 - [ROADMAP.md](https://github.com/calebn/sharecut-studio/blob/main/ROADMAP.md) — shipping backlog
