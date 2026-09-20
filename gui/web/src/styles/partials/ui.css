@@ -5,6 +5,16 @@
   display: inline-flex;
 }
 
+.ui-menu-panel {
+  min-height: 0;
+  max-height: min(90dvh, var(--menu-available-height));
+  overflow-y: auto;
+}
+
+.ui-menu-panel > * {
+  flex-shrink: 0;
+}
+
 .ui-menu-section {
   display: flex;
   flex-direction: column;
