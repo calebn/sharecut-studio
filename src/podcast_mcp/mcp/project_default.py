@@ -28,6 +28,8 @@ from collections.abc import Callable
 from functools import wraps
 from typing import Any
 
+from mcp.server.mcpserver.exceptions import ToolError
+
 ENV_VAR = "PODCAST_MCP_PROJECT"
 
 
@@ -105,7 +107,13 @@ def with_default_project(fn: Callable[..., Any]) -> Callable[..., Any]:
         # callers follow what they see ...
         bound = new_sig.bind_partial(*args, **kwargs)
         if not bound.arguments.get("project_path"):
-            bound.arguments["project_path"] = resolve_project_path(None)
+            try:
+                bound.arguments["project_path"] = resolve_project_path(None)
+            except ValueError as exc:
+                # MCP SDK 2.2.0 turns non-ToolError exceptions into
+                # UnexpectedToolError, which hides the message from the
+                # agent. Raise ToolError so the helpful text reaches them.
+                raise ToolError(str(exc)) from exc
         # ... then rebind by name against the original signature so the
         # underlying function always receives its own parameter order.
         orig_bound = sig.bind_partial(**bound.arguments)

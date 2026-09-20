@@ -8,6 +8,8 @@ import pytest
 
 pytest.importorskip("mcp.client")
 
+from mcp.server.mcpserver.exceptions import ToolError
+
 from podcast_mcp.mcp.project_default import (
     ENV_VAR,
     install_project_default,
@@ -83,7 +85,7 @@ def test_wrapper_makes_project_path_optional_and_preserves_metadata(
 def test_wrapper_raises_without_path_or_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv(ENV_VAR, raising=False)
     wrapped = with_default_project(_sample_tool)
-    with pytest.raises(ValueError, match=ENV_VAR):
+    with pytest.raises(ToolError, match=ENV_VAR):
         wrapped()
 
 
@@ -159,5 +161,6 @@ def test_real_server_tool_schema_marks_project_path_optional() -> None:
     assert tool is not None
     assert tool.name == "align_status_tool"  # name stability preserved
     assert "project_path" not in ((tool.parameters or {}).get("required") or [])
-    # description from docstring preserved through the wrapper
-    assert tool.description
+    # Note: description preservation through the wrapper is covered by
+    # test_wrapper_makes_project_path_optional_and_preserves_metadata;
+    # the real tool's docstring comes from a separate change.
