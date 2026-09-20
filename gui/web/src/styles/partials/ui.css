@@ -5,16 +5,6 @@
   display: inline-flex;
 }
 
-.ui-menu-panel {
-  min-height: 0;
-  max-height: min(90dvh, var(--menu-available-height));
-  overflow-y: auto;
-}
-
-.ui-menu-panel > * {
-  flex-shrink: 0;
-}
-
 .ui-menu-section {
   display: flex;
   flex-direction: column;
@@ -354,4 +344,50 @@
     color: var(--color-text-primary);
     border-color: transparent;
   }
+}
+
+/* FocusPull: view transition — incoming content sharpens from a slight blur,
+ * like a camera pulling focus. Only animates when the user has not requested
+ * reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .focus-pull-enter {
+    animation: focus-pull-in 450ms ease-out;
+  }
+}
+
+@keyframes focus-pull-in {
+  from {
+    opacity: 0;
+    filter: blur(0.375rem);
+    transform: scale(0.99);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: scale(1);
+  }
+}
+
+/* GesturesSheet: gesture → command reference list */
+.gesture-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.gesture-item {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.gesture-name {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.gesture-detail {
+  margin: 0;
+  color: var(--color-text-secondary);
 }
