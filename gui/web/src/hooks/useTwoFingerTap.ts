@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, type RefObject } from "react";
 import { execute } from "../commands/execute";
 
 const TWO_FINGER_TAP_MAX_MS = 300;
@@ -9,7 +9,7 @@ const TWO_FINGER_TAP_MAX_MOVE_PX = 24;
  * Attaches to the given element (or document) and triggers history.undo
  * on a quick two-finger tap with minimal movement.
  */
-export function useTwoFingerTap(ref?: React.RefObject<HTMLElement | null>) {
+export function useTwoFingerTap(ref?: RefObject<HTMLElement | null>) {
   useEffect(() => {
     const el = ref?.current ?? document;
     let startTime = 0;
