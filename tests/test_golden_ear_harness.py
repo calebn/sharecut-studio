@@ -151,7 +151,7 @@ def _patch_harness(
 
 
 def test_parse_and_bound_helpers():
-    assert parse_classes(None) == ("filler", "pause")
+    assert parse_classes(None) == ("filler", "pause", "repetition", "restart")
     assert parse_classes("filler") == ("filler",)
     assert parse_classes(["pause"]) == ("pause",)
     with pytest.raises(ValueError, match="at least one"):
