@@ -560,6 +560,7 @@ def export_deliverables(project: EpisodeProject, defaults: dict[str, Any]) -> St
     eng = ffmpeg()
     export_cfg = defaults.get("export", {})
     from podcast_mcp.export.audio import export_episode_audio
+    from podcast_mcp.export.names import sanitize_export_stem
 
     with resolve_progress_task(
         "export_deliverables",
@@ -577,7 +578,9 @@ def export_deliverables(project: EpisodeProject, defaults: dict[str, Any]) -> St
         extras: list[str] = []
         if project.chapters:
             prog.set_phase("chapters", "Writing chapters…")
-            chapters_path = project.export_dir() / f"{project.name}.chapters.json"
+            chapters_path = (
+                project.export_dir() / f"{sanitize_export_stem(project.name)}.chapters.json"
+            )
             chapters_path.write_text(
                 json.dumps([c.model_dump() for c in project.chapters], indent=2),
                 encoding="utf-8",
@@ -592,7 +595,7 @@ def export_deliverables(project: EpisodeProject, defaults: dict[str, Any]) -> St
 
             prog.set_phase("transcript", "Writing transcript exports…")
             write_combined_transcript_markdown(project)
-            srt = project.export_dir() / f"{project.name}.srt"
+            srt = project.export_dir() / f"{sanitize_export_stem(project.name)}.srt"
             srt.write_text(utterances_to_srt(project), encoding="utf-8")
             extras.append("SRT+MD")
 

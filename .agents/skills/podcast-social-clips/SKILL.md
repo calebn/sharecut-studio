@@ -17,7 +17,9 @@ description: >-
 ## Workflow
 
 1. Episode should have `transcribe` + `merge_transcript` (or full pipeline through mix).
-2. Prefer listenable audio: `artifacts/premix.wav` or `export/{name}.wav`.
+2. Prefer listenable audio: `artifacts/premix.wav` or `export/{name}.wav`. `{name}`
+   is a portable sanitized export stem; e.g. `My Episode: Part 1/2` is
+   `My_Episode_Part_1_2.wav` (never a nested export path).
 3. `propose_social_clips_tool` with optional `platform` (`tiktok`, `reels`, `linkedin`, `youtube_shorts`) — adjusts max duration via `.agents/defaults/pipeline.yaml`.
 4. `social_clip_report_tool` — present top candidates with score, timestamps, title/caption suggestions.
 5. User picks clips → `approve_social_clips_tool` with JSON id array.

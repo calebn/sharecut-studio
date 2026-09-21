@@ -9,6 +9,7 @@ import pytest
 
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, save_project
 from podcast_mcp.services import BounceRequest, BounceService, ProjectWorkspace
+from podcast_mcp.services.bounce import _slug
 
 
 def _seed_bounce_project(
@@ -75,6 +76,10 @@ def _ffmpeg_mock(*, mix_duration: float = 2.0) -> MagicMock:
         out.write_bytes(b"RIFFTRIM") or out
     )
     return eng
+
+
+def test_bounce_slug_preserves_legacy_hyphen_separator():
+    assert _slug(["Host Guest", "bounce"]) == "Host-Guest_bounce"
 
 
 def test_bounce_all_tracks_wav(minimal_project, sample_wav):

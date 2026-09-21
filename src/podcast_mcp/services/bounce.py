@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 import shutil
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -12,6 +11,7 @@ from pathlib import Path
 from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.timeline_render import timeline_duration_sec
 from podcast_mcp.export.audio import specs_from_extensions, write_audio_formats
+from podcast_mcp.export.names import sanitize_export_stem
 from podcast_mcp.models import Track, TrackRole
 from podcast_mcp.pipeline.helpers import ffmpeg
 from podcast_mcp.services.workspace import ProjectWorkspace
@@ -40,8 +40,7 @@ _BOUNCEABLE_ROLES = (
 
 def _slug(parts: list[str]) -> str:
     raw = "_".join(p for p in parts if p)
-    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", raw).strip("-._")
-    return cleaned or "bounce"
+    return sanitize_export_stem(raw, fallback="bounce", replacement="-", ascii_only=True)
 
 
 def _bounceable_tracks(project, wanted: set[str] | None) -> list[Track]:

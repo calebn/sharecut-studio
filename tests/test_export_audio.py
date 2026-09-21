@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -14,6 +15,7 @@ from podcast_mcp.export.audio import (
     specs_from_extensions,
     write_audio_formats,
 )
+from podcast_mcp.export.names import MAX_EXPORT_STEM_BYTES
 from podcast_mcp.models import EpisodeProject
 
 
@@ -110,6 +112,38 @@ def test_sanitize_export_stem():
     assert sanitize_export_stem("///") == "episode"
 
 
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        (".", "episode"),
+        ("..", "episode"),
+        (".release.", "release"),
+        ("CON", "CON_file"),
+        ("nul.txt", "nul_file.txt"),
+        ("Lpt9", "Lpt9_file"),
+    ],
+)
+def test_sanitize_export_stem_avoids_dot_paths_and_windows_devices(name: str, expected: str):
+    assert sanitize_export_stem(name) == expected
+
+
+def test_sanitize_export_stem_bounds_utf8_and_avoids_truncation_collisions():
+    ascii_name = "a" * 500
+    unicode_name = "é" * 500
+    same_prefix_other_name = "a" * 499 + "b"
+
+    ascii_stem = sanitize_export_stem(ascii_name)
+    unicode_stem = sanitize_export_stem(unicode_name)
+    other_stem = sanitize_export_stem(same_prefix_other_name)
+
+    assert len(ascii_stem.encode("utf-8")) <= MAX_EXPORT_STEM_BYTES
+    assert len(unicode_stem.encode("utf-8")) <= MAX_EXPORT_STEM_BYTES
+    assert len(f"{unicode_stem}.chapters.json".encode()) <= 255
+    assert ascii_stem == sanitize_export_stem(ascii_name)
+    assert ascii_stem != other_stem
+    assert ascii_stem.endswith("-" + hashlib.sha256(ascii_name.encode()).hexdigest()[:12])
+
+
 def test_export_episode_audio_sanitizes_slash_in_name(tmp_path: Path):
     project = EpisodeProject.create("My Episode: Part 1/2", str(tmp_path))
     project.ensure_dirs()
@@ -122,3 +156,22 @@ def test_export_episode_audio_sanitizes_slash_in_name(tmp_path: Path):
     assert (tmp_path / "export" / "My_Episode_Part_1_2.wav").is_file()
     assert not (tmp_path / "export" / "My Episode: Part 1").exists()
     assert len(paths) == 1
+
+
+@pytest.mark.parametrize(
+    ("project_name", "filename"),
+    [(".", "episode.wav"), ("../CON", "CON_file.wav")],
+)
+def test_export_episode_audio_keeps_dot_and_reserved_names_under_export(
+    tmp_path: Path, project_name: str, filename: str
+):
+    project = EpisodeProject.create(project_name, str(tmp_path))
+    project.ensure_dirs()
+    mastered = project.artifacts_dir() / "mastered.wav"
+    mastered.write_bytes(b"RIFF")
+
+    paths = export_episode_audio(project, MagicMock(), mastered, {"wav": True, "formats": []})
+
+    assert paths == [tmp_path / "export" / filename]
+    assert paths[0].is_file()
+    assert list((tmp_path / "export").iterdir()) == paths

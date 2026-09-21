@@ -5,6 +5,7 @@ from pathlib import Path
 
 from podcast_mcp.edits.transcript_cuts import ensure_combined_transcript
 from podcast_mcp.engines.session_timeline import SessionTimeline
+from podcast_mcp.export.names import sanitize_export_stem
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.timebase import SourceSec
 
@@ -54,7 +55,7 @@ def combined_transcript_markdown(project: EpisodeProject) -> str:
 
 def write_combined_transcript_markdown(project: EpisodeProject) -> Path:
     project.export_dir().mkdir(parents=True, exist_ok=True)
-    out = project.export_dir() / f"{project.name}.md"
+    out = project.export_dir() / f"{sanitize_export_stem(project.name)}.md"
     out.write_text(combined_transcript_markdown(project), encoding="utf-8")
     return out
 
