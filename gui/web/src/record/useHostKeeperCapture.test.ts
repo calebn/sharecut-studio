@@ -12,6 +12,8 @@ const mic = vi.hoisted(() =>
     devices: [],
     error: null,
     settingsWarning: null,
+    lost: false,
+    retry: vi.fn(),
   })),
 );
 

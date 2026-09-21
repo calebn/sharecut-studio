@@ -369,6 +369,15 @@ From `paused`, host-offline writes **no** PCM (clock is frozen); both PAUSED
 and host-offline copy may show. Landing places one **clip per segment** on
 that participant's track at `join_offset_ms`. No trailing pad.
 
+An involuntary microphone loss is distinct from an intentional track stop: the
+browser `ended` event freezes the current keeper segment and clears the live
+stream. The host and guest show a persistent "Microphone disconnected. Local
+recording is paused." warning with a Reconnect microphone action. Retry is
+explicit (there is no unbounded auto-retry); a successful reacquisition opens
+the next segment at the current recording-clock offset. A normal unmount or
+application stop removes the listener before stopping tracks and does not show
+the warning.
+
 ```mermaid
 sequenceDiagram
   participant B as Guest B
@@ -785,6 +794,7 @@ warning appears; sidetone level sane.
 | Late-join pad | Joiner at T+10 s → clip at `join_offset_ms` = 10 s ± 1 frame (default, no in-file pad). Optional origin encoding of **segment 0 only**: leading zeros 10 s ± 1 frame at 48 kHz. Later segments never padded in-file. |
 | Progressive upload | Fake transport + HTTP resume; keys `(session_id, take, participant, segment, part_seq)`; chunk hashes; kill mid-session; resume on same token completes; stop panel stays until ACK; host GET lists all participants. |
 | Host offline | Monitor tracks end; if the segment is still open, local WAV length **keeps growing**; copy string asserted. Intentional leave / lost mic finalizes the segment. |
+| Microphone loss | Test-only ended track reference: stale ended events are ignored, listeners are cleaned up, devicechange refreshes devices without declaring loss by itself, retry reacquires explicitly; the open keeper segment finalizes and the next segment resumes at the current recording-clock offset. A browser test ends the guest track before consent, blocks Accept, and verifies retry; no warning appears after an intentional stop. |
 | Host reconnect | Last host conn drop during REC/PAUSED persists `host_offline_since_wall_ms` (Leave or last-socket pop). Join after ≥ 10 s while REC → `paused` + one `PauseEntry.pause_reason == "host_reconnect"`; Join below 10 s stays recording; already paused → no second entry; sidecar crash without Leave (empty `_HOST_CONNS`, same sqlite) still pauses; Resume clears live `pause_reason`; remint while REC/PAUSED is 409 / CLI non-zero / MCP error; landing after that pause places clips abutting. Host keeper `resetKey` follows the open host-reconnect pause seq (Vitest), not WS `connected`. |
 | Landing | After ACK: `raw/` + one clip per **segment** per track at `join_offset_ms`; happy path skips `ingest suggest`; pad math unit-tested. Sample-count vs recording-clock on first overlapping file-acked pair: `|duration_error| > 50 ms` or missing `session_start` sets `align_fallback` hint (pipeline `align_tracks` after transcribe; not run at land). Unknown overlap / one recorded ACK → `drift_ms` null. |
 | Leave / rejoin | B leaves at T+300 s, rejoins at T+340 s (same `participant_id`): two segments, two clips on **one** track, second clip starts at 340 s ± 1 frame; no trailing pad on segment 1. New device = new track. |

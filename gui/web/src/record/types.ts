@@ -118,6 +118,7 @@ export function shouldApplyRecordSnapshot(
 }
 
 export const LOCAL_KEEPER_COPY = "Recording locally on this device.";
+export const RECONNECT_MIC_COPY = "Reconnect microphone";
 
 export const HEARING_COPY = "Hearing the room.";
 

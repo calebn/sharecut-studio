@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { RecordRole, RecordSnapshot } from "../types";
 import { attachKeeperTap } from "./graph";
 import { KeeperSession } from "./session";
@@ -39,6 +39,7 @@ export function useKeeperCapture({
     participantId,
     muted,
     consented,
+    streamAvailable: stream !== null,
   });
   gateRef.current = {
     enabled,
@@ -47,9 +48,10 @@ export function useKeeperCapture({
     participantId,
     muted,
     consented,
+    streamAvailable: stream !== null,
   };
 
-  const applyGate = async (session: KeeperSession) => {
+  const applyGate = useCallback(async (session: KeeperSession) => {
     const gate = gateRef.current;
     if (!gate.snapshot || !gate.participantId) {
       setWriting(false);
@@ -62,11 +64,12 @@ export function useKeeperCapture({
       takeIndex: gate.snapshot.take_index,
       recordingMs: gate.snapshot.recording_ms ?? 0,
       muted: gate.muted,
+      streamAvailable: gate.streamAvailable,
       sessionId: gate.snapshot.session_id,
       participantId: gate.participantId,
     });
     setWriting(session.isWriting);
-  };
+  }, []);
 
   useEffect(() => {
     if (!enabled || !participantId || !sessionId) {
@@ -121,7 +124,7 @@ export function useKeeperCapture({
         });
       }
     };
-  }, [enabled, participantId, sessionId, resetKey]);
+  }, [enabled, participantId, sessionId, resetKey, applyGate]);
 
   useEffect(() => {
     const session = sessionRef.current;
@@ -176,11 +179,13 @@ export function useKeeperCapture({
     participantId,
     role,
     epoch,
+    stream,
+    applyGate,
     snapshot?.state,
     snapshot?.take_index,
     sessionId,
   ]);
 
-  const recordingLocally = writing;
+  const recordingLocally = writing && stream !== null;
   return { error, recordingLocally };
 }

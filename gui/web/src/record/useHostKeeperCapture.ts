@@ -13,6 +13,8 @@ export function useHostKeeperCapture(enabled = true): {
   muted: boolean;
   monitorEnabled: boolean;
   snapshot: RecordSnapshot | null;
+  micLost: boolean;
+  retryMic: () => void;
 } {
   const { projectPath } = useDaw();
   const snapshot = useRecordHostStore((s) => s.snapshot);
@@ -55,5 +57,7 @@ export function useHostKeeperCapture(enabled = true): {
     muted: host?.muted ?? false,
     monitorEnabled: hostOn && !!snapshot && connected,
     snapshot,
+    micLost: mic.lost,
+    retryMic: mic.retry,
   };
 }
