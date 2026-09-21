@@ -541,7 +541,8 @@ export const useDawStore = create<DawStore>((set, get) => ({
   setBladeConfirmSec: (bladeConfirmSec: number | null) =>
     set({ bladeConfirmSec }),
   setShellBreakpoint: (shellBreakpoint) => set({ shellBreakpoint }),
-  setPointerKind: (pointerKind) => set({ pointerKind }),
+  setPointerKind: (pointerKind) =>
+    set((s) => (s.pointerKind === pointerKind ? s : { pointerKind })),
   setMobileMode: (mobileMode) =>
     set({
       mobileMode,

@@ -1,5 +1,6 @@
-import { act, renderHook } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { useFollowUi } from "../hooks/useFollowUi";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import { setPresenceCursor, setPresenceCursorSink } from "./followSync";
@@ -91,38 +92,11 @@ describe("usePresencePublisher", () => {
     ).toBe(true);
   });
 
-  it("sends mobile_mode when the pointer is coarse, regardless of breakpoint", () => {
+  it("maps a touch desktop tab to a phone mode that followers apply", () => {
     useDawStore.setState({
       followingClientId: null,
       pointerKind: "coarse",
-      mobileMode: "timeline",
-      shellBreakpoint: "desktop",
-    });
-    const sent: Record<string, unknown>[] = [];
-    renderHook(() =>
-      usePresencePublisher((frame) => sent.push(frame), "Guest"),
-    );
-    expect(lastUi(sent).mobile_mode).toBe("timeline");
-  });
-
-  it("omits mobile_mode when the pointer is fine, even on the phone shell", () => {
-    useDawStore.setState({
-      followingClientId: null,
-      pointerKind: "fine",
-      mobileMode: "timeline",
-      shellBreakpoint: "phone",
-    });
-    const sent: Record<string, unknown>[] = [];
-    renderHook(() =>
-      usePresencePublisher((frame) => sent.push(frame), "Guest"),
-    );
-    expect(lastUi(sent).mobile_mode).toBeNull();
-  });
-
-  it("updates mobile_mode live when the pointer kind switches mid-session", () => {
-    useDawStore.setState({
-      followingClientId: null,
-      pointerKind: "coarse",
+      activeTab: "transcript",
       mobileMode: "listen",
       shellBreakpoint: "desktop",
     });
@@ -130,14 +104,58 @@ describe("usePresencePublisher", () => {
     renderHook(() =>
       usePresencePublisher((frame) => sent.push(frame), "Guest"),
     );
-    expect(lastUi(sent).mobile_mode).toBe("listen");
-    act(() => {
-      useDawStore.setState({ pointerKind: "fine" });
+    const ui = lastUi(sent);
+    expect(ui.mobile_mode).toBe("text");
+
+    useDawStore.setState({
+      shellBreakpoint: "phone",
+      followingClientId: "leader",
+      activeTab: "comments",
+      mobileMode: "listen",
+      sessionClients: [
+        {
+          client_id: "leader",
+          role: "viewer",
+          last_seen_ns: Date.now() * 1e6,
+          meta: { ui },
+        },
+      ],
     });
-    expect(lastUi(sent).mobile_mode).toBeNull();
-    act(() => {
-      useDawStore.setState({ pointerKind: "coarse" });
-    });
-    expect(lastUi(sent).mobile_mode).toBe("listen");
+    renderHook(() => useFollowUi());
+    expect(useDawStore.getState().mobileMode).toBe("text");
   });
+
+  it.each(["listen", "timeline"] as const)(
+    "keeps phone %s mode for a mouse leader and follower",
+    (mode) => {
+      useDawStore.setState({
+        followingClientId: null,
+        pointerKind: "fine",
+        mobileMode: mode,
+        shellBreakpoint: "phone",
+      });
+      const sent: Record<string, unknown>[] = [];
+      renderHook(() =>
+        usePresencePublisher((frame) => sent.push(frame), "Guest"),
+      );
+      const ui = lastUi(sent);
+      expect(ui.mobile_mode).toBe(mode);
+
+      useDawStore.setState({
+        followingClientId: "leader",
+        activeTab: "comments",
+        mobileMode: "text",
+        sessionClients: [
+          {
+            client_id: "leader",
+            role: "viewer",
+            last_seen_ns: Date.now() * 1e6,
+            meta: { ui },
+          },
+        ],
+      });
+      renderHook(() => useFollowUi());
+      expect(useDawStore.getState().mobileMode).toBe(mode);
+    },
+  );
 });

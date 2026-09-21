@@ -25,9 +25,10 @@ export function pointerKindFromPointerType(
 }
 
 /**
- * Initial input kind from the `(any-pointer: coarse)` capability query, so
- * the value is correct on first paint — before any pointer event has been
- * observed. Falls back to "fine" outside a browser (SSR/tests without
+ * Initial input kind from capability queries, so the value is correct on
+ * first paint — before any pointer event has been observed. A primary fine
+ * pointer wins on hybrid devices; otherwise any coarse pointer is enough to
+ * choose coarse. Falls back to "fine" outside a browser (SSR/tests without
  * matchMedia).
  */
 export function initialPointerKind(): PointerKind {
@@ -37,13 +38,16 @@ export function initialPointerKind(): PointerKind {
   ) {
     return "fine";
   }
+  if (window.matchMedia("(pointer: fine)").matches) {
+    return "fine";
+  }
   return window.matchMedia("(any-pointer: coarse)").matches ? "coarse" : "fine";
 }
 
 /**
  * Track the last-used pointing device: fine (mouse/pen) vs coarse (touch).
  *
- * Initializes from the `(any-pointer: coarse)` capability query, then updates
+ * Initializes from primary-fine then any-coarse capability queries, then updates
  * live on real pointerdown/pointermove events, so mid-session switches
  * (pen <-> finger) are reflected immediately. Unknown/empty `pointerType`
  * values keep the last known kind.
@@ -60,15 +64,21 @@ export function usePointerType(): PointerKind {
     useDawStore.getState().setPointerKind(initialPointerKind());
     const onPointer = (e: PointerEvent) => {
       const kind = pointerKindFromPointerType(e.pointerType);
-      if (kind !== null) {
+      if (kind !== null && useDawStore.getState().pointerKind !== kind) {
         useDawStore.getState().setPointerKind(kind);
       }
     };
-    window.addEventListener("pointerdown", onPointer, { passive: true });
-    window.addEventListener("pointermove", onPointer, { passive: true });
+    window.addEventListener("pointerdown", onPointer, {
+      capture: true,
+      passive: true,
+    });
+    window.addEventListener("pointermove", onPointer, {
+      capture: true,
+      passive: true,
+    });
     return () => {
-      window.removeEventListener("pointerdown", onPointer);
-      window.removeEventListener("pointermove", onPointer);
+      window.removeEventListener("pointerdown", onPointer, true);
+      window.removeEventListener("pointermove", onPointer, true);
     };
   }, []);
   return pointerKind;
