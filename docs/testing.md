@@ -216,6 +216,13 @@ E2e runs use `--no-cov` so they do not affect the coverage gate when run standal
 
 GitHub Actions workflow `.github/workflows/test.yml` runs three parallel jobs on push and pull requests to `main`. **All three must pass** (including Playwright axe) for a green build:
 
+The room-tone Accept browser scenario opts into a deterministic PCM harness in
+addition to the existing `e2e=1` and Playwright init flags. Headless Chromium's
+fake microphone may remain live while its `AudioContext` clock advances too
+slowly to feed the worklet. The harness is limited to that explicitly flagged
+test, then follows the normal PCM-to-WAV, OPFS, and Accept code paths; it must
+not change the production capture timeout or be enabled by general E2E setup.
+
 | Job | What |
 |-----|------|
 | `pytest` | `ruff check` + `ruff format --check` + `bandit` + `vulture` + `deptry` + `mypy` + `pytest -n auto -m "not e2e_slow and not e2e_real"` (Python coverage gate) |
