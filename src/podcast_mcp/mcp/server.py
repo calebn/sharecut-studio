@@ -12,6 +12,22 @@ mcp = MCPServer("podcast-mcp", version=__version__)
 install_mcp_progress(mcp)
 register_all(mcp)
 
+_HELP_TEXT = f"""podcast-mcp {__version__}
+
+Sharecut Studio MCP server. Runs on stdio by default so any MCP
+harness (Claude Code, Claude Desktop, Cursor, Cline, Windsurf, ...)
+can launch it with zero configuration:
+
+    {{\"mcpServers\": {{\"podcast\": {{\"command\": \"podcast-mcp\"}}}}}}
+
+Options:
+  -h, --help       Show this help and exit.
+  -V, --version    Print the version and exit.
+
+For co-editing with the DAW open, the GUI also serves MCP over
+Streamable HTTP at http://127.0.0.1:8765/mcp (Menu > Connect agent...).
+Docs: https://docs.sharecut.studio/#/mcp-setup"""
+
 # Re-export handlers for tests and direct invocation
 from podcast_mcp.mcp.tools.align import (  # noqa: E402, F401
     align_brief_tool,
@@ -187,23 +203,7 @@ from podcast_mcp.mcp.tools.transcript import (  # noqa: E402, F401
 
 def main() -> None:
     if any(arg in ("-h", "--help") for arg in sys.argv[1:]):
-        print(
-            f"podcast-mcp {__version__}\n"
-            "\n"
-            "Sharecut Studio MCP server. Runs on stdio by default so any MCP\n"
-            "harness (Claude Code, Claude Desktop, Cursor, Cline, Windsurf, ...)\n"
-            "can launch it with zero configuration:\n"
-            "\n"
-            '    {"mcpServers": {"podcast": {"command": "podcast-mcp"}}}\n'
-            "\n"
-            "Options:\n"
-            "  -h, --help       Show this help and exit.\n"
-            "  -V, --version    Print the version and exit.\n"
-            "\n"
-            "For co-editing with the DAW open, the GUI also serves MCP over\n"
-            "Streamable HTTP at http://127.0.0.1:8765/mcp (Menu → Connect agent…).\n"
-            "Docs: docs/mcp-setup.md"
-        )
+        print(_HELP_TEXT)
         return
     if any(arg in ("-V", "--version") for arg in sys.argv[1:]):
         print(f"podcast-mcp {__version__}")

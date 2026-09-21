@@ -17,6 +17,7 @@ operated privately; contributors update and verify the contents locally.
 |------|-----------------|
 | Home | [pages/home.md](pages/home.md) (alpha banner) |
 | Quickstart | [pages/quickstart.md](pages/quickstart.md) |
+| Set up local MCP | [pages/mcp-setup.md](pages/mcp-setup.md) |
 | Capabilities | [pages/capabilities.md](pages/capabilities.md) (auto from capability manifest — `make schema-export`) |
 | Document commands | [pages/document-commands.md](pages/document-commands.md) (auto from schema — `make schema-export`) |
 | Share HTTP | [pages/share-http.md](pages/share-http.md) (collaboration extension; routes auto from FastAPI) |

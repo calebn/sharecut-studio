@@ -3,6 +3,11 @@
     "": { file: "home.md", title: "Home", nav: "home" },
     home: { file: "home.md", title: "Home", nav: "home" },
     quickstart: { file: "quickstart.md", title: "Quickstart", nav: "quickstart" },
+    "mcp-setup": {
+      file: "mcp-setup.md",
+      title: "Set up local MCP",
+      nav: "mcp-setup",
+    },
     capabilities: {
       file: "capabilities.md",
       title: "Capabilities",
@@ -64,7 +69,7 @@
   function rewriteInternalLinks(html) {
     return html
       .replace(
-        /href="#\/(capabilities|document-commands|share-http|remote-mcp|quickstart|errors|threat-model|home)?"/g,
+        /href="#\/(capabilities|document-commands|share-http|remote-mcp|quickstart|mcp-setup|errors|threat-model|home)?"/g,
         (m) => m,
       )
       .replace(/src="\.\.\/assets\//g, 'src="./assets/');
