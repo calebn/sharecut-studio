@@ -13,7 +13,7 @@ import type {
  * preserve it and surface close failures only after otherwise successful work.
  */
 export async function withTwoBrowserPages<T>(
-  browser: Browser,
+  browser: Pick<Browser, "newContext">,
   firstContextOptions: BrowserContextOptions,
   secondContextOptions: BrowserContextOptions,
   run: (firstPage: Page, secondPage: Page) => Promise<T>,
