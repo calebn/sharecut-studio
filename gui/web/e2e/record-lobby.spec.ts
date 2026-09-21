@@ -372,6 +372,14 @@ test.describe("record lobby", () => {
         ).toBeVisible();
         await expect(host.getByText(/Ava · consented/)).toBeVisible();
 
+        // RecordApp changes views through FocusPull. Visible text assertions
+        // can pass while the incoming view is still fading in over the outgoing
+        // view, so wait for all transient layers to be removed before contrast.
+        await expect(
+          guest.locator(
+            ".focus-pull-exit, .focus-pull-pending, .focus-pull-enter",
+          ),
+        ).toHaveCount(0);
         await expectReadingSurfaceAxeClean(guest);
         await expectReadingSurfaceAxeClean(producer);
       } finally {
