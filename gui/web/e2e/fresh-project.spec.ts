@@ -3,6 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
 import { registerE2eCleanupWorkspace } from "./cleanupManifest";
+import { e2eProjectPath } from "./env";
+import { switchE2eProject } from "./shareableProject";
 
 test("new project stays fresh without an audio error on desktop and phone", async ({
   page,
@@ -43,8 +45,12 @@ test("new project stays fresh without an audio error on desktop and phone", asyn
     try {
       await page.close();
     } finally {
-      if (!registered) {
-        fs.rmSync(workspaceDir, { recursive: true, force: true });
+      try {
+        await switchE2eProject(e2eProjectPath);
+      } finally {
+        if (!registered) {
+          fs.rmSync(workspaceDir, { recursive: true, force: true });
+        }
       }
     }
   }
