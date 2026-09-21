@@ -39,21 +39,11 @@ Phone four-mode chrome is **≤767 CSS px**. DevTools device-mode / CDP viewport
 | **Listen** | Mix-oriented scrubber, comment list, status chips | Guest review, audition |
 | **Timeline** | Fixed-center playhead scrub, Ferrite lane gutter (sticky identity), layer chips | Spatial edit / seek |
 | **Text** | Transcript panel (follow, edit, cut-away) | Word fix, suggest cut |
-| **More** | Hub → Comments, History, Impact, Tighten, Mix, Pipeline, settings | Long-lived panels |
+| **More** | Hub → Comments, History, Impact, Tighten, Pipeline, settings | Long-lived panels |
 
-While `project === null` (progressive load), Listen keeps its single body transport with disabled play and a “Loading episode…” well; Timeline shows skeleton lanes in the same header/gutter grid. That chrome is not the ingest empty-session coach.
+While `project === null` (progressive load), Listen keeps its single body transport with disabled play and a “Loading episode…” well; the shell header row is absent. Timeline shows skeleton lanes below its compact header transport and gutter grid. That chrome is not the ingest empty-session coach.
 
-Selection opens a non-modal **half → full** [`BottomSheet`](../gui/web/src/ui/BottomSheet.tsx) wrapping the same inspector views as desktop (`aria-modal="false"`, Escape + focus restore, no chrome `inert` / Tab trap). Sheets are transient: visible Close, no stacking (drill to a More destination instead).
-
-### Selection sheet: three zones
-
-Every selection sheet follows the same three-zone layout for consistency:
-
-1. **Primary actions** — the inspector content itself (2-3 most common actions, large targets)
-2. **Related commands** ("You might also want…") — contextual commands users often need next, via `RelatedCommands` component (`gui/web/src/inspector/RelatedCommands.tsx`). Mappings in `relatedCommands.ts`.
-3. **More** — overflow to full command list filtered by context (future)
-
-Example: Clip selected → Related shows Set fade, Ripple delete, Blade cut.
+Selection opens a non-modal **half → full** [`BottomSheet`](../gui/web/src/ui/BottomSheet.tsx) wrapping the same inspector views as desktop (`aria-modal="false"`, Escape + focus restore, no chrome `inert` / Tab trap). Modifier sheets (pending, clip, track, chapter — any `.modifier-inspector`) pin the mutation error and audition footer; long Ask threads scroll in the body; long mutation errors scroll inside a capped error slot. The taller half peek (`:has(.modifier-inspector)`) applies to every modifier, not only pending. Sheets are transient: visible Close, no stacking (drill to a More destination instead). Deferred: mutation error across shell remount, Firefox layout CI, overlapping Approve — [ROADMAP.md § Follow-up](../ROADMAP.md#follow-up).
 
 ### Selection sheet: three zones
 
@@ -69,8 +59,8 @@ Example: Clip selected → Related shows Copy; More reports no additional action
 
 | Desktop region | Phone home |
 |----------------|------------|
-| Transport play/time/audition | Compact transport; audition/zoom in Menu |
-| Comment / Fit | Stay as primary **icons** when collapsed; Fit hidden on Listen (in Menu) |
+| Transport play/time/audition | Listen body transport; compact header transport on Timeline, Text, and More; audition/zoom in Menu |
+| Comment / Fit | Header primary **icons** outside Listen; Fit is available on Timeline and in the non-Listen Menu |
 | Track headers M/S/FX | Lane gutter tap (whole row + ›) → track sheet (**M**/**S** toggles + gain readout; drag Levels for envelopes). Header mixer chrome hidden when the timeline pane is narrow |
 | Timeline overlays | Timeline mode + layer chips |
 | Inspector | Selection sheet |
@@ -93,26 +83,14 @@ Two-finger Undo is active only while a project is loaded and the shared Undo com
 | Swipe left on comment | Resolve | Planned (Soon) |
 | Double-tap word | Correct word | Planned (Soon) |
 
-### Gestures
-
-Touch gestures for common actions, documented in the **Gestures** cheatsheet (More hub → Gestures). Standalone from the desktop keyboard shortcut modal — mobile users don't need keyboard shortcuts, desktop users don't need gestures. Both read from the same command catalog.
-
-| Gesture | Command | Status |
-|---------|---------|--------|
-| Two-finger tap | Undo | Available (`useTwoFingerTap` on MobileShell) |
-| Long-press | Context actions (selection sheet) | Available (tap also works) |
-| Pinch | Zoom timeline | Available |
-| Swipe left on comment | Resolve | Planned |
-| Double-tap word | Correct word | Planned |
-
 ## Wireframes (ASCII)
 
 ### Phone — Listen
 
 ```
-┌─ Play  Pause  12:34 / 58:39  [⋯] ─┐
+┌─ Play  Stop  12:34 / 58:39 ───────┐
 │ ══════════●═══════════════════    │  ← coarse scrub
-│ ±15s                    Mix▾      │
+│ ±15s                              │
 │ Pending: 3  ·  Stale render       │  ← chips (Pending → Timeline + first review-required)
 │ Activity: running · Aligning… 0:12│  ← Pipeline chip taps More/Pipeline; Activity chip is status-only
 │ ───────────────────────────────── │

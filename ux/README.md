@@ -21,6 +21,7 @@ privately; contributors update and verify the contents locally.
 | Guest journeys | [pages/guest-journeys.md](pages/guest-journeys.md) |
 | Glossary | [pages/domain-glossary.md](pages/domain-glossary.md) |
 | Keyboard shortcuts | [pages/shortcuts.md](pages/shortcuts.md) (auto from keymap — `make cheatsheet`) |
+| Mobile | [pages/mobile.md](pages/mobile.md) |
 | Backlog | [pages/ux-backlog.md](pages/ux-backlog.md) |
 
 Remote-agent / share MCP context for UX partners is in [Brief](pages/brief.md) (personas) and [Glossary](pages/domain-glossary.md) (partner terms). Guest chrome: [Screens → Guest / share](pages/screen-inventory.md) + [Guest / record](pages/screen-inventory.md) (lobby + keepers + mix-minus shipped) + [Guest journeys](pages/guest-journeys.md). Engineer depth: [docs/host-online-relay.md](../docs/host-online-relay.md), [docs/session-sync.md](../docs/session-sync.md), [docs/recording-session.md](../docs/recording-session.md). API contracts: [docs.sharecut.studio](https://docs.sharecut.studio/).
