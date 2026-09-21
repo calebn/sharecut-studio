@@ -1401,13 +1401,30 @@ def test_join_continuity_verdicts_and_scorer_errors():
             "join_continuity_gate": True,
         }
     }
+    sentinel_cache = object()
+    project = _project_with_transcript(words)
+    with (
+        patch(
+            "podcast_mcp.edits.fillers.build_track_audio_caches",
+            return_value={"host": sentinel_cache},
+        ),
+        patch(
+            "podcast_mcp.edits.join_continuity.assess_proposed_cut",
+            return_value=SimpleNamespace(verdict="review"),
+        ) as assess,
+    ):
+        analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
+    assert assess.call_args.kwargs["audio_caches"] == {"host": sentinel_cache}
+    assert assess.call_args.kwargs["audio_caches"]["host"] is sentinel_cache
+
     project = _project_with_transcript(words)
     with patch(
         "podcast_mcp.edits.join_continuity.assess_proposed_cut",
         return_value=SimpleNamespace(verdict="fail"),
-    ):
+    ) as assess:
         analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
     assert project.edit_decisions == []
+    assert assess.call_args.kwargs["audio_caches"] is None
 
     project = _project_with_transcript(words)
     with patch(
