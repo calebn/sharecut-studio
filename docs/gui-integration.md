@@ -155,6 +155,11 @@ reason}` and records the waiver through `TranscriptRefineService` with source
 `user`. The GUI exposes it only when an approval receives the transcript-refine
 gate error. Share guests cannot use this recovery path; waiving never approves
 the pending edit automatically.
+The document-command gate responds with HTTP 409 and
+`X-Sharecut-Error-Code: transcript_refine_required`; the GUI uses that stable
+code to show recovery guidance without exposing the CLI-oriented server hint.
+The waiver route is host-origin protected and serializes its project save with
+document commands.
 
 ### Layout (Reaper-style)
 

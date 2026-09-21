@@ -7,6 +7,7 @@ import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
+import { ApiError, TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
 import { ImpactPanel } from "./ImpactPanel";
 
 vi.mock("../api", () => ({
@@ -57,7 +58,9 @@ describe("ImpactPanel transcript refine recovery", () => {
 
   it("offers a waiver after bulk approval is blocked without retrying approval", async () => {
     const user = userEvent.setup();
-    vi.mocked(approveEdits).mockRejectedValue(new Error(blocked));
+    vi.mocked(approveEdits).mockRejectedValue(
+      new ApiError(blocked, TRANSCRIPT_REFINE_REQUIRED_CODE),
+    );
     vi.mocked(waiveTranscriptRefine).mockResolvedValue();
     const { container } = render(
       <DawProvider projectPath="/tmp/p.json" initialProject={project()}>
@@ -68,7 +71,10 @@ describe("ImpactPanel transcript refine recovery", () => {
     expect(
       await screen.findByRole("button", { name: "Waive with reason" }),
     ).toBeInTheDocument();
-    expect(screen.getByText(blocked)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Review the transcript or waive with a reason below/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(blocked)).toBeNull();
     await expectNoA11yViolations(container);
     await user.type(
       screen.getByRole("textbox", { name: "Waiver reason" }),

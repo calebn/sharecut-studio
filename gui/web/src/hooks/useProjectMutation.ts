@@ -3,6 +3,7 @@ import { refreshProject } from "../api";
 import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
 import { useDaw } from "../state/useDaw";
 import type { ProjectView } from "../types/project";
+import { ApiError } from "../utils/apiError";
 
 /**
  * Shared busy/error wrapper for inspector/panel mutations that hit the project API.
@@ -10,6 +11,7 @@ import type { ProjectView } from "../types/project";
 export function useProjectMutation(): {
   busy: boolean;
   error: string | null;
+  errorCode: string | null;
   setError: (msg: string | null) => void;
   run: <T>(fn: () => Promise<T>) => Promise<T | undefined>;
   refresh: () => Promise<ProjectView>;
@@ -17,7 +19,13 @@ export function useProjectMutation(): {
 } {
   const { projectPath } = useDaw();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setErrorState] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
+
+  const setError = useCallback((message: string | null) => {
+    setErrorState(message);
+    setErrorCode(null);
+  }, []);
 
   const refresh = useCallback(async () => {
     const next = await refreshProject(projectPath);
@@ -32,14 +40,15 @@ export function useProjectMutation(): {
       try {
         return await fn();
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        setErrorState(e instanceof Error ? e.message : String(e));
+        setErrorCode(e instanceof ApiError ? e.code : null);
         return undefined;
       } finally {
         setBusy(false);
       }
     },
-    [],
+    [setError],
   );
 
-  return { busy, error, setError, run, refresh, projectPath };
+  return { busy, error, errorCode, setError, run, refresh, projectPath };
 }
