@@ -112,9 +112,9 @@ test.describe("Sharecut Studio mobile smoke", () => {
     await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
     const shell = page.locator(".daw-shell--phone");
     await expect(shell).toBeVisible();
-    await expect(
-      page.locator(".mobile-listen[aria-busy='true']"),
-    ).toHaveCount(0);
+    await expect(page.locator(".mobile-listen[aria-busy='true']")).toHaveCount(
+      0,
+    );
     await expect(page.getByRole("button", { name: "Play" })).toBeEnabled();
     const box = await shell.boundingBox();
     expect(box).toBeTruthy();
