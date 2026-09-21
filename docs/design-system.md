@@ -58,9 +58,8 @@ every new component in both themes before merging.
 - a11y addon runs wcag2a/wcag2aa checks per story; the repo's axe posture
   (shared `ui/` changes need axe checks) applies to Storybook-visible changes
   too.
-- Token naming system: canonical doc is [issue
-  #81](https://github.com/calebn/sharecut-studio/issues/81) until
-  `docs/design-tokens.md` lands with it. The primitive palette
+- Token naming system: [design-tokens.md](design-tokens.md) defines the naming
+  tiers and usage rules. The primitive palette
   (`primitives.css`) is the raw-value tier stories ultimately resolve to.
 
 ## Changelog

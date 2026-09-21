@@ -364,7 +364,9 @@ describe("RecordApp", () => {
     expect(screen.queryByRole("button", { name: MIC_ALLOW_LABEL })).toBeNull();
     expect(screen.queryByText(ROOM_TONE_PROMPT_COPY)).toBeNull();
     expect(getUserMedia).not.toHaveBeenCalled();
-    expect(document.title).toBe("Producer — not recorded — Shot of Truth");
+    await waitFor(() => {
+      expect(document.title).toBe("Producer — not recorded — Shot of Truth");
+    });
     expect(sockets).toHaveLength(0);
     await expectNoA11yViolations(container);
   });
