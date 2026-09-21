@@ -206,6 +206,8 @@ Keep the Reaper grid. Shared polish:
 
 Do **not** bring phone bottom-nav or CapCut fixed playhead to desktop.
 
+Host offline command attention occupies its own shell row on phone, tablet, and desktop; queued host edits stay visible while reconnect/replay is pending, and conflict rows can be dismissed. The share-mode label remains guest-only.
+
 ## Testing
 
 - Vitest: `useViewportClass`, `BottomSheet`, mobile shell smoke, follow live region + Listen unfollow, focus mode CSS classes

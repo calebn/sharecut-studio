@@ -4,13 +4,13 @@ import {
   clearConflicts,
   clearHostConflicts,
   loadConflicts,
-  loadHostCommandQueue,
+  loadHostCommandCount,
   loadHostConflicts,
   type OfflineConflict,
 } from "../state/offlineStore";
 import { useDaw } from "../state/useDaw";
 
-/** Needs-attention list for guest 409 conflicts (IndexedDB). */
+/** Pending host edits and host/guest 409 conflicts from IndexedDB. */
 export function GuestAttentionBanner() {
   const { projectPath } = useDaw();
   const [conflicts, setConflicts] = useState<OfflineConflict[]>([]);
@@ -28,12 +28,12 @@ export function GuestAttentionBanner() {
         ? loadConflicts(token)
         : loadHostConflicts(projectPath);
       const queue = token
-        ? Promise.resolve([])
-        : loadHostCommandQueue(projectPath);
+        ? Promise.resolve(0)
+        : loadHostCommandCount(projectPath);
       void queue
-        .catch(() => [])
-        .then((items) => {
-          if (!cancelled) setPending(items.length);
+        .catch(() => 0)
+        .then((count) => {
+          if (!cancelled) setPending(count);
         });
       void load
         .catch(() => [])

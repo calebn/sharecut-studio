@@ -46,4 +46,86 @@ test.describe("Sharecut Studio smoke", () => {
       page.getByRole("button", { name: /Apply eligible/ }),
     ).toBeDisabled();
   });
+
+  test("shows a queued host comment without a false submission error", async ({
+    page,
+  }) => {
+    const commands: Array<{
+      command_id: string;
+      client_id: string;
+      client_seq: number;
+      type: string;
+    }> = [];
+    let rejectAddComment = true;
+    await page.route("**/api/document/command?*", async (route) => {
+      if (route.request().method() !== "POST") {
+        await route.continue();
+        return;
+      }
+      const command = route
+        .request()
+        .postDataJSON() as (typeof commands)[number];
+      if (command.type !== "AddComment") {
+        await route.continue();
+        return;
+      }
+      commands.push(command);
+      if (rejectAddComment) {
+        await route.abort("failed");
+        return;
+      }
+      await route.continue();
+    });
+    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await page
+      .getByLabel("Editor panels")
+      .getByRole("button", {
+        name: "Comments",
+      })
+      .click();
+    await page.getByRole("button", { name: "Comment mode" }).click();
+    await page.getByRole("slider", { name: "Comment time anchor" }).click();
+    await page.getByLabel("Author").fill("Host");
+    await page.getByPlaceholder("Feedback…").fill("Queued review note");
+    await page.getByRole("button", { name: "Post comment" }).click();
+    await expect.poll(() => commands.length).toBe(1);
+    await expect
+      .poll(async () =>
+        page.evaluate(async (projectPath) => {
+          return new Promise<number>((resolve, reject) => {
+            const open = indexedDB.open("podcast-daw-offline", 1);
+            open.onerror = () => reject(open.error);
+            open.onsuccess = () => {
+              const db = open.result;
+              const request = db
+                .transaction("kv", "readonly")
+                .objectStore("kv")
+                .get(`host-queue:${projectPath}`);
+              request.onerror = () => reject(request.error);
+              request.onsuccess = () => {
+                db.close();
+                resolve((request.result as unknown[] | undefined)?.length ?? 0);
+              };
+            };
+          });
+        }, e2eProjectPath),
+      )
+      .toBe(1);
+    await expect(page.getByRole("alert")).toContainText("1 pending");
+    await expect(
+      page.getByText("AddComment did not return a comment"),
+    ).toHaveCount(0);
+    await expect(page.getByPlaceholder("Feedback…")).toHaveValue("");
+
+    rejectAddComment = false;
+    await page.evaluate(() => window.dispatchEvent(new Event("online")));
+    await expect.poll(() => commands.length).toBe(2);
+    expect(commands[1]).toMatchObject({
+      command_id: commands[0]?.command_id,
+      client_id: commands[0]?.client_id,
+      client_seq: commands[0]?.client_seq,
+      type: "AddComment",
+    });
+    await expect(page.getByRole("alert")).toHaveCount(0);
+  });
 });
