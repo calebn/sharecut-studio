@@ -8,10 +8,7 @@ import {
   SHORT_VIEWPORTS,
 } from "./overlayReachability";
 import { withShareableProject } from "./shareableProject";
-import {
-  openGuestShare,
-  openHostShare,
-} from "./shareNavigation";
+import { openGuestShare, openHostShare } from "./shareNavigation";
 import { withTwoBrowserPages } from "./twoBrowserPages";
 
 async function withTwoHostPages<T>(
