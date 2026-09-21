@@ -2,8 +2,27 @@ from __future__ import annotations
 
 import pytest
 
-from podcast_mcp.models import load_project
+from podcast_mcp.edits.transcript_refine_status import (
+    load_status,
+    mark_refine_waived,
+    precorrect_fingerprint,
+)
+from podcast_mcp.models import Transcript, TranscriptWord, load_project
 from podcast_mcp.pipeline import PipelineRunner
+
+
+def _with_words(project_path):
+    proj = load_project(project_path)
+    proj.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="hello", start=0.0, end=0.2),
+                TranscriptWord(text="world", start=0.3, end=0.5),
+            ],
+        )
+    ]
+    return proj
 
 
 def test_unknown_only_step_raises(minimal_project):
@@ -111,3 +130,89 @@ def test_runner_raises_when_cancelled_before_step(minimal_project):
     runner = PipelineRunner(defaults={})
     with pytest.raises(CancelledProgress, match="cancelled"):
         runner.run(proj, only_step="clean_audio", cancel_check=lambda: True)
+
+
+@pytest.mark.refine_gate
+def test_runner_refreshes_stale_unattended_waiver_after_success(minimal_project, monkeypatch):
+    from podcast_mcp.pipeline import runner as runner_mod
+
+    proj = _with_words(minimal_project)
+
+    def mutate_after_gate(project, _defaults):
+        project.transcripts[0].words[0].suppressed = True
+        return "ok"
+
+    monkeypatch.setitem(runner_mod._STEP_MAP, "clean_audio", mutate_after_gate)
+    steps_after_gate = [
+        name
+        for name in runner_mod.STEP_NAMES
+        if name not in {"require_transcript_refine", "clean_audio"}
+    ]
+
+    PipelineRunner(defaults={}).run(
+        proj,
+        from_step="require_transcript_refine",
+        skip_steps=steps_after_gate,
+        unattended=True,
+    )
+
+    assert load_status(proj)["source"] == "unattended"
+    assert load_status(proj)["precorrect_fingerprint"] == precorrect_fingerprint(proj)
+
+
+def test_runner_does_not_refresh_stale_unattended_waiver_without_gate(minimal_project, monkeypatch):
+    from podcast_mcp.pipeline import runner as runner_mod
+
+    proj = _with_words(minimal_project)
+    mark_refine_waived(proj, reason="batch", source="unattended")
+    proj.transcripts[0].words[0].text = "hola"
+    stale_fingerprint = load_status(proj)["precorrect_fingerprint"]
+    monkeypatch.setitem(runner_mod._STEP_MAP, "clean_audio", lambda _p, _d: "ok")
+
+    PipelineRunner(defaults={}).run(
+        proj,
+        only_step="clean_audio",
+        unattended=True,
+    )
+
+    assert load_status(proj)["precorrect_fingerprint"] == stale_fingerprint
+
+
+def test_runner_does_not_refresh_stale_unattended_waiver_after_failure(
+    minimal_project, monkeypatch
+):
+    from podcast_mcp.pipeline import runner as runner_mod
+
+    proj = _with_words(minimal_project)
+    mark_refine_waived(proj, reason="batch", source="unattended")
+    proj.transcripts[0].words[0].text = "hola"
+    stale_fingerprint = load_status(proj)["precorrect_fingerprint"]
+
+    def fail(_project, _defaults):
+        raise RuntimeError("step failed")
+
+    monkeypatch.setitem(runner_mod._STEP_MAP, "merge_transcript", fail)
+    with pytest.raises(RuntimeError, match="step failed"):
+        PipelineRunner(defaults={}).run(proj, only_step="merge_transcript")
+
+    assert load_status(proj)["precorrect_fingerprint"] == stale_fingerprint
+
+
+def test_runner_does_not_refresh_stale_unattended_waiver_after_cancellation(
+    minimal_project,
+):
+    from podcast_mcp.util.progress import CancelledProgress
+
+    proj = _with_words(minimal_project)
+    mark_refine_waived(proj, reason="batch", source="unattended")
+    proj.transcripts[0].words[0].text = "hola"
+    stale_fingerprint = load_status(proj)["precorrect_fingerprint"]
+
+    with pytest.raises(CancelledProgress, match="cancelled"):
+        PipelineRunner(defaults={}).run(
+            proj,
+            only_step="clean_audio",
+            cancel_check=lambda: True,
+        )
+
+    assert load_status(proj)["precorrect_fingerprint"] == stale_fingerprint

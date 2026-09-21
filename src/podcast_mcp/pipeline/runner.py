@@ -5,6 +5,8 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 
 from podcast_mcp.config import load_defaults
+from podcast_mcp.edits.pipeline_unattended import is_unattended
+from podcast_mcp.edits.transcript_refine_status import refresh_unattended_waiver
 from podcast_mcp.engines.reconciliation_state import mark_reconciliation_stale
 from podcast_mcp.history import HistoryManager
 from podcast_mcp.models import (
@@ -156,6 +158,7 @@ class PipelineRunner:
             step_defaults["_pipeline_unattended"] = True
         if cancel_check is not None:
             step_defaults["_pipeline_cancel_check"] = cancel_check
+        refine_gate_completed = False
 
         with (
             bind_progress(reporter),
@@ -195,6 +198,8 @@ class PipelineRunner:
                         log.status = "ok"
                         if summary:
                             log.message = summary
+                        if name == "require_transcript_refine":
+                            refine_gate_completed = True
                         if name in AUDIO_AFFECTING_STEPS:
                             mark_reconciliation_stale(project)
                         project.last_completed_step = name
@@ -219,6 +224,11 @@ class PipelineRunner:
                         raise
                 log.finished_at = datetime.now(UTC).isoformat()
 
+        if refine_gate_completed and is_unattended(
+            flag=unattended,
+            defaults=step_defaults,
+        ):
+            refresh_unattended_waiver(project)
         return run
 
     def _select_steps(

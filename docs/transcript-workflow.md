@@ -41,6 +41,13 @@ export_deliverables
 
 `precorrect_transcript` runs **once** (after pass 1 reconcile). Pass 2 reconcile updates suppression metadata only. Precorrect apply resets `artifacts/transcript_refine_status.json` to **pending**.
 
+After a successful unattended pipeline run that completes the refine gate, a
+waiver created by that gate may have an updated fingerprint when the final
+reconcile changes suppression metadata. Only that `source: unattended` waiver
+is refreshed automatically. Partial runs that skip the gate, pending, done,
+and explicit user/agent/CLI/MCP waivers remain stale and require a new
+intentional refine decision.
+
 Resume examples:
 
 ```bash
@@ -71,7 +78,7 @@ Word times stay in **source-media seconds** at every layer — reconcile, precor
 | `{workspace}/transcript_context.yaml` | Guest names, skip spans, episode overrides |
 | `artifacts/transcript_timing.json` | Stretched ASR word flags from transcribe (no time rewrite) |
 | `artifacts/transcript_precorrect_report.json` | Glossary/cross-track fixes, `deferred_queue`, `garble_hits` |
-| `artifacts/transcript_refine_status.json` | Gate: `pending` / `done` / `waived` + precorrect fingerprint |
+| `artifacts/transcript_refine_status.json` | Gate: `pending` / `done` / `waived` + precorrect fingerprint; successful unattended runs that execute the gate refresh only its stale waivers |
 
 Set context before transcribe when possible:
 
