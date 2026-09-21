@@ -220,5 +220,17 @@ export function useKeeperCapture({
   ]);
 
   const recordingLocally = writing && stream !== null;
+  useEffect(() => {
+    if (!recordingLocally) {
+      return;
+    }
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = true;
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [recordingLocally]);
+
   return { error, recordingLocally };
 }
