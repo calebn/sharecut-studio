@@ -187,7 +187,10 @@ def test_linux_docker_wrapper_mounts_external_distribution_profile(tmp_path: Pat
         "done\n"
         'printf fixture > "$out"\n',
     )
-    _write_executable(bin_dir / "shasum", "#!/usr/bin/env bash\nexit 0\n")
+    _write_executable(
+        bin_dir / "shasum",
+        "#!/usr/bin/env bash\ncat >/dev/null\nexit 0\n",
+    )
     env = os.environ | {
         "PATH": f"{bin_dir}:{os.environ['PATH']}",
         "TMPDIR": str(tmp_path / "tmp"),
