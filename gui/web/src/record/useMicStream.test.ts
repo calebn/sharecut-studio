@@ -160,6 +160,108 @@ describe("useMicStream", () => {
     expect(result.current.stream).toBeNull();
   });
 
+  it("falls back to the default input once when a lost selected mic is unavailable", async () => {
+    let ended: (() => void) | undefined;
+    const makeTrack = () => ({
+      readyState: "live",
+      stop: vi.fn(),
+      addEventListener: vi.fn((_type: string, listener: () => void) => {
+        ended = listener;
+      }),
+      removeEventListener: vi.fn(),
+      getSettings: () => ({
+        echoCancellation: false,
+        autoGainControl: false,
+        noiseSuppression: false,
+      }),
+    });
+    const unavailable = new Error("Selected mic was unplugged");
+    unavailable.name = "NotFoundError";
+    const gum = vi
+      .fn()
+      .mockResolvedValueOnce({
+        getTracks: () => [makeTrack()],
+        getAudioTracks: () => [makeTrack()],
+      })
+      .mockRejectedValueOnce(unavailable)
+      .mockResolvedValueOnce({
+        getTracks: () => [makeTrack()],
+        getAudioTracks: () => [makeTrack()],
+      });
+    vi.stubGlobal("navigator", {
+      mediaDevices: {
+        getUserMedia: gum,
+        enumerateDevices: vi.fn(async () => []),
+      },
+    });
+    const { result } = renderHook(() => useMicStream(true, "usb-mic"));
+    await waitFor(() => expect(result.current.stream).toBeTruthy());
+    ended?.();
+    await waitFor(() => expect(result.current.lost).toBe(true));
+    result.current.retry();
+    await waitFor(() => expect(result.current.stream).toBeTruthy());
+    expect(gum).toHaveBeenNthCalledWith(2, keeperAudioConstraints("usb-mic"));
+    expect(gum).toHaveBeenNthCalledWith(3, keeperAudioConstraints());
+    expect(result.current.lost).toBe(false);
+  });
+
+  it("ignores repeated lost-state retries while reconnecting", async () => {
+    let ended: (() => void) | undefined;
+    let resolveReconnect:
+      | ((value: {
+          getTracks: () => ReturnType<typeof makeTrack>[];
+          getAudioTracks: () => ReturnType<typeof makeTrack>[];
+        }) => void)
+      | undefined;
+    const makeTrack = () => ({
+      readyState: "live",
+      stop: vi.fn(),
+      addEventListener: vi.fn((_type: string, listener: () => void) => {
+        ended = listener;
+      }),
+      removeEventListener: vi.fn(),
+      getSettings: () => ({
+        echoCancellation: false,
+        autoGainControl: false,
+        noiseSuppression: false,
+      }),
+    });
+    const firstTrack = makeTrack();
+    const gum = vi
+      .fn()
+      .mockResolvedValueOnce({
+        getTracks: () => [firstTrack],
+        getAudioTracks: () => [firstTrack],
+      })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveReconnect = resolve;
+          }),
+      );
+    vi.stubGlobal("navigator", {
+      mediaDevices: {
+        getUserMedia: gum,
+        enumerateDevices: vi.fn(async () => []),
+      },
+    });
+    const { result } = renderHook(() => useMicStream(true, ""));
+    await waitFor(() => expect(result.current.stream).toBeTruthy());
+    ended?.();
+    await waitFor(() => expect(result.current.lost).toBe(true));
+    result.current.retry();
+    await waitFor(() => expect(gum).toHaveBeenCalledTimes(2));
+    result.current.retry();
+    result.current.retry();
+    expect(gum).toHaveBeenCalledTimes(2);
+    const replacement = makeTrack();
+    resolveReconnect?.({
+      getTracks: () => [replacement],
+      getAudioTracks: () => [replacement],
+    });
+    await waitFor(() => expect(result.current.lost).toBe(false));
+  });
+
   it("refreshes input devices without treating every devicechange as a loss", async () => {
     let onDeviceChange: (() => void) | undefined;
     const track = {
@@ -192,6 +294,65 @@ describe("useMicStream", () => {
     onDeviceChange?.();
     await waitFor(() => expect(result.current.devices).toHaveLength(1));
     expect(result.current.lost).toBe(false);
+  });
+
+  it("keeps the newest device list when devicechange refreshes resolve out of order", async () => {
+    let onDeviceChange: (() => void) | undefined;
+    let resolveOlder: ((value: MediaDeviceInfo[]) => void) | undefined;
+    let resolveNewer: ((value: MediaDeviceInfo[]) => void) | undefined;
+    let enumerateCalls = 0;
+    const track = {
+      readyState: "live",
+      stop: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      getSettings: () => ({
+        echoCancellation: false,
+        autoGainControl: false,
+        noiseSuppression: false,
+      }),
+    };
+    vi.stubGlobal("navigator", {
+      mediaDevices: {
+        getUserMedia: vi.fn(async () => ({
+          getTracks: () => [track],
+          getAudioTracks: () => [track],
+        })),
+        enumerateDevices: vi.fn(() => {
+          enumerateCalls += 1;
+          if (enumerateCalls === 1) {
+            return Promise.resolve([]);
+          }
+          return new Promise<MediaDeviceInfo[]>((resolve) => {
+            if (enumerateCalls === 2) {
+              resolveOlder = resolve;
+            } else {
+              resolveNewer = resolve;
+            }
+          });
+        }),
+        addEventListener: vi.fn((_type: string, listener: () => void) => {
+          onDeviceChange = listener;
+        }),
+        removeEventListener: vi.fn(),
+      },
+    });
+    const { result } = renderHook(() => useMicStream(true, ""));
+    await waitFor(() => expect(result.current.stream).toBeTruthy());
+    onDeviceChange?.();
+    onDeviceChange?.();
+    resolveNewer?.([
+      { kind: "audioinput", deviceId: "newest" } as MediaDeviceInfo,
+    ]);
+    await waitFor(() =>
+      expect(result.current.devices[0]?.deviceId).toBe("newest"),
+    );
+    resolveOlder?.([
+      { kind: "audioinput", deviceId: "older" } as MediaDeviceInfo,
+    ]);
+    await waitFor(() =>
+      expect(result.current.devices[0]?.deviceId).toBe("newest"),
+    );
   });
 
   it("removes listeners before an intentional stop", async () => {
