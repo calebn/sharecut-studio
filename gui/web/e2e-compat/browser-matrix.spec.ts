@@ -55,17 +55,23 @@ test.describe("browser compatibility matrix", () => {
         await guest.addInitScript(() => {
           (window as unknown as { __SHARECUT_E2E?: boolean }).__SHARECUT_E2E =
             true;
-          const mediaDevices = navigator.mediaDevices;
-          if (mediaDevices) {
-            mediaDevices.getUserMedia = async () => {
-              const audio = new AudioContext();
-              const source = audio.createOscillator();
-              const destination = audio.createMediaStreamDestination();
-              source.connect(destination);
-              source.start();
-              return destination.stream;
-            };
-          }
+          // Exercise the app flow independently of headless engine hardware.
+          Object.defineProperty(navigator, "permissions", {
+            configurable: true,
+            value: { query: async () => ({ state: "prompt" }) },
+          });
+          Object.defineProperty(navigator, "mediaDevices", {
+            configurable: true,
+            value: {
+              getUserMedia: async () => {
+                (
+                  window as unknown as { __gumStubCalled: boolean }
+                ).__gumStubCalled = true;
+                return new MediaStream();
+              },
+              enumerateDevices: async () => [],
+            },
+          });
         });
         await guest.goto(`/rec/${body.room.guest.token}?e2e=1`);
         await expect(
@@ -82,6 +88,15 @@ test.describe("browser compatibility matrix", () => {
           guest.getByRole("button", { name: "Allow microphone" }),
         ).toBeVisible();
         await guest.getByRole("button", { name: "Allow microphone" }).click();
+        await expect
+          .poll(() =>
+            guest.evaluate(
+              () =>
+                (window as unknown as { __gumStubCalled?: boolean })
+                  .__gumStubCalled ?? false,
+            ),
+          )
+          .toBe(true);
         await expect(guest.getByLabel("Level")).toBeVisible({
           timeout: 15_000,
         });
