@@ -4,10 +4,9 @@ setup:
 	./install.sh
 
 # lint-staged formats staged Ruff/Biome files on commit, then check-only pre-commit.
-# pre-push runs make ci and aborts the push when red (stamp skips a second run of the same HEAD).
 hooks:
 	git config core.hooksPath .githooks
-	chmod +x .githooks/pre-commit .githooks/pre-push
+	chmod +x .githooks/pre-commit
 
 doctor:
 	uv run podcast doctor 2>/dev/null || .venv/bin/podcast doctor 2>/dev/null || podcast doctor
@@ -61,23 +60,12 @@ desktop-build:
 desktop-linux-appimage-docker:
 	./scripts/build_linux_appimage_docker.sh
 
-# Local mirror of required CI: Python quality + coverage + Sharecut Studio unit/a11y + Playwright axe.
-# Invalidates ci-stamp on entry so a red re-run cannot leave a prior success stamp.
-# On success, atomically stamps HEAD under $(git rev-parse --git-dir)/ci-stamp when the tree is clean.
-# A failing ci-body clears the stamp again so an overlapping red run cannot leave another process's success stamp.
-# Dirty after a green run still exits 0 (gate passed) but skips the stamp so the next push re-runs CI
-# once the worktree is clean. Stamp write uses a PID-unique tmp.
+# Optional local mirror of required GitHub CI: Python quality + coverage +
+# Sharecut Studio unit/a11y + Playwright axe. GitHub Actions remains the gate
+# for public pushes and pull requests.
 .PHONY: ci-body
 ci:
-	@rm -f "$$(git rev-parse --git-dir)/ci-stamp"
-	@$(MAKE) --no-print-directory ci-body || { rm -f "$$(git rev-parse --git-dir)/ci-stamp"; exit 1; }
-	@git_dir=$$(git rev-parse --git-dir); \
-	if ! git diff-index --quiet HEAD --; then \
-		echo "make ci: green, skipping ci-stamp because the worktree is dirty (next push will re-run make ci once the worktree is clean)" >&2; \
-		exit 0; \
-	fi; \
-	tmp=$$git_dir/ci-stamp.tmp.$$$$; \
-	git rev-parse HEAD > "$$tmp" && mv -f "$$tmp" "$$git_dir/ci-stamp"
+	@$(MAKE) --no-print-directory ci-body
 
 ci-body: lint-py format-py-check typecheck schema-check capabilities-check progress-check test test-web test-web-e2e
 

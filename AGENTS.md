@@ -19,7 +19,7 @@ Ship via **feature branch → PR → `main`**. Do not commit or push directly to
 
 `make hooks` (also run by `./install.sh`) points `core.hooksPath` at `.githooks`, which runs lint-staged (Ruff + Biome write and restage; needs `cd gui/web && npm ci`) then check-only pre-commit hooks when that CLI is installed. Do not add format-write hooks to `.pre-commit-config.yaml`.
 
-**Pre-push:** `.githooks/pre-push` gates `git push` on green `make ci` (clean HEAD tip only). Detail: [docs/testing.md § Pre-push local CI gate](docs/testing.md#pre-push-local-ci-gate), [docs/contributing.md § Git workflow](docs/contributing.md#git-workflow). Agents: long `block_until_ms` for `git push`; `SKIP_CI=1` only when the user asks.
+**CI gate:** GitHub Actions runs the required full suite on public pushes and pull requests. `.githooks` has no pre-push full-CI gate; `make ci` is an optional local mirror. Detail: [docs/testing.md § GitHub CI gate](docs/testing.md#github-ci-gate), [docs/contributing.md § Git workflow](docs/contributing.md#git-workflow).
 
 | Prefix      | Use                                          |
 | ----------- | -------------------------------------------- |

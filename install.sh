@@ -72,7 +72,7 @@ fi
 
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   git config core.hooksPath .githooks
-  chmod +x .githooks/pre-commit .githooks/pre-push
+  chmod +x .githooks/pre-commit
 fi
 
 echo
@@ -82,4 +82,4 @@ echo "  podcast doctor"
 echo "No system FFmpeg?  podcast bootstrap --component ffmpeg"
 echo "Whisper model:     podcast bootstrap --component whisper   # default large-v3-turbo"
 echo "                   ./install.sh --whisper-model small.en     # smaller, higher WER"
-echo "Git hooks (lint-staged + pre-push make ci gate): make hooks  # needs: cd gui/web && npm ci"
+echo "Git hooks (lint-staged + check-only pre-commit): make hooks  # needs: cd gui/web && npm ci"

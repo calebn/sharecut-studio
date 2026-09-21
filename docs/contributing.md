@@ -49,9 +49,9 @@ Default delivery path is **feature branch → pull request → `main`**. Agents 
 2. `git checkout -b type/short-kebab-description`.
 3. Implement code, tests, and docs in the same change.
 4. When asked to ship: create one or more focused commits on the branch.
-5. Prefer `make ci` before push so `ci-stamp` (under `$(git rev-parse --git-dir)`) matches a clean `HEAD` and pre-push is instant; otherwise `.githooks/pre-push` runs `make ci` and **aborts the push** if red, dirty, or if the pushed tip ≠ checkout `HEAD`. A green `make ci` with leftover tracked dirt still exits 0 and skips `ci-stamp`; the next push re-runs `make ci` once the tree is clean. Escape hatch: `SKIP_CI=1 git push` only when the user explicitly asks (same bar as `--no-verify`). Agents: use a long shell `block_until_ms` for `git push`. Detail: [testing.md § Pre-push local CI gate](testing.md#pre-push-local-ci-gate).
-6. `git push -u origin HEAD`.
-7. `gh pr create` with base **`main`**. Prefer small, focused PRs; split disparate changes into separate branches/PRs when practical. If the PR should close GitHub issues, put `Fixes #N` (or `Closes` / `Resolves`) on its own line in the PR body — merge into `main` then auto-closes them. A `#N` mention without a keyword does not.
+5. Run focused local checks as you work; `make ci` remains available as an optional local mirror. GitHub Actions is the required full-CI gate for public pushes and pull requests, so it is safe to push or open a PR before running the entire suite locally.
+6. `git push -u public HEAD`.
+7. `gh pr create` with base **`main`**. Prefer small, focused PRs; split disparate changes into separate branches/PRs when practical. GitHub Actions runs the required checks after the PR is opened. If the PR should close GitHub issues, put `Fixes #N` (or `Closes` / `Resolves`) on its own line in the PR body — merge into `main` then auto-closes them. A `#N` mention without a keyword does not.
 8. Do not merge the PR (and do not force-push `main`) unless the user asks.
 
 ### Branch names

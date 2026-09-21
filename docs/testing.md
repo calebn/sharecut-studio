@@ -39,7 +39,7 @@ make format-py        # ruff format (write)
 make format-py-check  # ruff format --check
 make capabilities-check
 make progress-check   # progress framework compliance (warn by default)
-make hooks            # lint-staged formats staged Ruff/Biome; pre-push gates on make ci
+make hooks            # lint-staged formats staged Ruff/Biome; check-only pre-commit hooks
 make typecheck        # mypy (strict on timebase modules)
 ```
 
@@ -61,9 +61,9 @@ credentials; the publication audit also covers old pull-request commits and othe
 Any real finding requires credential rotation first and history rewriting where exposure of the
 old value would still matter.
 
-### Pre-push local CI gate
+### GitHub CI gate
 
-`.githooks/pre-push` (installed via `make hooks` / `./install.sh`) runs `make ci` **by default** before `git push` and **aborts the push** when any gate is red. It only accepts pushes of the current clean `HEAD` tip (non-delete `local_sha` must equal `HEAD`; dirty worktree aborts **before** `make ci`). A green `make ci` atomically writes `ci-stamp` under `$(git rev-parse --git-dir)` for that `HEAD` when the tree is still clean, so pushing the same SHA again skips the full suite. If the tree has tracked changes after a green run (for example leftover fixture writes; untracked paths are invisible to `git diff-index --quiet HEAD --`), `make ci` still exits 0 so that push can finish; it skips the stamp, and the next push re-runs `make ci` once the worktree is clean. Writing `ci-stamp` by hand (or `SKIP_CI=1` / `--no-verify`) is an intentional local-trust bypass — same machine that can disable hooks. Override with `SKIP_CI=1` only when explicitly requested.
+GitHub Actions runs the required full suite on public pushes and pull requests. There is no pre-push full-CI hook or local CI stamp: contributors may push a branch and open a PR without running `make ci` first, then use the GitHub results to make targeted fixes. `make ci` remains an optional local mirror when early end-to-end feedback is useful.
 
 ## Fast inner loop
 
@@ -73,7 +73,7 @@ During development, skip coverage and the e2e/slow tiers for the quickest feedba
 make test-fast   # pytest -n auto --no-cov -m "not e2e and not slow"
 ```
 
-This runs the unit suite (~900 tests) in ~25 s. It does **not** enforce the coverage gate — run `make test` before opening a PR. Excluding the e2e/slow tiers drops coverage below 95%, which is why they stay in the gated run.
+This runs the unit suite (~900 tests) in ~25 s. It does **not** enforce the coverage gate. Run focused tests while developing, or use the optional `make test` / `make ci` mirrors when you want local coverage or end-to-end feedback; GitHub Actions is the required gate for a pull request. Excluding the e2e/slow tiers drops coverage below 95%, which is why they stay in the GitHub-gated run.
 
 To debug a single test without xdist overhead (so `-s` and `pdb` behave), invoke pytest directly without `-n`:
 
@@ -127,7 +127,7 @@ failure if cleanup also fails. Recording specs remain manual.
 ## Adding features
 
 1. Add or extend tests under `tests/` alongside your change.
-2. Run `make test` before opening a PR.
+2. Run focused tests while developing; GitHub Actions runs the required full suite after you push or open a PR.
 3. If you add a new module, include at least:
    - Happy-path test
    - One edge or error case where practical
@@ -268,7 +268,7 @@ make test-web-e2e # Playwright smoke + full-page axe (requires `[gui]` extra / u
 make test-desktop # Tauri scaffold + rustfmt + clippy --lib + lib tests (optional Rust)
 make desktop-build # Freeze sidecar + installer (local only; not part of make ci)
 make desktop-linux-appimage-docker # Ubuntu 22.04 AppImage (iterate before GHA)
-make ci           # full local CI mirror; stamps git-dir/ci-stamp when the tree stays clean
+make ci           # optional full local CI mirror (GitHub Actions is the required gate)
 make golden-ear ARGS='build --project tests/fixtures/aligned_dialogue --out /tmp/golden --limit 8'
 make golden-ear ARGS='score --dir /tmp/golden --answers listen/answers.csv'
 ```
