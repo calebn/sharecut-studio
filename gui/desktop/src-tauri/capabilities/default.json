@@ -3,8 +3,9 @@
   "identifier": "default",
   "description": "Default Sharecut Studio host capabilities",
   "windows": ["main"],
-    "permissions": [
+  "permissions": [
     "core:default",
+    "core:window:allow-destroy",
     "deep-link:default"
   ]
 }

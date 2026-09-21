@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ErrorScreen, FocusPull, LoadingScreen } from "../ui";
 import "../styles/partials/record-entry.css";
+import { useDesktopCloseGuard } from "../desktop/useDesktopCloseGuard";
 import { Declined } from "./Declined";
 import { FullRoom } from "./FullRoom";
 import { type ByteSink, createOpfsSink } from "./keeper/store";
@@ -115,6 +116,7 @@ export function RecordApp({ token }: { token: string }) {
     consented: me?.consented ?? null,
     stream: mic.stream,
   });
+  useDesktopCloseGuard(keeper.recordingLocally, "guest");
   const monitor = useRecordMonitor({
     enabled: !!bootstrap?.build.monitor && !!me && connected,
     localId: me?.participant_id ?? null,
