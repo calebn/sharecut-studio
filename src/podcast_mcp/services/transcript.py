@@ -51,6 +51,7 @@ class TranscriptService:
         return out
 
     def export_subtitles(self, fmt: str = "srt") -> Path:
+        from podcast_mcp.export.names import sanitize_export_stem
         from podcast_mcp.export.transcript import utterances_to_srt, utterances_to_vtt
 
         p = self.ws.project
@@ -58,10 +59,10 @@ class TranscriptService:
             p.combined_transcript = self._engine.merge_transcripts(p)
         p.export_dir().mkdir(parents=True, exist_ok=True)
         if fmt == "vtt":
-            out = p.export_dir() / f"{p.name}.vtt"
+            out = p.export_dir() / f"{sanitize_export_stem(p.name)}.vtt"
             out.write_text(utterances_to_vtt(p), encoding="utf-8")
         else:
-            out = p.export_dir() / f"{p.name}.srt"
+            out = p.export_dir() / f"{sanitize_export_stem(p.name)}.srt"
             out.write_text(utterances_to_srt(p), encoding="utf-8")
         self.ws.save()
         return out

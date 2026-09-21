@@ -313,7 +313,9 @@ def update_social_clip_times(
 
 
 def _source_audio(project: EpisodeProject) -> Path | None:
-    export_wav = project.export_dir() / f"{project.name}.wav"
+    from podcast_mcp.export.names import sanitize_export_stem
+
+    export_wav = project.export_dir() / f"{sanitize_export_stem(project.name)}.wav"
     premix = project.artifacts_dir() / "premix.wav"
     if export_wav.is_file():
         return export_wav

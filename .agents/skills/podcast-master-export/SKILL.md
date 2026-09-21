@@ -83,6 +83,11 @@ Outputs in episode `export/`:
 - `{name}.md` combined transcript
 - `{name}.srt` subtitles from combined utterances
 
+`{name}` is a portable sanitized filename stem, not the project title verbatim:
+`My Episode: Part 1/2` exports as `My_Episode_Part_1_2.wav`. Dot-path names,
+Windows device names such as `CON`, and overlong titles are made safe; long stems
+use a stable hash suffix and stay in `export/`.
+
 For stems/range **without** mastering, use [podcast-bounce-export](../podcast-bounce-export/SKILL.md) (`bounce_audio_tool` / `podcast pipeline bounce`).
 
 ## Configurable FFmpeg formats

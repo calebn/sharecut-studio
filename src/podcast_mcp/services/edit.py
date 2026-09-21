@@ -1163,7 +1163,11 @@ class EditService:
     def check_loudness(self, audio_path: str | None = None) -> dict:
         path = Path(audio_path) if audio_path else None
         if path is None:
-            mastered = self.ws.project.export_dir() / f"{self.ws.project.name}.wav"
+            from podcast_mcp.export.names import sanitize_export_stem
+
+            mastered = (
+                self.ws.project.export_dir() / f"{sanitize_export_stem(self.ws.project.name)}.wav"
+            )
             premix = self.ws.project.artifacts_dir() / "premix.wav"
             path = mastered if mastered.is_file() else premix
         if not path.is_file():

@@ -93,7 +93,9 @@ class PipelineService:
         runner = PipelineRunner()
         runner.run(self.ws.project, from_step="master_loudness")
         self.ws.save()
-        wav = self.ws.project.export_dir() / f"{self.ws.project.name}.wav"
+        from podcast_mcp.export.names import sanitize_export_stem
+
+        wav = self.ws.project.export_dir() / f"{sanitize_export_stem(self.ws.project.name)}.wav"
         return wav if wav.is_file() else self.ws.project.export_dir()
 
     def export_audio(
