@@ -43,6 +43,7 @@ import type {
   MobileMode,
   MoreDestination,
   PlayAbFollowup,
+  PointerKind,
   ShellBreakpoint,
   ToolMode,
 } from "./types";
@@ -340,6 +341,9 @@ export const useDawStore = create<DawStore>((set, get) => ({
   selectedClipIds: [] as string[],
   bladeConfirmSec: null as number | null,
   shellBreakpoint: "desktop" as ShellBreakpoint,
+  // Capability baseline; usePointerType() corrects this from matchMedia
+  // before first paint and keeps it live from pointer events.
+  pointerKind: "fine" as PointerKind,
   mobileMode: "listen" as MobileMode,
   moreDestination: "hub" as MoreDestination,
   focusMode: "default" as FocusMode,
@@ -537,6 +541,7 @@ export const useDawStore = create<DawStore>((set, get) => ({
   setBladeConfirmSec: (bladeConfirmSec: number | null) =>
     set({ bladeConfirmSec }),
   setShellBreakpoint: (shellBreakpoint) => set({ shellBreakpoint }),
+  setPointerKind: (pointerKind) => set({ pointerKind }),
   setMobileMode: (mobileMode) =>
     set({
       mobileMode,

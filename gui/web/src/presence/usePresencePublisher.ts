@@ -70,7 +70,7 @@ export function usePresencePublisher(
   const followingClientId = useDawStore((s) => s.followingClientId);
   const activeTab = useDawStore((s) => s.activeTab);
   const mobileMode = useDawStore((s) => s.mobileMode);
-  const shellBreakpoint = useDawStore((s) => s.shellBreakpoint);
+  const pointerKind = useDawStore((s) => s.pointerKind);
   const auditionMode = useDawStore((s) => s.auditionMode);
   const viewerMute = useDawStore((s) => s.viewerMute);
   const soloTracks = useDawStore((s) => s.soloTracks);
@@ -137,7 +137,7 @@ export function usePresencePublisher(
     throttleRef.current.push({
       ui: {
         tab: activeTab,
-        mobile_mode: shellBreakpoint === "phone" ? mobileMode : null,
+        mobile_mode: pointerKind === "coarse" ? mobileMode : null,
         transcript_anchor:
           activeTab === "transcript" ? transcriptViewAnchor : null,
         audition: auditionMode,
@@ -153,7 +153,7 @@ export function usePresencePublisher(
     send,
     activeTab,
     mobileMode,
-    shellBreakpoint,
+    pointerKind,
     auditionMode,
     viewerMute,
     soloTracks,
