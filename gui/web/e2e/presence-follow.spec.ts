@@ -8,10 +8,7 @@ import {
 import { expectPageAxeClean } from "./axe";
 import { waitForFollowBanner } from "./followBanner";
 import { withShareableProject } from "./shareableProject";
-import {
-  openGuestShare,
-  openHostShare,
-} from "./shareNavigation";
+import { openGuestShare, openHostShare } from "./shareNavigation";
 import { withTwoBrowserPages } from "./twoBrowserPages";
 
 const DESKTOP = { width: 1440, height: 900 };
