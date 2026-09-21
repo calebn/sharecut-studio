@@ -227,6 +227,9 @@ def test_sanitize_guest_project_view_strips_paths():
     assert out["project_path"] == ""
     assert out["meta"] == {"name": "ep"}
     assert out["tracks"][0]["media_path"] is None
+    assert out["tracks"][0]["has_source_audio"] is True
+    empty = sanitize_guest_project_view({"tracks": [{"id": "empty", "media_path": None}]})
+    assert empty["tracks"][0]["has_source_audio"] is False
     assert out["history"] == {
         "cursor": 0,
         "can_undo": False,

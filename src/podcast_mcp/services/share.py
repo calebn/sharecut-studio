@@ -458,6 +458,8 @@ def _sanitize_guest_tracks(tracks: Any) -> list[dict[str, Any]]:
         if not isinstance(track, dict):
             continue
         td = dict(track)
+        # Keep source presence after removing the private host media path.
+        td["has_source_audio"] = bool(td.get("has_source_audio") or td.get("media_path"))
         td["media_path"] = None
         proxy = td.get("proxy")
         if isinstance(proxy, dict):

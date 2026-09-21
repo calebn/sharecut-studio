@@ -2125,6 +2125,7 @@ def test_build_project_view_with_track_and_transcript(minimal_project) -> None:
     save_project(project, minimal_project)
     view = build_project_view(minimal_project)
     assert len(view.tracks) == 1
+    assert view.tracks[0].has_source_audio is True
     assert view.transcript is not None
     utt = view.transcript["utterances"][0]
     assert utt["text"] == "hello"
@@ -2132,6 +2133,29 @@ def test_build_project_view_with_track_and_transcript(minimal_project) -> None:
     assert utt["timeline_start"] == pytest.approx(0.0)
     assert utt["timeline_end"] == pytest.approx(1.0)
     assert view.social_clips == []
+
+
+def test_track_view_reports_source_presence_without_duration(minimal_project) -> None:
+    from podcast_mcp.gui.assembler import build_project_view
+    from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project, save_project
+
+    project = load_project(minimal_project)
+    project.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav"),
+        ),
+        Track(id="empty", label="Empty", role=TrackRole.DIALOGUE),
+    ]
+    save_project(project, minimal_project)
+
+    tracks = build_project_view(minimal_project).tracks
+    assert tracks[0].duration_sec is None
+    assert tracks[0].has_source_audio is True
+    assert tracks[1].duration_sec is None
+    assert tracks[1].has_source_audio is False
 
 
 def test_build_project_view_transcripts_without_combined(minimal_project) -> None:

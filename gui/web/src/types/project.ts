@@ -33,6 +33,7 @@ export interface TrackView {
   duration_sec: number | null;
   fx_count: number;
   stem_is_fresh: boolean | null;
+  has_source_audio?: boolean;
   media_path?: string | null;
 }
 

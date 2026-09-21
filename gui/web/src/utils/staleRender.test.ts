@@ -120,7 +120,7 @@ describe("staleRenderBreakdown", () => {
     expect(b.premixMissing).toBe(true);
   });
 
-  it("flags a guest project with redacted media paths and source duration", () => {
+  it("flags a guest project with redacted media paths and unknown duration", () => {
     const b = staleRenderBreakdown(
       minimalProject({
         project_path: "",
@@ -132,9 +132,10 @@ describe("staleRenderBreakdown", () => {
             speaker: null,
             gain_db: 0,
             muted: false,
-            duration_sec: 60,
+            duration_sec: null,
             fx_count: 0,
             stem_is_fresh: true,
+            has_source_audio: true,
             media_path: null,
           },
         ],

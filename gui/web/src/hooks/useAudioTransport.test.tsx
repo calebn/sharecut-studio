@@ -88,9 +88,11 @@ describe("useAudioTransport project transitions", () => {
     unmount();
   });
 
-  it("reports a missing premix for a guest whose media path is redacted", () => {
+  it("reports a missing premix for a guest with redacted path and unknown duration", () => {
     const guestProject = trackProject("/tmp/host.wav");
     guestProject.tracks[0].media_path = null;
+    guestProject.tracks[0].duration_sec = null;
+    guestProject.tracks[0].has_source_audio = true;
     useDawStore
       .getState()
       .hydrate("share:guest", guestProject, "view", ["play"]);
