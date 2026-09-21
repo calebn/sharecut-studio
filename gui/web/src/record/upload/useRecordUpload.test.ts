@@ -1,5 +1,5 @@
 import { renderHook, waitFor } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ByteSink } from "../keeper/store";
 import { memoryUploadTransport } from "./transport";
 import { leaveBlocked, useRecordUpload } from "./useRecordUpload";
@@ -47,6 +47,31 @@ function sinkForTakes(): ByteSink {
 }
 
 describe("useRecordUpload", () => {
+  it("does not confirm landing when no local segment exists", async () => {
+    const nextSegmentIndex = vi.fn(async () => 0);
+    const transport = memoryUploadTransport();
+    const sink = {
+      ...sinkForTakes(),
+      nextSegmentIndex,
+    };
+    const { result, unmount } = renderHook(() =>
+      useRecordUpload({
+        enabled: true,
+        sessionId: "room1",
+        takeIndex: 0,
+        participantId: "p_a",
+        transport,
+        sink,
+      }),
+    );
+    await waitFor(() => {
+      expect(nextSegmentIndex).toHaveBeenCalled();
+      expect(result.current.pending).toBe(false);
+    });
+    expect(result.current.landed).toBe(false);
+    unmount();
+  });
+
   it("pumps keepers from earlier takes, keyed by participant", async () => {
     const transport = memoryUploadTransport();
     const sink = sinkForTakes();
@@ -84,6 +109,8 @@ describe("leaveBlocked", () => {
         acked: 0,
         total: 0,
         fileAck: false,
+        landed: false,
+        landFailed: false,
         uploading: false,
         pending: true,
         error: null,
@@ -94,6 +121,8 @@ describe("leaveBlocked", () => {
         acked: 1,
         total: 3,
         fileAck: false,
+        landed: false,
+        landFailed: false,
         uploading: false,
         pending: false,
         error: "fail",

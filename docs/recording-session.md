@@ -267,6 +267,7 @@ sequenceDiagram
   Note over G,H: repeat until segment final
   G->>H: POST final + file hash
   H-->>G: file_ack
+  H-->>G: landed or land_failed
   Note over G,H: stall: retry/backoff; rejoin same token within 7 days
 ```
 
@@ -561,7 +562,10 @@ stateDiagram-v2
   host_offline --> paused: rejoin while paused
   recording --> stopped: host Stop
   stopped --> uploading: chunks until ACK
-  uploading --> done: file_ack
+  uploading --> staged: file_ack
+  staged --> done: landed
+  staged --> land_failed: landing failure (keep local backup)
+  land_failed --> staged: host Retry land
   stopped --> recording: host Start take N+1
 ```
 
@@ -652,8 +656,8 @@ sidecar JSON.**
 | Live comments | `record_live_comments` in the same sqlite (`sync.db`); PK `(session_id, comment_id)` |
 | Local keeper WAV | Guest/host OPFS `Sharecut Recordings/{session}/{take}/{participant}/{segment}.wav` (+ `.json` tags). Not a host sidecar. |
 | Room-tone bed | OPFS `Sharecut Recordings/{session}/room-tone/{participant}.wav` (local until Accept); upload `kind=room_tone` after consent (storage take `2147483647`); assembled `artifacts/record/acked/{session}/room_tone/{participant}.wav` until landing copies `raw/room-tone/{participant}.wav` and sets `track.room_tone` |
-| Chunk / ACK manifests | `record_upload_parts` / `record_upload_files` in the same `sync.db`; part bytes in `artifacts/record/uploads/`; assembled WAV in `artifacts/record/acked/` until landing copies to `raw/` |
-| Timeline landing | `RecordLandingService` copies ACK'd WAV into `raw/`, one clip per segment at `take_offset_s + join_offset_ms/1000`, 2 s take gap. `join_offset_ms` is stored on `record_upload_files`. Happy path skips `ingest suggest`. Room-tone rows copy in the same land lock / `mutate`. |
+| Chunk / ACK manifests | `record_upload_parts` / `record_upload_files` in the same `sync.db`; part bytes in `artifacts/record/uploads/`; assembled WAV in `artifacts/record/acked/` until landing copies to `raw/`. `land_failed_ns` records a failed landing attempt and keeps the staged WAV available for retry. |
+| Timeline landing | `RecordLandingService` copies ACK'd WAV into `raw/`, one clip per segment at `take_offset_s + join_offset_ms/1000`, 2 s take gap. `join_offset_ms` is stored on `record_upload_files`. The UI distinguishes staged/uploaded/landed/land-failed; only confirmed `landed` permits deleting the local keeper. Host `Retry land` reuses the existing `record.land` command. |
 
 Locked for the lobby PR: roles from the token; host-only Start/Pause/Resume/Stop;
 Start blocked until connected guests have `consented is True` (`None` pending;

@@ -520,13 +520,28 @@ def test_join_offset_not_persisted_on_rejected_part(minimal_project, sample_wav)
         join_offset_ms=250,
     )
     assert first["newly_acked"] is True
+    assert first["landed"] is False
+    assert first["land_failed"] is False
     assert svc.status(session_id="room1")["segments"][0]["join_offset_ms"] == 250
+    svc.mark_land_failed(
+        session_id="room1",
+        take_index=0,
+        participant_id="p_aa",
+        segment_index=0,
+    )
+    failed = svc.status(session_id="room1")["segments"][0]
+    assert failed["file_ack"] is True
+    assert failed["landed"] is False
+    assert failed["land_failed"] is True
     svc.mark_landed(
         session_id="room1",
         take_index=0,
         participant_id="p_aa",
         segment_index=0,
     )
+    recovered = svc.status(session_id="room1")["segments"][0]
+    assert recovered["landed"] is True
+    assert recovered["land_failed"] is False
     with pytest.raises(RecordUploadError, match="refused after land"):
         svc.ingest_part(
             session_id="room1",

@@ -298,7 +298,22 @@ class RecordLandingService:
         drift_ms: float | None = None,
     ) -> dict[str, Any]:
         with _session_land_lock(self.session_id):
-            return self._land_locked(align=align, drift_ms=drift_ms)
+            try:
+                return self._land_locked(align=align, drift_ms=drift_ms)
+            except Exception:
+                self._mark_pending_land_failed()
+                raise
+
+    def _mark_pending_land_failed(self) -> None:
+        status = self._upload.status(session_id=self.session_id)
+        for row in status["segments"] + self._upload.room_tone_status(session_id=self.session_id):
+            if row.get("file_ack") and not row.get("landed"):
+                self._upload.mark_land_failed(
+                    session_id=self.session_id,
+                    take_index=int(row["take_index"]),
+                    participant_id=str(row["participant_id"]),
+                    segment_index=int(row["segment_index"]),
+                )
 
     def _land_locked(
         self,

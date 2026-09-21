@@ -9,17 +9,33 @@ export async function uploadKeeperWav(args: {
   transport: RecordUploadTransport;
   ackedParts: number[];
   fileAck: boolean;
+  landed?: boolean;
+  landFailed?: boolean;
   joinOffsetMs?: number;
   kind?: string;
   signal?: AbortSignal;
-}): Promise<{ acked: number; total: number; fileAck: boolean }> {
+}): Promise<{
+  acked: number;
+  total: number;
+  fileAck: boolean;
+  landed: boolean;
+  landFailed: boolean;
+}> {
   if (args.fileAck) {
     const total = Math.max(args.ackedParts.length, 1);
-    return { acked: total, total, fileAck: true };
+    return {
+      acked: total,
+      total,
+      fileAck: true,
+      landed: args.landed === true,
+      landFailed: args.landFailed === true,
+    };
   }
   const parts = keeperPcmParts(args.wav, args.complete);
   const acked = new Set(args.ackedParts);
   let fileAck = false;
+  let landed = false;
+  let landFailed = false;
   const fileSha = args.complete ? await sha256Hex(args.wav) : undefined;
   for (let partSeq = 0; partSeq < parts.length; partSeq += 1) {
     args.signal?.throwIfAborted?.();
@@ -46,6 +62,14 @@ export async function uploadKeeperWav(args: {
     });
     acked.add(partSeq);
     fileAck = result.file_ack;
+    landed = Boolean(result.landed);
+    landFailed = Boolean(result.land_failed);
   }
-  return { acked: acked.size, total: parts.length, fileAck };
+  return {
+    acked: acked.size,
+    total: parts.length,
+    fileAck,
+    landed,
+    landFailed,
+  };
 }

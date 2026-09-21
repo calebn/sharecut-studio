@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS record_upload_files (
   acked_ns INTEGER,
   join_offset_ms INTEGER,
   landed_ns INTEGER,
+  land_failed_ns INTEGER,
   PRIMARY KEY (session_id, take_index, participant_id, segment_index)
 );
 
@@ -71,6 +72,7 @@ CREATE TABLE IF NOT EXISTS record_take_tombstones (
 _FILE_COLUMN_MIGRATIONS: dict[str, str] = {
     "join_offset_ms": "INTEGER",
     "landed_ns": "INTEGER",
+    "land_failed_ns": "INTEGER",
 }
 
 _STORE_CACHE: dict[str, RecordUploadStore] = {}
@@ -389,7 +391,8 @@ class RecordUploadStore:
                   landed_ns = CASE
                     WHEN excluded.take_index = ? THEN NULL
                     ELSE record_upload_files.landed_ns
-                  END
+                  END,
+                  land_failed_ns = NULL
                 """,
                 (
                     session_id,
@@ -415,9 +418,28 @@ class RecordUploadStore:
         with self._lock:
             self._conn.execute(
                 """
-                UPDATE record_upload_files SET landed_ns = ?
+                UPDATE record_upload_files SET landed_ns = ?, land_failed_ns = NULL
                 WHERE session_id = ? AND take_index = ? AND participant_id = ?
                   AND segment_index = ?
+                """,
+                (now, session_id, take_index, participant_id, segment_index),
+            )
+
+    def mark_land_failed(
+        self,
+        *,
+        session_id: str,
+        take_index: int,
+        participant_id: str,
+        segment_index: int,
+    ) -> None:
+        now = time.time_ns()
+        with self._lock:
+            self._conn.execute(
+                """
+                UPDATE record_upload_files SET land_failed_ns = ?, landed_ns = NULL
+                WHERE session_id = ? AND take_index = ? AND participant_id = ?
+                  AND segment_index = ? AND acked_ns IS NOT NULL
                 """,
                 (now, session_id, take_index, participant_id, segment_index),
             )
@@ -433,7 +455,8 @@ class RecordUploadStore:
         with self._lock:
             row = self._conn.execute(
                 """
-                SELECT file_sha256, byte_length, acked_ns, join_offset_ms, landed_ns
+                SELECT file_sha256, byte_length, acked_ns, join_offset_ms,
+                       landed_ns, land_failed_ns
                 FROM record_upload_files
                 WHERE session_id = ? AND take_index = ? AND participant_id = ?
                   AND segment_index = ?
@@ -450,6 +473,7 @@ class RecordUploadStore:
             "acked_ns": int(row["acked_ns"]),
             "join_offset_ms": int(join) if join is not None else 0,
             "landed": landed is not None,
+            "land_failed": row["land_failed_ns"] is not None,
         }
 
     def tombstoned_takes(self, session_id: str) -> set[int]:
@@ -559,7 +583,7 @@ class RecordUploadStore:
                 """
             file_sql = """
                 SELECT take_index, participant_id, segment_index, file_sha256, byte_length,
-                       join_offset_ms, landed_ns
+                       join_offset_ms, landed_ns, land_failed_ns
                 FROM record_upload_files
                 WHERE session_id = ? AND participant_id = ? AND acked_ns IS NOT NULL
                 """
@@ -573,7 +597,7 @@ class RecordUploadStore:
                 """
             file_sql = """
                 SELECT take_index, participant_id, segment_index, file_sha256, byte_length,
-                       join_offset_ms, landed_ns
+                       join_offset_ms, landed_ns, land_failed_ns
                 FROM record_upload_files
                 WHERE session_id = ? AND acked_ns IS NOT NULL
                 """
@@ -598,6 +622,7 @@ class RecordUploadStore:
                     "file_ack": False,
                     "join_offset_ms": 0,
                     "landed": False,
+                    "land_failed": False,
                 },
             )
             slot["acked_parts"].append(int(row["part_seq"]))
@@ -624,6 +649,7 @@ class RecordUploadStore:
             join = row["join_offset_ms"]
             slot["join_offset_ms"] = int(join) if join is not None else 0
             slot["landed"] = row["landed_ns"] is not None
+            slot["land_failed"] = row["land_failed_ns"] is not None
         return list(segments.values())
 
 
@@ -832,6 +858,8 @@ class RecordUploadService:
             "segment_index": segment,
             "part_seq": seq,
             "file_ack": bool(newly_acked or existing),
+            "landed": bool(existing and existing.get("landed")),
+            "land_failed": bool(existing and existing.get("land_failed")),
             "newly_acked": newly_acked,
             "kind": upload_kind,
         }
@@ -931,6 +959,21 @@ class RecordUploadService:
         segment_index: int,
     ) -> None:
         self._store.mark_landed(
+            session_id=parse_session_id(session_id),
+            take_index=parse_upload_index(take_index, name="take_index"),
+            participant_id=parse_participant_id(participant_id),
+            segment_index=parse_upload_index(segment_index, name="segment_index"),
+        )
+
+    def mark_land_failed(
+        self,
+        *,
+        session_id: str,
+        take_index: int,
+        participant_id: str,
+        segment_index: int,
+    ) -> None:
+        self._store.mark_land_failed(
             session_id=parse_session_id(session_id),
             take_index=parse_upload_index(take_index, name="take_index"),
             participant_id=parse_participant_id(participant_id),

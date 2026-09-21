@@ -82,4 +82,22 @@ describe("uploadKeeperWav", () => {
     expect(done.fileAck).toBe(true);
     expect(transport.puts).toBe(0);
   });
+
+  it("does not treat a file ACK as confirmed landing", async () => {
+    const transport = memoryUploadTransport();
+    const result = await uploadKeeperWav({
+      wav: wavWithPcm(8),
+      complete: true,
+      takeIndex: 0,
+      segmentIndex: 0,
+      transport,
+      ackedParts: [0],
+      fileAck: true,
+      landed: false,
+      landFailed: true,
+    });
+    expect(result.fileAck).toBe(true);
+    expect(result.landed).toBe(false);
+    expect(result.landFailed).toBe(true);
+  });
 });

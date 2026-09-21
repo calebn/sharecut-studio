@@ -12,6 +12,8 @@ from starlette.responses import JSONResponse
 from podcast_mcp.services.record.landing import RecordLandingError, RecordLandingService
 from podcast_mcp.services.record.upload import (
     ROOM_TONE_MAX_PCM_BYTES,
+    ROOM_TONE_SEGMENT_INDEX,
+    ROOM_TONE_TAKE_INDEX,
     UPLOAD_KIND_ROOM_TONE,
     RecordUploadError,
     RecordUploadService,
@@ -84,17 +86,59 @@ async def ingest_record_upload_request(
     except RecordUploadError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if result.get("newly_acked") and workspace is not None:
+        status_take = ROOM_TONE_TAKE_INDEX if parsed_kind == UPLOAD_KIND_ROOM_TONE else take_index
+        status_segment = (
+            ROOM_TONE_SEGMENT_INDEX if parsed_kind == UPLOAD_KIND_ROOM_TONE else segment_index
+        )
         try:
             landed = await asyncio.to_thread(RecordLandingService(workspace).land)
-            result["landed"] = True
+            status_rows = (
+                uploader.room_tone_status(session_id=session_id)
+                if parsed_kind == UPLOAD_KIND_ROOM_TONE
+                else uploader.status(session_id=session_id)["segments"]
+            )
+            current = next(
+                (
+                    row
+                    for row in status_rows
+                    if int(row["take_index"]) == status_take
+                    and str(row["participant_id"]) == participant_id
+                    and int(row["segment_index"]) == status_segment
+                ),
+                None,
+            )
+            confirmed = bool(current and current.get("landed"))
+            if not confirmed:
+                uploader.mark_land_failed(
+                    session_id=session_id,
+                    take_index=status_take,
+                    participant_id=participant_id,
+                    segment_index=status_segment,
+                )
+            result["landed"] = confirmed
+            result["land_failed"] = not confirmed
             clips = list(landed.get("clips") or [])
             if clip_scope is not None:
                 clips = [clip for clip in clips if clip.get("participant_id") == clip_scope]
             result["clips"] = clips
         except (RecordLandingError, FileNotFoundError) as exc:
             log.warning("record land after ack skipped: %s", exc)
+            uploader.mark_land_failed(
+                session_id=session_id,
+                take_index=status_take,
+                participant_id=participant_id,
+                segment_index=status_segment,
+            )
             result["landed"] = False
+            result["land_failed"] = True
         except Exception:
             log.exception("record land after ack failed")
+            uploader.mark_land_failed(
+                session_id=session_id,
+                take_index=status_take,
+                participant_id=participant_id,
+                segment_index=status_segment,
+            )
             result["landed"] = False
+            result["land_failed"] = True
     return result

@@ -6,6 +6,8 @@ export type RecordUploadStatus = {
     segment_index: number;
     acked_parts: number[];
     file_ack?: boolean;
+    landed?: boolean;
+    land_failed?: boolean;
   }>;
 };
 
@@ -16,6 +18,8 @@ export type RecordUploadAck = {
   segment_index: number;
   part_seq: number;
   file_ack: boolean;
+  landed?: boolean;
+  land_failed?: boolean;
 };
 
 export type RecordUploadPutArgs = {
@@ -67,6 +71,8 @@ export function memoryUploadTransport(): RecordUploadTransport & {
           segment_index: segment ?? 0,
           acked_parts: [...parts].sort((a, b) => a - b),
           file_ack: files.has(id),
+          landed: files.has(id),
+          land_failed: false,
         };
       });
       return { segments };
@@ -92,6 +98,8 @@ export function memoryUploadTransport(): RecordUploadTransport & {
         segment_index: args.segmentIndex,
         part_seq: args.partSeq,
         file_ack: args.final === true,
+        landed: args.final === true,
+        land_failed: false,
       };
     },
     async revokeRoomTone() {
