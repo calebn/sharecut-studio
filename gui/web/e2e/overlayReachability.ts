@@ -182,23 +182,11 @@ export async function expectShareRecordRoomsReachable(
     .not.toMatch(/^(auto|scroll)$/);
   await expectFitsViewport(page, panel);
   const rooms = dialog.getByRole("heading", { name: "Record rooms" });
-  await expect(rooms).toBeVisible();
-  if (!(await intersectsOverlay(body, rooms))) {
-    await rooms.evaluate((el) => {
-      el.scrollIntoView({ block: "nearest" });
-    });
-  }
   await expectVisibleInOverlay(body, rooms);
   const roomsTarget = dialog
     .getByRole("button", { name: "End room" })
     .or(dialog.getByText("No live record rooms."))
     .first();
-  await expect(roomsTarget).toBeVisible();
-  if (!(await intersectsOverlay(body, roomsTarget))) {
-    await roomsTarget.evaluate((el) => {
-      el.scrollIntoView({ block: "nearest" });
-    });
-  }
   await expectVisibleInOverlay(body, roomsTarget);
   await expectActionableWhenApplicable(roomsTarget);
   await page.keyboard.press("Escape");
@@ -225,12 +213,6 @@ export async function expectDialogLowerTargetReachable(
   await expectOverflowYAuto(body);
   await expectFitsViewport(page, panel);
   const target = targetFor(dialog);
-  await expect(target).toBeVisible();
-  if (!(await intersectsOverlay(body, target))) {
-    await target.evaluate((el) => {
-      el.scrollIntoView({ block: "nearest" });
-    });
-  }
   await expectVisibleInOverlay(body, target);
   await expectActionableWhenApplicable(target);
   await page.keyboard.press("Escape");
