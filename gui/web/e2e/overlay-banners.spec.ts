@@ -11,7 +11,6 @@ import { withShareableProject } from "./shareableProject";
 import {
   openGuestShare,
   openHostShare,
-  PROXY_MANIFEST_TIMEOUT_MS,
 } from "./shareNavigation";
 import { withTwoBrowserPages } from "./twoBrowserPages";
 
