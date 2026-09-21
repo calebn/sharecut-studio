@@ -33,6 +33,10 @@ podcast pipeline run --project episode.project.json --only mix_with_music
 
 Use MCP `set_envelope` or edit `automation_envelopes` in project JSON:
 
+The MCP tool generates stable point IDs when creating a new envelope. When
+editing an existing project JSON envelope, preserve each point's `id` while
+changing its time or value.
+
 ```json
 {"time": 0, "value": 0},
 {"time": 2, "value": 1},

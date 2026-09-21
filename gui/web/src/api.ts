@@ -23,6 +23,7 @@ import type {
   ProjectMeta,
 } from "./types/pipeline";
 import type {
+  AutomationPoint,
   HistoryDiff,
   PeaksData,
   ProjectView,
@@ -547,7 +548,7 @@ export async function setTranscriptWordSuppressed(
 export async function setEnvelope(
   projectPath: string,
   trackId: string,
-  points: { time: number; value: number }[],
+  points: AutomationPoint[],
 ): Promise<void> {
   await submitDocumentCommand(projectPath, "SetEnvelope", {
     track_id: trackId,

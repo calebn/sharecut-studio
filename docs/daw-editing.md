@@ -169,7 +169,7 @@ Shipped:
 
 Shipped:
 
-- Envelope point drag (`EnvelopeOverlay`) + selected-point inspector (`EnvelopePointInspector`) → `SetEnvelope` → `PipelineService.set_envelope` (full point-list replace)
+- Envelope point drag (`EnvelopeOverlay`) + selected-point inspector (`EnvelopePointInspector`) → `SetEnvelope` → `PipelineService.set_envelope` (full point-list replace). Each point carries an immutable `id`, preserved when its time changes or sorted position changes, so the GUI uses the ID as its React key.
 - Chapter CRUD: `AddChapter` / `UpdateChapter` / `DeleteChapter` (identity `(time, title)`); MarkerLane drag + ChapterInspector
 - Social CRUD: `AddSocialClip` / `UpdateSocialClip` / `DeleteSocialClip` (by candidate `id`); MarkerLane range drag + SocialClipInspector
 - `SuggestPendingEdit` → pending `EditDecision` with `review_required=true` (`edit_type`: `remove` default or `mute`)

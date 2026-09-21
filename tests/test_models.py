@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import pytest
+
 from podcast_mcp.models import (
+    AutomationPoint,
     Clip,
     EditDecision,
     EditDecisionType,
@@ -10,6 +13,13 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
+
+
+def test_automation_point_id_is_stable():
+    point = AutomationPoint(time=0.0, value=1.0)
+    assert point.id
+    with pytest.raises(ValueError, match="Field is frozen"):
+        point.id = "different"
 
 
 def test_clip_timeline_end_property():

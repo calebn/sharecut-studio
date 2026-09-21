@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -204,6 +205,7 @@ class SocialClipCandidate(BaseModel):
 
 
 class AutomationPoint(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid4()), min_length=1, frozen=True)
     time: float
     value: float
 
@@ -212,6 +214,13 @@ class AutomationEnvelope(BaseModel):
     track_id: str
     parameter: str = "volume"
     points: list[AutomationPoint] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _unique_point_ids(self) -> AutomationEnvelope:
+        ids = [point.id for point in self.points]
+        if len(ids) != len(set(ids)):
+            raise ValueError("automation envelope point IDs must be unique")
+        return self
 
 
 class ProcessingEffect(BaseModel):
