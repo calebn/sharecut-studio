@@ -34,13 +34,19 @@ def _defaults_all() -> dict:
     return load_defaults()
 
 
-def _edit_to_timeline_range(project: EpisodeProject, edit: EditDecision) -> tuple[float, float]:
+def _mapped_edit_to_timeline_range(
+    project: EpisodeProject, edit: EditDecision
+) -> tuple[float, float] | None:
     spans = SessionTimeline(project).map_source_span(
         edit.track_id, SourceSec(edit.start), SourceSec(edit.end)
     )
     if not spans:
-        return edit.start, edit.end
+        return None
     return float(spans[0][0]), float(spans[-1][1])
+
+
+def _edit_to_timeline_range(project: EpisodeProject, edit: EditDecision) -> tuple[float, float]:
+    return _mapped_edit_to_timeline_range(project, edit) or (edit.start, edit.end)
 
 
 def _per_track_source_for_timeline(
@@ -196,8 +202,11 @@ def _apply_remove_edit(
     from podcast_mcp.config import load_defaults
     from podcast_mcp.edits.speech_energy_guard import resolve_cut_scope
 
-    tl_start, tl_end = _edit_to_timeline_range(project, edit)
     scope = getattr(edit, "scope", "session") or "session"
+    mapped_range = _mapped_edit_to_timeline_range(project, edit)
+    if mapped_range is None:
+        return edit.start, edit.end, [], {"scope": scope, "per_track_source": {}}
+    tl_start, tl_end = mapped_range
     if scope != "track":
         try:
             scope, _guard = resolve_cut_scope(

@@ -111,6 +111,26 @@ def test_approve_skips_stale_mute_and_preserves_pending_decision():
     assert [record.decision_ids for record in proj.editorial.edit_log] == [["valid"]]
 
 
+def test_approve_skips_unmapped_remove_without_archiving_it():
+    proj = _project_with_clip()
+    original_clips = [clip.model_dump() for clip in proj.clips]
+    proj.edit_decisions = [
+        EditDecision(
+            id="stale-remove",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=11.0,
+            end=12.0,
+            applied=False,
+        )
+    ]
+
+    assert approve_edits(proj, ["stale-remove"]) == 0
+    assert [clip.model_dump() for clip in proj.clips] == original_clips
+    assert [decision.id for decision in proj.edit_decisions] == ["stale-remove"]
+    assert proj.editorial.edit_log == []
+
+
 def test_approve_remove_falls_back_to_track_scope_when_guard_cannot_resolve():
     proj = _project_with_clip()
     decision = EditDecision(

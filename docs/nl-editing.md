@@ -102,7 +102,7 @@ podcast edit crossfade-joins --project ...
 podcast edit low-audibility --project ...
 ```
 
-`podcast edit approve` prints the number of edits it applied. If none of the requested IDs can be applied, including a mute whose source range no longer overlaps a clip, it prints `Approved 0 edit(s).` and warns on stderr. An unapplied mute decision stays pending for review.
+`podcast edit approve` prints the number of edits it applied. If no requested edits can be applied, it prints `Approved 0 edit(s).` and warns on stderr. A mute or remove whose source range no longer overlaps a clip stays pending for review.
 
 Cut boundary optimization (default-on): [inaudible-cuts.md](inaudible-cuts.md). For punchline→pivot / “leave a beat” transitions, see **Narrative handoffs** there — use `suggest_handoff_cut_tool`, not word→word absorb.
 

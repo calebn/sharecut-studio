@@ -367,14 +367,15 @@ def test_edit_approve_warns_when_nothing_approved(minimal_project):
     assert "no edits were approved" in result.stderr
 
 
-def test_edit_approve_warns_for_stale_mute(minimal_project):
+@pytest.mark.parametrize("edit_type", [EditDecisionType.MUTE, EditDecisionType.REMOVE])
+def test_edit_approve_warns_for_stale_edit(minimal_project, edit_type):
     project = _setup_edit_project(minimal_project)
     proj = load_project(project)
     proj.edit_decisions.append(
         EditDecision(
-            id="stale-mute",
+            id="stale-edit",
             track_id="host",
-            type=EditDecisionType.MUTE,
+            type=edit_type,
             start=1000.0,
             end=1001.0,
             applied=False,
@@ -384,13 +385,13 @@ def test_edit_approve_warns_for_stale_mute(minimal_project):
 
     result = runner.invoke(
         app,
-        ["edit", "approve", "--project", str(project), "--ids", "stale-mute"],
+        ["edit", "approve", "--project", str(project), "--ids", "stale-edit"],
     )
 
     assert result.exit_code == 0
     assert "Approved 0 edit(s)." in result.stdout
     assert "no edits were approved" in result.stderr
-    assert [decision.id for decision in load_project(project).edit_decisions] == ["stale-mute"]
+    assert [decision.id for decision in load_project(project).edit_decisions] == ["stale-edit"]
 
 
 def test_edit_transcript_and_preview_cut(minimal_project):
