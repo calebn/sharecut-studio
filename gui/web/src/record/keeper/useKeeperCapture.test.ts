@@ -69,12 +69,15 @@ describe("useKeeperCapture", () => {
 
   it("guards navigation only while the local keeper is writing", async () => {
     const stream = { getTracks: () => [] } as unknown as MediaStream;
-    const { rerender, result } = renderHook(
+    const { rerender, result, unmount } = renderHook(
       ({ enabled, snapshot }: { enabled: boolean; snapshot: RecordSnapshot }) =>
         useKeeperCapture({ ...args, enabled, snapshot, stream }),
       { initialProps: { enabled: true, snapshot: snap } },
     );
 
+    expect(
+      window.dispatchEvent(new Event("beforeunload", { cancelable: true })),
+    ).toBe(true);
     await waitFor(() => {
       expect(result.current.recordingLocally).toBe(true);
     });
@@ -88,9 +91,15 @@ describe("useKeeperCapture", () => {
     await waitFor(() => {
       expect(result.current.recordingLocally).toBe(false);
     });
-    expect(window.dispatchEvent(new Event("beforeunload"))).toBe(true);
+    expect(
+      window.dispatchEvent(new Event("beforeunload", { cancelable: true })),
+    ).toBe(true);
 
     rerender({ enabled: false, snapshot: snap });
+    unmount();
+    expect(
+      window.dispatchEvent(new Event("beforeunload", { cancelable: true })),
+    ).toBe(true);
   });
 
   it("does not claim a local copy when OPFS is unavailable", async () => {
