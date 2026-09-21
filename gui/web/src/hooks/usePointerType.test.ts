@@ -17,9 +17,38 @@ function stubAnyPointerCoarse(matches: boolean): void {
   vi.stubGlobal("matchMedia", matchMedia);
 }
 
+function stubPointerCapabilities({
+  primaryFine,
+  anyCoarse,
+}: {
+  primaryFine: boolean;
+  anyCoarse: boolean;
+}): void {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn((query: string) => ({
+      matches:
+        query === "(pointer: fine)"
+          ? primaryFine
+          : query === "(any-pointer: coarse)"
+            ? anyCoarse
+            : false,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  );
+}
+
 function pointerDown(pointerType: string): void {
   act(() => {
     fireEvent.pointerDown(window, { pointerType });
+  });
+}
+
+function pointerMove(target: Window | HTMLElement, pointerType: string): void {
+  act(() => {
+    fireEvent.pointerMove(target, { pointerType });
   });
 }
 
@@ -55,6 +84,12 @@ describe("initialPointerKind", () => {
   it("is fine when the coarse capability does not match", () => {
     stubAnyPointerCoarse(false);
     expect(initialPointerKind()).toBe("fine");
+  });
+
+  it("prefers a primary fine pointer on hybrid devices", () => {
+    stubPointerCapabilities({ primaryFine: true, anyCoarse: true });
+    expect(initialPointerKind()).toBe("fine");
+    expect(window.matchMedia).toHaveBeenCalledWith("(pointer: fine)");
   });
 
   it("falls back to fine without matchMedia", () => {
@@ -116,6 +151,40 @@ describe("usePointerType", () => {
     pointerDown("");
     expect(result.current).toBe("coarse");
     expect(useDawStore.getState().pointerKind).toBe("coarse");
+  });
+
+  it("sees pointer events stopped by a nested target", () => {
+    stubAnyPointerCoarse(false);
+    const target = document.createElement("button");
+    target.addEventListener("pointerdown", (event) => event.stopPropagation());
+    target.addEventListener("pointermove", (event) => event.stopPropagation());
+    document.body.append(target);
+    const { result, unmount } = renderHook(() => usePointerType());
+
+    act(() => {
+      fireEvent.pointerDown(target, { pointerType: "touch" });
+    });
+    expect(result.current).toBe("coarse");
+    pointerMove(target, "mouse");
+    expect(result.current).toBe("fine");
+
+    unmount();
+    target.remove();
+  });
+
+  it("does not notify subscribers for same-kind pointer moves", () => {
+    stubAnyPointerCoarse(false);
+    const listener = vi.fn();
+    const unsubscribe = useDawStore.subscribe(listener);
+    const { unmount } = renderHook(() => usePointerType());
+    listener.mockClear();
+
+    pointerMove(window, "mouse");
+    pointerMove(window, "mouse");
+    expect(listener).not.toHaveBeenCalled();
+
+    unmount();
+    unsubscribe();
   });
 
   it("stops tracking after unmount", () => {

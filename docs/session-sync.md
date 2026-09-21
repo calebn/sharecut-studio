@@ -100,7 +100,7 @@ Chrome cursors (headers, Mix/FX/Raw, tabs, transcript words) use an anchor plus 
 
 Meta keys merge (null clears a key). Server assigns `color_index` (0–7) and stamps `transport.stamped_ns`. `followers` is the count of live clients whose `meta.following` equals this `client_id`. Fanout is coalesced to ≤10 Hz per project.
 
-**Rates:** cursor ≤10 Hz; transport 200 ms while playing and on play/pause/seek edges; viewport 100 ms throttle; `ui` 100 ms (tab / mobile mode / audition flush immediately); selection/following on change. Idle peers publish a 10 s keepalive so `last_seen_ns` stays inside the 30 s live window.
+**Rates:** cursor ≤10 Hz; transport 200 ms while playing and on play/pause/seek edges; viewport 100 ms throttle; `ui` 100 ms (tab / mobile mode / audition flush immediately); selection/following on change. Idle peers publish a 10 s keepalive so `last_seen_ns` stays inside the 30 s live window. `mobile_mode` is the live phone-shell mode on phones regardless of active pointer. On desktop/tablet it is a coarse-pointer compatibility hint derived from the active tab; fine-pointer shells publish `null`.
 
 **Guest WS** (`/api/review/{token}/daw/ws`) accepts **Presence frames only** (view cap). Command frames stay rejected. Host WS still accepts Command / Ack / Presence. Disconnect calls `remove_client` and republishes. The share socket rewrites the query `client_id` to `guest-{token[:8]}-{suffix}` and echoes that assigned id on every session-plane message (`Snapshot` / `Presence` / `Applied`) so the guest overlay can hide its own cursor. The connect query keeps the tab’s original `viewer-*` id so reconnects stay stable.
 
@@ -120,7 +120,7 @@ Every GUI surface is classified once as **Look**, **Hear**, or **Do** (`presence
 
 **Break follow** (Live Share style): only strong navigation — seek/play/stop, zoom/scroll, tab or phone-mode switch, manual transcript scroll. Mute/solo/audition/selection do not unfollow.
 
-**Limits:** phone skips viewport follow (Ferrite center needle) but still maps the leader tab onto Listen/Text/More. Timeline lanes stay time-based because zoom differs per client; other surfaces use `anchor` + fractional `x`/`y`. Raw `clientX`/`clientY` is never sent.
+**Limits:** phone skips viewport follow (Ferrite center needle) but still maps the leader tab onto Listen/Text/More. A leader's phone `mobile_mode` takes precedence over its tab, so Listen and Timeline follow faithfully; desktop/tablet coarse-pointer hints derived from the tab provide the fallback. Timeline lanes stay time-based because zoom differs per client; other surfaces use `anchor` + fractional `x`/`y`. Raw `clientX`/`clientY` is never sent.
 
 **Anchor ids** (via `presenceAnchor(...)`): `track:<id>`, `track:<id>:mute|solo`, `transport:play|stop`, `audition:mix|fx|raw`, `tab:<id>`, `mobile-nav:<mode>`, `transcript:turn:<i>`, `transcript:word:<track>:<i>`, `inspector`, `ruler`, `markers`, `comment:<id>`.
 

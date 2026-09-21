@@ -3,7 +3,7 @@ import { selectionToWire } from "../session/wire";
 import { useDawStore } from "../state/dawStore";
 import type { PresenceCursor } from "../types/session";
 import { timelineTimeViewportWidth } from "../utils/timelineViewport";
-import { setPresenceCursorSink } from "./followSync";
+import { mobileModeForTab, setPresenceCursorSink } from "./followSync";
 import { createPresenceThrottle, type PresenceSend } from "./publisher";
 
 const KEEPALIVE_MS = 10_000;
@@ -70,6 +70,7 @@ export function usePresencePublisher(
   const followingClientId = useDawStore((s) => s.followingClientId);
   const activeTab = useDawStore((s) => s.activeTab);
   const mobileMode = useDawStore((s) => s.mobileMode);
+  const shellBreakpoint = useDawStore((s) => s.shellBreakpoint);
   const pointerKind = useDawStore((s) => s.pointerKind);
   const auditionMode = useDawStore((s) => s.auditionMode);
   const viewerMute = useDawStore((s) => s.viewerMute);
@@ -137,7 +138,12 @@ export function usePresencePublisher(
     throttleRef.current.push({
       ui: {
         tab: activeTab,
-        mobile_mode: pointerKind === "coarse" ? mobileMode : null,
+        mobile_mode:
+          shellBreakpoint === "phone"
+            ? mobileMode
+            : pointerKind === "coarse"
+              ? mobileModeForTab(activeTab).mobileMode
+              : null,
         transcript_anchor:
           activeTab === "transcript" ? transcriptViewAnchor : null,
         audition: auditionMode,
@@ -153,6 +159,7 @@ export function usePresencePublisher(
     send,
     activeTab,
     mobileMode,
+    shellBreakpoint,
     pointerKind,
     auditionMode,
     viewerMute,
