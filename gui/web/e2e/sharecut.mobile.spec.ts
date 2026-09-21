@@ -63,4 +63,45 @@ test.describe("Sharecut Studio mobile smoke", () => {
 
     await expectPageAxeClean(page);
   });
+
+  test("More opens a truthful, app-level gestures cheatsheet", async ({
+    page,
+  }) => {
+    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await page
+      .getByRole("navigation", { name: "Primary" })
+      .getByRole("button", { name: "More" })
+      .click();
+
+    const trigger = page.getByRole("button", { name: "Gestures" });
+    await trigger.click();
+
+    const gestures = page.getByRole("dialog", { name: "Gestures" });
+    await expect(gestures).toBeVisible();
+    await expect(
+      gestures.locator("xpath=ancestor::*[@data-daw-app-chrome]"),
+    ).toHaveCount(0);
+    await expect(page.locator("[data-daw-app-chrome]")).toHaveAttribute(
+      "inert",
+      "",
+    );
+    await expect(
+      gestures.getByText("Two-finger tap").locator("xpath=.."),
+    ).toContainText("Soon");
+    await expect(
+      gestures.getByText("Long-press").locator("xpath=.."),
+    ).toContainText("Soon");
+    await expect(
+      gestures.getByText("Pinch").locator("xpath=.."),
+    ).not.toContainText("Soon");
+
+    await gestures.getByRole("button", { name: "Keyboard shortcuts" }).click();
+    const keyboard = page.getByRole("dialog", { name: "Keyboard shortcuts" });
+    await expect(keyboard).toBeVisible();
+    await expect(gestures).toHaveCount(0);
+
+    await keyboard.getByRole("button", { name: "Gestures" }).click();
+    await expect(page.getByRole("dialog", { name: "Gestures" })).toBeVisible();
+    await expect(keyboard).toHaveCount(0);
+  });
 });

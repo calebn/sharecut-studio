@@ -590,9 +590,22 @@ export const useDawStore = create<DawStore>((set, get) => ({
     }),
   setSheetExpanded: (sheetExpanded) => set({ sheetExpanded }),
   commandPaletteOpen: false,
-  setCommandPaletteOpen: (commandPaletteOpen) => set({ commandPaletteOpen }),
+  setCommandPaletteOpen: (commandPaletteOpen) =>
+    set({
+      commandPaletteOpen,
+      ...(commandPaletteOpen ? { gesturesSheetOpen: false } : {}),
+    }),
+  gesturesSheetOpen: false,
+  setGesturesSheetOpen: (gesturesSheetOpen) =>
+    set({
+      gesturesSheetOpen,
+      ...(gesturesSheetOpen ? { commandPaletteOpen: false } : {}),
+    }),
   toggleCommandPalette: () =>
-    set((s) => ({ commandPaletteOpen: !s.commandPaletteOpen })),
+    set((s) => ({
+      commandPaletteOpen: !s.commandPaletteOpen,
+      ...(!s.commandPaletteOpen ? { gesturesSheetOpen: false } : {}),
+    })),
   bounceDialogOpen: false,
   setBounceDialogOpen: (bounceDialogOpen) => set({ bounceDialogOpen }),
   shareDialogOpen: false,

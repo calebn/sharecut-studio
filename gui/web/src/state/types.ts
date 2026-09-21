@@ -111,6 +111,8 @@ export interface DawState {
   sheetExpanded: boolean;
   /** Command cheatsheet / palette open. */
   commandPaletteOpen: boolean;
+  /** Mobile gestures cheatsheet open. */
+  gesturesSheetOpen: boolean;
   /** Bounce dialog open (host export/bounces). */
   bounceDialogOpen: boolean;
   /** Host share management dialog. */
@@ -227,6 +229,7 @@ export interface DawState {
   cycleFocusMode: () => void;
   setSheetExpanded: (on: boolean) => void;
   setCommandPaletteOpen: (on: boolean) => void;
+  setGesturesSheetOpen: (on: boolean) => void;
   toggleCommandPalette: () => void;
   setBounceDialogOpen: (on: boolean) => void;
   setShareDialogOpen: (on: boolean) => void;
