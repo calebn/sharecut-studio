@@ -109,6 +109,43 @@ async function keeperWavBytes(page: Page): Promise<number> {
   });
 }
 
+async function roomToneWav(page: Page): Promise<{
+  header: number[];
+  size: number;
+}> {
+  return page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    const recordings = await root.getDirectoryHandle("Sharecut Recordings");
+    const findRoomTone = async (
+      dir: FileSystemDirectoryHandle,
+      path = "",
+    ): Promise<File | null> => {
+      for await (const [name, handle] of dir.entries()) {
+        const childPath = `${path}/${name}`;
+        if (handle.kind === "file") {
+          if (childPath.includes("/room-tone/") && name.endsWith(".wav")) {
+            return handle.getFile();
+          }
+          continue;
+        }
+        const found = await findRoomTone(handle, childPath);
+        if (found) {
+          return found;
+        }
+      }
+      return null;
+    };
+    const file = await findRoomTone(recordings);
+    if (!file) {
+      throw new Error("room-tone WAV was not saved in OPFS");
+    }
+    return {
+      header: Array.from(new Uint8Array(await file.slice(0, 12).arrayBuffer())),
+      size: file.size,
+    };
+  });
+}
+
 test.use({
   launchOptions: {
     args: [
@@ -470,9 +507,15 @@ test.describe("record lobby", () => {
         await expect(
           guest.getByText("Recording room tone…").first(),
         ).toBeVisible();
-        await expect(guest.getByText(/Room tone saved|Too loud/)).toBeVisible({
+        await expect(guest.getByText("Room tone saved")).toBeVisible({
           timeout: 15_000,
         });
+        await expect
+          .poll(() => roomToneWav(guest))
+          .toEqual({
+            header: [82, 73, 70, 70, 36, 101, 4, 0, 87, 65, 86, 69],
+            size: 288_044,
+          });
         await expect(
           guest.getByRole("button", { name: "Accept" }),
         ).toBeEnabled();
