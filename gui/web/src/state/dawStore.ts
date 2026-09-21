@@ -672,6 +672,21 @@ export const useDawStore = create<DawStore>((set, get) => ({
       playbackRate: 1,
       ingestBusy: false,
       ingestDropTrackId: null,
+      // Per-project transport/audio status must not leak across projects (#78).
+      audioError: null,
+      isPlaying: false,
+      playheadSec: 0,
+      viewerMute: {},
+      soloTracks: {},
+      sessionRegion: null,
+      lastAgentQuery: null,
+      playUntilSec: null,
+      playSkipStartSec: null,
+      playSkipEndSec: null,
+      playAbFollowup: null,
+      auditionEpoch: 0,
+      highlightStaleRender: false,
+      renderPreviewBusy: false,
     });
   },
 }));

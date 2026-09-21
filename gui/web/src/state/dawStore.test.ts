@@ -65,6 +65,35 @@ describe("dawStore listen-first transport", () => {
     expect(useDawStore.getState().localClientId).toBe("guest-tok-viewer-ab");
   });
 
+  it("hydrate resets per-project transport status (#78)", () => {
+    useDawStore.setState({
+      audioError: "Failed to load audio (premix)",
+      isPlaying: true,
+      playheadSec: 42,
+      viewerMute: { host: true },
+      soloTracks: { guest: true },
+      sessionRegion: { start_sec: 1, end_sec: 2 },
+      lastAgentQuery: "play the intro",
+      playUntilSec: 10,
+      auditionEpoch: 3,
+      highlightStaleRender: true,
+      renderPreviewBusy: true,
+    });
+    useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
+    const s = useDawStore.getState();
+    expect(s.audioError).toBeNull();
+    expect(s.isPlaying).toBe(false);
+    expect(s.playheadSec).toBe(0);
+    expect(s.viewerMute).toEqual({});
+    expect(s.soloTracks).toEqual({});
+    expect(s.sessionRegion).toBeNull();
+    expect(s.lastAgentQuery).toBeNull();
+    expect(s.playUntilSec).toBeNull();
+    expect(s.auditionEpoch).toBe(0);
+    expect(s.highlightStaleRender).toBe(false);
+    expect(s.renderPreviewBusy).toBe(false);
+  });
+
   it("beginAudition bumps epoch", () => {
     useDawStore.getState().beginAudition({
       playheadSec: 1,

@@ -36,6 +36,52 @@ describe("staleRenderBreakdown", () => {
     expect(b.invalidations).toEqual([]);
   });
 
+  it("treats a never-rendered project as fresh (#78)", () => {
+    const b = staleRenderBreakdown(
+      minimalProject({
+        tracks: [],
+        render_status: {
+          // render_status_report: no premix file yet
+          needs_rerender: true,
+          reconciliation: { stale: false },
+          premix: { exists: false, stale_vs_stems: false },
+          invalidations: [],
+        },
+      }),
+    );
+    expect(b.stale).toBe(false);
+    expect(b.summary).toBe("Fresh");
+    expect(b.premixMissing).toBe(false);
+  });
+
+  it("still flags a project with tracks but no premix", () => {
+    const b = staleRenderBreakdown(
+      minimalProject({
+        tracks: [
+          {
+            id: "host",
+            label: "Host",
+            role: "dialogue",
+            speaker: null,
+            gain_db: 0,
+            muted: false,
+            duration_sec: 60,
+            fx_count: 0,
+            stem_is_fresh: true,
+          },
+        ],
+        render_status: {
+          needs_rerender: true,
+          reconciliation: { stale: false },
+          premix: { exists: false, stale_vs_stems: false },
+          invalidations: [],
+        },
+      }),
+    );
+    expect(b.stale).toBe(true);
+    expect(b.premixMissing).toBe(true);
+  });
+
   it("exposes regional and whole-track invalidations", () => {
     const b = staleRenderBreakdown(
       minimalProject({
