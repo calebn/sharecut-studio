@@ -10,8 +10,12 @@ test("new project stays fresh without an audio error on desktop and phone", asyn
   const workspaceDir = fs.mkdtempSync(
     path.join(os.tmpdir(), "sharecut-e2e-fresh-"),
   );
-  expect(registerE2eCleanupWorkspace(workspaceDir)).toBe(true);
+  let registered = false;
   try {
+    registered = registerE2eCleanupWorkspace(workspaceDir);
+    if (!registered) {
+      throw new Error("E2E workspace cleanup registration unavailable");
+    }
     await page.addInitScript(() => {
       window.localStorage.setItem("sharecut.bootstrap.skip", "1");
     });
@@ -36,6 +40,12 @@ test("new project stays fresh without an audio error on desktop and phone", asyn
     await expect(page.getByText("Stale render")).toHaveCount(0);
     await expect(page.getByText("Err", { exact: true })).toHaveCount(0);
   } finally {
-    await page.close();
+    try {
+      await page.close();
+    } finally {
+      if (!registered) {
+        fs.rmSync(workspaceDir, { recursive: true, force: true });
+      }
+    }
   }
 });

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { execute } from "../commands/execute";
 import { FEATURE_SHARE_UI_BANNER } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
@@ -143,6 +143,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
     activityJob,
     activityRunningCount,
   } = useDaw();
+  const stale = useMemo(() => staleRenderBreakdown(project).stale, [project]);
 
   if (!project) {
     return (
@@ -180,7 +181,6 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
     (a, b) => a.timeline_start - b.timeline_start,
   );
   const pending = project.edit_impact.pending_review_count;
-  const stale = staleRenderBreakdown(project).stale;
   const chipJob = activityJob ?? pipelineJob;
 
   return (
