@@ -26,16 +26,18 @@ import inspect
 import os
 from collections.abc import Callable
 from functools import wraps
-from typing import Any
+from typing import Annotated, Any
 
 from mcp.server.mcpserver.exceptions import ToolError
+from mcp.shared._callable_inspection import is_async_callable
+from pydantic import BeforeValidator, TypeAdapter
 
 ENV_VAR = "PODCAST_MCP_PROJECT"
 
 
-def resolve_project_path(project_path: str | None) -> str:
+def resolve_project_path(project_path: Any) -> Any:
     """Return the effective project path: explicit arg, else env default."""
-    if project_path:
+    if project_path not in (None, ""):
         return project_path
     default = os.environ.get(ENV_VAR)
     if default:
@@ -47,19 +49,39 @@ def resolve_project_path(project_path: str | None) -> str:
     )
 
 
+def _empty_project_path_to_none(value: Any) -> Any:
+    """Let an empty JSON argument follow the same default path as ``None``."""
+    return None if value == "" else value
+
+
 def _optional_project_annotation(param: inspect.Parameter) -> Any:
     """Widen a project_path annotation to also accept None."""
     ann = param.annotation
     if ann is inspect.Parameter.empty:
-        return "str | None"
-    if isinstance(ann, str):
-        if "None" in ann:
-            return ann
-        return f"({ann}) | None"
+        return Annotated[str | None, BeforeValidator(_empty_project_path_to_none)]
     try:
-        return ann | None
+        optional = ann | None
     except TypeError:
-        return "str | None"
+        optional = Any | None
+    return Annotated[optional, BeforeValidator(_empty_project_path_to_none)]
+
+
+def _resolved_signature(fn: Callable[..., Any]) -> inspect.Signature:
+    """Read annotations in the callable's namespace before wrapping it.
+
+    MCP evaluates annotations when it registers a tool.  A wrapper lives in this
+    module, so retaining forward-reference strings would make MCP look for a
+    tool's types here instead of in the tool (or extension) module.
+    """
+    return inspect.signature(fn, eval_str=True)
+
+
+def _default_project_value(annotation: Any) -> Any:
+    """Validate the env value with the original parameter annotation."""
+    value = resolve_project_path(None)
+    if annotation is inspect.Parameter.empty:
+        return value
+    return TypeAdapter(annotation).validate_python(value)
 
 
 def with_default_project(fn: Callable[..., Any]) -> Callable[..., Any]:
@@ -70,8 +92,8 @@ def with_default_project(fn: Callable[..., Any]) -> Callable[..., Any]:
     and ``__doc__`` (tool descriptions).
     """
     try:
-        sig = inspect.signature(fn)
-    except (TypeError, ValueError):
+        sig = _resolved_signature(fn)
+    except (NameError, TypeError, ValueError):
         return fn
     if "project_path" not in sig.parameters:
         return fn
@@ -108,7 +130,7 @@ def with_default_project(fn: Callable[..., Any]) -> Callable[..., Any]:
         bound = new_sig.bind_partial(*args, **kwargs)
         if not bound.arguments.get("project_path"):
             try:
-                bound.arguments["project_path"] = resolve_project_path(None)
+                bound.arguments["project_path"] = _default_project_value(orig_param.annotation)
             except ValueError as exc:
                 # MCP SDK 2.2.0 turns non-ToolError exceptions into
                 # UnexpectedToolError, which hides the message from the
@@ -119,7 +141,10 @@ def with_default_project(fn: Callable[..., Any]) -> Callable[..., Any]:
         orig_bound = sig.bind_partial(**bound.arguments)
         return fn(*orig_bound.args, **orig_bound.kwargs)
 
-    if inspect.iscoroutinefunction(fn):
+    # Match MCP's callable detection, which also supports instances with an
+    # async ``__call__`` method (extension tools commonly use these).
+    is_async = is_async_callable(fn)
+    if is_async:
 
         @wraps(fn)
         async def _async_wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -145,8 +170,28 @@ def install_project_default(server: Any) -> None:
 
     original_add_tool = server.add_tool
 
-    def add_tool(fn: Callable[..., Any], **kwargs: Any) -> None:
-        return original_add_tool(with_default_project(fn), **kwargs)
+    def add_tool(
+        fn: Callable[..., Any],
+        name: str | None = None,
+        title: str | None = None,
+        description: str | None = None,
+        annotations: Any = None,
+        icons: Any = None,
+        meta: Any = None,
+        structured_output: bool | None = None,
+    ) -> None:
+        # Keep MCPServer.add_tool's supported positional contract intact.  This
+        # also makes composition with install_mcp_progress order-independent.
+        return original_add_tool(
+            with_default_project(fn),
+            name,
+            title,
+            description,
+            annotations,
+            icons,
+            meta,
+            structured_output,
+        )
 
     server.add_tool = add_tool  # type: ignore[method-assign]
     server._podcast_project_default_installed = True

@@ -1246,10 +1246,28 @@ def install_mcp_progress(server: Any) -> None:
 
     original_add_tool = server.add_tool
 
-    def add_tool(fn: Callable[..., Any], name: str | None = None, **kwargs: Any) -> None:
+    def add_tool(
+        fn: Callable[..., Any],
+        name: str | None = None,
+        title: str | None = None,
+        description: str | None = None,
+        annotations: Any = None,
+        icons: Any = None,
+        meta: Any = None,
+        structured_output: bool | None = None,
+    ) -> None:
         tool_name = name if isinstance(name, str) else getattr(fn, "__name__", "tool")
         mark_wrapped(str(tool_name))
-        return original_add_tool(fn, name=name, **kwargs)
+        return original_add_tool(
+            fn,
+            name,
+            title,
+            description,
+            annotations,
+            icons,
+            meta,
+            structured_output,
+        )
 
     original_call_tool = server.call_tool
 

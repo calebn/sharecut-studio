@@ -23,6 +23,17 @@ def test_mcp_setup_examples_match_supported_client_contracts() -> None:
     assert "~/Library/Application Support/Claude/claude_desktop_config.json" in document
     assert "%APPDATA%\\Claude\\claude_desktop_config.json" in document
     assert "loopback-only" in document
+    assert "PODCAST_MCP_PROJECT" in document
+    assert "An explicit, non-empty `project_path` always wins" in document
+    assert "`null`/`None` and an empty string" in document
+
+
+def test_docs_site_mcp_setup_describes_the_stdio_project_default() -> None:
+    document = (Path(__file__).parents[1] / "docs-site" / "pages" / "mcp-setup.md").read_text()
+
+    assert "PODCAST_MCP_PROJECT" in document
+    assert "An explicit non-empty `project_path` wins" in document
+    assert "empty\npath falls back" in document
 
 
 def test_mcp_setup_json_examples_are_valid() -> None:
