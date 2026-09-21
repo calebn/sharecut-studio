@@ -638,7 +638,9 @@ Token metadata: share registry + `artifacts/review/shares.json` hold `kind`,
 `session_id`, and role. Live-room state lives in existing
 `artifacts/session/sync.db` via `services/record/` on a prefixed `SyncStore`
 (`record_commands`, `record_snapshot`, `record_clients`) plus
-`record_participants` (lease **hashes** only). **No new sqlite file, no new
+`record_participants` (lease **hashes** only). All record stores share the
+session-sync SQLite initializer so concurrent room startup cannot race while
+switching `sync.db` into WAL mode. **No new sqlite file, no new
 sidecar JSON.**
 
 | Data | How |
