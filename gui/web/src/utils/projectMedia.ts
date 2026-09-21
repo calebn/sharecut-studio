@@ -12,7 +12,9 @@ export function trackHasSourceAudio(
 }
 
 export function projectHasSourceAudio(
-  project: Pick<ProjectView, "tracks">,
+  project: Pick<ProjectView, "tracks" | "clips">,
 ): boolean {
-  return project.tracks.some(trackHasSourceAudio);
+  return (
+    project.clips.clip_count > 0 || project.tracks.some(trackHasSourceAudio)
+  );
 }

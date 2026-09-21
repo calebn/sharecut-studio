@@ -150,6 +150,54 @@ describe("staleRenderBreakdown", () => {
     expect(b.premixMissing).toBe(true);
   });
 
+  it("does not call a project fresh when a source clip moved onto an empty track", () => {
+    const b = staleRenderBreakdown(
+      minimalProject({
+        tracks: [
+          {
+            id: "destination",
+            label: "Destination",
+            role: "dialogue",
+            speaker: null,
+            gain_db: 0,
+            muted: false,
+            duration_sec: null,
+            fx_count: 0,
+            stem_is_fresh: false,
+            has_source_audio: false,
+            media_path: null,
+          },
+        ],
+        clips: {
+          clip_count: 1,
+          tracks: {
+            destination: [
+              {
+                id: "moved",
+                track_id: "destination",
+                source_start: 0,
+                source_end: 1,
+                timeline_start: 0,
+                timeline_end: 1,
+                fade_in_ms: 0,
+                fade_out_ms: 0,
+                join_in_mode: "fade",
+                source_id: "original-source",
+              },
+            ],
+          },
+        },
+        render_status: {
+          needs_rerender: true,
+          reconciliation: { stale: false },
+          premix: { exists: false },
+        },
+      }),
+    );
+    expect(b.stale).toBe(true);
+    expect(b.premixMissing).toBe(true);
+  });
+
   it("exposes regional and whole-track invalidations", () => {
     const b = staleRenderBreakdown(
       minimalProject({
