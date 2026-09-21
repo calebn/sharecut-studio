@@ -49,6 +49,34 @@ async function markSharecutE2e(page: Page): Promise<void> {
   });
 }
 
+async function supplyRoomTonePcm(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const NativeWorkletNode = window.AudioWorkletNode;
+    Object.defineProperty(window, "AudioWorkletNode", {
+      configurable: true,
+      value: class extends NativeWorkletNode {
+        private timer: number;
+
+        constructor(context: AudioContext, name: string) {
+          super(context, name);
+          // Headless macOS may render only a few worklet quanta per second.
+          // Feed the room-tone flow deterministic quiet PCM at 48 kHz instead.
+          this.timer = window.setInterval(() => {
+            this.port.dispatchEvent(
+              new MessageEvent("message", { data: new Float32Array(960) }),
+            );
+          }, 10);
+        }
+
+        disconnect(): void {
+          window.clearInterval(this.timer);
+          super.disconnect();
+        }
+      },
+    });
+  });
+}
+
 async function clickHostTransport(
   host: Page,
   button: Locator,
@@ -434,6 +462,7 @@ test.describe("record lobby", () => {
       const host = await hostCtx.newPage();
       const guest = await guestCtx.newPage();
       try {
+        await supplyRoomTonePcm(guest);
         const project = encodeURIComponent(projectPath);
         await markSharecutE2e(host);
         await host.goto(`/?project=${project}&e2e=1`);
@@ -461,7 +490,7 @@ test.describe("record lobby", () => {
         await expect(
           guest.getByText("Recording room tone…").first(),
         ).toBeVisible();
-        await expect(guest.getByText(/Room tone saved|Too loud/)).toBeVisible({
+        await expect(guest.getByText("Room tone saved")).toBeVisible({
           timeout: 15_000,
         });
         await expect(
