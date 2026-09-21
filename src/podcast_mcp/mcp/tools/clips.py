@@ -47,13 +47,13 @@ def reject_social_clips_tool(project_path: str, ids_json: str) -> str:
 
 
 def social_clip_report_tool(project_path: str) -> str:
-    """Return the social clip pipeline report (proposed, approved, exported counts)."""
+    """Return a Markdown listing of social clip candidates."""
     ws = ProjectWorkspace.open(project_path)
     return ClipService(ws).report()
 
 
 def export_social_clips_tool(project_path: str, ids_json: str | None = None) -> str:
-    """Export social clips to files; omit ids_json to export all approved."""
+    """Export specified clips, or all approved and non-review-required drafts when IDs are omitted."""
     ws = ProjectWorkspace.open(project_path)
     ids = json.loads(ids_json) if ids_json else None
     exported = ClipService(ws).export(ids)

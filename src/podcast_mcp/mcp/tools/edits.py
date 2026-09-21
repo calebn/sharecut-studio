@@ -59,7 +59,7 @@ def cut_text_match_tool(
     review_required: bool = True,
     use_inaudible_opt: bool | None = None,
 ) -> str:
-    """Stage pending cuts for each transcript match of a text query."""
+    """Stage a pending cut for the first text match, or every match with match_all=True."""
     ws = ProjectWorkspace.open(project_path)
     EditService(ws).cut_text_match(
         query,
@@ -277,7 +277,7 @@ def list_edit_decisions_tool(
     review_required: bool | None = None,
     reason_prefix: str | None = None,
 ) -> str:
-    """List pending or applied edit decisions, filterable by review status and reason."""
+    """List pending decisions; use list_applied_edits_tool for archived approved edits."""
     ws = ProjectWorkspace.open(project_path)
     edits = EditService(ws).list_decisions(
         applied=applied,
@@ -328,7 +328,7 @@ def revert_applied_edit_tool(project_path: str, record_id: str) -> str:
 
 
 def edit_impact_report_tool(project_path: str, markdown: bool = False) -> str:
-    """Summarize the impact of proposed edits (words and time removed per track)."""
+    """Report pending-review and applied edits, with applied removal duration by track."""
     ws = ProjectWorkspace.open(project_path)
     report = EditService(ws).impact_report(markdown=markdown)
     return report if isinstance(report, str) else to_json(report)
@@ -360,7 +360,7 @@ def propose_edits(project_path: str, edit_mode: str | None = None) -> str:
 
 
 def apply_edits(project_path: str) -> str:
-    """Apply all pending edits that do not require human review."""
+    """Auto-apply non-review REMOVE/MUTE decisions whose reason starts filler: or pause:."""
     ws = ProjectWorkspace.open(project_path)
     n = EditService(ws).apply_auto()
     agent_mutated(ws)
