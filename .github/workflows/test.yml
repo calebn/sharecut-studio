@@ -99,11 +99,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[gui]"
 
-      - name: Install frontend deps and Chromium
+      - name: Install frontend deps and browser engines
         working-directory: gui/web
         run: |
           npm ci
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps chromium webkit
 
       - name: Build Sharecut Studio static assets
         working-directory: gui/web
@@ -112,3 +112,7 @@ jobs:
       - name: Playwright smoke + axe (aligned_dialogue)
         working-directory: gui/web
         run: npm run test:e2e
+
+      - name: Playwright Chromium/WebKit compatibility matrix
+        working-directory: gui/web
+        run: npm run test:e2e:compat
