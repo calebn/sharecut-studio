@@ -21,6 +21,10 @@ export async function openHostProject(page: Page): Promise<void> {
 }
 
 export async function openTransportMenu(page: Page): Promise<Locator> {
+  const menu = page.getByRole("menu", { name: "Transport menu" });
+  if (await menu.isVisible()) {
+    return menu;
+  }
   const menuButton = page.getByRole("button", { name: "Menu", exact: true });
   if ((await menuButton.count()) === 0) {
     // The phone Listen mode intentionally hides transport chrome. Enter More,
@@ -28,7 +32,7 @@ export async function openTransportMenu(page: Page): Promise<Locator> {
     await page.getByRole("button", { name: "More", exact: true }).click();
   }
   await menuButton.click();
-  return page.getByRole("menu", { name: "Transport menu" });
+  return menu;
 }
 
 export async function expectOverflowYAuto(locator: Locator): Promise<void> {
