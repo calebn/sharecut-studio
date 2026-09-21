@@ -176,6 +176,8 @@ document commands.
 
 Phone (`<768`), tablet (`768–1100`), and desktop (`>1100`) share domain components but not the same chrome. Phone uses Listen / Timeline / Text / More modes + selection sheets. Full map, wireframes, and desktop back-apply: [gui-mobile.md](gui-mobile.md).
 
+Host and guest shells reserve a banner row for offline command attention on all three sizes. Host pending edits remain visible there until replay; host and guest 409 conflicts appear in the same **Needs attention** list and can be dismissed. The guest share-mode label stays guest-only.
+
 ### Live project reload
 
 The viewer polls `GET /api/project/meta` (~1.5s; includes document `server_seq`). When `mtime_ns` / `size` change and local seq is behind, it re-fetches `GET /api/project?phase=shell` and merges into the timeline **without a browser refresh**. Playhead, zoom, and selection are preserved. JSON responses are gzip-compressed (`GZipMiddleware`); document WebSocket uses permessage-deflate (`ws_per_message_deflate=True` on uvicorn). Do not gzip audio `FileResponse`.

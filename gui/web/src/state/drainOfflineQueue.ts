@@ -1,6 +1,10 @@
 import { submitDocumentCommand } from "../api";
 import { shareProjectKey } from "../shareMode";
-import { loadCommandQueue, loadHostCommandQueue } from "./offlineStore";
+import {
+  loadCommandQueue,
+  loadHostCommandQueue,
+  removeHostQueuedCommands,
+} from "./offlineStore";
 
 /** Drain persisted share-guest commands in client_seq order after reconnect. */
 export async function drainOfflineQueue(token: string): Promise<void> {
@@ -28,6 +32,7 @@ export async function drainHostOfflineQueue(
   projectPath: string,
 ): Promise<void> {
   const queue = await loadHostCommandQueue(projectPath);
+  const completed: string[] = [];
   for (const cmd of queue) {
     try {
       const result = await submitDocumentCommand(
@@ -45,8 +50,11 @@ export async function drainHostOfflineQueue(
       if (result.queued === true) {
         break;
       }
+      completed.push(cmd.command_id);
     } catch {
       break;
     }
   }
+  // One persisted update replaces N full-array rewrites on a long replay.
+  await removeHostQueuedCommands(projectPath, completed);
 }

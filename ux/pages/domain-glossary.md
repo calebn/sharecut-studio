@@ -20,7 +20,7 @@ Two layers: **Partner terms** (plain language) and **Schema map** (for people wh
 | **Sharecut Studio guest** | Full-ish timeline UI when the share includes “view” |
 | **Mode banner** | Top strip naming Shared edit / suggest / read-only / comment view |
 | **Proxy listen** | Short MP3 chunks for guest playback (faster than full WAVs) |
-| **Needs attention** | Guest banner when offline edits conflicted with the host |
+| **Needs attention** | Host pending edits and host/guest offline conflicts |
 | **Offline queue** | Guest edits waiting until the network returns |
 | **Presence** | Who is in the session (avatars, ghost cursors). Click to follow. |
 | **Follow** | Slave viewport (desktop/tablet) or listen-along with a centered playhead (phone); Esc or local navigation (including keyboard seek) stops |
@@ -69,8 +69,8 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 | **Share token** | Guest access + capabilities | relay / review routes (pass-through; audio/media may transit, not stored on the relay; object storage stores mix/proxy when configured) | ReviewApp or Sharecut Studio guest |
 | **Guest banner** | Labels Sharecut Studio share mode | share bootstrap `guest_mode` | Top of Sharecut Studio guest / phone shell |
 | **Proxy media** | Guest listen chunks (MP3) | `timeline.tracks[].proxy` + CDN/local URLs | Guest transport |
-| **Offline edit queue** | Guest commands waiting for reconnect | browser storage `queue:{token}` | Silent until drain; conflicts → Needs attention |
-| **Needs attention** | Guest conflict list | browser storage `conflicts:{token}` | Guest attention banner |
+| **Offline edit queue** | Host or guest commands waiting for reconnect | browser storage `host-queue:{projectPath}` / `queue:{token}` | Host pending count → Needs attention; conflicts → Needs attention |
+| **Needs attention** | Host pending edits and host/guest conflict list | browser storage `host-queue-count:{projectPath}`, `host-conflicts:{projectPath}` / `conflicts:{token}` | Attention banner in host or guest shell |
 | **Presence** | Connected viewers/agents | session `clients[]` | Transport avatar stack, ghost cursors, status bar names, phone More → People |
 | **Remote MCP URL** | Agent entry for a share | share row `mcp_url` → `{base}/mcp/{token}/mcp` | External MCP clients only |
 | **Record link** | Studio join URL (shipped) | `/rec/{token}` + share `kind` | Record lobby / room (not ReviewApp); keepers + mix-minus + landing shipped |

@@ -49,8 +49,22 @@ async function idbGet<T>(key: string): Promise<T | undefined> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, "readonly");
     const req = tx.objectStore(STORE).get(key);
-    req.onsuccess = () => resolve(req.result as T | undefined);
-    req.onerror = () => reject(req.error);
+    let value: T | undefined;
+    req.onsuccess = () => {
+      value = req.result as T | undefined;
+    };
+    tx.oncomplete = () => {
+      db.close();
+      resolve(value);
+    };
+    tx.onabort = () => {
+      db.close();
+      reject(tx.error ?? new Error("IndexedDB transaction aborted"));
+    };
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error);
+    };
   });
 }
 
@@ -62,8 +76,18 @@ async function idbSet(key: string, value: unknown): Promise<void> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, "readwrite");
     tx.objectStore(STORE).put(value, key);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onabort = () => {
+      db.close();
+      reject(tx.error ?? new Error("IndexedDB transaction aborted"));
+    };
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error);
+    };
   });
 }
 
@@ -73,6 +97,10 @@ function queueKey(token: string): string {
 
 function hostQueueKey(projectPath: string): string {
   return `host-queue:${projectPath}`;
+}
+
+function hostQueueCountKey(projectPath: string): string {
+  return `host-queue-count:${projectPath}`;
 }
 
 function snapKey(token: string): string {
@@ -111,26 +139,53 @@ async function withHostQueueLock<T>(
   }
 }
 
-async function updateHostQueue<T>(
-  projectPath: string,
-  update: (queue: QueuedCommand[]) => { queue: QueuedCommand[]; result: T },
-): Promise<T> {
+async function updateStoredList<Item, Result>(
+  key: string,
+  update: (items: Item[]) => { items: Item[]; result: Result },
+  countKey?: string,
+): Promise<Result> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, "readwrite");
-    const req = tx.objectStore(STORE).get(hostQueueKey(projectPath));
-    let result: T;
+    const store = tx.objectStore(STORE);
+    const req = store.get(key);
+    let result: Result;
     req.onsuccess = () => {
-      const next = update((req.result as QueuedCommand[] | undefined) ?? []);
+      const next = update((req.result as Item[] | undefined) ?? []);
       result = next.result;
-      tx.objectStore(STORE).put(next.queue, hostQueueKey(projectPath));
+      store.put(next.items, key);
+      if (countKey) store.put(next.items.length, countKey);
     };
-    req.onerror = () => reject(req.error);
-    tx.onabort = () =>
+    tx.oncomplete = () => {
+      db.close();
+      resolve(result);
+    };
+    tx.onabort = () => {
+      db.close();
       reject(tx.error ?? new Error("IndexedDB transaction aborted"));
-    tx.oncomplete = () => resolve(result);
-    tx.onerror = () => reject(tx.error);
+    };
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error);
+    };
   });
+}
+
+function updateHostQueue<Result>(
+  projectPath: string,
+  update: (queue: QueuedCommand[]) => {
+    queue: QueuedCommand[];
+    result: Result;
+  },
+): Promise<Result> {
+  return updateStoredList<QueuedCommand, Result>(
+    hostQueueKey(projectPath),
+    (queue) => {
+      const next = update(queue);
+      return { items: next.queue, result: next.result };
+    },
+    hostQueueCountKey(projectPath),
+  );
 }
 
 export async function saveOfflineSnapshot(
@@ -203,6 +258,13 @@ export async function loadHostCommandQueue(
   return (await idbGet<QueuedCommand[]>(hostQueueKey(projectPath))) ?? [];
 }
 
+export async function loadHostCommandCount(
+  projectPath: string,
+): Promise<number> {
+  const count = await idbGet<number>(hostQueueCountKey(projectPath));
+  return count ?? (await loadHostCommandQueue(projectPath)).length;
+}
+
 export async function enqueueHostCommand(
   projectPath: string,
   cmd: QueuedCommand,
@@ -232,10 +294,19 @@ export async function removeHostQueuedCommand(
   projectPath: string,
   commandId: string,
 ): Promise<void> {
+  await removeHostQueuedCommands(projectPath, [commandId]);
+}
+
+export async function removeHostQueuedCommands(
+  projectPath: string,
+  commandIds: string[],
+): Promise<void> {
+  if (commandIds.length === 0) return;
   if (typeof indexedDB === "undefined") return;
+  const ids = new Set(commandIds);
   await withHostQueueLock(projectPath, async () => {
     await updateHostQueue(projectPath, (existing) => ({
-      queue: existing.filter((c) => c.command_id !== commandId),
+      queue: existing.filter((c) => !ids.has(c.command_id)),
       result: undefined,
     }));
   });
@@ -292,12 +363,19 @@ export async function addHostConflict(
   projectPath: string,
   conflict: OfflineConflict,
 ): Promise<void> {
-  const list = await loadHostConflicts(projectPath);
-  const withoutCommand = list.filter(
-    (existing) => existing.command.command_id !== conflict.command.command_id,
+  await updateStoredList<OfflineConflict, void>(
+    hostConflictKey(projectPath),
+    (list) => ({
+      items: [
+        ...list.filter(
+          (existing) =>
+            existing.command.command_id !== conflict.command.command_id,
+        ),
+        conflict,
+      ],
+      result: undefined,
+    }),
   );
-  withoutCommand.push(conflict);
-  await saveHostConflicts(projectPath, withoutCommand);
 }
 
 function recordParticipantKey(token: string): string {
@@ -330,7 +408,17 @@ export async function clearRecordParticipant(token: string): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, "readwrite");
     tx.objectStore(STORE).delete(recordParticipantKey(token));
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onabort = () => {
+      db.close();
+      reject(tx.error ?? new Error("IndexedDB transaction aborted"));
+    };
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error);
+    };
   });
 }

@@ -14,7 +14,8 @@
   container: app / size;
 }
 
-.daw-shell-guest {
+.daw-shell-guest,
+.daw-shell--attention {
   grid-template-rows: auto var(--transport-height) 1fr var(--tabs-height) var(
       --status-height
     );
@@ -31,7 +32,8 @@
     var(--status-height);
 }
 
-.daw-shell-guest.daw-shell--following {
+.daw-shell-guest.daw-shell--following,
+.daw-shell--attention.daw-shell--following {
   grid-template-rows:
     auto auto var(--transport-height) minmax(0, 1fr) var(--tabs-height)
     var(--status-height);
