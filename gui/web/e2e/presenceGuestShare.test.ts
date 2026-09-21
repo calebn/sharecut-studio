@@ -18,13 +18,15 @@ describe("guest share proxy setup contract", () => {
     expect(source).toContain("function openHostShare");
     expect(source).toContain("page.waitForResponse");
     expect(source).toContain('page.waitForLoadState("networkidle"');
+    expect(source).toContain("withTwoBrowserPages");
+    expect(source).toContain("await openHostShare(pageA, projectPath);");
+    expect(source).toContain("await openHostShare(pageB, projectPath);");
+    expect(source).toContain('name: "Follow Host"');
     expect(source).toContain("await page.goto(`/r/${token}`)");
     expect(source).toContain(
       "expect((await manifestResponse).status()).toBe(200)",
     );
-    expect((source.match(/await openGuestShare\(pageB,/g) ?? []).length).toBe(
-      2,
-    );
-    expect((source.match(/await openHostShare\(pageA,/g) ?? []).length).toBe(2);
+    expect(source).not.toContain("const n = await follows.count()");
+    expect(source).not.toContain("for (let i = n - 1; i >= 0; i--)");
   });
 });

@@ -1,6 +1,7 @@
 import { type Browser, expect, type Page, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { withShareableProject } from "./shareableProject";
+import { withTwoBrowserPages } from "./twoBrowserPages";
 
 const DESKTOP = { width: 1440, height: 900 };
 const TABLET = { width: 820, height: 1180 };
@@ -221,34 +222,16 @@ async function withTwoStudioPages<T>(
   followerViewport = viewport,
 ): Promise<T> {
   return withShareableProject(async (projectPath) => {
-    const project = encodeURIComponent(projectPath);
-    const aCtx = await browser.newContext({ viewport });
-    const bCtx = await browser.newContext({ viewport: followerViewport });
-    let runFailed = false;
-    try {
-      const pageA = await aCtx.newPage();
-      const pageB = await bCtx.newPage();
-      await pageA.goto(`/?project=${project}`);
-      await pageB.goto(`/?project=${project}`);
-      await expect(pageA.locator(".daw-shell")).toBeVisible();
-      await expect(pageB.locator(".daw-shell")).toBeVisible();
-      return await run(pageA, pageB);
-    } catch (error) {
-      runFailed = true;
-      throw error;
-    } finally {
-      const closeResults = await Promise.allSettled([
-        aCtx.close(),
-        bCtx.close(),
-      ]);
-      if (!runFailed) {
-        const closeFailure = closeResults.find(
-          (result): result is PromiseRejectedResult =>
-            result.status === "rejected",
-        );
-        if (closeFailure) throw closeFailure.reason;
-      }
-    }
+    return withTwoBrowserPages(
+      browser,
+      { viewport },
+      { viewport: followerViewport },
+      async (pageA, pageB) => {
+        await openHostShare(pageA, projectPath);
+        await openHostShare(pageB, projectPath);
+        return await run(pageA, pageB);
+      },
+    );
   });
 }
 
@@ -436,105 +419,81 @@ test.describe("presence follow phone", () => {
 test.describe("presence follow guest share", () => {
   test("guest follows host on a share token", async ({ browser }) => {
     await withShareableProject(async (projectPath) => {
-      const aCtx = await browser.newContext({ viewport: DESKTOP });
-      const bCtx = await browser.newContext({ viewport: DESKTOP });
-      const pageA = await aCtx.newPage();
-      const pageB = await bCtx.newPage();
-      try {
-        await openHostShare(pageA, projectPath);
-        const created = await pageA.request.post("/api/shares", {
-          data: { path: projectPath, role: "viewer" },
-        });
-        expect(created.ok(), await created.text()).toBeTruthy();
-        const body = (await created.json()) as { share: { token: string } };
-        await openGuestShare(pageB, body.share.token);
-        await pageA.locator('[data-presence-anchor="tab:pipeline"]').click();
-        const follows = pageB.getByRole("button", { name: /Follow / });
-        await expect(follows.first()).toBeVisible({ timeout: 15_000 });
-        const n = await follows.count();
-        for (let i = n - 1; i >= 0; i--) {
-          if (await pageB.locator(".follow-banner").isVisible()) {
-            await pageB
-              .getByRole("button", { name: "Stop following", exact: true })
-              .click();
-          }
-          await follows.nth(i).click();
-          if (!(await pageB.locator(".follow-banner").isVisible())) {
-            continue;
-          }
-          try {
-            await expect(pageB.locator(".follow-banner")).toContainText(
-              /in Pipeline \(host-only\)/,
-              { timeout: 4_000 },
-            );
-            break;
-          } catch {
-            await pageB
-              .getByRole("button", { name: "Stop following", exact: true })
-              .click();
-          }
-        }
-        await expect(pageB.locator(".follow-banner")).toBeVisible();
-        await expect(pageB.locator(".presence-overlay")).toBeAttached();
-        await expect(pageB.locator(".follow-banner")).toContainText(
-          /in Pipeline \(host-only\)/,
-        );
-        await expect(
-          pageB.locator(
-            '[data-presence-anchor="tab:transcript"][aria-pressed="true"]',
-          ),
-        ).toBeVisible();
+      await withTwoBrowserPages(
+        browser,
+        { viewport: DESKTOP },
+        { viewport: DESKTOP },
+        async (pageA, pageB) => {
+          await openHostShare(pageA, projectPath);
+          const created = await pageA.request.post("/api/shares", {
+            data: { path: projectPath, role: "viewer" },
+          });
+          expect(created.ok(), await created.text()).toBeTruthy();
+          const body = (await created.json()) as { share: { token: string } };
+          await openGuestShare(pageB, body.share.token);
+          await pageA.locator('[data-presence-anchor="tab:pipeline"]').click();
+          const followHost = pageB.getByRole("button", {
+            name: "Follow Host",
+            exact: true,
+          });
+          await expect(followHost).toBeVisible({ timeout: 15_000 });
+          await followHost.click();
+          const followBanner = pageB.locator(".follow-banner");
+          await expect(followBanner).toBeVisible();
+          await expect(pageB.locator(".presence-overlay")).toBeAttached();
+          await expect(followBanner).toContainText(/in Pipeline \(host-only\)/);
+          await expect(
+            pageB.locator(
+              '[data-presence-anchor="tab:transcript"][aria-pressed="true"]',
+            ),
+          ).toBeVisible();
 
-        await pageA.locator('[data-presence-anchor="audition:fx"]').click();
-        await expect(pageB.locator(".follow-banner")).toContainText(
-          /auditioning FX/,
-        );
-        await expectGuestListeningInMix(pageB);
-      } finally {
-        await aCtx.close();
-        await bCtx.close();
-      }
+          await pageA.locator('[data-presence-anchor="audition:fx"]').click();
+          await expect(pageB.locator(".follow-banner")).toContainText(
+            /auditioning FX/,
+          );
+          await expectGuestListeningInMix(pageB);
+        },
+      );
     });
   });
 
   test("editor guest Mix lock after host FX", async ({ browser }) => {
     await withShareableProject(async (projectPath) => {
-      const aCtx = await browser.newContext({ viewport: DESKTOP });
-      const bCtx = await browser.newContext({ viewport: DESKTOP });
-      const pageA = await aCtx.newPage();
-      const pageB = await bCtx.newPage();
-      try {
-        const token = await test.step("create editor share", async () => {
-          await openHostShare(pageA, projectPath);
-          const created = await pageA.request.post("/api/shares", {
-            data: { path: projectPath, role: "editor" },
+      await withTwoBrowserPages(
+        browser,
+        { viewport: DESKTOP },
+        { viewport: DESKTOP },
+        async (pageA, pageB) => {
+          const token = await test.step("create editor share", async () => {
+            await openHostShare(pageA, projectPath);
+            const created = await pageA.request.post("/api/shares", {
+              data: { path: projectPath, role: "editor" },
+            });
+            expect(created.ok(), await created.text()).toBeTruthy();
+            const body = (await created.json()) as { share: { token: string } };
+            return body.share.token;
           });
-          expect(created.ok(), await created.text()).toBeTruthy();
-          const body = (await created.json()) as { share: { token: string } };
-          return body.share.token;
-        });
-        await test.step("open editor guest", async () => {
-          await openGuestShare(pageB, token);
-        });
-        await test.step("publish host FX presence", async () => {
-          await pageA.locator('[data-presence-anchor="audition:fx"]').click();
-        });
-        await test.step("follow host FX presence", async () => {
-          const follows = pageB.getByRole("button", { name: /Follow / });
-          await expect(follows).toHaveCount(1, { timeout: 15_000 });
-          await follows.click();
-          await expect(pageB.locator(".follow-banner")).toContainText(
-            /auditioning FX/,
-            { timeout: 15_000 },
-          );
-        });
-        await test.step("verify guest Mix lock", async () => {
-          await expectGuestListeningInMix(pageB);
-        });
-      } finally {
-        await aCtx.close();
-        await bCtx.close();
-      }
+          await test.step("open editor guest", async () => {
+            await openGuestShare(pageB, token);
+          });
+          await test.step("publish host FX presence", async () => {
+            await pageA.locator('[data-presence-anchor="audition:fx"]').click();
+          });
+          await test.step("follow host FX presence", async () => {
+            const follows = pageB.getByRole("button", { name: /Follow / });
+            await expect(follows).toHaveCount(1, { timeout: 15_000 });
+            await follows.click();
+            await expect(pageB.locator(".follow-banner")).toContainText(
+              /auditioning FX/,
+              { timeout: 15_000 },
+            );
+          });
+          await test.step("verify guest Mix lock", async () => {
+            await expectGuestListeningInMix(pageB);
+          });
+        },
+      );
     });
   });
 });

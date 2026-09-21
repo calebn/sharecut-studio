@@ -119,6 +119,9 @@ documented HTMLAudio fallback when proxy generation is unavailable. Those tests
 also await host-page `networkidle` after shell hydration before creating a share,
 which lets lazy host `/api/audio` stem requests settle; open WebSockets do not
 block that Playwright quiescence gate.
+Two-page browser scenarios use the shared `withTwoBrowserPages` helper: it closes
+every context created during setup, including partial setup failures, and preserves
+the original setup or scenario failure if cleanup also fails.
 
 ## Adding features
 

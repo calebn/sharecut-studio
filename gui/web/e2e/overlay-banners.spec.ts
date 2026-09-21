@@ -7,6 +7,7 @@ import {
   SHORT_VIEWPORTS,
 } from "./overlayReachability";
 import { withShareableProject } from "./shareableProject";
+import { withTwoBrowserPages } from "./twoBrowserPages";
 
 const PROXY_MANIFEST_TIMEOUT_MS = 15_000;
 
@@ -42,31 +43,22 @@ async function openHostShare(page: Page, projectPath: string): Promise<void> {
   });
 }
 
-async function twoHostPages(
+async function withTwoHostPages<T>(
   browser: Browser,
   viewport: { width: number; height: number },
-): Promise<{
-  pageA: Page;
-  pageB: Page;
-  close: () => Promise<void>;
-}> {
-  const project = encodeURIComponent(e2eProjectPath);
-  const aCtx = await browser.newContext({ viewport });
-  const bCtx = await browser.newContext({ viewport });
-  const pageA = await aCtx.newPage();
-  const pageB = await bCtx.newPage();
-  await pageA.goto(`/?project=${project}`);
-  await pageB.goto(`/?project=${project}`);
-  await expect(pageA.locator(".daw-shell")).toBeVisible();
-  await expect(pageB.locator(".daw-shell")).toBeVisible();
-  return {
-    pageA,
-    pageB,
-    close: async () => {
-      await aCtx.close();
-      await bCtx.close();
+  run: (pageA: Page, pageB: Page) => Promise<T>,
+): Promise<T> {
+  const projectPath = e2eProjectPath;
+  return withTwoBrowserPages(
+    browser,
+    { viewport },
+    { viewport },
+    async (pageA, pageB) => {
+      await openHostShare(pageA, projectPath);
+      await openHostShare(pageB, projectPath);
+      return run(pageA, pageB);
     },
-  };
+  );
 }
 
 async function followUntilBannerVisible(
@@ -112,8 +104,7 @@ test.describe("overlay with follow banner", () => {
     test(`menu last item and Share rooms stay reachable at ${label}`, async ({
       browser,
     }) => {
-      const { pageB, close } = await twoHostPages(browser, viewport);
-      try {
+      await withTwoHostPages(browser, viewport, async (_pageA, pageB) => {
         await followUntilBannerVisible(pageB, async () => {
           await openTransportMenu(pageB);
         });
@@ -125,9 +116,7 @@ test.describe("overlay with follow banner", () => {
         await openTransportMenu(pageB);
         await expectMenuLastItemReachable(pageB);
         await expectShareRecordRoomsReachable(pageB);
-      } finally {
-        await close();
-      }
+      });
     });
   }
 });
@@ -141,33 +130,31 @@ test.describe("overlay with guest and follow banners", () => {
       browser,
     }) => {
       await withShareableProject(async (projectPath) => {
-        const aCtx = await browser.newContext({ viewport });
-        const bCtx = await browser.newContext({ viewport });
-        const host = await aCtx.newPage();
-        const guest = await bCtx.newPage();
-        try {
-          await openHostShare(host, projectPath);
-          const created = await host.request.post("/api/shares", {
-            data: { path: projectPath, role: "viewer" },
-          });
-          expect(created.ok(), await created.text()).toBeTruthy();
-          const body = (await created.json()) as { share: { token: string } };
-          await openGuestShare(guest, body.share.token);
-          await expect(guest.locator(".guest-banner")).toBeVisible();
+        await withTwoBrowserPages(
+          browser,
+          { viewport },
+          { viewport },
+          async (host, guest) => {
+            await openHostShare(host, projectPath);
+            const created = await host.request.post("/api/shares", {
+              data: { path: projectPath, role: "viewer" },
+            });
+            expect(created.ok(), await created.text()).toBeTruthy();
+            const body = (await created.json()) as { share: { token: string } };
+            await openGuestShare(guest, body.share.token);
+            await expect(guest.locator(".guest-banner")).toBeVisible();
 
-          // Stack the follow banner under the guest banner. Phone uses the
-          // People menu while desktop keeps Follow controls in the avatar stack.
-          await followUntilBannerVisible(guest, async () => {
-            await openTransportMenu(guest);
-          });
-          await expect(guest.locator(".follow-banner")).toBeVisible();
-          await expect(guest.locator(".guest-banner")).toBeVisible();
+            // Stack the follow banner under the guest banner. Phone uses the
+            // People menu while desktop keeps Follow controls in the avatar stack.
+            await followUntilBannerVisible(guest, async () => {
+              await openTransportMenu(guest);
+            });
+            await expect(guest.locator(".follow-banner")).toBeVisible();
+            await expect(guest.locator(".guest-banner")).toBeVisible();
 
-          await expectMenuLastItemReachable(guest);
-        } finally {
-          await aCtx.close();
-          await bCtx.close();
-        }
+            await expectMenuLastItemReachable(guest);
+          },
+        );
       });
     });
   }
