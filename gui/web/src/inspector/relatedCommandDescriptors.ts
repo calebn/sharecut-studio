@@ -26,7 +26,6 @@ export function relatedCommandsFor(
   switch (selection?.kind) {
     case "clip":
     case "transcriptWord":
-    case "transcriptRange":
       return [COPY_SELECTION];
     default:
       return [];

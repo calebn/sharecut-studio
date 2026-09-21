@@ -36,6 +36,14 @@ describe("relatedCommandsFor", () => {
     expect(
       relatedCommandsFor({ kind: "pending", id: "e1", trackId: "t1" }),
     ).toEqual([]);
+    expect(
+      relatedCommandsFor({
+        kind: "transcriptRange",
+        trackId: "t1",
+        startWordIndex: 0,
+        endWordIndex: 1,
+      }),
+    ).toEqual([]);
   });
 
   it("keeps overflow separate and empty until a safe action exists", () => {
