@@ -5,6 +5,7 @@ const DB_VERSION = 1;
 const STORE = "kv";
 
 export interface QueuedCommand {
+  client_id?: string;
   command_id: string;
   client_seq: number;
   type: string;
@@ -70,12 +71,66 @@ function queueKey(token: string): string {
   return `queue:${token}`;
 }
 
+function hostQueueKey(projectPath: string): string {
+  return `host-queue:${projectPath}`;
+}
+
 function snapKey(token: string): string {
   return `snap:${token}`;
 }
 
 function conflictKey(token: string): string {
   return `conflicts:${token}`;
+}
+
+function hostConflictKey(projectPath: string): string {
+  return `host-conflicts:${projectPath}`;
+}
+
+const hostQueueLocks = new Map<string, Promise<void>>();
+
+async function withHostQueueLock<T>(
+  projectPath: string,
+  action: () => Promise<T>,
+): Promise<T> {
+  const previous = hostQueueLocks.get(projectPath) ?? Promise.resolve();
+  let release!: () => void;
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const chain = previous.then(() => current);
+  hostQueueLocks.set(projectPath, chain);
+  await previous;
+  try {
+    return await action();
+  } finally {
+    release();
+    if (hostQueueLocks.get(projectPath) === chain) {
+      hostQueueLocks.delete(projectPath);
+    }
+  }
+}
+
+async function updateHostQueue<T>(
+  projectPath: string,
+  update: (queue: QueuedCommand[]) => { queue: QueuedCommand[]; result: T },
+): Promise<T> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, "readwrite");
+    const req = tx.objectStore(STORE).get(hostQueueKey(projectPath));
+    let result: T;
+    req.onsuccess = () => {
+      const next = update((req.result as QueuedCommand[] | undefined) ?? []);
+      result = next.result;
+      tx.objectStore(STORE).put(next.queue, hostQueueKey(projectPath));
+    };
+    req.onerror = () => reject(req.error);
+    tx.onabort = () =>
+      reject(tx.error ?? new Error("IndexedDB transaction aborted"));
+    tx.oncomplete = () => resolve(result);
+    tx.onerror = () => reject(tx.error);
+  });
 }
 
 export async function saveOfflineSnapshot(
@@ -135,9 +190,55 @@ export async function enqueueCommand(
   token: string,
   cmd: QueuedCommand,
 ): Promise<void> {
-  const queue = await loadCommandQueue(token);
+  const queue = (await loadCommandQueue(token)).filter(
+    (existing) => existing.command_id !== cmd.command_id,
+  );
   queue.push(cmd);
   await saveCommandQueue(token, queue);
+}
+
+export async function loadHostCommandQueue(
+  projectPath: string,
+): Promise<QueuedCommand[]> {
+  return (await idbGet<QueuedCommand[]>(hostQueueKey(projectPath))) ?? [];
+}
+
+export async function enqueueHostCommand(
+  projectPath: string,
+  cmd: QueuedCommand,
+): Promise<{ persisted: boolean; hadPredecessor: boolean }> {
+  if (typeof indexedDB === "undefined") {
+    return { persisted: false, hadPredecessor: false };
+  }
+  return withHostQueueLock(projectPath, async () => {
+    return updateHostQueue(projectPath, (existing) => {
+      const existingIndex = existing.findIndex(
+        (item) => item.command_id === cmd.command_id,
+      );
+      if (existingIndex >= 0) {
+        return {
+          queue: existing,
+          result: { persisted: true, hadPredecessor: existingIndex > 0 },
+        };
+      }
+      const queue = [...existing, cmd];
+      const hadPredecessor = existing.length > 0;
+      return { queue, result: { persisted: true, hadPredecessor } };
+    });
+  });
+}
+
+export async function removeHostQueuedCommand(
+  projectPath: string,
+  commandId: string,
+): Promise<void> {
+  if (typeof indexedDB === "undefined") return;
+  await withHostQueueLock(projectPath, async () => {
+    await updateHostQueue(projectPath, (existing) => ({
+      queue: existing.filter((c) => c.command_id !== commandId),
+      result: undefined,
+    }));
+  });
 }
 
 export async function removeQueuedCommand(
@@ -168,6 +269,35 @@ export async function addConflict(
   const list = await loadConflicts(token);
   list.push(conflict);
   await saveConflicts(token, list);
+}
+
+export async function loadHostConflicts(
+  projectPath: string,
+): Promise<OfflineConflict[]> {
+  return (await idbGet<OfflineConflict[]>(hostConflictKey(projectPath))) ?? [];
+}
+
+export async function saveHostConflicts(
+  projectPath: string,
+  conflicts: OfflineConflict[],
+): Promise<void> {
+  await idbSet(hostConflictKey(projectPath), conflicts);
+}
+
+export async function clearHostConflicts(projectPath: string): Promise<void> {
+  await saveHostConflicts(projectPath, []);
+}
+
+export async function addHostConflict(
+  projectPath: string,
+  conflict: OfflineConflict,
+): Promise<void> {
+  const list = await loadHostConflicts(projectPath);
+  const withoutCommand = list.filter(
+    (existing) => existing.command.command_id !== conflict.command.command_id,
+  );
+  withoutCommand.push(conflict);
+  await saveHostConflicts(projectPath, withoutCommand);
 }
 
 function recordParticipantKey(token: string): string {
