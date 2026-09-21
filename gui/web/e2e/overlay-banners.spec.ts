@@ -1,5 +1,6 @@
 import { type Browser, expect, type Page, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
+import { waitForFollowBanner } from "./followBanner";
 import {
   expectMenuLastItemReachable,
   expectShareRecordRoomsReachable,
@@ -77,7 +78,7 @@ async function followUntilBannerVisible(
         await openMenu();
       }
       await menuItems.nth(i).evaluate((el) => el.click());
-      if (await follower.locator(".follow-banner").isVisible()) {
+      if (await waitForFollowBanner(follower)) {
         return;
       }
     }
@@ -90,7 +91,7 @@ async function followUntilBannerVisible(
   const n = await buttons.count();
   for (let i = 0; i < n; i++) {
     await buttons.nth(i).click();
-    if (await follower.locator(".follow-banner").isVisible()) {
+    if (await waitForFollowBanner(follower)) {
       return;
     }
   }
