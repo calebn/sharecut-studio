@@ -24,6 +24,7 @@ import {
   FieldRow,
   InspectorSeekFooter,
 } from "../../ui";
+import { TRANSCRIPT_REFINE_REQUIRED_CODE } from "../../utils/apiError";
 import { loadCommentAuthor } from "../../utils/commentAuthor";
 import {
   canSuggestSkip,
@@ -31,7 +32,10 @@ import {
   suggestDisabledReason,
 } from "../../utils/playRange";
 import { ModifierInspector } from "../ModifierInspector";
-import { TranscriptRefineRecovery } from "../TranscriptRefineRecovery";
+import {
+  REFINE_GATE_GUI_MESSAGE,
+  TranscriptRefineRecovery,
+} from "../TranscriptRefineRecovery";
 
 export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   const { project, projectPath, guestMode, shareCapabilities, setSelection } =
@@ -40,7 +44,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   const canNudge = canSuggestOrNudge(projectPath, guestMode, shareCapabilities);
   const mayAsk = canComment(projectPath, guestMode, shareCapabilities);
   const mayReply = canReply(projectPath, guestMode, shareCapabilities);
-  const { busy, error, setError, run } = useProjectMutation();
+  const { busy, error, errorCode, setError, run } = useProjectMutation();
   const isSplit = edit.type === "split";
   const skipOk = canSuggestSkip(edit);
   const skipReason = suggestDisabledReason(edit);
@@ -200,7 +204,11 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
             ]
           : undefined
       }
-      error={combinedError}
+      error={
+        error && errorCode === TRANSCRIPT_REFINE_REQUIRED_CODE
+          ? REFINE_GATE_GUI_MESSAGE
+          : combinedError
+      }
       footer={
         <InspectorSeekFooter
           seekSec={tlStart}
@@ -311,6 +319,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
           key={edit.id}
           projectPath={projectPath}
           error={error}
+          errorCode={errorCode}
           onRecovered={() => setError(null)}
         />
       ) : null}

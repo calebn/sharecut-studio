@@ -39,7 +39,7 @@ import type {
   HostSharesResponse,
   ShareRole,
 } from "./types/shares";
-import { readApiError } from "./utils/apiError";
+import { readApiError, readApiFailure } from "./utils/apiError";
 import {
   documentClientId,
   newCommandId,
@@ -355,7 +355,7 @@ export async function submitDocumentCommand(
     },
   );
   if (!res.ok) {
-    throw new Error(await readApiError(res));
+    throw await readApiFailure(res);
   }
   const data = (await res.json()) as Record<string, unknown>;
   applyDocumentResult(data);

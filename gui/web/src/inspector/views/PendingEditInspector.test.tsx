@@ -6,6 +6,10 @@ import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { minimalProject, sampleComment } from "../../test/fixtures";
 import type { PendingEditView } from "../../types/project";
+import {
+  ApiError,
+  TRANSCRIPT_REFINE_REQUIRED_CODE,
+} from "../../utils/apiError";
 import { PendingEditInspector } from "./PendingEditInspector";
 
 const createComment = vi.fn();
@@ -132,14 +136,16 @@ describe("PendingEditInspector", () => {
   it("keeps Ask compose and preview controls after a long approve error", async () => {
     const user = userEvent.setup();
     approveEdits.mockRejectedValue(
-      new Error(
+      new ApiError(
         "Transcript refine is required before focus/tighten/NL edits. Run podcast-transcript-refine (whole-episode pass), then `podcast transcript refine-waive --reason ...` / transcript_refine_waive_tool.",
+        TRANSCRIPT_REFINE_REQUIRED_CODE,
       ),
     );
     const { container } = render(<PendingEditInspector edit={sessionCut} />);
     await user.click(screen.getByRole("button", { name: "Approve" }));
     const error = await screen.findByRole("alert");
-    expect(error).toHaveTextContent(/Transcript refine is required/);
+    expect(error).toHaveTextContent(/Review the transcript or waive/);
+    expect(error).not.toHaveTextContent(/podcast transcript/);
     expect(
       screen.getByRole("region", { name: "Ask about this edit" }),
     ).toBeInTheDocument();
@@ -194,7 +200,10 @@ describe("PendingEditInspector", () => {
   it("offers a host waiver and clears the gate error without approving", async () => {
     const user = userEvent.setup();
     approveEdits.mockRejectedValue(
-      new Error("Transcript refine is required before focus/tighten/NL edits."),
+      new ApiError(
+        "Transcript refine is required before focus/tighten/NL edits.",
+        TRANSCRIPT_REFINE_REQUIRED_CODE,
+      ),
     );
     render(<PendingEditInspector edit={sessionCut} />);
     await user.click(screen.getByRole("button", { name: "Approve" }));
@@ -212,5 +221,24 @@ describe("PendingEditInspector", () => {
       screen.queryByRole("button", { name: "Waive with reason" }),
     ).toBeNull();
     expect(screen.getByRole("status")).toHaveTextContent(/Retry approval/);
+  });
+
+  it("associates an empty waiver reason error with the textarea", async () => {
+    const user = userEvent.setup();
+    approveEdits.mockRejectedValue(
+      new ApiError("Refinement blocked", TRANSCRIPT_REFINE_REQUIRED_CODE),
+    );
+    const { container } = render(<PendingEditInspector edit={sessionCut} />);
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+    await user.click(screen.getByRole("button", { name: "Waive with reason" }));
+    const reason = screen.getByRole("textbox", { name: "Waiver reason" });
+    const validation = screen.getByText(
+      "A reason is required to waive transcript refinement.",
+    );
+    expect(reason).toHaveAttribute("aria-invalid", "true");
+    expect(reason).toHaveAttribute("aria-describedby", validation.id);
+    expect(validation).toHaveAttribute("role", "alert");
+    expect(waiveTranscriptRefine).not.toHaveBeenCalled();
+    await expectNoA11yViolations(container);
   });
 });
