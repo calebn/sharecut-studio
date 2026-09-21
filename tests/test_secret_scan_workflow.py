@@ -57,34 +57,38 @@ def _public_tree_violations(root: Path) -> list[str]:
     tracked = subprocess.check_output(
         ["git", "-C", str(root), "ls-files", "--stage", "-z"],
     ).split(b"\0")
-    entries: list[tuple[bytes, bytes]] = []
+    entries: list[tuple[bytes, bytes, bytes]] = []
     for raw_entry in tracked:
         if not raw_entry:
             continue
         metadata, raw_relative = raw_entry.split(b"\t", 1)
-        _mode, oid, _stage = metadata.split()
-        entries.append((raw_relative, oid))
+        mode, oid, _stage = metadata.split()
+        entries.append((raw_relative, oid, mode))
 
     # Read the same immutable blobs Git would publish. Opening checkout paths
     # could follow a symlink or miss staged content after a local edit.
     blobs = subprocess.run(
         ["git", "-C", str(root), "cat-file", "--batch"],
-        input=b"".join(oid + b"\n" for _, oid in entries),
+        input=b"".join(oid + b"\n" for _, oid, mode in entries if mode != b"160000"),
         stdout=subprocess.PIPE,
         check=True,
     ).stdout
     offset = 0
-    for raw_relative, oid in entries:
+    for raw_relative, oid, mode in entries:
+        relative = Path(os.fsdecode(raw_relative))
+        if relative == provider_root or provider_root in relative.parents:
+            hits.append(f"{relative}: private provider source")
+        # A gitlink points to a commit in another repository, which need not
+        # exist in this repository's object store. Its tracked path still counts.
+        if mode == b"160000":
+            continue
         header_end = blobs.index(b"\n", offset)
         result_oid, object_type, raw_size = blobs[offset:header_end].split()
         assert result_oid == oid
         size = int(raw_size)
         content = blobs[header_end + 1 : header_end + 1 + size]
         offset = header_end + size + 2  # object bytes and trailing newline
-        relative = Path(os.fsdecode(raw_relative))
-        if relative == provider_root or provider_root in relative.parents:
-            hits.append(f"{relative}: private provider source")
-        if object_type != b"blob":  # Gitlinks contain commits, not file bytes.
+        if object_type != b"blob":
             continue
         content = content.lower()
         for marker in forbidden:
@@ -171,3 +175,25 @@ def test_public_tree_does_not_follow_tracked_symlinks(tmp_path: Path) -> None:
     subprocess.run(["git", "-C", str(tmp_path), "add", "--", "tracked-link"], check=True)
 
     assert _public_tree_violations(tmp_path) == []
+
+
+def test_public_tree_checks_gitlink_paths_without_reading_submodule_commits(
+    tmp_path: Path,
+) -> None:
+    _init_git_repo(tmp_path)
+    missing_commit = "1" * 40
+    for path in ("vendor/external", "src/podcast_online"):
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(tmp_path),
+                "update-index",
+                "--add",
+                "--cacheinfo",
+                f"160000,{missing_commit},{path}",
+            ],
+            check=True,
+        )
+
+    assert _public_tree_violations(tmp_path) == ["src/podcast_online: private provider source"]
