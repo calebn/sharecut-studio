@@ -34,10 +34,39 @@ For a JSON MCP configuration, use:
 }
 ```
 
+### Select a default episode
+
+Tools that accept `project_path` can use a default set on the stdio server:
+
+```json
+{
+  "mcpServers": {
+    "sharecut": {
+      "command": "/path/to/sharecut-studio/.venv/bin/podcast-mcp",
+      "env": {
+        "PODCAST_MCP_PROJECT": "/absolute/path/to/episode.project.json"
+      }
+    }
+  }
+}
+```
+
+An explicit non-empty `project_path` wins. A missing (`null`/`None`) or empty
+path falls back to `PODCAST_MCP_PROJECT`. If there is no explicit path and no
+default, the tool returns an error explaining how to configure one.
+
 For Claude Code, run:
 
 ```bash
 claude mcp add sharecut -- /path/to/sharecut-studio/.venv/bin/podcast-mcp
+```
+
+For a shell-configured client, set the same environment variable before the
+client command:
+
+```bash
+PODCAST_MCP_PROJECT=/absolute/path/to/episode.project.json \
+  claude mcp add sharecut -- /path/to/sharecut-studio/.venv/bin/podcast-mcp
 ```
 
 The same command path works for Claude Desktop, Cursor, Windsurf, and Cline.

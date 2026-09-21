@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import inspect
+from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -16,6 +18,10 @@ from podcast_mcp.mcp.project_default import (
     resolve_project_path,
     with_default_project,
 )
+
+
+def forward_referenced_extension_tool(project_path: Path) -> dict[str, str]:
+    return {"project_name": project_path.name}
 
 
 def test_resolve_prefers_explicit_path(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -116,6 +122,35 @@ def _make_server():
     return server
 
 
+def _tool_inventory(server: Any) -> dict[str, dict[str, Any]]:
+    """Capture every externally visible registration field we must preserve."""
+    return {
+        tool.name: {
+            "title": tool.title,
+            "description": tool.description,
+            "icons": tool.icons,
+            "meta": tool.meta,
+            "parameters": tool.parameters,
+            "output_schema": tool.output_schema,
+            "annotations": tool.annotations,
+            "is_async": tool.is_async,
+        }
+        for tool in server._tool_manager.list_tools()
+    }
+
+
+def _without_project_path_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    """Remove precisely the schema change this feature is allowed to make."""
+    copied = {**schema, "properties": dict(schema.get("properties", {}))}
+    copied["properties"].pop("project_path", None)
+    required = [name for name in copied.get("required", []) if name != "project_path"]
+    if required:
+        copied["required"] = required
+    else:
+        copied.pop("required", None)
+    return copied
+
+
 @pytest.mark.asyncio
 async def test_installed_server_schema_marks_project_path_optional() -> None:
     from mcp.client import Client
@@ -139,6 +174,144 @@ async def test_installed_server_injects_env_default(monkeypatch: pytest.MonkeyPa
             "echo_project_tool", {"project_path": "/tmp/explicit.project.json"}
         )
         assert explicit.content[0].text == "/tmp/explicit.project.json"
+
+
+@pytest.mark.asyncio
+async def test_env_default_is_coerced_like_an_explicit_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from mcp.client import Client
+    from mcp.server import MCPServer
+
+    class ExtensionPathTool:
+        async def __call__(self, project_path: Path) -> str:
+            return f"{project_path.name}:{isinstance(project_path, Path)}"
+
+    monkeypatch.setenv(ENV_VAR, "/tmp/pinned.project.json")
+    server = MCPServer("test-path-extension")
+    install_project_default(server)
+    # An extension may use an async callable instance and positional metadata.
+    server.add_tool(
+        ExtensionPathTool(),
+        "extension_path",
+        "Extension path",
+        "Accept a pathlib project path.",
+        None,
+        None,
+        {"source": "extension"},
+        False,
+    )
+    async with Client(server) as client:
+        result = await client.call_tool("extension_path", {})
+        empty = await client.call_tool("extension_path", {"project_path": ""})
+    assert result.content[0].text == "pinned.project.json:True"
+    assert empty.content[0].text == "pinned.project.json:True"
+    tool = server._tool_manager.get_tool("extension_path")
+    assert tool is not None
+    assert tool.title == "Extension path"
+    assert tool.meta == {"source": "extension"}
+    assert tool.is_async
+
+
+def test_wrapper_resolves_extension_annotations_without_output_schema_drift() -> None:
+    from mcp.server import MCPServer
+
+    baseline = MCPServer("annotation-baseline")
+    baseline.add_tool(forward_referenced_extension_tool, structured_output=True)
+    wrapped = MCPServer("annotation-wrapped")
+    install_project_default(wrapped)
+    wrapped.add_tool(forward_referenced_extension_tool, structured_output=True)
+
+    before = baseline._tool_manager.get_tool("forward_referenced_extension_tool")
+    after = wrapped._tool_manager.get_tool("forward_referenced_extension_tool")
+    assert before is not None
+    assert after is not None
+    assert before.output_schema == after.output_schema
+    assert after.parameters["properties"]["project_path"]["anyOf"][0]["format"] == "path"
+
+
+@pytest.mark.asyncio
+async def test_installers_preserve_add_tool_contract_in_either_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from mcp.client import Client
+    from mcp.server import MCPServer
+
+    from podcast_mcp.util.progress_install import install_mcp_progress
+
+    monkeypatch.setenv(ENV_VAR, "/tmp/pinned.project.json")
+    for installers in (
+        (install_mcp_progress, install_project_default),
+        (install_project_default, install_mcp_progress),
+    ):
+        server = MCPServer("test-installer-order")
+        for install in installers:
+            install(server)
+
+        def positional_tool(project_path: str) -> str:
+            return project_path
+
+        server.add_tool(
+            positional_tool,
+            "positional_tool",
+            "Positional tool",
+            "All supported add_tool arguments remain positional.",
+            None,
+            None,
+            {"order": "tested"},
+            False,
+        )
+        async with Client(server) as client:
+            result = await client.call_tool("positional_tool", {})
+        tool = server._tool_manager.get_tool("positional_tool")
+        assert result.content[0].text == "/tmp/pinned.project.json"
+        assert tool is not None
+        assert tool.title == "Positional tool"
+        assert tool.meta == {"order": "tested"}
+
+
+def test_registered_tool_inventory_changes_only_project_path_input_schema(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from mcp.server import MCPServer
+
+    from podcast_mcp.mcp.tools import register_all
+
+    # Production registration includes its built-in collaboration extension.
+    # An empty allow-list from another test would hide that public contract.
+    monkeypatch.delenv("PODCAST_EXTENSIONS", raising=False)
+    baseline = MCPServer("baseline")
+    register_all(baseline)
+    wrapped = MCPServer("wrapped")
+    install_project_default(wrapped)
+    register_all(wrapped)
+
+    before = _tool_inventory(baseline)
+    after = _tool_inventory(wrapped)
+    assert before.keys() == after.keys()
+    for name, original in before.items():
+        changed = after[name]
+        for preserved_field in (
+            "title",
+            "description",
+            "icons",
+            "meta",
+            "output_schema",
+            "annotations",
+            "is_async",
+        ):
+            assert original[preserved_field] == changed[preserved_field], (
+                name,
+                preserved_field,
+            )
+        assert _without_project_path_schema(original["parameters"]) == _without_project_path_schema(
+            changed["parameters"]
+        ), name
+        has_project_path = "project_path" in original["parameters"].get("properties", {})
+        if has_project_path:
+            assert "project_path" not in (changed["parameters"].get("required") or []), name
+        else:
+            assert original["parameters"] == changed["parameters"], name
 
 
 @pytest.mark.asyncio

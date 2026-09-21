@@ -5,7 +5,7 @@ covers the two local connection modes:
 
 | Mode | Use it when | Episode selection |
 | --- | --- | --- |
-| **stdio** | The agent works independently on a project | Pass `project_path` to tools that require it. |
+| **stdio** | The agent works independently on a project | Pass `project_path`, or set a default with `PODCAST_MCP_PROJECT`. |
 | **GUI-attached Streamable HTTP** | You are editing with Sharecut Studio open | Tools use the episode currently open in the GUI. |
 
 Both modes are local. They do not require an API key or account. The GUI MCP
@@ -22,6 +22,30 @@ podcast-mcp --version
 ```
 
 `podcast-mcp --help` also prints usage and exits.
+
+### Select a default episode for stdio
+
+Tools that take `project_path` accept a per-call path as usual. To pin one
+episode for the entire stdio session, set `PODCAST_MCP_PROJECT` in the MCP
+server environment:
+
+```json
+{
+  "mcpServers": {
+    "sharecut": {
+      "command": "/path/to/sharecut-studio/.venv/bin/podcast-mcp",
+      "env": {
+        "PODCAST_MCP_PROJECT": "/absolute/path/to/episode.project.json"
+      }
+    }
+  }
+}
+```
+
+An explicit, non-empty `project_path` always wins over the environment value.
+`null`/`None` and an empty string use `PODCAST_MCP_PROJECT` instead. If neither
+is supplied, the tool returns an error explaining how to pass a path or set the
+environment variable.
 
 ### Use an absolute executable path
 
@@ -41,6 +65,14 @@ native Windows path normally (for example,
 
 ```bash
 claude mcp add sharecut -- /path/to/sharecut-studio/.venv/bin/podcast-mcp
+```
+
+To set the default episode from a shell, prefix the client command with the
+environment variable (or add the JSON `env` block above to its MCP config):
+
+```bash
+PODCAST_MCP_PROJECT=/absolute/path/to/episode.project.json \
+  claude mcp add sharecut -- /path/to/sharecut-studio/.venv/bin/podcast-mcp
 ```
 
 On Windows, replace the command after `--` with the `.venv\Scripts\podcast-mcp.exe`
