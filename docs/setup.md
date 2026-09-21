@@ -92,7 +92,7 @@ podcast doctor
 | `bootstrap` | `static-ffmpeg` | `podcast bootstrap --component ffmpeg` without a system FFmpeg |
 | `gui` | fastapi, uvicorn, httpx, boto3, websockets | `podcast gui` / review share host |
 | `relay` | fastapi, uvicorn, websockets | `podcast-relay` edge process |
-| `spaces` | boto3 | Spaces-only installs (also pulled by `gui`) |
+| `object-store` | boto3 | Optional S3-compatible review media (also pulled by `gui`) |
 | `speaker` | torch, speechbrain | Enrollment speaker attribution — **large** |
 | `speaker-lite` | resemblyzer (+ numba floor) | Lighter speaker embeddings |
 | `joinqc` | torch, librosa, transformers | Optional neural join continuity — **large** |
@@ -112,12 +112,14 @@ Assets land under `~/.cache/podcast_mcp/` (override with `PODCAST_MCP_CACHE`):
 | `silero-vad` | Nothing — verifies the model bundled with `faster-whisper` | Optional VAD breath handling |
 | `nisqa` | NISQA weights (**opt-in only**; not included in `--component all`) | Neural join QC with `joinqc` extra. Default GitHub release URL may 404; set `PODCAST_MCP_NISQA_MODEL` to an unpacked weights dir if needed |
 
-Optional funnel mirror: set `PODCAST_BOOTSTRAP_CDN_BASE` (public HTTPS base, no trailing slash) so FFmpeg/RNNoise try CDN object keys from [`contracts/bootstrap-assets.json`](../contracts/bootstrap-assets.json) before upstream fallbacks. CDN bytes are skipped until the matching `sha256` / `sha256_by_platform` pins are present. `GET /api/bootstrap/status` reports boolean `cdn_base: true` when that env var **or** a non-null manifest `cdn_base_default` is set — not the string `cdn_base` URL in `deploy/download/latest.json`. Whisper still uses `faster-whisper` / Hugging Face until the mirror ships those weights.
+Optional asset mirror: set `PODCAST_BOOTSTRAP_CDN_BASE` (public HTTPS base, no trailing slash) so FFmpeg/RNNoise try CDN object keys from [`contracts/bootstrap-assets.json`](../contracts/bootstrap-assets.json) before upstream fallbacks. CDN bytes are skipped until the matching `sha256` / `sha256_by_platform` pins are present. `GET /api/bootstrap/status` reports whether an environment override or non-null manifest `cdn_base_default` configured a mirror. Installer manifests and publishing configuration belong to the operator. Whisper still uses `faster-whisper` / Hugging Face until the mirror ships those weights.
 
 ```bash
 podcast bootstrap --component all      # ffmpeg + whisper (large-v3-turbo) + rnnoise + silero check
 podcast bootstrap --component whisper --whisper-model small.en
 podcast setup --whisper-model medium.en   # persist without downloading
+# Use another downloaded model for one standalone transcription run.
+podcast transcribe --project /path/to/episode.project.json --model small.en
 podcast bootstrap --component nisqa    # only when using joinqc neural path
 ```
 
@@ -143,7 +145,7 @@ Native window (optional): [`gui/desktop/`](../gui/desktop/) — see
 [desktop-packaging.md](desktop-packaging.md). Local CI mirror:
 `make test-desktop` (needs rustup + rustfmt/clippy); full installer:
 `make desktop-build` (freezes sidecar; unsigned unless `APPLE_*` env is set).
-Win/Linux/mac-x64 installers: GitHub Action `release-desktop` (**Run workflow** only). Leave **sign** unchecked for unsigned dogfood; `sign=true` fails unless Environment `desktop-signing` secrets are complete.
+Win/Linux/mac-x64 installers are produced by the reusable `release-desktop-build.yml` workflow. A caller repository supplies an immutable source SHA and may set `sign=true` only when its `desktop-signing` environment is complete; unsigned dogfood callers leave signing disabled.
 
 ## macOS (or any OS with a package manager)
 
@@ -235,7 +237,8 @@ After `./install.sh`, use `source .venv/bin/activate` (or `uv run`) so `podcast`
 
 Clients that load project agents from `.agents/` (including Cursor) pick up rules, skills, and MCP from there. Reload MCP after install if your IDE was already open. Point the MCP `command` at the venv binary if the client does not inherit your shell PATH (e.g. `.venv/bin/podcast-mcp`).
 
-**Connecting an external agent?** Copy-paste configs for Claude Code, Claude Desktop, Cursor, Windsurf, and Cline: [mcp-setup.md](mcp-setup.md).
+**Connecting an external agent?** Copy-paste configurations for Claude Code,
+Claude Desktop, Cursor, Windsurf, and Cline: [mcp-setup.md](mcp-setup.md).
 
 **Local GUI URL (recommended when the DAW is open):** run `podcast gui`, open an episode (or **Connect agent…** on home to copy the URL first), **Menu → Connect agent…**, and paste `http://127.0.0.1:8765/mcp` as a Streamable HTTP MCP URL (same shape as Figma desktop). Keep the GUI running. Host MCP is loopback-only. Details: [gui-integration.md](gui-integration.md) § Local host MCP.
 
@@ -292,20 +295,69 @@ podcast play ab --project ... --before-index 53 --after-index 55 \
 
 Use `--dry-run` to write `artifacts/play_cache/*.wav` without opening a player (`afplay` on macOS, `ffplay` elsewhere). Response JSON includes `tier`: `raw`, `stem`, `segment_render`, `premix`, or `ab_concat` (history/WAV A/B).
 
-## Sharecut Studio Extensions (optional share / online)
+## Sharecut Studio Extensions (self-hosted collaboration / optional provider)
 
-Share, auth, and guest `/r/{token}` routes load through the public [Extensions API](extensions.md). By default the official `online` extension is enabled.
+Share, record, remote-MCP, and guest `/r/{token}` routes load through the public [Extensions API](extensions.md). The FOSS `collaboration` extension is enabled by default and does not require an account. A separately installed `online` provider extension can add account/auth surfaces.
 
 ```bash
 # Pure local Sharecut Studio (no share routes, no share MCP mint tool, no `podcast review share*`)
 export PODCAST_EXTENSIONS=
 podcast gui --project episode.project.json
 
-# Allowlist
-export PODCAST_EXTENSIONS=online,example
+# FOSS self-hosted collaboration only
+export PODCAST_EXTENSIONS=collaboration
+
+# Provider build (provider package installed separately)
+export PODCAST_EXTENSIONS=collaboration,online
 ```
 
 See [extension-seams.md](extension-seams.md). Self-host relay: [host-online-relay.md](host-online-relay.md) (`podcast-relay` package).
+
+## Configuration boundary
+
+Local editing works without a relay, service account, object store, CDN, or
+distribution profile. Configuration is split by responsibility:
+
+| Mode | You provide | Sharecut/FOSS provides |
+|------|-------------|------------------------|
+| Local | Project files and optional machine preferences | Loopback GUI, editing, pipeline, export, development desktop profile |
+| Self-hosted collaboration | Relay domain/TLS, strong host token, and optionally an S3-compatible store | Relay/tunnel protocol, guest UI, local media-proxy fallback, redacted example |
+| Desktop distributor | Public identity/trust profile plus private signing and deployment credentials | Validated schema, Tauri overlay generator, reusable build scripts |
+
+Host runtime configuration lives at `~/.config/podcast_mcp/relay.yaml`; copy
+[`config/relay.example.yaml`](../config/relay.example.yaml). Relay-field precedence
+is explicit CLI/API argument, environment, YAML, then a safe loopback default.
+Object-store precedence is environment, YAML, then disabled. The only
+object-store environment names are
+`PODCAST_OBJECT_STORE_ENDPOINT_URL`, `PODCAST_OBJECT_STORE_REGION`,
+`PODCAST_OBJECT_STORE_BUCKET`, `PODCAST_OBJECT_STORE_ACCESS_KEY_ID`,
+`PODCAST_OBJECT_STORE_SECRET_ACCESS_KEY`, and optional
+`PODCAST_OBJECT_STORE_CDN_ENDPOINT`. Omitting the block keeps media on the host
+and proxies it through the tunnel.
+
+Desktop identity is build-time public data. Copy
+[`config/distribution.dev.json`](../config/distribution.dev.json), keep it free
+of credentials, and set `PODCAST_DISTRIBUTION_PROFILE` while building. The
+profile controls product name, bundle identifier, custom schemes, exact HTTPS
+share origins, support/privacy/repository URLs, release manifest URL, and the
+optional bootstrap CDN base. Rust and Tauri consume generated values from the
+same file; the Tauri host injects the public support, privacy, repository, and
+release-manifest values into its Python sidecar. Sidecar links accept only public
+HTTPS URLs and do not read relay configuration or preferences. Unlisted HTTPS
+origins remain rejected.
+
+Validate a mode without contacting any service or printing credentials:
+
+```bash
+podcast config check --mode local
+podcast config check --mode self-hosted --relay-config ~/.config/podcast_mcp/relay.yaml
+podcast config check --mode distributor --distribution-profile ./distribution.json
+```
+
+Local mode does not require a distribution profile, so it also works from an
+installed wheel that does not include the contributor development profile. Pass
+`--distribution-profile` to local mode only when you want that explicit profile
+validated.
 
 ## Read-only GUI viewer
 
@@ -369,15 +421,15 @@ podcast review share --project episode.project.json --version <id> \
 
 ## Troubleshooting
 
-If Sharecut Studio or `podcast` misbehaves, create a **sanitized diagnostics zip** on your machine and attach it to a GitHub issue. Nothing is uploaded automatically — there is **no telemetry**.
+If Sharecut Studio or `podcast` misbehaves, create a **sanitized diagnostics zip** on your machine and attach it to a support request. Nothing is uploaded automatically — there is **no telemetry**. Opt-in automatic submission to the configured support provider is Follow-up; crash-time phone-home is not planned.
 
 ```bash
 podcast doctor --bundle            # writes ~/Downloads/sharecut-diagnostics-<UTC>-<nonce>.zip
 podcast doctor --bundle --out DIR  # optional output directory
-# prints the zip path and the new-issue URL; `--open` opens the URL in a browser
+# prints the zip path and configured support URL; `--open` opens it in a browser
 ```
 
-In the app: **Home → Help → Create diagnostics bundle**. The dialog shows the zip path (reveal it in your file manager) and **Open a bug report**.
+In the app: **Home → Help → Create diagnostics bundle**. The dialog shows the zip path (reveal it in your file manager) and **Open support**.
 
 The zip includes doctor results, versions, a sidecar log tail, and counts (tracks/clips/decisions/comments) — not audio, transcripts, project JSON, share tokens, or `shares.json` / `sync.db`. Guests / share links cannot create a bundle (host-only).
 
