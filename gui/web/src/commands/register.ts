@@ -655,16 +655,24 @@ export function registerDawCommands(): void {
     if (s.renderPreviewBusy) {
       return { status: "disabled", reason: "Refresh already running" };
     }
+    const projectEpoch = s.projectEpoch;
+    const isCurrentProject = () =>
+      useDawStore.getState().projectEpoch === projectEpoch;
     s.setRenderPreviewBusy(true);
     s.announceStatus("Refreshing mix preview…");
     try {
       const started = await startRenderPreview(s.projectPath);
+      if (!isCurrentProject()) {
+        return { status: "disabled", reason: "Project changed during refresh" };
+      }
       if (started.mode === "job") {
         seedStudioJob(started.job);
         const done = await waitForPipelineJob(started.job.id);
         if (done.status === "error") {
           const reason = done.error ?? "Render preview failed";
-          useDawStore.getState().announceStatus(`Refresh failed: ${reason}`);
+          if (isCurrentProject()) {
+            useDawStore.getState().announceStatus(`Refresh failed: ${reason}`);
+          }
           return {
             status: "disabled",
             reason,
@@ -672,10 +680,18 @@ export function registerDawCommands(): void {
         }
       } else if (!started.ok) {
         const reason = "Render preview failed";
-        useDawStore.getState().announceStatus(`Refresh failed: ${reason}`);
+        if (isCurrentProject()) {
+          useDawStore.getState().announceStatus(`Refresh failed: ${reason}`);
+        }
         return { status: "disabled", reason };
       }
+      if (!isCurrentProject()) {
+        return { status: "disabled", reason: "Project changed during refresh" };
+      }
       const project = await refreshProject(s.projectPath);
+      if (!isCurrentProject()) {
+        return { status: "disabled", reason: "Project changed during refresh" };
+      }
       applyDocumentSnapshot({ project }, { force: true });
       const store = useDawStore.getState();
       store.setHighlightStaleRender(false);
@@ -683,14 +699,18 @@ export function registerDawCommands(): void {
       return { status: "ok" };
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
-      useDawStore.getState().announceStatus(`Refresh failed: ${reason}`);
+      if (isCurrentProject()) {
+        useDawStore.getState().announceStatus(`Refresh failed: ${reason}`);
+      }
       return {
         status: "disabled",
         reason,
       };
     } finally {
-      useDawStore.getState().setRenderPreviewBusy(false);
-      useDawStore.getState().setHighlightStaleRender(false);
+      if (isCurrentProject()) {
+        useDawStore.getState().setRenderPreviewBusy(false);
+        useDawStore.getState().setHighlightStaleRender(false);
+      }
     }
   });
 

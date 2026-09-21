@@ -70,6 +70,7 @@ describe("dawStore listen-first transport", () => {
       audioError: "Failed to load audio (premix)",
       isPlaying: true,
       playheadSec: 42,
+      playbackRate: 1.25,
       viewerMute: { host: true },
       soloTracks: { guest: true },
       sessionRegion: { start_sec: 1, end_sec: 2 },
@@ -84,6 +85,7 @@ describe("dawStore listen-first transport", () => {
     expect(s.audioError).toBeNull();
     expect(s.isPlaying).toBe(false);
     expect(s.playheadSec).toBe(0);
+    expect(s.playbackRate).toBe(1);
     expect(s.viewerMute).toEqual({});
     expect(s.soloTracks).toEqual({});
     expect(s.sessionRegion).toBeNull();
@@ -92,6 +94,30 @@ describe("dawStore listen-first transport", () => {
     expect(s.auditionEpoch).toBe(0);
     expect(s.highlightStaleRender).toBe(false);
     expect(s.renderPreviewBusy).toBe(false);
+  });
+
+  it("keeps transport during same-path hydration and changes the epoch only on project switch", () => {
+    const epoch = useDawStore.getState().projectEpoch;
+    useDawStore.setState({
+      audioError: "Failed to load audio (premix)",
+      isPlaying: true,
+      playheadSec: 42,
+      playbackRate: 1.25,
+      viewerMute: { host: true },
+      renderPreviewBusy: true,
+    });
+    useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
+    const same = useDawStore.getState();
+    expect(same.projectEpoch).toBe(epoch);
+    expect(same.audioError).toBe("Failed to load audio (premix)");
+    expect(same.isPlaying).toBe(true);
+    expect(same.playheadSec).toBe(42);
+    expect(same.playbackRate).toBe(1.25);
+    expect(same.viewerMute).toEqual({ host: true });
+    expect(same.renderPreviewBusy).toBe(true);
+
+    same.hydrate("/tmp/other.json", minimalProject());
+    expect(useDawStore.getState().projectEpoch).toBe(epoch + 1);
   });
 
   it("beginAudition bumps epoch", () => {

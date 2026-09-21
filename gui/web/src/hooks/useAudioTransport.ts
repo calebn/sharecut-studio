@@ -113,6 +113,7 @@ export function useAudioTransport(enabled = true): void {
   const {
     project,
     projectPath,
+    projectEpoch,
     playheadSec,
     setPlayheadSec,
     isPlaying,
@@ -178,24 +179,32 @@ export function useAudioTransport(enabled = true): void {
     }
     players.clear();
     setAudioError(null);
+    const playerEvents = new AbortController();
 
     const make = (key: string, url: string) => {
       const el = new Audio();
       el.preload = "metadata";
       el.src = url;
-      el.addEventListener("error", () => {
-        setAudioError(`Failed to load audio (${key})`);
-        setIsPlaying(false);
-      });
+      el.addEventListener(
+        "error",
+        () => {
+          if (useDawStore.getState().projectEpoch !== projectEpoch) {
+            return;
+          }
+          setAudioError(`Failed to load audio (${key})`);
+          setIsPlaying(false);
+        },
+        { signal: playerEvents.signal },
+      );
       players.set(key, el);
       el.playbackRate = useDawStore.getState().playbackRate;
     };
 
     if (!needsMultitrack && auditionMode === "mix") {
       if (!project.render_status.premix.exists) {
-        // A project with no tracks has nothing to play — a missing premix is
-        // expected, not an error (#78). Only flag it once audio exists.
-        if (project.tracks.length > 0) {
+        // Tracks without source media have nothing to play. The absent premix
+        // is expected until audio exists (#78).
+        if (project.tracks.some((track) => Boolean(track.media_path))) {
           setAudioError("No premix — run Pipeline or render-preview");
         }
         return;
@@ -204,6 +213,9 @@ export function useAudioTransport(enabled = true): void {
     } else {
       const kind: "stem" | "raw" = auditionMode === "raw" ? "raw" : "stem";
       for (const track of project.tracks) {
+        if (!track.media_path) {
+          continue;
+        }
         if (kind === "raw") {
           make(track.id, audioUrl(projectPath, kind, track.id));
           continue;
@@ -241,6 +253,7 @@ export function useAudioTransport(enabled = true): void {
     }
 
     return () => {
+      playerEvents.abort();
       for (const el of players.values()) {
         el.pause();
         el.removeAttribute("src");
@@ -252,6 +265,7 @@ export function useAudioTransport(enabled = true): void {
     enabled,
     project,
     projectPath,
+    projectEpoch,
     modeKey,
     needsMultitrack,
     auditionMode,

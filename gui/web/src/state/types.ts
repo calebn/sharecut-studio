@@ -60,6 +60,8 @@ export type PlayAbFollowup = {
 export interface DawState {
   project: ProjectView | null;
   projectPath: string;
+  /** Changes when the viewer opens a different project, even if it later returns. */
+  projectEpoch: number;
   /** Share guest mode from bootstrap; null for host. */
   guestMode: string | null;
   /** Share capability list from bootstrap; null for host. */

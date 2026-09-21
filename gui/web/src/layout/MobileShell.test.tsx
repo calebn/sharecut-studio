@@ -52,6 +52,60 @@ describe("MobileShell", () => {
     await expectNoA11yViolations(nav);
   });
 
+  it("does not show Stale render for a new empty project", () => {
+    const project = minimalProject({
+      render_status: {
+        needs_rerender: true,
+        reconciliation: { stale: true },
+        premix: { exists: false },
+        invalidations: [],
+      },
+    });
+    useDawStore.getState().hydrate("/tmp/p.json", project, null);
+
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <MobileShell />
+      </DawProvider>,
+    );
+
+    expect(screen.queryByText("Stale render")).toBeNull();
+  });
+
+  it("shows Stale render when a project with media has no mix preview", () => {
+    const project = minimalProject({
+      tracks: [
+        {
+          id: "host",
+          label: "Host",
+          role: "dialogue",
+          speaker: null,
+          gain_db: 0,
+          muted: false,
+          duration_sec: 60,
+          fx_count: 0,
+          stem_is_fresh: true,
+          media_path: "/tmp/host.wav",
+        },
+      ],
+      render_status: {
+        needs_rerender: false,
+        reconciliation: { stale: false },
+        premix: { exists: false },
+        invalidations: [],
+      },
+    });
+    useDawStore.getState().hydrate("/tmp/p.json", project, null);
+
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <MobileShell />
+      </DawProvider>,
+    );
+
+    expect(screen.getByText("Stale render")).toBeTruthy();
+  });
+
   it("provides exactly one project heading in every phone mode", async () => {
     const user = userEvent.setup();
     render(
