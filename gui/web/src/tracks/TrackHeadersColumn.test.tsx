@@ -111,6 +111,7 @@ describe("TrackHeadersColumn deselect well", () => {
       name: "Deselect all tracks",
     });
     expect(wells).toHaveLength(1);
+    expect(screen.getByRole("group", { name: "Tracks" })).toBeInTheDocument();
     await user.click(wells[wells.length - 1]);
     expect(useDawStore.getState().selectedTrackIds).toEqual([]);
     await expectNoA11yViolations(container);
@@ -172,5 +173,20 @@ describe("TrackHeadersColumn deselect well", () => {
       screen.getByRole("button", { name: /Open track details, Guest/i }),
     );
     expect(useDawStore.getState().selectedTrackIds).toEqual(["guest"]);
+  });
+});
+
+describe("TrackHeadersColumn loading state", () => {
+  it("exposes the labeled loading headers as a group", async () => {
+    useDawStore.setState({ project: null });
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={null}>
+        <TrackHeadersColumn />
+      </DawProvider>,
+    );
+
+    const headers = screen.getByRole("group", { name: "Tracks" });
+    expect(headers).toHaveAttribute("aria-busy", "true");
+    await expectNoA11yViolations(container);
   });
 });

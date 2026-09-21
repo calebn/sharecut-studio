@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
 
 test.describe("Chrome-first bootstrap", () => {
@@ -40,6 +41,7 @@ test.describe("Chrome-first bootstrap", () => {
     await expect(page.locator("main.daw-main")).not.toHaveClass(
       /daw-main--arrange/,
     );
+    await expectPageAxeClean(page);
 
     releaseShell();
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
@@ -47,6 +49,7 @@ test.describe("Chrome-first bootstrap", () => {
     );
     await expect(page.getByRole("button", { name: "Play" })).toBeEnabled();
     await expect.poll(() => phases.includes("detail")).toBe(true);
+    await expectPageAxeClean(page);
 
     const shellIdx = phases.indexOf("shell");
     const detailIdx = phases.indexOf("detail");

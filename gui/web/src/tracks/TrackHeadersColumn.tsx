@@ -70,7 +70,12 @@ export function TrackHeadersColumn({
 
   if (!tracks) {
     return (
-      <div className="track-headers" aria-label="Tracks" aria-busy="true">
+      <div
+        className="track-headers"
+        role="group"
+        aria-label="Tracks"
+        aria-busy="true"
+      >
         <div
           className="track-headers-chrome"
           style={{
@@ -123,7 +128,7 @@ export function TrackHeadersColumn({
   };
 
   return (
-    <div className="track-headers" aria-label="Tracks">
+    <div className="track-headers" role="group" aria-label="Tracks">
       <div
         className="track-headers-chrome"
         style={{
