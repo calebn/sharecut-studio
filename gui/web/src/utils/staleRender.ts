@@ -74,23 +74,27 @@ function isRegional(inv: RenderInvalidationView): boolean {
   );
 }
 
+function freshBreakdown(): StaleRenderBreakdown {
+  return {
+    stale: false,
+    staleTrackIds: [],
+    premixMissing: false,
+    premixStaleVsStems: false,
+    reconcileStale: false,
+    invalidations: [],
+    wholeTrackIds: [],
+    regionalOnlyTrackIds: [],
+    allStaleAreWholeTrack: false,
+    summary: "Fresh",
+  };
+}
+
 /** Derive what is out of date from project view + track stem_is_fresh. */
 export function staleRenderBreakdown(
   project: ProjectView | null | undefined,
 ): StaleRenderBreakdown {
   if (!project) {
-    return {
-      stale: false,
-      staleTrackIds: [],
-      premixMissing: false,
-      premixStaleVsStems: false,
-      reconcileStale: false,
-      invalidations: [],
-      wholeTrackIds: [],
-      regionalOnlyTrackIds: [],
-      allStaleAreWholeTrack: false,
-      summary: "Fresh",
-    };
+    return freshBreakdown();
   }
   const rs = project.render_status;
   const tracksRs = (
@@ -105,6 +109,18 @@ export function staleRenderBreakdown(
     exists?: boolean;
     stale_vs_stems?: boolean;
   };
+  const invalidations = readInvalidations(project);
+
+  // A project that has never produced any render output is not "stale":
+  // there is nothing for the preview to be out of date against. (The
+  // server still reports needs_rerender for such projects, which is
+  // correct for the pipeline — the GUI staleness pill just must not fire.)
+  const everRendered =
+    premix?.exists === true ||
+    Object.values(tracksRs ?? {}).some((t) => t.stem_exists === true);
+  if (!everRendered && invalidations.length === 0) {
+    return freshBreakdown();
+  }
 
   const staleTrackIds: string[] = [];
   for (const t of project.tracks) {
@@ -116,7 +132,6 @@ export function staleRenderBreakdown(
     }
   }
 
-  const invalidations = readInvalidations(project);
   const wholeTrackIds = new Set<string>();
   const regionalTrackIds = new Set<string>();
   for (const inv of invalidations) {

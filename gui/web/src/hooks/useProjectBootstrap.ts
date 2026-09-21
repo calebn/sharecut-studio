@@ -37,6 +37,9 @@ export function useProjectBootstrap(
     const ac = new AbortController();
     let cancelled = false;
     resetDocumentSeq();
+    // A new project document means new audio: drop any transport error
+    // carried over from the previous project.
+    useDawStore.getState().setAudioError(null);
     setError(null);
     void (async () => {
       try {

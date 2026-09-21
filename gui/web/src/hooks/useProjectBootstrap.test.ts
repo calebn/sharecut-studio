@@ -123,4 +123,24 @@ describe("useProjectBootstrap", () => {
     await Promise.resolve();
     expect(useDawStore.getState().project?.meta.name).toBe("after-applied");
   });
+
+  it("clears a previous project's audio error when bootstrapping", async () => {
+    const shell = minimalProject();
+    loadProject.mockResolvedValue(shell);
+    loadProjectDetail.mockResolvedValue({
+      transcript: { utterances: [] },
+      history: { cursor: 0, can_undo: false, can_redo: false, groups: [] },
+      meta: {
+        name: "Test Episode",
+        workspace_dir: "/tmp/test",
+        hydration: { transcript_words: true, history_groups: true },
+      },
+    });
+    useDawStore.getState().setAudioError("Failed to load audio (premix)");
+    renderHook(() => useProjectBootstrap("/tmp/p.json"));
+    await waitFor(() => {
+      expect(useDawStore.getState().project).not.toBeNull();
+    });
+    expect(useDawStore.getState().audioError).toBeNull();
+  });
 });

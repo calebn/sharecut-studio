@@ -134,4 +134,66 @@ describe("staleRenderBreakdown", () => {
     expect(b.invalidations).toHaveLength(1);
     expect(b.summary).toBe("Fresh");
   });
+
+  it("reports a never-rendered project as fresh, not stale", () => {
+    // What the server reports for a brand-new project: no premix, no stems,
+    // needs_rerender true, reconciliation never run (stale). None of that
+    // means the preview is out of date — no preview was ever made.
+    const b = staleRenderBreakdown(
+      minimalProject({
+        tracks: [
+          {
+            id: "host",
+            label: "Host",
+            role: "dialogue",
+            speaker: null,
+            gain_db: 0,
+            muted: false,
+            duration_sec: 60,
+            fx_count: 0,
+            stem_is_fresh: false,
+          },
+        ],
+        render_status: {
+          needs_rerender: true,
+          reconciliation: { stale: true },
+          premix: { exists: false },
+          invalidations: [],
+          tracks: { host: { stem_is_fresh: false, stem_exists: false } },
+        },
+      }),
+    );
+    expect(b.stale).toBe(false);
+    expect(b.summary).toBe("Fresh");
+    expect(b.staleTrackIds).toEqual([]);
+  });
+
+  it("still reports stale when rendered stems are no longer fresh", () => {
+    const b = staleRenderBreakdown(
+      minimalProject({
+        tracks: [
+          {
+            id: "host",
+            label: "Host",
+            role: "dialogue",
+            speaker: null,
+            gain_db: 0,
+            muted: false,
+            duration_sec: 60,
+            fx_count: 0,
+            stem_is_fresh: false,
+          },
+        ],
+        render_status: {
+          needs_rerender: true,
+          reconciliation: { stale: false },
+          premix: { exists: true, stale_vs_stems: false },
+          invalidations: [],
+          tracks: { host: { stem_is_fresh: false, stem_exists: true } },
+        },
+      }),
+    );
+    expect(b.stale).toBe(true);
+    expect(b.staleTrackIds).toEqual(["host"]);
+  });
 });
