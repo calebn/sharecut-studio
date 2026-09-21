@@ -1,0 +1,68 @@
+# Deploy Storybook to GitHub Pages
+#
+# Builds the static Storybook (gui/web/storybook-static) and publishes it to
+# the repo's GitHub Pages environment. The component library is dev-only: the
+# static bundle is never shipped in the app or desktop builds.
+
+name: storybook
+
+on:
+  push:
+    branches: [main]
+    paths:
+      # Storybook-only: skip the build/deploy when no storybook inputs changed.
+      # Note: component/style changes without a story touch won't redeploy;
+      # use workflow_dispatch for a manual rebuild in that case.
+      - "gui/web/.storybook/**"
+      - "gui/web/src/**/*.stories.tsx"
+      - "gui/web/src/**/*.stories.ts"
+      - "gui/web/src/styles/**"
+      - "gui/web/package.json"
+      - "gui/web/package-lock.json"
+      - ".github/workflows/storybook.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: gui/web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: gui/web
+
+      - name: Build Storybook
+        run: npm run build-storybook
+        working-directory: gui/web
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: gui/web/storybook-static
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
