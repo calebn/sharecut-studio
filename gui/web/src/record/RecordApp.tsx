@@ -4,13 +4,17 @@ import "../styles/partials/record-entry.css";
 import { useDesktopCloseGuard } from "../desktop/useDesktopCloseGuard";
 import { Declined } from "./Declined";
 import { FullRoom } from "./FullRoom";
-import { type ByteSink, createOpfsSink } from "./keeper/store";
+import {
+  type ByteSink,
+  createOpfsSink,
+  OpfsUnavailableError,
+} from "./keeper/store";
 import { useKeeperCapture } from "./keeper/useKeeperCapture";
 import { Lobby } from "./Lobby";
 import { useRecordMonitor } from "./monitor/useRecordMonitor";
 import { Room } from "./Room";
 import { loadRecordBootstrap, type RecordBootstrap } from "./recordBootstrap";
-import { UPLOAD_SINK_ERROR_COPY } from "./types";
+import { OPFS_UNAVAILABLE_COPY, UPLOAD_SINK_ERROR_COPY } from "./types";
 import { guestRecordUploadTransport } from "./upload/http";
 import { downloadLocalKeepers } from "./upload/recovery";
 import { useRecordUpload } from "./upload/useRecordUpload";
@@ -107,16 +111,49 @@ export function RecordApp({ token }: { token: string }) {
   const micEnabled =
     !producer && !!me && error !== "room_full" && me.consented !== false;
   const mic = useMicPermission(micEnabled, deviceId);
+  const [sink, setSink] = useState<ByteSink | null>(null);
+  const [sinkError, setSinkError] = useState<string | null>(null);
+  const storageRequired = !!(
+    bootstrap?.build.capture || bootstrap?.build.upload
+  );
+  useEffect(() => {
+    if (!storageRequired || producer) {
+      setSink(null);
+      setSinkError(null);
+      return;
+    }
+    let cancelled = false;
+    void createOpfsSink()
+      .then((next) => {
+        if (!cancelled) {
+          setSink(next);
+          setSinkError(null);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setSinkError(
+            error instanceof OpfsUnavailableError
+              ? OPFS_UNAVAILABLE_COPY
+              : UPLOAD_SINK_ERROR_COPY,
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [storageRequired, producer]);
   const captureEnabled =
     !!bootstrap?.build.capture && !producer && me?.consented === true;
   const keeper = useKeeperCapture({
-    enabled: captureEnabled,
+    enabled: captureEnabled && sink !== null,
     role: "guest",
     snapshot,
     participantId: me?.participant_id ?? null,
     muted: me?.muted ?? false,
     consented: me?.consented ?? null,
     stream: mic.stream,
+    sink,
   });
   useDesktopCloseGuard(
     keeper.recordingLocally ||
@@ -135,31 +172,6 @@ export function RecordApp({ token }: { token: string }) {
     muted: me?.muted ?? false,
     send: (payload) => send("Signal", payload),
   });
-  const [sink, setSink] = useState<ByteSink | null>(null);
-  const [sinkError, setSinkError] = useState<string | null>(null);
-  useEffect(() => {
-    if (!bootstrap?.build.upload || producer) {
-      setSink(null);
-      setSinkError(null);
-      return;
-    }
-    let cancelled = false;
-    void createOpfsSink()
-      .then((next) => {
-        if (!cancelled) {
-          setSink(next);
-          setSinkError(null);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setSinkError(UPLOAD_SINK_ERROR_COPY);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [bootstrap?.build.upload, producer]);
   const uploadTransport = useMemo(() => {
     if (!bootstrap?.build.upload || producer || !me?.participant_id || !lease) {
       return null;
@@ -320,8 +332,12 @@ export function RecordApp({ token }: { token: string }) {
               onRecordRoomTone={roomTone.record}
               onSkipRoomTone={roomTone.skip}
               onRetryRoomTone={roomTone.retry}
-              roomToneReady={!bootstrap.build.upload || roomTone.ready}
-              roomToneCaptureReady={roomTone.captureReady}
+              roomToneReady={
+                !bootstrap.build.upload || (sink !== null && roomTone.ready)
+              }
+              roomToneCaptureReady={sink !== null && roomTone.captureReady}
+              localStorageReady={!storageRequired || sink !== null}
+              localStorageError={sinkError}
               showRoomTone={!!bootstrap.build.upload}
             />
           )}

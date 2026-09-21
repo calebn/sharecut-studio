@@ -1,5 +1,24 @@
-import { describe, expect, it } from "vitest";
-import { keeperWavPath, MemorySink, roomToneWavPath } from "./store";
+import { describe, expect, it, vi } from "vitest";
+import {
+  createOpfsSink,
+  keeperWavPath,
+  MemorySink,
+  OpfsUnavailableError,
+  roomToneWavPath,
+} from "./store";
+
+describe("createOpfsSink", () => {
+  it("identifies an environment without OPFS before recording", async () => {
+    vi.stubGlobal("navigator", { storage: {} });
+    try {
+      await expect(createOpfsSink()).rejects.toBeInstanceOf(
+        OpfsUnavailableError,
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
 
 describe("keeperWavPath", () => {
   it("keys files by session/take/participant/segment", () => {

@@ -7,7 +7,11 @@ import { HostUploadRoster } from "./HostUploadRoster";
 import { useRecordHostStore } from "./hostStore";
 import { submitHostRecordTransport } from "./hostTransport";
 import { sendRecordHostCommand } from "./hostWire";
-import { type ByteSink, createOpfsSink } from "./keeper/store";
+import {
+  type ByteSink,
+  createOpfsSink,
+  OpfsUnavailableError,
+} from "./keeper/store";
 import { LiveComments } from "./LiveComments";
 import { HOST_COMMENT_QUEUE_TOKEN } from "./liveCommentQueue";
 import { MicLossNotice } from "./MicLossNotice";
@@ -24,6 +28,8 @@ import {
   HEARING_COPY,
   hostReconnectPauseCopyFromSnapshot,
   LOCAL_KEEPER_COPY,
+  LOCAL_KEEPER_PENDING_COPY,
+  OPFS_UNAVAILABLE_COPY,
   shouldApplyRecordSnapshot,
   UPLOAD_SINK_ERROR_COPY,
 } from "./types";
@@ -82,8 +88,6 @@ export function RecordPanel({
   const setSnapshot = useRecordHostStore((s) => s.setSnapshot);
   const blockers = startBlockers(snapshot);
   const state = snapshot?.state;
-  const canStart =
-    blockers.length === 0 && (state === "lobby" || state === "stopped");
   const recording = state === "recording";
   const paused = state === "paused";
   const host = snapshot?.participants.find(
@@ -113,15 +117,24 @@ export function RecordPanel({
           setSinkError(null);
         }
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (!cancelled) {
-          setSinkError(UPLOAD_SINK_ERROR_COPY);
+          setSinkError(
+            error instanceof OpfsUnavailableError
+              ? OPFS_UNAVAILABLE_COPY
+              : UPLOAD_SINK_ERROR_COPY,
+          );
         }
       });
     return () => {
       cancelled = true;
     };
   }, []);
+  const localStorageReady = sink !== null;
+  const canStart =
+    blockers.length === 0 &&
+    (state === "lobby" || state === "stopped") &&
+    localStorageReady;
   const uploadTransport = useMemo(
     () => (projectPath ? hostRecordUploadTransport(projectPath) : null),
     [projectPath],
@@ -217,7 +230,7 @@ export function RecordPanel({
             status={roomTone.status}
             error={roomTone.error}
             micReady={!!stream}
-            captureReady={roomTone.captureReady}
+            captureReady={localStorageReady && roomTone.captureReady}
             onRecord={roomTone.record}
             onSkip={roomTone.skip}
             onRetry={roomTone.retry}
@@ -324,8 +337,16 @@ export function RecordPanel({
             onSubmitNote={liveComments.submitNote}
           />
         ) : null}
-        {!canStart && blockers.length > 0 ? (
-          <p className="record-warn">{blockers.join(", ")}</p>
+        {!canStart &&
+        (blockers.length > 0 || (!localStorageReady && !sinkError)) ? (
+          <p className="record-warn">
+            {[
+              ...blockers,
+              ...(!localStorageReady && !sinkError
+                ? [LOCAL_KEEPER_PENDING_COPY]
+                : []),
+            ].join(", ")}
+          </p>
         ) : null}
         {host ? (
           <label className="cluster">

@@ -8,6 +8,11 @@ import { minimalProject } from "../test/fixtures";
 import { startBlockers } from "./blockers";
 import { useRecordHostStore } from "./hostStore";
 import {
+  createOpfsSink,
+  MemorySink,
+  OpfsUnavailableError,
+} from "./keeper/store";
+import {
   MIC_DENIED_COPY,
   MIC_DESKTOP_DENIED_COPY,
   MIC_RETRY_LABEL,
@@ -61,6 +66,14 @@ vi.mock("./hostTransport", () => ({
   submitHostRecordTransport: (...args: unknown[]) => postTransport(...args),
 }));
 
+vi.mock("./keeper/store", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./keeper/store")>();
+  return {
+    ...actual,
+    createOpfsSink: vi.fn(async () => new actual.MemorySink()),
+  };
+});
+
 const uploadStatus = vi.fn(async () => ({ segments: [] as Array<unknown> }));
 
 vi.mock("../api", () => ({
@@ -106,6 +119,8 @@ describe("RecordPanel", () => {
     roomTone.record.mockReset();
     roomTone.skip.mockReset();
     roomTone.retry.mockReset();
+    vi.mocked(createOpfsSink).mockReset();
+    vi.mocked(createOpfsSink).mockResolvedValue(new MemorySink());
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     useDawStore.setState({ recordPanelOpen: true });
     useRecordHostStore.getState().setSnapshot(null);
@@ -116,7 +131,7 @@ describe("RecordPanel", () => {
     useRecordHostStore.getState().setSnapshot(lobby);
     const { container } = render(<RecordPanel />);
     expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
-    expect(screen.getByText("No one has joined")).toBeInTheDocument();
+    expect(await screen.findByText("No one has joined")).toBeInTheDocument();
     expect(screen.getByText(ROOM_TONE_PROMPT_COPY)).toBeInTheDocument();
     await expectNoA11yViolations(container);
   });
@@ -159,6 +174,81 @@ describe("RecordPanel", () => {
         .__TAURI_INTERNALS__;
       Reflect.deleteProperty(navigator, "userAgent");
     }
+  it("keeps Start disabled with an actionable storage error", async () => {
+    vi.mocked(createOpfsSink).mockRejectedValueOnce(new Error("quota"));
+    useRecordHostStore.getState().setSnapshot({
+      ...lobby,
+      start_blockers: [],
+      participants: [
+        {
+          participant_id: "p_g",
+          role: "guest",
+          display_name: "Ava",
+          connected: true,
+          consented: true,
+          muted: false,
+          headphones_ack: true,
+        },
+      ],
+    });
+    render(<RecordPanel />);
+    expect(
+      await screen.findByText(
+        "Local recording backup is unavailable. Check that this browser or app environment allows local storage, then retry.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
+  });
+
+  it("keeps Start disabled while the storage preflight is pending", () => {
+    vi.mocked(createOpfsSink).mockImplementationOnce(
+      () => new Promise(() => undefined),
+    );
+    useRecordHostStore.getState().setSnapshot({
+      ...lobby,
+      start_blockers: [],
+      participants: [
+        {
+          participant_id: "p_g",
+          role: "guest",
+          display_name: "Ava",
+          connected: true,
+          consented: true,
+          muted: false,
+          headphones_ack: true,
+        },
+      ],
+    });
+    render(<RecordPanel />);
+    expect(
+      screen.getByText("Preparing local recording backup…"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
+  });
+
+  it("shows the specific OPFS copy when the storage API is missing", async () => {
+    vi.mocked(createOpfsSink).mockRejectedValueOnce(new OpfsUnavailableError());
+    useRecordHostStore.getState().setSnapshot({
+      ...lobby,
+      start_blockers: [],
+      participants: [
+        {
+          participant_id: "p_g",
+          role: "guest",
+          display_name: "Ava",
+          connected: true,
+          consented: true,
+          muted: false,
+          headphones_ack: true,
+        },
+      ],
+    });
+    render(<RecordPanel />);
+    expect(
+      await screen.findByText(
+        "Local recording backup is unavailable because this browser or app environment does not support OPFS. Use a compatible browser, then retry.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("dispatches host commands when enabled", async () => {
@@ -179,6 +269,9 @@ describe("RecordPanel", () => {
     });
     render(<RecordPanel />);
     expect(startBlockers(useRecordHostStore.getState().snapshot)).toEqual([]);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Start" })).toBeEnabled();
+    });
     await userEvent.click(screen.getByRole("button", { name: "Start" }));
     expect(postTransport).toHaveBeenCalledWith("Start");
   });

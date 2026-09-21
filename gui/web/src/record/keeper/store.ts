@@ -27,6 +27,15 @@ export type ByteSink = {
   ): Promise<number>;
 };
 
+export class OpfsUnavailableError extends Error {
+  constructor() {
+    super(
+      "Local recording backup is unavailable because this browser or app environment does not support OPFS.",
+    );
+    this.name = "OpfsUnavailableError";
+  }
+}
+
 function assertSafePart(part: string): string {
   if (
     !part ||
@@ -159,9 +168,7 @@ export class MemorySink implements ByteSink {
 export async function createOpfsSink(): Promise<ByteSink> {
   const storage = navigator.storage;
   if (!storage?.getDirectory) {
-    throw new Error(
-      "This browser cannot store a local keeper copy (OPFS unavailable).",
-    );
+    throw new OpfsUnavailableError();
   }
   const root = await storage.getDirectory();
   return {
