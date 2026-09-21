@@ -77,6 +77,15 @@ export async function expectVisibleInOverlay(
   await expect.poll(async () => intersectsOverlay(overlay, target)).toBe(true);
 }
 
+async function expectActionableWhenApplicable(target: Locator): Promise<void> {
+  const actionable = await target.evaluate((el) =>
+    el.matches("button, [role='button'], [role='menuitem'], a[href]"),
+  );
+  if (actionable) {
+    await target.click({ trial: true });
+  }
+}
+
 /**
  * The transport Menu's max-height is the remaining space under the trigger
  * (`--menu-available-height`), which shrinks when guest/follow banners stack
@@ -125,6 +134,7 @@ export async function expectMenuLastItemReachable(page: Page): Promise<void> {
       }),
     )
     .toBe(true);
+  await last.click({ trial: true });
   await page.keyboard.press("Escape");
   await expect(menu).toBeHidden();
 }
@@ -154,23 +164,24 @@ export async function expectShareRecordRoomsReachable(
   await expectFitsViewport(page, panel);
   const rooms = dialog.getByRole("heading", { name: "Record rooms" });
   await expect(rooms).toBeVisible();
-  if (!(await intersectsOverlay(panel, rooms))) {
+  if (!(await intersectsOverlay(body, rooms))) {
     await rooms.evaluate((el) => {
       el.scrollIntoView({ block: "nearest" });
     });
   }
-  await expectVisibleInOverlay(panel, rooms);
+  await expectVisibleInOverlay(body, rooms);
   const roomsTarget = dialog
     .getByRole("button", { name: "End room" })
     .or(dialog.getByText("No live record rooms."))
     .first();
   await expect(roomsTarget).toBeVisible();
-  if (!(await intersectsOverlay(panel, roomsTarget))) {
+  if (!(await intersectsOverlay(body, roomsTarget))) {
     await roomsTarget.evaluate((el) => {
       el.scrollIntoView({ block: "nearest" });
     });
   }
-  await expectVisibleInOverlay(panel, roomsTarget);
+  await expectVisibleInOverlay(body, roomsTarget);
+  await expectActionableWhenApplicable(roomsTarget);
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
 }
@@ -179,8 +190,9 @@ export async function expectShareRecordRoomsReachable(
  * Generic Dialog reachability for `.command-palette-body` consumers: the panel
  * fits the viewport, the body scrolls, and the lowest action/content target is
  * reachable through the scroller. The dialog is dismissed on success. The
- * target is asserted visible/reachable but never clicked — callers pass
- * destructive actions (Bounce, Create diagnostics bundle) as targets.
+ * target is asserted visible/reachable within the body scrollport. Actionable
+ * targets receive a non-destructive Playwright trial click to catch overlays
+ * that geometrically intersect but intercept pointer events.
  */
 export async function expectDialogLowerTargetReachable(
   page: Page,
@@ -195,12 +207,13 @@ export async function expectDialogLowerTargetReachable(
   await expectFitsViewport(page, panel);
   const target = targetFor(dialog);
   await expect(target).toBeVisible();
-  if (!(await intersectsOverlay(panel, target))) {
+  if (!(await intersectsOverlay(body, target))) {
     await target.evaluate((el) => {
       el.scrollIntoView({ block: "nearest" });
     });
   }
-  await expectVisibleInOverlay(panel, target);
+  await expectVisibleInOverlay(body, target);
+  await expectActionableWhenApplicable(target);
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
 }
