@@ -622,6 +622,16 @@ lost mic uses **segments** ([Roster changes](#roster-changes-join-leave-rejoin-p
 Producers simply lose audio and reconnect. Pending live comments queue with
 idempotency keys and upsert on reconnect.
 
+If an OPFS write or close fails, the keeper latches a local-capture failure and
+stops accepting PCM; the REC indicator is no longer a claim that a durable
+local copy is being made. Already finalized segments remain available, while
+the failed open segment is not advertised as durable because
+`FileSystemFileHandle.createWritable()` commits changes on close. The client
+offers **Retry local recording** while the take is recording; during pause or
+after Stop, the host must resume or start a take first. Retry closes the failed
+stream best-effort and starts a new segment without overwriting the failed one.
+Repeated errors remain visible and do not silently discard or count queued samples.
+
 On the **last** host connection drop (`disconnect` / `release_connection`)
 while `state ∈ {recording, paused}`, the service stamps
 `host_offline_since_wall_ms` from that socket's last beat (same sqlite

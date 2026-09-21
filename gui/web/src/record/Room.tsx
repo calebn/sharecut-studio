@@ -29,6 +29,8 @@ type Props = {
   connected?: boolean;
   recordingLocally?: boolean;
   keeperError?: string | null;
+  uploadSinkError?: string | null;
+  onRetryKeeper?: () => void;
   hearing?: boolean;
   monitorError?: string | null;
   upload?: RecordUploadProgress;
@@ -48,6 +50,8 @@ export function Room({
   connected = true,
   recordingLocally = false,
   keeperError = null,
+  uploadSinkError = null,
+  onRetryKeeper,
   hearing = false,
   monitorError = null,
   upload,
@@ -60,15 +64,40 @@ export function Room({
   const leaveHeld = leaveBlocked(snapshot.state, upload);
   return (
     <div className="stack">
-      <RecIndicator snapshot={snapshot} />
+      <RecIndicator snapshot={snapshot} captureFailed={!!keeperError} />
       <div aria-live="polite">
         {hostOffline ? (
           <p className="record-warn">{HOST_OFFLINE_COPY}</p>
         ) : null}
-        {recordingLocally ? <p>{LOCAL_KEEPER_COPY}</p> : null}
+        {recordingLocally && !keeperError ? <p>{LOCAL_KEEPER_COPY}</p> : null}
         {micLost ? <MicLossNotice onRetry={onRetryMic} /> : null}
         {hearing && !hostOffline ? <p>{HEARING_COPY}</p> : null}
-        {keeperError ? <p className="record-warn">{keeperError}</p> : null}
+        {keeperError ? (
+          <>
+            <p className="record-warn">
+              Local recording stopped: {keeperError}
+            </p>
+            {onRetryKeeper ? (
+              <Button
+                type="button"
+                onClick={onRetryKeeper}
+                disabled={snapshot.state !== "recording"}
+              >
+                Retry local recording
+              </Button>
+            ) : null}
+            {snapshot.state !== "recording" ? (
+              <p>
+                {snapshot.state === "paused"
+                  ? "Ask the host to resume the take before retrying local recording."
+                  : "Ask the host to start a new take before retrying local recording."}
+              </p>
+            ) : null}
+          </>
+        ) : null}
+        {uploadSinkError ? (
+          <p className="record-warn">{uploadSinkError}</p>
+        ) : null}
         {monitorError ? <p className="record-warn">{monitorError}</p> : null}
         {upload ? (
           <UploadStatus

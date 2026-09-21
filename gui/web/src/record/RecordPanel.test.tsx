@@ -180,21 +180,32 @@ describe("RecordPanel", () => {
     expect(send).toHaveBeenCalledWith("SetMuted", { muted: true });
   });
 
-  it("shows local keeper copy only when capture reports writing", async () => {
+  it("does not claim local capture while a keeper failure is visible", async () => {
     useRecordHostStore.getState().setSnapshot({
       ...lobby,
       state: "recording",
       take_index: 0,
       start_blockers: [],
     });
+    const retry = vi.fn();
     const { container } = render(
-      <RecordPanel recordingLocally hearing keeperError="OPFS unavailable" />,
+      <RecordPanel
+        recordingLocally
+        hearing
+        keeperError="OPFS unavailable"
+        onRetryKeeper={retry}
+      />,
     );
     expect(
-      screen.getByText("Recording locally on this device."),
-    ).toBeInTheDocument();
+      screen.queryByText("Recording locally on this device."),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Hearing the room.")).toBeInTheDocument();
-    expect(screen.getByText("OPFS unavailable")).toBeInTheDocument();
+    expect(screen.getByText(/OPFS unavailable/)).toBeInTheDocument();
+    expect(screen.getByText("REC — local capture failed")).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Retry local recording" }),
+    );
+    expect(retry).toHaveBeenCalledOnce();
     await expectNoA11yViolations(container);
   });
 

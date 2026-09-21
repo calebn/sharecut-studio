@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parseWavHeader, wavPcmToFloat32 } from "../../audio/wavHeader";
 import { KEEPER_SAMPLE_RATE } from "./pcm";
 import { KeeperSession } from "./session";
-import { keeperWavPath, MemorySink } from "./store";
+import { type ByteStream, keeperWavPath, MemorySink } from "./store";
 
 const ids = { sessionId: "cool-room", participantId: "p_g" };
 
@@ -20,6 +20,172 @@ function tone(
 }
 
 describe("KeeperSession", () => {
+  it("advances after an initial header failure before retrying", async () => {
+    const sink = new MemorySink();
+    let opens = 0;
+    const originalOpen = sink.open.bind(sink);
+    sink.open = async (path): Promise<ByteStream> => {
+      const stream = await originalOpen(path);
+      opens += 1;
+      return {
+        write: async (bytes, offset) => {
+          if (opens === 1) {
+            throw new Error("header failed");
+          }
+          await stream.write(bytes, offset);
+        },
+        close: () => stream.close(),
+      };
+    };
+    const session = new KeeperSession(sink);
+    const gate = {
+      ...ids,
+      role: "guest" as const,
+      consented: true as const,
+      roomState: "recording" as const,
+      takeIndex: 0,
+      recordingMs: 0,
+      muted: false,
+    };
+    await expect(session.apply(gate)).rejects.toThrow("header failed");
+    await session.retry();
+    session.push(tone(440, 0.01), KEEPER_SAMPLE_RATE);
+    await session.dispose();
+    expect(session.files.map((file) => file.segmentIndex)).toEqual([1]);
+  });
+
+  it("latches metadata failures and recovers only on an active retry", async () => {
+    const sink = new MemorySink();
+    let failMetadata = true;
+    const originalWrite = sink.write.bind(sink);
+    sink.write = async (path, bytes) => {
+      if (path.endsWith(".json") && failMetadata) {
+        failMetadata = false;
+        throw new Error("metadata failed");
+      }
+      await originalWrite(path, bytes);
+    };
+    const session = new KeeperSession(sink);
+    const gate = {
+      ...ids,
+      role: "guest" as const,
+      consented: true as const,
+      roomState: "recording" as const,
+      takeIndex: 0,
+      recordingMs: 0,
+      muted: false,
+    };
+    await session.apply(gate);
+    session.push(tone(440, 0.01), KEEPER_SAMPLE_RATE);
+    await expect(session.dispose()).rejects.toThrow("metadata failed");
+    expect(session.error?.message).toBe("metadata failed");
+    await session.apply({ ...gate, roomState: "paused" });
+    await session.retry();
+    expect(session.error?.message).toBe("metadata failed");
+    await session.apply(gate);
+    await session.retry();
+    session.push(tone(440, 0.01), KEEPER_SAMPLE_RATE);
+    await session.dispose();
+    expect(session.files.map((file) => file.segmentIndex)).toEqual([1]);
+  });
+
+  it("latches a write failure, skips queued PCM, and retries in a new segment", async () => {
+    const sink = new MemorySink();
+    let writes = 0;
+    const originalOpen = sink.open.bind(sink);
+    sink.open = async (path): Promise<ByteStream> => {
+      const stream = await originalOpen(path);
+      return {
+        write: async (bytes, offset) => {
+          writes += 1;
+          if (writes === 2) {
+            throw new Error("quota exceeded");
+          }
+          await stream.write(bytes, offset);
+        },
+        close: () => stream.close(),
+      };
+    };
+    const failures: Error[] = [];
+    const session = new KeeperSession(sink, (error) => failures.push(error));
+    const gate = {
+      ...ids,
+      role: "guest" as const,
+      consented: true as const,
+      roomState: "recording" as const,
+      takeIndex: 0,
+      recordingMs: 0,
+      muted: false,
+    };
+    await session.apply(gate);
+    session.push(tone(220, 0.02), KEEPER_SAMPLE_RATE);
+    session.push(tone(220, 0.02), KEEPER_SAMPLE_RATE);
+    await session.flush();
+    expect(session.isWriting).toBe(false);
+    expect(failures).toHaveLength(1);
+    expect(session.files).toHaveLength(0);
+
+    await session.retry();
+    expect(session.isWriting).toBe(true);
+    session.push(tone(880, 0.02), KEEPER_SAMPLE_RATE);
+    await session.dispose();
+    expect(session.files.map((file) => file.segmentIndex)).toEqual([1]);
+    expect(failures).toHaveLength(1);
+  });
+
+  it("does not count PCM until its write resolves", async () => {
+    const sink = new MemorySink();
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let queuedWriteStarted!: () => void;
+    const queuedWrite = new Promise<void>((resolve) => {
+      queuedWriteStarted = resolve;
+    });
+    const originalOpen = sink.open.bind(sink);
+    sink.open = async (path): Promise<ByteStream> => {
+      const stream = await originalOpen(path);
+      let writes = 0;
+      return {
+        write: async (bytes, offset) => {
+          writes += 1;
+          if (writes > 2) {
+            queuedWriteStarted();
+            await pending;
+          }
+          await stream.write(bytes, offset);
+        },
+        close: () => stream.close(),
+      };
+    };
+    const session = new KeeperSession(sink);
+    await session.apply({
+      ...ids,
+      role: "guest",
+      consented: true,
+      roomState: "recording",
+      takeIndex: 0,
+      recordingMs: 0,
+      muted: false,
+    });
+    session.push(tone(220, 0.02), KEEPER_SAMPLE_RATE);
+    session.push(tone(220, 0.02), KEEPER_SAMPLE_RATE);
+    const flush = session.flush();
+    await queuedWrite;
+    try {
+      expect(
+        sink.files.get(keeperWavPath({ ...ids, takeIndex: 0, segmentIndex: 0 }))
+          ?.byteLength,
+      ).toBeGreaterThan(44);
+    } finally {
+      release();
+    }
+    await flush;
+    await session.dispose();
+    expect(session.files[0]?.samplesWritten).toBe(1_920);
+  });
+
   it("writes no bytes until recording after consent", async () => {
     const sink = new MemorySink();
     const session = new KeeperSession(sink);
