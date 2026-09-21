@@ -1,5 +1,12 @@
-import { type Browser, expect, type Page, test } from "@playwright/test";
+import {
+  type Browser,
+  type BrowserContext,
+  expect,
+  type Page,
+  test,
+} from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
+import { waitForFollowBanner } from "./followBanner";
 import { withShareableProject } from "./shareableProject";
 import { withTwoBrowserPages } from "./twoBrowserPages";
 
@@ -101,7 +108,7 @@ async function expectFollowerMatchesLeaderPlayhead(
 
 async function stopFollowing(follower: Page): Promise<void> {
   const banner = follower.locator(".follow-banner");
-  if (!(await banner.isVisible().catch(() => false))) {
+  if (!(await banner.isVisible())) {
     return;
   }
   await follower
@@ -153,7 +160,7 @@ async function followUntilBannerVisible(
       await openMenu();
     }
     await people.nth(i).evaluate((el) => el.click());
-    if (await follower.locator(".follow-banner").isVisible()) {
+    if (await waitForFollowBanner(follower)) {
       return;
     }
   }
@@ -176,7 +183,7 @@ async function followMenuPeerUntilPlayheadMoves(
       await openMenu();
     }
     await people.nth(i).evaluate((el) => el.click());
-    if (!(await follower.locator(".follow-banner").isVisible())) {
+    if (!(await waitForFollowBanner(follower))) {
       continue;
     }
     try {
@@ -202,7 +209,7 @@ async function followUntilLeaderPlayheadMirrors(
       .getByRole("button", { name: /Follow / })
       .nth(i)
       .click();
-    if (!(await follower.locator(".follow-banner").isVisible())) {
+    if (!(await waitForFollowBanner(follower))) {
       continue;
     }
     try {
@@ -216,7 +223,7 @@ async function followUntilLeaderPlayheadMirrors(
 }
 
 async function withTwoStudioPages<T>(
-  browser: Browser,
+  browser: Pick<Browser, "newContext">,
   viewport: { width: number; height: number },
   run: (pageA: Page, pageB: Page) => Promise<T>,
   followerViewport = viewport,
@@ -267,6 +274,34 @@ async function withHostGuestPages<T>(
     );
   });
 }
+
+test("closes the first context when the second context cannot be created", async ({
+  browser,
+}) => {
+  let firstContext: BrowserContext | undefined;
+  let closed = false;
+  const failingBrowser: Pick<Browser, "newContext"> = {
+    newContext: async (options) => {
+      if (firstContext) throw new Error("second context failed");
+      firstContext = await browser.newContext(options);
+      firstContext.once("close", () => {
+        closed = true;
+      });
+      const close = firstContext.close.bind(firstContext);
+      firstContext.close = async () => {
+        await close();
+        throw new Error("cleanup failed");
+      };
+      return firstContext;
+    },
+  };
+  await expect(
+    withTwoStudioPages(failingBrowser, DESKTOP, async () => {
+      throw new Error("callback should not run");
+    }),
+  ).rejects.toThrow("second context failed");
+  expect(closed).toBe(true);
+});
 
 test.describe("presence follow desktop", () => {
   test("page B follows page A then unfollows on scroll", async ({
