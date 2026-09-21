@@ -699,7 +699,8 @@ def test_apply_mute_skips_archive_when_nothing_written(tmp_path, sample_wav):
             applied=False,
         )
     ]
-    assert approve_edits(project, ["miss"]) == 1
+    assert approve_edits(project, ["miss"]) == 0
+    assert [decision.id for decision in project.edit_decisions] == ["miss"]
     assert project.editorial.edit_log == []
     host = next(c for c in project.clips if c.track_id == "host")
     assert host.mute_regions == []

@@ -230,6 +230,16 @@ def test_transcript_service_export_subtitles(minimal_project):
     assert "line one" in srt.read_text(encoding="utf-8")
 
 
+def test_transcript_service_export_subtitles_builds_missing_combined(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    with patch("podcast_mcp.services.transcript.TranscriptionEngine") as eng_cls:
+        eng_cls.return_value.merge_transcripts.return_value = CombinedTranscript(utterances=[])
+        out = TranscriptService(ws).export_subtitles("srt")
+
+    assert out.is_file()
+    eng_cls.return_value.merge_transcripts.assert_called_once_with(ws.project)
+
+
 def test_transcript_service_transcribe_all_and_combined_get(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     from podcast_mcp.models import Transcript, TranscriptWord
