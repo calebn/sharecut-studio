@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.models import EpisodeProject, TranscriptWord
+from podcast_mcp.util.text import has_meaningful_text
 
 
 def correct_word(
@@ -15,7 +16,7 @@ def correct_word(
         raise ValueError(f"no transcript for track {track_id!r}")
     if word_index < 0 or word_index >= len(tr.words):
         raise ValueError(f"word_index out of range: {word_index}")
-    if not new_text or not new_text.strip():
+    if not has_meaningful_text(new_text):
         raise ValueError("correction text must not be empty")
     w = tr.words[word_index]
     tr.words[word_index] = w.model_copy(update={"text": new_text, "confidence": 1.0})

@@ -9,11 +9,12 @@ from __future__ import annotations
 from typing import Annotated, Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, TypeAdapter, model_validator
+from pydantic import BaseModel, Field, TypeAdapter, field_validator, model_validator
 
 from podcast_mcp.edits.comments import COMMENT_BODY_MAX
 from podcast_mcp.models.episode import ClipJoinMode
 from podcast_mcp.services.document_sync.commands import ClientRole, DocumentCommand
+from podcast_mcp.util.text import has_meaningful_text
 
 JoinInMode = Literal["fade", "crossfade", "cut"]
 
@@ -147,7 +148,17 @@ class SetEffectBypassPayload(BaseModel):
 class CorrectTranscriptWordPayload(BaseModel):
     track_id: str
     word_index: int
-    text: str
+    text: str = Field(
+        min_length=1,
+        description="Correction text containing at least one visible character.",
+    )
+
+    @field_validator("text")
+    @classmethod
+    def _text_contains_visible_content(cls, value: str) -> str:
+        if not has_meaningful_text(value):
+            raise ValueError("correction text must not be empty")
+        return value
 
 
 class CorrectTranscriptPhrasePayload(BaseModel):

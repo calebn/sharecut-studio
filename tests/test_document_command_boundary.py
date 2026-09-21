@@ -17,7 +17,11 @@ from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.tools.agent_document import submit_host_document_command
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services import ProjectWorkspace, ReviewService
-from podcast_mcp.services.document_sync.payloads import document_command_json_schema
+from podcast_mcp.services.document_sync.payloads import (
+    CorrectTranscriptPhrasePayload,
+    CorrectTranscriptWordPayload,
+    document_command_json_schema,
+)
 from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
 from podcast_mcp.services.remote_mcp.tools import tool_input_schema
 from podcast_mcp.services.share import ShareService
@@ -29,6 +33,8 @@ _BAD_APPROVE = {
     "client_id": "boundary-test",
     "client_seq": 1,
 }
+
+_INVISIBLE_TRANSCRIPT_TEXT = " \u200b\ufeff\u2060\u200e\x00\t "
 
 
 def _seed_premix(minimal_project, sample_wav) -> ProjectWorkspace:
@@ -70,6 +76,15 @@ def test_openapi_document_command_matches_published_schema():
     pub_cmds = sorted(k for k in pub_defs if k.endswith("Command"))
     assert sorted(oa_refs) == pub_cmds
     assert len(oa_refs) == len(pub_cmds) >= 30
+
+
+def test_word_correction_schema_requires_non_empty_text_but_phrase_allows_deletion() -> None:
+    definitions = document_command_json_schema()["$defs"]
+    word_text = definitions["CorrectTranscriptWordPayload"]["properties"]["text"]
+    phrase_text = definitions["CorrectTranscriptPhrasePayload"]["properties"]["text"]
+
+    assert word_text["minLength"] == 1
+    assert "minLength" not in phrase_text
 
 
 def test_host_http_rejects_invalid_document_payload(minimal_project):
@@ -123,6 +138,28 @@ def test_host_mcp_rejects_invalid_payload(minimal_project):
             "ApproveEdits",
             {"decision_ids": ["x"]},
         )
+
+
+def test_word_payload_rejects_invisible_text_before_submit() -> None:
+    with pytest.raises(ValidationError, match="correction text must not be empty"):
+        CorrectTranscriptWordPayload(track_id="host", word_index=0, text=_INVISIBLE_TRANSCRIPT_TEXT)
+
+
+def test_host_mcp_rejects_invisible_word_before_opening_service() -> None:
+    with pytest.raises(ValidationError, match="correction text must not be empty"):
+        submit_host_document_command(
+            "/not-needed-for-payload-validation",
+            "CorrectTranscriptWord",
+            {"track_id": "host", "word_index": 0, "text": _INVISIBLE_TRANSCRIPT_TEXT},
+        )
+
+
+def test_phrase_payload_keeps_empty_text_for_deletion() -> None:
+    payload = CorrectTranscriptPhrasePayload(
+        track_id="host", start_word_index=0, end_word_index=0, text=""
+    )
+
+    assert payload.text == ""
 
 
 def test_guest_mcp_rejects_invalid_document_payload(

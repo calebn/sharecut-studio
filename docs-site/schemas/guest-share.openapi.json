@@ -1144,6 +1144,8 @@
       "CorrectTranscriptWordPayload": {
         "properties": {
           "text": {
+            "description": "Correction text containing at least one visible character.",
+            "minLength": 1,
             "title": "Text",
             "type": "string"
           },
