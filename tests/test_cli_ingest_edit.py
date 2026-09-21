@@ -367,6 +367,32 @@ def test_edit_approve_warns_when_nothing_approved(minimal_project):
     assert "no edits were approved" in result.stderr
 
 
+def test_edit_approve_warns_for_stale_mute(minimal_project):
+    project = _setup_edit_project(minimal_project)
+    proj = load_project(project)
+    proj.edit_decisions.append(
+        EditDecision(
+            id="stale-mute",
+            track_id="host",
+            type=EditDecisionType.MUTE,
+            start=1000.0,
+            end=1001.0,
+            applied=False,
+        )
+    )
+    save_project(proj, project)
+
+    result = runner.invoke(
+        app,
+        ["edit", "approve", "--project", str(project), "--ids", "stale-mute"],
+    )
+
+    assert result.exit_code == 0
+    assert "Approved 0 edit(s)." in result.stdout
+    assert "no edits were approved" in result.stderr
+    assert [decision.id for decision in load_project(project).edit_decisions] == ["stale-mute"]
+
+
 def test_edit_transcript_and_preview_cut(minimal_project):
     project = _setup_edit_project(minimal_project)
     transcript = runner.invoke(
