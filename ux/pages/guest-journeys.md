@@ -136,7 +136,9 @@ flowchart TD
   lost --> reconnect[Reconnect microphone]
   reconnect --> rec
   rec --> stop[Host Stop]
-  stop --> upload[Upload panel until ACK]
+  stop --> upload[Upload panel with N/M or stalled state]
+  upload --> recovery[Resume upload or Download local keeper]
+  recovery --> upload
   upload --> staged[File uploaded; local OPFS WAV kept]
   staged --> opfs[Local OPFS WAV safe to delete after confirmed landing]
   staged --> failed[Landing failed; ask host to Retry land]
@@ -173,7 +175,9 @@ flowchart TD
    microphone loss disables Accept until recovery.
 8. Host Stop. The native leave warning stays until the keeper finishes saving
    the final WAV and metadata, then clears. The upload panel warns the guest
-   to keep the tab open until the final file ACK. The local WAV stays in
+   to keep the tab open until the final file ACK, shows N/M chunks where all
+   totals are known, and offers **Resume upload** and **Download local keeper**
+   for an incomplete or stalled take. The local WAV stays in
    OPFS (`Sharecut Recordings/`) until the host confirms **Landed. Safe to delete
    the local backup.** If landing fails, the guest sees **Uploaded but not landed
    on the host** and keeps the backup while the host uses **Retry land**.

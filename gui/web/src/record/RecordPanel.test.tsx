@@ -298,7 +298,7 @@ describe("RecordPanel", () => {
     expect(
       screen.getByText(hostUploadLine("Host", false, 1)),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Close" })).toBeEnabled();
     const land = screen.getByRole("button", { name: "Land" });
     expect(land).toBeEnabled();
     await userEvent.click(land);

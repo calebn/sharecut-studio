@@ -99,4 +99,43 @@ describe("HostUploadRoster", () => {
     expect(screen.getByText(/landing failed/)).toBeInTheDocument();
     await expectNoA11yViolations(container);
   });
+
+  it("reports declared chunk totals and includes assembled segments", () => {
+    const { rerender } = render(
+      <HostUploadRoster
+        stopped
+        participants={[guest]}
+        segments={[
+          {
+            participant_id: "p_g",
+            acked_parts: [0],
+            expected_parts: 3,
+            file_ack: false,
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Ava: 1/3 chunks acked.")).toBeInTheDocument();
+    rerender(
+      <HostUploadRoster
+        stopped
+        participants={[guest]}
+        segments={[
+          {
+            participant_id: "p_g",
+            acked_parts: [],
+            expected_parts: 2,
+            file_ack: true,
+          },
+          {
+            participant_id: "p_g",
+            acked_parts: [0],
+            expected_parts: 3,
+            file_ack: false,
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Ava: 3/5 chunks acked.")).toBeInTheDocument();
+  });
 });

@@ -22,6 +22,7 @@ import {
   UPLOAD_SINK_ERROR_COPY,
 } from "./types";
 import { UploadStatus } from "./UploadStatus";
+import { downloadLocalKeepers } from "./upload/recovery";
 import {
   leaveBlocked,
   useHostUploadSegments,
@@ -87,6 +88,7 @@ export function RecordPanel({
   const [transportBusy, setTransportBusy] = useState(false);
   const [sink, setSink] = useState<ByteSink | null>(null);
   const [sinkError, setSinkError] = useState<string | null>(null);
+  const [uploadRetryNonce, setUploadRetryNonce] = useState(0);
   useEffect(() => {
     let cancelled = false;
     void createOpfsSink()
@@ -118,6 +120,7 @@ export function RecordPanel({
     participantId: "p_host",
     transport: uploadTransport,
     sink,
+    retryNonce: uploadRetryNonce,
   });
   const roomToneEnabled =
     !!snapshot && (snapshot.state === "lobby" || snapshot.state === "stopped");
@@ -172,9 +175,7 @@ export function RecordPanel({
     };
   }, [recordPanelOpen, projectPath, setSnapshot]);
 
-  const uploadBlocking =
-    leaveBlocked(state ?? "", upload) ||
-    hostSegments.some((row) => !row.file_ack);
+  const uploadBlocking = leaveBlocked(state ?? "", upload);
   const reconnectCopy = snapshot
     ? hostReconnectPauseCopyFromSnapshot(snapshot)
     : null;
@@ -209,7 +210,27 @@ export function RecordPanel({
           {recordingLocally && !keeperError ? <p>{LOCAL_KEEPER_COPY}</p> : null}
           {micLost ? <MicLossNotice onRetry={onRetryMic} /> : null}
           {hearing ? <p>{HEARING_COPY}</p> : null}
-          <UploadStatus progress={upload} stopped={state === "stopped"} />
+          <UploadStatus
+            progress={upload}
+            stopped={state === "stopped"}
+            onResume={() => setUploadRetryNonce((value) => value + 1)}
+            onDownload={
+              sink && snapshot
+                ? () => {
+                    void downloadLocalKeepers(
+                      sink,
+                      snapshot.session_id,
+                      "p_host",
+                      snapshot.take_index,
+                    ).catch((error: unknown) => {
+                      setSinkError(
+                        error instanceof Error ? error.message : String(error),
+                      );
+                    });
+                  }
+                : undefined
+            }
+          />
           {snapshot ? (
             <HostUploadRoster
               participants={snapshot.participants}
