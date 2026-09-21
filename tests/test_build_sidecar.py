@@ -183,6 +183,20 @@ def test_freeze_extras_include_bootstrap() -> None:
     assert "gui" in mod.GUI_EXTRAS
 
 
+def test_packaged_build_requires_compiled_launcher(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    mod = _load_build_sidecar()
+    monkeypatch.setattr(mod, "copy_web_dist", lambda _runtime, *, rebuild: None)
+    monkeypatch.setattr(mod, "freeze_python", lambda _runtime, *, extension_wheels_dir: None)
+    monkeypatch.setattr(mod, "compile_rust_launcher", lambda _launcher: False)
+
+    with pytest.raises(SystemExit, match="rustc is required"):
+        mod.main(["--out", str(tmp_path), "--triple", "aarch64-apple-darwin"])
+
+    assert not (tmp_path / "sharecut-runtime" / ".freeze-complete").exists()
+
+
 def test_extension_wheels_requires_exactly_one_top_level_wheel(tmp_path: Path) -> None:
     mod = _load_build_sidecar()
     with pytest.raises(SystemExit, match="exactly one top-level wheel"):
@@ -349,9 +363,9 @@ def test_write_python_home_marker(tmp_path: Path) -> None:
     assert marker == "python/cpython-3.12-windows-x86_64-none"
 
 
-def test_windows_freeze_requires_rustc_exe() -> None:
+def test_release_workflow_has_rustc_for_compiled_launcher() -> None:
     text = SCRIPT.read_text(encoding="utf-8")
-    assert "Tauri externalBin expects .exe" in text
+    assert "rustc is required to compile sharecut-sidecar" in text
     workflow = ROOT / ".github/workflows/release-desktop-build.yml"
     yml = workflow.read_text(encoding="utf-8")
     assert "rustc --version" in yml

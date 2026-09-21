@@ -658,13 +658,10 @@ def main(argv: list[str] | None = None) -> int:
     freeze_python(runtime, extension_wheels_dir=args.extension_wheels_dir)
     compiled = compile_rust_launcher(launcher)
     if not compiled:
-        if windows:
-            raise SystemExit(
-                "rustc is required to compile sharecut-sidecar on Windows "
-                "(Tauri externalBin expects .exe, not a .cmd fallback)"
-            )
-        write_script_launcher(launcher, windows=False)
-        print(f"script launcher (no rustc): {launcher}")
+        raise SystemExit(
+            "rustc is required to compile sharecut-sidecar "
+            "(the packaged launcher requires CLI mode support)"
+        )
     else:
         print(f"compiled launcher: {launcher}")
     print(f"runtime: {runtime}")

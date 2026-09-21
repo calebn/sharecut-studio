@@ -14,6 +14,24 @@ use std::process::{exit, Command, Stdio};
 
 const PYTHON_HOME_MARKER: &str = ".python-home";
 
+#[derive(Debug, PartialEq, Eq)]
+enum LauncherMode {
+    Gui,
+    Cli(Vec<String>),
+}
+
+fn parse_mode(args: impl IntoIterator<Item = String>) -> LauncherMode {
+    let mut args = args.into_iter();
+    match args.next().as_deref() {
+        Some("--cli") => LauncherMode::Cli(args.collect()),
+        _ => LauncherMode::Gui,
+    }
+}
+
+fn is_gui_cli_request(mode: &LauncherMode) -> bool {
+    matches!(mode, LauncherMode::Cli(args) if args.first().is_some_and(|arg| arg == "gui"))
+}
+
 fn runtime_dir(exe: &Path) -> Option<PathBuf> {
     let dir = exe.parent()?;
     let mut candidates = vec![
@@ -174,38 +192,52 @@ fn apply_python_home(cmd: &mut Command, runtime: &Path) {
     }
 }
 
-fn python_command(py: &Path, dist: &Path, runtime: &Path) -> Command {
+fn python_command(py: &Path, dist: &Path, runtime: &Path, mode: &LauncherMode) -> Command {
     let mut cmd = Command::new(py);
-    cmd.current_dir(runtime)
-        .env("PODCAST_GUI_DIST", dist)
-        .env("PODCAST_MAGIC_LINK_PRINT", "0")
-        .env("PODCAST_GUI_OPENAPI", "0")
-        // Dummy CLI port; Python resolved_bind_port honors PODCAST_SIDECAR_EPHEMERAL.
-        .args([
-            "-m",
-            "podcast_mcp.cli.main",
-            "gui",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            "8765",
-            "--no-open",
-        ]);
+    cmd.env("PODCAST_GUI_DIST", dist);
+    match mode {
+        LauncherMode::Gui => {
+            cmd.current_dir(runtime)
+                .env("PODCAST_MAGIC_LINK_PRINT", "0")
+                .env("PODCAST_GUI_OPENAPI", "0")
+                // Dummy CLI port; Python resolved_bind_port honors PODCAST_SIDECAR_EPHEMERAL.
+                .args([
+                    "-m",
+                    "podcast_mcp.cli.main",
+                    "gui",
+                    "--host",
+                    "127.0.0.1",
+                    "--port",
+                    "8765",
+                    "--no-open",
+                ]);
+        }
+        LauncherMode::Cli(args) => {
+            cmd.args(["-m", "podcast_mcp.cli.main"]).args(args);
+        }
+    }
     apply_python_home(&mut cmd, runtime);
-    apply_create_no_window(&mut cmd);
-    if let Some(log) = open_sidecar_log() {
-        if let Ok(err_log) = log.try_clone() {
-            cmd.stdout(Stdio::from(log)).stderr(Stdio::from(err_log));
+    if matches!(mode, LauncherMode::Gui) {
+        apply_create_no_window(&mut cmd);
+        if let Some(log) = open_sidecar_log() {
+            if let Ok(err_log) = log.try_clone() {
+                cmd.stdout(Stdio::from(log)).stderr(Stdio::from(err_log));
+            } else {
+                cmd.stdout(Stdio::null()).stderr(Stdio::null());
+            }
         } else {
             cmd.stdout(Stdio::null()).stderr(Stdio::null());
         }
-    } else {
-        cmd.stdout(Stdio::null()).stderr(Stdio::null());
     }
     cmd
 }
 
 fn main() {
+    let mode = parse_mode(env::args().skip(1));
+    if is_gui_cli_request(&mode) {
+        eprintln!("Sharecut Studio packaged launcher: '--cli gui' is not supported; launch or focus the installed Sharecut Studio app instead.");
+        exit(2);
+    }
     let exe = env::current_exe().unwrap_or_else(|err| {
         eprintln!("Sharecut Studio sidecar: current_exe failed: {err}");
         exit(1);
@@ -226,7 +258,7 @@ fn main() {
         );
         exit(1);
     }
-    let mut cmd = python_command(&py, &dist, &runtime);
+    let mut cmd = python_command(&py, &dist, &runtime, &mode);
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
@@ -243,6 +275,56 @@ fn main() {
                 exit(1);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn missing_cli_flag_preserves_gui_mode() {
+        assert_eq!(parse_mode(Vec::<String>::new()), LauncherMode::Gui);
+        assert_eq!(parse_mode(["--other"].map(String::from)), LauncherMode::Gui);
+    }
+
+    #[test]
+    fn cli_mode_forwards_every_argument_after_flag() {
+        assert_eq!(
+            parse_mode(["--cli", "doctor", "--json"].map(String::from)),
+            LauncherMode::Cli(vec!["doctor".into(), "--json".into()])
+        );
+    }
+
+    #[test]
+    fn cli_command_uses_python_module_and_forwards_args() {
+        let mode = LauncherMode::Cli(vec!["doctor".into(), "--json".into()]);
+        let cmd = python_command(
+            Path::new("python"),
+            Path::new("dist"),
+            Path::new("runtime"),
+            &mode,
+        );
+        assert_eq!(
+            cmd.get_args().collect::<Vec<_>>(),
+            vec!["-m", "podcast_mcp.cli.main", "doctor", "--json"]
+        );
+        assert_eq!(cmd.get_current_dir(), None);
+    }
+
+    #[test]
+    fn gui_command_runs_from_runtime_and_rejects_cli_gui() {
+        let gui = python_command(
+            Path::new("python"),
+            Path::new("dist"),
+            Path::new("runtime"),
+            &LauncherMode::Gui,
+        );
+        assert_eq!(gui.get_current_dir(), Some(Path::new("runtime")));
+        assert!(is_gui_cli_request(&LauncherMode::Cli(vec!["gui".into()])));
+        assert!(!is_gui_cli_request(&LauncherMode::Cli(vec![
+            "doctor".into()
+        ])));
     }
 }
 

@@ -21,6 +21,13 @@ test -f gui/desktop/README.md
 test -x gui/desktop/binaries/sharecut-sidecar
 test -f scripts/build_sidecar.py
 test -f scripts/sidecar_launcher.rs
+
+echo "==> rustc --test scripts/sidecar_launcher.rs"
+launcher_test="$(mktemp "${TMPDIR:-/tmp}/sharecut-sidecar-launcher-test.XXXXXX")"
+trap 'rm -f "$launcher_test"' EXIT
+rustc --edition 2021 --test scripts/sidecar_launcher.rs -o "$launcher_test"
+"$launcher_test"
+
 python3 -c "import json; json.load(open('gui/desktop/src-tauri/tauri.conf.json'))"
 python3 scripts/generate_distribution_config.py \
   --profile config/distribution.dev.json \
