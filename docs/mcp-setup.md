@@ -1,33 +1,41 @@
 # Connecting your agent to Sharecut Studio (MCP)
 
-Sharecut Studio is an MCP server. Any MCP-compatible harness —
-Claude Code, Claude Desktop, Cursor, Windsurf, Cline, … — can drive it.
-No API keys, no accounts, no network: everything runs locally.
+Sharecut Studio exposes local Model Context Protocol (MCP) tools. This guide
+covers the two local connection modes:
 
-There are two modes. Pick one:
+| Mode | Use it when | Episode selection |
+| --- | --- | --- |
+| **stdio** | The agent works independently on a project | Pass `project_path` to tools that require it. |
+| **GUI-attached Streamable HTTP** | You are editing with Sharecut Studio open | Tools use the episode currently open in the GUI. |
 
-| Mode | When to use it | How the agent reaches the episode |
-|------|----------------|----------------------------------|
-| **stdio** (headless) | The agent works on its own: transcribe, tighten, edit, export | You pass `project_path` to each tool call |
-| **GUI-attached** (Streamable HTTP) | You're co-editing with the DAW open | Tools apply to the episode pinned in the GUI |
+Both modes are local. They do not require an API key or account. The GUI MCP
+endpoint binds to loopback only; do not expose it through a tunnel or a public
+network interface.
 
-## Mode 1: stdio (recommended starting point)
+## Mode 1: stdio
 
-The server needs zero configuration: `podcast-mcp` speaks stdio and
-takes no arguments. Verify your install first:
+`podcast-mcp` runs the stdio server when launched without arguments. Confirm
+that the MCP server is installed with its direct version command:
 
 ```bash
 podcast-mcp --version
 ```
 
-### The PATH gotcha (read this)
+`podcast-mcp --help` also prints usage and exits.
 
-Harnesses do **not** inherit your shell `PATH`. If the harness can't
-find `podcast-mcp`, point `command` at the absolute venv binary:
+### Use an absolute executable path
 
-```
-/path/to/sharecut-studio/.venv/bin/podcast-mcp
-```
+Desktop applications often do not inherit your shell `PATH`. Replace the
+example path below with your installation's absolute path:
+
+| Platform | Example executable path |
+| --- | --- |
+| macOS, Linux | `/path/to/sharecut-studio/.venv/bin/podcast-mcp` |
+| Windows | `C:\\path\\to\\sharecut-studio\\.venv\\Scripts\\podcast-mcp.exe` |
+
+The JSON examples use escaped Windows backslashes. In a shell command, use the
+native Windows path normally (for example,
+`C:\path\to\sharecut-studio\.venv\Scripts\podcast-mcp.exe`).
 
 ### Claude Code
 
@@ -35,9 +43,19 @@ find `podcast-mcp`, point `command` at the absolute venv binary:
 claude mcp add sharecut -- /path/to/sharecut-studio/.venv/bin/podcast-mcp
 ```
 
+On Windows, replace the command after `--` with the `.venv\Scripts\podcast-mcp.exe`
+path above. Use `/mcp` in Claude Code to inspect the connection.
+
 ### Claude Desktop
 
-Add to `claude_desktop_config.json`:
+Add the server to the local configuration file, then restart Claude Desktop:
+
+| Platform | Configuration file |
+| --- | --- |
+| macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
+
+macOS/Linux example:
 
 ```json
 {
@@ -49,18 +67,24 @@ Add to `claude_desktop_config.json`:
 }
 ```
 
-Restart Claude Desktop after editing the config.
+Windows example:
+
+```json
+{
+  "mcpServers": {
+    "sharecut": {
+      "command": "C:\\path\\to\\sharecut-studio\\.venv\\Scripts\\podcast-mcp.exe"
+    }
+  }
+}
+```
 
 ### Cursor
 
-`.agents/mcp.json` in this repo already ships a working entry, and
-Cursor picks it up automatically when you open the project. If the
-server fails to start, override the command with the absolute venv path
-above in `.muse/mcp.json`.
-
-### Windsurf
-
-Add to your MCP config (`~/.codeium/windsurf/mcp_config.json`):
+Create `.cursor/mcp.json` in the project (or edit `~/.cursor/mcp.json` for a
+personal global setup), then restart Cursor. The repository's
+`.agents/mcp.json` is an agent-pack template; Cursor does not load it as its
+project MCP configuration.
 
 ```json
 {
@@ -72,30 +96,79 @@ Add to your MCP config (`~/.codeium/windsurf/mcp_config.json`):
 }
 ```
 
+For Windows, use `"command": "C:\\path\\to\\sharecut-studio\\.venv\\Scripts\\podcast-mcp.exe"`.
+
 ### Cline
 
-MCP Servers → Installed → add:
+In the Cline panel, open **MCP Servers → Configure → Configure MCP Servers**.
+Add the entry under `mcpServers`:
 
 ```json
 {
-  "sharecut": {
-    "command": "/path/to/sharecut-studio/.venv/bin/podcast-mcp",
-    "disabled": false,
-    "autoApprove": []
+  "mcpServers": {
+    "sharecut": {
+      "command": "/path/to/sharecut-studio/.venv/bin/podcast-mcp",
+      "disabled": false,
+      "autoApprove": []
+    }
   }
 }
 ```
 
-## Mode 2: GUI-attached (Streamable HTTP)
+For Windows, use `"command": "C:\\path\\to\\sharecut-studio\\.venv\\Scripts\\podcast-mcp.exe"`.
 
-With the DAW open, the GUI itself is an MCP server — same tools, but
-they act on the episode you have open, so the agent doesn't need a
-`project_path` for every call.
+### Windsurf: current Devin Local
+
+New Windsurf tabs use Devin Local. Add this project-local stdio server with:
+
+```bash
+devin mcp add -s project sharecut -- /path/to/sharecut-studio/.venv/bin/podcast-mcp
+```
+
+This writes `.devin/mcp_config.json`. Use the native Windows executable path
+after `--` on Windows. You may instead add the same `mcpServers`/`command`
+entry to `.devin/mcp_config.json`, or to `~/.config/devin/mcp_config.json`
+(`%APPDATA%\devin\mcp_config.json` on Windows).
+
+### Windsurf: legacy Cascade
+
+`~/.codeium/windsurf/mcp_config.json` configures the legacy Cascade agent, not
+the default Devin Local agent in new tabs. If you intentionally use Cascade,
+add:
+
+```json
+{
+  "mcpServers": {
+    "sharecut": {
+      "command": "/path/to/sharecut-studio/.venv/bin/podcast-mcp"
+    }
+  }
+}
+```
+
+For Windows, use `"command": "C:\\path\\to\\sharecut-studio\\.venv\\Scripts\\podcast-mcp.exe"`.
+
+## Mode 2: GUI-attached Streamable HTTP
 
 1. Run `podcast gui` and open an episode.
-2. **Menu → Connect agent…** to copy the URL (or type it):
+2. Choose **Menu → Connect agent…** to copy the URL:
    `http://127.0.0.1:8765/mcp`
-3. In your harness, add it as a Streamable HTTP server:
+3. Keep Sharecut Studio running while the agent is connected.
+
+The endpoint is loopback-only and applies tools to the currently open episode.
+It is not OAuth, not a share token, and is unsuitable for remote or
+collaborator agents; use a review share's remote MCP endpoint for those cases
+([host-online-relay.md](host-online-relay.md) § Remote MCP).
+
+### Claude Code
+
+```bash
+claude mcp add --transport http sharecut http://127.0.0.1:8765/mcp
+```
+
+### Cursor
+
+In `.cursor/mcp.json`, configure the Streamable HTTP URL:
 
 ```json
 {
@@ -107,21 +180,55 @@ they act on the episode you have open, so the agent doesn't need a
 }
 ```
 
-Keep the GUI running. This endpoint is loopback-only by design.
-Details: [gui-integration.md](gui-integration.md) § Local host MCP.
+### Cline
+
+Use **MCP Servers → Configure → Configure MCP Servers**, then set the
+Streamable HTTP transport explicitly:
+
+```json
+{
+  "mcpServers": {
+    "sharecut": {
+      "type": "streamableHttp",
+      "url": "http://127.0.0.1:8765/mcp",
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+### Windsurf: current Devin Local
+
+```bash
+devin mcp add -s project sharecut http://127.0.0.1:8765/mcp
+```
+
+Devin Local infers Streamable HTTP from the URL. The equivalent
+`.devin/mcp_config.json` entry uses `"url": "http://127.0.0.1:8765/mcp"`
+and may set `"transport": "http"` explicitly.
+
+### Windsurf: legacy Cascade
+
+Legacy Cascade supports HTTP MCP servers. Add the loopback URL through its MCP
+settings or its `mcp_config.json`; this legacy configuration does not configure
+Devin Local.
+
+### Claude Desktop
+
+Claude Desktop's local `claude_desktop_config.json` supports the stdio setup
+above, but it does not configure a loopback Streamable HTTP server. Its custom
+connectors are cloud-connected and cannot reach `127.0.0.1`; use the stdio mode
+for this local GUI, or a publicly reachable remote MCP connector when that is
+appropriate.
 
 ## Troubleshooting
 
-- **Server won't start / "command not found"**: use the absolute venv
-  path (see "The PATH gotcha" above), not a bare `podcast-mcp`.
-- **"spawn ENOENT" in the harness**: same cause — absolute path.
-- **Changes not picked up after install/upgrade**: most harnesses only
-  read MCP config at launch; restart the harness or reload its MCP
-  servers.
-- **Sanity check outside the harness**: `podcast-mcp --help` prints
-  usage; piping an MCP `initialize` request on stdin should return a
-  handshake response. If that works, the server is fine and the problem
-  is the harness config.
-- **Remote/collaborator agents** don't use this page — they connect
-  through a share link: [host-online-relay.md](host-online-relay.md)
-  § Remote MCP.
+- **Command not found / `spawn ENOENT`:** use an absolute venv executable path,
+  not a bare `podcast-mcp` command.
+- **Tools are missing after configuration changes:** restart the client or
+  reload its MCP servers.
+- **GUI tools say no episode is open:** open an episode in Sharecut Studio;
+  GUI-attached tools act on the pinned GUI episode.
+- **The GUI URL will not connect from another machine:** this is expected. Host
+  MCP is loopback-only by design.
