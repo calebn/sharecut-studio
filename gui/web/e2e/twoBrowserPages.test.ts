@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { withTwoBrowserPages } from "./twoBrowserPages";
+import { withBrowserPages, withTwoBrowserPages } from "./twoBrowserPages";
 
 function browserHarness(options?: {
   failContext?: number;
@@ -78,5 +78,33 @@ describe("withTwoBrowserPages", () => {
     await expect(
       withTwoBrowserPages(browser as never, {}, {}, async () => "done"),
     ).rejects.toThrow("close 0");
+  });
+});
+
+describe("withBrowserPages", () => {
+  it("closes partial setup when a later context or page fails", async () => {
+    const contextFailure = browserHarness({ failContext: 1 });
+    await expect(
+      withBrowserPages(
+        contextFailure.browser as never,
+        [{}, {}],
+        async () => "unreachable",
+      ),
+    ).rejects.toThrow("context 1");
+    expect(contextFailure.contexts[0]!.close).toHaveBeenCalledOnce();
+
+    const pageError = new Error("second page");
+    const pageFailure = browserHarness({
+      failPage: { context: 1, error: pageError },
+    });
+    await expect(
+      withBrowserPages(
+        pageFailure.browser as never,
+        [{}, {}],
+        async () => "unreachable",
+      ),
+    ).rejects.toBe(pageError);
+    expect(pageFailure.contexts[0]!.close).toHaveBeenCalledOnce();
+    expect(pageFailure.contexts[1]!.close).toHaveBeenCalledOnce();
   });
 });

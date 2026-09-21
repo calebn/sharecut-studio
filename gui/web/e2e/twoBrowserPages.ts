@@ -18,18 +18,31 @@ export async function withTwoBrowserPages<T>(
   secondContextOptions: BrowserContextOptions,
   run: (firstPage: Page, secondPage: Page) => Promise<T>,
 ): Promise<T> {
+  return withBrowserPages(
+    browser,
+    [firstContextOptions, secondContextOptions],
+    async ([firstPage, secondPage]) => run(firstPage!, secondPage!),
+  );
+}
+
+/** Run a multi-page scenario and close every context created during setup. */
+export async function withBrowserPages<T>(
+  browser: Pick<Browser, "newContext">,
+  contextOptions: BrowserContextOptions[],
+  run: (pages: Page[]) => Promise<T>,
+): Promise<T> {
   const contexts: BrowserContext[] = [];
   let primaryFailed = false;
   let primaryError: unknown;
   let result!: T;
   try {
-    const firstContext = await browser.newContext(firstContextOptions);
-    contexts.push(firstContext);
-    const secondContext = await browser.newContext(secondContextOptions);
-    contexts.push(secondContext);
-    const firstPage = await firstContext.newPage();
-    const secondPage = await secondContext.newPage();
-    result = await run(firstPage, secondPage);
+    const pages: Page[] = [];
+    for (const options of contextOptions) {
+      const context = await browser.newContext(options);
+      contexts.push(context);
+      pages.push(await context.newPage());
+    }
+    result = await run(pages);
   } catch (error) {
     primaryFailed = true;
     primaryError = error;

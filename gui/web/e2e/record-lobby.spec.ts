@@ -7,6 +7,7 @@ import {
 } from "@playwright/test";
 import { expectReadingSurfaceAxeClean } from "./axe";
 import { withShareableProject } from "./shareableProject";
+import { withBrowserPages } from "./twoBrowserPages";
 
 async function hostRecordState(
   host: Page,
@@ -162,231 +163,232 @@ test.describe("record lobby", () => {
     browser: Browser;
   }) => {
     await withShareableProject(async (projectPath) => {
-      const hostCtx = await browser.newContext();
-      const guestCtx = await browser.newContext();
-      const prodCtx = await browser.newContext();
-      const host = await hostCtx.newPage();
-      const guest = await guestCtx.newPage();
-      const producer = await prodCtx.newPage();
-      try {
-        const project = encodeURIComponent(projectPath);
-        await markSharecutE2e(host);
-        await host.goto(`/?project=${project}&e2e=1`);
-        await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
-        const created = await host.request.post("/api/shares/record", {
-          data: { path: projectPath },
-        });
-        expect(created.ok(), await created.text()).toBeTruthy();
-        const room = (await created.json()) as {
-          room: {
-            guest: { token: string };
-            producer: { token: string };
+      await withBrowserPages(
+        browser,
+        [{}, {}, {}],
+        async ([host, guest, producer]) => {
+          const project = encodeURIComponent(projectPath);
+          await markSharecutE2e(host);
+          await host.goto(`/?project=${project}&e2e=1`);
+          await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
+          const created = await host.request.post("/api/shares/record", {
+            data: { path: projectPath },
+          });
+          expect(created.ok(), await created.text()).toBeTruthy();
+          const room = (await created.json()) as {
+            room: {
+              guest: { token: string };
+              producer: { token: string };
+            };
           };
-        };
 
-        await host.getByRole("button", { name: "Menu" }).click();
-        await host.getByRole("menuitem", { name: "Record room…" }).click();
-        const roomDlg = host.getByRole("dialog", { name: "Record room" });
-        await expect(roomDlg).toBeVisible();
-        await expect(
-          roomDlg.getByRole("button", { name: "Start", exact: true }),
-        ).toBeDisabled();
-        await expect(host.getByText("No one has joined")).toBeVisible();
+          await host.getByRole("button", { name: "Menu" }).click();
+          await host.getByRole("menuitem", { name: "Record room…" }).click();
+          const roomDlg = host.getByRole("dialog", { name: "Record room" });
+          await expect(roomDlg).toBeVisible();
+          await expect(
+            roomDlg.getByRole("button", { name: "Start", exact: true }),
+          ).toBeDisabled();
+          await expect(host.getByText("No one has joined")).toBeVisible();
 
-        await markSharecutE2e(guest);
-        await guest.addInitScript(() => {
-          Object.defineProperty(window, "__gumCalled", {
-            value: false,
-            writable: true,
+          await markSharecutE2e(guest);
+          await guest.addInitScript(() => {
+            Object.defineProperty(window, "__gumCalled", {
+              value: false,
+              writable: true,
+            });
+            const md = navigator.mediaDevices;
+            if (md) {
+              const orig = md.getUserMedia.bind(md);
+              md.getUserMedia = async (constraints) => {
+                (window as unknown as { __gumCalled: boolean }).__gumCalled =
+                  true;
+                return orig(constraints);
+              };
+            }
           });
-          const md = navigator.mediaDevices;
-          if (md) {
-            const orig = md.getUserMedia.bind(md);
-            md.getUserMedia = async (constraints) => {
-              (window as unknown as { __gumCalled: boolean }).__gumCalled =
-                true;
-              return orig(constraints);
-            };
-          }
-        });
-        await guest.goto(`/rec/${room.room.guest.token}?e2e=1`);
-        await expect(
-          guest.getByRole("heading", { name: "Join the recording" }),
-        ).toBeVisible();
-        await guest.getByLabel("Display name").fill("Ava");
-        await guest.getByLabel("I am wearing headphones").check();
-        await expect(
-          guest.getByRole("heading", { name: "Record 3 seconds of room tone" }),
-        ).toBeVisible();
-        await expect(
-          guest.getByText("Record or skip room tone before accepting."),
-        ).toBeVisible();
-        await expect(
-          host.getByLabel("Recording").getByText("Ava", { exact: true }),
-        ).toBeVisible();
-        await expect(
-          roomDlg.getByRole("button", { name: "Start", exact: true }),
-        ).toBeDisabled();
-        await expect(
-          guest.getByRole("button", { name: "Accept" }),
-        ).toBeDisabled();
-        expect(
-          await guest.evaluate(
-            () => (window as unknown as { __gumCalled?: boolean }).__gumCalled,
-          ),
-        ).toBe(false);
-        await guest.getByRole("button", { name: "Allow microphone" }).click();
-        await expect(guest.getByLabel("Level")).toBeVisible();
-        await expect(guest.getByLabel("Input")).toBeVisible();
-        await guest.getByRole("button", { name: "Skip" }).click();
-        await expect(
-          guest.getByRole("button", { name: "Accept" }),
-        ).toBeEnabled();
-        await guest.getByRole("button", { name: "Accept" }).click();
-        await expect(guest.getByText("Waiting for host")).toBeVisible();
-        await expect(host.getByText(/Ava · consented/)).toBeVisible();
-        await expect(
-          roomDlg.getByRole("button", { name: "Start", exact: true }),
-        ).toBeEnabled();
-
-        await markSharecutE2e(producer);
-        await producer.addInitScript(() => {
-          Object.defineProperty(window, "__gumCalled", {
-            value: false,
-            writable: true,
-          });
-          const md = navigator.mediaDevices;
-          if (md) {
-            const orig = md.getUserMedia.bind(md);
-            md.getUserMedia = async (constraints) => {
-              (window as unknown as { __gumCalled: boolean }).__gumCalled =
-                true;
-              return orig(constraints);
-            };
-          }
-        });
-        await producer.goto(`/rec/${room.room.producer.token}?e2e=1`);
-        await expect(
-          producer.getByRole("heading", { name: "Producer — not recorded" }),
-        ).toBeVisible();
-        await expect(
-          producer.getByRole("heading", {
-            name: "Record 3 seconds of room tone",
-          }),
-        ).toHaveCount(0);
-        await producer.getByLabel("Display name").fill("Pat");
-        await producer.getByRole("button", { name: "Join" }).click();
-        await expect(producer.getByText("Waiting for host")).toBeVisible();
-        await expect(
-          host.getByRole("heading", { name: "Not recorded" }),
-        ).toBeVisible();
-        await expect(host.getByText("Pat", { exact: true })).toBeVisible();
-        const gumCalled = await producer.evaluate(
-          () => (window as unknown as { __gumCalled?: boolean }).__gumCalled,
-        );
-        expect(gumCalled).toBe(false);
-        await expect(
-          roomDlg.getByRole("button", { name: "Start", exact: true }),
-        ).toBeEnabled();
-        await expect(guest.getByText("Hearing the room.")).toBeVisible({
-          timeout: 15_000,
-        });
-        await expect
-          .poll(async () =>
-            guest.evaluate(
+          await guest.goto(`/rec/${room.room.guest.token}?e2e=1`);
+          await expect(
+            guest.getByRole("heading", { name: "Join the recording" }),
+          ).toBeVisible();
+          await guest.getByLabel("Display name").fill("Ava");
+          await guest.getByLabel("I am wearing headphones").check();
+          await expect(
+            guest.getByRole("heading", {
+              name: "Record 3 seconds of room tone",
+            }),
+          ).toBeVisible();
+          await expect(
+            guest.getByText("Record or skip room tone before accepting."),
+          ).toBeVisible();
+          await expect(
+            host.getByLabel("Recording").getByText("Ava", { exact: true }),
+          ).toBeVisible();
+          await expect(
+            roomDlg.getByRole("button", { name: "Start", exact: true }),
+          ).toBeDisabled();
+          await expect(
+            guest.getByRole("button", { name: "Accept" }),
+          ).toBeDisabled();
+          expect(
+            await guest.evaluate(
               () =>
-                (window as unknown as { __recordSignalCount?: number })
-                  .__recordSignalCount ?? 0,
+                (window as unknown as { __gumCalled?: boolean }).__gumCalled,
             ),
-          )
-          .toBeGreaterThan(0);
-        await expect(producer.getByText("Hearing the room.")).toBeVisible({
-          timeout: 15_000,
-        });
-        await expect(roomDlg.getByText("Hearing the room.")).toBeVisible({
-          timeout: 15_000,
-        });
+          ).toBe(false);
+          await guest.getByRole("button", { name: "Allow microphone" }).click();
+          await expect(guest.getByLabel("Level")).toBeVisible();
+          await expect(guest.getByLabel("Input")).toBeVisible();
+          await guest.getByRole("button", { name: "Skip" }).click();
+          await expect(
+            guest.getByRole("button", { name: "Accept" }),
+          ).toBeEnabled();
+          await guest.getByRole("button", { name: "Accept" }).click();
+          await expect(guest.getByText("Waiting for host")).toBeVisible();
+          await expect(host.getByText(/Ava · consented/)).toBeVisible();
+          await expect(
+            roomDlg.getByRole("button", { name: "Start", exact: true }),
+          ).toBeEnabled();
 
-        await clickHostTransport(
-          host,
-          roomDlg.getByRole("button", { name: "Start", exact: true }),
-          projectPath,
-          "Start",
-          "recording",
-        );
-        await expect(roomDlg.locator(".record-rec-label")).toHaveText("REC");
-        await expect(guest.locator(".record-rec-label")).toHaveText("REC");
-        await expect(producer.locator(".record-rec-label")).toHaveText("REC");
-        await expect(
-          guest.getByText("Recording locally on this device."),
-        ).toBeVisible();
-        await expect(guest.getByText("Hearing the room.")).toBeVisible();
-        await expect(producer.getByText("Hearing the room.")).toBeVisible();
-        await expect(roomDlg.getByText("Hearing the room.")).toBeVisible();
-        await expect(
-          roomDlg.getByText("Recording locally on this device."),
-        ).toBeVisible();
-        await expect(
-          producer.getByText("Recording locally on this device."),
-        ).toHaveCount(0);
-        await expect
-          .poll(async () => guest.locator(".record-clock").innerText(), {
-            timeout: 8_000,
-          })
-          .not.toBe("0:00");
+          await markSharecutE2e(producer);
+          await producer.addInitScript(() => {
+            Object.defineProperty(window, "__gumCalled", {
+              value: false,
+              writable: true,
+            });
+            const md = navigator.mediaDevices;
+            if (md) {
+              const orig = md.getUserMedia.bind(md);
+              md.getUserMedia = async (constraints) => {
+                (window as unknown as { __gumCalled: boolean }).__gumCalled =
+                  true;
+                return orig(constraints);
+              };
+            }
+          });
+          await producer.goto(`/rec/${room.room.producer.token}?e2e=1`);
+          await expect(
+            producer.getByRole("heading", { name: "Producer — not recorded" }),
+          ).toBeVisible();
+          await expect(
+            producer.getByRole("heading", {
+              name: "Record 3 seconds of room tone",
+            }),
+          ).toHaveCount(0);
+          await producer.getByLabel("Display name").fill("Pat");
+          await producer.getByRole("button", { name: "Join" }).click();
+          await expect(producer.getByText("Waiting for host")).toBeVisible();
+          await expect(
+            host.getByRole("heading", { name: "Not recorded" }),
+          ).toBeVisible();
+          await expect(host.getByText("Pat", { exact: true })).toBeVisible();
+          const gumCalled = await producer.evaluate(
+            () => (window as unknown as { __gumCalled?: boolean }).__gumCalled,
+          );
+          expect(gumCalled).toBe(false);
+          await expect(
+            roomDlg.getByRole("button", { name: "Start", exact: true }),
+          ).toBeEnabled();
+          await expect(guest.getByText("Hearing the room.")).toBeVisible({
+            timeout: 15_000,
+          });
+          await expect
+            .poll(async () =>
+              guest.evaluate(
+                () =>
+                  (window as unknown as { __recordSignalCount?: number })
+                    .__recordSignalCount ?? 0,
+              ),
+            )
+            .toBeGreaterThan(0);
+          await expect(producer.getByText("Hearing the room.")).toBeVisible({
+            timeout: 15_000,
+          });
+          await expect(roomDlg.getByText("Hearing the room.")).toBeVisible({
+            timeout: 15_000,
+          });
 
-        await clickHostTransport(
-          host,
-          roomDlg.getByRole("button", { name: "Pause", exact: true }),
-          projectPath,
-          "Pause",
-          "paused",
-        );
-        await expect(guest.locator(".record-rec-label")).toHaveText("PAUSED");
-        await expect(guest.getByText("Hearing the room.")).toBeVisible();
-        await expect
-          .poll(async () => keeperWavBytes(guest), { timeout: 8_000 })
-          .toBeGreaterThanOrEqual(44);
-        await clickHostTransport(
-          host,
-          roomDlg.getByRole("button", { name: "Resume", exact: true }),
-          projectPath,
-          "Resume",
-          "recording",
-        );
-        await expect(guest.locator(".record-rec-label")).toHaveText("REC");
-        await expect(guest.getByText("Hearing the room.")).toBeVisible();
-        await clickHostTransport(
-          host,
-          roomDlg.getByRole("button", { name: "Stop", exact: true }),
-          projectPath,
-          "Stop",
-          "stopped",
-        );
-        await expect(guest.locator(".record-rec-label")).toHaveText("Stopped");
+          await clickHostTransport(
+            host,
+            roomDlg.getByRole("button", { name: "Start", exact: true }),
+            projectPath,
+            "Start",
+            "recording",
+          );
+          await expect(roomDlg.locator(".record-rec-label")).toHaveText("REC");
+          await expect(guest.locator(".record-rec-label")).toHaveText("REC");
+          await expect(producer.locator(".record-rec-label")).toHaveText("REC");
+          await expect(
+            guest.getByText("Recording locally on this device."),
+          ).toBeVisible();
+          await expect(guest.getByText("Hearing the room.")).toBeVisible();
+          await expect(producer.getByText("Hearing the room.")).toBeVisible();
+          await expect(roomDlg.getByText("Hearing the room.")).toBeVisible();
+          await expect(
+            roomDlg.getByText("Recording locally on this device."),
+          ).toBeVisible();
+          await expect(
+            producer.getByText("Recording locally on this device."),
+          ).toHaveCount(0);
+          await expect
+            .poll(async () => guest.locator(".record-clock").innerText(), {
+              timeout: 8_000,
+            })
+            .not.toBe("0:00");
 
-        await guest.reload();
-        await expect(guest.locator(".record-rec-label")).toHaveText("Stopped");
-        await expect(
-          guest.getByRole("button", { name: "Leave" }),
-        ).toBeVisible();
-        await expect(host.getByText(/Ava · consented/)).toBeVisible();
+          await clickHostTransport(
+            host,
+            roomDlg.getByRole("button", { name: "Pause", exact: true }),
+            projectPath,
+            "Pause",
+            "paused",
+          );
+          await expect(guest.locator(".record-rec-label")).toHaveText("PAUSED");
+          await expect(guest.getByText("Hearing the room.")).toBeVisible();
+          await expect
+            .poll(async () => keeperWavBytes(guest), { timeout: 8_000 })
+            .toBeGreaterThanOrEqual(44);
+          await clickHostTransport(
+            host,
+            roomDlg.getByRole("button", { name: "Resume", exact: true }),
+            projectPath,
+            "Resume",
+            "recording",
+          );
+          await expect(guest.locator(".record-rec-label")).toHaveText("REC");
+          await expect(guest.getByText("Hearing the room.")).toBeVisible();
+          await clickHostTransport(
+            host,
+            roomDlg.getByRole("button", { name: "Stop", exact: true }),
+            projectPath,
+            "Stop",
+            "stopped",
+          );
+          await expect(guest.locator(".record-rec-label")).toHaveText(
+            "Stopped",
+          );
 
-        // RecordApp changes views through FocusPull. Visible text assertions
-        // can pass while the incoming view is still fading in over the outgoing
-        // view, so wait for all transient layers to be removed before contrast.
-        await expect(
-          guest.locator(
-            ".focus-pull-exit, .focus-pull-pending, .focus-pull-enter",
-          ),
-        ).toHaveCount(0);
-        await expectReadingSurfaceAxeClean(guest);
-        await expectReadingSurfaceAxeClean(producer);
-      } finally {
-        await hostCtx.close();
-        await guestCtx.close();
-        await prodCtx.close();
-      }
+          await guest.reload();
+          await expect(guest.locator(".record-rec-label")).toHaveText(
+            "Stopped",
+          );
+          await expect(
+            guest.getByRole("button", { name: "Leave" }),
+          ).toBeVisible();
+          await expect(host.getByText(/Ava · consented/)).toBeVisible();
+
+          // RecordApp changes views through FocusPull. Visible text assertions
+          // can pass while the incoming view is still fading in over the outgoing
+          // view, so wait for all transient layers to be removed before contrast.
+          await expect(
+            guest.locator(
+              ".focus-pull-exit, .focus-pull-pending, .focus-pull-enter",
+            ),
+          ).toHaveCount(0);
+          await expectReadingSurfaceAxeClean(guest);
+          await expectReadingSurfaceAxeClean(producer);
+        },
+      );
     });
   });
 
@@ -396,11 +398,7 @@ test.describe("record lobby", () => {
     browser: Browser;
   }) => {
     await withShareableProject(async (projectPath) => {
-      const hostCtx = await browser.newContext();
-      const guestCtx = await browser.newContext();
-      const host = await hostCtx.newPage();
-      const guest = await guestCtx.newPage();
-      try {
+      await withBrowserPages(browser, [{}, {}], async ([host, guest]) => {
         const project = encodeURIComponent(projectPath);
         const guestToken =
           await test.step("create recording room", async () => {
@@ -469,10 +467,7 @@ test.describe("record lobby", () => {
             guest.getByRole("button", { name: "Accept" }),
           ).toBeEnabled({ timeout: 15_000 });
         });
-      } finally {
-        await hostCtx.close();
-        await guestCtx.close();
-      }
+      });
     });
   });
 
@@ -482,11 +477,7 @@ test.describe("record lobby", () => {
     browser: Browser;
   }) => {
     await withShareableProject(async (projectPath) => {
-      const hostCtx = await browser.newContext();
-      const guestCtx = await browser.newContext();
-      const host = await hostCtx.newPage();
-      const guest = await guestCtx.newPage();
-      try {
+      await withBrowserPages(browser, [{}, {}], async ([host, guest]) => {
         const project = encodeURIComponent(projectPath);
         await markSharecutE2e(host);
         await host.goto(`/?project=${project}&e2e=1`);
@@ -545,10 +536,7 @@ test.describe("record lobby", () => {
           (await roomToneResponse.json()) as { file_ack?: boolean },
         ).toMatchObject({ file_ack: true });
         await expect(guest.getByText("Waiting for host")).toBeVisible();
-      } finally {
-        await hostCtx.close();
-        await guestCtx.close();
-      }
+      });
     });
   });
 });

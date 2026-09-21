@@ -14,6 +14,10 @@ describe("guest share proxy setup contract", () => {
       path.join(webRoot, "e2e/presence-follow.spec.ts"),
       "utf8",
     );
+    const navigationSource = fs.readFileSync(
+      path.join(webRoot, "e2e/shareNavigation.ts"),
+      "utf8",
+    );
     const guestShareMarker = 'test.describe("presence follow guest share"';
     const viewerMarker = 'test("guest follows host on a share token"';
     const editorMarker = 'test("editor guest Mix lock after host FX"';
@@ -25,11 +29,12 @@ describe("guest share proxy setup contract", () => {
     expect(editorStart).toBeGreaterThanOrEqual(0);
     const viewerSource = source.slice(viewerStart, editorStart);
     const editorSource = source.slice(editorStart);
-    expect(source).toContain("function openGuestShare");
-    expect(source).toContain("function openHostShare");
+    expect(source).toContain('from "./shareNavigation"');
+    expect(navigationSource).toContain("export async function openGuestShare");
+    expect(navigationSource).toContain("export async function openHostShare");
     expect(source).toContain("function withHostGuestPages");
-    expect(source).toContain("page.waitForResponse");
-    expect(source).toContain('page.waitForLoadState("networkidle"');
+    expect(navigationSource).toContain("page.waitForResponse");
+    expect(navigationSource).toContain('page.waitForLoadState("networkidle"');
     expect(source).toContain("withTwoBrowserPages");
     expect(source).toContain("await openHostShare(host, projectPath);");
     expect(viewerSource).toContain('withHostGuestPages(browser, "viewer"');
@@ -41,10 +46,8 @@ describe("guest share proxy setup contract", () => {
     expect(editorSource).toContain('test.step("publish host FX presence"');
     expect(editorSource).toContain('test.step("follow host FX presence"');
     expect(editorSource).toContain('test.step("verify guest Mix lock"');
-    expect(source).toContain("await page.goto(`/r/${token}`)");
-    expect(source).toContain(
-      "expect((await manifestResponse).status()).toBe(200)",
-    );
+    expect(navigationSource).toContain("page.goto(`/r/${token}`)");
+    expect(navigationSource).toContain("expect(response.status()).toBe(200)");
     expect(source).not.toContain("const n = await follows.count()");
     expect(source).not.toContain("for (let i = n - 1; i >= 0; i--)");
   });
