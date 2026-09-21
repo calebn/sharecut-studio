@@ -75,7 +75,8 @@ async function followUntilBannerVisible(
 ): Promise<void> {
   await openMenu();
   const menuItems = follower.getByRole("menuitem", { name: /Follow/ });
-  if ((await menuItems.count()) > 0) {
+  const isCompactShell = (follower.viewportSize()?.width ?? 0) < 768;
+  if (isCompactShell) {
     // Collapsed shells (tablet/phone menu) list peers in the People section.
     await expect(menuItems.first()).toBeVisible({ timeout: 15_000 });
     const n = await menuItems.count();
@@ -130,43 +131,42 @@ test.describe("overlay with follow banner", () => {
 });
 
 test.describe("overlay with guest and follow banners", () => {
-  test("menu last item stays reachable with stacked banners at 1280x715", async ({
-    browser,
-  }) => {
-    await withShareableProject(async (projectPath) => {
-      const viewport = { width: 1280, height: 715 };
-      const aCtx = await browser.newContext({ viewport });
-      const bCtx = await browser.newContext({ viewport });
-      const host = await aCtx.newPage();
-      const guest = await bCtx.newPage();
-      try {
-        await openHostShare(host, projectPath);
-        const created = await host.request.post("/api/shares", {
-          data: { path: projectPath, role: "viewer" },
-        });
-        expect(created.ok(), await created.text()).toBeTruthy();
-        const body = (await created.json()) as { share: { token: string } };
-        await openGuestShare(guest, body.share.token);
-        await expect(guest.locator(".guest-banner")).toBeVisible();
+  for (const viewport of [
+    { width: 1280, height: 715 },
+    { width: 390, height: 844 },
+  ]) {
+    test(`menu last item stays reachable with stacked banners at ${viewport.width}x${viewport.height}`, async ({
+      browser,
+    }) => {
+      await withShareableProject(async (projectPath) => {
+        const aCtx = await browser.newContext({ viewport });
+        const bCtx = await browser.newContext({ viewport });
+        const host = await aCtx.newPage();
+        const guest = await bCtx.newPage();
+        try {
+          await openHostShare(host, projectPath);
+          const created = await host.request.post("/api/shares", {
+            data: { path: projectPath, role: "viewer" },
+          });
+          expect(created.ok(), await created.text()).toBeTruthy();
+          const body = (await created.json()) as { share: { token: string } };
+          await openGuestShare(guest, body.share.token);
+          await expect(guest.locator(".guest-banner")).toBeVisible();
 
-        // Stack the follow banner under the guest banner.
-        const follows = guest.getByRole("button", { name: /Follow / });
-        await expect(follows.first()).toBeVisible({ timeout: 15_000 });
-        const n = await follows.count();
-        for (let i = 0; i < n; i++) {
-          await follows.nth(i).click();
-          if (await guest.locator(".follow-banner").isVisible()) {
-            break;
-          }
+          // Stack the follow banner under the guest banner. Phone uses the
+          // People menu while desktop keeps Follow controls in the avatar stack.
+          await followUntilBannerVisible(guest, async () => {
+            await openTransportMenu(guest);
+          });
+          await expect(guest.locator(".follow-banner")).toBeVisible();
+          await expect(guest.locator(".guest-banner")).toBeVisible();
+
+          await expectMenuLastItemReachable(guest);
+        } finally {
+          await aCtx.close();
+          await bCtx.close();
         }
-        await expect(guest.locator(".follow-banner")).toBeVisible();
-        await expect(guest.locator(".guest-banner")).toBeVisible();
-
-        await expectMenuLastItemReachable(guest);
-      } finally {
-        await aCtx.close();
-        await bCtx.close();
-      }
+      });
     });
-  });
+  }
 });
