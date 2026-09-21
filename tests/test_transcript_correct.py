@@ -79,7 +79,20 @@ def test_apply_transcript_corrections_word_and_phrase() -> None:
     assert words[-1].end == 3.0
 
 
-def test_correct_word_rejects_empty_text() -> None:
+@pytest.mark.parametrize(
+    "text",
+    [
+        "",
+        "   ",
+        "\u200b",  # zero-width space
+        "\ufeff",  # byte-order mark
+        "\u2060",  # word joiner
+        "\u200e",  # left-to-right mark
+        "\x00",  # NUL
+        " \u200b\ufeff\u2060\u200e\x00\t ",
+    ],
+)
+def test_correct_word_rejects_empty_or_invisible_text(text: str) -> None:
     p = EpisodeProject.create("tc-empty", "/tmp")
     p.transcripts = [
         Transcript(
@@ -90,8 +103,20 @@ def test_correct_word_rejects_empty_text() -> None:
         )
     ]
     with pytest.raises(ValueError, match="must not be empty"):
-        correct_word(p, "host", 0, "")
-    with pytest.raises(ValueError, match="must not be empty"):
-        correct_word(p, "host", 0, "   ")
+        correct_word(p, "host", 0, text)
     # word left untouched
     assert p.transcripts[0].words[0].text == "hello"
+
+
+def test_correct_word_allows_visible_text_with_format_characters() -> None:
+    p = EpisodeProject.create("tc-visible", "/tmp")
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[TranscriptWord(text="hello", start=0.0, end=0.5, confidence=0.9)],
+        )
+    ]
+
+    correct_word(p, "host", 0, "\u200bhello\ufeff")
+
+    assert p.transcripts[0].words[0].text == "\u200bhello\ufeff"
