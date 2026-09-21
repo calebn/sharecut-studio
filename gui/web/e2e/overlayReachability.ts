@@ -84,13 +84,9 @@ export async function expectVisibleInOverlay(
   // assertion that `toBeVisible` does not provide.
   await expect
     .poll(async () => {
-      try {
-        await target.evaluate((el) => {
-          el.scrollIntoView({ block: "nearest" });
-        });
-      } catch {
-        return false;
-      }
+      await target.evaluate((el) => {
+        el.scrollIntoView({ block: "nearest" });
+      });
       return intersectsOverlay(overlay, target);
     })
     .toBe(true);
