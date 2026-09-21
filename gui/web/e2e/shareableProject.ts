@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { request } from "node:http";
 import path from "node:path";
 import { e2eBaseURL, e2eProjectPath } from "./env";
 import {
@@ -24,25 +25,50 @@ function describeTransportError(error: unknown): string {
 export type ProjectSwitcher = (projectPath: string) => Promise<void>;
 
 /** Retarget the loopback GUI through its authenticated project-open endpoint. */
-export const switchE2eProject: ProjectSwitcher = async (projectPath) => {
-  let response: Response;
+export const switchE2eProject = async (
+  projectPath: string,
+  baseURL = e2eBaseURL,
+): Promise<void> => {
+  const body = JSON.stringify({ path: projectPath });
+  let response: { status: number; body: string };
   try {
-    response = await fetch(new URL("/api/project/open", e2eBaseURL), {
-      method: "POST",
-      // Project switches happen between long-running browser scenarios. Do
-      // not reuse an idle undici socket that the loopback server may have
-      // already closed while the suite was exercising WebSockets.
-      headers: {
-        "Content-Type": "application/json",
-        Connection: "close",
-      },
-      body: JSON.stringify({ path: projectPath }),
-      signal: AbortSignal.timeout(PROJECT_SWITCH_TIMEOUT_MS),
+    response = await new Promise((resolve, reject) => {
+      const outgoing = request(
+        new URL("/api/project/open", baseURL),
+        {
+          method: "POST",
+          // agent: false creates a new connection for this request. A
+          // Connection: close header on fetch can still reuse an idle socket.
+          agent: false,
+          headers: {
+            "Content-Type": "application/json",
+            "Content-Length": Buffer.byteLength(body),
+          },
+          signal: AbortSignal.timeout(PROJECT_SWITCH_TIMEOUT_MS),
+        },
+        (incoming) => {
+          const chunks: Buffer[] = [];
+          incoming.on("data", (chunk: Buffer) => {
+            chunks.push(chunk);
+          });
+          incoming.once("end", () => {
+            resolve({
+              status: incoming.statusCode ?? 0,
+              body: Buffer.concat(chunks).toString("utf8"),
+            });
+          });
+          incoming.once("error", reject);
+        },
+      );
+      outgoing.on("error", reject);
+      outgoing.end(body);
     });
   } catch (error) {
     const detail = describeTransportError(error);
     const timeout =
-      error instanceof DOMException && error.name === "TimeoutError";
+      error instanceof Error &&
+      (error.name === "TimeoutError" ||
+        (error.cause instanceof Error && error.cause.name === "TimeoutError"));
     throw new Error(
       timeout
         ? `E2E project switch to ${projectPath} timed out after ${PROJECT_SWITCH_TIMEOUT_MS}ms`
@@ -50,9 +76,9 @@ export const switchE2eProject: ProjectSwitcher = async (projectPath) => {
       { cause: error },
     );
   }
-  if (!response.ok) {
+  if (response.status < 200 || response.status >= 300) {
     throw new Error(
-      `E2E project switch to ${projectPath} failed (${response.status}): ${await response.text()}`,
+      `E2E project switch to ${projectPath} failed (${response.status}): ${response.body}`,
     );
   }
 };
