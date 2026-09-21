@@ -6,7 +6,7 @@ import type { ProjectView } from "../types/project";
 import { anySolo, dbToLinear, trackIsAudible } from "../utils/audio";
 import {
   projectHasSourceAudio,
-  trackHasSourceAudio,
+  trackHasAudioContent,
 } from "../utils/projectMedia";
 import {
   AUDITION_STOP_EPS_SEC,
@@ -217,7 +217,7 @@ export function useAudioTransport(enabled = true): void {
     } else {
       const kind: "stem" | "raw" = auditionMode === "raw" ? "raw" : "stem";
       for (const track of project.tracks) {
-        if (!trackHasSourceAudio(track)) {
+        if (!trackHasAudioContent(track, project)) {
           continue;
         }
         if (kind === "raw") {

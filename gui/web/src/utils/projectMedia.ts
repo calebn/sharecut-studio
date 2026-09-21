@@ -11,6 +11,17 @@ export function trackHasSourceAudio(
   );
 }
 
+/** A timeline lane may also contain clips sourced from another track. */
+export function trackHasAudioContent(
+  track: TrackView,
+  project: Pick<ProjectView, "clips">,
+): boolean {
+  return (
+    trackHasSourceAudio(track) ||
+    (project.clips.tracks[track.id]?.length ?? 0) > 0
+  );
+}
+
 export function projectHasSourceAudio(
   project: Pick<ProjectView, "tracks" | "clips">,
 ): boolean {

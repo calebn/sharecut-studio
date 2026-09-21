@@ -102,6 +102,35 @@ describe("useAudioTransport project transitions", () => {
     unmount();
   });
 
+  it("keeps a player for a clip moved onto a track without its own media", () => {
+    const project = trackProject();
+    project.clips = {
+      clip_count: 1,
+      tracks: {
+        host: [
+          {
+            id: "moved",
+            track_id: "host",
+            source_start: 0,
+            source_end: 1,
+            timeline_start: 0,
+            timeline_end: 1,
+            fade_in_ms: 0,
+            fade_out_ms: 0,
+            join_in_mode: "fade",
+            source_id: "original-source",
+          },
+        ],
+      },
+    };
+    useDawStore.getState().setProject(project);
+    useDawStore.getState().setAuditionMode("raw");
+
+    const { unmount } = renderHook(() => useAudioTransport());
+    expect(FakeAudio.instances).toHaveLength(1);
+    unmount();
+  });
+
   it("ignores an old player's error after switching projects", () => {
     useDawStore.getState().setProject(
       minimalProject({
