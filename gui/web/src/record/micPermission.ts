@@ -11,6 +11,8 @@ export const MIC_ALLOW_LABEL = "Allow microphone";
 export const MIC_RETRY_LABEL = "Retry";
 export const MIC_DENIED_COPY =
   "Microphone is blocked for this site. Allow it in your browser's site settings, then Retry.";
+export const MIC_DESKTOP_DENIED_COPY =
+  "Microphone access is blocked by your operating system. Allow Sharecut Studio in your system microphone privacy settings, then Retry.";
 export const MIC_UNAVAILABLE_COPY =
   "No microphone was found. Connect an input device, then Retry.";
 export const MIC_ERROR_COPY = "Couldn't open the microphone. Retry.";
@@ -18,6 +20,12 @@ export const MIC_GRANT_HINT_COPY =
   "Allow the microphone before you accept recording.";
 export const MIC_PROMPTING_COPY = "Waiting for the browser microphone prompt…";
 export const MIC_LOST_COPY = "Microphone disconnected.";
+export const MIC_DESKTOP_PROMPTING_COPY =
+  "Waiting for the operating system microphone permission prompt…";
+
+function isTauriWebview(): boolean {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
 
 /** Map a getUserMedia DOMException name to a grant state. */
 export function statusFromGumError(
@@ -43,7 +51,7 @@ export function micGrantFailed(status: MicPermissionStatus): boolean {
 
 export function copyForMicStatus(status: MicPermissionStatus): string | null {
   if (status === "denied") {
-    return MIC_DENIED_COPY;
+    return isTauriWebview() ? MIC_DESKTOP_DENIED_COPY : MIC_DENIED_COPY;
   }
   if (status === "unavailable") {
     return MIC_UNAVAILABLE_COPY;
@@ -58,7 +66,7 @@ export function copyForMicStatus(status: MicPermissionStatus): string | null {
     return MIC_GRANT_HINT_COPY;
   }
   if (status === "prompting") {
-    return MIC_PROMPTING_COPY;
+    return isTauriWebview() ? MIC_DESKTOP_PROMPTING_COPY : MIC_PROMPTING_COPY;
   }
   return null;
 }
