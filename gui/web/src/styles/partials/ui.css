@@ -311,6 +311,16 @@
   }
 }
 
+.ui-menu-panel {
+  min-height: 0;
+  max-height: min(90dvh, var(--menu-available-height));
+  overflow-y: auto;
+}
+
+.ui-menu-panel > * {
+  flex-shrink: 0;
+}
+
 .ui-menu-panel .ui-control--quiet,
 .ui-menu-panel button[role="menuitem"] {
   display: flex;
@@ -457,4 +467,9 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+.related-commands-empty {
+  margin: 0;
+  color: var(--color-text-secondary);
 }

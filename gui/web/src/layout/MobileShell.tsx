@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { execute } from "../commands/execute";
 import { FEATURE_SHARE_UI_BANNER } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
@@ -365,7 +365,6 @@ export function MobileShell({ guestShare = false }: { guestShare?: boolean }) {
     canApplyPass12(projectPath, guestMode, shareCapabilities);
   useTwoFingerTap(shellRef, { enabled: undoEnabled });
   usePresenceCursorSource(shellRef);
-  useTwoFingerTap(shellRef);
 
   useEffect(() => {
     if (selection == null) {
@@ -381,7 +380,7 @@ export function MobileShell({ guestShare = false }: { guestShare?: boolean }) {
   return (
     <div
       ref={shellRef}
-      className={`daw-shell daw-shell--phone${guestShare ? " daw-shell-guest" : ""}${followingClientId ? " daw-shell--following" : ""}`}
+      className={`daw-shell daw-shell--phone${mobileMode === "listen" ? " daw-shell--listen" : ""}${guestShare ? " daw-shell-guest" : ""}${followingClientId ? " daw-shell--following" : ""}`}
       data-shell="phone"
     >
       <Slot id={FEATURE_SHARE_UI_BANNER}>
@@ -403,9 +402,12 @@ export function MobileShell({ guestShare = false }: { guestShare?: boolean }) {
       >
         {statusAnnouncement}
       </span>
-      <div ref={transportFocusRef}>
-        {mobileMode !== "listen" && <TransportBar compact showFit />}
-      </div>
+      {mobileMode !== "listen" ? (
+        <div ref={transportFocusRef}>
+          <TransportBar compact showFit />
+        </div>
+      ) : null}
+      <h1 className="sr-only">Sharecut Studio</h1>
       <main className="mobile-mode-body">
         {mobileMode === "listen" && <ListenMode guestShare={guestShare} />}
         {mobileMode === "timeline" && (
@@ -506,7 +508,9 @@ export function MobileShell({ guestShare = false }: { guestShare?: boolean }) {
       <BottomSheet
         open={
           selection != null &&
-          (mobileMode === "timeline" || mobileMode === "listen")
+          (mobileMode === "timeline" ||
+            mobileMode === "listen" ||
+            (mobileMode === "text" && selection.kind === "transcriptWord"))
         }
         onClose={closeSheet}
         title="Inspector"
