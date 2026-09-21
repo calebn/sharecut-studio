@@ -41,7 +41,7 @@ beforeEach(() => {
 
 describe("useDesktopCloseGuard", () => {
   it("uses role-aware copy", () => {
-    expect(recordingCloseMessage("host")).toContain("your recording");
+    expect(recordingCloseMessage("host")).toContain("session for everyone");
     expect(recordingCloseMessage("guest")).toContain("your local recording");
   });
 
@@ -88,5 +88,13 @@ describe("useDesktopCloseGuard", () => {
 
     expect(preventDefault).toHaveBeenCalledOnce();
     expect(destroy).not.toHaveBeenCalled();
+  });
+
+  it("removes the close listener when local capture stops", async () => {
+    const unlisten = vi.fn();
+    onCloseRequested.mockResolvedValue(unlisten);
+    const { rerender } = render(<Guard recordingLocally role="host" />);
+    rerender(<Guard recordingLocally={false} role="host" />);
+    await vi.waitFor(() => expect(unlisten).toHaveBeenCalledOnce());
   });
 });
