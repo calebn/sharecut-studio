@@ -121,6 +121,8 @@ test.describe("overlay with follow banner", () => {
         // The banner row above the transport shrinks --menu-available-height;
         // the menu must still fit and keep its last item reachable, and Share's
         // Record rooms must stay reachable through the dialog scroller.
+        // Keep it open to cover callers that enter this check after a Follow click.
+        await openTransportMenu(pageB);
         await expectMenuLastItemReachable(pageB);
         await expectShareRecordRoomsReachable(pageB);
       } finally {
