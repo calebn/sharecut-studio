@@ -8,6 +8,8 @@ React + TypeScript + Vite UI for the podcast Sharecut Studio viewer and guest re
 npm install
 npm run dev         # Vite on :5173 (proxy /api → :8765)
 npm run build
+npm run storybook  # component catalog on :6006
+npm run build-storybook  # static catalog under storybook-static/
 npm run typecheck   # tsc -b (strict)
 npm test            # vitest run (unit + component a11y)
 npm run test:watch  # vitest watch mode
@@ -22,6 +24,11 @@ Repo root:
 
 - `make test-web` — lint + format:check + typecheck + vitest + build (CI `frontend` job)
 - `make test-web-e2e` — build + Playwright against `aligned_dialogue` (CI `frontend-e2e` job)
+
+Storybook uses the real `src/ui/` components and theme tokens. See
+[`docs/design-system.md`](../../docs/design-system.md) for story conventions and
+the GitHub Pages publishing setup. Pull requests build the catalog without
+deploying it.
 
 ## Testing
 

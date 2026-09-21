@@ -133,6 +133,17 @@ cd gui/web && npm ci && npm run build
 
 Produces `gui/web/dist/` (`index.html` + assets). Required for `podcast gui` HTML UI; CLI/MCP editing works without it.
 
+The development-only component catalog uses the same frontend dependencies:
+
+```bash
+cd gui/web && npm ci
+npm run storybook        # local catalog on :6006
+npm run build-storybook  # static storybook-static/
+```
+
+See [design-system.md](design-system.md) for story conventions and the GitHub
+Pages prerequisite. Storybook is separate from the app and desktop bundles.
+
 ### Sharecut Studio first-run (GUI)
 
 On the host home screen (no `?project=`), Sharecut Studio checks `GET /api/bootstrap/status`

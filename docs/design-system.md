@@ -9,7 +9,14 @@ app or desktop builds.
 - **Static build:** `npm run build-storybook` → `gui/web/storybook-static/`
 - **Published:** GitHub Pages, deployed from `main` by
   [`.github/workflows/storybook.yml`](../.github/workflows/storybook.yml) on
-  every push that touches `gui/web/`.
+  every push that touches `gui/web/`. Matching pull requests build Storybook
+  without deploying it.
+
+Before the first deployment, enable Pages for this repository with **GitHub
+Actions** as the publishing source in Settings → Pages. The workflow uses a
+read-only token for building and grants Pages deployment permission only to its
+`main` deploy job. After merging, check the `storybook` workflow's deploy job
+and open the URL it reports.
 
 ## What's in it
 

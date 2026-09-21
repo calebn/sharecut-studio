@@ -81,6 +81,8 @@ podcast gui --project /path/to/my_episode/episode.project.json
 
 Hot reload: `podcast gui --project … --dev --no-open` plus `cd gui/web && npm run dev`. Agents: MCP `open_gui_tool` / skill `podcast-open-gui` (or `podcast gui --background`). Details: [docs/gui-integration.md](docs/gui-integration.md#read-only-daw-viewer), [docs/setup.md](docs/setup.md#read-only-gui-viewer).
 
+For the development-only UI component catalog, run `cd gui/web && npm ci && npm run storybook`; see [docs/design-system.md](docs/design-system.md) for publishing setup.
+
 A clean clone needs no relay, account, object store, CDN, or signing credentials
 for local editing. Before enabling collaboration or building a downstream desktop
 distribution, validate only that mode’s configuration:
