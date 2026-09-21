@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp.services.session_sync.commands import presence_color_index
+from podcast_mcp.services.session_sync.sqlite import connect_session_db
 
 _TABLE_PREFIX_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -170,12 +171,7 @@ class SyncStore:
         self._sql = _sql_bundle(self._p)
         self._lock = threading.RLock()
         db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(
-            str(db_path),
-            check_same_thread=False,
-            isolation_level=None,
-        )
-        self._conn.row_factory = sqlite3.Row
+        self._conn = connect_session_db(db_path)
         self._client_generation: dict[str, int] = {}
         with self._lock:
             self._conn.executescript(_schema(self._p))

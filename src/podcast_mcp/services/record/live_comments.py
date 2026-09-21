@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-import sqlite3
 import threading
 import time
 from pathlib import Path
@@ -12,6 +11,7 @@ from typing import Any
 from podcast_mcp.edits.comments import COMMENT_BODY_MAX
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.services.session_sync.service import sync_db_path
+from podcast_mcp.services.session_sync.sqlite import connect_session_db
 
 RECORD_LIVE_COMMENT_MAX = 500
 LIVE_COMMENT_ID_PREFIX = "live-"
@@ -73,14 +73,8 @@ class RecordLiveCommentStore:
         self.db_path = db_path
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
-        self._conn = sqlite3.connect(
-            str(db_path),
-            check_same_thread=False,
-            isolation_level=None,
-        )
-        self._conn.row_factory = sqlite3.Row
+        self._conn = connect_session_db(db_path)
         with self._lock:
-            self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.executescript(_SCHEMA)
 
     def close(self) -> None:
