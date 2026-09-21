@@ -169,6 +169,34 @@ def refine_status_report(
     }
 
 
+def refresh_unattended_waiver(project: EpisodeProject) -> bool:
+    """Refresh a stale waiver created by an unattended pipeline run.
+
+    The full pipeline performs a second reconciliation after the refine gate,
+    which can change suppression flags included in the precorrect fingerprint.
+    Only that pipeline-owned waiver may follow those changes automatically;
+    explicit pending, done, and user/agent waivers must remain stale so they
+    still require an intentional refine decision.
+    """
+    data = load_status(project)
+    fingerprint = precorrect_fingerprint(project)
+    if not data:
+        return False
+    if data.get("status") != "waived" or data.get("source") != "unattended":
+        return False
+    if data.get("precorrect_fingerprint") == fingerprint:
+        return False
+
+    write_status(
+        project,
+        status="waived",
+        source="unattended",
+        notes=str(data.get("notes") or "unattended pipeline"),
+        fingerprint=fingerprint,
+    )
+    return True
+
+
 def assert_refine_clear(
     project: EpisodeProject,
     *,

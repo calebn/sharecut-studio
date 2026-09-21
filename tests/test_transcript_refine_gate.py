@@ -11,11 +11,13 @@ from podcast_mcp.edits.transcript_precorrect import run_precorrect_transcript
 from podcast_mcp.edits.transcript_refine_status import (
     TranscriptRefineRequiredError,
     assert_refine_clear,
+    load_status,
     mark_refine_done,
     mark_refine_pending,
     mark_refine_waived,
     precorrect_fingerprint,
     refine_status_report,
+    refresh_unattended_waiver,
     require_or_waive_unattended,
     status_is_clear,
 )
@@ -68,6 +70,61 @@ def test_fingerprint_stale_after_text_change(minimal_project):
     report = refine_status_report(proj)
     assert report["status"] == "pending"
     assert report["stale"] is True
+
+
+@pytest.mark.refine_gate
+def test_refreshes_stale_unattended_waiver(minimal_project):
+    proj = _with_words(minimal_project)
+    mark_refine_waived(proj, reason="batch", source="unattended")
+    original = load_status(proj)
+    proj.transcripts[0].words[0].text = "hola"
+
+    assert refresh_unattended_waiver(proj) is True
+    refreshed = load_status(proj)
+    assert refreshed is not None
+    assert refreshed["status"] == "waived"
+    assert refreshed["source"] == "unattended"
+    assert refreshed["notes"] == original["notes"]
+    assert refreshed["precorrect_fingerprint"] == precorrect_fingerprint(proj)
+    assert status_is_clear(proj)
+
+
+@pytest.mark.refine_gate
+@pytest.mark.parametrize(
+    ("status", "source"),
+    [
+        ("pending", "precorrect"),
+        ("done", "agent"),
+        ("done", "unattended"),
+        ("waived", "user"),
+        ("waived", "cli"),
+        ("waived", "mcp"),
+    ],
+)
+def test_refresh_does_not_change_non_unattended_waivers_or_pending(minimal_project, status, source):
+    proj = _with_words(minimal_project)
+    if status == "pending":
+        mark_refine_pending(proj, source=source)
+    elif status == "done":
+        mark_refine_done(proj, source=source)
+    else:
+        mark_refine_waived(proj, reason="explicit", source=source)
+    before = load_status(proj)
+    proj.transcripts[0].words[0].text = "hola"
+
+    assert refresh_unattended_waiver(proj) is False
+    assert load_status(proj) == before
+
+
+@pytest.mark.refine_gate
+def test_refresh_does_not_rewrite_current_unattended_waiver(minimal_project, monkeypatch):
+    proj = _with_words(minimal_project)
+    mark_refine_waived(proj, reason="batch", source="unattended")
+
+    import podcast_mcp.edits.transcript_refine_status as refine_mod
+
+    monkeypatch.setattr(refine_mod, "_write_status", pytest.fail)
+    assert refresh_unattended_waiver(proj) is False
 
 
 @pytest.mark.refine_gate
