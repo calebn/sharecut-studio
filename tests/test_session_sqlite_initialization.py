@@ -7,12 +7,14 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Barrier
 from typing import Any
+from unittest.mock import Mock
 
 import pytest
 
 from podcast_mcp.services.record.live_comments import RecordLiveCommentStore
 from podcast_mcp.services.record.participants import RecordParticipantStore
 from podcast_mcp.services.record.upload import RecordUploadStore
+from podcast_mcp.services.session_sync import sqlite as session_sqlite
 from podcast_mcp.services.session_sync.log import SyncStore
 
 
@@ -70,3 +72,32 @@ def test_wal_initialization_does_not_disturb_active_writer(tmp_path: Path) -> No
     connection.close()
     writer.rollback()
     writer.close()
+
+
+@pytest.mark.parametrize(
+    ("journal_mode", "failure"),
+    [
+        (None, RuntimeError("could not read journal mode")),
+        ("delete", RuntimeError("could not enable WAL")),
+    ],
+)
+def test_pragma_failure_closes_connection_and_propagates_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    journal_mode: str | None,
+    failure: RuntimeError,
+) -> None:
+    connection = Mock()
+    if journal_mode is None:
+        connection.execute.side_effect = failure
+    else:
+        connection.execute.side_effect = [
+            Mock(fetchone=Mock(return_value=(journal_mode,))),
+            failure,
+        ]
+    monkeypatch.setattr(session_sqlite.sqlite3, "connect", Mock(return_value=connection))
+
+    with pytest.raises(RuntimeError, match=str(failure)):
+        session_sqlite.connect_session_db(tmp_path / "sync.db")
+
+    connection.close.assert_called_once_with()
