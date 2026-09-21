@@ -63,11 +63,11 @@ Touch gestures for common actions, documented in the **Gestures** cheatsheet (Mo
 
 | Gesture | Command | Status |
 |---------|---------|--------|
-| Two-finger tap | Undo | Planned (Soon) |
+| Two-finger tap | Undo | Available |
 | Long-press | Context actions (selection sheet) | Planned (Soon) |
 | Pinch | Zoom in/out on timeline | Available |
-| Swipe left on comment | Resolve | Planned |
-| Double-tap word | Correct word | Planned |
+| Swipe left on comment | Resolve | Planned (Soon) |
+| Double-tap word | Correct word | Planned (Soon) |
 
 ## Wireframes (ASCII)
 

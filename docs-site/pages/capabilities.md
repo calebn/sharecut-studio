@@ -75,7 +75,7 @@ Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Documen
 | Switch phone mode | `view.setMobileMode` | — (not industry-standard; tab click) | `mobileNav` | — | — | — | — | anchor · look |
 | Waveform amplitude zoom in | `view.waveformZoomIn` | `ArrowUp` | `timeline.waveform` | — | — | — | — | time · look |
 | Waveform amplitude zoom out | `view.waveformZoomOut` | `ArrowDown` | `timeline.waveform` | — | — | — | — | time · look |
-| Undo | `history.undo` | `Mod+Z` | `historyPanel` | `history_undo` | `podcast undo` | `podcast-history` | — | none · none |
+| Undo | `history.undo` | `Mod+Z` | `historyPanel`, `mobileShell.gesture.twoFingerTap` | `history_undo` | `podcast undo` | `podcast-history` | — | none · none |
 | Redo | `history.redo` | `Mod+Shift+Z` | `historyPanel` | `history_redo` | `podcast redo` | `podcast-history` | — | none · none |
 | Command cheatsheet | `ui.toggleCommandPalette` | `?` | `transport.menu` | — | — | — | — | none · none |
 | Refresh mix | `render.refreshMix` | `Mod+B` | `staleRenderPill` | `render_preview` | `podcast render-preview` | `podcast-play-audition` | — | none · none |
