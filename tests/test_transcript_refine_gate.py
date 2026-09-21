@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -20,6 +22,7 @@ from podcast_mcp.edits.transcript_refine_status import (
     refresh_unattended_waiver,
     require_or_waive_unattended,
     status_is_clear,
+    transcript_text_fingerprint,
 )
 from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.models import (
@@ -77,9 +80,15 @@ def test_refreshes_stale_unattended_waiver(minimal_project):
     proj = _with_words(minimal_project)
     mark_refine_waived(proj, reason="batch", source="unattended")
     original = load_status(proj)
-    proj.transcripts[0].words[0].text = "hola"
+    gate_text_fingerprint = transcript_text_fingerprint(proj)
+    proj.transcripts[0].words[0].suppressed = True
 
-    assert refresh_unattended_waiver(proj) is True
+    assert (
+        refresh_unattended_waiver(
+            proj, gate_status=original, gate_text_fingerprint=gate_text_fingerprint
+        )
+        is True
+    )
     refreshed = load_status(proj)
     assert refreshed is not None
     assert refreshed["status"] == "waived"
@@ -87,6 +96,21 @@ def test_refreshes_stale_unattended_waiver(minimal_project):
     assert refreshed["notes"] == original["notes"]
     assert refreshed["precorrect_fingerprint"] == precorrect_fingerprint(proj)
     assert status_is_clear(proj)
+
+
+@pytest.mark.refine_gate
+def test_refresh_does_not_waive_post_gate_text_change(minimal_project):
+    proj = _with_words(minimal_project)
+    mark_refine_waived(proj, reason="batch", source="unattended")
+    original = load_status(proj)
+    gate_text_fingerprint = transcript_text_fingerprint(proj)
+    proj.transcripts[0].words[0].text = "hola"
+
+    assert not refresh_unattended_waiver(
+        proj, gate_status=original, gate_text_fingerprint=gate_text_fingerprint
+    )
+    assert load_status(proj) == original
+    assert not status_is_clear(proj)
 
 
 @pytest.mark.refine_gate
@@ -110,9 +134,15 @@ def test_refresh_does_not_change_non_unattended_waivers_or_pending(minimal_proje
     else:
         mark_refine_waived(proj, reason="explicit", source=source)
     before = load_status(proj)
+    gate_text_fingerprint = transcript_text_fingerprint(proj)
     proj.transcripts[0].words[0].text = "hola"
 
-    assert refresh_unattended_waiver(proj) is False
+    assert (
+        refresh_unattended_waiver(
+            proj, gate_status=before, gate_text_fingerprint=gate_text_fingerprint
+        )
+        is False
+    )
     assert load_status(proj) == before
 
 
@@ -120,11 +150,57 @@ def test_refresh_does_not_change_non_unattended_waivers_or_pending(minimal_proje
 def test_refresh_does_not_rewrite_current_unattended_waiver(minimal_project, monkeypatch):
     proj = _with_words(minimal_project)
     mark_refine_waived(proj, reason="batch", source="unattended")
+    gate_status = load_status(proj)
+    gate_text_fingerprint = transcript_text_fingerprint(proj)
 
     import podcast_mcp.edits.transcript_refine_status as refine_mod
 
     monkeypatch.setattr(refine_mod, "_write_status", pytest.fail)
-    assert refresh_unattended_waiver(proj) is False
+    assert not refresh_unattended_waiver(
+        proj, gate_status=gate_status, gate_text_fingerprint=gate_text_fingerprint
+    )
+
+
+@pytest.mark.refine_gate
+def test_refresh_does_not_overwrite_concurrent_explicit_decision(minimal_project, monkeypatch):
+    proj = _with_words(minimal_project)
+    mark_refine_waived(proj, reason="batch", source="unattended")
+    gate_status = load_status(proj)
+    gate_text_fingerprint = transcript_text_fingerprint(proj)
+    proj.transcripts[0].words[0].suppressed = True
+
+    import podcast_mcp.edits.transcript_refine_status as refine_mod
+
+    refresh_writing = threading.Event()
+    allow_refresh_write = threading.Event()
+    original_write = refine_mod._write_status
+
+    def pause_refresh(project, payload):
+        if threading.current_thread().name == "refine_0":
+            refresh_writing.set()
+            assert allow_refresh_write.wait(timeout=5)
+        return original_write(project, payload)
+
+    monkeypatch.setattr(refine_mod, "_write_status", pause_refresh)
+    with ThreadPoolExecutor(max_workers=2, thread_name_prefix="refine") as pool:
+        refresh = pool.submit(
+            refresh_unattended_waiver,
+            proj,
+            gate_status=gate_status,
+            gate_text_fingerprint=gate_text_fingerprint,
+        )
+        assert refresh_writing.wait(timeout=5)
+        explicit = pool.submit(mark_refine_done, proj, source="user")
+        try:
+            with pytest.raises(TimeoutError):
+                explicit.result(timeout=0.2)
+        finally:
+            allow_refresh_write.set()
+        assert refresh.result(timeout=5)
+        assert explicit.result(timeout=5)["source"] == "user"
+
+    assert load_status(proj)["status"] == "done"
+    assert load_status(proj)["source"] == "user"
 
 
 @pytest.mark.refine_gate

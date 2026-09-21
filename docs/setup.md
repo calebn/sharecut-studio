@@ -26,6 +26,9 @@ podcast doctor
 
 `./install.sh` runs `uv sync --extra dev --extra gui --extra bootstrap --extra relay` when `uv` is available (pip fallback installs the same extras). It does **not** put `podcast` on your global `PATH` — use the venv or `uv run`.
 
+The core install includes `filelock` to coordinate transcript-refine status
+decisions between local pipeline, CLI, and MCP processes.
+
 If doctor reports missing FFmpeg:
 
 ```bash

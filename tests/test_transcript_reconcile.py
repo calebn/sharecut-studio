@@ -3,9 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from podcast_mcp.edits.fillers import analyze_fillers_and_pauses
 from podcast_mcp.edits.transcript_cuts import search_transcript
 from podcast_mcp.edits.transcript_reconcile import maybe_auto_reconcile, run_reconciliation
+from podcast_mcp.edits.transcript_refine_status import status_is_clear
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,
     compute_word_audibility_map,
@@ -31,7 +34,10 @@ from podcast_mcp.models import (
     TrackRole,
     Transcript,
     TranscriptWord,
+    save_project,
 )
+from podcast_mcp.pipeline.runner import STEP_NAMES
+from podcast_mcp.services import EditService, PipelineService, ProjectWorkspace
 
 
 def _two_track_project(tmp_path: Path) -> EpisodeProject:
@@ -108,6 +114,41 @@ def test_run_reconciliation_applies_by_default(tmp_path: Path):
     assert host is not None
     assert host.words[1].suppressed is True
     assert result["applied"] is True
+
+
+@pytest.mark.refine_gate
+def test_pipeline_refreshes_waiver_after_real_reconciliation(tmp_path: Path):
+    project = _two_track_project(tmp_path)
+    project_path = tmp_path / "episode.project.json"
+    save_project(project, project_path)
+    workspace = ProjectWorkspace.open(project_path)
+    skip = [
+        name
+        for name in STEP_NAMES
+        if name not in {"require_transcript_refine", "reconcile_transcript"}
+    ]
+
+    def fake_rms(project, track_id, t_start, t_end, **kwargs):
+        if track_id == "host" and t_start >= 1.0:
+            return -40.0
+        return -30.0
+
+    with patch(
+        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+        side_effect=fake_rms,
+    ):
+        PipelineService(workspace).run(
+            from_step="require_transcript_refine",
+            skip_steps=skip,
+            unattended=True,
+            config={"analysis": {"transcript_refine": {"mode": "waive_unattended"}}},
+        )
+
+    host = workspace.project.transcript_for_track("host")
+    assert host is not None
+    assert host.words[1].suppressed is True
+    assert status_is_clear(workspace.project)
+    assert EditService(workspace).approve([]) == 0
 
 
 def test_compute_word_audibility_map_bleed(tmp_path: Path):
