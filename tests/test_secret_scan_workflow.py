@@ -45,22 +45,25 @@ def test_gitleaks_has_no_committed_ignore_baseline() -> None:
     assert not (ROOT / ".gitleaksignore").exists()
 
 
-def test_public_tree_has_no_private_provider_markers() -> None:
+def _public_tree_violations(root: Path) -> list[str]:
     forbidden = (
         ("hound" + "stooth").encode(),
         ("digitalocean" + "spaces.com").encode(),
         ("138.68." + "214.23").encode(),
         ("216.40." + "34.41").encode(),
     )
+    provider_root = Path("src/podcast_online")
     hits: list[str] = []
     tracked = subprocess.check_output(
-        ["git", "-C", str(ROOT), "ls-files", "-z"],
+        ["git", "-C", str(root), "ls-files", "-z"],
     ).split(b"\0")
     for raw_relative in tracked:
         if not raw_relative:
             continue
         relative = Path(os.fsdecode(raw_relative))
-        path = ROOT / relative
+        if relative == provider_root or provider_root in relative.parents:
+            hits.append(f"{relative}: private provider source")
+        path = root / relative
         if not path.is_file():
             continue
         content = path.read_bytes().lower()
@@ -68,5 +71,51 @@ def test_public_tree_has_no_private_provider_markers() -> None:
             if marker.lower() in content:
                 hits.append(f"{relative}: {marker.decode()}")
 
-    assert not (ROOT / "src" / "podcast_online").exists()
+    return hits
+
+
+def test_public_tree_has_no_private_provider_markers() -> None:
+    hits = _public_tree_violations(ROOT)
     assert not hits, "private provider markers remain:\n" + "\n".join(hits)
+
+
+def _init_git_repo(root: Path) -> None:
+    subprocess.run(
+        ["git", "-C", str(root), "init", "--quiet", "--initial-branch=main"],
+        check=True,
+    )
+
+
+def test_public_tree_ignores_untracked_provider_cache(tmp_path: Path) -> None:
+    cache = tmp_path / "src" / "podcast_online" / "__pycache__" / "dummy.pyc"
+    cache.parent.mkdir(parents=True)
+    cache.write_bytes(b"ignored cache")
+    gitignore = tmp_path / ".gitignore"
+    gitignore.write_text("src/podcast_online/\n", encoding="utf-8")
+    _init_git_repo(tmp_path)
+    subprocess.run(["git", "-C", str(tmp_path), "add", "--", ".gitignore"], check=True)
+
+    assert _public_tree_violations(tmp_path) == []
+
+
+def test_public_tree_reports_tracked_provider_source(tmp_path: Path) -> None:
+    source = tmp_path / "src" / "podcast_online" / "provider.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("provider = True\n", encoding="utf-8")
+    _init_git_repo(tmp_path)
+    subprocess.run(
+        ["git", "-C", str(tmp_path), "add", "--", "src/podcast_online/provider.py"], check=True
+    )
+
+    assert _public_tree_violations(tmp_path) == [
+        "src/podcast_online/provider.py: private provider source"
+    ]
+
+
+def test_public_tree_reports_tracked_forbidden_marker(tmp_path: Path) -> None:
+    marker_file = tmp_path / "tracked.txt"
+    marker_file.write_text("contains " + "hound" + "stooth\n", encoding="utf-8")
+    _init_git_repo(tmp_path)
+    subprocess.run(["git", "-C", str(tmp_path), "add", "--", "tracked.txt"], check=True)
+
+    assert _public_tree_violations(tmp_path) == ["tracked.txt: " + "hound" + "stooth"]
