@@ -116,9 +116,17 @@ def _patch_harness(
             raise join
         return dict(join or {"verdict": "pass", "risk": 0.12})
 
+    def audition_context(self, start, end, *, detail="summary", **kwargs):
+        assert detail == "summary"
+        return {
+            "schema": "audition_context.v2",
+            "window": {"timeline_start": start, "timeline_end": end},
+        }
+
     monkeypatch.setattr(EditService, "propose_tighten", propose)
     monkeypatch.setattr(PlayService, "play_pending_preview", preview)
     monkeypatch.setattr(EditService, "join_quality", join_quality)
+    monkeypatch.setattr(PlayService, "audition_context", audition_context)
     monkeypatch.setattr(
         "podcast_mcp.services.golden_ear.resolve_pending_preview",
         lambda *args, **kwargs: _window(can_skip=can_skip),
@@ -224,6 +232,8 @@ def test_build_on_aligned_dialogue_is_blinded_and_does_not_write_fixture(
         assert (pair / "2.wav").is_file()
         assert row["edit_file"] != row["leave_file"]
         assert row["gated"] is True
+        assert row["audition_context"]["schema"] == "audition_context.v2"
+        assert "audition_context" not in json.dumps(manifest)
     answers = (listen / "answers.csv").read_text(encoding="utf-8")
     assert answers.splitlines()[0] == "pair_id,prefer,leftover_consonant,notes"
     with pytest.raises(FileExistsError, match="non-empty"):
@@ -280,6 +290,22 @@ def test_build_skips_unsuggestable_and_records_join_error(tmp_path, sample_wav, 
     assert key["pairs"][0]["gated"] is False
 
 
+def test_build_records_audition_context_failure_owner_only(tmp_path, sample_wav, monkeypatch):
+    _patch_harness(monkeypatch, sample_wav, [_decision()])
+
+    def fail_context(*args, **kwargs):
+        raise ValueError("diagnostics unavailable")
+
+    monkeypatch.setattr(PlayService, "audition_context", fail_context)
+    out = tmp_path / "context-error"
+    assert build_golden_ear(FIXTURE, out, limit=1, seed=0)["pair_count"] == 1
+    key = json.loads((out / "key.json").read_text(encoding="utf-8"))
+    manifest = json.loads((out / LISTEN_DIRNAME / "manifest.json").read_text(encoding="utf-8"))
+    assert key["pairs"][0]["audition_context"] is None
+    assert "diagnostics unavailable" in key["pairs"][0]["audition_context_error"]
+    assert "audition_context_error" not in json.dumps(manifest)
+
+
 def test_build_pads_suggested_to_current_duration(tmp_path, sample_wav, monkeypatch):
     short = tmp_path / "short.wav"
     _shorten_wav(sample_wav, short, 0.4)
@@ -313,6 +339,8 @@ def test_score_math_pass_fail_and_script(tmp_path):
                 "gated": True,
                 "edit_file": "1.wav",
                 "leave_file": "2.wav",
+                "reason": "filler:um",
+                "track_id": "reference",
             },
             {
                 "id": "pair_001",
@@ -320,6 +348,8 @@ def test_score_math_pass_fail_and_script(tmp_path):
                 "gated": True,
                 "edit_file": "2.wav",
                 "leave_file": "1.wav",
+                "reason": "filler:um",
+                "track_id": "reference",
             },
             {
                 "id": "pair_002",
@@ -327,6 +357,8 @@ def test_score_math_pass_fail_and_script(tmp_path):
                 "gated": False,
                 "edit_file": "1.wav",
                 "leave_file": "2.wav",
+                "reason": "pause:1.4s",
+                "track_id": "guest",
             },
         ],
     }
@@ -349,6 +381,9 @@ def test_score_math_pass_fail_and_script(tmp_path):
     assert report["prefer_edit_gated"] == pytest.approx(1.0)
     assert report["per_class"]["filler"]["n"] == 2
     assert report["per_class"]["pause"]["prefer_edit"] == pytest.approx(0.0)
+    assert report["per_reason"]["filler:um"]["ties"] == 0
+    assert report["per_reason"]["pause:1.4s"]["prefer_edit"] == pytest.approx(0.0)
+    assert report["per_track"]["reference"]["n"] == 2
 
     answers.write_text(
         "pair_id,prefer,leftover_consonant,notes\n"
@@ -374,6 +409,7 @@ def test_score_math_pass_fail_and_script(tmp_path):
     assert incomplete["pass"] is False
     assert incomplete["missing_n"] == 2
     assert any("missing_n=" in reason for reason in incomplete["fail_reasons"])
+    assert incomplete["per_reason"]["filler:um"]["missing_n"] == 1
 
     answers.write_text(
         "pair_id,prefer,leftover_consonant,notes\npair_000,1,,\npair_001,2,no,\npair_002,2,no,\n",
