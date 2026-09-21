@@ -19,6 +19,8 @@ podcast doctor
 
 Choose a downloaded Whisper model for one standalone transcription with `podcast transcribe --project … --model small.en`; use `podcast setup --whisper-model small.en` or `PODCAST_WHISPER_MODEL` to make that choice the machine default.
 
+`podcast transcribe` reports the number of tracks processed by that run. When there are no dialogue tracks to process, it reports `Transcribed 0 track(s).` and warns on stderr.
+
 No system FFmpeg? `podcast bootstrap --component ffmpeg` (included after `install.sh`) fetches FFmpeg into a local cache — same path on macOS, Linux, and Windows. See [docs/setup.md](docs/setup.md#any-os-no-package-manager-idiot-proof-path).
 
 Agent config is tool-agnostic under [.agents/](.agents/) (skills, rules, MCP template). Register MCP per [docs/setup.md](docs/setup.md). With `podcast gui` running on loopback, **Connect agent…** (home or Menu) copies `http://127.0.0.1:8765/mcp` for URL-only clients. Use the `podcast-setup` skill when onboarding.
