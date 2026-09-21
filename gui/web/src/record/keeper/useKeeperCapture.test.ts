@@ -8,6 +8,7 @@ import {
   keeperMetaPath,
   keeperWavPath,
   MemorySink,
+  OpfsUnavailableError,
 } from "./store";
 import { useKeeperCapture } from "./useKeeperCapture";
 
@@ -272,11 +273,7 @@ describe("useKeeperCapture", () => {
 
   it("does not claim a local copy when OPFS is unavailable", async () => {
     const { createOpfsSink } = await import("./store");
-    vi.mocked(createOpfsSink).mockRejectedValueOnce(
-      new Error(
-        "This browser cannot store a local keeper copy (OPFS unavailable).",
-      ),
-    );
+    vi.mocked(createOpfsSink).mockRejectedValueOnce(new OpfsUnavailableError());
     const stream = { getTracks: () => [] } as unknown as MediaStream;
     const { result } = renderHook(() =>
       useKeeperCapture({
@@ -286,7 +283,7 @@ describe("useKeeperCapture", () => {
       }),
     );
     await waitFor(() => {
-      expect(result.current.error).toMatch(/OPFS unavailable/);
+      expect(result.current.error).toMatch(/does not support OPFS/);
     });
     expect(result.current.recordingLocally).toBe(false);
 

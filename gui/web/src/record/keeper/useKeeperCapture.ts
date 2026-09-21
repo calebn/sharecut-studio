@@ -9,7 +9,7 @@ import { recordingClockMs } from "../clock";
 import type { RecordRole, RecordSnapshot } from "../types";
 import { attachKeeperTap } from "./graph";
 import { KeeperSession } from "./session";
-import { createOpfsSink } from "./store";
+import { type ByteSink, createOpfsSink } from "./store";
 
 type Args = {
   enabled: boolean;
@@ -19,6 +19,7 @@ type Args = {
   muted: boolean;
   consented: boolean | null;
   stream: MediaStream | null;
+  sink?: ByteSink | null;
   resetKey?: number;
   onActivity?: () => void;
 };
@@ -41,6 +42,7 @@ export function useKeeperCapture({
   muted,
   consented,
   stream,
+  sink,
   resetKey = 0,
   onActivity,
 }: Args): {
@@ -224,9 +226,9 @@ export function useKeeperCapture({
     let cancelled = false;
     const start = async () => {
       try {
-        const sink = await createOpfsSink();
+        const activeSink = sink ?? (await createOpfsSink());
         let session: KeeperSession | null = null;
-        session = new KeeperSession(sink, (failure) => {
+        session = new KeeperSession(activeSink, (failure) => {
           if (cancelled || sessionRef.current !== session) {
             return;
           }
@@ -273,6 +275,7 @@ export function useKeeperCapture({
     participantId,
     sessionId,
     resetKey,
+    sink,
     initializationAttempt,
     applyGate,
     captureGate,
