@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from podcast_mcp.gui.host_mcp import HOST_MCP_PATH, NO_OPEN_PROJECT
+from podcast_mcp.gui.host_mcp import (
+    HOST_MCP_PATH,
+    NO_OPEN_PROJECT,
+    host_mcp_lifespan,
+)
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services import ProjectWorkspace, ReviewService
@@ -67,7 +74,6 @@ def _post_mcp(
     client: TestClient,
     body: dict[str, Any],
     *,
-    session_id: str | None = None,
     extra_headers: dict[str, str] | None = None,
     accept: str = MCP_ACCEPT,
 ) -> Any:
@@ -76,14 +82,12 @@ def _post_mcp(
         "Content-Type": "application/json",
         **LOOPBACK_HOST,
     }
-    if session_id:
-        headers["Mcp-Session-Id"] = session_id
     if extra_headers:
         headers.update(extra_headers)
     return client.post(HOST_MCP_PATH, json=body, headers=headers)
 
 
-def _initialize(client: TestClient) -> tuple[dict[str, Any], str | None]:
+def _initialize(client: TestClient) -> dict[str, Any]:
     res = _post_mcp(
         client,
         {
@@ -100,20 +104,20 @@ def _initialize(client: TestClient) -> tuple[dict[str, Any], str | None]:
     assert res.status_code == 200, res.text
     payload = _rpc_payload(res)
     assert payload is not None
-    session_id = res.headers.get("mcp-session-id")
+    assert "mcp-session-id" not in res.headers
     initialized = _post_mcp(
         client,
         {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}},
-        session_id=session_id,
     )
     assert initialized.status_code == 202, initialized.text
-    return payload, session_id
+    assert "mcp-session-id" not in initialized.headers
+    return payload
 
 
 def test_host_mcp_handshake_lists_cut_words() -> None:
     pytest.importorskip("fastapi")
     with TestClient(create_app()) as client:
-        payload, session_id = _initialize(client)
+        payload = _initialize(client)
         result = payload["result"]
         assert result["protocolVersion"] in {
             HANDSHAKE_VERSION,
@@ -127,9 +131,9 @@ def test_host_mcp_handshake_lists_cut_words() -> None:
         listed = _post_mcp(
             client,
             {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
-            session_id=session_id,
         )
         assert listed.status_code == 200, listed.text
+        assert "mcp-session-id" not in listed.headers
         names = {t["name"] for t in _rpc_payload(listed)["result"]["tools"]}
         assert "cut_words_tool" in names
         assert "list_comments_tool" in names
@@ -230,7 +234,7 @@ def test_host_mcp_non_localhost_host_421() -> None:
 def test_host_mcp_injects_open_project(minimal_project) -> None:
     pytest.importorskip("fastapi")
     with TestClient(create_app(served_project=minimal_project)) as client:
-        _payload, session_id = _initialize(client)
+        _payload = _initialize(client)
         called = _post_mcp(
             client,
             {
@@ -239,9 +243,9 @@ def test_host_mcp_injects_open_project(minimal_project) -> None:
                 "method": "tools/call",
                 "params": {"name": "list_comments_tool", "arguments": {}},
             },
-            session_id=session_id,
         )
         assert called.status_code == 200, called.text
+        assert "mcp-session-id" not in called.headers
         result = _rpc_payload(called)["result"]
         assert result.get("isError") is not True
         text = result["content"][0]["text"]
@@ -259,7 +263,6 @@ def test_host_mcp_injects_open_project(minimal_project) -> None:
                     "arguments": {"project_path": "/tmp/not-the-served.json"},
                 },
             },
-            session_id=session_id,
         )
         assert foreign.status_code == 200, foreign.text
         foreign_result = _rpc_payload(foreign)["result"]
@@ -274,7 +277,6 @@ def test_host_mcp_injects_open_project(minimal_project) -> None:
                 "method": "tools/call",
                 "params": {"name": "not_a_real_tool", "arguments": {}},
             },
-            session_id=session_id,
         )
         assert skipped.status_code == 200, skipped.text
         skipped_payload = _rpc_payload(skipped)
@@ -293,12 +295,11 @@ def test_host_mcp_shares_app_with_static_dir(tmp_path, minimal_project) -> None:
         assert client.get("/").status_code == 200
         assert client.get("/favicon.svg").status_code == 404
         assert client.get("/favicon.ico").status_code == 404
-        payload, session_id = _initialize(client)
+        payload = _initialize(client)
         assert payload["result"]["serverInfo"]["name"] == "podcast-mcp"
         listed = _post_mcp(
             client,
             {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
-            session_id=session_id,
         )
         names = {t["name"] for t in _rpc_payload(listed)["result"]["tools"]}
         assert "cut_words_tool" in names
@@ -311,7 +312,7 @@ def test_host_mcp_shares_app_with_static_dir(tmp_path, minimal_project) -> None:
     with TestClient(create_app(static_dir=dist)) as client:
         assert client.get("/favicon.svg").status_code == 200
         assert client.get("/favicon.ico").status_code == 200
-        payload, _session_id = _initialize(client)
+        payload = _initialize(client)
         assert payload["result"]["serverInfo"]["name"] == "podcast-mcp"
 
 
@@ -319,7 +320,7 @@ def test_host_mcp_without_static_tree() -> None:
     pytest.importorskip("fastapi")
     missing = Path("/no-such-sharecut-gui-dist")
     with TestClient(create_app(static_dir=missing)) as client:
-        payload, _session_id = _initialize(client)
+        payload = _initialize(client)
         assert payload["result"]["serverInfo"]["name"] == "podcast-mcp"
 
 
@@ -353,7 +354,7 @@ def test_review_spa_hook_error_falls_back(tmp_path, monkeypatch) -> None:
 def test_host_mcp_errors_when_no_project_open() -> None:
     pytest.importorskip("fastapi")
     with TestClient(create_app(served_project=None)) as client:
-        _payload, session_id = _initialize(client)
+        _payload = _initialize(client)
         called = _post_mcp(
             client,
             {
@@ -362,7 +363,6 @@ def test_host_mcp_errors_when_no_project_open() -> None:
                 "method": "tools/call",
                 "params": {"name": "list_comments_tool", "arguments": {}},
             },
-            session_id=session_id,
         )
         assert called.status_code == 200, called.text
         result = _rpc_payload(called)["result"]
@@ -380,7 +380,6 @@ def test_host_mcp_errors_when_no_project_open() -> None:
                     "arguments": {"workspace_dir": "/tmp/host-mcp-no-project"},
                 },
             },
-            session_id=session_id,
         )
         assert created.status_code == 200, created.text
         created_result = _rpc_payload(created)["result"]
@@ -397,7 +396,7 @@ def test_host_mcp_get_pins_served_project(minimal_project, monkeypatch) -> None:
     with TestClient(create_app(served_project=None)) as client:
         loaded = client.get("/api/project", params={"path": str(minimal_project)})
         assert loaded.status_code == 200, loaded.text
-        _payload, session_id = _initialize(client)
+        _payload = _initialize(client)
         called = _post_mcp(
             client,
             {
@@ -406,7 +405,6 @@ def test_host_mcp_get_pins_served_project(minimal_project, monkeypatch) -> None:
                 "method": "tools/call",
                 "params": {"name": "list_comments_tool", "arguments": {}},
             },
-            session_id=session_id,
         )
         assert called.status_code == 200, called.text
         result = _rpc_payload(called)["result"]
@@ -424,7 +422,7 @@ def test_host_mcp_skipped_off_loopback_bind() -> None:
         assert res.status_code == 404
 
 
-def test_host_mcp_session_manager_stays_on_app() -> None:
+def test_host_mcp_session_manager_is_stateless_and_stays_on_app() -> None:
     pytest.importorskip("fastapi")
     app_a = create_app()
     manager_a = app_a.state.host_mcp_session_manager
@@ -433,9 +431,38 @@ def test_host_mcp_session_manager_stays_on_app() -> None:
     assert manager_a is not None
     assert manager_b is not None
     assert manager_a is not manager_b
+    assert manager_a.stateless is True
+    assert manager_b.stateless is True
     with TestClient(app_a) as client:
-        payload, _session_id = _initialize(client)
+        payload = _initialize(client)
         assert payload["result"]["serverInfo"]["name"] == "podcast-mcp"
+
+
+def test_host_mcp_lifespan_runs_the_captured_manager() -> None:
+    class TrackingManager:
+        def __init__(self) -> None:
+            self.entered = False
+            self.exited = False
+
+        @asynccontextmanager
+        async def run(self):
+            self.entered = True
+            try:
+                yield
+            finally:
+                self.exited = True
+
+    app = FastAPI()
+    manager = TrackingManager()
+    app.state.host_mcp_session_manager = manager
+
+    async def exercise_lifespan() -> None:
+        async with host_mcp_lifespan(app):
+            assert manager.entered is True
+            assert manager.exited is False
+
+    asyncio.run(exercise_lifespan())
+    assert manager.exited is True
 
 
 def test_guest_mcp_token_path_unchanged(

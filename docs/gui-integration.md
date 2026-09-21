@@ -123,7 +123,7 @@ While `podcast gui` is running, the DAW is a spec-compliant MCP server (Streamab
 }
 ```
 
-Keep Sharecut Studio running. Host `tools/call` applies to the **pinned** episode (`served_project`); with no pin they return an error to open one first. `/mcp` is mounted only on loopback binds. This is not OAuth and not a share token — loopback + Origin/Host DNS-rebinding checks only. Guest/collaborator agents still use `{base}/mcp/{token}/mcp` ([host-online-relay.md](host-online-relay.md) § Remote MCP). Contributor stdio `podcast-mcp` is unchanged.
+Keep Sharecut Studio running. Host `tools/call` applies to the **pinned** episode (`served_project`); with no pin they return an error to open one first. The host transport is stateless: requests do not retain MCP sessions and the server does not issue or require a sticky `Mcp-Session-Id` header. `/mcp` is mounted only on loopback binds. This is not OAuth and not a share token — loopback + Origin/Host DNS-rebinding checks only. Guest/collaborator agents still use `{base}/mcp/{token}/mcp` ([host-online-relay.md](host-online-relay.md) § Remote MCP), and contributor stdio `podcast-mcp` keeps its session behavior.
 
 Dev mode (API `:8765`, Vite `:5173` with `/api` proxy):
 
