@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { recordingClockMs } from "../clock";
 import type { RecordRole, RecordSnapshot } from "../types";
 import { attachKeeperTap } from "./graph";
 import { KeeperSession } from "./session";
@@ -13,6 +14,16 @@ type Args = {
   consented: boolean | null;
   stream: MediaStream | null;
   resetKey?: number;
+};
+
+type CapturedGate = {
+  role: RecordRole;
+  snapshot: RecordSnapshot | null;
+  participantId: string | null;
+  muted: boolean;
+  consented: boolean | null;
+  streamAvailable: boolean;
+  recordingMs: number;
 };
 
 export function useKeeperCapture({
@@ -32,44 +43,62 @@ export function useKeeperCapture({
   const detachRef = useRef<(() => void) | undefined>(undefined);
   const applyChain = useRef(Promise.resolve());
   const sessionId = snapshot?.session_id ?? null;
-  const gateRef = useRef({
-    enabled,
+  const clockRef = useRef({ snapshot, receivedAt: Date.now() });
+  if (clockRef.current.snapshot !== snapshot) {
+    clockRef.current = { snapshot, receivedAt: Date.now() };
+  }
+  const gateRef = useRef<CapturedGate>({
     role,
     snapshot,
     participantId,
     muted,
     consented,
     streamAvailable: stream !== null,
+    recordingMs: 0,
   });
   gateRef.current = {
-    enabled,
     role,
     snapshot,
     participantId,
     muted,
     consented,
     streamAvailable: stream !== null,
+    recordingMs: 0,
   };
-
-  const applyGate = useCallback(async (session: KeeperSession) => {
+  const captureGate = useCallback((): CapturedGate => {
     const gate = gateRef.current;
-    if (!gate.snapshot || !gate.participantId) {
-      setWriting(false);
-      return;
-    }
-    await session.apply({
-      role: gate.role,
-      consented: gate.consented,
-      roomState: gate.snapshot.state,
-      takeIndex: gate.snapshot.take_index,
-      recordingMs: gate.snapshot.recording_ms ?? 0,
-      muted: gate.muted,
-      streamAvailable: gate.streamAvailable,
-      sessionId: gate.snapshot.session_id,
-      participantId: gate.participantId,
-    });
-    setWriting(session.isWriting);
+    return {
+      ...gate,
+      recordingMs: gate.snapshot
+        ? recordingClockMs(
+            gate.snapshot,
+            Date.now() - clockRef.current.receivedAt,
+          )
+        : 0,
+    };
   }, []);
+
+  const applyGate = useCallback(
+    async (session: KeeperSession, gate: CapturedGate) => {
+      if (!gate.snapshot || !gate.participantId) {
+        setWriting(false);
+        return;
+      }
+      await session.apply({
+        role: gate.role,
+        consented: gate.consented,
+        roomState: gate.snapshot.state,
+        takeIndex: gate.snapshot.take_index,
+        recordingMs: gate.recordingMs,
+        muted: gate.muted,
+        streamAvailable: gate.streamAvailable,
+        sessionId: gate.snapshot.session_id,
+        participantId: gate.participantId,
+      });
+      setWriting(session.isWriting);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!enabled || !participantId || !sessionId) {
@@ -97,7 +126,7 @@ export function useKeeperCapture({
           return;
         }
         sessionRef.current = session;
-        await applyGate(session);
+        await applyGate(session, captureGate());
         if (cancelled) {
           sessionRef.current = null;
           await session.dispose();
@@ -124,7 +153,7 @@ export function useKeeperCapture({
         });
       }
     };
-  }, [enabled, participantId, sessionId, resetKey, applyGate]);
+  }, [enabled, participantId, sessionId, resetKey, applyGate, captureGate]);
 
   useEffect(() => {
     const session = sessionRef.current;
@@ -161,12 +190,15 @@ export function useKeeperCapture({
     if (!session || !enabled || !sessionId || !participantId) {
       return;
     }
+    // A lost stream must close its segment even if a later render reconnects
+    // before this queued OPFS operation can run.
+    const gate = captureGate();
     applyChain.current = applyChain.current
       .then(() => {
         if (sessionRef.current !== session) {
           return;
         }
-        return applyGate(session);
+        return applyGate(session, gate);
       })
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : String(err));
@@ -181,6 +213,7 @@ export function useKeeperCapture({
     epoch,
     stream,
     applyGate,
+    captureGate,
     snapshot?.state,
     snapshot?.take_index,
     sessionId,
