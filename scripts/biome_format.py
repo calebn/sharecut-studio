@@ -19,6 +19,7 @@ def biome_format_ts(raw: str) -> str:
         encoding="utf-8",
         suffix=".ts",
         delete=False,
+        dir=WEB,
     ) as tmp:
         tmp.write(raw)
         tmp_path = Path(tmp.name)
@@ -31,7 +32,7 @@ def biome_format_ts(raw: str) -> str:
             cmd = ["npx", "biome", "check", "--write", *extra, str(tmp_path)]
         else:
             return raw
-        subprocess.run(cmd, cwd=WEB, check=False, capture_output=True)
+        subprocess.run(cmd, cwd=WEB, check=True, capture_output=True)
         return tmp_path.read_text(encoding="utf-8")
     finally:
         tmp_path.unlink(missing_ok=True)
