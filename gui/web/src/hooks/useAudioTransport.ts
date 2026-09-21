@@ -193,7 +193,11 @@ export function useAudioTransport(enabled = true): void {
 
     if (!needsMultitrack && auditionMode === "mix") {
       if (!project.render_status.premix.exists) {
-        setAudioError("No premix — run Pipeline or render-preview");
+        // A project with no tracks has nothing to play — a missing premix is
+        // expected, not an error (#78). Only flag it once audio exists.
+        if (project.tracks.length > 0) {
+          setAudioError("No premix — run Pipeline or render-preview");
+        }
         return;
       }
       make("premix", audioUrl(projectPath, "premix"));

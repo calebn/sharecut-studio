@@ -74,23 +74,37 @@ function isRegional(inv: RenderInvalidationView): boolean {
   );
 }
 
+function freshBreakdown(): StaleRenderBreakdown {
+  return {
+    stale: false,
+    staleTrackIds: [],
+    premixMissing: false,
+    premixStaleVsStems: false,
+    reconcileStale: false,
+    invalidations: [],
+    wholeTrackIds: [],
+    regionalOnlyTrackIds: [],
+    allStaleAreWholeTrack: false,
+    summary: "Fresh",
+  };
+}
+
 /** Derive what is out of date from project view + track stem_is_fresh. */
 export function staleRenderBreakdown(
   project: ProjectView | null | undefined,
 ): StaleRenderBreakdown {
   if (!project) {
-    return {
-      stale: false,
-      staleTrackIds: [],
-      premixMissing: false,
-      premixStaleVsStems: false,
-      reconcileStale: false,
-      invalidations: [],
-      wholeTrackIds: [],
-      regionalOnlyTrackIds: [],
-      allStaleAreWholeTrack: false,
-      summary: "Fresh",
-    };
+    return freshBreakdown();
+  }
+  // A project that has never been rendered has nothing to be stale relative
+  // to: no tracks, no premix, and no invalidation journal entries. Without
+  // this carve-out a brand-new project reports "Stale render".
+  const neverRendered =
+    project.tracks.length === 0 &&
+    project.render_status.premix.exists !== true &&
+    readInvalidations(project).length === 0;
+  if (neverRendered) {
+    return freshBreakdown();
   }
   const rs = project.render_status;
   const tracksRs = (
