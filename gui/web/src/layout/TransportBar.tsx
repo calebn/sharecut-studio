@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { execute } from "../commands/execute";
 import { FEATURE_SHARE_UI_MENU } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
@@ -172,12 +172,15 @@ export function TransportBar({ compact = false, showFit = true }: Props) {
     setHighlightStaleRender(on);
   };
 
-  const setMenuOpen = (open: boolean) => {
-    setOverflowOpen(open);
-    if (!open) {
-      setHighlightStaleRender(false);
-    }
-  };
+  const setMenuOpen = useCallback(
+    (open: boolean) => {
+      setOverflowOpen(open);
+      if (!open) {
+        setHighlightStaleRender(false);
+      }
+    },
+    [setHighlightStaleRender],
+  );
   const closeMenu = () => setMenuOpen(false);
 
   return (
