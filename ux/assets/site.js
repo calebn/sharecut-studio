@@ -10,6 +10,7 @@
     glossary: { file: "domain-glossary.md", title: "Domain glossary", nav: "glossary" },
     backlog: { file: "ux-backlog.md", title: "UX backlog", nav: "backlog" },
     shortcuts: { file: "shortcuts.md", title: "Keyboard shortcuts", nav: "shortcuts" },
+    mobile: { file: "mobile.md", title: "Mobile", nav: "mobile" },
   };
 
   const contentEl = document.getElementById("content");

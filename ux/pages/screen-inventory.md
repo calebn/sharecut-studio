@@ -25,13 +25,12 @@ Per-surface **display schemas**: what regions exist, what data they show, empty/
 ```mermaid
 flowchart TB
   subgraph phone [Phone shell]
-    T[Compact transport]
     M{Mode}
-    T --> M
     M --> L[Listen]
-    M --> TL[Timeline]
-    M --> TX[Text]
-    M --> MO[More hub]
+    M --> T[Compact header transport outside Listen]
+    T --> TL[Timeline]
+    T --> TX[Text]
+    T --> MO[More hub]
     MO --> G[Gestures cheatsheet]
     SEL[Selection] --> BS[Bottom sheet: inspector + related commands]
   end
@@ -54,12 +53,14 @@ flowchart TB
 |--|--|
 | **Purpose** | Playhead control, audition mode, comment entry, zoom Fit, overflow Menu |
 | **Primary actions** | Play / Stop, seek via timecode context, Select/Blade/Comment when expanded, Fit, Menu |
-| **Always visible (collapsed)** | Play/Stop, compact playhead time, Comment icon, Fit (except Listen), Menu icon |
-| **Menu → Project (host)** | New / Open, **Connect agent…** (local Streamable HTTP MCP URL), Bounce…, **Share…** (online extension), Export deliverables |
+| **Always visible (collapsed)** | Outside Listen: Play/Stop, compact playhead time, Comment icon, Fit, Menu icon. Listen uses its own body transport and no header transport. |
+| **Menu → Project (host)** | New / Open, **Connect agent…** (local Streamable HTTP MCP URL), Bounce…, **Share…** (collaboration extension), Export deliverables |
 | **Menu (secondary)** | Audition Mix/FX/Raw, layer toggles, zoom, theme, focus modes, Fit if omitted; **Refresh mix** when render is stale |
 | **Data shown** | Playhead (timeline sec) · duration · audition kind · optional stale-render note |
 | **Empty / error** | Known `?project=` but shell not yet: real transport chrome, **Loading episode…**, play disabled. Zero tracks after load: ingest “Drop audio files” (not the loading well). Host with no path: home launch. Guest: token/project load failure |
 | **Out of scope** | Full mixer; pipeline step runner (status chips / Pipeline tab) |
+
+The overflow Menu panel caps to remaining space under the trigger (`min(90dvh, var(--menu-available-height))`) and scrolls so **Keyboard shortcuts (?)** stays reachable on short laptop heights, including when guest/follow banners sit above the transport.
 
 **Collapsed when:** phone, tablet compact, or bar width ≤720px.
 
@@ -75,11 +76,13 @@ flowchart TB
 | | |
 |--|--|
 | **Purpose** | Mint, copy, and revoke public review share links for the open episode |
-| **Open** | Menu → Project → **Share…** (`share.manage`; online extension slot `share.ui.menu`) |
+| **Open** | Menu → Project → **Share…** (`share.manage`; collaboration extension slot `share.ui.menu`) |
 | **Primary actions** | Role (viewer / commenter / editor) · Allow agent (MCP) · **Create link** · Copy link (button reads **Copied** briefly) · Stop sharing |
 | **Data shown** | Live coolname, Docs-like role, review mix label, last used; MCP URL when `mcp` is granted |
 | **Empty / error** | “No live share links.” Create publishes a **Share mix** review version if none exists (needs premix/mastered) |
 | **Out of scope** | Restricted ACL / invites; expiry picker; in-place role edit (rotate = new link + stop old); guest connect-an-agent UI |
+
+The dialog caps to `90dvh` with a single `.command-palette-body` scroller so **Record rooms** and other lower sections stay reachable on phone and short laptop viewports. Header (title + Close) stays pinned.
 
 Guests never see this dialog (`canManageProjects` is false on `share:{token}`).
 
@@ -107,8 +110,8 @@ Not the Share dialog. Guest share agents use `{base}/mcp/{token}/mcp`.
 | **Purpose** | Modifier for whatever is selected (pending cut, clip fade, track FX, word, …) |
 | **Primary actions** | Approve / Reject / Restore · Play around · param edits · Close |
 | **Data shown** | Type badge · label · agent reason · source + timeline ranges · shape-specific params |
-| **Phone** | Half → full bottom sheet; never stack; Close always visible |
-| **Tablet** | Peek sheet over timeline, docked above the tabs band |
+| **Phone** | Half → full bottom sheet; never stack; Close always visible. Error + audition footer stay pinned; long errors scroll in a capped slot; Ask scrolls. Taller half peek for any modifier (clip/track/chapter too). |
+| **Tablet** | Peek sheet over timeline, docked above the tabs band (same pin/scroll as phone) |
 | **Desktop** | Side inspector pane |
 | **Empty** | “Select a clip, edit, or word” |
 | **Out of scope** | Deep nested wizards; one panel per MCP tool name |
@@ -121,14 +124,14 @@ Not the Share dialog. Guest share agents use `{base}/mcp/{token}/mcp`.
 |--|--|
 | **Purpose** | Guest-style review: scrub mix, scan comments, jump from chips |
 | **Primary actions** | Coarse scrub · ±15s · open comment · tap status chip → destination |
-| **Always visible** | Compact transport · scrubber · comment list · mode nav |
-| **Fit** | In Menu only (not primary) |
+| **Always visible** | One Listen body transport (Play/Stop + full playhead/duration) · scrubber · comment list · mode nav |
+| **Fit** | Not shown on Listen; use Timeline for timeline fit |
 | **Data shown** | Mix playhead · `review.comments[]` (time, body, resolved) · pending/stale chips |
-| **Empty** | “No comments yet”. While episode JSON is loading: compact transport + “Loading episode…” well (not the ingest coach) |
+| **Empty** | “No comments yet”. While episode JSON is loading: disabled Listen body transport + “Loading episode…” well (not the ingest coach) |
 | **Out of scope** | Multitrack waveform editing |
 
 ```
-┌─ Play  12:34 / 58:39  [⋯] ──────────┐
+┌─ Play  Stop  12:34 / 58:39 ──────────┐
 │ ══════════●═══════════════════     │
 │ ±15s                               │
 │ Pending: 3 · Stale render          │
@@ -137,7 +140,7 @@ Not the Share dialog. Guest share agents use `{base}/mcp/{token}/mcp`.
 ├─ Listen │ Timeline │ Text │ More ──┤
 ```
 
-Audition Mix / FX / Raw lives in transport **Menu** (`⋯`), not in the Listen body.
+Audition Mix / FX / Raw remains available in the compact transport Menu on Timeline, Text, and More; Listen keeps its review controls deliberately focused on playback, scrub, and comments.
 
 ---
 
@@ -214,7 +217,7 @@ Long-lived panels; do not stack sheets to reach these — navigate More.
 | | |
 |--|--|
 | **Purpose** | Timeline-first with peek inspector; side inspector when wide enough |
-| **Layout** | Transport (often collapsed) · headers + timeline · tabs band (~40–45%, capped to viewport); peek sheet docks above tabs |
+| **Layout** | Transport (often collapsed) · headers + timeline · tabs band (~40–45%, capped to viewport); peek sheet docks above tabs. Modifier sheets pin error + audition footer; long errors scroll in a capped slot; Ask scrolls in the body. |
 | **Playhead** | Moving (desktop-like), not phone fixed-center |
 | **Out of scope** | Phone bottom mode nav as primary IA |
 

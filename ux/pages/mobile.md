@@ -12,21 +12,25 @@ At the bottom of the screen you'll see four tabs. Each one is designed for a spe
 |------|---------------|
 | **Listen** | Review the episode. Play, scrub through, read and leave comments. |
 | **Timeline** | Edit audio. See the waveforms, split clips, adjust fades. |
-| **Text** | Fix the transcript. Tap any word to correct it or suggest a cut. |
-| **More** | Everything else — history, tighten suggestions, mix settings, export. |
+| **Text** | Read the transcript. Choose Correct to edit a word or Select to suggest a cut. |
+| **More** | Comments, history, impact, tighten suggestions, pipeline, and Gestures. |
 
 You won't see everything at once, and that's intentional. Each screen shows what you need for the task at hand.
 
 ## Selecting things
 
-Tap anything — a clip, a word, a comment — and a panel slides up from the bottom with actions for that item.
+In Timeline, tap a clip or track header to open its inspector in a bottom sheet.
+Selecting a word in Text can open a word sheet. The Listen comment list seeks to
+the comment; use **More → Comments** for comment actions.
 
-The panel has three sections, always in the same order:
-1. **Details** — info and primary actions for what you tapped
-2. **You might also want…** — related actions you're likely to need next
-3. That's it. No hunting through menus.
+The selection sheet groups actions in this order:
 
-Tap outside the panel or the × to dismiss it.
+1. **Details** — the inspector for what you selected
+2. **You might also want…** — related commands when available
+3. **More** — additional actions, or a message when none are available
+
+Tap outside the sheet or Close to dismiss it. Audition modes and export controls
+are in the compact transport Menu on Timeline, Text, or More.
 
 ## Gestures
 
@@ -34,17 +38,18 @@ Tap outside the panel or the × to dismiss it.
 |---------|--------------|
 | **Two-finger tap** | Undo |
 | **Pinch** | Zoom the timeline in/out |
-| **Long-press** | Open actions for an item (tap usually works too) |
+| **Long-press** | Planned; tap an item to open its actions today |
 
 A full list is in the app: **More → Gestures**.
 
 ## Following someone
 
-If you're collaborating, you can follow another person's view. On mobile, following means your screen mirrors what they're looking at — their scroll position, their selection, whether they're playing.
+If you're collaborating, you can follow another person's view. On mobile, the
+app follows their mode, selection, and playback where those are available.
 
-Your phone won't show their mouse cursor (there's no cursor on touch screens), but everything else syncs.
+Your phone does not show their mouse cursor.
 
-To stop following, just scrub the timeline or tap the follow banner.
+To stop following, scrub the timeline or tap **Stop following** in the banner.
 
 ## What's different from desktop?
 
@@ -52,13 +57,14 @@ A few things live in different places on mobile:
 
 - **Comments** are in the Listen tab and under More
 - **History, Tighten, and Pipeline** are all under More
-- **Keyboard shortcuts** don't apply — use the Gestures list instead
-- **Mute/Solo** for a track: tap the track's color bar on the left side of the timeline
+- **Gestures** has a reference list under More; it marks planned actions as Soon
+- **Mute/Solo** for a track: tap its header row on the left side of Timeline
+- **Audition and export** are in the compact transport Menu outside Listen
 
-Nothing is missing. It's just organized for a smaller screen and touch input.
+The phone layout groups controls by task so they fit a smaller screen.
 
 ## Tips
 
-- **Listen mode** is the fastest way to review. Play through, tap to leave a comment at any moment.
+- **Listen mode** is the fastest way to review. Play through and open **More → Comments** to use the comment tools.
 - **Text mode** with "Follow" on will highlight words as the audio plays — great for catching transcript errors.
 - If you make a mistake, **two-finger tap** to undo. No need to find the button.
