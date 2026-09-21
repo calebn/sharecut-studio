@@ -145,4 +145,45 @@ describe("PendingEditInspector", () => {
     ).toBeInTheDocument();
     await expectNoA11yViolations(container);
   });
+
+  it("keeps an approval error when the same edit is refreshed", async () => {
+    const user = userEvent.setup();
+    approveEdits.mockRejectedValue(new Error("Approval failed"));
+    const { rerender } = render(<PendingEditInspector edit={sessionCut} />);
+
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Approval failed",
+    );
+
+    rerender(
+      <PendingEditInspector
+        edit={{
+          ...sessionCut,
+          source_start: 10.5,
+          source_end: 12.5,
+          track_ids: ["host", "guest"],
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Approval failed");
+  });
+
+  it("clears an approval error when the selected edit changes", async () => {
+    const user = userEvent.setup();
+    approveEdits.mockRejectedValue(new Error("Approval failed"));
+    const { rerender } = render(<PendingEditInspector edit={sessionCut} />);
+
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Approval failed",
+    );
+
+    rerender(
+      <PendingEditInspector edit={{ ...sessionCut, id: "different-edit" }} />,
+    );
+
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
 });
