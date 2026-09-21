@@ -23,6 +23,9 @@ function describeTransportError(error: unknown): string {
 }
 
 export type ProjectSwitcher = (projectPath: string) => Promise<void>;
+export type ShareableProjectFactory = (
+  prefix: string,
+) => ReturnType<typeof createRelocatedE2eProject>;
 
 /** Retarget the loopback GUI through its authenticated project-open endpoint. */
 export const switchE2eProject = async (
@@ -106,10 +109,12 @@ export function silenceWav(seconds = 0.25, sampleRate = 48000): Buffer {
 export async function withShareableProject<T>(
   fn: (projectPath: string) => Promise<T>,
   switchProject: ProjectSwitcher = switchE2eProject,
+  createProject: ShareableProjectFactory = (prefix) =>
+    createRelocatedE2eProject(prefix),
 ): Promise<T> {
   // Sharing and recording persist state beside a project. Give every callback
   // a new path so WebSocket rooms and rosters cannot leak across scenarios.
-  const { projectPath, workspaceDir: root } = createRelocatedE2eProject(
+  const { projectPath, workspaceDir: root } = createProject(
     "sharecut-e2e-share-",
   );
   let primaryFailed = false;
