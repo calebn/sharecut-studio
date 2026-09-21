@@ -61,6 +61,8 @@ Selection opens a non-modal **half → full** [`BottomSheet`](../gui/web/src/ui/
 
 Touch gestures for common actions, documented in the **Gestures** cheatsheet (More hub → Gestures). It is an app-level modal (outside inert app chrome) and can switch directly to **Keyboard shortcuts**; that dialog links back to Gestures without stacking. Executable gesture actions reference the shared command catalog, while unimplemented proposals are explicitly marked planned.
 
+Two-finger Undo is active only while a project is loaded and the shared Undo command is available. Its recognizer yields to timeline pinch/rotation and rejects delayed, moving, or cancelled contacts so zooming does not also undo an edit.
+
 | Gesture | Command | Status |
 |---------|---------|--------|
 | Two-finger tap | Undo | Available |
