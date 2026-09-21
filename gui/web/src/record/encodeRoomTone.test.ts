@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { encodeRoomToneWav } from "./encodeRoomTone";
 import { attachKeeperTap } from "./keeper/graph";
 import { KEEPER_SAMPLE_RATE } from "./keeper/pcm";
@@ -15,6 +15,18 @@ vi.mock("./keeper/graph", () => ({
   ),
 }));
 
+const e2eWindow = window as Window & {
+  __SHARECUT_E2E?: boolean;
+  __SHARECUT_E2E_ROOM_TONE_PCM?: boolean;
+};
+
+afterEach(() => {
+  e2eWindow.__SHARECUT_E2E = undefined;
+  e2eWindow.__SHARECUT_E2E_ROOM_TONE_PCM = undefined;
+  window.history.replaceState({}, "", "/");
+  vi.clearAllMocks();
+});
+
 describe("encodeRoomToneWav", () => {
   it("encodes a 3s PCM WAV from the keeper tap", async () => {
     const encoded = await encodeRoomToneWav({} as MediaStream, {
@@ -22,6 +34,19 @@ describe("encodeRoomToneWav", () => {
     });
     expect(encoded.wav.byteLength).toBeGreaterThan(44);
     expect(encoded.samples.length).toBe(KEEPER_SAMPLE_RATE);
+    expect(attachKeeperTap).toHaveBeenCalledOnce();
+  });
+
+  it("uses deterministic PCM only for the room-tone E2E harness", async () => {
+    e2eWindow.__SHARECUT_E2E = true;
+    e2eWindow.__SHARECUT_E2E_ROOM_TONE_PCM = true;
+    window.history.replaceState({}, "", "?e2e=1");
+
+    const encoded = await encodeRoomToneWav({} as MediaStream);
+
+    expect(encoded.wav.byteLength).toBe(288_044);
+    expect(encoded.samples).toHaveLength(144_000);
+    expect(attachKeeperTap).not.toHaveBeenCalled();
   });
 
   it("stops the tap even when samples arrive during attach", async () => {
