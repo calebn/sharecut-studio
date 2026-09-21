@@ -18,12 +18,12 @@ function boxesOverlap(
 
 async function expectNoOverlap(a: Locator, b: Locator): Promise<void> {
   await expect(async () => {
-    const boxA = await a.boundingBox();
-    const boxB = await b.boundingBox();
+    const boxA = await a.boundingBox({ timeout: 2_000 });
+    const boxB = await b.boundingBox({ timeout: 2_000 });
     expect(boxA).toBeTruthy();
     expect(boxB).toBeTruthy();
     expect(boxesOverlap(boxA!, boxB!)).toBe(false);
-  }).toPass();
+  }).toPass({ timeout: 5_000, intervals: [100, 250, 500, 1_000] });
 }
 
 async function stubApproveEditsRefineGate(page: Page): Promise<void> {

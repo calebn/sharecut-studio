@@ -68,10 +68,13 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   );
 
   useEffect(() => {
+    setError(null);
+  }, [edit.id, setError]);
+
+  useEffect(() => {
     setStartStr(String(edit.source_start));
     setEndStr(String(edit.source_end));
     setTracksStr((edit.track_ids ?? [edit.track_id]).join(", "));
-    setError(null);
     setAskBody("");
     setPreviewMode(
       canSuggestSkip({
@@ -95,7 +98,6 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
     edit.mappable,
     edit.timeline_start,
     edit.timeline_end,
-    setError,
   ]);
 
   const runAction = async (action: "approve" | "reject") => {
