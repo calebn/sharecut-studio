@@ -119,10 +119,14 @@ documented HTMLAudio fallback when proxy generation is unavailable. Those tests
 also await host-page `networkidle` after shell hydration before creating a share,
 which lets lazy host `/api/audio` stem requests settle; open WebSockets do not
 block that Playwright quiescence gate.
-Presence and overlay two-page browser scenarios use the shared
-`withTwoBrowserPages` helper: it closes every context created during setup,
-including partial setup failures, and preserves the original setup or scenario
-failure if cleanup also fails. Recording specs remain manual.
+Presence, overlay, and recording multi-page browser scenarios use the shared
+`withBrowserPages` lifecycle helper (with `withTwoBrowserPages` retained as a
+two-page convenience wrapper). It closes every context created during setup,
+including partial context/page failures, and preserves the original setup or
+scenario failure if cleanup also fails. Shared guest/host navigation helpers
+observe proxy-manifest and navigation promises together, so a failed
+navigation cannot leave an unhandled manifest wait behind; guest setup still
+requires HTTP 200 and host setup still waits for `networkidle`.
 
 ## Adding features
 

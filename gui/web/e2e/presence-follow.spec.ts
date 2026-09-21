@@ -8,48 +8,16 @@ import {
 import { expectPageAxeClean } from "./axe";
 import { waitForFollowBanner } from "./followBanner";
 import { withShareableProject } from "./shareableProject";
+import {
+  openGuestShare,
+  openHostShare,
+  PROXY_MANIFEST_TIMEOUT_MS,
+} from "./shareNavigation";
 import { withTwoBrowserPages } from "./twoBrowserPages";
 
 const DESKTOP = { width: 1440, height: 900 };
 const TABLET = { width: 820, height: 1180 };
 const PHONE = { width: 390, height: 844 };
-const PROXY_MANIFEST_TIMEOUT_MS = 15_000;
-
-/**
- * Wait for lazy proxy setup before the disposable share workspace can be removed.
- * A successful empty manifest is the documented HTMLAudio fallback when proxies
- * cannot be ensured, so the route still resolves with HTTP 200 in that case.
- */
-async function openGuestShare(page: Page, token: string): Promise<void> {
-  const manifestPath = `/api/review/${token}/daw/proxy/manifest`;
-  const manifestResponse = page.waitForResponse(
-    (response) => {
-      const url = new URL(response.url());
-      return (
-        response.request().method() === "GET" && url.pathname === manifestPath
-      );
-    },
-    { timeout: PROXY_MANIFEST_TIMEOUT_MS },
-  );
-  await page.goto(`/r/${token}`);
-  await expect(page.locator(".daw-shell-guest")).toBeVisible({
-    timeout: PROXY_MANIFEST_TIMEOUT_MS,
-  });
-  expect((await manifestResponse).status()).toBe(200);
-}
-
-/** Let host lazy audio/stem requests settle before a share workspace is reused. */
-async function openHostShare(page: Page, projectPath: string): Promise<void> {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await expect(page.locator(".daw-shell")).toBeVisible({
-    timeout: PROXY_MANIFEST_TIMEOUT_MS,
-  });
-  // WebSockets remain open but do not prevent Playwright network idle.
-  await page.waitForLoadState("networkidle", {
-    timeout: PROXY_MANIFEST_TIMEOUT_MS,
-  });
-}
-
 async function transportTimecode(page: Page): Promise<string> {
   // Phone Listen renders a full pair in its body; other shells use header
   // transport's compact timecode. Compare the shared playhead portion.
