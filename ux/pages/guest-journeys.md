@@ -132,6 +132,9 @@ flowchart TD
   roomTone --> consent[Accept recording notice]
   consent --> wait[Wait for host Start]
   wait --> rec[REC: local dry WAV + mix-minus]
+  rec --> lost[Mic disconnected: local capture paused]
+  lost --> reconnect[Reconnect microphone]
+  reconnect --> rec
   rec --> stop[Host Stop]
   stop --> upload[Upload panel until ACK]
   upload --> staged[File uploaded; local OPFS WAV kept]
@@ -158,11 +161,17 @@ flowchart TD
    device," and **Hearing the room.** Press **M** for a Marker or type a note
    (other guests in the record room never see it; after land it is an ordinary
    timeline comment on the host).
-7. Host Stop. The upload panel stays until chunk ACK. The local WAV stays in
+7. If the microphone ends involuntarily, the local keeper closes its current
+   segment and a persistent warning offers **Reconnect microphone**. The room
+   clock can still show REC, but the local recording copy is paused. Reconnect
+   opens a new segment at the current room clock; if a selected device was
+   unplugged, recovery can use the default available input. In the lobby,
+   microphone loss disables Accept until recovery.
+8. Host Stop. The upload panel stays until chunk ACK. The local WAV stays in
    OPFS (`Sharecut Recordings/`) until the host confirms **Landed. Safe to delete
    the local backup.** If landing fails, the guest sees **Uploaded but not landed
    on the host** and keeps the backup while the host uses **Retry land**.
-8. If the host laptop drops during REC: reconnect the same link (lease reuse);
+9. If the host laptop drops during REC: reconnect the same link (lease reuse);
    the keeper keeps growing ("Host offline — still recording locally.") and
    upload retries. If the host is gone for **10 s or more**, the take is forced
    **PAUSED** when they return (host must Resume; guests see the usual PAUSED

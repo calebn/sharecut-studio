@@ -373,10 +373,15 @@ An involuntary microphone loss is distinct from an intentional track stop: the
 browser `ended` event freezes the current keeper segment and clears the live
 stream. The host and guest show a persistent "Microphone disconnected. Local
 recording is paused." warning with a Reconnect microphone action. Retry is
-explicit (there is no unbounded auto-retry); a successful reacquisition opens
-the next segment at the current recording-clock offset. A normal unmount or
-application stop removes the listener before stopping tracks and does not show
-the warning.
+explicit (there is no unbounded auto-retry); repeated clicks during acquisition
+are ignored. If a selected device has been removed, reconnect tries the
+default available input once after that exact device fails. A successful
+reacquisition opens the next segment at the current recording-clock offset,
+extrapolated from the last room snapshot when the stream changes. Keeper gate
+transitions are applied in order so a quick reconnect cannot skip the
+loss/segment close. The host record dialog reopens if necessary and stays open
+while the microphone is lost. A normal unmount or application stop removes the
+listener before stopping tracks and does not show the warning.
 
 ```mermaid
 sequenceDiagram

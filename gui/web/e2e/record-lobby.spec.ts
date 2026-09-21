@@ -461,6 +461,97 @@ test.describe("record lobby", () => {
     });
   });
 
+  test("host sees mic loss after closing the active record room", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    await withShareableProject(async (projectPath) => {
+      await withBrowserPages(browser, [{}, {}], async ([host, guest]) => {
+        await markSharecutE2e(host);
+        await host.addInitScript(() => {
+          const original = navigator.mediaDevices.getUserMedia.bind(
+            navigator.mediaDevices,
+          );
+          navigator.mediaDevices.getUserMedia = async (constraints) => {
+            const stream = await original(constraints);
+            (
+              window as unknown as { __testHostMicTrack?: MediaStreamTrack }
+            ).__testHostMicTrack = stream.getAudioTracks()[0];
+            return stream;
+          };
+        });
+        await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
+        await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
+        const created = await host.request.post("/api/shares/record", {
+          data: { path: projectPath },
+        });
+        expect(created.ok(), await created.text()).toBeTruthy();
+        const room = (await created.json()) as {
+          room: { guest: { token: string } };
+        };
+        await host.getByRole("button", { name: "Menu" }).click();
+        await host.getByRole("menuitem", { name: "Record room…" }).click();
+        const roomDlg = host.getByRole("dialog", { name: "Record room" });
+        await expect(roomDlg).toBeVisible();
+
+        await markSharecutE2e(guest);
+        await guest.goto(`/rec/${room.room.guest.token}?e2e=1`);
+        await guest.getByLabel("Display name").fill("Ava");
+        await guest.getByLabel("I am wearing headphones").check();
+        await guest.getByRole("button", { name: "Allow microphone" }).click();
+        await expect(guest.getByLabel("Level")).toBeVisible();
+        await guest.getByRole("button", { name: "Skip" }).click();
+        await guest.getByRole("button", { name: "Accept" }).click();
+        await expect(
+          roomDlg.getByRole("button", { name: "Start", exact: true }),
+        ).toBeEnabled();
+        await clickHostTransport(
+          host,
+          roomDlg.getByRole("button", { name: "Start", exact: true }),
+          projectPath,
+          "Start",
+          "recording",
+        );
+        await expect(
+          roomDlg.getByText("Recording locally on this device."),
+        ).toBeVisible();
+        await roomDlg
+          .getByRole("button", { name: "Close", exact: true })
+          .click();
+        await expect(roomDlg).toBeHidden();
+
+        await host.evaluate(() => {
+          const track = (
+            window as unknown as { __testHostMicTrack?: MediaStreamTrack }
+          ).__testHostMicTrack;
+          if (!track) {
+            throw new Error("host microphone track was not captured");
+          }
+          track.stop();
+          track.dispatchEvent(new Event("ended"));
+        });
+        await expect(roomDlg).toBeVisible();
+        await expect(
+          roomDlg.getByText(
+            "Microphone disconnected. Local recording is paused.",
+          ),
+        ).toBeVisible();
+        await expect(
+          roomDlg.getByRole("button", { name: "Close", exact: true }),
+        ).toBeDisabled();
+        await roomDlg
+          .getByRole("button", { name: "Reconnect microphone" })
+          .click();
+        await expect(
+          roomDlg.getByText(
+            "Microphone disconnected. Local recording is paused.",
+          ),
+        ).toBeHidden();
+      });
+    });
+  });
+
   test("guest Retry recovers from a denied microphone", async ({
     browser,
   }: {
