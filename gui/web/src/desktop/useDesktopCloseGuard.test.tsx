@@ -20,12 +20,12 @@ vi.mock("@tauri-apps/api/window", () => ({ getCurrentWindow }));
 
 function Guard({
   recordingLocally,
-  role,
+  recordingRole,
 }: {
   recordingLocally: boolean;
-  role: "host" | "guest";
+  recordingRole: "host" | "guest";
 }) {
-  useDesktopCloseGuard(recordingLocally, role);
+  useDesktopCloseGuard(recordingLocally, recordingRole);
   return null;
 }
 
@@ -46,12 +46,14 @@ describe("useDesktopCloseGuard", () => {
   });
 
   it("does not install a native listener while inactive or in the browser", () => {
-    const { unmount } = render(<Guard recordingLocally={false} role="host" />);
+    const { unmount } = render(
+      <Guard recordingLocally={false} recordingRole="host" />,
+    );
     expect(onCloseRequested).not.toHaveBeenCalled();
     unmount();
 
     isTauri.mockReturnValue(false);
-    render(<Guard recordingLocally role="guest" />);
+    render(<Guard recordingLocally recordingRole="guest" />);
     expect(onCloseRequested).not.toHaveBeenCalled();
   });
 
@@ -59,7 +61,7 @@ describe("useDesktopCloseGuard", () => {
     const unlisten = vi.fn();
     onCloseRequested.mockResolvedValue(unlisten);
     vi.spyOn(window, "confirm").mockReturnValue(true);
-    render(<Guard recordingLocally role="guest" />);
+    render(<Guard recordingLocally recordingRole="guest" />);
 
     expect(onCloseRequested).toHaveBeenCalledOnce();
     const handler = onCloseRequested.mock.calls[0][0] as (event: {
@@ -78,7 +80,7 @@ describe("useDesktopCloseGuard", () => {
   it("keeps the window open when confirmation is declined", () => {
     onCloseRequested.mockResolvedValue(vi.fn());
     vi.spyOn(window, "confirm").mockReturnValue(false);
-    render(<Guard recordingLocally role="host" />);
+    render(<Guard recordingLocally recordingRole="host" />);
 
     const handler = onCloseRequested.mock.calls[0][0] as (event: {
       preventDefault: () => void;
@@ -93,8 +95,10 @@ describe("useDesktopCloseGuard", () => {
   it("removes the close listener when local capture stops", async () => {
     const unlisten = vi.fn();
     onCloseRequested.mockResolvedValue(unlisten);
-    const { rerender } = render(<Guard recordingLocally role="host" />);
-    rerender(<Guard recordingLocally={false} role="host" />);
+    const { rerender } = render(
+      <Guard recordingLocally recordingRole="host" />,
+    );
+    rerender(<Guard recordingLocally={false} recordingRole="host" />);
     await vi.waitFor(() => expect(unlisten).toHaveBeenCalledOnce());
   });
 });
