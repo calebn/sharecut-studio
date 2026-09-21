@@ -11,11 +11,13 @@ import { PendingEditInspector } from "./PendingEditInspector";
 const createComment = vi.fn();
 const refreshProject = vi.fn();
 const approveEdits = vi.fn();
+const waiveTranscriptRefine = vi.fn();
 
 vi.mock("../../api", () => ({
   createComment: (...args: unknown[]) => createComment(...args),
   refreshProject: (...args: unknown[]) => refreshProject(...args),
   approveEdits: (...args: unknown[]) => approveEdits(...args),
+  waiveTranscriptRefine: (...args: unknown[]) => waiveTranscriptRefine(...args),
   rejectEdits: vi.fn(),
   updatePendingEdit: vi.fn(),
 }));
@@ -45,6 +47,8 @@ describe("PendingEditInspector", () => {
     createComment.mockReset();
     refreshProject.mockReset();
     approveEdits.mockReset();
+    waiveTranscriptRefine.mockReset();
+    waiveTranscriptRefine.mockResolvedValue(undefined);
     refreshProject.mockResolvedValue(
       minimalProject({ pending_edits: [sessionCut] }),
     );
@@ -185,5 +189,28 @@ describe("PendingEditInspector", () => {
     );
 
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("offers a host waiver and clears the gate error without approving", async () => {
+    const user = userEvent.setup();
+    approveEdits.mockRejectedValue(
+      new Error("Transcript refine is required before focus/tighten/NL edits."),
+    );
+    render(<PendingEditInspector edit={sessionCut} />);
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+    await user.type(
+      screen.getByLabelText("Waiver reason"),
+      "Reviewed manually",
+    );
+    await user.click(screen.getByRole("button", { name: "Waive with reason" }));
+    expect(waiveTranscriptRefine).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      "Reviewed manually",
+    );
+    expect(approveEdits).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByRole("button", { name: "Waive with reason" }),
+    ).toBeNull();
+    expect(screen.getByRole("status")).toHaveTextContent(/Retry approval/);
   });
 });

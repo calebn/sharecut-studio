@@ -387,6 +387,20 @@ export async function approveEdits(
   await submitDocumentCommand(projectPath, "ApproveEdits", { ids });
 }
 
+export async function waiveTranscriptRefine(
+  projectPath: string,
+  reason: string,
+): Promise<void> {
+  const res = await hostFetch("/api/transcript/refine/waive", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path: projectPath, reason }),
+  });
+  if (!res.ok) {
+    throw new Error(await readApiError(res));
+  }
+}
+
 export async function rejectEdits(
   projectPath: string,
   ids: string[],
