@@ -1,5 +1,6 @@
 import { Button } from "../ui";
 import { LiveComments } from "./LiveComments";
+import { MicLossNotice } from "./MicLossNotice";
 import { RecIndicator } from "./RecIndicator";
 import { Roster } from "./Roster";
 import {
@@ -31,6 +32,8 @@ type Props = {
   hearing?: boolean;
   monitorError?: string | null;
   upload?: RecordUploadProgress;
+  micLost?: boolean;
+  onRetryMic?: () => void;
 };
 
 export function Room({
@@ -48,6 +51,8 @@ export function Room({
   hearing = false,
   monitorError = null,
   upload,
+  micLost = false,
+  onRetryMic,
 }: Props) {
   const hostOffline =
     !connected &&
@@ -61,6 +66,7 @@ export function Room({
           <p className="record-warn">{HOST_OFFLINE_COPY}</p>
         ) : null}
         {recordingLocally ? <p>{LOCAL_KEEPER_COPY}</p> : null}
+        {micLost ? <MicLossNotice onRetry={onRetryMic} /> : null}
         {hearing && !hostOffline ? <p>{HEARING_COPY}</p> : null}
         {keeperError ? <p className="record-warn">{keeperError}</p> : null}
         {monitorError ? <p className="record-warn">{monitorError}</p> : null}

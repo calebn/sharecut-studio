@@ -10,6 +10,7 @@ import { sendRecordHostCommand } from "./hostWire";
 import { type ByteSink, createOpfsSink } from "./keeper/store";
 import { LiveComments } from "./LiveComments";
 import { HOST_COMMENT_QUEUE_TOKEN } from "./liveCommentQueue";
+import { MicLossNotice } from "./MicLossNotice";
 import { RecIndicator } from "./RecIndicator";
 import { RoomToneCapture } from "./RoomToneCapture";
 import { Roster } from "./Roster";
@@ -35,6 +36,8 @@ type Props = {
   hearing?: boolean;
   monitorError?: string | null;
   stream?: MediaStream | null;
+  micLost?: boolean;
+  onRetryMic?: () => void;
 };
 
 export function RecordPanel({
@@ -43,6 +46,8 @@ export function RecordPanel({
   hearing = false,
   monitorError = null,
   stream = null,
+  micLost = false,
+  onRetryMic,
 }: Props) {
   const {
     recordPanelOpen,
@@ -191,6 +196,7 @@ export function RecordPanel({
             <p className="record-warn">{reconnectCopy}</p>
           ) : null}
           {recordingLocally ? <p>{LOCAL_KEEPER_COPY}</p> : null}
+          {micLost ? <MicLossNotice onRetry={onRetryMic} /> : null}
           {hearing ? <p>{HEARING_COPY}</p> : null}
           <UploadStatus progress={upload} stopped={state === "stopped"} />
           {snapshot ? (

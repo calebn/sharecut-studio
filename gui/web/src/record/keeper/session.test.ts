@@ -31,6 +31,7 @@ describe("KeeperSession", () => {
       takeIndex: -1,
       recordingMs: 0,
       muted: false,
+      streamAvailable: true,
     });
     session.push(tone(220, 0.05), KEEPER_SAMPLE_RATE);
     await session.dispose();
@@ -48,6 +49,7 @@ describe("KeeperSession", () => {
       takeIndex: 0,
       recordingMs: 0,
       muted: false,
+      streamAvailable: true,
     });
     session.push(tone(220, 0.1), KEEPER_SAMPLE_RATE);
     await session.flush();
@@ -80,6 +82,7 @@ describe("KeeperSession", () => {
       takeIndex: 0,
       recordingMs: 0,
       muted: false,
+      streamAvailable: true,
     };
     await session.apply(live);
     session.push(tone(440, 0.05), KEEPER_SAMPLE_RATE);
@@ -112,6 +115,7 @@ describe("KeeperSession", () => {
       consented: true as const,
       takeIndex: 0,
       muted: false,
+      streamAvailable: true,
     };
     await session.apply({ ...base, roomState: "recording", recordingMs: 0 });
     session.push(tone(220, 0.02), KEEPER_SAMPLE_RATE);
@@ -130,6 +134,37 @@ describe("KeeperSession", () => {
     expect(session.files[1]?.joinOffsetMs).toBe(20);
   });
 
+  it("finalizes on mic loss and resumes at the next segment", async () => {
+    const sink = new MemorySink();
+    const session = new KeeperSession(sink);
+    const base = {
+      ...ids,
+      role: "guest" as const,
+      consented: true as const,
+      roomState: "recording" as const,
+      takeIndex: 0,
+      recordingMs: 0,
+      muted: false,
+    };
+    await session.apply({ ...base, streamAvailable: true });
+    session.push(tone(220, 0.02), KEEPER_SAMPLE_RATE);
+    await session.apply({
+      ...base,
+      streamAvailable: false,
+      recordingMs: 20,
+    });
+    expect(session.isWriting).toBe(false);
+    await session.apply({
+      ...base,
+      streamAvailable: true,
+      recordingMs: 40,
+    });
+    session.push(tone(880, 0.02), KEEPER_SAMPLE_RATE);
+    await session.dispose();
+    expect(session.files.map((file) => file.segmentIndex)).toEqual([0, 1]);
+    expect(session.files[1]?.joinOffsetMs).toBe(40);
+  });
+
   it("never writes for a producer", async () => {
     const sink = new MemorySink();
     const session = new KeeperSession(sink);
@@ -142,6 +177,7 @@ describe("KeeperSession", () => {
       takeIndex: 0,
       recordingMs: 0,
       muted: false,
+      streamAvailable: true,
     });
     session.push(tone(220, 0.05), KEEPER_SAMPLE_RATE);
     await session.dispose();
@@ -159,6 +195,7 @@ describe("KeeperSession", () => {
       takeIndex: 0,
       recordingMs: 0,
       muted: false,
+      streamAvailable: true,
     };
     const first = session.apply(live);
     const second = session.apply({ ...live, muted: true });
@@ -179,6 +216,7 @@ describe("KeeperSession", () => {
       takeIndex: 0,
       recordingMs: 0,
       muted: false,
+      streamAvailable: true,
     });
     first.push(tone(220, 0.02), KEEPER_SAMPLE_RATE);
     await first.dispose();
@@ -192,6 +230,7 @@ describe("KeeperSession", () => {
       takeIndex: 0,
       recordingMs: 20,
       muted: false,
+      streamAvailable: true,
     });
     second.push(tone(880, 0.02), KEEPER_SAMPLE_RATE);
     await second.dispose();

@@ -2,6 +2,7 @@ export type MicPermissionStatus =
   | "idle"
   | "prompting"
   | "granted"
+  | "lost"
   | "denied"
   | "unavailable"
   | "error";
@@ -16,6 +17,7 @@ export const MIC_ERROR_COPY = "Couldn't open the microphone. Retry.";
 export const MIC_GRANT_HINT_COPY =
   "Allow the microphone before you accept recording.";
 export const MIC_PROMPTING_COPY = "Waiting for the browser microphone prompt…";
+export const MIC_LOST_COPY = "Microphone disconnected.";
 
 /** Map a getUserMedia DOMException name to a grant state. */
 export function statusFromGumError(
@@ -31,7 +33,12 @@ export function statusFromGumError(
 }
 
 export function micGrantFailed(status: MicPermissionStatus): boolean {
-  return status === "denied" || status === "unavailable" || status === "error";
+  return (
+    status === "denied" ||
+    status === "unavailable" ||
+    status === "error" ||
+    status === "lost"
+  );
 }
 
 export function copyForMicStatus(status: MicPermissionStatus): string | null {
@@ -43,6 +50,9 @@ export function copyForMicStatus(status: MicPermissionStatus): string | null {
   }
   if (status === "error") {
     return MIC_ERROR_COPY;
+  }
+  if (status === "lost") {
+    return MIC_LOST_COPY;
   }
   if (status === "idle") {
     return MIC_GRANT_HINT_COPY;

@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { Room } from "./Room";
 import type { RecordParticipant, RecordSnapshot } from "./types";
@@ -72,6 +73,24 @@ describe("Room", () => {
       />,
     );
     expect(screen.getByRole("button", { name: "Leave" })).toBeDisabled();
+  });
+
+  it("offers microphone reconnect while local capture is lost", async () => {
+    const retry = vi.fn();
+    render(
+      <Room
+        snapshot={snapshot}
+        me={me}
+        onMute={() => undefined}
+        onLeave={() => undefined}
+        micLost
+        onRetryMic={retry}
+      />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Reconnect microphone" }),
+    );
+    expect(retry).toHaveBeenCalledOnce();
   });
 
   it("re-enables Leave after file ACK or upload error", () => {

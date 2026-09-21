@@ -252,6 +252,8 @@ export function RecordApp({ token }: { token: string }) {
               hearing={monitor.hearing}
               monitorError={monitor.error}
               upload={upload}
+              micLost={mic.lost}
+              onRetryMic={mic.retry}
             />
           ) : (
             <Lobby

@@ -198,6 +198,21 @@ describe("RecordPanel", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("offers microphone reconnect while host capture is lost", async () => {
+    const retry = vi.fn();
+    useRecordHostStore.getState().setSnapshot({
+      ...lobby,
+      state: "recording",
+      take_index: 0,
+      start_blockers: [],
+    });
+    render(<RecordPanel micLost onRetryMic={retry} />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Reconnect microphone" }),
+    );
+    expect(retry).toHaveBeenCalledOnce();
+  });
+
   it("shows every recorded participant's upload ACK after Stop", async () => {
     uploadStatus.mockResolvedValue({
       segments: [

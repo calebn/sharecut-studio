@@ -183,6 +183,8 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
         hearing={hostMonitor.hearing}
         monitorError={hostMonitor.error}
         stream={hostKeeper.stream}
+        micLost={hostKeeper.micLost}
+        onRetryMic={hostKeeper.retryMic}
       />
       <HostMcpDialog
         open={hostMcpDialogOpen}
