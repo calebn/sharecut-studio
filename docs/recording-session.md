@@ -668,12 +668,13 @@ share remains (revoke then remint). Stop-first is the 409 gate, not the only
 wipe. Host keepers remount on an open `host_reconnect` pause generation, not on
 a WS `connected` blip.
 
-The desktop host's keeper AudioWorklet also supplies the host liveness beat
-while it is actively writing a recording segment. This avoids relying on a
-background-throttled `window.setInterval` during a minimized take. The beat is
-sent at most once every 5 seconds from worklet activity; pausing, stopping, or
-losing the capture graph stops those beats, so the 10-second disconnect pause
-rule remains authoritative.
+The host keeper's AudioWorklet callback also supplies a host liveness beat
+while it is actively writing a recording segment. When PCM continues to reach
+the keeper in a hidden or minimized window, this avoids relying only on a
+background-throttled `window.setInterval`. The activity beat is sent at most
+once every 5 seconds; pausing, stopping, or losing the capture graph stops
+those beats. The existing timer maintains host presence when no segment is
+being written, and the 10-second disconnect pause rule remains in place.
 
 ## Ownership and retention
 
