@@ -123,8 +123,12 @@ export function TransportBar({ compact = false, showFit = true }: Props) {
     highlightStaleRender &&
     Boolean(breakdown?.premixMissing || breakdown?.premixStaleVsStems);
   const guestMixOnly = guestHearsMixOnly(guestMode);
-  const auditionGroup = (
-    <div className="audition-modes" role="group" aria-label="Audition mode">
+  const auditionGroup = (menu = false) => (
+    <div
+      className="audition-modes"
+      role={menu ? "none" : "group"}
+      aria-label={menu ? undefined : "Audition mode"}
+    >
       {MODES.map((m) => (
         <ToggleButton
           key={m.id}
@@ -141,6 +145,7 @@ export function TransportBar({ compact = false, showFit = true }: Props) {
             guestMixOnly && m.id !== "mix" ? "Guests listen in Mix" : undefined
           }
           {...presenceAnchorProps(presenceAnchor("audition", m.id))}
+          role={menu ? "menuitemradio" : undefined}
           onClick={() =>
             void execute(
               "transport.audition",
@@ -237,7 +242,7 @@ export function TransportBar({ compact = false, showFit = true }: Props) {
       >
         {timecodeLabel}
       </span>
-      {!collapsed ? auditionGroup : null}
+      {!collapsed ? auditionGroup() : null}
       {ingestBusy ? (
         <span className="pill warning" title="Importing audio…">
           {collapsed ? "…" : "Importing…"}
@@ -424,7 +429,7 @@ export function TransportBar({ compact = false, showFit = true }: Props) {
             </MenuSection>
           ) : null}
           {collapsed ? (
-            <MenuSection label="Audition">{auditionGroup}</MenuSection>
+            <MenuSection label="Audition">{auditionGroup(true)}</MenuSection>
           ) : null}
           {!showFit ? (
             <CommandMenuItem commandId="view.fit" onSelect={closeMenu}>
@@ -463,7 +468,7 @@ export function TransportBar({ compact = false, showFit = true }: Props) {
             </MenuSection>
           ) : null}
           <MenuSection label="Layers">
-            <OverlayLegend />
+            <OverlayLegend menu />
           </MenuSection>
           <MenuSection label="View">
             <div className="transport-controls" role="none">

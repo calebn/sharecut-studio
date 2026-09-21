@@ -165,7 +165,7 @@ document commands.
 
 | Region | Content |
 |--------|---------|
-| Transport | Play/Pause, audition mode (Mix / FX / Raw), playhead, duration, render-health, layer toggles, zoom; secondary controls in overflow on narrow / decluttered desktop |
+| Transport | Play/Pause, audition mode (Mix / FX / Raw), playhead, duration, render-health, layer toggles, zoom; secondary controls in overflow on narrow / decluttered desktop. The overflow uses menuitem, menuitemradio, and menuitemcheckbox semantics for keyboard and assistive-technology navigation. |
 | Track headers | Label, role, gain strip, viewer **M**ute/**S**olo, FX badge, stem freshness. On arrange, headers live inside `.timeline-scroll` as a sticky identity column (`flex-wrap: nowrap` — not Every Layout Sidebar wrap) so they share vertical scroll with lanes and stay fixed while panning time. Pane width via `@container timeline` switches gutter (`4rem`, mixer chrome hidden) vs mid/full rail; phone Timeline uses the same `headerSlot` path with CapCut fixed-center playhead. |
 | Timeline | Full-session auto-fit on load; clips; volume envelopes; pending/applied edit overlays; chapter + social markers; playhead; pinch / Ctrl-wheel zoom claimed on the timeline only (non-passive listeners so browser page-zoom does not fight); phone shell uses fixed-center playhead scrub |
 | Inspector | Selection details (clip, pending with Current/Suggested/A/B + Ask thread, track FX, chapter, social); unmapped pending list when idle; phone/tablet peek via bottom sheet. Pending approval errors remain visible while the selected edit is refreshed; changing selection clears the prior edit's error. |
