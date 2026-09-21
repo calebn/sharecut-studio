@@ -146,6 +146,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
   if (!project) {
     return (
       <div className="mobile-listen" aria-busy="true">
+        <h1 className="sr-only">Loading episode</h1>
         <div className="mobile-listen-transport">
           <CommandButton
             bare
@@ -185,6 +186,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
 
   return (
     <div className="mobile-listen">
+      <h1 className="sr-only">{project.meta.name}</h1>
       <div className="mobile-listen-transport">
         <CommandButton
           bare
@@ -407,7 +409,6 @@ export function MobileShell({ guestShare = false }: { guestShare?: boolean }) {
           <TransportBar compact showFit />
         </div>
       ) : null}
-      <h1 className="sr-only">Sharecut Studio</h1>
       <main className="mobile-mode-body">
         {mobileMode === "listen" && <ListenMode guestShare={guestShare} />}
         {mobileMode === "timeline" && (

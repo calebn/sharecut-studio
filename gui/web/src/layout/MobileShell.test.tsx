@@ -52,6 +52,41 @@ describe("MobileShell", () => {
     await expectNoA11yViolations(nav);
   });
 
+  it("provides exactly one project heading in every phone mode", async () => {
+    const user = userEvent.setup();
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <MobileShell />
+      </DawProvider>,
+    );
+
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(screen.getByRole("heading", { name: "Test Episode" })).toHaveClass(
+      "sr-only",
+    );
+
+    for (const mode of ["Timeline", "Text", "More"]) {
+      await user.click(screen.getByRole("button", { name: mode }));
+      const headings = screen.getAllByRole("heading", { level: 1 });
+      expect(headings).toHaveLength(1);
+      expect(headings[0]).toHaveTextContent("Test Episode");
+      expect(headings[0]).not.toHaveClass("sr-only");
+    }
+  });
+
+  it("gives Listen loading state a single screen-reader heading", () => {
+    useDawStore.getState().hydrate("/tmp/p.json", null);
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={null}>
+        <MobileShell />
+      </DawProvider>,
+    );
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(
+      screen.getByRole("heading", { name: "Loading episode" }),
+    ).toHaveClass("sr-only");
+  });
+
   it("opens Gestures from More in an app-level modal and restores focus", async () => {
     const user = userEvent.setup();
     const { container } = render(

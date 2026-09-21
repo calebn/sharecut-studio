@@ -39,16 +39,16 @@ Phone four-mode chrome is **≤767 CSS px**. DevTools device-mode / CDP viewport
 | **Text** | Transcript panel (follow, edit, cut-away) | Word fix, suggest cut |
 | **More** | Hub → Comments, History, Impact, Tighten, Mix, Pipeline, settings | Long-lived panels |
 
-While `project === null` (progressive load), Listen keeps the compact transport with disabled play and a “Loading episode…” well; Timeline shows skeleton lanes in the same header/gutter grid. That chrome is not the ingest empty-session coach.
+While `project === null` (progressive load), Listen keeps its single body transport with disabled play and a “Loading episode…” well; the shell header row is absent. Timeline shows skeleton lanes below its compact header transport and gutter grid. That chrome is not the ingest empty-session coach.
 
-Selection opens a non-modal **half → full** [`BottomSheet`](../gui/web/src/ui/BottomSheet.tsx) wrapping the same inspector views as desktop (`aria-modal="false"`, Escape + focus restore, no chrome `inert` / Tab trap). Sheets are transient: visible Close, no stacking (drill to a More destination instead).
+Selection opens a non-modal **half → full** [`BottomSheet`](../gui/web/src/ui/BottomSheet.tsx) wrapping the same inspector views as desktop (`aria-modal="false"`, Escape + focus restore, no chrome `inert` / Tab trap). Modifier sheets (pending, clip, track, chapter — any `.modifier-inspector`) pin the mutation error and audition footer; long Ask threads scroll in the body; long mutation errors scroll inside a capped error slot. The taller half peek (`:has(.modifier-inspector)`) applies to every modifier, not only pending. Sheets are transient: visible Close, no stacking (drill to a More destination instead). Deferred: mutation error across shell remount, Firefox layout CI, overlapping Approve — [ROADMAP.md § Follow-up](../ROADMAP.md#follow-up).
 
 ### Selection sheet: three zones
 
 Every selection sheet follows the same three-zone layout for consistency:
 
 1. **Primary actions** — the inspector content itself (2-3 most common actions, large targets)
-2. **Related commands** ("You might also want…") — supported next actions for this selection, currently Copy for clips and transcript selections.
+2. **Related commands** ("You might also want…") — supported next actions for this selection, currently Copy for clips and single selected transcript words. Transcript ranges stay in Text and use the transcript toolbar/shortcuts.
 3. **More** — a distinct overflow below Related. It currently truthfully reports when no additional safe action exists; unavailable, duplicate, and inspector-owned mutations are omitted. A functional context-filtered command list remains open in issue #32. Both zones live in `RelatedCommands` (`gui/web/src/inspector/RelatedCommands.tsx`), with typed mappings in `relatedCommandDescriptors.ts`.
 
 Example: Clip selected → Related shows Copy; More reports no additional action because fade/delete are clip-inspector controls and seeking is already in its footer.
@@ -57,8 +57,8 @@ Example: Clip selected → Related shows Copy; More reports no additional action
 
 | Desktop region | Phone home |
 |----------------|------------|
-| Transport play/time/audition | Compact transport; audition/zoom in Menu |
-| Comment / Fit | Stay as primary **icons** when collapsed; Fit hidden on Listen (in Menu) |
+| Transport play/time/audition | Listen body transport; compact header transport on Timeline, Text, and More; audition/zoom in Menu |
+| Comment / Fit | Header primary **icons** outside Listen; Fit is available on Timeline and in the non-Listen Menu |
 | Track headers M/S/FX | Lane gutter tap (whole row + ›) → track sheet (**M**/**S** toggles + gain readout; drag Levels for envelopes). Header mixer chrome hidden when the timeline pane is narrow |
 | Timeline overlays | Timeline mode + layer chips |
 | Inspector | Selection sheet |
@@ -167,9 +167,10 @@ Keyboard: `1` default, `2` timeline, `3` text, `4` review (when timeline focused
 1. One job per phone screen (no timeline + full transcript + inspector).
 2. ≥44×44pt targets; fade/envelope hit areas ≥2× visual width.
 3. Sheets: Close + dismiss; never stack.
-4. Snap only to on-screen anchors.
-5. Listen-first: every edit surface keeps Play around / seek footer.
-6. Progressive complexity via `shareMode` capabilities.
+4. Dialog overlays cap to `90dvh` with a single `.command-palette-body` scroller. Menus cap to `min(90dvh, var(--menu-available-height))`, where `--menu-available-height` is remaining space under the trigger (above phone `.mobile-nav` when present), and scroll internally so every item stays reachable on short viewports.
+5. Snap only to on-screen anchors.
+6. Listen-first: every edit surface keeps Play around / seek footer.
+7. Progressive complexity via `shareMode` capabilities.
 
 ## Transport chrome (narrow)
 
@@ -179,7 +180,7 @@ When the transport is **collapsed** (tablet/phone, or bar width ≤720px via Res
 |------|----------|
 | Primary (always visible) | Play/Stop, compact playhead timecode, **Comment** icon, **Fit** (except Listen), Menu icon |
 | Menu → People | Live roster (follow / unfollow) when the bar is collapsed. Rows are `var(--touch-min)` (`2.75rem`) via `@container transport`. |
-| Menu → Project (host) | New / Open, **Connect agent…**, Bounce…, **Share…** (online extension), Export deliverables. Home also has **Connect agent…** |
+| Menu → Project (host) | New / Open, **Connect agent…**, Bounce…, **Share…** (collaboration extension), Export deliverables. Home also has **Connect agent…** |
 | Menu (secondary) | Audition Mix/FX/Raw, layers, zoom, theme, focus, **Refresh mix** when render is stale, Fit if omitted from bar |
 
 ### Editing tool rail (phone / tablet Timeline)
@@ -206,7 +207,7 @@ Do **not** bring phone bottom-nav or CapCut fixed playhead to desktop.
 ## Testing
 
 - Vitest: `useViewportClass`, `BottomSheet`, mobile shell smoke, follow live region + Listen unfollow, focus mode CSS classes
-- Playwright: phone viewport (`390×844`) asserts `.daw-shell--phone` + mode nav; `e2e/presence-follow.spec.ts` two-client follow at 390 / 820 / 1440; desktop smoke unchanged
+- Playwright: phone viewport (`390×844`) asserts `.daw-shell--phone` + mode nav; `e2e/overlay-viewport.spec.ts` Menu + Share dialog reachability at `1280×715` and `390×844`; `e2e/presence-follow.spec.ts` two-client follow at 390 / 820 / 1440; desktop smoke unchanged
 - Manual / guest parity: [`gui/web/e2e/PARITY.md`](../gui/web/e2e/PARITY.md)
 
 See [`gui/web/README.md`](../gui/web/README.md) and [gui-integration.md](gui-integration.md) § Responsive shells.
