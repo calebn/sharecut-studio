@@ -8,7 +8,9 @@ import { e2eProjectPath } from "./env";
 import { createRelocatedE2eProject } from "./liveProject";
 import { switchE2eProject, withShareableProject } from "./shareableProject";
 
-function createMinimalProjectFactory(): {
+function createMinimalProjectFactory(
+  writeFile: (filePath: string, content: string) => void = fs.writeFileSync,
+): {
   createProject: (
     prefix: string,
   ) => ReturnType<typeof createRelocatedE2eProject>;
@@ -17,10 +19,15 @@ function createMinimalProjectFactory(): {
   const fixtureRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), "sharecut-e2e-share-fixture-"),
   );
-  fs.writeFileSync(
-    path.join(fixtureRoot, "episode.project.json"),
-    JSON.stringify({ meta: { workspace_dir: "." } }),
-  );
+  try {
+    writeFile(
+      path.join(fixtureRoot, "episode.project.json"),
+      JSON.stringify({ meta: { workspace_dir: "." } }),
+    );
+  } catch (error) {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+    throw error;
+  }
   return {
     createProject: (prefix) =>
       createRelocatedE2eProject(prefix, undefined, fixtureRoot),
@@ -29,6 +36,19 @@ function createMinimalProjectFactory(): {
 }
 
 describe("withShareableProject", () => {
+  it("cleans up its fixture root when the initial project write fails", () => {
+    let fixtureRoot = "";
+
+    expect(() =>
+      createMinimalProjectFactory((projectPath) => {
+        fixtureRoot = path.dirname(projectPath);
+        throw new Error("initial write failed");
+      }),
+    ).toThrow("initial write failed");
+
+    expect(fs.existsSync(fixtureRoot)).toBe(false);
+  });
+
   it("opens a fresh socket even when fetch has an idle pooled socket", async () => {
     const sockets: object[] = [];
     const server = createServer((request, response) => {
