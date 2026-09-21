@@ -1,0 +1,111 @@
+/**
+ * Primitive tier — raw, theme-invariant color values.
+ *
+ * Tier model (see docs/design-tokens.md):
+ *   primitives.css  → raw values, never var() — THIS FILE
+ *   theme-dark.css / theme-light.css → semantic roles (--color-*) mapped per
+ *     theme onto primitives
+ *   component styles → consume semantic roles via var(--color-*), never hex
+ *
+ * Rules:
+ * - No var() references in this file. A primitive is a literal.
+ * - Steps are ordinal within a family (dark → light), not colorimetric ramps.
+ *   Gaps in the numbering are intentional — new values slot between steps.
+ * - A few hexes twin values in deploy/brand/brand-tokens.css (marked below).
+ *   brand-tokens.css must stay self-contained: its copies ship to splash and
+ *   relay static contexts that never load this file, so Studio primitives may
+ *   restate a brand hex rather than reference it. The primitive is the
+ *   Studio-side name; do not "fix" the duplication by cross-referencing.
+ */
+
+:root {
+  /* -- Neutral (warm grays) ------------------------------------------- */
+  --primitive-neutral-950: #080706;
+  --primitive-neutral-900: #0f0e0c;
+  --primitive-neutral-850: #191816; /* twin: --color-bg-canvas (dark) */
+  --primitive-neutral-800: #1a1916; /* twin: --color-bg-canvas (light) */
+  --primitive-neutral-750: #22211e; /* twin: --color-bg-surface (dark) */
+  --primitive-neutral-700: #2a2925; /* twin: --color-bg-elevated (dark) */
+  --primitive-neutral-600: #3a2e24;
+  --primitive-neutral-550: #4a4842; /* twin: --color-border (dark) */
+  --primitive-neutral-500: #5a574e; /* twin: --color-text-secondary (light) */
+  --primitive-neutral-450: #6f6b62; /* twin: --color-border-strong (light) */
+  --primitive-neutral-400: #7a7870; /* twin: --color-border-strong (dark) */
+  --primitive-neutral-300: #a8a39a; /* twin: --color-text-secondary (dark) */
+  --primitive-neutral-250: #c5c0b6;
+  --primitive-neutral-200: #cfcabe; /* twin: --color-border (light) */
+  --primitive-neutral-150: #d6d0c4;
+  --primitive-neutral-100: #e2ddd2;
+  --primitive-neutral-75: #f3e8d8;
+  --primitive-neutral-50: #f4f1ea; /* twin: --color-text-primary (dark) */
+  --primitive-neutral-40: #f7f4ee; /* twin: --color-bg-canvas (light) */
+  --primitive-neutral-25: #fcfbf8; /* twin: --color-bg-surface (light) */
+  --primitive-neutral-15: #fffdf9; /* twin: --color-bg-elevated (light) */
+
+  /* -- Orange (brand accent family) ------------------------------------ */
+  --primitive-orange-300: #e8a45a; /* twin: --color-accent (dark) */
+  --primitive-orange-400: #e88c5a;
+  --primitive-orange-500: #c46a30;
+  --primitive-orange-600: #b45c28; /* twin: --color-accent-solid (dark) */
+  --primitive-orange-650: #a85a24; /* twin: --color-accent (light) */
+  --primitive-orange-700: #8a4a20;
+  --primitive-orange-800: #8a3208;
+
+  /* -- Amber (warning / marker family) --------------------------------- */
+  --primitive-amber-250: #ffb74d;
+  --primitive-amber-300: #e8d44d;
+  --primitive-amber-400: #e8a838;
+  --primitive-amber-500: #c4a020;
+  --primitive-amber-600: #c4841a;
+  --primitive-amber-700: #b89a10;
+
+  /* -- Red (danger family) --------------------------------------------- */
+  --primitive-red-400: #e85d5d;
+  --primitive-red-600: #c43c3c;
+  --primitive-red-700: #c2185b;
+
+  /* -- Green (success family) ------------------------------------------ */
+  --primitive-green-300: #aed581;
+  --primitive-green-400: #7ad49a;
+  --primitive-green-450: #5a9a70;
+  --primitive-green-500: #5cb85c;
+  --primitive-green-550: #3d9e5c;
+  --primitive-green-600: #2e8f5a;
+  --primitive-green-650: #4a7a5c;
+  --primitive-green-700: #2f5d18;
+
+  /* -- Blue (clip / info family) --------------------------------------- */
+  --primitive-blue-300: #7ab4ff;
+  --primitive-blue-350: #9fa8da;
+  --primitive-blue-400: #64b5f6;
+  --primitive-blue-450: #5a8fb0;
+  --primitive-blue-500: #3d7acc;
+  --primitive-blue-550: #6a6aa0;
+  --primitive-blue-600: #1565c0;
+  --primitive-blue-650: #3d6b8a;
+  --primitive-blue-700: #3949ab;
+  --primitive-blue-750: #4a4a7a;
+
+  /* -- Purple (presence / sfx family) ---------------------------------- */
+  --primitive-purple-300: #f48fb1;
+  --primitive-purple-400: #b39ddb;
+  --primitive-purple-500: #f06292;
+  --primitive-purple-550: #8a6aa0;
+  --primitive-purple-600: #5b3cc4;
+  --primitive-purple-650: #6a4a7a;
+  --primitive-purple-700: #9b2d6e;
+
+  /* -- Teal (envelope family) ------------------------------------------ */
+  --primitive-teal-300: #4dd0c4;
+  --primitive-teal-400: #7ad4c8;
+  --primitive-teal-600: #2a9a8e;
+  --primitive-teal-700: #0b7a72;
+
+  /* -- Brown (clip dialogue-2) ----------------------------------------- */
+  --primitive-brown-500: #a07a60;
+  --primitive-brown-700: #7a5c4a;
+
+  /* -- Achromatic ------------------------------------------------------- */
+  --primitive-black: #000000;
+  --primitive-white: #ffffff;
+}

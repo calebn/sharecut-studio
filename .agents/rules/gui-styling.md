@@ -9,8 +9,11 @@ Lint: Stylelint in `gui/web` (`meowtec/no-px`, `declaration-strict-value`, viewp
 | Token | Where |
 | ----- | ----- |
 | Shared type / space / brand color | `deploy/brand/brand-tokens.css` (synced to Studio theme + public dirs) |
+| Primitive color values (raw literals, no `var()`) | `gui/web/src/styles/theme/primitives.css` |
 | Studio density (`--space-*`, `--font-size-*`, `--radius-xs/sm/xl`, `--focus-ring-*`, `--z-*`) | `gui/web/src/styles/theme/tokens.css` |
-| Light / dark functional colors | `theme-dark.css` / `theme-light.css` |
+| Light / dark functional colors (semantic roles mapped onto primitives) | `theme-dark.css` / `theme-light.css` |
+
+Tier discipline: primitives are raw values; theme files reference primitives, never raw hex (`tests/test_css_policy.py` enforces both). `brand-tokens.css` is exempt — its copies ship to splash/relay static contexts that never load `primitives.css`, so it stays self-contained; Studio primitives may restate a brand hex (marked `twin:`) rather than cross-reference it. Full naming system: [docs/design-tokens.md](../../docs/design-tokens.md).
 
 Partials, TSX `style={{…}}`, and marketing copies consume `var(--…)`. If a **themed** value is missing, **add a token** — do not hardcode padding, margin, gap, font-size, radius, or color. Snap to the nearest existing step rather than minting a 1–4px rung. Promote a reused a11y recipe (`--focus-ring-width` / `--focus-ring-offset`) so density tweaks cannot shrink focus rings.
 

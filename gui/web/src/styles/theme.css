@@ -1,4 +1,5 @@
 @import "./theme/brand-tokens.css";
+@import "./theme/primitives.css";
 @import "./theme/tokens.css";
 @import "./theme/theme-dark.css";
 @import "./theme/theme-light.css";
