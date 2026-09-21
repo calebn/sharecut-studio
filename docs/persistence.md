@@ -26,7 +26,7 @@ flowchart TB
 
 | Store | Technology | Role | Agent rule |
 |-------|------------|------|------------|
-| Episode project + history | JSON + history snapshots | Editorial source of truth | Use `ProjectWorkspace.mutate` / services |
+| Episode project + history | JSON + history snapshots | Editorial source of truth; snapshots publish before the atomically replaced `history/index.json` | Use `ProjectWorkspace.mutate` / services |
 | Align accept gate | JSON sidecar (`artifacts/align_accept_status.json`) | Listen/nudge gate after `align_tracks` | Via `AlignAcceptService` / `edits.align_accept_status`; do not hand-edit |
 | Conversation align artifact | JSON (`artifacts/alignment/conversation_align.json`) | Last applied/planned clip offsets | Written by `run_conversation_align` after a successful apply |
 | Transcript refine gate | JSON sidecar (`artifacts/transcript_refine_status.json`) | Agent gate after precorrect | Via `TranscriptRefineService` / `edits.transcript_refine_status` |
@@ -75,3 +75,8 @@ registries** beyond episode JSON. Session sync remains the reference for
 append-only / command-log sqlite. Share registry is the reference for
 **UNIQUE(public_id) + cooldown** registries. Prefer those patterns over
 scattering new files.
+
+History snapshots follow the same durable-publication rule: write the unique
+snapshot first, then atomically replace `history/index.json`. Readers therefore
+see a complete prior or complete current generation while an index update is in
+flight.

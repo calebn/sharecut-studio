@@ -9,6 +9,7 @@ from podcast_mcp.models.episode import EpisodeProject
 from podcast_mcp.models.history import HistoryEntry, ProjectHistory, ProjectStateSnapshot
 from podcast_mcp.models.project_format import apply_editable_snapshot, snapshot_editable_state
 from podcast_mcp.project_store import ProjectStore
+from podcast_mcp.util.atomic_json import write_json_atomic
 
 EDITABLE_FIELDS: tuple[str, ...] = tuple(ProjectStateSnapshot.model_fields.keys())
 
@@ -54,10 +55,7 @@ class HistoryManager:
         history = self._load_index(project)
         index_path = project.workspace_path() / "history" / "index.json"
         index_path.parent.mkdir(parents=True, exist_ok=True)
-        index_path.write_text(
-            history.model_dump_json(indent=2),
-            encoding="utf-8",
-        )
+        write_json_atomic(index_path, history.model_dump(mode="json"))
 
     def _write_snapshot(
         self,

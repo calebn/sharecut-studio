@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from podcast_mcp.models import EpisodeProject, load_project, project_file_path, save_project
+from podcast_mcp.util.atomic_json import write_json_atomic
 
 
 class ProjectStore:
@@ -35,10 +36,7 @@ class ProjectStore:
         if project.history is not None:
             if index_path.parent.exists() or project.history.entries:
                 index_path.parent.mkdir(parents=True, exist_ok=True)
-                index_path.write_text(
-                    project.history.model_dump_json(indent=2),
-                    encoding="utf-8",
-                )
+                write_json_atomic(index_path, project.history.model_dump(mode="json"))
             return
         if index_path.is_file():
             data = json.loads(index_path.read_text(encoding="utf-8"))

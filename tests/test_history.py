@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import threading
+from pathlib import Path
 
 import pytest
 
@@ -13,6 +15,83 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
+from podcast_mcp.models.history import ProjectHistory
+from podcast_mcp.project_store import ProjectStore
+from podcast_mcp.util import atomic_json
+
+
+@pytest.mark.parametrize("writer", ["history_manager", "project_store"])
+def test_history_index_is_published_atomically(minimal_project, monkeypatch, writer):
+    project = load_project(minimal_project)
+    manager = HistoryManager(minimal_project)
+    first = manager.record(project, "initial", force=True)
+    save_project(project, minimal_project)
+
+    index_path = project.workspace_path() / "history" / "index.json"
+    previous = json.loads(index_path.read_text(encoding="utf-8"))
+    replace_started = threading.Event()
+    release_replace = threading.Event()
+    original_replace = atomic_json.os.replace
+
+    def block_index_replace(source: str | Path, destination: str | Path) -> None:
+        if Path(destination) == index_path:
+            replace_started.set()
+            assert release_replace.wait(timeout=5), "index replacement did not release"
+        original_replace(source, destination)
+
+    monkeypatch.setattr(atomic_json.os, "replace", block_index_replace)
+
+    if writer == "history_manager":
+
+        def publish() -> None:
+            manager.record(project, "next", force=True)
+
+    else:
+        history = ProjectHistory(
+            entries=[
+                *project.history.entries,
+                HistoryEntry(
+                    id="next",
+                    label="next",
+                    snapshot_file=first.snapshot_file,
+                ),
+            ],
+            cursor=1,
+        )
+        project.history = history
+        store = ProjectStore(minimal_project)
+
+        def publish() -> None:
+            store._sync_history_index_to_project(project)
+
+    errors: list[BaseException] = []
+
+    def run_publish() -> None:
+        try:
+            publish()
+        except BaseException as exc:
+            errors.append(exc)
+
+    thread = threading.Thread(target=run_publish)
+    thread.start()
+    try:
+        assert replace_started.wait(timeout=5), "index publication did not reach os.replace"
+
+        pending = json.loads(index_path.read_text(encoding="utf-8"))
+        assert pending == previous
+    finally:
+        release_replace.set()
+        thread.join(timeout=5)
+
+    assert not thread.is_alive()
+    assert not errors
+
+    published = json.loads(index_path.read_text(encoding="utf-8"))
+    assert len(published["entries"]) == 2
+    if writer == "project_store":
+        assert published["entries"][-1]["id"] == "next"
+    else:
+        assert published["entries"][-1]["label"] == "next"
 
 
 def test_undo_redo_edit_decisions(minimal_project):

@@ -27,6 +27,11 @@ Undo/redo restores the snapshot and **`ProjectStore.commit()`** writes `episode.
 
 Pipeline run logs stay on the project file and are not reverted by undo (only editable layers).
 
+History publication is ordered: a new snapshot is written completely before
+`history/index.json` is updated. The index is published with an atomic replace,
+so concurrent readers observe either the previous complete index or the new
+complete index, never a truncated JSON file.
+
 See [episode-format-v2.md](episode-format-v2.md) for the canonical project layout.
 
 ## CLI
