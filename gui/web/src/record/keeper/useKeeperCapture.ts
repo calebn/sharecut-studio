@@ -20,6 +20,7 @@ type Args = {
   consented: boolean | null;
   stream: MediaStream | null;
   resetKey?: number;
+  onActivity?: () => void;
 };
 
 type CapturedGate = {
@@ -41,6 +42,7 @@ export function useKeeperCapture({
   consented,
   stream,
   resetKey = 0,
+  onActivity,
 }: Args): {
   error: string | null;
   recordingLocally: boolean;
@@ -226,9 +228,17 @@ export function useKeeperCapture({
     let cancelled = false;
     const start = async () => {
       try {
-        const detach = await attachKeeperTap(stream, (pcm, rate) => {
-          sessionRef.current?.push(pcm, rate);
-        });
+        const detach = await attachKeeperTap(
+          stream,
+          (pcm, rate) => {
+            sessionRef.current?.push(pcm, rate);
+          },
+          () => {
+            if (sessionRef.current?.isWriting) {
+              onActivity?.();
+            }
+          },
+        );
         if (cancelled) {
           detach();
           return;
@@ -253,7 +263,7 @@ export function useKeeperCapture({
       detachRef.current?.();
       detachRef.current = undefined;
     };
-  }, [stream, epoch, tapAttempt]);
+  }, [stream, epoch, tapAttempt, onActivity]);
 
   useEffect(() => {
     const session = sessionRef.current;

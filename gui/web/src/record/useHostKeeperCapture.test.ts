@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import { useRecordHostStore } from "./hostStore";
+import { bindRecordHostSend } from "./hostWire";
 import type { RecordSnapshot } from "./types";
 import { useHostKeeperCapture } from "./useHostKeeperCapture";
 
@@ -18,10 +19,16 @@ const mic = vi.hoisted(() =>
 );
 
 const keeper = vi.hoisted(() =>
-  vi.fn((args: { resetKey?: number; enabled: boolean }) => ({
-    error: null,
-    recordingLocally: args.enabled,
-  })),
+  vi.fn(
+    (args: {
+      resetKey?: number;
+      enabled: boolean;
+      onActivity?: () => void;
+    }) => ({
+      error: null,
+      recordingLocally: args.enabled,
+    }),
+  ),
 );
 
 vi.mock("./useMicStream", () => ({
@@ -59,6 +66,19 @@ describe("useHostKeeperCapture", () => {
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     useRecordHostStore.getState().setSnapshot(recording);
     useRecordHostStore.getState().setConnected(false);
+    bindRecordHostSend(null);
+  });
+
+  it("uses keeper activity for host liveness without a background timer", () => {
+    const sent: Record<string, unknown>[] = [];
+    bindRecordHostSend((frame) => sent.push(frame));
+    renderHook(() => useHostKeeperCapture());
+    const onActivity = keeper.mock.calls.at(-1)?.[0].onActivity;
+    expect(onActivity).toBeTypeOf("function");
+    onActivity?.();
+    onActivity?.();
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.command_type).toBe("Heartbeat");
   });
 
   it("keeps the same keeper resetKey across a sub-10s WS blip", () => {

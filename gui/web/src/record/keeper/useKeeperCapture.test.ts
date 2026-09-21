@@ -11,8 +11,22 @@ import {
 } from "./store";
 import { useKeeperCapture } from "./useKeeperCapture";
 
+const graphActivity = vi.hoisted(() => vi.fn());
+const graphAttach = vi.hoisted(() =>
+  vi.fn(
+    async (
+      _stream: MediaStream,
+      _onPcm: (pcm: Float32Array, sampleRate: number) => void,
+      onActivity?: () => void,
+    ) => {
+      graphActivity.mockImplementation(() => onActivity?.());
+      return () => undefined;
+    },
+  ),
+);
+
 vi.mock("./graph", () => ({
-  attachKeeperTap: vi.fn(async () => () => undefined),
+  attachKeeperTap: graphAttach,
 }));
 
 vi.mock("./store", async (importOriginal) => {
@@ -41,6 +55,26 @@ const args = {
 };
 
 describe("useKeeperCapture", () => {
+  it("reports activity only after the keeper is actively writing", async () => {
+    const onActivity = vi.fn();
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    const { result } = renderHook(() =>
+      useKeeperCapture({
+        ...args,
+        enabled: true,
+        stream,
+        onActivity,
+      }),
+    );
+    graphActivity();
+    expect(onActivity).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(result.current.recordingLocally).toBe(true);
+    });
+    graphActivity();
+    expect(onActivity).toHaveBeenCalledOnce();
+  });
+
   it("does not start a session until enabled", () => {
     const stream = { getTracks: () => [] } as unknown as MediaStream;
     const { result } = renderHook(() =>
