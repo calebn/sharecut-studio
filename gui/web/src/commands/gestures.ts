@@ -27,7 +27,7 @@ export const MOBILE_GESTURES: readonly GestureDef[] = [
     gesture: "Two-finger tap",
     commandIds: ["history.undo"],
     description: "Undo the last action. iOS system convention.",
-    status: "planned",
+    status: "available",
   },
   {
     gesture: "Long-press",

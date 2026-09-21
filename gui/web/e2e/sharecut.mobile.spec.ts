@@ -87,7 +87,7 @@ test.describe("Sharecut Studio mobile smoke", () => {
     );
     await expect(
       gestures.getByText("Two-finger tap").locator("xpath=.."),
-    ).toContainText("Soon");
+    ).not.toContainText("Soon");
     await expect(
       gestures.getByText("Long-press").locator("xpath=.."),
     ).toContainText("Soon");
@@ -103,5 +103,49 @@ test.describe("Sharecut Studio mobile smoke", () => {
     await keyboard.getByRole("button", { name: "Gestures" }).click();
     await expect(page.getByRole("dialog", { name: "Gestures" })).toBeVisible();
     await expect(keyboard).toHaveCount(0);
+  });
+
+  test("a sequential two-finger tap sends UndoHistory through the command bus", async ({
+    page,
+    context,
+  }) => {
+    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    const shell = page.locator(".daw-shell--phone");
+    await expect(shell).toBeVisible();
+    const box = await shell.boundingBox();
+    expect(box).toBeTruthy();
+
+    const cdp = await context.newCDPSession(page);
+    await cdp.send("Emulation.setTouchEmulationEnabled", {
+      enabled: true,
+      maxTouchPoints: 2,
+    });
+    const first = { x: box!.x + 80, y: box!.y + 80, id: 1 };
+    const second = { x: box!.x + 140, y: box!.y + 80, id: 2 };
+    const undoRequest = page.waitForRequest((request) => {
+      if (new URL(request.url()).pathname !== "/api/document/command")
+        return false;
+      return request.postDataJSON()?.type === "UndoHistory";
+    });
+
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [first],
+    });
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [first, second],
+    });
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchEnd",
+      touchPoints: [second],
+    });
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchEnd",
+      touchPoints: [],
+    });
+
+    const request = await undoRequest;
+    expect(request.postDataJSON()).toMatchObject({ type: "UndoHistory" });
   });
 });
