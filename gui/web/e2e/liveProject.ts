@@ -10,6 +10,9 @@ import { committedE2eProjectPath, repoRoot } from "./env";
 const SQLITE = new Set(["sync.db", "sync.db-wal", "sync.db-shm"]);
 const SKIP_DIRS = new Set(["history", "_build", ".git"]);
 
+/** Vitest timeout for tests that copy the committed large fixture. */
+export const E2E_FIXTURE_COPY_TEST_TIMEOUT_MS = 20_000;
+
 export const e2eWorkspaceStampPath = path.join(
   repoRoot,
   "gui/web/test-results/e2e-workspace.txt",
