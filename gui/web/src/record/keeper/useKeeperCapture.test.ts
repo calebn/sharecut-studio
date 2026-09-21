@@ -67,6 +67,32 @@ describe("useKeeperCapture", () => {
     expect(result.current.error).toBeNull();
   });
 
+  it("guards navigation only while the local keeper is writing", async () => {
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    const { rerender, result } = renderHook(
+      ({ enabled, snapshot }: { enabled: boolean; snapshot: RecordSnapshot }) =>
+        useKeeperCapture({ ...args, enabled, snapshot, stream }),
+      { initialProps: { enabled: true, snapshot: snap } },
+    );
+
+    await waitFor(() => {
+      expect(result.current.recordingLocally).toBe(true);
+    });
+    const event = new Event("beforeunload", { cancelable: true });
+    expect(window.dispatchEvent(event)).toBe(false);
+
+    rerender({
+      enabled: true,
+      snapshot: { ...snap, state: "paused" },
+    });
+    await waitFor(() => {
+      expect(result.current.recordingLocally).toBe(false);
+    });
+    expect(window.dispatchEvent(new Event("beforeunload"))).toBe(true);
+
+    rerender({ enabled: false, snapshot: snap });
+  });
+
   it("does not claim a local copy when OPFS is unavailable", async () => {
     const { createOpfsSink } = await import("./store");
     vi.mocked(createOpfsSink).mockRejectedValueOnce(

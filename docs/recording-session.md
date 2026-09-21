@@ -130,6 +130,15 @@ still clear it.
 Capture, ingest, host lobby, mix-minus graph: FOSS core. Public `/rec/` guest
 routes: collaboration extension + relay allowlist, exactly like `/r/`.
 
+While a local keeper is actively writing, the browser registers a native
+`beforeunload` confirmation so an accidental refresh or navigation can be
+cancelled before the current WAV is abandoned. The listener is removed when
+capture pauses, stops, errors, or unmounts; lobby and completed-recording
+navigation is not blocked. Browsers only show this native prompt after the
+page has received sticky user activation, and they control its wording and
+whether it is displayed. This is a best-effort loss warning, not a replacement
+for the OPFS recovery path.
+
 | | Review | Record |
 |--|--------|------------------|
 | Prefix | `/r/{token}` | `/rec/{token}` |
