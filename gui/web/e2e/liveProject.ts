@@ -40,13 +40,13 @@ export function createRelocatedE2eProject(
   registerWorkspace: (
     workspaceDir: string,
   ) => boolean = registerE2eCleanupWorkspace,
+  sourceRoot = path.dirname(committedE2eProjectPath),
 ): RelocatedE2eProject {
-  const srcRoot = path.dirname(committedE2eProjectPath);
   const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   let deferred = false;
   try {
     deferred = registerWorkspace(workspaceDir);
-    fs.cpSync(srcRoot, workspaceDir, {
+    fs.cpSync(sourceRoot, workspaceDir, {
       recursive: true,
       filter: (item) =>
         !SQLITE.has(path.basename(item)) && !SKIP_DIRS.has(path.basename(item)),
