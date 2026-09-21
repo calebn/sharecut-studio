@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from podcast_mcp.models import TranscriptsSection
+from podcast_mcp.util.wer import normalize_token
 
 log = logging.getLogger(__name__)
 
@@ -87,7 +88,7 @@ def _first_phrase_before(
     for w in words:
         if w.confidence < 0.5 or w.start > before_sec:
             continue
-        if needle in re.sub(r"[^\w']+", "", w.text.lower()) and w.end > w.start:
+        if needle in normalize_token(w.text) and w.end > w.start:
             return (w.start, w.end)
     return find_phrase_interval(
         [w for w in words if before_sec is None or w.start <= before_sec],
@@ -105,9 +106,7 @@ def find_phrase_interval(
     needle = re.sub(r"\s+", " ", phrase.lower().strip())
     if not needle:
         return None
-    parts = [
-        re.sub(r"[^\w']+", "", w.text.lower()) for w in words if w.confidence >= min_confidence
-    ]
+    parts = [normalize_token(w.text) for w in words if w.confidence >= min_confidence]
     times: list[tuple[float, float]] = [
         (w.start, w.end) for w in words if w.confidence >= min_confidence
     ]
@@ -123,11 +122,7 @@ def find_phrase_interval(
             if end > start:
                 return (start, end)
     for w in words:
-        if (
-            w.confidence >= min_confidence
-            and needle in re.sub(r"[^\w']+", "", w.text.lower())
-            and w.end > w.start
-        ):
+        if w.confidence >= min_confidence and needle in normalize_token(w.text) and w.end > w.start:
             return (w.start, w.end)
     return None
 
