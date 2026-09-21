@@ -78,7 +78,22 @@ export async function expectVisibleInOverlay(
   target: Locator,
 ): Promise<void> {
   await expect(target).toBeVisible();
-  await expect.poll(async () => intersectsOverlay(overlay, target)).toBe(true);
+  // ShareDialog can add/remove room rows after the heading first renders. A
+  // one-time scroll can therefore become stale while the dialog body reflows.
+  // Re-scroll on every geometry poll, while retaining the explicit body-clip
+  // assertion that `toBeVisible` does not provide.
+  await expect
+    .poll(async () => {
+      try {
+        await target.evaluate((el) => {
+          el.scrollIntoView({ block: "nearest" });
+        });
+      } catch {
+        return false;
+      }
+      return intersectsOverlay(overlay, target);
+    })
+    .toBe(true);
 }
 
 async function expectActionableWhenApplicable(target: Locator): Promise<void> {
