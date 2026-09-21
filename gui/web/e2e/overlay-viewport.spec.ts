@@ -70,15 +70,16 @@ test.describe("dialog consumers reachability", () => {
         await page.setViewportSize(viewport);
         await openHostProject(page);
         await openDialogFromMenu(page, dialogCase.menuItem);
-        // The shortcuts cheatsheet has no trailing action button; its lowest
-        // content is the final section (usually "Commands without keys").
+        // The shortcuts cheatsheet has no trailing dialog action; target its
+        // final command row rather than the final section heading.
         const targetFor =
           dialogCase.name === "Keyboard shortcuts"
             ? (dialog: Locator) =>
                 dialog
-                  .getByRole("heading", { name: dialogCase.targetName })
-                  .or(dialog.locator(".command-palette-section").last())
-                  .first()
+                  .locator(".command-palette-section")
+                  .last()
+                  .locator(".command-palette-run")
+                  .last()
             : (dialog: Locator) =>
                 dialog.getByRole("button", {
                   name: dialogCase.targetName,
