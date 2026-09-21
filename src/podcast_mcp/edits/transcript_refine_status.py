@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
+
+from filelock import FileLock
 
 from podcast_mcp.edits.pipeline_unattended import is_unattended
 from podcast_mcp.models import EpisodeProject
@@ -43,6 +46,16 @@ def precorrect_fingerprint(project: EpisodeProject) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
+def transcript_text_fingerprint(project: EpisodeProject) -> str:
+    """Fingerprint word text and structure without audibility flags."""
+    tracks = [
+        (tr.track_id, [w.text for w in tr.words or []])
+        for tr in sorted(project.transcripts, key=lambda t: t.track_id)
+    ]
+    raw = json.dumps(tracks, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+
 def refine_mode_from_defaults(defaults: dict[str, Any] | None) -> RefineMode:
     cfg = (defaults or {}).get("analysis", {}).get("transcript_refine") or {}
     mode = str(cfg.get("mode", "waive_unattended")).strip().lower()
@@ -59,13 +72,19 @@ def _write_status(project: EpisodeProject, payload: dict[str, Any]) -> Path:
     return write_json_atomic(status_path(project), payload)
 
 
-def write_status(
+def _status_lock(project: EpisodeProject) -> FileLock:
+    path = status_path(project)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return FileLock(f"{path}.lock")
+
+
+def _write_status_unlocked(
     project: EpisodeProject,
     *,
     status: RefineStatusValue,
     source: RefineSource,
-    notes: str | None = None,
-    fingerprint: str | None = None,
+    notes: str | None,
+    fingerprint: str | None,
 ) -> dict[str, Any]:
     fp = fingerprint if fingerprint is not None else precorrect_fingerprint(project)
     payload: dict[str, Any] = {
@@ -77,6 +96,24 @@ def write_status(
     }
     _write_status(project, payload)
     return payload
+
+
+def write_status(
+    project: EpisodeProject,
+    *,
+    status: RefineStatusValue,
+    source: RefineSource,
+    notes: str | None = None,
+    fingerprint: str | None = None,
+) -> dict[str, Any]:
+    with _status_lock(project):
+        return _write_status_unlocked(
+            project,
+            status=status,
+            source=source,
+            notes=notes,
+            fingerprint=fingerprint,
+        )
 
 
 def mark_refine_pending(
@@ -169,7 +206,12 @@ def refine_status_report(
     }
 
 
-def refresh_unattended_waiver(project: EpisodeProject) -> bool:
+def refresh_unattended_waiver(
+    project: EpisodeProject,
+    *,
+    gate_status: dict[str, Any],
+    gate_text_fingerprint: str,
+) -> bool:
     """Refresh a stale waiver created by an unattended pipeline run.
 
     The full pipeline performs a second reconciliation after the refine gate,
@@ -178,23 +220,25 @@ def refresh_unattended_waiver(project: EpisodeProject) -> bool:
     explicit pending, done, and user/agent waivers must remain stale so they
     still require an intentional refine decision.
     """
-    data = load_status(project)
-    fingerprint = precorrect_fingerprint(project)
-    if not data:
-        return False
-    if data.get("status") != "waived" or data.get("source") != "unattended":
-        return False
-    if data.get("precorrect_fingerprint") == fingerprint:
-        return False
-
-    write_status(
-        project,
-        status="waived",
-        source="unattended",
-        notes=str(data.get("notes") or "unattended pipeline"),
-        fingerprint=fingerprint,
-    )
-    return True
+    with _status_lock(project):
+        data = load_status(project)
+        if data != gate_status:
+            return False
+        if data.get("status") != "waived" or data.get("source") != "unattended":
+            return False
+        if transcript_text_fingerprint(project) != gate_text_fingerprint:
+            return False
+        fingerprint = precorrect_fingerprint(project)
+        if data.get("precorrect_fingerprint") == fingerprint:
+            return False
+        _write_status_unlocked(
+            project,
+            status="waived",
+            source="unattended",
+            notes=str(data.get("notes") or "unattended pipeline"),
+            fingerprint=fingerprint,
+        )
+        return True
 
 
 def assert_refine_clear(

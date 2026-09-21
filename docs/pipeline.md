@@ -10,7 +10,7 @@ Default step order (see [transcript-workflow.md](transcript-workflow.md) for tra
 6. `render_dialogue_stems` — Pass-1 per-track stems for audibility
 7. `reconcile_transcript` — Pass 1: audibility/bleed suppress
 8. `precorrect_transcript` — Glossary and cross-track sync
-9. `require_transcript_refine` — Hard agent gate (`refine-done` / waive; auto-waive with `--unattended` / `PODCAST_BATCH=1` when mode is `waive_unattended`; a successful unattended run that executes the gate refreshes only its stale waiver)
+9. `require_transcript_refine` — Hard agent gate (`refine-done` / waive; auto-waive with `--unattended` / `PODCAST_BATCH=1` when mode is `waive_unattended`; after an active gate, a successful unattended run refreshes its waiver only for later suppression changes)
 10. `analyze_focus_cuts` — `artifacts/focus_outline.md`; off unless `focus.enabled`
 11. `focus_from_transcript` — No-op unless `focus.auto_apply`
 12. `analyze_fillers_pauses` — Mark filler words and long pauses (**no-op** unless `tighten.enabled`). Manual `propose_edits` uses `tighten.edit_mode` (`ripple` default, or `mute`).

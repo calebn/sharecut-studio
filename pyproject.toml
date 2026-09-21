@@ -18,6 +18,7 @@ dependencies = [
     "numpy>=1.26.0",
     "rich>=13.7.0",
     "coolname>=5.0.0",
+    "filelock>=3.16.0",
 ]
 
 [project.optional-dependencies]

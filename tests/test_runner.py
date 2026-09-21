@@ -142,11 +142,18 @@ def test_runner_refreshes_stale_unattended_waiver_after_success(minimal_project,
         project.transcripts[0].words[0].suppressed = True
         return "ok"
 
-    monkeypatch.setitem(runner_mod._STEP_MAP, "clean_audio", mutate_after_gate)
+    monkeypatch.setattr(
+        runner_mod,
+        "PIPELINE_STEPS",
+        [
+            (name, mutate_after_gate if name == "reconcile_transcript" else fn)
+            for name, fn in runner_mod.PIPELINE_STEPS
+        ],
+    )
     steps_after_gate = [
         name
         for name in runner_mod.STEP_NAMES
-        if name not in {"require_transcript_refine", "clean_audio"}
+        if name not in {"require_transcript_refine", "reconcile_transcript"}
     ]
 
     PipelineRunner(defaults={}).run(
@@ -158,6 +165,50 @@ def test_runner_refreshes_stale_unattended_waiver_after_success(minimal_project,
 
     assert load_status(proj)["source"] == "unattended"
     assert load_status(proj)["precorrect_fingerprint"] == precorrect_fingerprint(proj)
+
+
+@pytest.mark.refine_gate
+def test_runner_does_not_refresh_post_gate_text_change(minimal_project, monkeypatch):
+    from podcast_mcp.pipeline import runner as runner_mod
+
+    proj = _with_words(minimal_project)
+
+    def change_text(project, _defaults):
+        project.transcripts[0].words[0].text = "hola"
+        return "ok"
+
+    monkeypatch.setattr(
+        runner_mod,
+        "PIPELINE_STEPS",
+        [
+            (name, change_text if name == "reconcile_transcript" else fn)
+            for name, fn in runner_mod.PIPELINE_STEPS
+        ],
+    )
+    skip = [
+        name
+        for name in runner_mod.STEP_NAMES
+        if name not in {"require_transcript_refine", "reconcile_transcript"}
+    ]
+    PipelineRunner(defaults={}).run(
+        proj, from_step="require_transcript_refine", skip_steps=skip, unattended=True
+    )
+
+    assert load_status(proj)["precorrect_fingerprint"] != precorrect_fingerprint(proj)
+
+
+@pytest.mark.refine_gate
+def test_runner_does_not_refresh_when_gate_mode_off(minimal_project):
+    proj = _with_words(minimal_project)
+    mark_refine_waived(proj, reason="older run", source="unattended")
+    original = load_status(proj)
+    proj.transcripts[0].words[0].text = "hola"
+
+    PipelineRunner(defaults={"analysis": {"transcript_refine": {"mode": "off"}}}).run(
+        proj, only_step="require_transcript_refine", unattended=True
+    )
+
+    assert load_status(proj) == original
 
 
 def test_runner_does_not_refresh_stale_unattended_waiver_without_gate(minimal_project, monkeypatch):

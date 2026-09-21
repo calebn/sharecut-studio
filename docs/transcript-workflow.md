@@ -41,12 +41,14 @@ export_deliverables
 
 `precorrect_transcript` runs **once** (after pass 1 reconcile). Pass 2 reconcile updates suppression metadata only. Precorrect apply resets `artifacts/transcript_refine_status.json` to **pending**.
 
-After a successful unattended pipeline run that completes the refine gate, a
-waiver created by that gate may have an updated fingerprint when the final
-reconcile changes suppression metadata. Only that `source: unattended` waiver
-is refreshed automatically. Partial runs that skip the gate, pending, done,
-and explicit user/agent/CLI/MCP waivers remain stale and require a new
-intentional refine decision.
+After a successful unattended pipeline run that executes an active refine gate,
+the gate's current `source: unattended` waiver is refreshed if later steps
+change suppression metadata without changing transcript text or word structure.
+The status must still be the same gate decision at completion; a newer explicit
+refine decision wins. Partial runs that skip the gate, runs with refine mode
+`off`, pending, done, and explicit user/agent/CLI/MCP waivers remain stale and
+require a new intentional refine decision. A lock beside the status file
+coordinates status writers across local processes.
 
 Resume examples:
 
