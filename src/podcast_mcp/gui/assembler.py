@@ -108,6 +108,7 @@ def build_track_views(
                 duration_sec=track.media.duration_sec if track.media else None,
                 fx_count=len(fx_map.get(track.id, [])),
                 stem_is_fresh=stem.get("stem_is_fresh"),
+                has_source_audio=track.media is not None,
                 media_path=track.media.path if track.media else None,
             )
         )

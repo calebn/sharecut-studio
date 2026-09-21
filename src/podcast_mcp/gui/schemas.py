@@ -116,6 +116,7 @@ class TrackView(BaseModel):
     duration_sec: float | None = None
     fx_count: int = 0
     stem_is_fresh: bool | None = None
+    has_source_audio: bool = False
     media_path: str | None = None
 
 
