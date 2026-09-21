@@ -120,6 +120,35 @@ describe("staleRenderBreakdown", () => {
     expect(b.premixMissing).toBe(true);
   });
 
+  it("flags a guest project with redacted media paths and source duration", () => {
+    const b = staleRenderBreakdown(
+      minimalProject({
+        project_path: "",
+        tracks: [
+          {
+            id: "host",
+            label: "Host",
+            role: "dialogue",
+            speaker: null,
+            gain_db: 0,
+            muted: false,
+            duration_sec: 60,
+            fx_count: 0,
+            stem_is_fresh: true,
+            media_path: null,
+          },
+        ],
+        render_status: {
+          needs_rerender: true,
+          reconciliation: { stale: false },
+          premix: { exists: false },
+        },
+      }),
+    );
+    expect(b.stale).toBe(true);
+    expect(b.premixMissing).toBe(true);
+  });
+
   it("exposes regional and whole-track invalidations", () => {
     const b = staleRenderBreakdown(
       minimalProject({
