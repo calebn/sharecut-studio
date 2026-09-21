@@ -63,6 +63,46 @@ def test_transcribe_command_passes_model_to_transcript_service(tmp_path):
     service.return_value.transcribe.assert_called_once_with(None)
 
 
+def test_transcribe_command_reports_track_count(tmp_path):
+    ws = tmp_path / "ep"
+    runner.invoke(app, ["episode", "init", "--dir", str(ws)])
+    project = ws / "episode.project.json"
+
+    with patch("podcast_mcp.cli.episode.TranscriptService") as service:
+        service.return_value.transcribe.return_value = ["host", "guest"]
+        result = runner.invoke(app, ["transcribe", "--project", str(project)])
+
+    assert result.exit_code == 0
+    assert "Transcribed 2 track(s)." in result.stdout
+    assert "Warning" not in result.stderr
+
+
+def test_transcribe_command_warns_when_nothing_transcribed(tmp_path):
+    ws = tmp_path / "ep"
+    runner.invoke(app, ["episode", "init", "--dir", str(ws)])
+    project = ws / "episode.project.json"
+
+    with patch("podcast_mcp.cli.episode.TranscriptService") as service:
+        service.return_value.transcribe.return_value = []
+        result = runner.invoke(app, ["transcribe", "--project", str(project)])
+
+    assert result.exit_code == 0
+    assert "Transcribed 0 track(s)." in result.stdout
+    assert "no tracks were transcribed" in result.stderr
+
+
+def test_transcribe_command_empty_project_reports_zero(tmp_path):
+    ws = tmp_path / "ep"
+    runner.invoke(app, ["episode", "init", "--dir", str(ws)])
+    project = ws / "episode.project.json"
+
+    result = runner.invoke(app, ["transcribe", "--project", str(project)])
+
+    assert result.exit_code == 0
+    assert "Transcribed 0 track(s)." in result.stdout
+    assert "no tracks were transcribed" in result.stderr
+
+
 def test_propose_edits_command(tmp_path):
     from podcast_mcp.models import Transcript, TranscriptWord, load_project, save_project
 

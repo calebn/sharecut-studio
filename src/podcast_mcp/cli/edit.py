@@ -113,8 +113,10 @@ def edit_approve_cmd(
     ids: str = typer.Option(..., "--ids", help="Comma-separated edit ids"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    EditService(ws).approve([x.strip() for x in ids.split(",") if x.strip()])
-    typer.echo("Approved.")
+    n = EditService(ws).approve([x.strip() for x in ids.split(",") if x.strip()])
+    typer.echo(f"Approved {n} edit(s).")
+    if n == 0:
+        typer.echo("Warning: no edits were approved — check the edit ids.", err=True)
 
 
 @edit_app.command("reject")

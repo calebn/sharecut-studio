@@ -57,8 +57,10 @@ def transcribe_cmd(
     ),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    TranscriptService(ws, model=model).transcribe(track)
-    typer.echo("Transcription complete.")
+    track_ids = TranscriptService(ws, model=model).transcribe(track)
+    typer.echo(f"Transcribed {len(track_ids)} track(s).")
+    if not track_ids:
+        typer.echo("Warning: no tracks were transcribed.", err=True)
 
 
 def export_transcript_cmd(
