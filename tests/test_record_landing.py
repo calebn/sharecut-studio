@@ -942,6 +942,84 @@ def test_host_upload_join_offset_auto_lands(
     assert host_land.json()["clips"] == []
 
 
+def test_guest_upload_persists_land_failure_until_host_retry(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _isolate(tmp_workspace, monkeypatch)
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, _guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=1_000)
+    original_land = RecordLandingService.land
+
+    def fail_land(_self, **_kwargs):
+        raise RecordLandingError("landing temporarily unavailable")
+
+    monkeypatch.setattr(RecordLandingService, "land", fail_land)
+    client = TestClient(create_app())
+    token = room["guest"]["token"]
+    with client.websocket_connect(f"/api/rec/{token}/ws?name=Ava") as sock:
+        _join(sock, name="Ava")
+        echo = _drain_until(sock, lambda m: m.get("type") == "Echo")
+        pid, lease = echo["participant_id"], echo["lease"]
+        pcm, digest, file_hash = _pcm(480)
+        response = client.post(
+            f"/api/rec/{token}/upload",
+            params={
+                "take_index": 0,
+                "segment_index": 0,
+                "part_seq": 0,
+                "sha256": digest,
+                "file_sha256": file_hash,
+                "final": "true",
+            },
+            headers={"X-Record-Participant": pid, "X-Record-Lease": lease},
+            content=pcm,
+        )
+    assert response.status_code == 200, response.text
+    assert response.json()["landed"] is False
+    assert response.json()["land_failed"] is True
+    uploader = RecordUploadService(ws.project)
+    failed = uploader.status(session_id=room["session_id"])["segments"][0]
+    assert failed["file_ack"] is True
+    assert failed["landed"] is False
+    assert failed["land_failed"] is True
+
+    monkeypatch.setattr(RecordLandingService, "land", original_land)
+    retry = client.post("/api/record/land", params={"path": str(minimal_project)})
+    assert retry.status_code == 200, retry.text
+    recovered = uploader.status(session_id=room["session_id"])["segments"][0]
+    assert recovered["landed"] is True
+    assert recovered["land_failed"] is False
+
+
+def test_manual_land_failure_persists_for_retry(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _isolate(tmp_workspace, monkeypatch)
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    _ack(
+        RecordUploadService(ws.project),
+        session_id=room["session_id"],
+        take=0,
+        pid="p_host",
+        segment=0,
+        join_offset_ms=0,
+    )
+
+    def fail_locked(_self, **_kwargs):
+        raise RecordLandingError("landing temporarily unavailable")
+
+    monkeypatch.setattr(RecordLandingService, "_land_locked", fail_locked)
+    with pytest.raises(RecordLandingError, match="temporarily unavailable"):
+        RecordControlService(ws).land()
+    status = RecordUploadService(ws.project).status(session_id=room["session_id"])
+    assert status["segments"][0]["land_failed"] is True
+    assert RecordUploadService(ws.project).acked_wav(room["session_id"], 0, "p_host", 0).is_file()
+
+
 def test_overlap_window_caps_at_drift_window() -> None:
     assert overlap_window_s(0, 120.0, 0, 120.0) == (0.0, DRIFT_WINDOW_S)
     assert overlap_window_s(0, 5.0, 2_000, 5.0) == (2.0, 3.0)

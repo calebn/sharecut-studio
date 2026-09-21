@@ -131,7 +131,11 @@ export function uploadProgressCopy(acked: number, total: number): string {
 }
 
 export const UPLOAD_DONE_COPY =
-  "Uploaded. Safe to delete local backup while this take is still on the host.";
+  "Landed on the host. Safe to delete the local backup.";
+export const UPLOAD_WAITING_TO_LAND_COPY =
+  "Uploaded; waiting to land on the host. Keep the local backup.";
+export const UPLOAD_LAND_FAILED_COPY =
+  "Uploaded but not landed on the host. Keep the local backup; ask the host to retry landing.";
 export const UPLOAD_SINK_ERROR_COPY =
   "Local backup storage is unavailable. Stay on this page if you can retry.";
 export const UPLOAD_STATUS_ID = "record-upload-status";
@@ -150,9 +154,17 @@ export function hostUploadLine(
   name: string,
   fileAck: boolean,
   ackedParts: number,
+  landed = false,
+  landFailed = false,
 ): string {
+  if (landFailed) {
+    return `${name}: landing failed — host must retry.`;
+  }
+  if (landed) {
+    return `${name}: landed.`;
+  }
   if (fileAck) {
-    return `${name}: uploaded.`;
+    return `${name}: uploaded; waiting to land.`;
   }
   if (ackedParts <= 0) {
     return `${name}: waiting to upload.`;

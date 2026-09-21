@@ -79,4 +79,24 @@ describe("HostUploadRoster", () => {
       screen.queryByText(hostUploadLine("Ava", true, 3)),
     ).not.toBeInTheDocument();
   });
+
+  it("reports land failure separately from upload acknowledgement", async () => {
+    const { container } = render(
+      <HostUploadRoster
+        stopped
+        participants={[guest]}
+        segments={[
+          {
+            participant_id: "p_g",
+            acked_parts: [0, 1],
+            file_ack: true,
+            landed: false,
+            land_failed: true,
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText(/landing failed/)).toBeInTheDocument();
+    await expectNoA11yViolations(container);
+  });
 });

@@ -118,6 +118,7 @@ export function RecordPanel({
   });
   const capturingRoomTone = roomTone.status === "capturing";
   const hostSegments = useHostUploadSegments(uploadTransport, !!snapshot);
+  const landFailed = hostSegments.some((row) => row.land_failed);
 
   const runTransport = (commandType: string) => {
     setTransportBusy(true);
@@ -274,7 +275,7 @@ export function RecordPanel({
             Stop
           </Button>
           <CommandButton commandId="record.land" disabled={transportBusy}>
-            Land
+            {landFailed ? "Retry land" : "Land"}
           </CommandButton>
           <Button
             type="button"

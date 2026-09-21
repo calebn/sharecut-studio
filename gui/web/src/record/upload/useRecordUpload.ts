@@ -7,6 +7,8 @@ export type RecordUploadProgress = {
   acked: number;
   total: number;
   fileAck: boolean;
+  landed: boolean;
+  landFailed: boolean;
   uploading: boolean;
   pending: boolean;
   error: string | null;
@@ -29,6 +31,8 @@ const EMPTY: RecordUploadProgress = {
   acked: 0,
   total: 0,
   fileAck: false,
+  landed: false,
+  landFailed: false,
   uploading: false,
   pending: false,
   error: null,
@@ -77,6 +81,8 @@ export function useRecordUpload(args: {
         let acked = 0;
         let total = 0;
         let allAcked = true;
+        let allLanded = true;
+        let landFailed = false;
         let saw = false;
         for (let take = 0; take <= takeIndex; take += 1) {
           const next = await sink.nextSegmentIndex(
@@ -96,8 +102,11 @@ export function useRecordUpload(args: {
               const n = remoteSeg.acked_parts.length;
               acked += n;
               total += n;
+              allLanded = allLanded && Boolean(remoteSeg.landed);
+              landFailed = landFailed || Boolean(remoteSeg.land_failed);
               continue;
             }
+            allLanded = false;
             const wavPath = keeperWavPath({
               sessionId,
               takeIndex: take,
@@ -140,6 +149,8 @@ export function useRecordUpload(args: {
             if (!complete || !result.fileAck) {
               allAcked = false;
             }
+            allLanded = allLanded && result.landed;
+            landFailed = landFailed || result.landFailed;
           }
         }
         if (!saw) {
@@ -150,6 +161,8 @@ export function useRecordUpload(args: {
             acked,
             total,
             fileAck: allAcked,
+            landed: saw && allAcked && allLanded && !landFailed,
+            landFailed,
             uploading: saw && !allAcked,
             pending: false,
             error: null,

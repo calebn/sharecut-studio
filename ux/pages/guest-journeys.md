@@ -134,7 +134,10 @@ flowchart TD
   wait --> rec[REC: local dry WAV + mix-minus]
   rec --> stop[Host Stop]
   stop --> upload[Upload panel until ACK]
-  upload --> opfs[Local OPFS WAV kept until safe to delete]
+  upload --> staged[File uploaded; local OPFS WAV kept]
+  staged --> opfs[Local OPFS WAV safe to delete after confirmed landing]
+  staged --> failed[Landing failed; ask host to Retry land]
+  failed --> staged
   opfs --> done[Tracks on host timeline]
 ```
 
@@ -156,7 +159,9 @@ flowchart TD
    (other guests in the record room never see it; after land it is an ordinary
    timeline comment on the host).
 7. Host Stop. The upload panel stays until chunk ACK. The local WAV stays in
-   OPFS (`Sharecut Recordings/`) until **Uploaded. Safe to delete local backup.**
+   OPFS (`Sharecut Recordings/`) until the host confirms **Landed. Safe to delete
+   the local backup.** If landing fails, the guest sees **Uploaded but not landed
+   on the host** and keeps the backup while the host uses **Retry land**.
 8. If the host laptop drops during REC: reconnect the same link (lease reuse);
    the keeper keeps growing ("Host offline — still recording locally.") and
    upload retries. If the host is gone for **10 s or more**, the take is forced
@@ -168,6 +173,9 @@ flowchart TD
 **Success:** Guest consents, appears on the host roster, sees REC/PAUSED, hears
 the mix-minus, writes a local dry WAV, and uploads chunks until ACK. Timeline
 landing copies ACK'd keepers into `raw/` as one clip per segment and reports
+staged, uploaded, landed, or land-failed state. Only the landed state permits local
+backup deletion; `land_failed_ns` remains in the existing upload manifest across
+reconnects, and Retry land does not discard staged parts. Landing also compares
 sample-count vs recording-clock duration (`drift_ms`; unknown is `null`).
 `|drift| > 50 ms` or a missing `session_start` sets `align_fallback` as a
 post-transcribe `align_tracks` hint. Live comments and Markers land as ordinary timeline comments.
@@ -202,4 +210,3 @@ as a recorded track. Live comments from the producer are visible to the host
 and stay hidden from guests until landing.
 
 ---
-
