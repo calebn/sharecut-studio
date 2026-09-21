@@ -85,6 +85,32 @@ def test_approve_applies_ripple_and_removes_decision():
     assert n == 1
 
 
+def test_approve_skips_stale_mute_and_preserves_pending_decision():
+    proj = _project_with_clip()
+    proj.edit_decisions = [
+        EditDecision(
+            id="stale",
+            track_id="host",
+            type=EditDecisionType.MUTE,
+            start=11.0,
+            end=12.0,
+            applied=False,
+        ),
+        EditDecision(
+            id="valid",
+            track_id="host",
+            type=EditDecisionType.MUTE,
+            start=1.0,
+            end=2.0,
+            applied=False,
+        ),
+    ]
+
+    assert approve_edits(proj, ["stale", "valid"]) == 1
+    assert [decision.id for decision in proj.edit_decisions] == ["stale"]
+    assert [record.decision_ids for record in proj.editorial.edit_log] == [["valid"]]
+
+
 def test_update_pending_edit_without_snap():
     proj = _project_with_clip()
     proj.edit_decisions = [

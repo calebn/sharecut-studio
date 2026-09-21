@@ -270,6 +270,7 @@ def _apply_mute_edit(
 
 def approve_edits(project: EpisodeProject, ids: list[str]) -> int:
     id_set = set(ids)
+    applied_ids: set[str] = set()
     to_apply = [e for e in project.edit_decisions if e.id in id_set]
     # Mutes first (timeline-stable). Later removes first so earlier positions
     # stay valid after ripple+pad. Splits run after removes.
@@ -289,6 +290,7 @@ def approve_edits(project: EpisodeProject, ids: list[str]) -> int:
             track_ids=track_ids,
             params=params,
         )
+        applied_ids.add(edit.id)
     for edit in sorted(removes, key=lambda e: e.start, reverse=True):
         tl_start, tl_end, track_ids, params = _apply_remove_edit(
             project, edit, use_inaudible_opt=False, record_log=False
@@ -304,6 +306,7 @@ def approve_edits(project: EpisodeProject, ids: list[str]) -> int:
             track_ids=track_ids,
             params=params,
         )
+        applied_ids.add(edit.id)
     for edit in sorted(splits, key=lambda e: e.start, reverse=True):
         at_time = float(edit.start)
         tids = list(edit.track_ids) if edit.track_ids else [edit.track_id]
@@ -317,9 +320,10 @@ def approve_edits(project: EpisodeProject, ids: list[str]) -> int:
             track_ids=list(report.get("affected_tracks") or tids),
             params={"at_time": at_time, "track_ids": tids},
         )
+        applied_ids.add(edit.id)
 
     before = len(project.edit_decisions)
-    project.edit_decisions = [e for e in project.edit_decisions if e.id not in id_set]
+    project.edit_decisions = [e for e in project.edit_decisions if e.id not in applied_ids]
     return before - len(project.edit_decisions)
 
 
