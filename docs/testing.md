@@ -10,6 +10,14 @@ make test        # coverage gate + parallel; excludes e2e_slow / e2e_real
 
 Pytest is configured in `pyproject.toml` to **fail if line+branch coverage drops below 95%** for `podcast_mcp`.
 
+Vitest uses four worker threads in `gui/web/vitest.config.ts`. Its default
+fork pool starts a child process per test file and scales to available CPUs;
+the 196-file jsdom suite intermittently stalled worker RPCs on a macOS host
+with endpoint scanning. Limiting forks to four still stalled in a different
+file, while four threads completed the full 1,010-test suite in 63 seconds.
+This keeps file isolation and parallelism without increasing timeouts or
+skipping tests. Keep a separate Playwright browser run for real-browser checks.
+
 `make test` runs under [`pytest-xdist`](https://pytest-xdist.readthedocs.io/) (`-n auto`), capped at four workers to keep local runs and CI reliable under contention. An explicit `-n N` remains unchanged. `pytest-cov` merges the per-worker coverage data, so the 95% gate is unchanged. CI (`.github/workflows/test.yml`) runs the same marker filter in parallel with a `frontend` job for Sharecut Studio (`gui/web`).
 
 Hang protection: `pytest-timeout` (`--timeout=60 --timeout-method=thread` in `pyproject.toml` addopts) and job `timeout-minutes` on the GitHub Actions workflow. Nested guest+tunnel WebSocket tests use a live uvicorn server — Starlette `TestClient` nested sockets can deadlock.
