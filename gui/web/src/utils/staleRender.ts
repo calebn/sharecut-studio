@@ -96,13 +96,11 @@ export function staleRenderBreakdown(
   if (!project) {
     return freshBreakdown();
   }
-  // A project that has never been rendered has nothing to be stale relative
-  // to: no tracks, no premix, and no invalidation journal entries. Without
-  // this carve-out a brand-new project reports "Stale render".
+  // Tracks without source media have no audio to render. Adding an empty
+  // track can write an invalidation, but it must not make a fresh project stale.
   const neverRendered =
-    project.tracks.length === 0 &&
-    project.render_status.premix.exists !== true &&
-    readInvalidations(project).length === 0;
+    project.tracks.every((track) => !track.media_path) &&
+    project.render_status.premix.exists !== true;
   if (neverRendered) {
     return freshBreakdown();
   }

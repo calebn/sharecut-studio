@@ -80,6 +80,7 @@ export const useDawStore = create<DawStore>((set, get) => ({
   // --- project ---
   project: null,
   projectPath: "",
+  projectEpoch: 0,
   guestMode: null as string | null,
   shareCapabilities: null as string[] | null,
   sessionClients: [] as SessionClient[],
@@ -659,6 +660,7 @@ export const useDawStore = create<DawStore>((set, get) => ({
     const samePath = get().projectPath === projectPath;
     set({
       projectPath,
+      projectEpoch: samePath ? get().projectEpoch : get().projectEpoch + 1,
       project: initialProject,
       guestMode,
       shareCapabilities,
@@ -669,24 +671,29 @@ export const useDawStore = create<DawStore>((set, get) => ({
       followDegraded: samePath ? get().followDegraded : {},
       transcriptScrollRequest: samePath ? get().transcriptScrollRequest : null,
       transcriptViewAnchor: samePath ? get().transcriptViewAnchor : null,
-      playbackRate: 1,
+      playbackRate: samePath ? get().playbackRate : 1,
       ingestBusy: false,
       ingestDropTrackId: null,
-      // Per-project transport/audio status must not leak across projects (#78).
-      audioError: null,
-      isPlaying: false,
-      playheadSec: 0,
-      viewerMute: {},
-      soloTracks: {},
-      sessionRegion: null,
-      lastAgentQuery: null,
-      playUntilSec: null,
-      playSkipStartSec: null,
-      playSkipEndSec: null,
-      playAbFollowup: null,
-      auditionEpoch: 0,
-      highlightStaleRender: false,
-      renderPreviewBusy: false,
+      // Preserve transport on a same-project shell refresh. A project switch
+      // starts a new session and discards the previous project's status (#78).
+      ...(samePath
+        ? {}
+        : {
+            audioError: null,
+            isPlaying: false,
+            playheadSec: 0,
+            viewerMute: {},
+            soloTracks: {},
+            sessionRegion: null,
+            lastAgentQuery: null,
+            playUntilSec: null,
+            playSkipStartSec: null,
+            playSkipEndSec: null,
+            playAbFollowup: null,
+            auditionEpoch: 0,
+            highlightStaleRender: false,
+            renderPreviewBusy: false,
+          }),
     });
   },
 }));

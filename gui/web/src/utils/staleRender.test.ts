@@ -54,7 +54,44 @@ describe("staleRenderBreakdown", () => {
     expect(b.premixMissing).toBe(false);
   });
 
-  it("still flags a project with tracks but no premix", () => {
+  it("keeps an empty track fresh despite its creation invalidation", () => {
+    const b = staleRenderBreakdown(
+      minimalProject({
+        tracks: [
+          {
+            id: "host",
+            label: "Host",
+            role: "dialogue",
+            speaker: null,
+            gain_db: 0,
+            muted: false,
+            duration_sec: 0,
+            fx_count: 0,
+            stem_is_fresh: false,
+          },
+        ],
+        render_status: {
+          needs_rerender: true,
+          reconciliation: { stale: true },
+          premix: { exists: false },
+          invalidations: [
+            {
+              id: "inv-1",
+              track_ids: ["host"],
+              timeline_start: null,
+              timeline_end: null,
+              reason: "other",
+              at: "2026-01-01T00:00:00Z",
+            },
+          ],
+        },
+      }),
+    );
+    expect(b.stale).toBe(false);
+    expect(b.summary).toBe("Fresh");
+  });
+
+  it("still flags a project with source media but no premix", () => {
     const b = staleRenderBreakdown(
       minimalProject({
         tracks: [
@@ -68,6 +105,7 @@ describe("staleRenderBreakdown", () => {
             duration_sec: 60,
             fx_count: 0,
             stem_is_fresh: true,
+            media_path: "/tmp/host.wav",
           },
         ],
         render_status: {

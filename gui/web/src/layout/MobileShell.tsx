@@ -28,6 +28,7 @@ import { TrackHeadersColumn } from "../tracks/TrackHeadersColumn";
 import type { PresenceTab } from "../types/session";
 import { BottomSheet, CommandButton, ToggleButton } from "../ui";
 import { isPipelineSlotBusy, pipelineChipOpensPanel } from "../utils/pipeline";
+import { staleRenderBreakdown } from "../utils/staleRender";
 import { formatTimecodePair } from "../utils/time";
 import { AvatarStack } from "./AvatarStack";
 import { EditingToolRail } from "./EditingToolRail";
@@ -179,9 +180,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
     (a, b) => a.timeline_start - b.timeline_start,
   );
   const pending = project.edit_impact.pending_review_count;
-  const stale =
-    project.render_status.needs_rerender ||
-    project.render_status.reconciliation.stale;
+  const stale = staleRenderBreakdown(project).stale;
   const chipJob = activityJob ?? pipelineJob;
 
   return (
