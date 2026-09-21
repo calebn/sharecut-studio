@@ -13,6 +13,7 @@ THEME_CSS = ROOT / "gui/web/src/styles/theme.css"
 THEME_TOKENS = ROOT / "gui/web/src/styles/theme/tokens.css"
 THEME_DARK = ROOT / "gui/web/src/styles/theme/theme-dark.css"
 THEME_LIGHT = ROOT / "gui/web/src/styles/theme/theme-light.css"
+PRIMITIVES_CSS = ROOT / "gui/web/src/styles/theme/primitives.css"
 
 SHARED_COLOR_ROLES: tuple[str, ...] = (
     "--color-bg-canvas",
@@ -115,6 +116,12 @@ def _first_rule_body(css: str, compiled: re.Pattern[str]) -> str:
 
 def _declarations_of(css: str, name: str) -> list[str]:
     return re.findall(rf"(?m)^\s*{re.escape(name)}\s*:", css)
+
+
+def _custom_property_value(css: str, name: str) -> str:
+    matches = re.findall(rf"(?m)^\s*{re.escape(name)}\s*:\s*([^;]+);", css)
+    assert len(matches) == 1, f"expected one declaration for {name}, found {len(matches)}"
+    return _normalize_value(matches[0])
 
 
 def brand_dark_roles() -> dict[str, str]:
@@ -243,15 +250,23 @@ def test_theme_light_prefers_matches_data_theme() -> None:
 
 
 def test_daw_functional_accent_follows_brand_var() -> None:
-    """Echo brand accent where the hue is the same; light fg stays lane-contrast hex."""
+    """Echo brand accent where the hue is the same; light fg uses a contrast primitive."""
     dark = _color_props(_first_rule_body(THEME_DARK.read_text(encoding="utf-8"), DARK_SELECTOR))
     assert dark["--color-accent-fg"] == "var(--color-accent)"
     assert dark["--color-badge-fg"] == "var(--color-accent)"
     assert dark["--color-selection"] == "var(--color-accent)"
 
-    light = _color_props(
-        _first_rule_body(THEME_LIGHT.read_text(encoding="utf-8"), LIGHT_DATA_SELECTOR)
+    primitive = "--primitive-orange-700"
+    primitive_value = _custom_property_value(PRIMITIVES_CSS.read_text(encoding="utf-8"), primitive)
+    assert primitive_value == "#8a4a20"
+
+    light_css = THEME_LIGHT.read_text(encoding="utf-8")
+    light_rules = (
+        _first_rule_body(light_css, LIGHT_DATA_SELECTOR),
+        _prefers_light_root_body(light_css, missing="theme-light"),
     )
-    assert light["--color-selection"] == "var(--color-accent)"
-    assert light["--color-accent-fg"] == "#8a4a20"
-    assert light["--color-badge-fg"] == "#8a4a20"
+    for light_rule in light_rules:
+        light = _color_props(light_rule)
+        assert light["--color-selection"] == "var(--color-accent)"
+        assert light["--color-accent-fg"] == f"var({primitive})"
+        assert light["--color-badge-fg"] == f"var({primitive})"
