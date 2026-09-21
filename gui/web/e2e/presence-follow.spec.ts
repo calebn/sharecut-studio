@@ -1,6 +1,5 @@
 import { type Browser, expect, type Page, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
-import { e2eProjectPath } from "./env";
 import { withShareableProject } from "./shareableProject";
 
 const DESKTOP = { width: 1440, height: 900 };
@@ -215,39 +214,49 @@ async function followUntilLeaderPlayheadMirrors(
   throw new Error("no Follow peer mirrored the leader playhead");
 }
 
-async function twoStudioPages(
+async function withTwoStudioPages<T>(
   browser: Browser,
   viewport: { width: number; height: number },
-): Promise<{
-  pageA: Page;
-  pageB: Page;
-  close: () => Promise<void>;
-}> {
-  const project = encodeURIComponent(e2eProjectPath);
-  const aCtx = await browser.newContext({ viewport });
-  const bCtx = await browser.newContext({ viewport });
-  const pageA = await aCtx.newPage();
-  const pageB = await bCtx.newPage();
-  await pageA.goto(`/?project=${project}`);
-  await pageB.goto(`/?project=${project}`);
-  await expect(pageA.locator(".daw-shell")).toBeVisible();
-  await expect(pageB.locator(".daw-shell")).toBeVisible();
-  return {
-    pageA,
-    pageB,
-    close: async () => {
-      await aCtx.close();
-      await bCtx.close();
-    },
-  };
+  run: (pageA: Page, pageB: Page) => Promise<T>,
+  followerViewport = viewport,
+): Promise<T> {
+  return withShareableProject(async (projectPath) => {
+    const project = encodeURIComponent(projectPath);
+    const aCtx = await browser.newContext({ viewport });
+    const bCtx = await browser.newContext({ viewport: followerViewport });
+    let runFailed = false;
+    try {
+      const pageA = await aCtx.newPage();
+      const pageB = await bCtx.newPage();
+      await pageA.goto(`/?project=${project}`);
+      await pageB.goto(`/?project=${project}`);
+      await expect(pageA.locator(".daw-shell")).toBeVisible();
+      await expect(pageB.locator(".daw-shell")).toBeVisible();
+      return await run(pageA, pageB);
+    } catch (error) {
+      runFailed = true;
+      throw error;
+    } finally {
+      const closeResults = await Promise.allSettled([
+        aCtx.close(),
+        bCtx.close(),
+      ]);
+      if (!runFailed) {
+        const closeFailure = closeResults.find(
+          (result): result is PromiseRejectedResult =>
+            result.status === "rejected",
+        );
+        if (closeFailure) throw closeFailure.reason;
+      }
+    }
+  });
 }
 
 test.describe("presence follow desktop", () => {
   test("page B follows page A then unfollows on scroll", async ({
     browser,
   }) => {
-    const { pageA, pageB, close } = await twoStudioPages(browser, DESKTOP);
-    try {
+    await withTwoStudioPages(browser, DESKTOP, async (pageA, pageB) => {
       await followUntilLeaderPlayheadMirrors(pageB, pageA);
       await expect(
         pageB.locator(".timeline-area[data-following]"),
@@ -262,16 +271,13 @@ test.describe("presence follow desktop", () => {
       await expect(pageB.locator(".timeline-area[data-following]")).toHaveCount(
         0,
       );
-    } finally {
-      await close();
-    }
+    });
   });
 
   test("follows Comments tab then unfollows on Transcript click", async ({
     browser,
   }) => {
-    const { pageA, pageB, close } = await twoStudioPages(browser, DESKTOP);
-    try {
+    await withTwoStudioPages(browser, DESKTOP, async (pageA, pageB) => {
       await followUntilLeaderPlayheadMirrors(pageB, pageA);
       const comments = pageA.locator('[data-presence-anchor="tab:comments"]');
       await comments.click();
@@ -282,14 +288,11 @@ test.describe("presence follow desktop", () => {
       await expect(pageB.locator(".follow-banner")).toBeVisible();
       await pageB.locator('[data-presence-anchor="tab:transcript"]').click();
       await expect(pageB.locator(".follow-banner")).toHaveCount(0);
-    } finally {
-      await close();
-    }
+    });
   });
 
   test("ghost on chrome then hides off-surface", async ({ browser }) => {
-    const { pageA, pageB, close } = await twoStudioPages(browser, DESKTOP);
-    try {
+    await withTwoStudioPages(browser, DESKTOP, async (pageA, pageB) => {
       const follow = pageB.getByRole("button", { name: /Follow / }).first();
       await expect(follow).toBeVisible({ timeout: 15_000 });
       await pageA.bringToFront();
@@ -304,14 +307,11 @@ test.describe("presence follow desktop", () => {
       await expect(pageB.locator(".presence-cursor--ghost")).toHaveCount(0, {
         timeout: 8_000,
       });
-    } finally {
-      await close();
-    }
+    });
   });
 
   test("timeline ghost hides below the last lane", async ({ browser }) => {
-    const { pageA, pageB, close } = await twoStudioPages(browser, DESKTOP);
-    try {
+    await withTwoStudioPages(browser, DESKTOP, async (pageA, pageB) => {
       await expect(
         pageB.getByRole("button", { name: /Follow / }).first(),
       ).toBeVisible({ timeout: 15_000 });
@@ -332,16 +332,13 @@ test.describe("presence follow desktop", () => {
       await expect(
         pageB.locator(".presence-overlay .presence-cursor"),
       ).toHaveCount(0, { timeout: 4_000 });
-    } finally {
-      await close();
-    }
+    });
   });
 
   test("mirrors FX audition and mute does not unfollow", async ({
     browser,
   }) => {
-    const { pageA, pageB, close } = await twoStudioPages(browser, DESKTOP);
-    try {
+    await withTwoStudioPages(browser, DESKTOP, async (pageA, pageB) => {
       await followUntilLeaderPlayheadMirrors(pageB, pageA);
       await pageA.locator('[data-presence-anchor="audition:fx"]').click();
       await expect(
@@ -351,16 +348,13 @@ test.describe("presence follow desktop", () => {
       ).toBeVisible({ timeout: 8_000 });
       await pageB.locator('[data-presence-anchor="track:guest:mute"]').click();
       await expect(pageB.locator(".follow-banner")).toBeVisible();
-    } finally {
-      await close();
-    }
+    });
   });
 });
 
 test.describe("presence follow tablet", () => {
   test("follows from Menu People then unfollows", async ({ browser }) => {
-    const { pageA, pageB, close } = await twoStudioPages(browser, TABLET);
-    try {
+    await withTwoStudioPages(browser, TABLET, async (pageA, pageB) => {
       await expect(pageA.locator(".daw-shell--tablet")).toBeVisible();
       await expect(pageB.locator(".daw-shell--tablet")).toBeVisible();
       await followUntilBannerVisible(pageB, async () => {
@@ -375,16 +369,13 @@ test.describe("presence follow tablet", () => {
         .getByRole("button", { name: "Stop following", exact: true })
         .evaluate((el) => el.click());
       await expect(pageB.locator(".follow-banner")).toHaveCount(0);
-    } finally {
-      await close();
-    }
+    });
   });
 });
 
 test.describe("presence follow phone", () => {
   test("follow banner then unfollow on Listen", async ({ browser }) => {
-    const { pageA, pageB, close } = await twoStudioPages(browser, PHONE);
-    try {
+    await withTwoStudioPages(browser, PHONE, async (pageA, pageB) => {
       await expect(pageB.locator(".daw-shell--phone")).toBeVisible();
       await followMenuPeerUntilPlayheadMoves(pageB, pageA, async () => {
         await pageB
@@ -405,48 +396,40 @@ test.describe("presence follow phone", () => {
         .getByRole("button", { name: "Listen" })
         .click();
       await expect(pageB.locator(".follow-banner")).toHaveCount(0);
-    } finally {
-      await close();
-    }
+    });
   });
 
   test("follow survives phone to desktop remount", async ({ browser }) => {
-    const aCtx = await browser.newContext({ viewport: DESKTOP });
-    const bCtx = await browser.newContext({ viewport: PHONE });
-    const pageA = await aCtx.newPage();
-    const pageB = await bCtx.newPage();
-    try {
-      const project = encodeURIComponent(e2eProjectPath);
-      await pageA.goto(`/?project=${project}`);
-      await pageB.goto(`/?project=${project}`);
-      await expect(pageA.locator(".daw-shell")).toBeVisible();
-      await expect(pageB.locator(".daw-shell--phone")).toBeVisible();
-      await followUntilBannerVisible(pageB, async () => {
-        await pageB
-          .getByRole("navigation", { name: "Primary" })
-          .getByRole("button", { name: "More" })
-          .click({ force: true });
-      });
-      const banner = pageB.locator(".follow-banner");
-      await expect(banner).toBeVisible();
-      const label =
-        (await pageB.locator(".follow-banner-text").textContent()) ?? "";
-      const followed =
-        label.match(/^Following\s+(.+?)(?:\s+·|$)/)?.[1]?.trim() ?? "";
-      expect(followed).not.toBe("");
-      await pageB.setViewportSize(DESKTOP);
-      await expect(pageB.locator(".daw-shell--phone")).toHaveCount(0, {
-        timeout: 8_000,
-      });
-      await expect(
-        pageB.locator(".daw-shell--desktop.daw-shell--following"),
-      ).toBeVisible();
-      await expect(banner).toBeVisible();
-      await expect(banner).toContainText(`Following ${followed}`);
-    } finally {
-      await aCtx.close();
-      await bCtx.close();
-    }
+    await withTwoStudioPages(
+      browser,
+      DESKTOP,
+      async (pageA, pageB) => {
+        await expect(pageB.locator(".daw-shell--phone")).toBeVisible();
+        await followUntilBannerVisible(pageB, async () => {
+          await pageB
+            .getByRole("navigation", { name: "Primary" })
+            .getByRole("button", { name: "More" })
+            .click({ force: true });
+        });
+        const banner = pageB.locator(".follow-banner");
+        await expect(banner).toBeVisible();
+        const label =
+          (await pageB.locator(".follow-banner-text").textContent()) ?? "";
+        const followed =
+          label.match(/^Following\s+(.+?)(?:\s+·|$)/)?.[1]?.trim() ?? "";
+        expect(followed).not.toBe("");
+        await pageB.setViewportSize(DESKTOP);
+        await expect(pageB.locator(".daw-shell--phone")).toHaveCount(0, {
+          timeout: 8_000,
+        });
+        await expect(
+          pageB.locator(".daw-shell--desktop.daw-shell--following"),
+        ).toBeVisible();
+        await expect(banner).toBeVisible();
+        await expect(banner).toContainText(`Following ${followed}`);
+      },
+      PHONE,
+    );
   });
 });
 
