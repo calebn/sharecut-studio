@@ -503,15 +503,6 @@ test.describe("record lobby", () => {
         ).toBeVisible();
         await guest.getByRole("button", { name: "Allow microphone" }).click();
         await expect(guest.getByLabel("Level")).toBeVisible();
-        const roomToneUpload = guest.waitForRequest((request) => {
-          const url = new URL(request.url());
-          return (
-            request.method() === "POST" &&
-            url.pathname.includes("/api/rec/") &&
-            url.pathname.endsWith("/upload") &&
-            url.searchParams.get("kind") === "room_tone"
-          );
-        });
         await guest.getByRole("button", { name: "Record room tone" }).click();
         await expect(guest.getByText("Room tone saved")).toBeVisible({
           timeout: 15_000,
@@ -525,8 +516,26 @@ test.describe("record lobby", () => {
         await expect(
           guest.getByRole("button", { name: "Accept" }),
         ).toBeEnabled();
-        await guest.getByRole("button", { name: "Accept" }).click();
-        await roomToneUpload;
+        const roomToneUpload = guest.waitForResponse((response) => {
+          const url = new URL(response.url());
+          return (
+            response.request().method() === "POST" &&
+            url.pathname.includes("/api/rec/") &&
+            url.pathname.endsWith("/upload") &&
+            url.searchParams.get("kind") === "room_tone"
+          );
+        });
+        const [roomToneResponse] = await Promise.all([
+          roomToneUpload,
+          guest.getByRole("button", { name: "Accept" }).click(),
+        ]);
+        expect(
+          roomToneResponse.ok(),
+          await roomToneResponse.text(),
+        ).toBeTruthy();
+        expect(
+          (await roomToneResponse.json()) as { file_ack?: boolean },
+        ).toMatchObject({ file_ack: true });
         await expect(guest.getByText("Waiting for host")).toBeVisible();
       } finally {
         await hostCtx.close();

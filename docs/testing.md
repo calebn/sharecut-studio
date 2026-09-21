@@ -230,11 +230,11 @@ fake microphone may remain live while its `AudioContext` clock advances too
 slowly to feed the worklet. The harness is limited to that explicitly flagged
 test, then follows the normal PCM-to-WAV, OPFS, and Accept code paths; it must
 not change the production capture timeout or be enabled by general E2E setup.
-The test pre-arms a request matcher for the room-tone upload before starting
-capture and waits for that durable signal after Accept; it does not assert the
-transient `Recording room tone…` copy, which can be missed under full-suite
-scheduling. Upload is consent-gated, so Accept is the earliest point at which
-the request can occur.
+The test pre-arms a response matcher immediately before Accept and waits for a
+successful acknowledged room-tone upload (`file_ack: true`) after consent; it
+does not assert the transient `Recording room tone…` copy, which can be missed
+under full-suite scheduling. Upload is consent-gated, so Accept is the earliest
+point at which the request can occur.
 
 | Job | What |
 |-----|------|
