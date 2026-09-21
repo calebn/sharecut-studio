@@ -192,6 +192,12 @@ It is not OAuth, not a share token, and is unsuitable for remote or
 collaborator agents; use a review share's remote MCP endpoint for those cases
 ([host-online-relay.md](host-online-relay.md) § Remote MCP).
 
+The GUI host transport is stateless: each request is handled independently and
+the server does not issue or require a sticky `Mcp-Session-Id` header. The
+currently open episode is selected by Sharecut Studio for every request. This
+does not change stdio MCP sessions or guest/share-token MCP, which keep their
+existing transport behavior.
+
 ### Claude Code
 
 ```bash

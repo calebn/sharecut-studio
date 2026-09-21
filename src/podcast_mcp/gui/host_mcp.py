@@ -72,10 +72,11 @@ def install_host_project_injection() -> None:
 
 
 def streamable_host_http_app(*, host: str = "127.0.0.1") -> ASGIApp:
-    """Build the SDK Streamable HTTP app (creates ``session_manager``)."""
+    """Build the stateless SDK Streamable HTTP app (creates ``session_manager``)."""
     return mcp.streamable_http_app(
         streamable_http_path=HOST_MCP_PATH,
         host=host,
+        stateless_http=True,
     )
 
 
