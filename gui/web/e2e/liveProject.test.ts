@@ -9,6 +9,7 @@ import {
 import { committedE2eProjectPath } from "./env";
 import {
   createRelocatedE2eProject,
+  E2E_FIXTURE_COPY_TEST_TIMEOUT_MS,
   prepareLiveE2eProject,
   removeLiveE2eProject,
   removeRelocatedE2eProject,
@@ -33,46 +34,54 @@ describe("prepareLiveE2eProject", () => {
     expect(fs.existsSync(workspaceDir)).toBe(false);
   });
 
-  it("defers registered fixture removal until the runner owns cleanup", async () => {
-    const manifest = createE2eCleanupManifest();
-    process.env.DAW_E2E_CLEANUP_MANIFEST = manifest.manifestPath;
-    const { workspaceDir } = createRelocatedE2eProject();
+  it(
+    "defers registered fixture removal until the runner owns cleanup",
+    async () => {
+      const manifest = createE2eCleanupManifest();
+      process.env.DAW_E2E_CLEANUP_MANIFEST = manifest.manifestPath;
+      const { workspaceDir } = createRelocatedE2eProject();
 
-    removeRelocatedE2eProject(workspaceDir);
-    expect(fs.existsSync(workspaceDir)).toBe(true);
+      removeRelocatedE2eProject(workspaceDir);
+      expect(fs.existsSync(workspaceDir)).toBe(true);
 
-    await cleanupE2eManifest(manifest);
-    expect(fs.existsSync(workspaceDir)).toBe(false);
-    delete process.env.DAW_E2E_CLEANUP_MANIFEST;
-  });
+      await cleanupE2eManifest(manifest);
+      expect(fs.existsSync(workspaceDir)).toBe(false);
+      delete process.env.DAW_E2E_CLEANUP_MANIFEST;
+    },
+    E2E_FIXTURE_COPY_TEST_TIMEOUT_MS,
+  );
 
-  it("copies into tmp and does not write the committed tree", () => {
-    delete process.env.DAW_E2E_PROJECT;
-    delete process.env.DAW_E2E_WORKSPACE;
-    const projectPath = prepareLiveE2eProject();
-    const dest = path.dirname(projectPath);
-    expect(projectPath).not.toBe(committedE2eProjectPath);
-    expect(dest.startsWith(os.tmpdir())).toBe(true);
-    const data = JSON.parse(fs.readFileSync(projectPath, "utf8")) as {
-      meta?: { workspace_dir?: string };
-    };
-    expect(data.meta?.workspace_dir).toBe(dest);
-    expect(
-      fs.existsSync(path.join(dest, "artifacts", "session", "sync.db")),
-    ).toBe(false);
-    const probe = path.join(dest, "transcripts", "_probe.json");
-    fs.mkdirSync(path.dirname(probe), { recursive: true });
-    fs.writeFileSync(probe, "{}");
-    expect(
-      fs.existsSync(
-        path.join(
-          path.dirname(committedE2eProjectPath),
-          "transcripts",
-          "_probe.json",
+  it(
+    "copies into tmp and does not write the committed tree",
+    () => {
+      delete process.env.DAW_E2E_PROJECT;
+      delete process.env.DAW_E2E_WORKSPACE;
+      const projectPath = prepareLiveE2eProject();
+      const dest = path.dirname(projectPath);
+      expect(projectPath).not.toBe(committedE2eProjectPath);
+      expect(dest.startsWith(os.tmpdir())).toBe(true);
+      const data = JSON.parse(fs.readFileSync(projectPath, "utf8")) as {
+        meta?: { workspace_dir?: string };
+      };
+      expect(data.meta?.workspace_dir).toBe(dest);
+      expect(
+        fs.existsSync(path.join(dest, "artifacts", "session", "sync.db")),
+      ).toBe(false);
+      const probe = path.join(dest, "transcripts", "_probe.json");
+      fs.mkdirSync(path.dirname(probe), { recursive: true });
+      fs.writeFileSync(probe, "{}");
+      expect(
+        fs.existsSync(
+          path.join(
+            path.dirname(committedE2eProjectPath),
+            "transcripts",
+            "_probe.json",
+          ),
         ),
-      ),
-    ).toBe(false);
-    removeLiveE2eProject();
-    expect(fs.existsSync(dest)).toBe(false);
-  }, 20_000);
+      ).toBe(false);
+      removeLiveE2eProject();
+      expect(fs.existsSync(dest)).toBe(false);
+    },
+    E2E_FIXTURE_COPY_TEST_TIMEOUT_MS,
+  );
 });
