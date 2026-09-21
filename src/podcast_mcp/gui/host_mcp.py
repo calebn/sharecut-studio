@@ -1,6 +1,6 @@
 """Host Streamable HTTP MCP on the local GUI (official SDK, not guest JSON-RPC).
 
-Public URL is ``POST/GET http://127.0.0.1:8765/mcp``. Guest share MCP stays on
+Public URL is ``POST http://127.0.0.1:8765/mcp``. Guest share MCP stays on
 ``/mcp/{token}`` and ``/mcp/{token}/mcp`` — those routes are registered first.
 """
 
@@ -103,9 +103,10 @@ def mount_host_mcp(
 ) -> None:
     """Register exact ``/mcp`` last so guest ``/mcp/{token}`` routes stay first.
 
-    Use a method-complete ``Route`` rather than ``Mount("/")`` so OPTIONS on
-    other GUI paths does not fall through to the SDK app. Off-loopback binds
-    skip this mount so LAN peers cannot forge ``Host: 127.0.0.1``.
+    The stateless host transport supports request-scoped POST only. Keeping the
+    route POST-only makes GET and HEAD fail promptly with ``405 Allow: POST``
+    instead of opening the SDK's standalone SSE stream. Off-loopback binds skip
+    this mount so LAN peers cannot forge ``Host: 127.0.0.1``.
     """
     install_host_project_injection()
     if not enabled:
@@ -117,7 +118,7 @@ def mount_host_mcp(
         Route(
             HOST_MCP_PATH,
             endpoint=_BindRequestApp(app, http_app),
-            methods=["GET", "POST", "DELETE", "OPTIONS", "HEAD"],
+            methods=["POST"],
         )
     )
 

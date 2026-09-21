@@ -198,6 +198,14 @@ currently open episode is selected by Sharecut Studio for every request. This
 does not change stdio MCP sessions or guest/share-token MCP, which keep their
 existing transport behavior.
 
+Use POST for host MCP requests. GET and HEAD return `405 Allow: POST` rather
+than opening a standalone SSE stream that cannot receive events from another
+stateless request. Legacy clients that send `notifications/cancelled` as a
+separate POST cannot stop an in-flight host call; the SDK acknowledges that
+notification on its independent request. Modern 2026 clients cancel by closing
+the original POST. [Issue #151](https://github.com/calebn/sharecut-studio/issues/151)
+tracks legacy cancellation support without sticky sessions.
+
 ### Claude Code
 
 ```bash

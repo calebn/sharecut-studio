@@ -187,6 +187,15 @@ def test_host_mcp_accept_json_only_is_406() -> None:
         assert res.status_code == 406, res.text
 
 
+def test_host_mcp_rejects_get_and_head_without_opening_sse() -> None:
+    pytest.importorskip("fastapi")
+    with TestClient(create_app()) as client:
+        for method in ("get", "head"):
+            response = getattr(client, method)(HOST_MCP_PATH, headers=LOOPBACK_HOST)
+            assert response.status_code == 405, response.text
+            assert response.headers["allow"] == "POST"
+
+
 def test_host_mcp_bad_origin_403() -> None:
     pytest.importorskip("fastapi")
     with TestClient(create_app()) as client:
