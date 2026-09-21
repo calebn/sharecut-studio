@@ -54,7 +54,9 @@ def propose_tighten_edits(
         project.edit_decisions = [
             e
             for e in project.edit_decisions
-            if e.review_required or not (e.reason or "").startswith(("filler:", "pause:"))
+            if e.applied
+            or (e.review_required and not (e.reason or "").startswith("filler:acoustic"))
+            or not (e.reason or "").startswith(("filler:", "pause:"))
         ]
     from podcast_mcp.edits.transcript_cuts import coalesce_edits
 
@@ -65,11 +67,16 @@ def propose_tighten_edits(
     # skip_counts is filled only on this thread during collection; do not share it
     # across run_parallel workers.
     skip_counts: dict[str, int] = {}
+    audio_caches = build_track_audio_caches(project, {t.track_id for t in project.transcripts})
     candidates = [
         candidate
         for transcript in project.transcripts
         for candidate in _collect_candidates(
-            transcript, cfg, project=project, skip_counts=skip_counts
+            transcript,
+            cfg,
+            project=project,
+            skip_counts=skip_counts,
+            audio_cache=audio_caches.get(transcript.track_id),
         )
     ]
 
@@ -77,8 +84,6 @@ def propose_tighten_edits(
     # of spawning an ffmpeg subprocess per tiny window read inside every candidate's
     # analysis -- this is the dominant cost at scale, well beyond what thread-pool
     # parallelism alone can buy back. Read-only; safe to share across the pool below.
-    audio_caches = build_track_audio_caches(project, {t.track_id for t in project.transcripts})
-
     max_workers = cfg.get("performance", {}).get("max_workers")
     results = run_parallel(
         candidates,

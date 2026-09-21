@@ -151,6 +151,22 @@ tighten:
 
 ### Key parameters reference
 
+#### Acoustic gap candidates
+
+When `tighten.acoustic_gap_filler.enabled` is enabled (the default), the local
+16 kHz decoded track cache is scanned for a short periodic/voiced run inside an
+inter-word gap of at least `min_gap_sec` (0.35 s). The run must stay inside the
+two owner-word boundaries; leading/trailing silence, suppressed or bleed
+anchors, and overlapping proposals are ignored. Energy is windowed with a
+relative floor and short-dip bridging, then confirmed by autocorrelation in a
+speech-pitch range. Analysis is capped by `max_frames` and `max_run_sec`.
+
+These are emitted as `filler:acoustic` and are always `review_required`.
+ASR-free VAD can mistake breaths, noise, laughter, or music for speech, so this
+detector never silently auto-cuts. Re-running proposal replaces pending
+generated acoustic candidates while preserving applied edits, like other
+tighten proposals.
+
 | Key | Default | Role |
 |-----|---------|------|
 | `tighten.min_filler_cluster` | `2` | Min fillers in a cluster before cutting |

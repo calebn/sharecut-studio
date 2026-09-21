@@ -5,6 +5,7 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
+from podcast_mcp.edits.acoustic_gap import find_voiced_gap_runs
 from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_caches
 from podcast_mcp.edits.breath_detect import detect_adjacent_breath, extend_cut_for_breaths
 from podcast_mcp.edits.cut_quality import optimize_and_assess, recommend_cut_fade_ms
@@ -447,6 +448,7 @@ def _collect_candidates(
     defaults: dict[str, Any],
     *,
     project: EpisodeProject | None = None,
+    audio_cache: TrackAudioCache | None = None,
     skip_counts: dict[str, int] | None = None,
 ) -> list[_CutCandidate]:
     """Find filler-cluster and long-pause candidates in one transcript (read-only)."""
@@ -489,6 +491,53 @@ def _collect_candidates(
                             max_end=trim_end,
                         )
                     )
+    acoustic = tighten.get("acoustic_gap_filler") or {}
+    if bool(acoustic.get("enabled", True)) and audio_cache is not None:
+        occupied = [(c.start, c.end) for c in candidates if c.cut_kind != "pause"]
+        for i, word in enumerate(words[:-1]):
+            nxt = words[i + 1]
+            if word.suppressed or nxt.suppressed or word.end <= word.start or nxt.end <= nxt.start:
+                continue
+            if word.audibility_status == "bleed" or nxt.audibility_status == "bleed":
+                continue
+            if word.speaker_match_track and word.speaker_match_track != track_id:
+                continue
+            if nxt.speaker_match_track and nxt.speaker_match_track != track_id:
+                continue
+            gap_start, gap_end = word.end, nxt.start
+            runs = find_voiced_gap_runs(
+                audio_cache,
+                gap_start,
+                gap_end,
+                min_gap_sec=_bounded_float(acoustic.get("min_gap_sec", 0.35), 0.35, 0.35, 10.0),
+                max_run_sec=_bounded_float(acoustic.get("max_run_sec", 1.5), 1.5, 0.1, 1.5),
+                max_frames=int(_bounded_float(acoustic.get("max_frames", 600), 600, 20, 600)),
+            )
+            for run in runs:
+                edge_margin = 0.025
+                run_start = max(gap_start + edge_margin, run.start)
+                run_end = min(gap_end - edge_margin, run.end)
+                if run_end - run_start < 0.1:
+                    continue
+                if any(run.start < end and run.end > start for start, end in occupied):
+                    continue
+                candidates = [
+                    c
+                    for c in candidates
+                    if not (c.cut_kind == "pause" and c.start < run.end and c.end > run.start)
+                ]
+                candidates.append(
+                    _CutCandidate(
+                        track_id,
+                        run_start,
+                        run_end,
+                        "filler:acoustic",
+                        "filler",
+                        run.confidence,
+                        gap_end - edge_margin,
+                    )
+                )
+                occupied.append((run.start, run.end))
     return candidates
 
 
@@ -523,6 +572,12 @@ def _analyze_candidate(
         audio_cache=audio_cache,
     )
     cut_start, cut_end = opt.start, opt.end
+    if candidate.reason == "filler:acoustic":
+        # Acoustic evidence is local to the inter-word gap; waveform snapping
+        # must never expand it back onto an ASR word.
+        cut_start = max(cut_start, candidate.start)
+        if candidate.max_end is not None:
+            cut_end = min(cut_end, candidate.max_end)
 
     breaths = detect_adjacent_breath(
         project, track_id, cut_start, cut_end, defaults=defaults, audio_cache=audio_cache
@@ -549,9 +604,17 @@ def _analyze_candidate(
     if paced is None:
         return None
     cut_start, cut_end = paced.start, paced.end
+    if candidate.reason == "filler:acoustic":
+        # Breath expansion and pacing are allowed to adjust ordinary fillers,
+        # but an acoustic run must remain strictly inside its ASR gap.
+        cut_start = max(cut_start, candidate.start)
+        if candidate.max_end is not None:
+            cut_end = min(cut_end, candidate.max_end)
+        if cut_end <= cut_start:
+            return None
 
     reason = candidate.reason
-    review_required = False
+    review_required = reason == "filler:acoustic"
     replace_gap = paced.replace_gap_sec
     # Contiguous retain before the next word can be shorter than the floor when
     # prior ripples punched holes; pad the shortfall with silence after ripple.
@@ -706,8 +769,14 @@ def analyze_fillers_and_pauses(
     edits/audio_cache.py) so direct callers get the same speedup as the pipeline
     path, just without cross-track parallelism.
     """
-    candidates = _collect_candidates(transcript, defaults, project=project, skip_counts=skip_counts)
-    audio_caches = build_track_audio_caches(project, [transcript.track_id]) if candidates else {}
+    audio_caches = build_track_audio_caches(project, [transcript.track_id])
+    candidates = _collect_candidates(
+        transcript,
+        defaults,
+        project=project,
+        audio_cache=audio_caches.get(transcript.track_id),
+        skip_counts=skip_counts,
+    )
     audio_cache = audio_caches.get(transcript.track_id)
 
     decisions: list[EditDecision] = []

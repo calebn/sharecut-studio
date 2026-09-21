@@ -82,6 +82,14 @@ HYPOTHESIS_CATALOG: dict[str, dict[str, Any]] = {
         "tools": ["play_pending_preview_tool"],
         "meaning": "Pending or applied edits overlap this window.",
     },
+    "acoustic_gap_filler": {
+        "severity": "info",
+        "confidence": "heuristic",
+        "autonomy": "needs_approval",
+        "skill": "podcast-tighten-dialogue",
+        "tools": ["play_pending_preview_tool"],
+        "meaning": "A local DSP candidate found voiced audio inside an ASR gap; review before cutting.",
+    },
     "suppressed_only_track": {
         "severity": "info",
         "confidence": "measured",
@@ -453,6 +461,17 @@ def _build_hypotheses(
                 ),
             )
         )
+        acoustic = [e for e in pending if str(e.get("reason") or "").startswith("filler:acoustic")]
+        for e in acoustic:
+            out.append(
+                _hypothesis(
+                    "acoustic_gap_filler",
+                    tracks=[e["track_id"]] if e.get("track_id") else list(track_ids),
+                    window=window,
+                    evidence={"edit_id": e.get("id"), "reason": e.get("reason")},
+                    meaning="acoustic_gap_filler: voiced run in an inter-word ASR gap (review required)",
+                )
+            )
     for t in tracks_out:
         if t.get("suppressed_only"):
             out.append(

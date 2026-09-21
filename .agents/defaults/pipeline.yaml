@@ -59,6 +59,13 @@ tighten:
   # Tuning guide: docs/filler-cut-quality.md
   crossfade_ms: 25
   max_pause_sec: 1.2
+  # Review-only local DSP candidates for voiced audio hidden in ASR gaps.
+  # This never auto-applies: VAD can mistake breaths/noise for words.
+  acoustic_gap_filler:
+    enabled: true
+    min_gap_sec: 0.35
+    max_run_sec: 1.5
+    max_frames: 600
   # Floor left after trimming a long pause. Turn/dead-air (peer speaking in the
   # gap) can go this short. Solo same-speaker pauses use the higher floor below
   # so thinking / list-restart air is not crushed to a hard edit.
