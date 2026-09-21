@@ -41,7 +41,11 @@ export function useKeeperCapture({
   consented,
   stream,
   resetKey = 0,
-}: Args): { error: string | null; recordingLocally: boolean } {
+}: Args): {
+  error: string | null;
+  recordingLocally: boolean;
+  retry: () => void;
+} {
   const [error, setError] = useState<string | null>(null);
   const [writing, setWriting] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
@@ -156,7 +160,15 @@ export function useKeeperCapture({
     let cancelled = false;
     const start = async () => {
       try {
-        const session = new KeeperSession(await createOpfsSink());
+        const sink = await createOpfsSink();
+        let session: KeeperSession | null = null;
+        session = new KeeperSession(sink, (failure) => {
+          if (cancelled || sessionRef.current !== session) {
+            return;
+          }
+          setWriting(false);
+          setError(failure.message);
+        });
         await session.restoreCursor(
           sessionId,
           gateRef.current.snapshot?.take_index ?? -1,
@@ -266,6 +278,32 @@ export function useKeeperCapture({
     sessionId,
   ]);
 
+  const retry = () => {
+    const session = sessionRef.current;
+    if (!session) {
+      return;
+    }
+    void session
+      .retry()
+      .then(() => {
+        if (sessionRef.current !== session) {
+          return;
+        }
+        if (session.error === null && session.isWriting) {
+          setError(null);
+          setWriting(true);
+          setEpoch((n) => n + 1);
+        }
+      })
+      .catch((err: unknown) => {
+        if (sessionRef.current !== session) {
+          return;
+        }
+        setWriting(false);
+        setError(err instanceof Error ? err.message : String(err));
+      });
+  };
+
   const recordingLocally = writing && stream !== null;
   useLayoutEffect(() => {
     if (!recordingLocally && !finalizing) {
@@ -279,5 +317,5 @@ export function useKeeperCapture({
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [recordingLocally, finalizing]);
 
-  return { error, recordingLocally };
+  return { error, recordingLocally, retry };
 }

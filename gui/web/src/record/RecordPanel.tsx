@@ -33,6 +33,7 @@ import { useRoomToneCapture } from "./useRoomToneCapture";
 type Props = {
   recordingLocally?: boolean;
   keeperError?: string | null;
+  onRetryKeeper?: () => void;
   hearing?: boolean;
   monitorError?: string | null;
   stream?: MediaStream | null;
@@ -43,6 +44,7 @@ type Props = {
 export function RecordPanel({
   recordingLocally = false,
   keeperError = null,
+  onRetryKeeper,
   hearing = false,
   monitorError = null,
   stream = null,
@@ -183,7 +185,9 @@ export function RecordPanel({
       closeDisabled={uploadBlocking || micLost}
     >
       <div className="stack record-panel">
-        {snapshot ? <RecIndicator snapshot={snapshot} /> : null}
+        {snapshot ? (
+          <RecIndicator snapshot={snapshot} captureFailed={!!keeperError} />
+        ) : null}
         {snapshot &&
         (snapshot.state === "lobby" || snapshot.state === "stopped") ? (
           <RoomToneCapture
@@ -200,7 +204,7 @@ export function RecordPanel({
           {reconnectCopy ? (
             <p className="record-warn">{reconnectCopy}</p>
           ) : null}
-          {recordingLocally ? <p>{LOCAL_KEEPER_COPY}</p> : null}
+          {recordingLocally && !keeperError ? <p>{LOCAL_KEEPER_COPY}</p> : null}
           {micLost ? <MicLossNotice onRetry={onRetryMic} /> : null}
           {hearing ? <p>{HEARING_COPY}</p> : null}
           <UploadStatus progress={upload} stopped={state === "stopped"} />
@@ -211,7 +215,29 @@ export function RecordPanel({
               stopped={state === "stopped"}
             />
           ) : null}
-          {keeperError ? <p className="record-warn">{keeperError}</p> : null}
+          {keeperError ? (
+            <>
+              <p className="record-warn">
+                Local recording stopped: {keeperError}
+              </p>
+              {onRetryKeeper ? (
+                <Button
+                  type="button"
+                  onClick={onRetryKeeper}
+                  disabled={!recording}
+                >
+                  Retry local recording
+                </Button>
+              ) : null}
+              {!recording ? (
+                <p>
+                  {paused
+                    ? "Resume the take before retrying local recording."
+                    : "Start a new take before retrying local recording."}
+                </p>
+              ) : null}
+            </>
+          ) : null}
           {sinkError ? <p className="record-warn">{sinkError}</p> : null}
           {monitorError ? <p className="record-warn">{monitorError}</p> : null}
           {hydrateError ? <p className="record-warn">{hydrateError}</p> : null}

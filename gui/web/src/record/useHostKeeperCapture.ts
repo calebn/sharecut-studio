@@ -9,6 +9,7 @@ import { useMicStream } from "./useMicStream";
 export function useHostKeeperCapture(enabled = true): {
   error: string | null;
   recordingLocally: boolean;
+  retry: () => void;
   stream: MediaStream | null;
   muted: boolean;
   monitorEnabled: boolean;
@@ -53,6 +54,7 @@ export function useHostKeeperCapture(enabled = true): {
   return {
     error: keeper.error,
     recordingLocally: keeper.recordingLocally,
+    retry: keeper.retry,
     stream: mic.stream,
     muted: host?.muted ?? false,
     monitorEnabled: hostOn && !!snapshot && connected,

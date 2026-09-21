@@ -185,6 +185,12 @@ flowchart TD
    sidecar crash that never sent Leave still pauses on the next host Join.
    Reminting a new room while REC/PAUSED is refused until the take is Stopped.
 
+   If local OPFS capture fails, the client stops claiming that REC is safely
+   backed up, preserves finalized segments, and shows **Retry local recording**.
+   The host resumes or starts a take before Retry when needed. Retry starts a
+   new segment only after the failed writable is closed best-effort; a failed
+   open segment is not treated as durable.
+
 **Success:** Guest consents, appears on the host roster, sees REC/PAUSED, hears
 the mix-minus, writes a local dry WAV, and uploads chunks until ACK. Timeline
 landing copies ACK'd keepers into `raw/` as one clip per segment and reports

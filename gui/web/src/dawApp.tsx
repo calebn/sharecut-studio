@@ -180,6 +180,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
       <RecordPanel
         recordingLocally={hostKeeper.recordingLocally}
         keeperError={hostKeeper.error}
+        onRetryKeeper={hostKeeper.retry}
         hearing={hostMonitor.hearing}
         monitorError={hostMonitor.error}
         stream={hostKeeper.stream}

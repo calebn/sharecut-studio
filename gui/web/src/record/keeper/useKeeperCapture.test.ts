@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { RecordSnapshot } from "../types";
 import { KeeperSession } from "./session";
 import {
+  type ByteStream,
   createOpfsSink,
   keeperMetaPath,
   keeperWavPath,
@@ -192,6 +193,48 @@ describe("useKeeperCapture", () => {
       expect(result.current.error).toMatch(/OPFS unavailable/);
     });
     expect(result.current.recordingLocally).toBe(false);
+  });
+
+  it("reattaches the audio tap after retrying a failed initial header", async () => {
+    const { createOpfsSink } = await import("./store");
+    const { attachKeeperTap } = await import("./graph");
+    const sink = new MemorySink();
+    const open = sink.open.bind(sink);
+    let failHeader = true;
+    sink.open = async (path): Promise<ByteStream> => {
+      const writable = await open(path);
+      return {
+        write: async (bytes, offset) => {
+          if (failHeader) {
+            failHeader = false;
+            throw new Error("keeper header unavailable");
+          }
+          await writable.write(bytes, offset);
+        },
+        close: () => writable.close(),
+      };
+    };
+    vi.mocked(createOpfsSink).mockResolvedValueOnce(sink);
+    vi.mocked(attachKeeperTap).mockClear();
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    const { result } = renderHook(() =>
+      useKeeperCapture({ ...args, enabled: true, stream }),
+    );
+    await waitFor(() =>
+      expect(result.current.error).toMatch(/header unavailable/),
+    );
+    expect(result.current.recordingLocally).toBe(false);
+    expect(attachKeeperTap).not.toHaveBeenCalled();
+
+    act(() => result.current.retry());
+    await waitFor(() => {
+      expect(result.current.error).toBeNull();
+      expect(result.current.recordingLocally).toBe(true);
+      expect(attachKeeperTap).toHaveBeenCalledWith(
+        stream,
+        expect.any(Function),
+      );
+    });
   });
 
   it("does not error when resetKey remounts during an apply", async () => {

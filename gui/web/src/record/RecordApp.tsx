@@ -248,7 +248,9 @@ export function RecordApp({ token }: { token: string }) {
               onNote={liveComments.setNote}
               connected={connected}
               recordingLocally={keeper.recordingLocally}
-              keeperError={keeper.error ?? sinkError}
+              keeperError={keeper.error}
+              uploadSinkError={sinkError}
+              onRetryKeeper={keeper.error ? keeper.retry : undefined}
               hearing={monitor.hearing}
               monitorError={monitor.error}
               upload={upload}

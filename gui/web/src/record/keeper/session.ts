@@ -25,16 +25,30 @@ export class KeeperSession {
   private sessionId = "";
   private participantId = "";
   private writeChain: Promise<void> = Promise.resolve();
+  private queuedSamples = 0;
+  private failure: Error | null = null;
+  private lastGate:
+    | (KeeperGate & {
+        sessionId: string;
+        participantId: string;
+      })
+    | null = null;
+  private readonly onFailure?: (error: Error) => void;
   private mutex: Promise<void> = Promise.resolve();
   readonly files: KeeperMeta[] = [];
   private readonly sink: ByteSink;
 
-  constructor(sink: ByteSink) {
+  constructor(sink: ByteSink, onFailure?: (error: Error) => void) {
     this.sink = sink;
+    this.onFailure = onFailure;
   }
 
   get isWriting(): boolean {
     return this.writing;
+  }
+
+  get error(): Error | null {
+    return this.failure;
   }
 
   async restoreCursor(
@@ -59,6 +73,7 @@ export class KeeperSession {
   async apply(
     gate: KeeperGate & { sessionId: string; participantId: string },
   ): Promise<void> {
+    this.lastGate = gate;
     await this.lock(() => this.applyLocked(gate));
   }
 
@@ -67,15 +82,34 @@ export class KeeperSession {
       return;
     }
     const int16 = toKeeperPcm(pcm, sourceRate, this.muted);
-    const offset = 44 + this.samples * 2;
-    this.samples += int16.length;
+    const offset = 44 + (this.samples + this.queuedSamples) * 2;
+    this.queuedSamples += int16.length;
     const bytes = new Uint8Array(
       int16.buffer,
       int16.byteOffset,
       int16.byteLength,
     );
     const stream = this.stream;
-    this.writeChain = this.writeChain.then(() => stream.write(bytes, offset));
+    this.writeChain = this.writeChain
+      .then(
+        async () => {
+          if (this.failure || this.stream !== stream) {
+            this.queuedSamples = 0;
+            return;
+          }
+          await stream.write(bytes, offset);
+          this.samples += int16.length;
+          this.queuedSamples -= int16.length;
+        },
+        (error: unknown) => {
+          this.fail(error);
+          this.queuedSamples = 0;
+        },
+      )
+      .catch((error: unknown) => {
+        this.fail(error);
+        this.queuedSamples = 0;
+      });
   }
 
   async flush(): Promise<void> {
@@ -87,6 +121,19 @@ export class KeeperSession {
       this.writing = false;
       await this.finalizeOpen();
       this.cursor = emptyKeeperCursor();
+    });
+  }
+
+  async retry(): Promise<void> {
+    await this.lock(async () => {
+      if (!this.failure || this.lastGate?.roomState !== "recording") {
+        return;
+      }
+      await this.finalizeOpen();
+      this.failure = null;
+      if (this.lastGate) {
+        await this.applyLocked(this.lastGate);
+      }
     });
   }
 
@@ -104,11 +151,18 @@ export class KeeperSession {
   ): Promise<void> {
     this.sessionId = gate.sessionId;
     this.participantId = gate.participantId;
+    if (this.failure) {
+      this.writing = false;
+      return;
+    }
     const plan = planKeeperSegment(gate, this.cursor);
     this.writing = false;
     if (plan.close) {
       await this.finalizeOpen();
     }
+    // Reserve the segment before opening the writable. If opening or writing
+    // the header fails, retry must advance past this segment rather than
+    // reusing its path.
     this.cursor = plan.cursor;
     this.muted = plan.muted;
     if (plan.open) {
@@ -121,8 +175,23 @@ export class KeeperSession {
         segmentIndex: plan.open.segmentIndex,
       });
       this.wavPath = wavPath;
-      this.stream = await this.sink.open(wavPath);
-      await this.stream.write(pcmWavHeader(0, KEEPER_SAMPLE_RATE, 1), 0);
+      try {
+        this.stream = await this.sink.open(wavPath);
+        await this.stream.write(pcmWavHeader(0, KEEPER_SAMPLE_RATE, 1), 0);
+      } catch (error) {
+        this.fail(error);
+        try {
+          await this.stream?.close();
+        } catch {
+          // Best-effort cleanup; an unclosed writable is not durable.
+        }
+        this.current = null;
+        this.stream = null;
+        this.wavPath = null;
+        this.samples = 0;
+        this.queuedSamples = 0;
+        throw error;
+      }
     }
     this.writing = plan.write;
   }
@@ -139,11 +208,40 @@ export class KeeperSession {
     }
     await this.flush();
     const samplesWritten = this.samples;
-    await stream.write(
-      pcmWavHeader(samplesWritten * 2, KEEPER_SAMPLE_RATE, 1),
-      0,
-    );
-    await stream.close();
+    if (this.failure) {
+      try {
+        await stream.close();
+      } catch {
+        // A failed OPFS writable is best-effort cleanup only. Its data is not
+        // advertised as durable without a completed close and metadata file.
+      }
+      this.current = null;
+      this.stream = null;
+      this.wavPath = null;
+      this.samples = 0;
+      this.queuedSamples = 0;
+      return;
+    }
+    try {
+      await stream.write(
+        pcmWavHeader(samplesWritten * 2, KEEPER_SAMPLE_RATE, 1),
+        0,
+      );
+      await stream.close();
+    } catch (error) {
+      this.fail(error);
+      try {
+        await stream.close();
+      } catch {
+        // Best effort; see the failure path above.
+      }
+      this.current = null;
+      this.stream = null;
+      this.wavPath = null;
+      this.samples = 0;
+      this.queuedSamples = 0;
+      return;
+    }
     const meta: KeeperMeta = {
       sessionId: this.sessionId,
       takeIndex: open.takeIndex,
@@ -154,11 +252,33 @@ export class KeeperSession {
       samplesWritten,
     };
     const json = new TextEncoder().encode(`${JSON.stringify(meta, null, 2)}\n`);
-    await this.sink.write(keeperMetaPath(wavPath), json);
+    try {
+      await this.sink.write(keeperMetaPath(wavPath), json);
+    } catch (error) {
+      this.fail(error);
+      this.current = null;
+      this.stream = null;
+      this.wavPath = null;
+      this.samples = 0;
+      this.queuedSamples = 0;
+      throw error;
+    }
     this.files.push(meta);
     this.current = null;
     this.stream = null;
     this.wavPath = null;
     this.samples = 0;
+    this.queuedSamples = 0;
+  }
+
+  private fail(error: unknown): void {
+    if (this.failure) {
+      return;
+    }
+    this.failure = error instanceof Error ? error : new Error(String(error));
+    this.writing = false;
+    this.cursor = { ...this.cursor, open: null };
+    this.queuedSamples = 0;
+    this.onFailure?.(this.failure);
   }
 }
