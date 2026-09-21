@@ -20,7 +20,7 @@ def speaker_enroll_tool(
     end_sec: float | None = None,
     home_track_id: str | None = None,
 ) -> str:
-    """Enroll a voiceprint for a speaker from a time window on a track."""
+    """Enroll voiceprints from a segment, a whole track, or every media-backed track."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(
         SpeakerService(ws).enroll(
@@ -96,7 +96,7 @@ def speaker_gate_track_tool(
     track_id: str | None = None,
     dry_run: bool = True,
 ) -> str:
-    """Mute segments where other speakers bleed onto a home track (dry_run by default)."""
+    """Suppress transcript words from other speakers on home tracks; use apply_transcript_gate_tool to mute audio."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(
         SpeakerService(ws).gate_track(

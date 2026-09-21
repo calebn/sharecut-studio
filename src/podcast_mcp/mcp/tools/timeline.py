@@ -60,7 +60,7 @@ def ripple_delete_text_tool(
     query: str,
     use_inaudible_opt: bool | None = None,
 ) -> str:
-    """Ripple-delete every timeline span matching a transcript text query."""
+    """Ripple-delete the first timeline span matching a transcript text query."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(
         EditService(ws).ripple_delete_text(
@@ -252,7 +252,7 @@ def duplicate_segment_tool(
 
 
 def list_clips_tool(project_path: str, track_id: str | None = None) -> str:
-    """List clips on a track in timeline order."""
+    """List clips in timeline order for one track or all tracks when track_id is omitted."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).list_clips(track_id))
 
@@ -518,7 +518,7 @@ def apply_low_audibility_suppression_tool(
     speaker: str | None = None,
     words_json: str | None = None,
 ) -> str:
-    """Suppress (gate) low-audibility words, optionally from a JSON word list."""
+    """Suppress low-audibility transcript words, optionally from a JSON word list; leaves audio unchanged."""
     ws = ProjectWorkspace.open(project_path)
     words = json.loads(words_json) if words_json else None
     if words is not None and not isinstance(words, list):
@@ -657,7 +657,7 @@ def apply_transcript_gate_tool(
     apply: bool = True,
     dry_run: bool = False,
 ) -> str:
-    """Gate (mute) mic-bleed regions on the transcript; dry_run previews."""
+    """Rewrite fresh dialogue-stem WAVs to mute mic-bleed regions without changing transcript metadata."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(
         EditService(ws).apply_bleed_mute(

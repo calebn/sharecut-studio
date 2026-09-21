@@ -26,7 +26,7 @@ def history_list(project_path: str) -> str:
 
 
 def history_status_tool(project_path: str) -> str:
-    """Report the history cursor position and dirty state."""
+    """Report history cursor, total, undo/redo availability, and current label."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(HistoryService(ws).status())
 

@@ -13,7 +13,7 @@ from podcast_mcp.util.progress import resolve_progress
 
 
 def transcribe_track(project_path: str, track_id: str | None = None) -> str:
-    """Transcribe a track's audio into word-level timestamps."""
+    """Transcribe one track, or all dialogue tracks when track_id is omitted, into word-level timestamps."""
     ws = ProjectWorkspace.open(project_path)
     ids = TranscriptService(ws).transcribe(track_id)
     return to_json(ids)
