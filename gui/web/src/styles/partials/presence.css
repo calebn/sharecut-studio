@@ -227,7 +227,8 @@
 
 /* Menu is nested in `.transport` (`container: transport / inline-size`). */
 @container transport (inline-size < 68.75rem) {
-  .ui-menu-panel [role="menuitem"] {
+  .ui-menu-panel
+    :is([role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]) {
     min-block-size: var(--touch-min);
   }
 }
