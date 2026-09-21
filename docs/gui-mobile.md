@@ -48,7 +48,7 @@ Selection opens a non-modal **half → full** [`BottomSheet`](../gui/web/src/ui/
 Every selection sheet follows the same three-zone layout for consistency:
 
 1. **Primary actions** — the inspector content itself (2-3 most common actions, large targets)
-2. **Related commands** ("You might also want…") — supported next actions for this selection, currently Copy for clips and single selected transcript words. Transcript ranges stay in Text and use the transcript toolbar/shortcuts.
+2. **Related commands** ("You might also want…") — supported next actions for this selection, currently Copy for clips and single selected transcript words. Transcript ranges stay in Text; contextual range Copy is deferred under #32, while keyboard Copy remains available.
 3. **More** — a distinct overflow below Related. It currently truthfully reports when no additional safe action exists; unavailable, duplicate, and inspector-owned mutations are omitted. A functional context-filtered command list remains open in issue #32. Both zones live in `RelatedCommands` (`gui/web/src/inspector/RelatedCommands.tsx`), with typed mappings in `relatedCommandDescriptors.ts`.
 
 Example: Clip selected → Related shows Copy; More reports no additional action because fade/delete are clip-inspector controls and seeking is already in its footer.
