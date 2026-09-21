@@ -221,11 +221,11 @@ The `frontend-e2e` job runs the full fast Playwright suite in bundled Chromium,
 then the focused `gui/web/e2e-compat/` matrix in bundled Chromium and
 Playwright WebKit. It covers the project shell and playback control, the phone
 listening shell, and the recording guest's microphone-consent-to-level path.
-The recording check supplies a deterministic synthetic audio stream so both
-engines can exercise the app flow without a host microphone; it does not verify
-each browser's native permission prompt or hardware capture. This keeps coverage
-focused on high-risk entry points without multiplying the full suite across
-engines.
+The recording check supplies a deterministic empty media stream so both engines
+can exercise the consent UI without a host microphone or audio backend; it does
+not verify native permission prompts, hardware capture, or keeper audio. This
+keeps coverage focused on high-risk entry points without multiplying the full
+suite across engines.
 
 Run it locally after installing both engines:
 
