@@ -111,6 +111,30 @@ def test_approve_skips_stale_mute_and_preserves_pending_decision():
     assert [record.decision_ids for record in proj.editorial.edit_log] == [["valid"]]
 
 
+def test_approve_remove_falls_back_to_track_scope_when_guard_cannot_resolve():
+    proj = _project_with_clip()
+    decision = EditDecision(
+        id="fallback",
+        track_id="host",
+        type=EditDecisionType.REMOVE,
+        start=1.0,
+        end=2.0,
+        scope="session",
+        applied=False,
+    )
+    proj.edit_decisions = [decision]
+
+    with patch(
+        "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+        side_effect=ValueError("guard unavailable"),
+    ):
+        assert approve_edits(proj, ["fallback"]) == 1
+
+    assert decision.scope == "track"
+    assert proj.edit_decisions == []
+    assert [record.decision_ids for record in proj.editorial.edit_log] == [["fallback"]]
+
+
 def test_update_pending_edit_without_snap():
     proj = _project_with_clip()
     proj.edit_decisions = [

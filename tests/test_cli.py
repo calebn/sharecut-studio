@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from unittest.mock import patch
 
 from typer.testing import CliRunner
@@ -44,6 +45,61 @@ def test_track_add(tmp_path, sample_wav):
     )
     assert result.exit_code == 0
     assert "host" in result.stdout
+
+
+def test_episode_reorder_track_reports_service_result(tmp_path):
+    ws = tmp_path / "ep"
+    runner.invoke(app, ["episode", "init", "--dir", str(ws)])
+    project = ws / "episode.project.json"
+
+    with patch("podcast_mcp.cli.episode.EpisodeService") as service:
+        service.return_value.reorder_track.return_value = {"id": "guest", "index": 0}
+        result = runner.invoke(
+            app,
+            [
+                "episode",
+                "reorder-track",
+                "--project",
+                str(project),
+                "--id",
+                "guest",
+                "--index",
+                "0",
+            ],
+        )
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == {"id": "guest", "index": 0}
+    service.return_value.reorder_track.assert_called_once_with("guest", 0)
+
+
+def test_edit_crossfade_joins_reports_service_result(tmp_path):
+    ws = tmp_path / "ep"
+    runner.invoke(app, ["episode", "init", "--dir", str(ws)])
+    project = ws / "episode.project.json"
+
+    with patch("podcast_mcp.cli.edit.EditService") as service:
+        service.return_value.crossfade_joins.return_value = {"count": 0}
+        result = runner.invoke(
+            app,
+            [
+                "edit",
+                "crossfade-joins",
+                "--project",
+                str(project),
+                "--track",
+                "host",
+                "--fade-ms",
+                "10",
+                "--dry-run",
+            ],
+        )
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == {"count": 0}
+    service.return_value.crossfade_joins.assert_called_once_with(
+        track_id="host", speaker=None, fade_ms=10, dry_run=True
+    )
 
 
 def test_transcribe_command_passes_model_to_transcript_service(tmp_path):
