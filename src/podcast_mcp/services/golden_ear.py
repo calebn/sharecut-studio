@@ -36,7 +36,9 @@ from podcast_mcp.util.progress import progress_task
 DEFAULT_LIMIT = 40
 MAX_LIMIT = 500
 DEFAULT_PAD_SEC = 2.0
-ALLOWED_CLASSES = ("filler", "pause")
+# Repetition/restart proposals use the same pending-preview A/B harness as
+# fillers and pauses.  They remain review-required in the tighten path.
+ALLOWED_CLASSES = ("filler", "pause", "repetition", "restart")
 PREFER_EDIT_GATED_MIN = 0.90
 GATED_N_FLOOR = 2
 ANSWERS_FIELDS = ("pair_id", "prefer", "leftover_consonant", "notes")
@@ -60,10 +62,10 @@ def parse_classes(raw: str | tuple[str, ...] | list[str] | None) -> tuple[str, .
     else:
         parts = tuple(str(p).strip().lower() for p in raw if str(p).strip())
     if not parts:
-        raise ValueError("classes must include at least one of filler, pause")
+        raise ValueError("classes must include at least one of filler, pause, repetition, restart")
     unknown = [p for p in parts if p not in ALLOWED_CLASSES]
     if unknown:
-        raise ValueError(f"unsupported classes {unknown!r}; use filler,pause")
+        raise ValueError(f"unsupported classes {unknown!r}; use filler,pause,repetition,restart")
     return parts
 
 
