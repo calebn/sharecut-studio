@@ -1,12 +1,31 @@
-import { type Locator, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import {
   expectDialogLowerTargetReachable,
   expectMenuLastItemReachable,
   expectShareRecordRoomsReachable,
+  expectVisibleInOverlay,
   openHostProject,
   openTransportMenu,
   SHORT_VIEWPORTS,
 } from "./overlayReachability";
+
+test("reports scroll evaluator failures from overlay reachability", async ({
+  page,
+}) => {
+  await page.setContent('<div id="overlay"><button>Target</button></div>');
+  const overlay = page.locator("#overlay");
+  const target = overlay.getByRole("button", { name: "Target" });
+  const failureMessage = "intentional scroll evaluator failure";
+  await target.evaluate((el, message) => {
+    el.scrollIntoView = () => {
+      throw new Error(message);
+    };
+  }, failureMessage);
+
+  await expect(expectVisibleInOverlay(overlay, target)).rejects.toThrow(
+    failureMessage,
+  );
+});
 
 test.describe("overlay viewport scroll", () => {
   for (const viewport of SHORT_VIEWPORTS) {
