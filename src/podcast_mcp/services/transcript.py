@@ -20,6 +20,7 @@ class TranscriptService:
                 t = self._engine.transcribe_track(p, track_id)
                 p.transcripts = [x for x in p.transcripts if x.track_id != track_id]
                 p.transcripts.append(t)
+                return [t.track_id]
             else:
                 p.transcripts = self._engine.transcribe_all_dialogue(p)
             return [t.track_id for t in p.transcripts]

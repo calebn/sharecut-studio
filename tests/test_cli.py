@@ -92,6 +92,8 @@ def test_transcribe_command_warns_when_nothing_transcribed(tmp_path):
 
 
 def test_transcribe_command_empty_project_reports_zero(tmp_path):
+    from podcast_mcp.services import ProjectWorkspace
+
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
     project = ws / "episode.project.json"
@@ -101,6 +103,7 @@ def test_transcribe_command_empty_project_reports_zero(tmp_path):
     assert result.exit_code == 0
     assert "Transcribed 0 track(s)." in result.stdout
     assert "no tracks were transcribed" in result.stderr
+    assert len(ProjectWorkspace.open(project).project.history.entries) == 1
 
 
 def test_propose_edits_command(tmp_path):

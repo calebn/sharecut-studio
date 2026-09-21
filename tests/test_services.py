@@ -247,6 +247,19 @@ def test_transcript_service_transcribe_all_and_combined_get(minimal_project):
     assert "hi" in body
 
 
+def test_transcript_service_single_track_returns_only_processed_id(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.project.transcripts = [Transcript(track_id="guest", words=[])]
+    ws.save()
+
+    with patch("podcast_mcp.services.transcript.TranscriptionEngine") as eng_cls:
+        eng_cls.return_value.transcribe_track.return_value = Transcript(track_id="host", words=[])
+        ids = TranscriptService(ws).transcribe("host")
+
+    assert ids == ["host"]
+    assert [transcript.track_id for transcript in ws.project.transcripts] == ["guest", "host"]
+
+
 def test_transcript_service_export_markdown_and_vtt(minimal_project):
     from podcast_mcp.models import CombinedTranscript, CombinedUtterance
 
