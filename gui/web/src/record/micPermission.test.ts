@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   copyForMicStatus,
   MIC_DENIED_COPY,
+  MIC_DESKTOP_DENIED_COPY,
+  MIC_DESKTOP_PROMPTING_COPY,
   MIC_ERROR_COPY,
   MIC_GRANT_HINT_COPY,
   MIC_PROMPTING_COPY,
@@ -47,5 +49,25 @@ describe("copyForMicStatus", () => {
     expect(copyForMicStatus("unavailable")).toBe(MIC_UNAVAILABLE_COPY);
     expect(copyForMicStatus("error")).toBe(MIC_ERROR_COPY);
     expect(copyForMicStatus("granted")).toBeNull();
+  });
+
+  it("uses the browser copy outside the Tauri webview", () => {
+    expect(copyForMicStatus("prompting")).toBe(MIC_PROMPTING_COPY);
+    expect(copyForMicStatus("denied")).toBe(MIC_DENIED_COPY);
+  });
+
+  it("uses operating-system guidance in the Tauri webview", () => {
+    Object.defineProperty(window, "__TAURI_INTERNALS__", {
+      configurable: true,
+      value: {},
+    });
+
+    try {
+      expect(copyForMicStatus("prompting")).toBe(MIC_DESKTOP_PROMPTING_COPY);
+      expect(copyForMicStatus("denied")).toBe(MIC_DESKTOP_DENIED_COPY);
+    } finally {
+      delete (window as Window & { __TAURI_INTERNALS__?: unknown })
+        .__TAURI_INTERNALS__;
+    }
   });
 });

@@ -568,7 +568,7 @@ stateDiagram-v2
   joined --> idle: recorded (name, headphones)
   idle --> prompting: Allow microphone
   prompting --> granted: getUserMedia ok
-  prompting --> denied: NotAllowedError / site blocked
+  prompting --> denied: NotAllowedError / browser site or OS blocked
   prompting --> unavailable: NotFoundError
   prompting --> error: unmapped getUserMedia error
   denied --> prompting: Retry
@@ -604,6 +604,8 @@ stateDiagram-v2
 | Open speakers | "Use headphones. Playing the room on speakers will echo into every mic." |
 | Mic grant | "Allow microphone" |
 | Mic blocked | "Microphone is blocked for this site. Allow it in your browser's site settings, then Retry." |
+| Mic blocked in the Tauri desktop app | "Microphone access is blocked by your operating system. Allow Sharecut Studio in your system microphone privacy settings, then Retry." |
+| Mic permission prompt in the Tauri desktop app | "Waiting for the operating system microphone permission prompt…" |
 | No input device | "No microphone was found. Connect an input device, then Retry." |
 | Mic required for consent | "Allow the microphone before you accept recording." |
 | Room tone | "Record 3 seconds of room tone" |
