@@ -55,18 +55,38 @@ def _public_tree_violations(root: Path) -> list[str]:
     provider_root = Path("src/podcast_online")
     hits: list[str] = []
     tracked = subprocess.check_output(
-        ["git", "-C", str(root), "ls-files", "-z"],
+        ["git", "-C", str(root), "ls-files", "--stage", "-z"],
     ).split(b"\0")
-    for raw_relative in tracked:
-        if not raw_relative:
+    entries: list[tuple[bytes, bytes]] = []
+    for raw_entry in tracked:
+        if not raw_entry:
             continue
+        metadata, raw_relative = raw_entry.split(b"\t", 1)
+        _mode, oid, _stage = metadata.split()
+        entries.append((raw_relative, oid))
+
+    # Read the same immutable blobs Git would publish. Opening checkout paths
+    # could follow a symlink or miss staged content after a local edit.
+    blobs = subprocess.run(
+        ["git", "-C", str(root), "cat-file", "--batch"],
+        input=b"".join(oid + b"\n" for _, oid in entries),
+        stdout=subprocess.PIPE,
+        check=True,
+    ).stdout
+    offset = 0
+    for raw_relative, oid in entries:
+        header_end = blobs.index(b"\n", offset)
+        result_oid, object_type, raw_size = blobs[offset:header_end].split()
+        assert result_oid == oid
+        size = int(raw_size)
+        content = blobs[header_end + 1 : header_end + 1 + size]
+        offset = header_end + size + 2  # object bytes and trailing newline
         relative = Path(os.fsdecode(raw_relative))
         if relative == provider_root or provider_root in relative.parents:
             hits.append(f"{relative}: private provider source")
-        path = root / relative
-        if not path.is_file():
+        if object_type != b"blob":  # Gitlinks contain commits, not file bytes.
             continue
-        content = path.read_bytes().lower()
+        content = content.lower()
         for marker in forbidden:
             if marker.lower() in content:
                 hits.append(f"{relative}: {marker.decode()}")
@@ -119,3 +139,35 @@ def test_public_tree_reports_tracked_forbidden_marker(tmp_path: Path) -> None:
     subprocess.run(["git", "-C", str(tmp_path), "add", "--", "tracked.txt"], check=True)
 
     assert _public_tree_violations(tmp_path) == ["tracked.txt: " + "hound" + "stooth"]
+
+
+def test_public_tree_scans_staged_bytes_after_checkout_changes(tmp_path: Path) -> None:
+    marker_file = tmp_path / "tracked.txt"
+    marker_file.write_text("contains " + "hound" + "stooth\n", encoding="utf-8")
+    _init_git_repo(tmp_path)
+    subprocess.run(["git", "-C", str(tmp_path), "add", "--", "tracked.txt"], check=True)
+    marker_file.write_text("redacted in checkout\n", encoding="utf-8")
+
+    assert _public_tree_violations(tmp_path) == ["tracked.txt: " + "hound" + "stooth"]
+
+
+def test_public_tree_ignores_unstaged_marker_and_missing_checkout(tmp_path: Path) -> None:
+    tracked = tmp_path / "tracked.txt"
+    tracked.write_text("safe content\n", encoding="utf-8")
+    _init_git_repo(tmp_path)
+    subprocess.run(["git", "-C", str(tmp_path), "add", "--", "tracked.txt"], check=True)
+    tracked.write_text("hound" + "stooth\n", encoding="utf-8")
+    assert _public_tree_violations(tmp_path) == []
+
+    tracked.unlink()
+    assert _public_tree_violations(tmp_path) == []
+
+
+def test_public_tree_does_not_follow_tracked_symlinks(tmp_path: Path) -> None:
+    target = tmp_path / "ignored.txt"
+    target.write_text("contains " + "hound" + "stooth\n", encoding="utf-8")
+    (tmp_path / "tracked-link").symlink_to(target.name)
+    _init_git_repo(tmp_path)
+    subprocess.run(["git", "-C", str(tmp_path), "add", "--", "tracked-link"], check=True)
+
+    assert _public_tree_violations(tmp_path) == []
