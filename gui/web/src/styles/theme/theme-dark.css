@@ -6,14 +6,14 @@
   color-scheme: dark;
 
   /* Recessed mixer well — darker than chrome panes (surface). */
-  --color-bg-lane: #0f0e0c;
-  --color-bg-lane-muted: #080706;
+  --color-bg-lane: var(--primitive-neutral-900);
+  --color-bg-lane-muted: var(--primitive-neutral-950);
   /* Unmapped/suppressed transcript (≥4.5:1 on --color-bg-surface). */
-  --color-text-unmapped: #c5c0b6;
+  --color-text-unmapped: var(--primitive-neutral-250);
   /* Text/links on dark surfaces (≥4.5:1 on --color-bg-lane). */
   --color-accent-fg: var(--color-accent);
   /* Filled controls with light label (≥4.5:1 white-on-solid). */
-  --color-badge-bg: #3a2e24;
+  --color-badge-bg: var(--primitive-neutral-600);
   --color-badge-fg: var(--color-accent);
   --color-accent-subtle: color-mix(
     in srgb,
@@ -41,7 +41,7 @@
     var(--color-selection) 22%,
     transparent
   );
-  --color-warning: #e8a838;
+  --color-warning: var(--primitive-amber-400);
   --color-warning-subtle: color-mix(
     in srgb,
     var(--color-warning) 20%,
@@ -97,7 +97,7 @@
     var(--color-warning) 18%,
     var(--color-bg-elevated)
   );
-  --color-danger: #e85d5d;
+  --color-danger: var(--primitive-red-400);
   --color-danger-muted: color-mix(
     in srgb,
     var(--color-danger) 25%,
@@ -108,7 +108,7 @@
     var(--color-danger) 35%,
     transparent
   );
-  --color-success: #7ad49a;
+  --color-success: var(--primitive-green-400);
   --color-success-subtle: color-mix(
     in srgb,
     var(--color-success) 20%,
@@ -124,20 +124,20 @@
     var(--color-success) 65%,
     transparent
   );
-  --color-success-solid: #5cb85c;
-  --color-clip-dialogue-0: #3d6b8a;
-  --color-clip-dialogue-1: #4a7a5c;
-  --color-clip-dialogue-2: #7a5c4a;
-  --color-clip-music: #4a4a7a;
-  --color-clip-sfx: #6a4a7a;
-  --color-presence-0: #f48fb1;
-  --color-presence-1: #b39ddb;
-  --color-presence-2: #4dd0c4;
-  --color-presence-3: #ffb74d;
-  --color-presence-4: #f06292;
-  --color-presence-5: #64b5f6;
-  --color-presence-6: #aed581;
-  --color-presence-7: #9fa8da;
+  --color-success-solid: var(--primitive-green-500);
+  --color-clip-dialogue-0: var(--primitive-blue-650);
+  --color-clip-dialogue-1: var(--primitive-green-650);
+  --color-clip-dialogue-2: var(--primitive-brown-700);
+  --color-clip-music: var(--primitive-blue-750);
+  --color-clip-sfx: var(--primitive-purple-650);
+  --color-presence-0: var(--primitive-purple-300);
+  --color-presence-1: var(--primitive-purple-400);
+  --color-presence-2: var(--primitive-teal-300);
+  --color-presence-3: var(--primitive-amber-250);
+  --color-presence-4: var(--primitive-purple-500);
+  --color-presence-5: var(--primitive-blue-400);
+  --color-presence-6: var(--primitive-green-300);
+  --color-presence-7: var(--primitive-blue-350);
   --color-pending-edit: color-mix(
     in srgb,
     var(--color-danger) 35%,
@@ -160,7 +160,7 @@
     var(--color-warning) 40%,
     transparent
   );
-  --color-envelope-line: #7ad4c8;
+  --color-envelope-line: var(--primitive-teal-400);
   --color-envelope-subtle: color-mix(
     in srgb,
     var(--color-envelope-line) 18%,
@@ -176,10 +176,18 @@
     var(--color-envelope-line) 45%,
     transparent
   );
-  --color-playhead: #f4f1ea;
-  --color-marker: #e8d44d;
-  --color-social-marker: color-mix(in srgb, #7ab4ff 55%, transparent);
-  --color-comment-marker: color-mix(in srgb, #e88c5a 85%, transparent);
+  --color-playhead: var(--primitive-neutral-50);
+  --color-marker: var(--primitive-amber-300);
+  --color-social-marker: color-mix(
+    in srgb,
+    var(--primitive-blue-300) 55%,
+    transparent
+  );
+  --color-comment-marker: color-mix(
+    in srgb,
+    var(--primitive-orange-400) 85%,
+    transparent
+  );
   --color-comment-bubble-bg: color-mix(
     in srgb,
     var(--color-bg-canvas) 92%,
@@ -190,23 +198,83 @@
     var(--color-warning) 55%,
     var(--color-border)
   );
-  --color-waveform-peak: color-mix(in srgb, #ffffff 55%, transparent);
-  --color-waveform-quiet: color-mix(in srgb, #ffffff 8%, transparent);
-  --color-waveform-snap: color-mix(in srgb, #e8d44d 70%, transparent);
-  --color-overlay-white-08: color-mix(in srgb, #ffffff 8%, transparent);
-  --color-overlay-white-10: color-mix(in srgb, #ffffff 10%, transparent);
-  --color-overlay-white-12: color-mix(in srgb, #ffffff 12%, transparent);
-  --color-overlay-white-15: color-mix(in srgb, #ffffff 15%, transparent);
-  --color-overlay-white-25: color-mix(in srgb, #ffffff 25%, transparent);
-  --color-overlay-white-35: color-mix(in srgb, #ffffff 35%, transparent);
-  --color-overlay-white-55: color-mix(in srgb, #ffffff 55%, transparent);
-  --color-overlay-black-22: color-mix(in srgb, #000000 22%, transparent);
-  --color-overlay-black-25: color-mix(in srgb, #000000 25%, transparent);
-  --color-overlay-black-35: color-mix(in srgb, #000000 35%, transparent);
-  --color-overlay-black-75: color-mix(in srgb, #000000 75%, transparent);
-  --color-overlay-black-90: color-mix(in srgb, #000000 90%, transparent);
+  --color-waveform-peak: color-mix(
+    in srgb,
+    var(--primitive-white) 55%,
+    transparent
+  );
+  --color-waveform-quiet: color-mix(
+    in srgb,
+    var(--primitive-white) 8%,
+    transparent
+  );
+  --color-waveform-snap: color-mix(
+    in srgb,
+    var(--primitive-amber-300) 70%,
+    transparent
+  );
+  --color-overlay-white-08: color-mix(
+    in srgb,
+    var(--primitive-white) 8%,
+    transparent
+  );
+  --color-overlay-white-10: color-mix(
+    in srgb,
+    var(--primitive-white) 10%,
+    transparent
+  );
+  --color-overlay-white-12: color-mix(
+    in srgb,
+    var(--primitive-white) 12%,
+    transparent
+  );
+  --color-overlay-white-15: color-mix(
+    in srgb,
+    var(--primitive-white) 15%,
+    transparent
+  );
+  --color-overlay-white-25: color-mix(
+    in srgb,
+    var(--primitive-white) 25%,
+    transparent
+  );
+  --color-overlay-white-35: color-mix(
+    in srgb,
+    var(--primitive-white) 35%,
+    transparent
+  );
+  --color-overlay-white-55: color-mix(
+    in srgb,
+    var(--primitive-white) 55%,
+    transparent
+  );
+  --color-overlay-black-22: color-mix(
+    in srgb,
+    var(--primitive-black) 22%,
+    transparent
+  );
+  --color-overlay-black-25: color-mix(
+    in srgb,
+    var(--primitive-black) 25%,
+    transparent
+  );
+  --color-overlay-black-35: color-mix(
+    in srgb,
+    var(--primitive-black) 35%,
+    transparent
+  );
+  --color-overlay-black-75: color-mix(
+    in srgb,
+    var(--primitive-black) 75%,
+    transparent
+  );
+  --color-overlay-black-90: color-mix(
+    in srgb,
+    var(--primitive-black) 90%,
+    transparent
+  );
   --color-scrim: color-mix(in srgb, var(--color-bg-canvas) 45%, transparent);
-  --color-shadow: color-mix(in srgb, #000000 35%, transparent);
+  --color-shadow: color-mix(in srgb, var(--primitive-black) 35%, transparent);
   --shadow-clip-label:
     0 0 0.125rem var(--color-overlay-black-90),
     0 1px 0.125rem var(--color-overlay-black-75);

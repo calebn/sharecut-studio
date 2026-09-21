@@ -52,6 +52,18 @@ _JS_STYLE_SPACE = re.compile(
     r"""(?!['"]var\()(?!0\b)(?!['"]0(?:px)?['"])"""
     r"""(?:\d+|['"][^'"]+)""",
 )
+# Token tier discipline (see docs/design-tokens.md): primitives are raw
+# literals; theme files map primitives onto semantic roles and never author
+# raw color. brand-tokens.css is exempt — its copies ship to splash/relay
+# static contexts that never load primitives.css, so it stays self-contained.
+_PRIMITIVES_CSS = ROOT / "gui/web/src/styles/theme/primitives.css"
+_THEME_CSS = (
+    ROOT / "gui/web/src/styles/theme/theme-dark.css",
+    ROOT / "gui/web/src/styles/theme/theme-light.css",
+)
+_CSS_VAR_REF = re.compile(r"var\(\s*--")
+_CSS_HEX = re.compile(r"#[0-9a-fA-F]{3,8}\b")
+_CSS_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 
 
 def _css_files() -> list[Path]:
@@ -234,3 +246,48 @@ def test_python_css_color_regex_catches_hex() -> None:
     assert _PY_CSS_COLOR.search("background:#f2f2f2")
     assert not _PY_CSS_COLOR.search("color: var(--color-text-primary)")
     assert not _PY_CSS_COLOR.search("background: var(--color-bg-elevated)")
+
+
+def _declaration_values(text: str) -> list[tuple[int, str]]:
+    """(line_no, value) for each `--prop: value;` declaration, comments stripped."""
+    values: list[tuple[int, str]] = []
+    code = _CSS_COMMENT.sub("", text)
+    for m in re.finditer(r"--[\w-]+\s*:\s*([^;]+);", code):
+        line_no = code[: m.start()].count("\n") + 1
+        values.append((line_no, m.group(1)))
+    return values
+
+
+def test_primitives_are_raw_values() -> None:
+    """Primitive tier: literals only — a primitive referencing var(--…) is a
+    semantic token wearing the wrong name."""
+    rel = _PRIMITIVES_CSS.relative_to(ROOT)
+    hits = [
+        f"{rel}:{line}: primitive references var(--…) ({value.strip()[:60]})"
+        for line, value in _declaration_values(_PRIMITIVES_CSS.read_text(encoding="utf-8"))
+        if _CSS_VAR_REF.search(value)
+    ]
+    assert not hits, "primitives must be raw values:\n" + "\n".join(hits)
+
+
+def test_theme_files_use_primitives_not_raw_hex() -> None:
+    """Semantic tier: theme-dark/light map primitives onto --color-* roles and
+    never author raw hex. (brand-tokens.css is exempt: self-contained mirror.)"""
+    hits: list[str] = []
+    for path in _THEME_CSS:
+        rel = path.relative_to(ROOT)
+        text = _CSS_COMMENT.sub("", path.read_text(encoding="utf-8"))
+        for i, line in enumerate(text.splitlines(), 1):
+            for m in _CSS_HEX.finditer(line):
+                hits.append(f"{rel}:{i}: raw {m.group(0)} (use var(--primitive-*))")
+    assert not hits, "raw hex in theme files:\n" + "\n".join(hits)
+
+
+def test_tier_regex_helpers() -> None:
+    assert _CSS_VAR_REF.search("color: var(--primitive-neutral-900)")
+    assert not _CSS_VAR_REF.search("color: #0f0e0c")
+    assert _CSS_HEX.search("#0f0e0c")
+    assert not _CSS_HEX.search("var(--primitive-neutral-900)")
+    assert _declaration_values("--a: #fff;\n--b: var(--a);")[0] == (1, "#fff")
+    # hex inside comments is not a declaration value
+    assert _declaration_values("/* #fff */\n--a: var(--b);") == [(2, "var(--b)")]

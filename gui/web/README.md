@@ -67,11 +67,15 @@ Semantic CSS variables live under `src/styles/theme/`:
 
 | File | Role |
 |------|------|
-| `brand-tokens.css` | Shared scale + brand `--color-*` (sync-copy from `deploy/brand/`) |
+| `brand-tokens.css` | Shared scale + brand `--color-*` (sync-copy from `deploy/brand/`; self-contained — see below) |
+| `primitives.css` | **Primitive tier:** raw `--primitive-*` literals, theme-invariant; never `var()`, never consumed by components |
 | `tokens.css` | Sharecut Studio-only scales (`--space-*`, `--font-size-*`, `--z-*`), layout dims, legacy aliases |
-| `theme-dark.css` | Sharecut Studio-only dark functional colors (`:root` / `[data-theme=dark]`) |
-| `theme-light.css` | Sharecut Studio-only light functional colors + `prefers-color-scheme` when no `data-theme` |
-| `../theme.css` | Imports brand-tokens, then the three above |
+| `theme-dark.css` | **Semantic tier:** dark `--color-*` roles mapped onto primitives |
+| `theme-light.css` | **Semantic tier:** light `--color-*` roles + `prefers-color-scheme` when no `data-theme` |
+| `../theme.css` | Imports brand-tokens, primitives, then the three above |
+
+Naming system (tiers, patterns, state modifiers, minting rules):
+[docs/design-tokens.md](../../docs/design-tokens.md).
 
 Root switching (same CSS contract as marketing):
 
@@ -83,7 +87,7 @@ Root switching (same CSS contract as marketing):
 ### Adding a token
 
 1. **Shared brand / scale:** edit `deploy/brand/brand-tokens.css`, copy to public dirs and `src/styles/theme/brand-tokens.css`.
-2. **Sharecut Studio-only:** declare the name in `theme/tokens.css` (legacy alias only if migrating old `var(--…)` call sites) and set values in both `theme-dark.css` and `theme-light.css` using the same selectors as brand-tokens.
+2. **Sharecut Studio-only:** declare the name in `theme/tokens.css` (legacy alias only if migrating old `var(--…)` call sites). For a new **color**: add the raw value to `theme/primitives.css` (`--primitive-<family>-<step>`), then map it onto a `--color-*` semantic role in both `theme-dark.css` and `theme-light.css` using the same selectors as brand-tokens. Never put raw hex in the theme files; never consume `--primitive-*` directly from components. See [docs/design-tokens.md](../../docs/design-tokens.md).
 3. Use `var(--…)` in partials / components — **never** invent one-off hex/`rgb` outside `src/styles/theme/`. Stylelint enforces this in CI.
 
 Domain CSS is split into `@import` partials from `src/styles/daw.css` (`partials/layout.css`, `timeline.css`, `inspector.css`, `panels.css`, `review.css`, `bottom-sheet.css`, `responsive.css`).
