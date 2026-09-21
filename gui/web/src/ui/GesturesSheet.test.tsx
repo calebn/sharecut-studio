@@ -5,27 +5,47 @@ import { GesturesSheet } from "./GesturesSheet";
 
 describe("GesturesSheet", () => {
   it("renders gesture list when open", () => {
-    render(<GesturesSheet open={true} onClose={() => {}} />);
+    render(
+      <GesturesSheet
+        open={true}
+        onClose={() => {}}
+        onShowKeyboardShortcuts={() => {}}
+      />,
+    );
     expect(screen.getByText("Two-finger tap")).toBeInTheDocument();
     expect(screen.getByText("Long-press")).toBeInTheDocument();
     expect(screen.getByText("Pinch")).toBeInTheDocument();
   });
 
   it("marks unavailable gestures as coming soon", () => {
-    render(<GesturesSheet open={true} onClose={() => {}} />);
+    render(
+      <GesturesSheet
+        open={true}
+        onClose={() => {}}
+        onShowKeyboardShortcuts={() => {}}
+      />,
+    );
     expect(screen.getAllByText("Soon").length).toBeGreaterThan(0);
   });
 
   it("does not render when closed", () => {
     const { container } = render(
-      <GesturesSheet open={false} onClose={() => {}} />,
+      <GesturesSheet
+        open={false}
+        onClose={() => {}}
+        onShowKeyboardShortcuts={() => {}}
+      />,
     );
     expect(container.textContent).not.toContain("Two-finger tap");
   });
 
   it("is axe-clean", async () => {
     const { container } = render(
-      <GesturesSheet open={true} onClose={() => {}} />,
+      <GesturesSheet
+        open={true}
+        onClose={() => {}}
+        onShowKeyboardShortcuts={() => {}}
+      />,
     );
     await expectNoA11yViolations(container);
   });

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { execute } from "../commands/execute";
 import { FEATURE_SHARE_UI_BANNER } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
@@ -20,7 +20,7 @@ import { useDaw } from "../state/useDaw";
 import { TimelineView } from "../timeline/TimelineView";
 import { TrackHeadersColumn } from "../tracks/TrackHeadersColumn";
 import type { PresenceTab } from "../types/session";
-import { BottomSheet, CommandButton, GesturesSheet, ToggleButton } from "../ui";
+import { BottomSheet, CommandButton, ToggleButton } from "../ui";
 import { isPipelineSlotBusy, pipelineChipOpensPanel } from "../utils/pipeline";
 import { formatTimecodePair } from "../utils/time";
 import { AvatarStack } from "./AvatarStack";
@@ -47,8 +47,8 @@ function MoreHub({ guestShare }: { guestShare: boolean }) {
     guestMode,
     shareCapabilities,
     project,
+    setGesturesSheetOpen,
   } = useDaw();
-  const [gesturesOpen, setGesturesOpen] = useState(false);
   const running =
     isPipelineSlotBusy(activityJob) || isPipelineSlotBusy(pipelineJob);
   const mayIngest = canIngestMedia(projectPath, guestMode, shareCapabilities);
@@ -109,15 +109,11 @@ function MoreHub({ guestShare }: { guestShare: boolean }) {
         <button
           type="button"
           className="mobile-more-item"
-          onClick={() => setGesturesOpen(true)}
+          onClick={() => setGesturesSheetOpen(true)}
         >
           Gestures
         </button>
       </div>
-      <GesturesSheet
-        open={gesturesOpen}
-        onClose={() => setGesturesOpen(false)}
-      />
       <div role="menu" aria-label="People">
         <AvatarStack variant="menu" />
       </div>

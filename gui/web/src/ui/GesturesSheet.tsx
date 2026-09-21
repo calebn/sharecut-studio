@@ -1,79 +1,47 @@
+import { gestureLabel, MOBILE_GESTURES } from "../commands/gestures";
 import { Dialog } from "./Dialog";
-
-type GestureDef = {
-  gesture: string;
-  command: string;
-  description: string;
-  available: boolean;
-};
-
-const GESTURES: GestureDef[] = [
-  {
-    gesture: "Two-finger tap",
-    command: "Undo",
-    description: "Undo the last action. iOS system convention.",
-    available: true,
-  },
-  {
-    gesture: "Long-press",
-    command: "Context actions",
-    description:
-      "Open the selection sheet for clips, words, comments, and tracks.",
-    available: true,
-  },
-  {
-    gesture: "Pinch",
-    command: "Zoom timeline",
-    description: "Pinch in/out on the timeline to zoom.",
-    available: true,
-  },
-  {
-    gesture: "Swipe left on comment",
-    command: "Resolve comment",
-    description: "Quick-resolve a comment from the list.",
-    available: false,
-  },
-  {
-    gesture: "Double-tap word",
-    command: "Correct word",
-    description: "Open the word correction sheet.",
-    available: false,
-  },
-];
 
 type Props = {
   open: boolean;
   onClose: () => void;
+  onShowKeyboardShortcuts: () => void;
 };
 
 /**
- * Gestures cheatsheet for mobile. Standalone from the keyboard shortcut
- * modal (CommandPalette) — mobile users don't need keyboard shortcuts,
- * desktop users don't need gestures. Both read from the same command
- * catalog to stay in sync.
+ * Gestures cheatsheet for mobile. It stays separate from the keyboard
+ * shortcut modal while both surfaces cross-link and use the shared command
+ * catalog for implemented actions.
  */
-export function GesturesSheet({ open, onClose }: Props) {
+export function GesturesSheet({
+  open,
+  onClose,
+  onShowKeyboardShortcuts,
+}: Props) {
   return (
     <Dialog open={open} onClose={onClose} title="Gestures">
       <p className="lede">
         Touch gestures for common actions.{" "}
-        <span className="text-dim">
-          Using a keyboard? See keyboard shortcuts on desktop.
-        </span>
+        <button
+          type="button"
+          className="ui-control--quiet"
+          onClick={onShowKeyboardShortcuts}
+        >
+          Keyboard shortcuts
+        </button>
       </p>
       <dl className="gesture-list">
-        {GESTURES.map((g) => (
+        {MOBILE_GESTURES.map((g) => (
           <div key={g.gesture} className="gesture-item">
             <dt className="gesture-name">
               {g.gesture}
-              {!g.available && (
+              {g.status === "planned" && (
                 <span className="pill" aria-label="Coming soon">
                   Soon
                 </span>
               )}
             </dt>
             <dd className="gesture-detail">
-              <strong>{g.command}</strong> — {g.description}
+              <strong>{gestureLabel(g)}</strong> — {g.description}
             </dd>
           </div>
         ))}

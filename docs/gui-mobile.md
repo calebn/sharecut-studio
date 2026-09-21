@@ -59,13 +59,13 @@ Selection opens a non-modal **half → full** [`BottomSheet`](../gui/web/src/ui/
 
 ### Gestures
 
-Touch gestures for common actions, documented in the **Gestures** cheatsheet (More hub → Gestures). Standalone from the desktop keyboard shortcut modal — mobile users don't need keyboard shortcuts, desktop users don't need gestures. Both read from the same command catalog.
+Touch gestures for common actions, documented in the **Gestures** cheatsheet (More hub → Gestures). It is an app-level modal (outside inert app chrome) and can switch directly to **Keyboard shortcuts**; that dialog links back to Gestures without stacking. Executable gesture actions reference the shared command catalog, while unimplemented proposals are explicitly marked planned.
 
 | Gesture | Command | Status |
 |---------|---------|--------|
-| Two-finger tap | Undo | Available |
-| Long-press | Context actions (selection sheet) | Available |
-| Pinch | Zoom timeline | Available |
+| Two-finger tap | Undo | Planned (Soon) |
+| Long-press | Context actions (selection sheet) | Planned (Soon) |
+| Pinch | Zoom in/out on timeline | Available |
 | Swipe left on comment | Resolve | Planned |
 | Double-tap word | Correct word | Planned |
 

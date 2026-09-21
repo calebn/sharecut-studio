@@ -30,7 +30,8 @@ type TabId = KeymapCategory | "all" | "actions";
  * Open via ? or Transport Menu → Keyboard shortcuts.
  */
 export function CommandPalette() {
-  const { commandPaletteOpen, setCommandPaletteOpen } = useDaw();
+  const { commandPaletteOpen, setCommandPaletteOpen, setGesturesSheetOpen } =
+    useDaw();
   const [tab, setTab] = useState<TabId>("all");
   const [showRemap, setShowRemap] = useState(false);
 
@@ -62,6 +63,16 @@ export function CommandPalette() {
         Press <kbd>?</kbd> anytime. Character keys only apply when the timeline
         (or transcript) is focused — not while typing in a field.
       </p>
+      <button
+        type="button"
+        className="ui-control--quiet"
+        onClick={() => {
+          setCommandPaletteOpen(false);
+          setGesturesSheetOpen(true);
+        }}
+      >
+        Gestures
+      </button>
 
       <div
         className="command-palette-tabs"

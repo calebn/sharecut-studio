@@ -7,6 +7,7 @@ import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
+import { CheatsheetDialogs } from "./CheatsheetDialogs";
 import { MobileShell } from "./MobileShell";
 
 describe("MobileShell", () => {
@@ -19,6 +20,8 @@ describe("MobileShell", () => {
     useDawStore.getState().setActivityJob(null);
     useDawStore.getState().setShellBreakpoint("phone");
     useDawStore.getState().setMobileMode("listen");
+    useDawStore.getState().setGesturesSheetOpen(false);
+    useDawStore.getState().setCommandPaletteOpen(false);
   });
 
   afterEach(() => {
@@ -47,6 +50,81 @@ describe("MobileShell", () => {
     );
     expect(screen.getByRole("heading", { level: 1 })).toHaveClass("sr-only");
     await expectNoA11yViolations(nav);
+  });
+
+  it("opens Gestures from More in an app-level modal and restores focus", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <div data-daw-app-chrome>
+          <MobileShell />
+        </div>
+        <CheatsheetDialogs />
+      </DawProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "More" }));
+    const trigger = screen.getByRole("button", { name: "Gestures" });
+    await user.click(trigger);
+
+    const gestures = screen.getByRole("dialog", { name: "Gestures" });
+    expect(gestures.closest("[data-daw-app-chrome]")).toBeNull();
+    expect(
+      container.querySelector<HTMLElement>("[data-daw-app-chrome]")?.inert,
+    ).toBe(true);
+    await expectNoA11yViolations(gestures);
+
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(trigger).toHaveFocus();
+  });
+
+  it("switches between the Gestures and keyboard cheatsheets without stacking", async () => {
+    const user = userEvent.setup();
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <div data-daw-app-chrome>
+          <MobileShell />
+        </div>
+        <CheatsheetDialogs />
+      </DawProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "More" }));
+    await user.click(screen.getByRole("button", { name: "Gestures" }));
+    await user.click(
+      screen.getByRole("button", { name: "Keyboard shortcuts" }),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Keyboard shortcuts" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Gestures" })).toBeNull();
+
+    await user.click(
+      within(
+        screen.getByRole("dialog", { name: "Keyboard shortcuts" }),
+      ).getByRole("button", { name: "Gestures" }),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Gestures" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("dialog", { name: "Keyboard shortcuts" }),
+    ).toBeNull();
+  });
+
+  it("keeps cheatsheets mutually exclusive for every store entry point", () => {
+    useDawStore.getState().setGesturesSheetOpen(true);
+    useDawStore.getState().toggleCommandPalette();
+    expect(useDawStore.getState().commandPaletteOpen).toBe(true);
+    expect(useDawStore.getState().gesturesSheetOpen).toBe(false);
+
+    useDawStore.getState().setGesturesSheetOpen(true);
+    expect(useDawStore.getState().gesturesSheetOpen).toBe(true);
+    expect(useDawStore.getState().commandPaletteOpen).toBe(false);
+
+    useDawStore.getState().setCommandPaletteOpen(true);
+    expect(useDawStore.getState().commandPaletteOpen).toBe(true);
+    expect(useDawStore.getState().gesturesSheetOpen).toBe(false);
   });
 
   it("Pending chip selects the first review-required edit and opens Timeline", async () => {
