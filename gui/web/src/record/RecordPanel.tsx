@@ -55,6 +55,11 @@ export function RecordPanel({
     projectPath,
     setShareDialogOpen,
   } = useDaw();
+  useEffect(() => {
+    if (micLost && !recordPanelOpen) {
+      setRecordPanelOpen(true);
+    }
+  }, [micLost, recordPanelOpen, setRecordPanelOpen]);
   const snapshot = useRecordHostStore((s) => s.snapshot);
   const setSnapshot = useRecordHostStore((s) => s.setSnapshot);
   const blockers = startBlockers(snapshot);
@@ -175,7 +180,7 @@ export function RecordPanel({
       open={recordPanelOpen}
       onClose={() => setRecordPanelOpen(false)}
       title="Record room"
-      closeDisabled={uploadBlocking}
+      closeDisabled={uploadBlocking || micLost}
     >
       <div className="stack record-panel">
         {snapshot ? <RecIndicator snapshot={snapshot} /> : null}

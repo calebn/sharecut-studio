@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadHostRecordState } from "../api";
@@ -211,6 +211,28 @@ describe("RecordPanel", () => {
       screen.getByRole("button", { name: "Reconnect microphone" }),
     );
     expect(retry).toHaveBeenCalledOnce();
+  });
+
+  it("reopens and holds the host panel when the mic ends while it is closed", async () => {
+    useRecordHostStore.getState().setSnapshot({
+      ...lobby,
+      state: "recording",
+      take_index: 0,
+      start_blockers: [],
+    });
+    useDawStore.setState({ recordPanelOpen: false });
+    const { container } = render(<RecordPanel micLost onRetryMic={vi.fn()} />);
+    await waitFor(() => {
+      expect(useDawStore.getState().recordPanelOpen).toBe(true);
+      expect(
+        screen.getByRole("button", { name: "Reconnect microphone" }),
+      ).toBeVisible();
+    });
+    expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Microphone disconnected. Local recording is paused.",
+    );
+    await expectNoA11yViolations(container);
   });
 
   it("shows every recorded participant's upload ACK after Stop", async () => {
