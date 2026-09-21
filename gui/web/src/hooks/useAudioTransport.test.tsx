@@ -48,7 +48,7 @@ function trackProject(mediaPath?: string): ProjectView {
         speaker: null,
         gain_db: 0,
         muted: false,
-        duration_sec: 60,
+        duration_sec: mediaPath ? 60 : null,
         fx_count: 0,
         stem_is_fresh: true,
         ...(mediaPath ? { media_path: mediaPath } : {}),
@@ -83,6 +83,18 @@ describe("useAudioTransport project transitions", () => {
 
   it("reports a missing premix when a track has media", () => {
     useDawStore.getState().setProject(trackProject("/tmp/host.wav"));
+    const { unmount } = renderHook(() => useAudioTransport());
+    expect(useDawStore.getState().audioError).toContain("No premix");
+    unmount();
+  });
+
+  it("reports a missing premix for a guest whose media path is redacted", () => {
+    const guestProject = trackProject("/tmp/host.wav");
+    guestProject.tracks[0].media_path = null;
+    useDawStore
+      .getState()
+      .hydrate("share:guest", guestProject, "view", ["play"]);
+
     const { unmount } = renderHook(() => useAudioTransport());
     expect(useDawStore.getState().audioError).toContain("No premix");
     unmount();

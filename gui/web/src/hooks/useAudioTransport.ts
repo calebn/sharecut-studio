@@ -5,6 +5,10 @@ import { useDaw } from "../state/useDaw";
 import type { ProjectView } from "../types/project";
 import { anySolo, dbToLinear, trackIsAudible } from "../utils/audio";
 import {
+  projectHasSourceAudio,
+  trackHasSourceAudio,
+} from "../utils/projectMedia";
+import {
   AUDITION_STOP_EPS_SEC,
   nextPlayheadAfterSkip,
 } from "../utils/skipWindow";
@@ -204,7 +208,7 @@ export function useAudioTransport(enabled = true): void {
       if (!project.render_status.premix.exists) {
         // Tracks without source media have nothing to play. The absent premix
         // is expected until audio exists (#78).
-        if (project.tracks.some((track) => Boolean(track.media_path))) {
+        if (projectHasSourceAudio(project)) {
           setAudioError("No premix — run Pipeline or render-preview");
         }
         return;
@@ -213,7 +217,7 @@ export function useAudioTransport(enabled = true): void {
     } else {
       const kind: "stem" | "raw" = auditionMode === "raw" ? "raw" : "stem";
       for (const track of project.tracks) {
-        if (!track.media_path) {
+        if (!trackHasSourceAudio(track)) {
           continue;
         }
         if (kind === "raw") {

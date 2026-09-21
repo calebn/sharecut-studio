@@ -1,4 +1,5 @@
 import type { ProjectView } from "../types/project";
+import { projectHasSourceAudio } from "./projectMedia";
 
 export type RenderInvalidationReason =
   | "cut"
@@ -99,7 +100,7 @@ export function staleRenderBreakdown(
   // Tracks without source media have no audio to render. Adding an empty
   // track can write an invalidation, but it must not make a fresh project stale.
   const neverRendered =
-    project.tracks.every((track) => !track.media_path) &&
+    !projectHasSourceAudio(project) &&
     project.render_status.premix.exists !== true;
   if (neverRendered) {
     return freshBreakdown();
