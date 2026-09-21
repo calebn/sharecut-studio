@@ -1260,13 +1260,13 @@ def install_mcp_progress(server: Any) -> None:
         mark_wrapped(str(tool_name))
         return original_add_tool(
             fn,
-            name,
-            title,
-            description,
-            annotations,
-            icons,
-            meta,
-            structured_output,
+            name=name,
+            title=title,
+            description=description,
+            annotations=annotations,
+            icons=icons,
+            meta=meta,
+            structured_output=structured_output,
         )
 
     original_call_tool = server.call_tool
