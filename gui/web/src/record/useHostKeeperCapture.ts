@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { isShareProjectKey } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import { useRecordHostStore } from "./hostStore";
+import { sendRecordHostCommand } from "./hostWire";
 import { useKeeperCapture } from "./keeper/useKeeperCapture";
 import { hostKeeperResetKey, type RecordSnapshot } from "./types";
 import { useMicStream } from "./useMicStream";
@@ -39,6 +40,16 @@ export function useHostKeeperCapture(enabled = true): {
     (person) => person.participant_id === "p_host",
   );
   const resetKey = hostKeeperResetKey(snapshot);
+  const lastActivityBeatRef = useRef(0);
+  const onKeeperActivity = useCallback(() => {
+    const now = Date.now();
+    if (now - lastActivityBeatRef.current < 5_000) {
+      return;
+    }
+    if (sendRecordHostCommand("Heartbeat")) {
+      lastActivityBeatRef.current = now;
+    }
+  }, []);
 
   const mic = useMicStream(micLive, "", resetKey);
   const keeper = useKeeperCapture({
@@ -50,6 +61,7 @@ export function useHostKeeperCapture(enabled = true): {
     consented: true,
     stream: mic.stream,
     resetKey,
+    onActivity: onKeeperActivity,
   });
   return {
     error: keeper.error,
