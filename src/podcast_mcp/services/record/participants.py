@@ -5,10 +5,11 @@ from __future__ import annotations
 import hashlib
 import hmac
 import secrets
-import sqlite3
 import threading
 import time
 from pathlib import Path
+
+from podcast_mcp.services.session_sync.sqlite import connect_session_db
 
 LEASE_TTL_NS = 7 * 24 * 60 * 60 * 1_000_000_000
 
@@ -36,14 +37,8 @@ class RecordParticipantStore:
         self.db_path = db_path
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
-        self._conn = sqlite3.connect(
-            str(db_path),
-            check_same_thread=False,
-            isolation_level=None,
-        )
-        self._conn.row_factory = sqlite3.Row
+        self._conn = connect_session_db(db_path)
         with self._lock:
-            self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.executescript(_SCHEMA)
 
     def close(self) -> None:
