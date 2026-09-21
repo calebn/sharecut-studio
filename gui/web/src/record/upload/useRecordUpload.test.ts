@@ -147,7 +147,14 @@ describe("useRecordUpload", () => {
   });
 
   it("reports a missing file ACK as stalled, unblocks Leave, then retries on demand", async () => {
-    vi.useFakeTimers();
+    // Real timers let async hashing settle even on a slow CI runner.
+    const setInterval = window.setInterval.bind(window);
+    vi.spyOn(window, "setInterval").mockImplementation(
+      (handler, _delay, ...args) =>
+        setInterval(handler, 50, ...args) as unknown as ReturnType<
+          typeof globalThis.setInterval
+        >,
+    );
     const memory = memoryUploadTransport();
     let allowFileAck = false;
     const transport: RecordUploadTransport = {
@@ -181,11 +188,7 @@ describe("useRecordUpload", () => {
         }),
       { initialProps: { retryNonce: 0 } },
     );
-    for (let tick = 0; tick < 6; tick += 1) {
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(2000);
-      });
-    }
+    await waitFor(() => expect(result.current.error).toMatch(/stalled/i));
     expect(result.current.acked).toBe(1);
     expect(result.current.total).toBe(1);
     expect(result.current.error).toMatch(/stalled/i);
@@ -193,10 +196,7 @@ describe("useRecordUpload", () => {
 
     allowFileAck = true;
     rerender({ retryNonce: 1 });
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(0);
-    });
-    expect(result.current.fileAck).toBe(true);
+    await waitFor(() => expect(result.current.fileAck).toBe(true));
     expect(result.current.error).toBeNull();
     unmount();
   });
