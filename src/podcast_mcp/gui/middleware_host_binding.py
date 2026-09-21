@@ -29,6 +29,7 @@ _PROTECTED_PREFIXES = (
     "/api/waveform-snap",
     "/api/history",
     "/api/document",
+    "/api/transcript",
     "/api/session",
     "/api/comments",
     "/api/shares",

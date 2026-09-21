@@ -1630,9 +1630,7 @@ def test_api_pipeline_config_and_analyze(minimal_project, monkeypatch) -> None:
     assert preview.json()["applied"] is False
 
 
-def test_api_transcript_refine_waive_requires_reason_and_records_user_source(
-    minimal_project, monkeypatch
-) -> None:
+def test_api_transcript_refine_waive_records_user_source(minimal_project, monkeypatch) -> None:
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
 
@@ -1651,10 +1649,6 @@ def test_api_transcript_refine_waive_requires_reason_and_records_user_source(
     client = TestClient(create_app())
     path = str(minimal_project)
 
-    missing = client.post("/api/transcript/refine/waive", json={"path": path})
-    assert missing.status_code == 422
-    blank = client.post("/api/transcript/refine/waive", json={"path": path, "reason": "  "})
-    assert blank.status_code == 400
     ok = client.post(
         "/api/transcript/refine/waive",
         json={"path": path, "reason": "Reviewed in host GUI"},
@@ -1672,6 +1666,14 @@ def test_api_transcript_refine_waive_persists_status(minimal_project) -> None:
     from podcast_mcp.gui.server import create_app
 
     client = TestClient(create_app())
+    missing = client.post("/api/transcript/refine/waive", json={"path": str(minimal_project)})
+    assert missing.status_code == 422
+    blank = client.post(
+        "/api/transcript/refine/waive",
+        json={"path": str(minimal_project), "reason": "  "},
+    )
+    assert blank.status_code == 400
+    assert blank.json() == {"detail": "refine waive requires a non-empty reason"}
     response = client.post(
         "/api/transcript/refine/waive",
         json={"path": str(minimal_project), "reason": "Reviewed in host GUI"},
@@ -1702,6 +1704,39 @@ def test_api_transcript_refine_waive_rejects_unauthorized_remote(
     )
     assert response.status_code == 403
     assert response.json() == {"detail": "remote client requires PODCAST_SESSION_TOKEN"}
+
+
+def test_api_document_command_refine_gate_has_stable_error_code(
+    minimal_project, monkeypatch
+) -> None:
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.edits.transcript_refine_status import TranscriptRefineRequiredError
+    from podcast_mcp.gui.server import create_app
+
+    def reject_for_refine(self, command, **kwargs):
+        raise TranscriptRefineRequiredError("Refine the transcript before editing")
+
+    monkeypatch.setattr(
+        "podcast_mcp.gui.routes.document.DocumentSyncService.submit",
+        reject_for_refine,
+    )
+    client = TestClient(create_app())
+    response = client.post(
+        f"/api/document/command?path={minimal_project}",
+        json={
+            "type": "CorrectTranscriptWord",
+            "payload": {"track_id": "host", "word_index": 0, "text": "corrected"},
+            "client_id": "viewer",
+            "client_seq": 1,
+            "role": "viewer",
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.headers["X-Sharecut-Error-Code"] == "transcript_refine_required"
+    assert response.json() == {"detail": "Refine the transcript before editing"}
 
 
 def test_api_pipeline_run_validation_and_cancel(minimal_project, monkeypatch) -> None:
