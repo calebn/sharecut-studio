@@ -18,7 +18,7 @@ const GESTURES: GestureDef[] = [
     gesture: "Long-press",
     command: "Context actions",
     description:
-      "Alternative to tap for opening the selection sheet. Tap usually works too.",
+      "Open the selection sheet for clips, words, comments, and tracks.",
     available: true,
   },
   {
