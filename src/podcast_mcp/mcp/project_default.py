@@ -184,13 +184,13 @@ def install_project_default(server: Any) -> None:
         # also makes composition with install_mcp_progress order-independent.
         return original_add_tool(
             with_default_project(fn),
-            name,
-            title,
-            description,
-            annotations,
-            icons,
-            meta,
-            structured_output,
+            name=name,
+            title=title,
+            description=description,
+            annotations=annotations,
+            icons=icons,
+            meta=meta,
+            structured_output=structured_output,
         )
 
     server.add_tool = add_tool  # type: ignore[method-assign]
