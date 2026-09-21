@@ -49,6 +49,14 @@ async function markSharecutE2e(page: Page): Promise<void> {
   });
 }
 
+async function enableRoomTonePcmHarness(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    (
+      window as unknown as { __SHARECUT_E2E_ROOM_TONE_PCM?: boolean }
+    ).__SHARECUT_E2E_ROOM_TONE_PCM = true;
+  });
+}
+
 async function clickHostTransport(
   host: Page,
   button: Locator,
@@ -446,6 +454,7 @@ test.describe("record lobby", () => {
           room: { guest: { token: string } };
         };
         await markSharecutE2e(guest);
+        await enableRoomTonePcmHarness(guest);
         await guest.goto(`/rec/${room.room.guest.token}?e2e=1`);
         await guest.getByLabel("Display name").fill("Ava");
         await guest.getByLabel("I am wearing headphones").check();
@@ -467,6 +476,8 @@ test.describe("record lobby", () => {
         await expect(
           guest.getByRole("button", { name: "Accept" }),
         ).toBeEnabled();
+        await guest.getByRole("button", { name: "Accept" }).click();
+        await expect(guest.getByText("Waiting for host")).toBeVisible();
       } finally {
         await hostCtx.close();
         await guestCtx.close();

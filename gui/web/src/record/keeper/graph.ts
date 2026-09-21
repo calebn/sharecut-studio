@@ -1,3 +1,5 @@
+import { e2eRoomTonePcm } from "../monitor/e2eHook";
+import { ROOM_TONE_DURATION_SEC } from "../types";
 import keeperProcessorSource from "./keeperProcessor.js?raw";
 import keeperProcessorUrl from "./keeperProcessor.js?url";
 import { KEEPER_SAMPLE_RATE } from "./pcm";
@@ -10,6 +12,11 @@ export async function attachKeeperTap(
   stream: MediaStream,
   onPcm: (pcm: Float32Array, sampleRate: number) => void,
 ): Promise<() => void> {
+  const testPcm = e2eRoomTonePcm(KEEPER_SAMPLE_RATE, ROOM_TONE_DURATION_SEC);
+  if (testPcm) {
+    queueMicrotask(() => onPcm(testPcm, KEEPER_SAMPLE_RATE));
+    return () => undefined;
+  }
   let ctx: AudioContext | null = null;
   try {
     ctx = new AudioContext({ sampleRate: KEEPER_SAMPLE_RATE });
