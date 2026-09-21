@@ -105,9 +105,11 @@ its web server. It forwards `SIGINT`/`SIGTERM` to the process tree and uses a
 five-second `SIGKILL` fallback. Detached descendant process groups are tracked
 through forced shutdown, and the wrapper retains the fixtures and port lease if
 it cannot confirm that the whole tree exited; direct helper use still removes
-fixtures immediately. Project-switch requests use a one-shot loopback connection
-to avoid reusing an idle socket after a long serial suite; this addresses the
-likely stale-keep-alive path for intermittent resets without retrying a switch.
+fixtures immediately. Project-switch requests use `http.request` with
+`agent: false` to open a fresh loopback connection instead of reusing an idle
+socket after a long serial suite; a socket-level regression checks this path.
+This addresses the likely stale-keep-alive path for intermittent resets without
+retrying a switch.
 Transport failures include the nested underlying error instead of being reported
 as timeouts.
 Guest-share presence tests also await the lazy proxy-manifest response before

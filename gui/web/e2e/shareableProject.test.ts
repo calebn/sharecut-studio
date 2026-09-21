@@ -1,37 +1,48 @@
 import fs from "node:fs";
+import { createServer } from "node:http";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { setTimeout } from "node:timers/promises";
+import { describe, expect, it } from "vitest";
 import { e2eProjectPath } from "./env";
 import { E2E_FIXTURE_COPY_TEST_TIMEOUT_MS } from "./liveProject";
 import { switchE2eProject, withShareableProject } from "./shareableProject";
 
 describe("withShareableProject", () => {
-  it("uses a one-shot connection and reports transport failures accurately", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockRejectedValue(
-      new TypeError("fetch failed", {
-        cause: Object.assign(new Error("read ECONNRESET"), {
-          code: "ECONNRESET",
-        }),
-      }),
+  it("opens a fresh socket even when fetch has an idle pooled socket", async () => {
+    const sockets: object[] = [];
+    const server = createServer((request, response) => {
+      sockets.push(request.socket);
+      response.end("ok");
+    });
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve),
     );
-    vi.stubGlobal("fetch", fetchMock);
     try {
-      await expect(
-        switchE2eProject("/tmp/episode.project.json"),
-      ).rejects.toThrow(
-        "failed during transport: TypeError: fetch failed; cause: Error: read ECONNRESET (ECONNRESET)",
-      );
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.any(URL),
-        expect.objectContaining({
-          headers: {
-            "Content-Type": "application/json",
-            Connection: "close",
-          },
-        }),
-      );
+      const url = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+      await (await fetch(url)).text();
+      await setTimeout(25);
+      await switchE2eProject("/tmp/episode.project.json", url);
+      expect(sockets).toHaveLength(2);
+      expect(sockets[1]).not.toBe(sockets[0]);
     } finally {
-      vi.unstubAllGlobals();
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it("reports a reset as a transport error", async () => {
+    const server = createServer((request) => request.socket.destroy());
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve),
+    );
+    try {
+      const url = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+      await expect(
+        switchE2eProject("/tmp/episode.project.json", url),
+      ).rejects.toThrow(/failed during transport:.*ECONNRESET/);
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
     }
   });
 
