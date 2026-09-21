@@ -51,6 +51,8 @@
   /* Mode nav / bottom tabs above sheet scrim so one tap switches views. */
   --z-shell-chrome: 50;
   --z-presence-ghost: 51;
+  /* Popup menus float above shell chrome so tail items stay clickable. */
+  --z-menu: 60;
 
   /* Layout — rem chrome; px canvas (lane/ruler/marker px in utils/layout.ts) */
   /* stylelint-disable-next-line meowtec/no-px -- user-approved: canvas lane height */

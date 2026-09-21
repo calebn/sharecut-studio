@@ -90,7 +90,7 @@
   position: absolute;
   top: calc(100% + 0.25rem);
   right: 0;
-  z-index: var(--z-sheet);
+  z-index: var(--z-menu);
   min-width: 13.75rem;
   min-height: 0;
   padding: var(--space-05);
