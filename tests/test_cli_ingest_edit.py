@@ -335,7 +335,8 @@ def test_edit_approve_reject_list(minimal_project):
         ["edit", "approve", "--project", str(project), "--ids", edit_id],
     )
     assert approve.exit_code == 0
-    assert "Approved" in approve.stdout
+    assert "Approved 1 edit(s)." in approve.stdout
+    assert "Warning" not in approve.stderr
 
     edit_id2 = _pending_edit(project)
     reject = runner.invoke(
@@ -353,6 +354,17 @@ def test_edit_approve_reject_list(minimal_project):
     assert listing.exit_code == 0
     data = json.loads(listing.stdout)
     assert len(data) == 1
+
+
+def test_edit_approve_warns_when_nothing_approved(minimal_project):
+    project = _setup_edit_project(minimal_project)
+    result = runner.invoke(
+        app,
+        ["edit", "approve", "--project", str(project), "--ids", "nonexistent-id-12345"],
+    )
+    assert result.exit_code == 0
+    assert "Approved 0 edit(s)." in result.stdout
+    assert "no edits were approved" in result.stderr
 
 
 def test_edit_transcript_and_preview_cut(minimal_project):
