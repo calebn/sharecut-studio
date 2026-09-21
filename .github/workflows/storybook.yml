@@ -10,25 +10,19 @@ on:
   push:
     branches: [main]
     paths:
-      # Storybook-only: skip the build/deploy when no storybook inputs changed.
-      # Note: component/style changes without a story touch won't redeploy;
-      # use workflow_dispatch for a manual rebuild in that case.
-      - "gui/web/.storybook/**"
-      - "gui/web/src/**/*.stories.tsx"
-      - "gui/web/src/**/*.stories.ts"
-      - "gui/web/src/styles/**"
-      - "gui/web/package.json"
-      - "gui/web/package-lock.json"
+      - "gui/web/**"
+      - ".github/workflows/storybook.yml"
+  pull_request:
+    paths:
+      - "gui/web/**"
       - ".github/workflows/storybook.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: "pages"
+  group: "storybook-${{ github.event_name }}-${{ github.ref }}"
   cancel-in-progress: true
 
 jobs:
@@ -52,13 +46,19 @@ jobs:
         working-directory: gui/web
 
       - name: Upload Pages artifact
+        if: github.event_name == 'push'
         uses: actions/upload-pages-artifact@v3
         with:
           path: gui/web/storybook-static
 
   deploy:
     needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
