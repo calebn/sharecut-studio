@@ -58,18 +58,27 @@ describe("useKeeperCapture", () => {
   it("reports activity only after the keeper is actively writing", async () => {
     const onActivity = vi.fn();
     const stream = { getTracks: () => [] } as unknown as MediaStream;
-    const { result } = renderHook(() =>
-      useKeeperCapture({
-        ...args,
-        enabled: true,
-        stream,
-        onActivity,
-      }),
+    const { result, rerender } = renderHook(
+      ({ snapshot }: { snapshot: RecordSnapshot }) =>
+        useKeeperCapture({
+          ...args,
+          snapshot,
+          enabled: true,
+          stream,
+          onActivity,
+        }),
+      { initialProps: { snapshot: snap } },
     );
     graphActivity();
     expect(onActivity).not.toHaveBeenCalled();
     await waitFor(() => {
       expect(result.current.recordingLocally).toBe(true);
+    });
+    graphActivity();
+    expect(onActivity).toHaveBeenCalledOnce();
+    rerender({ snapshot: { ...snap, state: "paused" } });
+    await waitFor(() => {
+      expect(result.current.recordingLocally).toBe(false);
     });
     graphActivity();
     expect(onActivity).toHaveBeenCalledOnce();
