@@ -4,6 +4,7 @@ import {
   registerDawCommands,
   setBladeCommandRunner,
 } from "./commands/register";
+import { useDesktopCloseGuard } from "./desktop/useDesktopCloseGuard";
 import { HelpDialog } from "./home/HelpDialog";
 import { useAudioTransport } from "./hooks/useAudioTransport";
 import { useBladeCut } from "./hooks/useBladeCut";
@@ -136,6 +137,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
   const hostKeeper = useHostKeeperCapture(
     !guestShare && !isShareProjectKey(projectPath),
   );
+  useDesktopCloseGuard(hostKeeper.recordingLocally, "host");
   const hostMonitor = useRecordMonitor({
     enabled: hostKeeper.monitorEnabled,
     localId: hostKeeper.snapshot ? "p_host" : null,

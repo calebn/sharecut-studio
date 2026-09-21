@@ -74,6 +74,21 @@ Torch / speaker / joinqc are **not** exposed in the GUI.
 
 **Open project:** Sharecut Studio **Browse…** / Mod+O call `POST /api/project/pick` on the Python sidecar (OS dialog). The Tauri shell does **not** need `tauri-plugin-dialog` for this — same API as a system browser on `http://127.0.0.1:8765`. Paste path remains when no dialog tool is available.
 
+## Closing while recording
+
+The webview installs a Tauri `onCloseRequested` guard while a host or guest
+local keeper is recording. The guard prevents the close synchronously, asks for
+confirmation using role-aware copy, and calls `Window.destroy()` only after the
+user confirms. The desktop capability manifest explicitly grants
+`core:window:allow-destroy`; browser sessions do not install this native guard.
+
+This protects the native window close button and equivalent window-manager
+close requests. Tauri 2.11.5 does not reliably deliver macOS Cmd+Q or Dock
+**Quit** through `CloseRequested`/`ExitRequested`, so those application-level
+quit paths remain a known limitation until the native menu can route them
+through the same confirmation. Do not describe the current guard as complete
+macOS quit protection.
+
 Pinned bootstrap assets, when a distributor elects to mirror them, are described
 by [`contracts/bootstrap-assets.json`](../contracts/bootstrap-assets.json).
 

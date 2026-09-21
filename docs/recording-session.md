@@ -171,6 +171,12 @@ consent copy says "producers/listeners may be present and are shown in the
 roster"; a producer joining mid-take triggers the same join notification as a
 guest.
 
+When the host or a recorded guest is running a local keeper in the Tauri
+desktop shell, closing the native window prompts before the keeper is lost.
+Host copy warns that closing stops the session for everyone; guest copy warns
+about that guest's local keeper. macOS application-level Cmd+Q/Dock Quit is not
+covered by Tauri 2.11.5's window close event and remains a desktop follow-up.
+
 ## Two graphs
 
 Monitor (WebRTC send/receive) and keeper (local dry WAV) are separate graphs
