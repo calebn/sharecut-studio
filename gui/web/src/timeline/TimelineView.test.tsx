@@ -1,7 +1,8 @@
-import { act, render } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
+import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
 import { TimelineView } from "./TimelineView";
 
@@ -14,6 +15,19 @@ describe("TimelineView follow auto-fit", () => {
       },
     });
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+  });
+
+  it("exposes the labeled loading timeline as a group", async () => {
+    useDawStore.setState({ project: null });
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={null}>
+        <TimelineView />
+      </DawProvider>,
+    );
+
+    const timeline = screen.getByRole("group", { name: "Loading timeline" });
+    expect(timeline).toHaveAttribute("aria-busy", "true");
+    await expectNoA11yViolations(container);
   });
 
   afterEach(() => {
