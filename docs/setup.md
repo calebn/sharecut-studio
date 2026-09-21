@@ -251,7 +251,7 @@ Clients that load project agents from `.agents/` (including Cursor) pick up rule
 **Connecting an external agent?** Copy-paste configurations for Claude Code,
 Claude Desktop, Cursor, Windsurf, and Cline: [mcp-setup.md](mcp-setup.md).
 
-**Local GUI URL (recommended when the DAW is open):** run `podcast gui`, open an episode (or **Connect agent…** on home to copy the URL first), **Menu → Connect agent…**, and paste `http://127.0.0.1:8765/mcp` as a stateless Streamable HTTP MCP URL (same shape as Figma desktop). Keep the GUI running. Host MCP is loopback-only and does not use a sticky `Mcp-Session-Id` header; stdio and guest/share-token MCP are unchanged. Details: [gui-integration.md](gui-integration.md) § Local host MCP.
+**Local GUI URL (recommended when the DAW is open):** run `podcast gui`, open an episode (or **Connect agent…** on home to copy the URL first), **Menu → Connect agent…**, and paste `http://127.0.0.1:8765/mcp` as a stateless Streamable HTTP MCP URL (same shape as Figma desktop). Keep the GUI running. Host MCP is loopback-only, accepts POST (GET/HEAD return 405), and does not use a sticky `Mcp-Session-Id` header; stdio and guest/share-token MCP are unchanged. Details: [gui-integration.md](gui-integration.md) § Local host MCP.
 
 ## Global skills (optional)
 

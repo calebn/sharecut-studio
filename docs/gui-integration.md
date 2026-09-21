@@ -123,7 +123,7 @@ While `podcast gui` is running, the DAW is a spec-compliant MCP server (Streamab
 }
 ```
 
-Keep Sharecut Studio running. Host `tools/call` applies to the **pinned** episode (`served_project`); with no pin they return an error to open one first. The host transport is stateless: requests do not retain MCP sessions and the server does not issue or require a sticky `Mcp-Session-Id` header. `/mcp` is mounted only on loopback binds. This is not OAuth and not a share token — loopback + Origin/Host DNS-rebinding checks only. Guest/collaborator agents still use `{base}/mcp/{token}/mcp` ([host-online-relay.md](host-online-relay.md) § Remote MCP), and contributor stdio `podcast-mcp` keeps its session behavior.
+Keep Sharecut Studio running. Host `tools/call` applies to the **pinned** episode (`served_project`); with no pin they return an error to open one first. The host transport is stateless: requests do not retain MCP sessions and the server does not issue or require a sticky `Mcp-Session-Id` header. The host endpoint accepts POST; GET and HEAD return `405 Allow: POST` because a standalone SSE stream cannot receive events from another stateless request. A legacy cancellation notification sent in a separate POST cannot stop an in-flight call; [issue #151](https://github.com/calebn/sharecut-studio/issues/151) tracks that compatibility gap. `/mcp` is mounted only on loopback binds. This is not OAuth and not a share token — loopback + Origin/Host DNS-rebinding checks only. Guest/collaborator agents still use `{base}/mcp/{token}/mcp` ([host-online-relay.md](host-online-relay.md) § Remote MCP), and contributor stdio `podcast-mcp` keeps its session behavior.
 
 Dev mode (API `:8765`, Vite `:5173` with `/api` proxy):
 
