@@ -82,6 +82,7 @@ def _ack(
         digest=digest,
         file_sha256=file_hash,
         final=True,
+        expected_parts=1,
         join_offset_ms=join_offset_ms,
     )
 

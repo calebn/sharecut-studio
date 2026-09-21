@@ -5267,6 +5267,23 @@
           },
           {
             "in": "query",
+            "name": "expected_parts",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Expected Parts"
+            }
+          },
+          {
+            "in": "query",
             "name": "join_offset_ms",
             "required": false,
             "schema": {

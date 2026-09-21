@@ -36,6 +36,8 @@ type Props = {
   upload?: RecordUploadProgress;
   micLost?: boolean;
   onRetryMic?: () => void;
+  onResumeUpload?: () => void;
+  onDownloadKeeper?: () => void;
 };
 
 export function Room({
@@ -57,6 +59,8 @@ export function Room({
   upload,
   micLost = false,
   onRetryMic,
+  onResumeUpload,
+  onDownloadKeeper,
 }: Props) {
   const hostOffline =
     !connected &&
@@ -104,6 +108,8 @@ export function Room({
             progress={upload}
             stopped={snapshot.state === "stopped"}
             alive={connected}
+            onResume={onResumeUpload}
+            onDownload={onDownloadKeeper}
           />
         ) : null}
       </div>

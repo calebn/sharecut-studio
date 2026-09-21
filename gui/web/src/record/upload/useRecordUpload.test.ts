@@ -1,7 +1,7 @@
-import { renderHook, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { type ByteSink, keeperWavPath, MemorySink } from "../keeper/store";
-import { memoryUploadTransport } from "./transport";
+import { memoryUploadTransport, type RecordUploadTransport } from "./transport";
 import { leaveBlocked, useRecordUpload } from "./useRecordUpload";
 
 function wavWithPcm(bytes: number): Uint8Array {
@@ -57,6 +57,8 @@ describe("useRecordUpload", () => {
     const { result, unmount } = renderHook(() =>
       useRecordUpload({
         enabled: true,
+        roomState: "stopped",
+        captureSettled: true,
         sessionId: "room1",
         takeIndex: 0,
         participantId: "p_a",
@@ -71,6 +73,7 @@ describe("useRecordUpload", () => {
     expect(result.current.landed).toBe(false);
     unmount();
   });
+  afterEach(() => vi.useRealTimers());
 
   it("pumps keepers from earlier takes, keyed by participant", async () => {
     const transport = memoryUploadTransport();
@@ -78,6 +81,8 @@ describe("useRecordUpload", () => {
     const { result, unmount } = renderHook(() =>
       useRecordUpload({
         enabled: true,
+        roomState: "stopped",
+        captureSettled: true,
         sessionId: "room1",
         takeIndex: 1,
         participantId: "p_a",
@@ -138,6 +143,121 @@ describe("useRecordUpload", () => {
     expect(leaveBlocked("stopped", result.current)).toBe(false);
     expect(await sink.read(partialPath)).not.toBeNull();
     expect(transport.joinOffsets).toContain(4000);
+    unmount();
+  });
+
+  it("reports a missing file ACK as stalled, unblocks Leave, then retries on demand", async () => {
+    vi.useFakeTimers();
+    const memory = memoryUploadTransport();
+    let allowFileAck = false;
+    const transport: RecordUploadTransport = {
+      async status(signal) {
+        const response = await memory.status(signal);
+        return {
+          segments: response.segments.map((segment) => ({
+            ...segment,
+            file_ack: allowFileAck && segment.file_ack,
+          })),
+        };
+      },
+      async put(args) {
+        const response = await memory.put(args);
+        return { ...response, file_ack: allowFileAck && response.file_ack };
+      },
+    };
+    const sink = sinkForTakes();
+    const { result, rerender, unmount } = renderHook(
+      ({ retryNonce }) =>
+        useRecordUpload({
+          enabled: true,
+          roomState: "stopped",
+        captureSettled: true,
+          sessionId: "room1",
+          takeIndex: 0,
+          participantId: "p_a",
+          transport,
+          sink,
+          retryNonce,
+        }),
+      { initialProps: { retryNonce: 0 } },
+    );
+    for (let tick = 0; tick < 6; tick += 1) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+    }
+    expect(result.current.acked).toBe(1);
+    expect(result.current.total).toBe(1);
+    expect(result.current.error).toMatch(/stalled/i);
+    expect(leaveBlocked("stopped", result.current)).toBe(false);
+
+    allowFileAck = true;
+    rerender({ retryNonce: 1 });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.fileAck).toBe(true);
+    expect(result.current.error).toBeNull();
+    unmount();
+  });
+
+  it("does not stall an open segment while the room is recording", async () => {
+    vi.useFakeTimers();
+    const sink = sinkForTakes();
+    const transport: RecordUploadTransport = {
+      async status() {
+        return { segments: [] };
+      },
+      async put(args) {
+        return {
+          acked: true,
+          take_index: args.takeIndex,
+          participant_id: "p_a",
+          segment_index: args.segmentIndex,
+          part_seq: args.partSeq,
+          file_ack: false,
+        };
+      },
+    };
+    const { result, unmount } = renderHook(() =>
+      useRecordUpload({
+        enabled: true,
+        roomState: "recording",
+        captureSettled: false,
+        sessionId: "room1",
+        takeIndex: 0,
+        participantId: "p_a",
+        transport,
+        sink,
+      }),
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(8000);
+    });
+    expect(result.current.error).toBeNull();
+    unmount();
+  });
+
+  it("never calls an absent local segment uploaded after Stop", async () => {
+    const sink = { ...sinkForTakes(), nextSegmentIndex: async () => 0 };
+    const transport = memoryUploadTransport();
+    const { result, unmount } = renderHook(() =>
+      useRecordUpload({
+        enabled: true,
+        roomState: "stopped",
+        captureSettled: true,
+        sessionId: "room1",
+        takeIndex: 2,
+        participantId: "p_a",
+        transport,
+        sink,
+      }),
+    );
+    await waitFor(() =>
+      expect(result.current.error).toMatch(/no local keeper/i),
+    );
+    expect(result.current.fileAck).toBe(false);
+    expect(leaveBlocked("stopped", result.current)).toBe(false);
     unmount();
   });
 });

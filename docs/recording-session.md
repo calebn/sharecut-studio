@@ -266,9 +266,11 @@ keeper backup in MVP. Stop shows a **blocking upload panel** (host sees all
 participants; guest sees own) until ACK or stall. An incomplete local segment
 after capture has settled is retained for recovery and reported separately;
 it cannot receive a file ACK and does not hold Leave after complete segments
-are acknowledged. Resume on the **same
-`/rec/` token** inside a **7-day recovery window**. Lossy host-side backup mix
-is **not** in audio MVP.
+are acknowledged. The panel shows `N/M` chunks when finalized WAV totals are
+known. Resume on the **same `/rec/` token** inside a **7-day recovery window**.
+A stalled or zero-sample keeper remains available for local download, and Leave
+is never held indefinitely by an errored upload. Lossy host-side backup mix is
+**not** in audio MVP.
 
 ```mermaid
 sequenceDiagram
@@ -698,7 +700,7 @@ sidecar JSON.**
 | Live comments | `record_live_comments` in the same sqlite (`sync.db`); PK `(session_id, comment_id)` |
 | Local keeper WAV | Guest/host OPFS `Sharecut Recordings/{session}/{take}/{participant}/{segment}.wav` (+ `.json` tags). Not a host sidecar. |
 | Room-tone bed | OPFS `Sharecut Recordings/{session}/room-tone/{participant}.wav` (local until Accept); upload `kind=room_tone` after consent (storage take `2147483647`); assembled `artifacts/record/acked/{session}/room_tone/{participant}.wav` until landing copies `raw/room-tone/{participant}.wav` and sets `track.room_tone` |
-| Chunk / ACK manifests | `record_upload_parts` / `record_upload_files` in the same `sync.db`; part bytes in `artifacts/record/uploads/`; assembled WAV in `artifacts/record/acked/` until landing copies to `raw/`. `land_failed_ns` records a failed landing attempt and keeps the staged WAV available for retry. |
+| Chunk / ACK manifests | `record_upload_parts` / `record_upload_files` in the same `sync.db`; finalized file rows persist `expected_parts` and file ACK requires that count. Current clients declare it; older open tabs infer it from the final part sequence, still requiring contiguous parts and the whole-file hash. Part bytes live in `artifacts/record/uploads/`; assembled WAV in `artifacts/record/acked/` until landing copies to `raw/`. `land_failed_ns` records a failed landing attempt and keeps the staged WAV available for retry. |
 | Timeline landing | `RecordLandingService` copies ACK'd WAV into `raw/`, one clip per segment at `take_offset_s + join_offset_ms/1000`, 2 s take gap. `join_offset_ms` is stored on `record_upload_files`. The UI distinguishes staged/uploaded/landed/land-failed; only confirmed `landed` permits deleting the local keeper. Host `Retry land` reuses the existing `record.land` command. |
 
 Locked for the lobby PR: roles from the token; host-only Start/Pause/Resume/Stop;
@@ -825,7 +827,7 @@ warning appears; sidetone level sane.
 | Consent vs lobby | Explicit **Allow microphone** before the meter (`useMicPermission`; one `getUserMedia` path). Accept disabled with `aria-describedby` until granted **and** headphones are checked. WAV tap + keeper chunks **and** room-tone PUT **zero bytes** to the host until consent (local OPFS bed capture is allowed; Skip/Decline discards it); Start disabled while any **recorded** in-lobby client lacks consent; producers skip the gate and never call `getUserMedia`. Host Start does not require the host to record or skip room tone (idle is an implicit skip). |
 | Room tone | After mic granted, optional 3 s keeper-constraint PCM→WAV (skip allowed); RMS > −35 dBFS warns "Too loud — is something playing?" and does not upload; guest PUT `kind=room_tone` only after Accept (403 before consent), 403 for producer, reject > 10 s 48 kHz mono; Retry replaces the prior ACK; landing sets `track.room_tone` under the land lock; `filler_pad_mode: room_tone` prefers the bed then stem-steal; undo restores and re-lands. Producers omit the step. |
 | Late-join pad | Joiner at T+10 s → clip at `join_offset_ms` = 10 s ± 1 frame (default, no in-file pad). Optional origin encoding of **segment 0 only**: leading zeros 10 s ± 1 frame at 48 kHz. Later segments never padded in-file. |
-| Progressive upload | Fake transport + HTTP resume; keys `(session_id, take, participant, segment, part_seq)`; chunk hashes; kill mid-session; resume on same token completes; stop panel stays until ACK; host GET lists all participants. |
+| Progressive upload | Fake transport + HTTP resume; keys `(session_id, take, participant, segment, part_seq)`; chunk hashes; finalized files declare `expected_parts`; kill mid-session; resume on same token completes; incomplete/stalled and zero-sample keepers expose local download and upload retry; host GET lists all participants with `N/M` where known. |
 | Host offline | Monitor tracks end; if the segment is still open, local WAV length **keeps growing**; copy string asserted. Intentional leave / lost mic finalizes the segment. |
 | Microphone loss | Test-only ended track reference: stale ended events are ignored, listeners are cleaned up, devicechange refreshes devices without declaring loss by itself, retry reacquires explicitly; the open keeper segment finalizes and the next segment resumes at the current recording-clock offset. A browser test ends the guest track before consent, blocks Accept, and verifies retry; no warning appears after an intentional stop. |
 | Host reconnect | Last host conn drop during REC/PAUSED persists `host_offline_since_wall_ms` (Leave or last-socket pop). Join after ≥ 10 s while REC → `paused` + one `PauseEntry.pause_reason == "host_reconnect"`; Join below 10 s stays recording; already paused → no second entry; sidecar crash without Leave (empty `_HOST_CONNS`, same sqlite) still pauses; Resume clears live `pause_reason`; remint while REC/PAUSED is 409 / CLI non-zero / MCP error; landing after that pause places clips abutting. Host keeper `resetKey` follows the open host-reconnect pause seq (Vitest), not WS `connected`. |

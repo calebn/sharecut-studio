@@ -155,6 +155,7 @@ export function hostUploadLine(
   name: string,
   fileAck: boolean,
   ackedParts: number,
+  expectedParts: number | null = null,
   landed = false,
   landFailed = false,
 ): string {
@@ -166,6 +167,9 @@ export function hostUploadLine(
   }
   if (fileAck) {
     return `${name}: uploaded; waiting to land.`;
+  }
+  if (expectedParts != null) {
+    return `${name}: ${ackedParts}/${expectedParts} chunks acked.`;
   }
   if (ackedParts <= 0) {
     return `${name}: waiting to upload.`;

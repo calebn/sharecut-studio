@@ -47,6 +47,7 @@ export function useRecordUpload(args: {
   participantId: string | null;
   transport: RecordUploadTransport | null;
   sink: ByteSink | null;
+  retryNonce?: number;
 }): RecordUploadProgress {
   const [progress, setProgress] = useState<RecordUploadProgress>(EMPTY);
   const argsRef = useRef(args);
@@ -65,6 +66,9 @@ export function useRecordUpload(args: {
     }
     let cancelled = false;
     let inFlight = false;
+    let stalledTicks = 0;
+    let lastAcked = -1;
+    let lastTotal = -1;
     const abort = new AbortController();
     setProgress((prev) => ({ ...prev, pending: true, error: null }));
     const tick = async () => {
@@ -172,10 +176,18 @@ export function useRecordUpload(args: {
             landFailed = landFailed || result.landFailed;
           }
         }
-        if (!saw) {
-          allAcked = true;
-        }
         if (!cancelled) {
+          const stopped = current.roomState === "stopped";
+          if (!stopped || acked !== lastAcked || total !== lastTotal) {
+            stalledTicks = 0;
+          } else if (awaitingAck) {
+            stalledTicks += 1;
+          } else {
+            stalledTicks = 0;
+          }
+          lastAcked = acked;
+          lastTotal = total;
+          const stalled = stalledTicks >= 3;
           const abandonedError =
             abandoned && !awaitingAck
               ? "An incomplete local keeper segment was retained for recovery."
@@ -183,12 +195,18 @@ export function useRecordUpload(args: {
           setProgress({
             acked,
             total,
-            fileAck: allAcked,
+            fileAck: saw && allAcked,
             landed: saw && allAcked && allLanded && !landFailed,
             landFailed,
-            uploading: awaitingAck,
+            uploading: awaitingAck && !stalled,
             pending: false,
-            error: abandonedError,
+            error:
+              abandonedError ??
+              (!saw && stopped
+                ? "No local keeper was captured. Check the local copy before leaving."
+                : stalled
+                  ? "Upload stalled. Resume the upload or download the local keeper copy."
+                  : null),
           });
         }
       } catch (err) {
@@ -223,6 +241,7 @@ export function useRecordUpload(args: {
     args.participantId,
     args.transport,
     args.sink,
+    args.retryNonce,
   ]);
 
   return progress;

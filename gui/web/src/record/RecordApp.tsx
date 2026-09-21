@@ -11,6 +11,7 @@ import { Room } from "./Room";
 import { loadRecordBootstrap, type RecordBootstrap } from "./recordBootstrap";
 import { UPLOAD_SINK_ERROR_COPY } from "./types";
 import { guestRecordUploadTransport } from "./upload/http";
+import { downloadLocalKeepers } from "./upload/recovery";
 import { useRecordUpload } from "./upload/useRecordUpload";
 import { useMicPermission } from "./useMicPermission";
 import { useRecordLiveComments } from "./useRecordLiveComments";
@@ -154,6 +155,7 @@ export function RecordApp({ token }: { token: string }) {
     }
     return guestRecordUploadTransport(token, me.participant_id, lease);
   }, [bootstrap?.build.upload, producer, me?.participant_id, lease, token]);
+  const [uploadRetryNonce, setUploadRetryNonce] = useState(0);
   const upload = useRecordUpload({
     enabled: !!bootstrap?.build.upload && !producer && me?.consented === true,
     roomState: snapshot?.state,
@@ -163,6 +165,7 @@ export function RecordApp({ token }: { token: string }) {
     participantId: me?.participant_id ?? null,
     transport: uploadTransport,
     sink,
+    retryNonce: uploadRetryNonce,
   });
   const roomTone = useRoomToneCapture({
     enabled:
@@ -258,6 +261,25 @@ export function RecordApp({ token }: { token: string }) {
               upload={upload}
               micLost={mic.lost}
               onRetryMic={mic.retry}
+              onResumeUpload={() => setUploadRetryNonce((value) => value + 1)}
+              onDownloadKeeper={
+                sink && me?.participant_id && snapshot
+                  ? () => {
+                      void downloadLocalKeepers(
+                        sink,
+                        snapshot.session_id,
+                        me.participant_id,
+                        snapshot.take_index,
+                      ).catch((error: unknown) => {
+                        setSinkError(
+                          error instanceof Error
+                            ? error.message
+                            : String(error),
+                        );
+                      });
+                    }
+                  : undefined
+              }
             />
           ) : (
             <Lobby

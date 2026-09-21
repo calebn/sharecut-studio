@@ -10,6 +10,19 @@ function wavWithPcm(bytes: number): Uint8Array {
 }
 
 describe("uploadKeeperWav", () => {
+  it("surfaces an explicit recovery path for a zero-sample finalized keeper", async () => {
+    await expect(
+      uploadKeeperWav({
+        wav: new Uint8Array(44),
+        complete: true,
+        takeIndex: 0,
+        segmentIndex: 0,
+        transport: memoryUploadTransport(),
+        ackedParts: [],
+        fileAck: false,
+      }),
+    ).rejects.toThrow("Resume the upload or download the local keeper copy");
+  });
   it("resumes after a killed mid-session PUT", async () => {
     const transport = memoryUploadTransport();
     const wav = wavWithPcm(RECORD_UPLOAD_PART_PCM_BYTES + 8);
