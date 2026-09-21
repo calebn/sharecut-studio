@@ -463,6 +463,55 @@ describe("MobileShell", () => {
     expect(screen.getByRole("dialog")).toBeTruthy();
   });
 
+  it("opens the phone inspector sheet when Correct selects a transcript word in Text", async () => {
+    const user = userEvent.setup();
+    const project = minimalProject({
+      transcript: {
+        utterances: [
+          {
+            track_id: "host",
+            speaker: "Host",
+            start: 0,
+            end: 1,
+            text: "hello",
+            timeline_start: 0,
+            timeline_end: 1,
+            mappable: true,
+            words: [
+              {
+                text: "hello",
+                start: 0,
+                end: 1,
+                timeline_start: 0,
+                timeline_end: 1,
+                word_index: 0,
+                confidence: 0.9,
+              },
+            ],
+          },
+        ],
+      },
+    });
+    useDawStore.getState().hydrate("/tmp/p.json", project, null);
+    useDawStore.getState().setShellBreakpoint("phone");
+    useDawStore.getState().setMobileMode("text");
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <MobileShell />
+      </DawProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /Correct:/ }));
+    await user.click(screen.getByRole("button", { name: "hello" }));
+
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "transcriptWord",
+      trackId: "host",
+      wordIndex: 0,
+    });
+    expect(screen.getByRole("dialog", { name: "Inspector" })).toBeTruthy();
+  });
+
   it("disables labeled Play/Stop while the episode is loading", () => {
     useDawStore.getState().hydrate("/tmp/p.json", null);
     render(
