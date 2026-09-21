@@ -20,6 +20,24 @@ from podcast_mcp.util.wer import (
 )
 
 
+def test_transcript_workflows_share_canonical_token_normalizer() -> None:
+    from podcast_mcp.edits import conversation_align, transcript_precorrect, transcript_reconcile
+    from podcast_mcp.engines import transcript_align
+    from podcast_mcp.util import wer
+
+    for module in (
+        conversation_align,
+        transcript_align,
+        transcript_precorrect,
+        transcript_reconcile,
+    ):
+        assert module.normalize_token is wer.normalize_token
+
+    assert not hasattr(conversation_align, "_norm_token")
+    assert not hasattr(transcript_precorrect, "_normalize_token")
+    assert not hasattr(transcript_reconcile, "_normalize_token")
+
+
 def test_word_error_rate_exact_match() -> None:
     r = word_error_rate(["hello", "world"], ["hello", "world"])
     assert r.wer == 0.0
