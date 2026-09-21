@@ -3,6 +3,7 @@ import { execute } from "../commands/execute";
 import { FEATURE_SHARE_UI_BANNER } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
 import { useTimelineFocusRegion } from "../hooks/useTimelineFocusRegion";
+import { useTwoFingerTap } from "../hooks/useTwoFingerTap";
 import { Inspector } from "../inspector/Inspector";
 import { CommentsPanel } from "../panels/CommentsPanel";
 import { HistoryPanel } from "../panels/HistoryPanel";
@@ -14,7 +15,11 @@ import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { isHostOnlyTab } from "../presence/followSync";
 import { PresenceGhostLayer } from "../presence/PresenceGhostLayer";
 import { usePresenceCursorSource } from "../presence/usePresenceCursorSource";
-import { canIngestMedia, guestShareBannerLabel } from "../shareMode";
+import {
+  canApplyPass12,
+  canIngestMedia,
+  guestShareBannerLabel,
+} from "../shareMode";
 import type { MobileMode } from "../state/types";
 import { useDaw } from "../state/useDaw";
 import { TimelineView } from "../timeline/TimelineView";
@@ -337,6 +342,9 @@ export function MobileShell({ guestShare = false }: { guestShare?: boolean }) {
     setSheetExpanded,
     setTimelineFocused,
     guestMode,
+    project,
+    projectPath,
+    shareCapabilities,
     followingClientId,
     statusAnnouncement,
   } = useDaw();
@@ -353,6 +361,10 @@ export function MobileShell({ guestShare = false }: { guestShare?: boolean }) {
     setTimelineFocused,
   );
   const shellRef = useRef<HTMLDivElement>(null);
+  const undoEnabled =
+    project != null &&
+    canApplyPass12(projectPath, guestMode, shareCapabilities);
+  useTwoFingerTap(shellRef, { enabled: undoEnabled });
   usePresenceCursorSource(shellRef);
 
   useEffect(() => {

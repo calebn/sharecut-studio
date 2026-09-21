@@ -1061,7 +1061,8 @@
       "surfaces": {
         "command": "history.undo",
         "gui": [
-          "historyPanel"
+          "historyPanel",
+          "mobileShell.gesture.twoFingerTap"
         ],
         "keyboard": "Mod+Z",
         "mcp": [

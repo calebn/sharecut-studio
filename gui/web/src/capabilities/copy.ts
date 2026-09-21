@@ -398,6 +398,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   mobileNav: "daw.view.setMobileMode",
   "timeline.waveform": "daw.view.waveformZoomOut",
   historyPanel: "daw.history.redo",
+  "mobileShell.gesture.twoFingerTap": "daw.history.undo",
   staleRenderPill: "daw.render.refreshMix",
   BounceDialog: "daw.export.bounce",
   ShareDialog: "daw.share.manage",
