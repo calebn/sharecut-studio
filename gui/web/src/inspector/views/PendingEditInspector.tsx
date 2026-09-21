@@ -12,6 +12,7 @@ import {
   canComment,
   canReply,
   canSuggestOrNudge,
+  isShareProjectKey,
 } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
@@ -30,6 +31,7 @@ import {
   suggestDisabledReason,
 } from "../../utils/playRange";
 import { ModifierInspector } from "../ModifierInspector";
+import { TranscriptRefineRecovery } from "../TranscriptRefineRecovery";
 
 export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   const { project, projectPath, guestMode, shareCapabilities, setSelection } =
@@ -304,6 +306,14 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
           <DefItem label="Confidence">{edit.cut_confidence.toFixed(2)}</DefItem>
         ) : null}
       </DefinitionList>
+      {!isShareProjectKey(projectPath) ? (
+        <TranscriptRefineRecovery
+          key={edit.id}
+          projectPath={projectPath}
+          error={error}
+          onRecovered={() => setError(null)}
+        />
+      ) : null}
       <section className="pending-ask-thread" aria-label="Ask about this edit">
         <h3>Ask</h3>
         {thread ? (

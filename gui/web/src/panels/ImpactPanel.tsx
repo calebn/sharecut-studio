@@ -1,12 +1,14 @@
 import { approveEdits, rejectEdits } from "../api";
 import { useProjectMutation } from "../hooks/useProjectMutation";
+import { TranscriptRefineRecovery } from "../inspector/TranscriptRefineRecovery";
+import { isShareProjectKey } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import { Button, InlineError } from "../ui";
 import { selectUnmappedPending } from "../utils/edits";
 
 export function ImpactPanel() {
   const { project, projectPath, setSelection } = useDaw();
-  const { busy, error, run } = useProjectMutation();
+  const { busy, error, setError, run } = useProjectMutation();
 
   if (!project) {
     return null;
@@ -96,6 +98,14 @@ export function ImpactPanel() {
         </div>
       )}
       <InlineError message={error} />
+      {!isShareProjectKey(projectPath) ? (
+        <TranscriptRefineRecovery
+          key={reviewRequired.map((edit) => edit.id).join(",")}
+          projectPath={projectPath}
+          error={error}
+          onRecovered={() => setError(null)}
+        />
+      ) : null}
     </div>
   );
 }

@@ -45,6 +45,11 @@ class RenderPreviewRequest(BaseModel):
     path: str
 
 
+class TranscriptRefineWaiveRequest(BaseModel):
+    path: str
+    reason: str = Field(min_length=1)
+
+
 class BootstrapRunRequest(BaseModel):
     """First-run asset download (ffmpeg / whisper / optional rnnoise)."""
 

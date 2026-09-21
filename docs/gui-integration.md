@@ -148,6 +148,14 @@ Host and share **`edit`** guests may add tracks, attach/replace audio, edit trac
 
 Sharecut Studio arrange is the import surface: drop on a lane (replace that track’s media), drop below tracks / empty session (new tracks), **Menu → Import Audio…** / **New Track**, inspector Import/Replace. One frontend path: `gui/web/src/ingest/ingestFiles.ts` → upload then `submitDocumentCommand`. Permissions: `canIngestMedia` / `canManageProjects` in `shareMode.ts`. Details: [daw-editing.md](daw-editing.md) § Pass 8.
 
+### Transcript refine recovery
+
+The host-only `POST /api/transcript/refine/waive` endpoint accepts `{path,
+reason}` and records the waiver through `TranscriptRefineService` with source
+`user`. The GUI exposes it only when an approval receives the transcript-refine
+gate error. Share guests cannot use this recovery path; waiving never approves
+the pending edit automatically.
+
 ### Layout (Reaper-style)
 
 | Region | Content |

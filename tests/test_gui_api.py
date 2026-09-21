@@ -1630,6 +1630,80 @@ def test_api_pipeline_config_and_analyze(minimal_project, monkeypatch) -> None:
     assert preview.json()["applied"] is False
 
 
+def test_api_transcript_refine_waive_requires_reason_and_records_user_source(
+    minimal_project, monkeypatch
+) -> None:
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    calls: list[tuple[str, str]] = []
+
+    def waive(self, *, reason: str, source: str = "cli") -> dict[str, str]:
+        calls.append((reason, source))
+        return {"status": "waived", "reason": reason, "source": source}
+
+    monkeypatch.setattr(
+        "podcast_mcp.services.transcript_refine.TranscriptRefineService.waive",
+        waive,
+    )
+    client = TestClient(create_app())
+    path = str(minimal_project)
+
+    missing = client.post("/api/transcript/refine/waive", json={"path": path})
+    assert missing.status_code == 422
+    blank = client.post("/api/transcript/refine/waive", json={"path": path, "reason": "  "})
+    assert blank.status_code == 400
+    ok = client.post(
+        "/api/transcript/refine/waive",
+        json={"path": path, "reason": "Reviewed in host GUI"},
+    )
+    assert ok.status_code == 200
+    assert calls == [("Reviewed in host GUI", "user")]
+
+
+def test_api_transcript_refine_waive_persists_status(minimal_project) -> None:
+    pytest.importorskip("fastapi")
+    import json
+
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/transcript/refine/waive",
+        json={"path": str(minimal_project), "reason": "Reviewed in host GUI"},
+    )
+    assert response.status_code == 200
+    status_path = minimal_project.parent / "artifacts" / "transcript_refine_status.json"
+    status = json.loads(status_path.read_text(encoding="utf-8"))
+    assert status["status"] == "waived"
+    assert status["source"] == "user"
+    assert status["notes"] == "Reviewed in host GUI"
+
+
+def test_api_transcript_refine_waive_rejects_unauthorized_remote(
+    minimal_project, monkeypatch
+) -> None:
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    monkeypatch.setenv("PODCAST_SESSION_AUTHZ", "strict")
+    monkeypatch.setenv("PODCAST_SESSION_TOKEN", "session-token")
+    monkeypatch.setattr("podcast_mcp.gui.routes.transcript.peer_host", lambda _request: "10.0.0.5")
+    client = TestClient(create_app(bind_host="0.0.0.0"))
+    response = client.post(
+        "/api/transcript/refine/waive",
+        json={"path": str(minimal_project), "reason": "not authorized"},
+    )
+    assert response.status_code == 403
+    assert response.json() == {"detail": "remote client requires PODCAST_SESSION_TOKEN"}
+
+
 def test_api_pipeline_run_validation_and_cancel(minimal_project, monkeypatch) -> None:
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient

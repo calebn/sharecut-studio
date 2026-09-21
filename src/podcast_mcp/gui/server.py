@@ -33,6 +33,7 @@ from podcast_mcp.gui.routes import (
     project,
     record_host,
     session,
+    transcript,
 )
 from podcast_mcp.gui.routes.deps import peer_host, require_authz
 from podcast_mcp.gui.routes.session import apply_ws_client_message
@@ -194,6 +195,7 @@ def create_app(
     # Core FOSS routes only - share/auth/remote MCP come from extensions.
     app.include_router(project.router)
     app.include_router(session.router)
+    app.include_router(transcript.router)
     app.include_router(record_host.router)
     app.include_router(document.router)
     app.include_router(pipeline.router)
