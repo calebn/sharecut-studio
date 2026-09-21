@@ -226,6 +226,33 @@ make e2e-real     # nightly: AMI bleed + benchmark regression (e2e_real marker)
 
 Bleed listen-through checklist: [e2e-fixture-manual.md](e2e-fixture-manual.md#bleed-debugging).
 
+### Browser compatibility matrix
+
+The `frontend-e2e` job runs the full fast Playwright suite in bundled Chromium,
+then the focused `gui/web/e2e-compat/` matrix in bundled Chromium and
+Playwright WebKit. It covers the project shell and playback control, the phone
+listening shell, and the recording guest's microphone-consent-to-level path.
+The recording check supplies a deterministic synthetic audio stream so both
+engines can exercise the app flow without a host microphone; it does not verify
+each browser's native permission prompt or hardware capture. This keeps coverage
+focused on high-risk entry points without multiplying the full suite across
+engines.
+
+Run it locally after installing both engines:
+
+```bash
+cd gui/web
+npm ci
+npx playwright install chromium webkit
+npm run build
+npm run test:e2e:compat
+```
+
+Playwright WebKit is a useful Safari-compatible signal, but it is not a test of
+Apple's Safari browser. To exercise an installed branded Chrome locally, set
+`E2E_BRANDED_CHROME=1`; CI intentionally uses the reproducible bundled
+Chromium engine.
+
 Override the project path:
 
 ```bash
