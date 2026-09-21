@@ -44,6 +44,8 @@ pull request, every push to `main`, a weekly schedule, and manual dispatch. The 
 read-only repository permission, does not comment, and does not upload a finding artifact.
 The repository intentionally carries no `.gitleaksignore` baseline; test fixtures must use
 values that cannot be mistaken for live credentials.
+The companion public-tree provider/marker test scans blobs in the Git index, not ignored
+cache files or the mutable checkout, so staged public contents are the tested boundary.
 
 Before changing repository visibility, clone a fresh `--mirror`, fetch
 `refs/pull/*/head`, and scan that mirror. The regular workflow prevents new committed
