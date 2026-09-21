@@ -112,20 +112,42 @@ export async function withShareableProject<T>(
   const { projectPath, workspaceDir: root } = createRelocatedE2eProject(
     "sharecut-e2e-share-",
   );
-  const art = path.join(root, "artifacts");
-  const premix = path.join(art, "premix.wav");
-  fs.mkdirSync(art, { recursive: true });
-  if (!fs.existsSync(premix)) {
-    fs.writeFileSync(premix, silenceWav());
+  let primaryFailed = false;
+  let primaryError: unknown;
+  let result!: T;
+  try {
+    const art = path.join(root, "artifacts");
+    const premix = path.join(art, "premix.wav");
+    fs.mkdirSync(art, { recursive: true });
+    if (!fs.existsSync(premix)) {
+      fs.writeFileSync(premix, silenceWav());
+    }
+    await switchProject(projectPath);
+    result = await fn(projectPath);
+  } catch (error) {
+    primaryFailed = true;
+    primaryError = error;
+  }
+
+  let cleanupFailed = false;
+  let cleanupError: unknown;
+  try {
+    await switchProject(e2eProjectPath);
+  } catch (error) {
+    cleanupFailed = true;
+    cleanupError = error;
   }
   try {
-    await switchProject(projectPath);
-    return await fn(projectPath);
-  } finally {
-    try {
-      await switchProject(e2eProjectPath);
-    } finally {
-      removeRelocatedE2eProject(root);
+    removeRelocatedE2eProject(root);
+  } catch (error) {
+    if (!cleanupFailed) {
+      cleanupFailed = true;
+      cleanupError = error;
     }
   }
+  // A setup or scenario failure is more useful than a subsequent cleanup
+  // failure. Still attempt restoration before removing the workspace.
+  if (primaryFailed) throw primaryError;
+  if (cleanupFailed) throw cleanupError;
+  return result as T;
 }

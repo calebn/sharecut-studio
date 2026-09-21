@@ -9,19 +9,38 @@ const webRoot = path.resolve(
 );
 
 describe("guest share proxy setup contract", () => {
-  it("quiesces host audio and lazy guest proxies before cleanup", () => {
+  it("shares host and guest setup between both guest scenarios", () => {
     const source = fs.readFileSync(
       path.join(webRoot, "e2e/presence-follow.spec.ts"),
       "utf8",
     );
+    const guestShareMarker = 'test.describe("presence follow guest share"';
+    const viewerMarker = 'test("guest follows host on a share token"';
+    const editorMarker = 'test("editor guest Mix lock after host FX"';
+    const guestShareStart = source.indexOf(guestShareMarker);
+    const viewerStart = source.indexOf(viewerMarker, guestShareStart);
+    const editorStart = source.indexOf(editorMarker, viewerStart);
+    expect(guestShareStart).toBeGreaterThanOrEqual(0);
+    expect(viewerStart).toBeGreaterThanOrEqual(0);
+    expect(editorStart).toBeGreaterThanOrEqual(0);
+    const viewerSource = source.slice(viewerStart, editorStart);
+    const editorSource = source.slice(editorStart);
     expect(source).toContain("function openGuestShare");
     expect(source).toContain("function openHostShare");
+    expect(source).toContain("function withHostGuestPages");
     expect(source).toContain("page.waitForResponse");
     expect(source).toContain('page.waitForLoadState("networkidle"');
     expect(source).toContain("withTwoBrowserPages");
-    expect(source).toContain("await openHostShare(pageA, projectPath);");
-    expect(source).toContain("await openHostShare(pageB, projectPath);");
-    expect(source).toContain('name: "Follow Host"');
+    expect(source).toContain("await openHostShare(host, projectPath);");
+    expect(viewerSource).toContain('withHostGuestPages(browser, "viewer"');
+    expect(editorSource).toContain('withHostGuestPages(browser, "editor"');
+    expect(viewerSource).toContain('name: "Follow Host"');
+    expect(viewerSource).toContain('data-presence-anchor="tab:pipeline"');
+    expect(viewerSource).toContain("/auditioning FX/");
+    expect(viewerSource).toContain("expectGuestListeningInMix(pageB)");
+    expect(editorSource).toContain('test.step("publish host FX presence"');
+    expect(editorSource).toContain('test.step("follow host FX presence"');
+    expect(editorSource).toContain('test.step("verify guest Mix lock"');
     expect(source).toContain("await page.goto(`/r/${token}`)");
     expect(source).toContain(
       "expect((await manifestResponse).status()).toBe(200)",

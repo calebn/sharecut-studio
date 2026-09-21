@@ -103,4 +103,61 @@ describe("withShareableProject", () => {
     },
     E2E_FIXTURE_COPY_TEST_TIMEOUT_MS,
   );
+
+  it(
+    "preserves a callback failure when restoring the suite project also fails",
+    async () => {
+      const switched: string[] = [];
+      let workspaceDir = "";
+      await expect(
+        withShareableProject(
+          async (projectPath) => {
+            workspaceDir = path.dirname(projectPath);
+            throw new Error("callback failed");
+          },
+          async (projectPath) => {
+            switched.push(projectPath);
+            if (projectPath === e2eProjectPath) {
+              throw new Error("restore failed");
+            }
+          },
+        ),
+      ).rejects.toThrow("callback failed");
+
+      expect(switched).toEqual([
+        path.join(workspaceDir, "episode.project.json"),
+        e2eProjectPath,
+      ]);
+      expect(fs.existsSync(workspaceDir)).toBe(false);
+    },
+    E2E_FIXTURE_COPY_TEST_TIMEOUT_MS,
+  );
+
+  it(
+    "surfaces a restore failure after a successful callback and still cleans up",
+    async () => {
+      const switched: string[] = [];
+      let workspaceDir = "";
+      await expect(
+        withShareableProject(
+          async (projectPath) => {
+            workspaceDir = path.dirname(projectPath);
+          },
+          async (projectPath) => {
+            switched.push(projectPath);
+            if (projectPath === e2eProjectPath) {
+              throw new Error("restore failed");
+            }
+          },
+        ),
+      ).rejects.toThrow("restore failed");
+
+      expect(switched).toEqual([
+        path.join(workspaceDir, "episode.project.json"),
+        e2eProjectPath,
+      ]);
+      expect(fs.existsSync(workspaceDir)).toBe(false);
+    },
+    E2E_FIXTURE_COPY_TEST_TIMEOUT_MS,
+  );
 });
