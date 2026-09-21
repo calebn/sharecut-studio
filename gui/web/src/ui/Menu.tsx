@@ -12,7 +12,10 @@ import { listFocusable } from "./useDialogModal";
 
 function menuItems(panel: HTMLElement): HTMLElement[] {
   return listFocusable(panel).filter(
-    (el) => el.getAttribute("role") === "menuitem",
+    (el) =>
+      el.getAttribute("role") === "menuitem" ||
+      el.getAttribute("role") === "menuitemcheckbox" ||
+      el.getAttribute("role") === "menuitemradio",
   );
 }
 
