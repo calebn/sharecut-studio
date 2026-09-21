@@ -17,6 +17,7 @@ Live site: [docs.sharecut.studio](https://docs.sharecut.studio/).
 | Page | What |
 |------|------|
 | [Quickstart](#/quickstart) | Curl + Cursor MCP + one document command |
+| [Set up local MCP](#/mcp-setup) | Install and configure the local stdio or GUI-attached server |
 | [Capabilities](#/capabilities) | Host surface matrix (command / key / MCP / CLI / skill) |
 | [Document commands](#/document-commands) | Typed command catalog (host + guest; always on host) |
 | [Share HTTP](#/share-http) | Token-scoped guest routes (**collaboration extension**; relay for public URLs) |
