@@ -152,6 +152,10 @@ Best practice: **one Pydantic source of truth**, publish + assert at every adapt
 4. CI/pre-commit (`make schema-check`) fails if the checked-in schema or docs-site outputs drift.
 5. `test_document_command_boundary.py` fails if OpenAPI or MCP `inputSchema` drift, or if any submit path stops rejecting bad payloads at the boundary.
 
+TypeScript codegen uses the web project's Biome configuration; a formatter failure
+must fail export/check rather than writing an unformatted artifact. Install the
+`gui/web` dependencies before running the local schema gate.
+
 Handler behavior stays in `test_document_sync.py` (constructs internal `DocumentCommand` dicts after validation).
 
 ### Timebase guards and the tool clock registry
