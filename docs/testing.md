@@ -211,6 +211,35 @@ Read-only tests can still use `e2e_project_file` directly, since they only load 
 
 ## E2E fixture tests
 
+### Large-project browser profile (opt-in)
+
+Issue #29 has a disposable performance fixture rather than committed media.
+Build it from the aligned-dialogue project structure, then run the browser
+profile against its generated project (after building the web frontend):
+
+```bash
+tmp_dir=$(mktemp -d)
+uv run python scripts/build_large_project_fixture.py --out "$tmp_dir/project"
+cd gui/web && npm run build && cd ../..
+DAW_E2E_PROJECT="$tmp_dir/project/episode.project.json" \
+  DAW_BENCHMARK_PROJECT=1 \
+  DAW_BENCHMARK_CLIPS=1200 DAW_BENCHMARK_WORDS=10000 \
+  npm --prefix gui/web run test:e2e -- large-project.spec.ts
+rm -rf "$tmp_dir"
+```
+
+The generated project is two hours long with 1,200 uniquely identified clips
+and 10,000 distributed transcript utterances across alternating speakers. It
+creates sparse silent WAVs with real two-hour source clocks (no media blocks are
+consumed), so this measures project shape and browser surfaces, not audio
+fidelity. The profile asserts that all clips and utterances are present and
+exercises timeline scroll/seek, transcript scroll/seek, and history loading. It
+prints operation duration, DOM node count, and Chromium heap size when
+available; those measurements are diagnostic only and have no machine-dependent
+timing threshold. The history fixture is currently empty, so a many-entry
+history profile and long-duration memory tracking remain follow-ups. Delete the
+temporary directory after the run.
+
 Committed fixtures (Tier A):
 
 - `tests/fixtures/aligned_dialogue/` — smoke / edits (canned transcript)
