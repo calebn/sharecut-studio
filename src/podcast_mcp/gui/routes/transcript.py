@@ -26,8 +26,6 @@ def transcript_refine_waive(
         token=token or x_podcast_token,
     )
     project_path = resolve_project(req.path, request)
-    if not req.reason.strip():
-        raise HTTPException(status_code=400, detail="refine waive requires a non-empty reason")
     try:
         return TranscriptRefineService(ProjectWorkspace.open(project_path)).waive(
             reason=req.reason,

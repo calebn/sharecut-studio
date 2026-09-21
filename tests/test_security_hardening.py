@@ -347,6 +347,7 @@ def test_host_binding_rejects_evil_host(minimal_project, monkeypatch):
     assert path_requires_host_binding("/api/export/deliverables")
     assert path_requires_host_binding("/api/diagnostics")
     assert path_requires_host_binding("/api/diagnostics/bundle")
+    assert path_requires_host_binding("/api/transcript/refine/waive")
     assert not path_requires_host_binding("/api/review/tok/project")
     assert host_header_is_allowed("127.0.0.1:8765")
     assert host_header_is_allowed("localhost")
@@ -384,6 +385,18 @@ def test_host_binding_rejects_evil_host(minimal_project, monkeypatch):
         headers={"Host": "127.0.0.1:8765", "Referer": "https://evil.example/x"},
     )
     assert denied_referer.status_code == 403
+    denied_transcript_host = client.post(
+        "/api/transcript/refine/waive",
+        json={"path": str(minimal_project), "reason": "reviewed"},
+        headers={"Host": "evil.example"},
+    )
+    assert denied_transcript_host.status_code == 400
+    denied_transcript_origin = client.post(
+        "/api/transcript/refine/waive",
+        json={"path": str(minimal_project), "reason": "reviewed"},
+        headers={"Host": "127.0.0.1:8765", "Origin": "https://evil.example"},
+    )
+    assert denied_transcript_origin.status_code == 403
 
 
 def test_websocket_host_binding_denied_helper():

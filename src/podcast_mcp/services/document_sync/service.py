@@ -33,12 +33,14 @@ def document_hub_key(project: EpisodeProject) -> str:
     return f"document:{project.workspace_path()}"
 
 
-def _submit_lock_for(project: EpisodeProject) -> threading.RLock:
-    """Per-workspace reentrant lock for apply/append and consistent snapshot reads.
+def document_submit_lock(project: EpisodeProject) -> threading.RLock:
+    """Return the per-workspace lock for document mutations and related saves.
 
-    ``document_snapshot`` acquires this lock so hello WS / comments GET cannot tear
-    ``server_seq`` vs history against a concurrent ``submit``. Callers that already
-    hold the lock (``submit``, ``publish_document_changed``) re-enter safely.
+    ``document_snapshot`` acquires this lock so hello WS / comments GET cannot
+    tear ``server_seq`` vs history against a concurrent ``submit``. Services
+    that reload and save the same project outside document commands must use it
+    too, so they cannot overwrite a document mutation with a stale workspace.
+    The lock is reentrant for callers such as ``submit`` that take snapshots.
     """
     key = str(project.workspace_path().resolve())
     with _SUBMIT_LOCKS_GUARD:
@@ -72,7 +74,7 @@ def dump_projection_locked(
     from podcast_mcp.gui.assembler import dump_project_projection
 
     guest_or_host: Literal["host", "guest"] = "guest" if audience == "guest" else "host"
-    with _submit_lock_for(ws.project):
+    with document_submit_lock(ws.project):
         ws.reload()
         return dump_project_projection(ws, projection=projection, audience=guest_or_host)
 
@@ -107,7 +109,7 @@ class DocumentSyncService:
         """Comments + history groups + projected ProjectView / patch for peer DAW merge."""
         from podcast_mcp.gui.assembler import dump_project_projection
 
-        with _submit_lock_for(self.project):
+        with document_submit_lock(self.project):
             self.project = self.ws.reload()
             snap = self.store.get_snapshot() or {"server_seq": 0}
             hist = HistoryService(self.ws).list_entries()
@@ -149,7 +151,7 @@ class DocumentSyncService:
 
         store = self.store
         event: dict[str, Any] | None = None
-        with _submit_lock_for(self.project):
+        with document_submit_lock(self.project):
             existing = store.find_by_client_seq(command.client_id, command.client_seq)
             if existing is None:
                 existing = store.find_by_command_id(command.command_id)
@@ -207,7 +209,7 @@ class DocumentSyncService:
 
     def publish_document_changed(self, *, projection: str = "shell") -> dict[str, Any]:
         """Fanout a document snapshot after an out-of-band project mutate."""
-        with _submit_lock_for(self.project):
+        with document_submit_lock(self.project):
             api_snap = self.document_snapshot(projection=projection)
             event = {
                 "type": "Applied",
