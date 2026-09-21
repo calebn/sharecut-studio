@@ -3,6 +3,7 @@ import "../src/styles/daw.css";
 
 const preview: Preview = {
   parameters: {
+    options: { storySort: { order: ["Atoms", "Molecules", "Organisms"] } },
     controls: { matchers: { color: /(background|color)$/i, date: /Date$/i } },
     backgrounds: { disable: true },
     a11y: {
