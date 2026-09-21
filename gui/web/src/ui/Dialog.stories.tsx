@@ -11,7 +11,15 @@ const meta: Meta<typeof Dialog> = {
 export default meta;
 type Story = StoryObj<typeof Dialog>;
 
-function DemoDialog({ title }: { title: string }) {
+function DemoDialog({
+  title,
+  confirmVariant = "primary",
+  confirmLabel = "Confirm",
+}: {
+  title: string;
+  confirmVariant?: "primary" | "danger";
+  confirmLabel?: string;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -30,8 +38,8 @@ function DemoDialog({ title }: { title: string }) {
           }}
         >
           <Button onClick={() => setOpen(false)}>Cancel</Button>
-          <Button variant="primary" onClick={() => setOpen(false)}>
-            Confirm
+          <Button variant={confirmVariant} onClick={() => setOpen(false)}>
+            {confirmLabel}
           </Button>
         </div>
       </Dialog>
@@ -45,9 +53,11 @@ export const Default: Story = {
 
 export const Danger: Story = {
   render: () => (
-    <>
-      <DemoDialog title="Delete clip?" />
-    </>
+    <DemoDialog
+      title="Delete clip?"
+      confirmVariant="danger"
+      confirmLabel="Delete clip"
+    />
   ),
   parameters: {
     docs: {
