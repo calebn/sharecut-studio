@@ -105,7 +105,11 @@ its web server. It forwards `SIGINT`/`SIGTERM` to the process tree and uses a
 five-second `SIGKILL` fallback. Detached descendant process groups are tracked
 through forced shutdown, and the wrapper retains the fixtures and port lease if
 it cannot confirm that the whole tree exited; direct helper use still removes
-fixtures immediately.
+fixtures immediately. Project-switch requests use a one-shot loopback connection
+to avoid reusing an idle socket after a long serial suite; this addresses the
+likely stale-keep-alive path for intermittent resets without retrying a switch.
+Transport failures include the nested underlying error instead of being reported
+as timeouts.
 Guest-share presence tests also await the lazy proxy-manifest response before
 closing their browser contexts, so a server render cannot outlive the workspace
 it reads; an HTTP 200 empty manifest is the
