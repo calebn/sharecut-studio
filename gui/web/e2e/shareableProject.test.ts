@@ -1,11 +1,40 @@
 import fs from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { e2eProjectPath } from "./env";
 import { E2E_FIXTURE_COPY_TEST_TIMEOUT_MS } from "./liveProject";
-import { withShareableProject } from "./shareableProject";
+import { switchE2eProject, withShareableProject } from "./shareableProject";
 
 describe("withShareableProject", () => {
+  it("uses a one-shot connection and reports transport failures accurately", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockRejectedValue(
+      new TypeError("fetch failed", {
+        cause: Object.assign(new Error("read ECONNRESET"), {
+          code: "ECONNRESET",
+        }),
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      await expect(
+        switchE2eProject("/tmp/episode.project.json"),
+      ).rejects.toThrow(
+        "failed during transport: TypeError: fetch failed; cause: Error: read ECONNRESET (ECONNRESET)",
+      );
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.any(URL),
+        expect.objectContaining({
+          headers: {
+            "Content-Type": "application/json",
+            Connection: "close",
+          },
+        }),
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it(
     "uses a unique disposable project for each callback",
     async () => {
