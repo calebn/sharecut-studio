@@ -13,6 +13,7 @@ import { useFollowUi } from "./hooks/useFollowUi";
 import { useFollowViewport } from "./hooks/useFollowViewport";
 import { useGuestSync } from "./hooks/useGuestSync";
 import { usePipelineJob } from "./hooks/usePipelineJob";
+import { usePointerType } from "./hooks/usePointerType";
 import { useProjectBootstrap } from "./hooks/useProjectBootstrap";
 import { useProjectPoll } from "./hooks/useProjectPoll";
 import { useProxyTransport } from "./hooks/useProxyTransport";
@@ -108,6 +109,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
   useFollowTransport();
   useFollowViewport();
   useFollowUi();
+  usePointerType();
   const proxyActive = useProxyTransport();
   useAudioTransport(!proxyActive);
 

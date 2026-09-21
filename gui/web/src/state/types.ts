@@ -32,6 +32,13 @@ export type FocusMode = "default" | "timeline" | "text" | "review";
 
 export type ShellBreakpoint = "phone" | "tablet" | "desktop";
 
+/**
+ * Last-used pointing device kind: fine (mouse/pen) vs coarse (touch).
+ * Tracked live from Pointer Events; drives input-mode adaptation (e.g. the
+ * presence `mobile_mode` payload), never presence visibility.
+ */
+export type PointerKind = "fine" | "coarse";
+
 export type MoreDestination =
   | "hub"
   | "comments"
@@ -107,6 +114,7 @@ export interface DawState {
   lastAppliedCommandId: string | null;
   suppressPublish: boolean;
   shellBreakpoint: ShellBreakpoint;
+  pointerKind: PointerKind;
   mobileMode: MobileMode;
   moreDestination: MoreDestination;
   focusMode: FocusMode;
@@ -225,6 +233,7 @@ export interface DawState {
   registerLanesEl: (el: HTMLElement | null) => void;
   measureTimelineViewport: () => number;
   setShellBreakpoint: (bp: ShellBreakpoint) => void;
+  setPointerKind: (kind: PointerKind) => void;
   setMobileMode: (mode: MobileMode) => void;
   setMoreDestination: (dest: MoreDestination) => void;
   setFocusMode: (mode: FocusMode) => void;

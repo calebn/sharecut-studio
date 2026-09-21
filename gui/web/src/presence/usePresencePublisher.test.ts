@@ -1,9 +1,15 @@
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import { setPresenceCursor, setPresenceCursorSink } from "./followSync";
 import { usePresencePublisher } from "./usePresencePublisher";
+
+function lastUi(sent: Record<string, unknown>[]): Record<string, unknown> {
+  const frames = sent.filter((f) => (f.meta as { ui?: unknown }).ui != null);
+  expect(frames.length).toBeGreaterThan(0);
+  return (frames[frames.length - 1].meta as { ui: Record<string, unknown> }).ui;
+}
 
 describe("usePresencePublisher", () => {
   beforeEach(() => {
@@ -83,5 +89,55 @@ describe("usePresencePublisher", () => {
         return meta.cursor?.anchor === "track:guest:mute";
       }),
     ).toBe(true);
+  });
+
+  it("sends mobile_mode when the pointer is coarse, regardless of breakpoint", () => {
+    useDawStore.setState({
+      followingClientId: null,
+      pointerKind: "coarse",
+      mobileMode: "timeline",
+      shellBreakpoint: "desktop",
+    });
+    const sent: Record<string, unknown>[] = [];
+    renderHook(() =>
+      usePresencePublisher((frame) => sent.push(frame), "Guest"),
+    );
+    expect(lastUi(sent).mobile_mode).toBe("timeline");
+  });
+
+  it("omits mobile_mode when the pointer is fine, even on the phone shell", () => {
+    useDawStore.setState({
+      followingClientId: null,
+      pointerKind: "fine",
+      mobileMode: "timeline",
+      shellBreakpoint: "phone",
+    });
+    const sent: Record<string, unknown>[] = [];
+    renderHook(() =>
+      usePresencePublisher((frame) => sent.push(frame), "Guest"),
+    );
+    expect(lastUi(sent).mobile_mode).toBeNull();
+  });
+
+  it("updates mobile_mode live when the pointer kind switches mid-session", () => {
+    useDawStore.setState({
+      followingClientId: null,
+      pointerKind: "coarse",
+      mobileMode: "listen",
+      shellBreakpoint: "desktop",
+    });
+    const sent: Record<string, unknown>[] = [];
+    renderHook(() =>
+      usePresencePublisher((frame) => sent.push(frame), "Guest"),
+    );
+    expect(lastUi(sent).mobile_mode).toBe("listen");
+    act(() => {
+      useDawStore.setState({ pointerKind: "fine" });
+    });
+    expect(lastUi(sent).mobile_mode).toBeNull();
+    act(() => {
+      useDawStore.setState({ pointerKind: "coarse" });
+    });
+    expect(lastUi(sent).mobile_mode).toBe("listen");
   });
 });
