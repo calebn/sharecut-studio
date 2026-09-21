@@ -35,8 +35,8 @@ function projectWithEnvelope() {
         track_id: "host",
         parameter: "volume",
         points: [
-          { time: 0, value: 1 },
-          { time: 5, value: 0.5 },
+          { id: "early", time: 0, value: 1 },
+          { id: "late", time: 5, value: 0.5 },
         ],
       },
     ],
@@ -65,8 +65,8 @@ describe("EnvelopePointInspector", () => {
     await userEvent.type(value, "0.25");
     await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(setEnvelope).toHaveBeenCalledWith("/tmp/p.json", "host", [
-      { time: 0, value: 1 },
-      { time: 5, value: 0.25 },
+      { id: "early", time: 0, value: 1 },
+      { id: "late", time: 5, value: 0.25 },
     ]);
     await expectNoA11yViolations(container);
   });
@@ -75,7 +75,7 @@ describe("EnvelopePointInspector", () => {
     render(<EnvelopePointInspector trackId="host" index={1} />);
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
     expect(setEnvelope).toHaveBeenCalledWith("/tmp/p.json", "host", [
-      { time: 0, value: 1 },
+      { id: "early", time: 0, value: 1 },
     ]);
     expect(useDawStore.getState().selection).toBeNull();
   });
@@ -87,8 +87,8 @@ describe("EnvelopePointInspector", () => {
     await userEvent.type(value, "9");
     await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(setEnvelope).toHaveBeenCalledWith("/tmp/p.json", "host", [
-      { time: 0, value: 1 },
-      { time: 5, value: 1.5 },
+      { id: "early", time: 0, value: 1 },
+      { id: "late", time: 5, value: 1.5 },
     ]);
   });
 
@@ -99,8 +99,8 @@ describe("EnvelopePointInspector", () => {
     await userEvent.type(time, "2");
     await userEvent.keyboard("{Enter}");
     expect(setEnvelope).toHaveBeenCalledWith("/tmp/p.json", "host", [
-      { time: 0, value: 1 },
-      { time: 2, value: 0.5 },
+      { id: "early", time: 0, value: 1 },
+      { id: "late", time: 2, value: 0.5 },
     ]);
   });
 });

@@ -2,7 +2,11 @@ import { useRef, useState } from "react";
 import { setEnvelope } from "../api";
 import { isShareProjectKey } from "../shareMode";
 import { useDaw } from "../state/useDaw";
-import type { AutomationEnvelope, Selection } from "../types/project";
+import type {
+  AutomationEnvelope,
+  AutomationPoint,
+  Selection,
+} from "../types/project";
 import {
   clampEnvelopeValue,
   replaceEnvelopePoint,
@@ -31,8 +35,8 @@ function yToValue(y: number, height: number): number {
 }
 
 function pointMoved(
-  a: { time: number; value: number } | undefined,
-  b: { time: number; value: number } | undefined,
+  a: AutomationPoint | undefined,
+  b: AutomationPoint | undefined,
 ): boolean {
   if (!a || !b) {
     return false;
@@ -49,13 +53,11 @@ export function EnvelopeOverlay({
 }: EnvelopeOverlayProps) {
   const { projectPath, selection, setSelection, announceStatus } = useDaw();
   const editable = !isShareProjectKey(projectPath);
-  const [draft, setDraft] = useState<{ time: number; value: number }[] | null>(
-    null,
-  );
+  const [draft, setDraft] = useState<AutomationPoint[] | null>(null);
   const dragRef = useRef<{
     index: number;
-    origin: { time: number; value: number }[];
-    points: { time: number; value: number }[];
+    origin: AutomationPoint[];
+    points: AutomationPoint[];
   } | null>(null);
   const priorSel = useRef<Selection>(null);
   const commitLock = useRef(false);
@@ -85,22 +87,19 @@ export function EnvelopeOverlay({
   };
 
   const commit = async (
-    next: { time: number; value: number }[],
+    next: AutomationPoint[],
     dragIndex: number,
-    origin: { time: number; value: number }[],
+    origin: AutomationPoint[],
   ) => {
-    if (!pointMoved(origin[dragIndex], next[dragIndex])) {
+    const movedPoint = next[dragIndex];
+    if (!movedPoint || !pointMoved(origin[dragIndex], movedPoint)) {
       setDraft(null);
       return;
     }
     if (commitLock.current) {
       return;
     }
-    const replaced = replaceEnvelopePoint(
-      next,
-      dragIndex,
-      next[dragIndex] ?? { time: 0, value: 0 },
-    );
+    const replaced = replaceEnvelopePoint(next, dragIndex, movedPoint);
     commitLock.current = true;
     try {
       await setEnvelope(projectPath, trackId, replaced.points);
@@ -148,7 +147,7 @@ export function EnvelopeOverlay({
             const label = `Envelope point ${i + 1} at ${formatTime(p.time)}`;
             return (
               <circle
-                key={i}
+                key={p.id}
                 cx={p.time * zoomPxPerSec}
                 cy={valueToY(p.value, height)}
                 r={selected ? 7 : editable ? 5 : 2.5}
@@ -199,6 +198,7 @@ export function EnvelopeOverlay({
                   const next = dragRef.current.points.map((pt, j) =>
                     j === dragRef.current!.index
                       ? {
+                          id: pt.id,
                           time: Math.max(0, x / zoomPxPerSec),
                           value: yToValue(y, height),
                         }

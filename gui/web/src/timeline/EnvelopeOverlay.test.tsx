@@ -34,8 +34,8 @@ describe("EnvelopeOverlay", () => {
             track_id: "host",
             parameter: "volume",
             points: [
-              { time: 0, value: 1 },
-              { time: 5, value: 0.5 },
+              { id: "early", time: 0, value: 1 },
+              { id: "late", time: 5, value: 0.5 },
             ],
           },
         ],
@@ -104,6 +104,39 @@ describe("EnvelopeOverlay", () => {
     expect(setEnvelope).toHaveBeenCalledTimes(1);
     finish({});
     await Promise.resolve();
+  });
+
+  it("keeps a point DOM node when sorting changes during an edit", () => {
+    const { container, rerender } = renderOverlay();
+    const early = container.querySelectorAll("circle")[0]!;
+
+    rerender(
+      <EnvelopeOverlay
+        envelopes={[
+          {
+            track_id: "host",
+            parameter: "volume",
+            points: [
+              { id: "early", time: 10, value: 1 },
+              { id: "late", time: 0, value: 0.5 },
+            ],
+          },
+        ]}
+        trackId="host"
+        zoomPxPerSec={10}
+        width={200}
+        onSelectTrack={vi.fn()}
+      />,
+    );
+
+    expect(container.querySelectorAll("circle")[1]).toBe(early);
+    fireEvent.pointerDown(early);
+    fireEvent.pointerMove(early, { clientX: 100, clientY: 8 });
+    fireEvent.pointerUp(early);
+    expect(setEnvelope).toHaveBeenCalledWith("/tmp/p.json", "host", [
+      { id: "late", time: 0, value: 0.5 },
+      { id: "early", time: 10, value: 1.40625 },
+    ]);
   });
 
   it("clears a drag draft on pointer cancel", () => {

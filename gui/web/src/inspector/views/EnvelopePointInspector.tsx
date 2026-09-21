@@ -4,6 +4,7 @@ import { useProjectMutation } from "../../hooks/useProjectMutation";
 import { isShareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
+import type { AutomationPoint } from "../../types/project";
 import {
   Button,
   DefItem,
@@ -48,7 +49,7 @@ export function EnvelopePointInspector({
   }
 
   const commitPoints = async (
-    next: { time: number; value: number }[],
+    next: AutomationPoint[],
     nextIndex: number | null,
   ) => {
     await run(async () => {
@@ -89,6 +90,7 @@ export function EnvelopePointInspector({
       return;
     }
     const replaced = replaceEnvelopePoint(latest, index, {
+      id: point.id,
       time,
       value: clampEnvelopeValue(value),
     });

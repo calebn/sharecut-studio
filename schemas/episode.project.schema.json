@@ -278,7 +278,19 @@
       "properties": {
         "track_id": { "type": "string" },
         "parameter": { "type": "string" },
-        "points": { "type": "array" }
+        "points": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/AutomationPoint" }
+        }
+      }
+    },
+    "AutomationPoint": {
+      "type": "object",
+      "required": ["id", "time", "value"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "time": { "type": "number" },
+        "value": { "type": "number" }
       }
     },
     "RenderSection": {

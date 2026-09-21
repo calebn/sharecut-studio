@@ -567,7 +567,10 @@ def test_document_markers_envelope_and_suggest(minimal_project):
             type="SetEnvelope",
             payload={
                 "track_id": "host",
-                "points": [{"time": 0.0, "value": 1.0}, {"time": 5.0, "value": 0.5}],
+                "points": [
+                    {"id": "intro", "time": 0.0, "value": 1.0},
+                    {"id": "outro", "time": 5.0, "value": 0.5},
+                ],
             },
             client_id="c1",
             role="viewer",
@@ -581,6 +584,10 @@ def test_document_markers_envelope_and_suggest(minimal_project):
     assert "render_status" in env_snap["patch"]
     ws3 = ProjectWorkspace.open(minimal_project)
     assert len(ws3.project.automation_envelopes[0].points) == 2
+    assert [point.id for point in ws3.project.automation_envelopes[0].points] == [
+        "intro",
+        "outro",
+    ]
 
     social = svc.submit(
         DocumentCommand(

@@ -20,6 +20,7 @@ JoinInMode = Literal["fade", "crossfade", "cut"]
 
 
 class EnvelopePoint(BaseModel):
+    id: str
     time: float
     value: float
 

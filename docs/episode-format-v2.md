@@ -33,6 +33,12 @@ my_episode/
 | `review` | Timeline comments and action items (session-clock feedback) |
 | `history` | Undo/redo cursor and snapshot index |
 
+Each automation envelope point has an immutable `id` plus its mutable `time` and
+`value`. Editors preserve the ID while points move or reorder it; new points get
+an ID at model creation. This gives the GUI a stable React identity during drag
+operations and prevents an index shift from attaching a DOM node to the wrong
+point.
+
 ## Transcripts (canonical in project file)
 
 After transcription, **`transcripts.per_track`** must be present in `episode.project.json`. Each entry:

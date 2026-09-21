@@ -1692,6 +1692,10 @@
       },
       "EnvelopePoint": {
         "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
           "time": {
             "title": "Time",
             "type": "number"
@@ -1702,6 +1706,7 @@
           }
         },
         "required": [
+          "id",
           "time",
           "value"
         ],
