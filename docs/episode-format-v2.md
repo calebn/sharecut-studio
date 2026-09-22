@@ -39,6 +39,11 @@ an ID at model creation. This gives the GUI a stable React identity during drag
 operations and prevents an index shift from attaching a DOM node to the wrong
 point.
 
+Older project files whose envelope points have no IDs remain readable. On load,
+the model assigns deterministic IDs from the envelope track, parameter, and
+stored point position; the next normal project save persists those IDs. Point
+IDs do not affect audio render or reconciliation fingerprints.
+
 ## Transcripts (canonical in project file)
 
 After transcription, **`transcripts.per_track`** must be present in `episode.project.json`. Each entry:

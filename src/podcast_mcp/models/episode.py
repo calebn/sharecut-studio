@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -214,6 +214,27 @@ class AutomationEnvelope(BaseModel):
     track_id: str
     parameter: str = "volume"
     points: list[AutomationPoint] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _stable_legacy_point_ids(cls, data: Any) -> Any:
+        if not isinstance(data, dict) or not isinstance(data.get("points"), list):
+            return data
+        points = [
+            {
+                **point,
+                "id": str(
+                    uuid5(
+                        NAMESPACE_URL,
+                        f"sharecut-envelope-point:{data.get('track_id')}:{data.get('parameter', 'volume')}:{index}",
+                    )
+                ),
+            }
+            if isinstance(point, dict) and "id" not in point
+            else point
+            for index, point in enumerate(data["points"])
+        ]
+        return {**data, "points": points}
 
     @model_validator(mode="after")
     def _unique_point_ids(self) -> AutomationEnvelope:

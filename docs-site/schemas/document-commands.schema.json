@@ -1765,6 +1765,7 @@
     "EnvelopePoint": {
       "properties": {
         "id": {
+          "minLength": 1,
           "title": "Id",
           "type": "string"
         },
@@ -1778,7 +1779,6 @@
         }
       },
       "required": [
-        "id",
         "time",
         "value"
       ],

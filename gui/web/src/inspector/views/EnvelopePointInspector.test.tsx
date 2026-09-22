@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../../state/dawStore";
@@ -102,5 +102,60 @@ describe("EnvelopePointInspector", () => {
       { id: "early", time: 0, value: 1 },
       { id: "late", time: 2, value: 0.5 },
     ]);
+  });
+
+  it.each([
+    ["Apply", "button", "Apply"],
+    ["Delete", "button", "Delete"],
+  ])(
+    "does not %s a point replaced at the same time",
+    async (_action, role, name) => {
+      render(<EnvelopePointInspector trackId="host" index={1} />);
+
+      const latestProject = useDawStore.getState().project;
+      if (!latestProject) {
+        throw new Error("Expected project to be hydrated");
+      }
+      latestProject.envelopes[0].points[1] = {
+        id: "peer-replacement",
+        time: 5,
+        value: 0.25,
+      };
+
+      await userEvent.click(screen.getByRole(role, { name }));
+
+      expect(setEnvelope).not.toHaveBeenCalled();
+      expect(
+        screen.getByText("Envelope point changed; select it again"),
+      ).toBeTruthy();
+    },
+  );
+
+  it("clears a stale-point error after selecting the point again", async () => {
+    render(<EnvelopePointInspector trackId="host" index={1} />);
+    const project = useDawStore.getState().project;
+    if (!project) {
+      throw new Error("Expected project to be hydrated");
+    }
+    project.envelopes[0].points[1] = {
+      id: "peer-replacement",
+      time: 5,
+      value: 0.25,
+    };
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(
+      screen.getByText("Envelope point changed; select it again"),
+    ).toBeTruthy();
+
+    act(() => {
+      useDawStore.getState().setSelection({
+        kind: "envelopePoint",
+        trackId: "host",
+        index: 1,
+      });
+    });
+    expect(
+      screen.queryByText("Envelope point changed; select it again"),
+    ).toBeNull();
   });
 });

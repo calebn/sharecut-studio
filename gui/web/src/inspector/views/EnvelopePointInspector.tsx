@@ -27,7 +27,7 @@ export function EnvelopePointInspector({
   trackId: string;
   index: number;
 }) {
-  const { project, projectPath, setSelection } = useDaw();
+  const { project, projectPath, selection, setSelection } = useDaw();
   const editable = !isShareProjectKey(projectPath);
   const { busy, error, setError, run } = useProjectMutation();
   const points = sortedVolumePoints(project?.envelopes, trackId);
@@ -41,8 +41,11 @@ export function EnvelopePointInspector({
     }
     setTimeStr(String(point.time));
     setValueStr(String(point.value));
+  }, [point, trackId, index]);
+
+  useEffect(() => {
     setError(null);
-  }, [point, trackId, index, setError]);
+  }, [trackId, index, selection, setError]);
 
   if (!point) {
     return <aside className="inspector">Envelope point not found</aside>;
@@ -85,12 +88,12 @@ export function EnvelopePointInspector({
       trackId,
     );
     const current = latest[index];
-    if (!current || current.time !== point.time) {
+    if (!current || current.id !== point.id || current.time !== point.time) {
       setError("Envelope point changed; select it again");
       return;
     }
     const replaced = replaceEnvelopePoint(latest, index, {
-      id: point.id,
+      id: current.id,
       time,
       value: clampEnvelopeValue(value),
     });
@@ -110,7 +113,7 @@ export function EnvelopePointInspector({
       return;
     }
     const current = latest[index];
-    if (!current || current.time !== point.time) {
+    if (!current || current.id !== point.id || current.time !== point.time) {
       setError("Envelope point changed; select it again");
       return;
     }

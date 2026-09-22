@@ -9,7 +9,10 @@ from podcast_mcp.engines.play_audit import (
     track_render_hash,
     write_stem_hash,
 )
+from podcast_mcp.engines.reconciliation_state import audio_state_fingerprint
 from podcast_mcp.models import (
+    AutomationEnvelope,
+    AutomationPoint,
     Clip,
     EditDecision,
     EditDecisionType,
@@ -18,6 +21,25 @@ from podcast_mcp.models import (
     Track,
     TrackRole,
 )
+
+
+def test_envelope_ids_do_not_change_audio_hashes(tmp_path) -> None:
+    project = EpisodeProject.create("envelope", str(tmp_path))
+    project.timeline.tracks.append(Track(id="host", label="Host", role=TrackRole.DIALOGUE))
+    project.automation_envelopes = [
+        AutomationEnvelope(
+            track_id="host",
+            points=[AutomationPoint(id="first", time=0.0, value=1.0)],
+        )
+    ]
+    render_hash = track_render_hash(project, "host")
+    reconciliation_hash = audio_state_fingerprint(project)
+    project.automation_envelopes[0].points[0] = AutomationPoint(id="second", time=0.0, value=1.0)
+    assert track_render_hash(project, "host") == render_hash
+    assert audio_state_fingerprint(project) == reconciliation_hash
+    project.automation_envelopes[0].points[0].value = 0.5
+    assert track_render_hash(project, "host") != render_hash
+    assert audio_state_fingerprint(project) != reconciliation_hash
 
 
 def test_track_render_hash_changes_with_edit(tmp_path) -> None:
