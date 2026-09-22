@@ -289,8 +289,9 @@ def test_restart_without_leave_still_pauses_on_host_join(
     assert out["host_offline_since_wall_ms"] is None
 
 
+@pytest.mark.parametrize(("close_wall_ms", "return_wall_ms"), [(4_900, 10_100), (5_100, 10_200)])
 def test_observed_host_disconnect_uses_close_time_for_reconnect_threshold(
-    minimal_project, sample_wav, tmp_workspace, monkeypatch
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, close_wall_ms, return_wall_ms
 ):
     _isolate(tmp_workspace, monkeypatch)
     ws = _seed(minimal_project, sample_wav)
@@ -310,13 +311,13 @@ def test_observed_host_disconnect_uses_close_time_for_reconnect_threshold(
         capabilities=["join", "monitor"],
     )
     svc.submit(_cmd("Start"), now_wall_ms=0)
-    clock["wall_ms"] = 4_900
+    clock["wall_ms"] = close_wall_ms
     svc.disconnect(HOST_PARTICIPANT_ID, connection_id="h-live")
     snap = svc.snapshot()
     assert snap["state"] == "recording"
-    assert snap["host_offline_since_wall_ms"] == 4_900
+    assert snap["host_offline_since_wall_ms"] == close_wall_ms
 
-    clock["wall_ms"] = 10_100
+    clock["wall_ms"] = return_wall_ms
     svc.join(
         token="",
         role="host",
@@ -342,8 +343,9 @@ def test_observed_host_disconnect_uses_close_time_for_reconnect_threshold(
     assert svc.snapshot()["pause_reason"] == "host_reconnect"
 
 
+@pytest.mark.parametrize(("close_wall_ms", "return_wall_ms"), [(9_000, 12_000), (31_000, 32_000)])
 def test_delayed_host_disconnect_uses_stale_beat_for_reconnect_threshold(
-    minimal_project, sample_wav, tmp_workspace, monkeypatch
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, close_wall_ms, return_wall_ms
 ):
     _isolate(tmp_workspace, monkeypatch)
     ws = _seed(minimal_project, sample_wav)
@@ -363,11 +365,11 @@ def test_delayed_host_disconnect_uses_stale_beat_for_reconnect_threshold(
         capabilities=["join", "monitor"],
     )
     svc.submit(_cmd("Start"), now_wall_ms=1_000)
-    clock["wall_ms"] = 31_000
+    clock["wall_ms"] = close_wall_ms
     svc.disconnect(HOST_PARTICIPANT_ID, connection_id="h-live")
     assert svc.snapshot()["host_offline_since_wall_ms"] == 1_000
 
-    clock["wall_ms"] = 32_000
+    clock["wall_ms"] = return_wall_ms
     svc.join(
         token="",
         role="host",

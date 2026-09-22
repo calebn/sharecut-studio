@@ -30,6 +30,7 @@ from podcast_mcp.services.record.reducer import (
 )
 from podcast_mcp.services.record.signal import fanout_record_signal
 from podcast_mcp.services.record.state import (
+    HOST_HEARTBEAT_STALE_MS,
     HOST_OFFLINE_PAUSE_MS,
     HOST_PARTICIPANT_ID,
     TAKE_OPEN_REMINT_MSG,
@@ -573,7 +574,7 @@ class RecordSessionService:
                 close_wall_ms = _now_pair()[1]
                 # A fresh beat means the observed close starts the outage.
                 # A stale beat can mean the socket closed long after network loss.
-                since = beat if close_wall_ms - beat >= HOST_OFFLINE_PAUSE_MS else close_wall_ms
+                since = beat if close_wall_ms - beat >= HOST_HEARTBEAT_STALE_MS else close_wall_ms
                 _persist_host_offline_since(self._store, since)
         person = next(
             (
