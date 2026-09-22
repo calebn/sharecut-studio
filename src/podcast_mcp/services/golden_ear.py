@@ -288,7 +288,10 @@ def _pair_audio_diagnostics(
         image_path = diagnostics_dir / f"{role}.png"
         entry: dict[str, Any] = {"file": filename}
         try:
-            entry["astats"] = measure_astats(audio_path)
+            astats = measure_astats(audio_path)
+            entry["astats"] = astats
+            if not any(value is not None for value in astats.values()):
+                entry["error"] = "astats unavailable: no metrics"
             entry["hum"] = detect_mains_hum(audio_path)
             engine.render_showwavespic(audio_path, image_path)
             entry["waveform_png"] = str(image_relative)
