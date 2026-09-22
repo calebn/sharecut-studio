@@ -645,8 +645,10 @@ silently discard or count queued samples.
 
 On the **last** host connection drop (`disconnect` / `release_connection`)
 while `state ∈ {recording, paused}`, the service stamps
-`host_offline_since_wall_ms` from the observed socket close time (same sqlite
-`record_snapshot` row; no sidecar). A Leave command also stamps if the field
+`host_offline_since_wall_ms` from the observed socket close time when its last
+heartbeat is fresh, or from the stale heartbeat when close detection was
+delayed by at least 10 seconds (same sqlite `record_snapshot` row; no sidecar).
+A Leave command also stamps if the field
 is still empty. Host Join clears that field. If in-memory `_HOST_CONNS` is
 empty on the next host Join (sidecar crash without Leave) or the last host
 heartbeat is older than `HOST_OFFLINE_PAUSE_MS`, Join treats that as last-host
@@ -676,8 +678,9 @@ once every 5 seconds. A host timer maintains record presence while no segment
 is being written, including lobby and paused states. If a keeper write fails,
 the existing local-capture failure latch stops activity beats; the fallback
 timer is also held during REC until Retry local recording succeeds. An observed
-host socket close starts the 10-second reconnect window at close time; after
-an unobserved crash, the last stored beat remains the fallback estimate.
+host socket close starts the 10-second reconnect window at close time when the
+last beat is fresh; a stale beat remains the outage estimate after delayed
+close detection or an unobserved crash.
 
 ## Ownership and retention
 
