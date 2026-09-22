@@ -167,7 +167,10 @@ fn handle_exit_requested(app: &tauri::AppHandle) -> Option<sharecut::CloseRisk> 
 fn macos_guarded_menu(
     app: &tauri::AppHandle<tauri::Wry>,
 ) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
-    use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
+    use tauri::menu::{
+        AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu, HELP_SUBMENU_ID,
+        WINDOW_SUBMENU_ID,
+    };
 
     let package = app.package_info();
     let config = app.config();
@@ -218,14 +221,21 @@ fn macos_guarded_menu(
             &PredefinedMenuItem::select_all(app, None)?,
         ],
     )?;
+    let file_menu = Submenu::with_items(
+        app,
+        "File",
+        true,
+        &[&PredefinedMenuItem::close_window(app, None)?],
+    )?;
     let view_menu = Submenu::with_items(
         app,
         "View",
         true,
         &[&PredefinedMenuItem::fullscreen(app, None)?],
     )?;
-    let window_menu = Submenu::with_items(
+    let window_menu = Submenu::with_id_and_items(
         app,
+        WINDOW_SUBMENU_ID,
         "Window",
         true,
         &[
@@ -235,10 +245,17 @@ fn macos_guarded_menu(
             &PredefinedMenuItem::close_window(app, None)?,
         ],
     )?;
-    let help_menu = Submenu::with_items(app, "Help", true, &[])?;
+    let help_menu = Submenu::with_id_and_items(app, HELP_SUBMENU_ID, "Help", true, &[])?;
     Menu::with_items(
         app,
-        &[&app_menu, &edit_menu, &view_menu, &window_menu, &help_menu],
+        &[
+            &app_menu,
+            &file_menu,
+            &edit_menu,
+            &view_menu,
+            &window_menu,
+            &help_menu,
+        ],
     )
 }
 
