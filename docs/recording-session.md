@@ -674,12 +674,11 @@ The host keeper's AudioWorklet callback also supplies a host liveness beat
 while it is actively writing a recording segment. When PCM continues to reach
 the keeper in a hidden or minimized window, this avoids relying only on a
 background-throttled `window.setInterval`. The activity beat is sent at most
-once every 5 seconds. A host timer maintains record presence while no segment
-is being written, including lobby and paused states. If a keeper write fails,
-the existing local-capture failure latch stops activity beats; the fallback
-timer is also held during REC until the microphone stream is available, and
-again while local capture has failed or the microphone track is lost, until
-Retry local recording or microphone recovery succeeds. An observed
+once every 5 seconds. A host timer maintains record presence in lobby and
+paused states. During REC, only healthy keeper PCM can drive host heartbeats;
+the timer cannot mask a missing microphone stream, stalled keeper setup, or
+failed local capture. The existing local-capture failure latch stops activity
+beats until Retry local recording succeeds. An observed
 host socket close starts the 10-second reconnect window at close time when the
 last beat is fresh; a stale beat remains the outage estimate after delayed
 close detection or an unobserved crash.
