@@ -371,6 +371,24 @@ def test_pair_diagnostics_generate_waveforms_from_rendered_files(tmp_path, sampl
         assert (tmp_path / entry["waveform_png"]).is_file()
 
 
+def test_pair_diagnostics_reports_missing_astats_without_losing_waveforms(
+    tmp_path, sample_wav, monkeypatch
+):
+    _patch_harness(monkeypatch, sample_wav, [_decision()])
+    monkeypatch.setattr(
+        "podcast_mcp.services.golden_ear.measure_astats",
+        lambda _path: {"peak_level_db": None, "rms_level_db": None},
+    )
+    out = tmp_path / "missing-astats"
+    assert build_golden_ear(FIXTURE, out, limit=1, seed=0)["pair_count"] == 1
+    key = json.loads((out / "key.json").read_text(encoding="utf-8"))
+    for role in ("current", "suggested"):
+        entry = key["pairs"][0]["pair_diagnostics"][role]
+        assert entry["error"] == "astats unavailable: no metrics"
+        assert entry["hum"] == {"hum_detected": False}
+        assert (out / entry["waveform_png"]).is_file()
+
+
 def test_pair_diagnostics_failure_is_recorded_without_publishing_image(
     tmp_path, sample_wav, monkeypatch
 ):
