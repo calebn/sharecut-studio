@@ -23,7 +23,11 @@ describe("submitHostRecordTransport", () => {
     loadState.mockReset();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     useRecordHostStore.getState().setSnapshot(null);
-    useRecordHostStore.getState().setStartPending(false);
+    useRecordHostStore.setState({
+      startPending: false,
+      startInFlight: false,
+      startBaselineNs: null,
+    });
     publishCloseGuard.mockClear();
   });
 
@@ -54,6 +58,16 @@ describe("submitHostRecordTransport", () => {
     });
     const pending = submitHostRecordTransport("Start");
     expect(useRecordHostStore.getState().startPending).toBe(true);
+    useRecordHostStore.getState().setSnapshot({
+      session_id: "room1",
+      state: "lobby",
+      take_index: -1,
+      recording_ms: 0,
+      start_blockers: [],
+      participants: [],
+      caps: { recorded: 4, producers: 2 },
+    });
+    expect(useRecordHostStore.getState().startPending).toBe(true);
     finishStart({
       session_id: "room1",
       state: "recording",
@@ -68,12 +82,44 @@ describe("submitHostRecordTransport", () => {
   });
 
   it("keeps the guard armed if Start may have succeeded but status is unavailable", async () => {
+    useRecordHostStore.getState().setSnapshot({
+      session_id: "room1",
+      state: "lobby",
+      take_index: -1,
+      recording_ms: 0,
+      start_blockers: [],
+      participants: [],
+      caps: { recorded: 4, producers: 2 },
+      server_time_ns: 100,
+    });
     postHost.mockRejectedValueOnce(new Error("response lost"));
     loadState.mockRejectedValueOnce(new Error("status unavailable"));
     await expect(submitHostRecordTransport("Start")).rejects.toThrow(
       "status unavailable",
     );
     expect(useRecordHostStore.getState().startPending).toBe(true);
+    useRecordHostStore.getState().setSnapshot({
+      session_id: "room1",
+      state: "lobby",
+      take_index: -1,
+      recording_ms: 0,
+      start_blockers: [],
+      participants: [],
+      caps: { recorded: 4, producers: 2 },
+      server_time_ns: 100,
+    });
+    expect(useRecordHostStore.getState().startPending).toBe(true);
+    useRecordHostStore.getState().setSnapshot({
+      session_id: "room1",
+      state: "stopped",
+      take_index: 0,
+      recording_ms: 0,
+      start_blockers: [],
+      participants: [],
+      caps: { recorded: 4, producers: 2 },
+      server_time_ns: 101,
+    });
+    expect(useRecordHostStore.getState().startPending).toBe(false);
   });
 
   it("ignores a stale Start after Pause has already stored a snapshot", async () => {
@@ -95,6 +141,7 @@ describe("submitHostRecordTransport", () => {
     });
     const startP = submitHostRecordTransport("Start");
     await submitHostRecordTransport("Pause");
+    expect(useRecordHostStore.getState().startPending).toBe(false);
     resolveStart({
       session_id: "room1",
       state: "recording",
@@ -106,6 +153,7 @@ describe("submitHostRecordTransport", () => {
     });
     await startP;
     expect(useRecordHostStore.getState().snapshot?.state).toBe("paused");
+    expect(useRecordHostStore.getState().startPending).toBe(false);
   });
 
   it("heals a 400 when the session is already in the expected state", async () => {

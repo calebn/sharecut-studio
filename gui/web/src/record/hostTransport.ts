@@ -25,7 +25,9 @@ export async function submitHostRecordTransport(
     // The server can enter REC before the HTTP response updates the snapshot.
     // Publish synchronously so a close in that interval still reaches Rust.
     publishDesktopCloseGuard(true, "host");
-    useRecordHostStore.getState().setStartPending(true);
+    useRecordHostStore.getState().beginStart();
+  } else if (useRecordHostStore.getState().startPending) {
+    useRecordHostStore.getState().setStartInFlight(true);
   }
   let outcomeVerified = false;
   try {
@@ -56,8 +58,8 @@ export async function submitHostRecordTransport(
     }
     throw err;
   } finally {
-    if (token === transportEpoch && outcomeVerified) {
-      useRecordHostStore.getState().setStartPending(false);
+    if (token === transportEpoch) {
+      useRecordHostStore.getState().finishStartRisk(outcomeVerified);
     }
   }
 }
