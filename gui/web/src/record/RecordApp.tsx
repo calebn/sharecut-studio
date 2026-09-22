@@ -170,7 +170,7 @@ export function RecordApp({ token }: { token: string }) {
   const upload = useRecordUpload({
     enabled: !!bootstrap?.build.upload && !producer && me?.consented === true,
     roomState: snapshot?.state,
-    captureSettled: !keeper.recordingLocally,
+    captureSettled: !keeper.recordingLocally && !keeper.finalizing,
     sessionId: snapshot?.session_id ?? null,
     takeIndex: snapshot?.take_index ?? 0,
     participantId: me?.participant_id ?? null,

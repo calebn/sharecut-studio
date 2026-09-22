@@ -5,6 +5,7 @@ import {
   openEpisodeProject,
   pickEpisodeProject,
 } from "../api";
+import { useDesktopCloseGuard } from "../desktop/useDesktopCloseGuard";
 import { HostMcpDialog } from "../layout/HostMcpDialog";
 import { Button, Field } from "../ui";
 import { migrateLocalStorageKey } from "../utils/legacyStorage";
@@ -25,6 +26,9 @@ function bootstrapSkipped(): boolean {
 }
 
 export function HomeScreen() {
+  // Home has no active keeper. Clear a marker carried through an intentional
+  // navigation from a recording project's URL after its unload was accepted.
+  useDesktopCloseGuard(false, "host");
   const [setupDone, setSetupDone] = useState(() => bootstrapSkipped() || false);
   const [mode, setMode] = useState<"idle" | "new" | "open">("idle");
   const [name, setName] = useState("episode");

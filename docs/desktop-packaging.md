@@ -93,6 +93,10 @@ available for a final guard check. Guest producers and guests who declined
 recording do not receive a keeper warning from room state alone.
 A successful keeper retry clears a prior finalization warning; a failed retry
 keeps it armed.
+The Home screen clears a marker carried through an intentional project
+navigation, and New/Open project destinations omit the old marker. If a
+confirmed native destroy fails, a dialog explains that the room remains open
+and offers a retry through the normal Quit control.
 On macOS the app menu mirrors Tauri's default items but replaces its native
 Quit item with a `Cmd+Q` menu command that calls `AppHandle::exit(0)`, so
 the app menu and Cmd+Q take the `ExitRequested` confirmation path. Dock Quit

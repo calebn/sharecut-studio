@@ -132,6 +132,13 @@ fn request_close_confirmation(webview: &WebviewWindow, risk: sharecut::CloseRisk
                 if let Ok(mut status) = state.0.lock() {
                     status.exiting = false;
                 }
+                closing_webview
+                    .dialog()
+                    .message("Sharecut Studio could not close the window. The recording room remains open. Try Quit again.")
+                    .title("Could not quit")
+                    .buttons(MessageDialogButtons::Ok)
+                    .parent(&closing_webview)
+                    .show(|_| {});
                 return;
             }
             app.exit(0);

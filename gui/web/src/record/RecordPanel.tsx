@@ -33,6 +33,7 @@ import { useRoomToneCapture } from "./useRoomToneCapture";
 
 type Props = {
   recordingLocally?: boolean;
+  keeperFinalizing?: boolean;
   keeperError?: string | null;
   onRetryKeeper?: () => void;
   hearing?: boolean;
@@ -44,6 +45,7 @@ type Props = {
 
 export function RecordPanel({
   recordingLocally = false,
+  keeperFinalizing = false,
   keeperError = null,
   onRetryKeeper,
   hearing = false,
@@ -114,7 +116,7 @@ export function RecordPanel({
   const upload = useRecordUpload({
     enabled: !!snapshot,
     roomState: snapshot?.state,
-    captureSettled: !recordingLocally,
+    captureSettled: !recordingLocally && !keeperFinalizing,
     sessionId: snapshot?.session_id ?? null,
     takeIndex: snapshot?.take_index ?? 0,
     participantId: "p_host",

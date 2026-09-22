@@ -14,6 +14,7 @@ import {
   undoHistory,
   waitForPipelineJob,
 } from "../api";
+import { CLOSE_GUARD_PARAM } from "../desktop/useDesktopCloseGuard";
 import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
 import { currentDocumentSeq } from "../document/cursor";
 import { revertOptimisticIfUnchanged } from "../document/optimisticRevert";
@@ -871,6 +872,7 @@ export function registerDawCommands(): void {
   registerCommand("project.new", () => {
     const url = new URL(window.location.href);
     url.searchParams.delete("project");
+    url.searchParams.delete(CLOSE_GUARD_PARAM);
     window.location.assign(url.toString());
     return { status: "ok" };
   });
@@ -913,6 +915,7 @@ export function registerDawCommands(): void {
           const out = await openEpisodeProject(path.trim());
           const url = new URL(window.location.href);
           url.searchParams.set("project", out.project_path);
+          url.searchParams.delete(CLOSE_GUARD_PARAM);
           window.location.assign(url.toString());
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);

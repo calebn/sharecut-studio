@@ -414,6 +414,77 @@ describe("useKeeperCapture", () => {
     });
   });
 
+  it("does not let an old disposal clear a newer Stop flush", async () => {
+    const originalDispose = Reflect.get(
+      KeeperSession.prototype,
+      "dispose",
+    ) as KeeperSession["dispose"];
+    const originalApply = Reflect.get(
+      KeeperSession.prototype,
+      "apply",
+    ) as KeeperSession["apply"];
+    let releaseOldDispose: (() => void) | undefined;
+    let releaseStop: (() => void) | undefined;
+    let oldDisposalStarted = false;
+    vi.spyOn(KeeperSession.prototype, "dispose").mockImplementation(function (
+      this: KeeperSession,
+    ) {
+      if (oldDisposalStarted) {
+        return originalDispose.call(this);
+      }
+      oldDisposalStarted = true;
+      return new Promise<void>((resolve) => {
+        releaseOldDispose = () => {
+          void originalDispose.call(this).then(resolve);
+        };
+      });
+    });
+    vi.spyOn(KeeperSession.prototype, "apply").mockImplementation(function (
+      this: KeeperSession,
+      gate,
+    ) {
+      if (gate.roomState !== "stopped") {
+        return originalApply.call(this, gate);
+      }
+      return new Promise<void>((resolve) => {
+        releaseStop = () => {
+          void originalApply.call(this, gate).then(resolve);
+        };
+      });
+    });
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    const { rerender, result } = renderHook(
+      ({
+        resetKey,
+        snapshot,
+      }: {
+        resetKey: number;
+        snapshot: RecordSnapshot;
+      }) =>
+        useKeeperCapture({
+          ...args,
+          enabled: true,
+          stream,
+          resetKey,
+          snapshot,
+        }),
+      { initialProps: { resetKey: 0, snapshot: snap } },
+    );
+    await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+
+    rerender({ resetKey: 1, snapshot: snap });
+    await waitFor(() => expect(oldDisposalStarted).toBe(true));
+    await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+    rerender({ resetKey: 1, snapshot: { ...snap, state: "stopped" } });
+    await waitFor(() => expect(releaseStop).toBeDefined());
+    expect(result.current.finalizing).toBe(true);
+
+    await act(async () => releaseOldDispose?.());
+    expect(result.current.finalizing).toBe(true);
+    await act(async () => releaseStop?.());
+    await waitFor(() => expect(result.current.finalizing).toBe(false));
+  });
+
   it("preserves loss and reconnect gates behind pending storage work", async () => {
     const sink = new MemorySink();
     vi.mocked(createOpfsSink).mockResolvedValueOnce(sink);
