@@ -40,7 +40,7 @@ test.describe("Sharecut Studio smoke", () => {
     await panels.getByRole("button", { name: "Tighten", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Tighten" })).toBeVisible();
     await expect(
-      page.getByText("No pending filler or pause decisions."),
+      page.getByText("No pending tighten decisions."),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: /Apply eligible/ }),
