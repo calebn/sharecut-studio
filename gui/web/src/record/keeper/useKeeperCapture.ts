@@ -107,7 +107,11 @@ export function useKeeperCapture({
   }, []);
 
   const applyGate = useCallback(
-    async (session: KeeperSession, gate: CapturedGate) => {
+    async (
+      session: KeeperSession,
+      gate: CapturedGate,
+      allowExistingError = false,
+    ) => {
       if (!gate.snapshot || !gate.participantId) {
         setWriting(false);
         return;
@@ -118,6 +122,7 @@ export function useKeeperCapture({
       ) {
         markUnfinalizedCapture(true);
       }
+      const existingError = session.error;
       await session.apply({
         role: gate.role,
         consented: gate.consented,
@@ -129,6 +134,15 @@ export function useKeeperCapture({
         sessionId: gate.snapshot.session_id,
         participantId: gate.participantId,
       });
+      // KeeperSession records some OPFS close/header failures internally and
+      // resolves apply() after best-effort cleanup. They still mean that the
+      // local take is not durable, so the native guard must stay armed.
+      if (
+        session.error &&
+        (!allowExistingError || session.error !== existingError)
+      ) {
+        throw session.error;
+      }
       // Keep close protection through the asynchronous Stop/stream-loss flush.
       // The previous writable remains at risk until apply() has settled.
       markUnfinalizedCapture(session.isWriting);
@@ -158,6 +172,11 @@ export function useKeeperCapture({
       }
       void session
         .dispose()
+        .then(() => {
+          if (session.error) {
+            throw session.error;
+          }
+        })
         .catch((err: unknown) => {
           finalizationFailed.current = true;
           if (mountedRef.current) {
@@ -345,7 +364,7 @@ export function useKeeperCapture({
       if (sessionRef.current !== session) {
         return;
       }
-      await applyGate(session, captureGate());
+      await applyGate(session, captureGate(), true);
       if (sessionRef.current !== session) {
         return;
       }

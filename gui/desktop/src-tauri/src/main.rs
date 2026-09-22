@@ -614,9 +614,17 @@ fn main() {
                     eprintln!("Sharecut Studio: main close guard has no webview; preventing close");
                     return;
                 };
-                if let sharecut::CloseDecision::Confirm(risk) = close_guard_decision(&webview) {
-                    api.prevent_close();
-                    handle_main_window_close(window, risk);
+                api.prevent_close();
+                match close_guard_decision(&webview) {
+                    sharecut::CloseDecision::Allow => {
+                        // Exit while the WebView still exists so ExitRequested can
+                        // inspect its current guard instead of seeing a missing
+                        // window after Tauri's default close destroys it.
+                        window.app_handle().exit(0);
+                    }
+                    sharecut::CloseDecision::Confirm(risk) => {
+                        handle_main_window_close(window, risk);
+                    }
                 }
             }
         })
