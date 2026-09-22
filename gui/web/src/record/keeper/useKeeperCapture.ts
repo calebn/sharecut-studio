@@ -54,8 +54,11 @@ export function useKeeperCapture({
   const pendingDisposals = useRef(0);
   const writingRef = useRef(writing);
   writingRef.current = writing;
+  const [initializationAttempt, setInitializationAttempt] = useState(0);
+  const [tapAttempt, setTapAttempt] = useState(0);
   const sessionRef = useRef<KeeperSession | null>(null);
   const detachRef = useRef<(() => void) | undefined>(undefined);
+  const tapFailedRef = useRef(false);
   const applyChain = useRef(Promise.resolve());
   const sessionId = snapshot?.session_id ?? null;
   const clockRef = useRef({ snapshot, receivedAt: Date.now() });
@@ -110,7 +113,7 @@ export function useKeeperCapture({
         sessionId: gate.snapshot.session_id,
         participantId: gate.participantId,
       });
-      setWriting(session.isWriting);
+      setWriting(session.isWriting && !tapFailedRef.current);
     },
     [],
   );
@@ -209,6 +212,7 @@ export function useKeeperCapture({
     participantId,
     sessionId,
     resetKey,
+    initializationAttempt,
     applyGate,
     captureGate,
     disposeSession,
@@ -230,8 +234,15 @@ export function useKeeperCapture({
           return;
         }
         detachRef.current = detach;
+        tapFailedRef.current = false;
+        if (sessionRef.current === session && session.error === null) {
+          setError(null);
+          setWriting(session.isWriting);
+        }
       } catch (err) {
         if (!cancelled) {
+          tapFailedRef.current = true;
+          setWriting(false);
           setError(err instanceof Error ? err.message : String(err));
         }
       }
@@ -242,7 +253,7 @@ export function useKeeperCapture({
       detachRef.current?.();
       detachRef.current = undefined;
     };
-  }, [stream, epoch]);
+  }, [stream, epoch, tapAttempt]);
 
   useEffect(() => {
     const session = sessionRef.current;
@@ -281,10 +292,28 @@ export function useKeeperCapture({
   const retry = () => {
     const session = sessionRef.current;
     if (!session) {
+      setInitializationAttempt((n) => n + 1);
       return;
     }
-    void session
-      .retry()
+    if (session.error === null) {
+      if (tapFailedRef.current) {
+        setTapAttempt((n) => n + 1);
+      }
+      return;
+    }
+    void applyChain.current
+      .then(() => {
+        if (sessionRef.current !== session) {
+          return;
+        }
+        return applyGate(session, captureGate());
+      })
+      .then(() => {
+        if (sessionRef.current !== session) {
+          return;
+        }
+        return session.retry();
+      })
       .then(() => {
         if (sessionRef.current !== session) {
           return;

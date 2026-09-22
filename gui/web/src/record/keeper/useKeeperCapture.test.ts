@@ -193,6 +193,35 @@ describe("useKeeperCapture", () => {
       expect(result.current.error).toMatch(/OPFS unavailable/);
     });
     expect(result.current.recordingLocally).toBe(false);
+
+    act(() => result.current.retry());
+    await waitFor(() => {
+      expect(result.current.error).toBeNull();
+      expect(result.current.recordingLocally).toBe(true);
+    });
+  });
+
+  it("reattaches a failed audio tap when retrying", async () => {
+    const { attachKeeperTap } = await import("./graph");
+    vi.mocked(attachKeeperTap).mockClear();
+    vi.mocked(attachKeeperTap).mockRejectedValueOnce(
+      new Error("audio worklet unavailable"),
+    );
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    const { result } = renderHook(() =>
+      useKeeperCapture({ ...args, enabled: true, stream }),
+    );
+    await waitFor(() => {
+      expect(result.current.error).toMatch(/worklet unavailable/);
+      expect(result.current.recordingLocally).toBe(false);
+    });
+
+    act(() => result.current.retry());
+    await waitFor(() => {
+      expect(result.current.error).toBeNull();
+      expect(result.current.recordingLocally).toBe(true);
+      expect(attachKeeperTap).toHaveBeenCalledTimes(2);
+    });
   });
 
   it("reattaches the audio tap after retrying a failed initial header", async () => {
@@ -336,6 +365,63 @@ describe("useKeeperCapture", () => {
     } finally {
       apply.mockRestore();
       clock.mockRestore();
+    }
+  });
+
+  it("uses the current recording clock when retrying a failed session", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(0);
+    try {
+      const { createOpfsSink } = await import("./store");
+      const sink = new MemorySink();
+      const open = sink.open.bind(sink);
+      let failHeader = true;
+      sink.open = async (path): Promise<ByteStream> => {
+        const writable = await open(path);
+        return {
+          write: async (bytes, offset) => {
+            if (failHeader) {
+              failHeader = false;
+              throw new Error("initial header unavailable");
+            }
+            await writable.write(bytes, offset);
+          },
+          close: () => writable.close(),
+        };
+      };
+      vi.mocked(createOpfsSink).mockResolvedValueOnce(sink);
+      const stream = { getTracks: () => [] } as unknown as MediaStream;
+      const { result, rerender } = renderHook(
+        ({ enabled }: { enabled: boolean }) =>
+          useKeeperCapture({
+            ...args,
+            enabled,
+            snapshot: { ...snap, recording_ms: 1_000 },
+            stream,
+          }),
+        { initialProps: { enabled: true } },
+      );
+      await waitFor(() =>
+        expect(result.current.error).toMatch(/initial header unavailable/),
+      );
+
+      vi.setSystemTime(3_500);
+      act(() => result.current.retry());
+      await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+      rerender({ enabled: false });
+      await waitFor(() =>
+        expect(
+          [...sink.files.entries()].find(([path]) => path.endsWith(".json")),
+        ).toBeDefined(),
+      );
+      const [, metadata] = [...sink.files.entries()].find(([path]) =>
+        path.endsWith(".json"),
+      ) ?? ["", new Uint8Array()];
+      expect(JSON.parse(new TextDecoder().decode(metadata))).toMatchObject({
+        joinOffsetMs: 4_500,
+      });
+    } finally {
+      vi.useRealTimers();
     }
   });
 });
