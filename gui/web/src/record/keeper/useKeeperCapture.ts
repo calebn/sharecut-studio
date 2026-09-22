@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { recordingClockMs } from "../clock";
 import type { RecordRole, RecordSnapshot } from "../types";
 import { attachKeeperTap } from "./graph";
@@ -38,7 +44,12 @@ export function useKeeperCapture({
 }: Args): { error: string | null; recordingLocally: boolean } {
   const [error, setError] = useState<string | null>(null);
   const [writing, setWriting] = useState(false);
+  const [finalizing, setFinalizing] = useState(false);
   const [epoch, setEpoch] = useState(0);
+  const mountedRef = useRef(true);
+  const pendingDisposals = useRef(0);
+  const writingRef = useRef(writing);
+  writingRef.current = writing;
   const sessionRef = useRef<KeeperSession | null>(null);
   const detachRef = useRef<(() => void) | undefined>(undefined);
   const applyChain = useRef(Promise.resolve());
@@ -101,15 +112,45 @@ export function useKeeperCapture({
   );
 
   useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const disposeSession = useCallback((session: KeeperSession) => {
+    const guardDuringDispose = session.isWriting || writingRef.current;
+    if (guardDuringDispose) {
+      pendingDisposals.current += 1;
+      if (mountedRef.current) {
+        setFinalizing(true);
+      }
+    }
+    void session
+      .dispose()
+      .catch((err: unknown) => {
+        if (mountedRef.current) {
+          setError(err instanceof Error ? err.message : String(err));
+        }
+      })
+      .finally(() => {
+        if (guardDuringDispose) {
+          pendingDisposals.current -= 1;
+          if (mountedRef.current && pendingDisposals.current === 0) {
+            setFinalizing(false);
+          }
+        }
+      });
+  }, []);
+
+  useEffect(() => {
     if (!enabled || !participantId || !sessionId) {
       const existing = sessionRef.current;
       sessionRef.current = null;
-      setWriting(false);
       if (existing) {
-        void existing.dispose().catch((err: unknown) => {
-          setError(err instanceof Error ? err.message : String(err));
-        });
+        disposeSession(existing);
       }
+      setWriting(false);
       return;
     }
     let cancelled = false;
@@ -146,14 +187,20 @@ export function useKeeperCapture({
       cancelled = true;
       const existing = sessionRef.current;
       sessionRef.current = null;
-      setWriting(false);
       if (existing) {
-        void existing.dispose().catch((err: unknown) => {
-          setError(err instanceof Error ? err.message : String(err));
-        });
+        disposeSession(existing);
       }
+      setWriting(false);
     };
-  }, [enabled, participantId, sessionId, resetKey, applyGate, captureGate]);
+  }, [
+    enabled,
+    participantId,
+    sessionId,
+    resetKey,
+    applyGate,
+    captureGate,
+    disposeSession,
+  ]);
 
   useEffect(() => {
     const session = sessionRef.current;
@@ -220,8 +267,8 @@ export function useKeeperCapture({
   ]);
 
   const recordingLocally = writing && stream !== null;
-  useEffect(() => {
-    if (!recordingLocally) {
+  useLayoutEffect(() => {
+    if (!recordingLocally && !finalizing) {
       return;
     }
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -230,7 +277,7 @@ export function useKeeperCapture({
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [recordingLocally]);
+  }, [recordingLocally, finalizing]);
 
   return { error, recordingLocally };
 }

@@ -160,14 +160,20 @@ flowchart TD
 6. While REC is on, guest sees the roster, clock, "Recording locally on this
    device," and **Hearing the room.** Press **M** for a Marker or type a note
    (other guests in the record room never see it; after land it is an ordinary
-   timeline comment on the host).
+   timeline comment on the host). While the local keeper is writing, a refresh
+   or navigation asks for the browser's native leave confirmation; dismissing
+   it keeps the guest in the live take. Browsers require prior page activation
+   before they may show that prompt, and they control its wording. PAUSED does
+   not show this native prompt.
 7. If the microphone ends involuntarily, the local keeper closes its current
    segment and a persistent warning offers **Reconnect microphone**. The room
    clock can still show REC, but the local recording copy is paused. Reconnect
    opens a new segment at the current room clock; if a selected device was
    unplugged, recovery can use the default available input. In the lobby,
    microphone loss disables Accept until recovery.
-8. Host Stop. The upload panel stays until chunk ACK. The local WAV stays in
+8. Host Stop. The native leave warning stays until the keeper finishes saving
+   the final WAV and metadata, then clears. The upload panel warns the guest
+   to keep the tab open until the final file ACK. The local WAV stays in
    OPFS (`Sharecut Recordings/`) until the host confirms **Landed. Safe to delete
    the local backup.** If landing fails, the guest sees **Uploaded but not landed
    on the host** and keeps the backup while the host uses **Retry land**.

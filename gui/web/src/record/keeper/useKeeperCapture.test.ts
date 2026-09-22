@@ -102,6 +102,77 @@ describe("useKeeperCapture", () => {
     ).toBe(true);
   });
 
+  it("keeps the warning until a stopped take finishes saving", async () => {
+    const { createOpfsSink, MemorySink } = await import("./store");
+    const sink = new MemorySink();
+    let releaseClose = () => {};
+    const closeGate = new Promise<void>((resolve) => {
+      releaseClose = resolve;
+    });
+    let closeStarted = false;
+    vi.mocked(createOpfsSink).mockResolvedValueOnce({
+      write: (path, bytes) => sink.write(path, bytes),
+      read: (path) => sink.read(path),
+      remove: (path) => sink.remove(path),
+      nextSegmentIndex: (sessionId, takeIndex, participantId) =>
+        sink.nextSegmentIndex(sessionId, takeIndex, participantId),
+      open: async (path) => {
+        const stream = await sink.open(path);
+        return {
+          write: (bytes: Uint8Array, offset?: number) =>
+            stream.write(bytes, offset),
+          close: async () => {
+            closeStarted = true;
+            await closeGate;
+            await stream.close();
+          },
+        };
+      },
+    });
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    const { rerender, result } = renderHook(
+      ({ enabled, snapshot }: { enabled: boolean; snapshot: RecordSnapshot }) =>
+        useKeeperCapture({ ...args, enabled, snapshot, stream }),
+      { initialProps: { enabled: true, snapshot: snap } },
+    );
+    await waitFor(() => {
+      expect(result.current.recordingLocally).toBe(true);
+    });
+
+    rerender({
+      enabled: false,
+      snapshot: { ...snap, state: "stopped" },
+    });
+    await waitFor(() => {
+      expect(closeStarted).toBe(true);
+      expect(result.current.recordingLocally).toBe(false);
+    });
+    expect(
+      window.dispatchEvent(new Event("beforeunload", { cancelable: true })),
+    ).toBe(false);
+
+    releaseClose();
+    await waitFor(() => {
+      expect(
+        window.dispatchEvent(new Event("beforeunload", { cancelable: true })),
+      ).toBe(true);
+    });
+  });
+
+  it("removes the warning when active capture unmounts", async () => {
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    const { result, unmount } = renderHook(() =>
+      useKeeperCapture({ ...args, enabled: true, stream }),
+    );
+    await waitFor(() => {
+      expect(result.current.recordingLocally).toBe(true);
+    });
+    unmount();
+    expect(
+      window.dispatchEvent(new Event("beforeunload", { cancelable: true })),
+    ).toBe(true);
+  });
+
   it("does not claim a local copy when OPFS is unavailable", async () => {
     const { createOpfsSink } = await import("./store");
     vi.mocked(createOpfsSink).mockRejectedValueOnce(

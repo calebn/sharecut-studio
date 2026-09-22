@@ -110,6 +110,14 @@ async function keeperWavBytes(page: Page): Promise<number> {
   });
 }
 
+async function beforeUnloadIsBlocked(page: Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const event = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+}
+
 async function roomToneWav(page: Page): Promise<{
   header: number[];
   size: number;
@@ -327,6 +335,23 @@ test.describe("record lobby", () => {
           await expect(
             roomDlg.getByText("Recording locally on this device."),
           ).toBeVisible();
+          for (const page of [host, guest]) {
+            expect(await beforeUnloadIsBlocked(page)).toBe(true);
+          }
+          const guestUrl = guest.url();
+          const unloadDialog = guest.waitForEvent("dialog");
+          const reload = guest
+            .evaluate(() => window.location.reload())
+            .catch(() => {});
+          const dialog = await unloadDialog;
+          expect(dialog.type()).toBe("beforeunload");
+          await dialog.dismiss();
+          await reload;
+          expect(guest.url()).toBe(guestUrl);
+          await expect(guest.locator(".record-rec-label")).toHaveText("REC");
+          await expect(
+            guest.getByText("Recording locally on this device."),
+          ).toBeVisible();
           await expect(
             producer.getByText("Recording locally on this device."),
           ).toHaveCount(0);
@@ -344,6 +369,7 @@ test.describe("record lobby", () => {
             "paused",
           );
           await expect(guest.locator(".record-rec-label")).toHaveText("PAUSED");
+          await expect.poll(() => beforeUnloadIsBlocked(guest)).toBe(false);
           await expect(guest.getByText("Hearing the room.")).toBeVisible();
           await expect
             .poll(async () => keeperWavBytes(guest), { timeout: 8_000 })
@@ -368,7 +394,13 @@ test.describe("record lobby", () => {
             "Stopped",
           );
 
+          await expect.poll(() => beforeUnloadIsBlocked(guest)).toBe(false);
+          const unexpectedUnloadDialog = guest
+            .waitForEvent("dialog", { timeout: 1_000 })
+            .then(() => true)
+            .catch(() => false);
           await guest.reload();
+          expect(await unexpectedUnloadDialog).toBe(false);
           await expect(guest.locator(".record-rec-label")).toHaveText(
             "Stopped",
           );
