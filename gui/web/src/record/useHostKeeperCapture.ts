@@ -73,24 +73,13 @@ export function useHostKeeperCapture(enabled = true): {
       !hostOn ||
       !sessionId ||
       keeper.recordingLocally ||
-      (roomState === "recording" &&
-        (!mic.stream || keeper.error || mic.error || mic.lost))
+      roomState === "recording"
     ) {
       return;
     }
     const timer = window.setInterval(onKeeperActivity, 5_000);
     return () => window.clearInterval(timer);
-  }, [
-    hostOn,
-    sessionId,
-    roomState,
-    keeper.recordingLocally,
-    keeper.error,
-    mic.stream,
-    mic.error,
-    mic.lost,
-    onKeeperActivity,
-  ]);
+  }, [hostOn, sessionId, roomState, keeper.recordingLocally, onKeeperActivity]);
 
   return {
     error: keeper.error,
