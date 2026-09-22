@@ -481,7 +481,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: false,
     requireMod: true,
     requireShift: true,
-    when: "canManageProjects",
+    when: "canExportProject",
     notes: "Mod+Shift+B — bounce dialog (export/bounces/)",
   },
   {

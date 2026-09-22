@@ -823,7 +823,7 @@ def recommend_boundary_fades(
     # on which module a process happens to touch first. Deferring it until this
     # function actually runs sidesteps the cycle: by then audio_audit has already
     # finished initializing.
-    from podcast_mcp.edits.clips_ops import clips_for_track
+    from podcast_mcp.edits.clips_ops import JOIN_GAP_TOLERANCE_SEC, clips_for_track
 
     pol = policy or AnalysisPolicy.from_defaults()
     recs: list[dict[str, Any]] = []
@@ -850,7 +850,7 @@ def recommend_boundary_fades(
         for i in range(len(clips) - 1):
             left, right = clips[i], clips[i + 1]
             gap = right.timeline_start - left.timeline_end
-            if gap > 0.05:
+            if gap > JOIN_GAP_TOLERANCE_SEC:
                 recs.append(
                     {
                         "track_id": tid,

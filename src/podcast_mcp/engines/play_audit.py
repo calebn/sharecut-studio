@@ -6,8 +6,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.mute_regions import mute_regions_payload
-from podcast_mcp.engines.timeline_render import clips_for_track
 from podcast_mcp.models import AutomationEnvelope, EpisodeProject
 
 log = logging.getLogger(__name__)

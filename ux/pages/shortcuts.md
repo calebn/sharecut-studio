@@ -106,7 +106,7 @@ Open the in-app cheatsheet with **?** while Sharecut Studio is focused.
 |----------|---------|------|-------|
 | `M` | Record marker (`record.marker`) | recordPanelOpen | M — live marker while the record panel is open; with the panel closed, M still mutes the targeted track |
 | `?` | Command cheatsheet (`ui.toggleCommandPalette`) | Always (when not typing in an input) | Also Shift+/ |
-| `Mod+Shift+B` | Bounce… (`export.bounce`) | Host project management | Mod+Shift+B — bounce dialog (export/bounces/) |
+| `Mod+Shift+B` | Bounce… (`export.bounce`) | Loaded host project | Mod+Shift+B — bounce dialog (export/bounces/) |
 | `Mod+Shift+E` | Export deliverables (`export.deliverables`) | Host project management | Mod+Shift+E — mastered export/ via PipelineService |
 | `Mod+N` | New project (`project.new`) | Host project management | Mod+N |
 | `Mod+O` | Open project (`project.open`) | Host project management | Mod+O — OS dialog via local engine; paste path fallback |

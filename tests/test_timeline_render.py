@@ -657,7 +657,10 @@ def test_render_track_without_clips_uses_full_file(sample_wav: Path, tmp_path: P
 
 
 def test_crossfade_join_helpers():
-    from podcast_mcp.engines.timeline_render import _crossfade_ms_at_join, _uses_crossfade_join
+    from podcast_mcp.engines.timeline_render import (
+        _crossfade_ms_at_join,
+        _uses_crossfade_join,
+    )
 
     left = Clip(
         id="c1",
@@ -679,6 +682,31 @@ def test_crossfade_join_helpers():
     right.join_in_mode = ClipJoinMode.CROSSFADE
     assert _uses_crossfade_join(left, right)
     assert _crossfade_ms_at_join(left, right) >= 20
+
+
+def test_crossfade_join_uses_canonical_gap_tolerance():
+    from podcast_mcp.engines.timeline_render import _uses_crossfade_join
+
+    left = Clip(
+        id="left",
+        track_id="host",
+        source_start=0.0,
+        source_end=1.0,
+        timeline_start=0.0,
+        fade_out_ms=20,
+    )
+    right = Clip(
+        id="right",
+        track_id="host",
+        source_start=0.0,
+        source_end=1.0,
+        timeline_start=1.03,
+        fade_in_ms=20,
+        join_in_mode=ClipJoinMode.CROSSFADE,
+    )
+    assert _uses_crossfade_join(left, right)
+    right.timeline_start = 1.051
+    assert not _uses_crossfade_join(left, right)
 
 
 def test_render_fade_join_uses_segment_afade_not_acrossfade(sample_wav: Path, tmp_path: Path):

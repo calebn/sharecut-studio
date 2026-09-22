@@ -136,7 +136,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   "edit.bladeCut": {
     id: "edit.bladeCut",
     category: "edit",
-    label: "Blade cut at time",
+    label: "Blade cut at playhead",
     when: "canSuggestStructural",
     notes: "Args: { atTime?: number } → SplitAtTime (defaults to playhead)",
   },
@@ -291,7 +291,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     id: "export.bounce",
     category: "ui",
     label: "Bounce…",
-    when: "canManageProjects",
+    when: "canExportProject",
     notes: "Open bounce dialog → export/bounces/. Mod+Shift+B",
   },
   "share.manage": {

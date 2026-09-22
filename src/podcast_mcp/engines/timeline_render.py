@@ -2,14 +2,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from podcast_mcp.edits.clips_ops import JOIN_GAP_TOLERANCE_SEC, clips_for_track
 from podcast_mcp.edits.mute_regions import mute_spans_for_source_window
 from podcast_mcp.engines.ffmpeg import FFmpegEngine, PlacedSegment
 from podcast_mcp.engines.session_timeline import clip_timeline_overlap_to_source
 from podcast_mcp.models import Clip, ClipJoinMode, EditDecision, EpisodeProject, Track
 from podcast_mcp.util.process import run
 from podcast_mcp.util.workspace_paths import resolve_under_workspace
-
-_GAP_THRESHOLD_SEC = 0.05
 
 
 def resolve_clip_audio_path(
@@ -32,10 +31,6 @@ def resolve_clip_audio_path(
     if not track.media:
         raise ValueError(f"track {track.id} has no media")
     return resolve_under_workspace(project, track.media.path)
-
-
-def clips_for_track(project: EpisodeProject, track_id: str) -> list[Clip]:
-    return [c for c in project.clips if c.track_id == track_id]
 
 
 def timeline_duration_sec(project: EpisodeProject) -> float:
@@ -74,7 +69,7 @@ def edits_for_clip_source(
 
 
 def _abuts(prev: Clip, clip: Clip) -> bool:
-    return clip.timeline_start - prev.timeline_end <= 0.001
+    return clip.timeline_start - prev.timeline_end <= JOIN_GAP_TOLERANCE_SEC
 
 
 def _uses_crossfade_join(prev: Clip, clip: Clip) -> bool:
@@ -142,7 +137,7 @@ def render_track_from_timeline(
     af = eng.build_track_filter(chain, env)
 
     timeline_edits = [e for e in project.edit_decisions if e.track_id == track.id]
-    sorted_clips = sorted(track_clips, key=lambda c: c.timeline_start)
+    sorted_clips = track_clips
 
     paths = [resolve_clip_audio_path(project, track, c) for c in sorted_clips]
     multi_source = len({p.resolve() for p in paths}) > 1
@@ -176,9 +171,9 @@ def render_track_from_timeline(
         overlap_prev = 0.0
         if prev is not None and crossfade_prev <= 0:
             gap = clip.timeline_start - prev.timeline_end
-            if gap > _GAP_THRESHOLD_SEC:
+            if gap > JOIN_GAP_TOLERANCE_SEC:
                 gap_before = gap
-            elif gap < -_GAP_THRESHOLD_SEC:
+            elif gap < -JOIN_GAP_TOLERANCE_SEC:
                 overlap_prev = -gap
 
         for si, seg in enumerate(segments):
@@ -208,7 +203,7 @@ def render_track_from_timeline(
         placed,
         af,
         crossfade_curve=crossfade_curve,
-        lead_in_sec=lead_in if lead_in > _GAP_THRESHOLD_SEC else 0.0,
+        lead_in_sec=lead_in if lead_in > JOIN_GAP_TOLERANCE_SEC else 0.0,
     )
     if track.transcript_gate:
         from podcast_mcp.engines.transcript_gated_play import apply_track_transcript_gate
@@ -438,7 +433,7 @@ def render_track_segment(
     env = next((e for e in project.automation_envelopes if e.track_id == track.id), None)
     af = eng.build_track_filter(chain, env)
     timeline_edits = [e for e in project.edit_decisions if e.track_id == track.id]
-    sorted_clips = sorted(track_clips, key=lambda c: c.timeline_start)
+    sorted_clips = track_clips
 
     overlapping: list[tuple[Clip, float, float]] = []
     for clip in sorted_clips:
@@ -472,7 +467,7 @@ def render_track_segment(
         crossfade_prev = _crossfade_ms_at_join(prev, clip) / 1000.0 if prev is not None else 0.0
 
         gap_before = ov_tl_start - timeline_cursor
-        if gap_before <= _GAP_THRESHOLD_SEC or crossfade_prev > 0:
+        if gap_before <= JOIN_GAP_TOLERANCE_SEC or crossfade_prev > 0:
             gap_before = 0.0
 
         # Fade only when this window includes the real clip edge (not a mid-clip seek).

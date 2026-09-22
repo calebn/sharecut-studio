@@ -19,6 +19,7 @@ export type CommandContext = {
   canRefreshMix: boolean;
   canIngestMedia: boolean;
   canManageProjects: boolean;
+  canExportProject: boolean;
   hasProject: boolean;
   shellBreakpoint: string;
   playheadSec: number;
@@ -54,11 +55,9 @@ export function buildCommandContext(): CommandContext {
     transcriptFocused,
     layoutFocused: s.timelineFocused || transcriptFocused,
     commentMode: s.commentMode,
-    canSuggestStructural: canSuggestStructural(
-      s.projectPath,
-      s.guestMode,
-      s.shareCapabilities,
-    ),
+    canSuggestStructural:
+      s.project != null &&
+      canSuggestStructural(s.projectPath, s.guestMode, s.shareCapabilities),
     canApplyPass12: canApplyPass12(
       s.projectPath,
       s.guestMode,
@@ -75,6 +74,7 @@ export function buildCommandContext(): CommandContext {
       s.shareCapabilities,
     ),
     canManageProjects: canManageProjects(s.projectPath),
+    canExportProject: s.project != null && canManageProjects(s.projectPath),
     hasProject: s.project != null,
     shellBreakpoint: s.shellBreakpoint,
     playheadSec: s.playheadSec,
@@ -168,6 +168,13 @@ export function evaluateWhen(
       return ctx.canManageProjects && !isShareProjectKey(ctx.projectPath)
         ? { ok: true }
         : { ok: false, reason: "Project create/open is host-only" };
+    case "canExportProject":
+      return ctx.canExportProject && !isShareProjectKey(ctx.projectPath)
+        ? { ok: true }
+        : {
+            ok: false,
+            reason: "Project export requires a loaded host project",
+          };
     case "trackInspectorSelected":
       return evaluateTrackInspectorSelection(ctx);
     case "canMoveSelectedTrackUp":
