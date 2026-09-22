@@ -247,6 +247,7 @@ def apply_record_command(
             raise RecordStateError("no open pause")
         take.pauses[-1].resume_wall_ms = now_wall_ms
         out.state = "recording"
+        out.host_last_beat_wall_ms = now_wall_ms
         _clear_live_pause_reason(out)
         return out
     if ctype == "Stop":
