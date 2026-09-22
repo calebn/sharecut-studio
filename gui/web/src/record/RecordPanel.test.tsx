@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadHostRecordState } from "../api";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
@@ -84,6 +84,10 @@ const lobby: RecordSnapshot = {
 };
 
 describe("RecordPanel", () => {
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, "storage");
+  });
+
   beforeEach(() => {
     send.mockReset();
     exec.mockReset();
@@ -136,6 +140,33 @@ describe("RecordPanel", () => {
     expect(startBlockers(useRecordHostStore.getState().snapshot)).toEqual([]);
     await userEvent.click(screen.getByRole("button", { name: "Start" }));
     expect(postTransport).toHaveBeenCalledWith("Start");
+  });
+
+  it("warns about low storage without disabling Start", async () => {
+    Object.defineProperty(navigator, "storage", {
+      configurable: true,
+      value: { estimate: vi.fn(async () => ({ usage: 0, quota: 1 })) },
+    });
+    useRecordHostStore.getState().setSnapshot({
+      ...lobby,
+      start_blockers: [],
+      participants: [
+        {
+          participant_id: "p_g",
+          role: "guest",
+          display_name: "Ava",
+          connected: true,
+          consented: true,
+          muted: false,
+          headphones_ack: true,
+        },
+      ],
+    });
+    render(<RecordPanel />);
+    await waitFor(() =>
+      expect(screen.getByText(/local recording storage is low/i)).toBeVisible(),
+    );
+    expect(screen.getByRole("button", { name: "Start" })).toBeEnabled();
   });
 
   it("disables Start while room tone is capturing", () => {

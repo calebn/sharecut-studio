@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { keeperWavPath, MemorySink, roomToneWavPath } from "./store";
+import { describe, expect, it, vi } from "vitest";
+import {
+  createOpfsSink,
+  keeperWavPath,
+  MemorySink,
+  roomToneWavPath,
+} from "./store";
 
 describe("keeperWavPath", () => {
   it("keys files by session/take/participant/segment", () => {
@@ -72,5 +77,46 @@ describe("MemorySink", () => {
     );
     expect(await sink.nextSegmentIndex("cool-room", 0, "p_g")).toBe(3);
     expect(await sink.nextSegmentIndex("cool-room", 1, "p_g")).toBe(0);
+  });
+
+  it("keeps a completion tombstone in the segment index after WAV cleanup", async () => {
+    const sink = new MemorySink();
+    await sink.write(
+      "Sharecut Recordings/cool-room/0/p_g/3.json",
+      new Uint8Array([1]),
+    );
+    expect(await sink.nextSegmentIndex("cool-room", 0, "p_g")).toBe(4);
+  });
+});
+
+describe("OPFS cleanup", () => {
+  it("ignores already-removed files but reports other deletion failures", async () => {
+    const original = Object.getOwnPropertyDescriptor(navigator, "storage");
+    const removeEntry = vi.fn<() => Promise<void>>();
+    const directory = {
+      getDirectoryHandle: async () => directory,
+      removeEntry,
+    };
+    Object.defineProperty(navigator, "storage", {
+      configurable: true,
+      value: { getDirectory: async () => directory },
+    });
+    try {
+      const sink = await createOpfsSink();
+      removeEntry.mockRejectedValueOnce(
+        new DOMException("missing", "NotFoundError"),
+      );
+      await expect(sink.remove("a/b.wav")).resolves.toBeUndefined();
+      removeEntry.mockRejectedValueOnce(
+        new DOMException("denied", "NotAllowedError"),
+      );
+      await expect(sink.remove("a/b.wav")).rejects.toThrow("denied");
+    } finally {
+      if (original) {
+        Object.defineProperty(navigator, "storage", original);
+      } else {
+        Reflect.deleteProperty(navigator, "storage");
+      }
+    }
   });
 });

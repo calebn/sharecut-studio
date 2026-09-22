@@ -52,6 +52,7 @@ export function useRecordUpload(args: {
 }): RecordUploadProgress {
   const [progress, setProgress] = useState<RecordUploadProgress>(EMPTY);
   const argsRef = useRef(args);
+  const reclaimed = useRef(new Set<string>());
   argsRef.current = args;
 
   useEffect(() => {
@@ -79,6 +80,7 @@ export function useRecordUpload(args: {
       inFlight = true;
       const current = argsRef.current;
       const { sessionId, participantId, transport, sink, takeIndex } = current;
+      const stopped = current.roomState === "stopped";
       if (!sessionId || !participantId || !transport || !sink) {
         inFlight = false;
         return;
@@ -114,6 +116,35 @@ export function useRecordUpload(args: {
               total += n;
               allLanded = allLanded && Boolean(remoteSeg.landed);
               landFailed = landFailed || Boolean(remoteSeg.land_failed);
+              if (
+                remoteSeg.landed &&
+                !remoteSeg.land_failed &&
+                (take < takeIndex ||
+                  (take === takeIndex && stopped && current.captureSettled))
+              ) {
+                // A fresh status response is the authority for cleanup. Keep
+                // the completion metadata as the segment identity tombstone;
+                // it also makes cleanup idempotent and preserves recovery
+                // bookkeeping if a later status response is stale/absent.
+                const wavPath = keeperWavPath({
+                  sessionId,
+                  takeIndex: take,
+                  participantId,
+                  segmentIndex,
+                });
+                if (!reclaimed.current.has(wavPath)) {
+                  const complete = await sink.read(keeperMetaPath(wavPath));
+                  if (!complete) {
+                    continue;
+                  }
+                  try {
+                    await sink.remove(wavPath);
+                    reclaimed.current.add(wavPath);
+                  } catch {
+                    // Retry on the next poll if the browser refuses deletion.
+                  }
+                }
+              }
               continue;
             }
             allLanded = false;
@@ -179,7 +210,6 @@ export function useRecordUpload(args: {
           }
         }
         if (!cancelled) {
-          const stopped = current.roomState === "stopped";
           if (!stopped || acked !== lastAcked || total !== lastTotal) {
             stalledTicks = 0;
           } else if (awaitingAck) {

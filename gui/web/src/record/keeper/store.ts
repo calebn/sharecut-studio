@@ -98,7 +98,9 @@ export function roomToneWavPath(
 function maxWavIndex(names: string[]): number {
   let max = -1;
   for (const name of names) {
-    const match = /^(\d+)\.wav$/i.exec(name);
+    // Completion metadata remains after a landed WAV is reclaimed. Count it
+    // as well so a later take never reuses a segment identity.
+    const match = /^(\d+)\.(?:wav|json)$/i.exec(name);
     if (match) {
       max = Math.max(max, Number(match[1]));
     }
@@ -203,8 +205,11 @@ export async function createOpfsSink(): Promise<ByteSink> {
           dir = await dir.getDirectoryHandle(part);
         }
         await dir.removeEntry(fileName);
-      } catch {
-        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "NotFoundError") {
+          return;
+        }
+        throw error;
       }
     },
     async open(path: string) {

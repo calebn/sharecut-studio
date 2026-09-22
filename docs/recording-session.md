@@ -256,8 +256,8 @@ MM4 asserts the monitor drop; keeper mute zeros are covered by keeper session te
 
 Relay never stores audio, but keeper chunks may transit the tunnel. Keeper + local backup live on each device until
 chunked upload and host ingest **ACK** (sha256 + byte length per chunk, then
-per file). Assembled WAV lands in `artifacts/record/acked/` until landing copies it into
-`raw/` and registers clips.
+per file) and confirmed timeline landing. Assembled WAV lands in
+`artifacts/record/acked/` until landing copies it into `raw/` and registers clips.
 
 Chunks (target 5 MB or 30 s, whichever first) `POST` to a **dedicated record
 upload route** gated by `join` (not `edit`, not `POST …/daw/media/upload`).
@@ -272,6 +272,16 @@ A stalled or zero-sample keeper remains in OPFS for a single ZIP download
 containing every retained take and segment. Surviving files still export if a
 segment is missing, and Leave is never held indefinitely by an errored upload.
 Lossy host-side backup mix is **not** in audio MVP.
+
+After a fresh status response confirms both `file_ack` and successful timeline
+landing (`landed` without `land_failed`), the client may reclaim that finalized
+segment's local `.wav`. Its completion `.json` remains as a small segment
+identity marker, so later takes never reuse the segment number. Unlanded,
+failed, incomplete, or actively captured segments remain available for
+recovery; cleanup failures are non-fatal and leave the WAV in place. The
+recording UI also performs an advisory one-hour mono 48 kHz PCM headroom check
+where `navigator.storage.estimate()` is available. A low or unknown estimate
+warns the operator but never blocks recording by itself.
 
 ```mermaid
 sequenceDiagram

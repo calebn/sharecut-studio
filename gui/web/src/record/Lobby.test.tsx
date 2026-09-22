@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { Lobby } from "./Lobby";
 import { MIC_ALLOW_LABEL } from "./micPermission";
@@ -20,6 +20,40 @@ const mic = {
 };
 
 describe("Lobby", () => {
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, "storage");
+  });
+
+  it("warns about low storage without blocking consent", async () => {
+    Object.defineProperty(navigator, "storage", {
+      configurable: true,
+      value: { estimate: vi.fn(async () => ({ usage: 0, quota: 1 })) },
+    });
+    render(
+      <Lobby
+        producer={false}
+        name="Ava"
+        onName={() => undefined}
+        headphonesOk
+        onHeadphones={() => undefined}
+        deviceId=""
+        onDeviceId={() => undefined}
+        onJoinProducer={() => undefined}
+        onAccept={() => undefined}
+        onDecline={() => undefined}
+        showMic
+        {...mic}
+        permission="granted"
+        stream={{} as MediaStream}
+        roomToneStatus="skipped"
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByText(/local recording storage is low/i)).toBeVisible(),
+    );
+    expect(screen.getByRole("button", { name: "Accept" })).toBeEnabled();
+  });
+
   it("omits mic UI on the producer path", async () => {
     const { container } = render(
       <Lobby
