@@ -201,7 +201,7 @@ Lane identity is a slim sticky gutter in the same scroller as the waveforms. Tap
 | Comments | Thread list / detail | `review.comments` |
 | History | Undo/redo · grouped steps (follows document snapshots) | `history` |
 | Impact | Pending bulk + removed duration | `editorial.edit_decisions` + impact report |
-| Tighten | Searchable filler/pause list · preview/skip/apply · apply-all avoiding harsh cuts | pending `filler:`/`pause:` decisions |
+| Tighten | Searchable filler/pause/repetition/restart list · preview/skip/apply · apply-all avoiding harsh cuts | pending tighten decisions |
 | Pipeline | Step checklist · params · Analyze · Batch/gates · run · progress (headline + bar/elapsed) | working-set config + live job |
 
 Plus **Overlay legend** on the hub. Theme and audition mode live in transport **Menu**, not a Settings destination.
@@ -253,7 +253,7 @@ flowchart TB
 | **Comments** | List + thread · timeline seek · action items |
 | **History** | Groups · Undo/Redo · diff affordances; list updates from Applied snapshots (SHELL project, or DETAIL/TRACKS/CLIPS/FX/ENVELOPES/COMMENTS patches) |
 | **Impact** | Pending count · bulk approve/reject · removed duration |
-| **Tighten** | Filler/pause list · search/filters · preview/skip/apply · apply-all (avoid harsh) |
+| **Tighten** | Filler/pause/repetition/restart list · search/filters · preview/skip/apply · apply-all (avoid harsh) |
 | **Pipeline** | Checklist · param inspector · Analyze · Batch vs leave-gates (align + refine) · SSE progress (live headline) |
 | **Transcript** | Follow/edit (also focus mode `text`) |
 | **Status** | Actionable chips (pending, stale render, reconcile); overflow-x on narrow |
