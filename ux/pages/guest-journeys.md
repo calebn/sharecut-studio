@@ -177,7 +177,8 @@ flowchart TD
    the final WAV and metadata, then clears. The upload panel warns the guest
    to keep the tab open until the final file ACK, shows N/M chunks where all
    totals are known, and offers **Resume upload** and **Download local keeper**
-   for an incomplete or stalled take. The local WAV stays in
+   for an incomplete or stalled take. Download produces one ZIP containing all
+   retained WAV segments. The local WAVs stay in
    OPFS (`Sharecut Recordings/`) until the host confirms **Landed. Safe to delete
    the local backup.** If landing fails, the guest sees **Uploaded but not landed
    on the host** and keeps the backup while the host uses **Retry land**.

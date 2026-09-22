@@ -178,7 +178,7 @@ describe("useRecordUpload", () => {
         useRecordUpload({
           enabled: true,
           roomState: "stopped",
-        captureSettled: true,
+          captureSettled: true,
           sessionId: "room1",
           takeIndex: 0,
           participantId: "p_a",
