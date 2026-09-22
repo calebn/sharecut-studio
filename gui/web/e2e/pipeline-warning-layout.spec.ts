@@ -9,7 +9,7 @@ test.describe("Pipeline bootstrap warning layout", () => {
   test("wraps a missing-model warning at tablet width", async ({ page }) => {
     await page.setViewportSize({ width: 768, height: 1024 });
     await page.route("**/api/pipeline/config**", async (route) => {
-      const response = await page.request.get(route.request().url());
+      const response = await route.fetch();
       const config = (await response.json()) as {
         components: Record<
           string,
