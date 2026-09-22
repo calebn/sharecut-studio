@@ -574,7 +574,8 @@ asks the participant to use a compatible browser and offers Retry local backup.
 The host Start transport checks the same verified sink even when invoked outside
 the room panel, and host capture uses that sink. A guest who leaves and rejoins
 in the lobby or between takes must complete a fresh preflight and Accept again
-before host Start. Producers are not recorded and do not need this preflight. There is no upload-only or
+before host Start. While waiting to re-consent after a stopped take, the guest
+can still resume upload or download the previous local keeper from the lobby. Producers are not recorded and do not need this preflight. There is no upload-only or
 alternate local sink path.
 
 Host admit / waiting room is **not** in this PR (ROADMAP Follow-up).
