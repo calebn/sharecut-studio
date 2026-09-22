@@ -14,6 +14,7 @@ from podcast_mcp.models import EditDecision, EditDecisionType
 from podcast_mcp.services.edit import EditService
 from podcast_mcp.services.golden_ear import (
     LISTEN_DIRNAME,
+    _pair_audio_diagnostics,
     bound_limit,
     build_golden_ear,
     copy_relocated_project,
@@ -118,6 +119,7 @@ def _patch_harness(
 
     def audition_context(self, start, end, *, detail="summary", **kwargs):
         assert detail == "summary"
+        assert kwargs["include_dsp"] is False
         return {
             "schema": "audition_context.v2",
             "window": {"timeline_start": start, "timeline_end": end},
@@ -127,6 +129,21 @@ def _patch_harness(
     monkeypatch.setattr(PlayService, "play_pending_preview", preview)
     monkeypatch.setattr(EditService, "join_quality", join_quality)
     monkeypatch.setattr(PlayService, "audition_context", audition_context)
+    monkeypatch.setattr(
+        "podcast_mcp.services.golden_ear.measure_astats",
+        lambda path: {"peak_level_db": -3.0, "file": Path(path).name},
+    )
+    monkeypatch.setattr(
+        "podcast_mcp.services.golden_ear.detect_mains_hum",
+        lambda path: {"hum_detected": False},
+    )
+
+    def waveform(_self, _input_path, output_path, **_kwargs):
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"png")
+        return output_path
+
+    monkeypatch.setattr(FFmpegEngine, "render_showwavespic", waveform)
     monkeypatch.setattr(
         "podcast_mcp.services.golden_ear.resolve_pending_preview",
         lambda *args, **kwargs: _window(can_skip=can_skip),
@@ -233,7 +250,14 @@ def test_build_on_aligned_dialogue_is_blinded_and_does_not_write_fixture(
         assert row["edit_file"] != row["leave_file"]
         assert row["gated"] is True
         assert row["audition_context"]["schema"] == "audition_context.v2"
+        assert row["audition_context_source"] == "project_timeline_metadata_only"
+        assert row["pair_diagnostics"]["source"] == "rendered_pair_wavs"
+        for role in ("current", "suggested"):
+            image = out / row["pair_diagnostics"][role]["waveform_png"]
+            assert image.is_file()
+            assert image.parent.parent == out / "diagnostics"
         assert "audition_context" not in json.dumps(manifest)
+        assert "pair_diagnostics" not in json.dumps(manifest)
     answers = (listen / "answers.csv").read_text(encoding="utf-8")
     assert answers.splitlines()[0] == "pair_id,prefer,leftover_consonant,notes"
     with pytest.raises(FileExistsError, match="non-empty"):
@@ -304,6 +328,66 @@ def test_build_records_audition_context_failure_owner_only(tmp_path, sample_wav,
     assert key["pairs"][0]["audition_context"] is None
     assert "diagnostics unavailable" in key["pairs"][0]["audition_context_error"]
     assert "audition_context_error" not in json.dumps(manifest)
+
+
+def test_pair_diagnostics_analyze_current_and_suggested_rendered_wavs(
+    tmp_path, sample_wav, monkeypatch
+):
+    _patch_harness(monkeypatch, sample_wav, [_decision()])
+    analyzed: list[Path] = []
+
+    def astats(path):
+        analyzed.append(Path(path))
+        return {"peak_level_db": -6.0}
+
+    monkeypatch.setattr("podcast_mcp.services.golden_ear.measure_astats", astats)
+    out = tmp_path / "pair-diagnostics"
+    build_golden_ear(FIXTURE, out, limit=1, seed=0)
+    key = json.loads((out / "key.json").read_text(encoding="utf-8"))
+    row = key["pairs"][0]
+    pair = out / LISTEN_DIRNAME / row["id"]
+    assert {path.name for path in analyzed} == {row["leave_file"], row["edit_file"]}
+    assert all(path.parent.name == row["id"] for path in analyzed)
+    assert row["pair_diagnostics"]["current"]["file"] == row["leave_file"]
+    assert row["pair_diagnostics"]["suggested"]["file"] == row["edit_file"]
+    assert (pair / row["leave_file"]).is_file()
+
+
+def test_pair_diagnostics_generate_waveforms_from_rendered_files(tmp_path, sample_wav):
+    pair = tmp_path / "listen" / "pair_000"
+    pair.mkdir(parents=True)
+    shutil.copy2(sample_wav, pair / "1.wav")
+    shutil.copy2(sample_wav, pair / "2.wav")
+    report = _pair_audio_diagnostics(
+        pair,
+        {"leave_file": "1.wav", "edit_file": "2.wav"},
+        tmp_path / "diagnostics" / "pair_000",
+        "pair_000",
+    )
+    for role, filename in (("current", "1.wav"), ("suggested", "2.wav")):
+        entry = report[role]
+        assert entry["file"] == filename
+        assert entry["astats"]["peak_level_db"] is not None
+        assert (tmp_path / entry["waveform_png"]).is_file()
+
+
+def test_pair_diagnostics_failure_is_recorded_without_publishing_image(
+    tmp_path, sample_wav, monkeypatch
+):
+    _patch_harness(monkeypatch, sample_wav, [_decision()])
+
+    def fail_waveform(_self, _input_path, _output_path, **_kwargs):
+        raise OSError("waveform unavailable")
+
+    monkeypatch.setattr(FFmpegEngine, "render_showwavespic", fail_waveform)
+    out = tmp_path / "pair-diagnostics-error"
+    assert build_golden_ear(FIXTURE, out, limit=1, seed=0)["pair_count"] == 1
+    key = json.loads((out / "key.json").read_text(encoding="utf-8"))
+    for role in ("current", "suggested"):
+        entry = key["pairs"][0]["pair_diagnostics"][role]
+        assert "waveform unavailable" in entry["error"]
+        assert "waveform_png" not in entry
+    assert not (out / "diagnostics").exists()
 
 
 def test_build_pads_suggested_to_current_duration(tmp_path, sample_wav, monkeypatch):

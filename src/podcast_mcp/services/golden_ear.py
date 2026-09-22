@@ -17,6 +17,7 @@ from typing import Any
 
 from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_caches
 from podcast_mcp.edits.pending_preview import resolve_pending_preview
+from podcast_mcp.engines.audio_audit import detect_mains_hum, measure_astats
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models import EditDecision, EditDecisionType
 from podcast_mcp.models.episode import EPISODE_PROJECT_FILENAME
@@ -266,11 +267,36 @@ def _pair_audition_context(
                 float(wavs["play_start"]),
                 float(wavs["play_end"]),
                 detail="summary",
+                include_dsp=False,
             ),
             None,
         )
-    except (OSError, ValueError, CalledProcessError) as exc:
+    except JOIN_ERRORS as exc:
         return None, f"{type(exc).__name__}: {exc}"
+
+
+def _pair_audio_diagnostics(
+    pair_dir: Path, wavs: dict[str, Any], diagnostics_dir: Path, pair_id: str
+) -> dict[str, Any]:
+    """Analyze only the two rendered WAVs; keep images outside the listen pack."""
+    engine = FFmpegEngine()
+    result: dict[str, Any] = {"source": "rendered_pair_wavs"}
+    for role, file_key in (("current", "leave_file"), ("suggested", "edit_file")):
+        filename = str(wavs[file_key])
+        audio_path = pair_dir / filename
+        image_relative = Path("diagnostics") / pair_id / f"{role}.png"
+        image_path = diagnostics_dir / f"{role}.png"
+        entry: dict[str, Any] = {"file": filename}
+        try:
+            entry["astats"] = measure_astats(audio_path)
+            entry["hum"] = detect_mains_hum(audio_path)
+            engine.render_showwavespic(audio_path, image_path)
+            entry["waveform_png"] = str(image_relative)
+        except JOIN_ERRORS as exc:
+            image_path.unlink(missing_ok=True)
+            entry["error"] = f"{type(exc).__name__}: {exc}"
+        result[role] = entry
+    return result
 
 
 def _join_metrics(
@@ -394,6 +420,9 @@ def build_golden_ear(
             join_quality = _join_metrics(edit_svc, edit, audio_caches)
             reason_class = _reason_class(edit.reason, class_names) or "filler"
             audition_context, audition_context_error = _pair_audition_context(play, wavs)
+            pair_diagnostics = _pair_audio_diagnostics(
+                pair_dir, wavs, staging / "diagnostics" / pair_id, pair_id
+            )
             pairs.append(
                 {
                     "id": pair_id,
@@ -406,6 +435,8 @@ def build_golden_ear(
                     "gated": _gated(join_quality),
                     "join_quality": join_quality,
                     "audition_context": audition_context,
+                    "audition_context_source": "project_timeline_metadata_only",
+                    "pair_diagnostics": pair_diagnostics,
                     **(
                         {"audition_context_error": audition_context_error}
                         if audition_context_error is not None
