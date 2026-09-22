@@ -174,15 +174,13 @@ points.
 
 Independent of thread-pool parallelism, `analyze_fillers_pauses` also decodes each
 track's raw source audio **once** up front (`edits/audio_cache.py::TrackAudioCache`,
-built in `propose_tighten_edits`) instead of spawning a fresh `ffmpeg` subprocess
-for every tiny window read inside boundary-snap/breath-detection/join-jump
-measurement. A single `ffmpeg` subprocess call costs ~70ms regardless of how small
-the requested window is, dominated by process-spawn overhead, not decode time;
-with hundreds of candidates each needing several window reads, that overhead was
-the single largest cost in the whole pipeline. The same track's audio is now
-decoded once (~1-2s for an hour of audio) and every subsequent window read is an
-in-memory numpy slice (~0.0006ms). `engines/audio_audit.py::analyze_gate_overreach`
-uses the same pattern for its raw-audio reads.
+built in `propose_tighten_edits`) instead of repeatedly decoding windows inside
+boundary-snap/breath-detection/join-jump measurement. WAV window reads use an
+in-process decoder; other containers retain the existing ffmpeg fallback. The
+same track's audio is decoded once (~1-2s for an hour of audio) and every
+subsequent cached window read is an in-memory numpy slice. The
+`engines/audio_audit.py::TrackRmsCache` applies the same pattern to processed
+stems; `analyze_gate_overreach` also caches raw-audio reads.
 
 Measured on a real 65-minute, 2-track episode (`analyze_fillers_pauses`, 181 final
 decisions, byte-identical output across all variants):

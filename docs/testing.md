@@ -67,6 +67,11 @@ GitHub Actions runs the required full suite on public pushes and pull requests. 
 
 ## Fast inner loop
 
+The audio-audit cache regression test uses deterministic decoder-call counts
+and numerical equality, not a wall-clock ratio. Machine load and filesystem
+state make sub-millisecond timing thresholds flaky even when cache behavior is
+correct; call accounting verifies its reuse contract directly.
+
 During development, skip coverage and the e2e/slow tiers for the quickest feedback:
 
 ```bash
