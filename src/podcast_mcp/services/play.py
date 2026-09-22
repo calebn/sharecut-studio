@@ -836,8 +836,9 @@ class PlayService:
         *,
         skew_warn_sec: float | None = None,
         detail: str = "summary",
+        include_dsp: bool = True,
     ) -> dict:
-        """Caption + skew + freshness report for a timeline window (no audio)."""
+        """Caption + skew + freshness report for a timeline window."""
         from podcast_mcp.edits.audition_context import (
             DEFAULT_SKEW_WARN_SEC,
             build_audition_context,
@@ -849,6 +850,7 @@ class PlayService:
             timeline_end,
             skew_warn_sec=(DEFAULT_SKEW_WARN_SEC if skew_warn_sec is None else skew_warn_sec),
             detail=detail,  # type: ignore[arg-type]
+            include_dsp=include_dsp,
         )
 
     def play_compose(
