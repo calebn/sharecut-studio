@@ -1,6 +1,7 @@
 import { loadHostRecordState, postHostRecordCommand } from "../api";
 import { publishDesktopCloseGuard } from "../desktop/useDesktopCloseGuard";
 import { useDawStore } from "../state/dawStore";
+import { prepareHostKeeperStorage } from "./hostKeeperStorage";
 import { useRecordHostStore } from "./hostStore";
 
 const EXPECTED: Record<string, string> = {
@@ -22,8 +23,12 @@ export async function submitHostRecordTransport(
   }
   const token = ++transportEpoch;
   if (commandType === "Start") {
+    await prepareHostKeeperStorage();
+    if (token !== transportEpoch) {
+      return;
+    }
     // The server can enter REC before the HTTP response updates the snapshot.
-    // Publish synchronously so a close in that interval still reaches Rust.
+    // Publish after local storage is ready and before Start reaches the server.
     publishDesktopCloseGuard(true, "host");
     useRecordHostStore.getState().beginStart();
   }

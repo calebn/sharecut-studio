@@ -113,6 +113,7 @@ export function RecordApp({ token }: { token: string }) {
   const mic = useMicPermission(micEnabled, deviceId);
   const [sink, setSink] = useState<ByteSink | null>(null);
   const [sinkError, setSinkError] = useState<string | null>(null);
+  const [storageAttempt, setStorageAttempt] = useState(0);
   const storageRequired = !!(
     bootstrap?.build.capture || bootstrap?.build.upload
   );
@@ -123,6 +124,8 @@ export function RecordApp({ token }: { token: string }) {
       return;
     }
     let cancelled = false;
+    setSink(null);
+    setSinkError(null);
     void createOpfsSink()
       .then((next) => {
         if (!cancelled) {
@@ -142,7 +145,7 @@ export function RecordApp({ token }: { token: string }) {
     return () => {
       cancelled = true;
     };
-  }, [storageRequired, producer]);
+  }, [storageRequired, producer, storageAttempt]);
   const captureEnabled =
     !!bootstrap?.build.capture && !producer && me?.consented === true;
   const keeper = useKeeperCapture({
@@ -338,6 +341,7 @@ export function RecordApp({ token }: { token: string }) {
               roomToneCaptureReady={sink !== null && roomTone.captureReady}
               localStorageReady={!storageRequired || sink !== null}
               localStorageError={sinkError}
+              onRetryStorage={() => setStorageAttempt((n) => n + 1)}
               showRoomTone={!!bootstrap.build.upload}
             />
           )}

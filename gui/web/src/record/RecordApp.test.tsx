@@ -401,6 +401,15 @@ describe("RecordApp", () => {
       "Local recording backup is unavailable. Check that this browser or app environment allows local storage, then retry.",
     );
     expect(screen.getByRole("button", { name: "Accept" })).toBeDisabled();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Retry local backup" }),
+    );
+    await waitFor(() => expect(createOpfsSink).toHaveBeenCalledTimes(2));
+    expect(
+      screen.queryByText(
+        "Local recording backup is unavailable. Check that this browser or app environment allows local storage, then retry.",
+      ),
+    ).not.toBeInTheDocument();
   });
 
   it("shows pending backup copy while the guest storage preflight is running", async () => {

@@ -567,10 +567,14 @@ Producers skip consent, `getUserMedia`, and room tone; they auto-satisfy the
 Start gate. Persistent **REC** indicator +
 clock; mute writes zeros on the keeper. Consent copy is product notice, not legal advice.
 Before a host can Start or a recorded guest can Accept, the client completes an
-OPFS preflight for the local keeper backup. The action remains disabled while
-the preflight is pending or if the browser/app environment cannot provide OPFS;
-the UI asks the participant to use a compatible browser and retry. Producers
-are not recorded and do not need this preflight. There is no upload-only or
+OPFS preflight that creates, writes, closes, and removes a disposable file in
+the `Sharecut Recordings/` keeper directory. The action remains disabled
+while the preflight is pending or if the browser/app environment cannot provide writable OPFS; the UI
+asks the participant to use a compatible browser and offers Retry local backup.
+The host Start transport checks the same verified sink even when invoked outside
+the room panel, and host capture uses that sink. A guest who leaves and rejoins
+in the lobby or between takes must complete a fresh preflight and Accept again
+before host Start. Producers are not recorded and do not need this preflight. There is no upload-only or
 alternate local sink path.
 
 Host admit / waiting room is **not** in this PR (ROADMAP Follow-up).

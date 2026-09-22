@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { isShareProjectKey } from "../shareMode";
 import { useDaw } from "../state/useDaw";
+import { prepareHostKeeperStorage } from "./hostKeeperStorage";
 import { useRecordHostStore } from "./hostStore";
 import { sendRecordHostCommand } from "./hostWire";
 import { useKeeperCapture } from "./keeper/useKeeperCapture";
@@ -27,6 +28,7 @@ export function useHostKeeperCapture(enabled = true): {
   const snapshot = useRecordHostStore((s) => s.snapshot);
   const setSnapshot = useRecordHostStore((s) => s.setSnapshot);
   const connected = useRecordHostStore((s) => s.connected);
+  const sink = useRecordHostStore((s) => s.keeperSink);
   const pathRef = useRef(projectPath);
 
   useEffect(() => {
@@ -61,15 +63,22 @@ export function useHostKeeperCapture(enabled = true): {
     }
   }, []);
 
+  useEffect(() => {
+    if (hostOn && keeperLive && !sink) {
+      void prepareHostKeeperStorage().catch(() => undefined);
+    }
+  }, [hostOn, keeperLive, sink]);
+
   const mic = useMicStream(micLive, "", resetKey);
   const keeper = useKeeperCapture({
-    enabled: hostOn && keeperLive,
+    enabled: hostOn && keeperLive && sink !== null,
     role: "host",
     snapshot,
     participantId: hostOn && keeperLive ? "p_host" : null,
     muted: host?.muted ?? false,
     consented: true,
     stream: mic.stream,
+    sink,
     resetKey,
     onActivity: onKeeperActivity,
   });
