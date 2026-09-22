@@ -124,6 +124,7 @@ describe("RecordPanel", () => {
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     useDawStore.setState({ recordPanelOpen: true });
     useRecordHostStore.getState().setSnapshot(null);
+    useRecordHostStore.getState().setKeeperStorage(null, null);
     useRecordHostStore.getState().setConnected(false);
   });
 
@@ -198,11 +199,21 @@ describe("RecordPanel", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Retry local backup" }),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Start" })).toBeEnabled(),
+    );
   });
 
-  it("keeps Start disabled while the storage preflight is pending", () => {
+  it("keeps Start disabled while the storage preflight is pending", async () => {
+    let finish: (sink: MemorySink) => void = () => undefined;
     vi.mocked(createOpfsSink).mockImplementationOnce(
-      () => new Promise(() => undefined),
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
     );
     useRecordHostStore.getState().setSnapshot({
       ...lobby,
@@ -224,6 +235,10 @@ describe("RecordPanel", () => {
       screen.getByText("Preparing local recording backup…"),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
+    finish(new MemorySink());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Start" })).toBeEnabled(),
+    );
   });
 
   it("shows the specific OPFS copy when the storage API is missing", async () => {

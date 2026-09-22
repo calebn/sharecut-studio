@@ -36,6 +36,7 @@ type Props = {
   roomToneCaptureReady?: boolean;
   localStorageReady?: boolean;
   localStorageError?: string | null;
+  onRetryStorage?: () => void;
   showRoomTone?: boolean;
 };
 
@@ -68,6 +69,7 @@ export function Lobby({
   roomToneCaptureReady = true,
   localStorageReady = true,
   localStorageError = null,
+  onRetryStorage,
   showRoomTone = true,
 }: Props) {
   const nameId = useId();
@@ -149,7 +151,14 @@ export function Lobby({
                 </>
               ) : null}
               {localStorageCopy ? (
-                <p id={localStorageGateId}>{localStorageCopy}</p>
+                <div>
+                  <p id={localStorageGateId}>{localStorageCopy}</p>
+                  {localStorageError && onRetryStorage ? (
+                    <Button type="button" onClick={onRetryStorage}>
+                      Retry local backup
+                    </Button>
+                  ) : null}
+                </div>
               ) : null}
               <ConsentGate
                 onAccept={onAccept}

@@ -160,9 +160,11 @@ flowchart TD
 4. Separate **recording consent** step. Encoder armed on Accept; **zero keeper
    WAV bytes** until host Start. Room-tone PUT waits for Accept (local lobby
    capture is allowed; Skip/Decline discards it).
-5. Host Start is enabled when every **recorded guest** currently in the lobby
-   has consented (producers skip this gate; `"No one has joined"` until a guest
-   connects).
+5. Host Start requires a verified writable local OPFS backup for the host and
+   is enabled when every **recorded guest** currently in the lobby has consented
+   (producers skip this gate; `"No one has joined"` until a guest connects). A
+   guest who rejoins before a new take must retry local backup readiness and
+   Accept again. Failed backup readiness offers **Retry local backup**.
 6. While REC is on, guest sees the roster, clock, "Recording locally on this
    device," and **Hearing the room.** Press **M** for a Marker or type a note
    (other guests in the record room never see it; after land it is an ordinary

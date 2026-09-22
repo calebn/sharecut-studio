@@ -171,6 +171,7 @@ export async function createOpfsSink(): Promise<ByteSink> {
     throw new OpfsUnavailableError();
   }
   const root = await storage.getDirectory();
+  await assertOpfsWritable(root);
   return {
     async write(path: string, bytes: Uint8Array) {
       const file = await fileHandle(root, path, true);
@@ -256,6 +257,46 @@ export async function createOpfsSink(): Promise<ByteSink> {
       }
     },
   };
+}
+
+function probeFileName(): string {
+  const id =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  return `.sharecut-opfs-probe-${id}`;
+}
+
+async function assertOpfsWritable(
+  root: FileSystemDirectoryHandle,
+): Promise<void> {
+  const name = probeFileName();
+  const keeperRoot = await root.getDirectoryHandle("Sharecut Recordings", {
+    create: true,
+  });
+  let writable: FileSystemWritableFileStream | undefined;
+  try {
+    const file = await keeperRoot.getFileHandle(name, { create: true });
+    writable = await file.createWritable();
+    await writable.write(new Uint8Array([0]));
+    await writable.close();
+    writable = undefined;
+  } catch (error) {
+    if (writable) {
+      try {
+        await writable.close();
+      } catch {
+        // Preserve the original OPFS readiness failure.
+      }
+    }
+    throw error;
+  } finally {
+    try {
+      await keeperRoot.removeEntry(name);
+    } catch {
+      // A cleanup failure must not hide a readiness failure.
+    }
+  }
 }
 
 async function fileHandle(

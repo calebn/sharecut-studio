@@ -7,9 +7,13 @@ import { submitHostRecordTransport } from "./hostTransport";
 const postHost = vi.fn();
 const loadState = vi.fn();
 const publishCloseGuard = vi.hoisted(() => vi.fn());
+const prepareStorage = vi.hoisted(() => vi.fn());
 
 vi.mock("../desktop/useDesktopCloseGuard", () => ({
   publishDesktopCloseGuard: publishCloseGuard,
+}));
+vi.mock("./hostKeeperStorage", () => ({
+  prepareHostKeeperStorage: () => prepareStorage(),
 }));
 
 vi.mock("../api", () => ({
@@ -21,6 +25,8 @@ describe("submitHostRecordTransport", () => {
   beforeEach(() => {
     postHost.mockReset();
     loadState.mockReset();
+    prepareStorage.mockReset();
+    prepareStorage.mockResolvedValue(undefined);
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     useRecordHostStore.getState().setSnapshot(null);
     useRecordHostStore.setState({
@@ -55,6 +61,7 @@ describe("submitHostRecordTransport", () => {
       });
     });
     const pending = submitHostRecordTransport("Start");
+    await vi.waitFor(() => expect(postHost).toHaveBeenCalledTimes(1));
     expect(useRecordHostStore.getState().startPending).toBe(true);
     useRecordHostStore.getState().setSnapshot({
       session_id: "room1",
@@ -156,6 +163,7 @@ describe("submitHostRecordTransport", () => {
       caps: { recorded: 4, producers: 2 },
     });
     const startP = submitHostRecordTransport("Start");
+    await vi.waitFor(() => expect(postHost).toHaveBeenCalledTimes(1));
     await submitHostRecordTransport("Pause");
     expect(useRecordHostStore.getState().startPending).toBe(false);
     resolveStart({
@@ -170,6 +178,30 @@ describe("submitHostRecordTransport", () => {
     await startP;
     expect(useRecordHostStore.getState().snapshot?.state).toBe("paused");
     expect(useRecordHostStore.getState().startPending).toBe(false);
+  });
+
+  it("does not post Start when local storage preflight fails", async () => {
+    prepareStorage.mockRejectedValueOnce(new Error("quota"));
+    await expect(submitHostRecordTransport("Start")).rejects.toThrow("quota");
+    expect(postHost).not.toHaveBeenCalled();
+    expect(publishCloseGuard).not.toHaveBeenCalled();
+    expect(useRecordHostStore.getState().startPending).toBe(false);
+  });
+
+  it("waits for local storage before posting Start", async () => {
+    let resolveStorage: () => void = () => undefined;
+    prepareStorage.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveStorage = resolve;
+        }),
+    );
+    postHost.mockResolvedValue({ state: "recording" });
+    const start = submitHostRecordTransport("Start");
+    expect(postHost).not.toHaveBeenCalled();
+    resolveStorage();
+    await start;
+    expect(postHost).toHaveBeenCalledOnce();
   });
 
   it("heals a 400 when the session is already in the expected state", async () => {

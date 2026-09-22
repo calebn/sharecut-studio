@@ -4,6 +4,7 @@ import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import { useRecordHostStore } from "./hostStore";
 import { bindRecordHostSend } from "./hostWire";
+import { MemorySink } from "./keeper/store";
 import type { RecordSnapshot } from "./types";
 import { useHostKeeperCapture } from "./useHostKeeperCapture";
 
@@ -24,6 +25,7 @@ const keeper = vi.hoisted(() =>
   vi.fn(
     (args: {
       resetKey?: number;
+      sink?: MemorySink | null;
       enabled: boolean;
       onActivity?: () => void;
     }) => ({
@@ -71,8 +73,16 @@ describe("useHostKeeperCapture", () => {
     keeper.mockClear();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     useRecordHostStore.getState().setSnapshot(recording);
+    useRecordHostStore.getState().setKeeperStorage(new MemorySink(), null);
     useRecordHostStore.getState().setConnected(false);
     bindRecordHostSend(null);
+  });
+
+  it("passes the preflighted host sink to keeper capture", () => {
+    const sink = new MemorySink();
+    useRecordHostStore.getState().setKeeperStorage(sink, null);
+    renderHook(() => useHostKeeperCapture());
+    expect(keeper.mock.calls.at(-1)?.[0].sink).toBe(sink);
   });
 
   it("rearms keeper heartbeats after five seconds and retries an unbound send", async () => {

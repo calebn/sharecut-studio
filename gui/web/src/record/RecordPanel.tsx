@@ -4,14 +4,13 @@ import { useDaw } from "../state/useDaw";
 import { Button, CommandButton, Dialog } from "../ui";
 import { startBlockers } from "./blockers";
 import { HostUploadRoster } from "./HostUploadRoster";
+import {
+  prepareHostKeeperStorage,
+  retryHostKeeperStorage,
+} from "./hostKeeperStorage";
 import { useRecordHostStore } from "./hostStore";
 import { submitHostRecordTransport } from "./hostTransport";
 import { sendRecordHostCommand } from "./hostWire";
-import {
-  type ByteSink,
-  createOpfsSink,
-  OpfsUnavailableError,
-} from "./keeper/store";
 import { LiveComments } from "./LiveComments";
 import { HOST_COMMENT_QUEUE_TOKEN } from "./liveCommentQueue";
 import { MicLossNotice } from "./MicLossNotice";
@@ -29,9 +28,7 @@ import {
   hostReconnectPauseCopyFromSnapshot,
   LOCAL_KEEPER_COPY,
   LOCAL_KEEPER_PENDING_COPY,
-  OPFS_UNAVAILABLE_COPY,
   shouldApplyRecordSnapshot,
-  UPLOAD_SINK_ERROR_COPY,
 } from "./types";
 import { UploadStatus } from "./UploadStatus";
 import { downloadLocalKeepers } from "./upload/recovery";
@@ -105,30 +102,12 @@ export function RecordPanel({
   const [transportError, setTransportError] = useState<string | null>(null);
   const [hydrateError, setHydrateError] = useState<string | null>(null);
   const [transportBusy, setTransportBusy] = useState(false);
-  const [sink, setSink] = useState<ByteSink | null>(null);
-  const [sinkError, setSinkError] = useState<string | null>(null);
+  const sink = useRecordHostStore((s) => s.keeperSink);
+  const sinkError = useRecordHostStore((s) => s.keeperStorageError);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const [uploadRetryNonce, setUploadRetryNonce] = useState(0);
   useEffect(() => {
-    let cancelled = false;
-    void createOpfsSink()
-      .then((next) => {
-        if (!cancelled) {
-          setSink(next);
-          setSinkError(null);
-        }
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          setSinkError(
-            error instanceof OpfsUnavailableError
-              ? OPFS_UNAVAILABLE_COPY
-              : UPLOAD_SINK_ERROR_COPY,
-          );
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
+    void prepareHostKeeperStorage().catch(() => undefined);
   }, []);
   const localStorageReady = sink !== null;
   const canStart =
@@ -277,7 +256,7 @@ export function RecordPanel({
                       "p_host",
                       snapshot.take_index,
                     ).catch((error: unknown) => {
-                      setSinkError(
+                      setDownloadError(
                         error instanceof Error ? error.message : String(error),
                       );
                     });
@@ -315,7 +294,22 @@ export function RecordPanel({
               ) : null}
             </>
           ) : null}
-          {sinkError ? <p className="record-warn">{sinkError}</p> : null}
+          {sinkError ? (
+            <>
+              <p className="record-warn">{sinkError}</p>
+              <Button
+                type="button"
+                onClick={() => {
+                  void retryHostKeeperStorage().catch(() => undefined);
+                }}
+              >
+                Retry local backup
+              </Button>
+            </>
+          ) : null}
+          {downloadError ? (
+            <p className="record-warn">{downloadError}</p>
+          ) : null}
           {monitorError ? <p className="record-warn">{monitorError}</p> : null}
           {hydrateError ? <p className="record-warn">{hydrateError}</p> : null}
           {transportError ? (
