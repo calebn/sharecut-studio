@@ -16,6 +16,7 @@ from podcast_mcp.services import ProjectWorkspace
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.handlers import apply_command
+from podcast_mcp.services.document_sync.payloads import parse_document_command, validate_payload
 from podcast_mcp.services.history import HistoryService
 from podcast_mcp.services.session_sync.authz import authorize_client
 
@@ -658,6 +659,39 @@ def test_document_markers_envelope_and_suggest(minimal_project):
     )
     ws5 = ProjectWorkspace.open(minimal_project)
     assert ws5.project.chapters == []
+
+
+def test_document_set_envelope_accepts_and_journals_legacy_points(minimal_project):
+    payload = {
+        "track_id": "host",
+        "points": [{"time": 0.0, "value": 1.0}, {"time": 5.0, "value": 0.5}],
+    }
+    host_payload = validate_payload("SetEnvelope", payload)
+    assert all(point["id"] for point in host_payload["points"])
+    parsed = parse_document_command(
+        {
+            "type": "SetEnvelope",
+            "payload": payload,
+            "client_id": "viewer",
+            "role": "viewer",
+            "client_seq": 1,
+        }
+    )
+    assert all(point["id"] for point in parsed.payload["points"])
+
+    result = DocumentSyncService.open(minimal_project).submit(
+        DocumentCommand(
+            type="SetEnvelope",
+            payload=payload,
+            client_id="direct",
+            role="viewer",
+            client_seq=1,
+        )
+    )
+    logged_ids = [point["id"] for point in result["command"]["payload"]["points"]]
+    assert len(set(logged_ids)) == 2
+    stored = ProjectWorkspace.open(minimal_project).project.automation_envelopes[0]
+    assert [point.id for point in stored.points] == logged_ids
 
 
 def test_authorize_document_command_caps():

@@ -187,6 +187,10 @@ Users don’t need tool IDs. They need this story:
 3. **Commit** — same services agents use → history snapshot.
 4. **Possibly re-render** — stems/premix may show “stale” until refresh.
 
+If a selected envelope point changes in another tab before Apply or Delete,
+the inspector asks the user to select it again instead of editing a different
+point at the same timeline position.
+
 ```mermaid
 sequenceDiagram
   participant U as User / Guest

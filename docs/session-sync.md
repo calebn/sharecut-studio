@@ -193,7 +193,7 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 | `CorrectTranscriptWord` | `EditService.correct_word` | `track_id`, `word_index`, `text` |
 | `CorrectTranscriptPhrase` | `EditService.correct_phrase` | `track_id`, `start_word_index`, `end_word_index`, `text` |
 | `SetTranscriptWordSuppressed` | `EditService.set_word_suppressed` | `track_id`, `word_index`, `suppressed` |
-| `SetEnvelope` | `PipelineService.set_envelope` | `track_id`, `points: [{id, time, value}]` |
+| `SetEnvelope` | `PipelineService.set_envelope` | `track_id`, `points: [{time, value, id?}]`; missing IDs are generated before the command is journaled |
 | `AddChapter` | `EditService.add_chapter` | `time`, `title` (timeline clocks) |
 | `UpdateChapter` | `EditService.update_chapter` | `old_time`, `old_title`, `time`, `title` |
 | `DeleteChapter` | `EditService.delete_chapter` | `time`, `title` |

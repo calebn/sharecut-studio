@@ -286,7 +286,7 @@
     },
     "AutomationPoint": {
       "type": "object",
-      "required": ["id", "time", "value"],
+      "required": ["time", "value"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
         "time": { "type": "number" },
