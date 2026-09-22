@@ -618,6 +618,20 @@ def test_script_build_invokes_service(tmp_path, monkeypatch):
     assert called["force"] is True
 
 
+def test_script_build_uses_service_default_classes(tmp_path, monkeypatch):
+    harness = _load_script()
+    called: dict = {}
+
+    def fake_build(project, out, **kwargs):
+        called["classes"] = kwargs["classes"]
+        return {"out_dir": str(out), "pair_count": 0, "skipped_unsuggestable": 0}
+
+    monkeypatch.setattr(harness, "build_golden_ear", fake_build)
+    assert harness.main(["build", "--project", str(FIXTURE), "--out", str(tmp_path / "out")]) == 0
+    assert called["classes"] is None
+    assert parse_classes(called["classes"]) == ("filler", "pause", "repetition", "restart")
+
+
 def test_build_real_aligned_dialogue_smoke(tmp_path):
     eng = FFmpegEngine()
     ok, _ = eng.check_available()
