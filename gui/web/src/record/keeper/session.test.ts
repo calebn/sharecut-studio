@@ -45,6 +45,7 @@ describe("KeeperSession", () => {
       roomState: "recording" as const,
       takeIndex: 0,
       recordingMs: 0,
+      streamAvailable: true,
       muted: false,
     };
     await expect(session.apply(gate)).rejects.toThrow("header failed");
@@ -73,6 +74,7 @@ describe("KeeperSession", () => {
       roomState: "recording" as const,
       takeIndex: 0,
       recordingMs: 0,
+      streamAvailable: true,
       muted: false,
     };
     await session.apply(gate);
@@ -115,6 +117,7 @@ describe("KeeperSession", () => {
       roomState: "recording" as const,
       takeIndex: 0,
       recordingMs: 0,
+      streamAvailable: true,
       muted: false,
     };
     await session.apply(gate);
@@ -158,6 +161,7 @@ describe("KeeperSession", () => {
       roomState: "recording" as const,
       takeIndex: 0,
       recordingMs: 0,
+      streamAvailable: true,
       muted: false,
     };
     await session.apply(gate);
@@ -212,6 +216,7 @@ describe("KeeperSession", () => {
       roomState: "recording" as const,
       takeIndex: 0,
       recordingMs: 0,
+      streamAvailable: true,
       muted: false,
     };
     await session.apply(gate);
@@ -265,6 +270,7 @@ describe("KeeperSession", () => {
       roomState: "recording",
       takeIndex: 0,
       recordingMs: 0,
+      streamAvailable: true,
       muted: false,
     });
     session.push(tone(220, 0.02), KEEPER_SAMPLE_RATE);
@@ -294,8 +300,8 @@ describe("KeeperSession", () => {
       roomState: "lobby",
       takeIndex: -1,
       recordingMs: 0,
-      muted: false,
       streamAvailable: true,
+      muted: false,
     });
     session.push(tone(220, 0.05), KEEPER_SAMPLE_RATE);
     await session.dispose();
@@ -312,8 +318,8 @@ describe("KeeperSession", () => {
       roomState: "recording",
       takeIndex: 0,
       recordingMs: 0,
-      muted: false,
       streamAvailable: true,
+      muted: false,
     });
     session.push(tone(220, 0.1), KEEPER_SAMPLE_RATE);
     await session.flush();
@@ -345,8 +351,8 @@ describe("KeeperSession", () => {
       roomState: "recording" as const,
       takeIndex: 0,
       recordingMs: 0,
-      muted: false,
       streamAvailable: true,
+      muted: false,
     };
     await session.apply(live);
     session.push(tone(440, 0.05), KEEPER_SAMPLE_RATE);
@@ -408,6 +414,7 @@ describe("KeeperSession", () => {
       roomState: "recording" as const,
       takeIndex: 0,
       recordingMs: 0,
+      streamAvailable: true,
       muted: false,
     };
     await session.apply({ ...base, streamAvailable: true });
@@ -440,8 +447,8 @@ describe("KeeperSession", () => {
       roomState: "recording",
       takeIndex: 0,
       recordingMs: 0,
-      muted: false,
       streamAvailable: true,
+      muted: false,
     });
     session.push(tone(220, 0.05), KEEPER_SAMPLE_RATE);
     await session.dispose();
@@ -458,8 +465,8 @@ describe("KeeperSession", () => {
       roomState: "recording" as const,
       takeIndex: 0,
       recordingMs: 0,
-      muted: false,
       streamAvailable: true,
+      muted: false,
     };
     const first = session.apply(live);
     const second = session.apply({ ...live, muted: true });
@@ -479,8 +486,8 @@ describe("KeeperSession", () => {
       roomState: "recording",
       takeIndex: 0,
       recordingMs: 0,
-      muted: false,
       streamAvailable: true,
+      muted: false,
     });
     first.push(tone(220, 0.02), KEEPER_SAMPLE_RATE);
     await first.dispose();
