@@ -25,6 +25,7 @@ export type ContextPredicateId =
   | "canRefreshMix"
   | "canIngestMedia"
   | "canManageProjects"
+  | "canExportProject"
   | "trackInspectorSelected"
   | "canMoveSelectedTrackUp"
   | "canMoveSelectedTrackDown"

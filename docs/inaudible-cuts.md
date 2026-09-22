@@ -107,6 +107,10 @@ Cut-producing commands that accept `--inaudible-opt` / `--no-inaudible-opt`: `cu
 
 ## Join continuity (perceptual splice QA)
 
+Join detection shares one 50 ms tolerance (`JOIN_GAP_TOLERANCE_SEC`) across
+clip editing, audio audit, and timeline rendering. Gaps at or below the
+tolerance are treated as joins; larger gaps remain intentional timeline space.
+
 FOSS multi-detector join scoring (`edits/join_continuity.py` + paper reimpl in
 `edits/join_cost_spectral.py`): click, level, spectral flux, MFCC/LSF/MCA join
 costs (Vepa & King), noise floor, F0, onset, bicoherence proxy, late-energy /

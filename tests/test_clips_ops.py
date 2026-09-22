@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from podcast_mcp.edits.clips_ops import (
+    JOIN_GAP_TOLERANCE_SEC,
+    clips_for_track,
     remove_timeline_range_from_clips,
     split_clip_at,
 )
-from podcast_mcp.models import Clip
+from podcast_mcp.models import Clip, EpisodeProject
 
 
 def _clip(tl_start: float, src_start: float, dur: float, tid: str = "host") -> Clip:
@@ -32,3 +34,11 @@ def test_remove_timeline_range() -> None:
     assert out[0].source_end == 2.0
     assert out[1].timeline_start == 2.0
     assert out[1].source_start == 7.0
+
+
+def test_clips_for_track_is_canonically_sorted() -> None:
+    project = EpisodeProject.create("sort", "/tmp/sort")
+    project.timeline.clips = [_clip(2.0, 2.0, 1.0), _clip(0.0, 0.0, 1.0)]
+
+    assert [clip.timeline_start for clip in clips_for_track(project, "host")] == [0.0, 2.0]
+    assert JOIN_GAP_TOLERANCE_SEC == 0.05

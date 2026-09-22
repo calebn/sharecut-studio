@@ -14,6 +14,8 @@ from podcast_mcp.engines.session_timeline import (
 )
 from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject, SourceRecording
 
+JOIN_GAP_TOLERANCE_SEC = 0.05
+
 
 def new_clip_id() -> str:
     return f"clip_{uuid.uuid4().hex[:8]}"

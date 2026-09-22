@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from podcast_mcp.config import load_defaults
-from podcast_mcp.edits.clips_ops import clips_for_track
+from podcast_mcp.edits.clips_ops import JOIN_GAP_TOLERANCE_SEC, clips_for_track
 from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms
 from podcast_mcp.models import ClipJoinMode, EpisodeProject, TrackRole
 from podcast_mcp.util.change_summary import change_summary
@@ -47,7 +47,7 @@ def _abutting_pairs(clips: list) -> list[tuple]:
     pairs: list[tuple] = []
     for i in range(len(clips) - 1):
         left, right = clips[i], clips[i + 1]
-        if right.timeline_start - left.timeline_end <= 0.05:
+        if right.timeline_start - left.timeline_end <= JOIN_GAP_TOLERANCE_SEC:
             pairs.append((left, right))
     return pairs
 

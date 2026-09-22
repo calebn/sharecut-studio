@@ -168,6 +168,42 @@ describe("command governance", () => {
     }
   });
 
+  it("keeps labels consistent between the keymap and catalog", () => {
+    for (const keymapCommand of KEYMAP_COMMANDS) {
+      const catalogCommand = COMMANDS[keymapCommand.id];
+      if (catalogCommand) {
+        expect(catalogCommand.label, keymapCommand.id).toBe(
+          keymapCommand.label,
+        );
+      }
+    }
+  });
+
+  it("enables bounce only for a loaded host project", () => {
+    useDawStore.setState({
+      projectPath: "/tmp/ep",
+      guestMode: null,
+      project: { meta: { name: "t" }, tracks: [] } as never,
+    });
+    expect(evaluateWhen("canExportProject", buildCommandContext()).ok).toBe(
+      true,
+    );
+
+    useDawStore.setState({ project: null });
+    const ctx = buildCommandContext();
+    expect(evaluateWhen("canSuggestStructural", ctx).ok).toBe(false);
+    expect(evaluateWhen("canExportProject", ctx).ok).toBe(false);
+
+    useDawStore.setState({
+      projectPath: "share:token",
+      guestMode: "edit",
+      project: { meta: { name: "t" }, tracks: [] } as never,
+    });
+    expect(evaluateWhen("canExportProject", buildCommandContext()).ok).toBe(
+      false,
+    );
+  });
+
   it("every keybinding declares a when predicate", () => {
     for (const k of KEYMAP_COMMANDS) {
       expect(k.when).toBeTruthy();
