@@ -319,8 +319,8 @@ export function useKeeperCapture({
           return;
         }
         if (session.error === null && session.isWriting) {
-          setError(null);
-          setWriting(true);
+          // A healthy writable is not enough until the audio tap reattaches.
+          setWriting(false);
           setEpoch((n) => n + 1);
         }
       })
