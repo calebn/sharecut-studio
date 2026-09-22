@@ -18,4 +18,18 @@ describe("readApiFailure", () => {
     expect(error.message).toBe("Transcript refine is required before edits.");
     expect(error.code).toBe(TRANSCRIPT_REFINE_REQUIRED_CODE);
   });
+
+  it("unwraps nested FastAPI conflict details", async () => {
+    const response = new Response(
+      JSON.stringify({
+        detail: {
+          detail: "Envelope changed; refresh and retry.",
+          conflict: true,
+        },
+      }),
+      { status: 409 },
+    );
+    const error = await readApiFailure(response);
+    expect(error.message).toBe("Envelope changed; refresh and retry.");
+  });
 });

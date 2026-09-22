@@ -1713,6 +1713,31 @@
         "title": "EnvelopePoint",
         "type": "object"
       },
+      "ExpectedEnvelopePoint": {
+        "description": "A baseline point; unlike a new point, its identity is never implicit.",
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "time": {
+            "title": "Time",
+            "type": "number"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "time",
+          "value"
+        ],
+        "title": "ExpectedEnvelopePoint",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -3420,6 +3445,13 @@
       },
       "SetEnvelopePayload": {
         "properties": {
+          "expected_points": {
+            "items": {
+              "$ref": "#/components/schemas/ExpectedEnvelopePoint"
+            },
+            "title": "Expected Points",
+            "type": "array"
+          },
           "points": {
             "items": {
               "$ref": "#/components/schemas/EnvelopePoint"
@@ -3433,7 +3465,8 @@
           }
         },
         "required": [
-          "track_id"
+          "track_id",
+          "expected_points"
         ],
         "title": "SetEnvelopePayload",
         "type": "object"

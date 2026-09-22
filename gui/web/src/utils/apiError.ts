@@ -14,12 +14,10 @@ export class ApiError extends Error {
 export async function readApiError(res: Response): Promise<string> {
   const text = await res.text();
   try {
-    const body = JSON.parse(text) as { message?: unknown; detail?: unknown };
-    if (typeof body.message === "string" && body.message.trim()) {
-      return body.message.trim();
-    }
-    if (typeof body.detail === "string" && body.detail.trim()) {
-      return body.detail.trim();
+    const body: unknown = JSON.parse(text);
+    const message = nestedApiMessage(body);
+    if (message) {
+      return message;
     }
   } catch {
     // not JSON
@@ -28,6 +26,17 @@ export async function readApiError(res: Response): Promise<string> {
     return "Host offline — ask them to run podcast tunnel and try again.";
   }
   return text.trim() || `Request failed (${res.status})`;
+}
+
+function nestedApiMessage(value: unknown): string | null {
+  if (typeof value === "string" && value.trim()) {
+    return value.trim();
+  }
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const record = value as Record<string, unknown>;
+  return nestedApiMessage(record.message) ?? nestedApiMessage(record.detail);
 }
 
 /** Preserve a stable server error code alongside its display message. */

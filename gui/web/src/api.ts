@@ -643,10 +643,12 @@ export async function setEnvelope(
   projectPath: string,
   trackId: string,
   points: AutomationPoint[],
+  expectedPoints: AutomationPoint[],
 ): Promise<void> {
   await submitDocumentCommand(projectPath, "SetEnvelope", {
     track_id: trackId,
     points,
+    expected_points: expectedPoints,
   });
 }
 

@@ -133,10 +133,18 @@ describe("EnvelopeOverlay", () => {
     fireEvent.pointerDown(early);
     fireEvent.pointerMove(early, { clientX: 100, clientY: 8 });
     fireEvent.pointerUp(early);
-    expect(setEnvelope).toHaveBeenCalledWith("/tmp/p.json", "host", [
-      { id: "late", time: 0, value: 0.5 },
-      { id: "early", time: 10, value: 1.40625 },
-    ]);
+    expect(setEnvelope).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      "host",
+      [
+        { id: "late", time: 0, value: 0.5 },
+        { id: "early", time: 10, value: 1.40625 },
+      ],
+      [
+        { id: "late", time: 0, value: 0.5 },
+        { id: "early", time: 10, value: 1 },
+      ],
+    );
   });
 
   it("clears a drag draft on pointer cancel", () => {
