@@ -510,6 +510,94 @@ def test_restart_examples_strip_terminal_marker_and_split_partial_word():
         assert expected in [candidate.reason for candidate in candidates]
 
 
+def test_split_partial_restart_removes_repeated_prefix_and_retains_repair():
+    from podcast_mcp.edits.fillers import _collect_candidates
+
+    words = [
+        TranscriptWord(text="I", start=0.0, end=0.1),
+        TranscriptWord(text="w-", start=0.12, end=0.2),
+        TranscriptWord(text="I", start=0.22, end=0.32),
+        TranscriptWord(text="went", start=0.34, end=0.52),
+    ]
+    project = _project_with_transcript(words)
+    candidates = _collect_candidates(
+        project.transcripts[0], {"tighten": {"filler_words": []}}, project=project
+    )
+
+    assert [(candidate.start, candidate.end, candidate.reason) for candidate in candidates] == [
+        (0.0, 0.2, "restart:partial:w")
+    ]
+    retained = [word.text for word in words if word.start >= candidates[0].end]
+    assert " ".join(retained) == "I went"
+
+
+def test_multiword_filler_repeat_does_not_become_restart_candidate():
+    from podcast_mcp.edits.fillers import _collect_candidates
+
+    words = [
+        TranscriptWord(text="you", start=0.0, end=0.1),
+        TranscriptWord(text="know", start=0.12, end=0.25),
+        TranscriptWord(text="you", start=0.27, end=0.37),
+        TranscriptWord(text="know", start=0.39, end=0.52),
+    ]
+    project = _project_with_transcript(words)
+    candidates = _collect_candidates(
+        project.transcripts[0],
+        {"tighten": {"filler_words": ["you know"], "min_filler_cluster": 2}},
+        project=project,
+    )
+
+    assert not any(candidate.cut_kind in {"repeat", "restart"} for candidate in candidates)
+
+
+def test_periodic_phrase_repeat_produces_one_small_restart_proposal():
+    from podcast_mcp.edits.fillers import _collect_candidates
+
+    words = [
+        TranscriptWord(text=text, start=index * 0.12, end=index * 0.12 + 0.1)
+        for index, text in enumerate(("a", "b", "a", "b", "a", "b"))
+    ]
+    project = _project_with_transcript(words)
+    candidates = _collect_candidates(
+        project.transcripts[0], {"tighten": {"filler_words": []}}, project=project
+    )
+
+    assert [(candidate.start, candidate.end, candidate.reason) for candidate in candidates] == [
+        (0.0, 0.22, "restart:phrase:a b")
+    ]
+
+
+def test_periodic_phrase_restart_stays_bounded_after_proposal_coalescing(monkeypatch):
+    from podcast_mcp.edits import tighten as tighten_module
+    from podcast_mcp.edits.fillers import _AnalyzedCut
+
+    words = [
+        TranscriptWord(text=text, start=index * 0.12, end=index * 0.12 + 0.1)
+        for index, text in enumerate(("a", "b", "a", "b", "a", "b"))
+    ]
+    project = _project_with_transcript(words)
+    monkeypatch.setattr(tighten_module, "build_track_audio_caches", lambda *_args: {})
+
+    def analyze(_project, candidate, _defaults, *, audio_cache=None):
+        return _AnalyzedCut(
+            track_id=candidate.track_id,
+            start=candidate.start,
+            end=candidate.end,
+            reason=candidate.reason,
+            review_required=True,
+            crossfade_ms=10,
+            cut_confidence=0.9,
+            boundary_mode="vocal_transcript_guided",
+        )
+
+    monkeypatch.setattr(tighten_module, "_analyze_candidate", analyze)
+    proposal = tighten_module.propose_tighten_edits(project, {"tighten": {"filler_words": []}})
+
+    assert [(edit.start, edit.end, edit.reason) for edit in proposal.decisions] == [
+        (0.0, 0.22, "restart:phrase:a b")
+    ]
+
+
 def test_semantic_correction_is_not_detected_as_restart():
     from podcast_mcp.edits.fillers import _collect_candidates
 
