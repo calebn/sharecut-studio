@@ -412,12 +412,21 @@ def test_score_math_pass_fail_and_script(tmp_path):
     assert incomplete["per_reason"]["filler:um"]["missing_n"] == 1
 
     answers.write_text(
-        "pair_id,prefer,leftover_consonant,notes\npair_000,1,,\npair_001,2,no,\npair_002,2,no,\n",
+        "pair_id,prefer,leftover_consonant,notes\n"
+        "pair_000,1,,\n"
+        "pair_001,2,maybe,\n"
+        "pair_002,2,no,\n",
         encoding="utf-8",
     )
     blank_leftover = score_golden_ear(tmp_path, answers)
     assert blank_leftover["pass"] is False
-    assert blank_leftover["leftover_consonant_fails"] == 1
+    assert blank_leftover["leftover_consonant_fails"] == 2
+    assert blank_leftover["per_class"]["filler"]["answered_n"] == 0
+    assert blank_leftover["per_class"]["filler"]["missing_n"] == 2
+    assert blank_leftover["per_reason"]["filler:um"]["answered_n"] == 0
+    assert blank_leftover["per_reason"]["filler:um"]["missing_n"] == 2
+    assert blank_leftover["per_track"]["reference"]["answered_n"] == 0
+    assert blank_leftover["per_track"]["reference"]["missing_n"] == 2
 
     empty = tmp_path / "empty"
     empty.mkdir()

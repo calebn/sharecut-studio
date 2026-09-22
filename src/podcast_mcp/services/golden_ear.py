@@ -527,6 +527,7 @@ def score_golden_ear(out_dir: Path, answers: Path) -> dict[str, Any]:
         prefer = _normalize_prefer(row.get("prefer") or "", meta)
         leftover = _normalize_leftover(row.get("leftover_consonant") or "")
         missing = prefer is None
+        answered = prefer is not None and leftover is not None
         if missing:
             missing_n += 1
             incomplete = True
@@ -542,6 +543,7 @@ def score_golden_ear(out_dir: Path, answers: Path) -> dict[str, Any]:
                 "id": pair_id,
                 "prefer": prefer,
                 "missing": missing,
+                "answered": answered,
                 "leftover_consonant": leftover,
                 "class": meta.get("class") or "filler",
                 "reason": meta.get("reason") or "",
@@ -557,7 +559,7 @@ def score_golden_ear(out_dir: Path, answers: Path) -> dict[str, Any]:
         return sum(1 for r in rows if r["prefer"] == "edit") / len(rows)
 
     def _acceptance_rollup(rows: list[dict[str, Any]]) -> dict[str, Any]:
-        answered = [row for row in rows if not row["missing"]]
+        answered = [row for row in rows if row["answered"]]
         return {
             "n": len(rows),
             "answered_n": len(answered),
