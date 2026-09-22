@@ -175,6 +175,8 @@ describe("RecordPanel", () => {
         .__TAURI_INTERNALS__;
       Reflect.deleteProperty(navigator, "userAgent");
     }
+  });
+
   it("keeps Start disabled with an actionable storage error", async () => {
     vi.mocked(createOpfsSink).mockRejectedValueOnce(new Error("quota"));
     useRecordHostStore.getState().setSnapshot({
