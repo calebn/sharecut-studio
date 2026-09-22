@@ -9,7 +9,6 @@ export const KEEPER_PROCESSOR_SOURCE = keeperProcessorSource;
 export async function attachKeeperTap(
   stream: MediaStream,
   onPcm: (pcm: Float32Array, sampleRate: number) => void,
-  onActivity?: () => void,
 ): Promise<() => void> {
   let ctx: AudioContext | null = null;
   try {
@@ -27,7 +26,6 @@ export async function attachKeeperTap(
     silent.gain.value = 0;
     node.port.onmessage = (ev: MessageEvent<Float32Array>) => {
       onPcm(ev.data, ctx?.sampleRate ?? KEEPER_SAMPLE_RATE);
-      onActivity?.();
     };
     source.connect(node);
     node.connect(silent);

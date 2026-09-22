@@ -228,17 +228,13 @@ export function useKeeperCapture({
     let cancelled = false;
     const start = async () => {
       try {
-        const detach = await attachKeeperTap(
-          stream,
-          (pcm, rate) => {
-            sessionRef.current?.push(pcm, rate);
-          },
-          () => {
-            if (sessionRef.current?.isWriting) {
-              onActivity?.();
-            }
-          },
-        );
+        const detach = await attachKeeperTap(stream, (pcm, rate) => {
+          const activeSession = sessionRef.current;
+          activeSession?.push(pcm, rate);
+          if (activeSession?.isWriting && !tapFailedRef.current) {
+            onActivity?.();
+          }
+        });
         if (cancelled) {
           detach();
           return;

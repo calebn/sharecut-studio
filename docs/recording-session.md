@@ -645,7 +645,7 @@ silently discard or count queued samples.
 
 On the **last** host connection drop (`disconnect` / `release_connection`)
 while `state ∈ {recording, paused}`, the service stamps
-`host_offline_since_wall_ms` from that socket's last beat (same sqlite
+`host_offline_since_wall_ms` from the observed socket close time (same sqlite
 `record_snapshot` row; no sidecar). A Leave command also stamps if the field
 is still empty. Host Join clears that field. If in-memory `_HOST_CONNS` is
 empty on the next host Join (sidecar crash without Leave) or the last host
@@ -672,9 +672,12 @@ The host keeper's AudioWorklet callback also supplies a host liveness beat
 while it is actively writing a recording segment. When PCM continues to reach
 the keeper in a hidden or minimized window, this avoids relying only on a
 background-throttled `window.setInterval`. The activity beat is sent at most
-once every 5 seconds; pausing, stopping, or losing the capture graph stops
-those beats. The existing timer maintains host presence when no segment is
-being written, and the 10-second disconnect pause rule remains in place.
+once every 5 seconds. A host timer maintains record presence while no segment
+is being written, including lobby and paused states. If a keeper write fails,
+the existing local-capture failure latch stops activity beats; the fallback
+timer is also held during REC until Retry local recording succeeds. An observed
+host socket close starts the 10-second reconnect window at close time; after
+an unobserved crash, the last stored beat remains the fallback estimate.
 
 ## Ownership and retention
 

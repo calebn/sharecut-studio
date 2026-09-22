@@ -1,5 +1,5 @@
-import { renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, renderHook } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import { useRecordHostStore } from "./hostStore";
@@ -25,7 +25,7 @@ const keeper = vi.hoisted(() =>
       enabled: boolean;
       onActivity?: () => void;
     }) => ({
-      error: null,
+      error: null as string | null,
       recordingLocally: args.enabled,
     }),
   ),
@@ -60,6 +60,10 @@ const recording: RecordSnapshot = {
 };
 
 describe("useHostKeeperCapture", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     mic.mockClear();
     keeper.mockClear();
@@ -69,16 +73,50 @@ describe("useHostKeeperCapture", () => {
     bindRecordHostSend(null);
   });
 
-  it("uses keeper activity for host liveness without a background timer", () => {
+  it("rearms keeper heartbeats after five seconds and retries an unbound send", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-21T00:00:00Z"));
     const sent: Record<string, unknown>[] = [];
-    bindRecordHostSend((frame) => sent.push(frame));
     renderHook(() => useHostKeeperCapture());
     const onActivity = keeper.mock.calls.at(-1)?.[0].onActivity;
     expect(onActivity).toBeTypeOf("function");
     onActivity?.();
+    expect(sent).toHaveLength(0);
+    bindRecordHostSend((frame) => sent.push(frame));
+    onActivity?.();
     onActivity?.();
     expect(sent).toHaveLength(1);
     expect(sent[0]?.command_type).toBe("Heartbeat");
+    await act(async () => vi.advanceTimersByTime(4_999));
+    onActivity?.();
+    expect(sent).toHaveLength(1);
+    await act(async () => vi.advanceTimersByTime(1));
+    onActivity?.();
+    expect(sent).toHaveLength(2);
+  });
+
+  it("uses a timer while no host segment is being written", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-21T00:00:00Z"));
+    keeper.mockReturnValueOnce({ error: null, recordingLocally: false });
+    const sent: Record<string, unknown>[] = [];
+    bindRecordHostSend((frame) => sent.push(frame));
+    renderHook(() => useHostKeeperCapture());
+    await act(async () => vi.advanceTimersByTime(5_000));
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.command_type).toBe("Heartbeat");
+  });
+
+  it("does not send fallback heartbeats during a failed active take", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-21T00:00:00Z"));
+    keeper.mockReturnValueOnce({ error: "disk full", recordingLocally: false });
+    useRecordHostStore.getState().setConnected(true);
+    const sent: Record<string, unknown>[] = [];
+    bindRecordHostSend((frame) => sent.push(frame));
+    renderHook(() => useHostKeeperCapture());
+    await act(async () => vi.advanceTimersByTime(10_000));
+    expect(sent).toHaveLength(0);
   });
 
   it("keeps the same keeper resetKey across a sub-10s WS blip", () => {
