@@ -1,7 +1,15 @@
 import { Blob as NodeBlob } from "node:buffer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { parseWavHeader, pcmWavHeader } from "../../audio/wavHeader";
+import { KEEPER_SAMPLE_RATE } from "../keeper/pcm";
+import { KeeperSession } from "../keeper/session";
 import { type ByteSink, keeperWavPath, MemorySink } from "../keeper/store";
-import { downloadLocalKeeper, downloadLocalKeepers } from "./recovery";
+import {
+  downloadLocalKeeper,
+  downloadLocalKeepers,
+  inspectKeeperRecovery,
+  recoverKeeperSegment,
+} from "./recovery";
 
 beforeEach(() => vi.stubGlobal("Blob", NodeBlob));
 
@@ -138,5 +146,227 @@ describe("downloadLocalKeepers", () => {
     expect(createObjectURL).toHaveBeenCalledWith(file);
     expect(read).not.toHaveBeenCalled();
     await vi.runAllTimersAsync();
+  });
+});
+
+describe("keeper recovery", () => {
+  const path = keeperWavPath({
+    sessionId: "room1",
+    participantId: "p_guest",
+    takeIndex: 2,
+    segmentIndex: 3,
+  });
+
+  it("restores a new capture cursor after a readable interrupted segment", async () => {
+    const sink = new MemorySink();
+    const first = new KeeperSession(sink);
+    const gate = {
+      sessionId: "room1",
+      participantId: "p_guest",
+      role: "guest" as const,
+      consented: true as const,
+      roomState: "recording" as const,
+      takeIndex: 2,
+      recordingMs: 1250,
+      streamAvailable: true,
+      muted: false,
+    };
+    await first.apply(gate);
+    first.push(new Float32Array([0.25, -0.25]), KEEPER_SAMPLE_RATE);
+    await first.flush();
+    // Simulate a tab crash: the first session never finalizes its open WAV.
+    const interrupted = keeperWavPath({ ...gate, segmentIndex: 0 });
+    const retainedPcm = (await sink.read(interrupted))!.slice(44);
+    const restored = new KeeperSession(sink);
+    await restored.restoreCursor("room1", 2, "p_guest");
+    await recoverKeeperSegment(sink, interrupted);
+    expect(Array.from((await sink.read(interrupted))!.slice(44))).toEqual(
+      Array.from(retainedPcm),
+    );
+    await restored.apply({ ...gate, recordingMs: 2250 });
+    await restored.dispose();
+    expect(restored.files[0]?.segmentIndex).toBe(1);
+    expect((await sink.read(interrupted))!.length).toBe(
+      44 + retainedPcm.length,
+    );
+  });
+
+  it("recovers readable pending PCM while preserving the recorded join offset", async () => {
+    const sink = new MemorySink();
+    const pcm = new Uint8Array([1, 0, 2, 0, 3, 0, 4, 0]);
+    const growing = new Uint8Array(44 + pcm.length);
+    growing.set(pcmWavHeader(0), 0);
+    growing.set(pcm, 44);
+    await sink.write(path, growing);
+    await sink.write(
+      path.replace(/\.wav$/, ".json"),
+      new TextEncoder().encode(
+        JSON.stringify({
+          sessionId: "room1",
+          participantId: "p_guest",
+          takeIndex: 2,
+          segmentIndex: 3,
+          sampleRate: 48_000,
+          joinOffsetMs: 1250,
+          samplesWritten: 0,
+          complete: false,
+        }),
+      ),
+    );
+    expect(await inspectKeeperRecovery(sink, path)).toEqual({
+      kind: "recoverable",
+    });
+    await recoverKeeperSegment(sink, path);
+    const wav = await sink.read(path);
+    expect(wav).not.toBeNull();
+    expect(parseWavHeader(wav!.buffer).dataSize).toBe(pcm.length);
+    expect(Array.from(wav!.subarray(44))).toEqual(Array.from(pcm));
+    const metaBytes = await sink.read(path.replace(/\.wav$/, ".json"));
+    const meta = JSON.parse(new TextDecoder().decode(metaBytes!)) as {
+      joinOffsetMs: number;
+      samplesWritten: number;
+      complete: boolean;
+    };
+    expect(meta).toMatchObject({
+      joinOffsetMs: 1250,
+      samplesWritten: 4,
+      complete: true,
+    });
+    await recoverKeeperSegment(sink, path);
+    expect(parseWavHeader((await sink.read(path))!.buffer).dataSize).toBe(
+      pcm.length,
+    );
+  });
+
+  it("does not claim recovery for an OPFS-crash zero-byte file", async () => {
+    const sink = new MemorySink();
+    await sink.write(path, new Uint8Array());
+    await sink.write(
+      path.replace(/\.wav$/, ".json"),
+      new TextEncoder().encode(
+        JSON.stringify({
+          sessionId: "room1",
+          participantId: "p_guest",
+          takeIndex: 2,
+          segmentIndex: 3,
+          sampleRate: 48_000,
+          joinOffsetMs: 1250,
+          samplesWritten: 0,
+          complete: false,
+        }),
+      ),
+    );
+    const result = await inspectKeeperRecovery(sink, path);
+    expect(result.kind).toBe("unrecoverable");
+    await expect(recoverKeeperSegment(sink, path)).rejects.toThrow(
+      /committed PCM/i,
+    );
+  });
+
+  it("rejects metadata that would place audio in a different segment", async () => {
+    const sink = new MemorySink();
+    const wav = new Uint8Array(46);
+    wav.set(pcmWavHeader(0), 0);
+    wav.set([1, 0], 44);
+    await sink.write(path, wav);
+    await sink.write(
+      path.replace(/\.wav$/, ".json"),
+      new TextEncoder().encode(
+        JSON.stringify({
+          sessionId: "wrong-room",
+          participantId: "p_guest",
+          takeIndex: 2,
+          segmentIndex: 3,
+          sampleRate: 48_000,
+          joinOffsetMs: 0,
+          samplesWritten: 0,
+          complete: false,
+        }),
+      ),
+    );
+    expect((await inspectKeeperRecovery(sink, path)).kind).toBe(
+      "unrecoverable",
+    );
+  });
+
+  it("keeps all readable PCM when the stale header underdeclares it", async () => {
+    const sink = new MemorySink();
+    const pcm = new Uint8Array([1, 0, 2, 0]);
+    const wav = new Uint8Array(44 + pcm.length);
+    wav.set(pcmWavHeader(2), 0);
+    wav.set(pcm, 44);
+    await sink.write(path, wav);
+    await sink.write(
+      path.replace(/\.wav$/, ".json"),
+      new TextEncoder().encode(
+        JSON.stringify({
+          sessionId: "room1",
+          participantId: "p_guest",
+          takeIndex: 2,
+          segmentIndex: 3,
+          sampleRate: 48_000,
+          joinOffsetMs: 0,
+          samplesWritten: 0,
+          complete: false,
+        }),
+      ),
+    );
+    await recoverKeeperSegment(sink, path);
+    expect(Array.from((await sink.read(path))!.subarray(44))).toEqual(
+      Array.from(pcm),
+    );
+  });
+
+  it("repairs a truncated but frame-aligned WAV without inventing samples", async () => {
+    const sink = new MemorySink();
+    const wav = new Uint8Array(48);
+    wav.set(pcmWavHeader(8), 0);
+    wav.set([1, 0, 2, 0], 44);
+    await sink.write(path, wav);
+    await sink.write(
+      path.replace(/\.wav$/, ".json"),
+      new TextEncoder().encode(
+        JSON.stringify({
+          sessionId: "room1",
+          participantId: "p_guest",
+          takeIndex: 2,
+          segmentIndex: 3,
+          sampleRate: 48_000,
+          joinOffsetMs: 1250,
+          samplesWritten: 0,
+          complete: false,
+        }),
+      ),
+    );
+    await recoverKeeperSegment(sink, path);
+    const recovered = (await sink.read(path))!;
+    expect(parseWavHeader(recovered.buffer).dataSize).toBe(4);
+    expect(Array.from(recovered.subarray(44))).toEqual([1, 0, 2, 0]);
+  });
+
+  it("rejects a partial PCM frame instead of silently truncating audio", async () => {
+    const sink = new MemorySink();
+    const wav = new Uint8Array(45);
+    wav.set(pcmWavHeader(0), 0);
+    wav[44] = 1;
+    await sink.write(path, wav);
+    await sink.write(
+      path.replace(/\.wav$/, ".json"),
+      new TextEncoder().encode(
+        JSON.stringify({
+          sessionId: "room1",
+          participantId: "p_guest",
+          takeIndex: 2,
+          segmentIndex: 3,
+          sampleRate: 48_000,
+          joinOffsetMs: 0,
+          samplesWritten: 0,
+          complete: false,
+        }),
+      ),
+    );
+    expect((await inspectKeeperRecovery(sink, path)).kind).toBe(
+      "unrecoverable",
+    );
   });
 });

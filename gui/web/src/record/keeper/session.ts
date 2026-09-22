@@ -181,6 +181,7 @@ export class KeeperSession {
       try {
         this.stream = await this.sink.open(wavPath);
         await this.stream.write(pcmWavHeader(0, KEEPER_SAMPLE_RATE, 1), 0);
+        await this.writeMeta(wavPath, plan.open, 0, false);
       } catch (error) {
         this.fail(error);
         try {
@@ -231,6 +232,22 @@ export class KeeperSession {
       this.clearOpenSegment();
       return;
     }
+    try {
+      await this.writeMeta(wavPath, open, samplesWritten, true);
+    } catch (error) {
+      this.fail(error);
+      this.clearOpenSegment();
+      throw error;
+    }
+    this.clearOpenSegment();
+  }
+
+  private async writeMeta(
+    wavPath: string,
+    open: OpenSegment,
+    samplesWritten: number,
+    complete: boolean,
+  ): Promise<void> {
     const meta: KeeperMeta = {
       sessionId: this.sessionId,
       takeIndex: open.takeIndex,
@@ -239,17 +256,13 @@ export class KeeperSession {
       sampleRate: KEEPER_SAMPLE_RATE,
       joinOffsetMs: open.joinOffsetMs,
       samplesWritten,
+      complete,
     };
     const json = new TextEncoder().encode(`${JSON.stringify(meta, null, 2)}\n`);
-    try {
-      await this.sink.write(keeperMetaPath(wavPath), json);
-    } catch (error) {
-      this.fail(error);
-      this.clearOpenSegment();
-      throw error;
+    await this.sink.write(keeperMetaPath(wavPath), json);
+    if (complete) {
+      this.files.push(meta);
     }
-    this.files.push(meta);
-    this.clearOpenSegment();
   }
 
   private clearOpenSegment(): void {

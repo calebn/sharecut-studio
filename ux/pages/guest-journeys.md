@@ -178,10 +178,13 @@ flowchart TD
    to keep the tab open until the final file ACK, shows N/M chunks where all
    totals are known, and offers **Resume upload** and **Download local keeper**
    for an incomplete or stalled take. Download produces one ZIP containing all
-   retained WAV segments. The local WAVs stay in
+retained WAV segments. The local WAVs stay in
    OPFS (`Sharecut Recordings/`) until the host confirms **Landed. Safe to delete
    the local backup.** If landing fails, the guest sees **Uploaded but not landed
-   on the host** and keeps the backup while the host uses **Retry land**.
+on the host** and keeps the backup while the host uses **Retry land**.
+If a rejoin finds a readable pending PCM segment, the panel also offers
+**Recover partial take** before upload; zero-byte or malformed files explain
+that uncommitted PCM cannot be reconstructed and remain available for export.
 9. If the host laptop drops during REC: reconnect the same link (lease reuse);
    the keeper keeps growing ("Host offline — still recording locally.") and
    upload retries. If the host is gone for **10 s or more**, the take is forced

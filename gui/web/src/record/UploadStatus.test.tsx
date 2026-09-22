@@ -17,6 +17,7 @@ describe("UploadStatus", () => {
           landFailed: false,
           uploading: true,
           pending: false,
+          recoverable: false,
           error: null,
         }}
       />,
@@ -33,6 +34,7 @@ describe("UploadStatus", () => {
           landFailed: false,
           uploading: false,
           pending: false,
+          recoverable: false,
           error: null,
         }}
       />,
@@ -52,6 +54,7 @@ describe("UploadStatus", () => {
           landFailed: false,
           uploading: false,
           pending: true,
+          recoverable: false,
           error: null,
         }}
       />,
@@ -72,6 +75,7 @@ describe("UploadStatus", () => {
           landFailed: true,
           uploading: false,
           pending: false,
+          recoverable: false,
           error: null,
         }}
       />,
@@ -92,6 +96,7 @@ describe("UploadStatus", () => {
           landFailed: false,
           uploading: false,
           pending: false,
+          recoverable: false,
           error: null,
         }}
       />,
@@ -117,6 +122,7 @@ describe("UploadStatus", () => {
           landFailed: false,
           uploading: false,
           pending: false,
+          recoverable: false,
           error: null,
         }}
       />,
@@ -144,6 +150,7 @@ describe("UploadStatus", () => {
           landFailed: false,
           uploading: false,
           pending: false,
+          recoverable: false,
           error: "No audio was captured for this take.",
         }}
       />,
@@ -155,5 +162,48 @@ describe("UploadStatus", () => {
     expect(
       screen.getByRole("button", { name: "Download local keeper" }),
     ).toBeInTheDocument();
+  });
+
+  it("offers partial recovery only for a stopped, recoverable keeper", async () => {
+    const onRecover = vi.fn();
+    const progress = {
+      acked: 0,
+      total: 0,
+      fileAck: false,
+      landed: false,
+      landFailed: false,
+      uploading: false,
+      pending: false,
+      recoverable: true,
+      error: "A readable partial keeper was retained.",
+    };
+    const { container, rerender } = render(
+      <UploadStatus stopped progress={progress} onRecover={onRecover} />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Recover partial take" }),
+    );
+    expect(onRecover).toHaveBeenCalledOnce();
+    await expectNoA11yViolations(container);
+    rerender(
+      <UploadStatus
+        stopped={false}
+        progress={progress}
+        onRecover={onRecover}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Recover partial take" }),
+    ).toBeNull();
+    rerender(
+      <UploadStatus
+        stopped
+        progress={{ ...progress, recoverable: false }}
+        onRecover={onRecover}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Recover partial take" }),
+    ).toBeNull();
   });
 });

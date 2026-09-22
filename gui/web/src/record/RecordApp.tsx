@@ -11,7 +11,7 @@ import { Room } from "./Room";
 import { loadRecordBootstrap, type RecordBootstrap } from "./recordBootstrap";
 import { UPLOAD_SINK_ERROR_COPY } from "./types";
 import { guestRecordUploadTransport } from "./upload/http";
-import { downloadLocalKeepers } from "./upload/recovery";
+import { downloadLocalKeepers, recoverLocalKeepers } from "./upload/recovery";
 import { useRecordUpload } from "./upload/useRecordUpload";
 import { useMicPermission } from "./useMicPermission";
 import { useRecordLiveComments } from "./useRecordLiveComments";
@@ -277,6 +277,26 @@ export function RecordApp({ token }: { token: string }) {
                             : String(error),
                         );
                       });
+                    }
+                  : undefined
+              }
+              onRecoverKeeper={
+                upload.recoverable && sink && me?.participant_id && snapshot
+                  ? () => {
+                      void recoverLocalKeepers(
+                        sink,
+                        snapshot.session_id,
+                        me.participant_id,
+                        snapshot.take_index,
+                      )
+                        .then(() => setUploadRetryNonce((value) => value + 1))
+                        .catch((error: unknown) => {
+                          setSinkError(
+                            error instanceof Error
+                              ? error.message
+                              : String(error),
+                          );
+                        });
                     }
                   : undefined
               }

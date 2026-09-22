@@ -113,6 +113,7 @@ describe("Room", () => {
           landFailed: false,
           uploading: true,
           pending: false,
+          recoverable: false,
           error: null,
         }}
       />,
@@ -153,6 +154,7 @@ describe("Room", () => {
           landFailed: false,
           uploading: false,
           pending: false,
+          recoverable: false,
           error: null,
         }}
       />,
@@ -172,6 +174,7 @@ describe("Room", () => {
           landFailed: false,
           uploading: false,
           pending: false,
+          recoverable: false,
           error: "upload failed",
         }}
       />,

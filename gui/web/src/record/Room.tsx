@@ -38,6 +38,7 @@ type Props = {
   onRetryMic?: () => void;
   onResumeUpload?: () => void;
   onDownloadKeeper?: () => void;
+  onRecoverKeeper?: () => void;
 };
 
 export function Room({
@@ -61,6 +62,7 @@ export function Room({
   onRetryMic,
   onResumeUpload,
   onDownloadKeeper,
+  onRecoverKeeper,
 }: Props) {
   const hostOffline =
     !connected &&
@@ -110,6 +112,7 @@ export function Room({
             alive={connected}
             onResume={onResumeUpload}
             onDownload={onDownloadKeeper}
+            onRecover={onRecoverKeeper}
           />
         ) : null}
       </div>

@@ -22,7 +22,7 @@ import {
   UPLOAD_SINK_ERROR_COPY,
 } from "./types";
 import { UploadStatus } from "./UploadStatus";
-import { downloadLocalKeepers } from "./upload/recovery";
+import { downloadLocalKeepers, recoverLocalKeepers } from "./upload/recovery";
 import {
   leaveBlocked,
   useHostUploadSegments,
@@ -228,6 +228,26 @@ export function RecordPanel({
                         error instanceof Error ? error.message : String(error),
                       );
                     });
+                  }
+                : undefined
+            }
+            onRecover={
+              upload.recoverable && sink && snapshot
+                ? () => {
+                    void recoverLocalKeepers(
+                      sink,
+                      snapshot.session_id,
+                      "p_host",
+                      snapshot.take_index,
+                    )
+                      .then(() => setUploadRetryNonce((value) => value + 1))
+                      .catch((error: unknown) => {
+                        setSinkError(
+                          error instanceof Error
+                            ? error.message
+                            : String(error),
+                        );
+                      });
                   }
                 : undefined
             }

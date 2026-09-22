@@ -57,11 +57,10 @@ describe("KeeperSession", () => {
 
   it("latches metadata failures and recovers only on an active retry", async () => {
     const sink = new MemorySink();
-    let failMetadata = true;
+    let metadataWrites = 0;
     const originalWrite = sink.write.bind(sink);
     sink.write = async (path, bytes) => {
-      if (path.endsWith(".json") && failMetadata) {
-        failMetadata = false;
+      if (path.endsWith(".json") && metadataWrites++ === 1) {
         throw new Error("metadata failed");
       }
       await originalWrite(path, bytes);
@@ -331,6 +330,12 @@ describe("KeeperSession", () => {
     });
     const growing = sink.files.get(wavPath);
     expect(growing?.byteLength).toBeGreaterThan(44);
+    const pendingMeta = JSON.parse(
+      new TextDecoder().decode(
+        sink.files.get(wavPath.replace(/\.wav$/, ".json"))!,
+      ),
+    ) as { complete: boolean; joinOffsetMs: number };
+    expect(pendingMeta).toMatchObject({ complete: false, joinOffsetMs: 0 });
     await session.dispose();
     const wav = sink.files.get(wavPath);
     expect(wav).toBeTruthy();
@@ -339,6 +344,12 @@ describe("KeeperSession", () => {
     expect(header.channels).toBe(1);
     expect(header.bitsPerSample).toBe(16);
     expect(session.files[0]?.samplesWritten).toBeGreaterThan(4000);
+    const completeMeta = JSON.parse(
+      new TextDecoder().decode(
+        sink.files.get(wavPath.replace(/\.wav$/, ".json"))!,
+      ),
+    ) as { complete: boolean };
+    expect(completeMeta.complete).toBe(true);
   });
 
   it("writes zeros for a muted span without shortening the file", async () => {

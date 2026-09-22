@@ -11,9 +11,11 @@ import type { RecordUploadProgress } from "./upload/useRecordUpload";
 function RecoveryActions({
   onResume,
   onDownload,
+  onRecover,
 }: {
   onResume?: () => void;
   onDownload?: () => void;
+  onRecover?: () => void;
 }) {
   return (
     <span className="cluster">
@@ -27,6 +29,11 @@ function RecoveryActions({
           Download local keeper
         </Button>
       ) : null}
+      {onRecover ? (
+        <Button type="button" onClick={onRecover}>
+          Recover partial take
+        </Button>
+      ) : null}
     </span>
   );
 }
@@ -37,18 +44,25 @@ export function UploadStatus({
   alive = true,
   onResume,
   onDownload,
+  onRecover,
 }: {
   progress: RecordUploadProgress;
   stopped: boolean;
   alive?: boolean;
   onResume?: () => void;
   onDownload?: () => void;
+  onRecover?: () => void;
 }) {
+  const recover = stopped && progress.recoverable ? onRecover : undefined;
   if (progress.error) {
     return (
       <div id={UPLOAD_STATUS_ID} className="record-warn">
         <p>{progress.error}</p>
-        <RecoveryActions onResume={onResume} onDownload={onDownload} />
+        <RecoveryActions
+          onResume={onResume}
+          onDownload={onDownload}
+          onRecover={recover}
+        />
       </div>
     );
   }
@@ -74,7 +88,11 @@ export function UploadStatus({
       <div id={UPLOAD_STATUS_ID}>
         <p>{uploadProgressCopy(progress.acked, progress.total)}</p>
         {stopped ? (
-          <RecoveryActions onResume={onResume} onDownload={onDownload} />
+          <RecoveryActions
+            onResume={onResume}
+            onDownload={onDownload}
+            onRecover={recover}
+          />
         ) : null}
       </div>
     );

@@ -6,6 +6,8 @@ export type KeeperMeta = {
   sampleRate: number;
   joinOffsetMs: number;
   samplesWritten: number;
+  /** True only after the WAV writable has closed successfully. */
+  complete: boolean;
 };
 
 export type ByteStream = {
@@ -54,7 +56,10 @@ function copyBuffer(bytes: Uint8Array): ArrayBuffer {
 }
 
 export function keeperWavPath(
-  meta: Omit<KeeperMeta, "sampleRate" | "joinOffsetMs" | "samplesWritten">,
+  meta: Omit<
+    KeeperMeta,
+    "sampleRate" | "joinOffsetMs" | "samplesWritten" | "complete"
+  >,
 ): string {
   const segment = assertIndex(meta.segmentIndex);
   return [
@@ -98,7 +103,7 @@ export function roomToneWavPath(
 function maxWavIndex(names: string[]): number {
   let max = -1;
   for (const name of names) {
-    const match = /^(\d+)\.wav$/i.exec(name);
+    const match = /^(\d+)\.(?:wav|json)$/i.exec(name);
     if (match) {
       max = Math.max(max, Number(match[1]));
     }

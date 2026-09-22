@@ -73,4 +73,13 @@ describe("MemorySink", () => {
     expect(await sink.nextSegmentIndex("cool-room", 0, "p_g")).toBe(3);
     expect(await sink.nextSegmentIndex("cool-room", 1, "p_g")).toBe(0);
   });
+
+  it("does not reuse a segment reserved by pending metadata alone", async () => {
+    const sink = new MemorySink();
+    await sink.write(
+      "Sharecut Recordings/cool-room/0/p_g/2.json",
+      new Uint8Array([1]),
+    );
+    expect(await sink.nextSegmentIndex("cool-room", 0, "p_g")).toBe(3);
+  });
 });

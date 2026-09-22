@@ -130,6 +130,17 @@ still clear it.
 Capture, ingest, host lobby, mix-minus graph: FOSS core. Public `/rec/` guest
 routes: collaboration extension + relay allowlist, exactly like `/r/`.
 
+Each open keeper segment writes a small OPFS metadata record before PCM capture
+with its trusted `join_offset_ms` and `complete: false`. The record changes to
+`complete: true` only after the WAV header and writable have closed successfully;
+upload never infers completion from a WAV file alone. On rejoin, a readable
+pending PCM WAV can be recovered explicitly: the client validates its fixed
+48 kHz mono PCM format, atomically rewrites its header, and preserves the
+recorded join offset before allowing upload. Zero-byte, malformed, or
+unplaceable files are retained for deliberate export with an explicit loss
+message; bytes that an interrupted OPFS writable never committed cannot be
+reconstructed.
+
 While a local keeper is actively writing, the browser registers a native
 `beforeunload` confirmation so an accidental refresh or navigation can be
 cancelled before the current WAV is abandoned. After Stop, the warning remains
@@ -268,6 +279,9 @@ after capture has settled is retained for recovery and reported separately;
 it cannot receive a file ACK and does not hold Leave after complete segments
 are acknowledged. The panel shows `N/M` chunks when finalized WAV totals are
 known. Resume on the **same `/rec/` token** inside a **7-day recovery window**.
+A pending segment is never uploaded automatically; the stopped panel offers
+**Recover partial take** only for a validated readable segment, alongside the
+retained keeper export for every failure mode.
 A stalled or zero-sample keeper remains in OPFS for a single ZIP download
 containing every retained take and segment. Surviving files still export if a
 segment is missing, and Leave is never held indefinitely by an errored upload.

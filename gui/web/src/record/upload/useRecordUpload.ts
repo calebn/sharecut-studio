@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { type ByteSink, keeperMetaPath, keeperWavPath } from "../keeper/store";
 import { uploadKeeperWav } from "./pump";
+import { inspectKeeperRecovery } from "./recovery";
 import type { RecordUploadStatus, RecordUploadTransport } from "./transport";
 
 export type RecordUploadProgress = {
@@ -11,6 +12,7 @@ export type RecordUploadProgress = {
   landFailed: boolean;
   uploading: boolean;
   pending: boolean;
+  recoverable: boolean;
   error: string | null;
 };
 
@@ -35,6 +37,7 @@ const EMPTY: RecordUploadProgress = {
   landFailed: false,
   uploading: false,
   pending: false,
+  recoverable: false,
   error: null,
 };
 
@@ -93,6 +96,8 @@ export function useRecordUpload(args: {
         let saw = false;
         let awaitingAck = false;
         let abandoned = false;
+        let recoverable = false;
+        let recoveryReason: string | null = null;
         for (let take = 0; take <= takeIndex; take += 1) {
           const next = await sink.nextSegmentIndex(
             sessionId,
@@ -123,39 +128,38 @@ export function useRecordUpload(args: {
               participantId,
               segmentIndex,
             });
+            const metaBytes = await sink.read(keeperMetaPath(wavPath));
+            const recovery = await inspectKeeperRecovery(
+              sink,
+              wavPath,
+              metaBytes,
+            );
+            const complete = recovery.kind === "complete";
+            if (!complete) {
+              // Never upload a pending segment. It may still be open in the
+              // recorder, or its OPFS writable may have been abandoned.
+              if (current.roomState === "stopped" && current.captureSettled) {
+                abandoned = true;
+                recoverable = recoverable || recovery.kind === "recoverable";
+                if (!recoveryReason && recovery.kind === "unrecoverable") {
+                  recoveryReason = recovery.reason;
+                }
+                allLanded = false;
+              }
+              allAcked = false;
+              continue;
+            }
             const wav = await sink.read(wavPath);
             if (!wav) {
               allAcked = false;
-              awaitingAck = true;
-              continue;
-            }
-            const metaBytes = await sink.read(keeperMetaPath(wavPath));
-            const complete = metaBytes != null;
-            if (
-              !complete &&
-              current.roomState === "stopped" &&
-              current.captureSettled
-            ) {
-              // A stopped capture cannot finish this segment. Keep its local
-              // bytes for recovery, but do not repeatedly upload a partial WAV
-              // or hold Leave after all complete segments have an ACK.
-              abandoned = true;
-              allAcked = false;
-              allLanded = false;
-              continue;
-            }
-            let joinOffsetMs = 0;
-            if (metaBytes) {
-              try {
-                const meta = JSON.parse(
-                  new TextDecoder().decode(metaBytes),
-                ) as {
-                  joinOffsetMs?: number;
-                };
-                joinOffsetMs = Number(meta.joinOffsetMs) || 0;
-              } catch {
-                joinOffsetMs = 0;
+              if (current.roomState === "stopped" && current.captureSettled) {
+                abandoned = true;
+                recoveryReason ??=
+                  "The finalized local keeper is missing and was not acknowledged by the host. Download any other retained segments and ask the host to check the take.";
+              } else {
+                awaitingAck = true;
               }
+              continue;
             }
             const result = await uploadKeeperWav({
               wav,
@@ -165,7 +169,8 @@ export function useRecordUpload(args: {
               transport,
               ackedParts: remoteSeg?.acked_parts ?? [],
               fileAck: Boolean(remoteSeg?.file_ack),
-              joinOffsetMs,
+              joinOffsetMs:
+                recovery.kind === "complete" ? recovery.joinOffsetMs : 0,
               signal: abort.signal,
             });
             acked += result.acked;
@@ -192,7 +197,10 @@ export function useRecordUpload(args: {
           const stalled = stalledTicks >= 3;
           const abandonedError =
             abandoned && !awaitingAck
-              ? "An incomplete local keeper segment was retained for recovery."
+              ? recoverable
+                ? "A readable partial keeper was retained. Recover it before uploading."
+                : (recoveryReason ??
+                  "An incomplete local keeper segment was retained for recovery.")
               : null;
           setProgress({
             acked,
@@ -202,6 +210,7 @@ export function useRecordUpload(args: {
             landFailed,
             uploading: awaitingAck && !stalled,
             pending: false,
+            recoverable,
             error:
               abandonedError ??
               (!saw && stopped && current.captureExpected !== false
