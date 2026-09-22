@@ -73,7 +73,7 @@ export function useHostKeeperCapture(enabled = true): {
       !hostOn ||
       !sessionId ||
       keeper.recordingLocally ||
-      roomState === "recording"
+      (roomState !== "lobby" && roomState !== "paused")
     ) {
       return;
     }

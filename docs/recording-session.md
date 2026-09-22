@@ -647,7 +647,7 @@ On the **last** host connection drop (`disconnect` / `release_connection`)
 while `state ∈ {recording, paused}`, the service stamps
 `host_offline_since_wall_ms` from the observed socket close time when its last
 heartbeat is fresh, or from the stale heartbeat when close detection was
-delayed by at least 10 seconds (same sqlite `record_snapshot` row; no sidecar).
+delayed by at least 7.5 seconds (same sqlite `record_snapshot` row; no sidecar).
 A Leave command also stamps if the field
 is still empty. Host Join clears that field. If in-memory `_HOST_CONNS` is
 empty on the next host Join (sidecar crash without Leave) or the last host
@@ -680,8 +680,11 @@ the timer cannot mask a missing microphone stream, stalled keeper setup, or
 failed local capture. The existing local-capture failure latch stops activity
 beats until Retry local recording succeeds. An observed
 host socket close starts the 10-second reconnect window at close time when the
-last beat is fresh; a stale beat remains the outage estimate after delayed
-close detection or an unobserved crash.
+last beat is fresh; a beat older than 7.5 seconds remains the outage estimate
+after delayed close detection or an unobserved crash. The 7.5-second freshness
+window allows jitter around the five-second heartbeat cadence. A delayed
+close inside that window cannot be distinguished from a clean close, so its
+offline gap may be underestimated.
 
 ## Ownership and retention
 
