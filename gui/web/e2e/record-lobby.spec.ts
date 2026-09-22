@@ -838,6 +838,9 @@ test.describe("record lobby", () => {
             /Microphone access is blocked by your operating system/,
           ),
         ).toHaveCount(0);
+        await expect(
+          room.getByRole("button", { name: "Record room tone" }),
+        ).toBeEnabled();
       } finally {
         await hostCtx.close();
       }

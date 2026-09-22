@@ -205,6 +205,22 @@ describe("useHostKeeperCapture", () => {
     expect(sent).toHaveLength(0);
   });
 
+  it("reports a denied reconnect after a live microphone track is lost", () => {
+    mic.mockReturnValueOnce({
+      stream: null,
+      devices: [],
+      error: "Permission denied",
+      errorName: "NotAllowedError",
+      settingsWarning: null,
+      pending: false,
+      lost: true,
+      retry: vi.fn(),
+    });
+    const { result } = renderHook(() => useHostKeeperCapture());
+    expect(result.current.micLost).toBe(true);
+    expect(result.current.micStatus).toBe("denied");
+  });
+
   it("keeps the same keeper resetKey across a sub-10s WS blip", () => {
     const { rerender } = renderHook(() => useHostKeeperCapture());
     expect(mic).toHaveBeenLastCalledWith(true, "", 0);
