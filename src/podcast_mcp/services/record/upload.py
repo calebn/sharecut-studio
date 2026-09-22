@@ -829,7 +829,10 @@ class RecordUploadService:
             declared_parts = None
         else:
             if final and declared_parts is None:
-                raise RecordUploadError("expected_parts required for final keeper")
+                # Older recording tabs omit the count. Their final sequence still
+                # gives an exact count, while the stored manifest (if present)
+                # remains authoritative through set_expected_parts below.
+                declared_parts = seq + 1
             if declared_parts is not None and seq >= declared_parts:
                 raise RecordUploadError("part_seq exceeds expected_parts")
         payload = bytes(data or b"")

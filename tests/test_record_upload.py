@@ -173,7 +173,7 @@ def test_expected_chunks_survive_reconnect_and_gate_file_ack(minimal_project, sa
     assert segment["acked_parts"] == [0]
     assert segment["expected_parts"] == 2
     assert segment["file_ack"] is False
-    with pytest.raises(RecordUploadError, match="expected_parts required"):
+    with pytest.raises(RecordUploadError, match="expected_parts mismatch"):
         svc.ingest_part(
             session_id=sid,
             take_index=0,
@@ -227,6 +227,48 @@ def test_expected_chunks_survive_reconnect_and_gate_file_ack(minimal_project, sa
     segment = svc.status(session_id=sid)["segments"][0]
     assert segment["file_ack"] is True
     assert segment["expected_parts"] == 2
+
+
+def test_legacy_final_keeper_infers_count_and_requires_all_parts(minimal_project, sample_wav):
+    ws = _seed_premix(minimal_project, sample_wav)
+    svc = RecordUploadService(ws.project)
+    first, first_hash, _ = _pcm_part(64)
+    second, second_hash, _ = _pcm_part(32)
+    file_hash = sha256_hex(pcm_wav_header(len(first) + len(second)) + first + second)
+    with pytest.raises(RecordUploadError, match="expected_parts incomplete"):
+        svc.ingest_part(
+            session_id="legacy-room",
+            take_index=0,
+            participant_id="p_aa",
+            segment_index=0,
+            part_seq=1,
+            data=second,
+            digest=second_hash,
+            file_sha256=file_hash,
+            final=True,
+        )
+    svc.ingest_part(
+        session_id="legacy-room",
+        take_index=0,
+        participant_id="p_aa",
+        segment_index=0,
+        part_seq=0,
+        data=first,
+        digest=first_hash,
+    )
+    ack = svc.ingest_part(
+        session_id="legacy-room",
+        take_index=0,
+        participant_id="p_aa",
+        segment_index=0,
+        part_seq=1,
+        data=second,
+        digest=second_hash,
+        file_sha256=file_hash,
+        final=True,
+    )
+    assert ack["file_ack"] is True
+    assert svc.status(session_id="legacy-room")["segments"][0]["expected_parts"] == 2
 
 
 def test_service_rejects_bad_hash_and_path(minimal_project, sample_wav):
