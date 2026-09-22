@@ -85,6 +85,9 @@ cancel keeps the window and recording open. An unreadable, malformed, or
 duplicated marker is treated conservatively and still requires confirmation.
 The marker survives a WebView reload until a room snapshot confirms it is safe
 to clear, and a failed keeper finalization leaves confirmation armed.
+If the microphone disappears as Stop arrives, the guard remains armed until
+the local WAV and metadata flush completes. If the main WebView handle is
+unavailable, native close and exit requests are blocked conservatively.
 On macOS the app menu mirrors Tauri's default items but replaces its native
 Quit item with a `Cmd+Q` menu command that calls `AppHandle::exit(0)`, so
 the app menu and Cmd+Q take the `ExitRequested` confirmation path. Dock Quit

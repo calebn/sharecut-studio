@@ -51,6 +51,8 @@ export function useKeeperCapture({
 } {
   const [error, setError] = useState<string | null>(null);
   const [writing, setWriting] = useState(false);
+  const [unfinalizedCapture, setUnfinalizedCapture] = useState(false);
+  const unfinalizedCaptureRef = useRef(false);
   const [finalizing, setFinalizing] = useState(false);
   const finalizationFailed = useRef(false);
   const [epoch, setEpoch] = useState(0);
@@ -99,12 +101,22 @@ export function useKeeperCapture({
         : 0,
     };
   }, []);
+  const markUnfinalizedCapture = useCallback((value: boolean) => {
+    unfinalizedCaptureRef.current = value;
+    setUnfinalizedCapture(value);
+  }, []);
 
   const applyGate = useCallback(
     async (session: KeeperSession, gate: CapturedGate) => {
       if (!gate.snapshot || !gate.participantId) {
         setWriting(false);
         return;
+      }
+      if (
+        session.isWriting ||
+        (gate.snapshot.state === "recording" && gate.streamAvailable)
+      ) {
+        markUnfinalizedCapture(true);
       }
       await session.apply({
         role: gate.role,
@@ -117,9 +129,12 @@ export function useKeeperCapture({
         sessionId: gate.snapshot.session_id,
         participantId: gate.participantId,
       });
+      // Keep close protection through the asynchronous Stop/stream-loss flush.
+      // The previous writable remains at risk until apply() has settled.
+      markUnfinalizedCapture(session.isWriting);
       setWriting(session.isWriting && !tapFailedRef.current);
     },
-    [],
+    [markUnfinalizedCapture],
   );
 
   useEffect(() => {
@@ -129,36 +144,43 @@ export function useKeeperCapture({
     };
   }, []);
 
-  const disposeSession = useCallback((session: KeeperSession) => {
-    const guardDuringDispose = session.isWriting || writingRef.current;
-    if (guardDuringDispose) {
-      pendingDisposals.current += 1;
-      if (mountedRef.current) {
-        setFinalizing(true);
-      }
-    }
-    void session
-      .dispose()
-      .catch((err: unknown) => {
-        finalizationFailed.current = true;
+  const disposeSession = useCallback(
+    (session: KeeperSession) => {
+      const guardDuringDispose =
+        session.isWriting ||
+        writingRef.current ||
+        unfinalizedCaptureRef.current;
+      if (guardDuringDispose) {
+        pendingDisposals.current += 1;
         if (mountedRef.current) {
-          setError(err instanceof Error ? err.message : String(err));
           setFinalizing(true);
         }
-      })
-      .finally(() => {
-        if (guardDuringDispose) {
-          pendingDisposals.current -= 1;
-          if (
-            mountedRef.current &&
-            pendingDisposals.current === 0 &&
-            !finalizationFailed.current
-          ) {
-            setFinalizing(false);
+      }
+      void session
+        .dispose()
+        .catch((err: unknown) => {
+          finalizationFailed.current = true;
+          if (mountedRef.current) {
+            setError(err instanceof Error ? err.message : String(err));
+            setFinalizing(true);
           }
-        }
-      });
-  }, []);
+        })
+        .finally(() => {
+          if (guardDuringDispose) {
+            pendingDisposals.current -= 1;
+            if (
+              mountedRef.current &&
+              pendingDisposals.current === 0 &&
+              !finalizationFailed.current
+            ) {
+              markUnfinalizedCapture(false);
+              setFinalizing(false);
+            }
+          }
+        });
+    },
+    [markUnfinalizedCapture],
+  );
 
   useEffect(() => {
     if (!enabled || !participantId || !sessionId) {
@@ -351,8 +373,10 @@ export function useKeeperCapture({
   };
 
   const recordingLocally = writing && stream !== null;
+  const closeFinalizing =
+    finalizing || (unfinalizedCapture && snapshot?.state === "stopped");
   useLayoutEffect(() => {
-    if (!recordingLocally && !finalizing) {
+    if (!recordingLocally && !closeFinalizing) {
       return;
     }
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -361,7 +385,7 @@ export function useKeeperCapture({
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [recordingLocally, finalizing]);
+  }, [recordingLocally, closeFinalizing]);
 
-  return { error, recordingLocally, retry, finalizing };
+  return { error, recordingLocally, retry, finalizing: closeFinalizing };
 }
