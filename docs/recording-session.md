@@ -678,9 +678,9 @@ once every 5 seconds. A host timer maintains record presence in lobby and
 paused states. During REC, only healthy keeper PCM can drive host heartbeats;
 the timer cannot mask a missing microphone stream, stalled keeper setup, or
 failed local capture. The existing local-capture failure latch stops activity
-beats until Retry local recording succeeds. Starting a new take resets the
-stored host beat baseline so a long stopped interval cannot make a brief
-reconnect look stale. An observed
+beats until Retry local recording succeeds. Starting or resuming a take resets
+the stored host beat baseline so a long stopped or paused interval cannot make
+a brief reconnect look stale. An observed
 host socket close starts the 10-second reconnect window at close time when the
 last beat is fresh; a beat older than 7.5 seconds remains the outage estimate
 after delayed close detection or an unobserved crash. The 7.5-second freshness
