@@ -256,7 +256,7 @@ def infer_host_offline_since(
     with _CONN_LOCK:
         bucket = dict(_HOST_CONNS.get(hub_key) or {})
     if bucket:
-        newest = max(wall for _mono, wall in bucket.values())
+        newest = max(max(wall for _mono, wall in bucket.values()), snap.host_last_beat_wall_ms or 0)
         if now_wall_ms - newest >= HOST_OFFLINE_PAUSE_MS:
             return newest
         return None
@@ -570,18 +570,18 @@ class RecordSessionService:
             last, beat = _release_connection(participant_id, connection_id, hub_key=self._hub_key)
             if not last:
                 return
-            if participant_id == HOST_PARTICIPANT_ID and beat is not None:
-                close_wall_ms = _now_pair()[1]
-                # A fresh beat means the observed close starts the outage.
-                # A stale beat can mean the socket closed long after network loss.
-                since = beat if close_wall_ms - beat >= HOST_HEARTBEAT_STALE_MS else close_wall_ms
-                _persist_host_offline_since(self._store, since)
+        else:
+            beat = None
+        current = self._model()
+        if participant_id == HOST_PARTICIPANT_ID and beat is not None:
+            close_wall_ms = _now_pair()[1]
+            beat = max(beat, current.host_last_beat_wall_ms or 0)
+            # A fresh beat means the observed close starts the outage.
+            # A stale beat can mean the socket closed long after network loss.
+            since = beat if close_wall_ms - beat >= HOST_HEARTBEAT_STALE_MS else close_wall_ms
+            _persist_host_offline_since(self._store, since)
         person = next(
-            (
-                p
-                for p in self._model().participants
-                if p.participant_id == participant_id and p.connected
-            ),
+            (p for p in current.participants if p.participant_id == participant_id and p.connected),
             None,
         )
         if person is None:
