@@ -44,7 +44,7 @@ export function useHostKeeperCapture(enabled = true): {
   const resetKey = hostKeeperResetKey(snapshot);
   const lastActivityBeatRef = useRef<number | null>(null);
   const onKeeperActivity = useCallback(() => {
-    const now = Date.now();
+    const now = performance.now();
     if (
       lastActivityBeatRef.current !== null &&
       now - lastActivityBeatRef.current < 5_000
@@ -73,7 +73,7 @@ export function useHostKeeperCapture(enabled = true): {
       !hostOn ||
       !sessionId ||
       keeper.recordingLocally ||
-      (roomState === "recording" && (keeper.error || mic.error))
+      (roomState === "recording" && (keeper.error || mic.error || mic.lost))
     ) {
       return;
     }
@@ -86,6 +86,7 @@ export function useHostKeeperCapture(enabled = true): {
     keeper.recordingLocally,
     keeper.error,
     mic.error,
+    mic.lost,
     onKeeperActivity,
   ]);
 
