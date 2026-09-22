@@ -529,9 +529,12 @@ test.describe("record lobby", () => {
             "Stopped",
           );
           await expect(
-            guest.getByRole("button", { name: "Leave" }),
+            guest.getByRole("button", { name: "Accept" }),
           ).toBeVisible();
-          await expect(host.getByText(/Ava · consented/)).toBeVisible();
+          await expect(host.getByText(/Ava · consented/)).toHaveCount(0);
+          await expect(
+            roomDlg.getByRole("button", { name: "Start", exact: true }),
+          ).toBeDisabled();
 
           // RecordApp changes views through FocusPull. Visible text assertions
           // can pass while the incoming view is still fading in over the outgoing

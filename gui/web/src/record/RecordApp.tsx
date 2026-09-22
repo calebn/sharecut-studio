@@ -12,9 +12,11 @@ import {
 import { useKeeperCapture } from "./keeper/useKeeperCapture";
 import { Lobby } from "./Lobby";
 import { useRecordMonitor } from "./monitor/useRecordMonitor";
+import { RecIndicator } from "./RecIndicator";
 import { Room } from "./Room";
 import { loadRecordBootstrap, type RecordBootstrap } from "./recordBootstrap";
 import { OPFS_UNAVAILABLE_COPY, UPLOAD_SINK_ERROR_COPY } from "./types";
+import { UploadStatus } from "./UploadStatus";
 import { guestRecordUploadTransport } from "./upload/http";
 import { downloadLocalKeepers } from "./upload/recovery";
 import { useRecordUpload } from "./upload/useRecordUpload";
@@ -183,7 +185,10 @@ export function RecordApp({ token }: { token: string }) {
   }, [bootstrap?.build.upload, producer, me?.participant_id, lease, token]);
   const [uploadRetryNonce, setUploadRetryNonce] = useState(0);
   const upload = useRecordUpload({
-    enabled: !!bootstrap?.build.upload && !producer && me?.consented === true,
+    enabled:
+      !!bootstrap?.build.upload &&
+      !producer &&
+      (me?.consented === true || snapshot?.state === "stopped"),
     roomState: snapshot?.state,
     captureSettled: !keeper.recordingLocally && !keeper.finalizing,
     sessionId: snapshot?.session_id ?? null,
@@ -192,6 +197,7 @@ export function RecordApp({ token }: { token: string }) {
     transport: uploadTransport,
     sink,
     retryNonce: uploadRetryNonce,
+    captureExpected: me?.consented === true,
   });
   const roomTone = useRoomToneCapture({
     enabled:
@@ -254,6 +260,24 @@ export function RecordApp({ token }: { token: string }) {
     return <Declined />;
   }
 
+  const downloadKeeper =
+    sink && me?.participant_id && snapshot
+      ? () => {
+          void downloadLocalKeepers(
+            sink,
+            snapshot.session_id,
+            me.participant_id,
+            snapshot.take_index,
+          ).catch((error: unknown) => {
+            setSinkError(
+              error instanceof Error ? error.message : String(error),
+            );
+          });
+        }
+      : undefined;
+  const recoveringPriorTake =
+    !producer && snapshot?.state === "stopped" && me?.consented !== true;
+
   const roleCopy = producer ? "You are listening only" : "You will be recorded";
 
   return (
@@ -288,62 +312,61 @@ export function RecordApp({ token }: { token: string }) {
               micLost={mic.lost}
               onRetryMic={mic.retry}
               onResumeUpload={() => setUploadRetryNonce((value) => value + 1)}
-              onDownloadKeeper={
-                sink && me?.participant_id && snapshot
-                  ? () => {
-                      void downloadLocalKeepers(
-                        sink,
-                        snapshot.session_id,
-                        me.participant_id,
-                        snapshot.take_index,
-                      ).catch((error: unknown) => {
-                        setSinkError(
-                          error instanceof Error
-                            ? error.message
-                            : String(error),
-                        );
-                      });
-                    }
-                  : undefined
-              }
+              onDownloadKeeper={downloadKeeper}
             />
           ) : (
-            <Lobby
-              producer={!!producer}
-              name={name}
-              onName={setName}
-              headphonesOk={headphonesOk}
-              onHeadphones={setHeadphonesOk}
-              deviceId={deviceId}
-              onDeviceId={setDeviceId}
-              onJoinProducer={() => setProducerJoined(true)}
-              onAccept={() => send("Consent", { accepted: true })}
-              onDecline={() => send("Consent", { accepted: false })}
-              showMic={!!me && error !== "room_full"}
-              stream={mic.stream}
-              devices={mic.devices}
-              micError={mic.error}
-              settingsWarning={mic.settingsWarning}
-              permission={mic.status}
-              onAllowMic={mic.request}
-              onRetryMic={mic.retry}
-              deviceLocked={
-                snapshot?.state === "recording" || snapshot?.state === "paused"
-              }
-              roomToneStatus={roomTone.status}
-              roomToneError={roomTone.error}
-              onRecordRoomTone={roomTone.record}
-              onSkipRoomTone={roomTone.skip}
-              onRetryRoomTone={roomTone.retry}
-              roomToneReady={
-                !bootstrap.build.upload || (sink !== null && roomTone.ready)
-              }
-              roomToneCaptureReady={sink !== null && roomTone.captureReady}
-              localStorageReady={!storageRequired || sink !== null}
-              localStorageError={sinkError}
-              onRetryStorage={() => setStorageAttempt((n) => n + 1)}
-              showRoomTone={!!bootstrap.build.upload}
-            />
+            <div className="stack">
+              {recoveringPriorTake && snapshot ? (
+                <RecIndicator snapshot={snapshot} />
+              ) : null}
+              <Lobby
+                producer={!!producer}
+                name={name}
+                onName={setName}
+                headphonesOk={headphonesOk}
+                onHeadphones={setHeadphonesOk}
+                deviceId={deviceId}
+                onDeviceId={setDeviceId}
+                onJoinProducer={() => setProducerJoined(true)}
+                onAccept={() => send("Consent", { accepted: true })}
+                onDecline={() => send("Consent", { accepted: false })}
+                showMic={!!me && error !== "room_full"}
+                stream={mic.stream}
+                devices={mic.devices}
+                micError={mic.error}
+                settingsWarning={mic.settingsWarning}
+                permission={mic.status}
+                onAllowMic={mic.request}
+                onRetryMic={mic.retry}
+                deviceLocked={
+                  snapshot?.state === "recording" ||
+                  snapshot?.state === "paused"
+                }
+                roomToneStatus={roomTone.status}
+                roomToneError={roomTone.error}
+                onRecordRoomTone={roomTone.record}
+                onSkipRoomTone={roomTone.skip}
+                onRetryRoomTone={roomTone.retry}
+                roomToneReady={
+                  !bootstrap.build.upload || (sink !== null && roomTone.ready)
+                }
+                roomToneCaptureReady={sink !== null && roomTone.captureReady}
+                localStorageReady={!storageRequired || sink !== null}
+                localStorageError={sinkError}
+                onRetryStorage={() => setStorageAttempt((n) => n + 1)}
+                showRoomTone={!!bootstrap.build.upload}
+              />
+              {recoveringPriorTake &&
+              (upload.pending || upload.total > 0 || upload.error) ? (
+                <UploadStatus
+                  progress={upload}
+                  stopped
+                  alive={connected}
+                  onResume={() => setUploadRetryNonce((value) => value + 1)}
+                  onDownload={downloadKeeper}
+                />
+              ) : null}
+            </div>
           )}
         </FocusPull>
       </div>
