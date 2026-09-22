@@ -307,12 +307,22 @@ def _collect_repetition_candidates(
         if str(value).strip()
     }
     usable = [i for i, word in enumerate(words) if not word.suppressed and word.end > word.start]
+    # A phrase such as ``you know`` is one filler lexicon entry even though ASR
+    # represents it as two words.  Do not reinterpret either occurrence as a
+    # lexical restart (``you know you know``) after filler selection has made
+    # that classification.
+    filler_word_indexes = {
+        word_index
+        for start_i, end_i, _token in _lexicon_phrase_hits(words, filler_words)
+        for word_index in range(start_i, end_i + 1)
+    }
     candidates: list[_CutCandidate] = []
     seen: set[tuple[int, int]] = set()
+    consumed_positions: set[int] = set()
     for pos, first_i in enumerate(usable):
         first = words[first_i]
         first_token = _repeat_token(first)
-        if not first_token or first_token in filler_words:
+        if pos in consumed_positions or not first_token or first_i in filler_word_indexes:
             continue
         # Explicitly marked partial words are clear reparanda; do not infer a
         # cut-off from ASR token similarity alone.
@@ -328,6 +338,7 @@ def _collect_repetition_candidates(
                 and _words_are_contiguous(words, first_i, second_i, max_gap)
             ):
                 seen.add((first_i, first_i))
+                consumed_positions.update((pos, pos + 1))
                 candidates.append(
                     _CutCandidate(
                         track_id=track_id,
@@ -370,11 +381,16 @@ def _collect_repetition_candidates(
                     for a, b in pairwise([*prefix_left, partial_i, *prefix_right, repair_i])
                 )
             ):
-                seen.add((partial_i, partial_i))
+                start_i = prefix_left[0]
+                seen.add((start_i, partial_i))
+                consumed_positions.update(range(pos, repair_pos + 1))
                 candidates.append(
                     _CutCandidate(
                         track_id=track_id,
-                        start=partial_word.start,
+                        # Remove the false start as one reparandum.  For
+                        # ``I w- I went``, retaining only ``I went`` avoids
+                        # leaving the leading repeated pronoun behind.
+                        start=words[start_i].start,
                         end=partial_word.end,
                         reason=f"restart:partial:{partial}",
                         cut_kind="restart",
@@ -392,6 +408,8 @@ def _collect_repetition_candidates(
                 continue
             left = usable[pos : pos + length]
             right = usable[pos + length : pos + 2 * length]
+            if any(index in filler_word_indexes for index in (*left, *right)):
+                continue
             if any(
                 not _words_are_contiguous(words, sequence[a], sequence[a + 1], max_gap)
                 for sequence in (left, right)
@@ -410,6 +428,10 @@ def _collect_repetition_candidates(
             if (start_i, end_i) in seen:
                 continue
             seen.add((start_i, end_i))
+            # Consume the repair as well as the removed reparandum.  Without
+            # this, periodic speech such as ``a b a b a b`` produces adjacent
+            # phrase candidates that later coalesce into one large cut.
+            consumed_positions.update(range(pos, pos + 2 * length))
             candidates.append(
                 _CutCandidate(
                     track_id=track_id,
@@ -436,6 +458,7 @@ def _collect_repetition_candidates(
             key = (first_i, first_i)
             if key not in seen:
                 seen.add(key)
+                consumed_positions.update((pos, pos + 1))
                 candidates.append(
                     _CutCandidate(
                         track_id=track_id,
