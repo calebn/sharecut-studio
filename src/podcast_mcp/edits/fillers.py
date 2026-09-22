@@ -354,6 +354,7 @@ def _collect_repetition_candidates(
         # token after a short repeated prefix, but only when the repair resumes
         # with that same prefix and the partial token's text is a prefix of the
         # following repair word.
+        split_repair_found = False
         for prefix_len in range(1, 3):
             partial_pos = pos + prefix_len
             repair_pos = partial_pos + prefix_len + 1
@@ -397,7 +398,10 @@ def _collect_repetition_candidates(
                         filler_confidence=partial_word.confidence,
                     )
                 )
+                split_repair_found = True
                 break
+        if split_repair_found:
+            continue
         if pos + 1 >= len(usable):
             continue
         # Prefer the longest repeated prefix.  A phrase restart is one review
