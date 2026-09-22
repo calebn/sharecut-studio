@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { capabilityTooltip } from "../capabilities/copy";
+import { useLongPress } from "../hooks/useLongPress";
 import { TranscriptWordInspector } from "../inspector/views/TranscriptWordInspector";
 import {
   presenceAnchor,
@@ -121,11 +122,36 @@ export function TranscriptPanel() {
   const programmaticScrollRef = useRef(false);
   const viewAnchorRafRef = useRef<number | null>(null);
   const clickTimerRef = useRef<number | null>(null);
+  const touchSeekTimerRef = useRef<number | null>(null);
   const rangeAnchorRef = useRef<number | null>(null);
   const draggingRef = useRef(false);
   /** True when mouseenter extended the range during a drag (survives mouseup→click). */
   const dragExtendedRef = useRef(false);
   const [intent, setIntent] = useState<TranscriptIntent>("navigate");
+  const lastTouchTapRef = useRef<{
+    trackId: string;
+    wordIndex: number;
+    at: number;
+  } | null>(null);
+  const correctedTouchAtRef = useRef(-Infinity);
+  const pendingCorrectionRef = useRef<{
+    trackId: string;
+    wordIndex: number;
+  } | null>(null);
+  const touchNavigateAtRef = useRef(-Infinity);
+  const longPressReleasedRef = useRef(false);
+  const transcriptLongPress = useLongPress((target) => {
+    const wordTarget =
+      target instanceof Element
+        ? target.closest<HTMLElement>("[data-transcript-word]")
+        : null;
+    const trackId = wordTarget?.dataset.trackId;
+    const wordIndex = Number(wordTarget?.dataset.wordIndex);
+    if (trackId && Number.isInteger(wordIndex)) {
+      setIntent("correct");
+      setSelection({ kind: "transcriptWord", trackId, wordIndex });
+    }
+  });
   const hostEditable = !isShareProjectKey(projectPath);
   const wordsHydrated = project?.meta.hydration?.transcript_words !== false;
 
@@ -133,6 +159,9 @@ export function TranscriptPanel() {
     return () => {
       if (clickTimerRef.current != null) {
         window.clearTimeout(clickTimerRef.current);
+      }
+      if (touchSeekTimerRef.current != null) {
+        window.clearTimeout(touchSeekTimerRef.current);
       }
     };
   }, []);
@@ -467,6 +496,20 @@ export function TranscriptPanel() {
       <div
         className="transcript-list"
         ref={listRef}
+        onPointerDown={(event) => {
+          if (
+            event.target instanceof Element &&
+            event.target.closest("[data-transcript-word]")
+          ) {
+            transcriptLongPress.onPointerDown(event);
+          }
+        }}
+        onClickCapture={transcriptLongPress.onClickCapture}
+        onPointerMove={transcriptLongPress.onPointerMove}
+        onPointerUpCapture={(event) => {
+          longPressReleasedRef.current = transcriptLongPress.onPointerUp(event);
+        }}
+        onPointerCancel={transcriptLongPress.onPointerCancel}
         onScroll={() => {
           scheduleViewAnchor();
           if (programmaticScrollRef.current) {
@@ -595,6 +638,9 @@ export function TranscriptPanel() {
                           type="button"
                           ref={bindActiveRef(wActive)}
                           className={chipClass}
+                          data-transcript-word
+                          data-track-id={u.track_id}
+                          data-word-index={wordIndex}
                           {...wordAnchor}
                           title={
                             cutAwayTip ??
@@ -629,6 +675,43 @@ export function TranscriptPanel() {
                             rangeAnchorRef.current = wordIndex;
                             setRange(u.track_id, wordIndex, wordIndex);
                           }}
+                          onPointerUp={(e) => {
+                            if (longPressReleasedRef.current) return;
+                            if (e.pointerType !== "touch" || wordIndex == null)
+                              return;
+                            const previous = lastTouchTapRef.current;
+                            const now = Date.now();
+                            lastTouchTapRef.current = {
+                              trackId: u.track_id,
+                              wordIndex,
+                              at: now,
+                            };
+                            if (
+                              previous?.trackId === u.track_id &&
+                              previous.wordIndex === wordIndex &&
+                              now - previous.at <= 350
+                            ) {
+                              if (touchSeekTimerRef.current != null) {
+                                window.clearTimeout(touchSeekTimerRef.current);
+                                touchSeekTimerRef.current = null;
+                              }
+                              correctedTouchAtRef.current = now;
+                              lastTouchTapRef.current = null;
+                              pendingCorrectionRef.current = {
+                                trackId: u.track_id,
+                                wordIndex,
+                              };
+                            } else if (intent === "navigate" && wSeek != null) {
+                              touchNavigateAtRef.current = now;
+                              touchSeekTimerRef.current = window.setTimeout(
+                                () => {
+                                  touchSeekTimerRef.current = null;
+                                  setPlayheadSec(wSeek);
+                                },
+                                350,
+                              );
+                            }
+                          }}
                           onMouseEnter={() => {
                             if (
                               !draggingRef.current ||
@@ -650,6 +733,33 @@ export function TranscriptPanel() {
                           onClick={(e) => {
                             e.stopPropagation();
                             e.preventDefault();
+                            const pending = pendingCorrectionRef.current;
+                            pendingCorrectionRef.current = null;
+                            if (
+                              pending?.trackId === u.track_id &&
+                              pending.wordIndex === wordIndex &&
+                              Date.now() - correctedTouchAtRef.current < 500
+                            ) {
+                              setIntent("correct");
+                              setSelection({
+                                kind: "transcriptWord",
+                                trackId: u.track_id,
+                                wordIndex,
+                              });
+                              return;
+                            }
+                            if (
+                              Date.now() - correctedTouchAtRef.current <
+                              500
+                            ) {
+                              return;
+                            }
+                            if (
+                              intent === "navigate" &&
+                              Date.now() - touchNavigateAtRef.current < 500
+                            ) {
+                              return;
+                            }
                             if (intent === "correct" && wordIndex != null) {
                               if (clickTimerRef.current != null) {
                                 window.clearTimeout(clickTimerRef.current);
@@ -692,6 +802,18 @@ export function TranscriptPanel() {
                               ? (e) => {
                                   e.stopPropagation();
                                   e.preventDefault();
+                                  if (
+                                    Date.now() - correctedTouchAtRef.current <
+                                    500
+                                  ) {
+                                    return;
+                                  }
+                                  if (
+                                    Date.now() - touchNavigateAtRef.current <
+                                    500
+                                  ) {
+                                    return;
+                                  }
                                   seekWordNow(wSeek);
                                 }
                               : undefined

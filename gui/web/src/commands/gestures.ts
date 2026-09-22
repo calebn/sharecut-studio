@@ -1,65 +1,56 @@
 import { COMMANDS } from "./catalog";
 
-export type GestureStatus = "available" | "planned";
-
 type CatalogGesture = {
   gesture: string;
   commandIds: readonly (keyof typeof COMMANDS)[];
   description: string;
-  status: GestureStatus;
 };
 
-type ProposedGesture = {
+type TouchGesture = {
   gesture: string;
-  proposal: string;
+  label: string;
   description: string;
-  status: "planned";
 };
 
-export type GestureDef = CatalogGesture | ProposedGesture;
+export type GestureDef = CatalogGesture | TouchGesture;
 
 /**
- * Touch affordances shown in the mobile cheatsheet. Executable actions refer
- * to the shared command catalog; proposals stay explicit until implemented.
+ * Shipped touch affordances shown in the mobile cheatsheet. Command-backed
+ * actions refer to the shared catalog.
  */
 export const MOBILE_GESTURES: readonly GestureDef[] = [
   {
     gesture: "Two-finger tap",
     commandIds: ["history.undo"],
     description: "Undo the last action. iOS system convention.",
-    status: "available",
   },
   {
     gesture: "Long-press",
-    proposal: "Context actions",
+    label: "Open inspector",
     description:
       "Open the selection sheet for clips, words, comments, and tracks.",
-    status: "planned",
   },
   {
     gesture: "Pinch",
     commandIds: ["view.zoomIn", "view.zoomOut"],
     description: "Pinch in/out on the timeline to zoom.",
-    status: "available",
   },
   {
     gesture: "Swipe left on comment",
-    proposal: "Resolve comment",
-    description: "Quick-resolve a comment from the list.",
-    status: "planned",
+    label: "Resolve",
+    description: "Swipe left on an open comment to resolve it.",
   },
   {
     gesture: "Double-tap word",
-    proposal: "Correct word",
+    label: "Correct word",
     description: "Open the word correction sheet.",
-    status: "planned",
   },
 ];
 
 export function gestureLabel(gesture: GestureDef): string {
   return "commandIds" in gesture
     ? gesture.commandIds.map((id) => COMMANDS[id].label).join(" / ")
-    : gesture.proposal;
+    : gesture.label;
 }
 
 export function referencedGestureCommandIds(): string[] {
