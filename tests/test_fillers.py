@@ -531,6 +531,25 @@ def test_split_partial_restart_removes_repeated_prefix_and_retains_repair():
     assert " ".join(retained) == "I went"
 
 
+def test_split_partial_restart_does_not_duplicate_word_repetition():
+    from podcast_mcp.edits.fillers import _collect_candidates
+
+    words = [
+        TranscriptWord(text="I", start=0.0, end=0.1),
+        TranscriptWord(text="I-", start=0.12, end=0.2),
+        TranscriptWord(text="I", start=0.22, end=0.32),
+        TranscriptWord(text="intended", start=0.34, end=0.52),
+    ]
+    project = _project_with_transcript(words)
+    candidates = _collect_candidates(
+        project.transcripts[0], {"tighten": {"filler_words": []}}, project=project
+    )
+
+    assert [(candidate.start, candidate.end, candidate.reason) for candidate in candidates] == [
+        (0.0, 0.2, "restart:partial:i")
+    ]
+
+
 def test_multiword_filler_repeat_does_not_become_restart_candidate():
     from podcast_mcp.edits.fillers import _collect_candidates
 
