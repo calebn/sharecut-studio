@@ -301,19 +301,18 @@ export function useKeeperCapture({
       }
       return;
     }
-    void applyChain.current
-      .then(() => {
-        if (sessionRef.current !== session) {
-          return;
-        }
-        return applyGate(session, captureGate());
-      })
-      .then(() => {
-        if (sessionRef.current !== session) {
-          return;
-        }
-        return session.retry();
-      })
+    const retryRun = applyChain.current.then(async () => {
+      if (sessionRef.current !== session) {
+        return;
+      }
+      await applyGate(session, captureGate());
+      if (sessionRef.current !== session) {
+        return;
+      }
+      await session.retry();
+    });
+    applyChain.current = retryRun.catch(() => undefined);
+    void retryRun
       .then(() => {
         if (sessionRef.current !== session) {
           return;
