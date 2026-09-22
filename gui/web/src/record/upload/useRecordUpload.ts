@@ -40,6 +40,8 @@ const EMPTY: RecordUploadProgress = {
 
 export function useRecordUpload(args: {
   enabled: boolean;
+  roomState?: string;
+  captureSettled?: boolean;
   sessionId: string | null;
   takeIndex: number;
   participantId: string | null;
@@ -84,6 +86,8 @@ export function useRecordUpload(args: {
         let allLanded = true;
         let landFailed = false;
         let saw = false;
+        let awaitingAck = false;
+        let abandoned = false;
         for (let take = 0; take <= takeIndex; take += 1) {
           const next = await sink.nextSegmentIndex(
             sessionId,
@@ -116,10 +120,24 @@ export function useRecordUpload(args: {
             const wav = await sink.read(wavPath);
             if (!wav) {
               allAcked = false;
+              awaitingAck = true;
               continue;
             }
             const metaBytes = await sink.read(keeperMetaPath(wavPath));
             const complete = metaBytes != null;
+            if (
+              !complete &&
+              current.roomState === "stopped" &&
+              current.captureSettled
+            ) {
+              // A stopped capture cannot finish this segment. Keep its local
+              // bytes for recovery, but do not repeatedly upload a partial WAV
+              // or hold Leave after all complete segments have an ACK.
+              abandoned = true;
+              allAcked = false;
+              allLanded = false;
+              continue;
+            }
             let joinOffsetMs = 0;
             if (metaBytes) {
               try {
@@ -148,6 +166,7 @@ export function useRecordUpload(args: {
             total += result.total;
             if (!complete || !result.fileAck) {
               allAcked = false;
+              awaitingAck = true;
             }
             allLanded = allLanded && result.landed;
             landFailed = landFailed || result.landFailed;
@@ -157,15 +176,19 @@ export function useRecordUpload(args: {
           allAcked = true;
         }
         if (!cancelled) {
+          const abandonedError =
+            abandoned && !awaitingAck
+              ? "An incomplete local keeper segment was retained for recovery."
+              : null;
           setProgress({
             acked,
             total,
             fileAck: allAcked,
             landed: saw && allAcked && allLanded && !landFailed,
             landFailed,
-            uploading: saw && !allAcked,
+            uploading: awaitingAck,
             pending: false,
-            error: null,
+            error: abandonedError,
           });
         }
       } catch (err) {
@@ -193,6 +216,8 @@ export function useRecordUpload(args: {
     };
   }, [
     args.enabled,
+    args.roomState,
+    args.captureSettled,
     args.sessionId,
     args.takeIndex,
     args.participantId,

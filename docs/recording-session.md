@@ -263,7 +263,10 @@ Chunks (target 5 MB or 30 s, whichever first) `POST` to a **dedicated record
 upload route** gated by `join` (not `edit`, not `POST …/daw/media/upload`).
 Tunnel pass-through to the host only — no relay disk, no object-store
 keeper backup in MVP. Stop shows a **blocking upload panel** (host sees all
-participants; guest sees own) until ACK or stall. Resume on the **same
+participants; guest sees own) until ACK or stall. An incomplete local segment
+after capture has settled is retained for recovery and reported separately;
+it cannot receive a file ACK and does not hold Leave after complete segments
+are acknowledged. Resume on the **same
 `/rec/` token** inside a **7-day recovery window**. Lossy host-side backup mix
 is **not** in audio MVP.
 
@@ -630,7 +633,12 @@ the failed open segment is not advertised as durable because
 offers **Retry local recording** while the take is recording; during pause or
 after Stop, the host must resume or start a take first. Retry closes the failed
 stream best-effort and starts a new segment without overwriting the failed one.
-Repeated errors remain visible and do not silently discard or count queued samples.
+The retry segment uses the current recording clock so its landing offset follows
+the lost span. A stopped, incomplete local `.wav` remains in OPFS for recovery
+without a completion `.json`; it is never given a file ACK or landed. Once all
+complete segments are acknowledged, that retained partial no longer traps the
+guest Leave button or host dialog. Repeated errors remain visible and do not
+silently discard or count queued samples.
 
 On the **last** host connection drop (`disconnect` / `release_connection`)
 while `state ∈ {recording, paused}`, the service stamps
