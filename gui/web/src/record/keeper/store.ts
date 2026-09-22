@@ -16,6 +16,8 @@ export type ByteStream = {
 export type ByteSink = {
   write(path: string, bytes: Uint8Array): Promise<void>;
   read(path: string): Promise<Uint8Array | null>;
+  /** Return the native file when available so recovery need not copy large WAVs. */
+  readBlob?(path: string): Promise<Blob | null>;
   remove(path: string): Promise<void>;
   open(path: string): Promise<ByteStream>;
   nextSegmentIndex(
@@ -177,6 +179,14 @@ export async function createOpfsSink(): Promise<ByteSink> {
         const file = await fileHandle(root, path, false);
         const blob = await file.getFile();
         return new Uint8Array(await blob.arrayBuffer());
+      } catch {
+        return null;
+      }
+    },
+    async readBlob(path: string) {
+      try {
+        const file = await fileHandle(root, path, false);
+        return await file.getFile();
       } catch {
         return null;
       }

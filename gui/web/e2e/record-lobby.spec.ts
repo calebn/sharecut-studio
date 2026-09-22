@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import {
   type Browser,
   expect,
@@ -155,6 +156,56 @@ async function roomToneWav(page: Page): Promise<{
   });
 }
 
+async function seedSparseRecoveryKeepers(
+  page: Page,
+  sessionId: string,
+  takeIndex: number,
+  participantId: string,
+): Promise<void> {
+  await page.evaluate(
+    async ({ sessionId, takeIndex, participantId }) => {
+      let dir = await navigator.storage.getDirectory();
+      for (const part of [
+        "Sharecut Recordings",
+        sessionId,
+        String(takeIndex),
+        participantId,
+      ]) {
+        dir = await dir.getDirectoryHandle(part, { create: true });
+      }
+      for (const index of [0, 2]) {
+        const handle = await dir.getFileHandle(`${index}.wav`, {
+          create: true,
+        });
+        const writer = await handle.createWritable();
+        await writer.write(new Uint8Array(52));
+        await writer.close();
+      }
+    },
+    { sessionId, takeIndex, participantId },
+  );
+}
+
+async function expectRecoveryDownloads(page: Page): Promise<void> {
+  const downloads: Array<{ name: string; path: Promise<string> }> = [];
+  page.on("download", (download) =>
+    downloads.push({
+      name: download.suggestedFilename(),
+      path: download.path(),
+    }),
+  );
+  await page.getByRole("button", { name: "Download local keeper" }).click();
+  await expect.poll(() => downloads.length).toBe(1);
+  expect(downloads[0]?.name).toMatch(/^keepers-p_.*\.zip$/);
+  const archive = await readFile(await downloads[0]!.path);
+  expect(archive.readUInt32LE(0)).toBe(0x0403_4b50);
+  expect(archive.includes(Buffer.from("keeper-0-0.wav"))).toBe(true);
+  expect(archive.includes(Buffer.from("keeper-0-2.wav"))).toBe(true);
+  await expect(
+    page.getByText(/Downloaded 2 local keeper copies/),
+  ).toBeVisible();
+}
+
 test.use({
   launchOptions: {
     args: [
@@ -165,6 +216,79 @@ test.use({
 });
 
 test.describe("record lobby", () => {
+  test("host and guest can download surviving local keepers in Chromium", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    await withShareableProject(async (projectPath) => {
+      const hostCtx = await browser.newContext({ acceptDownloads: true });
+      const guestCtx = await browser.newContext({ acceptDownloads: true });
+      const host = await hostCtx.newPage();
+      const guest = await guestCtx.newPage();
+      try {
+        await markSharecutE2e(host);
+        await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
+        await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
+        const created = await host.request.post("/api/shares/record", {
+          data: { path: projectPath },
+        });
+        expect(created.ok(), await created.text()).toBeTruthy();
+        const room = (await created.json()) as {
+          room: { guest: { token: string } };
+        };
+        await markSharecutE2e(guest);
+        await guest.goto(`/rec/${room.room.guest.token}?e2e=1`);
+        await guest.getByLabel("Display name").fill("Ava");
+        await guest.getByLabel("I am wearing headphones").check();
+        await guest.getByRole("button", { name: "Allow microphone" }).click();
+        await guest.getByRole("button", { name: "Skip" }).click();
+        await guest.getByRole("button", { name: "Accept" }).click();
+        await expect(guest.getByText("Waiting for host")).toBeVisible();
+        await ensureHostRecordCommand(host, projectPath, "Start", "recording");
+        await ensureHostRecordCommand(host, projectPath, "Stop", "stopped");
+        await expect(guest.locator(".record-rec-label")).toHaveText("Stopped");
+
+        const stateResponse = await host.request.get("/api/record/state", {
+          params: { path: projectPath },
+        });
+        expect(stateResponse.ok(), await stateResponse.text()).toBeTruthy();
+        const state = (await stateResponse.json()) as {
+          session_id: string;
+          take_index: number;
+          participants: Array<{
+            participant_id: string;
+            display_name: string;
+          }>;
+        };
+        const guestId = state.participants.find(
+          (participant) => participant.display_name === "Ava",
+        )?.participant_id;
+        expect(guestId).toBeTruthy();
+        await seedSparseRecoveryKeepers(
+          guest,
+          state.session_id,
+          state.take_index,
+          guestId!,
+        );
+        await seedSparseRecoveryKeepers(
+          host,
+          state.session_id,
+          state.take_index,
+          "p_host",
+        );
+        await guest.reload();
+        await host.getByRole("button", { name: "Menu" }).click();
+        await host.getByRole("menuitem", { name: "Record room…" }).click();
+        await expectRecoveryDownloads(guest);
+        await expectRecoveryDownloads(host);
+      } finally {
+        await hostCtx.close();
+        await guestCtx.close();
+      }
+    });
+  });
+
   test("guest consent unlocks host Start; producer is not recorded", async ({
     browser,
   }: {
