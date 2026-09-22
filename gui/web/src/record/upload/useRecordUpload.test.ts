@@ -238,6 +238,80 @@ describe("useRecordUpload", () => {
     unmount();
   });
 
+  it("uses the declared total for an assembled segment whose parts are gone", async () => {
+    const wav = wavWithPcm(8);
+    const sink: ByteSink = {
+      async write() {
+        return;
+      },
+      async read(path) {
+        return path.endsWith("1.json")
+          ? new TextEncoder().encode(JSON.stringify({ joinOffsetMs: 0 }))
+          : path.endsWith(".json")
+            ? null
+            : wav;
+      },
+      async open() {
+        return {
+          async write() {
+            return;
+          },
+          async close() {
+            return;
+          },
+        };
+      },
+      async nextSegmentIndex() {
+        return 2;
+      },
+      async remove() {
+        return;
+      },
+    };
+    const transport: RecordUploadTransport = {
+      async status() {
+        return {
+          segments: [
+            {
+              take_index: 0,
+              participant_id: "p_a",
+              segment_index: 0,
+              acked_parts: [],
+              expected_parts: 3,
+              file_ack: true,
+            },
+          ],
+        };
+      },
+      async put(args) {
+        return {
+          acked: true,
+          take_index: args.takeIndex,
+          participant_id: "p_a",
+          segment_index: args.segmentIndex,
+          part_seq: args.partSeq,
+          file_ack: false,
+        };
+      },
+    };
+    const { result, unmount } = renderHook(() =>
+      useRecordUpload({
+        enabled: true,
+        roomState: "stopped",
+        captureSettled: true,
+        sessionId: "room1",
+        takeIndex: 0,
+        participantId: "p_a",
+        transport,
+        sink,
+      }),
+    );
+    await waitFor(() => {
+      expect(result.current).toMatchObject({ acked: 4, total: 4 });
+    });
+    unmount();
+  });
+
   it("never calls an absent local segment uploaded after Stop", async () => {
     const sink = { ...sinkForTakes(), nextSegmentIndex: async () => 0 };
     const transport = memoryUploadTransport();

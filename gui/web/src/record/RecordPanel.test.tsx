@@ -305,6 +305,18 @@ describe("RecordPanel", () => {
     expect(exec).toHaveBeenCalledWith("record.land", {}, { skipWhen: true });
   });
 
+  it("does not expect a local keeper when the host did not join the capture stream", async () => {
+    useRecordHostStore.getState().setSnapshot({
+      ...lobby,
+      state: "stopped",
+      take_index: 0,
+      start_blockers: [],
+    });
+    render(<RecordPanel />);
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    expect(screen.queryByText(/No local keeper was captured/i)).toBeNull();
+  });
+
   it("posts a live marker while recording", async () => {
     send.mockReturnValue(true);
     useRecordHostStore.getState().setSnapshot({

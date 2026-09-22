@@ -138,4 +138,28 @@ describe("HostUploadRoster", () => {
     );
     expect(screen.getByText("Ava: 3/5 chunks acked.")).toBeInTheDocument();
   });
+
+  it("does not show a partial total when another segment has no declared size", () => {
+    render(
+      <HostUploadRoster
+        stopped
+        participants={[guest]}
+        segments={[
+          {
+            participant_id: "p_g",
+            acked_parts: [0],
+            expected_parts: 3,
+            file_ack: false,
+          },
+          {
+            participant_id: "p_g",
+            acked_parts: [],
+            file_ack: false,
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Ava: 1 chunks acked.")).toBeInTheDocument();
+    expect(screen.queryByText("Ava: 1/3 chunks acked.")).toBeNull();
+  });
 });

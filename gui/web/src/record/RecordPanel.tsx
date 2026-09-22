@@ -120,6 +120,7 @@ export function RecordPanel({
     participantId: "p_host",
     transport: uploadTransport,
     sink,
+    captureExpected: stream != null,
     retryNonce: uploadRetryNonce,
   });
   const roomToneEnabled =
