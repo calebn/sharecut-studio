@@ -7,6 +7,11 @@ import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
 import { startBlockers } from "./blockers";
 import { useRecordHostStore } from "./hostStore";
+import {
+  MIC_DENIED_COPY,
+  MIC_DESKTOP_DENIED_COPY,
+  MIC_RETRY_LABEL,
+} from "./micPermission";
 import { RecordPanel } from "./RecordPanel";
 import {
   hostUploadLine,
@@ -114,6 +119,46 @@ describe("RecordPanel", () => {
     expect(screen.getByText("No one has joined")).toBeInTheDocument();
     expect(screen.getByText(ROOM_TONE_PROMPT_COPY)).toBeInTheDocument();
     await expectNoA11yViolations(container);
+  });
+
+  it("shows host microphone recovery and retries it", async () => {
+    const onRetryMic = vi.fn();
+    const { container } = render(
+      <RecordPanel
+        micError="permission blocked"
+        micStatus="denied"
+        onRetryMic={onRetryMic}
+      />,
+    );
+    expect(screen.getByText(MIC_DENIED_COPY)).toBeInTheDocument();
+    const retry = screen.getByRole("button", { name: MIC_RETRY_LABEL });
+    expect(retry).toHaveAttribute("aria-describedby");
+    await userEvent.click(retry);
+    expect(onRetryMic).toHaveBeenCalledOnce();
+    await expectNoA11yViolations(container);
+  });
+
+  it("shows operating-system recovery in the macOS desktop host panel", async () => {
+    Object.defineProperty(window, "__TAURI_INTERNALS__", {
+      configurable: true,
+      value: {},
+    });
+    Object.defineProperty(navigator, "userAgent", {
+      configurable: true,
+      value: "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)",
+    });
+
+    try {
+      const { container } = render(
+        <RecordPanel micStatus="denied" onRetryMic={() => undefined} />,
+      );
+      expect(screen.getByText(MIC_DESKTOP_DENIED_COPY)).toBeInTheDocument();
+      await expectNoA11yViolations(container);
+    } finally {
+      delete (window as Window & { __TAURI_INTERNALS__?: unknown })
+        .__TAURI_INTERNALS__;
+      Reflect.deleteProperty(navigator, "userAgent");
+    }
   });
 
   it("dispatches host commands when enabled", async () => {

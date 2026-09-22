@@ -11,8 +11,10 @@ const mic = vi.hoisted(() =>
   vi.fn((_enabled: boolean, _deviceId: string, _resetKey = 0) => ({
     stream: null as MediaStream | null,
     devices: [],
-    error: null,
+    error: null as string | null,
+    errorName: null as string | null,
     settingsWarning: null,
+    pending: false,
     lost: false,
     retry: vi.fn(),
   })),
@@ -145,7 +147,9 @@ describe("useHostKeeperCapture", () => {
       stream: {} as MediaStream,
       devices: [],
       error: null,
+      errorName: null,
       settingsWarning: null,
+      pending: false,
       lost: false,
       retry: vi.fn(),
     });
@@ -187,7 +191,9 @@ describe("useHostKeeperCapture", () => {
       stream: null,
       devices: [],
       error: null,
+      errorName: null,
       settingsWarning: null,
+      pending: false,
       lost: true,
       retry: vi.fn(),
     });
@@ -234,5 +240,26 @@ describe("useHostKeeperCapture", () => {
     renderHook(() => useHostKeeperCapture());
     expect(mic).toHaveBeenLastCalledWith(true, "", 3);
     expect(keeper.mock.calls.at(-1)?.[0].resetKey).toBe(3);
+  });
+
+  it("exposes denied microphone guidance and reuses the mic retry hook", () => {
+    const retry = vi.fn();
+    mic.mockReturnValueOnce({
+      stream: null,
+      devices: [],
+      error: "permission blocked",
+      errorName: "NotAllowedError",
+      settingsWarning: null,
+      pending: false,
+      lost: false,
+      retry,
+    });
+    const { result } = renderHook(() => useHostKeeperCapture());
+
+    expect(result.current.micStatus).toBe("denied");
+    expect(result.current.micError).toBe("permission blocked");
+    act(() => result.current.retryMic());
+    expect(retry).toHaveBeenCalledOnce();
+    expect(keeper.mock.calls.at(-1)?.[0].resetKey).toBe(0);
   });
 });
