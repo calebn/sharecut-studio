@@ -47,6 +47,7 @@ export function useRecordUpload(args: {
   participantId: string | null;
   transport: RecordUploadTransport | null;
   sink: ByteSink | null;
+  captureExpected?: boolean;
   retryNonce?: number;
 }): RecordUploadProgress {
   const [progress, setProgress] = useState<RecordUploadProgress>(EMPTY);
@@ -107,7 +108,8 @@ export function useRecordUpload(args: {
                 row.participant_id === participantId,
             );
             if (remoteSeg?.file_ack) {
-              const n = remoteSeg.acked_parts.length;
+              const n =
+                remoteSeg.expected_parts ?? remoteSeg.acked_parts.length;
               acked += n;
               total += n;
               allLanded = allLanded && Boolean(remoteSeg.landed);
@@ -202,7 +204,7 @@ export function useRecordUpload(args: {
             pending: false,
             error:
               abandonedError ??
-              (!saw && stopped
+              (!saw && stopped && current.captureExpected !== false
                 ? "No local keeper was captured. Check the local copy before leaving."
                 : stalled
                   ? "Upload stalled. Resume the upload or download the local keeper copy."
