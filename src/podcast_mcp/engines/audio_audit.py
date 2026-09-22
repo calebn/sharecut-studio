@@ -229,11 +229,12 @@ def detect_mains_hum(
 class TrackRmsCache:
     """Decoded mono audio for fast repeated window reads (timeline seconds).
 
-    Decoding a track once via ffmpeg (~1-2s for an hour of audio) and slicing
-    the resulting array in memory is orders of magnitude faster than spawning a
-    fresh ffmpeg subprocess per tiny window read (~70ms/call) -- this cache backs
-    both RMS-level measurements (`rms_db`) and raw-sample access (`window`, for
-    waveform-boundary scoring) used throughout tighten/inaudible-cut analysis.
+    Decoding a track once (~1-2s for an hour of audio) and slicing the resulting
+    array in memory avoids repeated decoding for RMS windows. WAV windows are
+    already read in-process; other containers may use the existing decoder
+    fallback. This cache backs both RMS-level measurements (`rms_db`) and
+    raw-sample access (`window`, for waveform-boundary scoring) used throughout
+    tighten/inaudible-cut analysis.
     See docs/pipeline.md#performance.
     """
 
