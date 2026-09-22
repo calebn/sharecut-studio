@@ -14,7 +14,7 @@ import {
   undoHistory,
   waitForPipelineJob,
 } from "../api";
-import { CLOSE_GUARD_PARAM } from "../desktop/useDesktopCloseGuard";
+import { desktopCloseGuardArmed } from "../desktop/useDesktopCloseGuard";
 import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
 import { currentDocumentSeq } from "../document/cursor";
 import { revertOptimisticIfUnchanged } from "../document/optimisticRevert";
@@ -58,6 +58,9 @@ import type { CommandContext } from "./context";
 import { registerCommand } from "./execute";
 import { registerTightenCommands } from "./tighten";
 import type { ExecuteResult } from "./types";
+
+const PROJECT_SWITCH_BLOCKED =
+  "Stop and finish recording before switching projects";
 
 type BladeRunner = {
   requestCut: (atTime: number) => void | Promise<void>;
@@ -870,14 +873,21 @@ export function registerDawCommands(): void {
   });
 
   registerCommand("project.new", () => {
+    if (desktopCloseGuardArmed()) {
+      useDawStore.getState().announceStatus(PROJECT_SWITCH_BLOCKED);
+      return { status: "disabled", reason: PROJECT_SWITCH_BLOCKED };
+    }
     const url = new URL(window.location.href);
     url.searchParams.delete("project");
-    url.searchParams.delete(CLOSE_GUARD_PARAM);
     window.location.assign(url.toString());
     return { status: "ok" };
   });
 
   registerCommand("project.open", () => {
+    if (desktopCloseGuardArmed()) {
+      useDawStore.getState().announceStatus(PROJECT_SWITCH_BLOCKED);
+      return { status: "disabled", reason: PROJECT_SWITCH_BLOCKED };
+    }
     if (projectOpenInFlight) {
       return { status: "ok" };
     }
@@ -911,11 +921,18 @@ export function registerDawCommands(): void {
         if (!path?.trim()) {
           return;
         }
+        if (desktopCloseGuardArmed()) {
+          useDawStore.getState().announceStatus(PROJECT_SWITCH_BLOCKED);
+          return;
+        }
         try {
           const out = await openEpisodeProject(path.trim());
+          if (desktopCloseGuardArmed()) {
+            useDawStore.getState().announceStatus(PROJECT_SWITCH_BLOCKED);
+            return;
+          }
           const url = new URL(window.location.href);
           url.searchParams.set("project", out.project_path);
-          url.searchParams.delete(CLOSE_GUARD_PARAM);
           window.location.assign(url.toString());
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);

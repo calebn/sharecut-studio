@@ -11,11 +11,6 @@ import {
 import { expectNoA11yViolations } from "../test/a11y";
 import { HomeScreen } from "./HomeScreen";
 
-const closeGuardSpy = vi.hoisted(() => vi.fn());
-vi.mock("../desktop/useDesktopCloseGuard", () => ({
-  useDesktopCloseGuard: closeGuardSpy,
-}));
-
 vi.mock("../api", () => ({
   closeEpisodeProject: vi.fn(),
   createEpisodeProject: vi.fn(),
@@ -35,7 +30,6 @@ describe("HomeScreen", () => {
   const assign = vi.fn();
 
   beforeEach(() => {
-    closeGuardSpy.mockClear();
     window.localStorage.setItem("sharecut.bootstrap.skip", "1");
     closeMock.mockReset();
     closeMock.mockResolvedValue(undefined);
@@ -56,9 +50,25 @@ describe("HomeScreen", () => {
     });
   });
 
-  it("clears a recording marker after navigating to Home", () => {
+  it("keeps an armed recording marker and blocks project switching", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("location", {
+      href: "http://127.0.0.1:8765/?sc_close_guard=host",
+      assign,
+    });
     render(<HomeScreen />);
-    expect(closeGuardSpy).toHaveBeenCalledWith(false, "host");
+    expect(closeMock).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "New project…" }));
+    await user.type(
+      screen.getByLabelText("Workspace directory"),
+      "/tmp/workspace",
+    );
+    await user.click(screen.getByRole("button", { name: "Create" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Return to the recording project",
+    );
+    expect(createMock).not.toHaveBeenCalled();
+    expect(assign).not.toHaveBeenCalled();
   });
 
   afterEach(() => {

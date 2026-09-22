@@ -25,8 +25,6 @@ describe("submitHostRecordTransport", () => {
     useRecordHostStore.getState().setSnapshot(null);
     useRecordHostStore.setState({
       startPending: false,
-      startInFlight: false,
-      startBaselineNs: null,
     });
     publishCloseGuard.mockClear();
   });
@@ -119,7 +117,25 @@ describe("submitHostRecordTransport", () => {
       caps: { recorded: 4, producers: 2 },
       server_time_ns: 101,
     });
-    expect(useRecordHostStore.getState().startPending).toBe(false);
+    // A newer read is not proof that a delayed Start has finished.
+    expect(useRecordHostStore.getState().startPending).toBe(true);
+  });
+
+  it("retains uncertainty when fallback reads lobby before Start commits", async () => {
+    postHost.mockRejectedValueOnce(new Error("response lost"));
+    loadState.mockResolvedValueOnce({
+      session_id: "room1",
+      state: "lobby",
+      take_index: -1,
+      recording_ms: 0,
+      start_blockers: [],
+      participants: [],
+      caps: { recorded: 4, producers: 2 },
+    });
+    await expect(submitHostRecordTransport("Start")).rejects.toThrow(
+      "response lost",
+    );
+    expect(useRecordHostStore.getState().startPending).toBe(true);
   });
 
   it("ignores a stale Start after Pause has already stored a snapshot", async () => {
