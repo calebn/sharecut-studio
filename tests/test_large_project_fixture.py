@@ -1,15 +1,27 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 import wave
 from itertools import pairwise
+from pathlib import Path
+from types import ModuleType
 
 import pytest
-from scripts.build_large_project_fixture import build_project
+
+SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "build_large_project_fixture.py"
+
+
+def _load_fixture_builder() -> ModuleType:
+    spec = importlib.util.spec_from_file_location("build_large_project_fixture", SCRIPT)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_large_project_fixture_has_distributed_unique_data(tmp_path):
-    project_path = build_project(
+    project_path = _load_fixture_builder().build_project(
         tmp_path / "large-project",
         duration=7_200,
         clip_count=1_200,
@@ -54,5 +66,5 @@ def test_large_project_fixture_has_distributed_unique_data(tmp_path):
 
 def test_large_project_fixture_rejects_unbalanced_track_counts(tmp_path):
     with pytest.raises(ValueError, match="divisible"):
-        build_project(tmp_path / "invalid", clip_count=3)
+        _load_fixture_builder().build_project(tmp_path / "invalid", clip_count=3)
     assert not (tmp_path / "invalid").exists()
