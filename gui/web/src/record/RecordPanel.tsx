@@ -111,6 +111,8 @@ export function RecordPanel({
   );
   const upload = useRecordUpload({
     enabled: !!snapshot,
+    roomState: snapshot?.state,
+    captureSettled: !recordingLocally,
     sessionId: snapshot?.session_id ?? null,
     takeIndex: snapshot?.take_index ?? 0,
     participantId: "p_host",

@@ -1,6 +1,6 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { ByteSink } from "../keeper/store";
+import { type ByteSink, keeperWavPath, MemorySink } from "../keeper/store";
 import { memoryUploadTransport } from "./transport";
 import { leaveBlocked, useRecordUpload } from "./useRecordUpload";
 
@@ -97,6 +97,47 @@ describe("useRecordUpload", () => {
     expect(status.segments.every((row) => row.participant_id === "p_a")).toBe(
       true,
     );
+    unmount();
+  });
+
+  it("retains an abandoned partial and releases Leave after complete segments upload", async () => {
+    const sink = new MemorySink();
+    const ids = { sessionId: "room1", takeIndex: 0, participantId: "p_a" };
+    const partialPath = keeperWavPath({ ...ids, segmentIndex: 0 });
+    const completePath = keeperWavPath({ ...ids, segmentIndex: 1 });
+    await sink.write(partialPath, wavWithPcm(8));
+    await sink.write(completePath, wavWithPcm(8));
+    await sink.write(
+      completePath.replace(/\.wav$/, ".json"),
+      new TextEncoder().encode(JSON.stringify({ joinOffsetMs: 4000 })),
+    );
+    const transport = memoryUploadTransport();
+    const { result, rerender, unmount } = renderHook(
+      ({ settled }) =>
+        useRecordUpload({
+          enabled: true,
+          roomState: "stopped",
+          captureSettled: settled,
+          sessionId: ids.sessionId,
+          takeIndex: ids.takeIndex,
+          participantId: ids.participantId,
+          transport,
+          sink,
+        }),
+      { initialProps: { settled: false } },
+    );
+    await waitFor(() => expect(result.current.uploading).toBe(true));
+    expect(leaveBlocked("stopped", result.current)).toBe(true);
+
+    rerender({ settled: true });
+    await waitFor(() =>
+      expect(result.current.error).toContain("incomplete local keeper"),
+    );
+    expect(result.current.fileAck).toBe(false);
+    expect(result.current.uploading).toBe(false);
+    expect(leaveBlocked("stopped", result.current)).toBe(false);
+    expect(await sink.read(partialPath)).not.toBeNull();
+    expect(transport.joinOffsets).toContain(4000);
     unmount();
   });
 });

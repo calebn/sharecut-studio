@@ -189,7 +189,9 @@ flowchart TD
    backed up, preserves finalized segments, and shows **Retry local recording**.
    The host resumes or starts a take before Retry when needed. Retry starts a
    new segment only after the failed writable is closed best-effort; a failed
-   open segment is not treated as durable.
+   open segment is not treated as durable. Retry places the new segment at the
+   current recording clock. After Stop, an incomplete local WAV remains for
+   recovery but does not hold Leave once complete segments have uploaded.
 
 **Success:** Guest consents, appears on the host roster, sees REC/PAUSED, hears
 the mix-minus, writes a local dry WAV, and uploads chunks until ACK. Timeline
