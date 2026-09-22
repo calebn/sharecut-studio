@@ -39,11 +39,16 @@ export function useHostKeeperCapture(enabled = true): {
   const host = snapshot?.participants.find(
     (person) => person.participant_id === "p_host",
   );
+  const sessionId = snapshot?.session_id ?? null;
+  const roomState = snapshot?.state ?? null;
   const resetKey = hostKeeperResetKey(snapshot);
-  const lastActivityBeatRef = useRef(0);
+  const lastActivityBeatRef = useRef<number | null>(null);
   const onKeeperActivity = useCallback(() => {
     const now = Date.now();
-    if (now - lastActivityBeatRef.current < 5_000) {
+    if (
+      lastActivityBeatRef.current !== null &&
+      now - lastActivityBeatRef.current < 5_000
+    ) {
       return;
     }
     if (sendRecordHostCommand("Heartbeat")) {
@@ -63,6 +68,27 @@ export function useHostKeeperCapture(enabled = true): {
     resetKey,
     onActivity: onKeeperActivity,
   });
+  useEffect(() => {
+    if (
+      !hostOn ||
+      !sessionId ||
+      keeper.recordingLocally ||
+      (roomState === "recording" && (keeper.error || mic.error))
+    ) {
+      return;
+    }
+    const timer = window.setInterval(onKeeperActivity, 5_000);
+    return () => window.clearInterval(timer);
+  }, [
+    hostOn,
+    sessionId,
+    roomState,
+    keeper.recordingLocally,
+    keeper.error,
+    mic.error,
+    onKeeperActivity,
+  ]);
+
   return {
     error: keeper.error,
     recordingLocally: keeper.recordingLocally,

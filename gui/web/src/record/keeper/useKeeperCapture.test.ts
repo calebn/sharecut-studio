@@ -16,10 +16,11 @@ const graphAttach = vi.hoisted(() =>
   vi.fn(
     async (
       _stream: MediaStream,
-      _onPcm: (pcm: Float32Array, sampleRate: number) => void,
-      onActivity?: () => void,
+      onPcm: (pcm: Float32Array, sampleRate: number) => void,
     ) => {
-      graphActivity.mockImplementation(() => onActivity?.());
+      graphActivity.mockImplementation(() =>
+        onPcm(new Float32Array(128), 48_000),
+      );
       return () => undefined;
     },
   ),
@@ -307,6 +308,36 @@ describe("useKeeperCapture", () => {
         expect.any(Function),
       );
     });
+  });
+
+  it("reports a failed PCM write and stops activity beats", async () => {
+    const store = await import("./store");
+    const sink = new store.MemorySink();
+    const baseOpen = sink.open.bind(sink);
+    sink.open = async (path) => {
+      const stream = await baseOpen(path);
+      return {
+        write: async (bytes, offset) => {
+          if ((offset ?? 0) >= 44) {
+            throw new Error("disk full");
+          }
+          await stream.write(bytes, offset);
+        },
+        close: () => stream.close(),
+      };
+    };
+    vi.mocked(store.createOpfsSink).mockResolvedValueOnce(sink);
+    const onActivity = vi.fn();
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    const { result } = renderHook(() =>
+      useKeeperCapture({ ...args, enabled: true, stream, onActivity }),
+    );
+    await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+    graphActivity();
+    await waitFor(() => expect(result.current.error).toBe("disk full"));
+    expect(result.current.recordingLocally).toBe(false);
+    graphActivity();
+    expect(onActivity).toHaveBeenCalledOnce();
   });
 
   it("does not error when resetKey remounts during an apply", async () => {
