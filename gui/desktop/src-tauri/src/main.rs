@@ -153,7 +153,10 @@ fn handle_exit_requested(app: &tauri::AppHandle) -> Option<sharecut::CloseRisk> 
     if is_confirmed_exit(app) {
         return None;
     }
-    let webview = app.get_webview_window("main")?;
+    let Some(webview) = app.get_webview_window("main") else {
+        eprintln!("Sharecut Studio: main close guard has no webview; preventing exit");
+        return Some(sharecut::CloseRisk::Unknown);
+    };
     match close_guard_decision(&webview) {
         sharecut::CloseDecision::Allow => None,
         sharecut::CloseDecision::Confirm(risk) => Some(risk),
@@ -607,14 +610,14 @@ fn main() {
                     return;
                 }
                 let Some(webview) = window.app_handle().get_webview_window(window.label()) else {
-                    eprintln!("Sharecut Studio: main close guard has no webview");
+                    api.prevent_close();
+                    eprintln!("Sharecut Studio: main close guard has no webview; preventing close");
                     return;
                 };
-                let sharecut::CloseDecision::Confirm(risk) = close_guard_decision(&webview) else {
-                    return;
-                };
-                api.prevent_close();
-                handle_main_window_close(window, risk);
+                if let sharecut::CloseDecision::Confirm(risk) = close_guard_decision(&webview) {
+                    api.prevent_close();
+                    handle_main_window_close(window, risk);
+                }
             }
         })
         .invoke_handler(tauri::generate_handler![open_share_url])

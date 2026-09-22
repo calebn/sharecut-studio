@@ -205,6 +205,57 @@ describe("useKeeperCapture", () => {
     });
   });
 
+  it("keeps close protection when the microphone disappears at Stop", async () => {
+    const sink = new MemorySink();
+    let releaseClose = () => {};
+    const closeGate = new Promise<void>((resolve) => {
+      releaseClose = resolve;
+    });
+    let closeStarted = false;
+    vi.mocked(createOpfsSink).mockResolvedValueOnce({
+      write: (path, bytes) => sink.write(path, bytes),
+      read: (path) => sink.read(path),
+      remove: (path) => sink.remove(path),
+      nextSegmentIndex: (sessionId, takeIndex, participantId) =>
+        sink.nextSegmentIndex(sessionId, takeIndex, participantId),
+      open: async (path) => {
+        const writable = await sink.open(path);
+        return {
+          write: (bytes: Uint8Array, offset?: number) =>
+            writable.write(bytes, offset),
+          close: async () => {
+            closeStarted = true;
+            await closeGate;
+            await writable.close();
+          },
+        };
+      },
+    });
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    const { rerender, result } = renderHook(
+      ({
+        snapshot,
+        mic,
+      }: {
+        snapshot: RecordSnapshot;
+        mic: MediaStream | null;
+      }) => useKeeperCapture({ ...args, enabled: true, snapshot, stream: mic }),
+      { initialProps: { snapshot: snap, mic: stream as MediaStream | null } },
+    );
+    await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+
+    rerender({ snapshot: { ...snap, state: "stopped" }, mic: null });
+    expect(result.current.recordingLocally).toBe(false);
+    expect(result.current.finalizing).toBe(true);
+    await waitFor(() => expect(closeStarted).toBe(true));
+    expect(
+      window.dispatchEvent(new Event("beforeunload", { cancelable: true })),
+    ).toBe(false);
+
+    releaseClose();
+    await waitFor(() => expect(result.current.finalizing).toBe(false));
+  });
+
   it("removes the warning when active capture unmounts", async () => {
     const stream = { getTracks: () => [] } as unknown as MediaStream;
     const { result, unmount } = renderHook(() =>
