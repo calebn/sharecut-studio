@@ -95,6 +95,20 @@ describe("useHostKeeperCapture", () => {
     expect(sent).toHaveLength(2);
   });
 
+  it("keeps the activity cadence when the wall clock moves backward", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-21T00:00:00Z"));
+    const sent: Record<string, unknown>[] = [];
+    bindRecordHostSend((frame) => sent.push(frame));
+    renderHook(() => useHostKeeperCapture());
+    const onActivity = keeper.mock.calls.at(-1)?.[0].onActivity;
+    onActivity?.();
+    vi.setSystemTime(new Date("2026-09-20T00:00:00Z"));
+    await act(async () => vi.advanceTimersByTime(5_000));
+    onActivity?.();
+    expect(sent).toHaveLength(2);
+  });
+
   it("uses a timer while no host segment is being written", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-21T00:00:00Z"));
@@ -112,6 +126,25 @@ describe("useHostKeeperCapture", () => {
     vi.setSystemTime(new Date("2026-09-21T00:00:00Z"));
     keeper.mockReturnValueOnce({ error: "disk full", recordingLocally: false });
     useRecordHostStore.getState().setConnected(true);
+    const sent: Record<string, unknown>[] = [];
+    bindRecordHostSend((frame) => sent.push(frame));
+    renderHook(() => useHostKeeperCapture());
+    await act(async () => vi.advanceTimersByTime(10_000));
+    expect(sent).toHaveLength(0);
+  });
+
+  it("does not send fallback heartbeats after the microphone track ends during REC", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-21T00:00:00Z"));
+    mic.mockReturnValueOnce({
+      stream: null,
+      devices: [],
+      error: null,
+      settingsWarning: null,
+      lost: true,
+      retry: vi.fn(),
+    });
+    keeper.mockReturnValueOnce({ error: null, recordingLocally: false });
     const sent: Record<string, unknown>[] = [];
     bindRecordHostSend((frame) => sent.push(frame));
     renderHook(() => useHostKeeperCapture());
