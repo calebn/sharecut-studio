@@ -4,11 +4,15 @@ import { useDaw } from "../state/useDaw";
 import { useRecordHostStore } from "./hostStore";
 import { sendRecordHostCommand } from "./hostWire";
 import { useKeeperCapture } from "./keeper/useKeeperCapture";
+import { type MicPermissionStatus, statusFromGumError } from "./micPermission";
 import { hostKeeperResetKey, type RecordSnapshot } from "./types";
 import { useMicStream } from "./useMicStream";
 
 export function useHostKeeperCapture(enabled = true): {
   error: string | null;
+  micError: string | null;
+  micPending: boolean;
+  micStatus: MicPermissionStatus | null;
   recordingLocally: boolean;
   retry: () => void;
   stream: MediaStream | null;
@@ -81,8 +85,24 @@ export function useHostKeeperCapture(enabled = true): {
     return () => window.clearInterval(timer);
   }, [hostOn, sessionId, roomState, keeper.recordingLocally, onKeeperActivity]);
 
+  let micStatus: MicPermissionStatus | null = null;
+  if (hostOn && snapshot && !mic.lost) {
+    if (mic.pending || (!mic.stream && !mic.error)) {
+      micStatus = "prompting";
+    } else if (mic.stream) {
+      micStatus = "granted";
+    } else {
+      micStatus = mic.errorName
+        ? (statusFromGumError(mic.errorName) ?? "error")
+        : "error";
+    }
+  }
+
   return {
     error: keeper.error,
+    micError: mic.error,
+    micPending: Boolean(mic.pending),
+    micStatus,
     recordingLocally: keeper.recordingLocally,
     retry: keeper.retry,
     stream: mic.stream,

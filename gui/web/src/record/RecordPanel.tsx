@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { hostRecordUploadTransport, loadHostRecordState } from "../api";
 import { useDaw } from "../state/useDaw";
 import { Button, CommandButton, Dialog } from "../ui";
@@ -11,6 +11,12 @@ import { type ByteSink, createOpfsSink } from "./keeper/store";
 import { LiveComments } from "./LiveComments";
 import { HOST_COMMENT_QUEUE_TOKEN } from "./liveCommentQueue";
 import { MicLossNotice } from "./MicLossNotice";
+import {
+  copyForMicStatus,
+  MIC_RETRY_LABEL,
+  type MicPermissionStatus,
+  micGrantFailed,
+} from "./micPermission";
 import { RecIndicator } from "./RecIndicator";
 import { RoomToneCapture } from "./RoomToneCapture";
 import { Roster } from "./Roster";
@@ -35,6 +41,9 @@ type Props = {
   recordingLocally?: boolean;
   keeperError?: string | null;
   onRetryKeeper?: () => void;
+  micError?: string | null;
+  micPending?: boolean;
+  micStatus?: MicPermissionStatus | null;
   hearing?: boolean;
   monitorError?: string | null;
   stream?: MediaStream | null;
@@ -46,12 +55,16 @@ export function RecordPanel({
   recordingLocally = false,
   keeperError = null,
   onRetryKeeper,
+  micError = null,
+  micPending = false,
+  micStatus = null,
   hearing = false,
   monitorError = null,
   stream = null,
   micLost = false,
   onRetryMic,
 }: Props) {
+  const micHintId = useId();
   const {
     recordPanelOpen,
     setRecordPanelOpen,
@@ -180,6 +193,10 @@ export function RecordPanel({
   const reconnectCopy = snapshot
     ? hostReconnectPauseCopyFromSnapshot(snapshot)
     : null;
+  const micCopy =
+    micStatus && micStatus !== "lost" ? copyForMicStatus(micStatus) : null;
+  const micFailed =
+    micStatus && micStatus !== "lost" ? micGrantFailed(micStatus) : false;
 
   return (
     <Dialog
@@ -211,6 +228,27 @@ export function RecordPanel({
           {recordingLocally && !keeperError ? <p>{LOCAL_KEEPER_COPY}</p> : null}
           {micLost ? <MicLossNotice onRetry={onRetryMic} /> : null}
           {hearing ? <p>{HEARING_COPY}</p> : null}
+          {micCopy ? (
+            <p
+              id={micHintId}
+              role={micPending ? "status" : undefined}
+              className={micFailed ? "record-warn" : undefined}
+            >
+              {micCopy}
+            </p>
+          ) : null}
+          {micError && micStatus === "error" ? (
+            <p className="record-warn">{micError}</p>
+          ) : null}
+          {micFailed && onRetryMic ? (
+            <Button
+              type="button"
+              onClick={onRetryMic}
+              aria-describedby={micHintId}
+            >
+              {MIC_RETRY_LABEL}
+            </Button>
+          ) : null}
           <UploadStatus
             progress={upload}
             stopped={state === "stopped"}
