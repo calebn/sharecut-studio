@@ -604,8 +604,10 @@ stateDiagram-v2
 | Open speakers | "Use headphones. Playing the room on speakers will echo into every mic." |
 | Mic grant | "Allow microphone" |
 | Mic blocked | "Microphone is blocked for this site. Allow it in your browser's site settings, then Retry." |
-| Mic blocked in the Tauri desktop app | "Microphone access is blocked by your operating system. Allow Sharecut Studio in your system microphone privacy settings, then Retry." |
-| Mic permission prompt in the Tauri desktop app | "Waiting for the operating system microphone permission prompt…" |
+| Mic blocked in the macOS or Windows Tauri desktop app | "Microphone access is blocked by your operating system. Allow Sharecut Studio in your system microphone privacy settings, then Retry." |
+| Mic permission prompt in the macOS or Windows Tauri desktop app | "Waiting for the operating system microphone permission prompt…" |
+| Mic blocked in the Linux Tauri desktop app | "Microphone access is blocked in this Linux desktop window. Retry once, or open Sharecut Studio in your browser and allow microphone access there." |
+| Mic permission prompt in the Linux Tauri desktop app | "Waiting for the desktop webview microphone permission prompt…" |
 | No input device | "No microphone was found. Connect an input device, then Retry." |
 | Mic required for consent | "Allow the microphone before you accept recording." |
 | Room tone | "Record 3 seconds of room tone" |
@@ -742,7 +744,7 @@ See [persistence.md](persistence.md) and
 | Chromium desktop | PCM/WAV keeper encoder + mix-minus mesh (`build.monitor: true`) |
 | Safari | WAV via Worklet only; AEC constraint caveat |
 | Firefox | Same caveat as Safari |
-| Tauri host | Browser Worklet in the webview (same as Chromium). Mic grant: macOS `NSMicrophoneUsageDescription` + hardened-runtime `audio-input` entitlement; WebView handler allows **microphone only** for `http://127.0.0.1:{engine-port}` (WKWebView `requestMediaCapturePermissionForOrigin`, WebView2 `PermissionRequested`). Full deny-by-default WebView policy is [v1](../ROADMAP.md#packaging-trust). Native cpal/coreaudio mic is [Follow-up](../ROADMAP.md#follow-up). |
+| Tauri host | Browser Worklet in the webview (same as Chromium). macOS and Windows install a native WebView microphone handler and use operating-system permission copy: macOS also needs `NSMicrophoneUsageDescription` + hardened-runtime `audio-input`; the handler allows **microphone only** for `http://127.0.0.1:{engine-port}` (WKWebView `requestMediaCapturePermissionForOrigin`, WebView2 `PermissionRequested`). Linux uses WebKitGTK's default prompt and points blocked users to the supported browser recording path. Full deny-by-default WebView policy is [v1](../ROADMAP.md#packaging-trust). Native cpal/coreaudio mic is [Follow-up](../ROADMAP.md#follow-up). |
 | Mobile browsers | Join + monitor; keeper best-effort, documented. Producer role fully supported (no keeper). |
 
 ## Security and threat notes
