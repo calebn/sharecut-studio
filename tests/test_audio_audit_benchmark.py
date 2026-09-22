@@ -1,4 +1,4 @@
-"""Benchmarks confirming per-word FFmpeg decode dominates audibility analysis."""
+"""Regression coverage for deterministic audibility-cache decoder usage."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.audio_audit import (
     TrackRmsCache,
     build_track_rms_caches,
+    compute_word_audibility_map,
     measure_window_rms_db,
 )
 from podcast_mcp.models import (
@@ -122,6 +123,27 @@ def test_build_track_rms_caches_uses_stems(tmp_path: Path):
     project, _ = _stem_project(tmp_path)
     caches = build_track_rms_caches(project)
     assert "host" in caches.caches
+
+
+def test_compute_word_audibility_map_reuses_processed_stem_cache(tmp_path: Path):
+    project, stem = _stem_project(tmp_path)
+    samples = np.full(16_000, 0.3, dtype=np.float32)
+
+    with (
+        patch(
+            "podcast_mcp.engines.audio_audit.load_mono_full",
+            return_value=samples,
+        ) as full_decode,
+        patch("podcast_mcp.engines.audio_audit.load_mono_window") as window_decode,
+    ):
+        rows = compute_word_audibility_map(project, track_id="host")
+
+    full_decode.assert_called_once_with(stem, sample_rate=8_000)
+    window_decode.assert_not_called()
+    assert len(rows) == len(project.transcripts[0].words)
+    assert all(row["track_id"] == "host" for row in rows)
+    assert all(row["own_rms_db"] is not None for row in rows)
+    assert all(row["audibility_status"] == "audible" for row in rows)
 
 
 @pytest.mark.skipif(
