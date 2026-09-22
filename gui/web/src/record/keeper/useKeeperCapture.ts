@@ -47,10 +47,12 @@ export function useKeeperCapture({
   error: string | null;
   recordingLocally: boolean;
   retry: () => void;
+  finalizing: boolean;
 } {
   const [error, setError] = useState<string | null>(null);
   const [writing, setWriting] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
+  const finalizationFailed = useRef(false);
   const [epoch, setEpoch] = useState(0);
   const mountedRef = useRef(true);
   const pendingDisposals = useRef(0);
@@ -138,14 +140,20 @@ export function useKeeperCapture({
     void session
       .dispose()
       .catch((err: unknown) => {
+        finalizationFailed.current = true;
         if (mountedRef.current) {
           setError(err instanceof Error ? err.message : String(err));
+          setFinalizing(true);
         }
       })
       .finally(() => {
         if (guardDuringDispose) {
           pendingDisposals.current -= 1;
-          if (mountedRef.current && pendingDisposals.current === 0) {
+          if (
+            mountedRef.current &&
+            pendingDisposals.current === 0 &&
+            !finalizationFailed.current
+          ) {
             setFinalizing(false);
           }
         }
@@ -277,6 +285,10 @@ export function useKeeperCapture({
         return applyGate(session, gate);
       })
       .catch((err: unknown) => {
+        // A failed Stop/pause finalization can leave an incomplete local WAV.
+        // Keep native close protection armed even after writing turns false.
+        finalizationFailed.current = true;
+        setFinalizing(true);
         setError(err instanceof Error ? err.message : String(err));
         setWriting(false);
       });
@@ -351,5 +363,5 @@ export function useKeeperCapture({
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [recordingLocally, finalizing]);
 
-  return { error, recordingLocally, retry };
+  return { error, recordingLocally, retry, finalizing };
 }

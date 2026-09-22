@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RecordSnapshot } from "../types";
 import { KeeperSession } from "./session";
 import {
@@ -56,6 +56,8 @@ const args = {
 };
 
 describe("useKeeperCapture", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it("reports activity only after the keeper is actively writing", async () => {
     const onActivity = vi.fn();
     const stream = { getTracks: () => [] } as unknown as MediaStream;
@@ -84,7 +86,6 @@ describe("useKeeperCapture", () => {
     graphActivity();
     expect(onActivity).toHaveBeenCalledOnce();
   });
-
   it("does not start a session until enabled", () => {
     const stream = { getTracks: () => [] } as unknown as MediaStream;
     const { result } = renderHook(() =>
@@ -497,5 +498,62 @@ describe("useKeeperCapture", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("keeps close risk active until local finalization settles", async () => {
+    let finish: (() => void) | undefined;
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    vi.spyOn(KeeperSession.prototype, "dispose").mockImplementation(
+      () => pending,
+    );
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    const { result, rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) =>
+        useKeeperCapture({ ...args, enabled, stream }),
+      { initialProps: { enabled: true } },
+    );
+    await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+    rerender({ enabled: false });
+    await waitFor(() => expect(result.current.finalizing).toBe(true));
+    expect(result.current.recordingLocally).toBe(false);
+    await act(async () => finish?.());
+    await waitFor(() => expect(result.current.finalizing).toBe(false));
+  });
+
+  it("retains close risk and reports an error when finalization fails", async () => {
+    vi.spyOn(KeeperSession.prototype, "dispose").mockRejectedValue(
+      new Error("keeper flush failed"),
+    );
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    const { result, rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) =>
+        useKeeperCapture({ ...args, enabled, stream }),
+      { initialProps: { enabled: true } },
+    );
+    await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+    rerender({ enabled: false });
+    await waitFor(() =>
+      expect(result.current.error).toBe("keeper flush failed"),
+    );
+    expect(result.current.finalizing).toBe(true);
+  });
+
+  it("retains close risk if Stop fails while applying the final keeper gate", async () => {
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    const { result, rerender } = renderHook(
+      ({ snapshot }: { snapshot: RecordSnapshot }) =>
+        useKeeperCapture({ ...args, enabled: true, snapshot, stream }),
+      { initialProps: { snapshot: snap } },
+    );
+    await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+    vi.spyOn(KeeperSession.prototype, "apply").mockRejectedValueOnce(
+      new Error("stop flush failed"),
+    );
+    rerender({ snapshot: { ...snap, state: "stopped" } });
+    await waitFor(() => expect(result.current.error).toBe("stop flush failed"));
+    expect(result.current.recordingLocally).toBe(false);
+    expect(result.current.finalizing).toBe(true);
   });
 });

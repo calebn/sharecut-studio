@@ -11,6 +11,7 @@ export function useHostKeeperCapture(enabled = true): {
   error: string | null;
   recordingLocally: boolean;
   retry: () => void;
+  finalizing: boolean;
   stream: MediaStream | null;
   muted: boolean;
   monitorEnabled: boolean;
@@ -85,6 +86,7 @@ export function useHostKeeperCapture(enabled = true): {
     error: keeper.error,
     recordingLocally: keeper.recordingLocally,
     retry: keeper.retry,
+    finalizing: keeper.finalizing,
     stream: mic.stream,
     muted: host?.muted ?? false,
     monitorEnabled: hostOn && !!snapshot && connected,

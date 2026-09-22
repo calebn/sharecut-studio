@@ -137,7 +137,14 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
   const hostKeeper = useHostKeeperCapture(
     !guestShare && !isShareProjectKey(projectPath),
   );
-  useDesktopCloseGuard(hostKeeper.recordingLocally, "host");
+  useDesktopCloseGuard(
+    hostKeeper.recordingLocally ||
+      hostKeeper.finalizing ||
+      hostKeeper.snapshot?.state === "recording" ||
+      hostKeeper.snapshot?.state === "paused",
+    "host",
+    hostKeeper.snapshot !== null,
+  );
   const hostMonitor = useRecordMonitor({
     enabled: hostKeeper.monitorEnabled,
     localId: hostKeeper.snapshot ? "p_host" : null,

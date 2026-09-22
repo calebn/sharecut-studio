@@ -1,104 +1,79 @@
 import { render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  recordingCloseMessage,
+  CLOSE_GUARD_PARAM,
   useDesktopCloseGuard,
 } from "./useDesktopCloseGuard";
 
-const { onCloseRequested, destroy, isTauri, getCurrentWindow } = vi.hoisted(
-  () => ({
-    onCloseRequested: vi.fn(),
-    destroy: vi.fn(() => Promise.resolve()),
-    isTauri: vi.fn(() => true),
-    getCurrentWindow: vi.fn(),
-  }),
-);
-getCurrentWindow.mockReturnValue({ onCloseRequested, destroy });
-
+const { isTauri } = vi.hoisted(() => ({ isTauri: vi.fn(() => true) }));
 vi.mock("@tauri-apps/api/core", () => ({ isTauri }));
-vi.mock("@tauri-apps/api/window", () => ({ getCurrentWindow }));
 
 function Guard({
-  recordingLocally,
+  closeRisk,
   recordingRole,
+  canClear = true,
 }: {
-  recordingLocally: boolean;
+  closeRisk: boolean;
   recordingRole: "host" | "guest";
+  canClear?: boolean;
 }) {
-  useDesktopCloseGuard(recordingLocally, recordingRole);
+  useDesktopCloseGuard(closeRisk, recordingRole, canClear);
   return null;
 }
 
-afterEach(() => {
-  vi.clearAllMocks();
-  vi.restoreAllMocks();
-});
-
 beforeEach(() => {
   isTauri.mockReturnValue(true);
-  getCurrentWindow.mockReturnValue({ onCloseRequested, destroy });
+  window.history.replaceState({ project: "test" }, "", "/?project=recording");
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  window.history.replaceState(null, "", "/");
 });
 
 describe("useDesktopCloseGuard", () => {
-  it("uses role-aware copy", () => {
-    expect(recordingCloseMessage("host")).toContain("session for everyone");
-    expect(recordingCloseMessage("guest")).toContain("your local recording");
-  });
-
-  it("does not install a native listener while inactive or in the browser", () => {
-    const { unmount } = render(
-      <Guard recordingLocally={false} recordingRole="host" />,
+  it("publishes the host risk to the native handler without any Tauri IPC", () => {
+    render(<Guard closeRisk recordingRole="host" />);
+    expect(
+      new URL(window.location.href).searchParams.get(CLOSE_GUARD_PARAM),
+    ).toBe("host");
+    expect(new URL(window.location.href).searchParams.get("project")).toBe(
+      "recording",
     );
-    expect(onCloseRequested).not.toHaveBeenCalled();
-    unmount();
-
-    isTauri.mockReturnValue(false);
-    render(<Guard recordingLocally recordingRole="guest" />);
-    expect(onCloseRequested).not.toHaveBeenCalled();
+    expect(window.history.state).toEqual({ project: "test" });
   });
 
-  it("prevents close before confirming and destroys only after confirmation", async () => {
-    const unlisten = vi.fn();
-    onCloseRequested.mockResolvedValue(unlisten);
-    vi.spyOn(window, "confirm").mockReturnValue(true);
-    render(<Guard recordingLocally recordingRole="guest" />);
-
-    expect(onCloseRequested).toHaveBeenCalledOnce();
-    const handler = onCloseRequested.mock.calls[0][0] as (event: {
-      preventDefault: () => void;
-    }) => void;
-    const preventDefault = vi.fn();
-    handler({ preventDefault });
-
-    expect(preventDefault).toHaveBeenCalledOnce();
-    expect(window.confirm).toHaveBeenCalledWith(
-      "Recording is in progress. Closing now will lose your local recording. Close Sharecut Studio anyway?",
-    );
-    await vi.waitFor(() => expect(destroy).toHaveBeenCalledOnce());
+  it("keeps the marker while capture is active and removes it when safe", () => {
+    const { rerender } = render(<Guard closeRisk recordingRole="guest" />);
+    expect(
+      new URL(window.location.href).searchParams.get(CLOSE_GUARD_PARAM),
+    ).toBe("guest");
+    rerender(<Guard closeRisk={false} recordingRole="guest" />);
+    expect(
+      new URL(window.location.href).searchParams.has(CLOSE_GUARD_PARAM),
+    ).toBe(false);
   });
 
-  it("keeps the window open when confirmation is declined", () => {
-    onCloseRequested.mockResolvedValue(vi.fn());
-    vi.spyOn(window, "confirm").mockReturnValue(false);
-    render(<Guard recordingLocally recordingRole="host" />);
-
-    const handler = onCloseRequested.mock.calls[0][0] as (event: {
-      preventDefault: () => void;
-    }) => void;
-    const preventDefault = vi.fn();
-    handler({ preventDefault });
-
-    expect(preventDefault).toHaveBeenCalledOnce();
-    expect(destroy).not.toHaveBeenCalled();
-  });
-
-  it("removes the close listener when local capture stops", async () => {
-    const unlisten = vi.fn();
-    onCloseRequested.mockResolvedValue(unlisten);
+  it("preserves a prior risk marker until a safe room snapshot arrives", () => {
+    window.history.replaceState(null, "", "/?sc_close_guard=host");
     const { rerender } = render(
-      <Guard recordingLocally recordingRole="host" />,
+      <Guard closeRisk={false} recordingRole="host" canClear={false} />,
     );
-    rerender(<Guard recordingLocally={false} recordingRole="host" />);
-    await vi.waitFor(() => expect(unlisten).toHaveBeenCalledOnce());
+    expect(
+      new URL(window.location.href).searchParams.get(CLOSE_GUARD_PARAM),
+    ).toBe("host");
+    rerender(<Guard closeRisk recordingRole="host" canClear={false} />);
+    rerender(<Guard closeRisk={false} recordingRole="host" canClear />);
+    expect(
+      new URL(window.location.href).searchParams.has(CLOSE_GUARD_PARAM),
+    ).toBe(false);
+  });
+
+  it("does not change a browser URL", () => {
+    isTauri.mockReturnValue(false);
+    render(<Guard closeRisk recordingRole="guest" />);
+    expect(
+      new URL(window.location.href).searchParams.has(CLOSE_GUARD_PARAM),
+    ).toBe(false);
   });
 });
