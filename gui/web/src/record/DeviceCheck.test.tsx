@@ -88,6 +88,10 @@ describe("DeviceCheck", () => {
       configurable: true,
       value: {},
     });
+    Object.defineProperty(navigator, "userAgent", {
+      configurable: true,
+      value: "Mozilla/5.0 (Windows NT 10.0)",
+    });
 
     try {
       const { container } = render(
@@ -104,6 +108,7 @@ describe("DeviceCheck", () => {
     } finally {
       delete (window as Window & { __TAURI_INTERNALS__?: unknown })
         .__TAURI_INTERNALS__;
+      Reflect.deleteProperty(navigator, "userAgent");
     }
   });
 
