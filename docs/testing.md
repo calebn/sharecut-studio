@@ -149,7 +149,7 @@ requires HTTP 200 and host setup still waits for `networkidle`.
 |------|-----------|
 | Models / project I/O | `test_models.py` |
 | Filler / tighten edits | `test_edits.py`, `test_tighten.py` |
-| Golden-ear A/B harness | `test_golden_ear_harness.py` (`scripts/golden_ear_harness.py`, `make golden-ear ARGS=…`) |
+| Golden-ear A/B harness | `test_golden_ear_harness.py` (`scripts/golden_ear_harness.py`, `make golden-ear ARGS=…`; rollups require valid preference and leftover-consonant responses) |
 | FFmpeg engine | `test_ffmpeg_engine.py` (requires `ffmpeg` on PATH) |
 | Audition context / audio reasoning eval | `test_audition_context.py`, `test_audition_context_eval.py` (defect injection; `scripts/eval_audition_context.py`) |
 | Transcript merge | `test_transcribe.py` |
