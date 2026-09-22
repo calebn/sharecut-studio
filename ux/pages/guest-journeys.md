@@ -193,6 +193,14 @@ flowchart TD
    indicator). A shorter blip stays REC and does not remount the host keeper. A
    sidecar crash that never sent Leave still pauses on the next host Join.
    Reminting a new room while REC/PAUSED is refused until the take is Stopped.
+9. In the native desktop app, a host or recorded guest who closes the window
+   during REC, PAUSED, or finalizing sees a role-specific confirmation. The
+   host warning says closing stops the session for everyone; the guest warning
+   says it can lose that guest's local keeper. This protects the native window
+   close request while the take is still recoverable, without sending a remote
+   close command. On macOS, the app menu and **Cmd+Q** use the native
+   confirmation path. Dock **Quit** and OS shutdown can bypass the app menu
+   and remain best-effort paths.
 
    If local OPFS capture fails, the client stops claiming that REC is safely
    backed up, preserves finalized segments, and shows **Retry local recording**.

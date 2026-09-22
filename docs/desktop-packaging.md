@@ -72,22 +72,28 @@ Default speech model is **large-v3-turbo**. Users can pick a smaller size in the
 Same downloads as `podcast bootstrap` (ffmpeg, whisper; optional rnnoise).
 Torch / speaker / joinqc are **not** exposed in the GUI.
 
-**Open project:** Sharecut Studio **Browse…** / Mod+O call `POST /api/project/pick` on the Python sidecar (OS dialog). The Tauri shell does **not** need `tauri-plugin-dialog` for this — same API as a system browser on `http://127.0.0.1:8765`. Paste path remains when no dialog tool is available.
+**Open project:** Sharecut Studio **Browse…** / Mod+O call `POST /api/project/pick` on the Python sidecar (OS dialog), the same API as a system browser on `http://127.0.0.1:8765`. Paste path remains when no dialog tool is available. The desktop `tauri-plugin-dialog` is reserved for native close confirmation; it is not used as a project picker.
 
 ## Closing while recording
 
-The webview installs a Tauri `onCloseRequested` guard while a host or guest
-local keeper is recording. The guard prevents the close synchronously, asks for
-confirmation using role-aware copy, and calls `Window.destroy()` only after the
-user confirms. The desktop capability manifest explicitly grants
-`core:window:allow-destroy`; browser sessions do not install this native guard.
+While a local host or guest keeper is active or finalizing, the web client
+writes `sc_close_guard=host|guest` into its loopback URL. The native Tauri host
+reads that marker during `CloseRequested` and `ExitRequested`, prevents the
+request synchronously, and displays a role-aware native confirmation dialog.
+After confirmation it calls `WebviewWindow.destroy()` and exits the app; a
+cancel keeps the window and recording open. An unreadable, malformed, or
+duplicated marker is treated conservatively and still requires confirmation.
+The marker survives a WebView reload until a room snapshot confirms it is safe
+to clear, and a failed keeper finalization leaves confirmation armed.
+On macOS the app menu mirrors Tauri's default items but replaces its native
+Quit item with a `Cmd+Q` menu command that calls `AppHandle::exit(0)`, so
+the app menu and Cmd+Q take the `ExitRequested` confirmation path. Dock Quit
+and OS shutdown can bypass the app menu; they remain best-effort paths.
 
-This protects the native window close button and equivalent window-manager
-close requests. Tauri 2.11.5 does not reliably deliver macOS Cmd+Q or Dock
-**Quit** through `CloseRequested`/`ExitRequested`, so those application-level
-quit paths remain a known limitation until the native menu can route them
-through the same confirmation. Do not describe the current guard as complete
-macOS quit protection.
+The loopback page receives no Tauri plugin capability, performs no native IPC,
+and never gets permission to destroy a window. `tauri-plugin-dialog` is used
+only by Rust for the confirmation dialog. Do not widen
+`capabilities/default.json` or add `remote.urls` to support this guard.
 
 Pinned bootstrap assets, when a distributor elects to mirror them, are described
 by [`contracts/bootstrap-assets.json`](../contracts/bootstrap-assets.json).

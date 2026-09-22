@@ -338,6 +338,7 @@ Journeys: [Guest journeys § 6–7](#/journeys).
 | **Full room** | 5th recorded or 3rd producer | Full-room copy; never `getUserMedia`. **Shipped (no screenshot yet).** |
 | **Declined** | Guest who declined while REC/PAUSED | Declined copy; host may re-invite as producer. **Shipped (no screenshot yet).** |
 | **Host offline** | Recorded guest | “Host offline — still recording locally.” Keeper stays open. **Shipped with keepers.** |
+| **Native close confirmation** | Host or recorded guest in the desktop app | During REC, PAUSED, or finalizing, closing the native window asks for confirmation. Host copy warns that the session stops for everyone; guest copy warns about the local keeper. This is local desktop protection and sends no remote close command. The macOS app menu and **Cmd+Q** use the confirmation path; Dock **Quit** and OS shutdown remain best-effort. |
 
 Not ReviewApp. Prefix `/rec/` 404s a review token.
 

@@ -1,55 +1,33 @@
 import { isTauri } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useEffect } from "react";
+import { useLayoutEffect } from "react";
 
 export type RecordingRole = "host" | "guest";
 
-export function recordingCloseMessage(role: RecordingRole): string {
-  if (role === "host") {
-    return "Recording is in progress. Closing now will stop the session for everyone and may lose your recording. Close Sharecut Studio anyway?";
-  }
-  return "Recording is in progress. Closing now will lose your local recording. Close Sharecut Studio anyway?";
-}
+// The native close handler reads this from the current WebView URL. A history
+// update stays on the existing loopback page and needs no remote Tauri IPC.
+export const CLOSE_GUARD_PARAM = "sc_close_guard";
 
 /**
- * Protects the native window's close button while a local keeper is recording.
- *
- * Tauri requires preventDefault to happen before an async confirmation. The
- * explicit destroy is the only path that permits the close after confirmation.
- * This covers native window close requests; macOS application Quit can bypass
- * Tauri's window event and is documented separately in desktop packaging docs.
+ * Publishes recording risk for the native Rust close handler without invoking
+ * a Tauri plugin from the loopback WebView.
  */
 export function useDesktopCloseGuard(
-  recordingLocally: boolean,
+  closeRisk: boolean,
   role: RecordingRole,
+  canClear = true,
 ): void {
-  useEffect(() => {
-    if (!recordingLocally || !isTauri()) {
+  useLayoutEffect(() => {
+    if (!isTauri()) {
       return;
     }
-
-    const currentWindow = getCurrentWindow();
-    let closeConfirmed = false;
-    let disposed = false;
-    const unlistenPromise = currentWindow.onCloseRequested((event) => {
-      event.preventDefault();
-      if (closeConfirmed || disposed) {
-        return;
-      }
-      if (!window.confirm(recordingCloseMessage(role))) {
-        return;
-      }
-      closeConfirmed = true;
-      void currentWindow.destroy().catch(() => {
-        closeConfirmed = false;
-      });
-    });
-
-    return () => {
-      disposed = true;
-      void unlistenPromise
-        .then((unlisten) => unlisten())
-        .catch(() => undefined);
-    };
-  }, [recordingLocally, role]);
+    const url = new URL(window.location.href);
+    if (closeRisk) {
+      url.searchParams.set(CLOSE_GUARD_PARAM, role);
+    } else if (canClear) {
+      url.searchParams.delete(CLOSE_GUARD_PARAM);
+    }
+    if (url.href !== window.location.href) {
+      window.history.replaceState(window.history.state, "", url);
+    }
+  }, [closeRisk, role, canClear]);
 }

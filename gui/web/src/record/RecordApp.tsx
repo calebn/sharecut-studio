@@ -116,7 +116,14 @@ export function RecordApp({ token }: { token: string }) {
     consented: me?.consented ?? null,
     stream: mic.stream,
   });
-  useDesktopCloseGuard(keeper.recordingLocally, "guest");
+  useDesktopCloseGuard(
+    keeper.recordingLocally ||
+      keeper.finalizing ||
+      snapshot?.state === "recording" ||
+      snapshot?.state === "paused",
+    "guest",
+    snapshot !== null,
+  );
   const monitor = useRecordMonitor({
     enabled: !!bootstrap?.build.monitor && !!me && connected,
     localId: me?.participant_id ?? null,
