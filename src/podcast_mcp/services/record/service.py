@@ -570,7 +570,9 @@ class RecordSessionService:
             if not last:
                 return
             if participant_id == HOST_PARTICIPANT_ID and beat is not None:
-                _persist_host_offline_since(self._store, beat)
+                # A websocket close is an observed host departure.  The stored
+                # heartbeat only represents the last sample, which may be stale.
+                _persist_host_offline_since(self._store, _now_pair()[1])
         person = next(
             (
                 p

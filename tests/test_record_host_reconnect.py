@@ -289,13 +289,18 @@ def test_restart_without_leave_still_pauses_on_host_join(
     assert out["host_offline_since_wall_ms"] is None
 
 
-def test_last_host_conn_pop_stamps_offline_since(
+def test_observed_host_disconnect_uses_close_time_for_reconnect_threshold(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     _isolate(tmp_workspace, monkeypatch)
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, _guest = _consent_room(ws, room)
+    clock = {"wall_ms": 0}
+    monkeypatch.setattr(
+        "podcast_mcp.services.record.service.time.time_ns",
+        lambda: clock["wall_ms"] * 1_000_000,
+    )
     svc.join(
         token="",
         role="host",
@@ -304,11 +309,37 @@ def test_last_host_conn_pop_stamps_offline_since(
         connection_id="h-live",
         capabilities=["join", "monitor"],
     )
-    svc.submit(_cmd("Start"), now_wall_ms=10)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    clock["wall_ms"] = 4_900
     svc.disconnect(HOST_PARTICIPANT_ID, connection_id="h-live")
     snap = svc.snapshot()
     assert snap["state"] == "recording"
-    assert snap["host_offline_since_wall_ms"] is not None
+    assert snap["host_offline_since_wall_ms"] == 4_900
+
+    clock["wall_ms"] = 10_100
+    svc.join(
+        token="",
+        role="host",
+        display_name="Host",
+        client_id="host-return",
+        connection_id="h-return",
+        capabilities=["join", "monitor"],
+    )
+    assert svc.snapshot()["state"] == "recording"
+
+    clock["wall_ms"] = 11_000
+    svc.disconnect(HOST_PARTICIPANT_ID, connection_id="h-return")
+    clock["wall_ms"] = 21_100
+    svc.join(
+        token="",
+        role="host",
+        display_name="Host",
+        client_id="host-late-return",
+        connection_id="h-late-return",
+        capabilities=["join", "monitor"],
+    )
+    assert svc.snapshot()["state"] == "paused"
+    assert svc.snapshot()["pause_reason"] == "host_reconnect"
 
 
 def test_begin_record_session_refuses_open_take(
