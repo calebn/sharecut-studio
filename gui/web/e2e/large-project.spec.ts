@@ -72,9 +72,10 @@ test.describe("large project benchmark (opt-in fixture)", () => {
           .getByRole("button", { name: "Transcript", exact: true })
           .click();
         await expect(page.locator(".transcript-list")).toBeVisible();
-        await expect(page.locator(".utterance-word")).toHaveCount(
-          EXPECTED_WORDS,
-        );
+        await expect(
+          page.locator('.utterance-turn[data-turn-index="0"]'),
+        ).toBeVisible();
+        await expect(page.locator(".utterance-word").first()).toBeVisible();
       }),
     );
     profiles.push(
@@ -84,6 +85,11 @@ test.describe("large project benchmark (opt-in fixture)", () => {
           element.scrollTop = element.scrollHeight;
           element.dispatchEvent(new Event("scroll"));
         });
+        await expect(
+          page.locator(
+            `.utterance-turn[data-turn-index="${EXPECTED_WORDS - 1}"]`,
+          ),
+        ).toBeVisible();
         await page.locator(".utterance-seek").last().click();
       }),
     );
