@@ -25,6 +25,7 @@ import { CheatsheetDialogs } from "./layout/CheatsheetDialogs";
 import { HostMcpDialog } from "./layout/HostMcpDialog";
 import { ShareDialog } from "./layout/ShareDialog";
 import { StudioShell } from "./layout/StudioShell";
+import { useRecordHostStore } from "./record/hostStore";
 import { sendRecordHostCommand } from "./record/hostWire";
 import { useRecordMonitor } from "./record/monitor/useRecordMonitor";
 import { RecordPanel } from "./record/RecordPanel";
@@ -137,8 +138,10 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
   const hostKeeper = useHostKeeperCapture(
     !guestShare && !isShareProjectKey(projectPath),
   );
+  const hostStartPending = useRecordHostStore((s) => s.startPending);
   useDesktopCloseGuard(
-    hostKeeper.recordingLocally ||
+    hostStartPending ||
+      hostKeeper.recordingLocally ||
       hostKeeper.finalizing ||
       hostKeeper.snapshot?.state === "recording" ||
       hostKeeper.snapshot?.state === "paused",

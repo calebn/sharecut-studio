@@ -6,6 +6,11 @@ import { submitHostRecordTransport } from "./hostTransport";
 
 const postHost = vi.fn();
 const loadState = vi.fn();
+const publishCloseGuard = vi.hoisted(() => vi.fn());
+
+vi.mock("../desktop/useDesktopCloseGuard", () => ({
+  publishDesktopCloseGuard: publishCloseGuard,
+}));
 
 vi.mock("../api", () => ({
   postHostRecordCommand: (...args: unknown[]) => postHost(...args),
@@ -18,6 +23,8 @@ describe("submitHostRecordTransport", () => {
     loadState.mockReset();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     useRecordHostStore.getState().setSnapshot(null);
+    useRecordHostStore.getState().setStartPending(false);
+    publishCloseGuard.mockClear();
   });
 
   it("posts Start and stores the returned snapshot", async () => {
@@ -33,6 +40,40 @@ describe("submitHostRecordTransport", () => {
     await submitHostRecordTransport("Start");
     expect(postHost).toHaveBeenCalledWith("/tmp/p.json", "Start", {});
     expect(useRecordHostStore.getState().snapshot?.state).toBe("recording");
+    expect(useRecordHostStore.getState().startPending).toBe(false);
+  });
+
+  it("arms the close guard before Start reaches the server", async () => {
+    let finishStart: (value: unknown) => void = () => undefined;
+    postHost.mockImplementationOnce(() => {
+      expect(publishCloseGuard).toHaveBeenCalledWith(true, "host");
+      expect(useRecordHostStore.getState().startPending).toBe(true);
+      return new Promise((resolve) => {
+        finishStart = resolve;
+      });
+    });
+    const pending = submitHostRecordTransport("Start");
+    expect(useRecordHostStore.getState().startPending).toBe(true);
+    finishStart({
+      session_id: "room1",
+      state: "recording",
+      take_index: 0,
+      recording_ms: 0,
+      start_blockers: [],
+      participants: [],
+      caps: { recorded: 4, producers: 2 },
+    });
+    await pending;
+    expect(useRecordHostStore.getState().startPending).toBe(false);
+  });
+
+  it("keeps the guard armed if Start may have succeeded but status is unavailable", async () => {
+    postHost.mockRejectedValueOnce(new Error("response lost"));
+    loadState.mockRejectedValueOnce(new Error("status unavailable"));
+    await expect(submitHostRecordTransport("Start")).rejects.toThrow(
+      "status unavailable",
+    );
+    expect(useRecordHostStore.getState().startPending).toBe(true);
   });
 
   it("ignores a stale Start after Pause has already stored a snapshot", async () => {

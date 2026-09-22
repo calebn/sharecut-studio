@@ -7,6 +7,26 @@ export type RecordingRole = "host" | "guest";
 // update stays on the existing loopback page and needs no remote Tauri IPC.
 export const CLOSE_GUARD_PARAM = "sc_close_guard";
 
+/** Update the current WebView URL before an asynchronous recording transition. */
+export function publishDesktopCloseGuard(
+  closeRisk: boolean,
+  role: RecordingRole,
+  canClear = true,
+): void {
+  if (!isTauri()) {
+    return;
+  }
+  const url = new URL(window.location.href);
+  if (closeRisk) {
+    url.searchParams.set(CLOSE_GUARD_PARAM, role);
+  } else if (canClear) {
+    url.searchParams.delete(CLOSE_GUARD_PARAM);
+  }
+  if (url.href !== window.location.href) {
+    window.history.replaceState(window.history.state, "", url);
+  }
+}
+
 /**
  * Publishes recording risk for the native Rust close handler without invoking
  * a Tauri plugin from the loopback WebView.
@@ -17,17 +37,6 @@ export function useDesktopCloseGuard(
   canClear = true,
 ): void {
   useLayoutEffect(() => {
-    if (!isTauri()) {
-      return;
-    }
-    const url = new URL(window.location.href);
-    if (closeRisk) {
-      url.searchParams.set(CLOSE_GUARD_PARAM, role);
-    } else if (canClear) {
-      url.searchParams.delete(CLOSE_GUARD_PARAM);
-    }
-    if (url.href !== window.location.href) {
-      window.history.replaceState(window.history.state, "", url);
-    }
+    publishDesktopCloseGuard(closeRisk, role, canClear);
   }, [closeRisk, role, canClear]);
 }
