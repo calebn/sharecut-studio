@@ -232,6 +232,7 @@ def apply_record_command(
         )
         out.state = "recording"
         out.host_offline_since_wall_ms = None
+        out.host_last_beat_wall_ms = now_wall_ms
         _clear_live_pause_reason(out)
         return out
     if ctype == "Pause":
