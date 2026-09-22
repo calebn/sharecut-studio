@@ -570,9 +570,11 @@ class RecordSessionService:
             if not last:
                 return
             if participant_id == HOST_PARTICIPANT_ID and beat is not None:
-                # A websocket close is an observed host departure.  The stored
-                # heartbeat only represents the last sample, which may be stale.
-                _persist_host_offline_since(self._store, _now_pair()[1])
+                close_wall_ms = _now_pair()[1]
+                # A fresh beat means the observed close starts the outage.
+                # A stale beat can mean the socket closed long after network loss.
+                since = beat if close_wall_ms - beat >= HOST_OFFLINE_PAUSE_MS else close_wall_ms
+                _persist_host_offline_since(self._store, since)
         person = next(
             (
                 p
