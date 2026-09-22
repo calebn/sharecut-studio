@@ -8,29 +8,34 @@ const bootstrapCommand = "podcast bootstrap --component rnnoise";
 test.describe("Pipeline bootstrap warning layout", () => {
   test("wraps a missing-model warning at tablet width", async ({ page }) => {
     await page.setViewportSize({ width: 768, height: 1024 });
-    await page.route("**/api/pipeline/config**", async (route) => {
-      const response = await route.fetch();
-      const config = (await response.json()) as {
-        components: Record<
-          string,
-          { ok: boolean; hint?: string; bootstrap?: string }
-        >;
-      };
+    const response = await page.request.get(
+      `/api/pipeline/config?path=${encodeURIComponent(e2eProjectPath)}`,
+    );
+    expect(response.ok()).toBe(true);
+    const config = (await response.json()) as {
+      components: Record<
+        string,
+        { ok: boolean; hint?: string; bootstrap?: string }
+      >;
+    };
+    const warningConfig = {
+      ...config,
+      components: {
+        ...config.components,
+        rnnoise: {
+          ...config.components.rnnoise,
+          ok: false,
+          hint: missingModelPath,
+          bootstrap: bootstrapCommand,
+        },
+      },
+    };
 
+    // Fetch before routing so the callback only fulfills the intercepted request.
+    await page.route("**/api/pipeline/config**", async (route) => {
       await route.fulfill({
         response,
-        json: {
-          ...config,
-          components: {
-            ...config.components,
-            rnnoise: {
-              ...config.components.rnnoise,
-              ok: false,
-              hint: missingModelPath,
-              bootstrap: bootstrapCommand,
-            },
-          },
-        },
+        json: warningConfig,
       });
     });
 
