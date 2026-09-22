@@ -150,6 +150,10 @@ flowchart TD
 2. Name and headphones check, then browser **Allow microphone** (explicit
    grant; Consent stays disabled until granted **and** headphones are checked),
    then mic test and device picker.
+   The desktop host's **Record room** panel also shows microphone permission
+   status and **Retry** after denial. macOS and Windows point to system
+   microphone privacy settings; Linux identifies its WebKit prompt and directs
+   blocked users to the supported browser recording path.
 3. Optional **Record 3 seconds of room tone** (skip allowed). Too-loud beds warn
    if RMS is above −35 dBFS and stay off the host. The bed is captured locally;
    nothing is uploaded until Accept. Producers never see this step.
