@@ -25,6 +25,14 @@ class EnvelopePoint(BaseModel):
     value: float
 
 
+class ExpectedEnvelopePoint(BaseModel):
+    """A baseline point; unlike a new point, its identity is never implicit."""
+
+    id: str = Field(min_length=1)
+    time: float
+    value: float
+
+
 class PasteExtract(BaseModel):
     """Clipboard extract for PasteSegment (opaque dict-compatible fields)."""
 
@@ -212,6 +220,7 @@ class DeleteSocialClipPayload(BaseModel):
 class SetEnvelopePayload(BaseModel):
     track_id: str
     points: list[EnvelopePoint] = Field(default_factory=list)
+    expected_points: list[ExpectedEnvelopePoint]
 
 
 class SuggestPendingEditPayload(BaseModel):

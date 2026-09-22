@@ -64,19 +64,33 @@ describe("EnvelopePointInspector", () => {
     await userEvent.clear(value);
     await userEvent.type(value, "0.25");
     await userEvent.click(screen.getByRole("button", { name: "Apply" }));
-    expect(setEnvelope).toHaveBeenCalledWith("/tmp/p.json", "host", [
-      { id: "early", time: 0, value: 1 },
-      { id: "late", time: 5, value: 0.25 },
-    ]);
+    expect(setEnvelope).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      "host",
+      [
+        { id: "early", time: 0, value: 1 },
+        { id: "late", time: 5, value: 0.25 },
+      ],
+      [
+        { id: "early", time: 0, value: 1 },
+        { id: "late", time: 5, value: 0.5 },
+      ],
+    );
     await expectNoA11yViolations(container);
   });
 
   it("deletes a point and clears selection", async () => {
     render(<EnvelopePointInspector trackId="host" index={1} />);
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
-    expect(setEnvelope).toHaveBeenCalledWith("/tmp/p.json", "host", [
-      { id: "early", time: 0, value: 1 },
-    ]);
+    expect(setEnvelope).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      "host",
+      [{ id: "early", time: 0, value: 1 }],
+      [
+        { id: "early", time: 0, value: 1 },
+        { id: "late", time: 5, value: 0.5 },
+      ],
+    );
     expect(useDawStore.getState().selection).toBeNull();
   });
 
@@ -86,10 +100,18 @@ describe("EnvelopePointInspector", () => {
     await userEvent.clear(value);
     await userEvent.type(value, "9");
     await userEvent.click(screen.getByRole("button", { name: "Apply" }));
-    expect(setEnvelope).toHaveBeenCalledWith("/tmp/p.json", "host", [
-      { id: "early", time: 0, value: 1 },
-      { id: "late", time: 5, value: 1.5 },
-    ]);
+    expect(setEnvelope).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      "host",
+      [
+        { id: "early", time: 0, value: 1 },
+        { id: "late", time: 5, value: 1.5 },
+      ],
+      [
+        { id: "early", time: 0, value: 1 },
+        { id: "late", time: 5, value: 0.5 },
+      ],
+    );
   });
 
   it("commits time on form Enter", async () => {
@@ -98,10 +120,18 @@ describe("EnvelopePointInspector", () => {
     await userEvent.clear(time);
     await userEvent.type(time, "2");
     await userEvent.keyboard("{Enter}");
-    expect(setEnvelope).toHaveBeenCalledWith("/tmp/p.json", "host", [
-      { id: "early", time: 0, value: 1 },
-      { id: "late", time: 2, value: 0.5 },
-    ]);
+    expect(setEnvelope).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      "host",
+      [
+        { id: "early", time: 0, value: 1 },
+        { id: "late", time: 2, value: 0.5 },
+      ],
+      [
+        { id: "early", time: 0, value: 1 },
+        { id: "late", time: 5, value: 0.5 },
+      ],
+    );
   });
 
   it.each([
