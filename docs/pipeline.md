@@ -131,7 +131,7 @@ internally, via a shared thread-pool helper (`util/parallel.py`):
 
 | Step | What runs concurrently |
 |------|-------------------------|
-| `analyze_fillers_pauses` | Every filler/pause candidate across **all** dialogue tracks is analyzed (waveform boundary snap, risk assessment, fade sizing) in one shared pool, then decisions are applied serially in the original order |
+| `analyze_fillers_pauses` | Every filler, pause, repetition, or restart candidate across **all** dialogue tracks is analyzed (waveform boundary snap, risk assessment, fade sizing) in one shared pool, then decisions are applied serially in the original order |
 | `assemble_timeline` / `render_dialogue_stems` | Each track's stem is rendered concurrently (`_render_track_stems`) |
 | `export_deliverables` | Each configured output format is encoded concurrently |
 
