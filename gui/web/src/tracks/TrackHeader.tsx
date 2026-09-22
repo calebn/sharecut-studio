@@ -1,4 +1,5 @@
 import type { DragEvent, MouseEvent } from "react";
+import { useLongPress } from "../hooks/useLongPress";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { canIngestMedia } from "../shareMode";
 import { useDaw } from "../state/useDaw";
@@ -93,6 +94,7 @@ export function TrackHeader({
       breakdown.staleTrackIds.includes(track.id));
   const dropHighlight = ingestDropTrackId === track.id;
   const label = track.label || track.id;
+  const longPress = useLongPress(() => onSelect(false));
 
   const select = (e: MouseEvent) => {
     onSelect(e.metaKey || e.ctrlKey || e.shiftKey);
@@ -147,6 +149,11 @@ export function TrackHeader({
         className="track-header-open"
         aria-label={`Open track details, ${label}`}
         aria-expanded={selected}
+        onPointerDown={longPress.onPointerDown}
+        onClickCapture={longPress.onClickCapture}
+        onPointerMove={longPress.onPointerMove}
+        onPointerUp={longPress.onPointerUp}
+        onPointerCancel={longPress.onPointerCancel}
         onClick={select}
       />
       {mayReorder ? (

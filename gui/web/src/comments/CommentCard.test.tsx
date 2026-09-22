@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
@@ -82,6 +82,122 @@ describe("CommentCard", () => {
       screen.getByRole("button", { name: /Needs a tighter open/ }),
     );
     expect(onSelect).toHaveBeenCalledOnce();
+  });
+
+  it("long-press selects without also resolving", () => {
+    vi.useFakeTimers();
+    const onSelect = vi.fn();
+    const onResolve = vi.fn();
+    render(
+      <ul>
+        <CommentCard
+          comment={sampleComment()}
+          onSelect={onSelect}
+          onResolve={onResolve}
+          showReply={false}
+        />
+      </ul>,
+    );
+    const main = screen.getByRole("button", { name: /Needs a tighter open/ });
+    fireEvent.pointerDown(main, {
+      pointerType: "touch",
+      pointerId: 1,
+      isPrimary: true,
+      clientX: 100,
+      clientY: 20,
+    });
+    vi.advanceTimersByTime(550);
+    expect(onSelect).not.toHaveBeenCalled();
+    fireEvent.pointerUp(main, {
+      pointerType: "touch",
+      pointerId: 1,
+      clientX: 40,
+      clientY: 20,
+    });
+    vi.runOnlyPendingTimers();
+    expect(onSelect).toHaveBeenCalledOnce();
+    expect(onResolve).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it("swipe left resolves an open host comment but vertical movement does not", () => {
+    const onResolve = vi.fn();
+    const onSelect = vi.fn();
+    render(
+      <ul>
+        <CommentCard
+          comment={sampleComment()}
+          onResolve={onResolve}
+          onSelect={onSelect}
+          showReply={false}
+        />
+      </ul>,
+    );
+    const card = screen.getByText("Needs a tighter open").closest("li");
+    expect(card).not.toBeNull();
+    fireEvent.pointerDown(card!, {
+      pointerType: "touch",
+      pointerId: 1,
+      isPrimary: true,
+      clientX: 100,
+      clientY: 20,
+    });
+    fireEvent.pointerMove(card!, {
+      pointerId: 1,
+      clientX: 40,
+      clientY: 50,
+    });
+    fireEvent.pointerUp(card!, {
+      pointerId: 1,
+      clientX: 40,
+      clientY: 50,
+    });
+    expect(onResolve).not.toHaveBeenCalled();
+    fireEvent.pointerDown(card!, {
+      pointerType: "touch",
+      pointerId: 2,
+      isPrimary: true,
+      clientX: 100,
+      clientY: 20,
+    });
+    fireEvent.pointerUp(card!, {
+      pointerId: 2,
+      clientX: 40,
+      clientY: 20,
+    });
+    expect(onResolve).toHaveBeenCalledWith(true);
+    fireEvent.click(
+      screen.getByRole("button", { name: /Needs a tighter open/ }),
+    );
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("does not resolve by swipe when resolve actions are hidden", () => {
+    const onResolve = vi.fn();
+    const { container } = render(
+      <ul>
+        <CommentCard
+          comment={sampleComment()}
+          onResolve={onResolve}
+          showResolve={false}
+        />
+      </ul>,
+    );
+    const card = container.querySelector(".comment-card");
+    expect(card).not.toBeNull();
+    fireEvent.pointerDown(card!, {
+      pointerType: "touch",
+      pointerId: 1,
+      isPrimary: true,
+      clientX: 100,
+      clientY: 20,
+    });
+    fireEvent.pointerUp(card!, {
+      pointerId: 1,
+      clientX: 40,
+      clientY: 20,
+    });
+    expect(onResolve).not.toHaveBeenCalled();
   });
 
   it("keeps action checkboxes enabled on a guest share when onToggleAction is set", async () => {

@@ -1,4 +1,9 @@
-import type { ReactNode } from "react";
+import {
+  type ReactNode,
+  type PointerEvent as ReactPointerEvent,
+  useRef,
+} from "react";
+import { useLongPress } from "../hooks/useLongPress";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import type { TimelineComment } from "../types/project";
 import { Button } from "../ui";
@@ -40,6 +45,67 @@ export function CommentCard({
   showActions = true,
   children,
 }: Props) {
+  const swipeRef = useRef<{
+    id: number;
+    x: number;
+    y: number;
+    at: number;
+  } | null>(null);
+  const swipeAtRef = useRef(-Infinity);
+  const longPress = useLongPress(() => {
+    swipeRef.current = null;
+    onSelect?.();
+  });
+  const canSwipeResolve =
+    showResolve && !guestShare && !busy && !c.resolved && onResolve;
+  const onPointerDown = (event: ReactPointerEvent<HTMLLIElement>) => {
+    const target = event.target as Element;
+    if (
+      target.closest("button,input,textarea") &&
+      !target.closest(".comment-card-main")
+    ) {
+      return;
+    }
+    longPress.onPointerDown(event);
+    if (event.pointerType === "touch" && event.isPrimary) {
+      swipeRef.current = {
+        id: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        at: Date.now(),
+      };
+    } else {
+      swipeRef.current = null;
+    }
+  };
+  const onPointerMove = (event: ReactPointerEvent<HTMLLIElement>) => {
+    longPress.onPointerMove(event);
+    const start = swipeRef.current;
+    if (
+      start &&
+      (start.id !== event.pointerId || Math.abs(event.clientY - start.y) >= 24)
+    ) {
+      swipeRef.current = null;
+    }
+  };
+  const onPointerUp = (event: ReactPointerEvent<HTMLLIElement>) => {
+    longPress.onPointerUp(event);
+    const start = swipeRef.current;
+    swipeRef.current = null;
+    if (
+      !start ||
+      start.id !== event.pointerId ||
+      !canSwipeResolve ||
+      Date.now() - start.at >= 550
+    )
+      return;
+    const dx = event.clientX - start.x;
+    const dy = event.clientY - start.y;
+    if (dx <= -48 && Math.abs(dy) < 24) {
+      swipeAtRef.current = Date.now();
+      onResolve(true);
+    }
+  };
   const className = `comment-card${selected ? " selected" : ""}${
     c.resolved ? " resolved" : ""
   }`;
@@ -58,10 +124,25 @@ export function CommentCard({
   return (
     <li
       className={className}
+      onPointerDown={onPointerDown}
+      onClickCapture={longPress.onClickCapture}
+      onPointerUp={onPointerUp}
+      onPointerMove={onPointerMove}
+      onPointerCancel={(event) => {
+        longPress.onPointerCancel(event);
+        swipeRef.current = null;
+      }}
       {...presenceAnchorProps(presenceAnchor("comment", c.id))}
     >
       {onSelect ? (
-        <button type="button" className="comment-card-main" onClick={onSelect}>
+        <button
+          type="button"
+          className="comment-card-main"
+          onClick={() => {
+            if (Date.now() - swipeAtRef.current < 500) return;
+            onSelect();
+          }}
+        >
           {main}
         </button>
       ) : (

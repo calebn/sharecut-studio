@@ -20,6 +20,7 @@ import {
   waveformTicksToTimeline,
 } from "../edit/clipMove";
 import { useClipWaveform } from "../hooks/useClipWaveform";
+import { useLongPress } from "../hooks/useLongPress";
 import { isShareProjectKey } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import type { ClipRow, PeaksData } from "../types/project";
@@ -178,6 +179,7 @@ export function ClipBlock({
   const bodyRef = useRef<BodyDrag | null>(null);
   const bodyMovedRef = useRef(false);
   const pointerHandledRef = useRef(false);
+  const longPress = useLongPress(() => onSelect());
   const [fadePreview, setFadePreview] = useState<{
     inMs: number;
     outMs: number;
@@ -499,7 +501,8 @@ export function ClipBlock({
 
   const extraTicks = () => waveformTicksToTimeline(clip, wave.ticks);
 
-  const onBodyDown = (e: ReactPointerEvent) => {
+  const onBodyDown = (e: ReactPointerEvent<HTMLElement>) => {
+    if (!bladeMode && interactive) longPress.onPointerDown(e);
     if (bladeMode || !interactive) {
       return;
     }
@@ -535,7 +538,8 @@ export function ClipBlock({
     };
   };
 
-  const onBodyMove = (e: ReactPointerEvent) => {
+  const onBodyMove = (e: ReactPointerEvent<HTMLElement>) => {
+    if (!bladeMode) longPress.onPointerMove(e);
     const d = bodyRef.current;
     if (!d || d.pointerId !== e.pointerId) {
       return;
@@ -556,7 +560,14 @@ export function ClipBlock({
     });
   };
 
-  const endBodyDrag = (e: ReactPointerEvent, cancelled: boolean) => {
+  const endBodyDrag = (
+    e: ReactPointerEvent<HTMLElement>,
+    cancelled: boolean,
+  ) => {
+    if (!bladeMode) {
+      if (cancelled) longPress.onPointerCancel(e);
+      else longPress.onPointerUp(e);
+    }
     const d = bodyRef.current;
     if (!d || d.pointerId !== e.pointerId) {
       return;
@@ -606,6 +617,7 @@ export function ClipBlock({
           aria-label={`Select clip ${clip.id}`}
           aria-pressed={selected}
           onPointerDown={onBodyDown}
+          onClickCapture={longPress.onClickCapture}
           onPointerMove={onBodyMove}
           onPointerUp={(e) => endBodyDrag(e, false)}
           onPointerCancel={(e) => endBodyDrag(e, true)}

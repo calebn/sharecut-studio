@@ -71,17 +71,17 @@ Example: Clip selected → Related shows Copy; More reports no additional action
 
 ### Gestures
 
-Touch gestures for common actions, documented in the **Gestures** cheatsheet (More hub → Gestures). It is an app-level modal (outside inert app chrome) and can switch directly to **Keyboard shortcuts**; that dialog links back to Gestures without stacking. Executable gesture actions reference the shared command catalog, while unimplemented proposals are explicitly marked planned.
+Touch gestures for common actions, documented in the **Gestures** cheatsheet (More hub → Gestures). It is an app-level modal (outside inert app chrome) and can switch directly to **Keyboard shortcuts**; that dialog links back to Gestures without stacking. Two-finger Undo and pinch zoom remain available. A touch long-press on a clip, word, comment, or track selects it and opens the existing inspector sheet; movement, cancellation, and multi-touch abort it. Swipe left resolves an eligible open host comment without interfering with vertical scrolling, and touch double-tap on a transcript word opens correction while desktop double-click continues to seek. Native buttons remain available for every action; the cheatsheet lists only shipped gestures.
 
 Two-finger Undo is active only while a project is loaded and the shared Undo command is available. Its recognizer yields to timeline pinch/rotation and rejects delayed, moving, or cancelled contacts so zooming does not also undo an edit.
 
 | Gesture | Command | Status |
 |---------|---------|--------|
 | Two-finger tap | Undo | Available |
-| Long-press | Context actions (selection sheet) | Planned (Soon) |
+| Long-press | Select a clip, word, comment, or track and open its sheet | Available |
 | Pinch | Zoom in/out on timeline | Available |
-| Swipe left on comment | Resolve | Planned (Soon) |
-| Double-tap word | Correct word | Planned (Soon) |
+| Swipe left on open host comment | Resolve | Available |
+| Double-tap word | Correct word | Available |
 
 ## Wireframes (ASCII)
 

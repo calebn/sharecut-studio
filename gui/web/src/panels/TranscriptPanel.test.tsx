@@ -1,4 +1,10 @@
-import { act, fireEvent, render, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
@@ -117,6 +123,48 @@ describe("TranscriptPanel", () => {
     expect(
       within(container).getByTestId("docked-word-editor").textContent,
     ).toContain("embedded host:0");
+  });
+
+  it("touch double-tap selects a word for correction", async () => {
+    const { container } = render(<TranscriptPanel />);
+    const word = within(container).getByRole("button", { name: "hello" });
+    fireEvent.pointerUp(word, { pointerType: "touch" });
+    fireEvent.click(word);
+    fireEvent.pointerUp(word, { pointerType: "touch" });
+    fireEvent.click(word);
+    await waitFor(() =>
+      expect(useDawStore.getState().selection).toEqual({
+        kind: "transcriptWord",
+        trackId: "host",
+        wordIndex: 0,
+      }),
+    );
+  });
+
+  it("long-press selects a word without seeking on release", () => {
+    const { container } = render(<TranscriptPanel />);
+    const word = within(container).getByRole("button", { name: "hello" });
+    vi.useFakeTimers();
+    fireEvent.pointerDown(word, {
+      pointerType: "touch",
+      isPrimary: true,
+      pointerId: 1,
+    });
+    act(() => {
+      vi.advanceTimersByTime(550);
+    });
+    fireEvent.pointerUp(word, { pointerId: 1, pointerType: "touch" });
+    fireEvent.click(word);
+    act(() => {
+      vi.runOnlyPendingTimers();
+    });
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "transcriptWord",
+      trackId: "host",
+      wordIndex: 0,
+    });
+    expect(useDawStore.getState().playheadSec).toBe(0);
+    vi.useRealTimers();
   });
 
   it("Select mode builds a transcript range", () => {
