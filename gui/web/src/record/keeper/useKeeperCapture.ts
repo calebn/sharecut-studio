@@ -369,6 +369,13 @@ export function useKeeperCapture({
         return;
       }
       await session.retry();
+      if (session.error === null) {
+        finalizationFailed.current = false;
+        markUnfinalizedCapture(session.isWriting);
+        if (pendingDisposals.current === 0) {
+          setFinalizing(false);
+        }
+      }
     });
     applyChain.current = retryRun.catch(() => undefined);
     void retryRun

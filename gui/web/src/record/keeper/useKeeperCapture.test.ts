@@ -634,4 +634,45 @@ describe("useKeeperCapture", () => {
     expect(result.current.recordingLocally).toBe(false);
     expect(result.current.finalizing).toBe(true);
   });
+
+  it("clears a recovered finalization failure after retry and Stop", async () => {
+    const sink = new MemorySink();
+    const open = sink.open.bind(sink);
+    let failClose = true;
+    sink.open = async (path): Promise<ByteStream> => {
+      const writable = await open(path);
+      return {
+        write: (bytes, offset) => writable.write(bytes, offset),
+        close: async () => {
+          if (failClose) {
+            failClose = false;
+            throw new Error("transient OPFS close failure");
+          }
+          await writable.close();
+        },
+      };
+    };
+    vi.mocked(createOpfsSink).mockResolvedValueOnce(sink);
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    const { result, rerender } = renderHook(
+      ({ snapshot }: { snapshot: RecordSnapshot }) =>
+        useKeeperCapture({ ...args, enabled: true, snapshot, stream }),
+      { initialProps: { snapshot: snap } },
+    );
+    await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+
+    const nextTake = { ...snap, take_index: 1 };
+    rerender({ snapshot: nextTake });
+    await waitFor(() =>
+      expect(result.current.error).toBe("transient OPFS close failure"),
+    );
+    expect(result.current.finalizing).toBe(true);
+    act(() => result.current.retry());
+    await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+    expect(result.current.finalizing).toBe(false);
+
+    rerender({ snapshot: { ...nextTake, state: "stopped" } });
+    await waitFor(() => expect(result.current.recordingLocally).toBe(false));
+    expect(result.current.finalizing).toBe(false);
+  });
 });
