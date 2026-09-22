@@ -80,6 +80,9 @@ While a local host or guest keeper is active or finalizing, the web client
 writes `sc_close_guard=host|guest` into its loopback URL. The native Tauri host
 reads that marker during `CloseRequested` and `ExitRequested`, prevents the
 request synchronously, and displays a role-aware native confirmation dialog.
+Host Start arms the marker synchronously before its HTTP request, covering a
+server transition that precedes the response; uncertain Start outcomes keep
+the guard until an authoritative state is available.
 After confirmation it calls `WebviewWindow.destroy()` and exits the app; a
 cancel keeps the window and recording open. An unreadable, malformed, or
 duplicated marker is treated conservatively and still requires confirmation.

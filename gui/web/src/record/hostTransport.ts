@@ -1,4 +1,5 @@
 import { loadHostRecordState, postHostRecordCommand } from "../api";
+import { publishDesktopCloseGuard } from "../desktop/useDesktopCloseGuard";
 import { useDawStore } from "../state/dawStore";
 import { useRecordHostStore } from "./hostStore";
 
@@ -20,12 +21,20 @@ export async function submitHostRecordTransport(
     return;
   }
   const token = ++transportEpoch;
+  if (commandType === "Start") {
+    // The server can enter REC before the HTTP response updates the snapshot.
+    // Publish synchronously so a close in that interval still reaches Rust.
+    publishDesktopCloseGuard(true, "host");
+    useRecordHostStore.getState().setStartPending(true);
+  }
+  let outcomeVerified = false;
   try {
     const snap = await postHostRecordCommand(path, commandType, payload);
     if (token !== transportEpoch) {
       return;
     }
     useRecordHostStore.getState().setSnapshot(snap);
+    outcomeVerified = true;
   } catch (err) {
     if (token !== transportEpoch) {
       return;
@@ -36,8 +45,19 @@ export async function submitHostRecordTransport(
     }
     if (current && current.state === EXPECTED[commandType]) {
       useRecordHostStore.getState().setSnapshot(current);
+      outcomeVerified = true;
       return;
     }
+    if (
+      commandType === "Start" &&
+      (current?.state === "lobby" || current?.state === "stopped")
+    ) {
+      outcomeVerified = true;
+    }
     throw err;
+  } finally {
+    if (token === transportEpoch && outcomeVerified) {
+      useRecordHostStore.getState().setStartPending(false);
+    }
   }
 }
