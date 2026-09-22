@@ -232,8 +232,9 @@ The generated project is two hours long with 1,200 uniquely identified clips
 and 10,000 distributed transcript utterances across alternating speakers. It
 creates sparse silent WAVs with real two-hour source clocks (no media blocks are
 consumed), so this measures project shape and browser surfaces, not audio
-fidelity. The profile asserts that all clips and utterances are present and
-exercises timeline scroll/seek, transcript scroll/seek, and history loading. It
+fidelity. The fixture tests assert all clips and utterances exist; the browser
+profile checks clip rendering and access to the first and last transcript turns,
+then exercises timeline scroll/seek, transcript scroll/seek, and history loading. It
 prints operation duration, DOM node count, and Chromium heap size when
 available; those measurements are diagnostic only and have no machine-dependent
 timing threshold. The history fixture is currently empty, so a many-entry
