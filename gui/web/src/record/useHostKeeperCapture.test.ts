@@ -9,7 +9,7 @@ import { useHostKeeperCapture } from "./useHostKeeperCapture";
 
 const mic = vi.hoisted(() =>
   vi.fn((_enabled: boolean, _deviceId: string, _resetKey = 0) => ({
-    stream: null,
+    stream: null as MediaStream | null,
     devices: [],
     error: null,
     settingsWarning: null,
@@ -112,6 +112,14 @@ describe("useHostKeeperCapture", () => {
   it("uses a timer while no host segment is being written", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-21T00:00:00Z"));
+    mic.mockReturnValueOnce({
+      stream: {} as MediaStream,
+      devices: [],
+      error: null,
+      settingsWarning: null,
+      lost: false,
+      retry: vi.fn(),
+    });
     keeper.mockReturnValueOnce({ error: null, recordingLocally: false });
     const sent: Record<string, unknown>[] = [];
     bindRecordHostSend((frame) => sent.push(frame));
@@ -119,6 +127,17 @@ describe("useHostKeeperCapture", () => {
     await act(async () => vi.advanceTimersByTime(5_000));
     expect(sent).toHaveLength(1);
     expect(sent[0]?.command_type).toBe("Heartbeat");
+  });
+
+  it("does not send fallback heartbeats before REC microphone capture starts", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-21T00:00:00Z"));
+    keeper.mockReturnValueOnce({ error: null, recordingLocally: false });
+    const sent: Record<string, unknown>[] = [];
+    bindRecordHostSend((frame) => sent.push(frame));
+    renderHook(() => useHostKeeperCapture());
+    await act(async () => vi.advanceTimersByTime(10_000));
+    expect(sent).toHaveLength(0);
   });
 
   it("does not send fallback heartbeats during a failed active take", async () => {

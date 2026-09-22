@@ -677,8 +677,9 @@ background-throttled `window.setInterval`. The activity beat is sent at most
 once every 5 seconds. A host timer maintains record presence while no segment
 is being written, including lobby and paused states. If a keeper write fails,
 the existing local-capture failure latch stops activity beats; the fallback
-timer is also held during REC while local capture has failed or the microphone
-track is lost, until Retry local recording or microphone recovery succeeds. An observed
+timer is also held during REC until the microphone stream is available, and
+again while local capture has failed or the microphone track is lost, until
+Retry local recording or microphone recovery succeeds. An observed
 host socket close starts the 10-second reconnect window at close time when the
 last beat is fresh; a stale beat remains the outage estimate after delayed
 close detection or an unobserved crash.
