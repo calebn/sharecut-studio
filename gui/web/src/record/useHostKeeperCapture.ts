@@ -73,7 +73,8 @@ export function useHostKeeperCapture(enabled = true): {
       !hostOn ||
       !sessionId ||
       keeper.recordingLocally ||
-      (roomState === "recording" && (keeper.error || mic.error || mic.lost))
+      (roomState === "recording" &&
+        (!mic.stream || keeper.error || mic.error || mic.lost))
     ) {
       return;
     }
@@ -85,6 +86,7 @@ export function useHostKeeperCapture(enabled = true): {
     roomState,
     keeper.recordingLocally,
     keeper.error,
+    mic.stream,
     mic.error,
     mic.lost,
     onKeeperActivity,
