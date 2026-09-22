@@ -607,4 +607,31 @@ describe("useKeeperCapture", () => {
     expect(result.current.recordingLocally).toBe(false);
     expect(result.current.finalizing).toBe(true);
   });
+
+  it("retains close risk when the OPFS writable fails to close", async () => {
+    const sink = new MemorySink();
+    const open = sink.open.bind(sink);
+    sink.open = async (path): Promise<ByteStream> => {
+      const writable = await open(path);
+      return {
+        write: (bytes, offset) => writable.write(bytes, offset),
+        close: async () => {
+          throw new Error("OPFS close failed");
+        },
+      };
+    };
+    vi.mocked(createOpfsSink).mockResolvedValueOnce(sink);
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    const { result, rerender } = renderHook(
+      ({ snapshot }: { snapshot: RecordSnapshot }) =>
+        useKeeperCapture({ ...args, enabled: true, snapshot, stream }),
+      { initialProps: { snapshot: snap } },
+    );
+    await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+
+    rerender({ snapshot: { ...snap, state: "stopped" } });
+    await waitFor(() => expect(result.current.error).toBe("OPFS close failed"));
+    expect(result.current.recordingLocally).toBe(false);
+    expect(result.current.finalizing).toBe(true);
+  });
 });

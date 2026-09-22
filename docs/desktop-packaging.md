@@ -88,6 +88,9 @@ to clear, and a failed keeper finalization leaves confirmation armed.
 If the microphone disappears as Stop arrives, the guard remains armed until
 the local WAV and metadata flush completes. If the main WebView handle is
 unavailable, native close and exit requests are blocked conservatively.
+An unguarded window close routes through app exit while its WebView is still
+available for a final guard check. Guest producers and guests who declined
+recording do not receive a keeper warning from room state alone.
 On macOS the app menu mirrors Tauri's default items but replaces its native
 Quit item with a `Cmd+Q` menu command that calls `AppHandle::exit(0)`, so
 the app menu and Cmd+Q take the `ExitRequested` confirmation path. Dock Quit

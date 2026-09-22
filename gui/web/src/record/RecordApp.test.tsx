@@ -12,6 +12,11 @@ import {
   ROOM_TONE_PROMPT_COPY,
 } from "./types";
 
+const closeGuardSpy = vi.hoisted(() => vi.fn());
+vi.mock("../desktop/useDesktopCloseGuard", () => ({
+  useDesktopCloseGuard: closeGuardSpy,
+}));
+
 vi.mock("./monitor/useRecordMonitor", () => ({
   useRecordMonitor: () => ({ hearing: false, remoteCount: 0, error: null }),
 }));
@@ -180,6 +185,7 @@ describe("RecordApp", () => {
   });
 
   beforeEach(() => {
+    closeGuardSpy.mockClear();
     sockets = [];
     stubWebSocket(sockets);
     getUserMedia = vi.fn(async () => {
@@ -368,6 +374,7 @@ describe("RecordApp", () => {
       expect(document.title).toBe("Producer — not recorded — Shot of Truth");
     });
     expect(sockets).toHaveLength(0);
+    expect(closeGuardSpy).toHaveBeenLastCalledWith(false, "guest", false);
     await expectNoA11yViolations(container);
   });
 
@@ -511,5 +518,6 @@ describe("RecordApp", () => {
     stubWebSocket(sockets, "declined");
     render(<RecordApp token="guest-tok" />);
     expect(await screen.findByText(DECLINED_COPY)).toBeInTheDocument();
+    expect(closeGuardSpy).toHaveBeenLastCalledWith(false, "guest", true);
   });
 });

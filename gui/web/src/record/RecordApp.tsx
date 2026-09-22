@@ -107,8 +107,10 @@ export function RecordApp({ token }: { token: string }) {
   const micEnabled =
     !producer && !!me && error !== "room_full" && me.consented !== false;
   const mic = useMicPermission(micEnabled, deviceId);
+  const captureEnabled =
+    !!bootstrap?.build.capture && !producer && me?.consented === true;
   const keeper = useKeeperCapture({
-    enabled: !!bootstrap?.build.capture && !producer && me?.consented === true,
+    enabled: captureEnabled,
     role: "guest",
     snapshot,
     participantId: me?.participant_id ?? null,
@@ -119,8 +121,8 @@ export function RecordApp({ token }: { token: string }) {
   useDesktopCloseGuard(
     keeper.recordingLocally ||
       keeper.finalizing ||
-      snapshot?.state === "recording" ||
-      snapshot?.state === "paused",
+      (captureEnabled &&
+        (snapshot?.state === "recording" || snapshot?.state === "paused")),
     "guest",
     snapshot !== null,
   );
