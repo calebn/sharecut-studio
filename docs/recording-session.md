@@ -652,6 +652,9 @@ without a completion `.json`; it is never given a file ACK or landed. Once all
 complete segments are acknowledged, that retained partial no longer traps the
 guest Leave button or host dialog. Repeated errors remain visible and do not
 silently discard or count queued samples.
+Host and guest upload polling treats capture as unsettled while a keeper Stop
+or stream-loss finalization is pending; it does not mark a metadata-free WAV
+abandoned until the flush has actually settled.
 
 On the **last** host connection drop (`disconnect` / `release_connection`)
 while `state ∈ {recording, paused}`, the service stamps

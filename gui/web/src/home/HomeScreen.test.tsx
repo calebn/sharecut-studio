@@ -11,6 +11,11 @@ import {
 import { expectNoA11yViolations } from "../test/a11y";
 import { HomeScreen } from "./HomeScreen";
 
+const closeGuardSpy = vi.hoisted(() => vi.fn());
+vi.mock("../desktop/useDesktopCloseGuard", () => ({
+  useDesktopCloseGuard: closeGuardSpy,
+}));
+
 vi.mock("../api", () => ({
   closeEpisodeProject: vi.fn(),
   createEpisodeProject: vi.fn(),
@@ -30,6 +35,7 @@ describe("HomeScreen", () => {
   const assign = vi.fn();
 
   beforeEach(() => {
+    closeGuardSpy.mockClear();
     window.localStorage.setItem("sharecut.bootstrap.skip", "1");
     closeMock.mockReset();
     closeMock.mockResolvedValue(undefined);
@@ -48,6 +54,11 @@ describe("HomeScreen", () => {
       href: "http://127.0.0.1:8765/",
       assign,
     });
+  });
+
+  it("clears a recording marker after navigating to Home", () => {
+    render(<HomeScreen />);
+    expect(closeGuardSpy).toHaveBeenCalledWith(false, "host");
   });
 
   afterEach(() => {

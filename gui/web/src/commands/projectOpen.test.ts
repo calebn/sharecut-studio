@@ -49,6 +49,10 @@ describe("project.open", () => {
   });
 
   it("picks then opens and navigates", async () => {
+    vi.stubGlobal("location", {
+      href: "http://127.0.0.1:8765/?project=old&sc_close_guard=host",
+      assign,
+    });
     pickMock.mockResolvedValue({
       project_path: "/tmp/ep/episode.project.json",
     });
@@ -65,6 +69,18 @@ describe("project.open", () => {
     expect(opened.searchParams.get("project")).toBe(
       "/tmp/ep/episode.project.json",
     );
+    expect(opened.searchParams.has("sc_close_guard")).toBe(false);
+  });
+
+  it("does not carry the old recording marker into a new project", async () => {
+    vi.stubGlobal("location", {
+      href: "http://127.0.0.1:8765/?project=old&sc_close_guard=host",
+      assign,
+    });
+    expect((await execute("project.new")).status).toBe("ok");
+    const destination = new URL(String(assign.mock.calls[0]?.[0]));
+    expect(destination.searchParams.has("project")).toBe(false);
+    expect(destination.searchParams.has("sc_close_guard")).toBe(false);
   });
 
   it("ignores overlapping invocations until pick finishes", async () => {

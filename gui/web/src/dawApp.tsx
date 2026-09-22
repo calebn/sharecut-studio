@@ -188,6 +188,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
       <ShareDialog />
       <RecordPanel
         recordingLocally={hostKeeper.recordingLocally}
+        keeperFinalizing={hostKeeper.finalizing}
         keeperError={hostKeeper.error}
         onRetryKeeper={hostKeeper.retry}
         micError={hostKeeper.micError}

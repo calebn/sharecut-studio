@@ -112,6 +112,9 @@ export function useKeeperCapture({
       gate: CapturedGate,
       allowExistingError = false,
     ) => {
+      if (sessionRef.current !== session) {
+        return;
+      }
       if (!gate.snapshot || !gate.participantId) {
         setWriting(false);
         return;
@@ -134,6 +137,9 @@ export function useKeeperCapture({
         sessionId: gate.snapshot.session_id,
         participantId: gate.participantId,
       });
+      if (sessionRef.current !== session) {
+        return;
+      }
       // KeeperSession records some OPFS close/header failures internally and
       // resolves apply() after best-effort cleanup. They still mean that the
       // local take is not durable, so the native guard must stay armed.
@@ -192,7 +198,9 @@ export function useKeeperCapture({
               pendingDisposals.current === 0 &&
               !finalizationFailed.current
             ) {
-              markUnfinalizedCapture(false);
+              if (sessionRef.current === null) {
+                markUnfinalizedCapture(false);
+              }
               setFinalizing(false);
             }
           }
@@ -326,6 +334,9 @@ export function useKeeperCapture({
         return applyGate(session, gate);
       })
       .catch((err: unknown) => {
+        if (sessionRef.current !== session) {
+          return;
+        }
         // A failed Stop/pause finalization can leave an incomplete local WAV.
         // Keep native close protection armed even after writing turns false.
         finalizationFailed.current = true;
