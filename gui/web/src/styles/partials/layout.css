@@ -344,6 +344,21 @@
   gap: var(--space-0);
 }
 
+.transcript-list.is-virtualized {
+  position: relative;
+}
+
+.transcript-list.is-virtualized .transcript-virtual-spacer {
+  flex: none;
+}
+
+.transcript-list.is-virtualized .utterance-turn {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
 .status-bar {
   display: flex;
   align-items: center;

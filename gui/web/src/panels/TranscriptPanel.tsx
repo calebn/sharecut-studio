@@ -1,3 +1,4 @@
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { capabilityTooltip } from "../capabilities/copy";
 import { TranscriptWordInspector } from "../inspector/views/TranscriptWordInspector";
@@ -30,10 +31,12 @@ import {
   turnSeekSec,
   wordSeekSec,
 } from "../utils/transcript";
+import { transcriptAnchorTurnIndex } from "./transcriptAnchorTarget";
 
 const LOW_CONFIDENCE = 0.7;
 const EMPTY_UTTERANCES: CombinedUtterance[] = [];
 const EMPTY_BOUNDARIES: EditBoundaryView[] = [];
+const LARGE_TRANSCRIPT_TURN_THRESHOLD = 200;
 
 type TranscriptIntent = "navigate" | "correct" | "select";
 
@@ -208,6 +211,37 @@ export function TranscriptPanel() {
     () => groupConsecutiveSpeakerTurns(utterances),
     [utterances],
   );
+  const activeIndex = findActiveUtteranceIndex(utterances, playheadSec);
+  const virtualized = turns.length >= LARGE_TRANSCRIPT_TURN_THRESHOLD;
+  const virtualizer = useVirtualizer({
+    count: virtualized ? turns.length : 0,
+    getScrollElement: () => listRef.current,
+    estimateSize: () => 6 * 16,
+    getItemKey: (index) => {
+      const turn = turns[index];
+      return turn
+        ? `${turn.trackId}-${turn.utterances[0]?.start}-${turn.startIndex}`
+        : index;
+    },
+    overscan: 8,
+  });
+  const virtualItems = virtualizer.getVirtualItems();
+  const renderList = virtualized
+    ? virtualItems.map((virtualItem) => ({
+        turn: turns[virtualItem.index]!,
+        turnIndex: virtualItem.index,
+        virtualItem,
+      }))
+    : turns.map((turn, turnIndex) => ({ turn, turnIndex, virtualItem: null }));
+  const activeTurnIndex = useMemo(
+    () =>
+      turns.findIndex(
+        (turn) =>
+          activeIndex >= turn.startIndex &&
+          activeIndex < turn.startIndex + turn.utterances.length,
+      ),
+    [activeIndex, turns],
+  );
   const boundaryMarksByTurn = useMemo(() => {
     if (!transcriptAnnotate || editBoundaries.length === 0) {
       return null;
@@ -225,8 +259,6 @@ export function TranscriptPanel() {
       placeEditBoundaries(placementTurns, editBoundaries),
     );
   }, [transcriptAnnotate, editBoundaries, turns]);
-  const activeIndex = findActiveUtteranceIndex(utterances, playheadSec);
-
   const renderBoundaryMarks = (
     turnIndex: number,
     afterWordIndex: number,
@@ -255,6 +287,15 @@ export function TranscriptPanel() {
     if (!transcriptFollowPlayhead || activeIndex < 0) {
       return;
     }
+    if (
+      virtualized &&
+      activeTurnIndex >= 0 &&
+      !virtualItems.some((item) => item.index === activeTurnIndex)
+    ) {
+      programmaticScrollRef.current = true;
+      virtualizer.scrollToIndex(activeTurnIndex, { align: "center" });
+      return;
+    }
     const root = listRef.current;
     const el = activeRef.current;
     if (!root || !el) {
@@ -269,7 +310,16 @@ export function TranscriptPanel() {
       window.clearTimeout(unlock);
       programmaticScrollRef.current = false;
     };
-  }, [playheadSec, utterances, transcriptFollowPlayhead, activeIndex]);
+  }, [
+    activeIndex,
+    activeTurnIndex,
+    playheadSec,
+    transcriptFollowPlayhead,
+    utterances,
+    virtualItems,
+    virtualized,
+    virtualizer,
+  ]);
 
   const publishViewAnchor = useCallback(() => {
     const list = listRef.current;
@@ -324,6 +374,17 @@ export function TranscriptPanel() {
       return;
     }
     const el = resolvePresenceAnchor(root, transcriptScrollRequest);
+    if (!el && virtualized) {
+      const targetIndex = transcriptAnchorTurnIndex(
+        turns,
+        transcriptScrollRequest,
+      );
+      if (targetIndex >= 0) {
+        programmaticScrollRef.current = true;
+        virtualizer.scrollToIndex(targetIndex, { align: "center" });
+        return;
+      }
+    }
     setTranscriptScrollRequest(null);
     if (!el) {
       return;
@@ -337,7 +398,14 @@ export function TranscriptPanel() {
       window.clearTimeout(unlock);
       programmaticScrollRef.current = false;
     };
-  }, [transcriptScrollRequest, setTranscriptScrollRequest]);
+  }, [
+    transcriptScrollRequest,
+    setTranscriptScrollRequest,
+    turns,
+    virtualItems,
+    virtualized,
+    virtualizer,
+  ]);
 
   if (!allUtterances.length) {
     return <p style={{ color: "var(--text-dim)" }}>No combined transcript.</p>;
@@ -465,7 +533,7 @@ export function TranscriptPanel() {
         </div>
       ) : null}
       <div
-        className="transcript-list"
+        className={`transcript-list${virtualized ? " is-virtualized" : ""}`}
         ref={listRef}
         onScroll={() => {
           scheduleViewAnchor();
@@ -480,7 +548,14 @@ export function TranscriptPanel() {
           }
         }}
       >
-        {turns.map((turn, turnIndex) => {
+        {virtualized && (
+          <div
+            className="transcript-virtual-spacer"
+            aria-hidden="true"
+            style={{ height: virtualizer.getTotalSize() }}
+          />
+        )}
+        {renderList.map(({ turn, turnIndex, virtualItem }) => {
           const lead = turn.utterances[0];
           const blockSeek = turnSeekSec(turn);
           const labelSec = blockSeek ?? lead.start;
@@ -495,6 +570,13 @@ export function TranscriptPanel() {
             <div
               key={`${turn.trackId}-${lead.start}-${turn.startIndex}`}
               className={`utterance-turn${turnHasActive ? " active" : ""}${turnAllUnmapped ? " unmapped" : ""}`}
+              ref={virtualItem ? virtualizer.measureElement : undefined}
+              style={
+                virtualItem
+                  ? { transform: `translateY(${virtualItem.start}px)` }
+                  : undefined
+              }
+              data-index={virtualItem?.index}
               data-turn-index={turnIndex}
               {...presenceAnchorProps(
                 presenceAnchor("transcript", "turn", turnIndex),

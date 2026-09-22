@@ -1,9 +1,12 @@
 import { act, fireEvent, render, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { presenceAnchor } from "../presence/anchors";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
+import { groupConsecutiveSpeakerTurns } from "../utils/transcript";
 import { TranscriptPanel } from "./TranscriptPanel";
+import { transcriptAnchorTurnIndex } from "./transcriptAnchorTarget";
 
 vi.mock("../commands/execute", () => ({
   execute: vi.fn(async () => ({ status: "ok" })),
@@ -63,6 +66,37 @@ function project() {
       ],
     },
   });
+}
+
+function largeProject(turnCount = 1200) {
+  const base = project();
+  return {
+    ...base,
+    timeline_duration_sec: turnCount * 2,
+    transcript: {
+      utterances: Array.from({ length: turnCount }, (_, index) => ({
+        track_id: "host",
+        speaker: `Speaker ${index}`,
+        start: index * 2,
+        end: index * 2 + 1,
+        text: `turn ${index}`,
+        mappable: true,
+        timeline_start: index * 2,
+        timeline_end: index * 2 + 1,
+        words: [
+          {
+            text: `turn ${index}`,
+            start: index * 2,
+            end: index * 2 + 1,
+            timeline_start: index * 2,
+            timeline_end: index * 2 + 1,
+            word_index: index,
+            confidence: 0.9,
+          },
+        ],
+      })),
+    },
+  };
 }
 
 describe("TranscriptPanel", () => {
@@ -331,5 +365,48 @@ describe("TranscriptPanel", () => {
     expect(list).toBeTruthy();
     fireEvent.scroll(list!);
     expect(useDawStore.getState().followingClientId).toBeNull();
+  });
+
+  it("virtualizes large transcripts while retaining a bounded DOM", () => {
+    useDawStore.setState({ project: largeProject() });
+    const clientHeight = vi
+      .spyOn(HTMLElement.prototype, "clientHeight", "get")
+      .mockReturnValue(600);
+    const rect = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(() => DOMRect.fromRect({ width: 800, height: 600 }));
+    const { container } = render(<TranscriptPanel />);
+    const turns = container.querySelectorAll(".utterance-turn");
+    expect(turns.length).toBeLessThan(1200);
+    expect(
+      container.querySelector(".transcript-list.is-virtualized"),
+    ).toBeTruthy();
+    expect(container.querySelectorAll('[data-index="1199"]').length).toBe(0);
+    clientHeight.mockRestore();
+    rect.mockRestore();
+  });
+
+  it("keeps a scroll request pending until an offscreen turn is mounted", () => {
+    useDawStore.setState({ project: largeProject() });
+    render(<TranscriptPanel />);
+    act(() => {
+      useDawStore.getState().setTranscriptScrollRequest("transcript:turn:1199");
+    });
+    expect(useDawStore.getState().transcriptScrollRequest).toBe(
+      "transcript:turn:1199",
+    );
+  });
+
+  it("resolves normalized offscreen word anchors to their turn", () => {
+    const view = largeProject(2);
+    view.transcript.utterances[1].track_id = "Host Room";
+    const turns = groupConsecutiveSpeakerTurns(view.transcript.utterances);
+    expect(
+      transcriptAnchorTurnIndex(
+        turns,
+        presenceAnchor("transcript", "word", "Host Room", 1),
+      ),
+    ).toBe(1);
+    expect(transcriptAnchorTurnIndex(turns, "transcript:turn:9999")).toBe(-1);
   });
 });
