@@ -159,6 +159,9 @@ export class KeeperSession {
     this.writing = false;
     if (plan.close) {
       await this.finalizeOpen();
+      if (this.failure) {
+        return;
+      }
     }
     // Reserve the segment before opening the writable. If opening or writing
     // the header fails, retry must advance past this segment rather than
@@ -185,11 +188,7 @@ export class KeeperSession {
         } catch {
           // Best-effort cleanup; an unclosed writable is not durable.
         }
-        this.current = null;
-        this.stream = null;
-        this.wavPath = null;
-        this.samples = 0;
-        this.queuedSamples = 0;
+        this.clearOpenSegment();
         throw error;
       }
     }
@@ -201,9 +200,7 @@ export class KeeperSession {
     const stream = this.stream;
     const wavPath = this.wavPath;
     if (!open || !stream || !wavPath) {
-      this.current = null;
-      this.stream = null;
-      this.wavPath = null;
+      this.clearOpenSegment();
       return;
     }
     await this.flush();
@@ -215,11 +212,7 @@ export class KeeperSession {
         // A failed OPFS writable is best-effort cleanup only. Its data is not
         // advertised as durable without a completed close and metadata file.
       }
-      this.current = null;
-      this.stream = null;
-      this.wavPath = null;
-      this.samples = 0;
-      this.queuedSamples = 0;
+      this.clearOpenSegment();
       return;
     }
     try {
@@ -235,11 +228,7 @@ export class KeeperSession {
       } catch {
         // Best effort; see the failure path above.
       }
-      this.current = null;
-      this.stream = null;
-      this.wavPath = null;
-      this.samples = 0;
-      this.queuedSamples = 0;
+      this.clearOpenSegment();
       return;
     }
     const meta: KeeperMeta = {
@@ -256,14 +245,14 @@ export class KeeperSession {
       await this.sink.write(keeperMetaPath(wavPath), json);
     } catch (error) {
       this.fail(error);
-      this.current = null;
-      this.stream = null;
-      this.wavPath = null;
-      this.samples = 0;
-      this.queuedSamples = 0;
+      this.clearOpenSegment();
       throw error;
     }
     this.files.push(meta);
+    this.clearOpenSegment();
+  }
+
+  private clearOpenSegment(): void {
     this.current = null;
     this.stream = null;
     this.wavPath = null;
