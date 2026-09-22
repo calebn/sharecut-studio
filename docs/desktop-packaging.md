@@ -81,8 +81,10 @@ writes `sc_close_guard=host|guest` into its loopback URL. The native Tauri host
 reads that marker during `CloseRequested` and `ExitRequested`, prevents the
 request synchronously, and displays a role-aware native confirmation dialog.
 Host Start arms the marker synchronously before its HTTP request, covering a
-server transition that precedes the response; uncertain Start outcomes keep
-the guard until an authoritative state is available.
+server transition that precedes the response. If both Start and its status
+check have an uncertain outcome, the guard stays armed until a subsequent
+recording command verifies the room state. A newer snapshot timestamp alone
+cannot prove that the Start request has finished.
 After confirmation it calls `WebviewWindow.destroy()` and exits the app; a
 cancel keeps the window and recording open. An unreadable, malformed, or
 duplicated marker is treated conservatively and still requires confirmation.
@@ -94,10 +96,10 @@ unavailable, native close and exit requests are blocked conservatively.
 An unguarded window close routes through app exit while its WebView is still
 available for a final guard check. Guest producers and guests who declined
 recording do not receive a keeper warning from room state alone.
-A successful keeper retry clears a prior finalization warning; a failed retry
-keeps it armed.
-The Home screen clears a marker carried through an intentional project
-navigation, and New/Open project destinations omit the old marker. If a
+A successful retry clears a current keeper finalization warning; an older
+session's failed disposal stays armed because a new session cannot repair its
+WAV. New/Open project navigation is blocked while the marker is armed, and
+Home does not clear a marker carried from a recording room. If a
 confirmed native destroy fails, a dialog explains that the room remains open
 and offers a retry through the normal Quit control.
 On macOS the app menu mirrors Tauri's default items but replaces its native

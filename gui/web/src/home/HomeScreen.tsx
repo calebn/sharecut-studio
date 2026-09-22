@@ -5,7 +5,7 @@ import {
   openEpisodeProject,
   pickEpisodeProject,
 } from "../api";
-import { useDesktopCloseGuard } from "../desktop/useDesktopCloseGuard";
+import { desktopCloseGuardArmed } from "../desktop/useDesktopCloseGuard";
 import { HostMcpDialog } from "../layout/HostMcpDialog";
 import { Button, Field } from "../ui";
 import { migrateLocalStorageKey } from "../utils/legacyStorage";
@@ -26,9 +26,6 @@ function bootstrapSkipped(): boolean {
 }
 
 export function HomeScreen() {
-  // Home has no active keeper. Clear a marker carried through an intentional
-  // navigation from a recording project's URL after its unload was accepted.
-  useDesktopCloseGuard(false, "host");
   const [setupDone, setSetupDone] = useState(() => bootstrapSkipped() || false);
   const [mode, setMode] = useState<"idle" | "new" | "open">("idle");
   const [name, setName] = useState("episode");
@@ -43,6 +40,9 @@ export function HomeScreen() {
   const busy = busyAction !== null;
 
   useEffect(() => {
+    if (desktopCloseGuardArmed()) {
+      return;
+    }
     void closeEpisodeProject().catch(() => {
       /* home still works if unpin fails */
     });
@@ -61,7 +61,18 @@ export function HomeScreen() {
     setSetupDone(true);
   }, []);
 
+  const canSwitchProject = () => {
+    if (desktopCloseGuardArmed()) {
+      setError(
+        "Return to the recording project and stop the room before switching projects.",
+      );
+      return false;
+    }
+    return true;
+  };
+
   const onCreate = async () => {
+    if (!canSwitchProject()) return;
     setBusyAction("create");
     setError(null);
     try {
@@ -77,6 +88,7 @@ export function HomeScreen() {
   };
 
   const onOpen = async () => {
+    if (!canSwitchProject()) return;
     setBusyAction("open");
     setError(null);
     try {
@@ -89,6 +101,7 @@ export function HomeScreen() {
   };
 
   const onBrowse = async () => {
+    if (!canSwitchProject()) return;
     setBusyAction("browse");
     setError(null);
     try {

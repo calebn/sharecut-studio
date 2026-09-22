@@ -662,6 +662,61 @@ describe("useKeeperCapture", () => {
     expect(result.current.finalizing).toBe(true);
   });
 
+  it("does not let a new session retry clear an older failed disposal", async () => {
+    vi.spyOn(KeeperSession.prototype, "dispose")
+      .mockRejectedValueOnce(new Error("old WAV flush failed"))
+      .mockResolvedValue(undefined);
+    const newSink = new MemorySink();
+    const open = newSink.open.bind(newSink);
+    let failClose = true;
+    newSink.open = async (path): Promise<ByteStream> => {
+      const writable = await open(path);
+      return {
+        write: (bytes, offset) => writable.write(bytes, offset),
+        close: async () => {
+          if (failClose) {
+            failClose = false;
+            throw new Error("new WAV close failed");
+          }
+          await writable.close();
+        },
+      };
+    };
+    vi.mocked(createOpfsSink)
+      .mockResolvedValueOnce(new MemorySink())
+      .mockResolvedValueOnce(newSink);
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    const { result, rerender } = renderHook(
+      ({
+        resetKey,
+        snapshot,
+      }: {
+        resetKey: number;
+        snapshot: RecordSnapshot;
+      }) =>
+        useKeeperCapture({
+          ...args,
+          enabled: true,
+          resetKey,
+          snapshot,
+          stream,
+        }),
+      { initialProps: { resetKey: 0, snapshot: snap } },
+    );
+    await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+    rerender({ resetKey: 1, snapshot: snap });
+    await waitFor(() => expect(result.current.finalizing).toBe(true));
+    await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+    const nextTake = { ...snap, take_index: 1 };
+    rerender({ resetKey: 1, snapshot: nextTake });
+    await waitFor(() =>
+      expect(result.current.error).toBe("new WAV close failed"),
+    );
+    act(() => result.current.retry());
+    await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+    expect(result.current.finalizing).toBe(true);
+  });
+
   it("retains close risk if Stop fails while applying the final keeper gate", async () => {
     const stream = { getTracks: () => [] } as unknown as MediaStream;
     const { result, rerender } = renderHook(

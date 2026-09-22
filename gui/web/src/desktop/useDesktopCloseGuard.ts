@@ -7,6 +7,11 @@ export type RecordingRole = "host" | "guest";
 // update stays on the existing loopback page and needs no remote Tauri IPC.
 export const CLOSE_GUARD_PARAM = "sc_close_guard";
 
+/** An armed native guard also blocks leaving the project that owns the room. */
+export function desktopCloseGuardArmed(): boolean {
+  return new URL(window.location.href).searchParams.has(CLOSE_GUARD_PARAM);
+}
+
 /** Update the current WebView URL before an asynchronous recording transition. */
 export function publishDesktopCloseGuard(
   closeRisk: boolean,

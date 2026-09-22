@@ -26,8 +26,6 @@ export async function submitHostRecordTransport(
     // Publish synchronously so a close in that interval still reaches Rust.
     publishDesktopCloseGuard(true, "host");
     useRecordHostStore.getState().beginStart();
-  } else if (useRecordHostStore.getState().startPending) {
-    useRecordHostStore.getState().setStartInFlight(true);
   }
   let outcomeVerified = false;
   try {
@@ -50,12 +48,8 @@ export async function submitHostRecordTransport(
       outcomeVerified = true;
       return;
     }
-    if (
-      commandType === "Start" &&
-      (current?.state === "lobby" || current?.state === "stopped")
-    ) {
-      outcomeVerified = true;
-    }
+    // A safe-looking read can race ahead of an uncertain Start mutation.
+    // Only a completed command or its expected state can clear the guard.
     throw err;
   } finally {
     if (token === transportEpoch) {

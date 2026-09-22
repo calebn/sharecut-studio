@@ -55,6 +55,7 @@ export function useKeeperCapture({
   const unfinalizedCaptureRef = useRef(false);
   const [finalizing, setFinalizing] = useState(false);
   const finalizationFailed = useRef(false);
+  const disposalFailed = useRef(false);
   const [epoch, setEpoch] = useState(0);
   const mountedRef = useRef(true);
   const pendingDisposals = useRef(0);
@@ -184,6 +185,7 @@ export function useKeeperCapture({
           }
         })
         .catch((err: unknown) => {
+          disposalFailed.current = true;
           finalizationFailed.current = true;
           if (mountedRef.current) {
             setError(err instanceof Error ? err.message : String(err));
@@ -381,9 +383,10 @@ export function useKeeperCapture({
       }
       await session.retry();
       if (session.error === null) {
-        finalizationFailed.current = false;
+        // A retry of the current session cannot repair an older disposed WAV.
+        finalizationFailed.current = disposalFailed.current;
         markUnfinalizedCapture(session.isWriting);
-        if (pendingDisposals.current === 0) {
+        if (pendingDisposals.current === 0 && !disposalFailed.current) {
           setFinalizing(false);
         }
       }
