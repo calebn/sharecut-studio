@@ -86,15 +86,15 @@ export function useHostKeeperCapture(enabled = true): {
   }, [hostOn, sessionId, roomState, keeper.recordingLocally, onKeeperActivity]);
 
   let micStatus: MicPermissionStatus | null = null;
-  if (hostOn && snapshot && !mic.lost) {
-    if (mic.pending || (!mic.stream && !mic.error)) {
-      micStatus = "prompting";
-    } else if (mic.stream) {
-      micStatus = "granted";
-    } else {
+  if (hostOn && snapshot) {
+    if (mic.error) {
       micStatus = mic.errorName
         ? (statusFromGumError(mic.errorName) ?? "error")
         : "error";
+    } else if (!mic.lost && (mic.pending || !mic.stream)) {
+      micStatus = "prompting";
+    } else if (mic.stream) {
+      micStatus = "granted";
     }
   }
 

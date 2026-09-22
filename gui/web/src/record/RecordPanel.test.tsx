@@ -269,6 +269,24 @@ describe("RecordPanel", () => {
     expect(retry).toHaveBeenCalledOnce();
   });
 
+  it("shows denial guidance after a lost microphone fails to reconnect", async () => {
+    const retry = vi.fn();
+    const { container } = render(
+      <RecordPanel
+        micLost
+        micError="Permission denied"
+        micStatus="denied"
+        onRetryMic={retry}
+      />,
+    );
+    expect(screen.getByText(MIC_DENIED_COPY)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Reconnect microphone" }),
+    ).toBeVisible();
+    expect(screen.queryByRole("button", { name: MIC_RETRY_LABEL })).toBeNull();
+    await expectNoA11yViolations(container);
+  });
+
   it("reopens and holds the host panel when the mic ends while it is closed", async () => {
     useRecordHostStore.getState().setSnapshot({
       ...lobby,

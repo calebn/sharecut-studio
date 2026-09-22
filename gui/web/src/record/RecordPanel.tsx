@@ -240,7 +240,7 @@ export function RecordPanel({
           {micError && micStatus === "error" ? (
             <p className="record-warn">{micError}</p>
           ) : null}
-          {micFailed && onRetryMic ? (
+          {micFailed && onRetryMic && !micLost ? (
             <Button
               type="button"
               onClick={onRetryMic}
