@@ -629,9 +629,14 @@ Producers simply lose audio and reconnect. Pending live comments queue with
 idempotency keys and upsert on reconnect.
 
 If an OPFS write or close fails, the keeper latches a local-capture failure and
-stops accepting PCM; the REC indicator is no longer a claim that a durable
-local copy is being made. Already finalized segments remain available, while
-the failed open segment is not advertised as durable because
+stops accepting PCM. The live PCM queue is bounded to four seconds, so a slow
+or stalled OPFS write fails local capture instead of retaining an unbounded
+promise chain or silently dropping audio. Each OPFS open, write, close, and
+metadata commit also has a five-second wall-clock limit. A timed-out operation
+is abandoned; its late completion cannot advance a replacement segment. The
+REC indicator is no longer a claim that a durable local copy is being made.
+Already finalized segments remain available, while the failed open segment is
+not advertised as durable because
 `FileSystemFileHandle.createWritable()` commits changes on close. The client
 offers **Retry local recording** while the take is recording; during pause or
 after Stop, the host must resume or start a take first. Retry closes the failed

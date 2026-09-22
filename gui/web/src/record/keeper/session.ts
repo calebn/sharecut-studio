@@ -14,6 +14,43 @@ import {
   keeperWavPath,
 } from "./store";
 
+export const KEEPER_MAX_QUEUED_SAMPLES = KEEPER_SAMPLE_RATE * 4;
+export const KEEPER_OPERATION_TIMEOUT_MS = 5_000;
+
+export type KeeperSessionOptions = {
+  maxQueuedSamples?: number;
+  operationTimeoutMs?: number;
+};
+
+async function withTimeout<T>(
+  operation: Promise<T>,
+  timeoutMs: number,
+  label: string,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`keeper ${label} timed out after ${timeoutMs}ms`)),
+      timeoutMs,
+    );
+  });
+  try {
+    return await Promise.race([operation, timeout]);
+  } finally {
+    if (timer !== undefined) {
+      clearTimeout(timer);
+    }
+  }
+}
+
+function closeBestEffort(stream: ByteStream): void {
+  try {
+    void stream.close().catch(() => undefined);
+  } catch {
+    // A faulty sink must not prevent retry or teardown from progressing.
+  }
+}
+
 export class KeeperSession {
   private cursor = emptyKeeperCursor();
   private samples = 0;
@@ -26,6 +63,7 @@ export class KeeperSession {
   private participantId = "";
   private writeChain: Promise<void> = Promise.resolve();
   private queuedSamples = 0;
+  private generation = 0;
   private failure: Error | null = null;
   private lastGate:
     | (KeeperGate & {
@@ -37,10 +75,20 @@ export class KeeperSession {
   private mutex: Promise<void> = Promise.resolve();
   readonly files: KeeperMeta[] = [];
   private readonly sink: ByteSink;
+  private readonly maxQueuedSamples: number;
+  private readonly operationTimeoutMs: number;
 
-  constructor(sink: ByteSink, onFailure?: (error: Error) => void) {
+  constructor(
+    sink: ByteSink,
+    onFailure?: (error: Error) => void,
+    options: KeeperSessionOptions = {},
+  ) {
     this.sink = sink;
     this.onFailure = onFailure;
+    this.maxQueuedSamples =
+      options.maxQueuedSamples ?? KEEPER_MAX_QUEUED_SAMPLES;
+    this.operationTimeoutMs =
+      options.operationTimeoutMs ?? KEEPER_OPERATION_TIMEOUT_MS;
   }
 
   get isWriting(): boolean {
@@ -82,6 +130,14 @@ export class KeeperSession {
       return;
     }
     const int16 = toKeeperPcm(pcm, sourceRate, this.muted);
+    if (this.queuedSamples + int16.length > this.maxQueuedSamples) {
+      this.fail(
+        new Error(
+          `keeper PCM backlog exceeded ${this.maxQueuedSamples} samples`,
+        ),
+      );
+      return;
+    }
     const offset = 44 + (this.samples + this.queuedSamples) * 2;
     this.queuedSamples += int16.length;
     const bytes = new Uint8Array(
@@ -90,25 +146,38 @@ export class KeeperSession {
       int16.byteLength,
     );
     const stream = this.stream;
+    const generation = this.generation;
     this.writeChain = this.writeChain
       .then(
         async () => {
-          if (this.failure || this.stream !== stream) {
-            this.queuedSamples = 0;
+          if (
+            this.failure ||
+            this.stream !== stream ||
+            generation !== this.generation
+          ) {
             return;
           }
-          await stream.write(bytes, offset);
+          await withTimeout(
+            stream.write(bytes, offset),
+            this.operationTimeoutMs,
+            "write",
+          );
+          if (generation !== this.generation || this.stream !== stream) {
+            return;
+          }
           this.samples += int16.length;
-          this.queuedSamples -= int16.length;
+          this.queuedSamples = Math.max(0, this.queuedSamples - int16.length);
         },
         (error: unknown) => {
-          this.fail(error);
-          this.queuedSamples = 0;
+          if (generation === this.generation) {
+            this.fail(error);
+          }
         },
       )
       .catch((error: unknown) => {
-        this.fail(error);
-        this.queuedSamples = 0;
+        if (generation === this.generation) {
+          this.fail(error);
+        }
       });
   }
 
@@ -178,15 +247,25 @@ export class KeeperSession {
         segmentIndex: plan.open.segmentIndex,
       });
       this.wavPath = wavPath;
+      let opened: Promise<ByteStream> | null = null;
       try {
-        this.stream = await this.sink.open(wavPath);
-        await this.stream.write(pcmWavHeader(0, KEEPER_SAMPLE_RATE, 1), 0);
+        opened = this.sink.open(wavPath);
+        this.stream = await withTimeout(
+          opened,
+          this.operationTimeoutMs,
+          "open",
+        );
+        await withTimeout(
+          this.stream.write(pcmWavHeader(0, KEEPER_SAMPLE_RATE, 1), 0),
+          this.operationTimeoutMs,
+          "header write",
+        );
       } catch (error) {
         this.fail(error);
-        try {
-          await this.stream?.close();
-        } catch {
-          // Best-effort cleanup; an unclosed writable is not durable.
+        if (this.stream) {
+          closeBestEffort(this.stream);
+        } else if (opened) {
+          void opened.then(closeBestEffort, () => undefined);
         }
         this.clearOpenSegment();
         throw error;
@@ -206,28 +285,23 @@ export class KeeperSession {
     await this.flush();
     const samplesWritten = this.samples;
     if (this.failure) {
-      try {
-        await stream.close();
-      } catch {
-        // A failed OPFS writable is best-effort cleanup only. Its data is not
-        // advertised as durable without a completed close and metadata file.
-      }
+      closeBestEffort(stream);
       this.clearOpenSegment();
       return;
     }
     try {
-      await stream.write(
-        pcmWavHeader(samplesWritten * 2, KEEPER_SAMPLE_RATE, 1),
-        0,
+      await withTimeout(
+        stream.write(
+          pcmWavHeader(samplesWritten * 2, KEEPER_SAMPLE_RATE, 1),
+          0,
+        ),
+        this.operationTimeoutMs,
+        "final header write",
       );
-      await stream.close();
+      await withTimeout(stream.close(), this.operationTimeoutMs, "close");
     } catch (error) {
       this.fail(error);
-      try {
-        await stream.close();
-      } catch {
-        // Best effort; see the failure path above.
-      }
+      closeBestEffort(stream);
       this.clearOpenSegment();
       return;
     }
@@ -241,9 +315,24 @@ export class KeeperSession {
       samplesWritten,
     };
     const json = new TextEncoder().encode(`${JSON.stringify(meta, null, 2)}\n`);
+    const metaPath = keeperMetaPath(wavPath);
+    let metadataWrite: Promise<void> | null = null;
     try {
-      await this.sink.write(keeperMetaPath(wavPath), json);
+      metadataWrite = this.sink.write(metaPath, json);
+      await withTimeout(
+        metadataWrite,
+        this.operationTimeoutMs,
+        "metadata write",
+      );
     } catch (error) {
+      if (metadataWrite) {
+        void metadataWrite
+          .then(
+            () => this.sink.remove(metaPath),
+            () => undefined,
+          )
+          .catch(() => undefined);
+      }
       this.fail(error);
       this.clearOpenSegment();
       throw error;
@@ -265,6 +354,7 @@ export class KeeperSession {
       return;
     }
     this.failure = error instanceof Error ? error : new Error(String(error));
+    this.generation += 1;
     this.writing = false;
     this.cursor = { ...this.cursor, open: null };
     this.queuedSamples = 0;

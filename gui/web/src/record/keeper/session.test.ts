@@ -1,8 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { parseWavHeader, wavPcmToFloat32 } from "../../audio/wavHeader";
 import { KEEPER_SAMPLE_RATE } from "./pcm";
 import { KeeperSession } from "./session";
-import { type ByteStream, keeperWavPath, MemorySink } from "./store";
+import {
+  type ByteStream,
+  keeperMetaPath,
+  keeperWavPath,
+  MemorySink,
+} from "./store";
 
 const ids = { sessionId: "cool-room", participantId: "p_g" };
 
@@ -134,6 +139,207 @@ describe("KeeperSession", () => {
     await session.dispose();
     expect(session.files.map((file) => file.segmentIndex)).toEqual([1]);
     expect(failures).toHaveLength(1);
+  });
+
+  it("bounds a stalled PCM backlog and releases retry after a timed-out write", async () => {
+    vi.useFakeTimers();
+    try {
+      const sink = new MemorySink();
+      let release!: () => void;
+      const stalled = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const originalOpen = sink.open.bind(sink);
+      let opens = 0;
+      sink.open = async (path): Promise<ByteStream> => {
+        const stream = await originalOpen(path);
+        opens += 1;
+        return {
+          write: async (bytes, offset) => {
+            if (opens === 1 && offset !== 0) {
+              await stalled;
+            }
+            await stream.write(bytes, offset);
+          },
+          close: () => stream.close(),
+        };
+      };
+      const failures: Error[] = [];
+      const session = new KeeperSession(sink, (error) => failures.push(error), {
+        maxQueuedSamples: 1_000,
+        operationTimeoutMs: 10,
+      });
+      const gate = {
+        ...ids,
+        role: "guest" as const,
+        consented: true as const,
+        roomState: "recording" as const,
+        takeIndex: 0,
+        recordingMs: 0,
+        streamAvailable: true,
+        muted: false,
+      };
+      await session.apply(gate);
+      session.push(tone(220, 0.01), KEEPER_SAMPLE_RATE);
+      expect(session.error).toBeNull();
+      session.push(tone(220, 0.01), KEEPER_SAMPLE_RATE);
+      await vi.advanceTimersByTimeAsync(10);
+      expect(session.error?.message).toContain("timed out");
+      expect(session.isWriting).toBe(false);
+      expect(failures).toHaveLength(1);
+
+      await session.retry();
+      expect(session.isWriting).toBe(true);
+      session.push(tone(880, 0.01), KEEPER_SAMPLE_RATE);
+      session.push(tone(880, 0.01), KEEPER_SAMPLE_RATE);
+      session.push(tone(880, 0.01), KEEPER_SAMPLE_RATE);
+      expect(session.error?.message).toContain("backlog exceeded");
+      expect(session.isWriting).toBe(false);
+      expect(failures).toHaveLength(2);
+      await session.retry();
+      expect(session.isWriting).toBe(true);
+      session.push(tone(880, 0.01), KEEPER_SAMPLE_RATE);
+      await session.dispose();
+      expect(session.files.map((file) => file.segmentIndex)).toEqual([2]);
+      release();
+      await stalled;
+      await Promise.resolve();
+      expect(session.files.map((file) => file.segmentIndex)).toEqual([2]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("times out a never-settling close without advertising the segment", async () => {
+    vi.useFakeTimers();
+    try {
+      const sink = new MemorySink();
+      let releaseClose!: () => void;
+      const neverClose = new Promise<void>((resolve) => {
+        releaseClose = resolve;
+      });
+      const originalOpen = sink.open.bind(sink);
+      let opens = 0;
+      sink.open = async (path): Promise<ByteStream> => {
+        const stream = await originalOpen(path);
+        opens += 1;
+        return {
+          write: (bytes, offset) => stream.write(bytes, offset),
+          close: async () => {
+            if (opens === 2) {
+              await neverClose;
+            }
+            await stream.close();
+          },
+        };
+      };
+      const session = new KeeperSession(sink, undefined, {
+        operationTimeoutMs: 10,
+      });
+      const gate = {
+        ...ids,
+        role: "guest" as const,
+        consented: true as const,
+        roomState: "recording" as const,
+        takeIndex: 0,
+        recordingMs: 0,
+        streamAvailable: true,
+        muted: false,
+      };
+      await session.apply(gate);
+      session.push(tone(220, 0.01), KEEPER_SAMPLE_RATE);
+      await session.apply({ ...gate, roomState: "paused", recordingMs: 10 });
+      expect(session.files.map((file) => file.segmentIndex)).toEqual([0]);
+      await session.apply({ ...gate, recordingMs: 20 });
+      session.push(tone(440, 0.01), KEEPER_SAMPLE_RATE);
+      const stop = session.apply({
+        ...gate,
+        roomState: "paused",
+        recordingMs: 30,
+      });
+      await vi.advanceTimersByTimeAsync(10);
+      await stop;
+      expect(session.error?.message).toContain("close timed out");
+      expect(session.files.map((file) => file.segmentIndex)).toEqual([0]);
+
+      await session.apply({ ...gate, recordingMs: 40 });
+      await session.retry();
+      session.push(tone(880, 0.01), KEEPER_SAMPLE_RATE);
+      await session.dispose();
+      expect(session.files.map((file) => file.segmentIndex)).toEqual([0, 2]);
+      releaseClose();
+      await neverClose;
+      await Promise.resolve();
+      expect(session.files.map((file) => file.segmentIndex)).toEqual([0, 2]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not retain metadata when its commit times out", async () => {
+    vi.useFakeTimers();
+    try {
+      const sink = new MemorySink();
+      let releaseMetadata!: () => void;
+      const neverMetadata = new Promise<void>((resolve) => {
+        releaseMetadata = resolve;
+      });
+      const originalWrite = sink.write.bind(sink);
+      let metadataWrites = 0;
+      const staleMetaPath = keeperMetaPath(
+        keeperWavPath({ ...ids, takeIndex: 0, segmentIndex: 0 }),
+      );
+      let metadataRemoved!: () => void;
+      const removed = new Promise<void>((resolve) => {
+        metadataRemoved = resolve;
+      });
+      const originalRemove = sink.remove.bind(sink);
+      sink.remove = async (path) => {
+        await originalRemove(path);
+        if (path === staleMetaPath) metadataRemoved();
+      };
+      sink.write = async (path, bytes) => {
+        metadataWrites += Number(path.endsWith(".json"));
+        if (path.endsWith(".json") && metadataWrites === 1) {
+          await neverMetadata;
+        }
+        await originalWrite(path, bytes);
+      };
+      const session = new KeeperSession(sink, undefined, {
+        operationTimeoutMs: 10,
+      });
+      const gate = {
+        ...ids,
+        role: "guest" as const,
+        consented: true as const,
+        roomState: "recording" as const,
+        takeIndex: 0,
+        recordingMs: 0,
+        streamAvailable: true,
+        muted: false,
+      };
+      await session.apply(gate);
+      session.push(tone(220, 0.01), KEEPER_SAMPLE_RATE);
+      const stop = expect(session.dispose()).rejects.toThrow(
+        "metadata write timed out",
+      );
+      await vi.advanceTimersByTimeAsync(10);
+      await stop;
+      expect(session.error?.message).toContain("metadata write timed out");
+      expect(session.files).toHaveLength(0);
+
+      await session.apply(gate);
+      await session.retry();
+      session.push(tone(880, 0.01), KEEPER_SAMPLE_RATE);
+      await session.dispose();
+      expect(session.files.map((file) => file.segmentIndex)).toEqual([1]);
+      releaseMetadata();
+      await removed;
+      expect(sink.files.has(staleMetaPath)).toBe(false);
+      expect(session.files.map((file) => file.segmentIndex)).toEqual([1]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("keeps a later failed PCM write out of metadata and resumes at the current offset", async () => {
