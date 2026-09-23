@@ -41,6 +41,21 @@ if [[ ! -x "$SIDECAR" ]]; then
   exit 1
 fi
 
+echo "==> sharecut-sidecar --cli --help"
+if ! "$SIDECAR" --cli --help | grep -q "Usage"; then
+  echo "error: sharecut-sidecar --cli --help did not print CLI usage" >&2
+  exit 1
+fi
+# Root options before `gui` must not slip past the packaged-CLI refusal.
+set +e
+timeout 60 "$SIDECAR" --cli --no-progress gui --no-open >/dev/null 2>&1
+cli_gui_status=$?
+set -e
+if [[ "$cli_gui_status" -ne 2 ]]; then
+  echo "error: sharecut-sidecar --cli --no-progress gui exited $cli_gui_status (want 2 refusal)" >&2
+  exit 1
+fi
+
 set -m
 "$SIDECAR" &
 SIDECAR_PID=$!

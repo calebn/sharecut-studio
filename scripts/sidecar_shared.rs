@@ -3,7 +3,7 @@
 use std::env;
 use std::fs::{create_dir_all, File, OpenOptions};
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 /// Sidecar stdout/stderr log (GUI-subsystem Windows has no console).
 pub fn sidecar_log_path() -> PathBuf {
@@ -38,10 +38,6 @@ pub fn sidecar_log_path() -> PathBuf {
     env::temp_dir().join("sharecut-sidecar.log")
 }
 
-pub fn sidecar_listen_path() -> PathBuf {
-    sidecar_log_path().with_file_name(format!("sidecar.listen.{}.json", std::process::id()))
-}
-
 pub fn open_sidecar_log() -> Option<File> {
     let path = sidecar_log_path();
     if let Some(parent) = path.parent() {
@@ -66,3 +62,16 @@ pub fn apply_create_no_window(cmd: &mut Command) {
 
 #[cfg(not(windows))]
 pub fn apply_create_no_window(_cmd: &mut Command) {}
+
+/// Detached GUI child stdio: no console window; stdout/stderr to the sidecar log,
+/// else `Stdio::null()` (GUI-subsystem hosts have nowhere else to write).
+pub fn detach_to_sidecar_log(cmd: &mut Command) {
+    apply_create_no_window(cmd);
+    if let Some(log) = open_sidecar_log() {
+        if let Ok(err_log) = log.try_clone() {
+            cmd.stdout(Stdio::from(log)).stderr(Stdio::from(err_log));
+            return;
+        }
+    }
+    cmd.stdout(Stdio::null()).stderr(Stdio::null());
+}
