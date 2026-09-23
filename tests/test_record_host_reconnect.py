@@ -9,7 +9,6 @@ from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app as cli_app
-from podcast_mcp.edits.share_registry import reset_share_registry_for_tests
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.tools.review import create_record_room_tool
 from podcast_mcp.models import load_project, save_project
@@ -39,10 +38,7 @@ from podcast_mcp.services.record.upload import RecordUploadService, pcm_wav_head
 from podcast_mcp.services.share import ShareService
 
 
-def _isolate(tmp_workspace: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(tmp_workspace / "shares_index.json"))
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "reg.sqlite"))
-    reset_share_registry_for_tests()
+def _isolate() -> None:
     reset_record_runtime_for_tests()
 
 
@@ -131,7 +127,7 @@ def _consent_room(ws, room):
 def test_service_host_leave_join_threshold_and_resume(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, _guest = _consent_room(ws, room)
@@ -157,7 +153,7 @@ def test_service_host_leave_join_threshold_and_resume(
 def test_restart_empty_conns_still_pauses_on_host_join(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, _guest = _consent_room(ws, room)
@@ -187,7 +183,7 @@ def test_restart_empty_conns_still_pauses_on_host_join(
 def test_remint_refused_while_recording_or_paused_allowed_when_idle(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, _guest = _consent_room(ws, room)
@@ -217,7 +213,7 @@ def test_remint_refused_while_recording_or_paused_allowed_when_idle(
 def test_land_after_host_reconnect_pause_clips_abut(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, guest = _consent_room(ws, room)
@@ -259,7 +255,7 @@ def test_land_after_host_reconnect_pause_clips_abut(
 def test_restart_without_leave_still_pauses_on_host_join(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, _guest = _consent_room(ws, room)
@@ -293,7 +289,7 @@ def test_restart_without_leave_still_pauses_on_host_join(
 def test_observed_host_disconnect_uses_close_time_for_reconnect_threshold(
     minimal_project, sample_wav, tmp_workspace, monkeypatch, close_wall_ms, return_wall_ms
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, _guest = _consent_room(ws, room)
@@ -347,7 +343,7 @@ def test_observed_host_disconnect_uses_close_time_for_reconnect_threshold(
 def test_delayed_host_disconnect_uses_stale_beat_for_reconnect_threshold(
     minimal_project, sample_wav, tmp_workspace, monkeypatch, close_wall_ms, return_wall_ms
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, _guest = _consent_room(ws, room)
@@ -385,7 +381,7 @@ def test_delayed_host_disconnect_uses_stale_beat_for_reconnect_threshold(
 def test_new_take_ignores_stopped_interval_when_host_reconnects(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, _guest = _consent_room(ws, room)
@@ -438,7 +434,7 @@ def test_new_take_ignores_stopped_interval_when_host_reconnects(
 def test_resumed_take_ignores_paused_interval_when_host_reconnects(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, _guest = _consent_room(ws, room)
@@ -481,7 +477,7 @@ def test_begin_record_session_refuses_open_take(
 ):
     from podcast_mcp.services.record.service import begin_record_session
 
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, _guest = _consent_room(ws, room)
@@ -530,14 +526,14 @@ def test_persist_host_offline_since_skips_lobby_and_already_stamped(tmp_path: Pa
 def test_assert_no_open_take_skips_missing_snapshot(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     ShareService(ws).create_record_token(role="guest", session_id="ghost", require_room=False)
     assert_no_open_take(ws.project)
 
 
 def test_verify_lease_rejects_host(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, _guest = _consent_room(ws, room)
@@ -547,7 +543,7 @@ def test_verify_lease_rejects_host(minimal_project, sample_wav, tmp_workspace, m
 def test_failed_host_join_persists_last_conn_beat(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, _guest = _consent_room(ws, room)
@@ -573,7 +569,7 @@ def test_failed_host_join_persists_last_conn_beat(
 def test_guest_leave_skipped_while_connection_held(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, guest = _consent_room(ws, room)

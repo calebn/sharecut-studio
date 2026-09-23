@@ -114,6 +114,24 @@ describe("StudioShell tablet peek", () => {
     expect(main?.className).not.toContain("daw-main--arrange");
   });
 
+  it("renders when localStorage.getItem throws", () => {
+    const getItem = vi
+      .spyOn(Storage.prototype, "getItem")
+      .mockImplementation(() => {
+        throw new DOMException("denied", "SecurityError");
+      });
+    try {
+      render(
+        <DawProvider projectPath="/tmp/p.json" initialProject={tabletProject()}>
+          <StudioShell />
+        </DawProvider>,
+      );
+      expect(screen.getByRole("button", { name: "Transcript" })).toBeTruthy();
+    } finally {
+      getItem.mockRestore();
+    }
+  });
+
   it("shows queued host commands in the attention banner", async () => {
     offlineStore.loadHostCommandCount.mockResolvedValue(1);
     const project = tabletProject();

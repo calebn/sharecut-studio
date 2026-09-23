@@ -13,7 +13,10 @@ vi.mock("../api", () => ({
     exists: false,
   })),
   loadSessionState: vi.fn(async () => null),
-  postSessionState: vi.fn(async () => ({ server_seq: 1, revision: 1 })),
+  postSessionState: vi.fn(async () => ({
+    server_seq: 1,
+    last_command_id: "cmd-1",
+  })),
 }));
 
 class FakeWebSocket {
@@ -196,5 +199,69 @@ describe("useSessionSync presence", () => {
       FakeWebSocket.instances[0].close();
     });
     expect(useRecordHostStore.getState().connected).toBe(false);
+  });
+
+  it("advances the applied cursor to the published last_command_id", async () => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+    });
+    try {
+      const { postSessionState } = await import("../api");
+      const apply = vi.fn();
+      renderHook(() =>
+        useSessionSync(
+          "/tmp/ep.project.json",
+          apply,
+          () => ({ playhead_sec: 0, is_playing: false }),
+          false,
+          0,
+          null,
+          false,
+          "k",
+          true,
+        ),
+      );
+      // Let the WebSocket open (microtask) before the publish debounce fires.
+      await act(async () => {
+        await Promise.resolve();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60);
+      });
+      expect(postSessionState).toHaveBeenCalled();
+      // Cursor now holds { serverSeq: 1, commandId: "cmd-1" }: an agent echo of
+      // that same command is deduped instead of re-applied.
+      await act(async () => {
+        FakeWebSocket.instances[0].emit({
+          type: "Applied",
+          command: { role: "agent", type: "SetPlayhead", client_id: "agent" },
+          snapshot: {
+            server_seq: 1,
+            last_command_id: "cmd-1",
+            origin: "agent",
+            last_role: "agent",
+            playhead_sec: 9,
+          },
+        });
+      });
+      expect(apply).not.toHaveBeenCalled();
+      // A newer agent command still applies.
+      await act(async () => {
+        FakeWebSocket.instances[0].emit({
+          type: "Applied",
+          command: { role: "agent", type: "SetPlayhead", client_id: "agent" },
+          snapshot: {
+            server_seq: 2,
+            last_command_id: "cmd-2",
+            origin: "agent",
+            last_role: "agent",
+            playhead_sec: 9,
+          },
+        });
+      });
+      expect(apply).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

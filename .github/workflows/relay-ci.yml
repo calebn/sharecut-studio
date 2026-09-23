@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - 'deploy/relay/**'
-      - 'src/podcast_mcp/relay/**'
+      - 'src/podcast_relay/**'
       - '.github/workflows/relay-ci.yml'
 
 jobs:

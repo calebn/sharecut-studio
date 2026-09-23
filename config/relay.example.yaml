@@ -7,6 +7,10 @@ relay_url: wss://relay.example.test/tunnel
 host_token: REPLACE_WITH_A_STRONG_RANDOM_HOST_TOKEN
 public_base_url: https://share.example.test
 local_gui_url: http://127.0.0.1:8765
+# Optional stable tunnel identity (env PODCAST_RELAY_HOST_ID). Must match the
+# host_id: prefix if the relay pins this host's secret in PODCAST_RELAY_HOST_TOKENS.
+# When omitted, a uuid is minted once and persisted next to this file (relay_host_id).
+# host_id: host-1
 
 # Optional S3-compatible media bypass. Remove this entire block to proxy media
 # through the host tunnel. Credentials stay on the host and never reach relay.

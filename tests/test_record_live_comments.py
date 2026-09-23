@@ -8,7 +8,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from podcast_mcp.edits.comments import COMMENT_BODY_MAX
-from podcast_mcp.edits.share_registry import reset_share_registry_for_tests
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.history import HistoryManager
 from podcast_mcp.models import load_project, save_project
@@ -32,10 +31,7 @@ from podcast_mcp.services.record.service import (
 from podcast_mcp.services.share import ShareService
 
 
-def _isolate(tmp_workspace: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(tmp_workspace / "shares_index.json"))
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "reg.sqlite"))
-    reset_share_registry_for_tests()
+def _isolate() -> None:
     reset_record_runtime_for_tests()
 
 
@@ -103,7 +99,7 @@ def _consent_room(ws, room, *, name: str = "Ava", connection_id: str = "c1"):
 def test_host_rewrites_recording_ms_and_lands_comment(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, guest = _consent_room(ws, room)
@@ -144,7 +140,7 @@ def test_host_rewrites_recording_ms_and_lands_comment(
 def test_paused_comment_lands_at_pause_point(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, guest = _consent_room(ws, room)
@@ -167,7 +163,7 @@ def test_paused_comment_lands_at_pause_point(
 
 
 def test_guest_visibility_is_host_enforced(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, guest_a = _consent_room(ws, room)
@@ -234,7 +230,7 @@ def test_guest_visibility_is_host_enforced(minimal_project, sample_wav, tmp_work
 
 
 def test_reconnect_upserts_once(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, guest = _consent_room(ws, room)
@@ -254,7 +250,7 @@ def test_reconnect_upserts_once(minimal_project, sample_wav, tmp_workspace, monk
 def test_discard_take_deletes_live_and_landed_comments(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, guest = _consent_room(ws, room)
@@ -283,7 +279,7 @@ def test_discard_take_deletes_live_and_landed_comments(
 def test_comment_forbidden_without_cap_and_outside_take(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, guest = _consent_room(ws, room)
@@ -320,7 +316,7 @@ def test_comment_forbidden_without_cap_and_outside_take(
 def test_guest_ws_snapshot_hides_other_guest_comments(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, guest_a = _consent_room(ws, room)
@@ -527,7 +523,7 @@ def test_live_comment_store_guards_and_ignores_landed(tmp_path):
 
 
 def test_future_pressed_wall_clamps_to_now(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, guest = _consent_room(ws, room)
@@ -549,7 +545,7 @@ def test_future_pressed_wall_clamps_to_now(minimal_project, sample_wav, tmp_work
 def test_comment_keeps_original_take_after_stop_start(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, guest = _consent_room(ws, room)
@@ -576,7 +572,7 @@ def test_comment_keeps_original_take_after_stop_start(
 def test_producer_cannot_overwrite_guest_comment(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, guest = _consent_room(ws, room)
@@ -618,7 +614,7 @@ def test_producer_cannot_overwrite_guest_comment(
 def test_discard_take_drops_unlanded_comments(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, guest = _consent_room(ws, room)
@@ -646,7 +642,7 @@ def test_discard_take_drops_unlanded_comments(
 def test_land_skips_foreign_comment_id(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     from podcast_mcp.edits.comments import add_comment
 
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     add_comment(
         ws.project,

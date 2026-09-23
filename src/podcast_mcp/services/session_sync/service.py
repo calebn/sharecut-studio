@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import itertools
-import json
 import time
 from pathlib import Path
 from typing import Any
@@ -41,56 +40,16 @@ def sync_db_path(project: EpisodeProject) -> Path:
 
 
 def _store_for(project: EpisodeProject, *, create: bool = False) -> SyncStore | None:
-    """Return the project store. Does not create sync.db until ``create`` or legacy seed."""
+    """Return the project store. Does not create sync.db until ``create``."""
     path = sync_db_path(project)
     key = f"{path.resolve()}|"
     store = _STORE_CACHE.get(key)
     if store is not None:
         return store
-    legacy = project.artifacts_dir() / "session_state.json"
-    if not path.is_file() and not legacy.is_file() and not create:
+    if not path.is_file() and not create:
         return None
     store = cached_sync_store(path, table_prefix="")
-    _maybe_seed_from_legacy(project, store)
     return store
-
-
-def _maybe_seed_from_legacy(project: EpisodeProject, store: SyncStore) -> None:
-    if store.get_snapshot() is not None:
-        return
-    legacy = project.artifacts_dir() / "session_state.json"
-    if not legacy.is_file():
-        return
-    try:
-        data = json.loads(legacy.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return
-    if not isinstance(data, dict):
-        return
-    snap = empty_snapshot()
-    for key in (
-        "playhead_sec",
-        "is_playing",
-        "audition_mode",
-        "region",
-        "source",
-        "track_id",
-        "query",
-        "match_index",
-        "selection",
-        "viewer_mute",
-        "solo_tracks",
-        "tier",
-        "dry_run",
-        "wav",
-        "compare_segments",
-    ):
-        if key in data:
-            snap[key] = data[key]
-    snap["command_id"] = data.get("command_id")
-    snap["last_command_id"] = data.get("command_id")
-    snap["origin"] = data.get("origin") or "viewer"
-    store.put_snapshot(0, snap)
 
 
 def next_client_seq() -> int:
@@ -130,11 +89,23 @@ class SessionSyncService:
         out["server_time_ns"] = time.time_ns()
         return out
 
+    def state_or_none(self) -> dict[str, Any] | None:
+        """Flattened snapshot, or ``None`` when sync.db is missing or empty.
+
+        Single home for the "empty authority" rule: a DB that exists (e.g. from a
+        failed open) but has never applied a command is treated as missing.
+        """
+        if self._store_optional() is None:
+            return None
+        snap = self.snapshot()
+        if int(snap.get("server_seq") or 0) == 0 and snap.get("last_command_id") is None:
+            return None
+        return snap
+
     def meta(self) -> dict[str, Any]:
         path = sync_db_path(self.project)
-        store = self._store_optional()
-        snap = store.get_snapshot() if store else None
-        if store is None or (not path.is_file() and snap is None):
+        snap = self.state_or_none()
+        if snap is None:
             return {
                 "path": str(path.resolve()),
                 "mtime_ns": 0,
@@ -142,18 +113,6 @@ class SessionSyncService:
                 "exists": False,
                 "server_seq": 0,
             }
-        if snap is None or (
-            int(snap.get("server_seq") or 0) == 0 and snap.get("command_id") is None
-        ):
-            # DB may exist from a failed open; treat empty authority as missing
-            return {
-                "path": str(path.resolve()),
-                "mtime_ns": 0,
-                "size": 0,
-                "exists": False,
-                "server_seq": 0,
-            }
-        assert snap is not None
         stat = path.stat() if path.is_file() else None
         return {
             "path": str(path.resolve()),
@@ -245,8 +204,6 @@ class SessionSyncService:
             "server_seq": row["server_seq"],
         }
         get_hub().publish(self._project_key, event)
-        # Also write legacy JSON for any external readers during migration
-        self._write_legacy_json(api_snap)
         return {"ok": True, **event}
 
     def _presence_event(self) -> dict[str, Any]:
@@ -289,37 +246,6 @@ class SessionSyncService:
             return
         store.remove_client(client_id, generation=generation)
         schedule_presence(self._project_key, self._presence_event)
-
-    def _write_legacy_json(self, snap: dict[str, Any]) -> None:
-        path = self.project.artifacts_dir() / "session_state.json"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        slim = {
-            k: snap.get(k)
-            for k in (
-                "version",
-                "server_seq",
-                "revision",
-                "origin",
-                "updated_at_ns",
-                "command_id",
-                "playhead_sec",
-                "is_playing",
-                "audition_mode",
-                "region",
-                "source",
-                "track_id",
-                "query",
-                "match_index",
-                "selection",
-                "viewer_mute",
-                "solo_tracks",
-                "tier",
-                "dry_run",
-                "wav",
-                "compare_segments",
-            )
-        }
-        path.write_text(json.dumps(slim, indent=2) + "\n", encoding="utf-8")
 
     # --- Convenience builders (agent / CLI / play) ---
 
@@ -381,3 +307,8 @@ class SessionSyncService:
                 client_seq=next_client_seq(),
             )
         )
+
+
+def read_session_state(project: EpisodeProject) -> dict[str, Any] | None:
+    """Current session snapshot, or ``None`` when there is no applied authority."""
+    return SessionSyncService(project).state_or_none()

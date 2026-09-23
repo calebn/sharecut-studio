@@ -9,13 +9,12 @@ import {
 function snap(partial: Partial<SessionState>): SessionState {
   return {
     version: 3,
-    revision: partial.revision ?? partial.server_seq ?? 0,
-    server_seq: partial.server_seq ?? partial.revision ?? 0,
+    server_seq: partial.server_seq ?? 0,
     origin: partial.origin ?? "viewer",
     last_role: partial.last_role,
     last_client_id: partial.last_client_id,
     updated_at_ns: 0,
-    command_id: partial.command_id ?? null,
+    last_command_id: partial.last_command_id ?? null,
     playhead_sec: partial.playhead_sec ?? 0,
     is_playing: partial.is_playing ?? false,
     audition_mode: partial.audition_mode ?? "mix",
@@ -37,7 +36,7 @@ describe("baselineFromSnapshot", () => {
     const state = snap({
       server_seq: 5,
       origin: "agent",
-      command_id: "cmd-a",
+      last_command_id: "cmd-a",
       region: { start_sec: 1, end_sec: 2 },
       playhead_sec: 1,
     });
@@ -51,7 +50,7 @@ describe("baselineFromSnapshot", () => {
 
   it("does not apply viewer-only first snapshot", () => {
     const { apply } = baselineFromSnapshot(
-      snap({ server_seq: 2, origin: "viewer", command_id: "v1" }),
+      snap({ server_seq: 2, origin: "viewer", last_command_id: "v1" }),
       { serverSeq: 0, commandId: null },
     );
     expect(apply).toBe(false);
@@ -61,7 +60,7 @@ describe("baselineFromSnapshot", () => {
 describe("shouldApplyRemote", () => {
   it("dedupes same command_id", () => {
     const { apply } = shouldApplyRemote(
-      snap({ server_seq: 6, command_id: "same", origin: "agent" }),
+      snap({ server_seq: 6, last_command_id: "same", origin: "agent" }),
       { serverSeq: 5, commandId: "same" },
     );
     expect(apply).toBe(false);
@@ -71,7 +70,7 @@ describe("shouldApplyRemote", () => {
     const { apply } = shouldApplyRemote(
       snap({
         server_seq: 8,
-        command_id: "seek",
+        last_command_id: "seek",
         origin: "agent",
         playhead_sec: 42,
       }),
@@ -84,7 +83,7 @@ describe("shouldApplyRemote", () => {
     const { apply, next } = shouldApplyRemote(
       snap({
         server_seq: 10,
-        command_id: "mine",
+        last_command_id: "mine",
         origin: "viewer",
         last_client_id: "viewer-abc",
         is_playing: false,
@@ -104,7 +103,7 @@ describe("shouldApplyRemote", () => {
     const { apply } = shouldApplyRemote(
       snap({
         server_seq: 11,
-        command_id: "other",
+        last_command_id: "other",
         origin: "viewer",
         last_client_id: "viewer-other",
         is_playing: false,
@@ -123,7 +122,7 @@ describe("shouldApplyRemote", () => {
     const { apply } = shouldApplyRemote(
       snap({
         server_seq: 12,
-        command_id: "sel",
+        last_command_id: "sel",
         origin: "viewer",
         last_client_id: "viewer-other",
       }),
@@ -140,7 +139,7 @@ describe("shouldApplyRemote", () => {
     const { apply } = shouldApplyRemote(
       snap({
         server_seq: 12,
-        command_id: "v2",
+        last_command_id: "v2",
         origin: "viewer",
         is_playing: false,
       }),
