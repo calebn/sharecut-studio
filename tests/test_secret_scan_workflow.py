@@ -23,7 +23,7 @@ def test_secret_scan_covers_changes_and_scheduled_history() -> None:
 
     steps = data["jobs"]["gitleaks"]["steps"]
     checkout = steps[0]
-    assert checkout["uses"] == "actions/checkout@v6"
+    assert checkout["uses"] == "actions/checkout@v7"
     assert checkout["with"]["fetch-depth"] == 0
     assert checkout["with"]["persist-credentials"] is False
     scan = steps[1]

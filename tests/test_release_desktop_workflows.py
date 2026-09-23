@@ -371,7 +371,7 @@ def test_source_trust_is_verified_before_any_repo_code_or_secrets() -> None:
     trust_at = names.index("Verify source reachable from protected main")
     assert coordinates_at < checkout_at < trust_at
     checkout = steps[checkout_at]
-    assert checkout["uses"] == "actions/checkout@v6"
+    assert checkout["uses"] == "actions/checkout@v7"
     assert checkout["with"]["fetch-depth"] == 0
     assert checkout["with"]["persist-credentials"] is False
     assert checkout["with"]["ssh-key"] == "${{ secrets.SOURCE_REPOSITORY_SSH_KEY }}"
@@ -398,7 +398,7 @@ def test_source_trust_is_verified_before_any_repo_code_or_secrets() -> None:
     )
     assert "source commit reachable from protected main" in signing_guard["run"]
     bundle_checkout = bundle["steps"][1]
-    assert bundle_checkout["uses"] == "actions/checkout@v6"
+    assert bundle_checkout["uses"] == "actions/checkout@v7"
     assert bundle_checkout["with"]["ref"] == ("${{ needs.verify-source.outputs.source_sha }}")
     assert bundle_checkout["with"]["repository"] == (
         "${{ needs.verify-source.outputs.source_repository }}"
