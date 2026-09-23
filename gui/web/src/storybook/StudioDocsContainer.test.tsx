@@ -52,7 +52,7 @@ describe("StudioDocsContainer", () => {
     );
 
     expect(document.documentElement.dataset.theme).toBe("light");
-    await waitFor(() => expect(seen.themes.at(-1)?.base).toBe("light"));
+    expect(seen.themes.at(0)?.base).toBe("light");
 
     act(() => updateDocsThemeGlobal({ theme: "dark" }));
     expect(document.documentElement.dataset.theme).toBe("dark");

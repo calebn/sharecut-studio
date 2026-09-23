@@ -2,15 +2,25 @@ import type { Preview } from "@storybook/react-vite";
 import { GLOBALS_UPDATED } from "storybook/internal/core-events";
 import { addons } from "storybook/preview-api";
 import "../src/styles/daw.css";
-import { applyTheme, isThemePreference } from "../src/hooks/useTheme";
-import { updateDocsThemeGlobal } from "../src/storybook/docsThemeGlobal";
+import { applyTheme } from "../src/hooks/useTheme";
+import {
+  themePreferenceFromGlobals,
+  updateDocsThemeGlobal,
+} from "../src/storybook/docsThemeGlobal";
 import { StudioDocsContainer } from "../src/storybook/StudioDocsContainer";
 
 // Storybook emits this before mounting a docs entry, including MDX without a
-// story. Cache it so the docs container can read the current toolbar choice.
-addons.getChannel().on(GLOBALS_UPDATED, ({ globals }) => {
+// story. Apply the toolbar choice before the docs container reads theme tokens.
+const channel = addons.getChannel();
+const onGlobalsUpdated = ({
+  globals,
+}: {
+  globals: Record<string, unknown>;
+}) => {
   updateDocsThemeGlobal(globals);
-});
+};
+channel.on(GLOBALS_UPDATED, onGlobalsUpdated);
+import.meta.hot?.dispose(() => channel.off(GLOBALS_UPDATED, onGlobalsUpdated));
 
 const preview: Preview = {
   parameters: {
@@ -45,8 +55,7 @@ const preview: Preview = {
   },
   decorators: [
     (Story, context) => {
-      const theme: unknown = context.globals.theme;
-      applyTheme(isThemePreference(theme) ? theme : "system");
+      applyTheme(themePreferenceFromGlobals(context.globals));
       return Story();
     },
   ],
