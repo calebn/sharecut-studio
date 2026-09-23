@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { LONG_PRESS_MS } from "../src/hooks/touchGestureTiming";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
 
@@ -177,8 +178,9 @@ test.describe("Sharecut Studio mobile smoke", () => {
       type: "touchStart",
       touchPoints: [point],
     });
-    // Hold beyond the gesture threshold before releasing the contact.
-    await page.waitForTimeout(700);
+    // Hold past the shared threshold; the recognizer fires only on release,
+    // so there is no earlier UI state to poll for.
+    await page.waitForTimeout(LONG_PRESS_MS + 150);
     await cdp.send("Input.dispatchTouchEvent", {
       type: "touchEnd",
       touchPoints: [],
