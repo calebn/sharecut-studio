@@ -121,6 +121,7 @@ Sharecut Studio chrome library — see [`docs/ui-library.md`](docs/ui-library.md
 | `DefinitionList` / `DefItem` | Inspector `<dl>` rows |
 | `InspectorSeekFooter` | Seek + play-around footers |
 | `FocusToggle` | Pane focus control |
+| `LevelMeter` | Peak input meter (dBFS zones, peak hold, latching clip LED); drive it with `record/useInputPeakDb` (DSP in `audio/metering.ts`, loop in `audio/usePeakMeter.ts`). Not wired into the record UI yet (#174) |
 
 Mutations: prefer `hooks/useProjectMutation()` (`busy` / `error` / `run` / `refresh`) over local try/catch boilerplate.
 
