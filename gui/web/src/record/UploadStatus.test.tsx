@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { UPLOAD_COPY, UPLOAD_DONE_COPY, uploadProgressCopy } from "./types";
 import { UploadStatus } from "./UploadStatus";
@@ -99,5 +99,61 @@ describe("UploadStatus", () => {
     expect(screen.getByText(/waiting to land on the host/)).toBeInTheDocument();
     expect(screen.queryByText(UPLOAD_DONE_COPY)).not.toBeInTheDocument();
     await expectNoA11yViolations(container);
+  });
+
+  it("offers accessible recovery actions for a stopped incomplete take", async () => {
+    const onResume = vi.fn();
+    const onDownload = vi.fn();
+    const { container } = render(
+      <UploadStatus
+        stopped
+        onResume={onResume}
+        onDownload={onDownload}
+        progress={{
+          acked: 1,
+          total: 3,
+          fileAck: false,
+          landed: false,
+          landFailed: false,
+          uploading: false,
+          pending: false,
+          error: null,
+        }}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Resume upload" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Download local keeper" }),
+    );
+    expect(onResume).toHaveBeenCalledOnce();
+    expect(onDownload).toHaveBeenCalledOnce();
+    await expectNoA11yViolations(container);
+  });
+
+  it("keeps recovery actions visible when no chunks were captured", () => {
+    render(
+      <UploadStatus
+        stopped
+        onResume={() => undefined}
+        onDownload={() => undefined}
+        progress={{
+          acked: 0,
+          total: 0,
+          fileAck: false,
+          landed: false,
+          landFailed: false,
+          uploading: false,
+          pending: false,
+          error: "No audio was captured for this take.",
+        }}
+      />,
+    );
+    expect(screen.getByText(/No audio was captured/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Resume upload" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Download local keeper" }),
+    ).toBeInTheDocument();
   });
 });

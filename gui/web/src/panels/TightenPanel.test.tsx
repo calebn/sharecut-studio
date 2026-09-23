@@ -147,6 +147,42 @@ describe("TightenPanel", () => {
     );
   });
 
+  it("shows review-required repetition and restart hits with per-hit actions", async () => {
+    const project = projectWithHits();
+    project.pending_edits = [
+      pending({
+        id: "repeat",
+        reason: "repetition:word:um",
+        review_required: true,
+      }),
+      pending({
+        id: "restart",
+        reason: "restart:phrase:i went",
+        review_required: true,
+      }),
+    ];
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <TightenPanel />
+      </DawProvider>,
+    );
+    expect(screen.getByText(/2 of 2 hits/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Repetition" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Restart" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: /Apply eligible/ }),
+    ).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Restart" }));
+    expect(screen.getByText(/1 of 2 hits/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Apply.*Host/i }));
+    expect(execute).toHaveBeenCalledWith(
+      "tighten.applyHit",
+      { id: "restart" },
+      { skipWhen: true },
+    );
+    await expectNoA11yViolations(container);
+  });
+
   it("apply-all and per-hit actions go through the command bus", () => {
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={projectWithHits()}>

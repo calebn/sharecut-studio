@@ -9,7 +9,13 @@ function formatClock(ms: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-export function RecIndicator({ snapshot }: { snapshot: RecordSnapshot }) {
+export function RecIndicator({
+  snapshot,
+  captureFailed = false,
+}: {
+  snapshot: RecordSnapshot;
+  captureFailed?: boolean;
+}) {
   const [now, setNow] = useState(() => Date.now());
   const [markedAt, setMarkedAt] = useState(() => Date.now());
   const [baseMs, setBaseMs] = useState(snapshot.recording_ms ?? 0);
@@ -26,7 +32,7 @@ export function RecIndicator({ snapshot }: { snapshot: RecordSnapshot }) {
 
   let label = "Waiting for host";
   if (snapshot.state === "recording") {
-    label = "REC";
+    label = captureFailed ? "REC — local capture failed" : "REC";
   } else if (snapshot.state === "paused") {
     label = "PAUSED";
   } else if (snapshot.state === "stopped") {

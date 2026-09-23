@@ -1,8 +1,7 @@
-"""Benchmarks confirming per-word FFmpeg decode dominates audibility analysis."""
+"""Regression coverage for deterministic audibility-cache decoder usage."""
 
 from __future__ import annotations
 
-import time
 from pathlib import Path
 from unittest.mock import patch
 
@@ -14,6 +13,7 @@ from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.audio_audit import (
     TrackRmsCache,
     build_track_rms_caches,
+    compute_word_audibility_map,
     measure_window_rms_db,
 )
 from podcast_mcp.models import (
@@ -74,22 +74,39 @@ def _stem_project(tmp_path: Path) -> tuple[EpisodeProject, Path]:
     return project, stem
 
 
-def test_subprocess_path_slower_than_cache(tmp_path: Path):
+def test_track_rms_cache_decodes_once_and_reuses_samples(tmp_path: Path):
     project, stem = _stem_project(tmp_path)
     windows = [(w.start, w.end) for w in project.transcripts[0].words[:10]]
 
-    t0 = time.perf_counter()
-    for start, end in windows:
-        measure_window_rms_db(stem, start, end)
-    subprocess_sec = time.perf_counter() - t0
+    samples = np.linspace(-0.5, 0.5, 16_000, dtype=np.float32)
+    window_calls = 0
+    full_calls = 0
 
-    cache = TrackRmsCache.from_timeline_stem(stem)
-    t0 = time.perf_counter()
-    for start, end in windows:
-        cache.rms_db(start, end)
-    cache_sec = time.perf_counter() - t0
+    def fake_window(*_args, start_sec: float, duration_sec: float, **_kwargs):
+        nonlocal window_calls
+        window_calls += 1
+        start = round(start_sec * 8_000)
+        end = start + round(duration_sec * 8_000)
+        return samples[start:end]
 
-    assert cache_sec < subprocess_sec * 0.5
+    def fake_full(*_args, **_kwargs):
+        nonlocal full_calls
+        full_calls += 1
+        return samples
+
+    with (
+        patch("podcast_mcp.engines.audio_audit.load_mono_window", side_effect=fake_window),
+        patch("podcast_mcp.engines.audio_audit.load_mono_full", side_effect=fake_full),
+    ):
+        uncached = [measure_window_rms_db(stem, start, end) for start, end in windows]
+        assert window_calls == len(windows)
+
+        cache = TrackRmsCache.from_timeline_stem(stem)
+        cached = [measure_window_rms_db(stem, start, end, cache=cache) for start, end in windows]
+
+    assert full_calls == 1
+    assert window_calls == len(windows)
+    np.testing.assert_allclose(cached, uncached, rtol=0.0, atol=1e-12)
 
 
 def test_track_rms_cache_matches_ffmpeg_windows(tmp_path: Path):
@@ -106,6 +123,27 @@ def test_build_track_rms_caches_uses_stems(tmp_path: Path):
     project, _ = _stem_project(tmp_path)
     caches = build_track_rms_caches(project)
     assert "host" in caches.caches
+
+
+def test_compute_word_audibility_map_reuses_processed_stem_cache(tmp_path: Path):
+    project, stem = _stem_project(tmp_path)
+    samples = np.full(16_000, 0.3, dtype=np.float32)
+
+    with (
+        patch(
+            "podcast_mcp.engines.audio_audit.load_mono_full",
+            return_value=samples,
+        ) as full_decode,
+        patch("podcast_mcp.engines.audio_audit.load_mono_window") as window_decode,
+    ):
+        rows = compute_word_audibility_map(project, track_id="host")
+
+    full_decode.assert_called_once_with(stem, sample_rate=8_000)
+    window_decode.assert_not_called()
+    assert len(rows) == len(project.transcripts[0].words)
+    assert all(row["track_id"] == "host" for row in rows)
+    assert all(row["own_rms_db"] is not None for row in rows)
+    assert all(row["audibility_status"] == "audible" for row in rows)
 
 
 @pytest.mark.skipif(

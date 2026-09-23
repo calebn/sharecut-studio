@@ -4,6 +4,7 @@ import {
   registerDawCommands,
   setBladeCommandRunner,
 } from "./commands/register";
+import { useDesktopCloseGuard } from "./desktop/useDesktopCloseGuard";
 import { HelpDialog } from "./home/HelpDialog";
 import { useAudioTransport } from "./hooks/useAudioTransport";
 import { useBladeCut } from "./hooks/useBladeCut";
@@ -24,6 +25,7 @@ import { CheatsheetDialogs } from "./layout/CheatsheetDialogs";
 import { HostMcpDialog } from "./layout/HostMcpDialog";
 import { ShareDialog } from "./layout/ShareDialog";
 import { StudioShell } from "./layout/StudioShell";
+import { useRecordHostStore } from "./record/hostStore";
 import { sendRecordHostCommand } from "./record/hostWire";
 import { useRecordMonitor } from "./record/monitor/useRecordMonitor";
 import { RecordPanel } from "./record/RecordPanel";
@@ -136,6 +138,16 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
   const hostKeeper = useHostKeeperCapture(
     !guestShare && !isShareProjectKey(projectPath),
   );
+  const hostStartPending = useRecordHostStore((s) => s.startPending);
+  useDesktopCloseGuard(
+    hostStartPending ||
+      hostKeeper.recordingLocally ||
+      hostKeeper.finalizing ||
+      hostKeeper.snapshot?.state === "recording" ||
+      hostKeeper.snapshot?.state === "paused",
+    "host",
+    hostKeeper.snapshot !== null,
+  );
   const hostMonitor = useRecordMonitor({
     enabled: hostKeeper.monitorEnabled,
     localId: hostKeeper.snapshot ? "p_host" : null,
@@ -179,7 +191,12 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
       <ShareDialog />
       <RecordPanel
         recordingLocally={hostKeeper.recordingLocally}
+        keeperFinalizing={hostKeeper.finalizing}
         keeperError={hostKeeper.error}
+        onRetryKeeper={hostKeeper.retry}
+        micError={hostKeeper.micError}
+        micPending={hostKeeper.micPending}
+        micStatus={hostKeeper.micStatus}
         hearing={hostMonitor.hearing}
         monitorError={hostMonitor.error}
         stream={hostKeeper.stream}

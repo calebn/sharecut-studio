@@ -6,9 +6,9 @@ const envelopes = [
     track_id: "host",
     parameter: "volume" as const,
     points: [
-      { time: 0, value: 1 },
-      { time: 4, value: 0.5 },
-      { time: 9, value: 0.2 },
+      { id: "a", time: 0, value: 1 },
+      { id: "b", time: 4, value: 0.5 },
+      { id: "c", time: 9, value: 0.2 },
     ],
   },
 ];

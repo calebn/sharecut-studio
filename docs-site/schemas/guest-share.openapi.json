@@ -1692,6 +1692,11 @@
       },
       "EnvelopePoint": {
         "properties": {
+          "id": {
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
           "time": {
             "title": "Time",
             "type": "number"
@@ -5263,6 +5268,23 @@
               "default": false,
               "title": "Final",
               "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_parts",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Expected Parts"
             }
           },
           {
