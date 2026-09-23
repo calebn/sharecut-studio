@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**94** capabilities · **78** Sharecut Studio commands · **49** keyed · **160** MCP tools · **16** skills on rows (+ **17** hub skills).
+**94** capabilities · **78** Sharecut Studio commands · **49** keyed · **160** MCP tools · **16** skills on rows (+ **18** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -133,6 +133,7 @@ Host/agent capabilities without a Sharecut Studio `command` id (pipeline, transc
 
 Covered without a dedicated capability row (hubs / deprecated aliases):
 
+- `codex-issue-pipeline`
 - `podcast-balance-levels`
 - `podcast-chapter-markers`
 - `podcast-cleanup-transcript`

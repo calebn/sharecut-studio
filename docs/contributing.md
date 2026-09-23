@@ -23,7 +23,7 @@ Do not duplicate project load/save or history snapshot logic in CLI, MCP, or GUI
 3. Add a thin CLI command in `cli/<area>.py` and an MCP handler in `mcp/tools/<area>.py`. If the DAW viewer needs it, add a thin route under `gui/routes/` (`project.py` / `session.py` / `pipeline.py`) that calls the same service method; keep `gui/server.py` as `create_app` wiring only.
 4. Register the MCP tool in `mcp/tools/__init__.py` via `register_all`.
 5. Re-export the handler from `mcp/server.py` if tests call it directly.
-6. Add tests under `tests/`; keep **≥95%** coverage (`make test`). For `gui/web/` changes, also run `make test-web` (oxlint + Stylelint + Biome `format:check` + strict `typecheck` + Vitest + build). Run `make lint-py` / `make format-py-check` (or `make ci`) so Ruff/Bandit/Vulture/Deptry stay green.
+6. Add tests under `tests/`; run the affected tests locally with `--no-cov`, plus `make lint-py` / `make format-py-check` / `make typecheck` for Python changes. GitHub Actions runs the full `make test` suite and enforces **≥95%** coverage on the PR. For `gui/web/` changes, run focused Vitest tests and relevant static checks locally; CI runs `make test-web` (oxlint + Stylelint + Biome `format:check` + strict `typecheck` + Vitest + build). Use local `make test` / `make ci` for extensive changes or full-suite diagnosis.
 7. Update docs in the same change — see [AGENTS.md § Docs in sync](../AGENTS.md#docs-in-sync) (`README.md`, `docs/architecture.md`, feature docs, skills as needed).
 
 ### Python quality
@@ -122,6 +122,22 @@ A lane that doesn't merge ends in one of two ways, so `needs-user-input` always 
 - **Technical stall** (no decision needed): for a CI timeout or bad CI data, a blocked merge permission, a crashed agent, or a failure to post, the lane adds `pipeline:stalled` and posts an "Automation stall — no decision needed" comment. **The next run resumes stalled PRs automatically.** It re-claims the issue and continues from the merge gate if review and feedback had finished, otherwise from review, so nothing merges unreviewed. Pass `noResume: true` to skip resuming.
 
 The autonomous behaviour of `pr-multi-review` and `feedback` lives in the **AUTONOMOUS MODE (pipeline)** section of each skill (`~/.agents/skills/…`). That section overrides the skills' interactive approval gates only when a prompt contains `AUTONOMOUS MODE`.
+
+### Codex issue pipeline
+
+Use [codex-issue-pipeline](../.agents/skills/codex-issue-pipeline/SKILL.md) when asking Codex to work an issue end to end. It follows the same eight review concerns and required CI checks as the Claude Code workflow, but runs through Codex's available tools rather than executing `.claude/workflows/issue-pipeline.js`. Ask for a **dry run** to triage without writes; ask to **run on #N with noMerge** to create and review a PR without merging. Say **merge if the gate passes** when you want Codex to finish through rebase-merge. The Claude workflow's standing merge exception does not authorize a Codex merge.
+
+Codex follows the shared [issue-claims rule](../.agents/rules/issue-claims.md): triage distinguishes live and stale `in-progress` claims, an earliest-live-claim check happens before planning, `pipeline:*` labels and a heartbeat track each stage, and every exit releases the run's claim. A Codex dry run only **reports** stale claims; a build run may release one when it has no open linked PR. It never removes a winning claim's labels after losing a race. An open PR keeps an unmerged issue out of future triage after Codex releases its claim.
+
+Codex reserves `needs-user-input` for a real owner question (won't-do sign-off, planner abort, or an owner hold). A technical failure instead marks a PR `pipeline:stalled`, posts a no-decision comment with `resume=review` or `resume=gate`, and releases its claim. The next backlog run re-claims and resumes eligible stalled PRs unless asked for `noResume`; an explicit issue run only resumes that issue's PR. Gate-only resume requires evidence that review and feedback cover the current head; otherwise Codex repeats review. A stalled label blocks the Codex gate until resume clears it.
+
+For an isolated implementation checkout, use a Git worktree and run `make worktree-setup` there. This idempotent target provisions hooks, the Python environment with CI extras, and `gui/web` dependencies; the pre-commit hook runs it automatically if the checkout is still unprovisioned. Read-only review passes can share the checkout and do not need another worktree.
+
+The Codex skill builds one shared review packet and reuses it across concern checks and later fix rounds. It reads issue text before code in triage, uses targeted local checks while editing, and leaves the full-suite gate to GitHub Actions. These are cost controls; all eight concerns, relevant live QA, posted review and feedback verification, and the final gate remain required. Do not claim a percentage saving until comparable runs are measured.
+
+When the user requests stage-specific delegation, the skill selects lighter models for bounded read-only work, Sol for ordinary implementation and review, and Astra only for deeper unresolved judgment. A single Codex task cannot change its own model mid-run; the run report states which model choices were actually exercised. Model choice never relaxes CI or the deterministic merge gate.
+
+`python3 scripts/codex_issue_gate.py --repo calebn/sharecut-studio --pr <N> --issue <issue-N> --claim-token <token> --wont-do <count>` reads current GitHub rows and fails closed on missing or non-successful required checks, a moved head, the wrong base or closing issue, a missing or lost live claim, missing `pipeline:merging` labels, owner hold or technical stall labels, unresolved review threads, won't-do items, or an unmergeable PR. The agent separately verifies that its findings and replies were posted, then reruns the gate immediately before an authorized `gh pr merge --rebase --match-head-commit <sha>`.
 
 ## Docs in sync
 
