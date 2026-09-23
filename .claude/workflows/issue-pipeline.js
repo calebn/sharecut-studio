@@ -24,11 +24,6 @@ const LANES = A.lanes ?? 4
 const MAX_ROUNDS = A.maxRounds ?? 2
 const CI_FIX_ATTEMPTS = A.ciFixAttempts ?? 1
 const GATE_ATTEMPTS = A.gateAttempts ?? 3
-// profile: 'full' = 8-lens Opus review, per-issue triage with code skim, Opus feedback plans.
-//          'lean' = batched text-only triage, diff-sized review (3 Sonnet lenses for small
-//                   low-risk diffs), Sonnet round-2 review and Sonnet plans for small feedback.
-const PROFILE = A.profile || 'full'
-const LEAN = PROFILE === 'lean'
 // noMerge: run every stage but stop at the gate and report the verdict (A/B comparisons).
 const NO_MERGE = !!A.noMerge
 // baseRef: commit/ref new branches start from (default origin/main).
@@ -302,16 +297,68 @@ Return ok=true once both are done.`,
   ).then(() => ({ issue: issue.number, pr, merged: false, held: true, reason }))
 }
 
-function review(issue, pr, round, since) {
+// pr-multi-review's reviewer lenses (SKILL.md § Launch). Workflow subagents cannot spawn
+// subagents, so the script fans the lenses out itself and hands their reports to the
+// Opus review parent, which merges, dedupes and posts (the skill's remaining steps).
+const LENSES = [
+  { key: 'bugbot', section: '1. Bugbot', checklist: '~/.agents/skills/multi-review/defect-checklist.md' },
+  { key: 'risk', section: '2. Risk hunt' },
+  { key: 'wiring', section: '3. Wiring / migration review' },
+  { key: 'reuse', section: '4. DRY / SOLID / reuse / conventions', checklist: '~/.agents/skills/pr-multi-review/reuse-solid-checklist.md' },
+  { key: 'security', section: '5. Security', checklist: '~/.agents/skills/multi-review/security-checklist.md' },
+  { key: 'concurrency', section: '6. Concurrency / errors / resources', checklist: '~/.agents/skills/multi-review/concurrency-checklist.md' },
+  { key: 'performance', section: '7. Performance', checklist: '~/.agents/skills/multi-review/performance-checklist.md' },
+  { key: 'patterns', section: '8. Algorithms / contracts', checklist: '~/.agents/skills/pr-multi-review/patterns-antipatterns.md' },
+]
+// Round 2+ only re-reviews the (small) feedback-fix diff.
+const FOLLOWUP_LENSES = ['bugbot', 'risk', 'reuse']
+const S_LENS = {
+  type: 'object',
+  properties: {
+    lens: { type: 'string' },
+    findings: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          severity: { enum: ['high', 'medium', 'low'] },
+          path: { type: 'string' },
+          line: { type: 'integer' },
+          title: { type: 'string' },
+          detail: { type: 'string', description: 'evidence (file:line, grep results) and suggested fix' },
+        },
+        required: ['severity', 'title', 'detail'],
+      },
+    },
+    residual_risks: { type: 'array', items: { type: 'string' } },
+  },
+  required: ['lens', 'findings'],
+}
+
+function lensReview(issue, pr, round, since, lens) {
+  return agent(
+    `You are the "${lens.key}" reviewer lens for ${REPO} PR #${pr}. Read-only: do not post, push or edit.
+Check out the PR head: \`git fetch origin && git checkout --detach "origin/$(gh pr view ${pr} -R ${REPO} --json headRefName -q .headRefName)"\`.
+Diff to review: ${round > 1 ? `\`git diff ${since}..HEAD\` (feedback fixes only; do not re-raise resolved threads)` : '`git diff origin/main...HEAD`'}.
+Your lens prompt is ${SKILLS.review} § Launch → "${lens.section}"${lens.checklist ? `; follow the checklist ${lens.checklist}` : ''}. Read the actual code around each change, cite evidence, skip pure style nits. Return every concrete finding (severity, path, line, title, detail) and residual risks; an empty list is fine when there is truly nothing.`,
+    { label: `lens:${lens.key}:${tag(issue)}:r${round}`, phase: 'Review', model: M.worker, isolation: 'worktree', schema: S_LENS },
+  )
+}
+
+async function review(issue, pr, round, since) {
+  const lenses = round > 1 ? LENSES.filter((l) => FOLLOWUP_LENSES.includes(l.key)) : LENSES
+  const reports = (await parallel(lenses.map((l) => () => lensReview(issue, pr, round, since, l)))).filter(Boolean)
+  if (reports.length < lenses.length) log(`${tag(issue)} review r${round}: ${lenses.length - reports.length} lens(es) returned nothing`)
   return agent(
     `${AUTH}
-AUTONOMOUS MODE: round=${round}${since ? `, since=${since}` : ''}
+AUTONOMOUS MODE: round=${round}${since ? `, since=${since}` : ''}, lenses=supplied
 Read ${SKILLS.review} (and the checklists it references) and execute it for ${REPO} PR #${pr}, following its "AUTONOMOUS MODE (pipeline)" section, which overrides every other gate in that file.
+The reviewer lenses have ALREADY RUN (reports below), so skip § Launch. Do § Browser QA (when the diff has a GUI/HTTP surface), then § Merge + present over the union of these reports and your own reading of the diff (drop a finding only when the diff refutes it), then § Posting comments.
+Lens reports (JSON): ${JSON.stringify(reports)}
 POSTING IS MANDATORY. Every unrebutted High/Medium/Low finding must be posted to the PR before you return: inline threads (one COMMENT review) where a RIGHT-side line attaches, otherwise one top-level \`gh pr comment\` per finding. Never APPROVE or REQUEST_CHANGES. An unposted finding is a pipeline failure.
 ${round > 1 ? `Round ${round}: review ONLY \`git diff ${since}..<PR head>\` (the feedback fixes). Do not re-raise resolved threads.` : ''}
-${LEAN ? `REVIEW PROFILE: lean. ${round > 1 ? 'Round 2+: review the fix diff yourself in a single pass (no subagents).' : 'Size the review to the diff: if `git diff origin/main...HEAD --stat` is <= 150 changed lines AND no path touches auth, share tokens, uploads/recording landing, relay or remote MCP, run only 3 lenses — Bugbot/risk, reuse/SOLID + test gaps, patterns — as subagents with model "sonnet". Otherwise run the full set of lenses. You (the parent) still merge, dedupe and post.'}` : ''}
 Return every finding with the URL of its posted comment, the SHA you reviewed, and any environment blockers (those are NOT posted).`,
-    { label: `review:${tag(issue)}:r${round}`, phase: 'Review', model: LEAN && round > 1 ? M.worker : M.senior, effort: 'high', isolation: 'worktree', schema: S_REVIEW },
+    { label: `review:${tag(issue)}:r${round}`, phase: 'Review', model: M.senior, effort: 'high', isolation: 'worktree', schema: S_REVIEW },
   )
 }
 
@@ -329,7 +376,7 @@ Return expected, found_before, posted_now, missing_after, missing_ids.`,
   )
 }
 
-function feedbackPlan(issue, pr, round, finalRound, model = M.senior) {
+function feedbackPlan(issue, pr, round, finalRound) {
   return agent(
     `AUTONOMOUS MODE: mode=plan, round=${round}${finalRound ? ', final=true' : ''}
 Read ${SKILLS.feedback} and execute Phases 1–2 for ${REPO} PR #${pr}, following its "AUTONOMOUS MODE (pipeline)" section (no approval gate; nothing is posted in plan mode).
@@ -339,7 +386,7 @@ For each item choose exactly one action:
 - follow_up: valid but out of scope, large, or risky${finalRound ? ' (FINAL ROUND: anything not trivially safe to finish now MUST be follow_up)' : ''}. Provide followup_title and a self-contained followup_body (file paths, link to the PR comment).
 - wont_do: ONLY when the finding is wrong or the change would be harmful; give the technical rationale. A wont_do holds the PR for the owner, so prefer follow_up when in doubt.
 Return the items.`,
-    { label: `fb-plan:${tag(issue)}:r${round}`, phase: 'Feedback', model, effort: 'high', isolation: 'worktree', schema: S_FB_PLAN },
+    { label: `fb-plan:${tag(issue)}:r${round}`, phase: 'Feedback', model: M.senior, effort: 'high', isolation: 'worktree', schema: S_FB_PLAN },
   )
 }
 
@@ -443,24 +490,16 @@ Return the remaining issues and the excluded ones with reasons.`,
 }
 
 const SCORE_RUBRIC = `actionable = the desired outcome is clear enough to implement without asking the owner. size: S (<~150 LOC, one area), M (a few files / one subsystem), L (multi-subsystem, design decision, or epic-like). priority 1–5 (5 = security/data-loss bug). area = primary code area. blockers = dependency on another open issue or a needed product decision ("" when none).`
-let scores
-if (LEAN) {
-  // One cheap agent per batch, issue text only (the Opus planner can still abort a bad pick).
-  const batches = []
-  for (let i = 0; i < candidates.length; i += TRIAGE_BATCH) batches.push(candidates.slice(i, i + TRIAGE_BATCH))
-  scores = (await parallel(batches.map((b, bi) => () => agent(
-    `Triage these ${REPO} issues from their text only (do not read code): ${b.map((c) => `#${c.number}`).join(', ')}. Read-only. For each: \`gh issue view <n> -R ${REPO} --comments --json number,title,body,author,labels,comments\` (report author.login).
+// One cheap agent per batch of issues, issue text only: per-issue code skims cost ~50k
+// tokens each, and the Opus planner still catches (and aborts) a bad pick.
+const batches = []
+for (let i = 0; i < candidates.length; i += TRIAGE_BATCH) batches.push(candidates.slice(i, i + TRIAGE_BATCH))
+const scores = (await parallel(batches.map((b, bi) => () => agent(
+  `Triage these ${REPO} issues from their text only (do not read code): ${b.map((c) => `#${c.number}`).join(', ')}. Read-only. For each: \`gh issue view <n> -R ${REPO} --comments --json number,title,body,author,labels,comments\` (report author.login).
 ${SCORE_RUBRIC}
 Return one score per issue.`,
-    { label: `triage:batch${bi + 1}`, phase: 'Triage', model: M.cheap, effort: 'low', schema: { type: 'object', properties: { scores: { type: 'array', items: S_SCORE } }, required: ['scores'] } },
-  )))).filter(Boolean).flatMap((r) => r.scores)
-} else {
-  scores = (await parallel(candidates.map((c) => () => agent(
-    `Triage ${REPO} issue #${c.number}. Read-only. Read it with \`gh issue view ${c.number} -R ${REPO} --comments --json number,title,body,author,labels,comments\` (report author.login) and skim the code it touches (grep; no deep dive).
-${SCORE_RUBRIC}`,
-    { label: `triage:#${c.number}`, phase: 'Triage', model: M.cheap, effort: 'low', schema: S_SCORE },
-  )))).filter(Boolean)
-}
+  { label: `triage:batch${bi + 1}`, phase: 'Triage', model: M.cheap, effort: 'low', schema: { type: 'object', properties: { scores: { type: 'array', items: S_SCORE } }, required: ['scores'] } },
+)))).filter(Boolean).flatMap((r) => r.scores)
 
 // Barrier: choose lanes across all scores; distinct areas avoid parallel conflicts.
 const explicit = !!(A.issues && A.issues.length)
@@ -559,9 +598,7 @@ Return ok, pr number, branch, head_sha.`,
       }
       since = rev.reviewed_sha
 
-      // Lean: small, non-High feedback is planned by Sonnet; anything weightier stays on Opus.
-      const simple = LEAN && rev.findings.length <= 5 && !rev.findings.some((f) => f.severity === 'high')
-      const plan = await feedbackPlan(issue, pr, round, round === MAX_ROUNDS, simple ? M.worker : M.senior)
+      const plan = await feedbackPlan(issue, pr, round, round === MAX_ROUNDS)
       if (!plan) return hold(issue, pr, `feedback plan round ${round} agent died`)
       if (!plan.items.length) break
 
@@ -598,7 +635,7 @@ Return ok, pr number, branch, head_sha.`,
       if (!green.ok) blockers.push(green.reason || 'CI not green')
       if (NO_MERGE) {
         log(`${tag(issue)} PR #${pr} noMerge: gate ${blockers.length ? `would HOLD (${blockers.join('; ')})` : 'would MERGE'}`)
-        return { issue: issue.number, pr, merged: false, wouldMerge: !blockers.length, blockers, rounds, findings: findingsTotal, followups, profile: PROFILE }
+        return { issue: issue.number, pr, merged: false, wouldMerge: !blockers.length, blockers, rounds, findings: findingsTotal, followups }
       }
       if (!blockers.length) {
         const evidence = [
@@ -610,7 +647,7 @@ Return ok, pr number, branch, head_sha.`,
         const m = await merge(issue, pr, g.head_sha, evidence)
         if (m && m.ok) {
           log(`${tag(issue)} PR #${pr} merged`)
-          return { issue: issue.number, pr, merged: true, rounds, findings: findingsTotal, followups, profile: PROFILE }
+          return { issue: issue.number, pr, merged: true, rounds, findings: findingsTotal, followups }
         }
         blockers = [`merge failed: ${m ? m.detail : 'agent died'}`]
       }

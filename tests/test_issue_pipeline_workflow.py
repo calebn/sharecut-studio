@@ -103,14 +103,47 @@ def test_ci_failures_are_classified_before_fixing() -> None:
     assert "--failed" in script
 
 
-def test_lean_profile_and_no_merge_are_opt_in() -> None:
+def test_no_merge_stops_before_the_merge_agent() -> None:
     script = _script()
-    assert "const PROFILE = A.profile || 'full'" in script
     assert "const NO_MERGE = !!A.noMerge" in script
-    # noMerge returns before the merge agent can run.
     assert script.index("if (NO_MERGE) {") < script.index("const m = await merge(")
-    # Lean never downgrades the first-round review parent or the implementation planner.
-    assert "model: LEAN && round > 1 ? M.worker : M.senior" in script
+
+
+def test_review_lenses_fan_out_from_the_script() -> None:
+    """Workflow agents cannot spawn subagents, so the script runs the skill's lenses."""
+    script = _script()
+    keys = re.findall(r"\{ key: '(\w+)', section: '(\d)\. ", script)
+    assert [k for k, _ in keys] == [
+        "bugbot",
+        "risk",
+        "wiring",
+        "reuse",
+        "security",
+        "concurrency",
+        "performance",
+        "patterns",
+    ]
+    skill_sections = [
+        "1. Bugbot",
+        "2. Risk hunt",
+        "3. Wiring",
+        "4. DRY",
+        "5. Security",
+        "6. Concurrency",
+        "7. Performance",
+        "8. Algorithms",
+    ]
+    for section in skill_sections:
+        assert f"section: '{section}" in script, section
+    assert "lenses=supplied" in script
+    assert "phase: 'Review', model: M.worker, isolation: 'worktree', schema: S_LENS" in script
+
+
+def test_triage_is_batched_text_only() -> None:
+    script = _script()
+    assert "const TRIAGE_BATCH = 10" in script
+    assert "from their text only (do not read code)" in script
+    assert "skim the code it touches" not in script
 
 
 def test_prompts_state_provenance_without_authority_claims() -> None:
