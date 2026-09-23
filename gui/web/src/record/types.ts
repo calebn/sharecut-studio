@@ -47,6 +47,7 @@ export type TakeState = {
   session_start_iso: string;
   stopped_wall_ms?: number | null;
   pauses: PauseEntry[];
+  consented_participant_ids?: string[] | null;
 };
 
 export type RecordSnapshot = {

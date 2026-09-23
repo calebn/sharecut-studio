@@ -11,7 +11,13 @@ from fastapi.testclient import TestClient
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services import ProjectWorkspace
-from podcast_mcp.services.record.service import RecordSessionService, reset_record_runtime_for_tests
+from podcast_mcp.services.record.commands import RecordCommand
+from podcast_mcp.services.record.service import (
+    RecordSessionService,
+    next_record_client_seq,
+    release_connection,
+    reset_record_runtime_for_tests,
+)
 from podcast_mcp.services.record.upload import (
     JOIN_OFFSET_MAX_MS,
     ROOM_TONE_MAX_PCM_BYTES,
@@ -67,6 +73,85 @@ def _pcm_part(n: int = 200) -> tuple[bytes, str, str]:
     pcm = bytes([i % 256 for i in range(n)])
     wav = pcm_wav_header(len(pcm)) + pcm
     return pcm, sha256_hex(pcm), sha256_hex(wav)
+
+
+def _host_cmd(svc, ctype: str, *, now: int, payload: dict | None = None):
+    return svc.submit(
+        RecordCommand.parse(
+            command_type=ctype,
+            payload=payload or {},
+            client_id="host",
+            role="host",
+            participant_id="p_host",
+            client_seq=next_record_client_seq(),
+        ),
+        now_wall_ms=now,
+    )
+
+
+def _guest_join(
+    svc, room, *, name: str, conn: str, pid: str | None = None, lease: str | None = None
+) -> tuple[str, str]:
+    echo, _snap = svc.join(
+        token=room["guest"]["token"],
+        role="guest",
+        display_name=name,
+        participant_id=pid,
+        lease=lease,
+        client_id=name,
+        connection_id=conn,
+        capabilities=["join", "monitor"],
+        client_seq=1,
+    )
+    return echo["participant_id"], echo["lease"]
+
+
+def _guest_consent(svc, pid: str, *, name: str, accepted: bool, seq: int):
+    return svc.submit(
+        RecordCommand.parse(
+            command_type="Consent",
+            payload={"accepted": accepted, "display_name": name},
+            client_id=name,
+            role="guest",
+            participant_id=pid,
+            client_seq=seq,
+        ),
+        capabilities=["join", "monitor"],
+    )
+
+
+def _consented_take(ws, room) -> tuple[str, str]:
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    svc.join(
+        token=room["guest"]["token"],
+        role="host",
+        display_name="Host",
+        client_id="host",
+        connection_id="h1",
+    )
+    pid, lease = _guest_join(svc, room, name="Ava", conn="a1")
+    _guest_consent(svc, pid, name="Ava", accepted=True, seq=2)
+    _host_cmd(svc, "Start", now=1000)
+    _host_cmd(svc, "Stop", now=2000)
+    return pid, lease
+
+
+def _post_keeper(client, token: str, pid: str, lease: str, *, take: int, segment: int = 0):
+    pcm, digest, wav_hash = _pcm_part(64)
+    return client.post(
+        f"/api/rec/{token}/upload",
+        params={
+            "take_index": take,
+            "segment_index": segment,
+            "part_seq": 0,
+            "sha256": digest,
+            "file_sha256": wav_hash,
+            "final": True,
+            "expected_parts": 1,
+        },
+        headers={"X-Record-Participant": pid, "X-Record-Lease": lease},
+        content=pcm,
+    )
 
 
 def test_service_acks_parts_and_resumes_after_gap(minimal_project, sample_wav):
@@ -482,44 +567,41 @@ def test_guest_upload_resume_and_producer_forbidden(
 ):
     _ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     token = room["guest"]["token"]
-    with client.websocket_connect(f"/api/rec/{token}/ws?name=Ava") as sock:
-        _join(sock, name="Ava")
-        echo = _drain_until(sock, lambda m: m.get("type") == "Echo")
-        pid, lease = echo["participant_id"], echo["lease"]
-        headers = {"X-Record-Participant": pid, "X-Record-Lease": lease}
-        missing = client.get(f"/api/rec/{token}/upload")
-        assert missing.status_code == 422
-        first, h1, _ = _pcm_part(120)
-        second, h2, _ = _pcm_part(40)
-        wav = pcm_wav_header(len(first) + len(second)) + first + second
-        file_hash = sha256_hex(wav)
-        q = {"take_index": 0, "segment_index": 0, "part_seq": 0, "sha256": h1}
-        r1 = client.post(f"/api/rec/{token}/upload", params=q, headers=headers, content=first)
-        assert r1.status_code == 200, r1.text
-        assert r1.json()["file_ack"] is False
-        killed = client.get(f"/api/rec/{token}/upload", headers=headers)
-        assert killed.json()["segments"][0]["acked_parts"] == [0]
-        q2 = {
-            "take_index": 0,
-            "segment_index": 0,
-            "part_seq": 1,
-            "sha256": h2,
-            "file_sha256": file_hash,
-            "final": True,
-            "expected_parts": 2,
-        }
-        r2 = client.post(f"/api/rec/{token}/upload", params=q2, headers=headers, content=second)
-        assert r2.status_code == 200, r2.text
-        assert r2.json()["file_ack"] is True
-        done = client.get(f"/api/rec/{token}/upload", headers=headers)
-        assert done.json()["segments"][0]["file_ack"] is True
-        other = client.post(
-            f"/api/rec/{token}/upload",
-            params=q,
-            headers={"X-Record-Participant": "p_other", "X-Record-Lease": lease},
-            content=first,
-        )
-        assert other.status_code == 403
+    pid, lease = _consented_take(_ws, room)
+    headers = {"X-Record-Participant": pid, "X-Record-Lease": lease}
+    missing = client.get(f"/api/rec/{token}/upload")
+    assert missing.status_code == 422
+    first, h1, _ = _pcm_part(120)
+    second, h2, _ = _pcm_part(40)
+    wav = pcm_wav_header(len(first) + len(second)) + first + second
+    file_hash = sha256_hex(wav)
+    q = {"take_index": 0, "segment_index": 0, "part_seq": 0, "sha256": h1}
+    r1 = client.post(f"/api/rec/{token}/upload", params=q, headers=headers, content=first)
+    assert r1.status_code == 200, r1.text
+    assert r1.json()["file_ack"] is False
+    killed = client.get(f"/api/rec/{token}/upload", headers=headers)
+    assert killed.json()["segments"][0]["acked_parts"] == [0]
+    q2 = {
+        "take_index": 0,
+        "segment_index": 0,
+        "part_seq": 1,
+        "sha256": h2,
+        "file_sha256": file_hash,
+        "final": True,
+        "expected_parts": 2,
+    }
+    r2 = client.post(f"/api/rec/{token}/upload", params=q2, headers=headers, content=second)
+    assert r2.status_code == 200, r2.text
+    assert r2.json()["file_ack"] is True
+    done = client.get(f"/api/rec/{token}/upload", headers=headers)
+    assert done.json()["segments"][0]["file_ack"] is True
+    other = client.post(
+        f"/api/rec/{token}/upload",
+        params=q,
+        headers={"X-Record-Participant": "p_other", "X-Record-Lease": lease},
+        content=first,
+    )
+    assert other.status_code == 403
     prod = room["producer"]["token"]
     denied = client.post(
         f"/api/rec/{prod}/upload",
@@ -563,26 +645,9 @@ def test_host_upload_acks_own_keeper(minimal_project, sample_wav, tmp_workspace,
 def test_host_status_lists_guest_segments(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     _ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     token = room["guest"]["token"]
-    with client.websocket_connect(f"/api/rec/{token}/ws?name=Ava") as sock:
-        _join(sock, name="Ava")
-        echo = _drain_until(sock, lambda m: m.get("type") == "Echo")
-        pid, lease = echo["participant_id"], echo["lease"]
-        pcm, digest, wav_hash = _pcm_part(48)
-        res = client.post(
-            f"/api/rec/{token}/upload",
-            params={
-                "take_index": 0,
-                "segment_index": 0,
-                "part_seq": 0,
-                "sha256": digest,
-                "file_sha256": wav_hash,
-                "final": True,
-                "expected_parts": 1,
-            },
-            headers={"X-Record-Participant": pid, "X-Record-Lease": lease},
-            content=pcm,
-        )
-        assert res.status_code == 200, res.text
+    pid, lease = _consented_take(_ws, room)
+    res = _post_keeper(client, token, pid, lease, take=0)
+    assert res.status_code == 200, res.text
     status = client.get("/api/record/upload", params={"path": str(minimal_project)})
     assert status.status_code == 200
     segs = status.json()["segments"]
@@ -932,3 +997,75 @@ def test_room_tone_replace_supersedes_acked_bed(minimal_project, sample_wav):
         / "p_aa.wav"
     )
     assert wav.read_bytes()[44:] == second
+
+
+def test_guest_keeper_upload_requires_take_consent(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    token = room["guest"]["token"]
+    svc = RecordSessionService(_ws.project, session_id=room["session_id"])
+    svc.join(
+        token=token,
+        role="host",
+        display_name="Host",
+        client_id="host",
+        connection_id="h1",
+    )
+    bea_pid, bea_lease = _guest_join(svc, room, name="Bea", conn="b1")
+    _guest_consent(svc, bea_pid, name="Bea", accepted=True, seq=2)
+    _host_cmd(svc, "Start", now=1000)
+
+    ava_pid, ava_lease = _guest_join(svc, room, name="Ava", conn="a1")
+    denied_ava = _post_keeper(client, token, ava_pid, ava_lease, take=0)
+    assert denied_ava.status_code == 403, denied_ava.text
+    assert denied_ava.json()["detail"] == "consent required"
+
+    cal_pid, cal_lease = _guest_join(svc, room, name="Cal", conn="c1")
+    _guest_consent(svc, cal_pid, name="Cal", accepted=False, seq=3)
+    denied_cal = _post_keeper(client, token, cal_pid, cal_lease, take=0)
+    assert denied_cal.status_code == 403
+
+    ok_bea = _post_keeper(client, token, bea_pid, bea_lease, take=0)
+    assert ok_bea.status_code == 200, ok_bea.text
+
+    denied_take = _post_keeper(client, token, bea_pid, bea_lease, take=5)
+    assert denied_take.status_code == 403
+
+    _guest_consent(svc, ava_pid, name="Ava", accepted=True, seq=4)
+    ok_ava = _post_keeper(client, token, ava_pid, ava_lease, take=0, segment=1)
+    assert ok_ava.status_code == 200, ok_ava.text
+
+    _host_cmd(svc, "Stop", now=2000)
+    release_connection(bea_pid, "b1", hub_key=svc._hub_key)
+    rejoin_pid, rejoin_lease = _guest_join(
+        svc, room, name="Bea", conn="b2", pid=bea_pid, lease=bea_lease
+    )
+    ok_rejoin = _post_keeper(client, token, rejoin_pid, rejoin_lease, take=0, segment=2)
+    assert ok_rejoin.status_code == 200, ok_rejoin.text
+
+
+def test_guest_room_tone_upload_rejected_after_decline(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    token = room["guest"]["token"]
+    svc = RecordSessionService(_ws.project, session_id=room["session_id"])
+    pid, lease = _guest_join(svc, room, name="Ava", conn="a1")
+    _guest_consent(svc, pid, name="Ava", accepted=False, seq=2)
+    pcm, digest, wav_hash = _pcm_part(96)
+    res = client.post(
+        f"/api/rec/{token}/upload",
+        params={
+            "take_index": 0,
+            "segment_index": 0,
+            "part_seq": 0,
+            "sha256": digest,
+            "file_sha256": wav_hash,
+            "final": True,
+            "kind": "room_tone",
+        },
+        headers={"X-Record-Participant": pid, "X-Record-Lease": lease},
+        content=pcm,
+    )
+    assert res.status_code == 403, res.text

@@ -37,6 +37,7 @@ from podcast_mcp.services.record.state import (
     RecordRole,
     RecordSnapshot,
     empty_record_snapshot,
+    guest_upload_consented,
     recording_ms,
     recording_ms_at,
     start_blockers,
@@ -361,6 +362,9 @@ class RecordSessionService:
             token=token,
             session_id=self.session_id,
         )
+
+    def upload_consented(self, participant_id: str, *, take_index: int | None) -> bool:
+        return guest_upload_consented(self._model(), participant_id, take_index=take_index)
 
     def snapshot(self) -> dict[str, Any]:
         snap = self._model()

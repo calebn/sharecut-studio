@@ -150,7 +150,7 @@ def _cmd(ctype: str, *, pid: str = "p_host", payload: dict | None = None, seq: i
     )
 
 
-def _consent_room(ws, room):
+def _consent_guest(ws, room):
     svc = RecordSessionService(ws.project, session_id=room["session_id"])
     echo, _snap = svc.join(
         token=room["guest"]["token"],
@@ -177,7 +177,12 @@ def _consent_room(ws, room):
         connection_id="c1",
     )
     svc.submit(_cmd("Join", payload={"display_name": "Host"}), now_wall_ms=0)
-    return svc, echo["participant_id"]
+    return svc, echo["participant_id"], echo["lease"]
+
+
+def _consent_room(ws, room):
+    svc, pid, _lease = _consent_guest(ws, room)
+    return svc, pid
 
 
 def test_pad_math_late_join_and_later_segments() -> None:
@@ -511,60 +516,40 @@ def test_refuse_delete_while_non_terminal_then_tombstone_resets_offset(
     assert all(int(row["take_index"]) != 0 for row in status["segments"])
 
 
-def _join(wsock, *, name: str, seq: int = 1):
-    wsock.send_json(
-        {
-            "type": "Record",
-            "command_type": "Join",
-            "payload": {"display_name": name},
-            "client_seq": seq,
-        }
-    )
-
-
-def _drain_until(wsock, predicate, *, n: int = 20):
-    for _ in range(n):
-        msg = wsock.receive_json()
-        if predicate(msg):
-            return msg
-    raise AssertionError("expected message not received")
-
-
 def test_http_final_ack_copies_into_raw(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     client = TestClient(create_app())
     token = room["guest"]["token"]
-    with client.websocket_connect(f"/api/rec/{token}/ws?name=Ava") as sock:
-        _join(sock, name="Ava")
-        echo = _drain_until(sock, lambda m: m.get("type") == "Echo")
-        pid, lease = echo["participant_id"], echo["lease"]
-        pcm, digest, file_hash = _pcm(480)
-        res = client.post(
-            f"/api/rec/{token}/upload",
-            params={
-                "take_index": 0,
-                "segment_index": 0,
-                "part_seq": 0,
-                "sha256": digest,
-                "file_sha256": file_hash,
-                "final": "true",
-                "expected_parts": 1,
-                "join_offset_ms": 250,
-            },
-            headers={"X-Record-Participant": pid, "X-Record-Lease": lease},
-            content=pcm,
-        )
-        assert res.status_code == 200, res.text
-        body = res.json()
-        assert body["file_ack"] is True
-        assert body.get("landed") is True
-        clips = body.get("clips") or []
-        assert clips
-        assert clips[0]["timeline_start"] == pytest.approx(0.25)
-        raw = Path(ws.project.workspace_dir) / clips[0]["raw_path"]
-        assert raw.is_file()
+    svc, pid, lease = _consent_guest(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=1_000)
+    pcm, digest, file_hash = _pcm(480)
+    res = client.post(
+        f"/api/rec/{token}/upload",
+        params={
+            "take_index": 0,
+            "segment_index": 0,
+            "part_seq": 0,
+            "sha256": digest,
+            "file_sha256": file_hash,
+            "final": "true",
+            "expected_parts": 1,
+            "join_offset_ms": 250,
+        },
+        headers={"X-Record-Participant": pid, "X-Record-Lease": lease},
+        content=pcm,
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["file_ack"] is True
+    assert body.get("landed") is True
+    clips = body.get("clips") or []
+    assert clips
+    assert clips[0]["timeline_start"] == pytest.approx(0.25)
+    raw = Path(ws.project.workspace_dir) / clips[0]["raw_path"]
+    assert raw.is_file()
     reloaded = load_project(minimal_project)
     assert any(abs(c.timeline_start - 0.25) < 1e-9 for c in reloaded.clips)
 
@@ -862,6 +847,11 @@ def test_guest_ack_hides_other_participant_clips(
     _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
+    client = TestClient(create_app())
+    token = room["guest"]["token"]
+    svc, pid, lease = _consent_guest(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=1_000)
     _ack(
         RecordUploadService(ws.project),
         session_id=room["session_id"],
@@ -870,28 +860,22 @@ def test_guest_ack_hides_other_participant_clips(
         segment=0,
         join_offset_ms=0,
     )
-    client = TestClient(create_app())
-    token = room["guest"]["token"]
-    with client.websocket_connect(f"/api/rec/{token}/ws?name=Ava") as sock:
-        _join(sock, name="Ava")
-        echo = _drain_until(sock, lambda m: m.get("type") == "Echo")
-        pid, lease = echo["participant_id"], echo["lease"]
-        pcm, digest, file_hash = _pcm(480)
-        res = client.post(
-            f"/api/rec/{token}/upload",
-            params={
-                "take_index": 0,
-                "segment_index": 0,
-                "part_seq": 0,
-                "sha256": digest,
-                "file_sha256": file_hash,
-                "final": "true",
-                "expected_parts": 1,
-                "join_offset_ms": 0,
-            },
-            headers={"X-Record-Participant": pid, "X-Record-Lease": lease},
-            content=pcm,
-        )
+    pcm, digest, file_hash = _pcm(480)
+    res = client.post(
+        f"/api/rec/{token}/upload",
+        params={
+            "take_index": 0,
+            "segment_index": 0,
+            "part_seq": 0,
+            "sha256": digest,
+            "file_sha256": file_hash,
+            "final": "true",
+            "expected_parts": 1,
+            "join_offset_ms": 0,
+        },
+        headers={"X-Record-Participant": pid, "X-Record-Lease": lease},
+        content=pcm,
+    )
     assert res.status_code == 200, res.text
     body = res.json()
     assert body["newly_acked"] is True
@@ -949,7 +933,7 @@ def test_guest_upload_persists_land_failure_until_host_retry(
     _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
-    svc, _guest = _consent_room(ws, room)
+    svc, pid, lease = _consent_guest(ws, room)
     svc.submit(_cmd("Start"), now_wall_ms=0)
     svc.submit(_cmd("Stop"), now_wall_ms=1_000)
     original_land = RecordLandingService.land
@@ -960,24 +944,20 @@ def test_guest_upload_persists_land_failure_until_host_retry(
     monkeypatch.setattr(RecordLandingService, "land", fail_land)
     client = TestClient(create_app())
     token = room["guest"]["token"]
-    with client.websocket_connect(f"/api/rec/{token}/ws?name=Ava") as sock:
-        _join(sock, name="Ava")
-        echo = _drain_until(sock, lambda m: m.get("type") == "Echo")
-        pid, lease = echo["participant_id"], echo["lease"]
-        pcm, digest, file_hash = _pcm(480)
-        response = client.post(
-            f"/api/rec/{token}/upload",
-            params={
-                "take_index": 0,
-                "segment_index": 0,
-                "part_seq": 0,
-                "sha256": digest,
-                "file_sha256": file_hash,
-                "final": "true",
-            },
-            headers={"X-Record-Participant": pid, "X-Record-Lease": lease},
-            content=pcm,
-        )
+    pcm, digest, file_hash = _pcm(480)
+    response = client.post(
+        f"/api/rec/{token}/upload",
+        params={
+            "take_index": 0,
+            "segment_index": 0,
+            "part_seq": 0,
+            "sha256": digest,
+            "file_sha256": file_hash,
+            "final": "true",
+        },
+        headers={"X-Record-Participant": pid, "X-Record-Lease": lease},
+        content=pcm,
+    )
     assert response.status_code == 200, response.text
     assert response.json()["landed"] is False
     assert response.json()["land_failed"] is True
