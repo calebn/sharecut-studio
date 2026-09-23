@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from podcast_mcp.effects.presets import apply_preset_to_chain, get_preset, list_presets
 from podcast_mcp.models import EpisodeProject
 
@@ -12,6 +14,10 @@ def test_list_and_apply_preset() -> None:
     assert effects[0]["effect"] == "deesser"
     rnnoise = get_preset("noise_reduction_rnnoise")
     assert rnnoise[0]["effect"] == "arnndn"
+    # Removed preset: gone from builtins *and* the pipeline.yaml overlay.
+    assert "deess_legacy_notch" not in names
+    with pytest.raises(ValueError, match="unknown effect preset"):
+        get_preset("deess_legacy_notch")
 
     p = EpisodeProject.create("fx", "/tmp")
     p.timeline.tracks = []
