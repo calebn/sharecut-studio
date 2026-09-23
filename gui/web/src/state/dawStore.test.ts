@@ -6,6 +6,7 @@ import { useDawStore } from "./dawStore";
 function agentSession(partial: Partial<SessionState> = {}): SessionState {
   return {
     version: 1,
+    server_seq: 0,
     origin: "agent",
     last_role: "agent",
     updated_at_ns: 0,

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   fileCountFromDataTransfer,
   formatIngestDuration,
@@ -71,6 +71,19 @@ describe("dropLabels", () => {
       }),
     ).toBe(true);
     expect(isAudioIngestFile({ name: "notes.txt", type: "" })).toBe(false);
+  });
+
+  it("treats a throwing getItem as not dismissed", () => {
+    const getItem = vi
+      .spyOn(Storage.prototype, "getItem")
+      .mockImplementation(() => {
+        throw new DOMException("denied", "SecurityError");
+      });
+    try {
+      expect(isIngestCoachDismissed()).toBe(false);
+    } finally {
+      getItem.mockRestore();
+    }
   });
 
   it("reads ingest coach dismissed status from storage", () => {

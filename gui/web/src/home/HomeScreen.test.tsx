@@ -18,6 +18,9 @@ vi.mock("../api", () => ({
   pickEpisodeProject: vi.fn(),
   createDiagnosticsBundle: vi.fn(),
   fetchDiagnosticsMeta: vi.fn(),
+  fetchBootstrapStatus: vi.fn(() => new Promise(() => {})),
+  runBootstrap: vi.fn(),
+  waitForBootstrapJob: vi.fn(),
 }));
 
 const closeMock = vi.mocked(closeEpisodeProject);
@@ -262,6 +265,23 @@ describe("HomeScreen", () => {
       screen.getByRole("heading", { name: "Sharecut Studio" }),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "New project…" })).toBeTruthy();
+  });
+
+  it("still renders when localStorage.getItem throws", () => {
+    const getItem = vi
+      .spyOn(Storage.prototype, "getItem")
+      .mockImplementation(() => {
+        throw new DOMException("denied", "SecurityError");
+      });
+    try {
+      render(<HomeScreen />);
+      // Unreadable skip flag → setup wizard, not a crashed Home screen.
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Checking installed tools",
+      );
+    } finally {
+      getItem.mockRestore();
+    }
   });
 
   it("opens Connect agent from home and unpins the served project", async () => {

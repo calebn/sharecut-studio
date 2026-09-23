@@ -22,7 +22,7 @@ export function sessionRole(state: SessionState): string | null | undefined {
 }
 
 export function sessionSeq(state: SessionState): number {
-  return state.server_seq ?? 0;
+  return state.server_seq;
 }
 
 export function sessionClientId(state: SessionState): string | null {
@@ -154,10 +154,10 @@ export function shouldHandleWsMessage(
     return false;
   }
   if (ctype && DISCRETE_VIEWER_COMMANDS.has(ctype)) {
-    return (snap.server_seq ?? 0) > cursor.serverSeq;
+    return sessionSeq(snap) > cursor.serverSeq;
   }
   if (opts.localPlaying) {
     return false;
   }
-  return (snap.server_seq ?? 0) > cursor.serverSeq;
+  return sessionSeq(snap) > cursor.serverSeq;
 }
