@@ -61,7 +61,14 @@ class PipelineService:
 
     def set_envelope(self, track_id: str, points: list[dict]) -> int:
         def mutate(p) -> int:
-            pts = [AutomationPoint(time=float(p["time"]), value=float(p["value"])) for p in points]
+            pts = [
+                AutomationPoint(
+                    **({"id": str(point["id"])} if "id" in point else {}),
+                    time=float(point["time"]),
+                    value=float(point["value"]),
+                )
+                for point in points
+            ]
             p.automation_envelopes = [e for e in p.automation_envelopes if e.track_id != track_id]
             p.automation_envelopes.append(AutomationEnvelope(track_id=track_id, points=pts))
             return len(pts)

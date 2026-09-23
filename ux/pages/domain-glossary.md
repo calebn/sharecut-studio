@@ -54,7 +54,7 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 | **Track** | One speaker/mic (or bed) | `timeline.tracks` (+ sources) | Timeline headers, Mix, FX inspector |
 | **Clip** | Kept audio placed on the session | `timeline.clips` | Timeline lanes, body-drag move, fade/join inspector |
 | **Fade / join** | Soft edge between kept regions | `fade_*_ms`, `join_in_mode` | Clip edges, inspector |
-| **Pending edit** | Suggested remove/mute not yet approved | `editorial.edit_decisions` | Impact (host), Tighten (host filler/pause), edit overlay, inspector |
+| **Pending edit** | Suggested remove/mute not yet approved | `editorial.edit_decisions` | Impact (host), Tighten (host filler/pause/repetition/restart), edit overlay, inspector |
 | **Applied edit** | Committed cut provenance | `editorial.edit_log` | Impact/history context, “why was this cut?” |
 | **Transcript word** | Timed text + confidence / suppress | `transcripts.per_track[].words[]` | Text mode, word inspector |
 | **Combined transcript** | Utterance stream for search/NL | `transcripts.combined` | Search / agent; export captions |
@@ -186,6 +186,10 @@ Users don’t need tool IDs. They need this story:
 2. **Inspect** — typed modifier with audition footer.
 3. **Commit** — same services agents use → history snapshot.
 4. **Possibly re-render** — stems/premix may show “stale” until refresh.
+
+If a selected envelope point changes in another tab before Apply or Delete,
+the inspector asks the user to select it again instead of editing a different
+point at the same timeline position.
 
 ```mermaid
 sequenceDiagram

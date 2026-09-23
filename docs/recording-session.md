@@ -171,6 +171,12 @@ consent copy says "producers/listeners may be present and are shown in the
 roster"; a producer joining mid-take triggers the same join notification as a
 guest.
 
+When the host or a recorded guest is running or finalizing a local keeper in
+the Tauri desktop shell, native window close and the macOS app menu/Cmd+Q
+prompt before the keeper is lost. Host copy warns that quitting stops the room
+for everyone; guest copy warns about that guest's local keeper. Dock Quit and
+OS shutdown may bypass the app menu and remain best-effort paths.
+
 ## Two graphs
 
 Monitor (WebRTC send/receive) and keeper (local dry WAV) are separate graphs
@@ -560,6 +566,18 @@ invitee, not producers; the host auto-consents). Host Start does
 Producers skip consent, `getUserMedia`, and room tone; they auto-satisfy the
 Start gate. Persistent **REC** indicator +
 clock; mute writes zeros on the keeper. Consent copy is product notice, not legal advice.
+Before a host can Start or a recorded guest can Accept, the client completes an
+OPFS preflight that creates, writes, closes, and removes a disposable file in
+the `Sharecut Recordings/` keeper directory. The action remains disabled
+while the preflight is pending or if the browser/app environment cannot provide writable OPFS; the UI
+asks the participant to use a compatible browser and offers Retry local backup.
+The host Start transport checks the same verified sink even when invoked outside
+the room panel, and host capture uses that sink. A guest who leaves and rejoins
+in the lobby or between takes must complete a fresh preflight and Accept again
+before host Start. While waiting to re-consent after a stopped take, the guest
+can still resume upload or download the previous local keeper from the lobby. Producers are not recorded and do not need this preflight. There is no upload-only or
+alternate local sink path.
+
 Host admit / waiting room is **not** in this PR (ROADMAP Follow-up).
 
 ```mermaid
@@ -568,7 +586,7 @@ stateDiagram-v2
   joined --> idle: recorded (name, headphones)
   idle --> prompting: Allow microphone
   prompting --> granted: getUserMedia ok
-  prompting --> denied: NotAllowedError / site blocked
+  prompting --> denied: NotAllowedError / browser site or OS blocked
   prompting --> unavailable: NotFoundError
   prompting --> error: unmapped getUserMedia error
   denied --> prompting: Retry
@@ -604,6 +622,10 @@ stateDiagram-v2
 | Open speakers | "Use headphones. Playing the room on speakers will echo into every mic." |
 | Mic grant | "Allow microphone" |
 | Mic blocked | "Microphone is blocked for this site. Allow it in your browser's site settings, then Retry." |
+| Mic blocked in the macOS or Windows Tauri desktop app | "Microphone access is blocked by your operating system. Allow Sharecut Studio in your system microphone privacy settings, then Retry." |
+| Mic permission prompt in the macOS or Windows Tauri desktop app | "Waiting for the operating system microphone permission prompt…" |
+| Mic blocked in the Linux Tauri desktop app | "Microphone access is blocked in this Linux desktop window. Retry once, or open Sharecut Studio in your browser and allow microphone access there." |
+| Mic permission prompt in the Linux Tauri desktop app | "Waiting for the desktop webview microphone permission prompt…" |
 | No input device | "No microphone was found. Connect an input device, then Retry." |
 | Mic required for consent | "Allow the microphone before you accept recording." |
 | Room tone | "Record 3 seconds of room tone" |
@@ -642,11 +664,16 @@ without a completion `.json`; it is never given a file ACK or landed. Once all
 complete segments are acknowledged, that retained partial no longer traps the
 guest Leave button or host dialog. Repeated errors remain visible and do not
 silently discard or count queued samples.
+Host and guest upload polling treats capture as unsettled while a keeper Stop
+or stream-loss finalization is pending; it does not mark a metadata-free WAV
+abandoned until the flush has actually settled.
 
 On the **last** host connection drop (`disconnect` / `release_connection`)
 while `state ∈ {recording, paused}`, the service stamps
-`host_offline_since_wall_ms` from that socket's last beat (same sqlite
-`record_snapshot` row; no sidecar). A Leave command also stamps if the field
+`host_offline_since_wall_ms` from the observed socket close time when its last
+heartbeat is fresh, or from the stale heartbeat when close detection was
+delayed by at least 7.5 seconds (same sqlite `record_snapshot` row; no sidecar).
+A Leave command also stamps if the field
 is still empty. Host Join clears that field. If in-memory `_HOST_CONNS` is
 empty on the next host Join (sidecar crash without Leave) or the last host
 heartbeat is older than `HOST_OFFLINE_PAUSE_MS`, Join treats that as last-host
@@ -667,6 +694,24 @@ minting a new room." `revoke_room` is unchanged and does not wipe sqlite;
 share remains (revoke then remint). Stop-first is the 409 gate, not the only
 wipe. Host keepers remount on an open `host_reconnect` pause generation, not on
 a WS `connected` blip.
+
+The host keeper's AudioWorklet callback also supplies a host liveness beat
+while it is actively writing a recording segment. When PCM continues to reach
+the keeper in a hidden or minimized window, this avoids relying only on a
+background-throttled `window.setInterval`. The activity beat is sent at most
+once every 5 seconds. A host timer maintains record presence in lobby and
+paused states. During REC, only healthy keeper PCM can drive host heartbeats;
+the timer cannot mask a missing microphone stream, stalled keeper setup, or
+failed local capture. The existing local-capture failure latch stops activity
+beats until Retry local recording succeeds. Starting or resuming a take resets
+the stored host beat baseline so a long stopped or paused interval cannot make
+a brief reconnect look stale. An observed
+host socket close starts the 10-second reconnect window at close time when the
+last beat is fresh; a beat older than 7.5 seconds remains the outage estimate
+after delayed close detection or an unobserved crash. The 7.5-second freshness
+window allows jitter around the five-second heartbeat cadence. A delayed
+close inside that window cannot be distinguished from a clean close, so its
+offline gap may be underestimated.
 
 ## Ownership and retention
 
@@ -720,7 +765,7 @@ See [persistence.md](persistence.md) and
 | Chromium desktop | PCM/WAV keeper encoder + mix-minus mesh (`build.monitor: true`) |
 | Safari | WAV via Worklet only; AEC constraint caveat |
 | Firefox | Same caveat as Safari |
-| Tauri host | Browser Worklet in the webview (same as Chromium). Mic grant: macOS `NSMicrophoneUsageDescription` + hardened-runtime `audio-input` entitlement; WebView handler allows **microphone only** for `http://127.0.0.1:{engine-port}` (WKWebView `requestMediaCapturePermissionForOrigin`, WebView2 `PermissionRequested`). Full deny-by-default WebView policy is [v1](../ROADMAP.md#packaging-trust). Native cpal/coreaudio mic is [Follow-up](../ROADMAP.md#follow-up). |
+| Tauri host | Browser Worklet in the webview (same as Chromium). macOS and Windows install a native WebView microphone handler and use operating-system permission copy: macOS also needs `NSMicrophoneUsageDescription` + hardened-runtime `audio-input`; the handler allows **microphone only** for `http://127.0.0.1:{engine-port}` (WKWebView `requestMediaCapturePermissionForOrigin`, WebView2 `PermissionRequested`). Linux uses WebKitGTK's default prompt and points blocked users to the supported browser recording path. Full deny-by-default WebView policy is [v1](../ROADMAP.md#packaging-trust). Native cpal/coreaudio mic is [Follow-up](../ROADMAP.md#follow-up). |
 | Mobile browsers | Join + monitor; keeper best-effort, documented. Producer role fully supported (no keeper). |
 
 ## Security and threat notes

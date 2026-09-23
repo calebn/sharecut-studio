@@ -108,9 +108,9 @@ Shipped:
 
 ### Tighten review
 
-**Status: shipped.** Host-only **Tighten** tab (phone: More → Tighten) lists pending `filler:` / `pause:` decisions.
+**Status: shipped.** Host-only **Tighten** tab (phone: More → Tighten) lists pending `filler:`, `pause:`, `repetition:`, and `restart:` decisions.
 
-- Search, class (filler/pause), track, and “harsh cuts only” filters. Columns: time, track, class, ±3-word snippet, risk badge (risky / review), status.
+- Search, class (filler/pause/repetition/restart), track, and “harsh cuts only” filters. Columns: time, track, class, ±3-word snippet, risk badge (risky / review), status. Repetition and restart proposals require individual review and are excluded from the default safe batch.
 - Per-hit command-bus actions: Preview (Suggested skip when `can_skip`), Skip (`RejectEdits`), Apply (`ApproveEdits`), Go to (seek + select). Shortcuts when the tab is open: `Enter`, `Backspace`, `P`, `Mod+Shift+Enter`.
 - **Apply eligible** with **Avoid harsh cuts** (default on) approves the listed hits except `review_required`, `:join_review` / `:risky` reason suffixes, or `join_risk.verdict` review as **one** `ApproveEdits` batch. `Mod+Shift+Enter` uses the same filtered list and checkbox state as the button. Confirm copy: “Apply 23 of 31 — 8 skipped as harsh”.
 - `ProjectView.pending_edits[].join_risk` is the propose-time assessment (`:risky` / `:join_review`) — not a live `join_quality` sweep on every snapshot. Live scoring stays MCP `join_quality_tool`.
@@ -169,7 +169,7 @@ Shipped:
 
 Shipped:
 
-- Envelope point drag (`EnvelopeOverlay`) + selected-point inspector (`EnvelopePointInspector`) → `SetEnvelope` → `PipelineService.set_envelope` (full point-list replace)
+- Envelope point drag (`EnvelopeOverlay`) + selected-point inspector (`EnvelopePointInspector`) → `SetEnvelope` → `PipelineService.set_envelope` (full point-list replace). Each point carries an immutable `id`, preserved when its time changes or sorted position changes, so the GUI uses the ID as its React key.
 - Chapter CRUD: `AddChapter` / `UpdateChapter` / `DeleteChapter` (identity `(time, title)`); MarkerLane drag + ChapterInspector
 - Social CRUD: `AddSocialClip` / `UpdateSocialClip` / `DeleteSocialClip` (by candidate `id`); MarkerLane range drag + SocialClipInspector
 - `SuggestPendingEdit` → pending `EditDecision` with `review_required=true` (`edit_type`: `remove` default or `mute`)

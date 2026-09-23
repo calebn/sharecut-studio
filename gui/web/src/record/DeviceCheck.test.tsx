@@ -6,6 +6,7 @@ import { DeviceCheck } from "./DeviceCheck";
 import {
   MIC_ALLOW_LABEL,
   MIC_DENIED_COPY,
+  MIC_DESKTOP_DENIED_COPY,
   MIC_ERROR_COPY,
   MIC_GRANT_HINT_COPY,
   MIC_RETRY_LABEL,
@@ -80,6 +81,35 @@ describe("DeviceCheck", () => {
     expect(onRetry).toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: MIC_ALLOW_LABEL })).toBeNull();
     await expectNoA11yViolations(container);
+  });
+
+  it("shows operating-system guidance for denied Tauri microphone access", async () => {
+    Object.defineProperty(window, "__TAURI_INTERNALS__", {
+      configurable: true,
+      value: {},
+    });
+    Object.defineProperty(navigator, "userAgent", {
+      configurable: true,
+      value: "Mozilla/5.0 (Windows NT 10.0)",
+    });
+
+    try {
+      const { container } = render(
+        <DeviceCheck
+          {...base}
+          permission="denied"
+          onAllow={() => undefined}
+          onRetry={() => undefined}
+        />,
+      );
+      expect(screen.getByText(MIC_DESKTOP_DENIED_COPY)).toBeInTheDocument();
+      expect(screen.queryByText(MIC_DENIED_COPY)).toBeNull();
+      await expectNoA11yViolations(container);
+    } finally {
+      delete (window as Window & { __TAURI_INTERNALS__?: unknown })
+        .__TAURI_INTERNALS__;
+      Reflect.deleteProperty(navigator, "userAgent");
+    }
   });
 
   it("shows unavailable copy and Retry", async () => {
