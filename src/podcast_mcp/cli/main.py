@@ -38,6 +38,7 @@ app = typer.Typer(
 
 @app.callback()
 def main_callback(
+    ctx: typer.Context,
     progress: bool = typer.Option(
         True,
         "--progress/--no-progress",
@@ -50,6 +51,11 @@ def main_callback(
     ),
 ) -> None:
     cli_context.configure(progress=progress, json_progress=json_progress)
+    # Scope the reporter to this invocation: it may hold the caller's stderr
+    # (``--json-progress``), which in-process callers such as CliRunner close
+    # once the command returns. Leaving it bound would leak a dead stream into
+    # every later ``current_progress()`` in the same process.
+    ctx.call_on_close(cli_context.reset_progress)
 
 
 app.command("setup")(setup)
