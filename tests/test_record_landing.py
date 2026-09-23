@@ -814,8 +814,10 @@ def test_missing_acked_with_source_in_raw_stays_landed(
     assert raw.is_file()
 
     uploader.acked_wav(room["session_id"], 0, guest, 0).unlink()
-    # Injected: production re-pends a landed keeper row when the session's first take
-    # discard clears landed_ns on the remaining rows (RecordUploadStore.tombstone_take).
+    # Stand-in for RecordUploadStore.tombstone_take clearing landed_ns on the session's
+    # remaining rows after its first take discard. mark_land_failed also sets
+    # land_failed_ns, but _gate_acked only reads landed_ns, so the missing-acked branch
+    # runs the same way.
     uploader.mark_land_failed(
         session_id=room["session_id"], take_index=0, participant_id=guest, segment_index=0
     )
@@ -831,8 +833,10 @@ def test_missing_acked_with_source_in_raw_stays_landed(
     assert raw.is_file()
 
     raw.unlink()
-    # Injected: production re-pends a landed keeper row when the session's first take
-    # discard clears landed_ns on the remaining rows (RecordUploadStore.tombstone_take).
+    # Stand-in for RecordUploadStore.tombstone_take clearing landed_ns on the session's
+    # remaining rows after its first take discard. mark_land_failed also sets
+    # land_failed_ns, but _gate_acked only reads landed_ns, so the missing-acked branch
+    # runs the same way.
     uploader.mark_land_failed(
         session_id=room["session_id"], take_index=0, participant_id=guest, segment_index=0
     )
@@ -863,8 +867,10 @@ def test_concurrent_land_with_missing_acked_is_deterministic(
     uploader.acked_wav(room["session_id"], 0, guest, 0).unlink()
 
     def _race() -> tuple[list[dict], dict]:
-        # Injected: production re-pends a landed keeper row when the session's first take
-        # discard clears landed_ns on the remaining rows (RecordUploadStore.tombstone_take).
+        # Stand-in for RecordUploadStore.tombstone_take clearing landed_ns on the session's
+        # remaining rows after its first take discard. mark_land_failed also sets
+        # land_failed_ns, but _gate_acked only reads landed_ns, so the missing-acked branch
+        # runs the same way.
         uploader.mark_land_failed(
             session_id=room["session_id"], take_index=0, participant_id=guest, segment_index=0
         )
@@ -957,7 +963,8 @@ def test_missing_acked_unreadable_source_marks_land_failed(
     _ack(uploader, session_id=room["session_id"], take=0, pid=guest, segment=0, join_offset_ms=0)
     RecordLandingService(ws).land(align=lambda _p: None)
     uploader.acked_wav(room["session_id"], 0, guest, 0).unlink()
-    # Injected: re-pend the landed row (see test_missing_acked_with_source_in_raw_stays_landed).
+    # Stand-in for tombstone_take clearing landed_ns (mark_land_failed also sets
+    # land_failed_ns); see test_missing_acked_with_source_in_raw_stays_landed.
     uploader.mark_land_failed(
         session_id=room["session_id"], take_index=0, participant_id=guest, segment_index=0
     )
