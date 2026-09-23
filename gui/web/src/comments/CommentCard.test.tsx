@@ -130,6 +130,7 @@ describe("CommentCard", () => {
           onResolve={onResolve}
           onSelect={onSelect}
           showReply={false}
+          swipeToResolve
         />
       </ul>,
     );
@@ -172,14 +173,24 @@ describe("CommentCard", () => {
     expect(onSelect).not.toHaveBeenCalled();
   });
 
-  it("does not resolve by swipe when resolve actions are hidden", () => {
+  it.each([
+    ["swipe is not opted in", { swipeToResolve: false }],
+    ["resolve actions are hidden", { showResolve: false }],
+    ["the viewer is a guest", { guestShare: true }],
+    ["a request is in flight", { busy: true }],
+    [
+      "the comment is already resolved",
+      { comment: sampleComment({ resolved: true, resolved_by: "alex" }) },
+    ],
+  ])("does not resolve by swipe when %s", (_name, overrides) => {
     const onResolve = vi.fn();
     const { container } = render(
       <ul>
         <CommentCard
           comment={sampleComment()}
           onResolve={onResolve}
-          showResolve={false}
+          swipeToResolve
+          {...overrides}
         />
       </ul>,
     );
@@ -198,6 +209,45 @@ describe("CommentCard", () => {
       clientY: 20,
     });
     expect(onResolve).not.toHaveBeenCalled();
+  });
+
+  it("holding an action item label toggles it instead of arming long-press", () => {
+    vi.useFakeTimers();
+    const onSelect = vi.fn();
+    const onToggleAction = vi.fn();
+    render(
+      <ul>
+        <CommentCard
+          comment={sampleComment({
+            action_items: [
+              {
+                id: "a1",
+                text: "Trim intro",
+                done: false,
+                completed_at: null,
+                completed_by: null,
+              },
+            ],
+          })}
+          onSelect={onSelect}
+          onToggleAction={onToggleAction}
+          showReply={false}
+        />
+      </ul>,
+    );
+    const label = screen.getByText("Trim intro");
+    fireEvent.pointerDown(label, {
+      pointerType: "touch",
+      pointerId: 1,
+      isPrimary: true,
+    });
+    vi.advanceTimersByTime(600);
+    fireEvent.pointerUp(label, { pointerType: "touch", pointerId: 1 });
+    fireEvent.click(label);
+    vi.runOnlyPendingTimers();
+    expect(onToggleAction).toHaveBeenCalledWith("a1", true);
+    expect(onSelect).not.toHaveBeenCalled();
+    vi.useRealTimers();
   });
 
   it("keeps action checkboxes enabled on a guest share when onToggleAction is set", async () => {
