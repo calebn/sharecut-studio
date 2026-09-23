@@ -17,6 +17,8 @@ Ship via **feature branch → PR → `main`**. Do not commit or push directly to
 4. When the user asks to ship: commit on the branch, `git push -u origin HEAD`, `gh pr create` targeting **`main`**. Put `Fixes #N` (or `Closes` / `Resolves`) in the PR body so merge into `main` auto-closes linked issues, and `Related #N` for issues the PR touches but does not close (including review follow-ups).
 5. Merge with **rebase** (`gh pr merge --rebase`), not squash, so `main` keeps each focused commit; keep branch commits conventional and self-contained. Merge only when the user asks. Exception: the `issue-pipeline` workflow (`.claude/workflows/issue-pipeline.js`) is pre-approved to rebase-merge its own PRs when its merge gate passes — see [docs/contributing.md § Automated issue pipeline](docs/contributing.md#automated-issue-pipeline).
 
+Before working a GitHub issue, follow [.agents/rules/issue-claims.md](.agents/rules/issue-claims.md): skip issues with a live claim, claim before starting, move `pipeline:*` stage labels, and release when done.
+
 `make hooks` (also run by `./install.sh`) points `core.hooksPath` at `.githooks`, which runs lint-staged (Ruff + Biome write and restage) then the check-only pre-commit hooks (via `pre-commit`, or `uvx pre-commit` when it is not installed). In a new worktree, run `make worktree-setup` (hooks + venv with CI extras + `gui/web` node_modules); the pre-commit hook runs it automatically when `.venv` or `node_modules` is missing. Do not add format-write hooks to `.pre-commit-config.yaml`.
 
 **CI gate:** GitHub Actions runs the required full suite on public pushes and pull requests. `.githooks` has no pre-push full-CI gate; `make ci` is an optional local mirror. Detail: [docs/testing.md § GitHub CI gate](docs/testing.md#github-ci-gate), [docs/contributing.md § Git workflow](docs/contributing.md#git-workflow).
@@ -102,7 +104,7 @@ If a doc would mislead the next agent or contributor, fix it before finishing th
 
 ## Agent bundle
 
-Tool-agnostic config under `.agents/` — [rules](.agents/rules/) (`engineering-standards.md`, `git-workflow.md`, `gui-styling.md`; not `.cursor/rules/`), [skills](.agents/skills/), [defaults](.agents/defaults/pipeline.yaml), [MCP](.agents/mcp.json). See [.agents/README.md](.agents/README.md).
+Tool-agnostic config under `.agents/` — [rules](.agents/rules/) (`engineering-standards.md`, `git-workflow.md`, `gui-styling.md`, `issue-claims.md`; not `.cursor/rules/`), [skills](.agents/skills/), [defaults](.agents/defaults/pipeline.yaml), [MCP](.agents/mcp.json). See [.agents/README.md](.agents/README.md).
 
 ## Skills
 

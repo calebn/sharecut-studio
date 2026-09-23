@@ -30,7 +30,13 @@ const NO_MERGE = !!A.noMerge
 // baseRef: commit/ref new branches start from (default origin/main).
 const BASE = A.baseRef || 'origin/main'
 const TRIAGE_BATCH = 10
-const SKIP_LABELS = A.labelsSkip || ['epic', 'needs-user-input', 'deferred-v1', 'do-not-merge', 'in-progress', 'wontfix', 'duplicate']
+// in-progress is not a static skip: triage honours live claims and releases stale ones.
+const SKIP_LABELS = A.labelsSkip || ['epic', 'needs-user-input', 'deferred-v1', 'do-not-merge', 'wontfix', 'duplicate']
+// Coordination with other runs/agents over GitHub (see .agents/rules/issue-claims.md).
+const CLAIM_LABEL = 'in-progress'
+const STAGE_LABELS = { planning: 'pipeline:planning', implementing: 'pipeline:implementing', review: 'pipeline:review', merging: 'pipeline:merging' }
+const STALE_HOURS = A.staleHours ?? 6
+const CLAIM_MARK = '<!-- pipeline-claim'
 const REQUIRED_CHECKS = ['pytest', 'frontend', 'frontend-e2e', 'gitleaks-history']
 const HOLD_LABELS = ['needs-user-input', 'do-not-merge']
 
@@ -326,12 +332,79 @@ async function ensureGreen(issue, pr, branch, sha) {
   return { ok, head_sha: ci.head_sha, reason: ok ? '' : `CI ${ci.state}: ${(ci.failing || []).join(', ')}` }
 }
 
-function hold(issue, pr, reason) {
+// ---------------------------------------------------------------------------
+// Issue claims: label + claim comment (token, stage, heartbeat); oldest live claim wins.
+// ---------------------------------------------------------------------------
+const S_CLAIM = {
+  type: 'object',
+  properties: {
+    won: { type: 'boolean' },
+    token: { type: 'string' },
+    comment_id: { type: 'integer' },
+    reason: { type: 'string' },
+  },
+  required: ['won', 'reason'],
+}
+const claims = new Map() // issue number -> { token, comment_id }
+const CLAIM_FORMAT = `The claim comment body is exactly two lines:
+${CLAIM_MARK} token=<token> stage=<stage> heartbeat=<UTC ISO time> released=<no|outcome> -->
+🤖 Claimed by issue-pipeline run \`<token>\` · stage: <stage> · heartbeat: <UTC ISO time>
+A claim is LIVE when released=no and its heartbeat is less than ${STALE_HOURS} hours old.`
+
+function claimIssue(issue) {
+  return stage(
+    `Claim ${REPO} issue #${issue.number} for this pipeline run, safely against other runs/agents.
+${CLAIM_FORMAT}
+1. Make a token: \`echo "$(date -u +%Y%m%dT%H%M%SZ)-$RANDOM$RANDOM"\`.
+2. List comments: \`gh api repos/${REPO}/issues/${issue.number}/comments --paginate --jq '.[] | {id, created_at, body}'\`. If any LIVE claim exists, do not claim: return won=false, reason naming its token.
+3. \`gh issue edit ${issue.number} -R ${REPO} --add-label ${CLAIM_LABEL} --add-label ${STAGE_LABELS.planning}\` and post the claim comment (stage=planning, heartbeat=now, released=no) with \`gh api repos/${REPO}/issues/${issue.number}/comments -f body=…\`; note its id.
+4. Re-list comments. Among LIVE claims the winner is the earliest created_at (tie: lowest id). If the winner is not yours, edit yours to released=lost-race (\`gh api -X PATCH repos/${REPO}/issues/comments/<id> -f body=…\`) WITHOUT removing labels (they belong to the winner), and return won=false.
+Return won, token, comment_id, reason.`,
+    { label: `claim:${tag(issue)}`, phase: 'Plan', model: M.worker, effort: 'low', schema: S_CLAIM },
+  ).then((c) => {
+    if (c && c.won && c.token && c.comment_id) claims.set(issue.number, { token: c.token, comment_id: c.comment_id })
+    return c
+  })
+}
+
+// Move the issue (and PR) to a stage label and refresh the claim heartbeat.
+function setStage(issue, pr, key) {
+  const c = claims.get(issue.number)
+  if (!c) return Promise.resolve(null)
+  const others = Object.values(STAGE_LABELS).filter((l) => l !== STAGE_LABELS[key])
+  return stage(
+    `Update the pipeline claim on ${REPO} issue #${issue.number} to stage "${key}".
+1. \`gh issue edit ${issue.number} -R ${REPO} --add-label ${STAGE_LABELS[key]} ${others.map((l) => `--remove-label ${l}`).join(' ')}\`${pr ? ` and the same label edit on PR #${pr} (\`gh pr edit ${pr} -R ${REPO} …\`)` : ''}.
+2. Rewrite claim comment ${c.comment_id} (token ${c.token}) with stage=${key} and heartbeat=$(date -u +%Y-%m-%dT%H:%M:%SZ), released=no, via \`gh api -X PATCH repos/${REPO}/issues/comments/${c.comment_id} -f body=…\`.
+${CLAIM_FORMAT}
+Return ok=true when both are done.`,
+    { label: `stage:${key}:${tag(issue)}`, phase: 'Plan', model: M.cheap, effort: 'low', schema: S_DONE },
+  )
+}
+
+// Release on every exit: merged, held, aborted, crashed.
+function releaseClaim(issue, pr, outcome) {
+  const c = claims.get(issue.number)
+  if (!c) return Promise.resolve(null)
+  claims.delete(issue.number)
+  const labels = [CLAIM_LABEL, ...Object.values(STAGE_LABELS)]
+  return stage(
+    `Release this pipeline run's claim on ${REPO} issue #${issue.number} (outcome: ${outcome}).
+1. \`gh issue edit ${issue.number} -R ${REPO} ${labels.map((l) => `--remove-label ${l}`).join(' ')}\` (ignore "not found" for labels already absent)${pr ? `; on PR #${pr} remove the ${Object.values(STAGE_LABELS).join(', ')} labels` : ''}.
+2. Rewrite claim comment ${c.comment_id} (token ${c.token}) with released=${outcome} and a fresh heartbeat.
+${CLAIM_FORMAT}
+Return ok=true when done.`,
+    { label: `release:${tag(issue)}`, phase: 'Merge', model: M.cheap, effort: 'low', schema: S_DONE },
+  )
+}
+
+async function hold(issue, pr, reason) {
   log(`${tag(issue)} HOLD: ${reason}`)
+  await releaseClaim(issue, pr, 'held')
   return stage(
     `The automated issue pipeline is HOLDING ${pr ? `PR #${pr}` : `issue #${issue.number}`} on ${REPO} for a human decision.
 Reason: ${reason}
-1. ${pr ? `\`gh pr edit ${pr} -R ${REPO} --add-label needs-user-input\`` : `\`gh issue edit ${issue.number} -R ${REPO} --add-label needs-user-input --remove-label in-progress\``}
+1. ${pr ? `\`gh pr edit ${pr} -R ${REPO} --add-label needs-user-input\`` : `\`gh issue edit ${issue.number} -R ${REPO} --add-label needs-user-input\``}
 2. Post one comment on the ${pr ? 'PR' : 'issue'} headed "Automation hold" that states the reason and exactly what the owner needs to decide or do. Keep it short.
 Return ok=true once both are done.`,
     { label: `hold:${tag(issue)}`, phase: 'Merge', model: M.cheap, effort: 'low', schema: S_DONE },
@@ -534,7 +607,7 @@ function merge(issue, pr, sha, evidence) {
     `This PR has completed the pipeline's review gate. Evidence (verify it before merging):
 ${evidence}
 1. Show the review record: \`gh pr view ${pr} -R ${REPO} --json reviews,comments,statusCheckRollup,headRefOid\` and confirm the head is ${sha}, every required check succeeded, and there are no unresolved review threads (GraphQL reviewThreads isResolved). If anything disagrees with the evidence, do NOT merge; return ok=false with the discrepancy.
-2. Merge: \`gh pr merge ${pr} -R ${REPO} --rebase --delete-branch --match-head-commit ${sha}\` (ignore local-branch cleanup errors). Confirm \`gh pr view ${pr} -R ${REPO} --json state -q .state\` is MERGED, then \`gh issue edit ${issue.number} -R ${REPO} --remove-label in-progress\`. Return ok=true only if merged; otherwise ok=false with the error in detail. If the merge command is denied by a tool-permission check, return ok=false with detail starting "merge permission denied:".`,
+2. Merge: \`gh pr merge ${pr} -R ${REPO} --rebase --delete-branch --match-head-commit ${sha}\` (ignore local-branch cleanup errors). Confirm \`gh pr view ${pr} -R ${REPO} --json state -q .state\` is MERGED. Return ok=true only if merged; otherwise ok=false with the error in detail. If the merge command is denied by a tool-permission check, return ok=false with detail starting "merge permission denied:".`,
     { label: `merge:${tag(issue)}`, phase: 'Merge', model: M.cheap, effort: 'low', schema: S_DONE },
   )
 }
@@ -567,8 +640,12 @@ if (A.issues && A.issues.length) {
   const listed = await stage(
     `List open issues on ${REPO} opened by ${AUTHORS.join(' or ')}: run \`gh issue list -R ${REPO} --state open --author <login> --limit 200 --json number,title,labels,author\` once per login (${AUTHORS.join(', ')}). Read-only. Never include issues opened by anyone else.
 Exclude any issue that (a) has one of these labels: ${SKIP_LABELS.join(', ')}; or (b) already has an OPEN pull request that links or references it (\`gh pr list -R ${REPO} --state open --limit 200 --json number,body,closingIssuesReferences\`).
-Return the remaining issues and the excluded ones with reasons.`,
-    { label: 'triage:list', phase: 'Triage', model: M.cheap, effort: 'low', schema: S_CANDIDATES },
+(c) Claims: for each remaining issue labelled ${CLAIM_LABEL}, find its latest comment starting with "${CLAIM_MARK}". ${CLAIM_FORMAT}
+If there is no claim comment, the claim time is when ${CLAIM_LABEL} was last added (\`gh api repos/${REPO}/issues/<n>/timeline --paginate --jq '[.[] | select(.event=="labeled" and .label.name=="${CLAIM_LABEL}")] | last | .created_at'\`) and it is live if that is less than ${STALE_HOURS} hours ago.
+- Live claim → exclude (reason: claimed by <token or "label">).
+- Stale claim with no open PR → release it: remove ${CLAIM_LABEL} and ${Object.values(STAGE_LABELS).join(', ')}, mark any claim comment released=stale, post a comment "Stale claim released by issue-pipeline (no heartbeat for ${STALE_HOURS}+ hours).", then treat the issue as a candidate.
+Compute ages with \`date -u\`. Return the remaining issues and the excluded ones with reasons.`,
+    { label: 'triage:list', phase: 'Triage', model: M.worker, effort: 'low', schema: S_CANDIDATES },
   )
   if (!listed) return { error: 'triage list agent died' }
   candidates = listed.issues
@@ -617,24 +694,33 @@ if (A.dryRun || !selected.length) {
 const results = await pipeline(
   selected,
 
-  // 1. Plan (opus)
-  (issue) => stage(
-    `You are the planner for ${REPO} issue #${issue.number}. Do not modify code.
+  // 1. Claim (label + claim comment, oldest live claim wins), then plan (opus)
+  async (issue) => {
+    const claim = await claimIssue(issue)
+    if (!claim || !claim.won) {
+      log(`${tag(issue)} not claimed: ${claim ? claim.reason : 'claim agent died'}`)
+      return { issue, done: { issue: issue.number, pr: null, merged: false, skipped: true, reason: `not claimed: ${claim ? claim.reason : 'claim agent died'}` } }
+    }
+    const plan = await stage(
+    `You are the planner for ${REPO} issue #${issue.number}. Do not modify code. (This run already claimed the issue.)
 ${DETACHED(BASE)}
-1. Claim it: \`gh issue edit ${issue.number} -R ${REPO} --add-label in-progress\` and comment "Picked up by the automated issue pipeline."
-2. Read the issue and comments. Research the code thoroughly (AGENTS.md, docs/architecture.md, docs/contributing.md, the relevant layers). Find existing helpers to reuse.
-3. Write a DETAILED implementation plan a cheaper model can follow mechanically: exact files, symbols and line ranges to change (quote the current snippet for each edit), code-level steps, tests to add (tests/… or gui/web Vitest), docs to update per the AGENTS.md "Docs in sync" table, and verify_cmds: concrete targeted commands naming the exact files/tests for this change, following: ${VERIFY}
-4. List related_issues: other open issues this work touches, overlaps or partially addresses but does NOT fully close (\`gh issue list -R ${REPO} --search <keywords>\`).
-5. Choose a branch name type/short-kebab (feat|fix|docs|chore|refactor|test).
-6. Post the plan on the issue as a comment wrapped in <details><summary>Implementation plan</summary>…</details>.
+1. Read the issue and comments. Research the code thoroughly (AGENTS.md, docs/architecture.md, docs/contributing.md, the relevant layers). Find existing helpers to reuse.
+2. Write a DETAILED implementation plan a cheaper model can follow mechanically: exact files, symbols and line ranges to change (quote the current snippet for each edit), code-level steps, tests to add (tests/… or gui/web Vitest), docs to update per the AGENTS.md "Docs in sync" table, and verify_cmds: concrete targeted commands naming the exact files/tests for this change, following: ${VERIFY}
+3. List related_issues: other open issues this work touches, overlaps or partially addresses but does NOT fully close (\`gh issue list -R ${REPO} --search <keywords>\`).
+4. Choose a branch name type/short-kebab (feat|fix|docs|chore|refactor|test).
+5. Post the plan on the issue as a comment wrapped in <details><summary>Implementation plan</summary>…</details>.
 If the issue needs an owner decision or is too large for one PR, set abort=true with abort_reason instead of planning.`,
     { label: `plan:${tag(issue)}`, phase: 'Plan', model: M.senior, effort: 'high', isolation: 'worktree', schema: S_PLAN },
-  ).then((plan) => ({ issue, plan })),
+    )
+    return { issue, plan }
+  },
 
   // 2. Implement + open PR (sonnet)
-  async ({ issue, plan }) => {
+  async ({ issue, plan, done }) => {
+    if (done) return { issue, done }
     if (!plan) return { issue, done: await hold(issue, null, 'planner agent died') }
     if (plan.abort) return { issue, done: await hold(issue, null, `planner aborted: ${plan.abort_reason || 'no reason given'}`) }
+    await setStage(issue, null, 'implementing')
     const pr = await stage(
       `Implement ${REPO} issue #${issue.number} by following this plan EXACTLY. Do not redesign; if the plan is impossible, return ok=false with the reason.
 ${DETACHED(BASE)}
@@ -651,6 +737,7 @@ Return ok, pr number, branch, head_sha.`,
     )
     if (!pr || !pr.ok) return { issue, done: await hold(issue, null, `implementation failed: ${pr ? pr.error : 'agent died'}`) }
     log(`${tag(issue)} → PR #${pr.pr}`)
+    await setStage(issue, pr.pr, 'review')
     return { issue, pr }
   },
 
@@ -700,6 +787,7 @@ Return ok, pr number, branch, head_sha.`,
       if (!changed) break
     }
 
+    await setStage(issue, pr, 'merging')
     // Gate: merge as soon as this lane is done and CI is green on the latest head.
     let blockers = []
     for (let attempt = 1; attempt <= GATE_ATTEMPTS; attempt++) {
@@ -738,6 +826,7 @@ Return ok, pr number, branch, head_sha.`,
         ].join('\n')
         const m = await merge(issue, pr, g.head_sha, evidence)
         if (m && m.ok) {
+          await releaseClaim(issue, pr, 'merged')
           log(`${tag(issue)} PR #${pr} merged`)
           return { issue: issue.number, pr, merged: true, rounds, findings: findingsTotal, followups }
         }
@@ -754,6 +843,11 @@ Return ok, pr number, branch, head_sha.`,
 // own .venv / node_modules. Once every lane has merged or been held, remove the ones whose
 // work is safely on origin; anything with unpushed or uncommitted work is left and reported.
 phase('Cleanup')
+// Lanes that crashed never reached release; free their issues for other runs/agents.
+for (const n of [...claims.keys()]) {
+  log(`#${n}: releasing claim left by a crashed lane`)
+  await releaseClaim({ number: n }, null, 'crashed')
+}
 const S_CLEANUP = {
   type: 'object',
   properties: {

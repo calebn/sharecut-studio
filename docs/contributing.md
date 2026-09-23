@@ -92,7 +92,10 @@ Args:
 | `lanes` | `4` | Issues worked in parallel |
 | `maxRounds` | `2` | Review → feedback rounds per PR |
 | `ciFixAttempts` | `1` | Automatic fix attempts per red CI run |
-| `labelsSkip` | `epic`, `needs-user-input`, `deferred-v1`, `do-not-merge`, `in-progress`, `wontfix`, `duplicate` | Issues with these labels are never picked |
+| `labelsSkip` | `epic`, `needs-user-input`, `deferred-v1`, `do-not-merge`, `wontfix`, `duplicate` (`in-progress` is handled by claim liveness) | Issues with these labels are never picked |
+| `staleHours` | `6` | A claim with no heartbeat for this long, and no open PR, is released and the issue picked up again |
+
+**Coordination with other agents** follows [.agents/rules/issue-claims.md](../.agents/rules/issue-claims.md). Each lane claims its issue before planning: it adds `in-progress` and `pipeline:planning`, and posts a `pipeline-claim` comment with a token and heartbeat. The earliest live claim wins a race. As the lane progresses it moves the `pipeline:implementing` → `pipeline:review` → `pipeline:merging` labels (mirrored on the PR) and refreshes the heartbeat. It releases the claim on merge, hold or abort, and a sweep at the end of the run releases claims left by crashed lanes. Triage skips live claims. It releases stale ones (no heartbeat for `staleHours`, default 6, and no open PR) and considers those issues again.
 
 Stages per issue (each issue is its own lane; lanes do not wait for each other):
 
