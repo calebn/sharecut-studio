@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "../utils/apiError";
+import type { QueuedCommand } from "./offlineStore";
+import { chainQueuedEnvelopeBaseline } from "./queuedEnvelopeBaseline";
 
 const submit = vi.fn();
 const hostQueue = vi.fn();
@@ -118,6 +121,83 @@ describe("drainHostOfflineQueue", () => {
     expect(removeHostQueuedCommands).toHaveBeenCalledWith(
       "/projects/episode.project.json",
       commands.map((command) => command.command_id),
+    );
+  });
+
+  it("keeps draining unrelated edits after a recorded conflict", async () => {
+    hostQueue.mockResolvedValue([
+      {
+        command_id: "stale",
+        client_seq: 1,
+        type: "SetEnvelope",
+        payload: {},
+        created_at: 1,
+      },
+      {
+        command_id: "meta",
+        client_seq: 2,
+        type: "SetTrackMeta",
+        payload: {},
+        created_at: 2,
+      },
+    ]);
+    submit.mockRejectedValueOnce(new ApiError("Envelope changed", null, 409));
+    const { drainHostOfflineQueue } = await import("./drainOfflineQueue");
+
+    await drainHostOfflineQueue("/projects/episode.project.json");
+
+    expect(submit).toHaveBeenCalledTimes(2);
+    // The conflict dequeued itself inside submitDocumentCommand.
+    expect(removeHostQueuedCommands).toHaveBeenCalledWith(
+      "/projects/episode.project.json",
+      ["meta"],
+    );
+  });
+
+  it("applies two queued same-track envelope edits in order", async () => {
+    type Point = { id: string; time: number; value: number };
+    let hostPoints: Point[] = [{ id: "a", time: 0, value: 1 }];
+    const snapshot = [...hostPoints];
+    const edit = (id: string, value: number): QueuedCommand => ({
+      command_id: id,
+      client_seq: 1,
+      type: "SetEnvelope",
+      payload: {
+        track_id: "host",
+        points: [{ id: "a", time: 0, value }],
+        expected_points: snapshot,
+      },
+      created_at: 0,
+    });
+    // Both edits were made offline from the same stale store snapshot.
+    const queue: QueuedCommand[] = [];
+    for (const cmd of [edit("first", 0.5), edit("second", 0.25)]) {
+      queue.push(chainQueuedEnvelopeBaseline(queue, cmd));
+    }
+    hostQueue.mockResolvedValue(queue);
+    submit.mockImplementation(
+      async (
+        _path: string,
+        _type: string,
+        payload: Record<string, unknown>,
+      ) => {
+        if (
+          JSON.stringify(payload.expected_points) !== JSON.stringify(hostPoints)
+        ) {
+          throw new ApiError("Envelope changed", null, 409);
+        }
+        hostPoints = payload.points as Point[];
+        return { ok: true };
+      },
+    );
+    const { drainHostOfflineQueue } = await import("./drainOfflineQueue");
+
+    await drainHostOfflineQueue("/projects/episode.project.json");
+
+    expect(hostPoints).toEqual([{ id: "a", time: 0, value: 0.25 }]);
+    expect(removeHostQueuedCommands).toHaveBeenCalledWith(
+      "/projects/episode.project.json",
+      ["first", "second"],
     );
   });
 });

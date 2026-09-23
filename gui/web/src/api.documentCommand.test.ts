@@ -7,8 +7,11 @@ const addHostConflict = vi.fn();
 const enqueueCommand = vi.fn();
 const applyDocumentResult = vi.fn();
 
+const applyDocumentSnapshot = vi.fn();
+
 vi.mock("./document/applyDocumentUpdate", () => ({
   applyDocumentResult,
+  applyDocumentSnapshot,
   mergeGuestActionDone: vi.fn(),
   mergeReturnedComment: vi.fn(),
 }));
@@ -290,5 +293,105 @@ describe("host document command queue", () => {
     ).rejects.toThrow("stale revision");
     expect(addHostConflict).toHaveBeenCalledOnce();
     expect(removeHostQueuedCommand).toHaveBeenCalledOnce();
+  });
+
+  it("records a rejected replay so a dropped queued edit is visible", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () => new Response("expected_points missing", { status: 422 }),
+      ),
+    );
+    const { submitDocumentCommand } = await import("./api");
+
+    await expect(
+      submitDocumentCommand(
+        "/tmp/episode.project.json",
+        "SetEnvelope",
+        {},
+        { command_id: "legacy", client_seq: 1, replaying: true },
+      ),
+    ).rejects.toMatchObject({ status: 422 });
+    expect(addHostConflict).toHaveBeenCalledWith(
+      "/tmp/episode.project.json",
+      expect.objectContaining({ reason: "expected_points missing" }),
+    );
+    expect(removeHostQueuedCommand).toHaveBeenCalledWith(
+      "/tmp/episode.project.json",
+      "legacy",
+    );
+  });
+
+  it("does not add a banner row for a live 4xx the caller already shows", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("bad payload", { status: 422 })),
+    );
+    const { submitDocumentCommand } = await import("./api");
+
+    await expect(
+      submitDocumentCommand("/tmp/episode.project.json", "SetTrackMeta"),
+    ).rejects.toThrow("bad payload");
+    expect(addHostConflict).not.toHaveBeenCalled();
+  });
+
+  it("shows a queued envelope edit so the next edit builds on it", async () => {
+    enqueueHostCommand.mockResolvedValue({
+      persisted: true,
+      hadPredecessor: true,
+    });
+    vi.stubGlobal("fetch", vi.fn());
+    const { useDawStore } = await import("./state/dawStore");
+    const { minimalProject } = await import("./test/fixtures");
+    const pan = { track_id: "host", parameter: "pan", points: [] };
+    useDawStore.getState().hydrate(
+      "/tmp/episode.project.json",
+      minimalProject({
+        envelopes: [
+          pan,
+          {
+            track_id: "host",
+            parameter: "volume",
+            points: [{ id: "a", time: 0, value: 1 }],
+          },
+        ],
+      }),
+    );
+    const { setEnvelope } = await import("./api");
+    const next = [{ id: "a", time: 0, value: 0.5 }];
+
+    await setEnvelope("/tmp/episode.project.json", "host", next, [
+      { id: "a", time: 0, value: 1 },
+    ]);
+
+    expect(useDawStore.getState().project?.envelopes).toEqual([
+      pan,
+      { track_id: "host", parameter: "volume", points: next },
+    ]);
+    useDawStore.setState({ projectPath: "", project: null });
+  });
+
+  it("reloads the host envelope slice after a SetEnvelope conflict", async () => {
+    const envelopes = [{ track_id: "host", parameter: "volume", points: [] }];
+    const fetchSpy = vi.fn(async (url: string) =>
+      url.includes("phase=envelopes")
+        ? new Response(JSON.stringify({ envelopes }), { status: 200 })
+        : new Response(JSON.stringify({ detail: { detail: "changed" } }), {
+            status: 409,
+          }),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+    const { useDawStore } = await import("./state/dawStore");
+    useDawStore.setState({ projectPath: "/tmp/episode.project.json" });
+    const { setEnvelope } = await import("./api");
+
+    await expect(
+      setEnvelope("/tmp/episode.project.json", "host", [], []),
+    ).rejects.toThrow("changed");
+    expect(applyDocumentSnapshot).toHaveBeenCalledWith(
+      { patch: { envelopes } },
+      { force: true },
+    );
+    useDawStore.setState({ projectPath: "" });
   });
 });
