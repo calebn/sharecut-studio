@@ -228,8 +228,10 @@ flowchart TD
 the mix-minus, writes a local dry WAV, and uploads chunks until ACK. Timeline
 landing copies ACK'd keepers into `raw/` as one clip per segment and reports
 staged, uploaded, landed, or land-failed state. Only the landed state permits local
-backup deletion; `land_failed_ns` remains in the existing upload manifest across
-reconnects, and Retry land does not discard staged parts. Landing also compares
+backup deletion; a segment whose staged host copy went missing before reaching raw/
+reports land-failed (never landed), so the guest keeps the backup; `land_failed_ns`
+remains in the existing upload manifest across reconnects, and Retry land does not
+discard staged parts. Landing also compares
 sample-count vs recording-clock duration (`drift_ms`; unknown is `null`).
 `|drift| > 50 ms` or a missing `session_start` sets `align_fallback` as a
 post-transcribe `align_tracks` hint. Live comments and Markers land as ordinary timeline comments.
