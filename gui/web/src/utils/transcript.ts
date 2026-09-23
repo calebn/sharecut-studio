@@ -1,3 +1,4 @@
+import { presenceAnchor } from "../presence/anchors";
 import type {
   CombinedUtterance,
   TimelineSpan,
@@ -121,6 +122,123 @@ export function groupConsecutiveSpeakerTurns(
     });
   }
   return turns;
+}
+
+/** Words to render for an utterance; one synthetic token when timings are missing. */
+export function wordsForUtterance(u: CombinedUtterance): TranscriptWordView[] {
+  if (u.words && u.words.length > 0) {
+    return u.words;
+  }
+  // Fallback when ProjectView lacks word timings: one synthetic token.
+  return [
+    {
+      text: u.text,
+      start: u.start,
+      end: u.end,
+      timeline_start: u.timeline_start,
+      timeline_end: u.timeline_end,
+      mappable: u.mappable,
+    },
+  ];
+}
+
+/**
+ * Stable identity for a turn (React key + virtualizer measurement key).
+ * Filter-independent: does not use the flat `startIndex`, which shifts when
+ * utterances are unmapped or **Show cut away** toggles.
+ */
+export function turnKey(turn: TranscriptTurn): string {
+  const lead = turn.utterances[0];
+  if (!lead) {
+    return `${turn.trackId}:empty`;
+  }
+  return `${turn.trackId}:${lead.start}:${lead.words?.[0]?.word_index ?? lead.end}`;
+}
+
+/** Turn containing flat utterance index `i` (binary search on start/end), or -1. */
+export function findTurnIndexForUtterance(
+  turns: TranscriptTurn[],
+  i: number,
+): number {
+  if (i < 0) {
+    return -1;
+  }
+  let lo = 0;
+  let hi = turns.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const turn = turns[mid]!;
+    if (i < turn.startIndex) {
+      hi = mid - 1;
+    } else if (i > turn.endIndex) {
+      lo = mid + 1;
+    } else {
+      return mid;
+    }
+  }
+  return -1;
+}
+
+/** Presence anchor for a rendered transcript word (word id, else turn-local position). */
+export function transcriptWordAnchor(
+  turnIndex: number,
+  trackId: string,
+  wordIndex: number | undefined,
+  flatWordIndex: number,
+): string {
+  return wordIndex != null
+    ? presenceAnchor("transcript", "word", trackId, wordIndex)
+    : presenceAnchor("transcript", "turn", turnIndex, "w", flatWordIndex);
+}
+
+const anchorTurnIndexCache = new WeakMap<
+  TranscriptTurn[],
+  Map<string, number>
+>();
+
+function buildAnchorTurnIndex(turns: TranscriptTurn[]): Map<string, number> {
+  const index = new Map<string, number>();
+  const add = (anchor: string, turnIndex: number) => {
+    // Truncated (96-char) anchors can collide; first turn wins, like the DOM.
+    if (!index.has(anchor)) {
+      index.set(anchor, turnIndex);
+    }
+  };
+  turns.forEach((turn, turnIndex) => {
+    add(presenceAnchor("transcript", "turn", turnIndex), turnIndex);
+    let flatWordIndex = 0;
+    for (const u of turn.utterances) {
+      for (const w of wordsForUtterance(u)) {
+        add(
+          transcriptWordAnchor(
+            turnIndex,
+            u.track_id,
+            w.word_index,
+            flatWordIndex,
+          ),
+          turnIndex,
+        );
+        flatWordIndex += 1;
+      }
+    }
+  });
+  return index;
+}
+
+/**
+ * Turn that renders presence `anchor`, or -1. Matches whole anchor strings
+ * built by the same helpers as the DOM (no parsing), cached per `turns` array.
+ */
+export function transcriptAnchorTurnIndex(
+  turns: TranscriptTurn[],
+  anchor: string,
+): number {
+  let index = anchorTurnIndexCache.get(turns);
+  if (!index) {
+    index = buildAnchorTurnIndex(turns);
+    anchorTurnIndexCache.set(turns, index);
+  }
+  return index.get(anchor) ?? -1;
 }
 
 /** Index of the utterance covering the playhead, or -1 if none. */

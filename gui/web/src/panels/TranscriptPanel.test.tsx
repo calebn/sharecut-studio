@@ -1,9 +1,18 @@
 import { act, fireEvent, render, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
+import { scrollChildIntoParent } from "../utils/transcript";
 import { TranscriptPanel } from "./TranscriptPanel";
+
+vi.mock("../utils/transcript", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../utils/transcript")>();
+  return {
+    ...actual,
+    scrollChildIntoParent: vi.fn(actual.scrollChildIntoParent),
+  };
+});
 
 vi.mock("../commands/execute", () => ({
   execute: vi.fn(async () => ({ status: "ok" })),
@@ -63,6 +72,37 @@ function project() {
       ],
     },
   });
+}
+
+function largeProject(turnCount = 1200) {
+  const base = project();
+  return {
+    ...base,
+    timeline_duration_sec: turnCount * 2,
+    transcript: {
+      utterances: Array.from({ length: turnCount }, (_, index) => ({
+        track_id: "host",
+        speaker: `Speaker ${index}`,
+        start: index * 2,
+        end: index * 2 + 1,
+        text: `turn ${index}`,
+        mappable: true,
+        timeline_start: index * 2,
+        timeline_end: index * 2 + 1,
+        words: [
+          {
+            text: `turn ${index}`,
+            start: index * 2,
+            end: index * 2 + 1,
+            timeline_start: index * 2,
+            timeline_end: index * 2 + 1,
+            word_index: index,
+            confidence: 0.9,
+          },
+        ],
+      })),
+    },
+  };
 }
 
 describe("TranscriptPanel", () => {
@@ -489,7 +529,202 @@ describe("TranscriptPanel", () => {
     const { container } = render(<TranscriptPanel />);
     const list = container.querySelector(".transcript-list");
     expect(list).toBeTruthy();
+    fireEvent.wheel(list!);
     fireEvent.scroll(list!);
     expect(useDawStore.getState().followingClientId).toBeNull();
+  });
+
+  it("ignores scroll events without user input (programmatic writes)", () => {
+    useDawStore.setState({
+      followingClientId: "a",
+      transcriptFollowPlayhead: true,
+    });
+    const { container } = render(<TranscriptPanel />);
+    const list = container.querySelector(".transcript-list")!;
+    fireEvent.scroll(list);
+    // Clicking a child (e.g. a word) is not scroll intent either.
+    fireEvent.pointerDown(
+      within(container).getByRole("button", { name: "hello" }),
+    );
+    fireEvent.scroll(list);
+    expect(useDawStore.getState().transcriptFollowPlayhead).toBe(true);
+    expect(useDawStore.getState().followingClientId).toBe("a");
+    fireEvent.keyDown(list, { key: "PageDown" });
+    fireEvent.scroll(list);
+    expect(useDawStore.getState().transcriptFollowPlayhead).toBe(false);
+    expect(useDawStore.getState().followingClientId).toBeNull();
+  });
+});
+
+describe("TranscriptPanel virtualization", () => {
+  let scrollTopWrites: number[];
+
+  beforeEach(() => {
+    scrollTopWrites = [];
+    let scrollTop = 0;
+    // virtual-core reads offset*/client* sizes; list = 600px, turns = 96px.
+    const size = (listPx: number, turnPx: number) =>
+      function (this: HTMLElement) {
+        return this.classList.contains("transcript-list") ? listPx : turnPx;
+      };
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(
+      size(600, 96),
+    );
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(
+      size(600, 96),
+    );
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(800);
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(
+      1200 * 96,
+    );
+    // Turns sit at their translateY offset, shifted by the list's scrollTop.
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function (this: HTMLElement) {
+        if (this.classList.contains("transcript-list")) {
+          return DOMRect.fromRect({ width: 800, height: 600 });
+        }
+        const turn = this.closest<HTMLElement>(".utterance-turn");
+        const y = Number(
+          /translateY\(([-\d.]+)px\)/.exec(turn?.style.transform ?? "")?.[1] ??
+            0,
+        );
+        return DOMRect.fromRect({ y: y - scrollTop, width: 800, height: 96 });
+      },
+    );
+    vi.spyOn(HTMLElement.prototype, "scrollTop", "get").mockImplementation(
+      () => scrollTop,
+    );
+    vi.spyOn(HTMLElement.prototype, "scrollTop", "set").mockImplementation(
+      function (this: HTMLElement, v: number) {
+        scrollTop = v;
+        scrollTopWrites.push(v);
+        // Browsers fire scroll after a programmatic write (no user input).
+        this.dispatchEvent(new Event("scroll"));
+      },
+    );
+    vi.mocked(scrollChildIntoParent).mockClear();
+    useDawStore.setState({
+      project: largeProject(),
+      projectPath: "/tmp/ep",
+      playheadSec: 0.5,
+      selection: null,
+      transcriptFollowPlayhead: false,
+      transcriptScrollRequest: null,
+      followingClientId: null,
+      focusMode: "default",
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const turnEl = (container: HTMLElement, index: number) =>
+    container.querySelector<HTMLElement>(`[data-turn-index="${index}"]`);
+  const lastScrolledTurn = () => {
+    const el = vi.mocked(scrollChildIntoParent).mock.lastCall?.[1];
+    return el?.closest("[data-turn-index]")?.getAttribute("data-turn-index");
+  };
+
+  it("renders a bounded, labelled list of turns", async () => {
+    const { container } = render(<TranscriptPanel />);
+    const turns = container.querySelectorAll(".utterance-turn");
+    expect(turns.length).toBeGreaterThan(0);
+    expect(turns.length).toBeLessThan(1200);
+    expect(turnEl(container, 0)).toBeTruthy();
+    expect(turnEl(container, 1199)).toBeNull();
+    const list = container.querySelector(".transcript-list.is-virtualized");
+    expect(list?.getAttribute("role")).toBe("list");
+    expect(turnEl(container, 0)?.getAttribute("aria-setsize")).toBe("1200");
+    expect(turnEl(container, 0)?.getAttribute("aria-posinset")).toBe("1");
+    await expectNoA11yViolations(container);
+  });
+
+  it("mounts an offscreen request target, scrolls to it, and clears it", () => {
+    const { container } = render(<TranscriptPanel />);
+    act(() => {
+      useDawStore.getState().setTranscriptScrollRequest("transcript:turn:1199");
+    });
+    expect(useDawStore.getState().transcriptScrollRequest).toBeNull();
+    expect(lastScrolledTurn()).toBe("1199");
+    expect(vi.mocked(scrollChildIntoParent).mock.lastCall?.[2]).toBe(0.2);
+    expect(turnEl(container, 1199)).toBeTruthy();
+    expect(scrollTopWrites.at(-1)).toBeGreaterThan(100_000);
+  });
+
+  it("clears an unresolvable request instead of retrying", () => {
+    render(<TranscriptPanel />);
+    act(() => {
+      useDawStore
+        .getState()
+        .setTranscriptScrollRequest("transcript:word:nobody:424242");
+    });
+    expect(useDawStore.getState().transcriptScrollRequest).toBeNull();
+    expect(vi.mocked(scrollChildIntoParent)).not.toHaveBeenCalled();
+  });
+
+  it("follows an offscreen active turn without unlocking follow", () => {
+    useDawStore.setState({ transcriptFollowPlayhead: true });
+    const { container } = render(<TranscriptPanel />);
+    act(() => {
+      useDawStore.getState().setPlayheadSec(1199 * 2 + 0.5);
+    });
+    expect(turnEl(container, 1199)).toBeTruthy();
+    expect(lastScrolledTurn()).toBe("1199");
+    expect(scrollTopWrites.at(-1)).toBeGreaterThan(100_000);
+    // Re-measure / range scrolls arrive without user input.
+    fireEvent.scroll(container.querySelector(".transcript-list")!);
+    expect(useDawStore.getState().transcriptFollowPlayhead).toBe(true);
+  });
+
+  it("unlocks follow on a manual wheel scroll", () => {
+    useDawStore.setState({ transcriptFollowPlayhead: true });
+    const { container } = render(<TranscriptPanel />);
+    const list = container.querySelector(".transcript-list")!;
+    fireEvent.wheel(list);
+    fireEvent.scroll(list);
+    expect(useDawStore.getState().transcriptFollowPlayhead).toBe(false);
+  });
+
+  it("lets a paused follower keep the leader's jump until the playhead moves", () => {
+    useDawStore.setState({ transcriptFollowPlayhead: true });
+    const { container } = render(<TranscriptPanel />);
+    act(() => {
+      useDawStore.getState().setTranscriptScrollRequest("transcript:turn:900");
+    });
+    expect(lastScrolledTurn()).toBe("900");
+    expect(turnEl(container, 900)).toBeTruthy();
+    vi.mocked(scrollChildIntoParent).mockClear();
+    // Re-run follow (new project identity, same playhead): must not snap back.
+    act(() => {
+      useDawStore.setState({ project: largeProject() });
+    });
+    expect(vi.mocked(scrollChildIntoParent)).not.toHaveBeenCalled();
+    act(() => {
+      useDawStore.getState().setPlayheadSec(2.5);
+    });
+    expect(lastScrolledTurn()).toBe("1");
+    expect(vi.mocked(scrollChildIntoParent).mock.lastCall?.[2]).toBe(0.5);
+  });
+
+  it("keeps the selected and focused turns mounted when scrolled away", () => {
+    const { container } = render(<TranscriptPanel />);
+    fireEvent.click(
+      within(container).getByRole("button", { name: /Correct/i }),
+    );
+    act(() => {
+      useDawStore.setState({
+        selection: { kind: "transcriptWord", trackId: "host", wordIndex: 1100 },
+      });
+    });
+    expect(turnEl(container, 1100)).toBeTruthy();
+    const word = within(turnEl(container, 0)!).getByRole("button", {
+      name: "turn 0",
+    });
+    fireEvent.focus(word);
+    act(() => {
+      useDawStore.getState().setTranscriptScrollRequest("transcript:turn:1199");
+    });
+    expect(turnEl(container, 0)).toBeTruthy();
   });
 });

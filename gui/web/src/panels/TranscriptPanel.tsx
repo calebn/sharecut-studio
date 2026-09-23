@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { capabilityTooltip } from "../capabilities/copy";
 import { DOUBLE_TAP_MS, withinGhostClick } from "../hooks/touchGestureTiming";
 import { useLongPress } from "../hooks/useLongPress";
+import { useUserScrollIntent } from "../hooks/useUserScrollIntent";
+import { useVirtualTurns } from "../hooks/useVirtualTurns";
 import { TranscriptWordInspector } from "../inspector/views/TranscriptWordInspector";
 import {
   presenceAnchor,
@@ -20,18 +22,22 @@ import type {
   CombinedUtterance,
   EditBoundaryView,
   Selection,
-  TranscriptWordView,
 } from "../types/project";
 import { FocusToggle, ToggleButton } from "../ui";
 import {
   findActiveUtteranceIndex,
+  findTurnIndexForUtterance,
   groupConsecutiveSpeakerTurns,
   isUtteranceActive,
   isWordActive,
   scrollChildIntoParent,
   selectUnmappedUtterances,
+  transcriptAnchorTurnIndex,
+  transcriptWordAnchor,
+  turnKey,
   turnSeekSec,
   wordSeekSec,
+  wordsForUtterance,
 } from "../utils/transcript";
 
 const LOW_CONFIDENCE = 0.7;
@@ -39,23 +45,6 @@ const EMPTY_UTTERANCES: CombinedUtterance[] = [];
 const EMPTY_BOUNDARIES: EditBoundaryView[] = [];
 
 type TranscriptIntent = "navigate" | "correct" | "select";
-
-function wordsForUtterance(u: CombinedUtterance): TranscriptWordView[] {
-  if (u.words && u.words.length > 0) {
-    return u.words;
-  }
-  // Fallback when ProjectView lacks word timings: one synthetic token.
-  return [
-    {
-      text: u.text,
-      start: u.start,
-      end: u.end,
-      timeline_start: u.timeline_start,
-      timeline_end: u.timeline_end,
-      mappable: u.mappable,
-    },
-  ];
-}
 
 function transcriptWordExists(
   utterances: readonly CombinedUtterance[],
@@ -135,7 +124,13 @@ export function TranscriptPanel() {
           activeRef.current = el;
         }
       : undefined;
-  const programmaticScrollRef = useRef(false);
+  const { handlers: scrollIntentHandlers, isUserScroll } =
+    useUserScrollIntent();
+  /** Playhead at which a scroll request won over follow (until it moves). */
+  const followHoldRef = useRef<{ sec: number; follow: boolean } | null>(null);
+  const [focusedTurnIndex, setFocusedTurnIndex] = useState(-1);
+  /** Last scroll-request target; stays mounted until the list range catches up. */
+  const [requestTurnIndex, setRequestTurnIndex] = useState(-1);
   const viewAnchorRafRef = useRef<number | null>(null);
   const clickTimerRef = useRef<number | null>(null);
   const rangeAnchorRef = useRef<number | null>(null);
@@ -286,6 +281,67 @@ export function TranscriptPanel() {
     () => groupConsecutiveSpeakerTurns(utterances),
     [utterances],
   );
+  const activeIndex = useMemo(
+    () => findActiveUtteranceIndex(utterances, playheadSec),
+    [utterances, playheadSec],
+  );
+  const activeTurnIndex = useMemo(
+    () => findTurnIndexForUtterance(turns, activeIndex),
+    [activeIndex, turns],
+  );
+  const selectedAnchor =
+    selection?.kind === "transcriptWord"
+      ? presenceAnchor(
+          "transcript",
+          "word",
+          selection.trackId,
+          selection.wordIndex,
+        )
+      : selection?.kind === "transcriptRange"
+        ? presenceAnchor(
+            "transcript",
+            "word",
+            selection.trackId,
+            selection.startWordIndex,
+          )
+        : null;
+  // Pinned turns stay mounted when virtualized: follow and scroll requests
+  // always find their element, and focus/selection survive scrolling away.
+  const pinnedTurns = useMemo(
+    () =>
+      [
+        activeTurnIndex,
+        focusedTurnIndex,
+        selectedAnchor ? transcriptAnchorTurnIndex(turns, selectedAnchor) : -1,
+        transcriptScrollRequest
+          ? transcriptAnchorTurnIndex(turns, transcriptScrollRequest)
+          : requestTurnIndex,
+      ].filter((i) => i >= 0),
+    [
+      activeTurnIndex,
+      focusedTurnIndex,
+      requestTurnIndex,
+      selectedAnchor,
+      transcriptScrollRequest,
+      turns,
+    ],
+  );
+  const {
+    virtualized,
+    items: virtualItems,
+    totalSize,
+    measureElement,
+  } = useVirtualTurns(listRef, turns, pinnedTurns);
+  const renderList = virtualized
+    ? virtualItems.map((virtualItem) => ({
+        turn: turns[virtualItem.index]!,
+        turnIndex: virtualItem.index,
+        virtualItem,
+      }))
+    : turns.map((turn, turnIndex) => ({ turn, turnIndex, virtualItem: null }));
+  /** Re-center when rows above the active turn get measured and shift it. */
+  const activeTurnStart =
+    virtualItems.find((item) => item.index === activeTurnIndex)?.start ?? null;
   const boundaryMarksByTurn = useMemo(() => {
     if (!transcriptAnnotate || editBoundaries.length === 0) {
       return null;
@@ -303,8 +359,6 @@ export function TranscriptPanel() {
       placeEditBoundaries(placementTurns, editBoundaries),
     );
   }, [transcriptAnnotate, editBoundaries, turns]);
-  const activeIndex = findActiveUtteranceIndex(utterances, playheadSec);
-
   const renderBoundaryMarks = (
     turnIndex: number,
     afterWordIndex: number,
@@ -330,24 +384,32 @@ export function TranscriptPanel() {
   };
 
   useEffect(() => {
-    if (!transcriptFollowPlayhead || activeIndex < 0) {
+    if (!transcriptFollowPlayhead) {
+      followHoldRef.current = null;
+      return;
+    }
+    const hold = followHoldRef.current;
+    if (hold?.follow && hold.sec === playheadSec) {
+      // A scroll request (e.g. leader jump) wins until the playhead moves.
+      return;
+    }
+    followHoldRef.current = null;
+    if (activeIndex < 0) {
       return;
     }
     const root = listRef.current;
     const el = activeRef.current;
-    if (!root || !el) {
+    if (!root || !el || !root.contains(el)) {
       return;
     }
-    programmaticScrollRef.current = true;
     scrollChildIntoParent(root, el, 0.5);
-    const unlock = window.setTimeout(() => {
-      programmaticScrollRef.current = false;
-    }, 80);
-    return () => {
-      window.clearTimeout(unlock);
-      programmaticScrollRef.current = false;
-    };
-  }, [playheadSec, utterances, transcriptFollowPlayhead, activeIndex]);
+  }, [
+    activeIndex,
+    activeTurnStart,
+    playheadSec,
+    transcriptFollowPlayhead,
+    utterances,
+  ]);
 
   const publishViewAnchor = useCallback(() => {
     const list = listRef.current;
@@ -396,26 +458,41 @@ export function TranscriptPanel() {
     if (!transcriptScrollRequest) {
       return;
     }
+    // One attempt per request: the target turn is pinned (mounted) in this
+    // render, so an unresolvable anchor is dropped instead of retried.
+    setTranscriptScrollRequest(null);
     const root = listRef.current;
     if (!root) {
-      setTranscriptScrollRequest(null);
       return;
     }
-    const el = resolvePresenceAnchor(root, transcriptScrollRequest);
-    setTranscriptScrollRequest(null);
+    const targetTurn = transcriptAnchorTurnIndex(
+      turns,
+      transcriptScrollRequest,
+    );
+    setRequestTurnIndex(targetTurn);
+    const el =
+      resolvePresenceAnchor(root, transcriptScrollRequest) ??
+      (targetTurn >= 0
+        ? resolvePresenceAnchor(
+            root,
+            presenceAnchor("transcript", "turn", targetTurn),
+          )
+        : null);
     if (!el) {
       return;
     }
-    programmaticScrollRef.current = true;
-    scrollChildIntoParent(root, el, 0.2);
-    const unlock = window.setTimeout(() => {
-      programmaticScrollRef.current = false;
-    }, 80);
-    return () => {
-      window.clearTimeout(unlock);
-      programmaticScrollRef.current = false;
+    followHoldRef.current = {
+      sec: playheadSec,
+      follow: transcriptFollowPlayhead,
     };
-  }, [transcriptScrollRequest, setTranscriptScrollRequest]);
+    scrollChildIntoParent(root, el, 0.2);
+  }, [
+    playheadSec,
+    transcriptFollowPlayhead,
+    transcriptScrollRequest,
+    setTranscriptScrollRequest,
+    turns,
+  ]);
 
   if (!allUtterances.length) {
     return <p style={{ color: "var(--text-dim)" }}>No combined transcript.</p>;
@@ -543,9 +620,27 @@ export function TranscriptPanel() {
         </div>
       ) : null}
       <div
-        className="transcript-list"
+        className={`transcript-list${virtualized ? " is-virtualized" : ""}`}
         ref={listRef}
+        {...(virtualized
+          ? {
+              role: "list",
+              "aria-label": `Transcript, ${turns.length} turns`,
+            }
+          : {})}
+        {...scrollIntentHandlers}
+        onFocus={(e) => {
+          const turnEl = (e.target as Element).closest("[data-turn-index]");
+          const idx = Number(turnEl?.getAttribute("data-turn-index") ?? -1);
+          setFocusedTurnIndex(Number.isInteger(idx) ? idx : -1);
+        }}
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+            setFocusedTurnIndex(-1);
+          }
+        }}
         onPointerDown={(event) => {
+          scrollIntentHandlers.onPointerDown(event);
           const word =
             canCorrect && event.target instanceof Element
               ? event.target.closest<HTMLElement>("[data-transcript-word]")
@@ -569,7 +664,9 @@ export function TranscriptPanel() {
         onPointerCancel={transcriptLongPress.onPointerCancel}
         onScroll={() => {
           scheduleViewAnchor();
-          if (programmaticScrollRef.current) {
+          // Only wheel / touch / scrollbar / scroll-key input unlocks follow;
+          // follow centering and virtualizer re-measure writes never do.
+          if (!isUserScroll()) {
             return;
           }
           if (transcriptFollowPlayhead) {
@@ -580,7 +677,14 @@ export function TranscriptPanel() {
           }
         }}
       >
-        {turns.map((turn, turnIndex) => {
+        {virtualized && (
+          <div
+            className="transcript-virtual-spacer"
+            aria-hidden="true"
+            style={{ height: totalSize }}
+          />
+        )}
+        {renderList.map(({ turn, turnIndex, virtualItem }) => {
           const lead = turn.utterances[0];
           const blockSeek = turnSeekSec(turn);
           const labelSec = blockSeek ?? lead.start;
@@ -593,8 +697,22 @@ export function TranscriptPanel() {
           let flatWordIndex = 0;
           return (
             <div
-              key={`${turn.trackId}-${lead.start}-${turn.startIndex}`}
+              key={turnKey(turn)}
               className={`utterance-turn${turnHasActive ? " active" : ""}${turnAllUnmapped ? " unmapped" : ""}`}
+              ref={virtualItem ? measureElement : undefined}
+              style={
+                virtualItem
+                  ? { transform: `translateY(${virtualItem.start}px)` }
+                  : undefined
+              }
+              {...(virtualItem
+                ? {
+                    role: "listitem",
+                    "aria-setsize": turns.length,
+                    "aria-posinset": turnIndex + 1,
+                  }
+                : {})}
+              data-index={virtualItem?.index}
               data-turn-index={turnIndex}
               {...presenceAnchorProps(
                 presenceAnchor("transcript", "turn", turnIndex),
@@ -672,20 +790,12 @@ export function TranscriptPanel() {
                           wordIndex != null) ||
                         wSeek != null;
                       const wordAnchor = presenceAnchorProps(
-                        wordIndex != null
-                          ? presenceAnchor(
-                              "transcript",
-                              "word",
-                              u.track_id,
-                              wordIndex,
-                            )
-                          : presenceAnchor(
-                              "transcript",
-                              "turn",
-                              turnIndex,
-                              "w",
-                              afterWordIndex,
-                            ),
+                        transcriptWordAnchor(
+                          turnIndex,
+                          u.track_id,
+                          wordIndex,
+                          afterWordIndex,
+                        ),
                       );
                       const cutAwayTip = cutAwayChip
                         ? capabilityTooltip("daw.view.cutAwayWord")
