@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import base64
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -167,21 +166,10 @@ def test_build_shares_no_project():
     assert client._build_shares() == []
 
 
-def test_build_shares_with_project(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    from podcast_mcp.edits.review_shares import create_share
+def test_build_shares_with_project(minimal_project, published_share):
     from podcast_mcp.edits.share_capabilities import DEFAULT_CAPABILITIES
-    from podcast_mcp.models import load_project
-    from podcast_mcp.services import ProjectWorkspace, ReviewService
 
-    ws = ProjectWorkspace.open(minimal_project)
-    premix = Path(ws.project.workspace_dir) / "artifacts" / "premix.wav"
-    premix.parent.mkdir(parents=True, exist_ok=True)
-    premix.write_bytes(sample_wav.read_bytes())
-    ver = ReviewService(ws).publish(label="test")
-
-    # Reload project so it has the published version before creating the share
-    proj = load_project(minimal_project)
-    create_share(proj, review_version_id=ver["id"], capabilities=[])
+    published_share(capabilities=[], label="test")
 
     cfg = RelayConfig()
     tc = TunnelClient(cfg, project_path=minimal_project)
@@ -192,20 +180,12 @@ def test_build_shares_with_project(minimal_project, sample_wav, tmp_workspace, m
     assert "mcp" not in shares[0]["capabilities"]
 
 
-def test_build_shares_skips_revoked(minimal_project, sample_wav, tmp_workspace):
-    from podcast_mcp.edits.review_shares import create_share, revoke_share
-    from podcast_mcp.models import load_project
-    from podcast_mcp.services import ProjectWorkspace, ReviewService
+def test_build_shares_skips_revoked(minimal_project, published_share):
+    from podcast_mcp.edits.review_shares import revoke_share
+    from podcast_mcp.edits.share_capabilities import DEFAULT_CAPABILITIES
 
-    ws = ProjectWorkspace.open(minimal_project)
-    premix = Path(ws.project.workspace_dir) / "artifacts" / "premix.wav"
-    premix.parent.mkdir(parents=True, exist_ok=True)
-    premix.write_bytes(sample_wav.read_bytes())
-    ver = ReviewService(ws).publish(label="test2")
-
-    proj = load_project(minimal_project)
-    row = create_share(proj, review_version_id=ver["id"])
-    revoke_share(proj, row["token"])
+    ws, _, row = published_share(capabilities=list(DEFAULT_CAPABILITIES), label="test2")
+    revoke_share(ws.project, row["token"])
 
     cfg = RelayConfig()
     tc = TunnelClient(cfg, project_path=minimal_project)

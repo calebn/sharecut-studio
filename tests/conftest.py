@@ -2,13 +2,18 @@ from __future__ import annotations
 
 import os
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from podcast_mcp.config import repo_root
+from podcast_mcp.edits.review_shares import create_share
+from podcast_mcp.edits.share_capabilities import ALL_CAPABILITIES
 from podcast_mcp.edits.share_registry import reset_share_registry_for_tests
-from podcast_mcp.models import EpisodeProject, save_project
+from podcast_mcp.models import EpisodeProject, load_project, save_project
+from podcast_mcp.services import ProjectWorkspace, ReviewService
 from podcast_mcp.services.remote_mcp.limits import reset_host_limiters_for_tests
 from podcast_mcp.util import object_store as object_store_util
 
@@ -175,3 +180,29 @@ def minimal_project(tmp_workspace: Path, sample_wav: Path) -> Path:
     project = EpisodeProject.create("test_episode", str(tmp_workspace))
     project.ensure_dirs()
     return save_project(project)
+
+
+@pytest.fixture
+def published_share(
+    minimal_project: Path, sample_wav: Path
+) -> Callable[..., tuple[ProjectWorkspace, dict[str, Any], dict[str, Any]]]:
+    """Publish a premix-backed review version and mint a share for a test."""
+
+    def make_share(
+        *, capabilities: list[str] | None = None, label: str = "test"
+    ) -> tuple[ProjectWorkspace, dict[str, Any], dict[str, Any]]:
+        project = load_project(minimal_project)
+        premix = Path(project.workspace_dir) / "artifacts" / "premix.wav"
+        premix.parent.mkdir(parents=True, exist_ok=True)
+        premix.write_bytes(sample_wav.read_bytes())
+        save_project(project, minimal_project)
+        ws = ProjectWorkspace.open(minimal_project)
+        version = ReviewService(ws).publish(label=label)
+        share = create_share(
+            ws.project,
+            review_version_id=version["id"],
+            capabilities=list(ALL_CAPABILITIES) if capabilities is None else capabilities,
+        )
+        return ws, version, share
+
+    return make_share
