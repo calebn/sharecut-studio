@@ -261,7 +261,7 @@ export function importsStorybook(text: string): boolean {
   return importSpecifiers(text).some((s) => STORYBOOK_PACKAGE_RE.test(s));
 }
 
-const STORY_TITLE_RE = /^(?:Atoms|Molecules|Organisms|Templates)\/[^/]+$/;
+const STORY_TITLE_RE = /^(?:Atoms|Molecules|Organisms|Templates)\/[^/\s][^/]*$/;
 
 /** Return a reason when the default-exported story metadata lacks a tier title. */
 export function storyTitleViolation(text: string): string | null {
@@ -292,22 +292,32 @@ export function storyTitleViolation(text: string): string | null {
     return "missing default-exported metadata";
   }
   let metadata: unknown = exported.declaration;
-  if (isNode(metadata) && metadata.type === "Identifier") {
-    metadata = declarations.get(metadata.name as string);
-  }
-  while (
-    isNode(metadata) &&
-    (metadata.type === "TSAsExpression" ||
+  const seen = new Set<string>();
+  while (isNode(metadata)) {
+    if (metadata.type === "Identifier") {
+      const name = metadata.name as string;
+      if (seen.has(name)) break;
+      seen.add(name);
+      metadata = declarations.get(name);
+    } else if (
+      metadata.type === "TSAsExpression" ||
       metadata.type === "TSSatisfiesExpression" ||
-      metadata.type === "TSTypeAssertion")
-  ) {
-    metadata = metadata.expression;
+      metadata.type === "TSTypeAssertion"
+    ) {
+      metadata = metadata.expression;
+    } else {
+      break;
+    }
   }
   if (!isNode(metadata) || metadata.type !== "ObjectExpression") {
     return "default export must be a local metadata object";
   }
-  const title = (metadata.properties as unknown[]).find((property) => {
-    if (!isNode(property) || property.type !== "ObjectProperty") return false;
+  const isTitle = (property: unknown): boolean => {
+    if (
+      !isNode(property) ||
+      (property.type !== "ObjectProperty" && property.type !== "ObjectMethod")
+    )
+      return false;
     const key = property.key;
     return (
       !property.computed &&
@@ -315,13 +325,29 @@ export function storyTitleViolation(text: string): string | null {
       ((key.type === "Identifier" && key.name === "title") ||
         (key.type === "StringLiteral" && key.value === "title"))
     );
-  });
+  };
+  const properties = metadata.properties as unknown[];
+  const titleIndex = properties.findIndex(isTitle);
+  const title = properties[titleIndex];
   if (
     !isNode(title) ||
     !isNode(title.value) ||
     title.value.type !== "StringLiteral"
   ) {
     return "metadata title must be a string literal";
+  }
+  if (
+    properties
+      .slice(titleIndex + 1)
+      .some(
+        (property) =>
+          !isNode(property) ||
+          property.type === "SpreadElement" ||
+          property.computed === true ||
+          isTitle(property),
+      )
+  ) {
+    return "metadata title may be overridden by a later property";
   }
   const value = title.value.value;
   if (
