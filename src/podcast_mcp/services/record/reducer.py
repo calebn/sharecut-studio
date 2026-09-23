@@ -59,6 +59,14 @@ def _note_take_consent(take: TakeState, participant_id: str, *, accepted: bool) 
         ids.remove(participant_id)
 
 
+def _note_take_consent_if_live(
+    snap: RecordSnapshot, person: ParticipantState, *, accepted: bool
+) -> None:
+    """Update the current take's roster when a recorded participant's consent changes mid-take."""
+    if snap.state in ("recording", "paused") and person.role in RECORDED_ROLES:
+        _note_take_consent(_current_take(snap), person.participant_id, accepted=accepted)
+
+
 def _host_live(snap: RecordSnapshot) -> bool:
     person = find_participant(snap, HOST_PARTICIPANT_ID)
     return person is not None and person.connected and not person.removed
@@ -206,8 +214,7 @@ def apply_record_command(
         accepted = bool(cmd.payload.get("accepted"))
         person.consented = accepted
         person.consented_wall_ms = now_wall_ms
-        if out.state in ("recording", "paused") and person.role in RECORDED_ROLES:
-            _note_take_consent(_current_take(out), person.participant_id, accepted=accepted)
+        _note_take_consent_if_live(out, person, accepted=accepted)
         return out
     if ctype == "SetMuted":
         person = _require_self(out, cmd)
@@ -282,7 +289,6 @@ def apply_record_command(
         target.connected = False
         target.consented = None
         target.removed = True
-        if out.state in ("recording", "paused") and target.role in RECORDED_ROLES:
-            _note_take_consent(_current_take(out), target.participant_id, accepted=False)
+        _note_take_consent_if_live(out, target, accepted=False)
         return out
     raise ValueError(f"unknown record command type: {ctype}")
