@@ -2,11 +2,14 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
+import { seedPendingKeeper } from "../test/keepers";
 import { urlOf } from "../test/urlOf";
 import {
   createOpfsSink,
+  keeperMetaPath,
   MemorySink,
   OpfsUnavailableError,
+  parseKeeperMeta,
 } from "./keeper/store";
 import { MIC_ALLOW_LABEL } from "./micPermission";
 import { RecordApp } from "./RecordApp";
@@ -15,6 +18,7 @@ import {
   DECLINED_COPY,
   FULL_ROOM_COPY,
   ROOM_TONE_PROMPT_COPY,
+  UPLOAD_SINK_ERROR_COPY,
 } from "./types";
 
 const closeGuardSpy = vi.hoisted(() => vi.fn());
@@ -520,6 +524,113 @@ describe("RecordApp", () => {
     await userEvent.click(screen.getByRole("button", { name: "Skip" }));
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Accept" })).toBeEnabled();
+    });
+  });
+
+  describe("partial keeper recovery", () => {
+    function stubUploadFetch() {
+      const puts: string[] = [];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = urlOf(input);
+          if (url.includes("/bootstrap")) {
+            return new Response(
+              JSON.stringify({
+                ...guestBootstrap,
+                build: { capture: false, monitor: false, upload: true },
+              }),
+              { status: 200 },
+            );
+          }
+          if (url.includes("/upload")) {
+            if (init?.method === "POST") {
+              puts.push(url);
+              return new Response(
+                JSON.stringify({
+                  acked: true,
+                  take_index: 0,
+                  participant_id: "p_g",
+                  segment_index: 0,
+                  part_seq: 0,
+                  file_ack: true,
+                }),
+                { status: 200 },
+              );
+            }
+            return new Response(JSON.stringify({ segments: [] }), {
+              status: 200,
+            });
+          }
+          return new Response("not found", { status: 404 });
+        }),
+      );
+      return puts;
+    }
+
+    async function renderStoppedRoom(sink: MemorySink) {
+      vi.mocked(createOpfsSink).mockResolvedValue(sink);
+      const view = render(<RecordApp token="guest-tok" />);
+      await screen.findByText(CONSENT_COPY);
+      sockets[0]?.onmessage?.({
+        data: JSON.stringify({
+          plane: "record",
+          type: "Snapshot",
+          snapshot: {
+            ...guestSnap,
+            state: "stopped",
+            take_index: 0,
+            start_blockers: [],
+            participants: [{ ...guestSnap.participants[0], consented: true }],
+          },
+        }),
+      });
+      return view;
+    }
+
+    it("recovers the guest keeper and uploads it on the next poll", async () => {
+      const puts = stubUploadFetch();
+      const sink = new MemorySink();
+      const wavPath = await seedPendingKeeper(sink, {
+        sessionId: "room1",
+        takeIndex: 0,
+        participantId: "p_g",
+      });
+      await renderStoppedRoom(sink);
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Recover partial take" }),
+      );
+      expect(
+        await screen.findByText(/Recovered 1 partial segment/),
+      ).toBeInTheDocument();
+      expect(
+        parseKeeperMeta(await sink.read(keeperMetaPath(wavPath)))?.complete,
+      ).toBe(true);
+      await waitFor(() => expect(puts.length).toBeGreaterThan(0));
+    });
+
+    it("keeps a failed recovery out of the storage error channel", async () => {
+      stubUploadFetch();
+      const sink = new MemorySink();
+      await seedPendingKeeper(sink, {
+        sessionId: "room1",
+        takeIndex: 0,
+        participantId: "p_g",
+      });
+      sink.rewriteHeader = async () => {
+        throw new Error("locked by another tab");
+      };
+      await renderStoppedRoom(sink);
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Recover partial take" }),
+      );
+      expect(
+        await screen.findByText(/locked by another tab/),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(UPLOAD_SINK_ERROR_COPY)).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: /Retry local backup/ }),
+      ).toBeNull();
     });
   });
 

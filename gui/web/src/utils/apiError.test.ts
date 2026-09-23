@@ -1,10 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
   ApiError,
+  errorMessage,
   isClientRejection,
   readApiFailure,
   TRANSCRIPT_REFINE_REQUIRED_CODE,
 } from "./apiError";
+
+describe("errorMessage", () => {
+  it("uses an Error's message and stringifies anything else", () => {
+    expect(errorMessage(new Error("disk full"))).toBe("disk full");
+    expect(errorMessage("plain")).toBe("plain");
+    expect(errorMessage(42)).toBe("42");
+  });
+});
 
 describe("readApiFailure", () => {
   it("retains the stable code and human-readable message", async () => {

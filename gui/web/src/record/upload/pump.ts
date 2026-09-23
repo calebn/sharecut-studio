@@ -1,9 +1,12 @@
 import { keeperPcmParts, sha256Hex } from "./chunker";
 import type { RecordUploadTransport } from "./transport";
 
+/**
+ * Upload a finalized keeper WAV. Pending (still-open or abandoned) segments are
+ * never uploaded; they must be finalized or recovered first.
+ */
 export async function uploadKeeperWav(args: {
   wav: Uint8Array;
-  complete: boolean;
   takeIndex: number;
   segmentIndex: number;
   transport: RecordUploadTransport;
@@ -31,8 +34,8 @@ export async function uploadKeeperWav(args: {
       landFailed: args.landFailed === true,
     };
   }
-  const parts = keeperPcmParts(args.wav, args.complete);
-  if (args.complete && parts.length === 0) {
+  const parts = keeperPcmParts(args.wav);
+  if (parts.length === 0) {
     throw new Error(
       "No audio was captured for this take. Resume the upload or download the local keeper copy.",
     );
@@ -41,14 +44,14 @@ export async function uploadKeeperWav(args: {
   let fileAck = false;
   let landed = false;
   let landFailed = false;
-  const fileSha = args.complete ? await sha256Hex(args.wav) : undefined;
+  const fileSha = await sha256Hex(args.wav);
   for (let partSeq = 0; partSeq < parts.length; partSeq += 1) {
     args.signal?.throwIfAborted?.();
     const data = parts[partSeq];
     if (!data) {
       continue;
     }
-    const final = args.complete && partSeq === parts.length - 1;
+    const final = partSeq === parts.length - 1;
     if (acked.has(partSeq) && !final) {
       continue;
     }
@@ -63,7 +66,7 @@ export async function uploadKeeperWav(args: {
       final,
       joinOffsetMs: args.joinOffsetMs,
       kind: args.kind,
-      expectedParts: args.complete ? parts.length : undefined,
+      expectedParts: parts.length,
       signal: args.signal,
     });
     acked.add(partSeq);

@@ -32,8 +32,9 @@ import {
   shouldApplyRecordSnapshot,
 } from "./types";
 import { UploadStatus } from "./UploadStatus";
-import { downloadLocalKeepers } from "./upload/recovery";
+import { useKeeperRecoveryActions } from "./upload/useKeeperRecoveryActions";
 import {
+  keeperCaptureSettled,
   leaveBlocked,
   useHostUploadSegments,
   useRecordUpload,
@@ -105,7 +106,6 @@ export function RecordPanel({
   const [transportBusy, setTransportBusy] = useState(false);
   const sink = useRecordHostStore((s) => s.keeperSink);
   const sinkError = useRecordHostStore((s) => s.keeperStorageError);
-  const [downloadError, setDownloadError] = useState<string | null>(null);
   const [uploadRetryNonce, setUploadRetryNonce] = useState(0);
   useEffect(() => {
     void prepareHostKeeperStorage().catch(() => undefined);
@@ -119,10 +119,15 @@ export function RecordPanel({
     () => (projectPath ? hostRecordUploadTransport(projectPath) : null),
     [projectPath],
   );
+  const captureSettled = keeperCaptureSettled({
+    recordingLocally,
+    finalizing: keeperFinalizing,
+    error: keeperError ?? null,
+  });
   const upload = useRecordUpload({
     enabled: !!snapshot,
     roomState: snapshot?.state,
-    captureSettled: !recordingLocally && !keeperFinalizing,
+    captureSettled,
     sessionId: snapshot?.session_id ?? null,
     takeIndex: snapshot?.take_index ?? 0,
     participantId: "p_host",
@@ -130,6 +135,14 @@ export function RecordPanel({
     sink,
     captureExpected: stream != null,
     retryNonce: uploadRetryNonce,
+  });
+  const keeperActions = useKeeperRecoveryActions({
+    sink,
+    sessionId: snapshot?.session_id ?? null,
+    participantId: "p_host",
+    takeIndex: snapshot?.take_index ?? null,
+    recoverAllowed: state === "stopped" && captureSettled,
+    onRecovered: () => setUploadRetryNonce((value) => value + 1),
   });
   const roomToneEnabled =
     !!snapshot && (snapshot.state === "lobby" || snapshot.state === "stopped");
@@ -252,22 +265,7 @@ export function RecordPanel({
             progress={upload}
             stopped={state === "stopped"}
             onResume={() => setUploadRetryNonce((value) => value + 1)}
-            onDownload={
-              sink && snapshot
-                ? () => {
-                    void downloadLocalKeepers(
-                      sink,
-                      snapshot.session_id,
-                      "p_host",
-                      snapshot.take_index,
-                    ).catch((error: unknown) => {
-                      setDownloadError(
-                        error instanceof Error ? error.message : String(error),
-                      );
-                    });
-                  }
-                : undefined
-            }
+            actions={keeperActions}
           />
           {snapshot ? (
             <HostUploadRoster
@@ -311,9 +309,6 @@ export function RecordPanel({
                 Retry local backup
               </Button>
             </>
-          ) : null}
-          {downloadError ? (
-            <p className="record-warn">{downloadError}</p>
           ) : null}
           {monitorError ? <p className="record-warn">{monitorError}</p> : null}
           {hydrateError ? <p className="record-warn">{hydrateError}</p> : null}

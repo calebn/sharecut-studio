@@ -8,6 +8,13 @@ import {
   uploadProgressCopy,
 } from "./types";
 import { UploadStatus } from "./UploadStatus";
+import type { KeeperRecoveryActions } from "./upload/useKeeperRecoveryActions";
+
+function keeperActions(
+  overrides: Partial<KeeperRecoveryActions> = {},
+): KeeperRecoveryActions {
+  return { busy: false, error: null, notice: null, ...overrides };
+}
 
 describe("UploadStatus", () => {
   it("shows chunk progress until file ACK, then landed copy", () => {
@@ -23,6 +30,7 @@ describe("UploadStatus", () => {
           reclaimFailed: false,
           uploading: true,
           pending: false,
+          recoverable: false,
           error: null,
         }}
       />,
@@ -40,6 +48,7 @@ describe("UploadStatus", () => {
           reclaimFailed: false,
           uploading: false,
           pending: false,
+          recoverable: false,
           error: null,
         }}
       />,
@@ -60,6 +69,7 @@ describe("UploadStatus", () => {
           reclaimFailed: true,
           uploading: false,
           pending: false,
+          recoverable: false,
           error: null,
         }}
       />,
@@ -82,6 +92,7 @@ describe("UploadStatus", () => {
           reclaimFailed: false,
           uploading: false,
           pending: true,
+          recoverable: false,
           error: null,
         }}
       />,
@@ -103,6 +114,7 @@ describe("UploadStatus", () => {
           reclaimFailed: false,
           uploading: false,
           pending: false,
+          recoverable: false,
           error: null,
         }}
       />,
@@ -124,6 +136,7 @@ describe("UploadStatus", () => {
           reclaimFailed: false,
           uploading: false,
           pending: false,
+          recoverable: false,
           error: null,
         }}
       />,
@@ -140,7 +153,7 @@ describe("UploadStatus", () => {
       <UploadStatus
         stopped
         onResume={onResume}
-        onDownload={onDownload}
+        actions={keeperActions({ download: onDownload })}
         progress={{
           acked: 1,
           total: 3,
@@ -150,6 +163,7 @@ describe("UploadStatus", () => {
           reclaimFailed: false,
           uploading: false,
           pending: false,
+          recoverable: false,
           error: null,
         }}
       />,
@@ -168,7 +182,7 @@ describe("UploadStatus", () => {
       <UploadStatus
         stopped
         onResume={() => undefined}
-        onDownload={() => undefined}
+        actions={keeperActions({ download: () => undefined })}
         progress={{
           acked: 0,
           total: 0,
@@ -178,6 +192,7 @@ describe("UploadStatus", () => {
           reclaimFailed: false,
           uploading: false,
           pending: false,
+          recoverable: false,
           error: "No audio was captured for this take.",
         }}
       />,
@@ -189,5 +204,119 @@ describe("UploadStatus", () => {
     expect(
       screen.getByRole("button", { name: "Download local keeper" }),
     ).toBeInTheDocument();
+  });
+
+  it("offers partial recovery only for a stopped, recoverable keeper", async () => {
+    const onRecover = vi.fn();
+    const progress = {
+      acked: 0,
+      total: 0,
+      fileAck: false,
+      landed: false,
+      landFailed: false,
+      reclaimFailed: false,
+      uploading: false,
+      pending: false,
+      recoverable: true,
+      error: "A readable partial keeper was retained.",
+    };
+    const { container, rerender } = render(
+      <UploadStatus
+        stopped
+        progress={progress}
+        actions={keeperActions({ recover: onRecover })}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Recover partial take" }),
+    );
+    expect(onRecover).toHaveBeenCalledOnce();
+    await expectNoA11yViolations(container);
+    rerender(
+      <UploadStatus
+        stopped={false}
+        progress={progress}
+        actions={keeperActions({ recover: onRecover })}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Recover partial take" }),
+    ).toBeNull();
+    rerender(
+      <UploadStatus
+        stopped
+        progress={{ ...progress, recoverable: false }}
+        actions={keeperActions({ recover: onRecover })}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Recover partial take" }),
+    ).toBeNull();
+  });
+
+  it("marks recovery busy without removing the focused control", async () => {
+    const recover = vi.fn();
+    const progress = {
+      acked: 0,
+      total: 0,
+      fileAck: false,
+      landed: false,
+      landFailed: false,
+      reclaimFailed: false,
+      uploading: false,
+      pending: false,
+      recoverable: true,
+      error: "A readable partial keeper was retained.",
+    };
+    const { container } = render(
+      <UploadStatus
+        stopped
+        progress={progress}
+        actions={keeperActions({ recover, busy: true })}
+      />,
+    );
+    const button = screen.getByRole("button", {
+      name: "Recovering partial take…",
+    });
+    expect(button).toHaveAttribute("aria-busy", "true");
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).not.toBeDisabled();
+    await expectNoA11yViolations(container);
+  });
+
+  it("announces keeper action results separately from upload state", async () => {
+    const progress = {
+      acked: 3,
+      total: 3,
+      fileAck: true,
+      landed: true,
+      landFailed: false,
+      reclaimFailed: false,
+      uploading: false,
+      pending: false,
+      recoverable: false,
+      error: null,
+    };
+    const { container, rerender } = render(
+      <UploadStatus
+        stopped
+        progress={progress}
+        actions={keeperActions({ notice: "Recovered 1 partial segment." })}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Recovered 1 partial segment.",
+    );
+    await expectNoA11yViolations(container);
+    rerender(
+      <UploadStatus
+        stopped
+        progress={progress}
+        actions={keeperActions({ error: "incomplete PCM frame" })}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "incomplete PCM frame",
+    );
   });
 });

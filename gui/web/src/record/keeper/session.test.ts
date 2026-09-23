@@ -12,6 +12,7 @@ import {
   keeperMetaPath,
   keeperWavPath,
   MemorySink,
+  parseKeeperMeta,
 } from "./store";
 
 const ids = { sessionId: "cool-room", participantId: "p_g" };
@@ -114,11 +115,10 @@ describe("KeeperSession", () => {
 
   it("latches metadata failures and recovers only on an active retry", async () => {
     const sink = new MemorySink();
-    let failMetadata = true;
+    let metadataWrites = 0;
     const originalWrite = sink.write.bind(sink);
     sink.write = async (path, bytes) => {
-      if (path.endsWith(".json") && failMetadata) {
-        failMetadata = false;
+      if (path.endsWith(".json") && metadataWrites++ === 1) {
         throw new Error("metadata failed");
       }
       await originalWrite(path, bytes);
@@ -354,7 +354,8 @@ describe("KeeperSession", () => {
     const staleMetaPath = keeperMetaPath(segmentPath(0));
     const originalWrite = sink.write.bind(sink);
     sink.write = async (path, bytes) => {
-      if (path === staleMetaPath) {
+      // Only the complete record stalls; the pending record at open lands.
+      if (path === staleMetaPath && parseKeeperMeta(bytes)?.complete === true) {
         await slowMetadata.promise;
         await originalWrite(path, bytes);
         landed.resolve();
@@ -489,7 +490,36 @@ describe("KeeperSession", () => {
     );
     expect(session.files).toHaveLength(0);
     expect(closes).toHaveBeenCalledTimes(1);
-    expect(sink.files.has(keeperMetaPath(segmentPath(0)))).toBe(false);
+    // Only the pending record exists, so the segment stays recoverable.
+    expect(
+      parseKeeperMeta(sink.files.get(keeperMetaPath(segmentPath(0))) ?? null)
+        ?.complete,
+    ).toBe(false);
+  });
+
+  it("fails capture when the pending metadata write stalls and never completes it", async () => {
+    vi.useFakeTimers();
+    const sink = new MemorySink();
+    const metaPath = keeperMetaPath(segmentPath(0));
+    const originalWrite = sink.write.bind(sink);
+    sink.write = async (path, bytes) => {
+      if (path === metaPath) {
+        await new Promise(() => undefined);
+      }
+      await originalWrite(path, bytes);
+    };
+    const session = new KeeperSession(sink, undefined, {
+      operationTimeoutMs: 10,
+    });
+    await session.apply(recordingGate());
+    session.push(tone(220, 0.01), KEEPER_SAMPLE_RATE);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(stallDetail(session)).toBe(
+      "keeper pending metadata write timed out after 10ms",
+    );
+    await session.dispose();
+    expect(session.files).toHaveLength(0);
+    expect(sink.files.has(metaPath)).toBe(false);
   });
 
   it.each([
@@ -663,6 +693,69 @@ describe("KeeperSession", () => {
     expect(sink.files.size).toBe(0);
   });
 
+  it("keeps capturing while the pending metadata write is slow", async () => {
+    const sink = new MemorySink();
+    const write = sink.write.bind(sink);
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    sink.write = async (path, bytes) => {
+      const meta = parseKeeperMeta(bytes);
+      if (meta?.complete === false) await gate;
+      await write(path, bytes);
+    };
+    const session = new KeeperSession(sink);
+    await session.apply({
+      ...ids,
+      role: "guest",
+      consented: true,
+      roomState: "recording",
+      takeIndex: 0,
+      recordingMs: 0,
+      streamAvailable: true,
+      muted: false,
+    });
+    expect(session.isWriting).toBe(true);
+    session.push(new Float32Array(480), KEEPER_SAMPLE_RATE);
+    await session.flush();
+    const wavPath = keeperWavPath({ ...ids, takeIndex: 0, segmentIndex: 0 });
+    const disposed = session.dispose();
+    release();
+    await disposed;
+    // The late pending write cannot overwrite the complete record.
+    const meta = parseKeeperMeta(sink.files.get(keeperMetaPath(wavPath))!);
+    expect(meta).toMatchObject({ complete: true, samplesWritten: 480 });
+  });
+
+  it("latches a failed pending metadata write without finalizing", async () => {
+    const sink = new MemorySink();
+    const write = sink.write.bind(sink);
+    sink.write = async (path, bytes) => {
+      if (parseKeeperMeta(bytes)?.complete === false) {
+        throw new Error("meta quota");
+      }
+      await write(path, bytes);
+    };
+    const failures: string[] = [];
+    const session = new KeeperSession(sink, (e) => failures.push(e.message));
+    await session.apply({
+      ...ids,
+      role: "guest",
+      consented: true,
+      roomState: "recording",
+      takeIndex: 0,
+      recordingMs: 0,
+      streamAvailable: true,
+      muted: false,
+    });
+    await session.dispose();
+    expect(failures).toEqual(["meta quota"]);
+    expect(session.files).toEqual([]);
+    const wavPath = keeperWavPath({ ...ids, takeIndex: 0, segmentIndex: 0 });
+    expect(sink.files.get(keeperMetaPath(wavPath))).toBeUndefined();
+  });
+
   it("encodes a 48 kHz 16-bit mono WAV for a recording segment", async () => {
     const sink = new MemorySink();
     const session = new KeeperSession(sink);
@@ -671,6 +764,10 @@ describe("KeeperSession", () => {
     await session.flush();
     const growing = sink.files.get(segmentPath(0));
     expect(growing?.byteLength).toBeGreaterThan(44);
+    const pendingMeta = JSON.parse(
+      new TextDecoder().decode(sink.files.get(keeperMetaPath(segmentPath(0)))!),
+    ) as { complete: boolean; joinOffsetMs: number };
+    expect(pendingMeta).toMatchObject({ complete: false, joinOffsetMs: 0 });
     await session.dispose();
     const wav = sink.files.get(segmentPath(0));
     expect(wav).toBeTruthy();
@@ -679,6 +776,10 @@ describe("KeeperSession", () => {
     expect(header.channels).toBe(1);
     expect(header.bitsPerSample).toBe(16);
     expect(session.files[0]?.samplesWritten).toBeGreaterThan(4000);
+    const completeMeta = JSON.parse(
+      new TextDecoder().decode(sink.files.get(keeperMetaPath(segmentPath(0)))!),
+    ) as { complete: boolean };
+    expect(completeMeta.complete).toBe(true);
   });
 
   it("writes zeros for a muted span without shortening the file", async () => {

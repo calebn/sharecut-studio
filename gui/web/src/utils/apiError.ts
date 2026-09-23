@@ -16,6 +16,11 @@ export class ApiError extends Error {
   }
 }
 
+/** User-facing message for any thrown value. */
+export function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 /** True for a 4xx the server answered: retrying the same request cannot succeed. */
 export function isClientRejection(error: unknown): boolean {
   return (

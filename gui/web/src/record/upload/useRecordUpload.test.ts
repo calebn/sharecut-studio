@@ -1,5 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { pcmWavHeader } from "../../audio/wavHeader";
+import { keeperMetaBytes, seedPendingKeeper } from "../../test/keepers";
 import {
   holdKeeperReclaim,
   KEEPER_RECLAIM_MAX_FAILURES,
@@ -10,11 +12,33 @@ import {
   keeperWavPath,
   MemorySink,
 } from "../keeper/store";
+import { recoverLocalKeepers } from "./recovery";
 import { memoryUploadTransport, type RecordUploadTransport } from "./transport";
-import { leaveBlocked, useRecordUpload } from "./useRecordUpload";
+import {
+  keeperCaptureSettled,
+  leaveBlocked,
+  useRecordUpload,
+} from "./useRecordUpload";
+
+function pendingMeta(
+  ids: { sessionId: string; takeIndex: number; participantId: string },
+  segmentIndex: number,
+): Uint8Array {
+  return new TextEncoder().encode(
+    JSON.stringify({
+      ...ids,
+      segmentIndex,
+      sampleRate: 48_000,
+      joinOffsetMs: 0,
+      samplesWritten: 0,
+      complete: false,
+    }),
+  );
+}
 
 function wavWithPcm(bytes: number): Uint8Array {
   const wav = new Uint8Array(44 + bytes);
+  wav.set(pcmWavHeader(bytes));
   wav.fill(7, 44);
   return wav;
 }
@@ -27,8 +51,18 @@ function sinkForTakes(): ByteSink {
     },
     async read(path: string) {
       if (path.endsWith(".json")) {
+        const parts = path.split("/");
         return new TextEncoder().encode(
-          JSON.stringify({ joinOffsetMs: path.includes("/1/") ? 2000 : 0 }),
+          JSON.stringify({
+            sessionId: parts[1],
+            takeIndex: Number(parts[2]),
+            participantId: parts[3],
+            segmentIndex: Number(parts[4]?.replace(/\.json$/, "")),
+            sampleRate: 48_000,
+            joinOffsetMs: path.includes("/1/") ? 2000 : 0,
+            samplesWritten: 4,
+            complete: true,
+          }),
         );
       }
       if (path.includes("/0/") || path.includes("/1/")) {
@@ -56,6 +90,51 @@ function sinkForTakes(): ByteSink {
 }
 
 describe("useRecordUpload", () => {
+  it("reports a metadata-only crash without pretending the missing PCM can upload", async () => {
+    const sink = new MemorySink();
+    const path = keeperWavPath({
+      sessionId: "room1",
+      takeIndex: 0,
+      participantId: "p_a",
+      segmentIndex: 0,
+    });
+    await sink.write(
+      keeperMetaPath(path),
+      new TextEncoder().encode(
+        JSON.stringify({
+          sessionId: "room1",
+          takeIndex: 0,
+          participantId: "p_a",
+          segmentIndex: 0,
+          sampleRate: 48_000,
+          joinOffsetMs: 0,
+          samplesWritten: 0,
+          complete: false,
+        }),
+      ),
+    );
+    const transport = memoryUploadTransport();
+    const { result, unmount } = renderHook(() =>
+      useRecordUpload({
+        enabled: true,
+        roomState: "stopped",
+        captureSettled: true,
+        sessionId: "room1",
+        takeIndex: 0,
+        participantId: "p_a",
+        transport,
+        sink,
+      }),
+    );
+    await waitFor(() =>
+      expect(result.current.error).toMatch(/no committed PCM/i),
+    );
+    expect(result.current.recoverable).toBe(false);
+    expect(result.current.uploading).toBe(false);
+    expect(leaveBlocked("stopped", result.current)).toBe(false);
+    unmount();
+  });
+
   it("does not confirm landing when no local segment exists", async () => {
     const nextSegmentIndex = vi.fn(async () => 0);
     const transport = memoryUploadTransport();
@@ -122,8 +201,19 @@ describe("useRecordUpload", () => {
     await sink.write(partialPath, wavWithPcm(8));
     await sink.write(completePath, wavWithPcm(8));
     await sink.write(
-      completePath.replace(/\.wav$/, ".json"),
-      new TextEncoder().encode(JSON.stringify({ joinOffsetMs: 4000 })),
+      keeperMetaPath(completePath),
+      new TextEncoder().encode(
+        JSON.stringify({
+          sessionId: "room1",
+          takeIndex: 0,
+          participantId: "p_a",
+          segmentIndex: 1,
+          sampleRate: 48_000,
+          joinOffsetMs: 4000,
+          samplesWritten: 4,
+          complete: true,
+        }),
+      ),
     );
     const transport = memoryUploadTransport();
     const { result, rerender, unmount } = renderHook(
@@ -140,12 +230,14 @@ describe("useRecordUpload", () => {
         }),
       { initialProps: { settled: false } },
     );
-    await waitFor(() => expect(result.current.uploading).toBe(true));
+    await waitFor(() => expect(result.current.pending).toBe(false));
+    // Stop is still finalizing: Leave stays held until capture settles.
+    expect(result.current.uploading).toBe(true);
     expect(leaveBlocked("stopped", result.current)).toBe(true);
 
     rerender({ settled: true });
     await waitFor(() =>
-      expect(result.current.error).toContain("incomplete local keeper"),
+      expect(result.current.error).toContain("no readable recovery metadata"),
     );
     expect(result.current.fileAck).toBe(false);
     expect(result.current.uploading).toBe(false);
@@ -255,7 +347,18 @@ describe("useRecordUpload", () => {
       },
       async read(path) {
         return path.endsWith("1.json")
-          ? new TextEncoder().encode(JSON.stringify({ joinOffsetMs: 0 }))
+          ? new TextEncoder().encode(
+              JSON.stringify({
+                sessionId: "room1",
+                takeIndex: 0,
+                participantId: "p_a",
+                segmentIndex: 1,
+                sampleRate: 48_000,
+                joinOffsetMs: 0,
+                samplesWritten: 4,
+                complete: true,
+              }),
+            )
           : path.endsWith(".json")
             ? null
             : wav;
@@ -354,8 +457,12 @@ describe("useRecordUpload", () => {
     });
     await sink.write(wavPath, wavWithPcm(8));
     await sink.write(
-      wavPath.replace(/\.wav$/, ".json"),
-      new TextEncoder().encode(JSON.stringify({ joinOffsetMs: 0 })),
+      keeperMetaPath(wavPath),
+      keeperMetaBytes({
+        sessionId: "room1",
+        takeIndex: 0,
+        participantId: "p_a",
+      }),
     );
     const transport = memoryUploadTransport();
     const { result, unmount } = renderHook(() =>
@@ -387,8 +494,12 @@ describe("useRecordUpload", () => {
     });
     await sink.write(wavPath, wavWithPcm(8));
     await sink.write(
-      wavPath.replace(/\.wav$/, ".json"),
-      new TextEncoder().encode(JSON.stringify({ joinOffsetMs: 0 })),
+      keeperMetaPath(wavPath),
+      keeperMetaBytes({
+        sessionId: "room1",
+        takeIndex: 0,
+        participantId: "p_a",
+      }),
     );
     const transport = memoryUploadTransport();
     const originalStatus = transport.status.bind(transport);
@@ -437,8 +548,13 @@ describe("useRecordUpload", () => {
       await sink.write(wavPath, wavWithPcm(8));
       if (segment === 0) {
         await sink.write(
-          wavPath.replace(/\.wav$/, ".json"),
-          new TextEncoder().encode("{}"),
+          keeperMetaPath(wavPath),
+          keeperMetaBytes({
+            sessionId: "room1",
+            takeIndex: take,
+            participantId: "p_a",
+            segmentIndex: segment,
+          }),
         );
       }
     }
@@ -509,7 +625,11 @@ describe("useRecordUpload", () => {
     await sink.write(wavPath, wavWithPcm(8));
     await sink.write(
       keeperMetaPath(wavPath),
-      new TextEncoder().encode(JSON.stringify({ complete: true })),
+      keeperMetaBytes({
+        sessionId: "room1",
+        takeIndex: 0,
+        participantId: "p_a",
+      }),
     );
     return wavPath;
   }
@@ -645,6 +765,122 @@ describe("useRecordUpload", () => {
   });
 });
 
+describe("useRecordUpload finalization and recovery", () => {
+  const ids = { sessionId: "room1", takeIndex: 0, participantId: "p_a" };
+
+  function render(sink: ByteSink, state: string, settled: boolean) {
+    const transport = memoryUploadTransport();
+    return renderHook(
+      ({ roomState, captureSettled }) =>
+        useRecordUpload({
+          enabled: true,
+          roomState,
+          captureSettled,
+          ...ids,
+          transport,
+          sink,
+        }),
+      { initialProps: { roomState: state, captureSettled: settled } },
+    );
+  }
+
+  it("holds Leave for a lone segment that Stop is still finalizing", async () => {
+    const sink = new MemorySink();
+    const path = keeperWavPath({ ...ids, segmentIndex: 0 });
+    await sink.write(path, wavWithPcm(8));
+    await sink.write(keeperMetaPath(path), pendingMeta(ids, 0));
+    const { result, rerender, unmount } = render(sink, "stopped", false);
+    await waitFor(() => expect(result.current.pending).toBe(false));
+    expect(result.current.total).toBe(0);
+    expect(result.current.error).toBeNull();
+    expect(leaveBlocked("stopped", result.current)).toBe(true);
+
+    rerender({ roomState: "stopped", captureSettled: true });
+    await waitFor(() => expect(result.current.recoverable).toBe(true));
+    expect(result.current.error).toMatch(/Recover it before uploading/);
+    expect(leaveBlocked("stopped", result.current)).toBe(false);
+    unmount();
+  });
+
+  it("uploads a recovered partial, reclaims it only after landing, and keeps its identity", async () => {
+    const sink = new MemorySink();
+    const path = await seedPendingKeeper(sink, ids, [1, 0, 2, 0, 3]);
+    const remove = vi.spyOn(sink, "remove");
+    const { result, rerender, unmount } = render(sink, "stopped", true);
+    await waitFor(() => expect(result.current.recoverable).toBe(true));
+    // Pending (complete:false) metadata never allows reclaim or upload.
+    expect(remove).not.toHaveBeenCalled();
+    expect(result.current.total).toBe(0);
+
+    await expect(
+      recoverLocalKeepers(sink, ids.sessionId, ids.participantId, 0),
+    ).resolves.toEqual({ recovered: 1, trimmed: 1 });
+    rerender({ roomState: "stopped", captureSettled: true });
+    await waitFor(() => expect(result.current.landed).toBe(true), {
+      timeout: 5_000,
+    });
+    await waitFor(() => expect(remove).toHaveBeenCalledWith(path));
+    expect(await sink.read(path)).toBeNull();
+    const meta = await sink.read(keeperMetaPath(path));
+    expect(JSON.parse(new TextDecoder().decode(meta!))).toMatchObject({
+      complete: true,
+      samplesWritten: 2,
+    });
+    expect(
+      await sink.nextSegmentIndex(ids.sessionId, 0, ids.participantId),
+    ).toBe(1);
+    await expect(
+      recoverLocalKeepers(sink, ids.sessionId, ids.participantId, 0),
+    ).resolves.toEqual({ recovered: 0, trimmed: 0 });
+    expect(result.current.error).toBeNull();
+    unmount();
+  });
+
+  it("never reads a pending WAV while the room is recording", async () => {
+    const sink = new MemorySink();
+    const path = keeperWavPath({ ...ids, segmentIndex: 0 });
+    await sink.write(path, wavWithPcm(8));
+    await sink.write(keeperMetaPath(path), pendingMeta(ids, 0));
+    const readBlob = vi.spyOn(sink, "readBlob");
+    const read = vi.spyOn(sink, "read");
+    const { result, unmount } = render(sink, "recording", false);
+    await waitFor(() => expect(result.current.pending).toBe(false));
+    expect(readBlob).not.toHaveBeenCalled();
+    expect(read.mock.calls.map(([p]) => p)).not.toContain(path);
+    expect(result.current).toMatchObject({ uploading: false, error: null });
+    unmount();
+  });
+
+  it("reports unrecoverable segments alongside a recoverable one", async () => {
+    const sink = new MemorySink();
+    const readable = keeperWavPath({ ...ids, segmentIndex: 0 });
+    const empty = keeperWavPath({ ...ids, segmentIndex: 1 });
+    await sink.write(readable, wavWithPcm(8));
+    await sink.write(keeperMetaPath(readable), pendingMeta(ids, 0));
+    await sink.write(empty, new Uint8Array());
+    await sink.write(keeperMetaPath(empty), pendingMeta(ids, 1));
+    const { result, unmount } = render(sink, "stopped", true);
+    await waitFor(() => expect(result.current.recoverable).toBe(true));
+    expect(result.current.error).toMatch(/Recover it before uploading/);
+    expect(result.current.error).toMatch(/no committed PCM/);
+    unmount();
+  });
+});
+
+describe("keeperCaptureSettled", () => {
+  it("settles once capture stops, or when finalization latched a failure", () => {
+    const idle = { recordingLocally: false, finalizing: false, error: null };
+    expect(keeperCaptureSettled(idle)).toBe(true);
+    expect(keeperCaptureSettled({ ...idle, recordingLocally: true })).toBe(
+      false,
+    );
+    expect(keeperCaptureSettled({ ...idle, finalizing: true })).toBe(false);
+    expect(
+      keeperCaptureSettled({ ...idle, finalizing: true, error: "disk full" }),
+    ).toBe(true);
+  });
+});
+
 describe("leaveBlocked", () => {
   it("holds Leave only while a stopped take is still uploading", () => {
     expect(leaveBlocked("stopped", undefined)).toBe(false);
@@ -658,6 +894,7 @@ describe("leaveBlocked", () => {
         reclaimFailed: false,
         uploading: false,
         pending: true,
+        recoverable: false,
         error: null,
       }),
     ).toBe(true);
@@ -671,6 +908,7 @@ describe("leaveBlocked", () => {
         reclaimFailed: false,
         uploading: false,
         pending: false,
+        recoverable: false,
         error: "fail",
       }),
     ).toBe(false);

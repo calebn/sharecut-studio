@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { keeperMetaBytes } from "../../test/keepers";
 import {
   canReclaimKeeperSegment,
   createKeeperReclaimTracker,
@@ -13,14 +14,11 @@ import { keeperMetaPath, MemorySink } from "./store";
 const WAV = "Sharecut Recordings/room1/0/p_a/0.wav";
 const landed = { file_ack: true, landed: true };
 
-async function seed(sink: MemorySink, meta: unknown = { joinOffsetMs: 0 }) {
+const IDS = { sessionId: "room1", takeIndex: 0, participantId: "p_a" };
+
+async function seed(sink: MemorySink, meta: Uint8Array | null = null) {
   await sink.write(WAV, new Uint8Array([1, 2, 3]));
-  if (meta !== null) {
-    await sink.write(
-      keeperMetaPath(WAV),
-      new TextEncoder().encode(JSON.stringify(meta)),
-    );
-  }
+  await sink.write(keeperMetaPath(WAV), meta ?? keeperMetaBytes(IDS));
 }
 
 describe("canReclaimKeeperSegment", () => {
@@ -57,10 +55,12 @@ describe("reclaimKeeperWav", () => {
 
   it.each([
     ["absent", null],
-    ["pending (complete:false)", { complete: false }],
+    ["pending (complete:false)", keeperMetaBytes(IDS, false)],
+    ["unreadable (a torn pending record)", new Uint8Array([123])],
   ])("keeps the WAV when metadata is %s", async (_label, meta) => {
     const sink = new MemorySink();
-    await seed(sink, meta);
+    await sink.write(WAV, new Uint8Array([1, 2, 3]));
+    if (meta) await sink.write(keeperMetaPath(WAV), meta);
     const tracker = createKeeperReclaimTracker();
     expect(await reclaimKeeperWav(sink, WAV, tracker)).toBe("skipped");
     expect(await sink.read(WAV)).not.toBeNull();

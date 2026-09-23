@@ -14,7 +14,6 @@ describe("uploadKeeperWav", () => {
     await expect(
       uploadKeeperWav({
         wav: new Uint8Array(44),
-        complete: true,
         takeIndex: 0,
         segmentIndex: 0,
         transport: memoryUploadTransport(),
@@ -30,7 +29,6 @@ describe("uploadKeeperWav", () => {
     await expect(
       uploadKeeperWav({
         wav,
-        complete: true,
         takeIndex: 0,
         segmentIndex: 0,
         transport,
@@ -42,7 +40,6 @@ describe("uploadKeeperWav", () => {
     expect(status.segments[0]?.acked_parts ?? []).toEqual([]);
     const done = await uploadKeeperWav({
       wav,
-      complete: true,
       takeIndex: 0,
       segmentIndex: 0,
       transport,
@@ -57,19 +54,8 @@ describe("uploadKeeperWav", () => {
   it("skips already-acked parts on resume", async () => {
     const transport = memoryUploadTransport();
     const wav = wavWithPcm(RECORD_UPLOAD_PART_PCM_BYTES + 8);
-    await uploadKeeperWav({
-      wav,
-      complete: false,
-      takeIndex: 0,
-      segmentIndex: 0,
-      transport,
-      ackedParts: [],
-      fileAck: false,
-    });
-    expect(transport.puts).toBe(1);
     const again = await uploadKeeperWav({
       wav,
-      complete: true,
       takeIndex: 0,
       segmentIndex: 0,
       transport,
@@ -77,7 +63,7 @@ describe("uploadKeeperWav", () => {
       fileAck: false,
     });
     expect(again.fileAck).toBe(true);
-    expect(transport.puts).toBe(2);
+    expect(transport.puts).toBe(1);
   });
 
   it("does not re-PUT an already file-acked segment", async () => {
@@ -85,7 +71,6 @@ describe("uploadKeeperWav", () => {
     const wav = wavWithPcm(8);
     const done = await uploadKeeperWav({
       wav,
-      complete: true,
       takeIndex: 0,
       segmentIndex: 0,
       transport,
@@ -100,7 +85,6 @@ describe("uploadKeeperWav", () => {
     const transport = memoryUploadTransport();
     const result = await uploadKeeperWav({
       wav: wavWithPcm(8),
-      complete: true,
       takeIndex: 0,
       segmentIndex: 0,
       transport,

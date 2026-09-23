@@ -114,6 +114,7 @@ describe("Room", () => {
           reclaimFailed: false,
           uploading: true,
           pending: false,
+          recoverable: false,
           error: null,
         }}
       />,
@@ -155,6 +156,7 @@ describe("Room", () => {
           reclaimFailed: false,
           uploading: false,
           pending: false,
+          recoverable: false,
           error: null,
         }}
       />,
@@ -175,6 +177,7 @@ describe("Room", () => {
           reclaimFailed: false,
           uploading: false,
           pending: false,
+          recoverable: false,
           error: "upload failed",
         }}
       />,

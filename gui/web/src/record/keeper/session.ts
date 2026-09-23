@@ -10,8 +10,8 @@ import {
   type ByteSink,
   type ByteStream,
   type KeeperMeta,
-  keeperMetaPath,
   keeperWavPath,
+  writeKeeperMeta,
 } from "./store";
 
 /**
@@ -86,6 +86,8 @@ export class KeeperSession {
    */
   private epoch = 0;
   private failure: Error | null = null;
+  /** In-flight `complete:false` metadata write for the open segment. */
+  private pendingMeta: Promise<void> | null = null;
   private lastGate:
     | (KeeperGate & {
         sessionId: string;
@@ -299,6 +301,13 @@ export class KeeperSession {
         this.clearOpenSegment();
         throw error;
       }
+      // Record the pending segment without holding capture closed: samples
+      // pushed while this OPFS round trip runs are kept. finalizeOpen awaits
+      // it so it can never land after (and overwrite) the complete record.
+      const open = plan.open;
+      this.pendingMeta = this.writeMeta(wavPath, open, 0, false).catch(
+        (error: unknown) => this.fail(error),
+      );
     }
     this.writing = plan.write;
   }
@@ -311,6 +320,10 @@ export class KeeperSession {
       this.clearOpenSegment();
       return;
     }
+    // A bounded pending-metadata write must settle before the complete record
+    // so it can never land after (and overwrite) it.
+    await this.pendingMeta;
+    this.pendingMeta = null;
     // Pushes stop before finalize (writing is false), so this drain is at most
     // the in-flight write plus one coalesced write, each individually bounded.
     await this.flush();
@@ -347,22 +360,8 @@ export class KeeperSession {
       this.clearOpenSegment();
       return;
     }
-    const meta: KeeperMeta = {
-      sessionId: this.sessionId,
-      takeIndex: open.takeIndex,
-      participantId: this.participantId,
-      segmentIndex: open.segmentIndex,
-      sampleRate: KEEPER_SAMPLE_RATE,
-      joinOffsetMs: open.joinOffsetMs,
-      samplesWritten,
-      complete: true,
-    };
-    const json = new TextEncoder().encode(`${JSON.stringify(meta, null, 2)}\n`);
     try {
-      await this.bounded(
-        this.sink.write(keeperMetaPath(wavPath), json),
-        "metadata write",
-      );
+      await this.writeMeta(wavPath, open, samplesWritten, true);
     } catch (error) {
       // The WAV is already closed and complete, so metadata that lands after
       // the deadline still forms a consistent pair that upload may pick up.
@@ -372,8 +371,32 @@ export class KeeperSession {
       this.clearOpenSegment();
       throw error;
     }
-    this.files.push(meta);
     this.clearOpenSegment();
+  }
+
+  private async writeMeta(
+    wavPath: string,
+    open: OpenSegment,
+    samplesWritten: number,
+    complete: boolean,
+  ): Promise<void> {
+    const meta: KeeperMeta = {
+      sessionId: this.sessionId,
+      takeIndex: open.takeIndex,
+      participantId: this.participantId,
+      segmentIndex: open.segmentIndex,
+      sampleRate: KEEPER_SAMPLE_RATE,
+      joinOffsetMs: open.joinOffsetMs,
+      samplesWritten,
+      complete,
+    };
+    await this.bounded(
+      writeKeeperMeta(this.sink, wavPath, meta),
+      complete ? "metadata write" : "pending metadata write",
+    );
+    if (complete) {
+      this.files.push(meta);
+    }
   }
 
   /** Release a failed writable, waiting no longer than its close deadline. */

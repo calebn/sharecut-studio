@@ -1,5 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { floatToInt16, resampleLinear, toKeeperPcm } from "./pcm";
+import { parseWavHeader, pcmWavHeader } from "../../audio/wavHeader";
+import {
+  floatToInt16,
+  isKeeperPcmFormat,
+  resampleLinear,
+  toKeeperPcm,
+} from "./pcm";
+
+describe("isKeeperPcmFormat", () => {
+  const keeper = parseWavHeader(pcmWavHeader(0).buffer);
+  it("accepts the recorder's 48 kHz mono 16-bit PCM", () => {
+    expect(isKeeperPcmFormat(keeper)).toBe(true);
+  });
+  it.each([
+    ["float", { audioFormat: 3 }],
+    ["stereo", { channels: 2 }],
+    ["44.1 kHz", { sampleRate: 44_100 }],
+    ["24-bit", { bitsPerSample: 24 }],
+    ["odd block align", { blockAlign: 4 }],
+  ])("rejects %s", (_label, change) => {
+    expect(isKeeperPcmFormat({ ...keeper, ...change })).toBe(false);
+  });
+});
 
 describe("floatToInt16", () => {
   it("converts and clips", () => {
