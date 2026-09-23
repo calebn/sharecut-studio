@@ -20,26 +20,30 @@ and open the URL it reports.
 
 ## What's in it
 
-Library stories live next to their components (`src/ui/*.stories.tsx`) and are
-organized by Atomic Design level:
+Stories live next to their components and are organized by Atomic Design
+level. Library stories (`src/ui/*.stories.tsx`) are atoms, molecules or
+organisms; domain screens are templates:
 
 | Level | Contents | Examples |
 | ----- | -------- | -------- |
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow |
 | **Organisms** | Complex components / sections | Dialog, BottomSheet |
+| **Templates** | Assembled, context-specific screens shown with static / representative content — no live app state | Declined |
 
-Atoms → molecules → organisms is the traversal order: design the atom in
-isolation, then check it composed.
+Atoms → molecules → organisms → templates is the traversal order: design the
+atom in isolation, check it composed, then check it in a real screen.
 
-### Domain surfaces
+### Domain surfaces (Templates)
 
-Domain components that render standalone — no app providers, no network, no
-session or sync context — may also get stories, colocated with the component
-(for example `src/record/Declined.stories.tsx`). Components that need DAW state
-(`timeline/`, `inspector/`, transport chrome) stay out; they compose the
-library (see `gui/web/docs/ui-library.md`), and stories for them would couple
-the catalog to app state.
+Domain components that still need live app, session or sync context
+(`timeline/`, `inspector/`, transport chrome) stay out of the catalog: they
+compose the library (see `gui/web/docs/ui-library.md`), and stories for them
+would couple the catalog to app state. A domain screen that renders fully
+state-local — per the rules under [Adding a story](#adding-a-story): state in
+the story, no app providers, no network — belongs under **Templates**, with its
+story colocated in the feature folder (for example
+`src/record/Declined.stories.tsx`, titled `Templates/Declined`).
 
 - Load the surface's production entry stylesheet in the story (record surfaces:
   `styles/partials/record-entry.css`, as `RecordApp.tsx` does) so the story
@@ -62,7 +66,11 @@ every new component in both themes before merging.
 
 1. Colocate: `<Name>.stories.tsx` next to `<Name>.tsx` (`src/ui/` for the
    library, the feature folder for domain surfaces).
-2. Library stories: title it `Atoms|Molecules|Organisms/<Name>`.
+2. Title every story by Atomic Design level:
+   `Atoms|Molecules|Organisms|Templates/<Name>`. Library components use the
+   first three; state-local domain screens use `Templates/<Name>`. No
+   per-feature top-level categories (not `Record/…`); `storySort` in
+   `.storybook/preview.ts` orders Atoms → Molecules → Organisms → Templates.
 3. Library stories import from `./index` (the public API), not deep paths.
    Feature folders without a barrel (for example `src/record/`) import the
    component module directly (`./Declined`).
@@ -88,6 +96,8 @@ every new component in both themes before merging.
 - 2026-09-21 — Scaffolded Storybook 10 (react-vite) with theme toolbar, 11
   story files across Atoms/Molecules/Organisms, and GitHub Pages deploy
   workflow.
-- 2026-09-23 — Domain surfaces that render standalone may have colocated
-  stories (first: `src/record/Declined.stories.tsx`); added import, stylesheet,
-  layout and fixture rules for them.
+- 2026-09-23 — Added a fourth Atomic Design level, **Templates**, for
+  state-local domain screens with colocated stories (first:
+  `src/record/Declined.stories.tsx`, `Templates/Declined`); added import,
+  stylesheet, layout and fixture rules for them. Domain components that need
+  live app state remain excluded.
