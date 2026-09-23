@@ -1,7 +1,8 @@
-"""Compatibility facade over :mod:`podcast_mcp.services.session_sync`.
+"""Blob-style publishers that translate into typed session-sync commands.
 
-Prefer ``SessionSyncService`` for new code. These helpers keep MCP/CLI/tests
-working during the migration to the command-log engine.
+``SessionSyncService`` (``service.py``) is the sync authority. This module holds
+the adapters that turn a viewer snapshot blob or an agent play request into one
+or more typed :class:`SyncCommand` submissions against that authority.
 """
 
 from __future__ import annotations
@@ -10,45 +11,8 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.services.session_sync.commands import (
-    audition_mode_from_source,
-    track_id_from_source,
-)
-from podcast_mcp.services.session_sync.service import SessionSyncService
-
-# Re-export helpers used by tests / callers
-__all__ = [
-    "audition_mode_from_source",
-    "publish_agent_control",
-    "publish_agent_play",
-    "publish_viewer_snapshot",
-    "read_session_state",
-    "session_meta",
-    "session_state_path",
-    "track_id_from_source",
-]
-
-
-def session_state_path(project: EpisodeProject) -> Path:
-    """Legacy JSON path (still written as a materialized mirror)."""
-    return project.artifacts_dir() / "session_state.json"
-
-
-def read_session_state(project: EpisodeProject) -> dict[str, Any] | None:
-    svc = SessionSyncService(project)
-    if svc._store_optional() is None and not session_state_path(project).is_file():
-        return None
-    snap = svc.snapshot()
-    if int(snap.get("server_seq") or 0) == 0 and snap.get("command_id") is None:
-        return None
-    return snap
-
-
-def session_meta(project_path: Path) -> dict[str, Any]:
-    from podcast_mcp.services.workspace import ProjectWorkspace
-
-    ws = ProjectWorkspace.open(project_path)
-    return SessionSyncService(ws.project).meta()
+from podcast_mcp.services.session_sync.commands import SyncCommand
+from podcast_mcp.services.session_sync.service import SessionSyncService, next_client_seq
 
 
 def publish_agent_play(
@@ -65,6 +29,7 @@ def publish_agent_play(
     compare_segments: list[dict[str, Any]] | None = None,
     selection: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """Submit a play command and return the resulting snapshot."""
     result = SessionSyncService(project).submit_play(
         timeline_start_sec=timeline_start_sec,
         timeline_end_sec=timeline_end_sec,
@@ -80,71 +45,6 @@ def publish_agent_play(
     return result["snapshot"]
 
 
-def publish_agent_control(
-    project: EpisodeProject,
-    patch: dict[str, Any],
-) -> dict[str, Any]:
-    svc = SessionSyncService(project)
-    # Map free-form patch onto typed commands (one or more)
-    if "selection" in patch and set(patch.keys()) <= {"selection"}:
-        snap = svc.submit_control("SetSelection", {"selection": patch["selection"]})
-        return snap["snapshot"]
-    if "playhead_sec" in patch and set(patch.keys()) <= {"playhead_sec", "selection"}:
-        payload: dict[str, Any] = {"playhead_sec": patch["playhead_sec"]}
-        if "selection" in patch:
-            payload["selection"] = patch["selection"]
-        snap = svc.submit_control("SetPlayhead", payload)
-        return snap["snapshot"]
-    if "is_playing" in patch and set(patch.keys()) <= {"is_playing"}:
-        snap = svc.submit_control("SetPlaying", {"is_playing": patch["is_playing"]})
-        return snap["snapshot"]
-    if "audition_mode" in patch:
-        snap = svc.submit_control(
-            "SetMode",
-            {
-                "audition_mode": patch["audition_mode"],
-                "source": patch.get("source"),
-            },
-        )
-        return snap["snapshot"]
-    if patch.get("region") is None and "region" in patch:
-        snap = svc.submit_control("ClearRegion", {"stop": True})
-        # Also apply other keys if present
-        if "is_playing" in patch:
-            snap = svc.submit_control("SetPlaying", {"is_playing": patch["is_playing"]})
-        return snap["snapshot"]
-    if isinstance(patch.get("region"), dict):
-        r = patch["region"]
-        payload = {
-            "start_sec": r["start_sec"],
-            "end_sec": r["end_sec"],
-            "playhead_sec": patch.get("playhead_sec", r["start_sec"]),
-            "is_playing": patch.get("is_playing", False),
-            "query": patch.get("query"),
-        }
-        if "selection" in patch:
-            payload["selection"] = patch["selection"]
-        snap = svc.submit_control("SetRegion", payload)
-        return snap["snapshot"]
-    if "solo_tracks" in patch or "viewer_mute" in patch:
-        snap = svc.submit_control(
-            "SetMuteSolo",
-            {
-                "solo_tracks": patch.get("solo_tracks"),
-                "viewer_mute": patch.get("viewer_mute"),
-            },
-        )
-        return snap["snapshot"]
-    # Fallback: set playhead if present
-    if "playhead_sec" in patch:
-        payload = {"playhead_sec": patch["playhead_sec"]}
-        if "selection" in patch:
-            payload["selection"] = patch["selection"]
-        snap = svc.submit_control("SetPlayhead", payload)
-        return snap["snapshot"]
-    return svc.snapshot()
-
-
 def publish_viewer_snapshot(
     project: EpisodeProject,
     snapshot: dict[str, Any],
@@ -155,15 +55,12 @@ def publish_viewer_snapshot(
     Applied events, the DAW re-seeks, and audio stutters). Live playhead rides
     ``PresenceHeartbeat``; durable ``SetPlayhead`` is for paused scrub only.
     """
-    from podcast_mcp.services.session_sync.commands import SyncCommand
-    from podcast_mcp.services.session_sync.service import next_client_seq
-
     svc = SessionSyncService(project)
     client_id = str(snapshot.get("client_id") or "viewer-default")
     ack_id = snapshot.get("ack_command_id")
     current = svc.snapshot()
     # Ack current command when client reports it
-    if ack_id and ack_id == current.get("command_id"):
+    if ack_id and ack_id == current.get("last_command_id"):
         svc.submit(
             SyncCommand(
                 type="Ack",

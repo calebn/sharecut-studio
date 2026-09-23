@@ -15,6 +15,7 @@ import { newClientId } from "../session/clientId";
 import {
   type AppliedCursor,
   baselineFromSnapshot,
+  sessionSeq,
   shouldApplyRemote,
   shouldHandleWsMessage,
 } from "../session/dedupe";
@@ -197,11 +198,12 @@ export function useSessionSync(
                 msg.command?.client_id ?? snap.last_client_id,
               );
             } else {
-              const seq = snap.server_seq ?? 0;
+              const seq = sessionSeq(snap);
               if (seq > cursorRef.current.serverSeq) {
                 cursorRef.current = {
                   serverSeq: seq,
-                  commandId: snap.command_id ?? cursorRef.current.commandId,
+                  commandId:
+                    snap.last_command_id ?? cursorRef.current.commandId,
                 };
               }
             }
@@ -272,8 +274,8 @@ export function useSessionSync(
       mtimeRef.current = meta.mtime_ns;
     }
     cursorRef.current = {
-      serverSeq: written.server_seq ?? written.revision ?? 0,
-      commandId: written.command_id ?? cursorRef.current.commandId,
+      serverSeq: sessionSeq(written),
+      commandId: written.last_command_id ?? cursorRef.current.commandId,
     };
   });
 

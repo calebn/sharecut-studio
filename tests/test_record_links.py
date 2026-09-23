@@ -15,7 +15,6 @@ from podcast_mcp.edits.share_capabilities import RECORD_ROLE_PRESETS
 from podcast_mcp.edits.share_registry import (
     RECORD_REVIEW_VERSION_SENTINEL,
     get_share_registry,
-    reset_share_registry_for_tests,
     share_is_usable,
 )
 from podcast_mcp.gui.server import create_app
@@ -29,12 +28,6 @@ from podcast_mcp.services.share import (
     open_share_workspace,
     present_share,
 )
-
-
-def _isolate_registry(tmp_workspace: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(tmp_workspace / "shares_index.json"))
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "reg.sqlite"))
-    reset_share_registry_for_tests()
 
 
 def _seed_premix(minimal_project, sample_wav):
@@ -59,7 +52,6 @@ def _dist(tmp_path: Path) -> Path:
 def test_create_record_room_mints_two_tokens_same_session(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate_registry(tmp_workspace, monkeypatch)
     ws = _seed_premix(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room(public_base_url="http://example.test:8765")
     assert room["guest"]["url"].startswith("http://example.test:8765/rec/")
@@ -79,7 +71,6 @@ def test_create_record_room_mints_two_tokens_same_session(
 def test_create_record_room_rolls_back_guest_when_producer_fails(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate_registry(tmp_workspace, monkeypatch)
     ws = _seed_premix(minimal_project, sample_wav)
     calls = {"n": 0}
     orig = create_share
@@ -100,7 +91,6 @@ def test_create_record_room_rolls_back_guest_when_producer_fails(
 def test_record_token_rejects_restricted_access(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate_registry(tmp_workspace, monkeypatch)
     ws = _seed_premix(minimal_project, sample_wav)
     with pytest.raises(ValueError, match="restricted access"):
         create_share(
@@ -115,7 +105,6 @@ def test_record_token_rejects_restricted_access(
 
 
 def test_lookup_share_kind_mismatch_raises(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    _isolate_registry(tmp_workspace, monkeypatch)
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="mix")
     review = ShareService(ws).create(review_version_id=ver["id"])
@@ -129,7 +118,6 @@ def test_lookup_share_kind_mismatch_raises(minimal_project, sample_wav, tmp_work
 def test_open_share_workspace_record_does_not_auto_revoke(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate_registry(tmp_workspace, monkeypatch)
     ws = _seed_premix(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     token = room["guest"]["token"]
@@ -162,7 +150,6 @@ def test_present_share_record_fields():
 
 
 def test_revoke_room_revokes_both_tokens(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    _isolate_registry(tmp_workspace, monkeypatch)
     ws = _seed_premix(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     out = ShareService(ws).revoke_room(room["session_id"])
@@ -174,7 +161,6 @@ def test_revoke_room_revokes_both_tokens(minimal_project, sample_wav, tmp_worksp
 def test_record_bootstrap_shape_and_no_paths(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate_registry(tmp_workspace, monkeypatch)
     ws = _seed_premix(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     payload = record_bootstrap(lookup_record_share(room["guest"]["token"]))
@@ -193,7 +179,6 @@ def test_record_bootstrap_shape_and_no_paths(
 def test_review_api_404s_record_token(
     minimal_project, sample_wav, tmp_workspace, monkeypatch, tmp_path
 ):
-    _isolate_registry(tmp_workspace, monkeypatch)
     ws = _seed_premix(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     rec = room["guest"]["token"]
@@ -220,7 +205,6 @@ def test_review_api_404s_record_token(
 def test_r_prefix_404s_record_token(
     minimal_project, sample_wav, tmp_workspace, monkeypatch, tmp_path
 ):
-    _isolate_registry(tmp_workspace, monkeypatch)
     ws = _seed_premix(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     client = TestClient(create_app(static_dir=_dist(tmp_path)))
@@ -230,7 +214,6 @@ def test_r_prefix_404s_record_token(
 def test_rec_prefix_404s_review_token(
     minimal_project, sample_wav, tmp_workspace, monkeypatch, tmp_path
 ):
-    _isolate_registry(tmp_workspace, monkeypatch)
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="mix")
     review = ShareService(ws).create(review_version_id=ver["id"])
@@ -242,7 +225,6 @@ def test_rec_prefix_404s_review_token(
 def test_rec_route_200_for_record_token_and_index_html(
     minimal_project, sample_wav, tmp_workspace, monkeypatch, tmp_path
 ):
-    _isolate_registry(tmp_workspace, monkeypatch)
     ws = _seed_premix(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     client = TestClient(create_app(static_dir=_dist(tmp_path)))
@@ -256,7 +238,6 @@ def test_rec_route_200_for_record_token_and_index_html(
 def test_rec_bootstrap_guest_vs_producer_role(
     minimal_project, sample_wav, tmp_workspace, monkeypatch, tmp_path
 ):
-    _isolate_registry(tmp_workspace, monkeypatch)
     ws = _seed_premix(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     client = TestClient(create_app(static_dir=_dist(tmp_path)))
@@ -268,7 +249,6 @@ def test_rec_bootstrap_guest_vs_producer_role(
 
 
 def test_rec_features_manifest(minimal_project, sample_wav, tmp_workspace, monkeypatch, tmp_path):
-    _isolate_registry(tmp_workspace, monkeypatch)
     ws = _seed_premix(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     client = TestClient(create_app(static_dir=_dist(tmp_path)))
@@ -282,7 +262,6 @@ def test_rec_bootstrap_rate_limited(
 ):
     from podcast_mcp.services.remote_mcp.limits import reset_host_limiters_for_tests
 
-    _isolate_registry(tmp_workspace, monkeypatch)
     monkeypatch.setenv("PODCAST_RATE_LIMIT", "1")
     monkeypatch.setenv("PODCAST_RATE_LIMIT_READ_RPM", "60")
     monkeypatch.setenv("PODCAST_RATE_LIMIT_READ_BURST", "1")
@@ -298,7 +277,6 @@ def test_rec_bootstrap_rate_limited(
 
 
 def test_host_record_room_http(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    _isolate_registry(tmp_workspace, monkeypatch)
     ws = _seed_premix(minimal_project, sample_wav)
     client = TestClient(create_app())
     created = client.post("/api/shares/record", json={"path": str(ws.path)})
@@ -316,7 +294,6 @@ def test_host_record_room_http(minimal_project, sample_wav, tmp_workspace, monke
 
 
 def test_cli_share_kind_record_mints_room(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    _isolate_registry(tmp_workspace, monkeypatch)
     _seed_premix(minimal_project, sample_wav)
     runner = CliRunner()
     result = runner.invoke(
@@ -342,7 +319,6 @@ def test_cli_share_kind_record_mints_room(minimal_project, sample_wav, tmp_works
 def test_cli_share_kind_record_reinvite_producer(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate_registry(tmp_workspace, monkeypatch)
     ws = _seed_premix(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room(public_base_url="http://relay.test")
     runner = CliRunner()
@@ -370,7 +346,6 @@ def test_cli_share_kind_record_reinvite_producer(
 
 
 def test_cli_share_review_requires_version(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    _isolate_registry(tmp_workspace, monkeypatch)
     _seed_premix(minimal_project, sample_wav)
     runner = CliRunner()
     result = runner.invoke(
@@ -384,7 +359,6 @@ def test_cli_share_review_requires_version(minimal_project, sample_wav, tmp_work
 def test_cli_share_record_rejects_mcp_and_restricted(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate_registry(tmp_workspace, monkeypatch)
     _seed_premix(minimal_project, sample_wav)
     runner = CliRunner()
     result = runner.invoke(
@@ -406,7 +380,6 @@ def test_cli_share_record_rejects_mcp_and_restricted(
 def test_create_record_room_tool_returns_two_urls(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate_registry(tmp_workspace, monkeypatch)
     _seed_premix(minimal_project, sample_wav)
     out = json.loads(create_record_room_tool(str(minimal_project), public_base_url="http://x.test"))
     assert out["guest"]["url"].startswith("http://x.test/rec/")
@@ -417,7 +390,6 @@ def test_create_record_room_tool_returns_two_urls(
 def test_revoke_room_unknown_and_already_revoked(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate_registry(tmp_workspace, monkeypatch)
     ws = _seed_premix(minimal_project, sample_wav)
     svc = ShareService(ws)
     with pytest.raises(KeyError, match="record room not found"):
@@ -431,7 +403,6 @@ def test_revoke_room_unknown_and_already_revoked(
 def test_record_bootstrap_survives_unreadable_project(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate_registry(tmp_workspace, monkeypatch)
     ws = _seed_premix(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     ws.path.write_text("{not-json", encoding="utf-8")
@@ -443,7 +414,6 @@ def test_record_bootstrap_survives_unreadable_project(
 def test_record_bootstrap_missing_project_file(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate_registry(tmp_workspace, monkeypatch)
     ws = _seed_premix(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     ws.path.unlink()
@@ -452,7 +422,6 @@ def test_record_bootstrap_missing_project_file(
 
 
 def test_host_record_room_http_errors(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    _isolate_registry(tmp_workspace, monkeypatch)
     ws = _seed_premix(minimal_project, sample_wav)
     client = TestClient(create_app())
     missing = client.post(
@@ -476,7 +445,8 @@ def test_review_register_includes_create_record_room_tool():
     from podcast_mcp.mcp.tools import review
 
     mcp = MCPServer("t")
-    review.register(mcp)
+    review.register_core(mcp)
+    review.register_share(mcp)
     names = {t.name for t in mcp._tool_manager.list_tools()}
     assert "create_record_room_tool" in names
     assert "revoke_record_room_tool" in names
@@ -502,7 +472,6 @@ def test_render_record_spa_html_lookup_error_fallback(monkeypatch):
 def test_create_record_token_requires_existing_room(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate_registry(tmp_workspace, monkeypatch)
     ws = _seed_premix(minimal_project, sample_wav)
     svc = ShareService(ws)
     with pytest.raises(KeyError, match="record room not found"):
@@ -516,7 +485,6 @@ def test_create_record_token_requires_existing_room(
 def test_drop_share_releases_claim_without_cooldown(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate_registry(tmp_workspace, monkeypatch)
     ws = _seed_premix(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     token = room["guest"]["token"]
@@ -528,7 +496,6 @@ def test_drop_share_releases_claim_without_cooldown(
 def test_create_share_record_ignores_empty_capabilities(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate_registry(tmp_workspace, monkeypatch)
     ws = _seed_premix(minimal_project, sample_wav)
     row = create_share(
         ws.project,
@@ -544,7 +511,6 @@ def test_create_share_record_ignores_empty_capabilities(
 def test_failed_room_mint_drops_guest_without_cooldown(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate_registry(tmp_workspace, monkeypatch)
     ws = _seed_premix(minimal_project, sample_wav)
     real = ShareService.create_record_token
 
@@ -568,7 +534,6 @@ def test_failed_room_mint_drops_guest_without_cooldown(
 def test_revoke_room_continues_after_one_failure(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate_registry(tmp_workspace, monkeypatch)
     ws = _seed_premix(minimal_project, sample_wav)
     svc = ShareService(ws)
     room = svc.create_record_room()
@@ -591,7 +556,6 @@ def test_revoke_room_continues_after_one_failure(
 
 
 def test_revoke_record_room_tool(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    _isolate_registry(tmp_workspace, monkeypatch)
     _seed_premix(minimal_project, sample_wav)
     room = json.loads(
         create_record_room_tool(str(minimal_project), public_base_url="http://x.test")
