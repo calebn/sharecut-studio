@@ -9,6 +9,7 @@ import {
   type OfflineConflict,
 } from "../state/offlineStore";
 import { useDaw } from "../state/useDaw";
+import { plural } from "../utils/format";
 
 /** Pending host edits and host/guest 409 conflicts from IndexedDB. */
 export function GuestAttentionBanner() {
@@ -63,7 +64,7 @@ export function GuestAttentionBanner() {
           {pending > 0 ? `${pending} pending` : ""}
           {pending > 0 && conflicts.length > 0 ? ", " : ""}
           {conflicts.length > 0
-            ? `${conflicts.length} conflict${conflicts.length === 1 ? "" : "s"}`
+            ? `${conflicts.length} ${plural(conflicts.length, "conflict")}`
             : ""}
         </span>
         {conflicts.length > 0 && (

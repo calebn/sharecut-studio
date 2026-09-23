@@ -1,3 +1,4 @@
+import { plural } from "../utils/format";
 import type { LiveComment } from "./liveCommentQueue";
 
 export type { LiveComment } from "./liveCommentQueue";
@@ -197,10 +198,10 @@ export function hostUploadLine(
     return `${name}: uploaded; waiting to land.`;
   }
   if (expectedParts != null) {
-    return `${name}: ${ackedParts}/${expectedParts} chunks acked.`;
+    return `${name}: ${ackedParts}/${expectedParts} ${plural(expectedParts, "chunk")} acked.`;
   }
   if (ackedParts <= 0) {
     return `${name}: waiting to upload.`;
   }
-  return `${name}: ${ackedParts} chunks acked.`;
+  return `${name}: ${ackedParts} ${plural(ackedParts, "chunk")} acked.`;
 }

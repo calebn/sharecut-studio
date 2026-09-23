@@ -14,6 +14,52 @@ const host = recordParticipant({
 const guest = recordParticipant({ participant_id: "p_g", display_name: "Ava" });
 
 describe("HostUploadRoster", () => {
+  it("renders nothing while recording when no participant has uploaded", () => {
+    const { container } = render(
+      <HostUploadRoster
+        stopped={false}
+        participants={[host, guest]}
+        segments={[]}
+      />,
+    );
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByRole("list", { name: "Upload status" })).toBeNull();
+  });
+
+  it("lists waiting participants after Stop even with no segments", () => {
+    render(
+      <HostUploadRoster stopped participants={[host, guest]} segments={[]} />,
+    );
+    expect(
+      screen.getByText(hostUploadLine("Ava", false, 0)),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(hostUploadLine("Host", false, 0)),
+    ).toBeInTheDocument();
+  });
+
+  it("renders while recording once a participant has an acked segment", () => {
+    render(
+      <HostUploadRoster
+        stopped={false}
+        participants={[host, guest]}
+        segments={[
+          {
+            participant_id: "p_g",
+            acked_parts: [0],
+            file_ack: false,
+          },
+        ]}
+      />,
+    );
+    expect(
+      screen.getByText(hostUploadLine("Ava", false, 1)),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(hostUploadLine("Host", false, 0)),
+    ).toBeInTheDocument();
+  });
+
   it("lists every recorded participant after Stop", async () => {
     const { container } = render(
       <HostUploadRoster
@@ -148,7 +194,7 @@ describe("HostUploadRoster", () => {
         ]}
       />,
     );
-    expect(screen.getByText("Ava: 1 chunks acked.")).toBeInTheDocument();
+    expect(screen.getByText("Ava: 1 chunk acked.")).toBeInTheDocument();
     expect(screen.queryByText("Ava: 1/3 chunks acked.")).toBeNull();
   });
 
