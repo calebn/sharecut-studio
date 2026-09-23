@@ -71,7 +71,9 @@ bumps into a single PR so they land together; `major` bumps always arrive as the
 own PR for review. PR commit messages use the `chore(deps)` / `chore(deps-dev)`
 prefix (`commit-message: {prefix: chore, include: scope}`). `tests/test_dependabot_config.py`
 fails the build if a tracked lockfile's directory has no matching entry, so a new
-lockfile location needs a new `updates` entry in the same change.
+lockfile location needs a new `updates` entry in the same change. Workflow and
+Dependabot YAML contract tests load files through `tests/github_yaml.py`
+(`load_github_yaml`), which restores the `on:` key PyYAML 1.1 parses as `True`.
 
 The `frontend` job in `.github/workflows/test.yml` runs `npm audit --omit=dev
 --audit-level=high` right after `npm ci`. It is advisory only (`continue-on-error:

@@ -8,7 +8,7 @@ import stat
 import subprocess
 from pathlib import Path
 
-import yaml
+from github_yaml import load_github_yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / ".github/workflows/release-desktop-build.yml"
@@ -26,17 +26,8 @@ REQUIRED_SECRETS = (
 )
 
 
-def _load(path: Path) -> dict:
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    assert isinstance(data, dict)
-    # PyYAML 1.1 treats `on` as boolean True; GitHub Actions keys are strings.
-    if True in data and "on" not in data:
-        data["on"] = data.pop(True)
-    return data
-
-
 def test_reusable_workflow_declares_call_inputs_and_secrets() -> None:
-    data = _load(BUILD)
+    data = load_github_yaml(BUILD)
     assert data["name"] == "release-desktop-build"
     call = data["on"]["workflow_call"]
     inputs = call["inputs"]
@@ -92,7 +83,7 @@ def test_reusable_workflow_declares_call_inputs_and_secrets() -> None:
 
 
 def test_desktop_workflow_compiles_windows_only_adapters() -> None:
-    data = _load(DESKTOP_CHECK)
+    data = load_github_yaml(DESKTOP_CHECK)
     job = data["jobs"]["desktop-windows-check"]
     assert job["runs-on"] == "windows-latest"
     assert job["needs"] == "web-dist"
@@ -109,7 +100,7 @@ def test_desktop_workflow_compiles_windows_only_adapters() -> None:
 
 
 def test_extension_wheel_freeze_isolated_from_signing_jobs() -> None:
-    data = _load(BUILD)
+    data = load_github_yaml(BUILD)
     prepare = data["jobs"]["prepare-extension-runtime"]
     bundle = data["jobs"]["bundle"]
 
@@ -239,7 +230,7 @@ def test_workflows_do_not_echo_secret_expressions() -> None:
 
 def test_signing_hooks_fail_closed_and_keep_artifact_names() -> None:
     text = BUILD.read_text(encoding="utf-8")
-    job = _load(BUILD)["jobs"]["bundle"]
+    job = load_github_yaml(BUILD)["jobs"]["bundle"]
     names = [step.get("name") for step in job["steps"] if "name" in step]
     checkout_at = next(
         i
@@ -331,7 +322,7 @@ def test_prepared_runtime_tar_round_trip_preserves_markers_modes_and_symlinks(
 
 
 def test_signing_secrets_are_only_injected_for_trusted_signed_builds() -> None:
-    job = _load(BUILD)["jobs"]["bundle"]
+    job = load_github_yaml(BUILD)["jobs"]["bundle"]
     signing_secret_names = {
         "APPLE_SIGNING_IDENTITY",
         "APPLE_CERTIFICATE",
@@ -364,7 +355,7 @@ def test_signing_secrets_are_only_injected_for_trusted_signed_builds() -> None:
 
 
 def test_source_trust_is_verified_before_any_repo_code_or_secrets() -> None:
-    data = _load(BUILD)
+    data = load_github_yaml(BUILD)
     verify = data["jobs"]["verify-source"]
     assert verify["permissions"] == {"contents": "read"}
     assert verify["outputs"] == {
@@ -418,7 +409,7 @@ def test_source_trust_is_verified_before_any_repo_code_or_secrets() -> None:
 
 
 def test_distribution_profile_input_is_validated_before_build() -> None:
-    job = _load(BUILD)["jobs"]["bundle"]
+    job = load_github_yaml(BUILD)["jobs"]["bundle"]
     configure = next(
         step for step in job["steps"] if step.get("name") == "Configure distribution profile"
     )
@@ -458,7 +449,7 @@ def test_windows_authenticode_script_signs_by_thumbprint() -> None:
 
 def test_public_reusable_workflow_has_no_hosted_release_operations() -> None:
     text = BUILD.read_text(encoding="utf-8")
-    data = _load(BUILD)
+    data = load_github_yaml(BUILD)
     assert set(data["jobs"]) == {"verify-source", "prepare-extension-runtime", "bundle"}
     assert "PODCAST_OBJECT_STORE_" not in text
     assert "upload_release" not in text
