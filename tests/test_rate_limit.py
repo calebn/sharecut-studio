@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from podcast_mcp.relay.limits import (
+from podcast_relay.limits import (
     check_proxy_rpm,
     check_register,
     get_relay_limiters,
@@ -220,7 +220,7 @@ async def test_relay_proxy_returns_429(monkeypatch):
 
     from httpx import ASGITransport, AsyncClient
 
-    from podcast_mcp.relay.app import TunnelSession, create_relay_app
+    from podcast_relay.app import TunnelSession, create_relay_app
 
     monkeypatch.setenv("PODCAST_RELAY_RATE_LIMIT", "1")
     monkeypatch.setenv("PODCAST_RELAY_TOKEN_RPM", "60")
@@ -239,7 +239,7 @@ async def test_relay_proxy_returns_429(monkeypatch):
         async def send_json(self, data: dict) -> None:
             if data.get("type") != "http" or self._session is None:
                 return
-            from podcast_mcp.relay.app import _ingest_http_response
+            from podcast_relay.app import _ingest_http_response
 
             pending = self._session.pending.get(data["id"])
             if pending is None:
@@ -300,7 +300,7 @@ def test_host_mcp_mutate_429(minimal_project, sample_wav, tmp_workspace, monkeyp
     monkeypatch.setenv("PODCAST_RATE_LIMIT_READ_RPM", "10000")
     monkeypatch.setenv("PODCAST_RATE_LIMIT_READ_BURST", "100")
     index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "reg.sqlite"))
     from podcast_mcp.edits.share_registry import reset_share_registry_for_tests
 
@@ -362,7 +362,7 @@ def test_host_review_and_mcp_info_read_429(minimal_project, sample_wav, tmp_work
     monkeypatch.setenv("PODCAST_RATE_LIMIT_MUTATE_RPM", "10000")
     monkeypatch.setenv("PODCAST_RATE_LIMIT_MUTATE_BURST", "100")
     index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "reg.sqlite"))
     from podcast_mcp.edits.share_registry import reset_share_registry_for_tests
 
