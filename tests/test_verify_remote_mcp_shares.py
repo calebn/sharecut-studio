@@ -1,25 +1,18 @@
 from __future__ import annotations
 
-import importlib.util
 import json
-import sys
 from pathlib import Path
 
 import pytest
 
+from script_loader import load_script
+
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "scripts" / "verify_remote_mcp_shares.py"
 FIXTURE_WS = ROOT / "tests" / "fixtures" / "aligned_dialogue"
 
 
 def _load_script():
-    spec = importlib.util.spec_from_file_location("verify_remote_mcp_shares", SCRIPT)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    # Dataclass processing looks the defining module up in sys.modules.
-    sys.modules[spec.name] = mod
-    spec.loader.exec_module(mod)
-    return mod
+    return load_script("verify_remote_mcp_shares", register=True)
 
 
 def test_default_project_runs_against_relocated_tmp_copy(

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib.util
 import json
 import wave
 from itertools import pairwise
@@ -11,18 +10,14 @@ import jsonschema
 import pytest
 
 from podcast_mcp.models import load_project
+from script_loader import load_script
 
 REPO = Path(__file__).resolve().parents[1]
-SCRIPT = REPO / "scripts" / "build_large_project_fixture.py"
 SCHEMA = REPO / "schemas" / "episode.project.schema.json"
 
 
 def _load_fixture_builder() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("build_large_project_fixture", SCRIPT)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return load_script("build_large_project_fixture")
 
 
 def _assert_benchmark_shape(

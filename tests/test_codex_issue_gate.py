@@ -2,20 +2,15 @@
 
 from __future__ import annotations
 
-import importlib.util
 import subprocess
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
 import pytest
 
-SPEC = importlib.util.spec_from_file_location(
-    "codex_issue_gate", Path(__file__).resolve().parents[1] / "scripts" / "codex_issue_gate.py"
-)
-assert SPEC is not None and SPEC.loader is not None
-gate = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(gate)
+from script_loader import load_script
+
+gate = load_script("codex_issue_gate")
 
 SHA = "a" * 40
 NEXT_SHA = "b" * 40

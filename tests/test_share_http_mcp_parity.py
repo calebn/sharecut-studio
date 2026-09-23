@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import subprocess
 import sys
@@ -14,17 +13,14 @@ from fastapi import APIRouter, WebSocket
 
 from podcast_mcp.services.remote_mcp.allowlist import ALL_GUEST_TOOLS
 from podcast_mcp.services.remote_mcp.tools import TOOL_HANDLERS
+from script_loader import load_script
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "export_docs_site_contract.py"
 
 
 def _load_contract() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("export_docs_site_contract", SCRIPT)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    return load_script("export_docs_site_contract")
 
 
 def test_no_guest_resolve_tool() -> None:
