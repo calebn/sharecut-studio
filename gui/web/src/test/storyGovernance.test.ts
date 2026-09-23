@@ -42,10 +42,16 @@ describe("storyLeaks", () => {
     ],
     ["App.tsx", 'const m = import.meta.glob("./**/*.tsx");', 1],
     ["App.tsx", 'const m = import.meta.glob("./**/*.stories.tsx");', 1],
+    ["App.tsx", "const m = import.meta.glob(`./**/*.tsx`);", 1],
     ["App.tsx", 'const m = import.meta.glob<{ default: string }>("./a/*");', 1],
     [
       "App.tsx",
       'const m = import.meta.glob(["./**/*.tsx", "!**/*.stories.tsx"]);',
+      0,
+    ],
+    [
+      "App.tsx",
+      "const m = import.meta.glob([`./**/*.tsx`, `!**/*.stories.tsx`]);",
       0,
     ],
     [
@@ -123,6 +129,11 @@ it.each([
   ['// import.meta.glob("./**/*.tsx")', []],
   ["const example = \"import.meta.glob('./**/*.tsx')\";", []],
   ['const modules = import.meta.glob("./**/*.tsx");', [["./**/*.tsx"]]],
+  ["const modules = import.meta.glob(`./**/*.tsx`);", [["./**/*.tsx"]]],
+  [
+    "const modules = import.meta.glob([`./**/*.ts`, `!**/*.stories.ts`]);",
+    [["./**/*.ts", "!**/*.stories.ts"]],
+  ],
   [
     'const modules = import.meta.glob<{ default: string }>(["./**/*.ts", "!**/*.stories.ts"]);',
     [["./**/*.ts", "!**/*.stories.ts"]],

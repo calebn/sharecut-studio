@@ -142,7 +142,8 @@ both themes, in story mode and on its docs page, before merging.
   syntax for literal `import`, `export … from`, `import()`, and `require()`
   specifiers and real `import.meta.glob` calls, so comments and ordinary
   strings cannot look like imports or glob calls. Literal glob arguments may
-  be one string or an array of strings; existing story-negation rules apply
+  be one quoted string, a static backtick string, or an array of those;
+  existing story-negation rules apply
   to each call. For both checks,
   non-literal specifiers (variables, template or concatenated strings) and
   path aliases are not detected, so keep story-adjacent imports literal and
