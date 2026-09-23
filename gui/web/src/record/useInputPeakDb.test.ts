@@ -45,7 +45,10 @@ function stubAudioContext(
       for (const fn of listeners) fn();
     },
   };
-  const Ctor = vi.fn(() => ctx);
+  // `function`, not an arrow: Vitest >= 4 requires a constructible mock for `new`.
+  const Ctor = vi.fn(function () {
+    return ctx;
+  });
   vi.stubGlobal("AudioContext", global === "AudioContext" ? Ctor : undefined);
   vi.stubGlobal(
     "webkitAudioContext",
