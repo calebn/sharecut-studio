@@ -8,7 +8,12 @@ import {
 import { committedE2eProjectPath, repoRoot } from "./env";
 
 const SQLITE = new Set(["sync.db", "sync.db-wal", "sync.db-shm"]);
-const SKIP_DIRS = new Set(["history", "_build", ".git"]);
+// Generated, gitignored output that a fresh workspace regenerates on demand.
+// review/ in particular grows unbounded (one mix.wav per share ever created
+// against the committed fixture) and was observed to push this synchronous
+// copy past a slow-machine test timeout once the fixture had accumulated
+// months of local review shares.
+const SKIP_DIRS = new Set(["history", "_build", ".git", "export", "review"]);
 
 /** Vitest timeout for tests that copy the committed large fixture. */
 export const E2E_FIXTURE_COPY_TEST_TIMEOUT_MS = 20_000;
