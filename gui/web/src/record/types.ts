@@ -183,10 +183,10 @@ export function hostUploadLine(
     return `${name}: uploaded; waiting to land.`;
   }
   if (expectedParts != null) {
-    return `${name}: ${ackedParts}/${expectedParts} chunks acked.`;
+    return `${name}: ${ackedParts}/${expectedParts} chunk${expectedParts === 1 ? "" : "s"} acked.`;
   }
   if (ackedParts <= 0) {
     return `${name}: waiting to upload.`;
   }
-  return `${name}: ${ackedParts} chunks acked.`;
+  return `${name}: ${ackedParts} chunk${ackedParts === 1 ? "" : "s"} acked.`;
 }
