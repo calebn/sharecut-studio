@@ -381,19 +381,19 @@ export function MobileShell({ guestShare = false }: { guestShare?: boolean }) {
   return (
     <div
       ref={shellRef}
-      className={`daw-shell daw-shell--phone${mobileMode === "listen" ? " daw-shell--listen" : ""}${guestShare ? " daw-shell-guest" : ""}${followingClientId ? " daw-shell--following" : ""}`}
+      className={`daw-shell daw-shell--phone${mobileMode === "listen" ? " daw-shell--listen" : ""}${guestShare ? " daw-shell-guest" : " daw-shell--attention"}${followingClientId ? " daw-shell--following" : ""}`}
       data-shell="phone"
     >
-      <Slot id={FEATURE_SHARE_UI_BANNER}>
-        {guestShare ? (
-          <div className="daw-shell-banners">
+      <div className="daw-shell-banners">
+        <Slot id={FEATURE_SHARE_UI_BANNER}>
+          {guestShare ? (
             <div className="guest-banner" role="status">
               {guestShareBannerLabel(guestMode)}
             </div>
-            <GuestAttentionBanner />
-          </div>
-        ) : null}
-      </Slot>
+          ) : null}
+        </Slot>
+        <GuestAttentionBanner />
+      </div>
       <FollowBanner />
       <span
         className="sr-only"

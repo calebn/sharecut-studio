@@ -109,6 +109,54 @@ describe("Menu", () => {
     }
   });
 
+  it("includes checkbox and radio menu items in keyboard traversal", async () => {
+    const user = userEvent.setup();
+    function ChoiceFixture() {
+      const [open, setOpen] = useState(false);
+      return (
+        <Menu
+          open={open}
+          onOpenChange={setOpen}
+          label="Choices"
+          trigger={(t) => (
+            <button type="button" ref={t.ref} onClick={t.onClick}>
+              Open choices
+            </button>
+          )}
+        >
+          <button
+            type="button"
+            role="menuitemradio"
+            aria-checked="true"
+            tabIndex={0}
+          >
+            Radio
+          </button>
+          <button
+            type="button"
+            role="menuitemcheckbox"
+            aria-checked="false"
+            tabIndex={0}
+          >
+            Checkbox
+          </button>
+        </Menu>
+      );
+    }
+
+    render(<ChoiceFixture />);
+    await user.click(screen.getByRole("button", { name: "Open choices" }));
+    await waitFor(() => {
+      expect(
+        screen.getByRole("menuitemradio", { name: "Radio" }),
+      ).toHaveFocus();
+    });
+    await user.keyboard("{ArrowDown}");
+    expect(
+      screen.getByRole("menuitemcheckbox", { name: "Checkbox" }),
+    ).toHaveFocus();
+  });
+
   it("Escape closes menu without dismissing an open BottomSheet", async () => {
     const user = userEvent.setup();
     render(<SheetWithMenu />);

@@ -180,6 +180,11 @@ the span (same numbers as `audio_diagnostics_tool` with a window) and emits
 attach PNGs. Windowed extract uses a fresh timeline stem or `SessionTimeline`
 source mapping — never timeline seconds on raw/stale files.
 
+The owner golden-ear harness requests this context without track DSP so its
+captions and timing cannot be mistaken for measurements of a proposed cut. It
+measures the two rendered A/B WAVs directly instead, with owner-only waveform
+PNGs and per-side errors in `key.json`; see [filler-cut-quality.md](filler-cut-quality.md#golden-ear-protocol).
+
 `detail=visual` windowed spectrograms are linear in time (`legend=0`) with JSON
 `events[]` (`t` + plot-relative `x`). Overlay ticks use
 `FFmpegEngine.annotate_time_marks` (`drawbox`; `drawtext` only when the ffmpeg

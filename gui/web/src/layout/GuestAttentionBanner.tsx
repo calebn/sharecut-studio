@@ -2,31 +2,46 @@ import { useEffect, useState } from "react";
 import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
 import {
   clearConflicts,
+  clearHostConflicts,
   loadConflicts,
+  loadHostCommandCount,
+  loadHostConflicts,
   type OfflineConflict,
 } from "../state/offlineStore";
 import { useDaw } from "../state/useDaw";
 
-/** Needs-attention list for guest 409 conflicts (IndexedDB). */
+/** Pending host edits and host/guest 409 conflicts from IndexedDB. */
 export function GuestAttentionBanner() {
   const { projectPath } = useDaw();
   const [conflicts, setConflicts] = useState<OfflineConflict[]>([]);
+  const [pending, setPending] = useState(0);
   const token = isShareProjectKey(projectPath)
     ? shareTokenFromKey(projectPath)
     : null;
 
   useEffect(() => {
-    if (!token) {
-      setConflicts([]);
-      return;
-    }
+    setConflicts([]);
+    setPending(0);
     let cancelled = false;
     const refresh = () => {
-      void loadConflicts(token).then((list) => {
-        if (!cancelled) {
-          setConflicts(list);
-        }
-      });
+      const load = token
+        ? loadConflicts(token)
+        : loadHostConflicts(projectPath);
+      const queue = token
+        ? Promise.resolve(0)
+        : loadHostCommandCount(projectPath);
+      void queue
+        .catch(() => 0)
+        .then((count) => {
+          if (!cancelled) setPending(count);
+        });
+      void load
+        .catch(() => [])
+        .then((list) => {
+          if (!cancelled) {
+            setConflicts(list);
+          }
+        });
     };
     refresh();
     const id = window.setInterval(refresh, 2000);
@@ -34,9 +49,9 @@ export function GuestAttentionBanner() {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [token]);
+  }, [projectPath, token]);
 
-  if (!token || conflicts.length === 0) {
+  if (conflicts.length === 0 && pending === 0) {
     return null;
   }
 
@@ -45,17 +60,25 @@ export function GuestAttentionBanner() {
       <div className="guest-attention-head">
         <strong>Needs attention</strong>
         <span>
-          {conflicts.length} conflict{conflicts.length === 1 ? "" : "s"}
+          {pending > 0 ? `${pending} pending` : ""}
+          {pending > 0 && conflicts.length > 0 ? ", " : ""}
+          {conflicts.length > 0
+            ? `${conflicts.length} conflict${conflicts.length === 1 ? "" : "s"}`
+            : ""}
         </span>
-        <button
-          type="button"
-          className="guest-attention-dismiss"
-          onClick={() => {
-            void clearConflicts(token).then(() => setConflicts([]));
-          }}
-        >
-          Dismiss all
-        </button>
+        {conflicts.length > 0 && (
+          <button
+            type="button"
+            className="guest-attention-dismiss"
+            onClick={() => {
+              void (
+                token ? clearConflicts(token) : clearHostConflicts(projectPath)
+              ).then(() => setConflicts([]));
+            }}
+          >
+            Dismiss all
+          </button>
+        )}
       </div>
       <ul className="guest-attention-list">
         {conflicts.slice(0, 5).map((c) => (

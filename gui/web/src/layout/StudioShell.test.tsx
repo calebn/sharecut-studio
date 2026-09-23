@@ -2,8 +2,19 @@ import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
+import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
 import { StudioShell } from "./StudioShell";
+
+const offlineStore = vi.hoisted(() => ({
+  clearConflicts: vi.fn(),
+  clearHostConflicts: vi.fn(),
+  loadConflicts: vi.fn(),
+  loadHostCommandCount: vi.fn(),
+  loadHostConflicts: vi.fn(),
+}));
+
+vi.mock("../state/offlineStore", () => offlineStore);
 
 vi.mock("../hooks/useViewportClass", () => ({
   useViewportClass: () => "tablet" as const,
@@ -31,6 +42,9 @@ const tabletProject = () =>
 
 describe("StudioShell tablet peek", () => {
   beforeEach(() => {
+    offlineStore.loadConflicts.mockResolvedValue([]);
+    offlineStore.loadHostConflicts.mockResolvedValue([]);
+    offlineStore.loadHostCommandCount.mockResolvedValue(0);
     useDawStore.getState().setSelection(null);
     useDawStore.getState().setFocusMode("default");
     useDawStore.getState().setActiveTab("transcript");
@@ -98,5 +112,23 @@ describe("StudioShell tablet peek", () => {
     expect(screen.getByLabelText("Loading timeline")).toBeTruthy();
     const main = document.querySelector("main.daw-main");
     expect(main?.className).not.toContain("daw-main--arrange");
+  });
+
+  it("shows queued host commands in the attention banner", async () => {
+    offlineStore.loadHostCommandCount.mockResolvedValue(1);
+    const project = tabletProject();
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <StudioShell />
+      </DawProvider>,
+    );
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Needs attention");
+    expect(alert).toHaveTextContent("1 pending");
+    expect(container.querySelector(".daw-shell")).toHaveClass(
+      "daw-shell--attention",
+    );
+    await expectNoA11yViolations(alert);
   });
 });

@@ -14,8 +14,9 @@ use sharecut::{
     random_boot_token, read_health_response, sidecar_listen_path, sidecar_log_path,
     sidecar_owns_listen,
 };
-use tauri::{Manager, RunEvent, WebviewWindow};
+use tauri::{Manager, RunEvent, WebviewWindow, Window};
 use tauri_plugin_deep_link::DeepLinkExt;
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 use tauri_plugin_shell::ShellExt;
 
 mod media_capture;
@@ -30,10 +31,240 @@ struct SidecarState(Mutex<Option<SidecarHandle>>);
 
 struct LastOpenedShare(Mutex<Option<(String, Instant)>>);
 
+/// State kept only by the native host while a confirmation dialog is visible.
+/// The loopback renderer can request a guard, but can never invoke this state.
+struct CloseGuardState(Mutex<CloseGuardStatus>);
+
+#[derive(Default)]
+struct CloseGuardStatus {
+    confirming: bool,
+    exiting: bool,
+}
+
 const HEALTH_IO_TIMEOUT: Duration = Duration::from_millis(400);
 const HEALTH_READ_CAP: usize = 4096;
 const FALLBACK_PORT: u16 = 8765;
 const SHARE_OPEN_DEBOUNCE: Duration = Duration::from_millis(1500);
+
+fn close_guard_decision(window: &WebviewWindow) -> sharecut::CloseDecision {
+    match window.url() {
+        Ok(url) => sharecut::close_decision(&url),
+        Err(err) => {
+            eprintln!("Sharecut Studio: could not read close-guard URL: {err}");
+            // Failing to inspect the renderer state must never silently close
+            // a possibly active recording.
+            sharecut::close_decision_from_url(None)
+        }
+    }
+}
+
+fn is_confirmed_exit(app: &tauri::AppHandle) -> bool {
+    app.try_state::<CloseGuardState>()
+        .and_then(|state| state.0.lock().ok().map(|guard| guard.exiting))
+        .unwrap_or(false)
+}
+
+fn close_guard_message(risk: sharecut::CloseRisk) -> (&'static str, &'static str) {
+    match risk {
+        sharecut::CloseRisk::Host => (
+            "Recording may still be writing",
+            "Quitting stops this room for everyone and may lose the host recording. Quit anyway?",
+        ),
+        sharecut::CloseRisk::Guest => (
+            "Recording may still be writing",
+            "Your guest recording is active or finishing. Quit Sharecut Studio anyway?",
+        ),
+        sharecut::CloseRisk::Unknown => (
+            "Recording status could not be verified",
+            "Sharecut Studio could not verify whether recording has finished. Quit anyway?",
+        ),
+    }
+}
+
+/// Show one native confirmation dialog for a guarded main-window close.
+/// The close event has already been prevented when this is called.
+fn request_close_confirmation(webview: &WebviewWindow, risk: sharecut::CloseRisk) {
+    let app = webview.app_handle();
+    let Some(state) = app.try_state::<CloseGuardState>() else {
+        eprintln!("Sharecut Studio: main close guard state is unavailable");
+        return;
+    };
+    let Ok(mut status) = state.0.lock() else {
+        eprintln!("Sharecut Studio: main close guard state is poisoned");
+        return;
+    };
+    if status.confirming || status.exiting {
+        return;
+    }
+    status.confirming = true;
+    drop(status);
+
+    let (title, message) = close_guard_message(risk);
+    let app = app.clone();
+    let closing_webview = webview.clone();
+    webview
+        .dialog()
+        .message(message)
+        .title(title)
+        .buttons(MessageDialogButtons::OkCancelCustom(
+            "Quit anyway".into(),
+            "Keep recording".into(),
+        ))
+        .parent(webview)
+        .show(move |confirmed| {
+            let Some(state) = app.try_state::<CloseGuardState>() else {
+                eprintln!("Sharecut Studio: main close guard state disappeared");
+                return;
+            };
+            let Ok(mut status) = state.0.lock() else {
+                eprintln!("Sharecut Studio: main close guard state is poisoned");
+                return;
+            };
+            status.confirming = false;
+            if !confirmed {
+                return;
+            }
+            status.exiting = true;
+            drop(status);
+
+            if let Err(err) = closing_webview.destroy() {
+                eprintln!("Sharecut Studio: could not destroy confirmed close: {err}");
+                if let Ok(mut status) = state.0.lock() {
+                    status.exiting = false;
+                }
+                closing_webview
+                    .dialog()
+                    .message("Sharecut Studio could not close the window. The recording room remains open. Try Quit again.")
+                    .title("Could not quit")
+                    .buttons(MessageDialogButtons::Ok)
+                    .parent(&closing_webview)
+                    .show(|_| {});
+                return;
+            }
+            app.exit(0);
+        });
+}
+
+fn handle_main_window_close(window: &Window, risk: sharecut::CloseRisk) {
+    if window.label() != "main" || is_confirmed_exit(window.app_handle()) {
+        return;
+    }
+    let Some(webview) = window.app_handle().get_webview_window(window.label()) else {
+        eprintln!("Sharecut Studio: main close guard has no webview");
+        return;
+    };
+    request_close_confirmation(&webview, risk);
+}
+
+fn handle_exit_requested(app: &tauri::AppHandle) -> Option<sharecut::CloseRisk> {
+    if is_confirmed_exit(app) {
+        return None;
+    }
+    let Some(webview) = app.get_webview_window("main") else {
+        eprintln!("Sharecut Studio: main close guard has no webview; preventing exit");
+        return Some(sharecut::CloseRisk::Unknown);
+    };
+    match close_guard_decision(&webview) {
+        sharecut::CloseDecision::Allow => None,
+        sharecut::CloseDecision::Confirm(risk) => Some(risk),
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn macos_guarded_menu(
+    app: &tauri::AppHandle<tauri::Wry>,
+) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
+    use tauri::menu::{
+        AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu, HELP_SUBMENU_ID,
+        WINDOW_SUBMENU_ID,
+    };
+
+    let package = app.package_info();
+    let config = app.config();
+    let about = AboutMetadata {
+        name: Some(package.name.clone()),
+        version: Some(package.version.to_string()),
+        copyright: config.bundle.copyright.clone(),
+        authors: config
+            .bundle
+            .publisher
+            .clone()
+            .map(|publisher| vec![publisher]),
+        ..Default::default()
+    };
+    let guarded_quit = MenuItem::with_id(
+        app,
+        sharecut::GUARDED_QUIT_MENU_ID,
+        format!("Quit {}", package.name),
+        true,
+        Some("CmdOrCtrl+Q"),
+    )?;
+    let app_menu = Submenu::with_items(
+        app,
+        package.name.clone(),
+        true,
+        &[
+            &PredefinedMenuItem::about(app, None, Some(about))?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::services(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::hide(app, None)?,
+            &PredefinedMenuItem::hide_others(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &guarded_quit,
+        ],
+    )?;
+    let edit_menu = Submenu::with_items(
+        app,
+        "Edit",
+        true,
+        &[
+            &PredefinedMenuItem::undo(app, None)?,
+            &PredefinedMenuItem::redo(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::cut(app, None)?,
+            &PredefinedMenuItem::copy(app, None)?,
+            &PredefinedMenuItem::paste(app, None)?,
+            &PredefinedMenuItem::select_all(app, None)?,
+        ],
+    )?;
+    let file_menu = Submenu::with_items(
+        app,
+        "File",
+        true,
+        &[&PredefinedMenuItem::close_window(app, None)?],
+    )?;
+    let view_menu = Submenu::with_items(
+        app,
+        "View",
+        true,
+        &[&PredefinedMenuItem::fullscreen(app, None)?],
+    )?;
+    let window_menu = Submenu::with_id_and_items(
+        app,
+        WINDOW_SUBMENU_ID,
+        "Window",
+        true,
+        &[
+            &PredefinedMenuItem::minimize(app, None)?,
+            &PredefinedMenuItem::maximize(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::close_window(app, None)?,
+        ],
+    )?;
+    let help_menu = Submenu::with_id_and_items(app, HELP_SUBMENU_ID, "Help", true, &[])?;
+    Menu::with_items(
+        app,
+        &[
+            &app_menu,
+            &file_menu,
+            &edit_menu,
+            &view_menu,
+            &window_menu,
+            &help_menu,
+        ],
+    )
+}
 
 fn configure_sidecar_cmd(cmd: &mut Command) {
     apply_create_no_window(cmd);
@@ -371,24 +602,56 @@ fn engine_navigation_allowed(url: &str, engine_port: Option<u16>) -> bool {
 fn main() {
     let engine_port = Arc::new(Mutex::new(None::<u16>));
     let nav_port = engine_port.clone();
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             focus_main_window(app);
         }))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri::plugin::Builder::<tauri::Wry, ()>::new("engine-nav")
                 .on_navigation(move |_webview, url| {
-                    engine_navigation_allowed(
-                        url.as_str(),
-                        nav_port.lock().ok().and_then(|g| *g),
-                    )
+                    engine_navigation_allowed(url.as_str(), nav_port.lock().ok().and_then(|g| *g))
                 })
                 .build(),
-        )
+        );
+    #[cfg(target_os = "macos")]
+    let builder = builder
+        .menu(macos_guarded_menu)
+        .on_menu_event(|app, event| {
+            if sharecut::is_guarded_quit_menu_item(event.id().as_ref()) {
+                app.exit(0);
+            }
+        });
+    builder
         .manage(SidecarState(Mutex::new(None)))
         .manage(LastOpenedShare(Mutex::new(None)))
+        .manage(CloseGuardState(Mutex::new(CloseGuardStatus::default())))
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() != "main" || is_confirmed_exit(window.app_handle()) {
+                    return;
+                }
+                let Some(webview) = window.app_handle().get_webview_window(window.label()) else {
+                    api.prevent_close();
+                    eprintln!("Sharecut Studio: main close guard has no webview; preventing close");
+                    return;
+                };
+                api.prevent_close();
+                match close_guard_decision(&webview) {
+                    sharecut::CloseDecision::Allow => {
+                        // Exit while the WebView still exists so ExitRequested can
+                        // inspect its current guard instead of seeing a missing
+                        // window after Tauri's default close destroys it.
+                        window.app_handle().exit(0);
+                    }
+                    sharecut::CloseDecision::Confirm(risk) => {
+                        handle_main_window_close(window, risk);
+                    }
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![open_share_url])
         .setup(move |app| {
             setup_deep_links(app)?;
@@ -443,11 +706,22 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while building Sharecut Studio")
         .run(|app_handle, event| {
-            if let RunEvent::Exit = event {
-                let taken = app_handle.try_state::<SidecarState>().and_then(|state| {
-                    state.0.lock().ok().and_then(|mut guard| guard.take())
-                });
-                if let Some(mut handle) = taken {
+            match event {
+                RunEvent::ExitRequested { api, .. } => {
+                    if let Some(risk) = handle_exit_requested(app_handle) {
+                        api.prevent_exit();
+                        if let Some(webview) = app_handle.get_webview_window("main") {
+                            request_close_confirmation(&webview, risk);
+                        } else {
+                            eprintln!("Sharecut Studio: could not show close confirmation");
+                        }
+                    }
+                }
+                RunEvent::Exit => {
+                    let taken = app_handle.try_state::<SidecarState>().and_then(|state| {
+                        state.0.lock().ok().and_then(|mut guard| guard.take())
+                    });
+                    if let Some(mut handle) = taken {
                     if let Some(path) = &handle.listen_path {
                         if let Err(err) = std::fs::remove_file(path) {
                             if err.kind() != io::ErrorKind::NotFound {
@@ -469,7 +743,9 @@ fn main() {
                     }
                     let _ = handle.child.kill();
                     let _ = handle.child.wait();
+                    }
                 }
+                _ => {}
             }
         });
 }

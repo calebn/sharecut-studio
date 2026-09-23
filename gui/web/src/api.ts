@@ -14,6 +14,7 @@ import {
   reviewApiBase,
   shareTokenFromKey,
 } from "./shareMode";
+import { useDawStore } from "./state/dawStore";
 import type {
   PipelineAnalyzeResponse,
   PipelineConfigResponse,
@@ -23,6 +24,7 @@ import type {
   ProjectMeta,
 } from "./types/pipeline";
 import type {
+  AutomationPoint,
   HistoryDiff,
   PeaksData,
   ProjectView,
@@ -259,12 +261,14 @@ export async function submitDocumentCommand(
     client_seq?: number;
     structural_mode?: "propose" | "apply";
     offline?: boolean;
+    replaying?: boolean;
+    client_id?: string;
   },
 ): Promise<Record<string, unknown>> {
   const command_id = opts?.command_id ?? newCommandId();
   const client_seq = opts?.client_seq ?? nextDocumentClientSeq();
   const bodyBase = {
-    client_id: documentClientId(),
+    client_id: opts?.client_id ?? documentClientId(),
     client_seq,
     command_id,
     type,
@@ -289,6 +293,7 @@ export async function submitDocumentCommand(
     );
     await enqueueCommand(token, {
       command_id,
+      client_id: bodyBase.client_id,
       client_seq,
       type,
       payload,
@@ -343,22 +348,98 @@ export async function submitDocumentCommand(
       throw err;
     }
   }
-  const res = await hostFetch(
-    `/api/document/command?path=${encodeURIComponent(projectPath)}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...bodyBase,
-        role: "viewer",
-      }),
-    },
-  );
+  const hostQueue = await import("./state/offlineStore");
+  let enqueueResult = { persisted: false, hadPredecessor: false };
+  if (opts?.replaying) {
+    // A replay already owns its persisted queue record.
+    enqueueResult.persisted = true;
+  } else {
+    try {
+      enqueueResult = await hostQueue.enqueueHostCommand(projectPath, {
+        command_id,
+        client_id: bodyBase.client_id,
+        client_seq,
+        type,
+        payload,
+        structural_mode: opts?.structural_mode,
+        created_at: Date.now(),
+      });
+    } catch (error) {
+      // Direct send is safe only when a readable queue proves there is no older edit.
+      let pending;
+      try {
+        pending = await hostQueue.loadHostCommandQueue(projectPath);
+      } catch {
+        throw error;
+      }
+      if (pending.length > 0) {
+        throw new Error(
+          "Cannot send this edit while older offline edits are pending",
+        );
+      }
+    }
+  }
+  if (enqueueResult.hadPredecessor && !opts?.replaying) {
+    return { ok: true, queued: true, command_id, client_seq };
+  }
+  let res: Response;
+  try {
+    res = await hostFetch(
+      `/api/document/command?path=${encodeURIComponent(projectPath)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...bodyBase,
+          role: "viewer",
+        }),
+      },
+    );
+  } catch (err) {
+    if (enqueueResult.persisted) {
+      return { ok: true, queued: true, command_id, client_seq };
+    }
+    throw err;
+  }
   if (!res.ok) {
-    throw await readApiFailure(res);
+    const failure = await readApiFailure(res);
+    const detail = failure.message;
+    if (res.status === 409) {
+      await hostQueue.addHostConflict(projectPath, {
+        command: {
+          command_id,
+          client_seq,
+          type,
+          payload,
+          created_at: Date.now(),
+        },
+        reason: detail,
+      });
+      if (enqueueResult.persisted) {
+        await hostQueue.removeHostQueuedCommand(projectPath, command_id);
+      }
+    } else if (res.status < 500) {
+      if (enqueueResult.persisted) {
+        await hostQueue.removeHostQueuedCommand(projectPath, command_id);
+      }
+    }
+    if (res.status >= 500 && enqueueResult.persisted) {
+      return { ok: true, queued: true, command_id, client_seq };
+    }
+    throw failure;
+  }
+  if (enqueueResult.persisted && !opts?.replaying) {
+    // The server already committed. Failed local cleanup must not invite a new edit.
+    try {
+      await hostQueue.removeHostQueuedCommand(projectPath, command_id);
+    } catch {
+      // A later idempotent replay will clean up this same command identity.
+    }
   }
   const data = (await res.json()) as Record<string, unknown>;
-  applyDocumentResult(data);
+  if (useDawStore.getState().projectPath === projectPath) {
+    applyDocumentResult(data);
+  }
   return data;
 }
 
@@ -561,7 +642,7 @@ export async function setTranscriptWordSuppressed(
 export async function setEnvelope(
   projectPath: string,
   trackId: string,
-  points: { time: number; value: number }[],
+  points: AutomationPoint[],
 ): Promise<void> {
   await submitDocumentCommand(projectPath, "SetEnvelope", {
     track_id: trackId,
@@ -1822,7 +1903,7 @@ export async function createComment(
     actionTexts?: string[];
     editDecisionId?: string | null;
   },
-): Promise<TimelineComment> {
+): Promise<TimelineComment | null> {
   if (isShareProjectKey(projectPath)) {
     const token = shareTokenFromKey(projectPath)!;
     const res = await fetch(`${reviewApiBase(token)}/comments`, {
@@ -1853,6 +1934,9 @@ export async function createComment(
     action_texts: opts.actionTexts ?? [],
     edit_decision_id: opts.editDecisionId ?? null,
   });
+  if (data.queued === true) {
+    return null;
+  }
   const comment = commentFromCommandResult(data);
   if (!comment) {
     throw new Error("AddComment did not return a comment");
@@ -1868,7 +1952,7 @@ export async function patchComment(
     resolved?: boolean;
     by?: string;
   },
-): Promise<TimelineComment> {
+): Promise<TimelineComment | null> {
   if (isShareProjectKey(projectPath)) {
     throw new Error("Resolving comments is not available for shared guests");
   }
@@ -1879,6 +1963,9 @@ export async function patchComment(
     ...(opts.resolved != null ? { resolved: opts.resolved } : {}),
     ...(opts.by != null ? { by: opts.by } : {}),
   });
+  if (data.queued === true) {
+    return null;
+  }
   const comment = commentFromCommandResult(data);
   if (!comment) {
     throw new Error(`${type} did not return a comment`);

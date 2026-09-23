@@ -5,7 +5,7 @@ import json
 from typing import Any
 
 from podcast_mcp.edits.mute_regions import mute_regions_payload
-from podcast_mcp.engines.play_audit import track_render_hash
+from podcast_mcp.engines.play_audit import envelope_audio_payload, track_render_hash
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.tracks import dialogue_track_ids
 
@@ -33,7 +33,7 @@ def audio_state_fingerprint(project: EpisodeProject) -> str:
                     )
                 )
     for env in sorted(project.automation_envelopes, key=lambda e: e.track_id):
-        parts.append(json.dumps(env.model_dump(), sort_keys=True, separators=(",", ":")))
+        parts.append(json.dumps(envelope_audio_payload(env), sort_keys=True, separators=(",", ":")))
     raw = "|".join(parts)
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 

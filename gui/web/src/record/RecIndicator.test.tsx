@@ -39,4 +39,12 @@ describe("RecIndicator", () => {
     rerender(<RecIndicator snapshot={{ ...base, state: "stopped" }} />);
     expect(screen.getByText("Stopped")).toBeInTheDocument();
   });
+
+  it("does not show a healthy REC label after local capture fails", () => {
+    render(
+      <RecIndicator snapshot={{ ...base, state: "recording" }} captureFailed />,
+    );
+    expect(screen.getByText("REC — local capture failed")).toBeInTheDocument();
+    expect(screen.queryByText("REC")).not.toBeInTheDocument();
+  });
 });

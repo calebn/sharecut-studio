@@ -507,14 +507,17 @@
         "parameter": "volume",
         "points": [
           {
+            "id": "reference-start",
             "time": 0.0,
             "value": 1.0
           },
           {
+            "id": "reference-middle",
             "time": 30.0,
             "value": 0.85
           },
           {
+            "id": "reference-end",
             "time": 60.0,
             "value": 1.0
           }

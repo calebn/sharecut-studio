@@ -118,6 +118,7 @@ export function shouldApplyRecordSnapshot(
 }
 
 export const LOCAL_KEEPER_COPY = "Recording locally on this device.";
+export const RECONNECT_MIC_COPY = "Reconnect microphone";
 
 export const HEARING_COPY = "Hearing the room.";
 
@@ -137,7 +138,10 @@ export const UPLOAD_WAITING_TO_LAND_COPY =
 export const UPLOAD_LAND_FAILED_COPY =
   "Uploaded but not landed on the host. Keep the local backup; ask the host to retry landing.";
 export const UPLOAD_SINK_ERROR_COPY =
-  "Local backup storage is unavailable. Stay on this page if you can retry.";
+  "Local recording backup is unavailable. Check that this browser or app environment allows local storage, then retry.";
+export const OPFS_UNAVAILABLE_COPY =
+  "Local recording backup is unavailable because this browser or app environment does not support OPFS. Use a compatible browser, then retry.";
+export const LOCAL_KEEPER_PENDING_COPY = "Preparing local recording backup…";
 export const UPLOAD_STATUS_ID = "record-upload-status";
 
 export const ROOM_TONE_DURATION_SEC = 3;
@@ -154,6 +158,7 @@ export function hostUploadLine(
   name: string,
   fileAck: boolean,
   ackedParts: number,
+  expectedParts: number | null = null,
   landed = false,
   landFailed = false,
 ): string {
@@ -165,6 +170,9 @@ export function hostUploadLine(
   }
   if (fileAck) {
     return `${name}: uploaded; waiting to land.`;
+  }
+  if (expectedParts != null) {
+    return `${name}: ${ackedParts}/${expectedParts} chunks acked.`;
   }
   if (ackedParts <= 0) {
     return `${name}: waiting to upload.`;
