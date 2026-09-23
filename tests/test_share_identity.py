@@ -179,7 +179,7 @@ def test_restricted_share_requires_acl(
     minimal_project, sample_wav, tmp_workspace, identity_store, monkeypatch
 ):
     index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="restricted")
     share = ShareService(ws).create(
@@ -218,7 +218,7 @@ def test_link_share_stays_anonymous(
     minimal_project, sample_wav, tmp_workspace, identity_store, monkeypatch
 ):
     index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="link")
     share = ShareService(ws).create(
@@ -235,7 +235,7 @@ def test_require_sign_in_on_link_share(
     minimal_project, sample_wav, tmp_workspace, identity_store, monkeypatch
 ):
     index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="force")
     share = ShareService(ws).create(
@@ -259,7 +259,7 @@ def test_magic_link_and_agent_credential(
     minimal_project, sample_wav, tmp_workspace, identity_store, monkeypatch
 ):
     index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     monkeypatch.setenv("PODCAST_MAGIC_LINK_PRINT", "1")
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="magic")
@@ -996,7 +996,7 @@ def test_public_mcp_path_enforces_share_identity(
     minimal_project, sample_wav, tmp_workspace, identity_store, monkeypatch
 ) -> None:
     index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="mcp-public-id")
@@ -1028,7 +1028,7 @@ def test_restricted_share_ws_requires_auth(
     minimal_project, sample_wav, tmp_workspace, identity_store, monkeypatch
 ):
     index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="ws-restricted")
     share = ShareService(ws).create(

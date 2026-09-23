@@ -163,7 +163,7 @@ def test_upload_and_presign_proxy(minimal_project, monkeypatch):
 
 def test_delete_proxy_when_no_shares(minimal_project, monkeypatch, tmp_workspace):
     index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     ws = _seed_track(minimal_project)
     track_id = "host"
     fake = MagicMock()
@@ -281,7 +281,7 @@ def test_delete_skips_when_active_share(minimal_project, monkeypatch, tmp_worksp
     from podcast_mcp.services.share import ShareService
 
     index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     monkeypatch.setattr(
         "podcast_mcp.services.proxy_media.load_object_store_config",
         lambda config_path=None: None,
@@ -352,7 +352,7 @@ def test_delete_no_prefix_or_client(minimal_project, monkeypatch):
 
 def test_delete_object_failure(minimal_project, monkeypatch, tmp_workspace):
     index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     ws = _seed_track(minimal_project)
     monkeypatch.setattr("podcast_mcp.services.proxy_media.CHUNK_SEC", 0.5)
     ensure_track_proxy(ws, "host")
@@ -383,7 +383,7 @@ def test_delete_object_failure(minimal_project, monkeypatch, tmp_workspace):
 
 def test_ensure_and_upload_all_and_delete_all(minimal_project, monkeypatch, tmp_workspace):
     index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     ws = _seed_track(minimal_project)
     monkeypatch.setattr("podcast_mcp.services.proxy_media.CHUNK_SEC", 0.5)
     fake = MagicMock()
@@ -441,7 +441,7 @@ def test_local_proxy_chunk_path_errors(minimal_project, monkeypatch):
 
 def test_delete_mutate_failure_still_returns_true(minimal_project, monkeypatch, tmp_workspace):
     index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     ws = _seed_track(minimal_project)
     monkeypatch.setattr("podcast_mcp.services.proxy_media.CHUNK_SEC", 0.5)
     ensure_track_proxy(ws, "host")

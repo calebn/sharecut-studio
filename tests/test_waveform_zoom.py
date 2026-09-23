@@ -270,7 +270,7 @@ def test_guest_peaks_are_overview_not_coarsened(
     from podcast_mcp.engines.peaks import wait_peaks_jobs
     from podcast_mcp.services.episode import EpisodeService
 
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(tmp_workspace / "shares_index.json"))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "shares_index.json"))
     ws = ProjectWorkspace.open(minimal_project)
     EpisodeService(ws).add_track("host", str(sample_wav), speaker="Host")
     wait_peaks_jobs()

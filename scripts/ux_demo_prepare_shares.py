@@ -2,7 +2,7 @@
 """Publish a UX-demo review version and create guest share tokens for screenshots.
 
 Writes:
-  - PODCAST_REVIEW_SHARES_INDEX (default /tmp/podcast_ux_demo_shares.json)
+  - PODCAST_SHARE_REGISTRY (default /tmp/podcast_ux_demo_shares.sqlite)
   - Token manifest for Playwright (default ux/assets/screens/.guest-tokens.json)
 
 May mutate tests/fixtures/sharecut_ux_demo/episode.project.json (adds a review
@@ -23,7 +23,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEMO = ROOT / "tests" / "fixtures" / "sharecut_ux_demo" / "episode.project.json"
-DEFAULT_INDEX = Path("/tmp/podcast_ux_demo_shares.json")
+DEFAULT_INDEX = Path("/tmp/podcast_ux_demo_shares.sqlite")
 DEFAULT_TOKENS = ROOT / "ux" / "assets" / "screens" / ".guest-tokens.json"
 
 
@@ -43,7 +43,7 @@ def main() -> int:
     parser.add_argument(
         "--index",
         type=Path,
-        default=Path(os.environ.get("PODCAST_REVIEW_SHARES_INDEX", str(DEFAULT_INDEX))),
+        default=Path(os.environ.get("PODCAST_SHARE_REGISTRY", str(DEFAULT_INDEX))),
     )
     parser.add_argument(
         "--tokens-out",
@@ -56,7 +56,7 @@ def main() -> int:
         print(f"missing project: {args.project}", file=sys.stderr)
         return 1
 
-    os.environ["PODCAST_REVIEW_SHARES_INDEX"] = str(args.index.resolve())
+    os.environ["PODCAST_SHARE_REGISTRY"] = str(args.index.resolve())
 
     from podcast_mcp.services import ProjectWorkspace, ReviewService
     from podcast_mcp.services.share import ShareService
@@ -106,7 +106,7 @@ def main() -> int:
     args.tokens_out.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(manifest, indent=2))
     print(f"\nWrote {args.tokens_out}", file=sys.stderr)
-    print(f"PODCAST_REVIEW_SHARES_INDEX={args.index.resolve()}", file=sys.stderr)
+    print(f"PODCAST_SHARE_REGISTRY={args.index.resolve()}", file=sys.stderr)
     return 0
 
 

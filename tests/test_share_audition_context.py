@@ -54,7 +54,7 @@ def _seed_dialogue(minimal_project, sample_wav, tmp_workspace) -> ProjectWorkspa
 
 def _share(ws, monkeypatch, tmp_workspace, caps: list[str]):
     index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
     ver = ReviewService(ws).publish(label="audition-context")
     return ShareService(ws).create(

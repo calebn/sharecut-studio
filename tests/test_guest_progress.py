@@ -298,7 +298,7 @@ async def test_handle_mcp_jsonrpc_progress_token_uses_guest_context(
         Capturing,
     )
     index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="McpProgress")
@@ -342,7 +342,7 @@ def test_progress_ws_commenter_without_view_receives_own_events(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     workspace = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(workspace).publish(label="ProgressWS")
     share = ShareService(workspace).create(
@@ -481,7 +481,7 @@ def test_progress_ws_concurrency_rejected(minimal_project, sample_wav, tmp_works
     )
 
     index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     monkeypatch.setenv("PODCAST_GUEST_WS_CONCURRENT", "1")
     reset_host_limiters_for_tests()
     workspace = _seed_premix(minimal_project, sample_wav)
@@ -519,7 +519,7 @@ def test_share_progress_still_valid_without_view(
     )
 
     index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     workspace = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(workspace).publish(label="Present")
     share = ShareService(workspace).create(
@@ -548,7 +548,7 @@ def test_mcp_progress_token_streams_sse_notifications(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="SseProgress")
@@ -599,7 +599,7 @@ def test_progress_ws_isolates_two_share_tokens(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     workspace = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(workspace).publish(label="DualTok")
     share_a = ShareService(workspace).create(

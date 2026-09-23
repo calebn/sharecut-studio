@@ -32,7 +32,7 @@ def _json_from_cli(output: str) -> dict:
 
 def _seed(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     proj = load_project(minimal_project)
     art = Path(proj.workspace_dir) / "artifacts"
     art.mkdir(parents=True, exist_ok=True)
@@ -351,7 +351,7 @@ def test_review_shares_find_and_resolve(minimal_project, sample_wav, tmp_workspa
     assert resolve_share("x", registry_path=bad_reg) is None
 
     # env override for default path (.json → sibling .sqlite)
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(tmp_workspace / "idx2.json"))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "idx2.json"))
     p = default_registry_path()
     assert p.name == "idx2.sqlite"
 
