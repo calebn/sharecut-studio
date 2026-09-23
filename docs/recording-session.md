@@ -33,8 +33,9 @@ Category SOTA is **Riverside / Zencastr / SquadCast / Descript Rooms**, not Zoom
 - Live conversation over **WebRTC** (lossy, echo-cancelled, headphones).
 - Keeper stems recorded **locally per participant** as uncompressed **PCM/WAV**
   (Riverside: 16-bit linear PCM, 44.1/48 kHz), independent of the network.
-- **Progressive upload** during the session, plus a local backup if host/cloud
-  disappears.
+- **Segment upload** during the session: each keeper segment uploads in chunks
+  as soon as it closes (pause, resume, rejoin, Stop), plus a local backup if
+  host/cloud disappears. Nothing streams from a segment while it is still open.
 - After stop: **upload status until confirmed**, then tracks on one timeline;
   late joiners **padded at the start**.
 - Join link is a **studio/room**, not a review/listen link.
@@ -84,7 +85,7 @@ download; it is at most a lossy backup. Keepers must target WAV/PCM.
 | **Monitor** | WebRTC send/receive graph (lossy, may use AEC). |
 | **Mix-minus** | Speaker bus plays remotes only; local capture never to destination. |
 | **Sidetone** | Optional 0 ms dry tap into headphones (gain-limited), never the WebRTC round-trip. |
-| **Chunk** | Progressive upload unit (5 MB or 30 s, whichever first). |
+| **Chunk** | Upload unit of a closed keeper segment (30 s of PCM, the final part shorter). |
 | **ACK** | Host ingest confirmation (sha256 + byte length per chunk, then per file). |
 | **Lobby** | Name, headphones, mic test, device picker, optional 3 s room tone — before consent. |
 | **Consent gate** | Per-person blocking step before any encoder, keeper chunk, or room-tone PUT to the host. Lobby may capture a 3 s bed into OPFS; those bytes stay local until Accept. |
@@ -135,11 +136,17 @@ with its trusted `join_offset_ms` and `complete: false`. The record changes to
 `complete: true` only after the WAV header and writable have closed successfully;
 upload never infers completion from a WAV file alone. On rejoin, a readable
 pending PCM WAV can be recovered explicitly: the client validates its fixed
-48 kHz mono PCM format, atomically rewrites its header, and preserves the
-recorded join offset before allowing upload. Zero-byte, malformed, or
-unplaceable files are retained for deliberate export with an explicit loss
-message; bytes that an interrupted OPFS writable never committed cannot be
-reconstructed.
+48 kHz mono PCM format from the header alone, patches the header in place
+(dropping at most one incomplete trailing sample, which the panel reports), and
+preserves the recorded join offset before allowing upload. Recovery re-checks
+that the room is stopped and capture has settled before each segment, keeps
+going past a failing segment, and reports every failure together. Zero-byte,
+malformed, or unplaceable files are retained for deliberate export with an
+explicit loss message; bytes that an interrupted OPFS writable never committed
+cannot be reconstructed. Metadata finalized by clients that predate the
+`complete` flag is treated as complete when its WAV header length matches both
+the file and `samplesWritten`. Keeper enumeration is capped at 1000 takes and
+1000 segments per take so a stray OPFS name cannot stall the upload poll.
 
 While a local keeper is actively writing, the browser registers a native
 `beforeunload` confirmation so an accidental refresh or navigation can be
@@ -273,17 +280,23 @@ MM4 asserts the monitor drop; keeper mute zeros are covered by keeper session te
 
 Relay never stores audio, but keeper chunks may transit the tunnel. Keeper + local backup live on each device until
 chunked upload and host ingest **ACK** (sha256 + byte length per chunk, then
-per file). Assembled WAV lands in `artifacts/record/acked/` until landing copies it into
+per file). Upload is progressive per **segment**, not per sample: a segment's
+chunks are sent only after its writable closes and its metadata says
+`complete: true`, so a long uninterrupted take uploads after Stop (or at the
+next pause). An open segment is never read or uploaded while capture may
+still be writing it. Assembled WAV lands in `artifacts/record/acked/` until landing copies it into
 `raw/` and registers clips.
 
-Chunks (target 5 MB or 30 s, whichever first) `POST` to a **dedicated record
+Chunks (30 s of PCM each, the final part shorter) `POST` to a **dedicated record
 upload route** gated by `join` (not `edit`, not `POST …/daw/media/upload`).
 Tunnel pass-through to the host only — no relay disk, no object-store
 keeper backup in MVP. Stop shows a **blocking upload panel** (host sees all
 participants; guest sees own) until ACK or stall. An incomplete local segment
 after capture has settled is retained for recovery and reported separately;
 it cannot receive a file ACK and does not hold Leave after complete segments
-are acknowledged. The panel shows `N/M` chunks when finalized WAV totals are
+are acknowledged. While Stop is still finalizing the last segment, Leave stays
+held until its complete metadata lands or capture latches a failure (a latched
+failure counts as settled so recovery and export appear). The panel shows `N/M` chunks when finalized WAV totals are
 known. Resume on the **same `/rec/` token** inside a **7-day recovery window**.
 A pending segment is never uploaded automatically; the stopped panel offers
 **Recover partial take** only for a validated readable segment, alongside the
@@ -392,7 +405,7 @@ A participant's keeper within one take is a list of **segments**.
 
 | Event | Segment | Monitor / upload |
 |-------|---------|------------------|
-| Tunnel / host offline (mic still held) | **Stays open**; WAV keeps growing | Monitor ends; upload retries |
+| Tunnel / host offline (mic still held) | **Stays open**; WAV keeps growing | Monitor ends; closed segments retry upload; the open one uploads once it closes |
 | Intentional leave, tab close, or lost mic | **Ends** (file frozen, upload continues) | — |
 | Host pause | **Ends** for everyone | Monitor stays live |
 | Host returns after ≥ `HOST_OFFLINE_PAUSE_MS` (10 s) while REC | **Forced PAUSED** (`pause_reason: "host_reconnect"` on the `PauseEntry` and live snapshot); host must Resume | Mesh closes that peer's PC and re-offers |
@@ -658,7 +671,8 @@ stateDiagram-v2
 ## Host offline and disconnect
 
 Guest keeps recording locally **when the segment is still open** (tunnel/host
-offline, mic held); monitor tracks end; upload retries; rejoin the same
+offline, mic held); monitor tracks end; closed segments retry upload (the
+open segment waits until it closes); rejoin the same
 token. Copy: "Host offline — still recording locally." Intentional leave /
 lost mic uses **segments** ([Roster changes](#roster-changes-join-leave-rejoin-pause-takes)).
 Producers simply lose audio and reconnect. Pending live comments queue with
@@ -887,7 +901,7 @@ warning appears; sidetone level sane.
 | Consent vs lobby | Explicit **Allow microphone** before the meter (`useMicPermission`; one `getUserMedia` path). Accept disabled with `aria-describedby` until granted **and** headphones are checked. WAV tap + keeper chunks **and** room-tone PUT **zero bytes** to the host until consent (local OPFS bed capture is allowed; Skip/Decline discards it); Start disabled while any **recorded** in-lobby client lacks consent; producers skip the gate and never call `getUserMedia`. Host Start does not require the host to record or skip room tone (idle is an implicit skip). |
 | Room tone | After mic granted, optional 3 s keeper-constraint PCM→WAV (skip allowed); RMS > −35 dBFS warns "Too loud — is something playing?" and does not upload; guest PUT `kind=room_tone` only after Accept (403 before consent), 403 for producer, reject > 10 s 48 kHz mono; Retry replaces the prior ACK; landing sets `track.room_tone` under the land lock; `filler_pad_mode: room_tone` prefers the bed then stem-steal; undo restores and re-lands. Producers omit the step. |
 | Late-join pad | Joiner at T+10 s → clip at `join_offset_ms` = 10 s ± 1 frame (default, no in-file pad). Optional origin encoding of **segment 0 only**: leading zeros 10 s ± 1 frame at 48 kHz. Later segments never padded in-file. |
-| Progressive upload | Fake transport + HTTP resume; keys `(session_id, take, participant, segment, part_seq)`; chunk hashes; current clients declare `expected_parts` and older open tabs infer it at finalization; kill mid-session; resume on same token completes; incomplete/stalled and zero-sample keepers expose a ZIP of retained local segments and upload retry; host GET lists all participants with `N/M` where every segment total is known. |
+| Progressive upload | Fake transport + HTTP resume; keys `(session_id, take, participant, segment, part_seq)`; chunk hashes; current clients declare `expected_parts` and older open tabs infer it at finalization; kill mid-session; resume on same token completes; incomplete/stalled and zero-sample keepers expose a ZIP of retained local segments and upload retry; host GET lists all participants with `N/M` where every segment total is known; only `complete: true` (or verified legacy) segments upload, pending WAVs are never read during REC, Leave is held while Stop finalizes a lone segment, and **Recover partial take** (host + guest) patches the header once, re-polls upload, and reports failures outside the storage error channel. |
 | Host offline | Monitor tracks end; if the segment is still open, local WAV length **keeps growing**; copy string asserted. Intentional leave / lost mic finalizes the segment. |
 | Microphone loss | Test-only ended track reference: stale ended events are ignored, listeners are cleaned up, devicechange refreshes devices without declaring loss by itself, retry reacquires explicitly; the open keeper segment finalizes and the next segment resumes at the current recording-clock offset. A browser test ends the guest track before consent, blocks Accept, and verifies retry; no warning appears after an intentional stop. |
 | Host reconnect | Last host conn drop during REC/PAUSED persists `host_offline_since_wall_ms` (Leave or last-socket pop). Join after ≥ 10 s while REC → `paused` + one `PauseEntry.pause_reason == "host_reconnect"`; Join below 10 s stays recording; already paused → no second entry; sidecar crash without Leave (empty `_HOST_CONNS`, same sqlite) still pauses; Resume clears live `pause_reason`; remint while REC/PAUSED is 409 / CLI non-zero / MCP error; landing after that pause places clips abutting. Host keeper `resetKey` follows the open host-reconnect pause seq (Vitest), not WS `connected`. |
