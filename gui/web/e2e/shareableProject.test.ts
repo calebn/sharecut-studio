@@ -4,13 +4,13 @@ import os from "node:os";
 import path from "node:path";
 import { setTimeout } from "node:timers/promises";
 import { describe, expect, it, vi } from "vitest";
-import { committedE2eProjectPath, e2eProjectPath } from "./env";
-import { createRelocatedE2eProject } from "./liveProject";
 import {
   assertDisposableE2eProject,
-  switchE2eProject,
-  withShareableProject,
-} from "./shareableProject";
+  committedE2eProjectPath,
+  e2eProjectPath,
+} from "./env";
+import { createRelocatedE2eProject } from "./liveProject";
+import { switchE2eProject, withShareableProject } from "./shareableProject";
 
 const suiteProjectPath = path.join(
   os.tmpdir(),
@@ -73,6 +73,32 @@ describe("assertDisposableE2eProject", () => {
   it("accepts a disposable suite project path", () => {
     expect(() => assertDisposableE2eProject(suiteProjectPath)).not.toThrow();
   });
+
+  it("rejects a symlinked alias of the committed fixture", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sharecut-e2e-alias-"));
+    try {
+      const alias = path.join(dir, "episode.project.json");
+      fs.symlinkSync(committedE2eProjectPath, alias);
+      expect(() => assertDisposableE2eProject(alias)).toThrow(
+        /committed fixture/,
+      );
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  const caseVariant = path.join(
+    path.dirname(committedE2eProjectPath),
+    "EPISODE.project.json",
+  );
+  it.runIf(fs.existsSync(caseVariant))(
+    "rejects a case variant of the committed fixture on a case-insensitive volume",
+    () => {
+      expect(() => assertDisposableE2eProject(caseVariant)).toThrow(
+        /committed fixture/,
+      );
+    },
+  );
 });
 
 describe("withShareableProject", () => {
@@ -163,6 +189,27 @@ describe("withShareableProject", () => {
 
     expect(switchSpy).not.toHaveBeenCalled();
     expect(createSpy).not.toHaveBeenCalled();
+  });
+
+  it("refuses the forward switch to the committed fixture even with an injected switcher", async () => {
+    const switched: string[] = [];
+    const workspaceDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "sharecut-e2e-share-guard-"),
+    );
+
+    await expect(
+      withShareableProject(
+        async () => {},
+        async (projectPath) => {
+          switched.push(projectPath);
+        },
+        () => ({ projectPath: committedE2eProjectPath, workspaceDir }),
+        suiteProjectPath,
+      ),
+    ).rejects.toThrow(/committed fixture/);
+
+    expect(switched).toEqual([suiteProjectPath]);
+    expect(fs.existsSync(workspaceDir)).toBe(false);
   });
 
   it.runIf(e2eProjectPath === committedE2eProjectPath)(

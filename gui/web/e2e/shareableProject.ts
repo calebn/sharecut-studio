@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { request } from "node:http";
 import path from "node:path";
-import { committedE2eProjectPath, e2eBaseURL, e2eProjectPath } from "./env";
+import { assertDisposableE2eProject, e2eBaseURL, e2eProjectPath } from "./env";
 import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
@@ -27,17 +27,13 @@ export type ShareableProjectFactory = (
   prefix: string,
 ) => ReturnType<typeof createRelocatedE2eProject>;
 
-/** Refuse to retarget the loopback GUI at the committed fixture. (doc: env fallback when DAW_E2E_PROJECT unset: UX_DEMO_SCREENSHOTS, Vitest, outside Playwright) */
-export function assertDisposableE2eProject(projectPath: string): void {
-  if (path.resolve(projectPath) === path.resolve(committedE2eProjectPath)) {
-    throw new Error(
-      `Refusing to switch the E2E GUI to the committed fixture ${committedE2eProjectPath}; ` +
-        "set DAW_E2E_PROJECT to a disposable copy (playwright.config.ts does this via prepareLiveE2eProject()).",
-    );
-  }
-}
-
-/** Retarget the loopback GUI through its authenticated project-open endpoint. */
+/**
+ * Retarget the loopback GUI through its authenticated project-open endpoint.
+ *
+ * E2E specs must switch projects only through this helper (or
+ * `withShareableProject`), never by POSTing to `/api/project/open` directly,
+ * so `assertDisposableE2eProject` always runs.
+ */
 export const switchE2eProject = async (
   projectPath: string,
   baseURL = e2eBaseURL,
@@ -134,6 +130,9 @@ export async function withShareableProject<T>(
   let primaryError: unknown;
   let result!: T;
   try {
+    // Guard here as well as in switchE2eProject so an injected switcher
+    // cannot open the committed fixture either.
+    assertDisposableE2eProject(projectPath);
     const art = path.join(root, "artifacts");
     const premix = path.join(art, "premix.wav");
     fs.mkdirSync(art, { recursive: true });
