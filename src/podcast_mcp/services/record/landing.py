@@ -44,6 +44,7 @@ from podcast_mcp.services.record.state import (
 )
 from podcast_mcp.services.record.upload import (
     ROOM_TONE_MAX_PCM_BYTES,
+    ROOM_TONE_TAKE_INDEX,
     RecordUploadService,
     parse_participant_id,
     parse_session_id,
@@ -643,6 +644,38 @@ class RecordLandingService:
         track = self.workspace.project.track_by_id(slug_track_id(participant_id))
         return track is None or track.room_tone is None
 
+    def _landed_source_id(self, participant_id: str, take_index: int, segment_index: int) -> str:
+        if take_index == ROOM_TONE_TAKE_INDEX:
+            return room_tone_source_id(slug_track_id(participant_id))
+        return record_source_id(self.session_id, take_index, participant_id, segment_index)
+
+    def _mark_missing_acked(self, participant_id: str, take_index: int, segment_index: int) -> None:
+        """Acked WAV is gone: stay landed only if the source already sits in the workspace (#223)."""
+        source_id = self._landed_source_id(participant_id, take_index, segment_index)
+        present = _registered_source_file(self.workspace.project, source_id) is not None
+        if not present:
+            log.warning(
+                "record land missing acked keeper session=%s take=%s pid=%s seg=%s",
+                self.session_id,
+                take_index,
+                participant_id,
+                segment_index,
+            )
+        if present:
+            self._upload.mark_landed(
+                session_id=self.session_id,
+                take_index=take_index,
+                participant_id=participant_id,
+                segment_index=segment_index,
+            )
+        else:
+            self._upload.mark_land_failed(
+                session_id=self.session_id,
+                take_index=take_index,
+                participant_id=participant_id,
+                segment_index=segment_index,
+            )
+
     def _gate_acked(
         self,
         row: dict[str, Any],
@@ -665,14 +698,18 @@ class RecordLandingService:
         acked = self._upload.acked_wav(self.session_id, take, pid, segment)
         if not acked.is_file():
             if mark:
-                self._upload.mark_landed(
-                    session_id=self.session_id,
-                    take_index=take,
-                    participant_id=pid,
-                    segment_index=segment,
-                )
+                self._mark_missing_acked(pid, take, segment)
             return None
         return acked
+
+
+def _registered_source_file(project: EpisodeProject, source_id: str) -> tuple[Path, str] | None:
+    """``(absolute path, rel)`` of ``sources[source_id]`` when that file exists on disk."""
+    existing = next((src for src in project.sources if src.id == source_id), None)
+    if existing is None:
+        return None
+    dest = (Path(project.workspace_dir) / existing.path).resolve()
+    return (dest, existing.path) if dest.is_file() else None
 
 
 def _copy_into_raw(
@@ -684,11 +721,9 @@ def _copy_into_raw(
 ) -> tuple[Path, str]:
     ws = Path(project.workspace_dir)
     if dest is None:
-        existing = next((src for src in project.sources if src.id == source_id), None)
-        if existing is not None:
-            dest = (ws / existing.path).resolve()
-            if dest.is_file():
-                return dest, existing.path
+        registered = _registered_source_file(project, source_id)
+        if registered is not None:
+            return registered
         dest = unique_raw_path(ws, f"{source_id}.wav")
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(acked, dest)

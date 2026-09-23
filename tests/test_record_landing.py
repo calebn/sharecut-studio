@@ -747,10 +747,16 @@ def test_land_without_room_and_missing_acked_wav(
     skipped = RecordLandingService(ws).land(align=lambda _p: None)
     assert skipped["clips"] == []
     status = uploader.status(session_id=room["session_id"])
-    assert all(row["landed"] for row in status["segments"] if row["participant_id"] == guest)
+    guest_rows = [row for row in status["segments"] if row["participant_id"] == guest]
+    assert guest_rows
+    assert all(row["land_failed"] and not row["landed"] for row in guest_rows)
     land = client.post("/api/record/land", params={"path": str(minimal_project)})
     assert land.status_code == 200
     assert land.json()["clips"] == []
+    status_after = uploader.status(session_id=room["session_id"])
+    guest_rows_after = [row for row in status_after["segments"] if row["participant_id"] == guest]
+    assert guest_rows_after
+    assert all(row["land_failed"] and not row["landed"] for row in guest_rows_after)
 
 
 def test_concurrent_land_keeps_one_clip(minimal_project, sample_wav, tmp_workspace, monkeypatch):
@@ -783,6 +789,58 @@ def test_concurrent_land_keeps_one_clip(minimal_project, sample_wav, tmp_workspa
     rec_clips = [clip for clip in ws.project.clips if clip.source_id.startswith("rec-")]
     assert len(rec_clips) == 1
     assert len(landed) == 1
+
+
+def test_missing_acked_with_source_in_raw_stays_landed(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=1_000)
+    uploader = RecordUploadService(ws.project)
+    _ack(
+        uploader,
+        session_id=room["session_id"],
+        take=0,
+        pid=guest,
+        segment=0,
+        join_offset_ms=0,
+    )
+    first = RecordLandingService(ws).land(align=lambda _p: None)
+    raw = Path(ws.project.workspace_dir) / first["clips"][0]["raw_path"]
+    assert raw.is_file()
+
+    uploader.acked_wav(room["session_id"], 0, guest, 0).unlink()
+    uploader.mark_land_failed(
+        session_id=room["session_id"], take_index=0, participant_id=guest, segment_index=0
+    )
+    again = RecordLandingService(ws).land(align=lambda _p: None)
+    assert again["clips"] == []
+    row = next(
+        r
+        for r in uploader.status(session_id=room["session_id"])["segments"]
+        if r["participant_id"] == guest
+    )
+    assert row["landed"] is True
+    assert row["land_failed"] is False
+    assert raw.is_file()
+
+    raw.unlink()
+    uploader.mark_land_failed(
+        session_id=room["session_id"], take_index=0, participant_id=guest, segment_index=0
+    )
+    again2 = RecordLandingService(ws).land(align=lambda _p: None)
+    assert again2["clips"] == []
+    row2 = next(
+        r
+        for r in uploader.status(session_id=room["session_id"])["segments"]
+        if r["participant_id"] == guest
+    )
+    assert row2["landed"] is False
+    assert row2["land_failed"] is True
 
 
 def test_land_notifies_document_plane(minimal_project, sample_wav, tmp_workspace, monkeypatch):
@@ -1797,3 +1855,61 @@ def test_land_rejects_oversize_room_tone_before_copy(
         RecordLandingService(ws).land(align=lambda _p: None)
     dest = Path(ws.project.workspace_dir) / "raw" / "room-tone" / f"{guest}.wav"
     assert not dest.is_file()
+
+
+def test_missing_acked_room_tone_lands_only_with_registered_bed(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.services.record.upload import ROOM_TONE_TAKE_INDEX
+
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    _svc, guest = _consent_room(ws, room)
+    uploader = RecordUploadService(ws.project)
+    pcm, digest, file_hash = _pcm(480)
+    uploader.ingest_part(
+        session_id=room["session_id"],
+        take_index=0,
+        participant_id=guest,
+        segment_index=0,
+        part_seq=0,
+        data=pcm,
+        digest=digest,
+        file_sha256=file_hash,
+        final=True,
+        kind="room_tone",
+    )
+    result = RecordLandingService(ws).land(align=lambda _p: None)
+    assert result["clips"] == []
+    bed = Path(ws.project.workspace_dir) / "raw" / "room-tone" / f"{guest}.wav"
+    assert bed.is_file()
+    beds = uploader.room_tone_status(session_id=room["session_id"])
+    assert beds and beds[0]["landed"] is True
+
+    uploader.acked_wav(room["session_id"], ROOM_TONE_TAKE_INDEX, guest, 0).unlink()
+    uploader.mark_land_failed(
+        session_id=room["session_id"],
+        take_index=ROOM_TONE_TAKE_INDEX,
+        participant_id=guest,
+        segment_index=0,
+    )
+    again = RecordLandingService(ws).land(align=lambda _p: None)
+    assert again["clips"] == []
+    beds_again = uploader.room_tone_status(session_id=room["session_id"])
+    assert beds_again[0]["landed"] is True
+    assert beds_again[0]["land_failed"] is False
+    assert bed.is_file()
+
+    bed.unlink()
+    uploader.mark_land_failed(
+        session_id=room["session_id"],
+        take_index=ROOM_TONE_TAKE_INDEX,
+        participant_id=guest,
+        segment_index=0,
+    )
+    again2 = RecordLandingService(ws).land(align=lambda _p: None)
+    assert again2["clips"] == []
+    beds_final = uploader.room_tone_status(session_id=room["session_id"])
+    assert beds_final[0]["landed"] is False
+    assert beds_final[0]["land_failed"] is True
