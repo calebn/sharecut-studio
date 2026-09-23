@@ -82,7 +82,9 @@ Docs (autodocs) pages render inside `StudioDocsContainer`
 (`src/storybook/StudioDocsContainer.tsx`), which resolves the same effective
 theme (`resolvedDocumentTheme`) and builds the Storybook docs theme from the
 live `--color-bg-canvas`, `--color-text-primary` and `--color-border`
-tokens, so docs pages and story mode match. Review every new component in
+tokens, so docs pages and story mode match. Those three tokens must stay
+plain hex in `brand-tokens.css` (Storybook's theme helpers need real
+colours); `docsTheme.test.ts` enforces it. Review every new component in
 both themes, in story mode and on its docs page, before merging.
 
 ## Adding a story
