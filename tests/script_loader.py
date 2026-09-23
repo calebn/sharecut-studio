@@ -6,6 +6,7 @@ import importlib.util
 import sys
 from pathlib import Path
 from types import ModuleType
+from typing import cast
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 
@@ -31,8 +32,9 @@ def load_script(name: str, *, register: bool = False) -> ModuleType:
         spec.loader.exec_module(module)
     except BaseException:
         if had_previous:
-            assert previous is not None
-            sys.modules[name] = previous
+            # Import-blocking None entries are valid at runtime despite the
+            # typeshed annotation for sys.modules values.
+            sys.modules[name] = cast(ModuleType, previous)
         else:
             sys.modules.pop(name, None)
         raise

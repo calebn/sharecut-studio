@@ -53,22 +53,27 @@ def test_missing_script_raises_without_registering(monkeypatch: pytest.MonkeyPat
     assert "missing_test_script" not in sys.modules
 
 
-@pytest.mark.parametrize("prior_module", [False, True])
+@pytest.mark.parametrize("prior_module", ["missing", "module", "blocked"])
 def test_registered_failure_restores_prior_module(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, prior_module: bool
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, prior_module: str
 ) -> None:
     (tmp_path / "failure.py").write_text("raise RuntimeError('boom')\n", encoding="utf-8")
     monkeypatch.setattr(script_loader, "SCRIPTS", tmp_path)
     previous = ModuleType("failure")
-    if prior_module:
+    if prior_module == "module":
         monkeypatch.setitem(sys.modules, "failure", previous)
+    elif prior_module == "blocked":
+        monkeypatch.setitem(sys.modules, "failure", None)
     else:
         monkeypatch.delitem(sys.modules, "failure", raising=False)
 
     with pytest.raises(RuntimeError, match="boom"):
         script_loader.load_script("failure", register=True)
 
-    if prior_module:
+    if prior_module == "module":
         assert sys.modules["failure"] is previous
+    elif prior_module == "blocked":
+        assert "failure" in sys.modules
+        assert sys.modules["failure"] is None
     else:
         assert "failure" not in sys.modules
