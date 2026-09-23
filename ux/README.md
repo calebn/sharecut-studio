@@ -55,14 +55,13 @@ When Sharecut Studio shells, mobile IA docs, share/session-sync/recording-sessio
 2. Pre-commit hook **`ux-pack-sync`** (`.pre-commit-config.yaml`) fails the commit if trigger paths change without a staged UX pack update.
 3. Agents: same rule in [AGENTS.md](../AGENTS.md) and [.agents/rules/engineering-standards.md](../.agents/rules/engineering-standards.md).
 
-Install hooks once per clone (`./install.sh` does this too):
+Install hooks once per clone or git worktree (`./install.sh` does this too):
 
 ```bash
-make hooks
-cd gui/web && npm ci   # lint-staged (format-on-commit)
-# optional, for schema / UX / capabilities check hooks:
-uv tool install pre-commit   # or: pip install pre-commit
+make worktree-setup   # hooks + venv + gui/web node_modules (lint-staged)
 ```
+
+The pre-commit hook provisions a fresh worktree itself, and runs the check-only hooks via `pre-commit` or, when that is not installed, `uvx pre-commit`.
 
 Rare bypass: `UX_PACK_SKIP=1` or commit message `[skip ux-pack]` (explain why in the PR).
 

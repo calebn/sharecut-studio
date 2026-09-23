@@ -17,7 +17,7 @@ Ship via **feature branch → PR → `main`**. Do not commit or push directly to
 4. When the user asks to ship: commit on the branch, `git push -u origin HEAD`, `gh pr create` targeting **`main`**. Put `Fixes #N` (or `Closes` / `Resolves`) in the PR body so merge into `main` auto-closes linked issues.
 5. Merge only when the user asks.
 
-`make hooks` (also run by `./install.sh`) points `core.hooksPath` at `.githooks`, which runs lint-staged (Ruff + Biome write and restage; needs `cd gui/web && npm ci`) then check-only pre-commit hooks when that CLI is installed. Do not add format-write hooks to `.pre-commit-config.yaml`.
+`make hooks` (also run by `./install.sh`) points `core.hooksPath` at `.githooks`, which runs lint-staged (Ruff + Biome write and restage) then the check-only pre-commit hooks (via `pre-commit`, or `uvx pre-commit` when it is not installed). In a new worktree, run `make worktree-setup` (hooks + venv with CI extras + `gui/web` node_modules); the pre-commit hook runs it automatically when `.venv` or `node_modules` is missing. Do not add format-write hooks to `.pre-commit-config.yaml`.
 
 **CI gate:** GitHub Actions runs the required full suite on public pushes and pull requests. `.githooks` has no pre-push full-CI gate; `make ci` is an optional local mirror. Detail: [docs/testing.md § GitHub CI gate](docs/testing.md#github-ci-gate), [docs/contributing.md § Git workflow](docs/contributing.md#git-workflow).
 
