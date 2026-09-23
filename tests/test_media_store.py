@@ -278,8 +278,6 @@ def _guest_share_client(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     from podcast_mcp.services.review import ReviewService
     from podcast_mcp.services.share import ShareService
 
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     proj = load_project(minimal_project)
     art = Path(proj.workspace_dir) / "artifacts"
     art.mkdir(parents=True, exist_ok=True)
