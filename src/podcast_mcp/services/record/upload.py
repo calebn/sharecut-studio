@@ -101,6 +101,15 @@ def sha256_hex(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def sha256_file(path: Path) -> str:
+    """Streamed SHA-256 hex of *path* (same digest as an ACK'd WAV's ``file_sha256``)."""
+    hasher = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(RECORD_UPLOAD_COPY_CHUNK), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
 def parse_upload_index(value: int | str, *, name: str) -> int:
     try:
         parsed = int(value)

@@ -49,6 +49,7 @@ from podcast_mcp.services.record.upload import (
     parse_participant_id,
     parse_session_id,
     parse_upload_index,
+    sha256_file,
 )
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.progress import resolve_progress_task
@@ -649,10 +650,27 @@ class RecordLandingService:
             return room_tone_source_id(slug_track_id(participant_id))
         return record_source_id(self.session_id, take_index, participant_id, segment_index)
 
-    def _mark_missing_acked(self, participant_id: str, take_index: int, segment_index: int) -> None:
-        """Acked WAV is gone: stay landed only if the source already sits in the workspace (#223)."""
+    def _mark_missing_acked(
+        self,
+        participant_id: str,
+        take_index: int,
+        segment_index: int,
+        *,
+        expected_sha256: str | None,
+    ) -> None:
+        """Acked WAV is gone: stay landed only if the registered source holds this row's bytes (#223).
+
+        Room-tone source ids are per participant, so a re-recorded bed would otherwise
+        match the previous bed's file; comparing ``file_sha256`` rejects that.
+        """
         source_id = self._landed_source_id(participant_id, take_index, segment_index)
-        present = _registered_source_file(self.workspace.project, source_id) is not None
+        registered = _registered_source_file(self.workspace.project, source_id)
+        present = False
+        if registered is not None and expected_sha256:
+            try:
+                present = sha256_file(registered[0]) == expected_sha256
+            except OSError:
+                present = False
         if not present:
             log.warning(
                 "record land missing acked keeper session=%s take=%s pid=%s seg=%s",
@@ -698,7 +716,7 @@ class RecordLandingService:
         acked = self._upload.acked_wav(self.session_id, take, pid, segment)
         if not acked.is_file():
             if mark:
-                self._mark_missing_acked(pid, take, segment)
+                self._mark_missing_acked(pid, take, segment, expected_sha256=row.get("file_sha256"))
             return None
         return acked
 
