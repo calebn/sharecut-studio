@@ -1,5 +1,6 @@
 # Dependabot alerts and security updates are a per-repository GitHub setting,
-# not something this file controls — see docs/testing.md § Dependency updates
+# not something this file controls (the *-security groups only batch the PRs
+# security updates open once that setting is on) — see docs/testing.md § Dependency updates
 # and audit. `tests/test_dependabot_config.py` enforces that every tracked
 # lockfile directory (gui/web, gui/desktop, gui/desktop/src-tauri, and the
 # repo root for uv + github-actions) has exactly one entry below.
@@ -16,9 +17,14 @@ updates:
       include: scope
     groups:
       npm-minor-patch:
+        applies-to: version-updates
         update-types:
           - minor
           - patch
+      npm-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
 
   - package-ecosystem: npm
     directory: /gui/desktop
@@ -31,9 +37,14 @@ updates:
       include: scope
     groups:
       npm-minor-patch:
+        applies-to: version-updates
         update-types:
           - minor
           - patch
+      npm-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
 
   - package-ecosystem: cargo
     directory: /gui/desktop/src-tauri
@@ -46,9 +57,14 @@ updates:
       include: scope
     groups:
       cargo-minor-patch:
+        applies-to: version-updates
         update-types:
           - minor
           - patch
+      cargo-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
 
   - package-ecosystem: uv
     directory: /
@@ -61,9 +77,14 @@ updates:
       include: scope
     groups:
       uv-minor-patch:
+        applies-to: version-updates
         update-types:
           - minor
           - patch
+      uv-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
 
   - package-ecosystem: github-actions
     directory: /
@@ -76,6 +97,11 @@ updates:
       include: scope
     groups:
       github-actions-minor-patch:
+        applies-to: version-updates
         update-types:
           - minor
           - patch
+      github-actions-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
