@@ -737,6 +737,14 @@ def _copy_into_raw(
     *,
     dest: Path | None = None,
 ) -> tuple[Path, str]:
+    """Copy *acked* into ``raw/`` and return ``(dest, workspace-relative path)``.
+
+    *source_id* is used only when *dest* is None: to reuse an already registered
+    source file and to name a fresh ``unique_raw_path``. With an explicit *dest*
+    (room tone), *source_id* is ignored and *acked* is always copied to *dest*.
+    Landed-state checks use ``_registered_source_file`` with the row's SHA-256
+    in ``_mark_missing_acked``, not this helper.
+    """
     ws = Path(project.workspace_dir)
     if dest is None:
         registered = _registered_source_file(project, source_id)
