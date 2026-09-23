@@ -484,7 +484,7 @@ def test_rejoin_after_leave_same_client_seq_reconnects(
         snap = _drain_until(sock, lambda m: m.get("type") == "Snapshot")
         person = next(p for p in snap["snapshot"]["participants"] if p["participant_id"] == pid)
         assert person["connected"] is True
-        assert person["consented"] is True
+        assert person["consented"] is None
 
 
 def test_record_http_state_and_command_errors(

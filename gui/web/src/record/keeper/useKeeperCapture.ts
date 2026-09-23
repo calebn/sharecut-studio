@@ -9,7 +9,7 @@ import { recordingClockMs } from "../clock";
 import type { RecordRole, RecordSnapshot } from "../types";
 import { attachKeeperTap } from "./graph";
 import { KeeperSession } from "./session";
-import { createOpfsSink } from "./store";
+import { type ByteSink, createOpfsSink } from "./store";
 
 type Args = {
   enabled: boolean;
@@ -19,6 +19,7 @@ type Args = {
   muted: boolean;
   consented: boolean | null;
   stream: MediaStream | null;
+  sink?: ByteSink | null;
   resetKey?: number;
   onActivity?: () => void;
 };
@@ -41,16 +42,22 @@ export function useKeeperCapture({
   muted,
   consented,
   stream,
+  sink,
   resetKey = 0,
   onActivity,
 }: Args): {
   error: string | null;
   recordingLocally: boolean;
   retry: () => void;
+  finalizing: boolean;
 } {
   const [error, setError] = useState<string | null>(null);
   const [writing, setWriting] = useState(false);
+  const [unfinalizedCapture, setUnfinalizedCapture] = useState(false);
+  const unfinalizedCaptureRef = useRef(false);
   const [finalizing, setFinalizing] = useState(false);
+  const finalizationFailed = useRef(false);
+  const disposalFailed = useRef(false);
   const [epoch, setEpoch] = useState(0);
   const mountedRef = useRef(true);
   const pendingDisposals = useRef(0);
@@ -97,13 +104,31 @@ export function useKeeperCapture({
         : 0,
     };
   }, []);
+  const markUnfinalizedCapture = useCallback((value: boolean) => {
+    unfinalizedCaptureRef.current = value;
+    setUnfinalizedCapture(value);
+  }, []);
 
   const applyGate = useCallback(
-    async (session: KeeperSession, gate: CapturedGate) => {
+    async (
+      session: KeeperSession,
+      gate: CapturedGate,
+      allowExistingError = false,
+    ) => {
+      if (sessionRef.current !== session) {
+        return;
+      }
       if (!gate.snapshot || !gate.participantId) {
         setWriting(false);
         return;
       }
+      if (
+        session.isWriting ||
+        (gate.snapshot.state === "recording" && gate.streamAvailable)
+      ) {
+        markUnfinalizedCapture(true);
+      }
+      const existingError = session.error;
       await session.apply({
         role: gate.role,
         consented: gate.consented,
@@ -115,9 +140,24 @@ export function useKeeperCapture({
         sessionId: gate.snapshot.session_id,
         participantId: gate.participantId,
       });
+      if (sessionRef.current !== session) {
+        return;
+      }
+      // KeeperSession records some OPFS close/header failures internally and
+      // resolves apply() after best-effort cleanup. They still mean that the
+      // local take is not durable, so the native guard must stay armed.
+      if (
+        session.error &&
+        (!allowExistingError || session.error !== existingError)
+      ) {
+        throw session.error;
+      }
+      // Keep close protection through the asynchronous Stop/stream-loss flush.
+      // The previous writable remains at risk until apply() has settled.
+      markUnfinalizedCapture(session.isWriting);
       setWriting(session.isWriting && !tapFailedRef.current);
     },
-    [],
+    [markUnfinalizedCapture],
   );
 
   useEffect(() => {
@@ -127,30 +167,51 @@ export function useKeeperCapture({
     };
   }, []);
 
-  const disposeSession = useCallback((session: KeeperSession) => {
-    const guardDuringDispose = session.isWriting || writingRef.current;
-    if (guardDuringDispose) {
-      pendingDisposals.current += 1;
-      if (mountedRef.current) {
-        setFinalizing(true);
-      }
-    }
-    void session
-      .dispose()
-      .catch((err: unknown) => {
+  const disposeSession = useCallback(
+    (session: KeeperSession) => {
+      const guardDuringDispose =
+        session.isWriting ||
+        writingRef.current ||
+        unfinalizedCaptureRef.current;
+      if (guardDuringDispose) {
+        pendingDisposals.current += 1;
         if (mountedRef.current) {
-          setError(err instanceof Error ? err.message : String(err));
+          setFinalizing(true);
         }
-      })
-      .finally(() => {
-        if (guardDuringDispose) {
-          pendingDisposals.current -= 1;
-          if (mountedRef.current && pendingDisposals.current === 0) {
-            setFinalizing(false);
+      }
+      void session
+        .dispose()
+        .then(() => {
+          if (session.error) {
+            throw session.error;
           }
-        }
-      });
-  }, []);
+        })
+        .catch((err: unknown) => {
+          disposalFailed.current = true;
+          finalizationFailed.current = true;
+          if (mountedRef.current) {
+            setError(err instanceof Error ? err.message : String(err));
+            setFinalizing(true);
+          }
+        })
+        .finally(() => {
+          if (guardDuringDispose) {
+            pendingDisposals.current -= 1;
+            if (
+              mountedRef.current &&
+              pendingDisposals.current === 0 &&
+              !finalizationFailed.current
+            ) {
+              if (sessionRef.current === null) {
+                markUnfinalizedCapture(false);
+              }
+              setFinalizing(false);
+            }
+          }
+        });
+    },
+    [markUnfinalizedCapture],
+  );
 
   useEffect(() => {
     if (!enabled || !participantId || !sessionId) {
@@ -165,9 +226,9 @@ export function useKeeperCapture({
     let cancelled = false;
     const start = async () => {
       try {
-        const sink = await createOpfsSink();
+        const activeSink = sink ?? (await createOpfsSink());
         let session: KeeperSession | null = null;
-        session = new KeeperSession(sink, (failure) => {
+        session = new KeeperSession(activeSink, (failure) => {
           if (cancelled || sessionRef.current !== session) {
             return;
           }
@@ -214,6 +275,7 @@ export function useKeeperCapture({
     participantId,
     sessionId,
     resetKey,
+    sink,
     initializationAttempt,
     applyGate,
     captureGate,
@@ -277,6 +339,13 @@ export function useKeeperCapture({
         return applyGate(session, gate);
       })
       .catch((err: unknown) => {
+        if (sessionRef.current !== session) {
+          return;
+        }
+        // A failed Stop/pause finalization can leave an incomplete local WAV.
+        // Keep native close protection armed even after writing turns false.
+        finalizationFailed.current = true;
+        setFinalizing(true);
         setError(err instanceof Error ? err.message : String(err));
         setWriting(false);
       });
@@ -311,11 +380,19 @@ export function useKeeperCapture({
       if (sessionRef.current !== session) {
         return;
       }
-      await applyGate(session, captureGate());
+      await applyGate(session, captureGate(), true);
       if (sessionRef.current !== session) {
         return;
       }
       await session.retry();
+      if (session.error === null) {
+        // A retry of the current session cannot repair an older disposed WAV.
+        finalizationFailed.current = disposalFailed.current;
+        markUnfinalizedCapture(session.isWriting);
+        if (pendingDisposals.current === 0 && !disposalFailed.current) {
+          setFinalizing(false);
+        }
+      }
     });
     applyChain.current = retryRun.catch(() => undefined);
     void retryRun
@@ -339,8 +416,10 @@ export function useKeeperCapture({
   };
 
   const recordingLocally = writing && stream !== null;
+  const closeFinalizing =
+    finalizing || (unfinalizedCapture && snapshot?.state === "stopped");
   useLayoutEffect(() => {
-    if (!recordingLocally && !finalizing) {
+    if (!recordingLocally && !closeFinalizing) {
       return;
     }
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -349,7 +428,7 @@ export function useKeeperCapture({
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [recordingLocally, finalizing]);
+  }, [recordingLocally, closeFinalizing]);
 
-  return { error, recordingLocally, retry };
+  return { error, recordingLocally, retry, finalizing: closeFinalizing };
 }

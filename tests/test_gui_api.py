@@ -151,6 +151,8 @@ def test_join_risk_from_decision_prefixes() -> None:
     )
     assert is_tighten_reason("filler:um") is True
     assert is_tighten_reason("pause:0.8s") is True
+    assert is_tighten_reason("repetition:word:the") is True
+    assert is_tighten_reason("restart:phrase:i went") is True
     assert is_tighten_reason("nl:topic") is False
     assert is_tighten_reason(None) is False
     assert join_risk_from_decision(safe) is None

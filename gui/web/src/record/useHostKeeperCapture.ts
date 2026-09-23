@@ -1,16 +1,22 @@
 import { useCallback, useEffect, useRef } from "react";
 import { isShareProjectKey } from "../shareMode";
 import { useDaw } from "../state/useDaw";
+import { prepareHostKeeperStorage } from "./hostKeeperStorage";
 import { useRecordHostStore } from "./hostStore";
 import { sendRecordHostCommand } from "./hostWire";
 import { useKeeperCapture } from "./keeper/useKeeperCapture";
+import { type MicPermissionStatus, statusFromGumError } from "./micPermission";
 import { hostKeeperResetKey, type RecordSnapshot } from "./types";
 import { useMicStream } from "./useMicStream";
 
 export function useHostKeeperCapture(enabled = true): {
   error: string | null;
+  micError: string | null;
+  micPending: boolean;
+  micStatus: MicPermissionStatus | null;
   recordingLocally: boolean;
   retry: () => void;
+  finalizing: boolean;
   stream: MediaStream | null;
   muted: boolean;
   monitorEnabled: boolean;
@@ -22,6 +28,7 @@ export function useHostKeeperCapture(enabled = true): {
   const snapshot = useRecordHostStore((s) => s.snapshot);
   const setSnapshot = useRecordHostStore((s) => s.setSnapshot);
   const connected = useRecordHostStore((s) => s.connected);
+  const sink = useRecordHostStore((s) => s.keeperSink);
   const pathRef = useRef(projectPath);
 
   useEffect(() => {
@@ -56,15 +63,22 @@ export function useHostKeeperCapture(enabled = true): {
     }
   }, []);
 
+  useEffect(() => {
+    if (hostOn && keeperLive && !sink) {
+      void prepareHostKeeperStorage().catch(() => undefined);
+    }
+  }, [hostOn, keeperLive, sink]);
+
   const mic = useMicStream(micLive, "", resetKey);
   const keeper = useKeeperCapture({
-    enabled: hostOn && keeperLive,
+    enabled: hostOn && keeperLive && sink !== null,
     role: "host",
     snapshot,
     participantId: hostOn && keeperLive ? "p_host" : null,
     muted: host?.muted ?? false,
     consented: true,
     stream: mic.stream,
+    sink,
     resetKey,
     onActivity: onKeeperActivity,
   });
@@ -81,10 +95,27 @@ export function useHostKeeperCapture(enabled = true): {
     return () => window.clearInterval(timer);
   }, [hostOn, sessionId, roomState, keeper.recordingLocally, onKeeperActivity]);
 
+  let micStatus: MicPermissionStatus | null = null;
+  if (hostOn && snapshot) {
+    if (mic.error) {
+      micStatus = mic.errorName
+        ? (statusFromGumError(mic.errorName) ?? "error")
+        : "error";
+    } else if (!mic.lost && (mic.pending || !mic.stream)) {
+      micStatus = "prompting";
+    } else if (mic.stream) {
+      micStatus = "granted";
+    }
+  }
+
   return {
     error: keeper.error,
+    micError: mic.error,
+    micPending: Boolean(mic.pending),
+    micStatus,
     recordingLocally: keeper.recordingLocally,
     retry: keeper.retry,
+    finalizing: keeper.finalizing,
     stream: mic.stream,
     muted: host?.muted ?? false,
     monitorEnabled: hostOn && !!snapshot && connected,

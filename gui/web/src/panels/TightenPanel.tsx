@@ -19,6 +19,8 @@ const CLASS_FILTERS: { id: "all" | TightenClass; label: string }[] = [
   { id: "all", label: "All" },
   { id: "filler", label: "Filler" },
   { id: "pause", label: "Pause" },
+  { id: "repetition", label: "Repetition" },
+  { id: "restart", label: "Restart" },
 ];
 
 const BADGE_LABEL: Record<string, string> = {
@@ -179,7 +181,7 @@ export function TightenPanel() {
       {filtered.length === 0 ? (
         <p className="tighten-empty">
           {hits.length === 0
-            ? "No pending filler or pause decisions."
+            ? "No pending tighten decisions."
             : "No hits match these filters."}
         </p>
       ) : (
