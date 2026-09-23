@@ -412,6 +412,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   drop: "daw.media.import",
   "transcript.annotate": "daw.view.transcriptAnnotate",
   "transcript.correct": "daw.transcript.correct",
+  "mobileShell.gesture.doubleTapWord": "daw.transcript.correct",
   "transcript.select": "daw.transcript.select",
   "transcript.showCutAway": "daw.view.showCutAway",
   "timeline.clip.trimHandle": "daw.edit.trimClipEdge",

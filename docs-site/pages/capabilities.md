@@ -96,7 +96,7 @@ Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Documen
 | New track | `track.add` | `Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T)` | `transport.menu`, `editingToolRail`, `trackLane` | `track_add_empty_tool`, `track_add` | — | — | — | none · none |
 | Import audio | `media.import` | `Mod+I` | `transport.menu`, `editingToolRail`, `drop` | `track_set_media_tool` | — | — | — | none · none |
 | Annotate transcript | `view.transcriptAnnotate` | — (toolbar toggle; no industry-standard key) | `transcript.annotate` | — | — | — | — | none · none |
-| Correct transcript | `transcript.correctIntent` | — (toolbar toggle; no industry-standard key) | `transcript.correct` | — | — | — | — | anchor · look |
+| Correct transcript | `transcript.correctIntent` | — (toolbar toggle; no industry-standard key) | `transcript.correct`, `mobileShell.gesture.doubleTapWord` | — | — | — | — | anchor · look |
 | Select transcript range | `transcript.selectIntent` | — (toolbar toggle; no industry-standard key) | `transcript.select` | — | — | — | — | anchor · look |
 | Show cut away | `view.showCutAway` | — (toolbar toggle; no industry-standard key) | `transcript.showCutAway` | — | — | — | — | none · none |
 | Trim clip edge | `edit.trimClipEdge` | — (pointer trim handle; no industry-standard key) | `timeline.clip.trimHandle` | — | — | — | — | time · none |
