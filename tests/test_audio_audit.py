@@ -1018,11 +1018,18 @@ def test_analyze_cleanup_summary_no_issues(tmp_path: Path):
     assert report["summary"] == "No significant cleanup issues detected."
 
 
-def test_rms_db_edge_cases():
-    from podcast_mcp.engines.audio_audit import _rms_db
+def test_rms_db_edge_cases(monkeypatch):
+    from podcast_mcp.engines import audio_audit as aa
+    from podcast_mcp.util.dsp import rms_db
 
-    assert _rms_db(np.array([], dtype=np.float32)) is None
-    assert _rms_db(np.zeros(100, dtype=np.float32)) == -80.0
+    assert rms_db(np.array([], dtype=np.float32)) == -80.0
+    assert rms_db(np.zeros(100, dtype=np.float32)) == -80.0
+    assert rms_db(np.zeros(100, dtype=np.float32), floor_db=-400.0) == -400.0
+    cache = aa.TrackRmsCache(np.zeros(16_000, dtype=np.float32), 16_000)
+    assert cache.rms_db(0.0, 0.5) == -80.0
+    assert cache.rms_db(5.0, 6.0) is None
+    monkeypatch.setattr(aa, "load_mono_window", lambda *a, **k: np.array([], dtype=np.float32))
+    assert aa.measure_window_rms_db(Path("x.wav"), 0.0, 1.0) is None
 
 
 def test_rms_for_track_at_timeline_paths(sample_wav: Path, tmp_path: Path):

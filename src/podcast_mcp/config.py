@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import os
 from pathlib import Path
 from typing import Any
@@ -51,3 +52,14 @@ def load_defaults() -> dict[str, Any]:
         apply_whisper_model_to_defaults(data)
         return data
     return {}
+
+
+def bounded_float(value: Any, default: float, lo: float, hi: float) -> float:
+    """Parse a numeric config value, clamped to ``[lo, hi]``; ``default`` if invalid."""
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return default
+    if not math.isfinite(parsed):
+        return default
+    return max(lo, min(hi, parsed))
