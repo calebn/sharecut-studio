@@ -46,7 +46,8 @@ Optional next steps:
 ```bash
 podcast bootstrap --component all          # ffmpeg + whisper model + rnnoise (+ silero check)
 cd gui/web && npm ci && npm run build && cd ../..   # Sharecut Studio static assets
-make hooks                                          # lint-staged + check-only pre-commit hooks (needs gui/web npm ci)
+make hooks                                          # lint-staged + check-only pre-commit hooks
+make worktree-setup                                 # per git worktree: hooks + venv (CI extras) + gui/web node_modules
 podcast gui --project /path/to/episode.project.json
 ```
 
