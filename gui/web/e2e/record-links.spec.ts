@@ -1,5 +1,6 @@
 import { type Browser, expect, test } from "@playwright/test";
 import { expectReadingSurfaceAxeClean } from "./axe";
+import { createRecordRoom } from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
 import { withBrowserPages } from "./twoBrowserPages";
 
@@ -16,19 +17,9 @@ test.describe("record links", () => {
         async ([host, pageA, pageB]) => {
           const project = encodeURIComponent(projectPath);
           await host.goto(`/?project=${project}`);
-          const created = await host.request.post("/api/shares/record", {
-            data: { path: projectPath },
-          });
-          expect(created.ok(), await created.text()).toBeTruthy();
-          const room = (await created.json()) as {
-            room: {
-              session_id: string;
-              guest: { token: string };
-              producer: { token: string };
-            };
-          };
-          const guest = room.room.guest.token;
-          const producer = room.room.producer.token;
+          const room = await createRecordRoom(host, projectPath);
+          const guest = room.guest.token;
+          const producer = room.producer.token;
 
           await pageB.addInitScript(() => {
             Object.defineProperty(window, "__gumCalled", {
@@ -88,7 +79,7 @@ test.describe("record links", () => {
           await expect(pageA.locator("body")).toContainText(/not found|404/i);
 
           const ended = await host.request.post(
-            `/api/shares/rooms/${room.room.session_id}/revoke`,
+            `/api/shares/rooms/${room.session_id}/revoke`,
             { data: { path: projectPath } },
           );
           expect(ended.ok(), await ended.text()).toBeTruthy();

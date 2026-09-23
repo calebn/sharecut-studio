@@ -25,7 +25,7 @@ export function useCommand(commandId: string): UseCommandResult {
   // Stable primitive — reading it re-renders when when-clause inputs change.
   useDawStore(
     (s) =>
-      `${s.timelineFocused}|${s.activeTab}|${s.commentMode}|${s.projectPath}|${s.guestMode}|${s.selection?.kind ?? "none"}|${s.selection?.kind === "track" ? s.selection.trackId : ""}|${s.project?.tracks.map((track) => track.id).join(",") ?? ""}`,
+      `${s.timelineFocused}|${s.activeTab}|${s.commentMode}|${s.projectPath}|${s.guestMode}|${s.selection?.kind ?? "none"}|${s.selection?.kind === "track" ? s.selection.trackId : ""}|${s.project != null}|${s.project?.tracks.map((track) => track.id).join(",") ?? ""}`,
   );
 
   const def = COMMANDS[commandId];

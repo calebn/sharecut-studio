@@ -15,6 +15,7 @@ import {
 import {
   clampEnvelopeValue,
   replaceEnvelopePoint,
+  sameEnvelopePoint,
   sortedVolumePoints,
 } from "../../utils/envelopes";
 import { formatTime } from "../../utils/time";
@@ -54,9 +55,10 @@ export function EnvelopePointInspector({
   const commitPoints = async (
     next: AutomationPoint[],
     nextIndex: number | null,
+    expectedPoints: AutomationPoint[],
   ) => {
     await run(async () => {
-      await setEnvelope(projectPath, trackId, next);
+      await setEnvelope(projectPath, trackId, next, expectedPoints);
       if (nextIndex == null) {
         setSelection(null);
       } else {
@@ -88,7 +90,7 @@ export function EnvelopePointInspector({
       trackId,
     );
     const current = latest[index];
-    if (!current || current.id !== point.id || current.time !== point.time) {
+    if (!current || !sameEnvelopePoint(current, point)) {
       setError("Envelope point changed; select it again");
       return;
     }
@@ -97,7 +99,7 @@ export function EnvelopePointInspector({
       time,
       value: clampEnvelopeValue(value),
     });
-    await commitPoints(replaced.points, Math.max(0, replaced.index));
+    await commitPoints(replaced.points, Math.max(0, replaced.index), latest);
   };
 
   const remove = async () => {
@@ -113,12 +115,12 @@ export function EnvelopePointInspector({
       return;
     }
     const current = latest[index];
-    if (!current || current.id !== point.id || current.time !== point.time) {
+    if (!current || !sameEnvelopePoint(current, point)) {
       setError("Envelope point changed; select it again");
       return;
     }
     const next = latest.filter((_, i) => i !== index);
-    await commitPoints(next, null);
+    await commitPoints(next, null, latest);
   };
 
   return (

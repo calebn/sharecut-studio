@@ -17,7 +17,7 @@ describe("GesturesSheet", () => {
     expect(screen.getByText("Pinch")).toBeInTheDocument();
   });
 
-  it("marks unavailable gestures as coming soon", () => {
+  it("lists only shipped gestures", () => {
     render(
       <GesturesSheet
         open={true}
@@ -25,7 +25,8 @@ describe("GesturesSheet", () => {
         onShowKeyboardShortcuts={() => {}}
       />,
     );
-    expect(screen.getAllByText("Soon").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Soon")).not.toBeInTheDocument();
+    expect(screen.getByText("Double-tap word")).toBeInTheDocument();
   });
 
   it("does not render when closed", () => {

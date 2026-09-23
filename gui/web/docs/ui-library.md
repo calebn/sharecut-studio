@@ -91,6 +91,7 @@ Every interactive library component has Vitest coverage including `expectNoA11yV
 | `useDialogModal` | Focus trap / Escape / inert / restore (`mode: modal \| sheet`) |
 | `Icon` | Compact stroke icons for transport / tools (`currentColor`) |
 | `FocusPull` | View-keyed lobby/room transition: 200ms outgoing blur/fade, then 250ms incoming fade/sharpen; initial mount stays static and reduced motion visually cuts instantly |
+| `LevelMeter` | Presentational peak meter (`role="meter"`, clamped `aria-valuenow`, polite clip announcement). Display helpers in `ui/metering.ts` (`dbToFraction`, `zoneForDb`, `formatDb`, `ariaValueNow`); DSP (`peakDbFromSamples`, `decayPeakHold`, `stepMeter`) in `audio/metering.ts`; `audio/usePeakMeter` owns the rAF loop and `record/useInputPeakDb` adapts a mic stream. Exists but not yet wired into DeviceCheck / the record room (#174) |
 | `DefinitionList`, screens, `FocusToggle`, `InspectorSeekFooter` | Existing chrome |
 
 ## Overlays

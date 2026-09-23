@@ -1,5 +1,6 @@
 import { Button } from "../ui";
 import {
+  KEEPER_RECLAIM_FAILED_COPY,
   UPLOAD_DONE_COPY,
   UPLOAD_LAND_FAILED_COPY,
   UPLOAD_STATUS_ID,
@@ -60,7 +61,13 @@ export function UploadStatus({
     );
   }
   if (stopped && progress.landed && alive) {
-    return <p id={UPLOAD_STATUS_ID}>{UPLOAD_DONE_COPY}</p>;
+    return progress.reclaimFailed ? (
+      <p id={UPLOAD_STATUS_ID} className="record-warn">
+        {KEEPER_RECLAIM_FAILED_COPY}
+      </p>
+    ) : (
+      <p id={UPLOAD_STATUS_ID}>{UPLOAD_DONE_COPY}</p>
+    );
   }
   if (stopped && progress.fileAck && !progress.landed) {
     return <p id={UPLOAD_STATUS_ID}>{UPLOAD_WAITING_TO_LAND_COPY}</p>;

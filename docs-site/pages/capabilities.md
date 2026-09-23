@@ -52,7 +52,7 @@ Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Documen
 | Nudge playhead forward | `navigation.nudgePlayheadForward` | `ArrowRight` | — | — | — | — | — | — |
 | Go to start | `navigation.goToStart` | `Home` | — | — | — | — | — | — |
 | Go to end | `navigation.goToEnd` | `End` | — | — | — | — | — | — |
-| Blade cut at time | `edit.bladeCut` | `Mod+K` | `editingToolRail`, `timeline` | `split_clip_tool` | — | — | — | time · none |
+| Blade cut | `edit.bladeCut` | `Mod+K` | `editingToolRail`, `timeline` | `split_clip_tool` | — | — | — | time · none |
 | Confirm blade cut | `edit.bladeCut.confirm` | — (not industry-standard; menu/toolbar or unkeyed) | `bladeConfirmSheet` | — | — | — | — | none · none |
 | Cancel blade cut | `edit.bladeCut.cancel` | — (not industry-standard; menu/toolbar or unkeyed) | `bladeConfirmSheet` | — | — | — | — | none · none |
 | Delete clip | `edit.delete` | `Backspace` | `clipInspector` | — | — | — | — | none · none |
@@ -96,7 +96,7 @@ Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Documen
 | New track | `track.add` | `Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T)` | `transport.menu`, `editingToolRail`, `trackLane` | `track_add_empty_tool`, `track_add` | — | — | — | none · none |
 | Import audio | `media.import` | `Mod+I` | `transport.menu`, `editingToolRail`, `drop` | `track_set_media_tool` | — | — | — | none · none |
 | Annotate transcript | `view.transcriptAnnotate` | — (toolbar toggle; no industry-standard key) | `transcript.annotate` | — | — | — | — | none · none |
-| Correct transcript | `transcript.correctIntent` | — (toolbar toggle; no industry-standard key) | `transcript.correct` | — | — | — | — | anchor · look |
+| Correct transcript | `transcript.correctIntent` | — (toolbar toggle; no industry-standard key) | `transcript.correct`, `mobileShell.gesture.doubleTapWord` | — | — | — | — | anchor · look |
 | Select transcript range | `transcript.selectIntent` | — (toolbar toggle; no industry-standard key) | `transcript.select` | — | — | — | — | anchor · look |
 | Show cut away | `view.showCutAway` | — (toolbar toggle; no industry-standard key) | `transcript.showCutAway` | — | — | — | — | none · none |
 | Trim clip edge | `edit.trimClipEdge` | — (pointer trim handle; no industry-standard key) | `timeline.clip.trimHandle` | — | — | — | — | time · none |

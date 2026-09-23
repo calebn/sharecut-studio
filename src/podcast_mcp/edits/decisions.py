@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from itertools import pairwise
+
 from podcast_mcp.config import load_defaults
-from podcast_mcp.edits.clips_ops import clips_for_track
+from podcast_mcp.edits.clips_ops import abutting_pairs, clips_abut, clips_for_track
 from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms, recommend_post_pad_fade_in_ms
 from podcast_mcp.edits.edit_log import archive_decision
 from podcast_mcp.edits.filler_pacing import filler_pad_mode
@@ -24,6 +26,10 @@ from podcast_mcp.models import (
 from podcast_mcp.util.review import reject_by_id
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids
+
+# How close a clip edge must sit to a pad point to receive the pad fades. This
+# matches edges to a time, not clips to each other (see ``clips_abut``).
+_PAD_EDGE_MATCH_SEC = 0.05
 
 
 def _tighten_cfg() -> dict:
@@ -77,12 +83,7 @@ def apply_join_fades_from_decisions(
 
     affected: set[str] = set()
     for tid, decs in by_track.items():
-        clips = clips_for_track(project, tid)
-        for i in range(len(clips) - 1):
-            left, right = clips[i], clips[i + 1]
-            gap = right.timeline_start - left.timeline_end
-            if gap > 0.05:
-                continue
+        for left, right in abutting_pairs(clips_for_track(project, tid)):
             join_src = left.source_end
             fade = 0
             for d in decs:
@@ -171,7 +172,7 @@ def _apply_replace_gap_pad(project: EpisodeProject, edit: EditDecision, tl_start
     pre_fade = int(cfg.get("filler_pre_pad_fade_out_ms", 5))
     for tid in dialogue_track_ids(project):
         for clip in clips_for_track(project, tid):
-            if abs(clip.timeline_end - at) <= 0.05:
+            if abs(clip.timeline_end - at) <= _PAD_EDGE_MATCH_SEC:
                 clip.fade_out_ms = pre_fade
                 clip.join_in_mode = ClipJoinMode.FADE
     # Right edge: fade length from resume-edge energy (quiet air → short;
@@ -179,7 +180,7 @@ def _apply_replace_gap_pad(project: EpisodeProject, edit: EditDecision, tl_start
     resume_at = at + gap
     for tid in dialogue_track_ids(project):
         for clip in clips_for_track(project, tid):
-            if abs(clip.timeline_start - resume_at) <= 0.05:
+            if abs(clip.timeline_start - resume_at) <= _PAD_EDGE_MATCH_SEC:
                 fade_ms = recommend_post_pad_fade_in_ms(
                     project,
                     tid,
@@ -482,10 +483,7 @@ def edit_impact_report(project: EpisodeProject) -> dict:
         timeline_end = max(timeline_end, clip.timeline_end)
     for tid in {t.id for t in project.tracks}:
         track_clips = clips_for_track(project, tid)
-        for i in range(len(track_clips) - 1):
-            gap = track_clips[i + 1].timeline_start - track_clips[i].timeline_end
-            if gap > 0.05:
-                gap_count += 1
+        gap_count += sum(not clips_abut(left, right) for left, right in pairwise(track_clips))
     for e in project.edit_decisions:
         if e.type.value not in ("remove", "mute"):
             continue

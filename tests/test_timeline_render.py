@@ -5,7 +5,8 @@ from unittest.mock import patch
 
 import pytest
 
-from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.edits.clips_ops import JOIN_GAP_TOLERANCE_SEC
+from podcast_mcp.engines.ffmpeg import FFmpegEngine, PlacedSegment
 from podcast_mcp.engines.timeline_render import (
     edits_for_clip_source,
     render_track_from_timeline,
@@ -657,7 +658,10 @@ def test_render_track_without_clips_uses_full_file(sample_wav: Path, tmp_path: P
 
 
 def test_crossfade_join_helpers():
-    from podcast_mcp.engines.timeline_render import _crossfade_ms_at_join, _uses_crossfade_join
+    from podcast_mcp.engines.timeline_render import (
+        _crossfade_ms_at_join,
+        _uses_crossfade_join,
+    )
 
     left = Clip(
         id="c1",
@@ -679,6 +683,141 @@ def test_crossfade_join_helpers():
     right.join_in_mode = ClipJoinMode.CROSSFADE
     assert _uses_crossfade_join(left, right)
     assert _crossfade_ms_at_join(left, right) >= 20
+
+
+def test_crossfade_join_uses_canonical_gap_tolerance():
+    from podcast_mcp.engines.timeline_render import _uses_crossfade_join
+
+    left = Clip(
+        id="left",
+        track_id="host",
+        source_start=0.0,
+        source_end=1.0,
+        timeline_start=0.0,
+        fade_out_ms=20,
+    )
+    right = Clip(
+        id="right",
+        track_id="host",
+        source_start=0.0,
+        source_end=1.0,
+        timeline_start=1.0 + JOIN_GAP_TOLERANCE_SEC / 2,
+        fade_in_ms=20,
+        join_in_mode=ClipJoinMode.CROSSFADE,
+    )
+    assert _uses_crossfade_join(left, right)
+    right.timeline_start = 1.0 + JOIN_GAP_TOLERANCE_SEC + 1e-3
+    assert not _uses_crossfade_join(left, right)
+
+
+def _two_clip_project(ws: Path, sample_wav: Path, gap: float, mode: ClipJoinMode) -> EpisodeProject:
+    raw = ws / "raw"
+    raw.mkdir(parents=True)
+    (raw / "host.wav").write_bytes(sample_wav.read_bytes())
+    project = EpisodeProject.create("join_tol", str(ws))
+    project.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=2.0),
+        )
+    ]
+    project.timeline.clips = [
+        Clip(
+            id="c1",
+            track_id="host",
+            source_start=0.0,
+            source_end=0.4,
+            timeline_start=0.0,
+            fade_out_ms=20,
+        ),
+        Clip(
+            id="c2",
+            track_id="host",
+            source_start=0.6,
+            source_end=1.0,
+            timeline_start=0.4 + gap,
+            fade_in_ms=20,
+            join_in_mode=mode,
+        ),
+    ]
+    return project
+
+
+def _capture_segment_placement(project: EpisodeProject, out: Path) -> list[PlacedSegment]:
+    captured: list[PlacedSegment] = []
+
+    def fake_render(_src, output_path, placed, *_args, **_kwargs):
+        captured.extend(placed)
+        return output_path
+
+    eng = FFmpegEngine()
+    with patch.object(eng, "render_timeline", side_effect=fake_render):
+        render_track_segment(project, "host", 0.0, 1.0, out, {}, engine=eng)
+    return captured
+
+
+def test_render_track_segment_crossfades_sub_tolerance_gap(sample_wav: Path, tmp_path: Path):
+    project = _two_clip_project(
+        tmp_path / "ws", sample_wav, JOIN_GAP_TOLERANCE_SEC / 2, ClipJoinMode.CROSSFADE
+    )
+
+    placed = _capture_segment_placement(project, tmp_path / "seg.wav")
+
+    assert placed[1].crossfade_prev_sec == pytest.approx(0.02)
+    assert placed[1].gap_before_sec == 0.0
+
+
+def test_render_track_segment_keeps_gap_beyond_tolerance(sample_wav: Path, tmp_path: Path):
+    gap = JOIN_GAP_TOLERANCE_SEC + 0.01
+    project = _two_clip_project(tmp_path / "ws", sample_wav, gap, ClipJoinMode.CROSSFADE)
+
+    placed = _capture_segment_placement(project, tmp_path / "seg.wav")
+
+    assert placed[1].crossfade_prev_sec == 0.0
+    assert placed[1].gap_before_sec == pytest.approx(gap)
+
+
+def test_render_crossfade_join_absorbs_sub_tolerance_gap(sample_wav: Path, tmp_path: Path):
+    """A CROSSFADE join with a 30 ms gap renders as a crossfade; the gap is not kept.
+
+    Same rule as FADE joins: gaps within JOIN_GAP_TOLERANCE_SEC close up, so the
+    stem is shorter than the timeline by the gap plus the crossfade overlap.
+    """
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    gap = 0.03
+    assert gap < JOIN_GAP_TOLERANCE_SEC
+    ws = tmp_path / "ws"
+    project = _two_clip_project(ws, sample_wav, gap, ClipJoinMode.CROSSFADE)
+    out = ws / "xfade_gap.wav"
+    import podcast_mcp.engines.ffmpeg as ff
+
+    real_run = ff.run
+    commands: list[str] = []
+
+    def capture_run(cmd, *args, **kwargs):
+        if isinstance(cmd, (list, tuple)):
+            commands.append(" ".join(str(x) for x in cmd))
+        return real_run(cmd, *args, **kwargs)
+
+    with patch.object(ff, "run", side_effect=capture_run):
+        render_track_from_timeline(
+            project,
+            project.tracks[0],
+            out,
+            {"render": {"crossfade_curve": "tri"}},
+            engine=eng,
+        )
+
+    render_cmds = [c for c in commands if "filter_complex" in c]
+    assert len(render_cmds) == 1
+    assert "acrossfade=d=0.02:c1=tri:c2=tri" in render_cmds[0]
+    assert "apad" not in render_cmds[0]
+    # 0.4 s + 0.4 s - 0.02 s crossfade overlap; the 30 ms gap is absorbed.
+    assert eng.probe(out).duration_sec == pytest.approx(0.78, abs=0.01)
 
 
 def test_render_fade_join_uses_segment_afade_not_acrossfade(sample_wav: Path, tmp_path: Path):

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from podcast_mcp.config import load_defaults
-from podcast_mcp.edits.clips_ops import clips_for_track
+from podcast_mcp.edits.clips_ops import abutting_pairs, clips_for_track
 from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms
 from podcast_mcp.models import ClipJoinMode, EpisodeProject, TrackRole
 from podcast_mcp.util.change_summary import change_summary
@@ -43,15 +43,6 @@ def set_clip_join_mode(
     return change_summary(project, operation="set_clip_join_mode", affected_tracks=[clip.track_id])
 
 
-def _abutting_pairs(clips: list) -> list[tuple]:
-    pairs: list[tuple] = []
-    for i in range(len(clips) - 1):
-        left, right = clips[i], clips[i + 1]
-        if right.timeline_start - left.timeline_end <= 0.05:
-            pairs.append((left, right))
-    return pairs
-
-
 def _target_track_ids(
     project: EpisodeProject,
     *,
@@ -77,7 +68,7 @@ def fade_joins(
     join_count = 0
     for tid in _target_track_ids(project, track_id=track_id, speaker=speaker):
         clips = clips_for_track(project, tid)
-        for left, right in _abutting_pairs(clips):
+        for left, right in abutting_pairs(clips):
             join_count += 1
             if dry_run:
                 continue
@@ -123,7 +114,7 @@ def crossfade_joins(
     join_count = 0
     for tid in _target_track_ids(project, track_id=track_id, speaker=speaker):
         clips = clips_for_track(project, tid)
-        for left, right in _abutting_pairs(clips):
+        for left, right in abutting_pairs(clips):
             join_count += 1
             if dry_run:
                 continue

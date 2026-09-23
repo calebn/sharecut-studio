@@ -97,6 +97,43 @@ def test_host_http_rejects_invalid_document_payload(minimal_project):
     assert any("ids" in str(item) or "decision_ids" in str(item) for item in detail)
 
 
+def test_host_http_rejects_stale_envelope_without_overwriting_peer(minimal_project):
+    client = TestClient(create_app())
+    url = f"/api/document/command?path={quote(str(minimal_project))}"
+    first = client.post(
+        url,
+        json={
+            "type": "SetEnvelope",
+            "payload": {
+                "track_id": "host",
+                "points": [{"id": "first", "time": 0, "value": 1}],
+                "expected_points": [],
+            },
+            "client_id": "first",
+            "client_seq": 1,
+        },
+    )
+    assert first.status_code == 200
+    stale = client.post(
+        url,
+        json={
+            "type": "SetEnvelope",
+            "payload": {
+                "track_id": "host",
+                "points": [{"id": "second", "time": 0, "value": 0.5}],
+                "expected_points": [],
+            },
+            "client_id": "second",
+            "client_seq": 1,
+        },
+    )
+    assert stale.status_code == 409
+    assert stale.json()["detail"]["conflict"] is True
+    assert "not applied" in stale.json()["detail"]["detail"]
+    stored = ProjectWorkspace.open(minimal_project).project.automation_envelopes[0]
+    assert [(point.id, point.value) for point in stored.points] == [("first", 1)]
+
+
 def test_guest_http_rejects_invalid_document_payload(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):

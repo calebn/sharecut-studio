@@ -136,9 +136,10 @@ export const COMMANDS: Record<string, CommandDef> = {
   "edit.bladeCut": {
     id: "edit.bladeCut",
     category: "edit",
-    label: "Blade cut at time",
+    label: "Blade cut",
     when: "canSuggestStructural",
-    notes: "Args: { atTime?: number } → SplitAtTime (defaults to playhead)",
+    notes:
+      "Args: { atTime?: number } → SplitAtTime at the clicked time, else the playhead (Mod+K)",
   },
   "edit.bladeCut.confirm": {
     id: "edit.bladeCut.confirm",
@@ -291,14 +292,14 @@ export const COMMANDS: Record<string, CommandDef> = {
     id: "export.bounce",
     category: "ui",
     label: "Bounce…",
-    when: "canManageProjects",
+    when: "hostProjectLoaded",
     notes: "Open bounce dialog → export/bounces/. Mod+Shift+B",
   },
   "share.manage": {
     id: "share.manage",
     category: "ui",
     label: "Share…",
-    when: "canManageProjects",
+    when: "hostProjectLoaded",
     notes: "Open host share dialog — live links, create, revoke",
   },
   "record.start": {
@@ -335,7 +336,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     id: "record.openPanel",
     category: "ui",
     label: "Record panel",
-    when: "canManageProjects",
+    when: "hostProjectLoaded",
   },
   "record.marker": {
     id: "record.marker",
@@ -362,7 +363,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     id: "export.deliverables",
     category: "ui",
     label: "Export deliverables",
-    when: "canManageProjects",
+    when: "hostProjectLoaded",
     notes: "Master encode to export/ (same as MCP export_audio). Mod+Shift+E",
   },
   "project.new": {

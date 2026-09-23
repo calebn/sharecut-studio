@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { capabilityTooltip } from "../capabilities/copy";
+import { DOUBLE_TAP_MS, withinGhostClick } from "../hooks/touchGestureTiming";
+import { useLongPress } from "../hooks/useLongPress";
 import { TranscriptWordInspector } from "../inspector/views/TranscriptWordInspector";
 import {
   presenceAnchor,
@@ -17,6 +19,7 @@ import {
 import type {
   CombinedUtterance,
   EditBoundaryView,
+  Selection,
   TranscriptWordView,
 } from "../types/project";
 import { FocusToggle, ToggleButton } from "../ui";
@@ -53,6 +56,20 @@ function wordsForUtterance(u: CombinedUtterance): TranscriptWordView[] {
     },
   ];
 }
+
+function transcriptWordExists(
+  utterances: readonly CombinedUtterance[],
+  trackId: string,
+  wordIndex: number,
+): boolean {
+  return utterances.some(
+    (u) =>
+      u.track_id === trackId &&
+      (u.words ?? []).some((w) => w.word_index === wordIndex),
+  );
+}
+
+type WordRef = { trackId: string; wordIndex: number };
 
 function wordInRange(
   selection: {
@@ -125,9 +142,64 @@ export function TranscriptPanel() {
   const draggingRef = useRef(false);
   /** True when mouseenter extended the range during a drag (survives mouseup→click). */
   const dragExtendedRef = useRef(false);
-  const [intent, setIntent] = useState<TranscriptIntent>("navigate");
+  const [intent, setIntentState] = useState<TranscriptIntent>("navigate");
+  const cancelQueuedSeek = () => {
+    if (clickTimerRef.current != null) {
+      window.clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+    }
+  };
+  /** Switching intent drops a single-tap seek queued under the old one. */
+  const setIntent = (
+    next: TranscriptIntent | ((prev: TranscriptIntent) => TranscriptIntent),
+  ) => {
+    cancelQueuedSeek();
+    setIntentState(next);
+  };
+  const lastTouchTapRef = useRef<(WordRef & { at: number }) | null>(null);
+  const correctedTouchAtRef = useRef(-Infinity);
+  const pendingCorrectionRef = useRef<WordRef | null>(null);
+  /** Word under the finger at pointerdown (long-press fires on release). */
+  const pressedWordRef = useRef<WordRef | null>(null);
+  const longPressReleasedRef = useRef(false);
+  /** State to restore when a gesture-opened correction closes. */
+  const gestureRestoreRef = useRef<{
+    intent: TranscriptIntent;
+    selection: Selection;
+  } | null>(null);
   const hostEditable = !isShareProjectKey(projectPath);
   const wordsHydrated = project?.meta.hydration?.transcript_words !== false;
+  /** Touch gestures only open correction where the Correct toggle could. */
+  const canCorrect = hostEditable && wordsHydrated;
+  const allUtterances = project?.transcript?.utterances ?? EMPTY_UTTERANCES;
+
+  /**
+   * Open word correction from a touch gesture. Scoped to the gesture: the
+   * previous intent (and Select range) comes back once the sheet closes.
+   */
+  const openWordCorrection = ({ trackId, wordIndex }: WordRef): boolean => {
+    if (
+      !canCorrect ||
+      !transcriptWordExists(allUtterances, trackId, wordIndex)
+    ) {
+      return false;
+    }
+    if (intent !== "correct" && gestureRestoreRef.current == null) {
+      gestureRestoreRef.current = {
+        intent,
+        selection: selection?.kind === "transcriptRange" ? selection : null,
+      };
+    }
+    setIntent("correct");
+    setSelection({ kind: "transcriptWord", trackId, wordIndex });
+    return true;
+  };
+
+  const transcriptLongPress = useLongPress(() => {
+    const pressed = pressedWordRef.current;
+    pressedWordRef.current = null;
+    if (pressed) openWordCorrection(pressed);
+  });
 
   useEffect(() => {
     return () => {
@@ -136,6 +208,18 @@ export function TranscriptPanel() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    const restore = gestureRestoreRef.current;
+    if (!restore || selection?.kind === "transcriptWord") {
+      return;
+    }
+    gestureRestoreRef.current = null;
+    setIntentState(restore.intent);
+    if (restore.selection && selection == null) {
+      setSelection(restore.selection);
+    }
+  }, [selection, setSelection]);
 
   useEffect(() => {
     if (
@@ -164,9 +248,7 @@ export function TranscriptPanel() {
   }, []);
 
   const seekTurnSoon = (sec: number) => {
-    if (clickTimerRef.current != null) {
-      window.clearTimeout(clickTimerRef.current);
-    }
+    cancelQueuedSeek();
     // Delay so a double-click can cancel and seek the word instead.
     clickTimerRef.current = window.setTimeout(() => {
       clickTimerRef.current = null;
@@ -175,10 +257,7 @@ export function TranscriptPanel() {
   };
 
   const seekWordNow = (sec: number) => {
-    if (clickTimerRef.current != null) {
-      window.clearTimeout(clickTimerRef.current);
-      clickTimerRef.current = null;
-    }
+    cancelQueuedSeek();
     setPlayheadSec(sec);
   };
 
@@ -191,7 +270,6 @@ export function TranscriptPanel() {
     });
   };
 
-  const allUtterances = project?.transcript?.utterances ?? EMPTY_UTTERANCES;
   const cutAwayCount = useMemo(
     () => selectUnmappedUtterances(allUtterances).length,
     [allUtterances],
@@ -467,6 +545,28 @@ export function TranscriptPanel() {
       <div
         className="transcript-list"
         ref={listRef}
+        onPointerDown={(event) => {
+          const word =
+            canCorrect && event.target instanceof Element
+              ? event.target.closest<HTMLElement>("[data-transcript-word]")
+              : null;
+          const wordIndex = Number(word?.dataset.wordIndex);
+          const trackId = word?.dataset.trackId;
+          pressedWordRef.current =
+            trackId && Number.isInteger(wordIndex)
+              ? { trackId, wordIndex }
+              : null;
+          // Arm only where correction is possible; elsewhere a hold is a tap.
+          if (pressedWordRef.current) {
+            transcriptLongPress.onPointerDown(event);
+          }
+        }}
+        onClickCapture={transcriptLongPress.onClickCapture}
+        onPointerMove={transcriptLongPress.onPointerMove}
+        onPointerUpCapture={(event) => {
+          longPressReleasedRef.current = transcriptLongPress.onPointerUp(event);
+        }}
+        onPointerCancel={transcriptLongPress.onPointerCancel}
         onScroll={() => {
           scheduleViewAnchor();
           if (programmaticScrollRef.current) {
@@ -595,6 +695,9 @@ export function TranscriptPanel() {
                           type="button"
                           ref={bindActiveRef(wActive)}
                           className={chipClass}
+                          data-transcript-word
+                          data-track-id={u.track_id}
+                          data-word-index={wordIndex}
                           {...wordAnchor}
                           title={
                             cutAwayTip ??
@@ -629,6 +732,36 @@ export function TranscriptPanel() {
                             rangeAnchorRef.current = wordIndex;
                             setRange(u.track_id, wordIndex, wordIndex);
                           }}
+                          onPointerUp={(e) => {
+                            // Single taps still act immediately via onClick;
+                            // this only spots a second tap on the same word.
+                            if (
+                              longPressReleasedRef.current ||
+                              !canCorrect ||
+                              e.pointerType !== "touch" ||
+                              wordIndex == null
+                            )
+                              return;
+                            const previous = lastTouchTapRef.current;
+                            const now = Date.now();
+                            lastTouchTapRef.current = {
+                              trackId: u.track_id,
+                              wordIndex,
+                              at: now,
+                            };
+                            if (
+                              previous?.trackId === u.track_id &&
+                              previous.wordIndex === wordIndex &&
+                              now - previous.at <= DOUBLE_TAP_MS
+                            ) {
+                              correctedTouchAtRef.current = now;
+                              lastTouchTapRef.current = null;
+                              pendingCorrectionRef.current = {
+                                trackId: u.track_id,
+                                wordIndex,
+                              };
+                            }
+                          }}
                           onMouseEnter={() => {
                             if (
                               !draggingRef.current ||
@@ -650,11 +783,24 @@ export function TranscriptPanel() {
                           onClick={(e) => {
                             e.stopPropagation();
                             e.preventDefault();
+                            const pending = pendingCorrectionRef.current;
+                            pendingCorrectionRef.current = null;
+                            const recentDoubleTap = withinGhostClick(
+                              correctedTouchAtRef.current,
+                            );
+                            if (
+                              pending?.trackId === u.track_id &&
+                              pending.wordIndex === wordIndex &&
+                              recentDoubleTap
+                            ) {
+                              openWordCorrection(pending);
+                              return;
+                            }
+                            if (recentDoubleTap) {
+                              return;
+                            }
                             if (intent === "correct" && wordIndex != null) {
-                              if (clickTimerRef.current != null) {
-                                window.clearTimeout(clickTimerRef.current);
-                                clickTimerRef.current = null;
-                              }
+                              cancelQueuedSeek();
                               setSelection({
                                 kind: "transcriptWord",
                                 trackId: u.track_id,
@@ -692,6 +838,13 @@ export function TranscriptPanel() {
                               ? (e) => {
                                   e.stopPropagation();
                                   e.preventDefault();
+                                  if (
+                                    withinGhostClick(
+                                      correctedTouchAtRef.current,
+                                    )
+                                  ) {
+                                    return;
+                                  }
                                   seekWordNow(wSeek);
                                 }
                               : undefined
