@@ -458,6 +458,13 @@ The script creates short-lived shares for tiers A–G (play → edit, plus no-`m
 asserts denied tools return capability errors, and revokes tokens on success (use
 `--keep-shares` to leave them). Exit non-zero on any matrix failure.
 
+`--project` runs in place: the script publishes a review version (writing
+`artifacts/review/<id>/mix.wav`) and share sidecars into that workspace. Omit
+`--project` to verify against the committed `aligned_dialogue` fixture: the script
+copies it into a temporary relocated workspace (`copy_relocated_workspace`) and
+publishes there, so `tests/fixtures/` is never written. The host resolves those
+share tokens through the share registry, so it can keep serving any project.
+
 Optional: with `podcast tunnel` up, recreate one `play,view,mcp` share with
 `--base-url https://<relay>` and repeat `tools/list` against the printed `mcp_url`.
 

@@ -281,7 +281,7 @@
         "skill": "podcast-tighten-dialogue"
       },
       "omit": {},
-      "tooltip": "Apply the selected filler or pause cut",
+      "tooltip": "Apply the selected tighten cut",
       "presence": {
         "cursor": "none",
         "follow": "none"
@@ -304,7 +304,7 @@
         "skill": "podcast-tighten-dialogue"
       },
       "omit": {},
-      "tooltip": "Skip the selected filler or pause cut",
+      "tooltip": "Skip the selected tighten cut",
       "presence": {
         "cursor": "none",
         "follow": "none"
