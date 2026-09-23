@@ -40,7 +40,7 @@ import {
   canIngestMedia,
   canManageProjects,
   canRefreshMix,
-  canSuggestStructural,
+  canSuggestStructuralOnProject,
   guestHearsMixOnly,
 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -54,7 +54,7 @@ import type {
 } from "../state/types";
 import { bladeTrackIds } from "../utils/bladeTracks";
 import { discreteZoomFactor } from "../utils/zoom";
-import type { CommandContext } from "./context";
+import { type CommandContext, evaluateWhen } from "./context";
 import { registerCommand } from "./execute";
 import { registerTightenCommands } from "./tighten";
 import type { ExecuteResult } from "./types";
@@ -142,15 +142,29 @@ export function setBladeCommandRunner(runner: BladeRunner | null): void {
   bladeRunner = runner;
 }
 
+type DawState = ReturnType<typeof useDawStore.getState>;
+
+function canSuggestStructuralFor(s: DawState): boolean {
+  return canSuggestStructuralOnProject(
+    s.projectPath,
+    s.guestMode,
+    s.shareCapabilities,
+    s.project != null,
+  );
+}
+
+/** Same rule and reason as the `hostProjectLoaded` when-clause (handlers run with skipWhen). */
+function hostProjectGate(ctx: CommandContext): ExecuteResult | null {
+  const gate = evaluateWhen("hostProjectLoaded", ctx);
+  return gate.ok ? null : { status: "disabled", reason: gate.reason };
+}
+
 async function runSplitAt(
   _ctx: CommandContext,
   atTime: number,
 ): Promise<ExecuteResult> {
   const s = useDawStore.getState();
-  if (
-    !canSuggestStructural(s.projectPath, s.guestMode, s.shareCapabilities) ||
-    !s.project
-  ) {
+  if (!s.project || !canSuggestStructuralFor(s)) {
     return { status: "disabled", reason: "Structural edits not allowed" };
   }
   const dialogueIds = (s.project.tracks ?? [])
@@ -192,10 +206,7 @@ async function runDeleteClip(
   ripple: boolean,
 ): Promise<ExecuteResult> {
   const s = useDawStore.getState();
-  if (
-    !canSuggestStructural(s.projectPath, s.guestMode, s.shareCapabilities) ||
-    !s.project
-  ) {
+  if (!canSuggestStructuralFor(s)) {
     return { status: "disabled", reason: "Structural edits not allowed" };
   }
   try {
@@ -718,12 +729,12 @@ export function registerDawCommands(): void {
     }
   });
 
-  registerCommand("export.bounce", () => {
-    const s = useDawStore.getState();
-    if (!canManageProjects(s.projectPath) || !s.project) {
-      return { status: "disabled", reason: "Bounce is host-only" };
+  registerCommand("export.bounce", (_args, ctx) => {
+    const blocked = hostProjectGate(ctx);
+    if (blocked) {
+      return blocked;
     }
-    s.setBounceDialogOpen(true);
+    useDawStore.getState().setBounceDialogOpen(true);
     return { status: "ok" };
   });
 
@@ -745,11 +756,12 @@ export function registerDawCommands(): void {
     return { status: "ok" };
   });
 
-  registerCommand("share.manage", () => {
-    const s = useDawStore.getState();
-    if (!canManageProjects(s.projectPath) || !s.project) {
-      return { status: "disabled", reason: "Share is host-only" };
+  registerCommand("share.manage", (_args, ctx) => {
+    const blocked = hostProjectGate(ctx);
+    if (blocked) {
+      return blocked;
     }
+    const s = useDawStore.getState();
     const features = peekCachedFeatures();
     if (features !== null && !hasFeature(features, FEATURE_SHARE_UI_MENU)) {
       return {
@@ -761,12 +773,12 @@ export function registerDawCommands(): void {
     return { status: "ok" };
   });
 
-  registerCommand("record.openPanel", () => {
-    const s = useDawStore.getState();
-    if (!canManageProjects(s.projectPath) || !s.project) {
-      return { status: "disabled", reason: "Record panel is host-only" };
+  registerCommand("record.openPanel", (_args, ctx) => {
+    const blocked = hostProjectGate(ctx);
+    if (blocked) {
+      return blocked;
     }
-    s.setRecordPanelOpen(true);
+    useDawStore.getState().setRecordPanelOpen(true);
     return { status: "ok" };
   });
 
@@ -846,11 +858,12 @@ export function registerDawCommands(): void {
     return { status: "ok" };
   });
 
-  registerCommand("export.deliverables", async () => {
-    const s = useDawStore.getState();
-    if (!canManageProjects(s.projectPath) || !s.project) {
-      return { status: "disabled", reason: "Export deliverables is host-only" };
+  registerCommand("export.deliverables", async (_args, ctx) => {
+    const blocked = hostProjectGate(ctx);
+    if (blocked) {
+      return blocked;
     }
+    const s = useDawStore.getState();
     if (exportDeliverablesInFlight) {
       s.announceStatus("Export already in progress…");
       return { status: "disabled", reason: "Export already running" };

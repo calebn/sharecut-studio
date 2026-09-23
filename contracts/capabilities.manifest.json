@@ -551,7 +551,7 @@
     },
     {
       "id": "daw.edit.bladeCut",
-      "label": "Blade cut at time",
+      "label": "Blade cut",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -569,7 +569,7 @@
         ]
       },
       "omit": {},
-      "tooltip": "Blade cut at time",
+      "tooltip": "Blade cut at the playhead or clicked time",
       "presence": {
         "cursor": "time",
         "follow": "none"
@@ -1160,7 +1160,7 @@
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
-        "canManageProjects"
+        "hostProjectLoaded"
       ],
       "surfaces": {
         "command": "export.bounce",
@@ -1190,7 +1190,7 @@
       "service": "ShareService",
       "industry_standard_key": false,
       "gates": [
-        "canManageProjects"
+        "hostProjectLoaded"
       ],
       "surfaces": {
         "command": "share.manage",
@@ -1390,7 +1390,7 @@
       "service": "RecordSessionService",
       "industry_standard_key": false,
       "gates": [
-        "canManageProjects"
+        "hostProjectLoaded"
       ],
       "surfaces": {
         "command": "record.openPanel",
@@ -1496,7 +1496,7 @@
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
-        "canManageProjects"
+        "hostProjectLoaded"
       ],
       "surfaces": {
         "command": "export.deliverables",

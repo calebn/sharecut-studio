@@ -52,7 +52,7 @@ const WHEN_HINTS: Record<string, string> = {
   canRefreshMix: "Refresh mix allowed",
   canIngestMedia: "Media ingest allowed",
   canManageProjects: "Host project management",
-  canExportProject: "Loaded host project",
+  hostProjectLoaded: "Loaded host project",
   following: "While following another client",
 };
 

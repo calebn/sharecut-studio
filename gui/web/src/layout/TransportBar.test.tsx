@@ -94,6 +94,30 @@ describe("TransportBar collapsed", () => {
     ).toBeTruthy();
   });
 
+  it("disables host project menu items until a project loads", async () => {
+    useDawStore.getState().hydrate("/tmp/p.json", null);
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={null}>
+        <TransportBar compact />
+      </DawProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Menu" }));
+    const menu = within(screen.getByRole("menu"));
+    const hostProjectItems = ["Bounce…", "Record room…", "Export deliverables"];
+    for (const name of hostProjectItems) {
+      expect(menu.getByRole("menuitem", { name })).toBeDisabled();
+    }
+    expect(menu.getByRole("menuitem", { name: "Open project…" })).toBeEnabled();
+
+    // A zero-track project must still re-render the items (null vs empty key).
+    act(() => {
+      useDawStore.setState({ project: minimalProject({ tracks: [] }) });
+    });
+    for (const name of hostProjectItems) {
+      expect(menu.getByRole("menuitem", { name })).toBeEnabled();
+    }
+  });
+
   it("lists people in the overflow menu when collapsed", async () => {
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>

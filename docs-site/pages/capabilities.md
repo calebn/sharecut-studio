@@ -52,7 +52,7 @@ Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Documen
 | Nudge playhead forward | `navigation.nudgePlayheadForward` | `ArrowRight` | — | — | — | — | — | — |
 | Go to start | `navigation.goToStart` | `Home` | — | — | — | — | — | — |
 | Go to end | `navigation.goToEnd` | `End` | — | — | — | — | — | — |
-| Blade cut at time | `edit.bladeCut` | `Mod+K` | `editingToolRail`, `timeline` | `split_clip_tool` | — | — | — | time · none |
+| Blade cut | `edit.bladeCut` | `Mod+K` | `editingToolRail`, `timeline` | `split_clip_tool` | — | — | — | time · none |
 | Confirm blade cut | `edit.bladeCut.confirm` | — (not industry-standard; menu/toolbar or unkeyed) | `bladeConfirmSheet` | — | — | — | — | none · none |
 | Cancel blade cut | `edit.bladeCut.cancel` | — (not industry-standard; menu/toolbar or unkeyed) | `bladeConfirmSheet` | — | — | — | — | none · none |
 | Delete clip | `edit.delete` | `Backspace` | `clipInspector` | — | — | — | — | none · none |
