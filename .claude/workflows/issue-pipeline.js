@@ -579,9 +579,10 @@ Return expected, found_before, posted_now, missing_after, missing_ids.`,
   )
 }
 
-function feedbackPlan(issue, pr, round, finalRound) {
+function feedbackPlan(issue, pr, round, finalRound, mustCover = []) {
   return stage(
     `AUTONOMOUS MODE: mode=plan, round=${round}${finalRound ? ', final=true' : ''}
+${mustCover.length ? `A previous plan missed open review threads. Each of these thread ids MUST get exactly one item (kind "thread", id verbatim): ${mustCover.map((t) => `${t.id} (${t.path}:${t.line})`).join('; ')}. Use only real ids from GraphQL; never invent placeholder rows.\n` : ''}
 Read ${SKILLS.feedback} and execute Phases 1–2 for ${REPO} PR #${pr}, following its "AUTONOMOUS MODE (pipeline)" section (no approval gate; nothing is posted in plan mode).
 Include EVERY unresolved review thread and every top-level PR comment that still needs a response (not only this round's findings; human comments too).
 For each item choose exactly one action:
@@ -623,6 +624,27 @@ Fix anything missing: post the reply_body (GraphQL addPullRequestReviewThreadRep
 Return expected, fixed_now, missing_after.`,
     { label: `reply-verify:${tag(issue)}`, phase: 'Feedback', model: M.cheap, effort: 'low', schema: S_REPLY_VERIFY },
   )
+}
+
+const S_THREADS = {
+  type: 'object',
+  properties: {
+    threads: {
+      type: 'array',
+      items: { type: 'object', properties: { id: { type: 'string' }, path: { type: 'string' }, line: { type: 'integer' } }, required: ['id'] },
+    },
+  },
+  required: ['threads'],
+}
+const THREAD_ID_RE = /^PRRT_[A-Za-z0-9_-]+$/
+// Unresolved review threads on the PR, straight from GraphQL (ids copied verbatim).
+function openThreads(issue, pr) {
+  return stage(
+    `List the UNRESOLVED review threads on ${REPO} PR #${pr}. Read-only.
+\`gh api graphql -f query='{repository(owner:"${REPO.split('/')[0]}",name:"${REPO.split('/')[1]}"){pullRequest(number:${pr}){reviewThreads(first:100){nodes{id isResolved path line}}}}}' --jq '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved|not)'\`
+Copy each id, path and line verbatim. Return an empty list if there are none.`,
+    { label: `threads:${tag(issue)}`, phase: 'Feedback', model: M.cheap, effort: 'low', schema: S_THREADS },
+  ).then((r) => (r && r.threads.every((t) => THREAD_ID_RE.test(t.id)) ? r : null))
 }
 
 function gateFacts(issue, pr) {
@@ -672,6 +694,26 @@ function gateBlockers(g, wontDo, headSha) {
 
 // Review/feedback rounds (skipped for gate-only resumes), then the merge gate.
 async function finishLane(issue, pr, branch, head, { gateOnly = false } = {}) {
+  const wontDoIds = new Set() // threads deliberately left open for the owner
+
+  // Execute a feedback plan: every planned item answered on a real commit (one retry), replies
+  // verified. Returns { exec } or { stop } (a stall/interrupt result to return from the lane).
+  async function executePlan(plan, round) {
+    const covers = (e) => e && SHA_RE.test(e.head_sha || '') && e.items.length >= plan.items.length
+    let exec = await feedbackExec(issue, pr, branch, plan)
+    if (exec && !covers(exec)) {
+      log(`${tag(issue)} feedback execute r${round} answered ${exec.items.length}/${plan.items.length} item(s) (head ${JSON.stringify(exec.head_sha)}); retrying once`)
+      exec = await feedbackExec(issue, pr, branch, plan)
+    }
+    if (!exec) return { stop: await stallOrInterrupt(issue, pr, `feedback execute round ${round} agent died`, 'review') }
+    if (!covers(exec)) return { stop: await stall(issue, pr, `feedback execute round ${round} answered ${exec.items.length} of ${plan.items.length} planned item(s)`, 'review') }
+    const rv = await verifyReplies(issue, pr, exec)
+    if (!rv || rv.missing_after > 0) return { stop: await (rv ? stall : stallOrInterrupt)(issue, pr, `could not post ${rv ? rv.missing_after : '?'} feedback repl(ies)`, 'review') }
+    wontDo += exec.wont_do_count
+    followups.push(...exec.items.filter((i) => i.followup_issue).map((i) => i.followup_issue))
+    exec.items.filter((i) => i.action === 'wont_do').forEach((i) => wontDoIds.add(i.id))
+    return { exec }
+  }
   // GitHub CI runs while review/feedback proceed; it is waited on once, at the
   // merge gate, against the final head (the gate enforces green).
   let green = { ok: false, head_sha: head, reason: 'CI not yet checked' }
@@ -694,24 +736,45 @@ async function finishLane(issue, pr, branch, head, { gateOnly = false } = {}) {
     }
     since = rev.reviewed_sha
 
-    const plan = await feedbackPlan(issue, pr, round, round === MAX_ROUNDS)
+    const finalRound = round === MAX_ROUNDS
+    let plan = await feedbackPlan(issue, pr, round, finalRound)
     if (!plan) return stallOrInterrupt(issue, pr, `feedback plan round ${round} agent died`, 'review')
+    // Coverage: every open thread (except accepted won't-dos) needs a plan item, and plan items
+    // must be real threads. A planner once covered 6 of 10 and invented a placeholder row.
+    const open = await openThreads(issue, pr)
+    if (open) {
+      const gaps = (p) => ({
+        missing: open.threads.filter((t) => !wontDoIds.has(t.id) && !p.items.some((it) => it.id === t.id)),
+        fake: p.items.filter((it) => it.kind === 'thread' && !open.threads.some((t) => t.id === it.id)),
+      })
+      let g = gaps(plan)
+      if (g.missing.length || g.fake.length) {
+        log(`${tag(issue)} feedback plan r${round}: ${g.missing.length} open thread(s) missing, ${g.fake.length} unknown id(s); re-planning once`)
+        const again = await feedbackPlan(issue, pr, round, finalRound, g.missing)
+        if (again) { plan = again; g = gaps(plan) }
+      }
+      plan.items = plan.items.filter((it) => !g.fake.includes(it))
+      if (g.missing.length) return stall(issue, pr, `feedback plan round ${round} still misses ${g.missing.length} open thread(s): ${g.missing.map((t) => t.id).join(', ')}`, 'review')
+    }
     if (!plan.items.length) break
 
-    // The executor must answer every planned item on a real commit; an agent that silently
-    // does nothing (e.g. it misread a newer chat message as cancelling this run) gets one retry.
-    const covers = (e) => e && SHA_RE.test(e.head_sha || '') && e.items.length >= plan.items.length
-    let exec = await feedbackExec(issue, pr, branch, plan)
-    if (exec && !covers(exec)) {
-      log(`${tag(issue)} feedback execute r${round} answered ${exec.items.length}/${plan.items.length} item(s) (head ${JSON.stringify(exec.head_sha)}); retrying once`)
-      exec = await feedbackExec(issue, pr, branch, plan)
+    const done = await executePlan(plan, round)
+    if (done.stop) return done.stop
+    const exec = done.exec
+
+    // Anything still open after the pass (other than won't-dos) gets one more feedback pass
+    // before the gate, instead of reaching the gate and stalling.
+    const after = await openThreads(issue, pr)
+    const left = after ? after.threads.filter((t) => !wontDoIds.has(t.id)) : []
+    if (left.length) {
+      log(`${tag(issue)} ${left.length} thread(s) still open after feedback r${round}; one more pass`)
+      const extra = await feedbackPlan(issue, pr, round, true, left)
+      if (!extra) return stallOrInterrupt(issue, pr, `extra feedback plan round ${round} agent died`, 'review')
+      extra.items = extra.items.filter((it) => it.kind !== 'thread' || left.some((t) => t.id === it.id))
+      const more = extra.items.length ? await executePlan(extra, round) : { exec: null }
+      if (more.stop) return more.stop
+      if (more.exec && more.exec.head_sha) exec.head_sha = more.exec.head_sha
     }
-    if (!exec) return stallOrInterrupt(issue, pr, `feedback execute round ${round} agent died`, 'review')
-    if (!covers(exec)) return stall(issue, pr, `feedback execute round ${round} answered ${exec.items.length} of ${plan.items.length} planned item(s)`, 'review')
-    const rv = await verifyReplies(issue, pr, exec)
-    if (!rv || rv.missing_after > 0) return (rv ? stall : stallOrInterrupt)(issue, pr, `could not post ${rv ? rv.missing_after : '?'} feedback repl(ies)`, 'review')
-    wontDo += exec.wont_do_count
-    followups.push(...exec.items.filter((i) => i.followup_issue).map((i) => i.followup_issue))
 
     const changed = !!exec.head_sha && exec.head_sha !== head
     if (changed) head = exec.head_sha
