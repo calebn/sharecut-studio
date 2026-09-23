@@ -249,6 +249,18 @@ describe("Storybook title tiers", () => {
       "mutable alias",
       "const good = { title: 'Atoms/Button' }; let meta = good; meta = { title: 'Screens/Home' }; export default meta;",
     ],
+    [
+      "const metadata title mutation",
+      "const meta = { title: 'Atoms/Button' }; meta.title = 'Screens/Home'; export default meta;",
+    ],
+    [
+      "const metadata Object.assign mutation",
+      "const meta = { title: 'Atoms/Button' }; Object.assign(meta, { title: 'Screens/Home' }); export default meta;",
+    ],
+    [
+      "const metadata alias mutation",
+      "const meta = { title: 'Atoms/Button' }; const alias = meta; alias.title = 'Screens/Home'; export default meta;",
+    ],
   ])("rejects %s", (_case, source) => {
     expect(storyTitleViolation(source)).not.toBeNull();
   });
