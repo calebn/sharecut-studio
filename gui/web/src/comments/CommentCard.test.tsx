@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { LONG_PRESS_MS } from "../hooks/touchGestureTiming";
 import { expectNoA11yViolations } from "../test/a11y";
 import { sampleComment } from "../test/fixtures";
 import { CommentCard } from "./CommentCard";
@@ -173,6 +174,115 @@ describe("CommentCard", () => {
     expect(onSelect).not.toHaveBeenCalled();
   });
 
+  it("drag feedback follows the finger and arms past the threshold", () => {
+    const onResolve = vi.fn();
+    render(
+      <ul>
+        <CommentCard
+          comment={sampleComment()}
+          onResolve={onResolve}
+          showReply={false}
+          swipeToResolve
+        />
+      </ul>,
+    );
+    const li = screen.getByText("Needs a tighter open").closest("li");
+    expect(li).not.toBeNull();
+    fireEvent.pointerDown(li!, {
+      pointerType: "touch",
+      pointerId: 1,
+      isPrimary: true,
+      clientX: 100,
+      clientY: 20,
+    });
+    fireEvent.pointerMove(li!, { pointerId: 1, clientX: 80, clientY: 20 });
+    expect(li).toHaveClass("swiping");
+    expect(li!.style.getPropertyValue("--swipe-dx")).toBe("-20px");
+    const reveal = li!.querySelector(".comment-card-swipe-reveal");
+    expect(reveal).not.toBeNull();
+    expect(reveal).toHaveAttribute("aria-hidden", "true");
+    expect(reveal).not.toHaveClass("armed");
+
+    fireEvent.pointerMove(li!, { pointerId: 1, clientX: 40, clientY: 20 });
+    expect(li!.querySelector(".comment-card-swipe-reveal")).toHaveClass(
+      "armed",
+    );
+
+    fireEvent.pointerMove(li!, { pointerId: 1, clientX: -200, clientY: 20 });
+    expect(li!.style.getPropertyValue("--swipe-dx")).toBe("-96px");
+
+    fireEvent.pointerUp(li!, { pointerId: 1, clientX: -200, clientY: 20 });
+    expect(li).not.toHaveClass("swiping");
+    expect(li!.querySelector(".comment-card-swipe-reveal")).toBeNull();
+    expect(onResolve).toHaveBeenCalledWith(true);
+  });
+
+  it("rightward drag and vertical travel show no feedback", () => {
+    const onResolve = vi.fn();
+    render(
+      <ul>
+        <CommentCard
+          comment={sampleComment()}
+          onResolve={onResolve}
+          showReply={false}
+          swipeToResolve
+        />
+      </ul>,
+    );
+    const li = screen.getByText("Needs a tighter open").closest("li");
+    expect(li).not.toBeNull();
+    fireEvent.pointerDown(li!, {
+      pointerType: "touch",
+      pointerId: 1,
+      isPrimary: true,
+      clientX: 100,
+      clientY: 20,
+    });
+    fireEvent.pointerMove(li!, { pointerId: 1, clientX: 160, clientY: 20 });
+    expect(li).not.toHaveClass("swiping");
+    fireEvent.pointerUp(li!, { pointerId: 1, clientX: 160, clientY: 20 });
+
+    fireEvent.pointerDown(li!, {
+      pointerType: "touch",
+      pointerId: 2,
+      isPrimary: true,
+      clientX: 100,
+      clientY: 20,
+    });
+    fireEvent.pointerMove(li!, { pointerId: 2, clientX: 40, clientY: 50 });
+    expect(li).not.toHaveClass("swiping");
+    fireEvent.pointerMove(li!, { pointerId: 2, clientX: 40, clientY: 20 });
+    expect(li).not.toHaveClass("swiping");
+  });
+
+  it("a hold past long-press does not show a cue", () => {
+    vi.useFakeTimers();
+    const onResolve = vi.fn();
+    render(
+      <ul>
+        <CommentCard
+          comment={sampleComment()}
+          onResolve={onResolve}
+          showReply={false}
+          swipeToResolve
+        />
+      </ul>,
+    );
+    const li = screen.getByText("Needs a tighter open").closest("li");
+    expect(li).not.toBeNull();
+    fireEvent.pointerDown(li!, {
+      pointerType: "touch",
+      pointerId: 1,
+      isPrimary: true,
+      clientX: 100,
+      clientY: 20,
+    });
+    vi.advanceTimersByTime(LONG_PRESS_MS);
+    fireEvent.pointerMove(li!, { pointerId: 1, clientX: 40, clientY: 20 });
+    expect(li).not.toHaveClass("swiping");
+    vi.useRealTimers();
+  });
+
   it.each([
     ["swipe is not opted in", { swipeToResolve: false }],
     ["resolve actions are hidden", { showResolve: false }],
@@ -203,6 +313,8 @@ describe("CommentCard", () => {
       clientX: 100,
       clientY: 20,
     });
+    fireEvent.pointerMove(card!, { pointerId: 1, clientX: 40, clientY: 20 });
+    expect(card).not.toHaveClass("swiping");
     fireEvent.pointerUp(card!, {
       pointerId: 1,
       clientX: 40,

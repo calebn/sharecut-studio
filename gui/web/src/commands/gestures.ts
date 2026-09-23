@@ -39,7 +39,7 @@ export const MOBILE_GESTURES: readonly GestureDef[] = [
     gesture: "Swipe left on comment",
     label: "Resolve",
     description:
-      "Hosts: swipe left on an open comment in the list to resolve it.",
+      "Hosts: swipe left on an open comment in the list to resolve it. Undo appears briefly afterwards.",
   },
   {
     gesture: "Double-tap word",
