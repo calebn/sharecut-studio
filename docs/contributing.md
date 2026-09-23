@@ -92,7 +92,7 @@ Still only create commits or PRs when the user asks to ship (or clearly says to 
 
 Run it from a Claude Code session in this repo: ask it to run the `issue-pipeline` workflow, optionally with args.
 
-**Launch every run with a chat message that names it.** For example: "Run the issue-pipeline on #216 with noMerge", or "Run the issue-pipeline dry run". Subagents check their task against your most recent chat message. If that message is about something else, such as a question, an implementer may refuse the stage as unrequested and the lane is held. For the same reason the stage prompts only state what the run is. They never claim pre-authorization, because subagents treat that kind of claim as possible prompt injection.
+**Launch every run with a chat message that names it.** Stage prompts also quote the run's own issues and say that newer chat messages (for example ones launching other runs) don't cancel it, and the script checks that the feedback executor answered every planned item, retrying once. That's because concurrent runs made a stage compare itself with the *other* run's launch message and quietly do nothing. For example: "Run the issue-pipeline on #216 with noMerge", or "Run the issue-pipeline dry run". Subagents check their task against your most recent chat message. If that message is about something else, such as a question, an implementer may refuse the stage as unrequested and the lane is held. For the same reason the stage prompts only state what the run is. They never claim pre-authorization, because subagents treat that kind of claim as possible prompt injection.
 
 Args:
 
