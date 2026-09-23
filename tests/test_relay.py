@@ -16,21 +16,29 @@ from podcast_relay.protocol import msg
 
 def test_relay_state_token_ok_empty_rejects_by_default():
     state = RelayState(set())
-    assert state.token_ok("anything") is False
-    assert state.token_ok("") is False
+    assert state.token_ok("anything", host_id="h") is False
+    assert state.token_ok("", host_id="h") is False
 
 
 def test_relay_state_token_ok_empty_open_tunnel():
     state = RelayState(set(), allow_open_tunnel=True)
-    assert state.token_ok("anything") is True
-    assert state.token_ok("") is False
+    assert state.token_ok("anything", host_id="h") is True
+    assert state.token_ok("", host_id="h") is False
 
 
 def test_relay_state_token_ok_with_set():
     state = RelayState({"secret"})
-    assert state.token_ok("secret") is True
-    assert state.token_ok("wrong") is False
-    assert state.token_ok("") is False
+    assert state.token_ok("secret", host_id="any-host") is True
+    assert state.token_ok("wrong", host_id="any-host") is False
+    assert state.token_ok("", host_id="any-host") is False
+
+
+def test_relay_state_token_ok_host_bound_only_for_its_host_id():
+    state = RelayState(set(), host_secrets={"host-1": "bound"})
+    assert state.token_ok("bound", host_id="host-1") is True
+    # A host-bound secret is rejected under any other host_id (no by-value match).
+    assert state.token_ok("bound", host_id="host-2") is False
+    assert state.token_ok("wrong", host_id="host-1") is False
 
 
 def test_relay_state_tunnel_for_token_missing():
