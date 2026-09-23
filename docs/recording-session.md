@@ -130,6 +130,16 @@ still clear it.
 Capture, ingest, host lobby, mix-minus graph: FOSS core. Public `/rec/` guest
 routes: collaboration extension + relay allowlist, exactly like `/r/`.
 
+While a local keeper is actively writing, the browser registers a native
+`beforeunload` confirmation so an accidental refresh or navigation can be
+cancelled before the current WAV is abandoned. After Stop, the warning remains
+until the keeper finishes saving the final WAV and metadata. The listener is
+removed when capture pauses, saving finishes, errors, or unmounts; lobby and
+completed-recording navigation is not blocked. Browsers only show this native
+prompt after the page has received sticky user activation, and they control its
+wording and whether it is displayed. This is a best-effort loss warning, not a
+replacement for the OPFS recovery path.
+
 | | Review | Record |
 |--|--------|------------------|
 | Prefix | `/r/{token}` | `/rec/{token}` |
@@ -160,6 +170,12 @@ every client's roster shows a **"Not recorded"** group listing producers; the
 consent copy says "producers/listeners may be present and are shown in the
 roster"; a producer joining mid-take triggers the same join notification as a
 guest.
+
+When the host or a recorded guest is running or finalizing a local keeper in
+the Tauri desktop shell, native window close and the macOS app menu/Cmd+Q
+prompt before the keeper is lost. Host copy warns that quitting stops the room
+for everyone; guest copy warns about that guest's local keeper. Dock Quit and
+OS shutdown may bypass the app menu and remain best-effort paths.
 
 ## Two graphs
 
@@ -253,9 +269,15 @@ Chunks (target 5 MB or 30 s, whichever first) `POST` to a **dedicated record
 upload route** gated by `join` (not `edit`, not `POST …/daw/media/upload`).
 Tunnel pass-through to the host only — no relay disk, no object-store
 keeper backup in MVP. Stop shows a **blocking upload panel** (host sees all
-participants; guest sees own) until ACK or stall. Resume on the **same
-`/rec/` token** inside a **7-day recovery window**. Lossy host-side backup mix
-is **not** in audio MVP.
+participants; guest sees own) until ACK or stall. An incomplete local segment
+after capture has settled is retained for recovery and reported separately;
+it cannot receive a file ACK and does not hold Leave after complete segments
+are acknowledged. The panel shows `N/M` chunks when finalized WAV totals are
+known. Resume on the **same `/rec/` token** inside a **7-day recovery window**.
+A stalled or zero-sample keeper remains in OPFS for a single ZIP download
+containing every retained take and segment. Surviving files still export if a
+segment is missing, and Leave is never held indefinitely by an errored upload.
+Lossy host-side backup mix is **not** in audio MVP.
 
 ```mermaid
 sequenceDiagram
@@ -368,6 +390,20 @@ A participant's keeper within one take is a list of **segments**.
 From `paused`, host-offline writes **no** PCM (clock is frozen); both PAUSED
 and host-offline copy may show. Landing places one **clip per segment** on
 that participant's track at `join_offset_ms`. No trailing pad.
+
+An involuntary microphone loss is distinct from an intentional track stop: the
+browser `ended` event freezes the current keeper segment and clears the live
+stream. The host and guest show a persistent "Microphone disconnected. Local
+recording is paused." warning with a Reconnect microphone action. Retry is
+explicit (there is no unbounded auto-retry); repeated clicks during acquisition
+are ignored. If a selected device has been removed, reconnect tries the
+default available input once after that exact device fails. A successful
+reacquisition opens the next segment at the current recording-clock offset,
+extrapolated from the last room snapshot when the stream changes. Keeper gate
+transitions are applied in order so a quick reconnect cannot skip the
+loss/segment close. The host record dialog reopens if necessary and stays open
+while the microphone is lost. A normal unmount or application stop removes the
+listener before stopping tracks and does not show the warning.
 
 ```mermaid
 sequenceDiagram
@@ -530,6 +566,18 @@ invitee, not producers; the host auto-consents). Host Start does
 Producers skip consent, `getUserMedia`, and room tone; they auto-satisfy the
 Start gate. Persistent **REC** indicator +
 clock; mute writes zeros on the keeper. Consent copy is product notice, not legal advice.
+Before a host can Start or a recorded guest can Accept, the client completes an
+OPFS preflight that creates, writes, closes, and removes a disposable file in
+the `Sharecut Recordings/` keeper directory. The action remains disabled
+while the preflight is pending or if the browser/app environment cannot provide writable OPFS; the UI
+asks the participant to use a compatible browser and offers Retry local backup.
+The host Start transport checks the same verified sink even when invoked outside
+the room panel, and host capture uses that sink. A guest who leaves and rejoins
+in the lobby or between takes must complete a fresh preflight and Accept again
+before host Start. While waiting to re-consent after a stopped take, the guest
+can still resume upload or download the previous local keeper from the lobby. Producers are not recorded and do not need this preflight. There is no upload-only or
+alternate local sink path.
+
 Host admit / waiting room is **not** in this PR (ROADMAP Follow-up).
 
 ```mermaid
@@ -538,7 +586,7 @@ stateDiagram-v2
   joined --> idle: recorded (name, headphones)
   idle --> prompting: Allow microphone
   prompting --> granted: getUserMedia ok
-  prompting --> denied: NotAllowedError / site blocked
+  prompting --> denied: NotAllowedError / browser site or OS blocked
   prompting --> unavailable: NotFoundError
   prompting --> error: unmapped getUserMedia error
   denied --> prompting: Retry
@@ -574,6 +622,10 @@ stateDiagram-v2
 | Open speakers | "Use headphones. Playing the room on speakers will echo into every mic." |
 | Mic grant | "Allow microphone" |
 | Mic blocked | "Microphone is blocked for this site. Allow it in your browser's site settings, then Retry." |
+| Mic blocked in the macOS or Windows Tauri desktop app | "Microphone access is blocked by your operating system. Allow Sharecut Studio in your system microphone privacy settings, then Retry." |
+| Mic permission prompt in the macOS or Windows Tauri desktop app | "Waiting for the operating system microphone permission prompt…" |
+| Mic blocked in the Linux Tauri desktop app | "Microphone access is blocked in this Linux desktop window. Retry once, or open Sharecut Studio in your browser and allow microphone access there." |
+| Mic permission prompt in the Linux Tauri desktop app | "Waiting for the desktop webview microphone permission prompt…" |
 | No input device | "No microphone was found. Connect an input device, then Retry." |
 | Mic required for consent | "Allow the microphone before you accept recording." |
 | Room tone | "Record 3 seconds of room tone" |
@@ -598,10 +650,30 @@ lost mic uses **segments** ([Roster changes](#roster-changes-join-leave-rejoin-p
 Producers simply lose audio and reconnect. Pending live comments queue with
 idempotency keys and upsert on reconnect.
 
+If an OPFS write or close fails, the keeper latches a local-capture failure and
+stops accepting PCM; the REC indicator is no longer a claim that a durable
+local copy is being made. Already finalized segments remain available, while
+the failed open segment is not advertised as durable because
+`FileSystemFileHandle.createWritable()` commits changes on close. The client
+offers **Retry local recording** while the take is recording; during pause or
+after Stop, the host must resume or start a take first. Retry closes the failed
+stream best-effort and starts a new segment without overwriting the failed one.
+The retry segment uses the current recording clock so its landing offset follows
+the lost span. A stopped, incomplete local `.wav` remains in OPFS for recovery
+without a completion `.json`; it is never given a file ACK or landed. Once all
+complete segments are acknowledged, that retained partial no longer traps the
+guest Leave button or host dialog. Repeated errors remain visible and do not
+silently discard or count queued samples.
+Host and guest upload polling treats capture as unsettled while a keeper Stop
+or stream-loss finalization is pending; it does not mark a metadata-free WAV
+abandoned until the flush has actually settled.
+
 On the **last** host connection drop (`disconnect` / `release_connection`)
 while `state ∈ {recording, paused}`, the service stamps
-`host_offline_since_wall_ms` from that socket's last beat (same sqlite
-`record_snapshot` row; no sidecar). A Leave command also stamps if the field
+`host_offline_since_wall_ms` from the observed socket close time when its last
+heartbeat is fresh, or from the stale heartbeat when close detection was
+delayed by at least 7.5 seconds (same sqlite `record_snapshot` row; no sidecar).
+A Leave command also stamps if the field
 is still empty. Host Join clears that field. If in-memory `_HOST_CONNS` is
 empty on the next host Join (sidecar crash without Leave) or the last host
 heartbeat is older than `HOST_OFFLINE_PAUSE_MS`, Join treats that as last-host
@@ -622,6 +694,24 @@ minting a new room." `revoke_room` is unchanged and does not wipe sqlite;
 share remains (revoke then remint). Stop-first is the 409 gate, not the only
 wipe. Host keepers remount on an open `host_reconnect` pause generation, not on
 a WS `connected` blip.
+
+The host keeper's AudioWorklet callback also supplies a host liveness beat
+while it is actively writing a recording segment. When PCM continues to reach
+the keeper in a hidden or minimized window, this avoids relying only on a
+background-throttled `window.setInterval`. The activity beat is sent at most
+once every 5 seconds. A host timer maintains record presence in lobby and
+paused states. During REC, only healthy keeper PCM can drive host heartbeats;
+the timer cannot mask a missing microphone stream, stalled keeper setup, or
+failed local capture. The existing local-capture failure latch stops activity
+beats until Retry local recording succeeds. Starting or resuming a take resets
+the stored host beat baseline so a long stopped or paused interval cannot make
+a brief reconnect look stale. An observed
+host socket close starts the 10-second reconnect window at close time when the
+last beat is fresh; a beat older than 7.5 seconds remains the outage estimate
+after delayed close detection or an unobserved crash. The 7.5-second freshness
+window allows jitter around the five-second heartbeat cadence. A delayed
+close inside that window cannot be distinguished from a clean close, so its
+offline gap may be underestimated.
 
 ## Ownership and retention
 
@@ -656,7 +746,7 @@ sidecar JSON.**
 | Live comments | `record_live_comments` in the same sqlite (`sync.db`); PK `(session_id, comment_id)` |
 | Local keeper WAV | Guest/host OPFS `Sharecut Recordings/{session}/{take}/{participant}/{segment}.wav` (+ `.json` tags). Not a host sidecar. |
 | Room-tone bed | OPFS `Sharecut Recordings/{session}/room-tone/{participant}.wav` (local until Accept); upload `kind=room_tone` after consent (storage take `2147483647`); assembled `artifacts/record/acked/{session}/room_tone/{participant}.wav` until landing copies `raw/room-tone/{participant}.wav` and sets `track.room_tone` |
-| Chunk / ACK manifests | `record_upload_parts` / `record_upload_files` in the same `sync.db`; part bytes in `artifacts/record/uploads/`; assembled WAV in `artifacts/record/acked/` until landing copies to `raw/`. `land_failed_ns` records a failed landing attempt and keeps the staged WAV available for retry. |
+| Chunk / ACK manifests | `record_upload_parts` / `record_upload_files` in the same `sync.db`; finalized file rows persist `expected_parts` and file ACK requires that count. Current clients declare it; older open tabs infer it from the final part sequence, still requiring contiguous parts and the whole-file hash. Part bytes live in `artifacts/record/uploads/`; assembled WAV in `artifacts/record/acked/` until landing copies to `raw/`. `land_failed_ns` records a failed landing attempt and keeps the staged WAV available for retry. |
 | Timeline landing | `RecordLandingService` copies ACK'd WAV into `raw/`, one clip per segment at `take_offset_s + join_offset_ms/1000`, 2 s take gap. `join_offset_ms` is stored on `record_upload_files`. The UI distinguishes staged/uploaded/landed/land-failed; only confirmed `landed` permits deleting the local keeper. Host `Retry land` reuses the existing `record.land` command. |
 
 Locked for the lobby PR: roles from the token; host-only Start/Pause/Resume/Stop;
@@ -675,7 +765,7 @@ See [persistence.md](persistence.md) and
 | Chromium desktop | PCM/WAV keeper encoder + mix-minus mesh (`build.monitor: true`) |
 | Safari | WAV via Worklet only; AEC constraint caveat |
 | Firefox | Same caveat as Safari |
-| Tauri host | Browser Worklet in the webview (same as Chromium). Mic grant: macOS `NSMicrophoneUsageDescription` + hardened-runtime `audio-input` entitlement; WebView handler allows **microphone only** for `http://127.0.0.1:{engine-port}` (WKWebView `requestMediaCapturePermissionForOrigin`, WebView2 `PermissionRequested`). Full deny-by-default WebView policy is [v1](../ROADMAP.md#packaging-trust). Native cpal/coreaudio mic is [Follow-up](../ROADMAP.md#follow-up). |
+| Tauri host | Browser Worklet in the webview (same as Chromium). macOS and Windows install a native WebView microphone handler and use operating-system permission copy: macOS also needs `NSMicrophoneUsageDescription` + hardened-runtime `audio-input`; the handler allows **microphone only** for `http://127.0.0.1:{engine-port}` (WKWebView `requestMediaCapturePermissionForOrigin`, WebView2 `PermissionRequested`). Linux uses WebKitGTK's default prompt and points blocked users to the supported browser recording path. Full deny-by-default WebView policy is [v1](../ROADMAP.md#packaging-trust). Native cpal/coreaudio mic is [Follow-up](../ROADMAP.md#follow-up). |
 | Mobile browsers | Join + monitor; keeper best-effort, documented. Producer role fully supported (no keeper). |
 
 ## Security and threat notes
@@ -783,8 +873,9 @@ warning appears; sidetone level sane.
 | Consent vs lobby | Explicit **Allow microphone** before the meter (`useMicPermission`; one `getUserMedia` path). Accept disabled with `aria-describedby` until granted **and** headphones are checked. WAV tap + keeper chunks **and** room-tone PUT **zero bytes** to the host until consent (local OPFS bed capture is allowed; Skip/Decline discards it); Start disabled while any **recorded** in-lobby client lacks consent; producers skip the gate and never call `getUserMedia`. Host Start does not require the host to record or skip room tone (idle is an implicit skip). |
 | Room tone | After mic granted, optional 3 s keeper-constraint PCM→WAV (skip allowed); RMS > −35 dBFS warns "Too loud — is something playing?" and does not upload; guest PUT `kind=room_tone` only after Accept (403 before consent), 403 for producer, reject > 10 s 48 kHz mono; Retry replaces the prior ACK; landing sets `track.room_tone` under the land lock; `filler_pad_mode: room_tone` prefers the bed then stem-steal; undo restores and re-lands. Producers omit the step. |
 | Late-join pad | Joiner at T+10 s → clip at `join_offset_ms` = 10 s ± 1 frame (default, no in-file pad). Optional origin encoding of **segment 0 only**: leading zeros 10 s ± 1 frame at 48 kHz. Later segments never padded in-file. |
-| Progressive upload | Fake transport + HTTP resume; keys `(session_id, take, participant, segment, part_seq)`; chunk hashes; kill mid-session; resume on same token completes; stop panel stays until ACK; host GET lists all participants. |
+| Progressive upload | Fake transport + HTTP resume; keys `(session_id, take, participant, segment, part_seq)`; chunk hashes; current clients declare `expected_parts` and older open tabs infer it at finalization; kill mid-session; resume on same token completes; incomplete/stalled and zero-sample keepers expose a ZIP of retained local segments and upload retry; host GET lists all participants with `N/M` where every segment total is known. |
 | Host offline | Monitor tracks end; if the segment is still open, local WAV length **keeps growing**; copy string asserted. Intentional leave / lost mic finalizes the segment. |
+| Microphone loss | Test-only ended track reference: stale ended events are ignored, listeners are cleaned up, devicechange refreshes devices without declaring loss by itself, retry reacquires explicitly; the open keeper segment finalizes and the next segment resumes at the current recording-clock offset. A browser test ends the guest track before consent, blocks Accept, and verifies retry; no warning appears after an intentional stop. |
 | Host reconnect | Last host conn drop during REC/PAUSED persists `host_offline_since_wall_ms` (Leave or last-socket pop). Join after ≥ 10 s while REC → `paused` + one `PauseEntry.pause_reason == "host_reconnect"`; Join below 10 s stays recording; already paused → no second entry; sidecar crash without Leave (empty `_HOST_CONNS`, same sqlite) still pauses; Resume clears live `pause_reason`; remint while REC/PAUSED is 409 / CLI non-zero / MCP error; landing after that pause places clips abutting. Host keeper `resetKey` follows the open host-reconnect pause seq (Vitest), not WS `connected`. |
 | Landing | After ACK: `raw/` + one clip per **segment** per track at `join_offset_ms`; happy path skips `ingest suggest`; pad math unit-tested. Sample-count vs recording-clock on first overlapping file-acked pair: `|duration_error| > 50 ms` or missing `session_start` sets `align_fallback` hint (pipeline `align_tracks` after transcribe; not run at land). Unknown overlap / one recorded ACK → `drift_ms` null. |
 | Leave / rejoin | B leaves at T+300 s, rejoins at T+340 s (same `participant_id`): two segments, two clips on **one** track, second clip starts at 340 s ± 1 frame; no trailing pad on segment 1. New device = new track. |

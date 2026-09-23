@@ -254,6 +254,7 @@ def build_audition_context(
     skew_warn_sec: float = DEFAULT_SKEW_WARN_SEC,
     detail: DetailLevel = "summary",
     render_visual_pngs: bool | None = None,
+    include_dsp: bool = True,
 ) -> dict[str, Any]:
     if timeline_end <= timeline_start:
         raise ValueError("timeline_end must be after timeline_start")
@@ -330,12 +331,16 @@ def build_audition_context(
         track_ids=track_ids,
     )
 
-    dsp = _diagnostics_for_tracks(
-        project,
-        track_ids,
-        timeline_start,
-        timeline_end,
-        pngs=detail == "visual" if render_visual_pngs is None else render_visual_pngs,
+    dsp = (
+        _diagnostics_for_tracks(
+            project,
+            track_ids,
+            timeline_start,
+            timeline_end,
+            pngs=detail == "visual" if render_visual_pngs is None else render_visual_pngs,
+        )
+        if include_dsp
+        else []
     )
     hypotheses.extend(_visual_hypotheses(window, dsp))
 

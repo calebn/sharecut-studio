@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
 import { useDawStore } from "../state/dawStore";
@@ -10,8 +10,21 @@ import { minimalProject } from "../test/fixtures";
 import { CheatsheetDialogs } from "./CheatsheetDialogs";
 import { MobileShell } from "./MobileShell";
 
+const offlineStore = vi.hoisted(() => ({
+  clearConflicts: vi.fn(),
+  clearHostConflicts: vi.fn(),
+  loadConflicts: vi.fn(),
+  loadHostCommandCount: vi.fn(),
+  loadHostConflicts: vi.fn(),
+}));
+
+vi.mock("../state/offlineStore", () => offlineStore);
+
 describe("MobileShell", () => {
   beforeEach(() => {
+    offlineStore.loadConflicts.mockResolvedValue([]);
+    offlineStore.loadHostConflicts.mockResolvedValue([]);
+    offlineStore.loadHostCommandCount.mockResolvedValue(0);
     clearRegisteredCommands();
     registerDawCommands();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject(), null);
@@ -104,6 +117,23 @@ describe("MobileShell", () => {
     );
 
     expect(screen.getByText("Stale render")).toBeTruthy();
+  });
+
+  it("shows queued host commands in the attention banner", async () => {
+    offlineStore.loadHostCommandCount.mockResolvedValue(1);
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <MobileShell />
+      </DawProvider>,
+    );
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Needs attention");
+    expect(alert).toHaveTextContent("1 pending");
+    expect(container.querySelector(".daw-shell")).toHaveClass(
+      "daw-shell--attention",
+    );
+    await expectNoA11yViolations(alert);
   });
 
   it("provides exactly one project heading in every phone mode", async () => {

@@ -98,8 +98,10 @@ export function CommentsPanel({
       setBody("");
       setActionLine("");
       setCommentDraft(null);
-      setSelection({ kind: "comment", id: comment.id });
-      setPlayheadSec(comment.timeline_start);
+      if (comment) {
+        setSelection({ kind: "comment", id: comment.id });
+        setPlayheadSec(comment.timeline_start);
+      }
       setActiveTab("comments");
     } catch (e) {
       setCreateError(e instanceof Error ? e.message : String(e));

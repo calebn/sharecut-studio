@@ -1,16 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
 import { ErrorScreen, FocusPull, LoadingScreen } from "../ui";
 import "../styles/partials/record-entry.css";
+import { useDesktopCloseGuard } from "../desktop/useDesktopCloseGuard";
 import { Declined } from "./Declined";
 import { FullRoom } from "./FullRoom";
-import { type ByteSink, createOpfsSink } from "./keeper/store";
+import {
+  type ByteSink,
+  createOpfsSink,
+  OpfsUnavailableError,
+} from "./keeper/store";
 import { useKeeperCapture } from "./keeper/useKeeperCapture";
 import { Lobby } from "./Lobby";
 import { useRecordMonitor } from "./monitor/useRecordMonitor";
+import { RecIndicator } from "./RecIndicator";
 import { Room } from "./Room";
 import { loadRecordBootstrap, type RecordBootstrap } from "./recordBootstrap";
-import { UPLOAD_SINK_ERROR_COPY } from "./types";
+import { OPFS_UNAVAILABLE_COPY, UPLOAD_SINK_ERROR_COPY } from "./types";
+import { UploadStatus } from "./UploadStatus";
 import { guestRecordUploadTransport } from "./upload/http";
+import { downloadLocalKeepers } from "./upload/recovery";
 import { useRecordUpload } from "./upload/useRecordUpload";
 import { useMicPermission } from "./useMicPermission";
 import { useRecordLiveComments } from "./useRecordLiveComments";
@@ -105,15 +113,61 @@ export function RecordApp({ token }: { token: string }) {
   const micEnabled =
     !producer && !!me && error !== "room_full" && me.consented !== false;
   const mic = useMicPermission(micEnabled, deviceId);
+  const [sink, setSink] = useState<ByteSink | null>(null);
+  const [sinkError, setSinkError] = useState<string | null>(null);
+  const [storageAttempt, setStorageAttempt] = useState(0);
+  const storageRequired = !!(
+    bootstrap?.build.capture || bootstrap?.build.upload
+  );
+  useEffect(() => {
+    if (!storageRequired || producer) {
+      setSink(null);
+      setSinkError(null);
+      return;
+    }
+    let cancelled = false;
+    setSink(null);
+    setSinkError(null);
+    void createOpfsSink()
+      .then((next) => {
+        if (!cancelled) {
+          setSink(next);
+          setSinkError(null);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setSinkError(
+            error instanceof OpfsUnavailableError
+              ? OPFS_UNAVAILABLE_COPY
+              : UPLOAD_SINK_ERROR_COPY,
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [storageRequired, producer, storageAttempt]);
+  const captureEnabled =
+    !!bootstrap?.build.capture && !producer && me?.consented === true;
   const keeper = useKeeperCapture({
-    enabled: !!bootstrap?.build.capture && !producer && me?.consented === true,
+    enabled: captureEnabled && sink !== null,
     role: "guest",
     snapshot,
     participantId: me?.participant_id ?? null,
     muted: me?.muted ?? false,
     consented: me?.consented ?? null,
     stream: mic.stream,
+    sink,
   });
+  useDesktopCloseGuard(
+    keeper.recordingLocally ||
+      keeper.finalizing ||
+      (captureEnabled &&
+        (snapshot?.state === "recording" || snapshot?.state === "paused")),
+    "guest",
+    snapshot !== null,
+  );
   const monitor = useRecordMonitor({
     enabled: !!bootstrap?.build.monitor && !!me && connected,
     localId: me?.participant_id ?? null,
@@ -123,44 +177,27 @@ export function RecordApp({ token }: { token: string }) {
     muted: me?.muted ?? false,
     send: (payload) => send("Signal", payload),
   });
-  const [sink, setSink] = useState<ByteSink | null>(null);
-  const [sinkError, setSinkError] = useState<string | null>(null);
-  useEffect(() => {
-    if (!bootstrap?.build.upload || producer) {
-      setSink(null);
-      setSinkError(null);
-      return;
-    }
-    let cancelled = false;
-    void createOpfsSink()
-      .then((next) => {
-        if (!cancelled) {
-          setSink(next);
-          setSinkError(null);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setSinkError(UPLOAD_SINK_ERROR_COPY);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [bootstrap?.build.upload, producer]);
   const uploadTransport = useMemo(() => {
     if (!bootstrap?.build.upload || producer || !me?.participant_id || !lease) {
       return null;
     }
     return guestRecordUploadTransport(token, me.participant_id, lease);
   }, [bootstrap?.build.upload, producer, me?.participant_id, lease, token]);
+  const [uploadRetryNonce, setUploadRetryNonce] = useState(0);
   const upload = useRecordUpload({
-    enabled: !!bootstrap?.build.upload && !producer && me?.consented === true,
+    enabled:
+      !!bootstrap?.build.upload &&
+      !producer &&
+      (me?.consented === true || snapshot?.state === "stopped"),
+    roomState: snapshot?.state,
+    captureSettled: !keeper.recordingLocally && !keeper.finalizing,
     sessionId: snapshot?.session_id ?? null,
     takeIndex: snapshot?.take_index ?? 0,
     participantId: me?.participant_id ?? null,
     transport: uploadTransport,
     sink,
+    retryNonce: uploadRetryNonce,
+    captureExpected: me?.consented === true,
   });
   const roomTone = useRoomToneCapture({
     enabled:
@@ -223,6 +260,24 @@ export function RecordApp({ token }: { token: string }) {
     return <Declined />;
   }
 
+  const downloadKeeper =
+    sink && me?.participant_id && snapshot
+      ? () => {
+          void downloadLocalKeepers(
+            sink,
+            snapshot.session_id,
+            me.participant_id,
+            snapshot.take_index,
+          ).catch((error: unknown) => {
+            setSinkError(
+              error instanceof Error ? error.message : String(error),
+            );
+          });
+        }
+      : undefined;
+  const recoveringPriorTake =
+    !producer && snapshot?.state === "stopped" && me?.consented !== true;
+
   const roleCopy = producer ? "You are listening only" : "You will be recorded";
 
   return (
@@ -248,43 +303,70 @@ export function RecordApp({ token }: { token: string }) {
               onNote={liveComments.setNote}
               connected={connected}
               recordingLocally={keeper.recordingLocally}
-              keeperError={keeper.error ?? sinkError}
+              keeperError={keeper.error}
+              uploadSinkError={sinkError}
+              onRetryKeeper={keeper.error ? keeper.retry : undefined}
               hearing={monitor.hearing}
               monitorError={monitor.error}
               upload={upload}
+              micLost={mic.lost}
+              onRetryMic={mic.retry}
+              onResumeUpload={() => setUploadRetryNonce((value) => value + 1)}
+              onDownloadKeeper={downloadKeeper}
             />
           ) : (
-            <Lobby
-              producer={!!producer}
-              name={name}
-              onName={setName}
-              headphonesOk={headphonesOk}
-              onHeadphones={setHeadphonesOk}
-              deviceId={deviceId}
-              onDeviceId={setDeviceId}
-              onJoinProducer={() => setProducerJoined(true)}
-              onAccept={() => send("Consent", { accepted: true })}
-              onDecline={() => send("Consent", { accepted: false })}
-              showMic={!!me && error !== "room_full"}
-              stream={mic.stream}
-              devices={mic.devices}
-              micError={mic.error}
-              settingsWarning={mic.settingsWarning}
-              permission={mic.status}
-              onAllowMic={mic.request}
-              onRetryMic={mic.retry}
-              deviceLocked={
-                snapshot?.state === "recording" || snapshot?.state === "paused"
-              }
-              roomToneStatus={roomTone.status}
-              roomToneError={roomTone.error}
-              onRecordRoomTone={roomTone.record}
-              onSkipRoomTone={roomTone.skip}
-              onRetryRoomTone={roomTone.retry}
-              roomToneReady={!bootstrap.build.upload || roomTone.ready}
-              roomToneCaptureReady={roomTone.captureReady}
-              showRoomTone={!!bootstrap.build.upload}
-            />
+            <div className="stack">
+              {recoveringPriorTake && snapshot ? (
+                <RecIndicator snapshot={snapshot} />
+              ) : null}
+              <Lobby
+                producer={!!producer}
+                name={name}
+                onName={setName}
+                headphonesOk={headphonesOk}
+                onHeadphones={setHeadphonesOk}
+                deviceId={deviceId}
+                onDeviceId={setDeviceId}
+                onJoinProducer={() => setProducerJoined(true)}
+                onAccept={() => send("Consent", { accepted: true })}
+                onDecline={() => send("Consent", { accepted: false })}
+                showMic={!!me && error !== "room_full"}
+                stream={mic.stream}
+                devices={mic.devices}
+                micError={mic.error}
+                settingsWarning={mic.settingsWarning}
+                permission={mic.status}
+                onAllowMic={mic.request}
+                onRetryMic={mic.retry}
+                deviceLocked={
+                  snapshot?.state === "recording" ||
+                  snapshot?.state === "paused"
+                }
+                roomToneStatus={roomTone.status}
+                roomToneError={roomTone.error}
+                onRecordRoomTone={roomTone.record}
+                onSkipRoomTone={roomTone.skip}
+                onRetryRoomTone={roomTone.retry}
+                roomToneReady={
+                  !bootstrap.build.upload || (sink !== null && roomTone.ready)
+                }
+                roomToneCaptureReady={sink !== null && roomTone.captureReady}
+                localStorageReady={!storageRequired || sink !== null}
+                localStorageError={sinkError}
+                onRetryStorage={() => setStorageAttempt((n) => n + 1)}
+                showRoomTone={!!bootstrap.build.upload}
+              />
+              {recoveringPriorTake &&
+              (upload.pending || upload.total > 0 || upload.error) ? (
+                <UploadStatus
+                  progress={upload}
+                  stopped
+                  alive={connected}
+                  onResume={() => setUploadRetryNonce((value) => value + 1)}
+                  onDownload={downloadKeeper}
+                />
+              ) : null}
+            </div>
           )}
         </FocusPull>
       </div>

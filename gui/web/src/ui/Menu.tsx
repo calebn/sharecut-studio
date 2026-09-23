@@ -12,7 +12,10 @@ import { listFocusable } from "./useDialogModal";
 
 function menuItems(panel: HTMLElement): HTMLElement[] {
   return listFocusable(panel).filter(
-    (el) => el.getAttribute("role") === "menuitem",
+    (el) =>
+      el.getAttribute("role") === "menuitem" ||
+      el.getAttribute("role") === "menuitemcheckbox" ||
+      el.getAttribute("role") === "menuitemradio",
   );
 }
 
@@ -258,7 +261,9 @@ type MenuSectionProps = {
   children: ReactNode;
 };
 
-/** Non-menuitem content (checkboxes, notes) inside a menu. */
+/**
+ * Labeled group for menuitems, checkable menuitems, and supporting notes.
+ */
 export function MenuSection({ label, children }: MenuSectionProps) {
   return (
     <div className="ui-menu-section" role="group" aria-label={label}>

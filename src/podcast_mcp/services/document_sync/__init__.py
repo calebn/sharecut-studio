@@ -3,6 +3,7 @@
 from podcast_mcp.services.document_sync.service import (
     DocumentSyncService,
     after_agent_mutation,
+    document_submit_lock,
     notify_comments_changed,
     notify_document_changed,
 )
@@ -10,6 +11,7 @@ from podcast_mcp.services.document_sync.service import (
 __all__ = [
     "DocumentSyncService",
     "after_agent_mutation",
+    "document_submit_lock",
     "notify_comments_changed",
     "notify_document_changed",
 ]

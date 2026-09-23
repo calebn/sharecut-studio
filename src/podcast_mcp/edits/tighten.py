@@ -21,10 +21,14 @@ def format_tighten_propose_summary(
     """Human summary for pipeline/CLI/MCP propose output (includes discourse skips)."""
     fillers = sum(1 for d in decisions if (d.reason or "").startswith("filler:"))
     pauses = sum(1 for d in decisions if (d.reason or "").startswith("pause:"))
+    repetitions = sum(
+        1 for d in decisions if (d.reason or "").startswith(("repetition:", "restart:"))
+    )
     skips = skip_counts or {}
     discourse = sum(n for key, n in skips.items() if key.startswith("discourse:"))
     extra = f", {discourse} discourse kept" if discourse else ""
-    return f"{len(decisions)} proposed ({fillers} filler, {pauses} pause{extra})"
+    repeat_text = f", {repetitions} repetition/restart" if repetitions else ""
+    return f"{len(decisions)} proposed ({fillers} filler, {pauses} pause{repeat_text}{extra})"
 
 
 @dataclass(frozen=True)
@@ -55,8 +59,10 @@ def propose_tighten_edits(
             e
             for e in project.edit_decisions
             if e.applied
-            or (e.review_required and not (e.reason or "").startswith("filler:acoustic"))
-            or not (e.reason or "").startswith(("filler:", "pause:"))
+            or (
+                not (e.reason or "").startswith(("filler:acoustic", "repetition:", "restart:"))
+                and (e.review_required or not (e.reason or "").startswith(("filler:", "pause:")))
+            )
         ]
     from podcast_mcp.edits.transcript_cuts import coalesce_edits
 

@@ -32,6 +32,11 @@ export async function uploadKeeperWav(args: {
     };
   }
   const parts = keeperPcmParts(args.wav, args.complete);
+  if (args.complete && parts.length === 0) {
+    throw new Error(
+      "No audio was captured for this take. Resume the upload or download the local keeper copy.",
+    );
+  }
   const acked = new Set(args.ackedParts);
   let fileAck = false;
   let landed = false;
@@ -58,6 +63,7 @@ export async function uploadKeeperWav(args: {
       final,
       joinOffsetMs: args.joinOffsetMs,
       kind: args.kind,
+      expectedParts: args.complete ? parts.length : undefined,
       signal: args.signal,
     });
     acked.add(partSeq);

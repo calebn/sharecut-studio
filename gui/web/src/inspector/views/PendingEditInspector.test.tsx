@@ -6,16 +6,22 @@ import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { minimalProject, sampleComment } from "../../test/fixtures";
 import type { PendingEditView } from "../../types/project";
+import {
+  ApiError,
+  TRANSCRIPT_REFINE_REQUIRED_CODE,
+} from "../../utils/apiError";
 import { PendingEditInspector } from "./PendingEditInspector";
 
 const createComment = vi.fn();
 const refreshProject = vi.fn();
 const approveEdits = vi.fn();
+const waiveTranscriptRefine = vi.fn();
 
 vi.mock("../../api", () => ({
   createComment: (...args: unknown[]) => createComment(...args),
   refreshProject: (...args: unknown[]) => refreshProject(...args),
   approveEdits: (...args: unknown[]) => approveEdits(...args),
+  waiveTranscriptRefine: (...args: unknown[]) => waiveTranscriptRefine(...args),
   rejectEdits: vi.fn(),
   updatePendingEdit: vi.fn(),
 }));
@@ -45,6 +51,8 @@ describe("PendingEditInspector", () => {
     createComment.mockReset();
     refreshProject.mockReset();
     approveEdits.mockReset();
+    waiveTranscriptRefine.mockReset();
+    waiveTranscriptRefine.mockResolvedValue(undefined);
     refreshProject.mockResolvedValue(
       minimalProject({ pending_edits: [sessionCut] }),
     );
@@ -128,14 +136,16 @@ describe("PendingEditInspector", () => {
   it("keeps Ask compose and preview controls after a long approve error", async () => {
     const user = userEvent.setup();
     approveEdits.mockRejectedValue(
-      new Error(
+      new ApiError(
         "Transcript refine is required before focus/tighten/NL edits. Run podcast-transcript-refine (whole-episode pass), then `podcast transcript refine-waive --reason ...` / transcript_refine_waive_tool.",
+        TRANSCRIPT_REFINE_REQUIRED_CODE,
       ),
     );
     const { container } = render(<PendingEditInspector edit={sessionCut} />);
     await user.click(screen.getByRole("button", { name: "Approve" }));
     const error = await screen.findByRole("alert");
-    expect(error).toHaveTextContent(/Transcript refine is required/);
+    expect(error).toHaveTextContent(/Review the transcript or waive/);
+    expect(error).not.toHaveTextContent(/podcast transcript/);
     expect(
       screen.getByRole("region", { name: "Ask about this edit" }),
     ).toBeInTheDocument();
@@ -185,5 +195,50 @@ describe("PendingEditInspector", () => {
     );
 
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("offers a host waiver and clears the gate error without approving", async () => {
+    const user = userEvent.setup();
+    approveEdits.mockRejectedValue(
+      new ApiError(
+        "Transcript refine is required before focus/tighten/NL edits.",
+        TRANSCRIPT_REFINE_REQUIRED_CODE,
+      ),
+    );
+    render(<PendingEditInspector edit={sessionCut} />);
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+    await user.type(
+      screen.getByLabelText("Waiver reason"),
+      "Reviewed manually",
+    );
+    await user.click(screen.getByRole("button", { name: "Waive with reason" }));
+    expect(waiveTranscriptRefine).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      "Reviewed manually",
+    );
+    expect(approveEdits).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByRole("button", { name: "Waive with reason" }),
+    ).toBeNull();
+    expect(screen.getByRole("status")).toHaveTextContent(/Retry approval/);
+  });
+
+  it("associates an empty waiver reason error with the textarea", async () => {
+    const user = userEvent.setup();
+    approveEdits.mockRejectedValue(
+      new ApiError("Refinement blocked", TRANSCRIPT_REFINE_REQUIRED_CODE),
+    );
+    const { container } = render(<PendingEditInspector edit={sessionCut} />);
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+    await user.click(screen.getByRole("button", { name: "Waive with reason" }));
+    const reason = screen.getByRole("textbox", { name: "Waiver reason" });
+    const validation = screen.getByText(
+      "A reason is required to waive transcript refinement.",
+    );
+    expect(reason).toHaveAttribute("aria-invalid", "true");
+    expect(reason).toHaveAttribute("aria-describedby", validation.id);
+    expect(validation).toHaveAttribute("role", "alert");
+    expect(waiveTranscriptRefine).not.toHaveBeenCalled();
+    await expectNoA11yViolations(container);
   });
 });

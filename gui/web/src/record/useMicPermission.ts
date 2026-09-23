@@ -14,6 +14,7 @@ export type MicPermissionState = {
   devices: MediaDeviceInfo[];
   error: string | null;
   settingsWarning: string | null;
+  lost: boolean;
 };
 
 type PermissionStatusHandle = {
@@ -37,6 +38,8 @@ export function useMicPermission(
   const settledRef = useRef(0);
   const streamOn = enabled && wantStream && !queryDenied;
   const mic = useMicStream(streamOn, deviceId, attempt);
+  const micLost = mic.lost;
+  const retryMic = mic.retry;
   settledRef.current = mic.settledAttempt;
 
   useEffect(() => {
@@ -114,11 +117,21 @@ export function useMicPermission(
     setWantStream(true);
   }, [enabled]);
 
+  const retry = useCallback(() => {
+    if (micLost) {
+      retryMic();
+      return;
+    }
+    beginAcquire();
+  }, [beginAcquire, micLost, retryMic]);
+
   let status: MicPermissionStatus = "idle";
   if (!enabled) {
     status = "idle";
   } else if (queryDenied) {
     status = "denied";
+  } else if (mic.lost) {
+    status = "lost";
   } else if (attemptRef.current !== mic.settledAttempt && !mic.stream) {
     status = "prompting";
   } else if (wantStream && !mic.pending) {
@@ -141,10 +154,11 @@ export function useMicPermission(
   return {
     status,
     request: beginAcquire,
-    retry: beginAcquire,
+    retry,
     stream: mic.stream,
     devices: mic.devices,
     error: mic.error,
     settingsWarning: mic.settingsWarning,
+    lost: mic.lost,
   };
 }
