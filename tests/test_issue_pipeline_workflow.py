@@ -81,6 +81,8 @@ def test_local_checks_are_targeted_and_ci_is_the_full_gate() -> None:
     assert "TARGETED local checks only" in script
     assert "Do NOT run make test, make test-web, make ci" in script
     assert "make test-fast" not in script
+    assert "make worktree-setup" in script
+    assert "uv sync --all-extras" not in script
 
 
 def test_model_tiers() -> None:

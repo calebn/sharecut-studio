@@ -42,8 +42,8 @@ const DETACHED = (ref) => `Work in DETACHED HEAD so no branch is locked to this 
   git fetch origin --prune && git checkout --detach ${ref}
 Push with \`git push origin HEAD:refs/heads/<branch>\` (never push to main).`
 
-const SETUP = `Before committing, prepare this worktree so the pre-commit hook (lint-staged + pre-commit) works:
-  uv sync --all-extras && (cd gui/web && npm ci)
+const SETUP = `Before committing, provision this worktree (idempotent; hooks + venv with CI extras + gui/web node_modules):
+  make worktree-setup
 Never bypass hooks (--no-verify) and never add noqa/nosec/biome-ignore/eslint-disable.`
 
 // PR-body issue links: "Fixes #N" auto-closes on merge; "Related #N" links without closing.
