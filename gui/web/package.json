@@ -23,7 +23,7 @@
     "cheatsheet:check": "vite-node scripts/generate-keymap-cheatsheet.ts --check",
     "test:e2e": "vite-node scripts/run-e2e.ts",
     "test:e2e:compat": "vite-node scripts/run-e2e.ts --config=playwright.compat.config.ts",
-    "test:e2e:install": "playwright install chromium"
+    "test:e2e:install": "playwright install chromium webkit"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",
