@@ -62,6 +62,33 @@ credentials; the publication audit also covers old pull-request commits and othe
 Any real finding requires credential rotation first and history rewriting where exposure of the
 old value would still matter.
 
+### Dependency updates and audit
+
+`.github/dependabot.yml` opens weekly (Monday) update PRs for every tracked lockfile
+directory: `npm` in `gui/web` and `gui/desktop`, `cargo` in `gui/desktop/src-tauri`,
+and `uv` and `github-actions` at the repo root. Each ecosystem groups `minor`/`patch`
+bumps into a single PR so they land together; `major` bumps always arrive as their
+own PR for review. PR commit messages use the `chore(deps)` / `chore(deps-dev)`
+prefix (`commit-message: {prefix: chore, include: scope}`). `tests/test_dependabot_config.py`
+fails the build if a tracked lockfile's directory has no matching entry, so a new
+lockfile location needs a new `updates` entry in the same change.
+
+The `frontend` job in `.github/workflows/test.yml` runs `npm audit --omit=dev
+--audit-level=high` right after `npm ci`. It is advisory only (`continue-on-error:
+true`) — the required `frontend` check does not block on upstream advisory timing,
+and Dependabot opens the fix PRs. Run the same check locally with:
+
+```bash
+cd gui/web && npm audit --omit=dev --audit-level=high
+```
+
+Dependabot alerts and automatic security updates are a per-repository GitHub
+setting (Settings → Code security), not something this config controls; they are
+currently disabled for this repository. A `github-actions` **major** version bump
+(for example `actions/checkout@v6` → `@v7`) also needs the pinned-ref contract
+tests updated to match, e.g. `tests/test_secret_scan_workflow.py:34` asserts
+`actions/checkout@v6`.
+
 ### GitHub CI gate
 
 GitHub Actions runs the required full suite on public pushes and pull requests. There is no pre-push full-CI hook or local CI stamp: contributors may push a branch and open a PR without running `make ci` first, then use the GitHub results to make targeted fixes. `make ci` remains an optional local mirror when early end-to-end feedback is useful.
@@ -320,7 +347,7 @@ point at which the request can occur.
 | Job | What |
 |-----|------|
 | `pytest` | `ruff check` + `ruff format --check` + `bandit` + `vulture` + `deptry` + `mypy` + `pytest -n auto -m "not e2e_slow and not e2e_real"` (Python coverage gate) |
-| `frontend` | In `gui/web`: `npm ci`, `npm run lint` (oxlint + Stylelint tokens/rem/`@container`; `!important`/`@layer` consent-gated), `npm run format:check` (Biome), `npm run typecheck` (strict `tsc`), `npm test` (Vitest + `axe-core` via `expectNoA11yViolations`; keeper PCM/WAV/segment bars in `gui/web/src/record/keeper/`; mix-minus MM1–MM9 in `gui/web/src/audio/mixMinus.test.ts`; stories/Storybook/test helpers never imported by app code or root build configs in gui/web/src/test/storyGovernance.test.ts), `npm run build` |
+| `frontend` | In `gui/web`: `npm ci`, `npm audit --omit=dev --audit-level=high` (advisory, `continue-on-error`; see [§ Dependency updates and audit](#dependency-updates-and-audit)), `npm run lint` (oxlint + Stylelint tokens/rem/`@container`; `!important`/`@layer` consent-gated), `npm run format:check` (Biome), `npm run typecheck` (strict `tsc`), `npm test` (Vitest + `axe-core` via `expectNoA11yViolations`; keeper PCM/WAV/segment bars in `gui/web/src/record/keeper/`; mix-minus MM1–MM9 in `gui/web/src/audio/mixMinus.test.ts`; stories/Storybook/test helpers never imported by app code or root build configs in gui/web/src/test/storyGovernance.test.ts), `npm run build` |
 | `frontend-e2e` | Build Sharecut Studio, install Chromium + WebKit (`--with-deps`), Playwright smoke against a **temp copy** of `aligned_dialogue` (committed uint8 overview JSON under `artifacts/peaks/` so `/api/peaks/` does not need ffmpeg; the copy keeps only `artifacts/peaks/` and skips `history/`, `export/`, `_build/`, `.git`, and sync sqlite — see [§ Fixture hygiene](#fixture-hygiene)). Ordinary loopback Playwright launches leave `podcast gui` unpinned and explicitly provide each temporary `?project=` path, allowing share and record scenarios to use a fresh relocated fixture. `npm run test:e2e` deletes the live copy after Playwright terminates its web server (sqlite stays in the temp workspace — never rewritten in place). Host→guest follow seeds a temp premix and needs `ffmpeg` on PATH to publish the share mix. Presence follow also covers tab follow, chrome ghosts, lane-bottom no-jump, and guest Pipeline/FX degrade (`e2e/presence-follow.spec.ts`). Full-page axe via `expectPageAxeClean` in `gui/web/e2e/axe.ts`. Then runs the Chromium/WebKit compatibility matrix (`npm run test:e2e:compat`; see [§ Browser compatibility matrix](#browser-compatibility-matrix)). Firefox pending-inspector layout remains [Follow-up](../ROADMAP.md#follow-up) (original #155 report was Firefox @ 1280). |
 
 `expectPageAxeClean(page, selector)` can also check a focused surface; the open transport-menu test scopes its axe check to the menu while unrelated track-header and loading-timeline ARIA names are tracked in #114. Do not disable additional axe rules to hide failures.
