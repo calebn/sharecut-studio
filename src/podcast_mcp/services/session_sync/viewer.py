@@ -59,9 +59,10 @@ def publish_viewer_snapshot(
     client_id = str(snapshot.get("client_id") or "viewer-default")
     ack_id = snapshot.get("ack_command_id")
     current = svc.snapshot()
+    latest = current
     # Ack current command when client reports it
     if ack_id and ack_id == current.get("last_command_id"):
-        svc.submit(
+        latest = svc.submit(
             SyncCommand(
                 type="Ack",
                 payload={
@@ -73,11 +74,11 @@ def publish_viewer_snapshot(
                 role="viewer",
                 client_seq=next_client_seq(),
             )
-        )
+        )["snapshot"]
 
     # Ephemeral playhead for agents / other clients (does not advance server_seq).
     if "playhead_sec" in snapshot:
-        svc.submit(
+        latest = svc.submit(
             SyncCommand(
                 type="PresenceHeartbeat",
                 payload={
@@ -88,23 +89,23 @@ def publish_viewer_snapshot(
                 role="viewer",
                 client_seq=next_client_seq(),
             )
-        )
+        )["snapshot"]
 
     def _changed(key: str) -> bool:
         return key in snapshot and snapshot.get(key) != current.get(key)
 
     # Durable field updates only when the value actually changed.
     if _changed("selection"):
-        svc.submit_control(
+        latest = svc.submit_control(
             "SetSelection",
             {"selection": snapshot["selection"]},
             client_id=client_id,
             role="viewer",
-        )
+        )["snapshot"]
     if (
         "viewer_mute" in snapshot and snapshot.get("viewer_mute") != current.get("viewer_mute")
     ) or ("solo_tracks" in snapshot and snapshot.get("solo_tracks") != current.get("solo_tracks")):
-        svc.submit_control(
+        latest = svc.submit_control(
             "SetMuteSolo",
             {
                 "viewer_mute": snapshot.get("viewer_mute", current.get("viewer_mute")),
@@ -112,11 +113,11 @@ def publish_viewer_snapshot(
             },
             client_id=client_id,
             role="viewer",
-        )
+        )["snapshot"]
     if _changed("audition_mode") or (
         "source" in snapshot and snapshot.get("source") != current.get("source")
     ):
-        svc.submit_control(
+        latest = svc.submit_control(
             "SetMode",
             {
                 "audition_mode": snapshot.get("audition_mode", current.get("audition_mode")),
@@ -124,31 +125,32 @@ def publish_viewer_snapshot(
             },
             client_id=client_id,
             role="viewer",
-        )
+        )["snapshot"]
     playing_now = bool(snapshot.get("is_playing", current.get("is_playing")))
     if _changed("is_playing"):
-        svc.submit_control(
+        latest = svc.submit_control(
             "SetPlaying",
             {"is_playing": snapshot["is_playing"]},
             client_id=client_id,
             role="viewer",
-        )
-        current = svc.snapshot()
+        )["snapshot"]
     # Paused scrub only - never journal playhead while transport is rolling
     # (local or remote). PresenceHeartbeat above already carries live playhead.
     if (
         "playhead_sec" in snapshot
         and not playing_now
-        and not bool(current.get("is_playing"))
-        and float(snapshot["playhead_sec"]) != float(current.get("playhead_sec") or 0.0)
+        and not bool(latest.get("is_playing"))
+        and float(snapshot["playhead_sec"]) != float(latest.get("playhead_sec") or 0.0)
     ):
-        svc.submit_control(
+        latest = svc.submit_control(
             "SetPlayhead",
             {"playhead_sec": snapshot["playhead_sec"]},
             client_id=client_id,
             role="viewer",
-        )
+        )["snapshot"]
     if "region" in snapshot and snapshot["region"] is None and current.get("region"):
-        svc.submit_control("ClearRegion", {"stop": False}, client_id=client_id, role="viewer")
+        latest = svc.submit_control(
+            "ClearRegion", {"stop": False}, client_id=client_id, role="viewer"
+        )["snapshot"]
 
-    return svc.snapshot()
+    return latest
