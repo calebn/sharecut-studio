@@ -119,17 +119,45 @@ action; do not loop indefinitely.
    issue and PR to `pipeline:review`.
 4. Build one review packet from the final diff: changed code with enough
    context, callers and second-hop callers where relevant, sibling CLI/MCP/GUI
-   paths, related tests, and applicable rules. Reuse it for all review passes.
-   Treat the packet as a starting point, never a boundary.
-5. Check all eight concerns from `pr-multi-review`: bugs, risk, wiring, reuse,
-   security, concurrency/resources, performance, and algorithms/patterns.
-   For reuse search the whole repo for each new helper; for security inspect
-   authorization helpers and threat docs; for wiring inspect sibling adapters;
-   for concurrency trace task/thread lifetimes; for patterns follow at least
-   two call hops. A concern may report no finding with a reason. Browser or
-   live QA is required when the changed user-facing path can be exercised.
-   Post actionable findings and verify they appear on the PR.
-6. Classify every review item as fix, follow-up, or won't-do. Make safe fixes,
+   paths, related tests, and applicable rules. When `scripts/review_packet.py`
+   exists on trusted `origin/main`, run that version directly with the exact
+   head ref and review range, then pass the resulting file path to each lens;
+   a model does not need to run or retype this deterministic command. Check
+   that the file exists, is nonempty, and was built for the intended head and
+   range. Record the head SHA with the packet. For later rounds, use the
+   feedback-fix range, not the whole PR diff. If the script is unavailable or
+   fails, gather the same context once by hand and still run review. Read
+   omitted or truncated code on demand. Reuse the packet across all passes in
+   that round; treat it as a starting point, never a boundary.
+5. Run the eight distinct reviewer lenses from `pr-multi-review`: bugs, risk,
+   wiring, reuse, security, concurrency/resources, performance, and
+   algorithms/patterns. Give each available reviewer subagent the shared
+   packet and its own lens instructions; collect each report before combining
+   them. If subagents are unavailable, run the lenses in separate explicit
+   passes and disclose that the reviews were not independent. For reuse search
+   the whole repo for each new helper; for security inspect authorization
+   helpers and threat docs; for wiring inspect sibling adapters; for
+   concurrency trace task/thread lifetimes; for patterns follow at least two
+   call hops. A lens may report no finding with a reason. Browser or live QA
+   is required when the changed user-facing path can be exercised.
+
+   Preserve every generated review comment, regardless of severity or whether
+   it seems worth fixing. Combine comments only when multiple lenses report
+   the same underlying issue; retain the contributing lenses and all distinct
+   evidence in the combined comment. Do not rebut, filter, defer, or decide
+   whether to implement a finding before posting. Post each remaining comment
+   on the PR, inline when the diff permits and as a separate Conversation
+   comment otherwise. A clean lens report has no comment to post. Map every
+   generated comment to its posted URL or to the combined comment's URL.
+   Have a separate verifier re-fetch GitHub comments and check that the number
+   and content posted cover the union of all lens reports. The coordinator
+   posts any missing comments, then asks the verifier to recheck. Stall the
+   pipeline if verification still fails.
+6. Only after posting and verification, classify every review item as fix,
+   follow-up, acknowledged information, or won't-do. Acknowledge a verified
+   observation that calls for no change in this PR with a concrete rationale;
+   reply and resolve its thread without inventing a follow-up issue or an
+   owner hold. This disposition does not apply to an unresolved defect. Make safe fixes,
    add tests/docs, reply to each thread, and verify replies and resolutions.
    GitHub can leave thread replies inside a `PENDING` review even when the
    author sees them in a thread query. Submit each pending review with a
@@ -150,9 +178,9 @@ action; do not loop indefinitely.
 Read `pr-multi-review` and `feedback` skills when using their detailed review
 or response procedure. Their autonomous modes belong to the Claude workflow;
 this skill follows the user's current authorization and Codex's available
-tools. Use subagents only when the user expressly requests delegation or
-parallel agent work. One agent can cover the eight concerns in separate,
-explicit passes over the shared packet.
+tools. The eight reviewer lenses above are part of this skill's review stage,
+not an optional cost setting. Posting verification is separate from the
+reviewer who combines and posts comments.
 
 ## Gate and closeout
 
@@ -184,23 +212,44 @@ status, and merge result.
 
 ## Cost discipline
 
-Choose a model for the actual difficulty when stage-specific subagents are
-available **and the user has requested delegation**. The current Codex task
-cannot change its own model mid-run. Use Luna with low effort for bounded
-read-only triage and claim/CI inventory; Sol with medium effort for ordinary
-planning, implementation, feedback fixes, and review; raise Sol's effort for
-cross-layer or high-risk review. Use Astra only when architecture, security,
-concurrency, or conflicting findings require deeper judgment. Keep claim
-ownership and the final merge verdict in the deterministic protocol and gate,
-regardless of model. For a small issue, one agent may cost less than handing
-off several stages. Record the models and efforts actually used; if the run
-stays in one task, report that model routing was not exercised. These choices
-follow [OpenAI's model-selection guidance](https://developers.openai.com/api/docs/guides/model-selection);
+The current Codex task cannot change its own model mid-run. When the
+collaboration tool exposes `model` and `reasoning_effort` on `spawn_agent`,
+delegate bounded stages using this starting route:
+
+| Work | Model / effort | Return to coordinator |
+| --- | --- | --- |
+| Issue-text triage, claim/PR/CI inventory, review-post and reply verification | Luna / low | Facts with source URLs, exact IDs and head SHA, or a specific failure; no inferred gate verdict |
+| Routine plan, implementation, CI fix, feedback implementation, eight review lenses | Sol / medium | Changed files and focused checks, or a lens report with every finding and evidence |
+| Cross-layer architecture, difficult security/concurrency, conflicting review evidence, feedback decisions requiring judgment | Astra / high only when needed | A bounded decision with supporting code and tradeoffs |
+
+Use a bounded positive `fork_turns` value that carries the user's run request
+when overriding the model; a full-history fork inherits the coordinator's
+model. Give each child the repo path, issue/PR number, current head SHA,
+stage scope, shared packet or relevant file paths, required output, and its
+read/write boundary. Review lenses are separate read-only tasks; schedule
+them within the available concurrency slots and collect all eight reports.
+Do not run simultaneous writers in a shared checkout. The coordinator owns
+the claim lifecycle, combining and posting all review comments, feedback
+classification, the deterministic gate, and any authorized merge. A cheaper
+agent may collect or verify facts, but its prose never replaces the gate's
+current GitHub checks. If a selected model or override is unavailable, use an
+available model and record the fallback; never skip a stage to save tokens.
+
+This is a Codex skill procedure, not the Claude JavaScript stage launcher.
+Do not start user-visible Codex tasks merely to route stages. Record the models
+and efforts requested for each accepted child, its packet/head SHA, and its
+result. If the host exposes the execution model or token usage, record those
+separately; an accepted override alone does not prove either. If subagents
+were unavailable, report that model routing and independent review were not
+exercised. These choices follow
+[OpenAI's model-selection guidance](https://developers.openai.com/api/docs/guides/model-selection)
+and its [multi-agent guidance](https://developers.openai.com/api/docs/guides/agents-api/multi-agent);
 recheck availability and guidance when making a future run.
 
-Read issue text before code during triage. Gather shared review context once,
-then read additional files only for concerns that require them. Reuse the
-packet across rounds; focus later rounds on the fix diff and its callers.
+Read issue text before code during triage. Generate shared review context
+deterministically when the trusted script is available, then read additional
+files only for concerns that require them. Rebuild the packet for each review
+round; focus later rounds on the fix diff and its callers.
 Batch independent read-only searches and keep command output bounded. Preserve
 every review concern and the final gate; do
 not claim a percentage saving without measuring comparable runs. A verified
