@@ -1,9 +1,6 @@
-import {
-  type ReactNode,
-  type PointerEvent as ReactPointerEvent,
-  useRef,
-} from "react";
+import type { ReactNode, PointerEvent as ReactPointerEvent } from "react";
 import { useLongPress } from "../hooks/useLongPress";
+import { useSwipeLeft } from "../hooks/useSwipeLeft";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import type { TimelineComment } from "../types/project";
 import { Button } from "../ui";
@@ -26,8 +23,18 @@ type Props = {
   showReply?: boolean;
   /** When false, omit interactive action checkboxes. */
   showActions?: boolean;
+  /**
+   * Opt in to touch swipe-left → Resolve (comment lists only). Off by default
+   * so embedded threads (e.g. the pending-edit Ask thread) never resolve from
+   * a stray horizontal drag.
+   */
+  swipeToResolve?: boolean;
   children?: ReactNode;
 };
+
+/** Controls inside the card keep their own touch behavior. */
+const GESTURE_EXEMPT_SELECTOR =
+  "button,input,textarea,label,select,a,[contenteditable],.comment-replies";
 
 export function CommentCard({
   comment: c,
@@ -43,68 +50,37 @@ export function CommentCard({
   showResolve = true,
   showReply = true,
   showActions = true,
+  swipeToResolve = false,
   children,
 }: Props) {
-  const swipeRef = useRef<{
-    id: number;
-    x: number;
-    y: number;
-    at: number;
-  } | null>(null);
-  const swipeAtRef = useRef(-Infinity);
+  const canResolve = showResolve && !guestShare && onResolve;
+  const swipe = useSwipeLeft(
+    Boolean(swipeToResolve && canResolve && !busy && !c.resolved),
+    () => onResolve?.(true),
+  );
   const longPress = useLongPress(() => {
-    swipeRef.current = null;
+    swipe.reset();
     onSelect?.();
   });
-  const canSwipeResolve =
-    showResolve && !guestShare && !busy && !c.resolved && onResolve;
   const onPointerDown = (event: ReactPointerEvent<HTMLLIElement>) => {
     const target = event.target as Element;
     if (
-      target.closest("button,input,textarea") &&
+      target.closest(GESTURE_EXEMPT_SELECTOR) &&
       !target.closest(".comment-card-main")
     ) {
+      swipe.reset();
       return;
     }
-    longPress.onPointerDown(event);
-    if (event.pointerType === "touch" && event.isPrimary) {
-      swipeRef.current = {
-        id: event.pointerId,
-        x: event.clientX,
-        y: event.clientY,
-        at: Date.now(),
-      };
-    } else {
-      swipeRef.current = null;
-    }
+    if (onSelect) longPress.onPointerDown(event);
+    swipe.onPointerDown(event);
   };
   const onPointerMove = (event: ReactPointerEvent<HTMLLIElement>) => {
     longPress.onPointerMove(event);
-    const start = swipeRef.current;
-    if (
-      start &&
-      (start.id !== event.pointerId || Math.abs(event.clientY - start.y) >= 24)
-    ) {
-      swipeRef.current = null;
-    }
+    swipe.onPointerMove(event);
   };
   const onPointerUp = (event: ReactPointerEvent<HTMLLIElement>) => {
     longPress.onPointerUp(event);
-    const start = swipeRef.current;
-    swipeRef.current = null;
-    if (
-      !start ||
-      start.id !== event.pointerId ||
-      !canSwipeResolve ||
-      Date.now() - start.at >= 550
-    )
-      return;
-    const dx = event.clientX - start.x;
-    const dy = event.clientY - start.y;
-    if (dx <= -48 && Math.abs(dy) < 24) {
-      swipeAtRef.current = Date.now();
-      onResolve(true);
-    }
+    swipe.onPointerUp(event);
   };
   const className = `comment-card${selected ? " selected" : ""}${
     c.resolved ? " resolved" : ""
@@ -130,7 +106,7 @@ export function CommentCard({
       onPointerMove={onPointerMove}
       onPointerCancel={(event) => {
         longPress.onPointerCancel(event);
-        swipeRef.current = null;
+        swipe.onPointerCancel(event);
       }}
       {...presenceAnchorProps(presenceAnchor("comment", c.id))}
     >
@@ -139,7 +115,7 @@ export function CommentCard({
           type="button"
           className="comment-card-main"
           onClick={() => {
-            if (Date.now() - swipeAtRef.current < 500) return;
+            if (swipe.justSwiped()) return;
             onSelect();
           }}
         >
@@ -191,7 +167,7 @@ export function CommentCard({
           </Button>
         </div>
       ) : null}
-      {showResolve && !guestShare && onResolve ? (
+      {canResolve ? (
         <div className="comment-card-footer">
           {c.resolved ? (
             <Button disabled={busy} onClick={() => onResolve(false)}>
