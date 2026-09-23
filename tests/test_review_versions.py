@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -11,20 +12,21 @@ from podcast_mcp.edits.comments import add_comment
 from podcast_mcp.edits.review_versions import publish_version, version_audio_path
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services import PlayService, ProjectWorkspace, ReviewService
+from podcast_mcp.util.binaries import resolve_ffmpeg
 
 
-def test_publish_version_and_stamp_comment(minimal_project, sample_wav, tmp_workspace):
+@pytest.mark.parametrize("source", ["premix", "mastered"])
+def test_publish_version_and_stamp_comment(minimal_project, sample_wav, tmp_workspace, source):
     proj = load_project(minimal_project)
     art = Path(proj.workspace_dir) / "artifacts"
     art.mkdir(parents=True, exist_ok=True)
-    premix = art / "premix.wav"
-    premix.write_bytes(sample_wav.read_bytes())
+    (art / f"{source}.wav").write_bytes(sample_wav.read_bytes())
     save_project(proj, minimal_project)
 
     ws = ProjectWorkspace.open(minimal_project)
-    ver = ReviewService(ws).publish(label="v1 for guests")
+    ver = ReviewService(ws).publish(label="v1 for guests", prefer=source)
     assert ver["label"] == "v1 for guests"
-    assert ver["source"] == "premix"
+    assert ver["source"] == source
     persisted = load_project(minimal_project)
     assert [version.model_dump() for version in persisted.review.versions] == [ver]
     assert persisted.review.active_version_id == ver["id"]
@@ -39,6 +41,12 @@ def test_publish_version_and_stamp_comment(minimal_project, sample_wav, tmp_work
     mp3 = Path(persisted.workspace_dir) / ver["mp3_relpath"]
     assert mp3.is_file()
     assert mp3.stat().st_size > 0
+    subprocess.run(
+        [resolve_ffmpeg(), "-nostdin", "-v", "error", "-xerror", "-i", str(mp3), "-f", "null", "-"],
+        check=True,
+        capture_output=True,
+        timeout=15,
+    )
 
     c = add_comment(ws.project, body="On this mix", author="guest", timeline_start=1.0)
     assert c.review_version_id == ver["id"]

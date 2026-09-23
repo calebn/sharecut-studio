@@ -141,9 +141,9 @@ The `published_share` factory fixture builds a premix-backed review version and
 share from `minimal_project`. It reloads the project after publishing before
 minting the share. `test_review_versions.py` directly checks persisted version
 metadata and active selection after publishing and switching versions. It also
-checks the frozen WAV bytes and SHA-256 against the source and verifies that the
-MP3 exists separately. Pass `capabilities=[]` to test the default capability
-fallback, or leave it unset for all capabilities.
+checks both premix and mastered sources: frozen WAV bytes and SHA-256 match the
+source, and the saved MP3 decodes fully with FFmpeg. Pass `capabilities=[]` to
+test the default capability fallback, or leave it unset for all capabilities.
 
 Tests that need object storage mock `load_object_store_config` / `ObjectStoreClient` explicitly (see `tests/test_review_media_object_store.py`).
 
