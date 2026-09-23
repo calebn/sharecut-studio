@@ -76,12 +76,35 @@ function sourceReferences(text: string): {
     const patterns =
       value.type === "ArrayExpression" ? value.elements : [value];
     if (!Array.isArray(patterns)) return;
+    const literalPattern = (pattern: unknown): string | undefined => {
+      if (!isNode(pattern)) return undefined;
+      if (
+        pattern.type === "StringLiteral" &&
+        typeof pattern.value === "string"
+      ) {
+        return pattern.value;
+      }
+      const quasi = Array.isArray(pattern.quasis)
+        ? pattern.quasis[0]
+        : undefined;
+      if (
+        pattern.type === "TemplateLiteral" &&
+        Array.isArray(pattern.expressions) &&
+        pattern.expressions.length === 0 &&
+        isNode(quasi) &&
+        typeof quasi.value === "object" &&
+        quasi.value !== null &&
+        "raw" in quasi.value &&
+        typeof quasi.value.raw === "string"
+      ) {
+        return quasi.value.raw;
+      }
+      return undefined;
+    };
     globs.push(
       patterns
-        .filter(
-          (pattern) => isNode(pattern) && pattern.type === "StringLiteral",
-        )
-        .map((pattern) => pattern.value as string),
+        .map(literalPattern)
+        .filter((pattern): pattern is string => pattern !== undefined),
     );
   };
   const visit = (value: unknown): void => {
