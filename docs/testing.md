@@ -147,7 +147,7 @@ test the default capability fallback, or leave it unset for all capabilities.
 
 Tests that need object storage mock `load_object_store_config` / `ObjectStoreClient` explicitly (see `tests/test_review_media_object_store.py`).
 
-`test_review_versions.py` / `test_review_share.py` cover review-media path containment (`..`, absolute, and symlink escapes; guest routes return 400), and `tests/test_workspace_paths.py` covers `resolve_within`.
+`test_review_versions.py` / `test_review_share.py` cover review-media path containment (`..`, absolute, and symlink escapes; guest routes and host `/api/audio?kind=review` return 400), and `tests/test_workspace_paths.py` covers `resolve_within`.
 
 Playwright E2E launches also scrub relay and object-store deployment settings. Its
 server receives an invocation-local, nonexistent `PODCAST_RELAY_CONFIG`; all
