@@ -23,8 +23,8 @@ npm run format:check
 Repo root:
 
 - `make test-web` — lint + format:check + typecheck + vitest + build (CI `frontend` job)
-- `make test-web-e2e` — build + Playwright against `aligned_dialogue` (CI `frontend-e2e` job)
-- `npm run test:e2e:compat` — focused Chromium/WebKit compatibility matrix (CI `frontend-e2e` job)
+- `make test-web-e2e` — build + Playwright against `aligned_dialogue`, then the Chromium/WebKit compat matrix (CI `frontend-e2e` job)
+- `npm run test:e2e:compat` — focused Chromium/WebKit compatibility matrix only (`npm run test:e2e:install` installs both engines)
 
 Storybook uses the real `src/ui/` components and theme tokens. See
 [`docs/design-system.md`](../../docs/design-system.md) for story conventions and
@@ -38,7 +38,7 @@ deploying it.
 | Unit | `src/**/*.test.ts` | Pure utils, session dedupe, share mode, theme init |
 | Component + a11y | `src/**/*.test.tsx` | React Testing Library + Deque `axe-core` via `expectNoA11yViolations` |
 | E2E smoke + a11y | `e2e/*.spec.ts` | Playwright + `@axe-core/playwright` via shared `expectPageAxeClean` (dense DAW) or `expectReadingSurfaceAxeClean` (Home / marketing HTML; required for green CI) |
-| Browser compatibility | `e2e-compat/*.spec.ts` | Small cross-browser matrix for the playback control, phone layout, and synthetic-media recording consent; runs Chromium and Playwright WebKit. Set `E2E_BRANDED_CHROME=1` locally to also use installed Chrome. |
+| Browser compatibility | `e2e-compat/*.spec.ts` | Small cross-browser matrix for the playback control, phone layout, and synthetic-media recording consent; runs Chromium and Playwright WebKit. Shared helpers: `e2e/recordRoom.ts` (record rooms, E2E flag, record links) and `e2e/syntheticMicrophone.ts` (oscillator mic stub). Set `E2E_BRANDED_CHROME=1` locally to also use installed Chrome. |
 | Static a11y | oxlint `jsx-a11y` | Interaction + media rules are **errors** — fix the markup; do not add lint suppressions |
 | TS hygiene | oxlint + `oxlint-tsgolint` (see `.oxlintrc.json`) | No explicit `any` / `@ts-*` escapes; `===`; `const`; no `var`; no `console` in `src/` (allowed in `scripts/`); type-aware promise + stringification hygiene (`options.typeAware`) |
 | Theme tokens | Stylelint + pytest | Color, padding, margin, gap, font-size, radius outside `src/styles/theme/` must use `var(--…)`; hex only in theme files. Chrome rem (`meowtec/no-px`); canvas `px` needs `-- user-approved:`. Inline JS styles and Python-authored CSS colors: `tests/test_css_policy.py` |
