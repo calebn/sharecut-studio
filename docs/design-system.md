@@ -20,8 +20,9 @@ and open the URL it reports.
 
 ## What's in it
 
-Stories live next to their components (`src/ui/*.stories.tsx`) and are
-organized by Atomic Design level:
+Stories live next to their components (`src/ui/*.stories.tsx` for the shared
+library, `src/<area>/*.stories.tsx` for domain components such as
+`src/record/`) and are organized by Atomic Design level:
 
 | Level | Contents | Examples |
 | ----- | -------- | -------- |
@@ -29,10 +30,12 @@ organized by Atomic Design level:
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow |
 | **Organisms** | Complex components / sections | Dialog, BottomSheet |
 
-Domain components (`timeline/`, `inspector/`, transport chrome) are intentionally
-out — they compose the library (see `gui/web/docs/ui-library.md`), and stories
-for them would couple the catalog to app state. Atoms → molecules → organisms
-is the traversal order: design the atom in isolation, then check it composed.
+Domain components get stories only when they are **props in, UI out** (scope
+rule from #172): renderable from props alone — no store, socket, AudioContext
+or router. Components whose essence is live DAW state (timeline, inspector,
+the full DAW page) stay out; integration is covered by Playwright. Atoms →
+molecules → organisms is the traversal order: design the atom in isolation,
+then check it composed.
 
 ## Theme toolbar
 
@@ -42,17 +45,36 @@ every new component in both themes before merging.
 
 ## Adding a story
 
-1. Colocate: `src/ui/<Name>.stories.tsx` next to `<Name>.tsx`.
+1. Colocate: `<Name>.stories.tsx` next to `<Name>.tsx` (`src/ui/` or the
+   domain folder).
 2. Title it `Atoms|Molecules|Organisms/<Name>`.
-3. Import from `./index` (the public API), not deep paths.
+3. `src/ui/` stories import from `./index` (the public API), not deep paths.
+   Domain stories import the component module directly (`./ConsentGate`) —
+   domain folders have no barrel.
 4. Keep stories state-local (`useState` in the story) — no app providers, no
    network. Components that need DAW context don't get stories until they can
    render standalone.
-5. Run `npm run build-storybook` before pushing; the Pages workflow rebuilds
+5. Render in production context: if the app mounts the component inside a
+   shell class (e.g. `review-shell record-shell`), add a decorator with those
+   classes so shell-scoped type and heading styles apply.
+6. Reuse locked copy constants (e.g. `record/types.ts`) for fixture text next
+   to the component; never invent UI copy the app doesn't show.
+7. Callback args use `fn()` from `storybook/test` so clicks appear in the
+   Actions panel.
+8. Give fixture element ids a story-unique value — autodocs renders every
+   story on one page.
+9. Stories with `play` functions are executed in Vitest via `composeStories`
+   + `Story.run()` in the component's `*.test.tsx` (see
+   `src/record/ConsentGate.test.tsx`); CI does not otherwise render stories.
+10. Run `npm run build-storybook` before pushing; the Pages workflow rebuilds
    from `main` anyway.
 
 ## Governance
 
+- Fixtures are static placeholders. The built Storybook is published, so never
+  copy real project, share, or guest data (tokens, names) into a story.
+- App code never imports `*.stories.tsx` or globs them (`import.meta.glob`);
+  stories must stay out of the production bundle.
 - Stories render production code — never a copy. If a story needs a tweak to
   the component, the component changes, with its Vitest/axe tests.
 - a11y addon runs wcag2a/wcag2aa checks per story; the repo's axe posture
@@ -67,3 +89,6 @@ every new component in both themes before merging.
 - 2026-09-21 — Scaffolded Storybook 10 (react-vite) with theme toolbar, 11
   story files across Atoms/Molecules/Organisms, and GitHub Pages deploy
   workflow.
+- 2026-09-23 — First domain story (`record/ConsentGate`): documented domain
+  colocation, direct imports, shell decorators, locked-copy fixtures, `fn()`
+  callbacks, and running `play` functions through `composeStories` in Vitest.
