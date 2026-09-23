@@ -11,7 +11,7 @@ When editing **podcast_mcp** source (not only running MCP tools on episodes):
 
 Skills under `skills/` describe **how to operate** the toolkit on episode workspaces via MCP or CLI; they do not replace the repo’s code standards. See [README.md](README.md) for MCP registration on any client.
 
-When the user refers to the DAW playhead, selection, or “here”, call `get_session_state_tool` (see skill **podcast-play-audition**). Session control tools move the viewer without OS audio; `play_*` tools also update the same `session_state.json`. Before playing a multitrack span to diagnose overlap or post-edit desync, call `audition_context_tool` (v2 captions + hypotheses + suggested_listen). Use `play_compose_tool` when you need a subset mix (host+guest without music).
+When the user refers to the DAW playhead, selection, or “here”, call `get_session_state_tool` (see skill **podcast-play-audition**). Session control tools move the viewer without OS audio; `play_*` tools submit to the same `SessionSyncService` authority (`artifacts/session/sync.db`), so `get_session_state_tool` reflects them. Before playing a multitrack span to diagnose overlap or post-edit desync, call `audition_context_tool` (v2 captions + hypotheses + suggested_listen). Use `play_compose_tool` when you need a subset mix (host+guest without music).
 
 ## Timeline comments (first-class)
 
