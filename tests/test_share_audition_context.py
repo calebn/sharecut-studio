@@ -206,6 +206,33 @@ def test_share_audition_context_warnings_include_hum(
     assert any("hum_in_window" in w for w in info["warnings"])
 
 
+def test_guest_audition_context_names_acoustic_candidate_without_owner_tools(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    """Guests get the acoustic hypothesis as a warning line only -- never the
+    owner-only ``next.tools`` list (``play_pending_preview_tool``)."""
+    pending = {
+        "id": "acoustic-1",
+        "track_id": "host",
+        "reason": "filler:acoustic",
+        "review_required": True,
+        "timeline_start": 0.5,
+        "timeline_end": 0.8,
+    }
+    monkeypatch.setattr(
+        "podcast_mcp.edits.audition_context._edits_in_window",
+        lambda *_a, **_k: {"pending": [pending], "applied": []},
+    )
+    ws = _seed_dialogue(minimal_project, sample_wav, tmp_workspace)
+    share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"])
+
+    info = share_audition_context_info(share["token"], start=0.2, end=1.5, visual=False)
+
+    assert any(w.startswith("acoustic_gap_filler:") for w in info["warnings"])
+    assert "hypotheses" not in info
+    assert "play_pending_preview_tool" not in json.dumps(info)
+
+
 def test_guest_audition_context_denied_without_tool(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):

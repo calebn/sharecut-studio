@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from podcast_mcp.edits.comments import list_comments
+from podcast_mcp.edits.tighten_reasons import is_acoustic_filler_reason
 from podcast_mcp.engines.audio_audit import clipping_indicated
 from podcast_mcp.engines.render_status import render_status_report
 from podcast_mcp.engines.session_timeline import SessionTimeline
@@ -466,15 +467,22 @@ def _build_hypotheses(
                 ),
             )
         )
-        acoustic = [e for e in pending if str(e.get("reason") or "").startswith("filler:acoustic")]
-        for e in acoustic:
+        for e in pending:
+            if not is_acoustic_filler_reason(e.get("reason")):
+                continue
+            # The edit's own span (not the whole audition window) so the reviewer
+            # can seek straight to the candidate.
+            span_keys = ("timeline_start", "timeline_end", "source_start", "source_end")
             out.append(
                 _hypothesis(
                     "acoustic_gap_filler",
                     tracks=[e["track_id"]] if e.get("track_id") else list(track_ids),
                     window=window,
-                    evidence={"edit_id": e.get("id"), "reason": e.get("reason")},
-                    meaning="acoustic_gap_filler: voiced run in an inter-word ASR gap (review required)",
+                    evidence={
+                        "edit_id": e.get("id"),
+                        "reason": e.get("reason"),
+                        **{key: e[key] for key in span_keys if e.get(key) is not None},
+                    },
                 )
             )
     for t in tracks_out:
