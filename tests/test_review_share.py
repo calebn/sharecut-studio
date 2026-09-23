@@ -1557,6 +1557,21 @@ def test_share_review_audio_rejects_escaped_media_paths(minimal_project, sample_
     daw_audio = client.get(f"/api/review/{token}/daw/audio?kind=review")
     assert daw_audio.status_code == 400
 
+    host_kind = client.get(
+        "/api/audio",
+        params={"path": str(minimal_project), "kind": f"review:{ver['id']}"},
+    )
+    assert host_kind.status_code == 400
+    assert "audio_relpath must stay under artifacts/review/" in host_kind.json()["detail"]
+    assert str(outside) not in host_kind.text
+
+    host_alias = client.get(
+        "/api/audio",
+        params={"path": str(minimal_project), "review_version_id": ver["id"]},
+    )
+    assert host_alias.status_code == 400
+    assert str(outside) not in host_alias.text
+
     reopened = ProjectWorkspace.open(minimal_project)
     with pytest.raises(ValueError):
         PlayService(reopened).resolve_transport_path(f"review:{ver['id']}")
