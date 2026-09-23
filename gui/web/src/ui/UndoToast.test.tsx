@@ -180,7 +180,9 @@ describe("UndoToast", () => {
       vi.advanceTimersByTime(UNDO_TOAST_MS + 1000);
     });
     expect(onDismiss).not.toHaveBeenCalled();
-    fireEvent.pointerLeave(screen.getByRole("status").querySelector(".undo-toast")!);
+    fireEvent.pointerLeave(
+      screen.getByRole("status").querySelector(".undo-toast")!,
+    );
     act(() => {
       vi.advanceTimersByTime(UNDO_TOAST_MS);
     });
