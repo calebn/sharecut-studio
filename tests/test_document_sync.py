@@ -293,7 +293,7 @@ def test_document_update_pending_and_restore(minimal_project):
     assert restored["ok"]
     ws3 = ProjectWorkspace.open(minimal_project)
     assert ws3.project.editorial.edit_log == []
-    assert ws3.project.history is None or HistoryService(ws3).status()["can_undo"]
+    assert HistoryService(ws3).status()["can_undo"]
 
 
 def test_document_set_clip_fade_join_and_recommendations(minimal_project):

@@ -21,6 +21,10 @@ class ProjectHistory(BaseModel):
     cursor: int = -1
     entries: list[HistoryEntry] = Field(default_factory=list)
 
+    def is_empty(self) -> bool:
+        """True before any snapshot has been recorded (no entries, no cursor)."""
+        return not self.entries and self.cursor < 0
+
     def can_undo(self) -> bool:
         return self.cursor > 0
 
