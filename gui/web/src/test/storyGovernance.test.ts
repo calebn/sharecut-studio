@@ -68,6 +68,17 @@ describe("storyLeaks", () => {
     ],
     [
       "App.tsx",
+      'const m = import.meta.glob(["./**/*.ts?(x)", "!**/*.stories.ts"]);',
+      1,
+    ],
+    ["App.tsx", 'const m = import.meta.glob("./**/*.[jt]s?(x)");', 1],
+    [
+      "App.tsx",
+      'const m = import.meta.glob(["./**/*.ts?(x)", "!**/*.stories.{ts,tsx}"]);',
+      0,
+    ],
+    [
+      "App.tsx",
       'import { Button } from "./ui";\nimport "./styles/daw.css";\nimport {\n  a,\n} from "../x";',
       0,
     ],
