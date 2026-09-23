@@ -14,8 +14,8 @@ Ship via **feature branch → PR → `main`**. Do not commit or push directly to
 1. Update local `main` (`git checkout main && git pull`).
 2. Create a branch: `type/short-kebab-description`.
 3. Implement with tests and docs in the same change.
-4. When the user asks to ship: commit on the branch, `git push -u origin HEAD`, `gh pr create` targeting **`main`**. Put `Fixes #N` (or `Closes` / `Resolves`) in the PR body so merge into `main` auto-closes linked issues.
-5. Merge only when the user asks.
+4. When the user asks to ship: commit on the branch, `git push -u origin HEAD`, `gh pr create` targeting **`main`**. Put `Fixes #N` (or `Closes` / `Resolves`) in the PR body so merge into `main` auto-closes linked issues, and `Related #N` for issues the PR touches but does not close (including review follow-ups).
+5. Merge only when the user asks. Exception: the `issue-pipeline` workflow (`.claude/workflows/issue-pipeline.js`) is pre-approved to squash-merge its own PRs when its merge gate passes — see [docs/contributing.md § Automated issue pipeline](docs/contributing.md#automated-issue-pipeline).
 
 `make hooks` (also run by `./install.sh`) points `core.hooksPath` at `.githooks`, which runs lint-staged (Ruff + Biome write and restage) then the check-only pre-commit hooks (via `pre-commit`, or `uvx pre-commit` when it is not installed). In a new worktree, run `make worktree-setup` (hooks + venv with CI extras + `gui/web` node_modules); the pre-commit hook runs it automatically when `.venv` or `node_modules` is missing. Do not add format-write hooks to `.pre-commit-config.yaml`.
 
