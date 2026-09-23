@@ -66,9 +66,14 @@ def test_every_update_is_weekly_grouped_and_conventional() -> None:
         assert update["open-pull-requests-limit"] >= 1
         assert update["commit-message"] == {"prefix": "chore", "include": "scope"}
         groups = update["groups"]
-        assert groups
-        for group in groups.values():
-            assert group["update-types"] == ["minor", "patch"]
+        version_groups = [g for g in groups.values() if g.get("applies-to") == "version-updates"]
+        security_groups = [g for g in groups.values() if g.get("applies-to") == "security-updates"]
+        assert len(version_groups) == 1
+        assert version_groups[0]["update-types"] == ["minor", "patch"]
+        # Security fixes batch into one PR per ecosystem instead of one PR per package.
+        assert len(security_groups) == 1
+        assert security_groups[0]["patterns"] == ["*"]
+        assert len(groups) == 2
         assert "labels" not in update
 
 

@@ -67,8 +67,11 @@ old value would still matter.
 `.github/dependabot.yml` opens weekly (Monday) update PRs for every tracked lockfile
 directory: `npm` in `gui/web` and `gui/desktop`, `cargo` in `gui/desktop/src-tauri`,
 and `uv` and `github-actions` at the repo root. Each ecosystem groups `minor`/`patch`
-bumps into a single PR so they land together; `major` bumps always arrive as their
-own PR for review. PR commit messages use the `chore(deps)` / `chore(deps-dev)`
+bumps into a single PR so they land together (`applies-to: version-updates`); `major`
+bumps always arrive as their own PR for review. A second group per ecosystem
+(`applies-to: security-updates`, all packages) batches security fixes into one PR
+instead of one per package. It only takes effect while Dependabot security updates are
+enabled in the repository settings (see below). PR commit messages use the `chore(deps)` / `chore(deps-dev)`
 prefix (`commit-message: {prefix: chore, include: scope}`). `tests/test_dependabot_config.py`
 fails the build if a tracked lockfile's directory has no matching entry, so a new
 lockfile location needs a new `updates` entry in the same change. Workflow and
