@@ -4,6 +4,7 @@ import { useProjectMutation } from "../../hooks/useProjectMutation";
 import { isShareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
+import type { AutomationPoint } from "../../types/project";
 import {
   Button,
   DefItem,
@@ -26,7 +27,7 @@ export function EnvelopePointInspector({
   trackId: string;
   index: number;
 }) {
-  const { project, projectPath, setSelection } = useDaw();
+  const { project, projectPath, selection, setSelection } = useDaw();
   const editable = !isShareProjectKey(projectPath);
   const { busy, error, setError, run } = useProjectMutation();
   const points = sortedVolumePoints(project?.envelopes, trackId);
@@ -40,15 +41,18 @@ export function EnvelopePointInspector({
     }
     setTimeStr(String(point.time));
     setValueStr(String(point.value));
+  }, [point, trackId, index]);
+
+  useEffect(() => {
     setError(null);
-  }, [point, trackId, index, setError]);
+  }, [trackId, index, selection, setError]);
 
   if (!point) {
     return <aside className="inspector">Envelope point not found</aside>;
   }
 
   const commitPoints = async (
-    next: { time: number; value: number }[],
+    next: AutomationPoint[],
     nextIndex: number | null,
   ) => {
     await run(async () => {
@@ -84,11 +88,12 @@ export function EnvelopePointInspector({
       trackId,
     );
     const current = latest[index];
-    if (!current || current.time !== point.time) {
+    if (!current || current.id !== point.id || current.time !== point.time) {
       setError("Envelope point changed; select it again");
       return;
     }
     const replaced = replaceEnvelopePoint(latest, index, {
+      id: current.id,
       time,
       value: clampEnvelopeValue(value),
     });
@@ -108,7 +113,7 @@ export function EnvelopePointInspector({
       return;
     }
     const current = latest[index];
-    if (!current || current.time !== point.time) {
+    if (!current || current.id !== point.id || current.time !== point.time) {
       setError("Envelope point changed; select it again");
       return;
     }
