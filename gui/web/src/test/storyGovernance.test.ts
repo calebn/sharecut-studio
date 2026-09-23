@@ -18,6 +18,16 @@ describe("storyLeaks", () => {
     ["App.tsx", 'import type { Meta } from "@storybook/react-vite";', 1],
     ["App.tsx", 'const s = require("storybook/test");', 1],
     ["App.tsx", 'const s = require("./ui/Button.stories");', 1],
+    ["App.tsx", 'import Story = require("storybook/test");', 1],
+    ["App.tsx", '// import "./ui/Button.stories";', 0],
+    ["App.tsx", '/* require("storybook/test") */', 0],
+    ["App.tsx", 'const example = `from "storybook/test"`;', 0],
+    ["App.tsx", 'const example = "import storybook/test";', 0],
+    [
+      "App.tsx",
+      'const url = "https://example.test/path"; import "storybook/test";',
+      1,
+    ],
     [
       "record/RecordApp.tsx",
       'import { recordStoryDecorator } from "./recordStoryDecorator";',
