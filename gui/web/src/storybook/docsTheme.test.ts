@@ -1,7 +1,10 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { themes } from "storybook/theming";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { studioDocsTheme, useDocumentTheme } from "./docsTheme";
+import { HEX_COLOR_RE, studioDocsTheme, useDocumentTheme } from "./docsTheme";
 
 function stubMatchMedia(matches: boolean): {
   addEventListener: ReturnType<typeof vi.fn>;
@@ -57,6 +60,28 @@ describe("studioDocsTheme", () => {
     const theme = studioDocsTheme("dark");
 
     expect(theme.appContentBg).toBe(themes.dark.appContentBg);
+  });
+
+  it("reads tokens that are plain hex in every brand-tokens.css theme block", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const css = readFileSync(
+      join(here, "../styles/theme/brand-tokens.css"),
+      "utf8",
+    );
+    for (const name of [
+      "--color-bg-canvas",
+      "--color-text-primary",
+      "--color-border",
+    ]) {
+      const values = [
+        ...css.matchAll(new RegExp(`${name}:\\s*([^;]+);`, "g")),
+      ].map((m) => m[1].trim());
+      // Dark baseline, [data-theme="light"], and prefers-color-scheme: light.
+      expect(values, name).toHaveLength(3);
+      for (const value of values) {
+        expect(value, name).toMatch(HEX_COLOR_RE);
+      }
+    }
   });
 });
 
