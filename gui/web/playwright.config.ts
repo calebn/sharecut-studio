@@ -37,7 +37,7 @@ export default defineConfig({
   },
   webServer: {
     command:
-      "node node_modules/vite-node/vite-node.mjs scripts/start-e2e-gui.ts",
+      "node node_modules/vite-node/dist/cli.mjs scripts/start-e2e-gui.ts",
     cwd: path.join(repoRoot, "gui/web"),
     url: `${e2eBaseURL}/api/health`,
     // Every invocation owns its selected port; never attach to another worktree's GUI.
