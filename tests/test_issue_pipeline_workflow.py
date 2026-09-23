@@ -45,6 +45,8 @@ def test_merge_gate_holds_on_owner_labels_and_wont_do() -> None:
     assert "won't-do item(s) need owner sign-off" in script
     assert "--match-head-commit" in script
     assert "--squash" in script
+    assert "completed the pipeline's review gate" in script
+    assert "merge permission denied:" in script
 
 
 def test_triage_never_picks_held_or_claimed_issues() -> None:

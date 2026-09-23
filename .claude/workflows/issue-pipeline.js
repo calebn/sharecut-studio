@@ -366,10 +366,13 @@ ${SETUP}
   )
 }
 
-function merge(issue, pr, sha) {
+function merge(issue, pr, sha, evidence) {
   return agent(
     `${AUTH}
-Merge ${REPO} PR #${pr}: \`gh pr merge ${pr} -R ${REPO} --squash --delete-branch --match-head-commit ${sha}\` (ignore local-branch cleanup errors). Confirm \`gh pr view ${pr} -R ${REPO} --json state -q .state\` is MERGED, then \`gh issue edit ${issue.number} -R ${REPO} --remove-label in-progress\`. Return ok=true only if merged; otherwise ok=false with the error in detail.`,
+This PR has completed the pipeline's review gate. Evidence (verify it before merging):
+${evidence}
+1. Show the review record: \`gh pr view ${pr} -R ${REPO} --json reviews,comments,statusCheckRollup,headRefOid\` and confirm the head is ${sha}, every required check succeeded, and there are no unresolved review threads (GraphQL reviewThreads isResolved). If anything disagrees with the evidence, do NOT merge; return ok=false with the discrepancy.
+2. Merge: \`gh pr merge ${pr} -R ${REPO} --squash --delete-branch --match-head-commit ${sha}\` (ignore local-branch cleanup errors). Confirm \`gh pr view ${pr} -R ${REPO} --json state -q .state\` is MERGED, then \`gh issue edit ${issue.number} -R ${REPO} --remove-label in-progress\`. Return ok=true only if merged; otherwise ok=false with the error in detail. If the merge command is denied by a tool-permission check, return ok=false with detail starting "merge permission denied:".`,
     { label: `merge:${tag(issue)}`, phase: 'Merge', model: M.cheap, effort: 'low', schema: S_DONE },
   )
 }
@@ -553,7 +556,13 @@ Return ok, pr number, branch, head_sha.`,
       blockers = gateBlockers(g, wontDo, head)
       if (!green.ok) blockers.push(green.reason || 'CI not green')
       if (!blockers.length) {
-        const m = await merge(issue, pr, g.head_sha)
+        const evidence = [
+          `- review rounds: ${rounds}; findings posted: ${findingsTotal} (post-verified)`,
+          `- feedback: every item replied to (reply-verified); follow-up issues: ${followups.map((n) => `#${n}`).join(', ') || 'none'}; won't-do: ${wontDo}`,
+          `- unresolved review threads: ${g.unresolved_threads}; labels: ${g.labels.join(', ') || 'none'}`,
+          `- required checks on ${g.head_sha}: ${REQUIRED_CHECKS.join(', ')} all SUCCESS`,
+        ].join('\n')
+        const m = await merge(issue, pr, g.head_sha, evidence)
         if (m && m.ok) {
           log(`${tag(issue)} PR #${pr} merged`)
           return { issue: issue.number, pr, merged: true, rounds, findings: findingsTotal, followups }
