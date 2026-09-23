@@ -169,7 +169,7 @@ Shipped:
 
 Shipped:
 
-- Envelope point drag (`EnvelopeOverlay`) + selected-point inspector (`EnvelopePointInspector`) → `SetEnvelope` → `PipelineService.set_envelope` (full point-list replace). Each point carries an immutable `id`, preserved when its time changes or sorted position changes, so the GUI uses the ID as its React key. Every replacement includes the exact same-track `expected_points` baseline; the server rejects concurrent edits with a visible conflict instead of silently overwriting a peer.
+- Envelope point drag (`EnvelopeOverlay`) + selected-point inspector (`EnvelopePointInspector`) → `SetEnvelope` → `PipelineService.set_envelope` (full point-list replace). Each point carries an immutable `id`, preserved when its time changes or sorted position changes, so the GUI uses the ID as its React key. Every replacement includes the exact same-track `expected_points` baseline; the server rejects a stale baseline with a visible conflict instead of silently overwriting a peer. GUI edits and host MCP `set_envelope` both go through `DocumentSyncService.submit`, so they are serialized by `document_submit_lock` within one host process; a separate stdio MCP process still writes the project file without that lock (#213).
 - Chapter CRUD: `AddChapter` / `UpdateChapter` / `DeleteChapter` (identity `(time, title)`); MarkerLane drag + ChapterInspector
 - Social CRUD: `AddSocialClip` / `UpdateSocialClip` / `DeleteSocialClip` (by candidate `id`); MarkerLane range drag + SocialClipInspector
 - `SuggestPendingEdit` → pending `EditDecision` with `review_required=true` (`edit_type`: `remove` default or `mute`)
