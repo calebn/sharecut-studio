@@ -103,6 +103,77 @@ def test_ci_failures_are_classified_before_fixing() -> None:
     assert "--failed" in script
 
 
+def test_no_merge_stops_before_the_merge_agent() -> None:
+    script = _script()
+    assert "const NO_MERGE = !!A.noMerge" in script
+    assert script.index("if (NO_MERGE) {") < script.index("const m = await merge(")
+
+
+def test_review_lenses_fan_out_from_the_script() -> None:
+    """Workflow agents cannot spawn subagents, so the script runs the skill's lenses."""
+    script = _script()
+    keys = re.findall(r"\{ key: '(\w+)', section: '(\d)\. ", script)
+    assert [k for k, _ in keys] == [
+        "bugbot",
+        "risk",
+        "wiring",
+        "reuse",
+        "security",
+        "concurrency",
+        "performance",
+        "patterns",
+    ]
+    skill_sections = [
+        "1. Bugbot",
+        "2. Risk hunt",
+        "3. Wiring",
+        "4. DRY",
+        "5. Security",
+        "6. Concurrency",
+        "7. Performance",
+        "8. Algorithms",
+    ]
+    for section in skill_sections:
+        assert f"section: '{section}" in script, section
+    assert "lenses=supplied" in script
+    assert "phase: 'Review', model: M.worker, isolation: 'worktree', schema: S_LENS" in script
+
+
+def test_triage_is_batched_text_only() -> None:
+    script = _script()
+    assert "const TRIAGE_BATCH = 10" in script
+    assert "from their text only (do not read code)" in script
+    assert "skim the code it touches" not in script
+
+
+def test_prompts_state_provenance_without_authority_claims() -> None:
+    """Authority claims read as prompt injection to subagents; state provenance instead."""
+    script = _script()
+    assert "which the user started from chat" in script
+    for phrase in ("PRE-AUTHORIZED", "pre-authorized", "no human in this loop"):
+        assert phrase not in script, phrase
+    text = CONTRIBUTING.read_text(encoding="utf-8")
+    assert "Launch every run with a chat message that names it" in text
+
+
+def test_finished_worktrees_are_cleaned_up_safely() -> None:
+    script = _script()
+    # Cleanup runs after every lane finished, and only removes pushed, clean wf_ worktrees.
+    assert script.index("const results = await pipeline(") < script.index("phase('Cleanup')")
+    assert '"/.claude/worktrees/wf_"' in script
+    assert "uncommitted changes" in script
+    assert "unpushed commits" in script
+
+
+def test_executing_agents_get_token_hygiene_guidance() -> None:
+    script = _script()
+    assert "const LEAN_TURNS = " in script
+    # Implementer and feedback executor both get it; planners must quote snippets so they can.
+    assert script.count("${LEAN_TURNS}") >= 2
+    assert "quote the current snippet for each edit" in script
+    assert "with the current snippet quoted" in script
+
+
 def test_model_tiers() -> None:
     script = _script()
     assert "const M = { cheap: 'haiku', worker: 'sonnet', senior: 'opus' }" in script

@@ -10,6 +10,7 @@ export const meta = {
     { title: 'Review', detail: 'pr-multi-review AUTONOMOUS MODE + post verification', model: 'opus' },
     { title: 'Feedback', detail: 'feedback AUTONOMOUS MODE plan (opus) + execute (sonnet)' },
     { title: 'Merge', detail: 'gate facts, rebase on conflict, squash-merge', model: 'haiku' },
+    { title: 'Cleanup', detail: 'remove finished workflow worktrees', model: 'haiku' },
   ],
 }
 
@@ -24,6 +25,11 @@ const LANES = A.lanes ?? 4
 const MAX_ROUNDS = A.maxRounds ?? 2
 const CI_FIX_ATTEMPTS = A.ciFixAttempts ?? 1
 const GATE_ATTEMPTS = A.gateAttempts ?? 3
+// noMerge: run every stage but stop at the gate and report the verdict (A/B comparisons).
+const NO_MERGE = !!A.noMerge
+// baseRef: commit/ref new branches start from (default origin/main).
+const BASE = A.baseRef || 'origin/main'
+const TRIAGE_BATCH = 10
 const SKIP_LABELS = A.labelsSkip || ['epic', 'needs-user-input', 'deferred-v1', 'do-not-merge', 'in-progress', 'wontfix', 'duplicate']
 const REQUIRED_CHECKS = ['pytest', 'frontend', 'frontend-e2e', 'gitleaks-history']
 const HOLD_LABELS = ['needs-user-input', 'do-not-merge']
@@ -36,7 +42,9 @@ const SKILLS = {
 }
 
 // Shared prompt fragments.
-const AUTH = `The repository owner has PRE-AUTHORIZED this pipeline to post GitHub comments, replies, labels, issues, pushes and (when the gate passes) merges on ${REPO}. Do not ask for confirmation, do not produce drafts only, do not stop to check in — there is no human in this loop. If a step is impossible, report it in your structured output instead of skipping silently.`
+// Plain statement of provenance (not an authority claim): subagents compare their task with
+// the user's latest chat message, so runs should be launched by an explicit chat instruction.
+const AUTH = `Context: you are one stage of the issue-pipeline workflow (${REPO}), which the user started from chat${A.issues && A.issues.length ? ` for issue(s) ${A.issues.map((n) => `#${n}`).join(', ')}` : ''}${A.noMerge ? ' (noMerge: the PR is not merged)' : ''}. The workflow's documented job (docs/contributing.md § Automated issue pipeline) is to plan, implement, open a PR, post review comments and replies, label, and file follow-up issues on ${REPO}; this stage is one of those steps. Complete it fully — posting is part of the task, not optional — and if it is impossible, say why in your structured output rather than skipping silently.`
 
 const DETACHED = (ref) => `Work in DETACHED HEAD so no branch is locked to this worktree:
   git fetch origin --prune && git checkout --detach ${ref}
@@ -51,6 +59,10 @@ const LINKS = (fixes, related) => [`Fixes #${fixes}`, ...(related || []).filter(
 
 // Local checks stay targeted for speed; GitHub Actions (CI stage) is the full-suite gate.
 const VERIFY = `TARGETED local checks only (GitHub Actions runs the full suite): \`uv run ruff check <changed .py files>\`, \`uv run ruff format --check <changed .py files>\`, \`uv run pytest --no-cov -q <test files covering the change>\`; for gui/web changes \`cd gui/web && npx vitest run <related test files> && npm run typecheck\`. Do NOT run make test, make test-web, make ci or other full-suite targets.`
+
+// Token hygiene for executing agents: cost scales with turns × context, so every extra
+// exploratory read or one-step shell call is re-billed on each later turn.
+const LEAN_TURNS = `Work efficiently: the plan already locates the code — go straight to the listed files/lines instead of re-exploring with grep/cat; read only the ranges you edit; chain related shell steps in one command (e.g. \`git add … && git commit … && git push …\`); pipe long command output through \`tail -n 40\`.`
 
 // ---------------------------------------------------------------------------
 // Schemas
@@ -290,11 +302,64 @@ Return ok=true once both are done.`,
   ).then(() => ({ issue: issue.number, pr, merged: false, held: true, reason }))
 }
 
-function review(issue, pr, round, since) {
+// pr-multi-review's reviewer lenses (SKILL.md § Launch). Workflow subagents cannot spawn
+// subagents, so the script fans the lenses out itself and hands their reports to the
+// Opus review parent, which merges, dedupes and posts (the skill's remaining steps).
+const LENSES = [
+  { key: 'bugbot', section: '1. Bugbot', checklist: '~/.agents/skills/multi-review/defect-checklist.md' },
+  { key: 'risk', section: '2. Risk hunt' },
+  { key: 'wiring', section: '3. Wiring / migration review' },
+  { key: 'reuse', section: '4. DRY / SOLID / reuse / conventions', checklist: '~/.agents/skills/pr-multi-review/reuse-solid-checklist.md' },
+  { key: 'security', section: '5. Security', checklist: '~/.agents/skills/multi-review/security-checklist.md' },
+  { key: 'concurrency', section: '6. Concurrency / errors / resources', checklist: '~/.agents/skills/multi-review/concurrency-checklist.md' },
+  { key: 'performance', section: '7. Performance', checklist: '~/.agents/skills/multi-review/performance-checklist.md' },
+  { key: 'patterns', section: '8. Algorithms / contracts', checklist: '~/.agents/skills/pr-multi-review/patterns-antipatterns.md' },
+]
+// Round 2+ only re-reviews the (small) feedback-fix diff.
+const FOLLOWUP_LENSES = ['bugbot', 'risk', 'reuse']
+const S_LENS = {
+  type: 'object',
+  properties: {
+    lens: { type: 'string' },
+    findings: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          severity: { enum: ['high', 'medium', 'low'] },
+          path: { type: 'string' },
+          line: { type: 'integer' },
+          title: { type: 'string' },
+          detail: { type: 'string', description: 'evidence (file:line, grep results) and suggested fix' },
+        },
+        required: ['severity', 'title', 'detail'],
+      },
+    },
+    residual_risks: { type: 'array', items: { type: 'string' } },
+  },
+  required: ['lens', 'findings'],
+}
+
+function lensReview(issue, pr, round, since, lens) {
+  return agent(
+    `You are the "${lens.key}" reviewer lens for ${REPO} PR #${pr}. Read-only: do not post, push or edit.
+Check out the PR head: \`git fetch origin && git checkout --detach "origin/$(gh pr view ${pr} -R ${REPO} --json headRefName -q .headRefName)"\`.
+Diff to review: ${round > 1 ? `\`git diff ${since}..HEAD\` (feedback fixes only; do not re-raise resolved threads)` : '`git diff origin/main...HEAD`'}.
+Your lens prompt is ${SKILLS.review} § Launch → "${lens.section}"${lens.checklist ? `; follow the checklist ${lens.checklist}` : ''}. Read the actual code around each change, cite evidence, skip pure style nits. Return every concrete finding (severity, path, line, title, detail) and residual risks; an empty list is fine when there is truly nothing.`,
+    { label: `lens:${lens.key}:${tag(issue)}:r${round}`, phase: 'Review', model: M.worker, isolation: 'worktree', schema: S_LENS },
+  )
+}
+
+async function review(issue, pr, round, since) {
+  const lenses = round > 1 ? LENSES.filter((l) => FOLLOWUP_LENSES.includes(l.key)) : LENSES
+  const reports = (await parallel(lenses.map((l) => () => lensReview(issue, pr, round, since, l)))).filter(Boolean)
+  if (reports.length < lenses.length) log(`${tag(issue)} review r${round}: ${lenses.length - reports.length} lens(es) returned nothing`)
   return agent(
     `${AUTH}
-AUTONOMOUS MODE: round=${round}${since ? `, since=${since}` : ''}
+AUTONOMOUS MODE: round=${round}${since ? `, since=${since}` : ''}, lenses=supplied
 Read ${SKILLS.review} (and the checklists it references) and execute it for ${REPO} PR #${pr}, following its "AUTONOMOUS MODE (pipeline)" section, which overrides every other gate in that file.
+The reviewer lenses have ALREADY RUN (reports below), so skip § Launch. Do § Browser QA (when the diff has a GUI/HTTP surface), then § Merge + present over the union of these reports and your own reading of the diff (drop a finding only when the diff refutes it), then § Posting comments.
+Lens reports (JSON): ${JSON.stringify(reports)}
 POSTING IS MANDATORY. Every unrebutted High/Medium/Low finding must be posted to the PR before you return: inline threads (one COMMENT review) where a RIGHT-side line attaches, otherwise one top-level \`gh pr comment\` per finding. Never APPROVE or REQUEST_CHANGES. An unposted finding is a pipeline failure.
 ${round > 1 ? `Round ${round}: review ONLY \`git diff ${since}..<PR head>\` (the feedback fixes). Do not re-raise resolved threads.` : ''}
 Return every finding with the URL of its posted comment, the SHA you reviewed, and any environment blockers (those are NOT posted).`,
@@ -322,7 +387,7 @@ function feedbackPlan(issue, pr, round, finalRound) {
 Read ${SKILLS.feedback} and execute Phases 1–2 for ${REPO} PR #${pr}, following its "AUTONOMOUS MODE (pipeline)" section (no approval gate; nothing is posted in plan mode).
 Include EVERY unresolved review thread and every top-level PR comment that still needs a response (not only this round's findings; human comments too).
 For each item choose exactly one action:
-- implement: valid and fits this PR. Give precise step-level instructions a cheaper model can follow without judgment calls (files, symbols, tests to add, docs to update per AGENTS.md).
+- implement: valid and fits this PR. Give precise step-level instructions a cheaper model can follow without judgment calls or re-exploring: exact files and line ranges with the current snippet quoted, the replacement, tests to add, docs to update per AGENTS.md. When one change repeats across call sites, list every site.
 - follow_up: valid but out of scope, large, or risky${finalRound ? ' (FINAL ROUND: anything not trivially safe to finish now MUST be follow_up)' : ''}. Provide followup_title and a self-contained followup_body (file paths, link to the PR comment).
 - wont_do: ONLY when the finding is wrong or the change would be harmful; give the technical rationale. A wont_do holds the PR for the owner, so prefer follow_up when in doubt.
 Return the items.`,
@@ -345,7 +410,9 @@ Plan (JSON): ${JSON.stringify(plan.items)}
    - follow_up → "Tracked in #<issue> — <one-line why deferred>." then resolve the thread.
    - wont_do → the rationale; do NOT resolve; then \`gh pr edit ${pr} -R ${REPO} --add-label needs-user-input\`.
    Threads: GraphQL addPullRequestReviewThreadReply + resolveReviewThread. Top-level comments: a new \`gh pr comment\` linking the original comment URL.
-4. Re-fetch and confirm every reply exists and every non-wont_do thread is resolved.
+   Post all replies/resolutions in as few commands as possible (e.g. one shell loop over the items).
+4. Do one final re-fetch to confirm every reply exists and every non-wont_do thread is resolved (a separate verifier re-checks, so do not re-verify item by item).
+${LEAN_TURNS}
 Return head_sha (after push, or the unchanged head), shas, per-item reply_body/reply_url/resolved/followup_issue, and wont_do_count.`,
     { label: `fb-exec:${tag(issue)}`, phase: 'Feedback', model: M.worker, isolation: 'worktree', schema: S_FB_EXEC },
   )
@@ -429,11 +496,17 @@ Return the remaining issues and the excluded ones with reasons.`,
   log(`${candidates.length} candidate issue(s); ${listed.excluded.length} excluded`)
 }
 
-const scores = (await parallel(candidates.map((c) => () => agent(
-  `Triage ${REPO} issue #${c.number}. Read-only. Read it with \`gh issue view ${c.number} -R ${REPO} --comments --json number,title,body,author,labels,comments\` (report author.login) and skim the code it touches (grep; no deep dive).
-actionable = the desired outcome is clear enough to implement without asking the owner. size: S (<~150 LOC, one area), M (a few files / one subsystem), L (multi-subsystem, design decision, or epic-like). priority 1–5 (5 = security/data-loss bug). area = primary code area. blockers = dependency on another open issue or a needed product decision ("" when none).`,
-  { label: `triage:#${c.number}`, phase: 'Triage', model: M.cheap, effort: 'low', schema: S_SCORE },
-)))).filter(Boolean)
+const SCORE_RUBRIC = `actionable = the desired outcome is clear enough to implement without asking the owner. size: S (<~150 LOC, one area), M (a few files / one subsystem), L (multi-subsystem, design decision, or epic-like). priority 1–5 (5 = security/data-loss bug). area = primary code area. blockers = dependency on another open issue or a needed product decision ("" when none).`
+// One cheap agent per batch of issues, issue text only: per-issue code skims cost ~50k
+// tokens each, and the Opus planner still catches (and aborts) a bad pick.
+const batches = []
+for (let i = 0; i < candidates.length; i += TRIAGE_BATCH) batches.push(candidates.slice(i, i + TRIAGE_BATCH))
+const scores = (await parallel(batches.map((b, bi) => () => agent(
+  `Triage these ${REPO} issues from their text only (do not read code): ${b.map((c) => `#${c.number}`).join(', ')}. Read-only. For each: \`gh issue view <n> -R ${REPO} --comments --json number,title,body,author,labels,comments\` (report author.login).
+${SCORE_RUBRIC}
+Return one score per issue.`,
+  { label: `triage:batch${bi + 1}`, phase: 'Triage', model: M.cheap, effort: 'low', schema: { type: 'object', properties: { scores: { type: 'array', items: S_SCORE } }, required: ['scores'] } },
+)))).filter(Boolean).flatMap((r) => r.scores)
 
 // Barrier: choose lanes across all scores; distinct areas avoid parallel conflicts.
 const explicit = !!(A.issues && A.issues.length)
@@ -469,10 +542,10 @@ const results = await pipeline(
   (issue) => agent(
     `${AUTH}
 You are the planner for ${REPO} issue #${issue.number}. Do not modify code.
-${DETACHED('origin/main')}
+${DETACHED(BASE)}
 1. Claim it: \`gh issue edit ${issue.number} -R ${REPO} --add-label in-progress\` and comment "Picked up by the automated issue pipeline."
 2. Read the issue and comments. Research the code thoroughly (AGENTS.md, docs/architecture.md, docs/contributing.md, the relevant layers). Find existing helpers to reuse.
-3. Write a DETAILED implementation plan a cheaper model can follow mechanically: exact files and symbols to change, code-level steps, tests to add (tests/… or gui/web Vitest), docs to update per the AGENTS.md "Docs in sync" table, and verify_cmds: concrete targeted commands naming the exact files/tests for this change, following: ${VERIFY}
+3. Write a DETAILED implementation plan a cheaper model can follow mechanically: exact files, symbols and line ranges to change (quote the current snippet for each edit), code-level steps, tests to add (tests/… or gui/web Vitest), docs to update per the AGENTS.md "Docs in sync" table, and verify_cmds: concrete targeted commands naming the exact files/tests for this change, following: ${VERIFY}
 4. List related_issues: other open issues this work touches, overlaps or partially addresses but does NOT fully close (\`gh issue list -R ${REPO} --search <keywords>\`).
 5. Choose a branch name type/short-kebab (feat|fix|docs|chore|refactor|test).
 6. Post the plan on the issue as a comment wrapped in <details><summary>Implementation plan</summary>…</details>.
@@ -487,11 +560,12 @@ If the issue needs an owner decision or is too large for one PR, set abort=true 
     const pr = await agent(
       `${AUTH}
 Implement ${REPO} issue #${issue.number} by following this plan EXACTLY. Do not redesign; if the plan is impossible, return ok=false with the reason.
-${DETACHED('origin/main')}
+${DETACHED(BASE)}
 ${SETUP}
 Branch: ${plan.branch} (if it already exists on origin, append -2, -3, …).
 PLAN:
 ${plan.plan_md}
+${LEAN_TURNS}
 Steps: implement code + tests + docs; run ${plan.verify_cmds.join(' && ')}; fix failures; commit (conventional message, repo style); \`git push origin HEAD:refs/heads/<branch>\`; then \`gh pr create -R ${REPO} --base main --head <branch>\` with a summary, a test plan, and these issue-link lines verbatim, each on its own line:
 ${LINKS(issue.number, plan.related_issues)}
 End the PR body with "🤖 Generated with [Claude Code](https://claude.com/claude-code)".
@@ -567,6 +641,10 @@ Return ok, pr number, branch, head_sha.`,
       }
       blockers = gateBlockers(g, wontDo, head)
       if (!green.ok) blockers.push(green.reason || 'CI not green')
+      if (NO_MERGE) {
+        log(`${tag(issue)} PR #${pr} noMerge: gate ${blockers.length ? `would HOLD (${blockers.join('; ')})` : 'would MERGE'}`)
+        return { issue: issue.number, pr, merged: false, wouldMerge: !blockers.length, blockers, rounds, findings: findingsTotal, followups }
+      }
       if (!blockers.length) {
         const evidence = [
           `- review rounds: ${rounds}; findings posted: ${findingsTotal} (post-verified)`,
@@ -588,7 +666,33 @@ Return ok, pr number, branch, head_sha.`,
   },
 )
 
+// Code-changing agents keep their isolated worktrees (.claude/worktrees/wf_*), each with its
+// own .venv / node_modules. Once every lane has merged or been held, remove the ones whose
+// work is safely on origin; anything with unpushed or uncommitted work is left and reported.
+phase('Cleanup')
+const S_CLEANUP = {
+  type: 'object',
+  properties: {
+    removed: { type: 'array', items: { type: 'string' } },
+    kept: { type: 'array', items: { type: 'object', properties: { path: { type: 'string' }, reason: { type: 'string' } }, required: ['path', 'reason'] } },
+  },
+  required: ['removed', 'kept'],
+}
+const cleanup = await agent(
+  `Clean up finished issue-pipeline worktrees in this repository. Only touch worktrees whose path contains "/.claude/worktrees/wf_" (from \`git worktree list --porcelain\`); never touch any other worktree or the main checkout.
+Run \`git fetch origin --prune\` first. For each wf_ worktree:
+- If \`git -C <path> status --porcelain\` is non-empty → keep it (reason: uncommitted changes).
+- Else if its HEAD commit is not on origin (\`git branch -r --contains <sha>\` is empty) → keep it (reason: unpushed commits).
+- Else \`git worktree remove <path>\`; if it had a local branch checked out that no other worktree uses, \`git branch -D <branch>\`.
+Finish with \`git worktree prune\`. Return removed paths and kept paths with reasons.`,
+  { label: 'cleanup:worktrees', phase: 'Cleanup', model: M.cheap, effort: 'low', schema: S_CLEANUP },
+)
+if (cleanup) {
+  log(`Cleanup: removed ${cleanup.removed.length} worktree(s)${cleanup.kept.length ? `; kept ${cleanup.kept.map((k) => `${k.path} (${k.reason})`).join(', ')}` : ''}`)
+}
+
 return {
+  worktrees: cleanup ? { removed: cleanup.removed.length, kept: cleanup.kept } : 'cleanup agent died',
   selected: selected.map((s) => s.number),
   skipped: skipped.map((s) => ({ number: s.number, actionable: s.actionable, size: s.size, reason: s.reason })),
   lanes: results.map((r, i) => r || { issue: selected[i].number, merged: false, held: true, reason: 'lane crashed' }),

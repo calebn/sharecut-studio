@@ -75,11 +75,17 @@ Still only create commits or PRs when the user asks to ship (or clearly says to 
 
 `.claude/workflows/issue-pipeline.js` is a Claude Code workflow that works the GitHub issue backlog end-to-end. Running it counts as asking to ship **and** to merge, but only for PRs that pass its gate.
 
-Run it from a Claude Code session in this repo: ask it to run the `issue-pipeline` workflow, optionally with args:
+Run it from a Claude Code session in this repo: ask it to run the `issue-pipeline` workflow, optionally with args.
+
+**Launch every run with a chat message that names it.** For example: "Run the issue-pipeline on #216 with noMerge", or "Run the issue-pipeline dry run". Subagents check their task against your most recent chat message. If that message is about something else, such as a question, an implementer may refuse the stage as unrequested and the lane is held. For the same reason the stage prompts only state what the run is. They never claim pre-authorization, because subagents treat that kind of claim as possible prompt injection.
+
+Args:
 
 | Arg | Default | Meaning |
 | --- | ------- | ------- |
 | `authors` | `['calebn']` | Only issues opened by these GitHub logins are considered (also filters explicit `issues`) |
+| `noMerge` | `false` | Run every stage but stop at the gate and report whether it would merge (A/B comparisons) |
+| `baseRef` | `origin/main` | Commit that new branches start from (reproducible comparisons) |
 | `dryRun` | `false` | Triage only; return the selected / skipped table |
 | `issues` | all eligible | Explicit issue numbers (skips the actionable / size / area filters) |
 | `lanes` | `4` | Issues worked in parallel |
@@ -89,11 +95,11 @@ Run it from a Claude Code session in this repo: ask it to run the `issue-pipelin
 
 Stages per issue (each issue is its own lane; lanes do not wait for each other):
 
-1. **Triage** (Haiku): score every eligible open issue opened by an `authors` login; pick the top `lanes` that are actionable, not size L, unblocked, and in distinct code areas.
+1. **Triage** (Haiku, batches of 10, issue text only): score every eligible open issue opened by an `authors` login; pick the top `lanes` that are actionable, not size L, unblocked, and in distinct code areas.
 2. **Plan** (Opus): claim the issue (`in-progress`), research, post a detailed implementation plan on the issue, and list related issues.
 3. **Implement** (Sonnet, own worktree): follow the plan, run **targeted** local checks only (changed-file Ruff, the related pytest / Vitest files; never `make test` / `make ci`), and open a PR. GitHub Actions is the full-suite gate whose body has `Fixes #N` plus one `Related #M` line per related issue.
 4. **CI** runs on GitHub in parallel with review and feedback; the pipeline waits for it only once, at the merge gate, on the final head (Haiku watches). On red, Sonnet first classifies the failure: `pr` (caused by the diff, so it fixes and pushes), `flaky` (re-runs only the failed jobs) or `unrelated` (for example `main` itself is broken, so the PR is held with that reason). It gets one attempt. Haiku-tier agents never edit code; only Sonnet and Opus do.
-5. **Review** (Opus): `pr-multi-review` in AUTONOMOUS MODE. Posting every finding is mandatory. A separate Haiku verifier re-posts anything missing, and the lane is held if a finding still cannot be posted.
+5. **Review**: the script runs `pr-multi-review`'s 8 reviewer lenses as parallel Sonnet agents (round 2+: 3 lenses on the fix diff only), because workflow agents cannot spawn their own subagents. An Opus agent then runs the rest of the skill in AUTONOMOUS MODE with `lenses=supplied`: browser QA, merging the findings and posting them. Posting every finding is mandatory. A separate Haiku verifier re-posts anything missing, and the lane is held if a finding still cannot be posted.
 6. **Feedback**: Opus runs `/feedback` in plan mode and sorts every open item into `implement`, `follow_up` or `wont_do`. Sonnet then runs execute mode: it implements, files follow-up issues (added to the PR body as `Related #M`), and replies to and resolves every thread. Haiku verifies the replies. Steps 5–6 repeat up to `maxRounds`; the last round turns anything not trivially safe into a follow-up.
 7. **Merge gate**, run per PR as soon as its lane finishes. The PR squash-merges only when all of these hold:
    - every required check (`pytest`, `frontend`, `frontend-e2e`, `gitleaks-history`) is green **on the latest head SHA**,
@@ -102,6 +108,8 @@ Stages per issue (each issue is its own lane; lanes do not wait for each other):
    - there are 0 `wont_do` items.
 
    A PR that conflicts with `main` is rebased (`--force-with-lease`) and re-checked.
+
+When every lane has finished, a Haiku agent removes the run's `.claude/worktrees/wf_*` worktrees whose work is already on `origin`. Any worktree with uncommitted or unpushed changes is kept and reported.
 
 Anything else is **held**: the pipeline adds `needs-user-input` and posts an "Automation hold" comment saying what the owner has to decide. A `wont_do` always holds the PR for owner sign-off. Add `do-not-merge` to any PR or issue to keep automation away from it.
 
