@@ -383,6 +383,13 @@ def test_suggest_pipeline_tuning_heuristic_branches() -> None:
     assert gate_nodes[0]["params"]["threshold_db"] == -36.0
     assert result["proposed_config"]["compression"]["makeup_db"] == 0.0
     assert result["report_summary"]["reason_count"] == len(result["reasons"])
+
+    from podcast_mcp.effects.presets import get_preset
+
+    default_fx = result_defaults["proposed_config"].get("effects") or {}
+    assert default_fx["noise_reduction"] == get_preset("noise_reduction")
+    assert default_fx["gate"][0]["params"]["threshold_db"] == -36.0
+    assert "effects" in result_defaults["patches"]
     assert result_defaults["report_summary"]["track_count"] == 2
 
 

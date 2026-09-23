@@ -68,24 +68,8 @@ export:
       codec: libmp3lame
       bitrate_kbps: 128
 
-effects:
-  noise_reduction:
-    - effect: afftdn
-      params:
-        nr: 12
-        nf: -25
-  deess:
-    - effect: bandreject
-      params:
-        f: 6500
-        w: 3000
-  gate:
-    - effect: agate
-      params:
-        threshold_db: -30
-        range_db: -20
-        attack_ms: 5
-        release_ms: 50
+# FX presets come from effects/presets.py builtins; see .agents/defaults/pipeline.yaml
+effects: {}
 
 social_clips:
   default_max_sec: 60

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp.config import load_defaults
+from podcast_mcp.effects.presets import get_preset
 from podcast_mcp.engines.audio_audit import clipping_indicated
 from podcast_mcp.pipeline.meta import (
     ALLOWED_CONFIG_TOP_KEYS,
@@ -383,7 +384,7 @@ def suggest_pipeline_tuning(
                 }
             )
             if "noise_reduction" not in effects:
-                effects["noise_reduction"] = defaults.get("effects", {}).get("noise_reduction", [])
+                effects["noise_reduction"] = get_preset("noise_reduction")
 
         noise_floor = health.get("noise_floor_db")
         if isinstance(noise_floor, (int, float)) and noise_floor > -50:
@@ -408,15 +409,14 @@ def suggest_pipeline_tuning(
                     "message": f"{tid}: gate overreach findings - use milder gate or skip gate",
                 }
             )
-            if "gate" in effects:
-                gate_fx = copy.deepcopy(effects.get("gate") or [])
-                for node in gate_fx:
-                    params = node.get("params") or {}
-                    thr = params.get("threshold_db")
-                    if isinstance(thr, (int, float)):
-                        params["threshold_db"] = thr - 6.0
-                        node["params"] = params
-                effects["gate"] = gate_fx
+            gate_fx = copy.deepcopy(effects.get("gate") or get_preset("gate"))
+            for node in gate_fx:
+                params = node.get("params") or {}
+                thr = params.get("threshold_db")
+                if isinstance(thr, (int, float)):
+                    params["threshold_db"] = thr - 6.0
+                    node["params"] = params
+            effects["gate"] = gate_fx
 
         if row.get("high_bleed_warning"):
             reasons.append(

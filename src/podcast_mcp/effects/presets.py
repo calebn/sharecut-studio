@@ -1,11 +1,26 @@
+"""Effect preset registry.
+
+``_BUILTIN_PRESETS`` below is the single source of truth for effect preset
+definitions. The ``effects:`` block in a pipeline defaults YAML is a by-name
+overlay applied on top of it: it can add new presets, or override a builtin
+preset's definition, but only in a custom ``PODCAST_MCP_PIPELINE_DEFAULTS``
+file. Repo-tracked YAMLs (``.agents/defaults/pipeline.yaml``,
+``tests/fixtures/*.yaml``) must not redefine a builtin preset name --
+``tests/test_effects_presets.py`` enforces this with a parity test.
+"""
+
 from __future__ import annotations
 
+import copy
+from collections.abc import Mapping
 from typing import Any
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.models import EpisodeProject, ProcessingChain, ProcessingEffect
 
-_BUILTIN_PRESETS: dict[str, list[dict[str, Any]]] = {
+PresetSpec = list[dict[str, Any]]
+
+_BUILTIN_PRESETS: dict[str, PresetSpec] = {
     "noise_reduction": [{"effect": "afftdn", "params": {"nr": 12, "nf": -25}}],
     "noise_reduction_heavy": [{"effect": "afftdn", "params": {"nr": 20, "nf": -25}}],
     "noise_reduction_rnnoise": [{"effect": "arnndn", "params": {}}],
@@ -44,21 +59,27 @@ _BUILTIN_PRESETS: dict[str, list[dict[str, Any]]] = {
 }
 
 
+def _preset_overlay(defaults: Mapping[str, Any]) -> dict[str, PresetSpec]:
+    """The ``effects:`` overlay from pipeline defaults ({} when absent or malformed)."""
+    raw = defaults.get("effects")
+    return dict(raw) if isinstance(raw, Mapping) else {}
+
+
+def resolve_presets(defaults: Mapping[str, Any] | None = None) -> dict[str, PresetSpec]:
+    """Builtins merged with the defaults ``effects:`` overlay (overlay wins by name). Deep copies."""
+    cfg = load_defaults() if defaults is None else defaults
+    return copy.deepcopy({**_BUILTIN_PRESETS, **_preset_overlay(cfg)})
+
+
 def list_presets() -> list[str]:
-    defaults = load_defaults()
-    custom = defaults.get("effects", {})
-    names = set(_BUILTIN_PRESETS) | set(custom.keys())
-    return sorted(names)
+    return sorted(resolve_presets())
 
 
-def get_preset(name: str) -> list[dict[str, Any]]:
-    defaults = load_defaults()
-    custom = defaults.get("effects", {})
-    if name in custom:
-        return list(custom[name])
-    if name in _BUILTIN_PRESETS:
-        return list(_BUILTIN_PRESETS[name])
-    raise ValueError(f"unknown effect preset: {name!r}")
+def get_preset(name: str) -> PresetSpec:
+    presets = resolve_presets()
+    if name not in presets:
+        raise ValueError(f"unknown effect preset: {name!r}")
+    return presets[name]
 
 
 def _chain_for_track(project: EpisodeProject, track_id: str) -> ProcessingChain:
