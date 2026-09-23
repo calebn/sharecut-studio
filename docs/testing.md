@@ -171,6 +171,8 @@ requires HTTP 200 and host setup still waits for `networkidle`.
 | Zoom-matched waveforms | `test_timeline_zoom.py`, `test_peaks.py`, `test_waveform_zoom.py` (incl. guest overview + snap ACL), `gui/web/src/audio/waveformExtract.test.ts`, `gui/web/src/timeline/drawWaveform.test.ts`, Playwright `e2e/waveform.spec.ts` (host always; guest `/r/{token}` when share tokens exist) |
 | Brand / public CSS | `test_brand_color_roles.py`, `test_public_sites.py`, `test_css_policy.py`, `test_css_no_important.py` |
 | Body / host security hardening | `test_security_hardening.py` (pure ASGI `MaxBodySizeMiddleware`, authz, served_project) |
+| Large-project benchmark fixture | `test_large_project_fixture.py` (`scripts/build_large_project_fixture.py`; two-hour shape under `e2e_real`), Playwright `e2e/large-project.spec.ts` (opt-in) |
+| PCM WAV header | `test_wav_util.py` (`util/wav.py`, shared by record landing and the benchmark fixture) |
 
 Audio integration tests skip automatically when FFmpeg is unavailable.
 
@@ -211,37 +213,7 @@ Read-only tests can still use `e2e_project_file` directly, since they only load 
 
 ## E2E fixture tests
 
-### Large-project browser profile (opt-in)
-
-Issue #29 has a disposable performance fixture rather than committed media.
-Build it from the aligned-dialogue project structure, then run the browser
-profile against its generated project (after building the web frontend):
-
-```bash
-tmp_dir=$(mktemp -d)
-uv run python scripts/build_large_project_fixture.py --out "$tmp_dir/project"
-cd gui/web && npm run build && cd ../..
-DAW_E2E_PROJECT="$tmp_dir/project/episode.project.json" \
-  DAW_BENCHMARK_PROJECT=1 \
-  DAW_BENCHMARK_CLIPS=1200 DAW_BENCHMARK_WORDS=10000 \
-  npm --prefix gui/web run test:e2e -- large-project.spec.ts
-rm -rf "$tmp_dir"
-```
-
-The generated project is two hours long with 1,200 uniquely identified clips
-and 10,000 distributed transcript utterances across alternating speakers. It
-creates sparse silent WAVs with real two-hour source clocks (no media blocks are
-consumed), so this measures project shape and browser surfaces, not audio
-fidelity. The fixture tests assert all clips and utterances exist; the browser
-profile checks clip rendering and access to the first and last transcript turns,
-then exercises timeline scroll/seek, transcript scroll/seek, and history loading. It
-prints operation duration, DOM node count, and Chromium heap size when
-available; those measurements are diagnostic only and have no machine-dependent
-timing threshold. The history fixture is currently empty, so a many-entry
-history profile and long-duration memory tracking remain follow-ups. Delete the
-temporary directory after the run.
-
-Committed fixtures (Tier A):
+### Committed fixtures (Tier A)
 
 - `tests/fixtures/aligned_dialogue/` — smoke / edits (canned transcript)
 - `tests/fixtures/synthetic_bleed_60s/` — bleed/reconcile/precorrect gold
@@ -275,6 +247,59 @@ Fixture registry: [fixture-catalog.md](fixture-catalog.md). Expansion plan: [e2e
 | `e2e_real` | Nightly (`ami_bleed_60s`, benchmark regression) |
 
 E2e runs use `--no-cov` so they do not affect the coverage gate when run standalone.
+
+### Large-project browser profile (opt-in)
+
+Issue #29 has a disposable performance fixture rather than committed media.
+`scripts/build_large_project_fixture.py` derives it from the
+`aligned_dialogue` project (through `load_project` / `ProjectStore`). Run the
+browser profile against it after building the web frontend:
+
+```bash
+tmp_dir=$(mktemp -d)
+trap 'rm -rf "$tmp_dir"' EXIT
+uv run python scripts/build_large_project_fixture.py --out "$tmp_dir/project"
+(cd gui/web && npm run build)
+DAW_E2E_PROJECT="$tmp_dir/project/episode.project.json" \
+  DAW_BENCHMARK_PROJECT=1 \
+  npm --prefix gui/web run test:e2e -- large-project.spec.ts
+```
+
+Keep the `large-project.spec.ts` file filter: `DAW_E2E_PROJECT` applies to the
+whole Playwright run, so every other spec would otherwise run against the
+benchmark project and fail. The spec skips unless `DAW_BENCHMARK_PROJECT` is
+set, and fails fast when `DAW_E2E_PROJECT` does not point at a generated
+benchmark project. Expected clip and utterance counts are read from the
+project file, so non-default `--clips` / `--utterances` need no matching
+environment variables.
+
+The generated project is two hours long with 1,200 uniquely identified clips
+and 10,000 non-overlapping transcript utterances that strictly alternate
+speakers. It creates sparse silent WAVs with real two-hour source clocks (no
+media blocks are consumed where the filesystem supports sparse files) and flat
+`artifacts/peaks/*.json`, so `/api/peaks` serves waveform data and the timeline
+numbers include waveform drawing. It measures project shape and browser
+surfaces, not audio fidelity. The builder rejects output below
+`tests/fixtures`, an existing output directory, and arguments that would
+produce sub-2 ms clips or words or a WAV beyond the RIFF size limit. It builds
+in a staging directory, so a failure leaves nothing behind.
+
+`initial-load` includes hydration (the `phase=detail` response and the first
+clip). The profile then exercises timeline scroll/seek (last clip in view,
+playhead at session end), transcript scroll/seek (last turn visible, playhead
+moved to its seek time), and history loading (`aria-busy` cleared). Each step
+waits two animation frames before sampling. It prints operation duration, DOM
+node count, and the post-GC Chromium heap from CDP. Those measurements are
+diagnostic only and have no machine-dependent timing threshold; the spec raises
+its own test and `expect` timeouts only to bound a hung run. The GUI writes
+`sync.db` and history into the generated project while it runs, so build a
+fresh one per measurement (the `trap` above deletes it). The history fixture is
+currently empty, so a many-entry history profile and long-duration memory
+tracking remain follow-ups ([ROADMAP.md](../ROADMAP.md) § Follow-up).
+
+`make test` builds a two-minute fixture; the full two-hour shape is checked by
+`test_large_project_fixture_default_two_hour_shape` under the `e2e_real`
+marker (`make e2e-real`).
 
 ## CI
 
