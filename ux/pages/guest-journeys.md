@@ -208,9 +208,11 @@ flowchart TD
    If local OPFS capture fails, the client stops claiming that REC is safely
    backed up, preserves finalized segments, and shows **Retry local recording**.
    The host resumes or starts a take before Retry when needed. Retry starts a
-   new segment only after the failed writable is closed best-effort; a failed
-   open segment is not treated as durable. Retry places the new segment at the
-   current recording clock. After Stop, an incomplete local WAV remains for
+   new segment only after the failed writable closes or its bounded close
+   deadline passes, so the leave guard holds until then; a failed open segment
+   is not treated as durable and exports as a `-partial` WAV. A storage stall
+   reads "Local recording stopped: this device's storage couldn't keep up."
+   Retry places the new segment at the current recording clock. After Stop, an incomplete local WAV remains for
    recovery but does not hold Leave once complete segments have uploaded.
 
 **Success:** Guest consents, appears on the host roster, sees REC/PAUSED, hears

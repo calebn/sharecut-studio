@@ -651,18 +651,37 @@ Producers simply lose audio and reconnect. Pending live comments queue with
 idempotency keys and upsert on reconnect.
 
 If an OPFS write or close fails, the keeper latches a local-capture failure and
-stops accepting PCM. The live PCM queue is bounded to four seconds, so a slow
-or stalled OPFS write fails local capture instead of retaining an unbounded
-promise chain or silently dropping audio. Each OPFS open, write, close, and
-metadata commit also has a five-second wall-clock limit. A timed-out operation
-is abandoned; its late completion cannot advance a replacement segment. The
-REC indicator is no longer a claim that a durable local copy is being made.
-Already finalized segments remain available, while the failed open segment is
-not advertised as durable because
-`FileSystemFileHandle.createWritable()` commits changes on close. The client
-offers **Retry local recording** while the take is recording; during pause or
-after Stop, the host must resume or start a take first. Retry closes the failed
-stream best-effort and starts a new segment without overwriting the failed one.
+stops accepting PCM. The keeper has a single OPFS writer per segment: PCM that
+arrives while a write is in flight is coalesced into the next write, so a slow
+write costs one bounded write rather than one per audio chunk, and a finalize
+flush is at most the in-flight write plus one coalesced write. The queue is
+bounded to fifteen seconds of PCM, above the per-operation limit, so a burst
+delivered after a main-thread stall (background tab, GC) does not fail a
+healthy OPFS while a write that truly hangs still fails local capture instead
+of retaining unbounded memory or silently dropping audio. Each OPFS open,
+write, metadata commit, and the resume segment scan has a five-second
+wall-clock limit; close gets five seconds plus an allowance of 1 ms per
+10 KB of segment audio, because `createWritable()` commits its swap file on
+close and that cost grows with segment size. A close that still lands after
+its deadline leaves a complete WAV without metadata, which is treated like any
+other partial after Stop. A timed-out operation is abandoned; its late
+completion cannot advance a replacement segment. Metadata that lands after its
+deadline is kept, since the WAV was already closed and the pair is consistent;
+this relies on segment indexes being reserved before a segment opens, so no
+later segment can share that path. Timeouts are not cancellation: a truly hung
+`FileSystemWritableFileStream` can keep its file lock (and one writable per
+Retry) until the browser gives up, which is why Retry always moves to a new
+segment path and never reopens the stuck one. The guest sees plain wording
+("this device's storage couldn't keep up") for stalls; the technical detail
+stays on the error's `cause`. The REC indicator is no longer a claim that a
+durable local copy is being made. Already finalized segments remain available,
+while the failed open segment is not advertised as durable because
+`FileSystemFileHandle.createWritable()` commits changes on close; **Download
+local keeper** still exports it, named `keeper-<take>-<segment>-partial.wav`.
+The client offers **Retry local recording** while the take is recording; during
+pause or after Stop, the host must resume or start a take first. Retry waits
+for the failed stream to close (bounded by the close deadline) and starts a
+new segment without overwriting the failed one.
 The retry segment uses the current recording clock so its landing offset follows
 the lost span. A stopped, incomplete local `.wav` remains in OPFS for recovery
 without a completion `.json`; it is never given a file ACK or landed. Once all
