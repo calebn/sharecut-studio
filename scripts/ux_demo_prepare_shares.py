@@ -23,7 +23,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEMO = ROOT / "tests" / "fixtures" / "sharecut_ux_demo" / "episode.project.json"
-DEFAULT_INDEX = Path("/tmp/podcast_ux_demo_shares.sqlite")
+DEFAULT_REGISTRY = Path("/tmp/podcast_ux_demo_shares.sqlite")
 DEFAULT_TOKENS = ROOT / "ux" / "assets" / "screens" / ".guest-tokens.json"
 
 
@@ -41,9 +41,11 @@ def main() -> int:
         help="Public origin embedded in share URLs",
     )
     parser.add_argument(
-        "--index",
+        "--registry",
+        dest="registry",
         type=Path,
-        default=Path(os.environ.get("PODCAST_SHARE_REGISTRY", str(DEFAULT_INDEX))),
+        default=Path(os.environ.get("PODCAST_SHARE_REGISTRY", str(DEFAULT_REGISTRY))),
+        help="Share registry sqlite path (exported as PODCAST_SHARE_REGISTRY)",
     )
     parser.add_argument(
         "--tokens-out",
@@ -56,7 +58,7 @@ def main() -> int:
         print(f"missing project: {args.project}", file=sys.stderr)
         return 1
 
-    os.environ["PODCAST_SHARE_REGISTRY"] = str(args.index.resolve())
+    os.environ["PODCAST_SHARE_REGISTRY"] = str(args.registry.resolve())
 
     from podcast_mcp.services import ProjectWorkspace, ReviewService
     from podcast_mcp.services.share import ShareService
@@ -86,7 +88,7 @@ def main() -> int:
     )
 
     manifest = {
-        "shares_index": str(args.index.resolve()),
+        "share_registry": str(args.registry.resolve()),
         "project": str(args.project.resolve()),
         "review_version_id": ver_id,
         "review_app": {
@@ -106,7 +108,7 @@ def main() -> int:
     args.tokens_out.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(manifest, indent=2))
     print(f"\nWrote {args.tokens_out}", file=sys.stderr)
-    print(f"PODCAST_SHARE_REGISTRY={args.index.resolve()}", file=sys.stderr)
+    print(f"PODCAST_SHARE_REGISTRY={args.registry.resolve()}", file=sys.stderr)
     return 0
 
 

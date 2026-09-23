@@ -137,7 +137,7 @@ ux-demo:
 # Uses port 8777 by default so a local :8766 GUI does not block Playwright.
 # Prepares guest share tokens, captures host + guest PNGs, restores fixture JSON.
 ux-demo-screens: ux-demo
-	@rm -f /tmp/podcast_ux_demo_shares.sqlite
+	@rm -f /tmp/podcast_ux_demo_shares.sqlite /tmp/podcast_ux_demo_shares.sqlite-wal /tmp/podcast_ux_demo_shares.sqlite-shm
 	PODCAST_SHARE_REGISTRY=/tmp/podcast_ux_demo_shares.sqlite \
 		uv run python scripts/ux_demo_prepare_shares.py --base-url http://127.0.0.1:$(or $(DAW_E2E_PORT),8777)
 	cd gui/web && npm run build && \
