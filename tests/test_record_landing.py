@@ -102,6 +102,7 @@ def _ack_pcm(
         digest=sha256_hex(pcm),
         file_sha256=sha256_hex(wav),
         final=True,
+        expected_parts=1,
         join_offset_ms=join_offset_ms,
     )
 
@@ -493,6 +494,7 @@ def test_refuse_delete_while_non_terminal_then_tombstone_resets_offset(
         digest=digest,
         file_sha256=wav_hash,
         final=True,
+        expected_parts=1,
         join_offset_ms=0,
     )
     _ack(
@@ -552,6 +554,7 @@ def test_http_final_ack_copies_into_raw(minimal_project, sample_wav, tmp_workspa
                 "sha256": digest,
                 "file_sha256": file_hash,
                 "final": "true",
+                "expected_parts": 1,
                 "join_offset_ms": 250,
             },
             headers={"X-Record-Participant": pid, "X-Record-Lease": lease},
@@ -887,6 +890,7 @@ def test_guest_ack_hides_other_participant_clips(
                 "sha256": digest,
                 "file_sha256": file_hash,
                 "final": "true",
+                "expected_parts": 1,
                 "join_offset_ms": 0,
             },
             headers={"X-Record-Participant": pid, "X-Record-Lease": lease},
@@ -925,6 +929,7 @@ def test_host_upload_join_offset_auto_lands(
             "sha256": digest,
             "file_sha256": file_hash,
             "final": True,
+            "expected_parts": 1,
             "join_offset_ms": 250,
         },
         content=pcm,

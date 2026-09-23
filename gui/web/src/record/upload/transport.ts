@@ -6,6 +6,7 @@ export type RecordUploadStatus = {
     segment_index: number;
     acked_parts: number[];
     file_ack?: boolean;
+    expected_parts?: number | null;
     landed?: boolean;
     land_failed?: boolean;
   }>;
@@ -32,6 +33,7 @@ export type RecordUploadPutArgs = {
   final?: boolean;
   joinOffsetMs?: number;
   kind?: string;
+  expectedParts?: number;
   signal?: AbortSignal;
 };
 
@@ -47,7 +49,10 @@ export function memoryUploadTransport(): RecordUploadTransport & {
   joinOffsets: number[];
 } {
   const acked = new Map<string, Set<number>>();
-  const files = new Set<string>();
+  const files = new Map<
+    string,
+    { expectedParts?: number; complete: boolean }
+  >();
   const joinOffsets: number[] = [];
   const state = { failNext: false, puts: 0 };
   const key = (take: number, segment: number) => `${take}:${segment}`;
@@ -70,8 +75,9 @@ export function memoryUploadTransport(): RecordUploadTransport & {
           participant_id: "p_a",
           segment_index: segment ?? 0,
           acked_parts: [...parts].sort((a, b) => a - b),
-          file_ack: files.has(id),
-          landed: files.has(id),
+          file_ack: files.get(id)?.complete ?? false,
+          expected_parts: files.get(id)?.expectedParts ?? null,
+          landed: files.get(id)?.complete ?? false,
           land_failed: false,
         };
       });
@@ -89,7 +95,9 @@ export function memoryUploadTransport(): RecordUploadTransport & {
       parts.add(args.partSeq);
       acked.set(id, parts);
       if (args.final) {
-        files.add(id);
+        files.set(id, { expectedParts: args.expectedParts, complete: true });
+      } else if (!files.has(id)) {
+        files.set(id, { expectedParts: undefined, complete: false });
       }
       return {
         acked: true,

@@ -7,6 +7,7 @@ export function recordUploadSearchParams(args: {
   final?: boolean;
   joinOffsetMs?: number;
   kind?: string;
+  expectedParts?: number;
   extra?: Record<string, string>;
 }): URLSearchParams {
   const q = new URLSearchParams({
@@ -25,6 +26,9 @@ export function recordUploadSearchParams(args: {
   }
   if (args.kind) {
     q.set("kind", args.kind);
+  }
+  if (args.expectedParts != null) {
+    q.set("expected_parts", String(args.expectedParts));
   }
   return q;
 }
