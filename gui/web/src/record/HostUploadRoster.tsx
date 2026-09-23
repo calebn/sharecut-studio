@@ -24,6 +24,10 @@ export function HostUploadRoster({
   if (ids.size === 0) {
     return null;
   }
+  // Before Stop with no uploaded segments, every row would be "waiting to upload" — hide the roster.
+  if (!stopped && segments.length === 0) {
+    return null;
+  }
   const names = new Map(
     recorded.map((person) => [person.participant_id, person.display_name]),
   );
@@ -88,13 +92,6 @@ export function HostUploadRoster({
       slot.landFailed,
     ),
   }));
-  if (
-    !stopped &&
-    segments.length === 0 &&
-    lines.every((row) => row.text.endsWith("waiting to upload."))
-  ) {
-    return null;
-  }
   return (
     <ul aria-label="Upload status" className="record-roster">
       {lines.map((row) => (
