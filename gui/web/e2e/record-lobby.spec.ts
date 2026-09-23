@@ -187,6 +187,9 @@ async function seedSparseRecoveryKeepers(
       // neither a WAV nor a completion marker; seed it so only 2 is missing.
       const segment0Recorded =
         (await exists("0.wav")) || (await exists("0.json"));
+      // Seeded WAVs have no completion metadata: they model segments cut off
+      // mid-write, which upload leaves alone once capture has settled and
+      // recovery exports with a `-partial` label.
       for (const index of segment0Recorded ? [1, 3] : [0, 1, 3]) {
         const handle = await dir.getFileHandle(`${index}.wav`, {
           create: true,
@@ -213,8 +216,8 @@ async function expectRecoveryDownloads(page: Page): Promise<void> {
   expect(downloads[0]?.name).toMatch(/^keepers-p_.*\.zip$/);
   const archive = await readFile(await downloads[0]!.path);
   expect(archive.readUInt32LE(0)).toBe(0x0403_4b50);
-  expect(archive.includes(Buffer.from("keeper-0-1.wav"))).toBe(true);
-  expect(archive.includes(Buffer.from("keeper-0-3.wav"))).toBe(true);
+  expect(archive.includes(Buffer.from("keeper-0-1-partial.wav"))).toBe(true);
+  expect(archive.includes(Buffer.from("keeper-0-3-partial.wav"))).toBe(true);
   // Segment 0 is exported if still local or skipped if reclaimed after
   // landing; either way only the never-written segment 2 is missing.
   await expect(

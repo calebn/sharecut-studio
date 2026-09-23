@@ -24,7 +24,7 @@ afterEach(() => {
 
 describe("downloadLocalKeepers", () => {
   it.each(["p_host", "p_guest"])(
-    "exports every retained take and segment for %s without deleting OPFS",
+    "exports every retained take and segment for %s, labeling partials, without deleting OPFS",
     async (participantId) => {
       vi.useFakeTimers();
       const urls: string[] = [];
@@ -54,15 +54,17 @@ describe("downloadLocalKeepers", () => {
         [1, 0],
       ];
       for (const [takeIndex, segmentIndex] of paths) {
-        await sink.write(
-          keeperWavPath({
-            sessionId: "room1",
-            participantId,
-            takeIndex,
-            segmentIndex,
-          }),
-          new Uint8Array([1, 2, 3]),
-        );
+        const wavPath = keeperWavPath({
+          sessionId: "room1",
+          participantId,
+          takeIndex,
+          segmentIndex,
+        });
+        await sink.write(wavPath, new Uint8Array([1, 2, 3]));
+        // Segment 0-1 stopped mid-write, so it has no completion metadata.
+        if (!(takeIndex === 0 && segmentIndex === 1)) {
+          await sink.write(keeperMetaPath(wavPath), new Uint8Array([123]));
+        }
       }
       const remove = vi.spyOn(sink, "remove");
       await downloadLocalKeepers(sink, "room1", participantId, 1);
@@ -73,11 +75,12 @@ describe("downloadLocalKeepers", () => {
       );
       for (const name of [
         "keeper-0-0.wav",
-        "keeper-0-1.wav",
+        "keeper-0-1-partial.wav",
         "keeper-1-0.wav",
       ]) {
         expect(archive).toContain(name);
       }
+      expect(archive).not.toContain("keeper-0-1.wav");
       expect(remove).not.toHaveBeenCalled();
       await vi.runAllTimersAsync();
       expect(revokeObjectURL).toHaveBeenCalledTimes(1);
