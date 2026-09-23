@@ -15,7 +15,7 @@
     "render": { "$ref": "#/$defs/RenderSection" },
     "social": { "$ref": "#/$defs/SocialSection" },
     "review": { "$ref": "#/$defs/ReviewSection" },
-    "history": { "$ref": "#/$defs/ProjectHistory" }
+    "history": { "anyOf": [{ "$ref": "#/$defs/ProjectHistory" }, { "type": "null" }] }
   },
   "$defs": {
     "ProjectMeta": {
@@ -74,14 +74,14 @@
         "role": { "enum": ["dialogue", "music", "sfx", "intro", "outro"] },
         "speaker": { "type": ["string", "null"] },
         "media": { "$ref": "#/$defs/MediaAsset" },
-        "room_tone": { "$ref": "#/$defs/MediaAsset" },
+        "room_tone": { "anyOf": [{ "$ref": "#/$defs/MediaAsset" }, { "type": "null" }] },
         "gain_db": { "type": "number" },
         "muted": { "type": "boolean" },
         "transcript_gate": {
           "type": "boolean",
           "description": "When true, rendered stems/segments mute outside non-suppressed word intervals (bleed mute)."
         },
-        "proxy": { "$ref": "#/$defs/TrackProxy" }
+        "proxy": { "anyOf": [{ "$ref": "#/$defs/TrackProxy" }, { "type": "null" }] }
       }
     },
     "MediaAsset": {

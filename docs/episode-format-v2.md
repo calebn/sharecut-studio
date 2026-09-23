@@ -33,6 +33,8 @@ my_episode/
 | `review` | Timeline comments and action items (session-clock feedback) |
 | `history` | Undo/redo cursor and snapshot index |
 
+Optional objects the model has not populated (`history`, a track's `room_tone` or `proxy`) are saved as `null`; `schemas/episode.project.schema.json` accepts that, so a file written by `save_project` validates as-is.
+
 Each automation envelope point has an immutable `id` plus its mutable `time` and
 `value`. Editors preserve the ID while points move or reorder it; new points get
 an ID at model creation. This gives the GUI a stable React identity during drag
