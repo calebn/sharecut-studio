@@ -23,6 +23,8 @@ CLOSES_ISSUE = re.compile(r"(?im)^\s*(?:fixes|closes|resolves)\s+#(\d+)\s*$")
 def gh_json(*args: str) -> Any:
     """Run gh without a shell; accept nonzero check status only with valid JSON."""
     result = subprocess.run(["gh", *args], capture_output=True, text=True, check=False)
+    if result.returncode and args[:2] != ("pr", "checks"):
+        raise RuntimeError(result.stderr.strip() or f"gh {' '.join(args)} failed")
     if not result.stdout.strip():
         raise RuntimeError(result.stderr.strip() or f"gh {' '.join(args)} failed")
     try:

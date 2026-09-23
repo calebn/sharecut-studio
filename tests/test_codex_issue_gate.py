@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 SPEC = importlib.util.spec_from_file_location(
     "codex_issue_gate", Path(__file__).resolve().parents[1] / "scripts" / "codex_issue_gate.py"
@@ -48,6 +51,16 @@ def _claim(token: str = TOKEN, heartbeat: str = "2026-09-23T17:00:00Z") -> dict[
 
 def _checks() -> list[dict[str, str]]:
     return [{"name": name, "state": "SUCCESS"} for name in gate.REQUIRED_CHECKS]
+
+
+def test_gh_json_rejects_failed_reads_but_accepts_pending_check_rows(monkeypatch: Any) -> None:
+    def failed_json(*args: Any, **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(args[0], 1, '{"ok": true}', "GitHub read failed")
+
+    monkeypatch.setattr(gate.subprocess, "run", failed_json)
+    with pytest.raises(RuntimeError, match="GitHub read failed"):
+        gate.gh_json("pr", "view", "258")
+    assert gate.gh_json("pr", "checks", "258") == {"ok": True}
 
 
 def test_gate_accepts_verified_open_pr() -> None:
