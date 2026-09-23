@@ -69,8 +69,15 @@ class PipelineService:
                 )
                 for point in points
             ]
-            p.automation_envelopes = [e for e in p.automation_envelopes if e.track_id != track_id]
-            p.automation_envelopes.append(AutomationEnvelope(track_id=track_id, points=pts))
+            # Replace only the volume envelope; other parameters (e.g. pan) are not ours.
+            current = p.volume_envelope_for(track_id)
+            if current is None:
+                p.automation_envelopes.append(AutomationEnvelope(track_id=track_id, points=pts))
+            else:
+                index = next(i for i, e in enumerate(p.automation_envelopes) if e is current)
+                p.automation_envelopes[index] = AutomationEnvelope(
+                    track_id=track_id, parameter=current.parameter, points=pts
+                )
             return len(pts)
 
         return self.ws.mutate(

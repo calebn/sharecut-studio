@@ -3449,6 +3449,7 @@
             "items": {
               "$ref": "#/components/schemas/ExpectedEnvelopePoint"
             },
+            "maxItems": 10000,
             "title": "Expected Points",
             "type": "array"
           },
@@ -3456,6 +3457,7 @@
             "items": {
               "$ref": "#/components/schemas/EnvelopePoint"
             },
+            "maxItems": 10000,
             "title": "Points",
             "type": "array"
           },

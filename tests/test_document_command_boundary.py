@@ -129,7 +129,7 @@ def test_host_http_rejects_stale_envelope_without_overwriting_peer(minimal_proje
     )
     assert stale.status_code == 409
     assert stale.json()["detail"]["conflict"] is True
-    assert "refresh the envelope" in stale.json()["detail"]["detail"]
+    assert "not applied" in stale.json()["detail"]["detail"]
     stored = ProjectWorkspace.open(minimal_project).project.automation_envelopes[0]
     assert [(point.id, point.value) for point in stored.points] == [("first", 1)]
 

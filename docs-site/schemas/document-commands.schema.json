@@ -3578,6 +3578,7 @@
           "items": {
             "$ref": "#/$defs/ExpectedEnvelopePoint"
           },
+          "maxItems": 10000,
           "title": "Expected Points",
           "type": "array"
         },
@@ -3585,6 +3586,7 @@
           "items": {
             "$ref": "#/$defs/EnvelopePoint"
           },
+          "maxItems": 10000,
           "title": "Points",
           "type": "array"
         },

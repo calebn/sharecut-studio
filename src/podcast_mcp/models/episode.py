@@ -210,10 +210,19 @@ class AutomationPoint(BaseModel):
     value: float
 
 
+# Parameters the renderer and GUI treat as the track's gain envelope ("" = legacy unset).
+VOLUME_ENVELOPE_PARAMETERS = frozenset({"volume", "gain", ""})
+
+
 class AutomationEnvelope(BaseModel):
     track_id: str
     parameter: str = "volume"
     points: list[AutomationPoint] = Field(default_factory=list)
+
+    @property
+    def is_volume(self) -> bool:
+        """True for the gain envelope that ``SetEnvelope`` and the renderer own."""
+        return self.parameter in VOLUME_ENVELOPE_PARAMETERS
 
     @model_validator(mode="before")
     @classmethod
@@ -523,6 +532,13 @@ class EpisodeProject(BaseModel):
     @automation_envelopes.setter
     def automation_envelopes(self, value: list[AutomationEnvelope]) -> None:
         self.mix.automation_envelopes = value
+
+    def volume_envelope_for(self, track_id: str) -> AutomationEnvelope | None:
+        """The track's volume/gain envelope; other parameters (e.g. ``pan``) are skipped."""
+        return next(
+            (e for e in self.automation_envelopes if e.track_id == track_id and e.is_volume),
+            None,
+        )
 
     @property
     def processing_chains(self) -> list[ProcessingChain]:
