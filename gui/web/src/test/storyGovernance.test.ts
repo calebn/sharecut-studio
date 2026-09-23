@@ -36,6 +36,31 @@ describe("storyLeaks", () => {
     ],
     [
       "App.tsx",
+      'const m = import.meta.glob(["./**/*.tsx", "!./other/*.stories.tsx"]);',
+      1,
+    ],
+    [
+      "App.tsx",
+      'const m = import.meta.glob(["./**/*.ts", "./**/*.tsx", "!**/*.stories.ts"]);',
+      1,
+    ],
+    [
+      "App.tsx",
+      'const m = import.meta.glob(["./**/*.ts", "!**/*.stories.d.ts"]);',
+      1,
+    ],
+    [
+      "App.tsx",
+      'const m = import.meta.glob(["./**/*", "!**/*.stories.*"]);',
+      0,
+    ],
+    [
+      "App.tsx",
+      'const m = import.meta.glob(["./**/*.{ts,tsx}", "!**/*.stories.@(ts|tsx)"]);',
+      0,
+    ],
+    [
+      "App.tsx",
       'const m = import.meta.glob("./icons/*.svg", { eager: true });',
       0,
     ],
