@@ -6,22 +6,14 @@ import os
 import subprocess
 from pathlib import Path
 
-import yaml
+from github_yaml import load_github_yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "secret-scan.yml"
 
 
-def _load_workflow() -> dict:
-    data = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
-    assert isinstance(data, dict)
-    if True in data and "on" not in data:
-        data["on"] = data.pop(True)
-    return data
-
-
 def test_secret_scan_covers_changes_and_scheduled_history() -> None:
-    data = _load_workflow()
+    data = load_github_yaml(WORKFLOW)
     triggers = data["on"]
     assert "pull_request" in triggers
     assert triggers["push"]["branches"] == ["main"]
