@@ -320,6 +320,88 @@ describe("UndoToast", () => {
     other.remove();
   });
 
+  it("returns focus when a disabled Undo was blurred to <body> before closing", () => {
+    const target = document.createElement("div");
+    target.tabIndex = -1;
+    document.body.appendChild(target);
+    const returnFocusRef = { current: target };
+    const { rerender } = render(
+      <UndoToast
+        toast={{ id: 1, message: "Resolved comment at 00:12" }}
+        onUndo={vi.fn()}
+        onDismiss={vi.fn()}
+        returnFocusRef={returnFocusRef}
+      />,
+    );
+    const undo = screen.getByRole("button", { name: "Undo" });
+    act(() => {
+      undo.focus();
+    });
+    rerender(
+      <UndoToast
+        toast={{ id: 1, message: "Resolved comment at 00:12" }}
+        onUndo={vi.fn()}
+        onDismiss={vi.fn()}
+        undoDisabled
+        returnFocusRef={returnFocusRef}
+      />,
+    );
+    // Chromium's focus fixup blurs a focused button once it is disabled
+    // (relatedTarget null); jsdom's native .blur() no-ops on a disabled
+    // element, so toggle the underlying DOM property off just long enough to
+    // fire a real blur with relatedTarget null, then restore it to match the
+    // disabled markup React rendered.
+    expect(undo).toBeDisabled();
+    act(() => {
+      (undo as HTMLButtonElement).disabled = false;
+      undo.blur();
+      (undo as HTMLButtonElement).disabled = true;
+    });
+    rerender(
+      <UndoToast
+        toast={null}
+        onUndo={vi.fn()}
+        onDismiss={vi.fn()}
+        returnFocusRef={returnFocusRef}
+      />,
+    );
+    expect(document.activeElement).toBe(target);
+    target.remove();
+  });
+
+  it("does not move focus when focus left the toast for another element", () => {
+    const target = document.createElement("div");
+    target.tabIndex = -1;
+    const other = document.createElement("button");
+    document.body.append(target, other);
+    const returnFocusRef = { current: target };
+    const { rerender } = render(
+      <UndoToast
+        toast={{ id: 1, message: "Resolved comment at 00:12" }}
+        onUndo={vi.fn()}
+        onDismiss={vi.fn()}
+        returnFocusRef={returnFocusRef}
+      />,
+    );
+    act(() => {
+      screen.getByRole("button", { name: "Dismiss" }).focus();
+    });
+    act(() => {
+      other.focus();
+    });
+    rerender(
+      <UndoToast
+        toast={null}
+        onUndo={vi.fn()}
+        onDismiss={vi.fn()}
+        returnFocusRef={returnFocusRef}
+      />,
+    );
+    expect(document.activeElement).toBe(other);
+    target.remove();
+    other.remove();
+  });
+
   it("is axe-clean with a toast shown", async () => {
     const { container } = render(
       <UndoToast
