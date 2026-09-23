@@ -80,6 +80,9 @@ Run it from a Claude Code session in this repo: ask it to run the `issue-pipelin
 | Arg | Default | Meaning |
 | --- | ------- | ------- |
 | `authors` | `['calebn']` | Only issues opened by these GitHub logins are considered (also filters explicit `issues`) |
+| `profile` | `full` | `lean`: text-only triage in batches of 10, a review sized to the diff (3 Sonnet reviewer passes for ≤150-line diffs that avoid auth/share/upload/relay code), Sonnet for round-2 review and for small non-High feedback plans. `full`: per-issue triage with a code skim, the 8-pass Opus review, Opus feedback plans |
+| `noMerge` | `false` | Run every stage but stop at the gate and report whether it would merge (A/B comparisons) |
+| `baseRef` | `origin/main` | Commit that new branches start from (reproducible comparisons) |
 | `dryRun` | `false` | Triage only; return the selected / skipped table |
 | `issues` | all eligible | Explicit issue numbers (skips the actionable / size / area filters) |
 | `lanes` | `4` | Issues worked in parallel |

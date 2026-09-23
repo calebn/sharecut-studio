@@ -24,6 +24,16 @@ const LANES = A.lanes ?? 4
 const MAX_ROUNDS = A.maxRounds ?? 2
 const CI_FIX_ATTEMPTS = A.ciFixAttempts ?? 1
 const GATE_ATTEMPTS = A.gateAttempts ?? 3
+// profile: 'full' = 8-lens Opus review, per-issue triage with code skim, Opus feedback plans.
+//          'lean' = batched text-only triage, diff-sized review (3 Sonnet lenses for small
+//                   low-risk diffs), Sonnet round-2 review and Sonnet plans for small feedback.
+const PROFILE = A.profile || 'full'
+const LEAN = PROFILE === 'lean'
+// noMerge: run every stage but stop at the gate and report the verdict (A/B comparisons).
+const NO_MERGE = !!A.noMerge
+// baseRef: commit/ref new branches start from (default origin/main).
+const BASE = A.baseRef || 'origin/main'
+const TRIAGE_BATCH = 10
 const SKIP_LABELS = A.labelsSkip || ['epic', 'needs-user-input', 'deferred-v1', 'do-not-merge', 'in-progress', 'wontfix', 'duplicate']
 const REQUIRED_CHECKS = ['pytest', 'frontend', 'frontend-e2e', 'gitleaks-history']
 const HOLD_LABELS = ['needs-user-input', 'do-not-merge']
@@ -297,8 +307,9 @@ AUTONOMOUS MODE: round=${round}${since ? `, since=${since}` : ''}
 Read ${SKILLS.review} (and the checklists it references) and execute it for ${REPO} PR #${pr}, following its "AUTONOMOUS MODE (pipeline)" section, which overrides every other gate in that file.
 POSTING IS MANDATORY. Every unrebutted High/Medium/Low finding must be posted to the PR before you return: inline threads (one COMMENT review) where a RIGHT-side line attaches, otherwise one top-level \`gh pr comment\` per finding. Never APPROVE or REQUEST_CHANGES. An unposted finding is a pipeline failure.
 ${round > 1 ? `Round ${round}: review ONLY \`git diff ${since}..<PR head>\` (the feedback fixes). Do not re-raise resolved threads.` : ''}
+${LEAN ? `REVIEW PROFILE: lean. ${round > 1 ? 'Round 2+: review the fix diff yourself in a single pass (no subagents).' : 'Size the review to the diff: if `git diff origin/main...HEAD --stat` is <= 150 changed lines AND no path touches auth, share tokens, uploads/recording landing, relay or remote MCP, run only 3 lenses — Bugbot/risk, reuse/SOLID + test gaps, patterns — as subagents with model "sonnet". Otherwise run the full set of lenses. You (the parent) still merge, dedupe and post.'}` : ''}
 Return every finding with the URL of its posted comment, the SHA you reviewed, and any environment blockers (those are NOT posted).`,
-    { label: `review:${tag(issue)}:r${round}`, phase: 'Review', model: M.senior, effort: 'high', isolation: 'worktree', schema: S_REVIEW },
+    { label: `review:${tag(issue)}:r${round}`, phase: 'Review', model: LEAN && round > 1 ? M.worker : M.senior, effort: 'high', isolation: 'worktree', schema: S_REVIEW },
   )
 }
 
@@ -316,7 +327,7 @@ Return expected, found_before, posted_now, missing_after, missing_ids.`,
   )
 }
 
-function feedbackPlan(issue, pr, round, finalRound) {
+function feedbackPlan(issue, pr, round, finalRound, model = M.senior) {
   return agent(
     `AUTONOMOUS MODE: mode=plan, round=${round}${finalRound ? ', final=true' : ''}
 Read ${SKILLS.feedback} and execute Phases 1–2 for ${REPO} PR #${pr}, following its "AUTONOMOUS MODE (pipeline)" section (no approval gate; nothing is posted in plan mode).
@@ -326,7 +337,7 @@ For each item choose exactly one action:
 - follow_up: valid but out of scope, large, or risky${finalRound ? ' (FINAL ROUND: anything not trivially safe to finish now MUST be follow_up)' : ''}. Provide followup_title and a self-contained followup_body (file paths, link to the PR comment).
 - wont_do: ONLY when the finding is wrong or the change would be harmful; give the technical rationale. A wont_do holds the PR for the owner, so prefer follow_up when in doubt.
 Return the items.`,
-    { label: `fb-plan:${tag(issue)}:r${round}`, phase: 'Feedback', model: M.senior, effort: 'high', isolation: 'worktree', schema: S_FB_PLAN },
+    { label: `fb-plan:${tag(issue)}:r${round}`, phase: 'Feedback', model, effort: 'high', isolation: 'worktree', schema: S_FB_PLAN },
   )
 }
 
@@ -429,11 +440,25 @@ Return the remaining issues and the excluded ones with reasons.`,
   log(`${candidates.length} candidate issue(s); ${listed.excluded.length} excluded`)
 }
 
-const scores = (await parallel(candidates.map((c) => () => agent(
-  `Triage ${REPO} issue #${c.number}. Read-only. Read it with \`gh issue view ${c.number} -R ${REPO} --comments --json number,title,body,author,labels,comments\` (report author.login) and skim the code it touches (grep; no deep dive).
-actionable = the desired outcome is clear enough to implement without asking the owner. size: S (<~150 LOC, one area), M (a few files / one subsystem), L (multi-subsystem, design decision, or epic-like). priority 1–5 (5 = security/data-loss bug). area = primary code area. blockers = dependency on another open issue or a needed product decision ("" when none).`,
-  { label: `triage:#${c.number}`, phase: 'Triage', model: M.cheap, effort: 'low', schema: S_SCORE },
-)))).filter(Boolean)
+const SCORE_RUBRIC = `actionable = the desired outcome is clear enough to implement without asking the owner. size: S (<~150 LOC, one area), M (a few files / one subsystem), L (multi-subsystem, design decision, or epic-like). priority 1–5 (5 = security/data-loss bug). area = primary code area. blockers = dependency on another open issue or a needed product decision ("" when none).`
+let scores
+if (LEAN) {
+  // One cheap agent per batch, issue text only (the Opus planner can still abort a bad pick).
+  const batches = []
+  for (let i = 0; i < candidates.length; i += TRIAGE_BATCH) batches.push(candidates.slice(i, i + TRIAGE_BATCH))
+  scores = (await parallel(batches.map((b, bi) => () => agent(
+    `Triage these ${REPO} issues from their text only (do not read code): ${b.map((c) => `#${c.number}`).join(', ')}. Read-only. For each: \`gh issue view <n> -R ${REPO} --comments --json number,title,body,author,labels,comments\` (report author.login).
+${SCORE_RUBRIC}
+Return one score per issue.`,
+    { label: `triage:batch${bi + 1}`, phase: 'Triage', model: M.cheap, effort: 'low', schema: { type: 'object', properties: { scores: { type: 'array', items: S_SCORE } }, required: ['scores'] } },
+  )))).filter(Boolean).flatMap((r) => r.scores)
+} else {
+  scores = (await parallel(candidates.map((c) => () => agent(
+    `Triage ${REPO} issue #${c.number}. Read-only. Read it with \`gh issue view ${c.number} -R ${REPO} --comments --json number,title,body,author,labels,comments\` (report author.login) and skim the code it touches (grep; no deep dive).
+${SCORE_RUBRIC}`,
+    { label: `triage:#${c.number}`, phase: 'Triage', model: M.cheap, effort: 'low', schema: S_SCORE },
+  )))).filter(Boolean)
+}
 
 // Barrier: choose lanes across all scores; distinct areas avoid parallel conflicts.
 const explicit = !!(A.issues && A.issues.length)
@@ -469,7 +494,7 @@ const results = await pipeline(
   (issue) => agent(
     `${AUTH}
 You are the planner for ${REPO} issue #${issue.number}. Do not modify code.
-${DETACHED('origin/main')}
+${DETACHED(BASE)}
 1. Claim it: \`gh issue edit ${issue.number} -R ${REPO} --add-label in-progress\` and comment "Picked up by the automated issue pipeline."
 2. Read the issue and comments. Research the code thoroughly (AGENTS.md, docs/architecture.md, docs/contributing.md, the relevant layers). Find existing helpers to reuse.
 3. Write a DETAILED implementation plan a cheaper model can follow mechanically: exact files and symbols to change, code-level steps, tests to add (tests/… or gui/web Vitest), docs to update per the AGENTS.md "Docs in sync" table, and verify_cmds: concrete targeted commands naming the exact files/tests for this change, following: ${VERIFY}
@@ -487,7 +512,7 @@ If the issue needs an owner decision or is too large for one PR, set abort=true 
     const pr = await agent(
       `${AUTH}
 Implement ${REPO} issue #${issue.number} by following this plan EXACTLY. Do not redesign; if the plan is impossible, return ok=false with the reason.
-${DETACHED('origin/main')}
+${DETACHED(BASE)}
 ${SETUP}
 Branch: ${plan.branch} (if it already exists on origin, append -2, -3, …).
 PLAN:
@@ -532,7 +557,9 @@ Return ok, pr number, branch, head_sha.`,
       }
       since = rev.reviewed_sha
 
-      const plan = await feedbackPlan(issue, pr, round, round === MAX_ROUNDS)
+      // Lean: small, non-High feedback is planned by Sonnet; anything weightier stays on Opus.
+      const simple = LEAN && rev.findings.length <= 5 && !rev.findings.some((f) => f.severity === 'high')
+      const plan = await feedbackPlan(issue, pr, round, round === MAX_ROUNDS, simple ? M.worker : M.senior)
       if (!plan) return hold(issue, pr, `feedback plan round ${round} agent died`)
       if (!plan.items.length) break
 
@@ -567,6 +594,10 @@ Return ok, pr number, branch, head_sha.`,
       }
       blockers = gateBlockers(g, wontDo, head)
       if (!green.ok) blockers.push(green.reason || 'CI not green')
+      if (NO_MERGE) {
+        log(`${tag(issue)} PR #${pr} noMerge: gate ${blockers.length ? `would HOLD (${blockers.join('; ')})` : 'would MERGE'}`)
+        return { issue: issue.number, pr, merged: false, wouldMerge: !blockers.length, blockers, rounds, findings: findingsTotal, followups, profile: PROFILE }
+      }
       if (!blockers.length) {
         const evidence = [
           `- review rounds: ${rounds}; findings posted: ${findingsTotal} (post-verified)`,
@@ -577,7 +608,7 @@ Return ok, pr number, branch, head_sha.`,
         const m = await merge(issue, pr, g.head_sha, evidence)
         if (m && m.ok) {
           log(`${tag(issue)} PR #${pr} merged`)
-          return { issue: issue.number, pr, merged: true, rounds, findings: findingsTotal, followups }
+          return { issue: issue.number, pr, merged: true, rounds, findings: findingsTotal, followups, profile: PROFILE }
         }
         blockers = [`merge failed: ${m ? m.detail : 'agent died'}`]
       }

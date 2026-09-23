@@ -103,6 +103,16 @@ def test_ci_failures_are_classified_before_fixing() -> None:
     assert "--failed" in script
 
 
+def test_lean_profile_and_no_merge_are_opt_in() -> None:
+    script = _script()
+    assert "const PROFILE = A.profile || 'full'" in script
+    assert "const NO_MERGE = !!A.noMerge" in script
+    # noMerge returns before the merge agent can run.
+    assert script.index("if (NO_MERGE) {") < script.index("const m = await merge(")
+    # Lean never downgrades the first-round review parent or the implementation planner.
+    assert "model: LEAN && round > 1 ? M.worker : M.senior" in script
+
+
 def test_model_tiers() -> None:
     script = _script()
     assert "const M = { cheap: 'haiku', worker: 'sonnet', senior: 'opus' }" in script
