@@ -14,6 +14,7 @@ from podcast_mcp.services.record.state import (
     PauseReason,
     RecordSnapshot,
     TakeState,
+    find_participant,
     producer_count,
     recorded_count,
     start_blockers,
@@ -33,17 +34,8 @@ def _iso(now_wall_ms: int) -> str:
     return datetime.fromtimestamp(now_wall_ms / 1000, tz=UTC).isoformat()
 
 
-def _find(snap: RecordSnapshot, participant_id: str | None) -> ParticipantState | None:
-    if not participant_id:
-        return None
-    for person in snap.participants:
-        if person.participant_id == participant_id:
-            return person
-    return None
-
-
 def _require_self(snap: RecordSnapshot, cmd: RecordCommand) -> ParticipantState:
-    person = _find(snap, cmd.participant_id)
+    person = find_participant(snap, cmd.participant_id)
     if person is None or person.removed:
         raise RecordStateError("unknown participant")
     return person
@@ -68,7 +60,7 @@ def _note_take_consent(take: TakeState, participant_id: str, *, accepted: bool) 
 
 
 def _host_live(snap: RecordSnapshot) -> bool:
-    person = _find(snap, HOST_PARTICIPANT_ID)
+    person = find_participant(snap, HOST_PARTICIPANT_ID)
     return person is not None and person.connected and not person.removed
 
 
@@ -87,7 +79,7 @@ def _join(snap: RecordSnapshot, cmd: RecordCommand, *, now_wall_ms: int) -> Reco
     pid = cmd.participant_id
     if not pid:
         raise RecordStateError("participant_id required")
-    existing = _find(snap, pid)
+    existing = find_participant(snap, pid)
     if existing is not None and existing.removed:
         raise RecordStateError("participant removed")
     display_name = str(cmd.payload.get("display_name") or "")
@@ -164,7 +156,7 @@ def _enter_pause(
 
 def prepare_host_rejoin(snap: RecordSnapshot, *, since_wall_ms: int) -> RecordSnapshot:
     """Apply last-host Leave semantics without appending a Leave command."""
-    person = _find(snap, HOST_PARTICIPANT_ID)
+    person = find_participant(snap, HOST_PARTICIPANT_ID)
     if person is not None:
         person.connected = False
     if snap.state in ("recording", "paused") and snap.host_offline_since_wall_ms is None:
@@ -284,11 +276,13 @@ def apply_record_command(
         return out
     if ctype == "RemoveParticipant":
         target_id = str(cmd.payload.get("participant_id") or "")
-        target = _find(out, target_id)
+        target = find_participant(out, target_id)
         if target is None:
             raise RecordStateError("unknown participant")
         target.connected = False
         target.consented = None
         target.removed = True
+        if out.state in ("recording", "paused") and target.role in RECORDED_ROLES:
+            _note_take_consent(_current_take(out), target.participant_id, accepted=False)
         return out
     raise ValueError(f"unknown record command type: {ctype}")

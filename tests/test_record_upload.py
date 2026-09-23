@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+import podcast_mcp.gui.routes.record_upload_http as upload_http
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services import ProjectWorkspace
@@ -1069,3 +1070,60 @@ def test_guest_room_tone_upload_rejected_after_decline(
         content=pcm,
     )
     assert res.status_code == 403, res.text
+
+
+def test_guest_keeper_upload_rejected_after_host_removal(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    token = room["guest"]["token"]
+    svc = RecordSessionService(_ws.project, session_id=room["session_id"])
+    svc.join(
+        token=token,
+        role="host",
+        display_name="Host",
+        client_id="host",
+        connection_id="h1",
+    )
+    pid, lease = _guest_join(svc, room, name="Ava", conn="a1")
+    _guest_consent(svc, pid, name="Ava", accepted=True, seq=2)
+    _host_cmd(svc, "Start", now=1000)
+    ok = _post_keeper(client, token, pid, lease, take=0)
+    assert ok.status_code == 200, ok.text
+    _host_cmd(svc, "RemoveParticipant", now=1500, payload={"participant_id": pid})
+    denied = _post_keeper(client, token, pid, lease, take=0, segment=1)
+    assert denied.status_code == 403, denied.text
+    assert denied.json()["detail"] == "consent required"
+
+
+def test_guest_keeper_upload_rechecks_consent_after_body_read(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    token = room["guest"]["token"]
+    svc = RecordSessionService(_ws.project, session_id=room["session_id"])
+    svc.join(
+        token=token,
+        role="host",
+        display_name="Host",
+        client_id="host",
+        connection_id="h1",
+    )
+    pid, lease = _guest_join(svc, room, name="Ava", conn="a1")
+    _guest_consent(svc, pid, name="Ava", accepted=True, seq=2)
+    _host_cmd(svc, "Start", now=1000)
+    real_read = upload_http.read_body_capped
+
+    async def _read_then_decline(request, limit):
+        data = await real_read(request, limit)
+        _guest_consent(svc, pid, name="Ava", accepted=False, seq=3)
+        return data
+
+    monkeypatch.setattr(upload_http, "read_body_capped", _read_then_decline)
+    res = _post_keeper(client, token, pid, lease, take=0)
+    assert res.status_code == 403, res.text
+    assert res.json()["detail"] == "consent required"
+    status = RecordUploadService(_ws.project).status(
+        session_id=room["session_id"], participant_id=pid
+    )
+    assert status["segments"] == []
