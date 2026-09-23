@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { SRC_ROOT, srcRelative, walkTsFiles } from "./sourceFiles";
@@ -116,8 +116,20 @@ describe("stories stay out of the production bundle", () => {
     }
   });
 
-  it("only Storybook's config globs stories", () => {
+  it("Storybook config globs stories from src", () => {
     const text = readFileSync(join(SRC_ROOT, "../.storybook/main.ts"), "utf8");
     expect(text).toContain('"../src/**/*.stories.@(ts|tsx)"');
+  });
+
+  it("root build configs never import or glob stories", () => {
+    const webRoot = join(SRC_ROOT, "..");
+    const configs = readdirSync(webRoot).filter((name) =>
+      /\.config\.[cm]?[jt]s$/.test(name),
+    );
+    expect(configs).toContain("vite.config.ts");
+    const offenders = configs.flatMap((name) =>
+      storyLeaks(`../${name}`, readFileSync(join(webRoot, name), "utf8")),
+    );
+    expect(offenders).toEqual([]);
   });
 });
