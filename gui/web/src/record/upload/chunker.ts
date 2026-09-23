@@ -3,10 +3,8 @@ import { pcmWavHeader } from "../../audio/wavHeader";
 export const RECORD_UPLOAD_WAV_HEADER = pcmWavHeader(0).byteLength;
 export const RECORD_UPLOAD_PART_PCM_BYTES = 48_000 * 2 * 30;
 
-export function keeperPcmParts(
-  wav: Uint8Array,
-  complete: boolean,
-): Uint8Array[] {
+/** Split a finalized keeper WAV's PCM into 30 s upload parts. */
+export function keeperPcmParts(wav: Uint8Array): Uint8Array[] {
   if (wav.byteLength <= RECORD_UPLOAD_WAV_HEADER) {
     return [];
   }
@@ -16,9 +14,6 @@ export function keeperPcmParts(
   let offset = 0;
   while (offset < pcm.length) {
     const end = Math.min(offset + size, pcm.length);
-    if (!complete && end - offset < size) {
-      break;
-    }
     parts.push(pcm.subarray(offset, end));
     offset = end;
   }

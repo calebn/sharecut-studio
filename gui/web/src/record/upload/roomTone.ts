@@ -7,13 +7,12 @@ export async function uploadRoomToneWav(args: {
   transport: RecordUploadTransport;
   signal?: AbortSignal;
 }): Promise<void> {
-  const parts = keeperPcmParts(args.wav, true);
+  const parts = keeperPcmParts(args.wav);
   if (parts.length !== 1 || !parts[0]) {
     throw new Error("room tone must be a single part");
   }
   await uploadKeeperWav({
     wav: args.wav,
-    complete: true,
     takeIndex: 0,
     segmentIndex: 0,
     transport: args.transport,

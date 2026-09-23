@@ -10,6 +10,11 @@ export class ApiError extends Error {
   }
 }
 
+/** User-facing message for any thrown value. */
+export function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 /** Parse a failed fetch Response into a short user-facing message. */
 export async function readApiError(res: Response): Promise<string> {
   const text = await res.text();

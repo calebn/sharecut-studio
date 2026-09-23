@@ -1,80 +1,110 @@
-import { parseWavHeader, pcmWavHeader } from "../../audio/wavHeader";
-import { type ByteSink, keeperWavPath } from "../keeper/store";
+import {
+  PCM_WAV_HEADER_BYTES,
+  parseWavHeader,
+  pcmWavHeader,
+  type WavHeader,
+} from "../../audio/wavHeader";
+import { errorMessage } from "../../utils/apiError";
+import {
+  isKeeperPcmFormat,
+  KEEPER_CHANNELS,
+  KEEPER_FRAME_BYTES,
+  KEEPER_SAMPLE_RATE,
+} from "../keeper/pcm";
+import {
+  type ByteSink,
+  copyBuffer,
+  keeperMetaMatchesPath,
+  keeperMetaPath,
+  keeperSegmentPaths,
+  parseKeeperMeta,
+  type StoredKeeperMeta,
+  writeKeeperMeta,
+} from "../keeper/store";
 import { makeKeeperArchive } from "./archive";
+
+/** Enough bytes to parse the RIFF/fmt/data chunk headers of a keeper WAV. */
+const HEADER_PROBE_BYTES = 4096;
+
+/** Everything a recovery rewrite needs, gathered by one header-only probe. */
+export type KeeperRecoveryPlan = {
+  meta: StoredKeeperMeta;
+  /** Whole PCM frames that will be kept. */
+  pcmBytes: number;
+  /** Trailing bytes of an incomplete final frame that will be dropped. */
+  trimmedBytes: number;
+};
 
 export type KeeperRecoveryStatus =
   | { kind: "complete"; joinOffsetMs: number }
-  | { kind: "recoverable" }
+  /** Not finalized, and not inspected because capture may still be open. */
+  | { kind: "pending" }
+  | { kind: "recoverable"; plan: KeeperRecoveryPlan }
   | { kind: "unrecoverable"; reason: string };
 
-type PendingMeta = {
-  sessionId?: unknown;
-  takeIndex?: unknown;
-  participantId?: unknown;
-  segmentIndex?: unknown;
-  sampleRate?: unknown;
-  joinOffsetMs?: unknown;
-  samplesWritten?: unknown;
-  complete?: unknown;
-};
+type HeaderProbe = { size: number; header: WavHeader | null };
 
-function parseMeta(bytes: Uint8Array | null): PendingMeta | null {
-  if (!bytes) return null;
+/** Read only the WAV header and file size, without copying the PCM. */
+async function probeKeeperWav(
+  sink: ByteSink,
+  wavPath: string,
+): Promise<HeaderProbe | null> {
+  let size: number;
+  let head: ArrayBuffer;
+  if (sink.readBlob) {
+    const blob = await sink.readBlob(wavPath);
+    if (!blob) return null;
+    size = blob.size;
+    head = await blob.slice(0, HEADER_PROBE_BYTES).arrayBuffer();
+  } else {
+    const bytes = await sink.read(wavPath);
+    if (!bytes) return null;
+    size = bytes.byteLength;
+    head = copyBuffer(bytes.subarray(0, HEADER_PROBE_BYTES));
+  }
   try {
-    const value: unknown = JSON.parse(new TextDecoder().decode(bytes));
-    return value && typeof value === "object" ? (value as PendingMeta) : null;
+    return { size, header: parseWavHeader(head) };
   } catch {
-    return null;
+    return { size, header: null };
   }
 }
 
-function validPlacement(meta: PendingMeta, wavPath: string): boolean {
-  const parts = wavPath.split("/");
-  const [root, sessionId, takeIndex, participantId, filename] = parts;
-  const segmentIndex = filename?.replace(/\.wav$/i, "");
+/** Legacy metadata (no `complete`) was only written after a successful close. */
+function legacyFinalized(
+  probe: HeaderProbe | null,
+  meta: StoredKeeperMeta,
+): boolean {
+  const header = probe?.header;
   return (
-    root === "Sharecut Recordings" &&
-    typeof sessionId === "string" &&
-    typeof participantId === "string" &&
-    typeof segmentIndex === "string" &&
-    meta.sessionId === sessionId &&
-    meta.participantId === participantId &&
-    meta.takeIndex === Number(takeIndex) &&
-    meta.segmentIndex === Number(segmentIndex) &&
-    Number.isInteger(meta.takeIndex) &&
-    Number.isInteger(meta.segmentIndex) &&
-    Number.isInteger(meta.samplesWritten) &&
-    Number(meta.samplesWritten) >= 0 &&
-    Number.isFinite(meta.joinOffsetMs) &&
-    Number(meta.joinOffsetMs) >= 0 &&
-    meta.sampleRate === 48_000
+    !!probe &&
+    !!header &&
+    isKeeperPcmFormat(header) &&
+    header.dataSize === probe.size - header.dataOffset &&
+    header.dataSize === meta.samplesWritten * KEEPER_FRAME_BYTES
   );
 }
 
-function wavBuffer(wav: Uint8Array): ArrayBuffer {
-  return wav.buffer.slice(
-    wav.byteOffset,
-    wav.byteOffset + wav.byteLength,
-  ) as ArrayBuffer;
-}
+const NO_PCM_REASON =
+  "The interrupted keeper contains no committed PCM; download the retained local copy.";
 
+/**
+ * Classify one keeper segment. Complete segments are recognized from metadata
+ * alone; pending ones are only probed (header bytes, never the PCM) when
+ * `inspectPending` is true, i.e. once capture can no longer be writing them.
+ */
 export async function inspectKeeperRecovery(
   sink: ByteSink,
   wavPath: string,
-  metadataBytes?: Uint8Array | null,
+  options: { inspectPending?: boolean } = {},
 ): Promise<KeeperRecoveryStatus> {
-  const meta = parseMeta(
-    metadataBytes === undefined
-      ? await sink.read(wavPath.replace(/\.wav$/i, ".json"))
-      : metadataBytes,
-  );
+  const meta = parseKeeperMeta(await sink.read(keeperMetaPath(wavPath)));
   if (!meta) {
     return {
       kind: "unrecoverable",
       reason: "The local keeper has no readable recovery metadata.",
     };
   }
-  if (!validPlacement(meta, wavPath)) {
+  if (!keeperMetaMatchesPath(meta, wavPath)) {
     return {
       kind: "unrecoverable",
       reason:
@@ -82,112 +112,136 @@ export async function inspectKeeperRecovery(
     };
   }
   if (meta.complete === true) {
-    return { kind: "complete", joinOffsetMs: Number(meta.joinOffsetMs) };
+    return { kind: "complete", joinOffsetMs: meta.joinOffsetMs };
   }
-  const wav = await sink.read(wavPath);
-  if (!wav || wav.byteLength <= 44) {
-    return {
-      kind: "unrecoverable",
-      reason:
-        "The interrupted keeper contains no committed PCM; download the retained local copy.",
-    };
-  }
-  try {
-    const header = parseWavHeader(wavBuffer(wav));
-    const available = wav.byteLength - header.dataOffset;
-    if (
-      header.audioFormat !== 1 ||
-      header.channels !== 1 ||
-      header.sampleRate !== 48_000 ||
-      header.bitsPerSample !== 16 ||
-      header.blockAlign !== 2 ||
-      available < 2 ||
-      available % header.blockAlign !== 0
-    ) {
-      throw new Error("unsupported audio");
+  let probe: HeaderProbe | null | undefined;
+  if (meta.complete === undefined) {
+    probe = await probeKeeperWav(sink, wavPath);
+    if (legacyFinalized(probe, meta)) {
+      return { kind: "complete", joinOffsetMs: meta.joinOffsetMs };
     }
-    return { kind: "recoverable" };
-  } catch {
+  }
+  if (options.inspectPending === false) {
+    return { kind: "pending" };
+  }
+  probe ??= await probeKeeperWav(sink, wavPath);
+  if (!probe || probe.size <= PCM_WAV_HEADER_BYTES) {
+    return { kind: "unrecoverable", reason: NO_PCM_REASON };
+  }
+  const header = probe.header;
+  if (
+    !header ||
+    !isKeeperPcmFormat(header) ||
+    header.dataOffset !== PCM_WAV_HEADER_BYTES
+  ) {
     return {
       kind: "unrecoverable",
       reason:
         "The interrupted keeper is not a readable PCM WAV; download the retained local copy.",
     };
   }
+  const available = probe.size - header.dataOffset;
+  const pcmBytes = available - (available % KEEPER_FRAME_BYTES);
+  if (pcmBytes === 0) {
+    return { kind: "unrecoverable", reason: NO_PCM_REASON };
+  }
+  return {
+    kind: "recoverable",
+    plan: { meta, pcmBytes, trimmedBytes: available - pcmBytes },
+  };
 }
 
+/**
+ * Finalize one inspected segment in place: patch its header (dropping any
+ * incomplete trailing frame), then mark its metadata complete. Both writes are
+ * atomic, and repeating them after a partial failure is idempotent.
+ */
 export async function recoverKeeperSegment(
   sink: ByteSink,
   wavPath: string,
+  plan: KeeperRecoveryPlan,
 ): Promise<void> {
-  const status = await inspectKeeperRecovery(sink, wavPath);
-  if (status.kind === "complete") return;
-  if (status.kind !== "recoverable") throw new Error(status.reason);
-  const wav = await sink.read(wavPath);
-  if (!wav)
-    throw new Error("The retained local keeper disappeared before recovery.");
-  const metaPath = wavPath.replace(/\.wav$/i, ".json");
-  const meta = parseMeta(await sink.read(metaPath));
-  if (!meta || !validPlacement(meta, wavPath)) {
-    throw new Error("The local keeper metadata changed during recovery.");
-  }
-  const header = parseWavHeader(wavBuffer(wav));
-  const available = wav.byteLength - header.dataOffset;
-  const pcmBytes = available;
-  if (pcmBytes < 2 || pcmBytes % header.blockAlign !== 0) {
-    throw new Error(
-      "The interrupted keeper has an incomplete PCM frame; download the retained local copy.",
-    );
-  }
-  const recovered = new Uint8Array(44 + pcmBytes);
-  recovered.set(pcmWavHeader(pcmBytes, 48_000, 1));
-  recovered.set(
-    wav.subarray(header.dataOffset, header.dataOffset + pcmBytes),
-    44,
+  const byteLength = PCM_WAV_HEADER_BYTES + plan.pcmBytes;
+  const header = pcmWavHeader(
+    plan.pcmBytes,
+    KEEPER_SAMPLE_RATE,
+    KEEPER_CHANNELS,
   );
-  // ByteSink.write uses OPFS's atomic close semantics, so a failed rewrite
-  // leaves the original retained bytes available for export.
-  await sink.write(wavPath, recovered);
-  await sink.write(
-    metaPath,
-    new TextEncoder().encode(
-      `${JSON.stringify({ ...meta, samplesWritten: pcmBytes / 2, complete: true }, null, 2)}\n`,
-    ),
-  );
+  if (sink.rewriteHeader) {
+    await sink.rewriteHeader(wavPath, header, byteLength);
+  } else {
+    const wav = await sink.read(wavPath);
+    if (!wav || wav.byteLength < byteLength) {
+      throw new Error("The retained local keeper changed during recovery.");
+    }
+    const recovered = wav.slice(0, byteLength);
+    recovered.set(header, 0);
+    await sink.write(wavPath, recovered);
+  }
+  await writeKeeperMeta(sink, wavPath, {
+    ...plan.meta,
+    samplesWritten: plan.pcmBytes / KEEPER_FRAME_BYTES,
+    complete: true,
+  });
 }
 
+export type KeeperRecoveryResult = {
+  recovered: number;
+  /** Segments whose incomplete trailing sample was dropped. */
+  trimmed: number;
+};
+
+/**
+ * Recover every readable pending segment. `canRecover` is re-checked before
+ * each segment so a take that resumed mid-run is never touched. One failing
+ * segment does not stop the others; all failures are reported together.
+ */
 export async function recoverLocalKeepers(
   sink: ByteSink,
   sessionId: string,
   participantId: string,
   lastTakeIndex: number,
-): Promise<number> {
-  let recovered = 0;
-  for (let take = 0; take <= lastTakeIndex; take += 1) {
-    const count = await sink.nextSegmentIndex(sessionId, take, participantId);
-    for (let segment = 0; segment < count; segment += 1) {
-      const path = keeperWavPath({
-        sessionId,
-        takeIndex: take,
-        participantId,
-        segmentIndex: segment,
-      });
-      if ((await inspectKeeperRecovery(sink, path)).kind === "recoverable") {
-        await recoverKeeperSegment(sink, path);
-        recovered += 1;
-      }
+  canRecover: () => boolean = () => true,
+): Promise<KeeperRecoveryResult> {
+  const result: KeeperRecoveryResult = { recovered: 0, trimmed: 0 };
+  const failures: string[] = [];
+  for await (const { takeIndex, segmentIndex, wavPath } of keeperSegmentPaths(
+    sink,
+    sessionId,
+    participantId,
+    lastTakeIndex,
+  )) {
+    if (!canRecover()) {
+      failures.push(
+        "Recording resumed before recovery finished; recover again after the take stops.",
+      );
+      break;
+    }
+    try {
+      const status = await inspectKeeperRecovery(sink, wavPath);
+      if (status.kind !== "recoverable") continue;
+      await recoverKeeperSegment(sink, wavPath, status.plan);
+      result.recovered += 1;
+      if (status.plan.trimmedBytes > 0) result.trimmed += 1;
+    } catch (error) {
+      failures.push(
+        `Take ${takeIndex + 1}, segment ${segmentIndex + 1}: ${errorMessage(error)}`,
+      );
     }
   }
-  return recovered;
+  if (failures.length > 0) {
+    throw new Error(
+      `Recovered ${result.recovered} partial ${result.recovered === 1 ? "segment" : "segments"}. ${failures.join(" ")}`,
+    );
+  }
+  return result;
 }
 
 async function keeperBlob(sink: ByteSink, path: string): Promise<Blob | null> {
   if (sink.readBlob) return sink.readBlob(path);
   const bytes = await sink.read(path);
   if (!bytes) return null;
-  const copy = new Uint8Array(new ArrayBuffer(bytes.byteLength));
-  copy.set(bytes);
-  return new Blob([copy.buffer], { type: "audio/wav" });
+  return new Blob([copyBuffer(bytes)], { type: "audio/wav" });
 }
 
 function downloadBlob(blob: Blob, filename: string): void {
@@ -219,22 +273,21 @@ export async function downloadLocalKeepers(
   let downloaded = 0;
   let missing = 0;
   const entries: Array<{ filename: string; data: Blob }> = [];
-  for (let take = 0; take <= lastTakeIndex; take += 1) {
-    const count = await sink.nextSegmentIndex(sessionId, take, participantId);
-    for (let segment = 0; segment < count; segment += 1) {
-      const path = keeperWavPath({
-        sessionId,
-        takeIndex: take,
-        participantId,
-        segmentIndex: segment,
+  for await (const { takeIndex, segmentIndex, wavPath } of keeperSegmentPaths(
+    sink,
+    sessionId,
+    participantId,
+    lastTakeIndex,
+  )) {
+    const blob = await keeperBlob(sink, wavPath);
+    if (blob) {
+      entries.push({
+        filename: `keeper-${takeIndex}-${segmentIndex}.wav`,
+        data: blob,
       });
-      const blob = await keeperBlob(sink, path);
-      if (blob) {
-        entries.push({ filename: `keeper-${take}-${segment}.wav`, data: blob });
-        downloaded += 1;
-      } else {
-        missing += 1;
-      }
+      downloaded += 1;
+    } else {
+      missing += 1;
     }
   }
   if (downloaded === 0) {

@@ -1,6 +1,7 @@
 import { type RefObject, useEffect } from "react";
 import { execute } from "../commands/execute";
 import { useDawStore } from "../state/dawStore";
+import { errorMessage } from "../utils/apiError";
 
 const MAX_TAP_DURATION_MS = 300;
 const MAX_SECOND_FINGER_DELAY_MS = 150;
@@ -59,10 +60,6 @@ function angularDifference(first: number, second: number): number {
   return Math.abs(
     Math.atan2(Math.sin(first - second), Math.cos(first - second)),
   );
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 /**

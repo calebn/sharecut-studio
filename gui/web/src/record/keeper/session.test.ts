@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import { parseWavHeader, wavPcmToFloat32 } from "../../audio/wavHeader";
 import { KEEPER_SAMPLE_RATE } from "./pcm";
 import { KeeperSession } from "./session";
-import { type ByteStream, keeperWavPath, MemorySink } from "./store";
+import {
+  type ByteStream,
+  keeperMetaPath,
+  keeperWavPath,
+  MemorySink,
+  parseKeeperMeta,
+} from "./store";
 
 const ids = { sessionId: "cool-room", participantId: "p_g" };
 
@@ -307,6 +313,69 @@ describe("KeeperSession", () => {
     expect(sink.files.size).toBe(0);
   });
 
+  it("keeps capturing while the pending metadata write is slow", async () => {
+    const sink = new MemorySink();
+    const write = sink.write.bind(sink);
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    sink.write = async (path, bytes) => {
+      const meta = parseKeeperMeta(bytes);
+      if (meta?.complete === false) await gate;
+      await write(path, bytes);
+    };
+    const session = new KeeperSession(sink);
+    await session.apply({
+      ...ids,
+      role: "guest",
+      consented: true,
+      roomState: "recording",
+      takeIndex: 0,
+      recordingMs: 0,
+      streamAvailable: true,
+      muted: false,
+    });
+    expect(session.isWriting).toBe(true);
+    session.push(new Float32Array(480), KEEPER_SAMPLE_RATE);
+    await session.flush();
+    const wavPath = keeperWavPath({ ...ids, takeIndex: 0, segmentIndex: 0 });
+    const disposed = session.dispose();
+    release();
+    await disposed;
+    // The late pending write cannot overwrite the complete record.
+    const meta = parseKeeperMeta(sink.files.get(keeperMetaPath(wavPath))!);
+    expect(meta).toMatchObject({ complete: true, samplesWritten: 480 });
+  });
+
+  it("latches a failed pending metadata write without finalizing", async () => {
+    const sink = new MemorySink();
+    const write = sink.write.bind(sink);
+    sink.write = async (path, bytes) => {
+      if (parseKeeperMeta(bytes)?.complete === false) {
+        throw new Error("meta quota");
+      }
+      await write(path, bytes);
+    };
+    const failures: string[] = [];
+    const session = new KeeperSession(sink, (e) => failures.push(e.message));
+    await session.apply({
+      ...ids,
+      role: "guest",
+      consented: true,
+      roomState: "recording",
+      takeIndex: 0,
+      recordingMs: 0,
+      streamAvailable: true,
+      muted: false,
+    });
+    await session.dispose();
+    expect(failures).toEqual(["meta quota"]);
+    expect(session.files).toEqual([]);
+    const wavPath = keeperWavPath({ ...ids, takeIndex: 0, segmentIndex: 0 });
+    expect(sink.files.get(keeperMetaPath(wavPath))).toBeUndefined();
+  });
+
   it("encodes a 48 kHz 16-bit mono WAV for a recording segment", async () => {
     const sink = new MemorySink();
     const session = new KeeperSession(sink);
@@ -331,9 +400,7 @@ describe("KeeperSession", () => {
     const growing = sink.files.get(wavPath);
     expect(growing?.byteLength).toBeGreaterThan(44);
     const pendingMeta = JSON.parse(
-      new TextDecoder().decode(
-        sink.files.get(wavPath.replace(/\.wav$/, ".json"))!,
-      ),
+      new TextDecoder().decode(sink.files.get(keeperMetaPath(wavPath))!),
     ) as { complete: boolean; joinOffsetMs: number };
     expect(pendingMeta).toMatchObject({ complete: false, joinOffsetMs: 0 });
     await session.dispose();
@@ -345,9 +412,7 @@ describe("KeeperSession", () => {
     expect(header.bitsPerSample).toBe(16);
     expect(session.files[0]?.samplesWritten).toBeGreaterThan(4000);
     const completeMeta = JSON.parse(
-      new TextDecoder().decode(
-        sink.files.get(wavPath.replace(/\.wav$/, ".json"))!,
-      ),
+      new TextDecoder().decode(sink.files.get(keeperMetaPath(wavPath))!),
     ) as { complete: boolean };
     expect(completeMeta.complete).toBe(true);
   });

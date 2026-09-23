@@ -1,6 +1,25 @@
 export const KEEPER_SAMPLE_RATE = 48_000;
 export const KEEPER_CHANNELS = 1;
 export const KEEPER_BITS = 16;
+/** Bytes per mono 16-bit keeper frame. */
+export const KEEPER_FRAME_BYTES = (KEEPER_CHANNELS * KEEPER_BITS) / 8;
+
+/** True when a parsed WAV header matches the fixed keeper PCM format. */
+export function isKeeperPcmFormat(header: {
+  audioFormat: number;
+  channels: number;
+  sampleRate: number;
+  bitsPerSample: number;
+  blockAlign: number;
+}): boolean {
+  return (
+    header.audioFormat === 1 &&
+    header.channels === KEEPER_CHANNELS &&
+    header.sampleRate === KEEPER_SAMPLE_RATE &&
+    header.bitsPerSample === KEEPER_BITS &&
+    header.blockAlign === KEEPER_FRAME_BYTES
+  );
+}
 
 export function floatToInt16(input: Float32Array, muted = false): Int16Array {
   const out = new Int16Array(input.length);

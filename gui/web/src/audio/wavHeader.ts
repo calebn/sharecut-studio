@@ -189,6 +189,9 @@ export function pcmWavHeader(
   return new Uint8Array(buf);
 }
 
+/** Byte length of the canonical header written by `pcmWavHeader`. */
+export const PCM_WAV_HEADER_BYTES = 44;
+
 /** 16-bit PCM WAV (RIFF). Used for local keeper files. */
 export function encodePcmWav(
   pcm: Int16Array,
@@ -196,8 +199,11 @@ export function encodePcmWav(
   channels = 1,
 ): Uint8Array {
   const header = pcmWavHeader(pcm.byteLength, sampleRate, channels);
-  const bytes = new Uint8Array(44 + pcm.byteLength);
+  const bytes = new Uint8Array(PCM_WAV_HEADER_BYTES + pcm.byteLength);
   bytes.set(header, 0);
-  bytes.set(new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength), 44);
+  bytes.set(
+    new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength),
+    PCM_WAV_HEADER_BYTES,
+  );
   return bytes;
 }

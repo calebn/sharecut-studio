@@ -10,8 +10,8 @@ import {
   type ByteSink,
   type ByteStream,
   type KeeperMeta,
-  keeperMetaPath,
   keeperWavPath,
+  writeKeeperMeta,
 } from "./store";
 
 export class KeeperSession {
@@ -27,6 +27,8 @@ export class KeeperSession {
   private writeChain: Promise<void> = Promise.resolve();
   private queuedSamples = 0;
   private failure: Error | null = null;
+  /** In-flight `complete:false` metadata write for the open segment. */
+  private pendingMeta: Promise<void> | null = null;
   private lastGate:
     | (KeeperGate & {
         sessionId: string;
@@ -181,7 +183,6 @@ export class KeeperSession {
       try {
         this.stream = await this.sink.open(wavPath);
         await this.stream.write(pcmWavHeader(0, KEEPER_SAMPLE_RATE, 1), 0);
-        await this.writeMeta(wavPath, plan.open, 0, false);
       } catch (error) {
         this.fail(error);
         try {
@@ -192,6 +193,13 @@ export class KeeperSession {
         this.clearOpenSegment();
         throw error;
       }
+      // Record the pending segment without holding capture closed: samples
+      // pushed while this OPFS round trip runs are kept. finalizeOpen awaits
+      // it so it can never land after (and overwrite) the complete record.
+      const open = plan.open;
+      this.pendingMeta = this.writeMeta(wavPath, open, 0, false).catch(
+        (error: unknown) => this.fail(error),
+      );
     }
     this.writing = plan.write;
   }
@@ -204,6 +212,8 @@ export class KeeperSession {
       this.clearOpenSegment();
       return;
     }
+    await this.pendingMeta;
+    this.pendingMeta = null;
     await this.flush();
     const samplesWritten = this.samples;
     if (this.failure) {
@@ -258,8 +268,7 @@ export class KeeperSession {
       samplesWritten,
       complete,
     };
-    const json = new TextEncoder().encode(`${JSON.stringify(meta, null, 2)}\n`);
-    await this.sink.write(keeperMetaPath(wavPath), json);
+    await writeKeeperMeta(this.sink, wavPath, meta);
     if (complete) {
       this.files.push(meta);
     }

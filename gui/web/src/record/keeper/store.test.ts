@@ -1,11 +1,57 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   createOpfsSink,
+  type KeeperMeta,
+  keeperMetaMatchesPath,
+  keeperMetaPath,
+  keeperSegmentPaths,
   keeperWavPath,
+  MAX_KEEPER_SEGMENTS,
+  MAX_KEEPER_TAKES,
   MemorySink,
   OpfsUnavailableError,
+  parseKeeperMeta,
   roomToneWavPath,
+  writeKeeperMeta,
 } from "./store";
+
+type FakeWritable = {
+  write: ReturnType<typeof vi.fn>;
+  seek: ReturnType<typeof vi.fn>;
+  truncate: ReturnType<typeof vi.fn>;
+  abort: ReturnType<typeof vi.fn>;
+  close: ReturnType<typeof vi.fn>;
+};
+
+function fakeWritable(failWrite = false): FakeWritable {
+  let writes = 0;
+  return {
+    // The first write is the readiness probe inside createOpfsSink.
+    write: vi.fn(async () => {
+      writes += 1;
+      if (failWrite && writes > 1) throw new Error("quota exceeded");
+    }),
+    seek: vi.fn(async () => undefined),
+    truncate: vi.fn(async () => undefined),
+    abort: vi.fn(async () => undefined),
+    close: vi.fn(async () => undefined),
+  };
+}
+
+async function opfsSinkWith(writable: FakeWritable) {
+  const createWritable = vi.fn(async () => writable);
+  const root = {
+    getDirectoryHandle: vi.fn(async () => root),
+    getFileHandle: vi.fn(async () => ({ createWritable })),
+    removeEntry: vi.fn(async () => undefined),
+  };
+  vi.stubGlobal("navigator", {
+    storage: { getDirectory: async () => root },
+  });
+  const sink = await createOpfsSink();
+  writable.close.mockClear();
+  return { sink, createWritable };
+}
 
 describe("createOpfsSink", () => {
   it("identifies an environment without OPFS before recording", async () => {
@@ -82,6 +128,160 @@ describe("createOpfsSink", () => {
   });
 });
 
+describe("createOpfsSink writes", () => {
+  it("aborts instead of committing a failed whole-file write", async () => {
+    const writable = fakeWritable(true);
+    try {
+      const { sink } = await opfsSinkWith(writable);
+      await expect(
+        sink.write("Sharecut Recordings/a/0/p/0.json", new Uint8Array([1])),
+      ).rejects.toThrow("quota exceeded");
+      expect(writable.abort).toHaveBeenCalledOnce();
+      expect(writable.close).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("patches a header in place, keeping the existing PCM", async () => {
+    const writable = fakeWritable();
+    try {
+      const { sink, createWritable } = await opfsSinkWith(writable);
+      await sink.rewriteHeader?.(
+        "Sharecut Recordings/a/0/p/0.wav",
+        new Uint8Array(44),
+        48,
+      );
+      expect(createWritable).toHaveBeenLastCalledWith({
+        keepExistingData: true,
+      });
+      expect(writable.truncate).toHaveBeenCalledWith(48);
+      expect(writable.seek).toHaveBeenCalledWith(0);
+      expect(writable.close).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("aborts a failed header patch", async () => {
+    const writable = fakeWritable();
+    writable.truncate.mockRejectedValueOnce(new Error("locked"));
+    try {
+      const { sink } = await opfsSinkWith(writable);
+      await expect(
+        sink.rewriteHeader?.(
+          "Sharecut Recordings/a/0/p/0.wav",
+          new Uint8Array(44),
+          48,
+        ),
+      ).rejects.toThrow("locked");
+      expect(writable.abort).toHaveBeenCalledOnce();
+      expect(writable.close).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe("keeper metadata", () => {
+  const meta: KeeperMeta = {
+    sessionId: "cool-room",
+    takeIndex: 1,
+    participantId: "p_g",
+    segmentIndex: 2,
+    sampleRate: 48_000,
+    joinOffsetMs: 1500,
+    samplesWritten: 10,
+    complete: true,
+  };
+  const wavPath = keeperWavPath(meta);
+
+  it("round-trips through the single writer", async () => {
+    const sink = new MemorySink();
+    await writeKeeperMeta(sink, wavPath, meta);
+    expect(parseKeeperMeta(await sink.read(keeperMetaPath(wavPath)))).toEqual(
+      meta,
+    );
+  });
+
+  it("keeps legacy metadata without a complete flag distinguishable", () => {
+    const { complete: _omit, ...legacy } = meta;
+    const bytes = new TextEncoder().encode(JSON.stringify(legacy));
+    expect(parseKeeperMeta(bytes)).toEqual(legacy);
+    expect(parseKeeperMeta(bytes)?.complete).toBeUndefined();
+  });
+
+  it.each([
+    ["missing bytes", null],
+    ["invalid JSON", "{"],
+    ["non-object", "3"],
+    ["string index", JSON.stringify({ ...meta, takeIndex: "1" })],
+    ["negative samples", JSON.stringify({ ...meta, samplesWritten: -1 })],
+    ["other rate", JSON.stringify({ ...meta, sampleRate: 44_100 })],
+    ["negative offset", JSON.stringify({ ...meta, joinOffsetMs: -1 })],
+    ["non-boolean complete", JSON.stringify({ ...meta, complete: "yes" })],
+  ])("rejects %s", (_label, text) => {
+    expect(
+      parseKeeperMeta(text === null ? null : new TextEncoder().encode(text)),
+    ).toBeNull();
+  });
+
+  it("matches metadata to its path through keeperWavPath", () => {
+    expect(keeperMetaMatchesPath(meta, wavPath)).toBe(true);
+    expect(keeperMetaMatchesPath({ ...meta, segmentIndex: 3 }, wavPath)).toBe(
+      false,
+    );
+    expect(keeperMetaMatchesPath({ ...meta, sessionId: "../x" }, wavPath)).toBe(
+      false,
+    );
+  });
+});
+
+describe("keeperSegmentPaths", () => {
+  async function collect(sink: MemorySink, lastTake: number) {
+    const out: string[] = [];
+    for await (const ref of keeperSegmentPaths(sink, "s", "p", lastTake)) {
+      out.push(`${ref.takeIndex}/${ref.segmentIndex}`);
+    }
+    return out;
+  }
+
+  it("walks every take and segment in order", async () => {
+    const sink = new MemorySink();
+    await sink.write(
+      keeperWavPath({
+        sessionId: "s",
+        takeIndex: 0,
+        participantId: "p",
+        segmentIndex: 1,
+      }),
+      new Uint8Array(),
+    );
+    await sink.write(
+      keeperWavPath({
+        sessionId: "s",
+        takeIndex: 1,
+        participantId: "p",
+        segmentIndex: 0,
+      }),
+      new Uint8Array(),
+    );
+    expect(await collect(sink, 1)).toEqual(["0/0", "0/1", "1/0"]);
+  });
+
+  it("caps enumeration against stray names and huge take indexes", async () => {
+    const sink = new MemorySink();
+    await sink.write(
+      "Sharecut Recordings/s/0/p/999999999.json",
+      new Uint8Array(),
+    );
+    const nextSegmentIndex = vi.spyOn(sink, "nextSegmentIndex");
+    const refs = await collect(sink, 1e9);
+    expect(refs).toHaveLength(MAX_KEEPER_SEGMENTS);
+    expect(nextSegmentIndex).toHaveBeenCalledTimes(MAX_KEEPER_TAKES);
+  });
+});
+
 describe("keeperWavPath", () => {
   it("keys files by session/take/participant/segment", () => {
     expect(
@@ -153,6 +353,20 @@ describe("MemorySink", () => {
     );
     expect(await sink.nextSegmentIndex("cool-room", 0, "p_g")).toBe(3);
     expect(await sink.nextSegmentIndex("cool-room", 1, "p_g")).toBe(0);
+  });
+
+  it("patches a header in place and truncates to the kept length", async () => {
+    const sink = new MemorySink();
+    await sink.write("a.wav", new Uint8Array([9, 9, 1, 2, 3]));
+    await sink.rewriteHeader("a.wav", new Uint8Array([7, 7]), 4);
+    expect(await sink.read("a.wav")).toEqual(new Uint8Array([7, 7, 1, 2]));
+    await expect(
+      sink.rewriteHeader("missing.wav", new Uint8Array([1]), 1),
+    ).rejects.toThrow("not found");
+    expect(await (await sink.readBlob("a.wav"))?.arrayBuffer()).toEqual(
+      new Uint8Array([7, 7, 1, 2]).buffer,
+    );
+    expect(await sink.readBlob("missing.wav")).toBeNull();
   });
 
   it("does not reuse a segment reserved by pending metadata alone", async () => {

@@ -1,3 +1,5 @@
+import { KEEPER_SAMPLE_RATE } from "./pcm";
+
 export type KeeperMeta = {
   sessionId: string;
   takeIndex: number;
@@ -10,6 +12,18 @@ export type KeeperMeta = {
   complete: boolean;
 };
 
+/**
+ * Metadata as read back from OPFS. `complete` is absent on files finalized by
+ * clients that predate explicit completion (they only wrote metadata on close).
+ */
+export type StoredKeeperMeta = Omit<KeeperMeta, "complete"> & {
+  complete?: boolean;
+};
+
+/** Upper bounds for OPFS keeper enumeration; guards stray or hostile names. */
+export const MAX_KEEPER_TAKES = 1000;
+export const MAX_KEEPER_SEGMENTS = 1000;
+
 export type ByteStream = {
   write(bytes: Uint8Array, offset?: number): Promise<void>;
   close(): Promise<void>;
@@ -20,6 +34,15 @@ export type ByteSink = {
   read(path: string): Promise<Uint8Array | null>;
   /** Return the native file when available so recovery need not copy large WAVs. */
   readBlob?(path: string): Promise<Blob | null>;
+  /**
+   * Atomically replace the leading bytes of an existing file and truncate it
+   * to `byteLength`, keeping the remaining bytes without copying them.
+   */
+  rewriteHeader?(
+    path: string,
+    header: Uint8Array,
+    byteLength: number,
+  ): Promise<void>;
   remove(path: string): Promise<void>;
   open(path: string): Promise<ByteStream>;
   nextSegmentIndex(
@@ -58,7 +81,7 @@ function assertIndex(n: number): string {
   return assertSafePart(String(n));
 }
 
-function copyBuffer(bytes: Uint8Array): ArrayBuffer {
+export function copyBuffer(bytes: Uint8Array): ArrayBuffer {
   const copy = new ArrayBuffer(bytes.byteLength);
   new Uint8Array(copy).set(bytes);
   return copy;
@@ -82,6 +105,110 @@ export function keeperWavPath(
 
 export function keeperMetaPath(wavPath: string): string {
   return wavPath.replace(/\.wav$/i, ".json");
+}
+
+/** True when `meta` names exactly the keeper file at `wavPath`. */
+export function keeperMetaMatchesPath(
+  meta: Pick<
+    KeeperMeta,
+    "sessionId" | "takeIndex" | "participantId" | "segmentIndex"
+  >,
+  wavPath: string,
+): boolean {
+  try {
+    return keeperWavPath(meta) === wavPath;
+  } catch {
+    return false;
+  }
+}
+
+function isIndex(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+/** Parse and type-check keeper metadata; returns null for anything malformed. */
+export function parseKeeperMeta(
+  bytes: Uint8Array | null,
+): StoredKeeperMeta | null {
+  if (!bytes) return null;
+  let value: unknown;
+  try {
+    value = JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    return null;
+  }
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Record<string, unknown>;
+  if (
+    typeof raw.sessionId !== "string" ||
+    typeof raw.participantId !== "string" ||
+    !isIndex(raw.takeIndex) ||
+    !isIndex(raw.segmentIndex) ||
+    !isIndex(raw.samplesWritten) ||
+    raw.sampleRate !== KEEPER_SAMPLE_RATE ||
+    typeof raw.joinOffsetMs !== "number" ||
+    !Number.isFinite(raw.joinOffsetMs) ||
+    raw.joinOffsetMs < 0 ||
+    (raw.complete !== undefined && typeof raw.complete !== "boolean")
+  ) {
+    return null;
+  }
+  return {
+    sessionId: raw.sessionId,
+    takeIndex: raw.takeIndex,
+    participantId: raw.participantId,
+    segmentIndex: raw.segmentIndex,
+    sampleRate: raw.sampleRate,
+    joinOffsetMs: raw.joinOffsetMs,
+    samplesWritten: raw.samplesWritten,
+    ...(raw.complete === undefined ? {} : { complete: raw.complete }),
+  };
+}
+
+/** The single writer for keeper metadata JSON next to `wavPath`. */
+export async function writeKeeperMeta(
+  sink: ByteSink,
+  wavPath: string,
+  meta: KeeperMeta,
+): Promise<void> {
+  await sink.write(
+    keeperMetaPath(wavPath),
+    new TextEncoder().encode(`${JSON.stringify(meta, null, 2)}\n`),
+  );
+}
+
+export type KeeperSegmentRef = {
+  takeIndex: number;
+  segmentIndex: number;
+  wavPath: string;
+};
+
+/** Every keeper segment path for one participant, bounded by the MAX_* caps. */
+export async function* keeperSegmentPaths(
+  sink: ByteSink,
+  sessionId: string,
+  participantId: string,
+  lastTakeIndex: number,
+): AsyncGenerator<KeeperSegmentRef> {
+  const lastTake = Math.min(lastTakeIndex, MAX_KEEPER_TAKES - 1);
+  for (let takeIndex = 0; takeIndex <= lastTake; takeIndex += 1) {
+    const count = Math.min(
+      await sink.nextSegmentIndex(sessionId, takeIndex, participantId),
+      MAX_KEEPER_SEGMENTS,
+    );
+    for (let segmentIndex = 0; segmentIndex < count; segmentIndex += 1) {
+      yield {
+        takeIndex,
+        segmentIndex,
+        wavPath: keeperWavPath({
+          sessionId,
+          takeIndex,
+          participantId,
+          segmentIndex,
+        }),
+      };
+    }
+  }
 }
 
 export function keeperDirPrefix(
@@ -129,6 +256,24 @@ export class MemorySink implements ByteSink {
 
   async read(path: string): Promise<Uint8Array | null> {
     return this.files.get(path) ?? null;
+  }
+
+  async readBlob(path: string): Promise<Blob | null> {
+    const bytes = this.files.get(path);
+    return bytes ? new Blob([copyBuffer(bytes)]) : null;
+  }
+
+  async rewriteHeader(
+    path: string,
+    header: Uint8Array,
+    byteLength: number,
+  ): Promise<void> {
+    const current = this.files.get(path);
+    if (!current) throw new Error("keeper file not found");
+    const next = new Uint8Array(byteLength);
+    next.set(current.subarray(0, byteLength));
+    next.set(header.subarray(0, byteLength), 0);
+    this.files.set(path, next);
   }
 
   async remove(path: string): Promise<void> {
@@ -183,9 +328,26 @@ export async function createOpfsSink(): Promise<ByteSink> {
       const writable = await file.createWritable();
       try {
         await writable.write(copyBuffer(bytes));
-      } finally {
-        await writable.close();
+      } catch (error) {
+        // Abort discards the swap file so a failed write never commits a
+        // truncated file over the previous contents.
+        await writable.abort().catch(() => undefined);
+        throw error;
       }
+      await writable.close();
+    },
+    async rewriteHeader(path: string, header: Uint8Array, byteLength: number) {
+      const file = await fileHandle(root, path, false);
+      const writable = await file.createWritable({ keepExistingData: true });
+      try {
+        await writable.truncate(byteLength);
+        await writable.seek(0);
+        await writable.write(copyBuffer(header));
+      } catch (error) {
+        await writable.abort().catch(() => undefined);
+        throw error;
+      }
+      await writable.close();
     },
     async read(path: string) {
       try {
