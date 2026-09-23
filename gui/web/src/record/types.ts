@@ -1,3 +1,4 @@
+import { plural } from "../utils/format";
 import type { LiveComment } from "./liveCommentQueue";
 
 export type { LiveComment } from "./liveCommentQueue";
@@ -17,6 +18,20 @@ export type RecordParticipant = {
   removed?: boolean;
   joined_wall_ms?: number;
   connected_wall_ms?: number | null;
+};
+
+/**
+ * One upload segment's ack state as the host roster reads it. Transport
+ * status rows (`RecordUploadStatus.segments`) extend this with take/segment
+ * indices.
+ */
+export type RecordSegmentAck = {
+  participant_id: string;
+  acked_parts: number[];
+  file_ack?: boolean;
+  expected_parts?: number | null;
+  landed?: boolean;
+  land_failed?: boolean;
 };
 
 export type PauseEntry = {
@@ -183,10 +198,10 @@ export function hostUploadLine(
     return `${name}: uploaded; waiting to land.`;
   }
   if (expectedParts != null) {
-    return `${name}: ${ackedParts}/${expectedParts} chunks acked.`;
+    return `${name}: ${ackedParts}/${expectedParts} ${plural(expectedParts, "chunk")} acked.`;
   }
   if (ackedParts <= 0) {
     return `${name}: waiting to upload.`;
   }
-  return `${name}: ${ackedParts} chunks acked.`;
+  return `${name}: ${ackedParts} ${plural(ackedParts, "chunk")} acked.`;
 }

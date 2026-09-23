@@ -3,6 +3,7 @@ import {
   hostKeeperResetKey,
   hostReconnectPauseCopy,
   hostReconnectPauseCopyFromSnapshot,
+  hostUploadLine,
   type RecordSnapshot,
   shouldApplyRecordSnapshot,
 } from "./types";
@@ -133,6 +134,30 @@ describe("hostKeeperResetKey", () => {
         ],
       }),
     ).toBe(5);
+  });
+});
+
+describe("hostUploadLine", () => {
+  it("pluralizes the undeclared-total branch by ackedParts", () => {
+    expect(hostUploadLine("Bo", false, 1)).toBe("Bo: 1 chunk acked.");
+    expect(hostUploadLine("Bo", false, 2)).toBe("Bo: 2 chunks acked.");
+    expect(hostUploadLine("Bo", false, 0)).toBe("Bo: waiting to upload.");
+  });
+
+  it("pluralizes the declared-total branch by expectedParts", () => {
+    expect(hostUploadLine("Bo", false, 1, 1)).toBe("Bo: 1/1 chunk acked.");
+    expect(hostUploadLine("Bo", false, 0, 1)).toBe("Bo: 0/1 chunk acked.");
+    expect(hostUploadLine("Bo", false, 1, 3)).toBe("Bo: 1/3 chunks acked.");
+  });
+
+  it("keeps branch precedence for landed/failed/uploaded states", () => {
+    expect(hostUploadLine("Bo", true, 1)).toBe(
+      "Bo: uploaded; waiting to land.",
+    );
+    expect(hostUploadLine("Bo", true, 1, 1, true)).toBe("Bo: landed.");
+    expect(hostUploadLine("Bo", true, 1, 1, true, true)).toBe(
+      "Bo: landing failed — host must retry.",
+    );
   });
 });
 

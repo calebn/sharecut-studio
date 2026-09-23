@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import re
 import sqlite3
-import struct
 import threading
 import time
 from pathlib import Path
@@ -16,6 +15,7 @@ from podcast_mcp.services.session_sync.service import sync_db_path
 from podcast_mcp.services.session_sync.sqlite import connect_session_db
 from podcast_mcp.util.body_limits import record_upload_max_part_bytes
 from podcast_mcp.util.progress import progress_task
+from podcast_mcp.util.wav import pcm_wav_header
 
 KEEPER_SAMPLE_RATE = 48_000
 JOIN_OFFSET_MAX_MS = 24 * 60 * 60 * 1000
@@ -99,29 +99,6 @@ class RecordUploadError(ValueError):
 
 def sha256_hex(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
-
-
-def pcm_wav_header(
-    data_size: int, sample_rate: int = KEEPER_SAMPLE_RATE, channels: int = 1
-) -> bytes:
-    byte_rate = sample_rate * channels * 2
-    block_align = channels * 2
-    return struct.pack(
-        "<4sI4s4sIHHIIHH4sI",
-        b"RIFF",
-        36 + data_size,
-        b"WAVE",
-        b"fmt ",
-        16,
-        1,
-        channels,
-        sample_rate,
-        byte_rate,
-        block_align,
-        16,
-        b"data",
-        data_size,
-    )
 
 
 def parse_upload_index(value: int | str, *, name: str) -> int:
@@ -1130,7 +1107,7 @@ class RecordUploadService:
         dest.parent.mkdir(parents=True, exist_ok=True)
         tmp_dest = dest.with_suffix(".wav.tmp")
         hasher = hashlib.sha256()
-        header = pcm_wav_header(total_pcm)
+        header = pcm_wav_header(total_pcm, KEEPER_SAMPLE_RATE)
         try:
             with (
                 tmp_dest.open("wb") as out,

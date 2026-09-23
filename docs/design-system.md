@@ -30,7 +30,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, BottomSheet |
-| **Templates** | Assembled, context-specific domain screens built from the library, shown with static / representative content and locked domain copy — no live app state | ConsentGate, Declined, LiveComments (record room) |
+| **Templates** | Assembled, context-specific domain screens built from the library, shown with static / representative content and locked domain copy — no live app state | ConsentGate, Declined, LiveComments, HostUploadRoster (record room) |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -52,7 +52,8 @@ state in the story, no app providers, no network — belongs under **Templates**
 with its story colocated in the feature folder (for example
 `src/record/Declined.stories.tsx` → `Templates/Declined`,
 `src/record/ConsentGate.stories.tsx` → `Templates/ConsentGate`,
-`src/record/LiveComments.stories.tsx` → `Templates/LiveComments`).
+`src/record/LiveComments.stories.tsx` → `Templates/LiveComments`,
+`src/record/HostUploadRoster.stories.tsx` → `Templates/HostUploadRoster`).
 
 - Render the surface in its production shell and stylesheet so the story
   renders what ships. Record-room stories use `recordStoryDecorator`
@@ -146,3 +147,6 @@ every new component in both themes before merging.
 - 2026-09-23 — Added `Atoms/LevelMeter` and the `Molecules/ParticipantMeter`
   layout sketch (story-only). Both drive the meter through `audio/usePeakMeter`,
   the same loop `record/useInputPeakDb` uses, so they preview production code.
+- 2026-09-23 — Added `Templates/HostUploadRoster` (`record/HostUploadRoster`):
+  post-Stop upload states per participant, with a 360px long-name stress
+  fixture.

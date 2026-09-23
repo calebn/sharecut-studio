@@ -34,8 +34,9 @@ from podcast_mcp.services.record.state import (
     TAKE_OPEN_REMINT_MSG,
     empty_record_snapshot,
 )
-from podcast_mcp.services.record.upload import RecordUploadService, pcm_wav_header, sha256_hex
+from podcast_mcp.services.record.upload import RecordUploadService, sha256_hex
 from podcast_mcp.services.share import ShareService
+from podcast_mcp.util.wav import pcm_wav_header
 
 
 def _isolate() -> None:

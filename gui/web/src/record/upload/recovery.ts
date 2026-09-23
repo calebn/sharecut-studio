@@ -5,6 +5,7 @@ import {
   type WavHeader,
 } from "../../audio/wavHeader";
 import { errorMessage } from "../../utils/apiError";
+import { plural } from "../../utils/format";
 import {
   isKeeperPcmFormat,
   KEEPER_CHANNELS,
@@ -339,7 +340,7 @@ export async function downloadLocalKeepers(
     downloadBlob(archive, `keepers-${participantId}.zip`);
     if (missing > 0) {
       throw new Error(
-        `Downloaded ${downloaded} local keeper ${downloaded === 1 ? "copy" : "copies"}; ${missing} missing ${missing === 1 ? "segment" : "segments"} could not be exported.`,
+        `Downloaded ${downloaded} local keeper ${plural(downloaded, "copy", "copies")}; ${missing} missing ${plural(missing, "segment")} could not be exported.`,
       );
     }
   });

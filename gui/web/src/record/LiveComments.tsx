@@ -1,5 +1,6 @@
 import { useId } from "react";
 import { Button, Field } from "../ui";
+import { plural } from "../utils/format";
 import { type LiveComment, liveTakeOpen } from "./liveCommentQueue";
 import type { RecordParticipant, RecordSnapshot } from "./types";
 
@@ -44,7 +45,7 @@ export function LiveComments({
       <h2 id={headingId}>Live comments</h2>
       <div aria-live="polite" className="sr-only" id={listId}>
         {comments.length > 0
-          ? `${comments.length} live comment${comments.length === 1 ? "" : "s"}`
+          ? `${comments.length} live ${plural(comments.length, "comment")}`
           : "No live comments yet."}
       </div>
       {comments.length > 0 ? (

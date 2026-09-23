@@ -18,10 +18,10 @@ from podcast_mcp.services.record.upload import (
     RecordUploadError,
     RecordUploadService,
     parse_upload_kind,
-    pcm_wav_header,
     sha256_hex,
 )
 from podcast_mcp.services.share import ShareService
+from podcast_mcp.util.wav import pcm_wav_header
 
 
 def _isolate() -> None:

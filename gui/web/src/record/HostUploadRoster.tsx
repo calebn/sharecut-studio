@@ -1,4 +1,8 @@
-import { hostUploadLine, type RecordParticipant } from "./types";
+import {
+  hostUploadLine,
+  type RecordParticipant,
+  type RecordSegmentAck,
+} from "./types";
 
 export function HostUploadRoster({
   participants,
@@ -6,14 +10,7 @@ export function HostUploadRoster({
   stopped,
 }: {
   participants: RecordParticipant[];
-  segments: Array<{
-    participant_id: string;
-    acked_parts: number[];
-    file_ack?: boolean;
-    expected_parts?: number | null;
-    landed?: boolean;
-    land_failed?: boolean;
-  }>;
+  segments: RecordSegmentAck[];
   stopped: boolean;
 }) {
   const recorded = participants.filter((person) => person.role !== "producer");
@@ -22,6 +19,10 @@ export function HostUploadRoster({
     ...segments.map((row) => row.participant_id),
   ]);
   if (ids.size === 0) {
+    return null;
+  }
+  // Before Stop with no uploaded segments, every row would be "waiting to upload" — hide the roster.
+  if (!stopped && segments.length === 0) {
     return null;
   }
   const names = new Map(
@@ -88,13 +89,6 @@ export function HostUploadRoster({
       slot.landFailed,
     ),
   }));
-  if (
-    !stopped &&
-    segments.length === 0 &&
-    lines.every((row) => row.text.endsWith("waiting to upload."))
-  ) {
-    return null;
-  }
   return (
     <ul aria-label="Upload status" className="record-roster">
       {lines.map((row) => (
