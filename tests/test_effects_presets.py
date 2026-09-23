@@ -71,16 +71,39 @@ def test_set_effect_bypass_and_list() -> None:
         raise AssertionError("expected ValueError")
 
 
+_YAML_SCAN_ROOTS = (".agents", "config", "deploy", "tests/fixtures")
+
+
+def _repo_yaml_paths() -> list[Path]:
+    """Every repo-tracked YAML under the roots where pipeline defaults can live (recursive)."""
+    root = repo_root()
+    found: set[Path] = set()
+    for rel in _YAML_SCAN_ROOTS:
+        base = root / rel
+        if base.is_dir():
+            for pattern in ("*.yaml", "*.yml"):
+                found.update(base.rglob(pattern))
+    return sorted(found)
+
+
+def test_repo_yaml_scan_includes_known_pipeline_defaults() -> None:
+    rel = {p.relative_to(repo_root()).as_posix() for p in _repo_yaml_paths()}
+    assert {
+        ".agents/defaults/pipeline.yaml",
+        "tests/fixtures/e2e_pipeline.yaml",
+        "tests/fixtures/synthetic_bleed_e2e_pipeline.yaml",
+    } <= rel
+
+
 @pytest.mark.parametrize(
     "path",
-    [
-        repo_root() / ".agents" / "defaults" / "pipeline.yaml",
-        *sorted((repo_root() / "tests" / "fixtures").glob("*.yaml")),
-    ],
-    ids=lambda p: p.name,
+    _repo_yaml_paths(),
+    ids=lambda p: p.relative_to(repo_root()).as_posix(),
 )
 def test_repo_pipeline_yamls_do_not_redefine_builtin_presets(path: Path) -> None:
-    data = yaml.safe_load(path.read_text()) or {}
+    data = yaml.safe_load(path.read_text())
+    if not isinstance(data, dict) or "effects" not in data:
+        return  # not a pipeline-defaults YAML (e.g. docker-compose, ground-truth manifest)
     overlay = data.get("effects") or {}
     assert isinstance(overlay, dict), f"{path}: effects: must be a mapping"
     collisions = set(overlay) & set(_BUILTIN_PRESETS)

@@ -144,14 +144,22 @@ The `effects:` block in a pipeline defaults YAML is a **by-name overlay** on
 top of the builtins, not a second place to define presets: it can add new
 preset names, or override a builtin's definition, but only in a custom
 `PODCAST_MCP_PIPELINE_DEFAULTS` file. Repo-tracked YAMLs
-(`.agents/defaults/pipeline.yaml`, `tests/fixtures/*.yaml`) must not redefine
-a builtin preset name — `tests/test_effects_presets.py` has a parity test
-that enforces this and fails CI if one drifts.
+(any YAML under `.agents/`, `config/`, `deploy/`, or `tests/fixtures/`,
+scanned recursively) must not redefine a builtin preset name —
+`tests/test_effects_presets.py` has a parity test that enforces this and
+fails CI if one drifts.
 
-`suggest_pipeline_tuning` (Analyze) seeds its `noise_reduction` and `gate`
-suggestions from `get_preset(...)` (the resolved presets), not from reading
-`defaults["effects"]` directly, so its proposed config always reflects the
-same presets `apply_preset_to_chain` would apply.
+`suggest_pipeline_tuning` (Analyze) resolves presets once per call
+(`resolve_presets(defaults)`) and seeds its `noise_reduction` and `gate`
+suggestions from them, not from reading `defaults["effects"]` directly, so its
+proposed config reflects the same presets `apply_preset_to_chain` would apply.
+On a gate-overreach finding it **always** proposes `effects.gate` with the
+threshold lowered by 6 dB: from the working set's own `effects.gate` if
+present, otherwise from the resolved `gate` preset. This happens even when the
+base config's `effects` has no `gate` key, which is now the default because the
+repo `effects:` overlay is empty. The proposed config is a per-project working
+set, not a repo-tracked defaults YAML, so carrying a `gate` entry there does
+not violate the no-redefine rule above.
 
 ## RNNoise noise reduction (`noise_reduction_rnnoise`)
 

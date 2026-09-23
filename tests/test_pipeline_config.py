@@ -393,6 +393,52 @@ def test_suggest_pipeline_tuning_heuristic_branches() -> None:
     assert result_defaults["report_summary"]["track_count"] == 2
 
 
+def test_suggest_pipeline_tuning_seeds_gate_when_base_effects_omit_it(monkeypatch) -> None:
+    import copy
+
+    from podcast_mcp.effects import presets as presets_mod
+    from podcast_mcp.engines import audio_audit
+    from podcast_mcp.models import EpisodeProject
+
+    my_chain = [{"effect": "highpass", "params": {"frequency": 100}}]
+    base = merge_pipeline_config({"effects": {"my_chain": my_chain}})
+    assert "gate" not in base["effects"]
+    project = EpisodeProject.create(name="t", workspace_dir="/tmp")
+
+    def fake_analyze(project, *, policy=None, progress=None):
+        return {
+            "tracks": [
+                {
+                    "track_id": "host",
+                    "health": {},
+                    "gate_analysis": {"risk": "high", "issues": ["over-gate"]},
+                }
+            ]
+        }
+
+    def no_reload():
+        raise AssertionError("presets must resolve from the defaults already loaded")
+
+    monkeypatch.setattr(audio_audit, "analyze_cleanup", fake_analyze)
+    monkeypatch.setattr(presets_mod, "load_defaults", no_reload)
+
+    result = suggest_pipeline_tuning(project, base_config=base)
+
+    expected_gate = copy.deepcopy(presets_mod._BUILTIN_PRESETS["gate"])
+    expected_gate[0]["params"]["threshold_db"] = -36.0
+    assert result["patches"]["effects"]["gate"] == expected_gate
+    assert result["patches"]["effects"]["my_chain"] == my_chain
+    assert result["proposed_config"]["effects"]["gate"] == expected_gate
+    gate_reasons = [r for r in result["reasons"] if r["code"] == "gate_overreach"]
+    assert gate_reasons == [
+        {
+            "code": "gate_overreach",
+            "track_id": "host",
+            "message": "host: gate overreach findings - proposed a milder gate threshold (-6 dB)",
+        }
+    ]
+
+
 def test_deep_merge_skips_underscore_keys() -> None:
     assert deep_merge({"a": 1}, {"_secret": 2, "a": 3}) == {"a": 3}
 

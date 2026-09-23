@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp.config import load_defaults
-from podcast_mcp.effects.presets import get_preset
+from podcast_mcp.effects.presets import resolve_presets
 from podcast_mcp.engines.audio_audit import clipping_indicated
 from podcast_mcp.pipeline.meta import (
     ALLOWED_CONFIG_TOP_KEYS,
@@ -366,6 +366,7 @@ def suggest_pipeline_tuning(
     reasons: list[dict[str, str]] = []
     effects = dict(proposed.get("effects") or {})
     base_effects = dict(base.get("effects") or {})
+    presets = resolve_presets(defaults)
 
     for row in report.get("tracks") or []:
         tid = row.get("track_id", "?")
@@ -384,7 +385,7 @@ def suggest_pipeline_tuning(
                 }
             )
             if "noise_reduction" not in effects:
-                effects["noise_reduction"] = get_preset("noise_reduction")
+                effects["noise_reduction"] = copy.deepcopy(presets["noise_reduction"])
 
         noise_floor = health.get("noise_floor_db")
         if isinstance(noise_floor, (int, float)) and noise_floor > -50:
@@ -406,10 +407,10 @@ def suggest_pipeline_tuning(
                 {
                     "code": "gate_overreach",
                     "track_id": tid,
-                    "message": f"{tid}: gate overreach findings - use milder gate or skip gate",
+                    "message": f"{tid}: gate overreach findings - proposed a milder gate threshold (-6 dB)",
                 }
             )
-            gate_fx = copy.deepcopy(effects.get("gate") or get_preset("gate"))
+            gate_fx = copy.deepcopy(effects.get("gate") or presets["gate"])
             for node in gate_fx:
                 params = node.get("params") or {}
                 thr = params.get("threshold_db")
