@@ -1527,3 +1527,36 @@ def test_handle_guest_presence_frame_rejects(minimal_project, monkeypatch) -> No
         **kwargs,
     )
     assert (seq, mal, reason) == (2, 0, None)
+
+
+def test_share_review_audio_rejects_escaped_media_paths(minimal_project, sample_wav, tmp_workspace):
+    from podcast_mcp.edits.review_versions import get_version
+    from podcast_mcp.services.play import PlayService
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    ver = ReviewService(ws).publish(label="Escape")
+    share = ShareService(ws).create(
+        review_version_id=ver["id"],
+        capabilities=["play", "view"],
+    )
+    token = share["token"]
+
+    outside = tmp_workspace.parent / "outside.wav"
+    outside.write_bytes(sample_wav.read_bytes())
+
+    p = load_project(minimal_project)
+    get_version(p, ver["id"]).audio_relpath = "../outside.wav"
+    get_version(p, ver["id"]).mp3_relpath = "../outside.wav"
+    save_project(p, minimal_project)
+
+    client = TestClient(create_app())
+    audio = client.get(f"/api/review/{token}/audio")
+    assert audio.status_code == 400
+    assert str(outside) not in audio.text
+
+    daw_audio = client.get(f"/api/review/{token}/daw/audio?kind=review")
+    assert daw_audio.status_code == 400
+
+    reopened = ProjectWorkspace.open(minimal_project)
+    with pytest.raises(ValueError):
+        PlayService(reopened).resolve_transport_path(f"review:{ver['id']}")
