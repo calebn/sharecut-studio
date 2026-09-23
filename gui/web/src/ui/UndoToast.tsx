@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { pointerKindFromPointerType } from "../hooks/usePointerType";
 import { Button } from "./Button";
 
 /** How long an undo toast stays up while not hovered or focused. */
@@ -89,7 +90,8 @@ function UndoToastCard({
     };
   }, [returnFocusRef]);
   const onPointerEnter = (event: PointerEvent<HTMLDivElement>) => {
-    if (event.pointerType !== "touch") setHovered(true);
+    if (pointerKindFromPointerType(event.pointerType) !== "coarse")
+      setHovered(true);
   };
   const onFocus = () => {
     focusInside.current = true;
