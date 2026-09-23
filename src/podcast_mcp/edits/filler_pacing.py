@@ -172,7 +172,7 @@ def apply_filler_pacing(
       fraction of the original gap (floor/cap) so long hesitations stay airy.
     * ``pause`` - no-op (pause candidates already use ``min_retained_pause_sec``).
     """
-    if cut_kind == "pause":
+    if cut_kind in {"pause", "repeat", "restart"}:
         return FillerPacingResult(start=cut_start, end=cut_end)
 
     if cut_end <= cut_start:

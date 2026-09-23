@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 from dataclasses import dataclass
+from itertools import pairwise
 from typing import Any
 
 from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_caches
@@ -257,6 +259,223 @@ class _CutCandidate:
     max_end: float | None = None
 
 
+_RESTART_MARKERS = re.compile(r"(?:[-\u2013\u2014]|\.\.\.|\u2026)$")
+_REPEAT_GAP_SEC = 0.45
+_MAX_RESTART_WORDS = 4
+
+
+def _repeat_token(word: TranscriptWord) -> str:
+    """Return a conservative comparison token, retaining punctuation separately."""
+    return normalize_text(word.text).strip(".,!?;:()[]{}\"'").rstrip("-\u2013\u2014\u2026")
+
+
+def _words_are_contiguous(
+    words: list[TranscriptWord], left_i: int, right_i: int, max_gap: float
+) -> bool:
+    left = words[left_i]
+    right = words[right_i]
+    return (
+        right_i == left_i + 1
+        and left.end <= right.start
+        and right.start - left.end <= max_gap
+        and not left.suppressed
+        and not right.suppressed
+        and left.end > left.start
+        and right.end > right.start
+    )
+
+
+def _collect_repetition_candidates(
+    words: list[TranscriptWord],
+    track_id: str,
+    tighten: dict[str, Any],
+) -> list[_CutCandidate]:
+    """Find local reparanda (repeated words/prefixes) without guessing semantics.
+
+    Only same-track, timestamp-adjacent words are considered.  Every repetition
+    remains review-required: ``very very`` and emphatic restarts are valid speech,
+    while a human can safely approve the small preceding span when it is a
+    disfluency.  A trailing cut-off marker (``stor- store``) is the sole partial
+    word exception and is likewise never auto-applied.
+    """
+    max_gap = _bounded_float(
+        tighten.get("repeat_max_gap_sec", _REPEAT_GAP_SEC), _REPEAT_GAP_SEC, 0.0, 2.0
+    )
+    filler_words = {
+        normalize_text(str(value))
+        for value in tighten.get("filler_words", [])
+        if str(value).strip()
+    }
+    usable = [i for i, word in enumerate(words) if not word.suppressed and word.end > word.start]
+    # A phrase such as ``you know`` is one filler lexicon entry even though ASR
+    # represents it as two words.  Do not reinterpret either occurrence as a
+    # lexical restart (``you know you know``) after filler selection has made
+    # that classification.
+    filler_word_indexes = {
+        word_index
+        for start_i, end_i, _token in _lexicon_phrase_hits(words, filler_words)
+        for word_index in range(start_i, end_i + 1)
+    }
+    candidates: list[_CutCandidate] = []
+    seen: set[tuple[int, int]] = set()
+    consumed_positions: set[int] = set()
+    for pos, first_i in enumerate(usable):
+        first = words[first_i]
+        first_token = _repeat_token(first)
+        if pos in consumed_positions or not first_token or first_i in filler_word_indexes:
+            continue
+        # Explicitly marked partial words are clear reparanda; do not infer a
+        # cut-off from ASR token similarity alone.
+        if _RESTART_MARKERS.search(normalize_text(first.text)) and pos + 1 < len(usable):
+            second_i = usable[pos + 1]
+            second = words[second_i]
+            second_token = _repeat_token(second)
+            partial = first_token.rstrip("-\u2013\u2014\u2026")
+            if (
+                len(partial) >= 2
+                and second_token.startswith(partial)
+                and second_token != partial
+                and _words_are_contiguous(words, first_i, second_i, max_gap)
+            ):
+                seen.add((first_i, first_i))
+                consumed_positions.update((pos, pos + 1))
+                candidates.append(
+                    _CutCandidate(
+                        track_id=track_id,
+                        start=first.start,
+                        end=first.end,
+                        reason=f"restart:partial:{partial}",
+                        cut_kind="restart",
+                        filler_confidence=first.confidence,
+                    )
+                )
+                continue
+        # ASR may split a restart as ``I w- I went``.  Accept a marked partial
+        # token after a short repeated prefix, but only when the repair resumes
+        # with that same prefix and the partial token's text is a prefix of the
+        # following repair word.
+        split_repair_found = False
+        for prefix_len in range(1, 3):
+            partial_pos = pos + prefix_len
+            repair_pos = partial_pos + prefix_len + 1
+            if repair_pos >= len(usable) or partial_pos >= len(usable):
+                continue
+            prefix_left = usable[pos:partial_pos]
+            prefix_right = usable[partial_pos + 1 : repair_pos]
+            if not all(
+                _repeat_token(words[a]) == _repeat_token(words[b])
+                for a, b in zip(prefix_left, prefix_right, strict=True)
+            ):
+                continue
+            partial_i = usable[partial_pos]
+            repair_i = usable[repair_pos]
+            partial_word = words[partial_i]
+            repair_word = words[repair_i]
+            partial_raw = normalize_text(partial_word.text)
+            partial = _repeat_token(partial_word)
+            if (
+                _RESTART_MARKERS.search(partial_raw)
+                and len(partial) >= 1
+                and _repeat_token(repair_word).startswith(partial)
+                and all(
+                    _words_are_contiguous(words, a, b, max_gap)
+                    for a, b in pairwise([*prefix_left, partial_i, *prefix_right, repair_i])
+                )
+            ):
+                start_i = prefix_left[0]
+                seen.add((start_i, partial_i))
+                consumed_positions.update(range(pos, repair_pos + 1))
+                candidates.append(
+                    _CutCandidate(
+                        track_id=track_id,
+                        # Remove the false start as one reparandum.  For
+                        # ``I w- I went``, retaining only ``I went`` avoids
+                        # leaving the leading repeated pronoun behind.
+                        start=words[start_i].start,
+                        end=partial_word.end,
+                        reason=f"restart:partial:{partial}",
+                        cut_kind="restart",
+                        filler_confidence=partial_word.confidence,
+                    )
+                )
+                split_repair_found = True
+                break
+        if split_repair_found:
+            continue
+        if pos + 1 >= len(usable):
+            continue
+        # Prefer the longest repeated prefix.  A phrase restart is one review
+        # decision, not a stack of overlapping one-token decisions.
+        phrase_found = False
+        for length in range(_MAX_RESTART_WORDS, 1, -1):
+            if pos + 2 * length > len(usable):
+                continue
+            left = usable[pos : pos + length]
+            right = usable[pos + length : pos + 2 * length]
+            if any(index in filler_word_indexes for index in (*left, *right)):
+                continue
+            if any(
+                not _words_are_contiguous(words, sequence[a], sequence[a + 1], max_gap)
+                for sequence in (left, right)
+                for a in range(len(sequence) - 1)
+            ):
+                continue
+            if not all(
+                _repeat_token(words[a]) == _repeat_token(words[b])
+                and _repeat_token(words[a]) not in filler_words
+                for a, b in zip(left, right, strict=True)
+            ):
+                continue
+            if not _words_are_contiguous(words, left[-1], right[0], max_gap):
+                continue
+            start_i, end_i = left[0], left[-1]
+            if (start_i, end_i) in seen:
+                continue
+            seen.add((start_i, end_i))
+            # Consume the repair as well as the removed reparandum.  Without
+            # this, periodic speech such as ``a b a b a b`` produces adjacent
+            # phrase candidates that later coalesce into one large cut.
+            consumed_positions.update(range(pos, pos + 2 * length))
+            candidates.append(
+                _CutCandidate(
+                    track_id=track_id,
+                    start=words[start_i].start,
+                    end=words[end_i].end,
+                    reason=(
+                        f"restart:phrase:{' '.join(_repeat_token(words[idx]) for idx in left)}"
+                    ),
+                    cut_kind="restart",
+                    filler_confidence=_span_confidence(words, start_i, end_i),
+                )
+            )
+            phrase_found = True
+            break
+        if phrase_found:
+            continue
+        second_i = usable[pos + 1]
+        second = words[second_i]
+        if (
+            first_token == _repeat_token(second)
+            and first_token not in filler_words
+            and _words_are_contiguous(words, first_i, second_i, max_gap)
+        ):
+            key = (first_i, first_i)
+            if key not in seen:
+                seen.add(key)
+                consumed_positions.update((pos, pos + 1))
+                candidates.append(
+                    _CutCandidate(
+                        track_id=track_id,
+                        start=first.start,
+                        end=first.end,
+                        reason=f"repetition:word:{first_token}",
+                        cut_kind="repeat",
+                        filler_confidence=first.confidence,
+                    )
+                )
+    return candidates
+
+
 @dataclass(frozen=True)
 class _AnalyzedCut:
     """Result of analyzing one candidate -- everything needed to append a decision.
@@ -457,6 +676,7 @@ def _collect_candidates(
 
     words = transcript.words
     candidates = _collect_filler_candidates(words, track_id, tighten, skip_counts=skip_counts)
+    candidates.extend(_collect_repetition_candidates(words, track_id, tighten))
     for i, word in enumerate(words):
         if word.suppressed:
             continue
@@ -489,7 +709,9 @@ def _collect_candidates(
                             max_end=trim_end,
                         )
                     )
-    return candidates
+    return sorted(
+        candidates, key=lambda candidate: (candidate.start, candidate.end, candidate.reason)
+    )
 
 
 def _analyze_candidate(
@@ -551,7 +773,10 @@ def _analyze_candidate(
     cut_start, cut_end = paced.start, paced.end
 
     reason = candidate.reason
-    review_required = False
+    # Repetition/restart detection is intentionally proposal-only.  Even an
+    # exact token repeat can be emphasis ("very very"), and a phrase restart
+    # can change meaning if the repair is mistaken for the reparandum.
+    review_required = candidate.cut_kind in {"repeat", "restart"}
     replace_gap = paced.replace_gap_sec
     # Contiguous retain before the next word can be shorter than the floor when
     # prior ripples punched holes; pad the shortfall with silence after ripple.

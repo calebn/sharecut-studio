@@ -1,5 +1,86 @@
-import { describe, expect, it } from "vitest";
-import { keeperWavPath, MemorySink, roomToneWavPath } from "./store";
+import { describe, expect, it, vi } from "vitest";
+import {
+  createOpfsSink,
+  keeperWavPath,
+  MemorySink,
+  OpfsUnavailableError,
+  roomToneWavPath,
+} from "./store";
+
+describe("createOpfsSink", () => {
+  it("identifies an environment without OPFS before recording", async () => {
+    vi.stubGlobal("navigator", { storage: {} });
+    try {
+      await expect(createOpfsSink()).rejects.toBeInstanceOf(
+        OpfsUnavailableError,
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("probes a writable OPFS file and removes it before returning a sink", async () => {
+    const writable = {
+      write: vi.fn(async () => undefined),
+      close: vi.fn(async () => undefined),
+    };
+    const root = {
+      getDirectoryHandle: vi.fn(async () => root),
+      getFileHandle: vi.fn(async () => ({
+        createWritable: async () => writable,
+      })),
+      removeEntry: vi.fn(async () => undefined),
+    };
+    vi.stubGlobal("navigator", {
+      storage: { getDirectory: async () => root },
+    });
+    try {
+      await expect(createOpfsSink()).resolves.toBeDefined();
+      expect(root.getDirectoryHandle).toHaveBeenCalledWith(
+        "Sharecut Recordings",
+        { create: true },
+      );
+      expect(root.getFileHandle).toHaveBeenCalledWith(
+        expect.stringMatching(/^\.sharecut-opfs-probe-/),
+        { create: true },
+      );
+      expect(writable.write).toHaveBeenCalledWith(new Uint8Array([0]));
+      expect(writable.close).toHaveBeenCalledOnce();
+      expect(root.removeEntry).toHaveBeenCalledWith(
+        expect.stringMatching(/^\.sharecut-opfs-probe-/),
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("rejects when the OPFS probe cannot write", async () => {
+    const failure = new Error("quota exceeded");
+    const writable = {
+      write: vi.fn(async () => Promise.reject(failure)),
+      close: vi.fn(async () => undefined),
+    };
+    const root = {
+      getDirectoryHandle: vi.fn(async () => root),
+      getFileHandle: vi.fn(async () => ({
+        createWritable: async () => writable,
+      })),
+      removeEntry: vi.fn(async () => undefined),
+    };
+    vi.stubGlobal("navigator", {
+      storage: { getDirectory: async () => root },
+    });
+    try {
+      await expect(createOpfsSink()).rejects.toBe(failure);
+      expect(writable.close).toHaveBeenCalledOnce();
+      expect(root.removeEntry).toHaveBeenCalledWith(
+        expect.stringMatching(/^\.sharecut-opfs-probe-/),
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
 
 describe("keeperWavPath", () => {
   it("keys files by session/take/participant/segment", () => {
