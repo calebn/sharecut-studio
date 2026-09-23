@@ -1,4 +1,8 @@
-import type { ReactNode, PointerEvent as ReactPointerEvent } from "react";
+import type {
+  CSSProperties,
+  ReactNode,
+  PointerEvent as ReactPointerEvent,
+} from "react";
 import { useLongPress } from "../hooks/useLongPress";
 import { useSwipeLeft } from "../hooks/useSwipeLeft";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
@@ -82,9 +86,13 @@ export function CommentCard({
     longPress.onPointerUp(event);
     swipe.onPointerUp(event);
   };
+  const dragging = swipe.offsetPx < 0;
   const className = `comment-card${selected ? " selected" : ""}${
     c.resolved ? " resolved" : ""
-  }`;
+  }${dragging ? " swiping" : ""}`;
+  const dragStyle = dragging
+    ? ({ "--swipe-dx": `${swipe.offsetPx}px` } as CSSProperties)
+    : undefined;
 
   const main = (
     <>
@@ -100,6 +108,7 @@ export function CommentCard({
   return (
     <li
       className={className}
+      style={dragStyle}
       onPointerDown={onPointerDown}
       onClickCapture={longPress.onClickCapture}
       onPointerUp={onPointerUp}
@@ -110,6 +119,14 @@ export function CommentCard({
       }}
       {...presenceAnchorProps(presenceAnchor("comment", c.id))}
     >
+      {dragging ? (
+        <span
+          className={`comment-card-swipe-reveal${swipe.armed ? " armed" : ""}`}
+          aria-hidden="true"
+        >
+          Resolve
+        </span>
+      ) : null}
       {onSelect ? (
         <button
           type="button"

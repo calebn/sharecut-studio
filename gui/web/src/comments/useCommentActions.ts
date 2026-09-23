@@ -15,7 +15,7 @@ export function useCommentActions(opts?: {
   busy: boolean;
   error: string | null;
   setError: (msg: string | null) => void;
-  resolve: (c: TimelineComment, resolved: boolean) => Promise<void>;
+  resolve: (c: TimelineComment, resolved: boolean) => Promise<boolean>;
   reply: (c: TimelineComment, body: string) => Promise<boolean>;
   toggleAction: (
     c: TimelineComment,
@@ -37,22 +37,27 @@ export function useCommentActions(opts?: {
     return who;
   }, [author, setAuthor]);
 
-  const wrap = useCallback(async (fn: () => Promise<void>) => {
-    setBusy(true);
-    setError(null);
-    try {
-      await fn();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  }, []);
+  const wrap = useCallback(
+    async (fn: () => Promise<void>): Promise<boolean> => {
+      setBusy(true);
+      setError(null);
+      try {
+        await fn();
+        return true;
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        return false;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [],
+  );
 
   const resolve = useCallback(
     async (c: TimelineComment, resolved: boolean) => {
       const by = actor();
-      await wrap(async () => {
+      return wrap(async () => {
         await patchComment(projectPath, c.id, { resolved, by });
       });
     },
@@ -67,12 +72,9 @@ export function useCommentActions(opts?: {
         return false;
       }
       const by = actor();
-      let ok = false;
-      await wrap(async () => {
+      return wrap(async () => {
         await addCommentReply(projectPath, c.id, { body: text, author: by });
-        ok = true;
       });
-      return ok;
     },
     [actor, projectPath, wrap],
   );

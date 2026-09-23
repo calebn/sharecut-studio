@@ -1,10 +1,20 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { createComment } from "../api";
-import { CommentCard, CommentCompose, useCommentActions } from "../comments";
+import {
+  CommentCard,
+  CommentCompose,
+  commentTimeLabel,
+  useCommentActions,
+} from "../comments";
 import { canComment, canReply, canSetAction } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import type { TimelineComment } from "../types/project";
-import { InlineError, ToggleButton } from "../ui";
+import {
+  InlineError,
+  ToggleButton,
+  UndoToast,
+  type UndoToastState,
+} from "../ui";
 import { loadCommentAuthor, saveCommentAuthor } from "../utils/commentAuthor";
 import { formatTimeShort } from "../utils/time";
 
@@ -28,6 +38,7 @@ export function CommentsPanel({
     selection,
     shareCapabilities,
     guestMode,
+    announceStatus,
   } = useDaw();
 
   const [filter, setFilter] = useState<Filter>("open");
@@ -50,6 +61,35 @@ export function CommentsPanel({
 
   const busy = createBusy || actionBusy;
   const error = createError ?? actionError;
+
+  const toastSeq = useRef(0);
+  const [undoToast, setUndoToast] = useState<
+    (UndoToastState & { comment: TimelineComment }) | null
+  >(null);
+  const dismissUndo = useCallback(() => setUndoToast(null), []);
+
+  const onResolve = async (c: TimelineComment, resolved: boolean) => {
+    const ok = await resolve(c, resolved);
+    if (!ok) return;
+    if (resolved) {
+      toastSeq.current += 1;
+      setUndoToast({
+        id: toastSeq.current,
+        message: `Resolved comment at ${commentTimeLabel(c)}`,
+        comment: c,
+      });
+    } else {
+      setUndoToast((prev) => (prev?.comment.id === c.id ? null : prev));
+    }
+  };
+
+  const onUndoResolve = async () => {
+    if (!undoToast) return;
+    if (await resolve(undoToast.comment, false)) {
+      setUndoToast(null);
+      announceStatus("Comment reopened");
+    }
+  };
 
   const comments = project?.comments;
 
@@ -243,7 +283,9 @@ export function CommentsPanel({
                   : undefined
               }
               onResolve={
-                guestShare ? undefined : (resolved) => void resolve(c, resolved)
+                guestShare
+                  ? undefined
+                  : (resolved) => void onResolve(c, resolved)
               }
               onToggleAction={
                 mayAction
@@ -259,6 +301,14 @@ export function CommentsPanel({
           <li className="comments-empty">No comments in this filter.</li>
         )}
       </ul>
+      {guestShare ? null : (
+        <UndoToast
+          toast={undoToast}
+          undoDisabled={busy}
+          onUndo={() => void onUndoResolve()}
+          onDismiss={dismissUndo}
+        />
+      )}
     </div>
   );
 }

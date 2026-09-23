@@ -24,6 +24,14 @@ export const SWIPE_MIN_DX_PX = 48;
 /** Vertical travel (px) that turns a swipe into a scroll. */
 export const SWIPE_MAX_DY_PX = 24;
 
+/** Max leftward visual offset (px) of a card while it is being swiped. */
+export const SWIPE_MAX_TRANSLATE_PX = SWIPE_MIN_DX_PX * 2;
+
+/** Card offset for a horizontal drag delta: leftward only, capped. */
+export function swipeDragOffset(dx: number): number {
+  return Math.max(-SWIPE_MAX_TRANSLATE_PX, Math.min(0, dx));
+}
+
 /** True while `at` (a `Date.now()` stamp) is inside the ghost-click window. */
 export function withinGhostClick(at: number, now = Date.now()): boolean {
   return now - at < GHOST_CLICK_MS;

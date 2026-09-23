@@ -1,8 +1,13 @@
-import { type PointerEvent as ReactPointerEvent, useRef } from "react";
+import {
+  type PointerEvent as ReactPointerEvent,
+  useRef,
+  useState,
+} from "react";
 import {
   LONG_PRESS_MS,
   SWIPE_MAX_DY_PX,
   SWIPE_MIN_DX_PX,
+  swipeDragOffset,
   withinGhostClick,
 } from "./touchGestureTiming";
 
@@ -15,12 +20,18 @@ export type SwipeLeftHandlers = {
   reset: () => void;
   /** True while the click synthesized by a completed swipe may still land. */
   justSwiped: () => boolean;
+  /** Leftward drag offset in px (≤ 0) while a swipe is tracked; 0 when idle. */
+  offsetPx: number;
+  /** True once the drag has travelled far enough that release would resolve. */
+  armed: boolean;
 };
 
 /**
  * Touch-only horizontal swipe-left recognizer. It must finish before a
  * long-press would ({@link LONG_PRESS_MS}) and gives up once vertical travel
- * says the user is scrolling. `enabled` is read at release time.
+ * says the user is scrolling. `enabled` is read at release time. It also
+ * reports `offsetPx`/`armed` for live drag feedback while a swipe is
+ * tracked; the offset only tracks while `enabled`.
  */
 export function useSwipeLeft(
   enabled: boolean,
@@ -33,8 +44,10 @@ export function useSwipeLeft(
     at: number;
   } | null>(null);
   const swipedAtRef = useRef(-Infinity);
+  const [offsetPx, setOffsetPx] = useState(0);
   const reset = () => {
     startRef.current = null;
+    setOffsetPx(0);
   };
   return {
     onPointerDown: (event) => {
@@ -50,13 +63,16 @@ export function useSwipeLeft(
     },
     onPointerMove: (event) => {
       const start = startRef.current;
+      if (!start) return;
       if (
-        start &&
-        (start.id !== event.pointerId ||
-          Math.abs(event.clientY - start.y) >= SWIPE_MAX_DY_PX)
+        start.id !== event.pointerId ||
+        Math.abs(event.clientY - start.y) >= SWIPE_MAX_DY_PX ||
+        Date.now() - start.at >= LONG_PRESS_MS
       ) {
         reset();
+        return;
       }
+      if (enabled) setOffsetPx(swipeDragOffset(event.clientX - start.x));
     },
     onPointerUp: (event) => {
       const start = startRef.current;
@@ -79,5 +95,7 @@ export function useSwipeLeft(
     onPointerCancel: reset,
     reset,
     justSwiped: () => withinGhostClick(swipedAtRef.current),
+    offsetPx,
+    armed: offsetPx <= -SWIPE_MIN_DX_PX,
   };
 }
