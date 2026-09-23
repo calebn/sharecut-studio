@@ -3,6 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { UPLOAD_COPY, UPLOAD_DONE_COPY, uploadProgressCopy } from "./types";
 import { UploadStatus } from "./UploadStatus";
+import type { KeeperRecoveryActions } from "./upload/useKeeperRecoveryActions";
+
+function keeperActions(
+  overrides: Partial<KeeperRecoveryActions> = {},
+): KeeperRecoveryActions {
+  return { busy: false, error: null, notice: null, ...overrides };
+}
 
 describe("UploadStatus", () => {
   it("shows chunk progress until file ACK, then safe-to-delete copy", () => {
@@ -113,7 +120,7 @@ describe("UploadStatus", () => {
       <UploadStatus
         stopped
         onResume={onResume}
-        onDownload={onDownload}
+        actions={keeperActions({ download: onDownload })}
         progress={{
           acked: 1,
           total: 3,
@@ -141,7 +148,7 @@ describe("UploadStatus", () => {
       <UploadStatus
         stopped
         onResume={() => undefined}
-        onDownload={() => undefined}
+        actions={keeperActions({ download: () => undefined })}
         progress={{
           acked: 0,
           total: 0,
@@ -178,7 +185,11 @@ describe("UploadStatus", () => {
       error: "A readable partial keeper was retained.",
     };
     const { container, rerender } = render(
-      <UploadStatus stopped progress={progress} onRecover={onRecover} />,
+      <UploadStatus
+        stopped
+        progress={progress}
+        actions={keeperActions({ recover: onRecover })}
+      />,
     );
     fireEvent.click(
       screen.getByRole("button", { name: "Recover partial take" }),
@@ -189,7 +200,7 @@ describe("UploadStatus", () => {
       <UploadStatus
         stopped={false}
         progress={progress}
-        onRecover={onRecover}
+        actions={keeperActions({ recover: onRecover })}
       />,
     );
     expect(
@@ -199,11 +210,75 @@ describe("UploadStatus", () => {
       <UploadStatus
         stopped
         progress={{ ...progress, recoverable: false }}
-        onRecover={onRecover}
+        actions={keeperActions({ recover: onRecover })}
       />,
     );
     expect(
       screen.queryByRole("button", { name: "Recover partial take" }),
     ).toBeNull();
+  });
+
+  it("marks recovery busy without removing the focused control", async () => {
+    const recover = vi.fn();
+    const progress = {
+      acked: 0,
+      total: 0,
+      fileAck: false,
+      landed: false,
+      landFailed: false,
+      uploading: false,
+      pending: false,
+      recoverable: true,
+      error: "A readable partial keeper was retained.",
+    };
+    const { container } = render(
+      <UploadStatus
+        stopped
+        progress={progress}
+        actions={keeperActions({ recover, busy: true })}
+      />,
+    );
+    const button = screen.getByRole("button", {
+      name: "Recovering partial take…",
+    });
+    expect(button).toHaveAttribute("aria-busy", "true");
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).not.toBeDisabled();
+    await expectNoA11yViolations(container);
+  });
+
+  it("announces keeper action results separately from upload state", async () => {
+    const progress = {
+      acked: 3,
+      total: 3,
+      fileAck: true,
+      landed: true,
+      landFailed: false,
+      uploading: false,
+      pending: false,
+      recoverable: false,
+      error: null,
+    };
+    const { container, rerender } = render(
+      <UploadStatus
+        stopped
+        progress={progress}
+        actions={keeperActions({ notice: "Recovered 1 partial segment." })}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Recovered 1 partial segment.",
+    );
+    await expectNoA11yViolations(container);
+    rerender(
+      <UploadStatus
+        stopped
+        progress={progress}
+        actions={keeperActions({ error: "incomplete PCM frame" })}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "incomplete PCM frame",
+    );
   });
 });

@@ -12,6 +12,7 @@ import {
   UPLOAD_STATUS_ID,
 } from "./types";
 import { UploadStatus } from "./UploadStatus";
+import type { KeeperRecoveryActions } from "./upload/useKeeperRecoveryActions";
 import {
   leaveBlocked,
   type RecordUploadProgress,
@@ -37,8 +38,7 @@ type Props = {
   micLost?: boolean;
   onRetryMic?: () => void;
   onResumeUpload?: () => void;
-  onDownloadKeeper?: () => void;
-  onRecoverKeeper?: () => void;
+  keeperActions?: KeeperRecoveryActions;
 };
 
 export function Room({
@@ -61,8 +61,7 @@ export function Room({
   micLost = false,
   onRetryMic,
   onResumeUpload,
-  onDownloadKeeper,
-  onRecoverKeeper,
+  keeperActions,
 }: Props) {
   const hostOffline =
     !connected &&
@@ -111,8 +110,7 @@ export function Room({
             stopped={snapshot.state === "stopped"}
             alive={connected}
             onResume={onResumeUpload}
-            onDownload={onDownloadKeeper}
-            onRecover={onRecoverKeeper}
+            actions={keeperActions}
           />
         ) : null}
       </div>

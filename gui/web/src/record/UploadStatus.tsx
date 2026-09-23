@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Button } from "../ui";
 import {
   UPLOAD_DONE_COPY,
@@ -6,17 +7,21 @@ import {
   UPLOAD_WAITING_TO_LAND_COPY,
   uploadProgressCopy,
 } from "./types";
+import type { KeeperRecoveryActions } from "./upload/useKeeperRecoveryActions";
 import type { RecordUploadProgress } from "./upload/useRecordUpload";
 
 function RecoveryActions({
   onResume,
-  onDownload,
-  onRecover,
+  actions,
+  canRecover,
 }: {
   onResume?: () => void;
-  onDownload?: () => void;
-  onRecover?: () => void;
+  actions?: KeeperRecoveryActions;
+  canRecover: boolean;
 }) {
+  const busy = actions?.busy === true;
+  // Buttons stay focusable while busy (aria-disabled) so focus is not lost;
+  // the hook ignores repeat clicks during a run.
   return (
     <span className="cluster">
       {onResume ? (
@@ -24,18 +29,41 @@ function RecoveryActions({
           Resume upload
         </Button>
       ) : null}
-      {onDownload ? (
-        <Button type="button" onClick={onDownload}>
+      {actions?.download ? (
+        <Button
+          type="button"
+          onClick={actions.download}
+          aria-disabled={busy || undefined}
+        >
           Download local keeper
         </Button>
       ) : null}
-      {onRecover ? (
-        <Button type="button" onClick={onRecover}>
-          Recover partial take
+      {canRecover && actions?.recover ? (
+        <Button
+          type="button"
+          onClick={actions.recover}
+          aria-disabled={busy || undefined}
+          aria-busy={busy || undefined}
+        >
+          {busy ? "Recovering partial take…" : "Recover partial take"}
         </Button>
       ) : null}
     </span>
   );
+}
+
+function ActionFeedback({ actions }: { actions?: KeeperRecoveryActions }) {
+  if (actions?.error) {
+    return (
+      <p className="record-warn" role="status">
+        {actions.error}
+      </p>
+    );
+  }
+  if (actions?.notice) {
+    return <p role="status">{actions.notice}</p>;
+  }
+  return null;
 }
 
 export function UploadStatus({
@@ -43,59 +71,60 @@ export function UploadStatus({
   stopped,
   alive = true,
   onResume,
-  onDownload,
-  onRecover,
+  actions,
 }: {
   progress: RecordUploadProgress;
   stopped: boolean;
   alive?: boolean;
   onResume?: () => void;
-  onDownload?: () => void;
-  onRecover?: () => void;
+  /** Keeper download / recovery; the Recover rule is owned here. */
+  actions?: KeeperRecoveryActions;
 }) {
-  const recover = stopped && progress.recoverable ? onRecover : undefined;
+  const canRecover = stopped && progress.recoverable;
+  let status: ReactNode = null;
   if (progress.error) {
-    return (
+    status = (
       <div id={UPLOAD_STATUS_ID} className="record-warn">
         <p>{progress.error}</p>
         <RecoveryActions
           onResume={onResume}
-          onDownload={onDownload}
-          onRecover={recover}
+          actions={actions}
+          canRecover={canRecover}
         />
       </div>
     );
-  }
-  if (progress.landFailed) {
-    return (
+  } else if (progress.landFailed) {
+    status = (
       <p id={UPLOAD_STATUS_ID} className="record-warn">
         {UPLOAD_LAND_FAILED_COPY}
       </p>
     );
-  }
-  if (stopped && progress.landed && alive) {
-    return <p id={UPLOAD_STATUS_ID}>{UPLOAD_DONE_COPY}</p>;
-  }
-  if (stopped && progress.fileAck && !progress.landed) {
-    return <p id={UPLOAD_STATUS_ID}>{UPLOAD_WAITING_TO_LAND_COPY}</p>;
-  }
-  if (
+  } else if (stopped && progress.landed && alive) {
+    status = <p id={UPLOAD_STATUS_ID}>{UPLOAD_DONE_COPY}</p>;
+  } else if (stopped && progress.fileAck && !progress.landed) {
+    status = <p id={UPLOAD_STATUS_ID}>{UPLOAD_WAITING_TO_LAND_COPY}</p>;
+  } else if (
     progress.uploading ||
     (progress.pending && progress.total > 0) ||
     (stopped && !progress.fileAck)
   ) {
-    return (
+    status = (
       <div id={UPLOAD_STATUS_ID}>
         <p>{uploadProgressCopy(progress.acked, progress.total)}</p>
         {stopped ? (
           <RecoveryActions
             onResume={onResume}
-            onDownload={onDownload}
-            onRecover={recover}
+            actions={actions}
+            canRecover={canRecover}
           />
         ) : null}
       </div>
     );
   }
-  return null;
+  return (
+    <>
+      {status}
+      <ActionFeedback actions={actions} />
+    </>
+  );
 }

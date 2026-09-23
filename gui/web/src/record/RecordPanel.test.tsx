@@ -5,12 +5,15 @@ import { loadHostRecordState } from "../api";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
+import { seedPendingKeeper } from "../test/keepers";
 import { startBlockers } from "./blockers";
 import { useRecordHostStore } from "./hostStore";
 import {
   createOpfsSink,
+  keeperMetaPath,
   MemorySink,
   OpfsUnavailableError,
+  parseKeeperMeta,
 } from "./keeper/store";
 import {
   MIC_DENIED_COPY,
@@ -476,6 +479,70 @@ describe("RecordPanel", () => {
     expect(land).toBeEnabled();
     await userEvent.click(land);
     expect(exec).toHaveBeenCalledWith("record.land", {}, { skipWhen: true });
+  });
+
+  describe("partial keeper recovery", () => {
+    const stopped: RecordSnapshot = {
+      ...lobby,
+      state: "stopped",
+      take_index: 0,
+      start_blockers: [],
+    };
+
+    it("recovers the host keeper and resumes upload", async () => {
+      const sink = new MemorySink();
+      const wavPath = await seedPendingKeeper(sink, {
+        sessionId: "room1",
+        takeIndex: 0,
+        participantId: "p_host",
+      });
+      vi.mocked(createOpfsSink).mockResolvedValue(sink);
+      useRecordHostStore.getState().setSnapshot(stopped);
+      const { container } = render(<RecordPanel />);
+      const recover = await screen.findByRole("button", {
+        name: "Recover partial take",
+      });
+      await userEvent.click(recover);
+      expect(
+        await screen.findByText(/Recovered 1 partial segment/),
+      ).toBeInTheDocument();
+      expect(
+        parseKeeperMeta(await sink.read(keeperMetaPath(wavPath)))?.complete,
+      ).toBe(true);
+      // The retry nonce restarts the pump, which now uploads the segment.
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("button", { name: "Recover partial take" }),
+        ).toBeNull(),
+      );
+      await expectNoA11yViolations(container);
+    });
+
+    it("shows a failed recovery beside upload status, not as a storage error", async () => {
+      const sink = new MemorySink();
+      await seedPendingKeeper(sink, {
+        sessionId: "room1",
+        takeIndex: 0,
+        participantId: "p_host",
+      });
+      sink.rewriteHeader = async () => {
+        throw new Error("locked by another tab");
+      };
+      vi.mocked(createOpfsSink).mockResolvedValue(sink);
+      useRecordHostStore.getState().setSnapshot(stopped);
+      render(<RecordPanel />);
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Recover partial take" }),
+      );
+      expect(
+        await screen.findByText(/locked by another tab/),
+      ).toBeInTheDocument();
+      expect(useRecordHostStore.getState().keeperStorageError).toBeNull();
+      expect(useRecordHostStore.getState().keeperSink).toBe(sink);
+      expect(
+        screen.queryByRole("button", { name: "Retry local backup" }),
+      ).toBeNull();
+    });
   });
 
   it("does not expect a local keeper when the host did not join the capture stream", async () => {

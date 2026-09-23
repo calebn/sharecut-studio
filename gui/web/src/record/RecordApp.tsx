@@ -19,8 +19,11 @@ import { loadRecordBootstrap, type RecordBootstrap } from "./recordBootstrap";
 import { OPFS_UNAVAILABLE_COPY, UPLOAD_SINK_ERROR_COPY } from "./types";
 import { UploadStatus } from "./UploadStatus";
 import { guestRecordUploadTransport } from "./upload/http";
-import { downloadLocalKeepers, recoverLocalKeepers } from "./upload/recovery";
-import { useRecordUpload } from "./upload/useRecordUpload";
+import { useKeeperRecoveryActions } from "./upload/useKeeperRecoveryActions";
+import {
+  keeperCaptureSettled,
+  useRecordUpload,
+} from "./upload/useRecordUpload";
 import { useMicPermission } from "./useMicPermission";
 import { useRecordLiveComments } from "./useRecordLiveComments";
 import { useRecordSync } from "./useRecordSync";
@@ -185,13 +188,14 @@ export function RecordApp({ token }: { token: string }) {
     return guestRecordUploadTransport(token, me.participant_id, lease);
   }, [bootstrap?.build.upload, producer, me?.participant_id, lease, token]);
   const [uploadRetryNonce, setUploadRetryNonce] = useState(0);
+  const captureSettled = keeperCaptureSettled(keeper);
   const upload = useRecordUpload({
     enabled:
       !!bootstrap?.build.upload &&
       !producer &&
       (me?.consented === true || snapshot?.state === "stopped"),
     roomState: snapshot?.state,
-    captureSettled: !keeper.recordingLocally && !keeper.finalizing,
+    captureSettled,
     sessionId: snapshot?.session_id ?? null,
     takeIndex: snapshot?.take_index ?? 0,
     participantId: me?.participant_id ?? null,
@@ -199,6 +203,14 @@ export function RecordApp({ token }: { token: string }) {
     sink,
     retryNonce: uploadRetryNonce,
     captureExpected: me?.consented === true,
+  });
+  const keeperActions = useKeeperRecoveryActions({
+    sink,
+    sessionId: snapshot?.session_id ?? null,
+    participantId: me?.participant_id ?? null,
+    takeIndex: snapshot?.take_index ?? null,
+    recoverAllowed: snapshot?.state === "stopped" && captureSettled,
+    onRecovered: () => setUploadRetryNonce((value) => value + 1),
   });
   const roomTone = useRoomToneCapture({
     enabled:
@@ -261,38 +273,6 @@ export function RecordApp({ token }: { token: string }) {
     return <Declined />;
   }
 
-  const downloadKeeper =
-    sink && me?.participant_id && snapshot
-      ? () => {
-          void downloadLocalKeepers(
-            sink,
-            snapshot.session_id,
-            me.participant_id,
-            snapshot.take_index,
-          ).catch((error: unknown) => {
-            setSinkError(
-              error instanceof Error ? error.message : String(error),
-            );
-          });
-        }
-      : undefined;
-  const recoverKeeper =
-    upload.recoverable && sink && me?.participant_id && snapshot
-      ? () => {
-          void recoverLocalKeepers(
-            sink,
-            snapshot.session_id,
-            me.participant_id,
-            snapshot.take_index,
-          )
-            .then(() => setUploadRetryNonce((value) => value + 1))
-            .catch((error: unknown) => {
-              setSinkError(
-                error instanceof Error ? error.message : String(error),
-              );
-            });
-        }
-      : undefined;
   const recoveringPriorTake =
     !producer && snapshot?.state === "stopped" && me?.consented !== true;
 
@@ -330,8 +310,7 @@ export function RecordApp({ token }: { token: string }) {
               micLost={mic.lost}
               onRetryMic={mic.retry}
               onResumeUpload={() => setUploadRetryNonce((value) => value + 1)}
-              onDownloadKeeper={downloadKeeper}
-              onRecoverKeeper={recoverKeeper}
+              keeperActions={keeperActions}
             />
           ) : (
             <div className="stack">
@@ -382,8 +361,7 @@ export function RecordApp({ token }: { token: string }) {
                   stopped
                   alive={connected}
                   onResume={() => setUploadRetryNonce((value) => value + 1)}
-                  onDownload={downloadKeeper}
-                  onRecover={recoverKeeper}
+                  actions={keeperActions}
                 />
               ) : null}
             </div>
