@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 from typing import Annotated, Any, Literal
 
 from fastapi import HTTPException, Query, Request
@@ -59,6 +60,7 @@ async def ingest_record_upload_request(
     workspace: ProjectWorkspace | None = None,
     clip_scope: str | None = None,
     kind: str | None = None,
+    before_ingest: Callable[[], None] | None = None,
 ) -> dict[str, Any] | JSONResponse:
     try:
         parsed_kind = parse_upload_kind(kind)
@@ -69,6 +71,10 @@ async def ingest_record_upload_request(
         data = await read_body_capped(request, limit)
     except BodyTooLarge as exc:
         return payload_too_large_response(exc.limit)
+    if before_ingest is not None:
+        # Re-check authorization after the (possibly slow) body read so a
+        # consent change that landed mid-upload stops this part.
+        before_ingest()
     try:
         result = await asyncio.to_thread(
             uploader.ingest_part,
