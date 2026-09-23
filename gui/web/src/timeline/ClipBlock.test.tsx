@@ -255,6 +255,34 @@ describe("ClipBlock waveform", () => {
     expect(onMoveCommit).not.toHaveBeenCalled();
   });
 
+  it("a touch hold selects once on pointerdown and never moves or reselects", () => {
+    vi.useFakeTimers();
+    const onSelect = vi.fn();
+    const onSelectClip = vi.fn();
+    const onMoveCommit = vi.fn();
+    const { container } = render(
+      <ClipBlock
+        {...base}
+        canMove
+        onSelect={onSelect}
+        onSelectClip={onSelectClip}
+        onMoveCommit={onMoveCommit}
+      />,
+    );
+    const hit = container.querySelector(".clip-hit") as HTMLElement;
+    const touch = { pointerType: "touch", isPrimary: true, pointerId: 8 };
+    fireEvent.pointerDown(hit, { ...touch, clientX: 40, clientY: 10 });
+    vi.advanceTimersByTime(700);
+    fireEvent.pointerUp(hit, { ...touch, clientX: 42, clientY: 10 });
+    fireEvent.lostPointerCapture(hit, { pointerId: 8 });
+    fireEvent.click(hit);
+    vi.runOnlyPendingTimers();
+    expect(onSelectClip).toHaveBeenCalledOnce();
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onMoveCommit).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
   it("hides ghost clips from the accessibility tree", () => {
     const { container } = render(
       <ClipBlock
