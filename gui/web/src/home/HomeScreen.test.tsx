@@ -254,16 +254,14 @@ describe("HomeScreen", () => {
     await expectNoA11yViolations(container);
   });
 
-  it("migrates dawshell.bootstrap.skip and skips the wizard", async () => {
+  it("skips the wizard when sharecut.bootstrap.skip is set", async () => {
     window.localStorage.clear();
-    window.localStorage.setItem("dawshell.bootstrap.skip", "1");
+    window.localStorage.setItem("sharecut.bootstrap.skip", "1");
     render(<HomeScreen />);
     expect(
       screen.getByRole("heading", { name: "Sharecut Studio" }),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "New project…" })).toBeTruthy();
-    expect(window.localStorage.getItem("sharecut.bootstrap.skip")).toBe("1");
-    expect(window.localStorage.getItem("dawshell.bootstrap.skip")).toBeNull();
   });
 
   it("opens Connect agent from home and unpins the served project", async () => {

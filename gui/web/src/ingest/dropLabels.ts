@@ -1,5 +1,3 @@
-import { migrateLocalStorageKey } from "../utils/legacyStorage";
-
 export const AUDIO_INGEST_EXTENSIONS = [
   ".wav",
   ".mp3",
@@ -86,15 +84,9 @@ export function formatIngestDuration(sec: number): string {
 }
 
 export const INGEST_COACH_STORAGE_KEY = "sharecut.ingestCoachDismissed";
-const LEGACY_INGEST_COACH_STORAGE_KEY = "dawshell.ingestCoachDismissed";
 
 export function isIngestCoachDismissed(): boolean {
-  return (
-    migrateLocalStorageKey(
-      INGEST_COACH_STORAGE_KEY,
-      LEGACY_INGEST_COACH_STORAGE_KEY,
-    ) === "1"
-  );
+  return localStorage.getItem(INGEST_COACH_STORAGE_KEY) === "1";
 }
 
 export function dismissIngestCoach(): void {

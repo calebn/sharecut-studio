@@ -73,14 +73,9 @@ describe("dropLabels", () => {
     expect(isAudioIngestFile({ name: "notes.txt", type: "" })).toBe(false);
   });
 
-  it("migrates dawshell.ingestCoachDismissed", () => {
-    window.localStorage.setItem("dawshell.ingestCoachDismissed", "1");
+  it("reads ingest coach dismissed status from storage", () => {
+    expect(isIngestCoachDismissed()).toBe(false);
+    window.localStorage.setItem("sharecut.ingestCoachDismissed", "1");
     expect(isIngestCoachDismissed()).toBe(true);
-    expect(window.localStorage.getItem("sharecut.ingestCoachDismissed")).toBe(
-      "1",
-    );
-    expect(
-      window.localStorage.getItem("dawshell.ingestCoachDismissed"),
-    ).toBeNull();
   });
 });
