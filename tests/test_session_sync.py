@@ -1,15 +1,22 @@
 from __future__ import annotations
 
-import json
 from concurrent.futures import ThreadPoolExecutor
 
 from podcast_mcp.models import load_project
+from podcast_mcp.services.session_control import SessionControlService
 from podcast_mcp.services.session_sync.commands import SyncCommand
 from podcast_mcp.services.session_sync.service import (
     SessionSyncService,
     next_client_seq,
+    read_session_state,
     sync_db_path,
 )
+from podcast_mcp.services.session_sync.snapshot import flatten_for_api
+from podcast_mcp.services.session_sync.viewer import (
+    publish_agent_play,
+    publish_viewer_snapshot,
+)
+from podcast_mcp.services.workspace import ProjectWorkspace
 
 
 def test_play_os_vs_audition_commands(minimal_project) -> None:
@@ -146,23 +153,6 @@ def test_agent_play_with_selection(minimal_project) -> None:
     assert snap["selection"]["id"] == "rec-1"
 
 
-def test_legacy_json_mirror_written(minimal_project) -> None:
-    proj = load_project(minimal_project)
-    svc = SessionSyncService(proj)
-    svc.submit_play(
-        timeline_start_sec=1.0,
-        timeline_end_sec=2.0,
-        source="premix",
-        tier="premix",
-        dry_run=True,
-    )
-    assert sync_db_path(proj).is_file()
-    legacy = proj.artifacts_dir() / "session_state.json"
-    assert legacy.is_file()
-    data = json.loads(legacy.read_text())
-    assert data["region"]["start_sec"] == 1.0
-
-
 def test_ack_and_presence(minimal_project) -> None:
     proj = load_project(minimal_project)
     svc = SessionSyncService(proj)
@@ -279,68 +269,6 @@ def test_authz_strict_remote(monkeypatch) -> None:
         peer_host="10.0.0.5",
         token="secret",
     ).allowed
-
-
-def test_legacy_seed_and_open(minimal_project) -> None:
-    import json
-
-    from podcast_mcp.services.session_sync.service import (
-        _STORE_CACHE,
-        SessionSyncService,
-        sync_db_path,
-    )
-
-    proj = load_project(minimal_project)
-    legacy = proj.artifacts_dir() / "session_state.json"
-    legacy.parent.mkdir(parents=True, exist_ok=True)
-    legacy.write_text(
-        json.dumps(
-            {
-                "playhead_sec": 11.0,
-                "is_playing": False,
-                "audition_mode": "mix",
-                "region": {"start_sec": 11.0, "end_sec": 12.0},
-                "command_id": "legacy-cmd",
-                "origin": "agent",
-            }
-        ),
-        encoding="utf-8",
-    )
-    # Drop cached store so seed runs
-    key = f"{sync_db_path(proj).resolve()}|"
-    _STORE_CACHE.pop(key, None)
-    if sync_db_path(proj).is_file():
-        sync_db_path(proj).unlink()
-    svc = SessionSyncService.open(minimal_project)
-    snap = svc.snapshot()
-    assert snap["playhead_sec"] == 11.0
-    assert snap["command_id"] == "legacy-cmd"
-    assert svc.meta()["exists"] is True
-    # Re-open with existing snapshot skips re-seed
-    _STORE_CACHE.pop(key, None)
-    again = SessionSyncService(proj).snapshot()
-    assert again["playhead_sec"] == 11.0
-
-
-def test_legacy_seed_corrupt_and_non_dict(minimal_project) -> None:
-    from podcast_mcp.services.session_sync.service import (
-        _STORE_CACHE,
-        SessionSyncService,
-        sync_db_path,
-    )
-
-    proj = load_project(minimal_project)
-    legacy = proj.artifacts_dir() / "session_state.json"
-    legacy.parent.mkdir(parents=True, exist_ok=True)
-    key = f"{sync_db_path(proj).resolve()}|"
-    for bad in ("{not-json", "[]"):
-        _STORE_CACHE.pop(key, None)
-        if sync_db_path(proj).is_file():
-            sync_db_path(proj).unlink()
-        legacy.write_text(bad, encoding="utf-8")
-        snap = SessionSyncService(proj).snapshot()
-        assert snap["server_seq"] == 0
-        assert snap.get("command_id") is None
 
 
 def test_empty_snapshot_and_replay_without_store(minimal_project) -> None:
@@ -464,7 +392,6 @@ def test_post_session_command_http(minimal_project) -> None:
 
 def test_list_clients_expires_stale_presence(minimal_project) -> None:
     from podcast_mcp.services.session_sync.log import SyncStore
-    from podcast_mcp.services.session_sync.service import sync_db_path
 
     proj = load_project(minimal_project)
     store = SyncStore(sync_db_path(proj))
@@ -487,7 +414,6 @@ def test_list_clients_expires_stale_presence(minimal_project) -> None:
 
 def test_store_commands_after_and_close(minimal_project) -> None:
     from podcast_mcp.services.session_sync.log import SyncStore
-    from podcast_mcp.services.session_sync.service import sync_db_path
 
     proj = load_project(minimal_project)
     path = sync_db_path(proj)
@@ -731,7 +657,6 @@ def test_normalize_presence_meta_anchor_and_ui() -> None:
 
 def test_touch_client_merges_meta_and_followers(minimal_project) -> None:
     from podcast_mcp.services.session_sync.log import SyncStore
-    from podcast_mcp.services.session_sync.service import sync_db_path
 
     proj = load_project(minimal_project)
     store = SyncStore(sync_db_path(proj))
@@ -809,21 +734,6 @@ def test_agent_durable_command_sets_display_name(minimal_project) -> None:
     svc.submit_control("SetPlayhead", {"playhead_sec": 8.0}, client_id="agent-x")
     agent = next(c for c in svc.snapshot()["clients"] if c["client_id"] == "agent-x")
     assert agent["meta"]["display_name"] == "Agent"
-
-
-def test_legacy_json_has_no_roster(minimal_project) -> None:
-    proj = load_project(minimal_project)
-    svc = SessionSyncService(proj)
-    svc.submit_play(
-        timeline_start_sec=1.0,
-        timeline_end_sec=2.0,
-        source="premix",
-        tier="premix",
-        dry_run=True,
-    )
-    data = json.loads((proj.artifacts_dir() / "session_state.json").read_text())
-    assert "clients" not in data
-    assert "meta" not in data
 
 
 def test_ws_disconnect_removes_client(minimal_project) -> None:
@@ -933,3 +843,304 @@ def test_hub_overflow_drops_signal_not_record_applied() -> None:
     assert kinds.count("Signal") == 56
     hub.unsubscribe(key, q)
     loop.close()
+
+
+def test_publish_agent_play_bumps_revision(minimal_project) -> None:
+    proj = load_project(minimal_project)
+    s1 = publish_agent_play(
+        proj,
+        timeline_start_sec=10.0,
+        timeline_end_sec=20.0,
+        source="premix",
+        tier="premix",
+        dry_run=True,
+        query="party",
+    )
+    assert s1["server_seq"] == 1
+    assert s1["origin"] == "agent"
+    assert s1["last_command_id"]
+    assert s1["region"] == {"start_sec": 10.0, "end_sec": 20.0}
+    assert s1["query"] == "party"
+    assert s1["audition_mode"] == "mix"
+    # dry_run: DAW browser should play (no OS audio)
+    assert s1["is_playing"] is True
+
+    s2 = publish_agent_play(
+        proj,
+        timeline_start_sec=30.0,
+        timeline_end_sec=40.0,
+        source="processed:host",
+        tier="stem",
+        dry_run=False,
+    )
+    assert s2["server_seq"] == 2
+    assert s2["last_command_id"] != s1["last_command_id"]
+    assert s2["audition_mode"] == "fx"
+    assert s2["track_id"] == "host"
+    assert s2["solo_tracks"] == {"host": True}
+    # Real OS play: seek/highlight only - do not double with browser audio
+    assert s2["is_playing"] is False
+
+
+def test_viewer_snapshot_merge(minimal_project) -> None:
+    proj = load_project(minimal_project)
+    agent = publish_agent_play(
+        proj,
+        timeline_start_sec=1.0,
+        timeline_end_sec=2.0,
+        source="premix",
+        tier="premix",
+        dry_run=True,
+    )
+    assert agent["region"] == {"start_sec": 1.0, "end_sec": 2.0}
+    # While playing, viewer playhead is presence-only (no SetPlayhead journal).
+    out = publish_viewer_snapshot(
+        proj,
+        {
+            "playhead_sec": 1.5,
+            "client_id": "viewer-test",
+            "ack_command_id": agent["last_command_id"],
+        },
+    )
+    assert out["region"] == {"start_sec": 1.0, "end_sec": 2.0}
+    clients = {c["client_id"]: c for c in (out.get("clients") or [])}
+    assert clients["viewer-test"]["playhead_sec"] == 1.5
+    # Durable playhead stays at agent region start until paused scrub.
+    assert out["playhead_sec"] == 1.0
+
+
+def test_session_meta_missing_and_present(minimal_project) -> None:
+    meta = SessionSyncService.open(minimal_project).meta()
+    assert meta["exists"] is False
+    proj = load_project(minimal_project)
+    publish_agent_play(
+        proj,
+        timeline_start_sec=0.0,
+        timeline_end_sec=1.0,
+        source="premix",
+        tier="premix",
+        dry_run=True,
+    )
+    meta2 = SessionSyncService.open(minimal_project).meta()
+    assert meta2["exists"] is True
+    assert meta2["mtime_ns"] > 0
+
+
+def test_session_control_seek_stop_mode(minimal_project) -> None:
+    import pytest
+
+    from podcast_mcp.services.session_sync.commands import (
+        SyncCommand,
+        audition_mode_from_source,
+    )
+
+    assert audition_mode_from_source(None) == "mix"
+    assert audition_mode_from_source("follow-transcript:processed:host") == "fx"
+
+    ws = ProjectWorkspace.open(minimal_project)
+    svc = SessionControlService(ws)
+    sync = SessionSyncService(ws.project)
+    assert svc.get_state() is None
+    seeked = svc.seek(12.5, selection={"kind": "clip", "id": "c1"})
+    assert seeked["playhead_sec"] == 12.5
+    assert seeked["selection"]["id"] == "c1"
+    roster = svc.presence()
+    assert any(c.get("role") == "agent" for c in roster)
+    assert any(c.get("display_name") == "Agent" for c in roster)
+    assert all("ui" in c for c in roster)
+    sync.submit(
+        SyncCommand(
+            type="PresenceHeartbeat",
+            payload={"label": "CLI", "meta": {"display_name": "CLI"}},
+            client_id="cli-1",
+            role="cli",
+            client_seq=1,
+        )
+    )
+    sync.submit(
+        SyncCommand(
+            type="PresenceHeartbeat",
+            payload={"label": "G", "meta": {"display_name": "G"}},
+            client_id="guest-xxxx-tab",
+            role="viewer",
+            client_seq=1,
+        )
+    )
+    sync.submit(
+        SyncCommand(
+            type="PresenceHeartbeat",
+            payload={"label": "Host", "meta": {"display_name": "Host"}},
+            client_id="viewer-host",
+            role="viewer",
+            client_seq=1,
+        )
+    )
+    ordered = [c["client_id"] for c in svc.presence()]
+    assert ordered.index("viewer-host") < ordered.index("cli-1")
+    assert ordered.index("cli-1") < ordered.index("guest-xxxx-tab")
+    selected = svc.set_selection({"kind": "clip", "id": "c1"})
+    assert selected["selection"]["id"] == "c1"
+    assert seeked["origin"] == "agent"
+    with pytest.raises(ValueError, match="playhead_sec"):
+        svc.seek(-1.0)
+    playing = svc.set_playing(True)
+    assert playing["is_playing"] is True
+    mode = svc.set_mode("fx")
+    assert mode["audition_mode"] == "fx"
+    with pytest.raises(ValueError, match="mode"):
+        svc.set_mode("nope")
+    region = svc.set_region(
+        10.0,
+        15.0,
+        playing=True,
+        query="x",
+        selection={"kind": "clip", "id": "c1"},
+    )
+    assert region["is_playing"] is True
+    assert region["query"] == "x"
+    with pytest.raises(ValueError, match="end_sec"):
+        svc.set_region(5.0, 5.0)
+    cleared = sync.submit_control("ClearRegion", {"stop": False})["snapshot"]
+    assert cleared["region"] is None
+    solo = sync.submit_control("SetMuteSolo", {"solo_tracks": {"host": True}})["snapshot"]
+    assert solo["solo_tracks"] == {"host": True}
+    mute = sync.submit_control("SetMuteSolo", {"viewer_mute": {"host": True}})["snapshot"]
+    assert mute["viewer_mute"] == {"host": True}
+    stopped = svc.stop()
+    assert stopped["is_playing"] is False
+    assert stopped["region"] is None
+    opened = SessionControlService(ProjectWorkspace.open(minimal_project))
+    assert opened.get_state() is not None
+
+
+def test_track_id_and_mode_helpers(minimal_project) -> None:
+    from podcast_mcp.services.session_sync.commands import (
+        audition_mode_from_source,
+        track_id_from_source,
+    )
+
+    assert track_id_from_source("") is None
+    assert track_id_from_source("track:host") == "host"
+    assert track_id_from_source("follow-transcript:processed:olga") == "olga"
+    assert audition_mode_from_source("track:host") == "raw"
+
+    proj = load_project(minimal_project)
+    SessionSyncService(proj).submit_control("SetPlayhead", {"playhead_sec": 1.0})
+    viewer = publish_viewer_snapshot(
+        proj, {"playhead_sec": 2.0, "client_id": "v1", "ack_command_id": None}
+    )
+    assert viewer["playhead_sec"] == 2.0
+    assert viewer["server_seq"] >= 1
+
+    control = SessionControlService(ProjectWorkspace.open(minimal_project))
+    assert control.seek(3.0)["playhead_sec"] == 3.0
+    assert control.set_playing(True)["is_playing"] is True
+    assert control.set_mode("fx")["audition_mode"] == "fx"
+    selected = control.set_selection({"kind": "clip", "id": "c9"})
+    assert selected["selection"] == {"kind": "clip", "id": "c9"}
+    regioned = control.set_region(1.0, 2.0, playing=True, query="hi")
+    assert regioned["region"]["end_sec"] == 2.0
+    assert regioned["query"] == "hi"
+    assert regioned["is_playing"] is True
+    stopped = control.stop()
+    assert stopped["region"] is None
+    assert stopped["is_playing"] is False
+    # SessionControlService has no mute/solo facade; submit the typed command directly.
+    muted = SessionSyncService(proj).submit_control(
+        "SetMuteSolo", {"solo_tracks": {"host": True}, "viewer_mute": {"guest": True}}
+    )["snapshot"]
+    assert muted["solo_tracks"] == {"host": True}
+    assert muted["viewer_mute"] == {"guest": True}
+
+
+def test_read_empty_authority_returns_none(minimal_project) -> None:
+    from podcast_mcp.services.session_sync.snapshot import empty_snapshot
+
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+    svc.store.put_snapshot(0, empty_snapshot())
+    assert read_session_state(proj) is None
+
+
+def test_state_or_none_missing_db(minimal_project) -> None:
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+    assert svc.state_or_none() is None
+    # Reading must not create sync.db as a side effect.
+    assert not sync_db_path(proj).exists()
+    assert svc.meta()["exists"] is False
+
+
+def test_state_or_none_empty_authority(minimal_project) -> None:
+    from podcast_mcp.services.session_sync.snapshot import empty_snapshot
+
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+    svc.store.put_snapshot(0, empty_snapshot())
+    assert sync_db_path(proj).is_file()
+    assert svc.state_or_none() is None
+    assert svc.meta()["exists"] is False
+
+
+def test_state_or_none_populated_snapshot(minimal_project) -> None:
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+    applied = svc.submit_control("SetPlayhead", {"playhead_sec": 4.0})
+    state = svc.state_or_none()
+    assert state is not None
+    assert state["playhead_sec"] == 4.0
+    assert state["server_seq"] == applied["server_seq"] >= 1
+    assert state["last_command_id"] == applied["command"]["command_id"]
+    via_fn = read_session_state(proj)
+    assert via_fn is not None
+    assert via_fn["last_command_id"] == state["last_command_id"]
+    meta = svc.meta()
+    assert meta["exists"] is True
+    assert meta["server_seq"] == state["server_seq"]
+
+
+def test_snapshot_has_no_legacy_alias_fields(minimal_project) -> None:
+    proj = load_project(minimal_project)
+    assert not sync_db_path(proj).exists()
+    svc = SessionSyncService(proj)
+    result = svc.submit_control("SetPlayhead", {"playhead_sec": 2.0})
+    raw = svc.store.get_snapshot()
+    assert raw is not None
+    for out in (flatten_for_api(raw, svc.store.list_clients()), svc.snapshot(), result["snapshot"]):
+        assert "revision" not in out
+        assert "command_id" not in out
+        assert out["last_command_id"] == result["command"]["command_id"]
+        assert out["server_seq"] == result["server_seq"] >= 1
+
+
+def test_viewer_snapshot_field_commands(minimal_project) -> None:
+    proj = load_project(minimal_project)
+    agent = publish_agent_play(
+        proj,
+        timeline_start_sec=1.0,
+        timeline_end_sec=2.0,
+        source="premix",
+        tier="premix",
+        dry_run=True,
+    )
+    out = publish_viewer_snapshot(
+        proj,
+        {
+            "client_id": "v-fields",
+            "ack_command_id": agent["last_command_id"],
+            "selection": {"kind": "track", "track_id": "host"},
+            "viewer_mute": {"host": True},
+            "solo_tracks": {},
+            "audition_mode": "raw",
+            "source": "track:host",
+            "playhead_sec": 1.25,
+            "is_playing": False,
+            "region": None,
+        },
+    )
+    assert out["selection"]["track_id"] == "host"
+    assert out["viewer_mute"] == {"host": True}
+    assert out["audition_mode"] == "raw"
+    assert out["playhead_sec"] == 1.25
+    assert out["is_playing"] is False
+    assert out["region"] is None

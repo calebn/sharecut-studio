@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from podcast_mcp.edits.share_registry import reset_share_registry_for_tests
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services import ProjectWorkspace
@@ -21,10 +20,7 @@ from podcast_mcp.services.record.service import (
 from podcast_mcp.services.share import ShareService
 
 
-def _isolate_registry(tmp_workspace: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(tmp_workspace / "shares_index.json"))
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "reg.sqlite"))
-    reset_share_registry_for_tests()
+def _isolate() -> None:
     reset_record_runtime_for_tests()
 
 
@@ -38,7 +34,7 @@ def _seed_premix(minimal_project, sample_wav):
 
 
 def _room(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    _isolate_registry(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed_premix(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     return ws, room, TestClient(create_app())
@@ -213,7 +209,7 @@ def test_second_tab_lease_in_use(minimal_project, sample_wav, tmp_workspace, mon
 def test_review_token_on_record_ws_rejected(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate_registry(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed_premix(minimal_project, sample_wav)
     from podcast_mcp.services.review import ReviewService
 
@@ -246,7 +242,7 @@ def test_oversize_and_revoked_token(minimal_project, sample_wav, tmp_workspace, 
 
 
 def test_record_state_404_without_room(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    _isolate_registry(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed_premix(minimal_project, sample_wav)
     client = TestClient(create_app())
     res = client.get("/api/record/state", params={"path": str(ws.path)})
@@ -263,7 +259,7 @@ def test_host_ws_attaches_record_plane_after_room_mint(
 ):
     from urllib.parse import quote
 
-    _isolate_registry(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed_premix(minimal_project, sample_wav)
     client = TestClient(create_app())
     url = f"/api/session/ws?path={quote(str(ws.path))}&client_id=host-a&role=viewer&label=Host"
@@ -936,7 +932,7 @@ def test_share_common_token_and_manifest(minimal_project, sample_wav, tmp_worksp
     from podcast_mcp.services.share import ShareService
     from podcast_mcp.util.rate_limit import RateLimitDecision
 
-    _isolate_registry(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed_premix(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     token = room["guest"]["token"]
