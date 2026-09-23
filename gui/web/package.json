@@ -58,6 +58,7 @@
     "stylelint-no-px": "^2.1.0",
     "typescript": "~7.0.2",
     "vite": "^8.3.0",
+    "vite-node": "^6.0.0",
     "vitest": "^5.0.1"
   }
 }
