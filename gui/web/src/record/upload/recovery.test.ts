@@ -125,6 +125,35 @@ describe("downloadLocalKeepers", () => {
     await vi.runAllTimersAsync();
   });
 
+  it("uses singular copy and plural segments in the partial-export message", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn(() => "blob:keeper"),
+      revokeObjectURL: vi.fn(),
+    });
+    const filenames: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      filenames.push(this.download);
+    });
+    const sink = new MemorySink();
+    await sink.write(
+      keeperWavPath({
+        sessionId: "room1",
+        participantId: "p_guest",
+        takeIndex: 0,
+        segmentIndex: 2,
+      }),
+      new Uint8Array([1, 2, 3]),
+    );
+    await expect(
+      downloadLocalKeepers(sink, "room1", "p_guest", 0),
+    ).rejects.toThrow("Downloaded 1 local keeper copy; 2 missing segments");
+    expect(filenames).toEqual(["keepers-p_guest.zip"]);
+    await vi.runAllTimersAsync();
+  });
+
   function stubDownloads(): string[] {
     vi.stubGlobal("URL", {
       createObjectURL: vi.fn(() => "blob:keeper"),
