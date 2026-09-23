@@ -361,6 +361,54 @@ def test_coalesce_edits_non_adjacent():
     assert len(proj.edit_decisions) == 2
 
 
+def test_coalesce_keeps_reviewable_restart_and_neighbors_separate():
+    proj = EpisodeProject.create("t", "/tmp/ws")
+    proj.edit_decisions = [
+        EditDecision(
+            id="filler",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=0.0,
+            end=0.1,
+            reason="filler:um",
+        ),
+        EditDecision(
+            id="restart",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=0.1,
+            end=0.2,
+            reason="restart:partial:w",
+            review_required=True,
+        ),
+        EditDecision(
+            id="repeat",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=0.2,
+            end=0.3,
+            reason="repetition:word:i",
+            review_required=True,
+        ),
+        EditDecision(
+            id="pause",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=0.3,
+            end=0.4,
+            reason="pause:1.0s",
+        ),
+    ]
+
+    assert coalesce_edits(proj) == 0
+    assert [(edit.id, edit.reason) for edit in proj.edit_decisions] == [
+        ("filler", "filler:um"),
+        ("restart", "restart:partial:w"),
+        ("repeat", "repetition:word:i"),
+        ("pause", "pause:1.0s"),
+    ]
+
+
 def test_cut_text_match_no_matches():
     proj = _project_with_transcript()
     assert cut_text_match(proj, "nonexistent phrase") == []
