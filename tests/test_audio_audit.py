@@ -232,6 +232,58 @@ def test_recommend_boundary_fades_adjacent_clips(tmp_path: Path):
     assert recs[0]["recommended_fade_in_ms"] == 40
 
 
+def test_recommend_boundary_fades_treats_sub_tolerance_gap_as_join(tmp_path: Path):
+    from podcast_mcp.edits.clips_ops import JOIN_GAP_TOLERANCE_SEC
+    from podcast_mcp.models import MediaAsset
+
+    project = EpisodeProject.create("ep", str(tmp_path))
+    wav = tmp_path / "host.wav"
+    wav.write_bytes(b"fake")
+    project.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            speaker="Host",
+            media=MediaAsset(path=str(wav), duration_sec=2.0),
+        )
+    ]
+    project.timeline.clips = [
+        Clip(id="a", track_id="host", source_start=0.0, source_end=1.0, timeline_start=0.0),
+        Clip(
+            id="b",
+            track_id="host",
+            source_start=1.0,
+            source_end=2.0,
+            timeline_start=1.0 + JOIN_GAP_TOLERANCE_SEC / 2,
+        ),
+    ]
+    with (
+        patch(
+            "podcast_mcp.engines.audio_audit.TrackRmsCache.from_timeline_stem",
+            side_effect=Exception("no cache"),
+        ),
+        patch("podcast_mcp.engines.audio_audit._processed_track_path", return_value=None),
+        patch("podcast_mcp.engines.audio_audit.timeline_to_source", return_value=(wav, 1.0)),
+        patch(
+            "podcast_mcp.engines.audio_audit.measure_window_rms_db",
+            side_effect=[-10.0, -30.0],
+        ),
+    ):
+        recs = recommend_boundary_fades(
+            project,
+            policy=AnalysisPolicy(
+                boundary_jump_db=5.0, recommended_fade_ms=20, harsh_fade_max_ms=80
+            ),
+            track_id="host",
+        )
+    assert [r["kind"] for r in recs] == ["harsh_join"]
+
+    project.timeline.clips[1].timeline_start = 1.0 + JOIN_GAP_TOLERANCE_SEC + 1e-3
+    recs = recommend_boundary_fades(project, track_id="host")
+    assert recs[0]["kind"] == "gap_between_clips"
+
+
 def test_fade_ms_for_level_jump_scales() -> None:
     from podcast_mcp.engines.audio_audit import fade_ms_for_level_jump
 

@@ -2,13 +2,19 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from podcast_mcp.edits.clips_ops import JOIN_GAP_TOLERANCE_SEC, clips_for_track
+from podcast_mcp.edits.clips_ops import JOIN_GAP_TOLERANCE_SEC, clips_abut, clips_for_track
 from podcast_mcp.edits.mute_regions import mute_spans_for_source_window
 from podcast_mcp.engines.ffmpeg import FFmpegEngine, PlacedSegment
 from podcast_mcp.engines.session_timeline import clip_timeline_overlap_to_source
 from podcast_mcp.models import Clip, ClipJoinMode, EditDecision, EpisodeProject, Track
 from podcast_mcp.util.process import run
 from podcast_mcp.util.workspace_paths import resolve_under_workspace
+
+# Bump whenever rendered audio changes for the same project state (join rules,
+# fade/crossfade semantics, gap handling). ``track_render_hash`` includes it so
+# cached stems and play segments rendered under older rules go stale.
+# 2: sub-tolerance (<= JOIN_GAP_TOLERANCE_SEC) gaps on CROSSFADE joins now crossfade.
+RENDER_SEMANTICS_REV = 2
 
 
 def resolve_clip_audio_path(
@@ -68,14 +74,10 @@ def edits_for_clip_source(
     return mapped
 
 
-def _abuts(prev: Clip, clip: Clip) -> bool:
-    return clip.timeline_start - prev.timeline_end <= JOIN_GAP_TOLERANCE_SEC
-
-
 def _uses_crossfade_join(prev: Clip, clip: Clip) -> bool:
     if clip.join_in_mode != ClipJoinMode.CROSSFADE:
         return False
-    if not _abuts(prev, clip):
+    if not clips_abut(prev, clip):
         return False
     return prev.fade_out_ms > 0 and clip.fade_in_ms > 0
 
@@ -137,16 +139,15 @@ def render_track_from_timeline(
     af = eng.build_track_filter(chain, env)
 
     timeline_edits = [e for e in project.edit_decisions if e.track_id == track.id]
-    sorted_clips = track_clips
 
-    paths = [resolve_clip_audio_path(project, track, c) for c in sorted_clips]
+    paths = [resolve_clip_audio_path(project, track, c) for c in track_clips]
     multi_source = len({p.resolve() for p in paths}) > 1
 
     if multi_source:
         return _render_multi_source_track(
             project,
             track,
-            sorted_clips,
+            track_clips,
             paths,
             output_path,
             eng=eng,
@@ -156,15 +157,15 @@ def render_track_from_timeline(
 
     src = paths[0] if paths else primary
     placed: list[PlacedSegment] = []
-    for i, clip in enumerate(sorted_clips):
+    for i, clip in enumerate(track_clips):
         mapped = edits_for_clip_source(timeline_edits, track.id, clip)
         segments = eng.segments_after_edits(
             clip.source_end - clip.source_start,
             mapped,
             track.id,
         )
-        prev = sorted_clips[i - 1] if i > 0 else None
-        nxt = sorted_clips[i + 1] if i < len(sorted_clips) - 1 else None
+        prev = track_clips[i - 1] if i > 0 else None
+        nxt = track_clips[i + 1] if i < len(track_clips) - 1 else None
         crossfade_prev = _crossfade_ms_at_join(prev, clip) / 1000.0 if prev is not None else 0.0
 
         gap_before = 0.0
@@ -196,7 +197,7 @@ def render_track_from_timeline(
                 )
             )
 
-    lead_in = sorted_clips[0].timeline_start if sorted_clips else 0.0
+    lead_in = track_clips[0].timeline_start if track_clips else 0.0
     eng.render_timeline(
         src,
         output_path,
@@ -433,10 +434,9 @@ def render_track_segment(
     env = next((e for e in project.automation_envelopes if e.track_id == track.id), None)
     af = eng.build_track_filter(chain, env)
     timeline_edits = [e for e in project.edit_decisions if e.track_id == track.id]
-    sorted_clips = track_clips
 
     overlapping: list[tuple[Clip, float, float]] = []
-    for clip in sorted_clips:
+    for clip in track_clips:
         ov_tl_start = max(timeline_start, clip.timeline_start)
         ov_tl_end = min(timeline_end, clip.timeline_end)
         if ov_tl_end > ov_tl_start:
@@ -461,9 +461,9 @@ def render_track_segment(
             track.id,
         )
 
-        clip_i = sorted_clips.index(clip)
-        prev = sorted_clips[clip_i - 1] if clip_i > 0 else None
-        nxt = sorted_clips[clip_i + 1] if clip_i + 1 < len(sorted_clips) else None
+        clip_i = track_clips.index(clip)
+        prev = track_clips[clip_i - 1] if clip_i > 0 else None
+        nxt = track_clips[clip_i + 1] if clip_i + 1 < len(track_clips) else None
         crossfade_prev = _crossfade_ms_at_join(prev, clip) / 1000.0 if prev is not None else 0.0
 
         gap_before = ov_tl_start - timeline_cursor

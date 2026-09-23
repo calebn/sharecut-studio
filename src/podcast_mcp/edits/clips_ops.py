@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import uuid
 from collections.abc import Mapping, Sequence
+from itertools import pairwise
 from typing import Any
 
 from podcast_mcp.config import load_defaults
@@ -15,6 +16,7 @@ from podcast_mcp.engines.session_timeline import (
 from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject, SourceRecording
 
 JOIN_GAP_TOLERANCE_SEC = 0.05
+"""Largest timeline gap (seconds) between neighbouring clips still treated as a join."""
 
 
 def new_clip_id() -> str:
@@ -26,6 +28,20 @@ def clips_for_track(project: EpisodeProject, track_id: str) -> list[Clip]:
         (c for c in project.clips if c.track_id == track_id),
         key=lambda c: c.timeline_start,
     )
+
+
+def clips_abut(left: Clip, right: Clip) -> bool:
+    """True when ``right`` starts within :data:`JOIN_GAP_TOLERANCE_SEC` of ``left``'s end.
+
+    The single join rule shared by clip editing, audio audit and rendering. Overlaps
+    (negative gaps) also count as abutting.
+    """
+    return right.timeline_start - left.timeline_end <= JOIN_GAP_TOLERANCE_SEC
+
+
+def abutting_pairs(clips: Sequence[Clip]) -> list[tuple[Clip, Clip]]:
+    """Neighbouring ``(left, right)`` pairs of timeline-sorted ``clips`` that form a join."""
+    return [(left, right) for left, right in pairwise(clips) if clips_abut(left, right)]
 
 
 def set_track_clips(project: EpisodeProject, track_id: str, clips: list[Clip]) -> None:

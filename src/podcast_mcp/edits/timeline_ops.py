@@ -5,6 +5,7 @@ from collections.abc import Callable
 from pydantic import ValidationError
 
 from podcast_mcp.edits.clips_ops import (
+    JOIN_GAP_TOLERANCE_SEC,
     build_clips_after_removes,
     clips_for_track,
     extract_clips_in_timeline_range,
@@ -1229,9 +1230,13 @@ def fill_with_room_tone(
     track_id: str,
     *,
     sample_duration_sec: float = 0.25,
-    min_gap_sec: float = 0.05,
+    min_gap_sec: float = JOIN_GAP_TOLERANCE_SEC,
 ) -> dict:
-    """Fill timeline gaps between clips using audio from a nearby non-speech sample."""
+    """Fill timeline gaps between clips using audio from a nearby non-speech sample.
+
+    Only gaps wider than ``min_gap_sec`` are filled; the default is the shared join
+    tolerance, so pairs that already render as a join are left alone.
+    """
     clips = clips_for_track(project, track_id)
     if len(clips) < 2:
         return change_summary(project, operation="fill_with_room_tone", affected_tracks=[track_id])
@@ -1251,7 +1256,7 @@ def fill_with_room_tone(
         gap_start = clip.timeline_end
         gap_end = clips[i + 1].timeline_start
         gap = gap_end - gap_start
-        if gap < min_gap_sec:
+        if gap <= min_gap_sec:
             continue
         source_id: str | None = None
         if bed is not None:

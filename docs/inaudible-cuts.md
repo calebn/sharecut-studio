@@ -107,9 +107,12 @@ Cut-producing commands that accept `--inaudible-opt` / `--no-inaudible-opt`: `cu
 
 ## Join continuity (perceptual splice QA)
 
-Join detection shares one 50 ms tolerance (`JOIN_GAP_TOLERANCE_SEC`) across
+Join detection shares one 50 ms tolerance (`JOIN_GAP_TOLERANCE_SEC`) and one
+predicate (`clips_abut` / `abutting_pairs` in `edits/clips_ops.py`) across
 clip editing, audio audit, and timeline rendering. Gaps at or below the
 tolerance are treated as joins; larger gaps remain intentional timeline space.
+Render-side consequences (gap closing, crossfade overlap) are in
+[filler-cut-quality.md § Render joins](filler-cut-quality.md#render-joins).
 
 FOSS multi-detector join scoring (`edits/join_continuity.py` + paper reimpl in
 `edits/join_cost_spectral.py`): click, level, spectral flux, MFCC/LSF/MCA join
