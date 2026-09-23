@@ -260,3 +260,76 @@ export function storyLeaks(rel: string, text: string): string[] {
 export function importsStorybook(text: string): boolean {
   return importSpecifiers(text).some((s) => STORYBOOK_PACKAGE_RE.test(s));
 }
+
+const STORY_TITLE_RE = /^(?:Atoms|Molecules|Organisms|Templates)\/[^/]+$/;
+
+/** Return a reason when the default-exported story metadata lacks a tier title. */
+export function storyTitleViolation(text: string): string | null {
+  const ast = parse(text, {
+    sourceType: "module",
+    plugins: ["typescript", "jsx"],
+  });
+  const declarations = new Map<string, unknown>();
+  const isNode = (
+    value: unknown,
+  ): value is { type: string; [key: string]: unknown } =>
+    typeof value === "object" &&
+    value !== null &&
+    "type" in value &&
+    typeof value.type === "string";
+  for (const statement of ast.program.body) {
+    if (statement.type !== "VariableDeclaration") continue;
+    for (const declaration of statement.declarations) {
+      if (declaration.id.type === "Identifier") {
+        declarations.set(declaration.id.name, declaration.init);
+      }
+    }
+  }
+  const exported = ast.program.body.find(
+    (statement) => statement.type === "ExportDefaultDeclaration",
+  );
+  if (!exported || exported.type !== "ExportDefaultDeclaration") {
+    return "missing default-exported metadata";
+  }
+  let metadata: unknown = exported.declaration;
+  if (isNode(metadata) && metadata.type === "Identifier") {
+    metadata = declarations.get(metadata.name as string);
+  }
+  while (
+    isNode(metadata) &&
+    (metadata.type === "TSAsExpression" ||
+      metadata.type === "TSSatisfiesExpression" ||
+      metadata.type === "TSTypeAssertion")
+  ) {
+    metadata = metadata.expression;
+  }
+  if (!isNode(metadata) || metadata.type !== "ObjectExpression") {
+    return "default export must be a local metadata object";
+  }
+  const title = (metadata.properties as unknown[]).find((property) => {
+    if (!isNode(property) || property.type !== "ObjectProperty") return false;
+    const key = property.key;
+    return (
+      !property.computed &&
+      isNode(key) &&
+      ((key.type === "Identifier" && key.name === "title") ||
+        (key.type === "StringLiteral" && key.value === "title"))
+    );
+  });
+  if (
+    !isNode(title) ||
+    !isNode(title.value) ||
+    title.value.type !== "StringLiteral"
+  ) {
+    return "metadata title must be a string literal";
+  }
+  const value = title.value.value;
+  if (
+    typeof value !== "string" ||
+    !STORY_TITLE_RE.test(value) ||
+    value.trim() !== value
+  ) {
+    return "title must be Atoms|Molecules|Organisms|Templates/<Name>";
+  }
+  return null;
+}

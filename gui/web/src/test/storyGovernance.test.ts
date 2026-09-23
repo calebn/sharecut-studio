@@ -8,6 +8,7 @@ import {
   isStoryOrTestFile,
   STORY_SUPPORT_MODULES,
   storyLeaks,
+  storyTitleViolation,
 } from "./storyGovernance";
 
 describe("storyLeaks", () => {
@@ -201,6 +202,47 @@ describe("stories stay out of the production bundle", () => {
     const offenders = configs.flatMap((name) =>
       storyLeaks(`../${name}`, readFileSync(join(webRoot, name), "utf8")),
     );
+    expect(offenders).toEqual([]);
+  });
+});
+
+describe("Storybook title tiers", () => {
+  it.each(["Atoms", "Molecules", "Organisms", "Templates"])(
+    "accepts %s metadata",
+    (tier) => {
+      expect(
+        storyTitleViolation(
+          `const meta = { title: "${tier}/Button" }; export default meta;`,
+        ),
+      ).toBeNull();
+    },
+  );
+
+  it.each([
+    ["unknown tier", 'export default { title: "Screens/Home" };'],
+    ["empty name", 'export default { title: "Atoms/" };'],
+    ["extra tier", 'export default { title: "Atoms/Forms/Button" };'],
+    ["no title", "const meta = { component: Button }; export default meta;"],
+    [
+      "computed title",
+      "const title = 'Atoms/Button'; export default { title };",
+    ],
+    [
+      "story arg title",
+      "const meta = {}; export const Default = { title: 'Atoms/Button' }; export default meta;",
+    ],
+    ["no default", "const meta = { title: 'Atoms/Button' };"],
+  ])("rejects %s", (_case, source) => {
+    expect(storyTitleViolation(source)).not.toBeNull();
+  });
+
+  it("all checked-in stories have a sanctioned title", () => {
+    const offenders = walkTsFiles(SRC_ROOT)
+      .filter((file) => /\.stories\.(?:ts|tsx)$/.test(file))
+      .flatMap((file) => {
+        const reason = storyTitleViolation(readFileSync(file, "utf8"));
+        return reason ? [`${srcRelative(file)}: ${reason}`] : [];
+      });
     expect(offenders).toEqual([]);
   });
 });
