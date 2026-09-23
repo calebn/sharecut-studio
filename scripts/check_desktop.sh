@@ -22,21 +22,26 @@ test -x gui/desktop/binaries/sharecut-sidecar
 test -f scripts/build_sidecar.py
 test -f scripts/sidecar_launcher.rs
 
-echo "==> rustc --test scripts/sidecar_launcher.rs"
-launcher_test="$(mktemp "${TMPDIR:-/tmp}/sharecut-sidecar-launcher-test.XXXXXX")"
-trap 'rm -f "$launcher_test"' EXIT
-rustc --edition 2021 --test scripts/sidecar_launcher.rs -o "$launcher_test"
-"$launcher_test"
-
 python3 -c "import json; json.load(open('gui/desktop/src-tauri/tauri.conf.json'))"
 python3 scripts/generate_distribution_config.py \
   --profile config/distribution.dev.json \
   --output "${TMPDIR:-/tmp}/sharecut-tauri-distribution-check.json"
 
-if ! command -v cargo >/dev/null 2>&1; then
-  echo "error: cargo not found — install Rust (https://rustup.rs/) with rustfmt + clippy" >&2
-  exit 1
-fi
+for tool in cargo rustc rustfmt clippy-driver; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "error: $tool not found — install Rust (https://rustup.rs/) with rustfmt + clippy" >&2
+    exit 1
+  fi
+done
+
+# Standalone rustc launcher (not a cargo crate): fmt + clippy + unit tests.
+echo "==> sidecar launcher: rustfmt --check / clippy / rustc --test"
+rustfmt --edition 2021 --check scripts/sidecar_launcher.rs scripts/sidecar_shared.rs
+launcher_tmp="$(mktemp -d "${TMPDIR:-/tmp}/sharecut-sidecar-launcher.XXXXXX")"
+trap 'rm -rf "$launcher_tmp"' EXIT
+clippy-driver --edition 2021 -D warnings scripts/sidecar_launcher.rs -o "$launcher_tmp/launcher"
+clippy-driver --edition 2021 -D warnings --test scripts/sidecar_launcher.rs -o "$launcher_tmp/launcher-test"
+"$launcher_tmp/launcher-test"
 
 cd gui/desktop/src-tauri
 
