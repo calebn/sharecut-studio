@@ -44,7 +44,8 @@ def test_merge_gate_holds_on_owner_labels_and_wont_do() -> None:
     assert "unresolved review thread" in script
     assert "won't-do item(s) need owner sign-off" in script
     assert "--match-head-commit" in script
-    assert "--squash" in script
+    assert "--rebase --delete-branch" in script
+    assert "--squash" not in script
     assert "completed the pipeline's review gate" in script
     assert "merge permission denied:" in script
 
@@ -136,7 +137,34 @@ def test_review_lenses_fan_out_from_the_script() -> None:
     for section in skill_sections:
         assert f"section: '{section}" in script, section
     assert "lenses=supplied" in script
-    assert "phase: 'Review', model: M.worker, isolation: 'worktree', schema: S_LENS" in script
+    # Lenses are read-only and share one cwd (no worktree) so their prompts cache together.
+    assert "phase: 'Review', model: M.worker, schema: S_LENS" in script
+    assert len(re.findall(r"prompt: ['\"]", script)) == 8
+
+
+def test_lenses_share_one_review_packet_prefix() -> None:
+    script = _script()
+    lens_fn = script[script.index("function lensReview(") : script.index("async function review(")]
+    # The shared packet comes before anything lens-specific.
+    assert lens_fn.index("${packet.packet_md}") < lens_fn.index("${lens.key}")
+    assert "If the packet shows no surface for your lens, return an empty findings list" in lens_fn
+    review_fn = script[script.index("async function review(") :]
+    assert review_fn.index("await reviewPacket(") < review_fn.index("lensReview(")
+
+
+def test_ci_state_is_derived_from_raw_rows() -> None:
+    script = _script()
+    assert "const SHA_RE = /^[0-9a-f]{40}$/" in script
+    assert "function ciState(ci)" in script
+    assert "COPY its rows verbatim" in script
+    # A moved head at the gate re-checks CI instead of holding the PR.
+    assert "head moved to ${g.head_sha.slice(0, 8)}; re-checking CI" in script
+
+
+def test_cleanup_counts_are_cross_checked() -> None:
+    script = _script()
+    assert "cleanup.before - cleanup.after !== cleanup.removed.length" in script
+    assert "git branch -a --contains <sha>" in script
 
 
 def test_triage_is_batched_text_only() -> None:

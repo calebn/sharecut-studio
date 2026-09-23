@@ -9,7 +9,7 @@ export const meta = {
     { title: 'CI', detail: 'wait once, at the gate, for required checks on the final head SHA', model: 'haiku' },
     { title: 'Review', detail: 'pr-multi-review AUTONOMOUS MODE + post verification', model: 'opus' },
     { title: 'Feedback', detail: 'feedback AUTONOMOUS MODE plan (opus) + execute (sonnet)' },
-    { title: 'Merge', detail: 'gate facts, rebase on conflict, squash-merge', model: 'haiku' },
+    { title: 'Merge', detail: 'gate facts, rebase on conflict, rebase-merge', model: 'haiku' },
     { title: 'Cleanup', detail: 'remove finished workflow worktrees', model: 'haiku' },
   ],
 }
@@ -116,14 +116,35 @@ const S_PR = {
   },
   required: ['ok'],
 }
+// The watcher only copies raw GitHub data; the script derives pass/fail from it, because a
+// cheap model once invented both a check name and a head SHA.
 const S_CI = {
   type: 'object',
   properties: {
-    state: { enum: ['pass', 'fail', 'timeout'] },
-    head_sha: { type: 'string' },
-    failing: { type: 'array', items: { type: 'string' } },
+    head_sha: { type: 'string', description: 'exact 40-char headRefOid from gh pr view' },
+    timed_out: { type: 'boolean' },
+    checks: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { name: { type: 'string' }, state: { type: 'string', description: 'bucket/state from gh pr checks --json, verbatim' } },
+        required: ['name', 'state'],
+      },
+    },
   },
-  required: ['state', 'head_sha'],
+  required: ['head_sha', 'timed_out', 'checks'],
+}
+const SHA_RE = /^[0-9a-f]{40}$/
+// Pure: classify a watcher report. Invalid data never counts as pass or fail.
+function ciState(ci) {
+  if (!ci || !SHA_RE.test(ci.head_sha || '')) return { state: 'invalid', failing: [], reason: `watcher returned head ${ci ? JSON.stringify(ci.head_sha) : 'nothing'}` }
+  const byName = new Map(ci.checks.map((c) => [c.name, String(c.state).toLowerCase()]))
+  const missing = REQUIRED_CHECKS.filter((n) => !byName.has(n))
+  const failing = REQUIRED_CHECKS.filter((n) => ['fail', 'failure', 'cancel', 'cancelled', 'error', 'timed_out', 'action_required'].includes(byName.get(n)))
+  if (failing.length) return { state: 'fail', failing, head_sha: ci.head_sha }
+  if (!missing.length && REQUIRED_CHECKS.every((n) => ['pass', 'success'].includes(byName.get(n)))) return { state: 'pass', failing: [], head_sha: ci.head_sha }
+  if (ci.timed_out) return { state: 'timeout', failing: [], head_sha: ci.head_sha }
+  return { state: 'invalid', failing: [], head_sha: ci.head_sha, reason: `required checks missing or unfinished: ${REQUIRED_CHECKS.filter((n) => !['pass', 'success'].includes(byName.get(n))).join(', ')}` }
 }
 const S_CI_FIX = {
   type: 'object',
@@ -253,7 +274,7 @@ Expected head SHA: ${expectSha || '(read it with gh pr view)'}.
 1. Confirm \`gh pr view ${pr} -R ${REPO} --json headRefOid -q .headRefOid\` matches the expected SHA (if a newer SHA exists, use the newer one and report it).
 2. Loop \`gh pr checks ${pr} -R ${REPO} --required --watch --interval 30\` with a Bash timeout of 590000 ms. If checks are not registered yet, retry. Give up after ~60 minutes total → state "timeout".
 3. Only count check runs on the PR head SHA. Required checks: ${REQUIRED_CHECKS.join(', ')}.
-Return state pass (all required succeeded), fail (any failed/cancelled; list names in failing), or timeout, plus head_sha.`,
+Then run \`gh pr checks ${pr} -R ${REPO} --required --json name,bucket,state\` once more and COPY its rows verbatim into checks (name + bucket). Copy the exact 40-character headRefOid into head_sha. Set timed_out=true only if you gave up waiting. Do not summarize or invent values.`,
     { label: `ci:${tag(issue)}`, phase: 'CI', model: M.cheap, effort: 'low', schema: S_CI },
   )
 }
@@ -274,16 +295,25 @@ First classify the cause:
 }
 
 // Wait for green with bounded fix attempts. Returns {ok, head_sha, reason}.
+async function watch(issue, pr, sha) {
+  let ci = ciState(await waitCi(issue, pr, sha))
+  if (ci.state === 'invalid') {
+    log(`${tag(issue)} CI watcher data invalid (${ci.reason}); re-watching once`)
+    ci = ciState(await waitCi(issue, pr, sha))
+  }
+  return ci
+}
+
 async function ensureGreen(issue, pr, branch, sha) {
-  let ci = await waitCi(issue, pr, sha)
+  let ci = await watch(issue, pr, sha)
   let note = ''
   for (let i = 0; ci && ci.state === 'fail' && i < CI_FIX_ATTEMPTS; i++) {
     const fix = await fixCi(issue, pr, branch, ci)
     if (!fix || !fix.ok) { note = fix ? `CI ${fix.cause}: ${fix.summary}` : ''; break }
     if (fix.cause === 'flaky') log(`${tag(issue)} CI flaky (${fix.summary}); re-ran failed jobs`)
-    ci = await waitCi(issue, pr, fix.cause === 'pr' ? fix.head_sha : ci.head_sha)
+    ci = await watch(issue, pr, fix.cause === 'pr' ? fix.head_sha : ci.head_sha)
   }
-  if (!ci) return { ok: false, head_sha: sha, reason: 'CI watcher died' }
+  if (ci.state === 'invalid') return { ok: false, head_sha: sha, reason: `CI state unknown: ${ci.reason}` }
   if (note && ci.state !== 'pass') return { ok: false, head_sha: ci.head_sha, reason: note }
   const ok = ci.state === 'pass'
   return { ok, head_sha: ci.head_sha, reason: ok ? '' : `CI ${ci.state}: ${(ci.failing || []).join(', ')}` }
@@ -306,14 +336,22 @@ Return ok=true once both are done.`,
 // subagents, so the script fans the lenses out itself and hands their reports to the
 // Opus review parent, which merges, dedupes and posts (the skill's remaining steps).
 const LENSES = [
-  { key: 'bugbot', section: '1. Bugbot', checklist: '~/.agents/skills/multi-review/defect-checklist.md' },
-  { key: 'risk', section: '2. Risk hunt' },
-  { key: 'wiring', section: '3. Wiring / migration review' },
-  { key: 'reuse', section: '4. DRY / SOLID / reuse / conventions', checklist: '~/.agents/skills/pr-multi-review/reuse-solid-checklist.md' },
-  { key: 'security', section: '5. Security', checklist: '~/.agents/skills/multi-review/security-checklist.md' },
-  { key: 'concurrency', section: '6. Concurrency / errors / resources', checklist: '~/.agents/skills/multi-review/concurrency-checklist.md' },
-  { key: 'performance', section: '7. Performance', checklist: '~/.agents/skills/multi-review/performance-checklist.md' },
-  { key: 'patterns', section: '8. Algorithms / contracts', checklist: '~/.agents/skills/pr-multi-review/patterns-antipatterns.md' },
+  { key: 'bugbot', section: '1. Bugbot', checklist: '~/.agents/skills/multi-review/defect-checklist.md',
+    prompt: 'Focus on bugs, regressions, a11y breaks, contrast/theme mistakes, broken CSS selectors, missing tests for new behavior, and anything Bugbot typically flags. Ignore pure style nits.' },
+  { key: 'risk', section: '2. Risk hunt',
+    prompt: 'Bug-hunt the diff for things Bugbot/CI reviewers flag. Check especially: theme/contrast tokens, interaction CSS specificity, a11y, test gaps, CI failures (gh pr checks), deploy/copy drift, docs claims vs code, and incomplete migrations. If truly nothing, say so but list residual risks.' },
+  { key: 'wiring', section: '3. Wiring / migration review',
+    prompt: "Review component/CSS/service migrations for regressions, Bugbot-style. Look for: missing aria attributes, rest-spread clobbering controlled props, hover that fires wrongly on touch, className merges dropping shared primitives, leftover CSS fighting new primitives, twin paths (CLI/MCP/GUI) left unmigrated, tests that do not assert what they claim." },
+  { key: 'reuse', section: '4. DRY / SOLID / reuse / conventions', checklist: '~/.agents/skills/pr-multi-review/reuse-solid-checklist.md',
+    prompt: "DRY / SOLID / reuse / repo conventions (AGENTS.md). Require grep/search evidence for every reuse claim: name the existing symbol/file, or state 'searched, none found'." },
+  { key: 'security', section: '5. Security', checklist: '~/.agents/skills/multi-review/security-checklist.md',
+    prompt: 'Trace untrusted input to sinks. Flag injection, path traversal, authz bypass (including guest/share vs owner), secrets in logs/source, SSRF, unsafe deserialization, and validation dropped on a twin path (MCP/CLI/GUI/relay). Ignore style and theoretical hardening with no exploit path.' },
+  { key: 'concurrency', section: '6. Concurrency / errors / resources', checklist: '~/.agents/skills/multi-review/concurrency-checklist.md',
+    prompt: 'Flag races, check-then-act, lock inversion, unawaited async, missing cancellation, shared mutable state without an owner, resource leaks, swallowed errors, and partial failure with no cleanup. Ignore happy-path logic (other lenses cover it).' },
+  { key: 'performance', section: '7. Performance', checklist: '~/.agents/skills/multi-review/performance-checklist.md',
+    prompt: 'Flag only work that plausibly hurts a hot path or unbounded input: quadratic loops, N+1 queries/fetches, unbounded reads, blocking I/O on UI/async threads, repeated parse/fetch per row/frame, caches without eviction. No micro-optimizations; if there is no hot or unbounded path, return none.' },
+  { key: 'patterns', section: '8. Algorithms / contracts', checklist: '~/.agents/skills/pr-multi-review/patterns-antipatterns.md',
+    prompt: 'For every queue, cache, retry, debounce/coalesce, snapshot vs delta, poll, merge, or similar control flow: write Require (what the data must be) and Guarantee (what the next consumer gets), check the composition chain, and flag where this diff breaks it or a "fix" is a sibling algorithm with the same false require. Findings use Trigger → Path → Expected vs actual.' },
 ]
 // Round 2+ only re-reviews the (small) feedback-fix diff.
 const FOLLOWUP_LENSES = ['bugbot', 'risk', 'reuse']
@@ -340,25 +378,60 @@ const S_LENS = {
   required: ['lens', 'findings'],
 }
 
-function lensReview(issue, pr, round, since, lens) {
+const S_PACKET = {
+  type: 'object',
+  properties: {
+    packet_md: { type: 'string', description: 'the review packet (markdown)' },
+    omitted: { type: 'array', items: { type: 'string' }, description: 'paths too large to include; lenses read them on demand' },
+  },
+  required: ['packet_md', 'omitted'],
+}
+
+// Built once per round and shared by every lens: removes 8x duplicated setup/exploration,
+// and gives all lens prompts an identical prefix so the prompt cache can reuse it.
+function reviewPacket(issue, pr, branch, round, since) {
+  const diff = round > 1 ? `${since}..origin/${branch}` : `origin/main...origin/${branch}`
   return agent(
-    `You are the "${lens.key}" reviewer lens for ${REPO} PR #${pr}. Read-only: do not post, push or edit.
-Check out the PR head: \`git fetch origin && git checkout --detach "origin/$(gh pr view ${pr} -R ${REPO} --json headRefName -q .headRefName)"\`.
-Diff to review: ${round > 1 ? `\`git diff ${since}..HEAD\` (feedback fixes only; do not re-raise resolved threads)` : '`git diff origin/main...HEAD`'}.
-Your lens prompt is ${SKILLS.review} § Launch → "${lens.section}"${lens.checklist ? `; follow the checklist ${lens.checklist}` : ''}. Read the actual code around each change, cite evidence, skip pure style nits. Return every concrete finding (severity, path, line, title, detail) and residual risks; an empty list is fine when there is truly nothing.`,
-    { label: `lens:${lens.key}:${tag(issue)}:r${round}`, phase: 'Review', model: M.worker, isolation: 'worktree', schema: S_LENS },
+    `Build a review packet for ${REPO} PR #${pr} (branch ${branch}). Read-only: do not check out, edit, post or push.
+Run \`git fetch origin --prune\`, then assemble packet_md (target <= 60k characters) with these sections:
+1. "## Diff stat" — \`git diff --stat ${diff}\`
+2. "## Diff" — \`git diff ${diff}\` (full; if larger than ~35k characters, include the largest hunks in full, list the rest under omitted).
+3. "## Changed files in context" — for each changed file, about 30 lines around each hunk from \`git show origin/${branch}:<path>\`.
+4. "## Callers and references" — \`git grep -n\` (on origin/${branch}) for each changed or added function/class/export name; list file:line hits (cap 20 per symbol).
+5. "## Related tests" — test files touched by the diff plus tests that reference the changed modules (paths + the relevant test names).
+6. "## Applicable repo rules" — the rows of AGENTS.md "Docs in sync" whose left column matches the changed paths, and any .agents/rules file that governs them (paths only).
+Copy command output verbatim; do not summarize or judge. List anything too large in omitted.`,
+    { label: `packet:${tag(issue)}:r${round}`, phase: 'Review', model: M.worker, effort: 'low', schema: S_PACKET },
   )
 }
 
-async function review(issue, pr, round, since) {
+function lensReview(issue, pr, branch, round, packet, lens) {
+  // Identical prefix across lenses (cache-friendly); lens-specific text last.
+  return agent(
+    `You are one reviewer lens for ${REPO} PR #${pr} (branch ${branch}), review round ${round}. Read-only: do not check out, post, push or edit. Read any further code with \`git show origin/${branch}:<path>\` or \`git grep -n <pattern> origin/${branch}\`.
+${round > 1 ? 'This round covers only the feedback-fix diff; do not re-raise resolved threads.\n' : ''}REVIEW PACKET:
+${packet.packet_md}
+${packet.omitted.length ? `Omitted from the packet (read on demand): ${packet.omitted.join(', ')}\n` : ''}---
+YOUR LENS: "${lens.key}" (pr-multi-review § Launch → ${lens.section}).
+${lens.prompt}${lens.checklist ? `\nChecklist: read and follow ${lens.checklist}.` : ''}
+Start from the packet; read more code only where your lens needs evidence. If the packet shows no surface for your lens, return an empty findings list with a one-line residual_risks entry saying why. Otherwise return every concrete finding (severity, path, line, title, detail with evidence) and residual risks.`,
+    { label: `lens:${lens.key}:${tag(issue)}:r${round}`, phase: 'Review', model: M.worker, schema: S_LENS },
+  )
+}
+
+async function review(issue, pr, branch, round, since) {
   const lenses = round > 1 ? LENSES.filter((l) => FOLLOWUP_LENSES.includes(l.key)) : LENSES
-  const reports = (await parallel(lenses.map((l) => () => lensReview(issue, pr, round, since, l)))).filter(Boolean)
+  const packet = await reviewPacket(issue, pr, branch, round, since)
+  if (!packet) return null
+  const reports = (await parallel(lenses.map((l) => () => lensReview(issue, pr, branch, round, packet, l)))).filter(Boolean)
   if (reports.length < lenses.length) log(`${tag(issue)} review r${round}: ${lenses.length - reports.length} lens(es) returned nothing`)
   return agent(
     `${AUTH}
 AUTONOMOUS MODE: round=${round}${since ? `, since=${since}` : ''}, lenses=supplied
 Read ${SKILLS.review} (and the checklists it references) and execute it for ${REPO} PR #${pr}, following its "AUTONOMOUS MODE (pipeline)" section, which overrides every other gate in that file.
 The reviewer lenses have ALREADY RUN (reports below), so skip § Launch. Do § Browser QA (when the diff has a GUI/HTTP surface), then § Merge + present over the union of these reports and your own reading of the diff (drop a finding only when the diff refutes it), then § Posting comments.
+Review packet (same one the lenses used; start from it instead of re-exploring):
+${packet.packet_md}
 Lens reports (JSON): ${JSON.stringify(reports)}
 POSTING IS MANDATORY. Every unrebutted High/Medium/Low finding must be posted to the PR before you return: inline threads (one COMMENT review) where a RIGHT-side line attaches, otherwise one top-level \`gh pr comment\` per finding. Never APPROVE or REQUEST_CHANGES. An unposted finding is a pipeline failure.
 ${round > 1 ? `Round ${round}: review ONLY \`git diff ${since}..<PR head>\` (the feedback fixes). Do not re-raise resolved threads.` : ''}
@@ -455,7 +528,7 @@ function merge(issue, pr, sha, evidence) {
 This PR has completed the pipeline's review gate. Evidence (verify it before merging):
 ${evidence}
 1. Show the review record: \`gh pr view ${pr} -R ${REPO} --json reviews,comments,statusCheckRollup,headRefOid\` and confirm the head is ${sha}, every required check succeeded, and there are no unresolved review threads (GraphQL reviewThreads isResolved). If anything disagrees with the evidence, do NOT merge; return ok=false with the discrepancy.
-2. Merge: \`gh pr merge ${pr} -R ${REPO} --squash --delete-branch --match-head-commit ${sha}\` (ignore local-branch cleanup errors). Confirm \`gh pr view ${pr} -R ${REPO} --json state -q .state\` is MERGED, then \`gh issue edit ${issue.number} -R ${REPO} --remove-label in-progress\`. Return ok=true only if merged; otherwise ok=false with the error in detail. If the merge command is denied by a tool-permission check, return ok=false with detail starting "merge permission denied:".`,
+2. Merge: \`gh pr merge ${pr} -R ${REPO} --rebase --delete-branch --match-head-commit ${sha}\` (ignore local-branch cleanup errors). Confirm \`gh pr view ${pr} -R ${REPO} --json state -q .state\` is MERGED, then \`gh issue edit ${issue.number} -R ${REPO} --remove-label in-progress\`. Return ok=true only if merged; otherwise ok=false with the error in detail. If the merge command is denied by a tool-permission check, return ok=false with detail starting "merge permission denied:".`,
     { label: `merge:${tag(issue)}`, phase: 'Merge', model: M.cheap, effort: 'low', schema: S_DONE },
   )
 }
@@ -595,7 +668,7 @@ Return ok, pr number, branch, head_sha.`,
     const followups = []
     for (let round = 1; round <= MAX_ROUNDS; round++) {
       rounds = round
-      const rev = await review(issue, pr, round, since)
+      const rev = await review(issue, pr, branch, round, since)
       if (!rev) return hold(issue, pr, `review round ${round} agent died`)
       findingsTotal += rev.findings.length
       if (rev.findings.length) {
@@ -639,6 +712,13 @@ Return ok, pr number, branch, head_sha.`,
         green = { ok: false, head_sha: head }
         continue
       }
+      // A push landed after the last CI wait (e.g. a late feedback fix): re-check that head.
+      if (SHA_RE.test(g.head_sha) && g.head_sha !== head && attempt < GATE_ATTEMPTS) {
+        log(`${tag(issue)} head moved to ${g.head_sha.slice(0, 8)}; re-checking CI`)
+        head = g.head_sha
+        green = { ok: false, head_sha: head }
+        continue
+      }
       blockers = gateBlockers(g, wontDo, head)
       if (!green.ok) blockers.push(green.reason || 'CI not green')
       if (NO_MERGE) {
@@ -659,7 +739,7 @@ Return ok, pr number, branch, head_sha.`,
         }
         blockers = [`merge failed: ${m ? m.detail : 'agent died'}`]
       }
-      break // only a conflict (DIRTY) earns another attempt
+      break // only a conflict (DIRTY) or a moved head earns another attempt
     }
     const held = await hold(issue, pr, blockers.join('; '))
     return { ...held, rounds, findings: findingsTotal, followups }
@@ -673,20 +753,25 @@ phase('Cleanup')
 const S_CLEANUP = {
   type: 'object',
   properties: {
+    before: { type: 'integer' },
+    after: { type: 'integer' },
     removed: { type: 'array', items: { type: 'string' } },
     kept: { type: 'array', items: { type: 'object', properties: { path: { type: 'string' }, reason: { type: 'string' } }, required: ['path', 'reason'] } },
   },
-  required: ['removed', 'kept'],
+  required: ['before', 'after', 'removed', 'kept'],
 }
 const cleanup = await agent(
   `Clean up finished issue-pipeline worktrees in this repository. Only touch worktrees whose path contains "/.claude/worktrees/wf_" (from \`git worktree list --porcelain\`); never touch any other worktree or the main checkout.
-Run \`git fetch origin --prune\` first. For each wf_ worktree:
+First record before = the number of wf_ worktrees. For each wf_ worktree:
 - If \`git -C <path> status --porcelain\` is non-empty → keep it (reason: uncommitted changes).
-- Else if its HEAD commit is not on origin (\`git branch -r --contains <sha>\` is empty) → keep it (reason: unpushed commits).
-- Else \`git worktree remove <path>\`; if it had a local branch checked out that no other worktree uses, \`git branch -D <branch>\`.
-Finish with \`git worktree prune\`. Return removed paths and kept paths with reasons.`,
-  { label: 'cleanup:worktrees', phase: 'Cleanup', model: M.cheap, effort: 'low', schema: S_CLEANUP },
+- Else if its HEAD commit is on no branch at all (\`git branch -a --contains <sha>\` is empty) → keep it (reason: unpushed commits). A squash-merged PR's commits count as fine when a local or remote branch still contains them.
+- Else \`git worktree remove <path>\`.
+Then \`git worktree prune\` and record after = the number of wf_ worktrees left. Return before, after, removed paths and kept paths with reasons. Actually run the commands; the caller checks that before - after equals the number removed.`,
+  { label: 'cleanup:worktrees', phase: 'Cleanup', model: M.worker, effort: 'low', schema: S_CLEANUP },
 )
+if (cleanup && cleanup.before - cleanup.after !== cleanup.removed.length) {
+  log(`Cleanup counts do not add up (before ${cleanup.before}, after ${cleanup.after}, removed ${cleanup.removed.length}); check \`git worktree list\``)
+}
 if (cleanup) {
   log(`Cleanup: removed ${cleanup.removed.length} worktree(s)${cleanup.kept.length ? `; kept ${cleanup.kept.map((k) => `${k.path} (${k.reason})`).join(', ')}` : ''}`)
 }
