@@ -13,9 +13,6 @@ export const STORY_SUPPORT_MODULES = new Set([
 
 // Literal specifiers only: non-literal `import(x)`, template/concatenated
 // strings and path aliases are not detected (see docs/design-system.md).
-const GLOB_CALL_RE =
-  /import\.meta\.glob\s*(?:<[^>]*>)?\s*\(\s*(\[[^\]]*\]|["'`][^"'`\n]*["'`])/g;
-const STRING_LITERAL_RE = /["'`]([^"'`\n]*)["'`]/g;
 const STORYBOOK_PACKAGE_RE = /^(?:storybook(?:\/|$)|@storybook\/)/;
 const STORIES_SPECIFIER_RE = /\.stories(?:\.[cm]?[jt]sx?)?(?:\?.*)?$/;
 const SOURCE_EXT_RE = /\.[cm]?[jt]sx?$/;
@@ -31,9 +28,13 @@ export function isStoryOrTestFile(rel: string): boolean {
   return /\.(?:stories|test)\.[jt]sx?$/.test(rel) || rel.startsWith("test/");
 }
 
-/** Module specifiers from static/dynamic imports, re-exports and `require()`. */
-export function importSpecifiers(text: string): string[] {
+/** Module references from real syntax, excluding comments and ordinary strings. */
+function sourceReferences(text: string): {
+  specifiers: string[];
+  globs: string[][];
+} {
   const specifiers: string[] = [];
+  const globs: string[][] = [];
   const ast = parse(text, {
     sourceType: "unambiguous",
     plugins: ["typescript", "jsx"],
@@ -54,6 +55,35 @@ export function importSpecifiers(text: string): string[] {
       specifiers.push(value.value);
     }
   };
+  const isGlobCallee = (value: unknown): boolean => {
+    if (!isNode(value) || value.type !== "MemberExpression") return false;
+    const object = value.object;
+    return (
+      value.computed === false &&
+      isNode(value.property) &&
+      value.property.type === "Identifier" &&
+      value.property.name === "glob" &&
+      isNode(object) &&
+      object.type === "MetaProperty" &&
+      isNode(object.meta) &&
+      object.meta.name === "import" &&
+      isNode(object.property) &&
+      object.property.name === "meta"
+    );
+  };
+  const addGlob = (value: unknown): void => {
+    if (!isNode(value)) return;
+    const patterns =
+      value.type === "ArrayExpression" ? value.elements : [value];
+    if (!Array.isArray(patterns)) return;
+    globs.push(
+      patterns
+        .filter(
+          (pattern) => isNode(pattern) && pattern.type === "StringLiteral",
+        )
+        .map((pattern) => pattern.value as string),
+    );
+  };
   const visit = (value: unknown): void => {
     if (Array.isArray(value)) {
       value.forEach(visit);
@@ -73,26 +103,32 @@ export function importSpecifiers(text: string): string[] {
     } else if (value.type === "TSImportType") {
       addLiteral(value.argument);
     } else if (value.type === "CallExpression" && isNode(value.callee)) {
+      const firstArgument = Array.isArray(value.arguments)
+        ? value.arguments[0]
+        : undefined;
       if (
         value.callee.type === "Import" ||
         (value.callee.type === "Identifier" && value.callee.name === "require")
       ) {
-        addLiteral(
-          Array.isArray(value.arguments) ? value.arguments[0] : undefined,
-        );
+        addLiteral(firstArgument);
+      } else if (isGlobCallee(value.callee)) {
+        addGlob(firstArgument);
       }
     }
     Object.values(value).forEach(visit);
   };
   visit(ast);
-  return specifiers;
+  return { specifiers, globs };
+}
+
+/** Module specifiers from static/dynamic imports, re-exports and `require()`. */
+export function importSpecifiers(text: string): string[] {
+  return sourceReferences(text).specifiers;
 }
 
 /** String patterns of each `import.meta.glob(...)` call in `text`. */
 export function globPatterns(text: string): string[][] {
-  return [...text.matchAll(GLOB_CALL_RE)].map((m) =>
-    [...m[1].matchAll(STRING_LITERAL_RE)].map((s) => s[1]),
-  );
+  return sourceReferences(text).globs;
 }
 
 /** Extensions Storybook loads stories from (see `.storybook/main.ts`). */
@@ -169,7 +205,8 @@ export function globCanMatchStories(patterns: string[]): boolean {
  */
 export function storyLeaks(rel: string, text: string): string[] {
   const leaks: string[] = [];
-  for (const spec of importSpecifiers(text)) {
+  const { specifiers, globs } = sourceReferences(text);
+  for (const spec of specifiers) {
     if (STORIES_SPECIFIER_RE.test(spec) || STORYBOOK_PACKAGE_RE.test(spec)) {
       leaks.push(`${rel}: imports ${spec}`);
       continue;
@@ -186,7 +223,7 @@ export function storyLeaks(rel: string, text: string): string[] {
       }
     }
   }
-  for (const patterns of globPatterns(text)) {
+  for (const patterns of globs) {
     if (globCanMatchStories(patterns)) {
       leaks.push(
         `${rel}: import.meta.glob(${patterns.join(", ")}) can match stories`,

@@ -140,8 +140,10 @@ both themes, in story mode and on its docs page, before merging.
   story-support modules must be added to `STORY_SUPPORT_MODULES` in
   `gui/web/src/test/storyGovernance.ts`. The check parses TypeScript and JSX
   syntax for literal `import`, `export … from`, `import()`, and `require()`
-  specifiers, so comments and ordinary strings cannot look like imports.
-  `import.meta.glob` patterns are checked separately. For both checks,
+  specifiers and real `import.meta.glob` calls, so comments and ordinary
+  strings cannot look like imports or glob calls. Literal glob arguments may
+  be one string or an array of strings; existing story-negation rules apply
+  to each call. For both checks,
   non-literal specifiers (variables, template or concatenated strings) and
   path aliases are not detected, so keep story-adjacent imports literal and
   relative.
