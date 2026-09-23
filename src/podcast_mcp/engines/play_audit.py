@@ -8,12 +8,23 @@ from typing import Any
 
 from podcast_mcp.edits.mute_regions import mute_regions_payload
 from podcast_mcp.engines.timeline_render import clips_for_track
-from podcast_mcp.models import EpisodeProject
+from podcast_mcp.models import AutomationEnvelope, EpisodeProject
 
 log = logging.getLogger(__name__)
 
 # Stems are timeline-clock WAVs; tolerate encoder/container rounding.
 STEM_DURATION_TOLERANCE_SEC = 0.25
+
+
+def envelope_audio_payload(envelope: AutomationEnvelope | None) -> dict[str, Any] | None:
+    """Describe audible envelope state without editorial point identities."""
+    if envelope is None:
+        return None
+    return {
+        "track_id": envelope.track_id,
+        "parameter": envelope.parameter,
+        "points": [{"time": point.time, "value": point.value} for point in envelope.points],
+    }
 
 
 def track_render_hash(project: EpisodeProject, track_id: str) -> str:
@@ -52,7 +63,7 @@ def track_render_hash(project: EpisodeProject, track_id: str) -> str:
         "edits": edits,
         "clips": clips,
         "chain": chain.model_dump() if chain else None,
-        "envelope": env.model_dump() if env else None,
+        "envelope": envelope_audio_payload(env),
     }
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(raw.encode()).hexdigest()[:16]

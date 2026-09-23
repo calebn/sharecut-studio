@@ -72,7 +72,45 @@ Default speech model is **large-v3-turbo**. Users can pick a smaller size in the
 Same downloads as `podcast bootstrap` (ffmpeg, whisper; optional rnnoise).
 Torch / speaker / joinqc are **not** exposed in the GUI.
 
-**Open project:** Sharecut Studio **Browse…** / Mod+O call `POST /api/project/pick` on the Python sidecar (OS dialog). The Tauri shell does **not** need `tauri-plugin-dialog` for this — same API as a system browser on `http://127.0.0.1:8765`. Paste path remains when no dialog tool is available.
+**Open project:** Sharecut Studio **Browse…** / Mod+O call `POST /api/project/pick` on the Python sidecar (OS dialog), the same API as a system browser on `http://127.0.0.1:8765`. Paste path remains when no dialog tool is available. The desktop `tauri-plugin-dialog` is reserved for native close confirmation; it is not used as a project picker.
+
+## Closing while recording
+
+While a local host or guest keeper is active or finalizing, the web client
+writes `sc_close_guard=host|guest` into its loopback URL. The native Tauri host
+reads that marker during `CloseRequested` and `ExitRequested`, prevents the
+request synchronously, and displays a role-aware native confirmation dialog.
+Host Start arms the marker synchronously before its HTTP request, covering a
+server transition that precedes the response. If both Start and its status
+check have an uncertain outcome, the guard stays armed until a subsequent
+recording command verifies the room state. A newer snapshot timestamp alone
+cannot prove that the Start request has finished.
+After confirmation it calls `WebviewWindow.destroy()` and exits the app; a
+cancel keeps the window and recording open. An unreadable, malformed, or
+duplicated marker is treated conservatively and still requires confirmation.
+The marker survives a WebView reload until a room snapshot confirms it is safe
+to clear, and a failed keeper finalization leaves confirmation armed.
+If the microphone disappears as Stop arrives, the guard remains armed until
+the local WAV and metadata flush completes. If the main WebView handle is
+unavailable, native close and exit requests are blocked conservatively.
+An unguarded window close routes through app exit while its WebView is still
+available for a final guard check. Guest producers and guests who declined
+recording do not receive a keeper warning from room state alone.
+A successful retry clears a current keeper finalization warning; an older
+session's failed disposal stays armed because a new session cannot repair its
+WAV. New/Open project navigation is blocked while the marker is armed, and
+Home does not clear a marker carried from a recording room. If a
+confirmed native destroy fails, a dialog explains that the room remains open
+and offers a retry through the normal Quit control.
+On macOS the app menu mirrors Tauri's default items but replaces its native
+Quit item with a `Cmd+Q` menu command that calls `AppHandle::exit(0)`, so
+the app menu and Cmd+Q take the `ExitRequested` confirmation path. Dock Quit
+and OS shutdown can bypass the app menu; they remain best-effort paths.
+
+The loopback page receives no Tauri plugin capability, performs no native IPC,
+and never gets permission to destroy a window. `tauri-plugin-dialog` is used
+only by Rust for the confirmation dialog. Do not widen
+`capabilities/default.json` or add `remote.urls` to support this guard.
 
 Pinned bootstrap assets, when a distributor elects to mirror them, are described
 by [`contracts/bootstrap-assets.json`](../contracts/bootstrap-assets.json).

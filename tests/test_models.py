@@ -1,6 +1,12 @@
 from __future__ import annotations
 
+import json
+
+import pytest
+
 from podcast_mcp.models import (
+    AutomationEnvelope,
+    AutomationPoint,
     Clip,
     EditDecision,
     EditDecisionType,
@@ -10,6 +16,55 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
+
+
+def test_automation_point_id_is_stable():
+    point = AutomationPoint(time=0.0, value=1.0)
+    assert point.id
+    with pytest.raises(ValueError, match="Field is frozen"):
+        point.id = "different"
+
+
+def test_legacy_envelope_points_get_stable_distinct_ids():
+    legacy = {
+        "track_id": "host",
+        "points": [
+            {"time": 0.0, "value": 1.0},
+            {"time": 0.0, "value": 1.0},
+        ],
+    }
+    first = AutomationEnvelope.model_validate(legacy)
+    second = AutomationEnvelope.model_validate(legacy)
+    first_ids = [point.id for point in first.points]
+    assert first_ids == [point.id for point in second.points]
+    assert len(set(first_ids)) == 2
+    assert all(first_ids)
+
+
+def test_load_legacy_envelope_ids_stay_stable_until_saved(minimal_project):
+    raw = json.loads(minimal_project.read_text(encoding="utf-8"))
+    raw["mix"]["automation_envelopes"] = [
+        {
+            "track_id": "host",
+            "points": [{"time": 0.0, "value": 1.0}, {"time": 5.0, "value": 0.5}],
+        }
+    ]
+    minimal_project.write_text(json.dumps(raw), encoding="utf-8")
+
+    first = load_project(minimal_project)
+    second = load_project(minimal_project)
+    ids = [point.id for point in first.automation_envelopes[0].points]
+    assert ids == [point.id for point in second.automation_envelopes[0].points]
+    assert (
+        "id"
+        not in json.loads(minimal_project.read_text(encoding="utf-8"))["mix"][
+            "automation_envelopes"
+        ][0]["points"][0]
+    )
+
+    save_project(first, minimal_project)
+    stored = json.loads(minimal_project.read_text(encoding="utf-8"))
+    assert [point["id"] for point in stored["mix"]["automation_envelopes"][0]["points"]] == ids
 
 
 def test_clip_timeline_end_property():

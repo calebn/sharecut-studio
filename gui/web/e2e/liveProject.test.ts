@@ -13,7 +13,85 @@ import {
   prepareLiveE2eProject,
   removeLiveE2eProject,
   removeRelocatedE2eProject,
+  shouldCopyWorkspaceEntry,
 } from "./liveProject";
+
+const SKIPPED_SEED_PATHS = [
+  "export/x.wav",
+  "artifacts/review/abc/mix.wav",
+  "artifacts/review/shares.json",
+  "artifacts/play_cache/seg.wav",
+  "artifacts/session/document.db",
+  "history/h.json",
+];
+const KEPT_SEED_PATHS = [
+  "episode.project.json",
+  "artifacts/peaks/p.json",
+  "transcripts/review/t.json",
+  "sources/export/s.wav",
+];
+
+function seedSourceRoot(): string {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "sharecut-seed-"));
+  for (const rel of [...SKIPPED_SEED_PATHS, ...KEPT_SEED_PATHS]) {
+    const file = path.join(root, rel);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, rel.endsWith(".json") ? "{}" : "");
+  }
+  return root;
+}
+
+describe("createRelocatedE2eProject copy rule", () => {
+  it("skips generated and per-machine state but keeps inputs and peaks", () => {
+    const sourceRoot = seedSourceRoot();
+    let workspaceDir = "";
+    try {
+      ({ workspaceDir } = createRelocatedE2eProject(
+        "sharecut-e2e-seed-",
+        () => false,
+        sourceRoot,
+      ));
+      for (const rel of SKIPPED_SEED_PATHS) {
+        expect(fs.existsSync(path.join(workspaceDir, rel)), rel).toBe(false);
+      }
+      for (const rel of KEPT_SEED_PATHS) {
+        expect(fs.existsSync(path.join(workspaceDir, rel)), rel).toBe(true);
+      }
+    } finally {
+      fs.rmSync(sourceRoot, { recursive: true, force: true });
+      if (workspaceDir) {
+        fs.rmSync(workspaceDir, { recursive: true, force: true });
+      }
+    }
+  });
+
+  it("excludes every entry the fixture .gitignore ignores", () => {
+    const gitignore = fs.readFileSync(
+      path.join(path.dirname(committedE2eProjectPath), ".gitignore"),
+      "utf8",
+    );
+    const patterns = gitignore
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith("#"));
+    expect(patterns.length).toBeGreaterThan(0);
+    for (const pattern of patterns) {
+      const negated = pattern.startsWith("!");
+      const probe = (negated ? pattern.slice(1) : pattern)
+        .replace(/\*/g, "__probe__")
+        .replace(/\/$/, "");
+      expect(shouldCopyWorkspaceEntry(probe), pattern).toBe(negated);
+      if (!negated) {
+        expect(shouldCopyWorkspaceEntry(`${probe}/child.json`), pattern).toBe(
+          false,
+        );
+      }
+    }
+    expect(shouldCopyWorkspaceEntry("artifacts")).toBe(true);
+    expect(shouldCopyWorkspaceEntry("artifacts/peaks")).toBe(true);
+    expect(shouldCopyWorkspaceEntry("artifacts/peaks/guest.json")).toBe(true);
+  });
+});
 
 describe("prepareLiveE2eProject", () => {
   afterEach(() => {

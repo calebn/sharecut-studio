@@ -54,10 +54,48 @@ const transcript: ProjectView["transcript"] = {
 };
 
 describe("tightenHits", () => {
-  it("selects filler and pause reasons only", () => {
+  it("selects all tighten proposal classes", () => {
     expect(isTightenPending(edit())).toBe(true);
     expect(isTightenPending(edit({ reason: "pause:1.1s" }))).toBe(true);
+    expect(isTightenPending(edit({ reason: "repetition:word:the" }))).toBe(
+      true,
+    );
+    expect(isTightenPending(edit({ reason: "restart:phrase:i went" }))).toBe(
+      true,
+    );
     expect(isTightenPending(edit({ reason: "nl:topic" }))).toBe(false);
+  });
+
+  it("lists and filters repetition and restart hits as review-required", () => {
+    const hits = listTightenHits(
+      [
+        edit({
+          id: "repeat",
+          reason: "repetition:word:um",
+          review_required: true,
+        }),
+        edit({
+          id: "restart",
+          reason: "restart:phrase:i went",
+          review_required: true,
+        }),
+      ],
+      transcript,
+    );
+    expect(hits.map((hit) => hit.tightenClass)).toEqual([
+      "repetition",
+      "restart",
+    ]);
+    expect(hits.map((hit) => hit.riskBadge)).toEqual(["review", "review"]);
+    expect(eligibleApplyAllIds(hits, true)).toEqual([]);
+    expect(
+      filterTightenHits(hits, {
+        classFilter: "restart",
+        trackId: "",
+        harshOnly: false,
+        query: "",
+      }).map((hit) => hit.id),
+    ).toEqual(["restart"]);
   });
 
   it("flags harsh cuts from review, join fail, and risky", () => {

@@ -111,6 +111,24 @@ def test_play_service_audition_context(minimal_project, sample_wav, tmp_workspac
     assert len(ctx["tracks"]) == 2
 
 
+def test_play_service_audition_context_can_skip_track_dsp(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _two_track_project(minimal_project, sample_wav, tmp_workspace, skew_sec=0.0)
+    ws = ProjectWorkspace.open(minimal_project)
+
+    def fail_if_dsp_runs(*_args, **_kwargs):
+        raise AssertionError("golden-ear context must use rendered pair audio for DSP")
+
+    monkeypatch.setattr(
+        "podcast_mcp.edits.audition_context._diagnostics_for_tracks", fail_if_dsp_runs
+    )
+    ctx = PlayService(ws).audition_context(1.0, 5.0, include_dsp=False)
+    assert ctx["schema"] == "audition_context.v2"
+    assert len(ctx["tracks"]) == 2
+    assert "visuals" not in ctx
+
+
 def test_audition_context_includes_effects_and_comments(minimal_project, sample_wav, tmp_workspace):
     from podcast_mcp.edits.comments import add_comment
     from podcast_mcp.models import ProcessingChain, ProcessingEffect
