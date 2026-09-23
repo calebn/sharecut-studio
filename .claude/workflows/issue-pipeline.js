@@ -374,7 +374,7 @@ function setStage(issue, pr, key) {
   const others = Object.values(STAGE_LABELS).filter((l) => l !== STAGE_LABELS[key])
   return stage(
     `Update the pipeline claim on ${REPO} issue #${issue.number} to stage "${key}".
-1. \`gh issue edit ${issue.number} -R ${REPO} --add-label ${STAGE_LABELS[key]} ${others.map((l) => `--remove-label ${l}`).join(' ')}\`${pr ? ` and the same label edit on PR #${pr} (\`gh pr edit ${pr} -R ${REPO} …\`)` : ''}.
+1. \`gh issue edit ${issue.number} -R ${REPO} --add-label ${STAGE_LABELS[key]} ${others.map((l) => `--remove-label ${l}`).join(' ')}\`${pr ? ` and the same label edit on PR #${pr} (\`gh pr edit ${pr} -R ${REPO} …\`), also removing ${STALL_LABEL} there` : ''}.
 2. Rewrite claim comment ${c.comment_id} (token ${c.token}) with stage=${key} and heartbeat=$(date -u +%Y-%m-%dT%H:%M:%SZ), released=no, via \`gh api -X PATCH repos/${REPO}/issues/comments/${c.comment_id} -f body=…\`.
 ${CLAIM_FORMAT}
 Return ok=true when both are done.`,
@@ -398,17 +398,43 @@ Return ok=true when done.`,
   )
 }
 
-async function hold(issue, pr, reason) {
-  log(`${tag(issue)} HOLD: ${reason}`)
-  await releaseClaim(issue, pr, 'held')
+// Two kinds of stop. Only a real question for the owner blocks merging with
+// needs-user-input; technical failures are "stalled" and the next run resumes them.
+const STALL_LABEL = 'pipeline:stalled'
+const STALL_MARK = '<!-- pipeline-stalled'
+
+// A decision only the owner can make (won't-do sign-off, planner abort, owner hold).
+async function holdForDecision(issue, pr, question, detail) {
+  log(`${tag(issue)} DECISION NEEDED: ${question}`)
+  await releaseClaim(issue, pr, 'needs-decision')
   return stage(
-    `The automated issue pipeline is HOLDING ${pr ? `PR #${pr}` : `issue #${issue.number}`} on ${REPO} for a human decision.
-Reason: ${reason}
-1. ${pr ? `\`gh pr edit ${pr} -R ${REPO} --add-label needs-user-input\`` : `\`gh issue edit ${issue.number} -R ${REPO} --add-label needs-user-input\``}
-2. Post one comment on the ${pr ? 'PR' : 'issue'} headed "Automation hold" that states the reason and exactly what the owner needs to decide or do. Keep it short.
+    `The issue pipeline needs an owner decision on ${pr ? `PR #${pr}` : `issue #${issue.number}`} (${REPO}) and must not merge until it is answered.
+1. ${pr ? `\`gh pr edit ${pr} -R ${REPO} --add-label needs-user-input --remove-label ${STALL_LABEL}\`` : `\`gh issue edit ${issue.number} -R ${REPO} --add-label needs-user-input\``} (ignore "not found").
+2. Post one comment, exactly this shape (fill in, keep it short):
+## Automation hold — decision needed
+**Question:** ${question}
+**Context:** ${detail || '(summarize the relevant facts in 1-3 bullets)'}
+**To unblock:** answer here, then remove \`needs-user-input\` (or merge yourself).
 Return ok=true once both are done.`,
     { label: `hold:${tag(issue)}`, phase: 'Merge', model: M.cheap, effort: 'low', schema: S_DONE },
-  ).then(() => ({ issue: issue.number, pr, merged: false, held: true, reason }))
+  ).then(() => ({ issue: issue.number, pr, merged: false, held: true, decision: true, reason: question }))
+}
+
+// Technical problem, no decision needed. resumeAt: 'gate' when review+feedback finished,
+// 'review' otherwise (a resumed PR is never merged without a completed review).
+async function stall(issue, pr, reason, resumeAt) {
+  log(`${tag(issue)} STALLED (${resumeAt || 'retriage'}): ${reason}`)
+  await releaseClaim(issue, pr, 'stalled')
+  return stage(
+    `The issue pipeline stalled on a technical problem on ${pr ? `PR #${pr}` : `issue #${issue.number}`} (${REPO}). No owner decision is needed.
+1. ${pr ? `\`gh pr edit ${pr} -R ${REPO} --add-label ${STALL_LABEL}\`` : `(issue-level stall: add no label; the next triage picks the issue up again)`}
+2. Post one comment, exactly this shape:
+${pr ? `${STALL_MARK} resume=${resumeAt} -->\n` : ''}## Automation stall — no decision needed
+**What happened:** ${reason}
+**Next:** ${pr ? `the next issue-pipeline run resumes this PR from the ${resumeAt === 'gate' ? 'merge gate (CI + threads re-checked, then merge)' : 'review stage (review is completed before any merge)'}. You may also merge it yourself if the gate conditions hold.` : 'the next issue-pipeline run can pick this issue up again.'}
+Return ok=true once done.`,
+    { label: `stall:${tag(issue)}`, phase: 'Merge', model: M.cheap, effort: 'low', schema: S_DONE },
+  ).then(() => ({ issue: issue.number, pr, merged: false, held: true, stalled: true, resumeAt, reason }))
 }
 
 // pr-multi-review's reviewer lenses (SKILL.md § Launch). Workflow subagents cannot spawn
@@ -628,6 +654,107 @@ function gateBlockers(g, wontDo, headSha) {
   return out
 }
 
+// Review/feedback rounds (skipped for gate-only resumes), then the merge gate.
+async function finishLane(issue, pr, branch, head, { gateOnly = false } = {}) {
+  // GitHub CI runs while review/feedback proceed; it is waited on once, at the
+  // merge gate, against the final head (the gate enforces green).
+  let green = { ok: false, head_sha: head, reason: 'CI not yet checked' }
+
+  let wontDo = 0
+  let findingsTotal = 0
+  let since = ''
+  let rounds = 0
+  const followups = []
+  for (let round = 1; !gateOnly && round <= MAX_ROUNDS; round++) {
+    rounds = round
+    const rev = await review(issue, pr, branch, round, since)
+    if (!rev) return stall(issue, pr, `review round ${round} agent died`, 'review')
+    findingsTotal += rev.findings.length
+    if (rev.findings.length) {
+      const pv = await verifyPosted(issue, pr, rev)
+      if (!pv || pv.missing_after > 0) {
+        return stall(issue, pr, `could not post ${pv ? pv.missing_after : '?'} review finding(s): ${pv ? (pv.missing_ids || []).join(', ') : 'verifier died'}`, 'review')
+      }
+    }
+    since = rev.reviewed_sha
+
+    const plan = await feedbackPlan(issue, pr, round, round === MAX_ROUNDS)
+    if (!plan) return stall(issue, pr, `feedback plan round ${round} agent died`, 'review')
+    if (!plan.items.length) break
+
+    const exec = await feedbackExec(issue, pr, branch, plan)
+    if (!exec) return stall(issue, pr, `feedback execute round ${round} agent died`, 'review')
+    const rv = await verifyReplies(issue, pr, exec)
+    if (!rv || rv.missing_after > 0) return stall(issue, pr, `could not post ${rv ? rv.missing_after : '?'} feedback repl(ies)`, 'review')
+    wontDo += exec.wont_do_count
+    followups.push(...exec.items.filter((i) => i.followup_issue).map((i) => i.followup_issue))
+
+    const changed = !!exec.head_sha && exec.head_sha !== head
+    if (changed) head = exec.head_sha
+    // No new code → nothing new to re-review.
+    if (!changed) break
+  }
+
+  await setStage(issue, pr, 'merging')
+  // Gate: merge as soon as this lane is done and CI is green on the latest head.
+  let blockers = []
+  let lastGate = null
+  for (let attempt = 1; attempt <= GATE_ATTEMPTS; attempt++) {
+    if (!green.ok || green.head_sha !== head) {
+      green = await ensureGreen(issue, pr, branch, head)
+      head = green.head_sha
+    }
+    const g = await gateFacts(issue, pr)
+    lastGate = g
+    if (!g) { blockers = ['gate agent died']; break }
+    if (g.merge_state_status === 'DIRTY') {
+      const rb = await rebase(issue, pr, branch)
+      if (!rb || !rb.ok) { blockers = [`rebase onto main failed: ${rb ? rb.summary : 'agent died'}`]; break }
+      head = rb.head_sha
+      green = { ok: false, head_sha: head }
+      continue
+    }
+    // A push landed after the last CI wait (e.g. a late feedback fix): re-check that head.
+    if (SHA_RE.test(g.head_sha) && g.head_sha !== head && attempt < GATE_ATTEMPTS) {
+      log(`${tag(issue)} head moved to ${g.head_sha.slice(0, 8)}; re-checking CI`)
+      head = g.head_sha
+      green = { ok: false, head_sha: head }
+      continue
+    }
+    blockers = gateBlockers(g, wontDo, head)
+    if (!green.ok) blockers.push(green.reason || 'CI not green')
+    if (NO_MERGE) {
+      log(`${tag(issue)} PR #${pr} noMerge: gate ${blockers.length ? `would HOLD (${blockers.join('; ')})` : 'would MERGE'}`)
+      return { issue: issue.number, pr, merged: false, wouldMerge: !blockers.length, blockers, rounds, findings: findingsTotal, followups }
+    }
+    if (!blockers.length) {
+      const evidence = [
+        gateOnly ? '- review and feedback completed in an earlier run (resumed at the merge gate; all threads re-checked below)' : `- review rounds: ${rounds}; findings posted: ${findingsTotal} (post-verified)`,
+        `- feedback: every item replied to (reply-verified); follow-up issues: ${followups.map((n) => `#${n}`).join(', ') || 'none'}; won't-do: ${wontDo}`,
+        `- unresolved review threads: ${g.unresolved_threads}; labels: ${g.labels.join(', ') || 'none'}`,
+        `- required checks on ${g.head_sha}: ${REQUIRED_CHECKS.join(', ')} all SUCCESS`,
+      ].join('\n')
+      const m = await merge(issue, pr, g.head_sha, evidence)
+      if (m && m.ok) {
+        await releaseClaim(issue, pr, 'merged')
+        log(`${tag(issue)} PR #${pr} merged`)
+        return { issue: issue.number, pr, merged: true, rounds, findings: findingsTotal, followups }
+      }
+      blockers = [`merge failed: ${m ? m.detail : 'agent died'}`]
+    }
+    break // only a conflict (DIRTY) or a moved head earns another attempt
+  }
+  // Owner-facing reasons block merging; everything else is a technical stall that resumes.
+  const facts = lastGate
+  const decision = wontDo > 0 || (facts && facts.labels.some((l) => HOLD_LABELS.includes(l)))
+  const held = decision
+    ? await holdForDecision(issue, pr,
+        wontDo > 0 ? `Accept the ${wontDo} won't-do reply(ies) on the unresolved review thread(s)? Resolve a thread to accept its rationale, or reply asking for the change.` : 'This PR carries an owner hold label (needs-user-input / do-not-merge). Merge when you are satisfied.',
+        blockers.join('; '))
+    : await stall(issue, pr, blockers.join('; '), 'gate')
+  return { ...held, rounds, findings: findingsTotal, followups }
+}
+
 // ---------------------------------------------------------------------------
 // Triage
 // ---------------------------------------------------------------------------
@@ -684,9 +811,51 @@ const skipped = scores.filter((s) => !selected.includes(s) && !foreign.includes(
 log(`Selected: ${selected.map((s) => `#${s.number}(${s.size},p${s.priority},${s.area})`).join(' ') || 'none'}`)
 if (skipped.length) log(`Not selected this run: ${skipped.map((s) => `#${s.number}[${s.actionable ? '' : 'not-actionable '}${s.size}${s.blockers ? ' blocked' : ''}]`).join(' ')}`)
 
-if (A.dryRun || !selected.length) {
-  return { dryRun: !!A.dryRun, selected, skipped }
+// ---------------------------------------------------------------------------
+// Resume PRs that an earlier run left as technical stalls (never decision holds).
+// ---------------------------------------------------------------------------
+const S_STALLED = {
+  type: 'object',
+  properties: {
+    prs: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          pr: { type: 'integer' },
+          issue: { type: 'integer' },
+          branch: { type: 'string' },
+          head_sha: { type: 'string' },
+          resume: { enum: ['gate', 'review'] },
+        },
+        required: ['pr', 'issue', 'branch', 'head_sha', 'resume'],
+      },
+    },
+  },
+  required: ['prs'],
 }
+const stalled = A.noResume ? { prs: [] } : await stage(
+  `List stalled issue-pipeline PRs to resume. Read-only.
+\`gh pr list -R ${REPO} --state open --label ${STALL_LABEL} --json number,author,headRefName,headRefOid,labels,closingIssuesReferences\`. Keep only PRs authored by ${AUTHORS.join(' or ')} that do NOT also carry ${HOLD_LABELS.join(' or ')}.
+For each: issue = the first closingIssuesReferences number (skip the PR if none); resume = the value of resume= in its latest comment starting with "${STALL_MARK}" (\`gh api repos/${REPO}/issues/<pr>/comments --paginate\`), defaulting to review; head_sha = headRefOid; branch = headRefName.`,
+  { label: 'resume:list', phase: 'Triage', model: M.worker, effort: 'low', schema: S_STALLED },
+)
+const toResume = (stalled ? stalled.prs : []).filter((r) => SHA_RE.test(r.head_sha))
+if (toResume.length) log(`Resuming stalled PRs: ${toResume.map((r) => `#${r.pr}(${r.resume})`).join(' ')}`)
+
+if (A.dryRun || (!selected.length && !toResume.length)) {
+  return { dryRun: !!A.dryRun, selected, skipped, resumable: toResume }
+}
+
+async function resumeLane(r) {
+  const issue = { number: r.issue }
+  const claim = await claimIssue(issue)
+  if (!claim || !claim.won) return { issue: r.issue, pr: r.pr, merged: false, skipped: true, reason: `not claimed: ${claim ? claim.reason : 'claim agent died'}` }
+  await setStage(issue, r.pr, r.resume === 'gate' ? 'merging' : 'review')
+  return finishLane(issue, r.pr, r.branch, r.head_sha, { gateOnly: r.resume === 'gate' })
+}
+// Resumed lanes run alongside the new ones.
+const resumedDone = parallel(toResume.map((r) => () => resumeLane(r)))
 
 // ---------------------------------------------------------------------------
 // Lanes: one pipeline item per issue, no barrier between issues
@@ -718,8 +887,8 @@ If the issue needs an owner decision or is too large for one PR, set abort=true 
   // 2. Implement + open PR (sonnet)
   async ({ issue, plan, done }) => {
     if (done) return { issue, done }
-    if (!plan) return { issue, done: await hold(issue, null, 'planner agent died') }
-    if (plan.abort) return { issue, done: await hold(issue, null, `planner aborted: ${plan.abort_reason || 'no reason given'}`) }
+    if (!plan) return { issue, done: await stall(issue, null, 'planner agent died') }
+    if (plan.abort) return { issue, done: await holdForDecision(issue, null, plan.abort_reason || 'The planner could not plan this issue without an owner decision.', 'Planner aborted before implementation; see its comment on the issue.') }
     await setStage(issue, null, 'implementing')
     const pr = await stage(
       `Implement ${REPO} issue #${issue.number} by following this plan EXACTLY. Do not redesign; if the plan is impossible, return ok=false with the reason.
@@ -735,113 +904,20 @@ End the PR body with "🤖 Generated with [Claude Code](https://claude.com/claud
 Return ok, pr number, branch, head_sha.`,
       { label: `impl:${tag(issue)}`, phase: 'Implement', model: M.worker, isolation: 'worktree', schema: S_PR },
     )
-    if (!pr || !pr.ok) return { issue, done: await hold(issue, null, `implementation failed: ${pr ? pr.error : 'agent died'}`) }
+    if (!pr || !pr.ok) return { issue, done: await stall(issue, null, `implementation failed: ${pr ? pr.error : 'agent died'}`) }
     log(`${tag(issue)} → PR #${pr.pr}`)
     await setStage(issue, pr.pr, 'review')
     return { issue, pr }
   },
 
   // 3. CI → review/feedback rounds → gate → merge
-  async (lane) => {
-    if (lane.done) return lane.done
-    const { issue } = lane
-    const { pr, branch } = lane.pr
-    let head = lane.pr.head_sha
-
-    // GitHub CI runs while review/feedback proceed; it is waited on once, at the
-    // merge gate, against the final head (the gate enforces green).
-    let green = { ok: false, head_sha: head, reason: 'CI not yet checked' }
-
-    let wontDo = 0
-    let findingsTotal = 0
-    let since = ''
-    let rounds = 0
-    const followups = []
-    for (let round = 1; round <= MAX_ROUNDS; round++) {
-      rounds = round
-      const rev = await review(issue, pr, branch, round, since)
-      if (!rev) return hold(issue, pr, `review round ${round} agent died`)
-      findingsTotal += rev.findings.length
-      if (rev.findings.length) {
-        const pv = await verifyPosted(issue, pr, rev)
-        if (!pv || pv.missing_after > 0) {
-          return hold(issue, pr, `could not post ${pv ? pv.missing_after : '?'} review finding(s): ${pv ? (pv.missing_ids || []).join(', ') : 'verifier died'}`)
-        }
-      }
-      since = rev.reviewed_sha
-
-      const plan = await feedbackPlan(issue, pr, round, round === MAX_ROUNDS)
-      if (!plan) return hold(issue, pr, `feedback plan round ${round} agent died`)
-      if (!plan.items.length) break
-
-      const exec = await feedbackExec(issue, pr, branch, plan)
-      if (!exec) return hold(issue, pr, `feedback execute round ${round} agent died`)
-      const rv = await verifyReplies(issue, pr, exec)
-      if (!rv || rv.missing_after > 0) return hold(issue, pr, `could not post ${rv ? rv.missing_after : '?'} feedback repl(ies)`)
-      wontDo += exec.wont_do_count
-      followups.push(...exec.items.filter((i) => i.followup_issue).map((i) => i.followup_issue))
-
-      const changed = !!exec.head_sha && exec.head_sha !== head
-      if (changed) head = exec.head_sha
-      // No new code → nothing new to re-review.
-      if (!changed) break
-    }
-
-    await setStage(issue, pr, 'merging')
-    // Gate: merge as soon as this lane is done and CI is green on the latest head.
-    let blockers = []
-    for (let attempt = 1; attempt <= GATE_ATTEMPTS; attempt++) {
-      if (!green.ok || green.head_sha !== head) {
-        green = await ensureGreen(issue, pr, branch, head)
-        head = green.head_sha
-      }
-      const g = await gateFacts(issue, pr)
-      if (!g) { blockers = ['gate agent died']; break }
-      if (g.merge_state_status === 'DIRTY') {
-        const rb = await rebase(issue, pr, branch)
-        if (!rb || !rb.ok) { blockers = [`rebase onto main failed: ${rb ? rb.summary : 'agent died'}`]; break }
-        head = rb.head_sha
-        green = { ok: false, head_sha: head }
-        continue
-      }
-      // A push landed after the last CI wait (e.g. a late feedback fix): re-check that head.
-      if (SHA_RE.test(g.head_sha) && g.head_sha !== head && attempt < GATE_ATTEMPTS) {
-        log(`${tag(issue)} head moved to ${g.head_sha.slice(0, 8)}; re-checking CI`)
-        head = g.head_sha
-        green = { ok: false, head_sha: head }
-        continue
-      }
-      blockers = gateBlockers(g, wontDo, head)
-      if (!green.ok) blockers.push(green.reason || 'CI not green')
-      if (NO_MERGE) {
-        log(`${tag(issue)} PR #${pr} noMerge: gate ${blockers.length ? `would HOLD (${blockers.join('; ')})` : 'would MERGE'}`)
-        return { issue: issue.number, pr, merged: false, wouldMerge: !blockers.length, blockers, rounds, findings: findingsTotal, followups }
-      }
-      if (!blockers.length) {
-        const evidence = [
-          `- review rounds: ${rounds}; findings posted: ${findingsTotal} (post-verified)`,
-          `- feedback: every item replied to (reply-verified); follow-up issues: ${followups.map((n) => `#${n}`).join(', ') || 'none'}; won't-do: ${wontDo}`,
-          `- unresolved review threads: ${g.unresolved_threads}; labels: ${g.labels.join(', ') || 'none'}`,
-          `- required checks on ${g.head_sha}: ${REQUIRED_CHECKS.join(', ')} all SUCCESS`,
-        ].join('\n')
-        const m = await merge(issue, pr, g.head_sha, evidence)
-        if (m && m.ok) {
-          await releaseClaim(issue, pr, 'merged')
-          log(`${tag(issue)} PR #${pr} merged`)
-          return { issue: issue.number, pr, merged: true, rounds, findings: findingsTotal, followups }
-        }
-        blockers = [`merge failed: ${m ? m.detail : 'agent died'}`]
-      }
-      break // only a conflict (DIRTY) or a moved head earns another attempt
-    }
-    const held = await hold(issue, pr, blockers.join('; '))
-    return { ...held, rounds, findings: findingsTotal, followups }
-  },
+  (lane) => (lane.done ? lane.done : finishLane(lane.issue, lane.pr.pr, lane.pr.branch, lane.pr.head_sha)),
 )
 
 // Code-changing agents keep their isolated worktrees (.claude/worktrees/wf_*), each with its
 // own .venv / node_modules. Once every lane has merged or been held, remove the ones whose
 // work is safely on origin; anything with unpushed or uncommitted work is left and reported.
+const resumed = await resumedDone
 phase('Cleanup')
 // Lanes that crashed never reached release; free their issues for other runs/agents.
 for (const n of [...claims.keys()]) {
@@ -879,4 +955,5 @@ return {
   selected: selected.map((s) => s.number),
   skipped: skipped.map((s) => ({ number: s.number, actionable: s.actionable, size: s.size, reason: s.reason })),
   lanes: results.map((r, i) => r || { issue: selected[i].number, merged: false, held: true, reason: 'lane crashed' }),
+  resumed: resumed.map((r, i) => r || { pr: toResume[i].pr, merged: false, held: true, reason: 'resume lane crashed' }),
 }
