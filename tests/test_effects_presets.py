@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -75,15 +77,31 @@ _YAML_SCAN_ROOTS = (".agents", "config", "deploy", "tests/fixtures")
 
 
 def _repo_yaml_paths() -> list[Path]:
-    """Every repo-tracked YAML under the roots where pipeline defaults can live (recursive)."""
+    """Every git-tracked YAML under the roots where pipeline defaults can live (recursive).
+
+    Uses ``git ls-files`` so untracked or gitignored local files (for example a
+    developer's ``config/relay.yaml``) never change the result. Falls back to
+    ``rglob`` on disk only when git is unavailable.
+    """
     root = repo_root()
-    found: set[Path] = set()
-    for rel in _YAML_SCAN_ROOTS:
-        base = root / rel
-        if base.is_dir():
-            for pattern in ("*.yaml", "*.yml"):
-                found.update(base.rglob(pattern))
-    return sorted(found)
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-z", "--", *_YAML_SCAN_ROOTS],
+            capture_output=True,
+            check=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):
+        found: set[Path] = set()
+        for rel in _YAML_SCAN_ROOTS:
+            base = root / rel
+            if base.is_dir():
+                for pattern in ("*.yaml", "*.yml"):
+                    found.update(base.rglob(pattern))
+        return sorted(found)
+    paths = (
+        root / os.fsdecode(raw) for raw in out.split(b"\0") if raw.endswith((b".yaml", b".yml"))
+    )
+    return sorted(p for p in paths if p.is_file())
 
 
 def test_repo_yaml_scan_includes_known_pipeline_defaults() -> None:

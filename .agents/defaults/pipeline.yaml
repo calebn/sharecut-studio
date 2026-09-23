@@ -272,7 +272,7 @@ export:
 # (_BUILTIN_PRESETS). `effects:` here is a by-name overlay: add new presets,
 # or override a builtin only in a custom PODCAST_MCP_PIPELINE_DEFAULTS file.
 # tests/test_effects_presets.py enforces that repo-tracked YAMLs (this file and
-# any YAML under .agents/, config/, deploy/, tests/fixtures/) do not redefine a builtin preset name.
+# any git-tracked YAML under .agents/, config/, deploy/, tests/fixtures/) do not redefine a builtin preset name.
 effects: {}
 
 social_clips:
