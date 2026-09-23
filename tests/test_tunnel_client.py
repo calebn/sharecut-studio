@@ -99,18 +99,26 @@ def test_map_unknown_prefix_rejected():
 
 
 @pytest.mark.parametrize(
-    "suffix",
+    ("suffix", "match"),
     [
-        "api/export/bounce",
-        "api/export/deliverables",
-        "api/review/../export/bounce",
-        "r/../api/export/deliverables",
-        "api/review/%2e%2e/%2e%2e/api/export/bounce",
+        # No relay prefix maps to /api/export/*.
+        ("api/export/bounce", "unknown proxy prefix"),
+        ("api/export/deliverables", "unknown proxy prefix"),
+        # Traversal is rejected by the generic guard before prefix mapping.
+        ("api/review/../export/bounce", "unsafe proxy path"),
+        ("r/../api/export/deliverables", "unsafe proxy path"),
+        ("api/review/%2e%2e/%2e%2e/api/export/bounce", "unsafe proxy path"),
     ],
 )
-def test_map_export_routes_rejected(suffix: str) -> None:
-    """#219: the tunnel never forwards a guest request to host export jobs."""
-    with pytest.raises(UnsafeProxyPath):
+def test_map_export_routes_rejected(suffix: str, match: str) -> None:
+    """#219: the tunnel never forwards a guest request to host export jobs.
+
+    Plain export suffixes fail prefix mapping and traversal forms fail
+    ``assert_safe_proxy_path``. The post-mapping allowlist
+    (``assert_allowed_local_gui_path``) is defense in depth and is covered in
+    ``tests/test_proxy_paths.py``.
+    """
+    with pytest.raises(UnsafeProxyPath, match=match):
         _map_local_path(suffix, "tok")
 
 
