@@ -403,6 +403,21 @@ Return ok=true when done.`,
 const STALL_LABEL = 'pipeline:stalled'
 const STALL_MARK = '<!-- pipeline-stalled'
 
+// An agent returning nothing is either a real failure or an outage (usage/session limit,
+// API down) that fails every agent. Probe with a trivial agent: if that fails too, it is an
+// outage — keep the claim and labels as they are (the run is resumable with its run ID, and
+// a later run adopts the PR once the claim goes stale) instead of marking the PR stalled.
+const interrupted = new Set() // issue numbers whose lanes stopped on an outage
+async function stallOrInterrupt(issue, pr, reason, resumeAt) {
+  const probe = await stage('Health check: return ok=true and nothing else.', { label: `probe:${tag(issue)}`, phase: 'Merge', model: M.cheap, effort: 'low', schema: S_DONE })
+  if (!probe) {
+    interrupted.add(issue.number)
+    log(`${tag(issue)} INTERRUPTED (agents failing, likely a usage limit): ${reason}`)
+    return { issue: issue.number, pr, merged: false, interrupted: true, resumeAt, reason: `${reason}; agents are failing (likely a usage/session limit). Resume this run with Workflow resumeFromRunId; otherwise a later run adopts the PR once its claim is ${STALE_HOURS}h stale.` }
+  }
+  return stall(issue, pr, reason, resumeAt)
+}
+
 // A decision only the owner can make (won't-do sign-off, planner abort, owner hold).
 async function holdForDecision(issue, pr, question, detail) {
   log(`${tag(issue)} DECISION NEEDED: ${question}`)
@@ -668,24 +683,24 @@ async function finishLane(issue, pr, branch, head, { gateOnly = false } = {}) {
   for (let round = 1; !gateOnly && round <= MAX_ROUNDS; round++) {
     rounds = round
     const rev = await review(issue, pr, branch, round, since)
-    if (!rev) return stall(issue, pr, `review round ${round} agent died`, 'review')
+    if (!rev) return stallOrInterrupt(issue, pr, `review round ${round} agent died`, 'review')
     findingsTotal += rev.findings.length
     if (rev.findings.length) {
       const pv = await verifyPosted(issue, pr, rev)
       if (!pv || pv.missing_after > 0) {
-        return stall(issue, pr, `could not post ${pv ? pv.missing_after : '?'} review finding(s): ${pv ? (pv.missing_ids || []).join(', ') : 'verifier died'}`, 'review')
+        return (pv ? stall : stallOrInterrupt)(issue, pr, `could not post ${pv ? pv.missing_after : '?'} review finding(s): ${pv ? (pv.missing_ids || []).join(', ') : 'verifier died'}`, 'review')
       }
     }
     since = rev.reviewed_sha
 
     const plan = await feedbackPlan(issue, pr, round, round === MAX_ROUNDS)
-    if (!plan) return stall(issue, pr, `feedback plan round ${round} agent died`, 'review')
+    if (!plan) return stallOrInterrupt(issue, pr, `feedback plan round ${round} agent died`, 'review')
     if (!plan.items.length) break
 
     const exec = await feedbackExec(issue, pr, branch, plan)
-    if (!exec) return stall(issue, pr, `feedback execute round ${round} agent died`, 'review')
+    if (!exec) return stallOrInterrupt(issue, pr, `feedback execute round ${round} agent died`, 'review')
     const rv = await verifyReplies(issue, pr, exec)
-    if (!rv || rv.missing_after > 0) return stall(issue, pr, `could not post ${rv ? rv.missing_after : '?'} feedback repl(ies)`, 'review')
+    if (!rv || rv.missing_after > 0) return (rv ? stall : stallOrInterrupt)(issue, pr, `could not post ${rv ? rv.missing_after : '?'} feedback repl(ies)`, 'review')
     wontDo += exec.wont_do_count
     followups.push(...exec.items.filter((i) => i.followup_issue).map((i) => i.followup_issue))
 
@@ -706,7 +721,7 @@ async function finishLane(issue, pr, branch, head, { gateOnly = false } = {}) {
     }
     const g = await gateFacts(issue, pr)
     lastGate = g
-    if (!g) { blockers = ['gate agent died']; break }
+    if (!g) return stallOrInterrupt(issue, pr, 'gate agent died', 'gate')
     if (g.merge_state_status === 'DIRTY') {
       const rb = await rebase(issue, pr, branch)
       if (!rb || !rb.ok) { blockers = [`rebase onto main failed: ${rb ? rb.summary : 'agent died'}`]; break }
@@ -812,7 +827,8 @@ log(`Selected: ${selected.map((s) => `#${s.number}(${s.size},p${s.priority},${s.
 if (skipped.length) log(`Not selected this run: ${skipped.map((s) => `#${s.number}[${s.actionable ? '' : 'not-actionable '}${s.size}${s.blockers ? ' blocked' : ''}]`).join(' ')}`)
 
 // ---------------------------------------------------------------------------
-// Resume PRs that an earlier run left as technical stalls (never decision holds).
+// Resume PRs an earlier run left as technical stalls, or orphaned by dying mid-lane
+// (stage label but a stale claim). Never decision holds.
 // ---------------------------------------------------------------------------
 const S_STALLED = {
   type: 'object',
@@ -836,12 +852,15 @@ const S_STALLED = {
 }
 const stalled = A.noResume ? { prs: [] } : await stage(
   `List stalled issue-pipeline PRs to resume. Read-only.
-\`gh pr list -R ${REPO} --state open --label ${STALL_LABEL} --json number,author,headRefName,headRefOid,labels,closingIssuesReferences\`. Keep only PRs authored by ${AUTHORS.join(' or ')} that do NOT also carry ${HOLD_LABELS.join(' or ')}.
-For each: issue = the first closingIssuesReferences number (skip the PR if none); resume = the value of resume= in its latest comment starting with "${STALL_MARK}" (\`gh api repos/${REPO}/issues/<pr>/comments --paginate\`), defaulting to review; head_sha = headRefOid; branch = headRefName.`,
+\`gh pr list -R ${REPO} --state open --limit 200 --json number,author,headRefName,headRefOid,labels,closingIssuesReferences\`. Keep only PRs authored by ${AUTHORS.join(' or ')} that do NOT carry ${HOLD_LABELS.join(' or ')}, and that are either:
+(a) STALLED: labelled ${STALL_LABEL} → resume = the value of resume= in its latest comment starting with "${STALL_MARK}" (\`gh api repos/${REPO}/issues/<pr>/comments --paginate\`), defaulting to review; or
+(b) ORPHANED by a run that died: labelled with any of ${Object.values(STAGE_LABELS).join(', ')} but not ${STALL_LABEL}, AND the linked issue's claim is not live. ${CLAIM_FORMAT}
+  Read the issue's latest comment starting with "${CLAIM_MARK}"; the claim is not live if it is released or its heartbeat is ${STALE_HOURS}+ hours old (compute with \`date -u\`); if the issue has no claim comment, treat it as live (skip). Orphans always resume = review.
+For each kept PR: issue = the first closingIssuesReferences number (skip the PR if none); head_sha = headRefOid; branch = headRefName.`,
   { label: 'resume:list', phase: 'Triage', model: M.worker, effort: 'low', schema: S_STALLED },
 )
 const toResume = (stalled ? stalled.prs : []).filter((r) => SHA_RE.test(r.head_sha))
-if (toResume.length) log(`Resuming stalled PRs: ${toResume.map((r) => `#${r.pr}(${r.resume})`).join(' ')}`)
+if (toResume.length) log(`Resuming stalled/orphaned PRs: ${toResume.map((r) => `#${r.pr}(${r.resume})`).join(' ')}`)
 
 if (A.dryRun || (!selected.length && !toResume.length)) {
   return { dryRun: !!A.dryRun, selected, skipped, resumable: toResume }
@@ -887,7 +906,7 @@ If the issue needs an owner decision or is too large for one PR, set abort=true 
   // 2. Implement + open PR (sonnet)
   async ({ issue, plan, done }) => {
     if (done) return { issue, done }
-    if (!plan) return { issue, done: await stall(issue, null, 'planner agent died') }
+    if (!plan) return { issue, done: await stallOrInterrupt(issue, null, 'planner agent died') }
     if (plan.abort) return { issue, done: await holdForDecision(issue, null, plan.abort_reason || 'The planner could not plan this issue without an owner decision.', 'Planner aborted before implementation; see its comment on the issue.') }
     await setStage(issue, null, 'implementing')
     const pr = await stage(
@@ -904,7 +923,7 @@ End the PR body with "🤖 Generated with [Claude Code](https://claude.com/claud
 Return ok, pr number, branch, head_sha.`,
       { label: `impl:${tag(issue)}`, phase: 'Implement', model: M.worker, isolation: 'worktree', schema: S_PR },
     )
-    if (!pr || !pr.ok) return { issue, done: await stall(issue, null, `implementation failed: ${pr ? pr.error : 'agent died'}`) }
+    if (!pr || !pr.ok) return { issue, done: await (pr ? stall : stallOrInterrupt)(issue, null, `implementation failed: ${pr ? pr.error : 'agent died'}`) }
     log(`${tag(issue)} → PR #${pr.pr}`)
     await setStage(issue, pr.pr, 'review')
     return { issue, pr }
@@ -920,7 +939,7 @@ Return ok, pr number, branch, head_sha.`,
 const resumed = await resumedDone
 phase('Cleanup')
 // Lanes that crashed never reached release; free their issues for other runs/agents.
-for (const n of [...claims.keys()]) {
+for (const n of [...claims.keys()].filter((k) => !interrupted.has(k))) {
   log(`#${n}: releasing claim left by a crashed lane`)
   await releaseClaim({ number: n }, null, 'crashed')
 }
