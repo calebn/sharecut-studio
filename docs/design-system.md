@@ -73,9 +73,17 @@ with its story colocated in the feature folder (for example
 
 ## Theme toolbar
 
-The toolbar's paintbrush toggle switches `light` / `dark` / `system` by setting
-`data-theme` on `<html>` — the same contract the app uses (`useTheme`). Review
-every new component in both themes before merging.
+The toolbar's paintbrush toggle switches `light` / `dark` / `system` by
+setting `data-theme` on `<html>` through the app's `applyTheme`
+(`hooks/useTheme.ts`) — the same contract the app uses. **System** removes
+the attribute, so tokens follow `prefers-color-scheme` with a dark baseline.
+
+Docs (autodocs) pages render inside `StudioDocsContainer`
+(`src/storybook/StudioDocsContainer.tsx`), which resolves the same effective
+theme (`resolvedDocumentTheme`) and builds the Storybook docs theme from the
+live `--color-bg-canvas`, `--color-text-primary` and `--color-border`
+tokens, so docs pages and story mode match. Review every new component in
+both themes, in story mode and on its docs page, before merging.
 
 ## Adding a story
 
@@ -120,7 +128,8 @@ every new component in both themes before merging.
   copy real project, share, or guest data (tokens, names) into a story.
 - App code never imports `*.stories.tsx` or globs them (`import.meta.glob`),
   never imports Storybook packages, never imports a story-support module
-  (e.g. `record/recordStoryDecorator.tsx`), and never imports a test-only
+  (e.g. `record/recordStoryDecorator.tsx`, `storybook/docsTheme.ts`,
+  `storybook/StudioDocsContainer.tsx`), and never imports a test-only
   module (anything under `src/test/` or a `*.test.*` file); stories must stay
   out of the production bundle. `gui/web/src/test/storyGovernance.test.ts`
   enforces all of this for `src/` and for the root build configs
@@ -163,3 +172,7 @@ every new component in both themes before merging.
 - 2026-09-23 — Added `Templates/HostUploadRoster` (`record/HostUploadRoster`):
   post-Stop upload states per participant, with a 360px long-name stress
   fixture.
+- 2026-09-23 — Docs pages follow the theme toolbar (System on a dark OS no
+  longer renders a white docs canvas): StudioDocsContainer builds the docs
+  theme from Studio tokens; the toolbar decorator reuses useTheme's
+  applyTheme (#209).

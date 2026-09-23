@@ -6,6 +6,8 @@ import { posix } from "node:path";
  */
 export const STORY_SUPPORT_MODULES = new Set([
   "record/recordStoryDecorator.tsx",
+  "storybook/docsTheme.ts",
+  "storybook/StudioDocsContainer.tsx",
 ]);
 
 // Literal specifiers only: non-literal `import(x)`, template/concatenated

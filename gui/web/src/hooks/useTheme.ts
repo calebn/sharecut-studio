@@ -8,23 +8,45 @@ import { readLocal, writeLocal } from "../utils/storage";
 
 export type ThemePreference = "system" | "light" | "dark";
 
+export function isThemePreference(v: unknown): v is ThemePreference {
+  return v === "light" || v === "dark" || v === "system";
+}
+
 const STORAGE_KEY = "daw_theme";
 
 function readStored(): ThemePreference {
   const v = readLocal(STORAGE_KEY);
-  if (v === "light" || v === "dark" || v === "system") {
-    return v;
-  }
-  return "system";
+  return isThemePreference(v) ? v : "system";
 }
 
-function applyTheme(preference: ThemePreference): void {
+/** Shared with the Storybook toolbar decorator (.storybook/preview.ts). */
+export function applyTheme(preference: ThemePreference): void {
   const root = document.documentElement;
   if (preference === "system") {
     delete root.dataset.theme;
   } else {
     root.dataset.theme = preference;
   }
+}
+
+export type ResolvedTheme = "light" | "dark";
+
+/** Media query that flips `:root:not([data-theme])` to light (brand-tokens.css). */
+export const PREFERS_LIGHT_QUERY = "(prefers-color-scheme: light)";
+
+/**
+ * Effective theme on <html>: explicit `data-theme` wins; otherwise light only
+ * when the OS prefers light (dark is the baseline, as in brand-tokens.css).
+ */
+export function resolvedDocumentTheme(): ResolvedTheme {
+  const attr = document.documentElement.dataset.theme;
+  if (attr === "light" || attr === "dark") {
+    return attr;
+  }
+  return typeof globalThis.matchMedia === "function" &&
+    globalThis.matchMedia(PREFERS_LIGHT_QUERY).matches
+    ? "light"
+    : "dark";
 }
 
 /** Call once at app boot so first paint matches stored preference. */
