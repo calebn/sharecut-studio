@@ -35,7 +35,9 @@ _sidecar_lock = threading.Lock()
 
 
 def shares_path(project: EpisodeProject) -> Path:
-    return project.artifacts_dir() / "review" / _SHARES_NAME
+    from podcast_mcp.edits.review_versions import review_artifacts_dir
+
+    return review_artifacts_dir(project) / _SHARES_NAME
 
 
 def _now_iso() -> str:
