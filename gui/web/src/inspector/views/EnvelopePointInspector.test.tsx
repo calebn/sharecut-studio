@@ -188,4 +188,44 @@ describe("EnvelopePointInspector", () => {
       screen.queryByText("Envelope point changed; select it again"),
     ).toBeNull();
   });
+
+  it.each([
+    ["Apply", "Apply"],
+    ["Delete", "Delete"],
+  ])(
+    "does not %s a point whose value changed underneath it",
+    async (_action, name) => {
+      render(<EnvelopePointInspector trackId="host" index={1} />);
+      const project = useDawStore.getState().project;
+      if (!project) {
+        throw new Error("Expected project to be hydrated");
+      }
+      project.envelopes[0].points[1] = { id: "late", time: 5, value: 0.25 };
+
+      await userEvent.click(screen.getByRole("button", { name }));
+
+      expect(setEnvelope).not.toHaveBeenCalled();
+      expect(
+        screen.getByText("Envelope point changed; select it again"),
+      ).toBeTruthy();
+    },
+  );
+
+  it("shows the host conflict message when SetEnvelope is rejected", async () => {
+    setEnvelope.mockRejectedValue(
+      new Error("Envelope on track 'host' changed since this edit started"),
+    );
+    render(<EnvelopePointInspector trackId="host" index={1} />);
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(
+      await screen.findByText(
+        "Envelope on track 'host' changed since this edit started",
+      ),
+    ).toBeTruthy();
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "envelopePoint",
+      trackId: "host",
+      index: 1,
+    });
+  });
 });

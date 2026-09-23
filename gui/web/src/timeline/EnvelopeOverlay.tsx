@@ -10,6 +10,7 @@ import type {
 import {
   clampEnvelopeValue,
   replaceEnvelopePoint,
+  sameEnvelopePoint,
   sortedVolumePoints,
 } from "../utils/envelopes";
 import { LANE_HEIGHT } from "../utils/layout";
@@ -41,7 +42,7 @@ function pointMoved(
   if (!a || !b) {
     return false;
   }
-  return Math.abs(a.time - b.time) > 1e-6 || Math.abs(a.value - b.value) > 1e-6;
+  return !sameEnvelopePoint(a, b);
 }
 
 export function EnvelopeOverlay({
