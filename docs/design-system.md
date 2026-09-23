@@ -138,8 +138,10 @@ both themes, in story mode and on its docs page, before merging.
   enforces all of this for `src/` and for the root build configs
   (`gui/web/*.config.*`); only `.storybook/` may glob stories. New
   story-support modules must be added to `STORY_SUPPORT_MODULES` in
-  `gui/web/src/test/storyGovernance.ts`. The check is a static scan of
-  literal specifiers (`from`, `import()`, `require()`, `import.meta.glob`):
+  `gui/web/src/test/storyGovernance.ts`. The check parses TypeScript and JSX
+  syntax for literal `import`, `export … from`, `import()`, and `require()`
+  specifiers, so comments and ordinary strings cannot look like imports.
+  `import.meta.glob` patterns are checked separately. For both checks,
   non-literal specifiers (variables, template or concatenated strings) and
   path aliases are not detected, so keep story-adjacent imports literal and
   relative.

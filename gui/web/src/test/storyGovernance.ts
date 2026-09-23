@@ -1,4 +1,5 @@
 import { posix } from "node:path";
+import { parse } from "@babel/parser";
 
 /**
  * Story-support modules: import Storybook but are not `*.stories.*`.
@@ -12,8 +13,6 @@ export const STORY_SUPPORT_MODULES = new Set([
 
 // Literal specifiers only: non-literal `import(x)`, template/concatenated
 // strings and path aliases are not detected (see docs/design-system.md).
-const IMPORT_SPECIFIER_RE =
-  /(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*)["'`]([^"'`\n]+)["'`]/g;
 const GLOB_CALL_RE =
   /import\.meta\.glob\s*(?:<[^>]*>)?\s*\(\s*(\[[^\]]*\]|["'`][^"'`\n]*["'`])/g;
 const STRING_LITERAL_RE = /["'`]([^"'`\n]*)["'`]/g;
@@ -34,7 +33,57 @@ export function isStoryOrTestFile(rel: string): boolean {
 
 /** Module specifiers from static/dynamic imports, re-exports and `require()`. */
 export function importSpecifiers(text: string): string[] {
-  return [...text.matchAll(IMPORT_SPECIFIER_RE)].map((m) => m[1]);
+  const specifiers: string[] = [];
+  const ast = parse(text, {
+    sourceType: "unambiguous",
+    plugins: ["typescript", "jsx"],
+  });
+  const isNode = (
+    value: unknown,
+  ): value is { type: string; [key: string]: unknown } =>
+    typeof value === "object" &&
+    value !== null &&
+    "type" in value &&
+    typeof value.type === "string";
+  const addLiteral = (value: unknown): void => {
+    if (
+      isNode(value) &&
+      value.type === "StringLiteral" &&
+      typeof value.value === "string"
+    ) {
+      specifiers.push(value.value);
+    }
+  };
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (!isNode(value)) return;
+    if (
+      value.type === "ImportDeclaration" ||
+      value.type === "ExportNamedDeclaration" ||
+      value.type === "ExportAllDeclaration"
+    ) {
+      addLiteral(value.source);
+    } else if (value.type === "ImportExpression") {
+      addLiteral(value.source);
+    } else if (value.type === "TSExternalModuleReference") {
+      addLiteral(value.expression);
+    } else if (value.type === "CallExpression" && isNode(value.callee)) {
+      if (
+        value.callee.type === "Import" ||
+        (value.callee.type === "Identifier" && value.callee.name === "require")
+      ) {
+        addLiteral(
+          Array.isArray(value.arguments) ? value.arguments[0] : undefined,
+        );
+      }
+    }
+    Object.values(value).forEach(visit);
+  };
+  visit(ast);
+  return specifiers;
 }
 
 /** String patterns of each `import.meta.glob(...)` call in `text`. */
