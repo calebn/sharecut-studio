@@ -1,5 +1,6 @@
 import {
   applyDocumentResult,
+  applyDocumentSnapshot,
   mergeGuestActionDone,
   mergeReturnedComment,
 } from "./document/applyDocumentUpdate";
@@ -41,12 +42,13 @@ import type {
   HostSharesResponse,
   ShareRole,
 } from "./types/shares";
-import { readApiError, readApiFailure } from "./utils/apiError";
+import { ApiError, readApiError, readApiFailure } from "./utils/apiError";
 import {
   documentClientId,
   newCommandId,
   nextDocumentClientSeq,
 } from "./utils/documentClient";
+import { withVolumeEnvelopePoints } from "./utils/envelopes";
 import { jobResultPaths } from "./utils/pipeline";
 
 async function hostFetch(input: string, init?: RequestInit): Promise<Response> {
@@ -404,21 +406,21 @@ export async function submitDocumentCommand(
   if (!res.ok) {
     const failure = await readApiFailure(res);
     const detail = failure.message;
-    if (res.status === 409) {
-      await hostQueue.addHostConflict(projectPath, {
-        command: {
-          command_id,
-          client_seq,
-          type,
-          payload,
-          created_at: Date.now(),
-        },
-        reason: detail,
-      });
-      if (enqueueResult.persisted) {
-        await hostQueue.removeHostQueuedCommand(projectPath, command_id);
+    if (res.status < 500) {
+      // A 4xx will never succeed on retry. Record 409s, and any rejected
+      // replay (nobody is awaiting it), so the banner says why it was dropped.
+      if (res.status === 409 || opts?.replaying) {
+        await hostQueue.addHostConflict(projectPath, {
+          command: {
+            command_id,
+            client_seq,
+            type,
+            payload,
+            created_at: Date.now(),
+          },
+          reason: detail,
+        });
       }
-    } else if (res.status < 500) {
       if (enqueueResult.persisted) {
         await hostQueue.removeHostQueuedCommand(projectPath, command_id);
       }
@@ -645,11 +647,54 @@ export async function setEnvelope(
   points: AutomationPoint[],
   expectedPoints: AutomationPoint[],
 ): Promise<void> {
-  await submitDocumentCommand(projectPath, "SetEnvelope", {
-    track_id: trackId,
-    points,
-    expected_points: expectedPoints,
-  });
+  let result: Record<string, unknown>;
+  try {
+    result = await submitDocumentCommand(projectPath, "SetEnvelope", {
+      track_id: trackId,
+      points,
+      // Echo the store's points verbatim: the host compares floats exactly.
+      expected_points: expectedPoints,
+    });
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 409) {
+      // Load the host's current points so redoing the edit uses a fresh baseline.
+      await refreshEnvelopes(projectPath).catch(() => undefined);
+    }
+    throw error;
+  }
+  if (result.queued === true) {
+    // Show the queued edit, and make it the next edit's baseline: replay
+    // applies queued commands in order, so the host will hold these points.
+    applyQueuedEnvelope(projectPath, trackId, points);
+  }
+}
+
+async function refreshEnvelopes(projectPath: string): Promise<void> {
+  const patch = await loadProjectPhase(projectPath, "envelopes");
+  if (useDawStore.getState().projectPath === projectPath) {
+    applyDocumentSnapshot({ patch }, { force: true });
+  }
+}
+
+function applyQueuedEnvelope(
+  projectPath: string,
+  trackId: string,
+  points: AutomationPoint[],
+): void {
+  useDawStore.setState((state) =>
+    state.projectPath === projectPath && state.project
+      ? {
+          project: {
+            ...state.project,
+            envelopes: withVolumeEnvelopePoints(
+              state.project.envelopes,
+              trackId,
+              points,
+            ),
+          },
+        }
+      : state,
+  );
 }
 
 export async function addChapter(
