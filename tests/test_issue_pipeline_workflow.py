@@ -180,7 +180,7 @@ def test_lenses_share_one_review_packet_prefix() -> None:
     script = _script()
     lens_fn = script[script.index("function lensReview(") : script.index("async function review(")]
     # The shared packet comes before anything lens-specific.
-    assert lens_fn.index("${packet.packet_md}") < lens_fn.index("${lens.key}")
+    assert lens_fn.index("${packetRead(packet)}") < lens_fn.index("${lens.key}")
     assert "If the packet shows no surface for your lens, return an empty findings list" in lens_fn
     review_fn = script[script.index("async function review(") :]
     assert review_fn.index("await reviewPacket(") < review_fn.index("lensReview(")
@@ -194,7 +194,20 @@ def test_context_hungry_lenses_have_required_reading() -> None:
         block = block[: block.index("},")]
         assert "context: 'Required reading" in block, key
     assert "The packet is a starting point, not the boundary" in script
-    assert '"## Twin paths"' in script
+    packet_script = (ROOT / "scripts" / "review_packet.py").read_text(encoding="utf-8")
+    assert "Twin paths (CLI / MCP / GUI adapters)" in packet_script
+
+
+def test_packet_is_built_by_script_not_retyped() -> None:
+    """Agents retyping a 30-40k-char packet cost more than lenses saved and sometimes failed."""
+    script = _script()
+    fn = script[script.index("function reviewPacket(") : script.index("const packetRead")]
+    assert "git show origin/main:scripts/review_packet.py" in fn
+    assert "model: M.cheap" in fn
+    assert "PACKET_PATH_RE.test(p.path) && p.chars > 0" in fn
+    assert "packet_md" not in script
+    # A missing packet degrades to lenses exploring themselves, never to no review.
+    assert "packet unavailable; lenses gather context themselves" in script
 
 
 def test_ci_state_is_derived_from_raw_rows() -> None:

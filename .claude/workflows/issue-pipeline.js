@@ -506,38 +506,39 @@ const S_LENS = {
 const S_PACKET = {
   type: 'object',
   properties: {
-    packet_md: { type: 'string', description: 'the review packet (markdown)' },
-    omitted: { type: 'array', items: { type: 'string' }, description: 'paths too large to include; lenses read them on demand' },
+    path: { type: 'string', description: 'absolute path of the packet file, exactly as the script printed it' },
+    chars: { type: 'integer' },
   },
-  required: ['packet_md', 'omitted'],
+  required: ['path', 'chars'],
 }
+const PACKET_PATH_RE = /\/pipeline-packets\/pr\d+-r\d+\.md$/
 
 // Built once per round and shared by every lens: removes 8x duplicated setup/exploration,
 // and gives all lens prompts an identical prefix so the prompt cache can reuse it.
+// Built once per round by scripts/review_packet.py (plain git, no model) into a file under the
+// shared .git dir; a cheap agent only runs it. Agents retyping a 30-40k-char packet cost more
+// than the lenses saved and sometimes failed to return it at all.
 function reviewPacket(issue, pr, branch, round, since) {
   const diff = round > 1 ? `${since}..origin/${branch}` : `origin/main...origin/${branch}`
   return stage(
-    `Build a review packet for ${REPO} PR #${pr} (branch ${branch}). Read-only: do not check out, edit, post or push.
-Run \`git fetch origin --prune\`, then assemble packet_md (target <= 60k characters) with these sections:
-1. "## Diff stat" — \`git diff --stat ${diff}\`
-2. "## Diff" — \`git diff ${diff}\` (full; if larger than ~35k characters, include the largest hunks in full, list the rest under omitted).
-3. "## Changed files in context" — for each changed file, about 30 lines around each hunk from \`git show origin/${branch}:<path>\`.
-4. "## Callers and references" — \`git grep -n\` (on origin/${branch}) for each changed or added function/class/export name; list file:line hits (cap 20 per symbol). For changed functions under src/podcast_mcp/services/ or domain packages (edits/, clips/, pipeline/, engines/), also list the callers of those callers (second hop, cap 10 each).
-4b. "## Twin paths" — for each touched service/domain function, the CLI (cli/), MCP (mcp/tools/) and GUI (gui/routes/, gui/web/src/) call sites that reach it, marked changed/unchanged in this diff.
-5. "## Related tests" — test files touched by the diff plus tests that reference the changed modules (paths + the relevant test names).
-6. "## Applicable repo rules" — the rows of AGENTS.md "Docs in sync" whose left column matches the changed paths, and any .agents/rules file that governs them (paths only).
-Copy command output verbatim; do not summarize or judge. List anything too large in omitted.`,
-    { label: `packet:${tag(issue)}:r${round}`, phase: 'Review', model: M.worker, effort: 'low', schema: S_PACKET },
-  )
+    `Build the review packet for ${REPO} PR #${pr} by running one script; do not write or edit it yourself.
+\`cd "$(git rev-parse --show-toplevel)" && git fetch -q origin --prune && python3 <(git show origin/main:scripts/review_packet.py) --ref origin/${branch} --range ${diff} --out "$(cd "$(git rev-parse --git-common-dir)" && pwd)/pipeline-packets/pr${pr}-r${round}.md"\`
+It prints "<path> <chars>". Return exactly that path and char count. If the command fails, return path "" and chars 0.`,
+    { label: `packet:${tag(issue)}:r${round}`, phase: 'Review', model: M.cheap, effort: 'low', schema: S_PACKET },
+  ).then((p) => (p && PACKET_PATH_RE.test(p.path) && p.chars > 0 ? p : null))
 }
+
+// Lenses (and the Opus parent) read the packet file themselves; without one they explore.
+const packetRead = (packet) => packet
+  ? `REVIEW PACKET: first run \`cat ${packet.path}\` (${packet.chars} chars, identical for every lens): diff with context, callers, importers, twin CLI/MCP/GUI paths, related tests, applicable AGENTS.md rows.`
+  : 'REVIEW PACKET: unavailable this round; gather the diff (`git diff origin/main...origin/<branch>`) and context yourself.'
 
 function lensReview(issue, pr, branch, round, packet, lens) {
   // Identical prefix across lenses (cache-friendly); lens-specific text last.
   return stage(
     `You are one reviewer lens for ${REPO} PR #${pr} (branch ${branch}), review round ${round}. Read-only: do not check out, post, push or edit. Read any further code with \`git show origin/${branch}:<path>\` or \`git grep -n <pattern> origin/${branch}\`.
-${round > 1 ? 'This round covers only the feedback-fix diff; do not re-raise resolved threads.\n' : ''}REVIEW PACKET:
-${packet.packet_md}
-${packet.omitted.length ? `Omitted from the packet (read on demand): ${packet.omitted.join(', ')}\n` : ''}---
+${round > 1 ? 'This round covers only the feedback-fix diff; do not re-raise resolved threads.\n' : ''}${packetRead(packet)}
+---
 YOUR LENS: "${lens.key}" (pr-multi-review § Launch → ${lens.section}).
 ${lens.prompt}${lens.checklist ? `\nChecklist: read and follow ${lens.checklist}.` : ''}${lens.context ? `\n${lens.context}` : ''}
 The packet is a starting point, not the boundary: complete your required reading and follow any lead outside it before concluding. If the packet shows no surface for your lens, return an empty findings list with a one-line residual_risks entry saying why. Otherwise return every concrete finding (severity, path, line, title, detail with evidence) and residual risks.`,
@@ -548,15 +549,14 @@ The packet is a starting point, not the boundary: complete your required reading
 async function review(issue, pr, branch, round, since) {
   const lenses = round > 1 ? LENSES.filter((l) => FOLLOWUP_LENSES.includes(l.key)) : LENSES
   const packet = await reviewPacket(issue, pr, branch, round, since)
-  if (!packet) return null
+  if (!packet) log(`${tag(issue)} review r${round}: packet unavailable; lenses gather context themselves`)
   const reports = (await parallel(lenses.map((l) => () => lensReview(issue, pr, branch, round, packet, l)))).filter(Boolean)
   if (reports.length < lenses.length) log(`${tag(issue)} review r${round}: ${lenses.length - reports.length} lens(es) returned nothing`)
   return stage(
     `AUTONOMOUS MODE: round=${round}${since ? `, since=${since}` : ''}, lenses=supplied
 Read ${SKILLS.review} (and the checklists it references) and execute it for ${REPO} PR #${pr}, following its "AUTONOMOUS MODE (pipeline)" section, which overrides every other gate in that file.
 The reviewer lenses have ALREADY RUN (reports below), so skip § Launch. Do § Browser QA (when the diff has a GUI/HTTP surface), then § Merge + present over the union of these reports and your own reading of the diff (drop a finding only when the diff refutes it), then § Posting comments.
-Review packet (same one the lenses used; start from it instead of re-exploring):
-${packet.packet_md}
+${packetRead(packet)} It is the same packet the lenses used; start from it instead of re-exploring.
 Lens reports (JSON): ${JSON.stringify(reports)}
 POSTING IS MANDATORY. Every unrebutted High/Medium/Low finding must be posted to the PR before you return: inline threads (one COMMENT review) where a RIGHT-side line attaches, otherwise one top-level \`gh pr comment\` per finding. Never APPROVE or REQUEST_CHANGES. An unposted finding is a pipeline failure.
 ${round > 1 ? `Round ${round}: review ONLY \`git diff ${since}..<PR head>\` (the feedback fixes). Do not re-raise resolved threads.` : ''}
