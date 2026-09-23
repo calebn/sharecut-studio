@@ -165,6 +165,15 @@ def test_finished_worktrees_are_cleaned_up_safely() -> None:
     assert "unpushed commits" in script
 
 
+def test_executing_agents_get_token_hygiene_guidance() -> None:
+    script = _script()
+    assert "const LEAN_TURNS = " in script
+    # Implementer and feedback executor both get it; planners must quote snippets so they can.
+    assert script.count("${LEAN_TURNS}") >= 2
+    assert "quote the current snippet for each edit" in script
+    assert "with the current snippet quoted" in script
+
+
 def test_model_tiers() -> None:
     script = _script()
     assert "const M = { cheap: 'haiku', worker: 'sonnet', senior: 'opus' }" in script

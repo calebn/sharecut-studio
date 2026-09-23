@@ -60,6 +60,10 @@ const LINKS = (fixes, related) => [`Fixes #${fixes}`, ...(related || []).filter(
 // Local checks stay targeted for speed; GitHub Actions (CI stage) is the full-suite gate.
 const VERIFY = `TARGETED local checks only (GitHub Actions runs the full suite): \`uv run ruff check <changed .py files>\`, \`uv run ruff format --check <changed .py files>\`, \`uv run pytest --no-cov -q <test files covering the change>\`; for gui/web changes \`cd gui/web && npx vitest run <related test files> && npm run typecheck\`. Do NOT run make test, make test-web, make ci or other full-suite targets.`
 
+// Token hygiene for executing agents: cost scales with turns × context, so every extra
+// exploratory read or one-step shell call is re-billed on each later turn.
+const LEAN_TURNS = `Work efficiently: the plan already locates the code — go straight to the listed files/lines instead of re-exploring with grep/cat; read only the ranges you edit; chain related shell steps in one command (e.g. \`git add … && git commit … && git push …\`); pipe long command output through \`tail -n 40\`.`
+
 // ---------------------------------------------------------------------------
 // Schemas
 // ---------------------------------------------------------------------------
@@ -383,7 +387,7 @@ function feedbackPlan(issue, pr, round, finalRound) {
 Read ${SKILLS.feedback} and execute Phases 1–2 for ${REPO} PR #${pr}, following its "AUTONOMOUS MODE (pipeline)" section (no approval gate; nothing is posted in plan mode).
 Include EVERY unresolved review thread and every top-level PR comment that still needs a response (not only this round's findings; human comments too).
 For each item choose exactly one action:
-- implement: valid and fits this PR. Give precise step-level instructions a cheaper model can follow without judgment calls (files, symbols, tests to add, docs to update per AGENTS.md).
+- implement: valid and fits this PR. Give precise step-level instructions a cheaper model can follow without judgment calls or re-exploring: exact files and line ranges with the current snippet quoted, the replacement, tests to add, docs to update per AGENTS.md. When one change repeats across call sites, list every site.
 - follow_up: valid but out of scope, large, or risky${finalRound ? ' (FINAL ROUND: anything not trivially safe to finish now MUST be follow_up)' : ''}. Provide followup_title and a self-contained followup_body (file paths, link to the PR comment).
 - wont_do: ONLY when the finding is wrong or the change would be harmful; give the technical rationale. A wont_do holds the PR for the owner, so prefer follow_up when in doubt.
 Return the items.`,
@@ -406,7 +410,9 @@ Plan (JSON): ${JSON.stringify(plan.items)}
    - follow_up → "Tracked in #<issue> — <one-line why deferred>." then resolve the thread.
    - wont_do → the rationale; do NOT resolve; then \`gh pr edit ${pr} -R ${REPO} --add-label needs-user-input\`.
    Threads: GraphQL addPullRequestReviewThreadReply + resolveReviewThread. Top-level comments: a new \`gh pr comment\` linking the original comment URL.
-4. Re-fetch and confirm every reply exists and every non-wont_do thread is resolved.
+   Post all replies/resolutions in as few commands as possible (e.g. one shell loop over the items).
+4. Do one final re-fetch to confirm every reply exists and every non-wont_do thread is resolved (a separate verifier re-checks, so do not re-verify item by item).
+${LEAN_TURNS}
 Return head_sha (after push, or the unchanged head), shas, per-item reply_body/reply_url/resolved/followup_issue, and wont_do_count.`,
     { label: `fb-exec:${tag(issue)}`, phase: 'Feedback', model: M.worker, isolation: 'worktree', schema: S_FB_EXEC },
   )
@@ -539,7 +545,7 @@ You are the planner for ${REPO} issue #${issue.number}. Do not modify code.
 ${DETACHED(BASE)}
 1. Claim it: \`gh issue edit ${issue.number} -R ${REPO} --add-label in-progress\` and comment "Picked up by the automated issue pipeline."
 2. Read the issue and comments. Research the code thoroughly (AGENTS.md, docs/architecture.md, docs/contributing.md, the relevant layers). Find existing helpers to reuse.
-3. Write a DETAILED implementation plan a cheaper model can follow mechanically: exact files and symbols to change, code-level steps, tests to add (tests/… or gui/web Vitest), docs to update per the AGENTS.md "Docs in sync" table, and verify_cmds: concrete targeted commands naming the exact files/tests for this change, following: ${VERIFY}
+3. Write a DETAILED implementation plan a cheaper model can follow mechanically: exact files, symbols and line ranges to change (quote the current snippet for each edit), code-level steps, tests to add (tests/… or gui/web Vitest), docs to update per the AGENTS.md "Docs in sync" table, and verify_cmds: concrete targeted commands naming the exact files/tests for this change, following: ${VERIFY}
 4. List related_issues: other open issues this work touches, overlaps or partially addresses but does NOT fully close (\`gh issue list -R ${REPO} --search <keywords>\`).
 5. Choose a branch name type/short-kebab (feat|fix|docs|chore|refactor|test).
 6. Post the plan on the issue as a comment wrapped in <details><summary>Implementation plan</summary>…</details>.
@@ -559,6 +565,7 @@ ${SETUP}
 Branch: ${plan.branch} (if it already exists on origin, append -2, -3, …).
 PLAN:
 ${plan.plan_md}
+${LEAN_TURNS}
 Steps: implement code + tests + docs; run ${plan.verify_cmds.join(' && ')}; fix failures; commit (conventional message, repo style); \`git push origin HEAD:refs/heads/<branch>\`; then \`gh pr create -R ${REPO} --base main --head <branch>\` with a summary, a test plan, and these issue-link lines verbatim, each on its own line:
 ${LINKS(issue.number, plan.related_issues)}
 End the PR body with "🤖 Generated with [Claude Code](https://claude.com/claude-code)".
