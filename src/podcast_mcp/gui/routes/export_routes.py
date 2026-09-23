@@ -25,10 +25,14 @@ def _auth(
 ) -> None:
     """Host-only gate for export jobs (bounce + deliverables).
 
-    Share tokens never satisfy this check: remote peers under strict authz must
-    present ``PODCAST_SESSION_TOKEN``, and the relay tunnel never maps
-    ``/api/export/*`` (``util/proxy_paths.py``). See issue #219 and
-    docs/host-online-relay.md § Security notes.
+    Under strict authz (``PODCAST_SESSION_AUTHZ=strict``, auto-enabled on a
+    non-loopback bind by ``ensure_non_loopback_session_auth``), share tokens
+    never satisfy this check: remote peers must present
+    ``PODCAST_SESSION_TOKEN``. In the default non-strict mode
+    ``authorize_client`` allows every caller, which is safe only because the GUI
+    then binds loopback and the relay tunnel never maps ``/api/export/*``
+    (``util/proxy_paths.py``). See issue #219 and docs/host-online-relay.md
+    § Security notes.
     """
     require_authz(
         client_id="viewer",
