@@ -1,9 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   createOpfsSink,
+  keeperMetaComplete,
+  keeperMetaPath,
   keeperWavPath,
   MemorySink,
+  missingKeeperWavState,
   OpfsUnavailableError,
+  removeBestEffort,
   roomToneWavPath,
 } from "./store";
 
@@ -200,5 +204,36 @@ describe("OPFS cleanup", () => {
         Reflect.deleteProperty(navigator, "storage");
       }
     }
+  });
+});
+
+describe("keeper completion markers", () => {
+  const enc = (value: unknown) =>
+    new TextEncoder().encode(JSON.stringify(value));
+
+  it("treats legacy and complete:true metadata as complete, pending as not", () => {
+    expect(keeperMetaComplete(null)).toBe(false);
+    expect(keeperMetaComplete(enc({ joinOffsetMs: 0 }))).toBe(true);
+    expect(keeperMetaComplete(enc({ complete: true }))).toBe(true);
+    expect(keeperMetaComplete(enc({ complete: false }))).toBe(false);
+    expect(keeperMetaComplete(new Uint8Array([123]))).toBe(true);
+  });
+
+  it("classifies a missing WAV as reclaimed only with a completion marker", async () => {
+    const sink = new MemorySink();
+    const wav = "Sharecut Recordings/r/0/p/0.wav";
+    expect(await missingKeeperWavState(sink, wav)).toBe("missing");
+    await sink.write(keeperMetaPath(wav), enc({ complete: false }));
+    expect(await missingKeeperWavState(sink, wav)).toBe("missing");
+    await sink.write(keeperMetaPath(wav), enc({ complete: true }));
+    expect(await missingKeeperWavState(sink, wav)).toBe("reclaimed");
+  });
+
+  it("removeBestEffort reports failures without throwing", async () => {
+    const sink = new MemorySink();
+    await sink.write("a.wav", new Uint8Array([1]));
+    expect(await removeBestEffort(sink, "a.wav")).toBe(true);
+    vi.spyOn(sink, "remove").mockRejectedValueOnce(new Error("locked"));
+    expect(await removeBestEffort(sink, "a.wav")).toBe(false);
   });
 });

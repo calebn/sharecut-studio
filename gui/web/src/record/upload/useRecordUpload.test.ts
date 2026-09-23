@@ -1,6 +1,15 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { type ByteSink, keeperWavPath, MemorySink } from "../keeper/store";
+import {
+  holdKeeperReclaim,
+  KEEPER_RECLAIM_MAX_FAILURES,
+} from "../keeper/reclaim";
+import {
+  type ByteSink,
+  keeperMetaPath,
+  keeperWavPath,
+  MemorySink,
+} from "../keeper/store";
 import { memoryUploadTransport, type RecordUploadTransport } from "./transport";
 import { leaveBlocked, useRecordUpload } from "./useRecordUpload";
 
@@ -489,6 +498,151 @@ describe("useRecordUpload", () => {
     await waitFor(() => expect(remove).toHaveBeenCalledTimes(2));
     unmount();
   });
+
+  async function landedKeeper(sink: MemorySink): Promise<string> {
+    const wavPath = keeperWavPath({
+      sessionId: "room1",
+      takeIndex: 0,
+      participantId: "p_a",
+      segmentIndex: 0,
+    });
+    await sink.write(wavPath, wavWithPcm(8));
+    await sink.write(
+      keeperMetaPath(wavPath),
+      new TextEncoder().encode(JSON.stringify({ complete: true })),
+    );
+    return wavPath;
+  }
+
+  function landedTransport(state: { dropRow: boolean }): RecordUploadTransport {
+    return {
+      async status() {
+        return {
+          segments: state.dropRow
+            ? []
+            : [
+                {
+                  take_index: 0,
+                  segment_index: 0,
+                  participant_id: "p_a",
+                  acked_parts: [0],
+                  file_ack: true,
+                  landed: true,
+                },
+              ],
+        };
+      },
+      async put() {
+        throw new Error("a reclaimed segment must not re-upload");
+      },
+    };
+  }
+
+  function stoppedHook(sink: ByteSink, transport: RecordUploadTransport) {
+    return renderHook(() =>
+      useRecordUpload({
+        enabled: true,
+        roomState: "stopped",
+        captureSettled: true,
+        sessionId: "room1",
+        takeIndex: 0,
+        participantId: "p_a",
+        transport,
+        sink,
+      }),
+    );
+  }
+
+  it("does not stall on a reclaimed segment whose host row disappears", async () => {
+    vi.useFakeTimers();
+    const sink = new MemorySink();
+    const wavPath = await landedKeeper(sink);
+    const state = { dropRow: false };
+    const { result, unmount } = stoppedHook(sink, landedTransport(state));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(await sink.read(wavPath)).toBeNull();
+    // Host discards the landed take: its status row is tombstoned away.
+    state.dropRow = true;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(result.current).toMatchObject({
+      fileAck: true,
+      landed: true,
+      uploading: false,
+      error: null,
+    });
+    expect(leaveBlocked("stopped", result.current)).toBe(false);
+    unmount();
+  });
+
+  it("treats a reclaimed segment as landed after a reload without its row", async () => {
+    vi.useFakeTimers();
+    const sink = new MemorySink();
+    const wavPath = await landedKeeper(sink);
+    await sink.remove(wavPath);
+    const { result, unmount } = stoppedHook(
+      sink,
+      landedTransport({ dropRow: true }),
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(result.current).toMatchObject({
+      fileAck: true,
+      landed: true,
+      uploading: false,
+      error: null,
+    });
+    unmount();
+  });
+
+  it("surfaces repeated reclaim failures and keeps the WAV", async () => {
+    vi.useFakeTimers();
+    const sink = new MemorySink();
+    const wavPath = await landedKeeper(sink);
+    const remove = vi
+      .spyOn(sink, "remove")
+      .mockRejectedValue(
+        new DOMException("locked", "NoModificationAllowedError"),
+      );
+    const { result, unmount } = stoppedHook(
+      sink,
+      landedTransport({ dropRow: false }),
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.reclaimFailed).toBe(false);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4_000);
+    });
+    expect(remove).toHaveBeenCalledTimes(KEEPER_RECLAIM_MAX_FAILURES);
+    expect(result.current.reclaimFailed).toBe(true);
+    expect(result.current.landed).toBe(true);
+    expect(await sink.read(wavPath)).not.toBeNull();
+    unmount();
+  });
+
+  it("pauses reclaim while a recovery download holds the sink", async () => {
+    vi.useFakeTimers();
+    const sink = new MemorySink();
+    const wavPath = await landedKeeper(sink);
+    const release = await holdKeeperReclaim(sink);
+    const { unmount } = stoppedHook(sink, landedTransport({ dropRow: false }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4_000);
+    });
+    expect(await sink.read(wavPath)).not.toBeNull();
+    release();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+    expect(await sink.read(wavPath)).toBeNull();
+    unmount();
+  });
 });
 
 describe("leaveBlocked", () => {
@@ -501,6 +655,7 @@ describe("leaveBlocked", () => {
         fileAck: false,
         landed: false,
         landFailed: false,
+        reclaimFailed: false,
         uploading: false,
         pending: true,
         error: null,
@@ -513,6 +668,7 @@ describe("leaveBlocked", () => {
         fileAck: false,
         landed: false,
         landFailed: false,
+        reclaimFailed: false,
         uploading: false,
         pending: false,
         error: "fail",

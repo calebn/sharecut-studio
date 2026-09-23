@@ -6,6 +6,12 @@ export type KeeperMeta = {
   sampleRate: number;
   joinOffsetMs: number;
   samplesWritten: number;
+  /**
+   * `true` once the WAV is closed. A pending marker written at segment open
+   * carries `false`; metadata from older clients (written only after close)
+   * omits the field and is treated as complete.
+   */
+  complete?: boolean;
 };
 
 export type ByteStream = {
@@ -18,6 +24,12 @@ export type ByteSink = {
   read(path: string): Promise<Uint8Array | null>;
   /** Return the native file when available so recovery need not copy large WAVs. */
   readBlob?(path: string): Promise<Blob | null>;
+  /**
+   * Delete `path`. A missing entry resolves; any other failure (a locked
+   * entry, `NoModificationAllowedError`, `InvalidStateError`) rejects so
+   * keeper reclaim can tell whether bytes were really freed. Callers doing
+   * best-effort cleanup use {@link removeBestEffort}.
+   */
   remove(path: string): Promise<void>;
   open(path: string): Promise<ByteStream>;
   nextSegmentIndex(
@@ -77,6 +89,53 @@ export function keeperWavPath(
 
 export function keeperMetaPath(wavPath: string): string {
   return wavPath.replace(/\.wav$/i, ".json");
+}
+
+/** Best-effort delete for disposable files (room tone, probes). */
+export async function removeBestEffort(
+  sink: ByteSink,
+  path: string,
+): Promise<boolean> {
+  try {
+    await sink.remove(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** True when completion metadata marks its WAV as closed. */
+export function keeperMetaComplete(bytes: Uint8Array | null): boolean {
+  if (!bytes) {
+    return false;
+  }
+  try {
+    const meta = JSON.parse(new TextDecoder().decode(bytes)) as {
+      complete?: unknown;
+    };
+    return meta?.complete !== false;
+  } catch {
+    // Legacy behaviour: present-but-unreadable metadata was written after
+    // close, so it still marks a finalized segment.
+    return true;
+  }
+}
+
+/**
+ * Single source of truth for why a keeper segment has no local WAV. Callers
+ * probe the WAV themselves (upload reads bytes, recovery a `Blob`) and ask
+ * here only when it is absent:
+ * - `reclaimed`: deleted after confirmed landing; its completion marker
+ *   remains. Not lost audio, so recovery and upload skip it.
+ * - `missing`: no WAV and no completion marker, i.e. genuinely lost.
+ */
+export async function missingKeeperWavState(
+  sink: ByteSink,
+  wavPath: string,
+): Promise<"reclaimed" | "missing"> {
+  return keeperMetaComplete(await sink.read(keeperMetaPath(wavPath)))
+    ? "reclaimed"
+    : "missing";
 }
 
 export function keeperDirPrefix(

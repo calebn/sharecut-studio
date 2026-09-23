@@ -173,9 +173,10 @@ async function seedSparseRecoveryKeepers(
       ]) {
         dir = await dir.getDirectoryHandle(part, { create: true });
       }
-      // Keep these outside the recorded segment range: a landed segment at 0
-      // may be reclaimed again when the next status poll confirms landing.
-      for (const index of [20, 22]) {
+      // Interleave with the recorded segment 0, which may already have
+      // landed and been reclaimed (only its completion .json remains). Index 2
+      // is left genuinely missing so the error counts only lost audio.
+      for (const index of [1, 3]) {
         const handle = await dir.getFileHandle(`${index}.wav`, {
           create: true,
         });
@@ -201,10 +202,12 @@ async function expectRecoveryDownloads(page: Page): Promise<void> {
   expect(downloads[0]?.name).toMatch(/^keepers-p_.*\.zip$/);
   const archive = await readFile(await downloads[0]!.path);
   expect(archive.readUInt32LE(0)).toBe(0x0403_4b50);
-  expect(archive.includes(Buffer.from("keeper-0-20.wav"))).toBe(true);
-  expect(archive.includes(Buffer.from("keeper-0-22.wav"))).toBe(true);
+  expect(archive.includes(Buffer.from("keeper-0-1.wav"))).toBe(true);
+  expect(archive.includes(Buffer.from("keeper-0-3.wav"))).toBe(true);
+  // Segment 0 is exported if still local or skipped if reclaimed after
+  // landing; either way only the never-written segment 2 is missing.
   await expect(
-    page.getByText(/Downloaded 2 local keeper copies/),
+    page.getByText(/Downloaded [23] local keeper copies; 1 missing segment /),
   ).toBeVisible();
 }
 

@@ -140,7 +140,7 @@ flowchart TD
   upload --> recovery[Resume upload or Download local keeper]
   recovery --> upload
   upload --> staged[File uploaded; local OPFS WAV kept]
-  staged --> opfs[Local OPFS WAV safe to delete after confirmed landing]
+  staged --> opfs[Local OPFS WAV cleared automatically after confirmed landing]
   staged --> failed[Landing failed; ask host to Retry land]
   failed --> staged
   opfs --> done[Tracks on host timeline]
@@ -187,8 +187,9 @@ flowchart TD
    for an incomplete or stalled take. Download produces one ZIP containing all
    retained WAV segments. The local WAVs stay in
    OPFS (`Sharecut Recordings/`) until a fresh host status confirms **Landed**.
-   The finalized WAV may then be reclaimed while its small completion marker
-   remains to preserve segment numbering. If landing fails, the guest sees
+   The finalized WAV is then reclaimed automatically while its small completion
+   marker remains to preserve segment numbering; recovery downloads skip
+   reclaimed segments rather than reporting them missing. If landing fails, the guest sees
    **Uploaded but not landed on the host** and keeps the backup while the host
    uses **Retry land**. The lobby and host Start panel warn when browser storage
    headroom is low or cannot be estimated; this advisory never blocks recording.
