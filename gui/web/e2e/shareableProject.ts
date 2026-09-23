@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { request } from "node:http";
 import path from "node:path";
-import { e2eBaseURL, e2eProjectPath } from "./env";
+import { committedE2eProjectPath, e2eBaseURL, e2eProjectPath } from "./env";
 import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
@@ -27,11 +27,22 @@ export type ShareableProjectFactory = (
   prefix: string,
 ) => ReturnType<typeof createRelocatedE2eProject>;
 
+/** Refuse to retarget the loopback GUI at the committed fixture. (doc: env fallback when DAW_E2E_PROJECT unset: UX_DEMO_SCREENSHOTS, Vitest, outside Playwright) */
+export function assertDisposableE2eProject(projectPath: string): void {
+  if (path.resolve(projectPath) === path.resolve(committedE2eProjectPath)) {
+    throw new Error(
+      `Refusing to switch the E2E GUI to the committed fixture ${committedE2eProjectPath}; ` +
+        "set DAW_E2E_PROJECT to a disposable copy (playwright.config.ts does this via prepareLiveE2eProject()).",
+    );
+  }
+}
+
 /** Retarget the loopback GUI through its authenticated project-open endpoint. */
 export const switchE2eProject = async (
   projectPath: string,
   baseURL = e2eBaseURL,
 ): Promise<void> => {
+  assertDisposableE2eProject(projectPath);
   const body = JSON.stringify({ path: projectPath });
   let response: { status: number; body: string };
   try {
@@ -111,7 +122,9 @@ export async function withShareableProject<T>(
   switchProject: ProjectSwitcher = switchE2eProject,
   createProject: ShareableProjectFactory = (prefix) =>
     createRelocatedE2eProject(prefix),
+  restoreProjectPath: string = e2eProjectPath,
 ): Promise<T> {
+  assertDisposableE2eProject(restoreProjectPath);
   // Sharing and recording persist state beside a project. Give every callback
   // a new path so WebSocket rooms and rosters cannot leak across scenarios.
   const { projectPath, workspaceDir: root } = createProject(
@@ -137,7 +150,7 @@ export async function withShareableProject<T>(
   let cleanupFailed = false;
   let cleanupError: unknown;
   try {
-    await switchProject(e2eProjectPath);
+    await switchProject(restoreProjectPath);
   } catch (error) {
     cleanupFailed = true;
     cleanupError = error;

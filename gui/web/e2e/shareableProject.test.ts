@@ -3,10 +3,20 @@ import { createServer } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout } from "node:timers/promises";
-import { describe, expect, it } from "vitest";
-import { e2eProjectPath } from "./env";
+import { describe, expect, it, vi } from "vitest";
+import { committedE2eProjectPath, e2eProjectPath } from "./env";
 import { createRelocatedE2eProject } from "./liveProject";
-import { switchE2eProject, withShareableProject } from "./shareableProject";
+import {
+  assertDisposableE2eProject,
+  switchE2eProject,
+  withShareableProject,
+} from "./shareableProject";
+
+const suiteProjectPath = path.join(
+  os.tmpdir(),
+  "sharecut-e2e-suite-probe",
+  "episode.project.json",
+);
 
 function createMinimalProjectFactory(
   writeFile: (filePath: string, content: string) => void = fs.writeFileSync,
@@ -34,6 +44,36 @@ function createMinimalProjectFactory(
     cleanup: () => fs.rmSync(fixtureRoot, { recursive: true, force: true }),
   };
 }
+
+describe("assertDisposableE2eProject", () => {
+  it("rejects the committed fixture path", () => {
+    expect(() => assertDisposableE2eProject(committedE2eProjectPath)).toThrow(
+      /committed fixture/,
+    );
+  });
+
+  it("rejects a dot-relative spelling of the committed fixture", () => {
+    const spelled = path.join(
+      path.dirname(committedE2eProjectPath),
+      ".",
+      "episode.project.json",
+    );
+    expect(() => assertDisposableE2eProject(spelled)).toThrow(
+      /committed fixture/,
+    );
+  });
+
+  it("rejects a cwd-relative spelling of the committed fixture", () => {
+    const relative = path.relative(process.cwd(), committedE2eProjectPath);
+    expect(() => assertDisposableE2eProject(relative)).toThrow(
+      /committed fixture/,
+    );
+  });
+
+  it("accepts a disposable suite project path", () => {
+    expect(() => assertDisposableE2eProject(suiteProjectPath)).not.toThrow();
+  });
+});
 
 describe("withShareableProject", () => {
   it("cleans up its fixture root when the initial project write fails", () => {
@@ -87,6 +127,59 @@ describe("withShareableProject", () => {
     }
   });
 
+  it("refuses to switch to the committed fixture and makes no request", async () => {
+    let requests = 0;
+    const server = createServer((_request, response) => {
+      requests += 1;
+      response.end("ok");
+    });
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve),
+    );
+    try {
+      const url = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+      await expect(
+        switchE2eProject(committedE2eProjectPath, url),
+      ).rejects.toThrow(/committed fixture/);
+      expect(requests).toBe(0);
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it("refuses withShareableProject when the restore path is the committed fixture", async () => {
+    const switchSpy = vi.fn(async () => {});
+    const createSpy = vi.fn();
+
+    await expect(
+      withShareableProject(
+        async () => {},
+        switchSpy,
+        createSpy,
+        committedE2eProjectPath,
+      ),
+    ).rejects.toThrow(/committed fixture/);
+
+    expect(switchSpy).not.toHaveBeenCalled();
+    expect(createSpy).not.toHaveBeenCalled();
+  });
+
+  it.runIf(e2eProjectPath === committedE2eProjectPath)(
+    "refuses withShareableProject's default restore path when it falls back to the committed fixture",
+    async () => {
+      const switchSpy = vi.fn(async () => {});
+      const createSpy = vi.fn();
+
+      await expect(
+        withShareableProject(async () => {}, switchSpy, createSpy),
+      ).rejects.toThrow(/committed fixture/);
+
+      expect(switchSpy).not.toHaveBeenCalled();
+      expect(createSpy).not.toHaveBeenCalled();
+    },
+  );
+
   it("uses a unique disposable project for each callback", async () => {
     const { createProject, cleanup } = createMinimalProjectFactory();
     const paths: string[] = [];
@@ -105,6 +198,7 @@ describe("withShareableProject", () => {
         },
         switchProject,
         createProject,
+        suiteProjectPath,
       );
       await withShareableProject(
         async (projectPath) => {
@@ -115,6 +209,7 @@ describe("withShareableProject", () => {
         },
         switchProject,
         createProject,
+        suiteProjectPath,
       );
     } finally {
       cleanup();
@@ -123,9 +218,9 @@ describe("withShareableProject", () => {
     expect(paths[0]).not.toBe(paths[1]);
     expect(switched).toEqual([
       paths[0],
-      e2eProjectPath,
+      suiteProjectPath,
       paths[1],
-      e2eProjectPath,
+      suiteProjectPath,
     ]);
     expect(fs.existsSync(path.dirname(paths[0]))).toBe(false);
     expect(fs.existsSync(path.dirname(paths[1]))).toBe(false);
@@ -146,6 +241,7 @@ describe("withShareableProject", () => {
             switched.push(projectPath);
           },
           createProject,
+          suiteProjectPath,
         ),
       ).rejects.toThrow("callback failed");
     } finally {
@@ -154,7 +250,7 @@ describe("withShareableProject", () => {
 
     expect(switched).toEqual([
       path.join(workspaceDir, "episode.project.json"),
-      e2eProjectPath,
+      suiteProjectPath,
     ]);
     expect(fs.existsSync(workspaceDir)).toBe(false);
   });
@@ -172,11 +268,12 @@ describe("withShareableProject", () => {
           },
           async (projectPath) => {
             switched.push(projectPath);
-            if (projectPath === e2eProjectPath) {
+            if (projectPath === suiteProjectPath) {
               throw new Error("restore failed");
             }
           },
           createProject,
+          suiteProjectPath,
         ),
       ).rejects.toThrow("callback failed");
     } finally {
@@ -185,7 +282,7 @@ describe("withShareableProject", () => {
 
     expect(switched).toEqual([
       path.join(workspaceDir, "episode.project.json"),
-      e2eProjectPath,
+      suiteProjectPath,
     ]);
     expect(fs.existsSync(workspaceDir)).toBe(false);
   });
@@ -202,11 +299,12 @@ describe("withShareableProject", () => {
           },
           async (projectPath) => {
             switched.push(projectPath);
-            if (projectPath === e2eProjectPath) {
+            if (projectPath === suiteProjectPath) {
               throw new Error("restore failed");
             }
           },
           createProject,
+          suiteProjectPath,
         ),
       ).rejects.toThrow("restore failed");
     } finally {
@@ -215,7 +313,7 @@ describe("withShareableProject", () => {
 
     expect(switched).toEqual([
       path.join(workspaceDir, "episode.project.json"),
-      e2eProjectPath,
+      suiteProjectPath,
     ]);
     expect(fs.existsSync(workspaceDir)).toBe(false);
   });
