@@ -29,13 +29,14 @@ library, `src/<area>/*.stories.tsx` for domain components such as
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow |
 | **Organisms** | Complex components / sections | Dialog, BottomSheet |
+| **Templates** | Domain screens / sections with representative fixtures and locked copy | ConsentGate |
 
 Domain components get stories only when they are **props in, UI out** (scope
 rule from #172): renderable from props alone — no store, socket, AudioContext
 or router. Components whose essence is live DAW state (timeline, inspector,
 the full DAW page) stay out; integration is covered by Playwright. Atoms →
-molecules → organisms is the traversal order: design the atom in isolation,
-then check it composed.
+molecules → organisms → templates is the traversal order: design the atom in
+isolation, then check it composed.
 
 ## Theme toolbar
 
@@ -47,7 +48,13 @@ every new component in both themes before merging.
 
 1. Colocate: `<Name>.stories.tsx` next to `<Name>.tsx` (`src/ui/` or the
    domain folder).
-2. Title it `Atoms|Molecules|Organisms/<Name>`.
+2. Title it `Atoms|Molecules|Organisms|Templates/<Name>`. **Organisms** are
+   generic and reusable anywhere (Dialog, BottomSheet) and carry no
+   domain-specific fixtures or copy. **Templates** are domain screens or
+   sections (e.g. `src/record/`) assembled from the lower tiers, rendered with
+   static representative content and locked domain copy, and kept state-local
+   per step 4 — no live app state. Sidebar order is set by `storySort.order`
+   in `.storybook/preview.ts`.
 3. `src/ui/` stories import from `./index` (the public API), not deep paths.
    Domain stories import the component module directly (`./ConsentGate`) —
    domain folders have no barrel.
@@ -92,3 +99,4 @@ every new component in both themes before merging.
 - 2026-09-23 — First domain story (`record/ConsentGate`): documented domain
   colocation, direct imports, shell decorators, locked-copy fixtures, `fn()`
   callbacks, and running `play` functions through `composeStories` in Vitest.
+  Added the **Templates** tier for domain screens.

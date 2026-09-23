@@ -13,7 +13,7 @@ const BLOCKER_COPY: Record<string, string> = {
 };
 
 const meta: Meta<typeof ConsentGate> = {
-  title: "Record/ConsentGate",
+  title: "Templates/ConsentGate",
   component: ConsentGate,
   tags: ["autodocs"],
   args: {
