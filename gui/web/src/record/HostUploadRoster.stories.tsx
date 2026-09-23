@@ -23,7 +23,7 @@ const producer = () =>
   });
 
 const meta: Meta<typeof HostUploadRoster> = {
-  title: "Record/HostUploadRoster",
+  title: "Templates/HostUploadRoster",
   component: HostUploadRoster,
   tags: ["autodocs"],
   // The app renders the roster inside the host Record room dialog body.
