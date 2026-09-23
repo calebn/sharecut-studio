@@ -10,6 +10,7 @@ export const meta = {
     { title: 'Review', detail: 'pr-multi-review AUTONOMOUS MODE + post verification', model: 'opus' },
     { title: 'Feedback', detail: 'feedback AUTONOMOUS MODE plan (opus) + execute (sonnet)' },
     { title: 'Merge', detail: 'gate facts, rebase on conflict, squash-merge', model: 'haiku' },
+    { title: 'Cleanup', detail: 'remove finished workflow worktrees', model: 'haiku' },
   ],
 }
 
@@ -658,7 +659,33 @@ Return ok, pr number, branch, head_sha.`,
   },
 )
 
+// Code-changing agents keep their isolated worktrees (.claude/worktrees/wf_*), each with its
+// own .venv / node_modules. Once every lane has merged or been held, remove the ones whose
+// work is safely on origin; anything with unpushed or uncommitted work is left and reported.
+phase('Cleanup')
+const S_CLEANUP = {
+  type: 'object',
+  properties: {
+    removed: { type: 'array', items: { type: 'string' } },
+    kept: { type: 'array', items: { type: 'object', properties: { path: { type: 'string' }, reason: { type: 'string' } }, required: ['path', 'reason'] } },
+  },
+  required: ['removed', 'kept'],
+}
+const cleanup = await agent(
+  `Clean up finished issue-pipeline worktrees in this repository. Only touch worktrees whose path contains "/.claude/worktrees/wf_" (from \`git worktree list --porcelain\`); never touch any other worktree or the main checkout.
+Run \`git fetch origin --prune\` first. For each wf_ worktree:
+- If \`git -C <path> status --porcelain\` is non-empty → keep it (reason: uncommitted changes).
+- Else if its HEAD commit is not on origin (\`git branch -r --contains <sha>\` is empty) → keep it (reason: unpushed commits).
+- Else \`git worktree remove <path>\`; if it had a local branch checked out that no other worktree uses, \`git branch -D <branch>\`.
+Finish with \`git worktree prune\`. Return removed paths and kept paths with reasons.`,
+  { label: 'cleanup:worktrees', phase: 'Cleanup', model: M.cheap, effort: 'low', schema: S_CLEANUP },
+)
+if (cleanup) {
+  log(`Cleanup: removed ${cleanup.removed.length} worktree(s)${cleanup.kept.length ? `; kept ${cleanup.kept.map((k) => `${k.path} (${k.reason})`).join(', ')}` : ''}`)
+}
+
 return {
+  worktrees: cleanup ? { removed: cleanup.removed.length, kept: cleanup.kept } : 'cleanup agent died',
   selected: selected.map((s) => s.number),
   skipped: skipped.map((s) => ({ number: s.number, actionable: s.actionable, size: s.size, reason: s.reason })),
   lanes: results.map((r, i) => r || { issue: selected[i].number, merged: false, held: true, reason: 'lane crashed' }),

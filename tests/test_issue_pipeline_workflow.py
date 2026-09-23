@@ -156,6 +156,15 @@ def test_prompts_state_provenance_without_authority_claims() -> None:
     assert "Launch every run with a chat message that names it" in text
 
 
+def test_finished_worktrees_are_cleaned_up_safely() -> None:
+    script = _script()
+    # Cleanup runs after every lane finished, and only removes pushed, clean wf_ worktrees.
+    assert script.index("const results = await pipeline(") < script.index("phase('Cleanup')")
+    assert '"/.claude/worktrees/wf_"' in script
+    assert "uncommitted changes" in script
+    assert "unpushed commits" in script
+
+
 def test_model_tiers() -> None:
     script = _script()
     assert "const M = { cheap: 'haiku', worker: 'sonnet', senior: 'opus' }" in script

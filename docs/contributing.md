@@ -109,6 +109,8 @@ Stages per issue (each issue is its own lane; lanes do not wait for each other):
 
    A PR that conflicts with `main` is rebased (`--force-with-lease`) and re-checked.
 
+When every lane has finished, a Haiku agent removes the run's `.claude/worktrees/wf_*` worktrees whose work is already on `origin`. Any worktree with uncommitted or unpushed changes is kept and reported.
+
 Anything else is **held**: the pipeline adds `needs-user-input` and posts an "Automation hold" comment saying what the owner has to decide. A `wont_do` always holds the PR for owner sign-off. Add `do-not-merge` to any PR or issue to keep automation away from it.
 
 The autonomous behaviour of `pr-multi-review` and `feedback` lives in the **AUTONOMOUS MODE (pipeline)** section of each skill (`~/.agents/skills/…`). That section overrides the skills' interactive approval gates only when a prompt contains `AUTONOMOUS MODE`.
