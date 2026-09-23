@@ -121,15 +121,31 @@ action; do not loop indefinitely.
    context, callers and second-hop callers where relevant, sibling CLI/MCP/GUI
    paths, related tests, and applicable rules. Reuse it for all review passes.
    Treat the packet as a starting point, never a boundary.
-5. Check all eight concerns from `pr-multi-review`: bugs, risk, wiring, reuse,
-   security, concurrency/resources, performance, and algorithms/patterns.
-   For reuse search the whole repo for each new helper; for security inspect
-   authorization helpers and threat docs; for wiring inspect sibling adapters;
-   for concurrency trace task/thread lifetimes; for patterns follow at least
-   two call hops. A concern may report no finding with a reason. Browser or
-   live QA is required when the changed user-facing path can be exercised.
-   Post actionable findings and verify they appear on the PR.
-6. Classify every review item as fix, follow-up, or won't-do. Make safe fixes,
+5. Run the eight distinct reviewer lenses from `pr-multi-review`: bugs, risk,
+   wiring, reuse, security, concurrency/resources, performance, and
+   algorithms/patterns. Give each available reviewer subagent the shared
+   packet and its own lens instructions; collect each report before combining
+   them. If subagents are unavailable, run the lenses in separate explicit
+   passes and disclose that the reviews were not independent. For reuse search
+   the whole repo for each new helper; for security inspect authorization
+   helpers and threat docs; for wiring inspect sibling adapters; for
+   concurrency trace task/thread lifetimes; for patterns follow at least two
+   call hops. A lens may report no finding with a reason. Browser or live QA
+   is required when the changed user-facing path can be exercised.
+
+   Preserve every generated review comment, regardless of severity or whether
+   it seems worth fixing. Combine comments only when multiple lenses report
+   the same underlying issue; retain the contributing lenses and all distinct
+   evidence in the combined comment. Do not rebut, filter, defer, or decide
+   whether to implement a finding before posting. Post each remaining comment
+   on the PR, inline when the diff permits and as a separate Conversation
+   comment otherwise. A clean lens report has no comment to post. Map every
+   generated comment to its posted URL or to the combined comment's URL.
+   Separately re-fetch GitHub comments and verify that the number and content
+   posted cover the union of all lens reports. Post any missing comments and
+   stall the pipeline if verification still fails.
+6. Only after posting and verification, classify every review item as fix,
+   follow-up, or won't-do. Make safe fixes,
    add tests/docs, reply to each thread, and verify replies and resolutions.
    GitHub can leave thread replies inside a `PENDING` review even when the
    author sees them in a thread query. Submit each pending review with a
@@ -150,9 +166,9 @@ action; do not loop indefinitely.
 Read `pr-multi-review` and `feedback` skills when using their detailed review
 or response procedure. Their autonomous modes belong to the Claude workflow;
 this skill follows the user's current authorization and Codex's available
-tools. Use subagents only when the user expressly requests delegation or
-parallel agent work. One agent can cover the eight concerns in separate,
-explicit passes over the shared packet.
+tools. The eight reviewer lenses above are part of this skill's review stage,
+not an optional cost setting. Posting verification is separate from the
+reviewer who combines and posts comments.
 
 ## Gate and closeout
 
@@ -185,7 +201,7 @@ status, and merge result.
 ## Cost discipline
 
 Choose a model for the actual difficulty when stage-specific subagents are
-available **and the user has requested delegation**. The current Codex task
+available. The current Codex task
 cannot change its own model mid-run. Use Luna with low effort for bounded
 read-only triage and claim/CI inventory; Sol with medium effort for ordinary
 planning, implementation, feedback fixes, and review; raise Sol's effort for
@@ -193,8 +209,9 @@ cross-layer or high-risk review. Use Astra only when architecture, security,
 concurrency, or conflicting findings require deeper judgment. Keep claim
 ownership and the final merge verdict in the deterministic protocol and gate,
 regardless of model. For a small issue, one agent may cost less than handing
-off several stages. Record the models and efforts actually used; if the run
-stays in one task, report that model routing was not exercised. These choices
+off several stages outside review; the eight review lenses still run. Record
+the models and efforts actually used; if subagents were unavailable, report
+that model routing and independent review were not exercised. These choices
 follow [OpenAI's model-selection guidance](https://developers.openai.com/api/docs/guides/model-selection);
 recheck availability and guidance when making a future run.
 
