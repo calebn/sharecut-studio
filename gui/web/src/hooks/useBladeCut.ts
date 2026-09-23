@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { splitAtTime } from "../api";
-import { canSuggestStructural } from "../shareMode";
+import { canSuggestStructuralOnProject } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import { bladeTrackIds } from "../utils/bladeTracks";
 import { useProjectMutation } from "./useProjectMutation";
@@ -19,10 +19,11 @@ export function useBladeCut() {
   } = useDaw();
   const { busy, error, setError, run } = useProjectMutation();
 
-  const allowed = canSuggestStructural(
+  const allowed = canSuggestStructuralOnProject(
     projectPath,
     guestMode,
     shareCapabilities,
+    project != null,
   );
 
   const dialogueIds = useCallback(

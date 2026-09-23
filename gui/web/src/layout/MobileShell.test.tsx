@@ -631,6 +631,32 @@ describe("MobileShell", () => {
     expect(screen.getByRole("dialog", { name: "Inspector" })).toBeTruthy();
   });
 
+  it.each([
+    ["comments", true],
+    ["hub", false],
+    ["history", false],
+  ] as const)(
+    "opens the comment inspector sheet in More → %s: %s",
+    (destination, open) => {
+      useDawStore.getState().setMobileMode("more");
+      useDawStore.getState().setMoreDestination(destination);
+      render(
+        <DawProvider
+          projectPath="/tmp/p.json"
+          initialProject={minimalProject()}
+        >
+          <MobileShell />
+        </DawProvider>,
+      );
+      act(() => {
+        useDawStore.getState().setSelection({ kind: "comment", id: "c1" });
+      });
+      expect(screen.queryByRole("dialog", { name: "Inspector" }) != null).toBe(
+        open,
+      );
+    },
+  );
+
   it("disables labeled Play/Stop while the episode is loading", () => {
     useDawStore.getState().hydrate("/tmp/p.json", null);
     render(

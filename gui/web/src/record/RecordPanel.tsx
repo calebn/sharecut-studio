@@ -23,6 +23,7 @@ import {
 import { RecIndicator } from "./RecIndicator";
 import { RoomToneCapture } from "./RoomToneCapture";
 import { Roster } from "./Roster";
+import { StorageHeadroomWarning } from "./StorageHeadroomWarning";
 import {
   HEARING_COPY,
   hostReconnectPauseCopyFromSnapshot,
@@ -203,6 +204,10 @@ export function RecordPanel({
         {snapshot ? (
           <RecIndicator snapshot={snapshot} captureFailed={!!keeperError} />
         ) : null}
+        <StorageHeadroomWarning
+          visible={state === "lobby" || state === "stopped"}
+          recheck={state === "stopped"}
+        />
         {snapshot &&
         (snapshot.state === "lobby" || snapshot.state === "stopped") ? (
           <RoomToneCapture

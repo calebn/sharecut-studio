@@ -1,6 +1,15 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { type ByteSink, keeperWavPath, MemorySink } from "../keeper/store";
+import {
+  holdKeeperReclaim,
+  KEEPER_RECLAIM_MAX_FAILURES,
+} from "../keeper/reclaim";
+import {
+  type ByteSink,
+  keeperMetaPath,
+  keeperWavPath,
+  MemorySink,
+} from "../keeper/store";
 import { memoryUploadTransport, type RecordUploadTransport } from "./transport";
 import { leaveBlocked, useRecordUpload } from "./useRecordUpload";
 
@@ -334,6 +343,306 @@ describe("useRecordUpload", () => {
     expect(leaveBlocked("stopped", result.current)).toBe(false);
     unmount();
   });
+
+  it("reclaims a finalized WAV only after authoritative landing", async () => {
+    const sink = new MemorySink();
+    const wavPath = keeperWavPath({
+      sessionId: "room1",
+      takeIndex: 0,
+      participantId: "p_a",
+      segmentIndex: 0,
+    });
+    await sink.write(wavPath, wavWithPcm(8));
+    await sink.write(
+      wavPath.replace(/\.wav$/, ".json"),
+      new TextEncoder().encode(JSON.stringify({ joinOffsetMs: 0 })),
+    );
+    const transport = memoryUploadTransport();
+    const { result, unmount } = renderHook(() =>
+      useRecordUpload({
+        enabled: true,
+        roomState: "stopped",
+        captureSettled: true,
+        sessionId: "room1",
+        takeIndex: 0,
+        participantId: "p_a",
+        transport,
+        sink,
+      }),
+    );
+    await waitFor(() => expect(result.current.landed).toBe(true));
+    await waitFor(async () => expect(await sink.read(wavPath)).toBeNull());
+    expect(await sink.read(wavPath.replace(/\.wav$/, ".json"))).not.toBeNull();
+    expect(await sink.nextSegmentIndex("room1", 0, "p_a")).toBe(1);
+    unmount();
+  });
+
+  it("retains a finalized WAV when landing is not confirmed", async () => {
+    const sink = new MemorySink();
+    const wavPath = keeperWavPath({
+      sessionId: "room1",
+      takeIndex: 0,
+      participantId: "p_a",
+      segmentIndex: 0,
+    });
+    await sink.write(wavPath, wavWithPcm(8));
+    await sink.write(
+      wavPath.replace(/\.wav$/, ".json"),
+      new TextEncoder().encode(JSON.stringify({ joinOffsetMs: 0 })),
+    );
+    const transport = memoryUploadTransport();
+    const originalStatus = transport.status.bind(transport);
+    transport.status = async () => {
+      const status = await originalStatus();
+      return {
+        segments: status.segments.map((segment) => ({
+          ...segment,
+          landed: false,
+          land_failed: true,
+        })),
+      };
+    };
+    const { result, unmount } = renderHook(() =>
+      useRecordUpload({
+        enabled: true,
+        roomState: "stopped",
+        captureSettled: true,
+        sessionId: "room1",
+        takeIndex: 0,
+        participantId: "p_a",
+        transport,
+        sink,
+      }),
+    );
+    await waitFor(() => expect(result.current.landFailed).toBe(true));
+    expect(await sink.read(wavPath)).not.toBeNull();
+    unmount();
+  });
+
+  it("reclaims prior takes, protects the active take and missing metadata, and does not repeat cleanup", async () => {
+    const sink = new MemorySink();
+    const path = (takeIndex: number, segmentIndex: number) =>
+      keeperWavPath({
+        sessionId: "room1",
+        takeIndex,
+        participantId: "p_a",
+        segmentIndex,
+      });
+    for (const [take, segment] of [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+    ]) {
+      const wavPath = path(take, segment);
+      await sink.write(wavPath, wavWithPcm(8));
+      if (segment === 0) {
+        await sink.write(
+          wavPath.replace(/\.wav$/, ".json"),
+          new TextEncoder().encode("{}"),
+        );
+      }
+    }
+    const remove = vi.spyOn(sink, "remove");
+    const transport: RecordUploadTransport = {
+      async status() {
+        return {
+          segments: [
+            [0, 0],
+            [1, 0],
+            [1, 1],
+          ].map(([take, segment]) => ({
+            take_index: take,
+            segment_index: segment,
+            participant_id: "p_a",
+            acked_parts: [0],
+            file_ack: true,
+            landed: true,
+          })),
+        };
+      },
+      async put() {
+        throw new Error("already landed");
+      },
+    };
+    const { rerender, unmount } = renderHook(
+      ({ roomState, captureSettled, retryNonce }) =>
+        useRecordUpload({
+          enabled: true,
+          roomState,
+          captureSettled,
+          sessionId: "room1",
+          takeIndex: 1,
+          participantId: "p_a",
+          transport,
+          sink,
+          retryNonce,
+        }),
+      {
+        initialProps: {
+          roomState: "recording",
+          captureSettled: false,
+          retryNonce: 0,
+        },
+      },
+    );
+    await waitFor(() => expect(remove).toHaveBeenCalledWith(path(0, 0)));
+    expect(await sink.read(path(1, 0))).not.toBeNull();
+    expect(await sink.read(path(1, 1))).not.toBeNull();
+
+    rerender({ roomState: "stopped", captureSettled: true, retryNonce: 0 });
+    await waitFor(() => expect(remove).toHaveBeenCalledWith(path(1, 0)));
+    expect(await sink.read(path(1, 1))).not.toBeNull();
+    expect(await sink.nextSegmentIndex("room1", 1, "p_a")).toBe(2);
+
+    rerender({ roomState: "stopped", captureSettled: true, retryNonce: 1 });
+    await waitFor(() => expect(remove).toHaveBeenCalledTimes(2));
+    unmount();
+  });
+
+  async function landedKeeper(sink: MemorySink): Promise<string> {
+    const wavPath = keeperWavPath({
+      sessionId: "room1",
+      takeIndex: 0,
+      participantId: "p_a",
+      segmentIndex: 0,
+    });
+    await sink.write(wavPath, wavWithPcm(8));
+    await sink.write(
+      keeperMetaPath(wavPath),
+      new TextEncoder().encode(JSON.stringify({ complete: true })),
+    );
+    return wavPath;
+  }
+
+  function landedTransport(state: { dropRow: boolean }): RecordUploadTransport {
+    return {
+      async status() {
+        return {
+          segments: state.dropRow
+            ? []
+            : [
+                {
+                  take_index: 0,
+                  segment_index: 0,
+                  participant_id: "p_a",
+                  acked_parts: [0],
+                  file_ack: true,
+                  landed: true,
+                },
+              ],
+        };
+      },
+      async put() {
+        throw new Error("a reclaimed segment must not re-upload");
+      },
+    };
+  }
+
+  function stoppedHook(sink: ByteSink, transport: RecordUploadTransport) {
+    return renderHook(() =>
+      useRecordUpload({
+        enabled: true,
+        roomState: "stopped",
+        captureSettled: true,
+        sessionId: "room1",
+        takeIndex: 0,
+        participantId: "p_a",
+        transport,
+        sink,
+      }),
+    );
+  }
+
+  it("does not stall on a reclaimed segment whose host row disappears", async () => {
+    vi.useFakeTimers();
+    const sink = new MemorySink();
+    const wavPath = await landedKeeper(sink);
+    const state = { dropRow: false };
+    const { result, unmount } = stoppedHook(sink, landedTransport(state));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(await sink.read(wavPath)).toBeNull();
+    // Host discards the landed take: its status row is tombstoned away.
+    state.dropRow = true;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(result.current).toMatchObject({
+      fileAck: true,
+      landed: true,
+      uploading: false,
+      error: null,
+    });
+    expect(leaveBlocked("stopped", result.current)).toBe(false);
+    unmount();
+  });
+
+  it("treats a reclaimed segment as landed after a reload without its row", async () => {
+    vi.useFakeTimers();
+    const sink = new MemorySink();
+    const wavPath = await landedKeeper(sink);
+    await sink.remove(wavPath);
+    const { result, unmount } = stoppedHook(
+      sink,
+      landedTransport({ dropRow: true }),
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(result.current).toMatchObject({
+      fileAck: true,
+      landed: true,
+      uploading: false,
+      error: null,
+    });
+    unmount();
+  });
+
+  it("surfaces repeated reclaim failures and keeps the WAV", async () => {
+    vi.useFakeTimers();
+    const sink = new MemorySink();
+    const wavPath = await landedKeeper(sink);
+    const remove = vi
+      .spyOn(sink, "remove")
+      .mockRejectedValue(
+        new DOMException("locked", "NoModificationAllowedError"),
+      );
+    const { result, unmount } = stoppedHook(
+      sink,
+      landedTransport({ dropRow: false }),
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.reclaimFailed).toBe(false);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4_000);
+    });
+    expect(remove).toHaveBeenCalledTimes(KEEPER_RECLAIM_MAX_FAILURES);
+    expect(result.current.reclaimFailed).toBe(true);
+    expect(result.current.landed).toBe(true);
+    expect(await sink.read(wavPath)).not.toBeNull();
+    unmount();
+  });
+
+  it("pauses reclaim while a recovery download holds the sink", async () => {
+    vi.useFakeTimers();
+    const sink = new MemorySink();
+    const wavPath = await landedKeeper(sink);
+    const release = await holdKeeperReclaim(sink);
+    const { unmount } = stoppedHook(sink, landedTransport({ dropRow: false }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4_000);
+    });
+    expect(await sink.read(wavPath)).not.toBeNull();
+    release();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+    expect(await sink.read(wavPath)).toBeNull();
+    unmount();
+  });
 });
 
 describe("leaveBlocked", () => {
@@ -346,6 +655,7 @@ describe("leaveBlocked", () => {
         fileAck: false,
         landed: false,
         landFailed: false,
+        reclaimFailed: false,
         uploading: false,
         pending: true,
         error: null,
@@ -358,6 +668,7 @@ describe("leaveBlocked", () => {
         fileAck: false,
         landed: false,
         landFailed: false,
+        reclaimFailed: false,
         uploading: false,
         pending: false,
         error: "fail",

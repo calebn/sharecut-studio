@@ -26,7 +26,7 @@ library, `src/<area>/*.stories.tsx` for domain components such as
 
 | Level | Contents | Examples |
 | ----- | -------- | -------- |
-| **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError |
+| **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow |
 | **Organisms** | Complex components / sections | Dialog, BottomSheet |
 | **Templates** | Domain screens / sections with representative fixtures and locked copy | ConsentGate |
@@ -100,3 +100,6 @@ every new component in both themes before merging.
   colocation, direct imports, shell decorators, locked-copy fixtures, `fn()`
   callbacks, and running `play` functions through `composeStories` in Vitest.
   Added the **Templates** tier for domain screens.
+- 2026-09-23 — Added `Atoms/LevelMeter` and the `Molecules/ParticipantMeter`
+  layout sketch (story-only). Both drive the meter through `audio/usePeakMeter`,
+  the same loop `record/useInputPeakDb` uses, so they preview production code.
