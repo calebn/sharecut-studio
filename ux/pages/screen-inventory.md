@@ -255,7 +255,7 @@ flowchart TB
 | **Impact** | Pending count · bulk approve/reject · removed duration |
 | **Tighten** | Filler/pause/repetition/restart list · search/filters · preview/skip/apply · apply-all (avoid harsh) |
 | **Pipeline** | Checklist · param inspector · Analyze · Batch vs leave-gates (align + refine) · SSE progress (live headline) |
-| **Transcript** | Follow/edit (also focus mode `text`) |
+| **Transcript** | Follow/edit (also focus mode `text`); Follow unlocks only on wheel / touch / scrollbar / scroll-key input. Long transcripts (≥200 turns) render only nearby turns plus the active, selected and focused ones — browser find-in-page reaches only rendered turns |
 | **Status** | Actionable chips (pending, stale render, reconcile); overflow-x on narrow |
 
 ### Focus modes (desktop)
