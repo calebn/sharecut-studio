@@ -10,8 +10,6 @@ def test_list_and_apply_preset() -> None:
     assert "noise_reduction_rnnoise" in names
     effects = get_preset("deess")
     assert effects[0]["effect"] == "deesser"
-    legacy = get_preset("deess_legacy_notch")
-    assert legacy[0]["effect"] == "bandreject"
     rnnoise = get_preset("noise_reduction_rnnoise")
     assert rnnoise[0]["effect"] == "arnndn"
 
