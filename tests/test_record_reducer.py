@@ -14,6 +14,7 @@ from podcast_mcp.services.record.reducer import (
 )
 from podcast_mcp.services.record.state import (
     empty_record_snapshot,
+    guest_upload_consented,
     recording_ms,
     start_blockers,
 )
@@ -643,3 +644,78 @@ def test_prepare_host_rejoin_without_host_row_stamps_recording() -> None:
     assert out.host_offline_since_wall_ms == 9_000
     again = prepare_host_rejoin(out, since_wall_ms=1)
     assert again.host_offline_since_wall_ms == 9_000
+
+
+def test_start_records_take_consent_roster() -> None:
+    snap = empty_record_snapshot("sess")
+    snap = _join(snap, pid="p_host", role="host", name="Host", now=0)
+    snap = _join(snap, pid="p_g", role="guest", name="Ava", now=1, seq=2)
+    snap = apply_record_command(
+        snap, _cmd("Consent", pid="p_g", payload={"accepted": True}, seq=3), now_wall_ms=2
+    )
+    snap = _join(snap, pid="p_p", role="producer", name="Pat", now=3, seq=4)
+    snap = _join(snap, pid="p_d", role="guest", name="Deb", now=4, seq=5)
+    snap = apply_record_command(
+        snap, _cmd("Consent", pid="p_d", payload={"accepted": False}, seq=6), now_wall_ms=5
+    )
+    out = apply_record_command(snap, _cmd("Start", role="host", pid="p_host"), now_wall_ms=10)
+    assert out.takes[0].consented_participant_ids == ["p_host", "p_g"]
+
+
+def test_mid_take_accept_and_decline_update_current_take_only() -> None:
+    snap = empty_record_snapshot("sess")
+    snap = _join(snap, pid="p_host", role="host", name="Host", now=0)
+    snap = _join(snap, pid="p_b", role="guest", name="Bea", now=1, seq=2)
+    snap = apply_record_command(
+        snap, _cmd("Consent", pid="p_b", payload={"accepted": True}, seq=3), now_wall_ms=2
+    )
+    snap = apply_record_command(snap, _cmd("Start", role="host", pid="p_host"), now_wall_ms=10)
+    assert snap.takes[0].consented_participant_ids == ["p_host", "p_b"]
+    snap = _join(snap, pid="p_g", role="guest", name="Ava", now=11, seq=4)
+    snap = apply_record_command(
+        snap, _cmd("Consent", pid="p_g", payload={"accepted": True}, seq=5), now_wall_ms=12
+    )
+    assert snap.takes[0].consented_participant_ids == ["p_host", "p_b", "p_g"]
+    snap = apply_record_command(snap, _cmd("Stop", role="host", pid="p_host"), now_wall_ms=20)
+    snap = apply_record_command(snap, _cmd("Start", role="host", pid="p_host"), now_wall_ms=21)
+    assert snap.takes[1].consented_participant_ids == ["p_host", "p_b", "p_g"]
+    snap = apply_record_command(
+        snap, _cmd("Consent", pid="p_g", payload={"accepted": False}, seq=6), now_wall_ms=22
+    )
+    assert snap.takes[1].consented_participant_ids == ["p_host", "p_b"]
+    assert snap.takes[0].consented_participant_ids == ["p_host", "p_b", "p_g"]
+
+
+def test_rejoin_between_takes_keeps_prior_take_consent() -> None:
+    snap = empty_record_snapshot("sess")
+    snap = _join(snap, pid="p_host", role="host", name="Host", now=0)
+    snap = _join(snap, pid="p_g", role="guest", name="Ava", now=1, seq=2)
+    snap = apply_record_command(
+        snap, _cmd("Consent", pid="p_g", payload={"accepted": True}, seq=3), now_wall_ms=2
+    )
+    snap = apply_record_command(snap, _cmd("Start", role="host", pid="p_host"), now_wall_ms=10)
+    snap = apply_record_command(snap, _cmd("Stop", role="host", pid="p_host"), now_wall_ms=20)
+    snap = _join(snap, pid="p_g", role="guest", name="Ava", now=21, seq=4)
+    guest = next(p for p in snap.participants if p.participant_id == "p_g")
+    assert guest.consented is None
+    assert guest_upload_consented(snap, "p_g", take_index=0) is True
+    assert guest_upload_consented(snap, "p_g", take_index=None) is False
+    assert guest_upload_consented(snap, "p_g", take_index=1) is False
+
+
+def test_guest_upload_consented_legacy_take_and_unknown_participant() -> None:
+    snap = empty_record_snapshot("sess")
+    snap = _join(snap, pid="p_host", role="host", name="Host", now=0)
+    snap = _join(snap, pid="p_g", role="guest", name="Ava", now=1, seq=2)
+    snap = apply_record_command(
+        snap, _cmd("Consent", pid="p_g", payload={"accepted": True}, seq=3), now_wall_ms=2
+    )
+    snap = apply_record_command(snap, _cmd("Start", role="host", pid="p_host"), now_wall_ms=10)
+    snap.takes[0].consented_participant_ids = None
+    assert guest_upload_consented(snap, "p_g", take_index=0) is True
+    snap = apply_record_command(
+        snap, _cmd("Consent", pid="p_g", payload={"accepted": False}, seq=3), now_wall_ms=11
+    )
+    snap.takes[0].consented_participant_ids = None
+    assert guest_upload_consented(snap, "p_g", take_index=0) is False
+    assert guest_upload_consented(snap, "p_missing", take_index=0) is False

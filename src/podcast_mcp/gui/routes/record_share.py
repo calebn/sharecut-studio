@@ -336,19 +336,15 @@ def _require_guest_lease(
     return pid
 
 
-def _require_guest_room_tone_consent(svc: RecordSessionService, pid: str, kind: str | None) -> None:
+def _require_guest_upload_consent(
+    svc: RecordSessionService, pid: str, kind: str | None, take_index: int
+) -> None:
     try:
         parsed = parse_upload_kind(kind)
     except RecordUploadError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if parsed != UPLOAD_KIND_ROOM_TONE:
-        return
-    snap = svc.snapshot()
-    person = next(
-        (row for row in snap.get("participants") or [] if row.get("participant_id") == pid),
-        None,
-    )
-    if person is None or person.get("consented") is not True:
+    scoped_take = None if parsed == UPLOAD_KIND_ROOM_TONE else take_index
+    if not svc.upload_consented(pid, take_index=scoped_take):
         raise HTTPException(status_code=403, detail="consent required")
 
 
@@ -383,7 +379,7 @@ async def post_record_upload(
     uploader, session, session_id, ws = _guest_upload_ctx(token)
     rate_limit_share(token, "mutate")
     pid = _require_guest_lease(session, token, x_record_participant, x_record_lease)
-    _require_guest_room_tone_consent(session, pid, kind)
+    _require_guest_upload_consent(session, pid, kind, take_index)
     return await ingest_record_upload_request(
         request,
         uploader,

@@ -34,6 +34,8 @@ class TakeState(BaseModel):
     session_start_iso: str
     stopped_wall_ms: int | None = None
     pauses: list[PauseEntry] = Field(default_factory=list)
+    # None means a legacy take stored before per-take consent tracking existed.
+    consented_participant_ids: list[str] | None = None
 
 
 class ParticipantState(BaseModel):
@@ -143,3 +145,35 @@ def start_blockers(snap: RecordSnapshot) -> list[str]:
         return ["No one has joined"]
     recorded = [p for p in snap.participants if p.role in RECORDED_ROLES and _live(p)]
     return [p.display_name for p in recorded if p.consented is None]
+
+
+def take_consented_participant_ids(snap: RecordSnapshot) -> list[str]:
+    """Recorded participants who have currently consented (for a new take's roster)."""
+    return [
+        p.participant_id
+        for p in snap.participants
+        if p.role in RECORDED_ROLES and not p.removed and p.consented is True
+    ]
+
+
+def guest_upload_consented(
+    snap: RecordSnapshot, participant_id: str, *, take_index: int | None
+) -> bool:
+    """Whether ``participant_id`` may upload a chunk for ``take_index`` (None = room tone).
+
+    Room tone uses the participant's current consent. A keeper chunk is checked
+    against the take's consent roster captured at Start and updated by mid-take
+    Accept/Decline; a legacy take (``consented_participant_ids is None``) falls
+    back to "participant exists and has not declined".
+    """
+    person = next((p for p in snap.participants if p.participant_id == participant_id), None)
+    if person is None:
+        return False
+    if take_index is None:
+        return person.consented is True
+    take = next((t for t in snap.takes if t.take_index == take_index), None)
+    if take is None:
+        return False
+    if take.consented_participant_ids is None:
+        return person.consented is not False
+    return participant_id in take.consented_participant_ids

@@ -224,7 +224,7 @@ All under `/api/review/{token}/…` (proxied by the relay; **no** `?project=` pa
 | `POST …/daw/document/command` | `view` + command allowlist | `suggest` → Suggest/UpdatePending + structural propose; `edit` → Pass 1–2 apply + structural apply + track ingest (`AddTrack` / `SetTrackMedia` / `SetTrackMeta` / `RemoveTrack` / `ReorderTrack`) via `document_command_types_for_caps` / `authorize_document_command` + `policy.resolve_structural_mode`. Typed payloads: `schemas/document-commands.schema.json`. |
 | `POST …/daw/media/upload` | `edit` | Chunked audio into host `raw/` (allowlist + assembled size cap); then guest submits `SetTrackMedia` / `AddTrack`. Not for `suggest`/`view`. Not the record keeper route. |
 | `GET /api/rec/{token}/upload` | record `join` | Own keeper chunk ACK status (lease required) |
-| `POST /api/rec/{token}/upload` | record `join` | Keeper PCM parts (5 MB / 30 s); resume on the same token. `kind=room_tone` after consent. Not `…/daw/media/upload`. |
+| `POST /api/rec/{token}/upload` | record `join` | Keeper PCM parts (5 MB / 30 s); resume on the same token. Keeper parts only for takes the participant consented to; `kind=room_tone` only while consented (403 `consent required`). Not `…/daw/media/upload`. |
 | `DELETE /api/rec/{token}/upload` | record `join` | Revoke an ACK'd room-tone bed (`kind=room_tone`) |
 | `POST …/daw/render-preview` | `edit` | Rebuild stems/premix via the same `PipelineJobManager` lock as the host GUI (waits for the job; **409** if another pipeline/render job is already running). Response strips host filesystem paths. |
 | `GET …/audio` | `play` | ReviewApp frozen mix — prefers `mix.mp3`; **302** to an object-store presigned URL when configured |

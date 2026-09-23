@@ -8,6 +8,7 @@ from podcast_mcp.services.record.commands import RecordCommand
 from podcast_mcp.services.record.state import (
     HOST_OFFLINE_PAUSE_MS,
     HOST_PARTICIPANT_ID,
+    RECORDED_ROLES,
     ParticipantState,
     PauseEntry,
     PauseReason,
@@ -16,6 +17,7 @@ from podcast_mcp.services.record.state import (
     producer_count,
     recorded_count,
     start_blockers,
+    take_consented_participant_ids,
 )
 
 
@@ -52,6 +54,17 @@ def _current_take(snap: RecordSnapshot) -> TakeState:
         if take.take_index == snap.take_index:
             return take
     raise RecordStateError("no active take")
+
+
+def _note_take_consent(take: TakeState, participant_id: str, *, accepted: bool) -> None:
+    """Update the current take's consent roster for a mid-take Accept/Decline."""
+    ids = take.consented_participant_ids
+    if ids is None:
+        return
+    if accepted and participant_id not in ids:
+        ids.append(participant_id)
+    elif not accepted and participant_id in ids:
+        ids.remove(participant_id)
 
 
 def _host_live(snap: RecordSnapshot) -> bool:
@@ -201,6 +214,8 @@ def apply_record_command(
         accepted = bool(cmd.payload.get("accepted"))
         person.consented = accepted
         person.consented_wall_ms = now_wall_ms
+        if out.state in ("recording", "paused") and person.role in RECORDED_ROLES:
+            _note_take_consent(_current_take(out), person.participant_id, accepted=accepted)
         return out
     if ctype == "SetMuted":
         person = _require_self(out, cmd)
@@ -233,6 +248,7 @@ def apply_record_command(
                 take_index=take_index,
                 session_start_wall_ms=now_wall_ms,
                 session_start_iso=_iso(now_wall_ms),
+                consented_participant_ids=take_consented_participant_ids(out),
             )
         )
         out.state = "recording"

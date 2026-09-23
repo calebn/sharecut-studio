@@ -159,7 +159,10 @@ flowchart TD
    nothing is uploaded until Accept. Producers never see this step.
 4. Separate **recording consent** step. Encoder armed on Accept; **zero keeper
    WAV bytes** until host Start. Room-tone PUT waits for Accept (local lobby
-   capture is allowed; Skip/Decline discards it).
+   capture is allowed; Skip/Decline discards it). The upload route re-checks
+   consent server-side, per take: a keeper chunk needs the guest in that
+   take's consented roster, room tone needs current consent, and either
+   miss returns `403 consent required` — never trust the client alone.
 5. Host Start requires a verified writable local OPFS backup for the host and
    is enabled when every **recorded guest** currently in the lobby has consented
    (producers skip this gate; `"No one has joined"` until a guest connects). A

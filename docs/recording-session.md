@@ -643,6 +643,22 @@ before host Start. While waiting to re-consent after a stopped take, the guest
 can still resume upload or download the previous local keeper from the lobby. Producers are not recorded and do not need this preflight. There is no upload-only or
 alternate local sink path.
 
+The upload route enforces consent per take, not just per participant. Each
+take stores `consented_participant_ids`, captured from the currently-consented
+roster at host Start and updated live by a mid-take Accept (adds the
+participant to the **current** take) or Decline (removes them from the
+**current** take only — earlier takes keep their recorded roster). A keeper
+chunk (`kind=keeper`, the default) is accepted only when the uploader is in
+that take's roster; an upload for a take that does not exist in the snapshot
+is rejected. Room tone (`kind=room_tone`) keeps the existing rule: the
+participant's *current* `consented is True`. Either case that fails returns
+`403 consent required`. This is why a guest who rejoins between takes (whose
+`consented` resets to `None`, above) can still finish uploading the take they
+already consented to: the check is scoped to that take's roster, not the
+participant's live consent flag. Takes stored before this change have
+`consented_participant_ids = None`; for those legacy takes the check falls
+back to "participant exists and has not declined" (`consented is not False`).
+
 Host admit / waiting room is **not** in this PR (ROADMAP Follow-up).
 
 ```mermaid
@@ -834,7 +850,7 @@ sidecar JSON.**
 
 | Data | How |
 |------|-----|
-| Roster, consent, take clock, `pauses[]`, `host_offline_since_wall_ms`, `host_last_beat_wall_ms`, live `pause_reason` | `RecordSessionService` + pure `apply_record_command` reducer; hub key `record:{workspace}`. `pause_reason: "host_reconnect"` is stored on the `PauseEntry` (pause log) and mirrored on the snapshot while that pause is open. |
+| Roster, consent, take clock, `pauses[]`, `host_offline_since_wall_ms`, `host_last_beat_wall_ms`, live `pause_reason` | `RecordSessionService` + pure `apply_record_command` reducer; hub key `record:{workspace}`. `pause_reason: "host_reconnect"` is stored on the `PauseEntry` (pause log) and mirrored on the snapshot while that pause is open. Each take also stores `consented_participant_ids` (see "Locked for the lobby PR" below). |
 | WebRTC Signal | Ephemeral hub fanout (`type: "Signal"`); never written to `record_commands` |
 | Host Start/Pause/Resume/Stop | HTTP `POST /api/record/command` (not the session WS; Signal burst must not block transport) |
 | Participant leases | `RecordParticipantStore` (`record_participants`); Echo-only plaintext lease |
@@ -848,7 +864,9 @@ Locked for the lobby PR: roles from the token; host-only Start/Pause/Resume/Stop
 Start blocked until connected guests have `consented is True` (`None` pending;
 `False` declined does not block; `"No one has joined"` when no connected guest);
 room caps 4 recorded / 2 producers; host Join auto-consents as `p_host`; no host
-admit step.
+admit step. Each take's `consented_participant_ids` roster (set at Start,
+updated by mid-take Accept/Decline) gates that take's guest keeper uploads
+server-side, independent of the participant's live `consented` flag.
 
 See [persistence.md](persistence.md) and
 [session-sync.md § Recording session](session-sync.md#recording-session).
@@ -869,7 +887,8 @@ The token **is** the capability. Monitor uses browser DTLS-SRTP
 ([RFC 3711](https://www.rfc-editor.org/rfc/rfc3711.html)); chunk upload is
 HTTPS to the host on the **record upload route**, never the relay disk, never
 object storage. No encoder, keeper chunk, or room-tone PUT before consent (lobby may
-capture a 3 s bed into origin-private OPFS; Skip/Decline discards it).
+capture a 3 s bed into origin-private OPFS; Skip/Decline discards it)
+(enforced by the host upload route, not only the client).
 Host-minted `participant_id`; a stolen id
 alone cannot upload. Reuse
 [host-online-relay.md § Rate limiting](host-online-relay.md#rate-limiting).
@@ -965,7 +984,7 @@ warning appears; sidetone level sane.
 
 | Area | How |
 |------|-----|
-| Consent vs lobby | Explicit **Allow microphone** before the meter (`useMicPermission`; one `getUserMedia` path). Accept disabled with `aria-describedby` until granted **and** headphones are checked. WAV tap + keeper chunks **and** room-tone PUT **zero bytes** to the host until consent (local OPFS bed capture is allowed; Skip/Decline discards it); Start disabled while any **recorded** in-lobby client lacks consent; producers skip the gate and never call `getUserMedia`. Host Start does not require the host to record or skip room tone (idle is an implicit skip). |
+| Consent vs lobby | Explicit **Allow microphone** before the meter (`useMicPermission`; one `getUserMedia` path). Accept disabled with `aria-describedby` until granted **and** headphones are checked. WAV tap + keeper chunks **and** room-tone PUT **zero bytes** to the host until consent (local OPFS bed capture is allowed; Skip/Decline discards it); Start disabled while any **recorded** in-lobby client lacks consent; producers skip the gate and never call `getUserMedia`. Host Start does not require the host to record or skip room tone (idle is an implicit skip). The upload route re-checks server-side: a keeper chunk requires the uploader in that take's `consented_participant_ids`, room tone requires current `consented is True`, both returning `403 consent required` (`tests/test_record_upload.py::test_guest_keeper_upload_requires_take_consent`, `::test_guest_room_tone_upload_rejected_after_decline`). |
 | Room tone | After mic granted, optional 3 s keeper-constraint PCM→WAV (skip allowed); RMS > −35 dBFS warns "Too loud — is something playing?" and does not upload; guest PUT `kind=room_tone` only after Accept (403 before consent), 403 for producer, reject > 10 s 48 kHz mono; Retry replaces the prior ACK; landing sets `track.room_tone` under the land lock; `filler_pad_mode: room_tone` prefers the bed then stem-steal; undo restores and re-lands. Producers omit the step. |
 | Late-join pad | Joiner at T+10 s → clip at `join_offset_ms` = 10 s ± 1 frame (default, no in-file pad). Optional origin encoding of **segment 0 only**: leading zeros 10 s ± 1 frame at 48 kHz. Later segments never padded in-file. |
 | Progressive upload | Fake transport + HTTP resume; keys `(session_id, take, participant, segment, part_seq)`; chunk hashes; current clients declare `expected_parts` and older open tabs infer it at finalization; kill mid-session; resume on same token completes; incomplete/stalled and zero-sample keepers expose a ZIP of retained local segments and upload retry; host GET lists all participants with `N/M` where every segment total is known; only `complete: true` (or verified legacy) segments upload, pending WAVs are never read during REC, Leave is held while Stop finalizes a lone segment, and **Recover partial take** (host + guest) patches the header once, re-polls upload, and reports failures outside the storage error channel. |
