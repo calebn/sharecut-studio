@@ -1,6 +1,7 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { commentTimeLabel } from "../comments";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject, sampleComment } from "../test/fixtures";
@@ -27,6 +28,7 @@ describe("CommentsPanel", () => {
     useDawStore
       .getState()
       .hydrate("/tmp/p.json", minimalProject({ comments: [sampleComment()] }));
+    useDawStore.getState().announceStatus("");
   });
 
   it("shows an Undo toast after resolving and reopens on Undo", async () => {
@@ -86,5 +88,77 @@ describe("CommentsPanel", () => {
     await user.click(screen.getByRole("button", { name: "Resolve" }));
     await screen.findByText(/Resolved comment at/);
     await expectNoA11yViolations(container);
+  });
+
+  it("moves focus to the panel after Undo instead of <body>", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<CommentsPanel />);
+    await user.click(screen.getByRole("button", { name: "Resolve" }));
+    await screen.findByText(/Resolved comment at/);
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() =>
+      expect(screen.queryByText(/Resolved comment at/)).not.toBeInTheDocument(),
+    );
+    expect(document.activeElement).not.toBe(document.body);
+    expect(document.activeElement).toBe(
+      container.querySelector(".comments-panel"),
+    );
+  });
+
+  it("keeps only the latest resolve's toast (latest wins)", async () => {
+    const first = sampleComment();
+    const second = sampleComment({
+      id: "c2",
+      body: "Trim the outro",
+      timeline_start: 30,
+    });
+    useDawStore
+      .getState()
+      .hydrate("/tmp/p.json", minimalProject({ comments: [first, second] }));
+    const user = userEvent.setup();
+    render(<CommentsPanel />);
+    const [resolveFirst, resolveSecond] = screen.getAllByRole("button", {
+      name: "Resolve",
+    });
+    await user.click(resolveFirst!);
+    await screen.findByText(`Resolved comment at ${commentTimeLabel(first)}`);
+    await user.click(resolveSecond!);
+    await screen.findByText(`Resolved comment at ${commentTimeLabel(second)}`);
+    expect(
+      screen.queryByText(`Resolved comment at ${commentTimeLabel(first)}`),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(patchComment).toHaveBeenLastCalledWith(
+      "/tmp/p.json",
+      "c2",
+      expect.objectContaining({ resolved: false }),
+    );
+    expect(patchComment).not.toHaveBeenCalledWith(
+      "/tmp/p.json",
+      "c1",
+      expect.objectContaining({ resolved: false }),
+    );
+  });
+
+  it("does not announce a reopen after unmounting mid-Undo", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<CommentsPanel />);
+    await user.click(screen.getByRole("button", { name: "Resolve" }));
+    await screen.findByText(/Resolved comment at/);
+    let release: (value: null) => void = () => undefined;
+    patchComment.mockImplementationOnce(
+      () =>
+        new Promise<null>((resolve) => {
+          release = resolve;
+        }),
+    );
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    unmount();
+    await act(async () => {
+      release(null);
+    });
+    expect(useDawStore.getState().statusAnnouncement).not.toBe(
+      "Comment reopened",
+    );
   });
 });

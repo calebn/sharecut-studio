@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createComment } from "../api";
 import {
   CommentCard,
@@ -63,10 +63,18 @@ export function CommentsPanel({
   const error = createError ?? actionError;
 
   const toastSeq = useRef(0);
+  const panelRef = useRef<HTMLDivElement>(null);
   const [undoToast, setUndoToast] = useState<
     (UndoToastState & { comment: TimelineComment }) | null
   >(null);
   const dismissUndo = useCallback(() => setUndoToast(null), []);
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const onResolve = async (c: TimelineComment, resolved: boolean) => {
     const ok = await resolve(c, resolved);
@@ -85,10 +93,12 @@ export function CommentsPanel({
 
   const onUndoResolve = async () => {
     if (!undoToast) return;
-    if (await resolve(undoToast.comment, false)) {
-      setUndoToast(null);
-      announceStatus("Comment reopened");
-    }
+    const ok = await resolve(undoToast.comment, false);
+    // Skip if the panel unmounted mid-request (e.g. project switch): the
+    // announcement goes to the app-wide live region and would be stale.
+    if (!ok || !mounted.current) return;
+    setUndoToast(null);
+    announceStatus("Comment reopened");
   };
 
   const comments = project?.comments;
@@ -165,7 +175,7 @@ export function CommentsPanel({
   const mayAction = canSetAction(projectPath, shareCapabilities);
 
   return (
-    <div className="comments-panel">
+    <div className="comments-panel" ref={panelRef} tabIndex={-1}>
       <div className="comments-toolbar">
         <label>
           Author
@@ -307,6 +317,7 @@ export function CommentsPanel({
           undoDisabled={busy}
           onUndo={() => void onUndoResolve()}
           onDismiss={dismissUndo}
+          returnFocusRef={panelRef}
         />
       )}
     </div>
