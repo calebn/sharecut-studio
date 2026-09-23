@@ -70,16 +70,25 @@ function excludedStoryExts(patterns: string[]): Set<string> {
   return excluded;
 }
 
-/** Story extensions that a positive pattern's file segment can match. */
+/** Glob syntax in an extension segment (`?`, `*`, classes, braces, extglobs). */
+const GLOB_SYNTAX_RE = /[?*[\](){}|!+@]/;
+
+/**
+ * Story extensions that a positive pattern's file segment can match. A glob
+ * in the extension (`ts?(x)`, `[jt]s?(x)`, `{ts,tsx}`, `*`) or no extension
+ * at all fails closed as every story extension; a literal extension matches
+ * only itself.
+ */
 function matchedStoryExts(base: string): string[] {
   if (!base.includes("*")) {
     return [];
   }
-  const named = STORY_EXTS.filter((e) => new RegExp(`\\b${e}\\b`).test(base));
-  if (named.length > 0) {
-    return named;
+  const dot = base.lastIndexOf(".");
+  const ext = dot === -1 ? "" : base.slice(dot + 1);
+  if (dot === -1 || GLOB_SYNTAX_RE.test(ext)) {
+    return STORY_EXTS;
   }
-  return /\*$|tsx?/.test(base) ? STORY_EXTS : [];
+  return STORY_EXTS.includes(ext) ? [ext] : [];
 }
 
 /**
