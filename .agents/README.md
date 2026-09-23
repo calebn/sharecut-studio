@@ -8,6 +8,7 @@ Canonical agent configuration for **any** MCP-capable client (Cursor, Claude Cod
 | [rules/engineering-standards.md](rules/engineering-standards.md) | SOLID/DRY, tests-as-you-go, docs-in-sync |
 | [rules/git-workflow.md](rules/git-workflow.md) | Feature branch → PR → `main` (no direct pushes to `main`) |
 | [rules/gui-styling.md](rules/gui-styling.md) | Theme tokens, rem, `@container`, consent-gated CSS exceptions |
+| [rules/issue-claims.md](rules/issue-claims.md) | Claiming GitHub issues (`in-progress`, `pipeline:*` stage labels, claim comment + 6-hour heartbeat) so agents don't collide |
 | [skills/](skills/) | Episode workflows (ingest, edit, play, pipeline, …) |
 | [defaults/pipeline.yaml](defaults/pipeline.yaml) | Shared pipeline thresholds |
 | [mcp.json](mcp.json) | MCP server (`podcast-mcp` on PATH) |

@@ -52,7 +52,38 @@ def test_merge_gate_holds_on_owner_labels_and_wont_do() -> None:
 
 def test_triage_never_picks_held_or_claimed_issues() -> None:
     skip = set(_js_string_list("SKIP_LABELS"))
-    assert {"do-not-merge", "needs-user-input", "in-progress", "epic"} <= skip
+    assert {"do-not-merge", "needs-user-input", "epic"} <= skip
+    # in-progress is handled by claim liveness, not a static skip.
+    assert "in-progress" not in skip
+    script = _script()
+    assert "Live claim → exclude" in script
+    assert "Stale claim with no open PR → release it" in script
+
+
+def test_claims_coordinate_through_github_labels() -> None:
+    script = _script()
+    assert "const CLAIM_LABEL = 'in-progress'" in script
+    assert "const STALE_HOURS = A.staleHours ?? 6" in script
+    labels = re.search(r"const STAGE_LABELS = \{([^}]*)\}", script)
+    assert labels
+    assert re.findall(r"'(pipeline:[a-z]+)'", labels.group(1)) == [
+        "pipeline:planning",
+        "pipeline:implementing",
+        "pipeline:review",
+        "pipeline:merging",
+    ]
+    # Oldest live claim wins; a loser never strips the winner's labels.
+    assert "the winner is the earliest created_at" in script
+    assert "WITHOUT removing labels" in script
+    # The lane claims before planning and stops when it loses.
+    lane = script[script.index("const results = await pipeline(") :]
+    assert lane.index("await claimIssue(issue)") < lane.index("You are the planner")
+    # Every exit releases: merge, hold, and crashed lanes at the end of the run.
+    assert "await releaseClaim(issue, pr, 'merged')" in script
+    assert "await releaseClaim(issue, pr, 'held')" in script
+    assert "releaseClaim({ number: n }, null, 'crashed')" in script
+    for key in ("implementing", "review", "merging"):
+        assert f"'{key}')" in lane, key
 
 
 def test_only_owner_authored_issues_are_eligible() -> None:
