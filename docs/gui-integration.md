@@ -231,14 +231,14 @@ Pending **Suggested** audition is a transport **skip** over `[timeline_start, ti
 
 ### Shared session state (agent ↔ DAW)
 
-Agent, CLI, local DAW tabs, and future remote web users are **clients** of one sync engine (`SessionSyncService`). Authority: sqlite `artifacts/session/sync.db` (append-only command log + per-field LWW snapshot). `artifacts/session_state.json` is a materialized mirror for legacy readers. Full design: [session-sync.md](session-sync.md).
+Agent, CLI, local DAW tabs, and future remote web users are **clients** of one sync engine (`SessionSyncService`). Authority: sqlite `artifacts/session/sync.db` (append-only command log + per-field LWW snapshot) is the only session store; read it through `get_session_state_tool` / `SessionSyncService`. Full design: [session-sync.md](session-sync.md).
 
 | Endpoint | Purpose |
 |----------|---------|
 | `GET /api/session/meta` | `server_seq` / mtime (or `exists: false`) |
 | `GET /api/session/state` | Materialized snapshot + `clients[]` (404 if empty) |
 | `POST /api/session/command` | Submit typed command (agent = viewer = cli) |
-| `POST /api/session/state` | Compat: viewer blob → typed commands |
+| `POST /api/session/state` | Viewer blob → typed commands (Ack, presence heartbeat, durable deltas) |
 | `WS /api/session/ws?path=&client_id=` | Push `Applied` / `Snapshot`; primary DAW transport |
 
 **Agent → DAW:** `PlayService.play()` emits `PlayOsAudio` (speakers only — DAW seeks/highlights) or `AuditionInViewer` (`dry_run=true` — browser plays). `SessionControlService` / MCP session tools submit the same typed commands; optional `selection` / `set_session_selection_tool` highlights a modifier in the inspector. WebSocket fanout updates open tabs; HTTP snapshot poll is fallback.
@@ -247,7 +247,7 @@ Agent, CLI, local DAW tabs, and future remote web users are **clients** of one s
 
 **Transport authority (Figma-like):** each DAW tab owns its own play/pause clock. Agent commands (`SetRegion` / `AuditionInViewer` / `SetPlaying` from role `agent`) may drive transport; other viewers’ `SetPlaying` / playhead echoes are ignored (ack cursor only). Local Play clears any leftover agent `playUntil` auto-stop so a prior audition region cannot halt free scrubbing. Agents call `get_session_state_tool` (or `podcast session status`) before “cut from here”; prefer the viewer entry in `clients[]` for the live playhead while transport is rolling.
 
-**First Snapshot:** the DAW applies agent transport from the connect snapshot **before** recording `command_id` as applied (see `gui/web/src/session/dedupe.ts`), so an in-flight agent play still seeks/highlights when a tab opens mid-command.
+**First Snapshot:** the DAW applies agent transport from the connect snapshot **before** recording `last_command_id` as applied (see `gui/web/src/session/dedupe.ts`), so an in-flight agent play still seeks/highlights when a tab opens mid-command.
 
 Keep the viewer pointed at the same `episode.project.json`.
 

@@ -96,11 +96,6 @@ def resolve_tunnel_secret(
     for secret in shared_secrets:
         if len(presented) == len(secret) and secrets.compare_digest(presented, secret):
             return secret
-    # Also allow matching a host-bound secret by value when host_id was not in map
-    # (legacy CSV secret used as host_token with arbitrary host_id).
-    for secret in host_secrets.values():
-        if len(presented) == len(secret) and secrets.compare_digest(presented, secret):
-            return secret
     return None
 
 

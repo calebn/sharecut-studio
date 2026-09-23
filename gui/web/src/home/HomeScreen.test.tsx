@@ -18,6 +18,9 @@ vi.mock("../api", () => ({
   pickEpisodeProject: vi.fn(),
   createDiagnosticsBundle: vi.fn(),
   fetchDiagnosticsMeta: vi.fn(),
+  fetchBootstrapStatus: vi.fn(() => new Promise(() => {})),
+  runBootstrap: vi.fn(),
+  waitForBootstrapJob: vi.fn(),
 }));
 
 const closeMock = vi.mocked(closeEpisodeProject);
@@ -254,16 +257,31 @@ describe("HomeScreen", () => {
     await expectNoA11yViolations(container);
   });
 
-  it("migrates dawshell.bootstrap.skip and skips the wizard", async () => {
+  it("skips the wizard when sharecut.bootstrap.skip is set", async () => {
     window.localStorage.clear();
-    window.localStorage.setItem("dawshell.bootstrap.skip", "1");
+    window.localStorage.setItem("sharecut.bootstrap.skip", "1");
     render(<HomeScreen />);
     expect(
       screen.getByRole("heading", { name: "Sharecut Studio" }),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "New project…" })).toBeTruthy();
-    expect(window.localStorage.getItem("sharecut.bootstrap.skip")).toBe("1");
-    expect(window.localStorage.getItem("dawshell.bootstrap.skip")).toBeNull();
+  });
+
+  it("still renders when localStorage.getItem throws", () => {
+    const getItem = vi
+      .spyOn(Storage.prototype, "getItem")
+      .mockImplementation(() => {
+        throw new DOMException("denied", "SecurityError");
+      });
+    try {
+      render(<HomeScreen />);
+      // Unreadable skip flag → setup wizard, not a crashed Home screen.
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Checking installed tools",
+      );
+    } finally {
+      getItem.mockRestore();
+    }
   });
 
   it("opens Connect agent from home and unpins the served project", async () => {
