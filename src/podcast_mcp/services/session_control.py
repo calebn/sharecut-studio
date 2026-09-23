@@ -17,9 +17,7 @@ class SessionControlService:
         self._sync = SessionSyncService(workspace.project)
 
     def get_state(self) -> dict[str, Any] | None:
-        from podcast_mcp.services.session_sync.service import read_session_state
-
-        return read_session_state(self.project)
+        return self._sync.state_or_none()
 
     def seek(
         self,
