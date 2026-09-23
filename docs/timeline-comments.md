@@ -107,6 +107,15 @@ While `active_version_id` is set, new comments stamp `review_version_id`. Host p
 uses `GET /api/review/{token}/audio` (MP3; optional object storage 302 — see
 [host-online-relay.md](host-online-relay.md)).
 
+**Path containment**: `audio_relpath` and `mp3_relpath` must resolve inside `artifacts/review/`
+after symlinks are followed. A path that escapes it (`..`, an absolute path elsewhere, or an
+outward-pointing symlink) is refused with `ValueError`: guest `/audio` and
+`/daw/audio?kind=review` return 400, and host play with `kind=review` errors the same way.
+There is no WAV fallback when `mp3_relpath` is bad. Paths written by `publish_version` always
+pass the check, and `./`-prefixed or absolute in-root spellings are still accepted; the
+`artifacts/review/` directory itself may be a symlink. See
+`util/workspace_paths.resolve_within`.
+
 ## Remap after ripple deletes
 
 `ripple_delete` / `batch_ripple_delete` automatically remaps `review.comments[]` and `editorial.chapters[]` via `edits/comment_remap.py`:

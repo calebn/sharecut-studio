@@ -9,9 +9,17 @@ from pathlib import Path
 import pytest
 
 from podcast_mcp.edits.comments import add_comment
-from podcast_mcp.edits.review_versions import publish_version, version_audio_path
+from podcast_mcp.edits.review_versions import (
+    encode_version_mp3,
+    get_version,
+    publish_version,
+    review_artifacts_dir,
+    version_audio_path,
+    version_mp3_path,
+)
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services import PlayService, ProjectWorkspace, ReviewService
+from podcast_mcp.services.review_media import review_guest_audio_path
 from podcast_mcp.util.binaries import resolve_ffmpeg
 
 
@@ -89,3 +97,100 @@ def test_list_and_set_active(minimal_project, sample_wav, tmp_workspace):
     assert persisted.review.active_version_id == b["id"]
     path = version_audio_path(persisted, b["id"])
     assert path.is_file()
+
+
+def _publish(minimal_project, sample_wav):
+    proj = load_project(minimal_project)
+    art = Path(proj.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    save_project(proj, minimal_project)
+    ws = ProjectWorkspace.open(minimal_project)
+    ver = ReviewService(ws).publish(label="v1")
+    return load_project(minimal_project), ver["id"]
+
+
+def test_version_paths_stay_under_review_root(minimal_project, sample_wav, tmp_workspace):
+    p, vid = _publish(minimal_project, sample_wav)
+    root = review_artifacts_dir(p).resolve()
+    assert version_audio_path(p, vid).is_relative_to(root)
+    mp3 = version_mp3_path(p, vid)
+    assert mp3 is not None
+    assert mp3.is_relative_to(root)
+
+
+def test_version_paths_accept_legacy_spellings(minimal_project, sample_wav, tmp_workspace):
+    p, vid = _publish(minimal_project, sample_wav)
+    orig = get_version(p, vid).audio_relpath
+    expected = version_audio_path(p, vid)
+
+    get_version(p, vid).audio_relpath = "./" + orig
+    assert version_audio_path(p, vid) == expected
+
+    abs_path = str((Path(p.workspace_dir) / orig).resolve())
+    get_version(p, vid).audio_relpath = abs_path
+    assert version_audio_path(p, vid) == expected
+
+
+@pytest.mark.parametrize(
+    "make_relpath",
+    [
+        lambda p: "artifacts/review/../premix.wav",
+        lambda p: "../outside.wav",
+    ],
+)
+def test_version_audio_path_rejects_escape(
+    minimal_project, sample_wav, tmp_workspace, make_relpath
+):
+    p, vid = _publish(minimal_project, sample_wav)
+    (Path(p.workspace_dir) / "artifacts" / "premix.wav").write_bytes(sample_wav.read_bytes())
+    outside = tmp_workspace.parent / "outside.wav"
+    outside.write_bytes(sample_wav.read_bytes())
+
+    get_version(p, vid).audio_relpath = make_relpath(p)
+    with pytest.raises(ValueError, match="artifacts/review/"):
+        version_audio_path(p, vid)
+
+    abs_outside = str(outside)
+    get_version(p, vid).audio_relpath = abs_outside
+    with pytest.raises(ValueError, match="artifacts/review/") as excinfo:
+        version_audio_path(p, vid)
+    assert abs_outside not in str(excinfo.value)
+
+
+def test_version_mp3_path_rejects_escape(minimal_project, sample_wav, tmp_workspace):
+    p, vid = _publish(minimal_project, sample_wav)
+    outside = tmp_workspace.parent / "outside.wav"
+    outside.write_bytes(sample_wav.read_bytes())
+
+    get_version(p, vid).mp3_relpath = "../outside.wav"
+    with pytest.raises(ValueError, match="artifacts/review/"):
+        version_mp3_path(p, vid)
+    with pytest.raises(ValueError, match="artifacts/review/"):
+        review_guest_audio_path(p, vid)
+
+    original_mp3_relpath = get_version(p, vid).mp3_relpath
+    with pytest.raises(ValueError, match="artifacts/review/"):
+        encode_version_mp3(p, vid)
+    assert get_version(p, vid).mp3_relpath == original_mp3_relpath
+
+
+@pytest.mark.parametrize("field", ["audio_relpath", "mp3_relpath"])
+def test_version_paths_reject_symlink_escape(minimal_project, sample_wav, tmp_workspace, field):
+    p, vid = _publish(minimal_project, sample_wav)
+    outside = tmp_workspace.parent / "outside.bin"
+    outside.write_bytes(b"x")
+
+    rel = getattr(get_version(p, vid), field)
+    target = Path(p.workspace_dir) / rel
+    target.unlink()
+    try:
+        target.symlink_to(outside)
+    except OSError as exc:
+        pytest.skip(f"symlinks unsupported: {exc}")
+
+    with pytest.raises(ValueError, match="artifacts/review/"):
+        if field == "audio_relpath":
+            version_audio_path(p, vid)
+        else:
+            version_mp3_path(p, vid)

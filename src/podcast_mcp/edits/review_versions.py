@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import shutil
 import uuid
 from datetime import UTC, datetime
@@ -10,8 +11,12 @@ from pathlib import Path
 
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models import EpisodeProject, ReviewMixVersion
+from podcast_mcp.util.workspace_paths import resolve_within
+
+log = logging.getLogger(__name__)
 
 _REVIEW_MP3_BITRATE_KBPS = 128
+REVIEW_ARTIFACTS_RELDIR = "artifacts/review"
 
 
 def _now_iso() -> str:
@@ -60,20 +65,45 @@ def get_version(project: EpisodeProject, version_id: str) -> ReviewMixVersion:
     raise KeyError(f"review version not found: {version_id}")
 
 
+def review_artifacts_dir(project: EpisodeProject) -> Path:
+    """Root that every frozen review mix must resolve inside."""
+    return project.artifacts_dir() / "review"
+
+
+def _resolve_review_media(
+    project: EpisodeProject, stored: str, *, version_id: str, field: str
+) -> Path:
+    """Resolve a persisted review-media relpath; reject escapes from artifacts/review/."""
+    try:
+        return resolve_within(review_artifacts_dir(project), stored, base=project.workspace_path())
+    except ValueError:
+        log.warning(
+            "Refusing review version %s %s outside %s/", version_id, field, REVIEW_ARTIFACTS_RELDIR
+        )
+        raise ValueError(
+            f"review version {version_id}: {field} must stay under {REVIEW_ARTIFACTS_RELDIR}/"
+        ) from None
+
+
 def version_audio_path(project: EpisodeProject, version_id: str) -> Path:
+    """Return the absolute frozen mix.wav; ValueError if it escapes artifacts/review/."""
     ver = get_version(project, version_id)
-    path = (Path(project.workspace_dir) / ver.audio_relpath).resolve()
+    path = _resolve_review_media(
+        project, ver.audio_relpath, version_id=version_id, field="audio_relpath"
+    )
     if not path.is_file():
         raise FileNotFoundError(f"review mix missing: {path}")
     return path
 
 
 def version_mp3_path(project: EpisodeProject, version_id: str) -> Path | None:
-    """Return absolute mix.mp3 path when present on disk."""
+    """Return absolute mix.mp3 path when present on disk; ValueError if it escapes artifacts/review/."""
     ver = get_version(project, version_id)
     if not ver.mp3_relpath:
         return None
-    path = (Path(project.workspace_dir) / ver.mp3_relpath).resolve()
+    path = _resolve_review_media(
+        project, ver.mp3_relpath, version_id=version_id, field="mp3_relpath"
+    )
     if not path.is_file():
         return None
     return path
@@ -91,7 +121,7 @@ def encode_version_mp3(
     if existing is not None:
         return existing
     wav = version_audio_path(project, version_id)
-    mp3_rel = f"artifacts/review/{version_id}/mix.mp3"
+    mp3_rel = f"{REVIEW_ARTIFACTS_RELDIR}/{version_id}/mix.mp3"
     mp3_path = Path(project.workspace_dir) / mp3_rel
     mp3_path.parent.mkdir(parents=True, exist_ok=True)
     engine = eng or FFmpegEngine()
@@ -114,11 +144,11 @@ def publish_version(
         raise ValueError("label is required")
     src, source = resolve_source_mix(project, prefer=prefer)
     vid = _new_id()
-    rel = f"artifacts/review/{vid}/mix.wav"
+    rel = f"{REVIEW_ARTIFACTS_RELDIR}/{vid}/mix.wav"
     dest = Path(project.workspace_dir) / rel
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(src, dest)
-    mp3_rel = f"artifacts/review/{vid}/mix.mp3"
+    mp3_rel = f"{REVIEW_ARTIFACTS_RELDIR}/{vid}/mix.mp3"
     mp3_path = Path(project.workspace_dir) / mp3_rel
     engine = eng or FFmpegEngine()
     engine.export_mp3(dest, mp3_path, bitrate_kbps=_REVIEW_MP3_BITRATE_KBPS)
