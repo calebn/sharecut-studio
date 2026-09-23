@@ -9,7 +9,6 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from podcast_mcp.edits.share_registry import reset_share_registry_for_tests
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services import ProjectWorkspace
@@ -59,10 +58,7 @@ from podcast_mcp.services.record.upload import (
 from podcast_mcp.services.share import ShareService
 
 
-def _isolate(tmp_workspace: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(tmp_workspace / "shares_index.json"))
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "reg.sqlite"))
-    reset_share_registry_for_tests()
+def _isolate() -> None:
     reset_record_runtime_for_tests()
 
 
@@ -285,7 +281,7 @@ def test_align_fallback_missing_session_start_or_drift() -> None:
 def test_land_late_join_clip_skips_ingest_suggest(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, guest = _consent_room(ws, room)
@@ -320,7 +316,7 @@ def test_land_late_join_clip_skips_ingest_suggest(
 
 
 def test_leave_rejoin_two_clips_one_track(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, guest = _consent_room(ws, room)
@@ -361,7 +357,7 @@ def test_leave_rejoin_two_clips_one_track(minimal_project, sample_wav, tmp_works
 def test_second_take_lands_after_gap_while_first_still_uploading(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, guest = _consent_room(ws, room)
@@ -399,7 +395,7 @@ def test_second_take_lands_after_gap_while_first_still_uploading(
 def test_union_tracks_and_absent_participant(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, guest = _consent_room(ws, room)
@@ -460,7 +456,7 @@ def slug_of(pid: str) -> str:
 def test_refuse_delete_while_non_terminal_then_tombstone_resets_offset(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, guest = _consent_room(ws, room)
@@ -535,7 +531,7 @@ def _drain_until(wsock, predicate, *, n: int = 20):
 
 
 def test_http_final_ack_copies_into_raw(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     client = TestClient(create_app())
@@ -574,7 +570,7 @@ def test_http_final_ack_copies_into_raw(minimal_project, sample_wav, tmp_workspa
 
 
 def test_cli_land_and_mcp_registered(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, guest = _consent_room(ws, room)
@@ -615,7 +611,7 @@ def test_cli_land_and_mcp_registered(minimal_project, sample_wav, tmp_workspace,
 
 
 def test_refuse_delete_while_take_open(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, _guest = _consent_room(ws, room)
@@ -638,7 +634,7 @@ def test_refuse_delete_while_take_open(minimal_project, sample_wav, tmp_workspac
 def test_align_fallback_does_not_invoke_conversation_align(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, guest = _consent_room(ws, room)
@@ -664,7 +660,7 @@ def test_align_fallback_does_not_invoke_conversation_align(
 
 
 def test_producer_keeper_is_not_landed(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, guest = _consent_room(ws, room)
@@ -711,7 +707,7 @@ def test_producer_keeper_is_not_landed(minimal_project, sample_wav, tmp_workspac
 def test_land_without_room_and_missing_acked_wav(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     with pytest.raises(FileNotFoundError, match="no active record room"):
         RecordLandingService(ws)
@@ -758,7 +754,7 @@ def test_land_without_room_and_missing_acked_wav(
 
 
 def test_concurrent_land_keeps_one_clip(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, guest = _consent_room(ws, room)
@@ -790,7 +786,7 @@ def test_concurrent_land_keeps_one_clip(minimal_project, sample_wav, tmp_workspa
 
 
 def test_land_notifies_document_plane(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, guest = _consent_room(ws, room)
@@ -816,7 +812,7 @@ def test_land_notifies_document_plane(minimal_project, sample_wav, tmp_workspace
 def test_discard_drops_empty_track_and_repeat_keeps_landed(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, guest = _consent_room(ws, room)
@@ -863,7 +859,7 @@ def test_discard_drops_empty_track_and_repeat_keeps_landed(
 def test_guest_ack_hides_other_participant_clips(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     _ack(
@@ -911,7 +907,7 @@ def test_guest_ack_hides_other_participant_clips(
 def test_host_upload_join_offset_auto_lands(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, _guest = _consent_room(ws, room)
@@ -950,7 +946,7 @@ def test_host_upload_join_offset_auto_lands(
 def test_guest_upload_persists_land_failure_until_host_retry(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, _guest = _consent_room(ws, room)
@@ -1002,7 +998,7 @@ def test_guest_upload_persists_land_failure_until_host_retry(
 def test_manual_land_failure_persists_for_retry(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     _ack(
@@ -1033,7 +1029,7 @@ def test_overlap_window_caps_at_drift_window() -> None:
 
 
 def _stopped_room(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, guest = _consent_room(ws, room)
@@ -1723,7 +1719,7 @@ def test_land_sets_track_room_tone_under_lock(
     from podcast_mcp.edits.track_ids import slug_track_id
     from podcast_mcp.services.record.upload import ROOM_TONE_TAKE_INDEX
 
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     _svc, guest = _consent_room(ws, room)
@@ -1772,7 +1768,7 @@ def test_land_rejects_oversize_room_tone_before_copy(
 ):
     from podcast_mcp.services.record.upload import ROOM_TONE_MAX_PCM_BYTES
 
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     _svc, guest = _consent_room(ws, room)

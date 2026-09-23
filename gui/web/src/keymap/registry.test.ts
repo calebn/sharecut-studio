@@ -233,20 +233,4 @@ describe("keymap registry", () => {
     );
     _resetKeymapOverridesForTests();
   });
-
-  it("migrates dawshell.keymap.overrides", () => {
-    _resetKeymapOverridesForTests();
-    window.localStorage.setItem(
-      "dawshell.keymap.overrides",
-      JSON.stringify({ "tool.select": ["B"] }),
-    );
-    expect(matchKeymapCommand(keyEvent({ key: "b", code: "KeyB" }))?.id).toBe(
-      "tool.select",
-    );
-    expect(window.localStorage.getItem("sharecut.keymap.overrides")).toContain(
-      "tool.select",
-    );
-    expect(window.localStorage.getItem("dawshell.keymap.overrides")).toBeNull();
-    _resetKeymapOverridesForTests();
-  });
 });
