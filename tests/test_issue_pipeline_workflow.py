@@ -296,7 +296,10 @@ def test_stalled_prs_resume_without_skipping_review() -> None:
     assert "const STALL_LABEL = 'pipeline:stalled'" in script
     # Review-stage stalls resume at review; only gate stalls skip straight to the gate.
     assert script.count("'review')") >= 5
-    assert "stall(issue, pr, blockers.join('; '), 'gate')" in script
+    assert (
+        "stall(issue, pr, blockers.join('; '), lastGate && lastGate.unresolved_threads > 0 ? 'review' : 'gate')"
+        in script
+    )
     assert (
         "finishLane(issue, r.pr, r.branch, r.head_sha, { gateOnly: r.resume === 'gate' })" in script
     )
@@ -336,6 +339,20 @@ def test_orphaned_prs_from_dead_runs_are_adopted() -> None:
     assert "(b) ORPHANED by a run that died" in script
     assert "Orphans always resume = review." in script
     assert "if the issue has no claim comment, treat it as live (skip)" in script
+
+
+def test_concurrent_runs_do_not_cancel_each_other() -> None:
+    """A #209 stage refused because the user's newer message launched a different run."""
+    script = _script()
+    assert "those do not cancel, replace or narrow this run" in script
+    # The feedback executor must answer every planned item on a real commit, with one retry.
+    assert "e.items.length >= plan.items.length" in script
+    assert "SHA_RE.test(e.head_sha || '')" in script
+    assert "answered ${exec.items.length} of ${plan.items.length} planned item(s)" in script
+    # A gate stall caused by unresolved threads resumes at review, where feedback can fix it.
+    assert "lastGate.unresolved_threads > 0 ? 'review' : 'gate'" in script
+    # Explicitly named issues skip triage, so the claim refuses closed issues and open-PR issues.
+    assert "If the issue is CLOSED, or an open PR links it" in script
 
 
 def test_model_tiers() -> None:

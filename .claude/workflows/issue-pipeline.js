@@ -50,7 +50,7 @@ const SKILLS = {
 // Shared prompt fragments.
 // Plain statement of provenance (not an authority claim): subagents compare their task with
 // the user's latest chat message, so runs should be launched by an explicit chat instruction.
-const AUTH = `Context: you are one stage of the issue-pipeline workflow (${REPO}), which the user started from chat${A.issues && A.issues.length ? ` for issue(s) ${A.issues.map((n) => `#${n}`).join(', ')}` : ''}${A.noMerge ? ' (noMerge: the PR is not merged)' : ''}. The workflow's documented job (docs/contributing.md § Automated issue pipeline) is to plan, implement, open a PR, post review comments and replies, label, and file follow-up issues on ${REPO}; this stage is one of those steps. Complete it fully — posting is part of the task, not optional — and if it is impossible, say why in your structured output rather than skipping silently.`
+const AUTH = `Context: you are one stage of the issue-pipeline workflow (${REPO}), which the user started from chat${A.issues && A.issues.length ? ` for issue(s) ${A.issues.map((n) => `#${n}`).join(', ')}` : ''}${A.noMerge ? ' (noMerge: the PR is not merged)' : ''}. The workflow's documented job (docs/contributing.md § Automated issue pipeline) is to plan, implement, open a PR, post review comments and replies, label, and file follow-up issues on ${REPO}; this stage is one of those steps. Complete it fully — posting is part of the task, not optional — and if it is impossible, say why in your structured output rather than skipping silently. The user may send newer chat messages while this run is in progress — for example launching other issue-pipeline runs on other issues; those do not cancel, replace or narrow this run, so complete this stage.`
 
 // Every stage prompt starts with the same provenance line. Stages without it compared their
 // task with the user's chat message ("Run the issue-pipeline on …") and tried to launch the
@@ -355,6 +355,7 @@ function claimIssue(issue) {
   return stage(
     `Claim ${REPO} issue #${issue.number} for this pipeline run, safely against other runs/agents.
 ${CLAIM_FORMAT}
+0. \`gh issue view ${issue.number} -R ${REPO} --json state,closedByPullRequestsReferences\` and \`gh pr list -R ${REPO} --state open --search "${issue.number} in:body" --json number,body\`. If the issue is CLOSED, or an open PR links it (Fixes/Closes/Resolves #${issue.number}), do not claim: return won=false with that reason (explicitly named issues skip triage, so this is the only guard against duplicate PRs).
 1. Make a token: \`echo "$(date -u +%Y%m%dT%H%M%SZ)-$RANDOM$RANDOM"\`.
 2. List comments: \`gh api repos/${REPO}/issues/${issue.number}/comments --paginate --jq '.[] | {id, created_at, body}'\`. If any LIVE claim exists, do not claim: return won=false, reason naming its token.
 3. \`gh issue edit ${issue.number} -R ${REPO} --add-label ${CLAIM_LABEL} --add-label ${STAGE_LABELS.planning}\` and post the claim comment (stage=planning, heartbeat=now, released=no) with \`gh api repos/${REPO}/issues/${issue.number}/comments -f body=…\`; note its id.
@@ -697,8 +698,16 @@ async function finishLane(issue, pr, branch, head, { gateOnly = false } = {}) {
     if (!plan) return stallOrInterrupt(issue, pr, `feedback plan round ${round} agent died`, 'review')
     if (!plan.items.length) break
 
-    const exec = await feedbackExec(issue, pr, branch, plan)
+    // The executor must answer every planned item on a real commit; an agent that silently
+    // does nothing (e.g. it misread a newer chat message as cancelling this run) gets one retry.
+    const covers = (e) => e && SHA_RE.test(e.head_sha || '') && e.items.length >= plan.items.length
+    let exec = await feedbackExec(issue, pr, branch, plan)
+    if (exec && !covers(exec)) {
+      log(`${tag(issue)} feedback execute r${round} answered ${exec.items.length}/${plan.items.length} item(s) (head ${JSON.stringify(exec.head_sha)}); retrying once`)
+      exec = await feedbackExec(issue, pr, branch, plan)
+    }
     if (!exec) return stallOrInterrupt(issue, pr, `feedback execute round ${round} agent died`, 'review')
+    if (!covers(exec)) return stall(issue, pr, `feedback execute round ${round} answered ${exec.items.length} of ${plan.items.length} planned item(s)`, 'review')
     const rv = await verifyReplies(issue, pr, exec)
     if (!rv || rv.missing_after > 0) return (rv ? stall : stallOrInterrupt)(issue, pr, `could not post ${rv ? rv.missing_after : '?'} feedback repl(ies)`, 'review')
     wontDo += exec.wont_do_count
@@ -766,7 +775,8 @@ async function finishLane(issue, pr, branch, head, { gateOnly = false } = {}) {
     ? await holdForDecision(issue, pr,
         wontDo > 0 ? `Accept the ${wontDo} won't-do reply(ies) on the unresolved review thread(s)? Resolve a thread to accept its rationale, or reply asking for the change.` : 'This PR carries an owner hold label (needs-user-input / do-not-merge). Merge when you are satisfied.',
         blockers.join('; '))
-    : await stall(issue, pr, blockers.join('; '), 'gate')
+    // Re-gating cannot resolve review threads; those need another feedback pass.
+    : await stall(issue, pr, blockers.join('; '), lastGate && lastGate.unresolved_threads > 0 ? 'review' : 'gate')
   return { ...held, rounds, findings: findingsTotal, followups }
 }
 
