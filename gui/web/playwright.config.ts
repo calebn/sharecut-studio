@@ -49,8 +49,7 @@ export default defineConfig({
       DAW_E2E_PIN_PROJECT: capturingUxScreens ? "1" : "",
       ...(process.env.PODCAST_SHARE_REGISTRY
         ? {
-            PODCAST_SHARE_REGISTRY:
-              process.env.PODCAST_SHARE_REGISTRY,
+            PODCAST_SHARE_REGISTRY: process.env.PODCAST_SHARE_REGISTRY,
           }
         : {}),
     },

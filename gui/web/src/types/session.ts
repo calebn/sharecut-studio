@@ -79,7 +79,7 @@ export interface SessionClient {
 
 export interface SessionState {
   version: number;
-  server_seq?: number;
+  server_seq: number;
   origin: SessionOrigin;
   last_role?: string | null;
   last_client_id?: string | null;
