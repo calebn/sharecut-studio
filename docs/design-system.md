@@ -20,8 +20,9 @@ and open the URL it reports.
 
 ## What's in it
 
-Stories live next to their components (`src/ui/*.stories.tsx`) and are
-organized by Atomic Design level:
+Stories live next to their components (`src/ui/*.stories.tsx` for the UI kit,
+`src/<area>/*.stories.tsx` for domain organisms) and are organized by Atomic
+Design level:
 
 | Level | Contents | Examples |
 | ----- | -------- | -------- |
@@ -29,10 +30,15 @@ organized by Atomic Design level:
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow |
 | **Organisms** | Complex components / sections | Dialog, BottomSheet |
 
-Domain components (`timeline/`, `inspector/`, transport chrome) are intentionally
-out — they compose the library (see `gui/web/docs/ui-library.md`), and stories
-for them would couple the catalog to app state. Atoms → molecules → organisms
-is the traversal order: design the atom in isolation, then check it composed.
+Domain components are in scope only when they are **props in, UI out**: they
+render from fixture props alone, with no store, socket, AudioContext, or router
+(scope rule from issue #172). The record upload roster
+(`src/record/HostUploadRoster.stories.tsx`) is the first such organism.
+Components that read the DAW store or live session state (`timeline/`,
+`inspector/`, transport chrome today) stay out until they can render
+standalone — stories for them would couple the catalog to app state. Atoms →
+molecules → organisms is the traversal order: design the atom in isolation,
+then check it composed.
 
 ## Theme toolbar
 
@@ -42,13 +48,18 @@ every new component in both themes before merging.
 
 ## Adding a story
 
-1. Colocate: `src/ui/<Name>.stories.tsx` next to `<Name>.tsx`.
+1. Colocate: `<Name>.stories.tsx` next to `<Name>.tsx` (`src/ui/` or the
+   domain folder, e.g. `src/record/`).
 2. Title it `Atoms|Molecules|Organisms/<Name>`.
-3. Import from `./index` (the public API), not deep paths.
-4. Keep stories state-local (`useState` in the story) — no app providers, no
+3. UI-kit stories import from `./index` (the public API), not deep paths.
+   Domain stories import the production component module directly.
+4. Build fixtures with the shared factories in `src/test/fixtures.ts`
+   (`sampleParticipant`, `sampleComment`, …) and call them per story so stories
+   never share mutable objects.
+5. Keep stories state-local (`useState` in the story) — no app providers, no
    network. Components that need DAW context don't get stories until they can
    render standalone.
-5. Run `npm run build-storybook` before pushing; the Pages workflow rebuilds
+6. Run `npm run build-storybook` before pushing; the Pages workflow rebuilds
    from `main` anyway.
 
 ## Governance
@@ -67,3 +78,5 @@ every new component in both themes before merging.
 - 2026-09-21 — Scaffolded Storybook 10 (react-vite) with theme toolbar, 11
   story files across Atoms/Molecules/Organisms, and GitHub Pages deploy
   workflow.
+- 2026-09-23 — First domain organism: `HostUploadRoster` (record upload
+  states, 360px stress fixture); scope widened to props-in/UI-out organisms.
