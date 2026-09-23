@@ -18,6 +18,7 @@ from pathlib import Path
 
 from podcast_mcp.engines.peaks import write_silent_peaks
 from podcast_mcp.models import load_project
+from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.models.episode import (
     Clip,
     CombinedTranscript,
@@ -118,7 +119,7 @@ def _shape_project(
     # The source's ingest offsets and render/pipeline state describe its 60 s audio.
     project.meta.ingest_alignment = None
     project.render = RenderSection()
-    project.history = None
+    project.history = ProjectHistory()
     project.timeline.duration_sec = duration_sec
     for track in project.timeline.tracks:
         if track.media is not None:

@@ -15,7 +15,7 @@
     "render": { "$ref": "#/$defs/RenderSection" },
     "social": { "$ref": "#/$defs/SocialSection" },
     "review": { "$ref": "#/$defs/ReviewSection" },
-    "history": { "anyOf": [{ "$ref": "#/$defs/ProjectHistory" }, { "type": "null" }] }
+    "history": { "$ref": "#/$defs/ProjectHistory" }
   },
   "$defs": {
     "ProjectMeta": {

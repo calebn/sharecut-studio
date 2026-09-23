@@ -10,6 +10,7 @@ from podcast_mcp.history import HistoryManager, record_if_changed
 from podcast_mcp.models import (
     EditDecision,
     EditDecisionType,
+    EpisodeProject,
     HistoryEntry,
     SocialClipCandidate,
     load_project,
@@ -290,7 +291,7 @@ def test_load_index_from_disk(minimal_project):
     save_project(proj, minimal_project)
 
     reloaded = load_project(minimal_project)
-    reloaded.history = None
+    reloaded.history = ProjectHistory()
     entries = mgr.list_entries(reloaded)
     assert len(entries) == 1
     assert entries[0].label == "persisted"
@@ -325,7 +326,6 @@ def test_status_current_label(minimal_project):
 def test_record_if_changed(minimal_project):
     entry = record_if_changed(minimal_project, "via helper", force=True)
     proj = load_project(minimal_project)
-    assert proj.history is not None
     assert proj.history.entries[-1].id == entry.id
 
 
@@ -335,3 +335,32 @@ def test_status_without_entries(minimal_project):
     status = mgr.status(proj)
     assert status.current_label is None
     assert status.cursor == -1
+
+
+def test_new_project_has_empty_history_object(tmp_path):
+    proj = EpisodeProject.create("fresh", str(tmp_path))
+    assert proj.history == ProjectHistory()
+    assert proj.history.is_empty()
+    dumped = proj.model_dump(mode="json", by_alias=True)
+    assert dumped["history"] == {"cursor": -1, "entries": []}
+
+
+def test_legacy_null_history_loads_as_empty(minimal_project):
+    data = json.loads(minimal_project.read_text(encoding="utf-8"))
+    data["history"] = None
+    minimal_project.write_text(json.dumps(data), encoding="utf-8")
+    proj = load_project(minimal_project)
+    assert proj.history == ProjectHistory()
+    save_project(proj, minimal_project)
+    saved = json.loads(minimal_project.read_text(encoding="utf-8"))
+    assert saved["history"] == {"cursor": -1, "entries": []}
+
+
+def test_store_load_prefers_index_over_empty_history(minimal_project):
+    proj = load_project(minimal_project)
+    HistoryManager(minimal_project).record(proj, "indexed", force=True)
+    data = json.loads(minimal_project.read_text(encoding="utf-8"))
+    data["history"] = {"cursor": -1, "entries": []}
+    minimal_project.write_text(json.dumps(data), encoding="utf-8")
+    loaded = ProjectStore(minimal_project).load()
+    assert [e.label for e in loaded.history.entries] == ["indexed"]

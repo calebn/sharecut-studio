@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.models.project_format import SUPPORTED_PROJECT_VERSION, require_v2_document
@@ -430,7 +430,13 @@ class EpisodeProject(BaseModel):
     render: RenderSection = Field(default_factory=RenderSection)
     social: SocialSection = Field(default_factory=SocialSection)
     review: ReviewSection = Field(default_factory=ReviewSection)
-    history: ProjectHistory | None = None
+    history: ProjectHistory = Field(default_factory=ProjectHistory)
+
+    @field_validator("history", mode="before")
+    @classmethod
+    def _empty_history_for_null(cls, value: Any) -> Any:
+        """Files saved before history was required carry ``"history": null``."""
+        return ProjectHistory() if value is None else value
 
     @classmethod
     def create(cls, name: str, workspace_dir: str) -> EpisodeProject:

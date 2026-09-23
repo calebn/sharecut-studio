@@ -33,10 +33,9 @@ class ProjectStore:
 
     def _sync_history_index_to_project(self, project: EpisodeProject) -> None:
         index_path = project.workspace_path() / "history" / "index.json"
-        if project.history is not None:
-            if index_path.parent.exists() or project.history.entries:
-                index_path.parent.mkdir(parents=True, exist_ok=True)
-                write_json_atomic(index_path, project.history.model_dump(mode="json"))
+        if not project.history.is_empty():
+            index_path.parent.mkdir(parents=True, exist_ok=True)
+            write_json_atomic(index_path, project.history.model_dump(mode="json"))
             return
         if index_path.is_file():
             data = json.loads(index_path.read_text(encoding="utf-8"))
