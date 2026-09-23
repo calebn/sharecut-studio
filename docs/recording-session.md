@@ -332,8 +332,10 @@ reclaim does not yet compare the landed SHA-256/length with the local file
 ([#222](https://github.com/calebn/sharecut-studio/issues/222)). Landing never
 reports `landed` for a segment whose staged `artifacts/record/acked/` WAV is
 missing unless its registered source (`rec-…` clip source or room-tone bed)
-already exists in the workspace; otherwise the row is `land_failed`, so the
-guest keeps its keeper and the host sees Retry land.
+already exists in the workspace with the row's ACK'd `file_sha256` (so a
+re-recorded room-tone bed never inherits the previous bed's landed state);
+otherwise the row is `land_failed`, so the guest keeps its keeper and the
+host sees Retry land.
 
 The recording UI also performs an advisory one-hour mono 48 kHz PCM headroom
 check where `navigator.storage.estimate()` is available
@@ -840,7 +842,7 @@ sidecar JSON.**
 | Local keeper WAV | Guest/host OPFS `Sharecut Recordings/{session}/{take}/{participant}/{segment}.wav` (+ `.json` tags). Not a host sidecar. |
 | Room-tone bed | OPFS `Sharecut Recordings/{session}/room-tone/{participant}.wav` (local until Accept); upload `kind=room_tone` after consent (storage take `2147483647`); assembled `artifacts/record/acked/{session}/room_tone/{participant}.wav` until landing copies `raw/room-tone/{participant}.wav` and sets `track.room_tone` |
 | Chunk / ACK manifests | `record_upload_parts` / `record_upload_files` in the same `sync.db`; finalized file rows persist `expected_parts` and file ACK requires that count. Current clients declare it; older open tabs infer it from the final part sequence, still requiring contiguous parts and the whole-file hash. Part bytes live in `artifacts/record/uploads/`; assembled WAV in `artifacts/record/acked/` until landing copies to `raw/`. `land_failed_ns` records a failed landing attempt and keeps the staged WAV available for retry. |
-| Timeline landing | `RecordLandingService` copies ACK'd WAV into `raw/`, one clip per segment at `take_offset_s + join_offset_ms/1000`, 2 s take gap. `join_offset_ms` is stored on `record_upload_files`. The UI distinguishes staged/uploaded/landed/land-failed; only confirmed `landed` permits deleting the local keeper. Host `Retry land` reuses the existing `record.land` command. A missing staged WAV counts as landed only when the segment's registered source file already exists; otherwise the row is marked land_failed. |
+| Timeline landing | `RecordLandingService` copies ACK'd WAV into `raw/`, one clip per segment at `take_offset_s + join_offset_ms/1000`, 2 s take gap. `join_offset_ms` is stored on `record_upload_files`. The UI distinguishes staged/uploaded/landed/land-failed; only confirmed `landed` permits deleting the local keeper. Host `Retry land` reuses the existing `record.land` command. A missing staged WAV counts as landed only when the segment's registered source file already exists and its SHA-256 matches the row's `file_sha256`; otherwise the row is marked land_failed. |
 
 Locked for the lobby PR: roles from the token; host-only Start/Pause/Resume/Stop;
 Start blocked until connected guests have `consented is True` (`None` pending;
