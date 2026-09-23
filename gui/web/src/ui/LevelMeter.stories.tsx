@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useEffect, useRef, useState } from "react";
-import { Button } from "./index";
-import { LevelMeter } from "./LevelMeter";
-import { DEFAULT_CLIP_DB, decayPeakHold, peakDbFromSamples } from "./metering";
+import { useMemo } from "react";
+import { type FrameReader, usePeakMeter } from "../audio/usePeakMeter";
+import { dbToLinear } from "../utils/audio";
+import { Button, LevelMeter } from "./index";
 
 const meta: Meta<typeof LevelMeter> = {
   title: "Atoms/LevelMeter",
@@ -84,8 +84,9 @@ export const Compact: Story = {
 
 /**
  * Scripted take: room tone, speech, a laugh that clips, more speech.
- * Drives the same { levelDb, peakHoldDb, clipped, clearClip } shape that
- * `useInputPeakDb` returns, so this story previews the real wiring.
+ * Feeds synthesized frames through `usePeakMeter` — the same loop
+ * `useInputPeakDb` runs on a real mic — so this story previews the real
+ * wiring, not a copy of it.
  */
 function scriptedDb(tSec: number): number {
   const cyc = tSec % 16;
@@ -95,55 +96,24 @@ function scriptedDb(tSec: number): number {
   return -16 + Math.sin(cyc * 6.3) * 4 + Math.random() * 5;
 }
 
-function useSimulatedTake() {
-  const [levelDb, setLevelDb] = useState(Number.NEGATIVE_INFINITY);
-  const [peakHoldDb, setPeakHoldDb] = useState(Number.NEGATIVE_INFINITY);
-  const [clipped, setClipped] = useState(false);
-  const sim = useRef({
-    holdDb: Number.NEGATIVE_INFINITY,
-    start: 0,
-    last: 0,
-  });
-
-  useEffect(() => {
-    sim.current.start = performance.now();
-    sim.current.last = performance.now();
-    let raf = 0;
-    const tick = (now: number) => {
-      const s = sim.current;
-      const dt = now - s.last;
-      s.last = now;
-      // Synthesize a 2048-sample frame around the scripted level so the
-      // story exercises the same peak detector the mic path will use.
-      const target = scriptedDb((now - s.start) / 1000);
-      const amp = target <= -60 ? 0 : Math.pow(10, target / 20);
-      const frame = new Float32Array(2048);
+function useScriptedFrames(): FrameReader {
+  return useMemo(() => {
+    const start = performance.now();
+    const frame = new Float32Array(2048);
+    return () => {
+      const amp = dbToLinear(scriptedDb((performance.now() - start) / 1000));
       for (let i = 0; i < frame.length; i++) {
         frame[i] = amp * Math.sin((i / frame.length) * Math.PI * 8);
       }
-      const peak = peakDbFromSamples(frame);
-      s.holdDb = decayPeakHold(s.holdDb, peak, dt);
-      setLevelDb(peak);
-      setPeakHoldDb(s.holdDb);
-      if (peak >= DEFAULT_CLIP_DB) setClipped(true);
-      raf = requestAnimationFrame(tick);
+      return frame;
     };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
   }, []);
-
-  return {
-    levelDb,
-    peakHoldDb,
-    clipped,
-    clearClip: () => setClipped(false),
-  };
 }
 
 function LiveSimulationDemo() {
-  const take = useSimulatedTake();
+  const take = usePeakMeter(useScriptedFrames());
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+    <div className="stack">
       <p style={{ color: "var(--color-text-secondary)", margin: 0 }}>
         Scripted take, looping every 16 s: room tone → speech → a laugh that
         clips at ~8 s → speech. The clip LED latches until cleared.

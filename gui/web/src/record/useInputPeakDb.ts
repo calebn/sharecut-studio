@@ -1,18 +1,27 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  DEFAULT_CLIP_DB,
-  decayPeakHold,
-  peakDbFromSamples,
-} from "../ui/metering";
+  type FrameReader,
+  type PeakMeterLevels,
+  usePeakMeter,
+} from "../audio/usePeakMeter";
+import { audioContextCtor } from "../utils/audio";
 
-export type InputPeakLevels = {
-  /** Current peak input level, dBFS (−Infinity when silent). */
-  levelDb: number;
-  /** PPM-style peak hold, dBFS. */
-  peakHoldDb: number;
-  /** Latched: once a peak hits `clipDb`, stays true until `clearClip()`. */
-  clipped: boolean;
-  clearClip: () => void;
+/**
+ * Analyser window. At 48 kHz this is ~85 ms, so consecutive animation frames
+ * overlap even under ~30 fps throttling and a transient between frames is
+ * still inspected. Hidden tabs pause rAF entirely; see the hook's docs.
+ */
+export const INPUT_METER_FFT_SIZE = 4096;
+
+export type InputPeakLevels = PeakMeterLevels & {
+  /**
+   * The AudioContext is not running (autoplay policy, iOS interruption), so
+   * the meter reads silence. Show a "tap to enable meter" affordance that
+   * calls `resume()` from the gesture.
+   */
+  suspended: boolean;
+  /** Resume the metering AudioContext; call from a user gesture. */
+  resume: () => void;
 };
 
 type Options = {
@@ -24,63 +33,81 @@ type Options = {
   clipDb?: number;
 };
 
+function closeQuietly(ctx: AudioContext): void {
+  void ctx.close().catch(() => undefined);
+}
+
 /**
  * Drive a LevelMeter from a mic MediaStream.
  *
- * Reads time-domain frames off an AnalyserNode each animation frame, takes
- * the true peak (not RMS — this meter is overload protection), and maintains
- * a PPM-style peak hold plus a latching clip flag. Returns the exact state
- * shape the LevelMeter stories demonstrate, so the record lobby and the
- * per-participant record-room rows can wire it with no translation.
+ * Builds an AnalyserNode graph for `stream` and hands its frames to
+ * `usePeakMeter`, which takes the sample peak (not RMS — this meter is
+ * overload protection) and maintains a PPM-style peak hold plus a latching
+ * clip flag. The meter resets whenever `stream` changes or goes `null`.
+ *
+ * Limitation: the clip latch only sees what each animation frame reads. rAF
+ * stops in hidden tabs, so a clip while the tab is hidden is not latched
+ * (tracked: AudioWorklet-based detection, #203).
  */
 export function useInputPeakDb(
   stream: MediaStream | null,
-  { clipDb = DEFAULT_CLIP_DB }: Options = {},
+  { clipDb }: Options = {},
 ): InputPeakLevels {
-  const [levelDb, setLevelDb] = useState<number>(Number.NEGATIVE_INFINITY);
-  const [peakHoldDb, setPeakHoldDb] = useState<number>(
-    Number.NEGATIVE_INFINITY,
-  );
-  const [clipped, setClipped] = useState(false);
-  const holdRef = useRef(Number.NEGATIVE_INFINITY);
+  const [reader, setReader] = useState<FrameReader | null>(null);
+  const [suspended, setSuspended] = useState(false);
+  const ctxRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
+    setReader(null);
+    setSuspended(false);
     if (!stream) return;
-    const AC =
-      window.AudioContext ??
-      (window as unknown as { webkitAudioContext?: typeof AudioContext })
-        .webkitAudioContext;
+    const AC = audioContextCtor();
     if (!AC) return;
 
-    const ctx = new AC();
-    const source = ctx.createMediaStreamSource(stream);
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = 2048;
-    source.connect(analyser);
-    const frame = new Float32Array(analyser.fftSize);
-
-    let raf = 0;
-    let last = performance.now();
-    const tick = (now: number) => {
-      analyser.getFloatTimeDomainData(frame);
-      const peak = peakDbFromSamples(frame);
-      holdRef.current = decayPeakHold(holdRef.current, peak, now - last);
-      last = now;
-      setLevelDb(peak);
-      setPeakHoldDb(holdRef.current);
-      if (peak >= clipDb) setClipped(true);
-      raf = requestAnimationFrame(tick);
+    let ctx: AudioContext | null = null;
+    let source: MediaStreamAudioSourceNode | null = null;
+    const onStateChange = () => {
+      if (ctx) setSuspended(ctx.state !== "running");
     };
-    raf = requestAnimationFrame(tick);
+    try {
+      ctx = new AC();
+      source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = INPUT_METER_FFT_SIZE;
+      source.connect(analyser);
+      const frame = new Float32Array(analyser.fftSize);
+      ctx.addEventListener("statechange", onStateChange);
+      onStateChange();
+      // Created outside a gesture, so autoplay policy may start it suspended.
+      void ctx.resume().catch(() => undefined);
+      ctxRef.current = ctx;
+      setReader(() => () => {
+        analyser.getFloatTimeDomainData(frame);
+        return frame;
+      });
+    } catch {
+      // No audio track, ended track, or the per-page context limit: stay
+      // inert rather than crash, and never leak the context we opened.
+      source?.disconnect();
+      if (ctx) closeQuietly(ctx);
+      ctx = null;
+      source = null;
+    }
 
     return () => {
-      cancelAnimationFrame(raf);
-      source.disconnect();
-      void ctx.close();
+      ctxRef.current = null;
+      if (!ctx) return;
+      ctx.removeEventListener("statechange", onStateChange);
+      source?.disconnect();
+      closeQuietly(ctx);
     };
-  }, [stream, clipDb]);
+  }, [stream]);
 
-  const clearClip = useCallback(() => setClipped(false), []);
+  const resume = useCallback(() => {
+    const ctx = ctxRef.current;
+    if (ctx) void ctx.resume().catch(() => undefined);
+  }, []);
 
-  return { levelDb, peakHoldDb, clipped, clearClip };
+  const levels = usePeakMeter(reader, { clipDb });
+  return { ...levels, suspended, resume };
 }
