@@ -79,13 +79,12 @@ export interface SessionClient {
 
 export interface SessionState {
   version: number;
-  revision: number;
   server_seq?: number;
   origin: SessionOrigin;
   last_role?: string | null;
   last_client_id?: string | null;
   updated_at_ns: number;
-  command_id: string | null;
+  last_command_id: string | null;
   playhead_sec: number;
   is_playing: boolean;
   audition_mode: AuditionMode;

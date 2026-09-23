@@ -38,7 +38,6 @@ Client ──submit(command)──► SessionSyncService
 | Path | Role |
 |------|------|
 | `artifacts/session/sync.db` | Authority: command log + snapshot + presence |
-| `artifacts/session_state.json` | Materialized mirror for legacy readers |
 
 ## HTTP / WS API
 
@@ -47,7 +46,7 @@ Client ──submit(command)──► SessionSyncService
 | `GET /api/session/state` | Materialized snapshot (+ `clients[]`) |
 | `GET /api/session/meta` | `server_seq` / mtime for fallback poll |
 | `POST /api/session/command` | Submit typed command (agent = viewer = cli) |
-| `POST /api/session/state` | Compat: viewer blob → typed commands |
+| `POST /api/session/state` | Viewer blob → typed commands (bootstrap / non-command-log clients) |
 | `WS /api/session/ws?path=&client_id=` | Push `Applied` / `Snapshot`; client may send `Command` / `Ack` / `Presence` |
 
 **Playhead while playing:** viewer HTTP heartbeats use `PresenceHeartbeat` (ephemeral `clients[]` playhead). Do **not** journal continuous `SetPlayhead` — that fans out Applied events, the DAW re-seeks `HTMLAudioElement`, and audio stutters. Durable `SetPlayhead` is for paused scrub only.

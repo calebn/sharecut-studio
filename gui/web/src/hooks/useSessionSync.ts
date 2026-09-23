@@ -201,7 +201,7 @@ export function useSessionSync(
               if (seq > cursorRef.current.serverSeq) {
                 cursorRef.current = {
                   serverSeq: seq,
-                  commandId: snap.command_id ?? cursorRef.current.commandId,
+                  commandId: snap.last_command_id ?? cursorRef.current.commandId,
                 };
               }
             }
@@ -272,8 +272,8 @@ export function useSessionSync(
       mtimeRef.current = meta.mtime_ns;
     }
     cursorRef.current = {
-      serverSeq: written.server_seq ?? written.revision ?? 0,
-      commandId: written.command_id ?? cursorRef.current.commandId,
+      serverSeq: written.server_seq ?? 0,
+      commandId: written.last_command_id ?? cursorRef.current.commandId,
     };
   });
 
