@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { MIX_MINUS_RAMP_S, MixMinusGraph } from "../../audio/mixMinus";
+import { audioContextCtor } from "../../utils/audio";
 import type { RecordRole, RecordSnapshot } from "../types";
 import { detachE2eRemote, injectE2eRemote, recordE2eEnabled } from "./e2eHook";
 import { RecordMesh } from "./mesh";
@@ -43,14 +44,6 @@ export function attachRemoteSource(
   sources.set(peerId, source);
   graph.addRemote(peerId, source);
   graph.setRemoteMuted(peerId, muted);
-}
-
-function audioContextCtor(): typeof AudioContext | undefined {
-  const w = window as unknown as {
-    AudioContext?: typeof AudioContext;
-    webkitAudioContext?: typeof AudioContext;
-  };
-  return w.AudioContext || w.webkitAudioContext;
 }
 
 export function useRecordMonitor({
