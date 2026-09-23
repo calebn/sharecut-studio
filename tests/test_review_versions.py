@@ -126,6 +126,15 @@ def test_review_artifacts_dir_matches_writer_reldir(minimal_project, sample_wav,
     assert get_version(p, vid).audio_relpath.startswith(f"{REVIEW_ARTIFACTS_RELDIR}/")
 
 
+def test_shares_sidecar_lives_under_review_artifacts_dir(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.edits.review_shares import shares_path
+
+    p, _vid = _publish(minimal_project, sample_wav)
+    assert shares_path(p) == review_artifacts_dir(p) / "shares.json"
+
+
 def test_version_paths_accept_legacy_spellings(minimal_project, sample_wav, tmp_workspace):
     p, vid = _publish(minimal_project, sample_wav)
     orig = get_version(p, vid).audio_relpath
