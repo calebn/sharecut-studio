@@ -6,24 +6,43 @@ import { themes } from "storybook/theming";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HEX_COLOR_RE, studioDocsTheme, useDocumentTheme } from "./docsTheme";
 
-function stubMatchMedia(matches: boolean): {
+function stubMatchMedia(initial: boolean): {
   addEventListener: ReturnType<typeof vi.fn>;
   removeEventListener: ReturnType<typeof vi.fn>;
+  setMatches: (next: boolean) => void;
 } {
-  const addEventListener = vi.fn();
-  const removeEventListener = vi.fn();
+  let matches = initial;
+  const listeners = new Set<() => void>();
+  const addEventListener = vi.fn((_type: string, cb: () => void) => {
+    listeners.add(cb);
+  });
+  const removeEventListener = vi.fn((_type: string, cb: () => void) => {
+    listeners.delete(cb);
+  });
   vi.stubGlobal("matchMedia", () => ({
-    matches,
+    get matches() {
+      return matches;
+    },
     addEventListener,
     removeEventListener,
   }));
-  return { addEventListener, removeEventListener };
+  return {
+    addEventListener,
+    removeEventListener,
+    setMatches(next: boolean) {
+      matches = next;
+      for (const cb of listeners) {
+        cb();
+      }
+    },
+  };
 }
 
 afterEach(() => {
   delete document.documentElement.dataset.theme;
   document.documentElement.removeAttribute("style");
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe("studioDocsTheme", () => {
@@ -100,8 +119,24 @@ describe("useDocumentTheme", () => {
     unmount();
   });
 
-  it("removes its change listener on unmount", () => {
+  it("follows an OS scheme change while System is selected", () => {
+    const media = stubMatchMedia(false);
+    const { result, unmount } = renderHook(() => useDocumentTheme());
+
+    expect(result.current).toBe("dark");
+
+    act(() => media.setMatches(true));
+    expect(result.current).toBe("light");
+
+    act(() => media.setMatches(false));
+    expect(result.current).toBe("dark");
+
+    unmount();
+  });
+
+  it("removes its change listener and disconnects its observer on unmount", () => {
     const { removeEventListener } = stubMatchMedia(false);
+    const disconnect = vi.spyOn(MutationObserver.prototype, "disconnect");
     const { unmount } = renderHook(() => useDocumentTheme());
 
     unmount();
@@ -110,5 +145,6 @@ describe("useDocumentTheme", () => {
       "change",
       expect.any(Function),
     );
+    expect(disconnect).toHaveBeenCalled();
   });
 });
