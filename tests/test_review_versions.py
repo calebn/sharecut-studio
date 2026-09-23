@@ -10,6 +10,7 @@ import pytest
 
 from podcast_mcp.edits.comments import add_comment
 from podcast_mcp.edits.review_versions import (
+    REVIEW_ARTIFACTS_RELDIR,
     encode_version_mp3,
     get_version,
     publish_version,
@@ -117,6 +118,12 @@ def test_version_paths_stay_under_review_root(minimal_project, sample_wav, tmp_w
     mp3 = version_mp3_path(p, vid)
     assert mp3 is not None
     assert mp3.is_relative_to(root)
+
+
+def test_review_artifacts_dir_matches_writer_reldir(minimal_project, sample_wav, tmp_workspace):
+    p, vid = _publish(minimal_project, sample_wav)
+    assert review_artifacts_dir(p) == p.workspace_path() / REVIEW_ARTIFACTS_RELDIR
+    assert get_version(p, vid).audio_relpath.startswith(f"{REVIEW_ARTIFACTS_RELDIR}/")
 
 
 def test_version_paths_accept_legacy_spellings(minimal_project, sample_wav, tmp_workspace):

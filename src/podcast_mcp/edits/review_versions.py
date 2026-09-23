@@ -66,8 +66,8 @@ def get_version(project: EpisodeProject, version_id: str) -> ReviewMixVersion:
 
 
 def review_artifacts_dir(project: EpisodeProject) -> Path:
-    """Root that every frozen review mix must resolve inside."""
-    return project.artifacts_dir() / "review"
+    """Root that every frozen review mix must resolve inside (same dir writers use)."""
+    return project.workspace_path() / REVIEW_ARTIFACTS_RELDIR
 
 
 def _resolve_review_media(
