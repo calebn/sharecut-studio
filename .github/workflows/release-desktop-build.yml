@@ -200,7 +200,7 @@ jobs:
             gui/web/package-lock.json
             gui/desktop/package-lock.json
 
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
@@ -372,7 +372,7 @@ jobs:
             gui/web/package-lock.json
             gui/desktop/package-lock.json
 
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
