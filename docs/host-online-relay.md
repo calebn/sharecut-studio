@@ -590,6 +590,9 @@ src/podcast_mcp/
   host-only. The tunnel never maps `/api/export/*` (proxy allowlist), and a direct remote
   request under strict authz must present `PODCAST_SESSION_TOKEN`. A share token in
   `?token=` / `X-Podcast-Token` is never accepted as that credential (403, no job started).
+  Strict authz is auto-enabled on a non-loopback bind only when `PODCAST_SESSION_AUTHZ`
+  is unset. An explicit non-strict value (e.g. `PODCAST_SESSION_AUTHZ=off`) with
+  `--host 0.0.0.0` removes this gate, and any LAN peer can start export jobs.
 - **Host GUI**: defaults to loopback. Non-loopback bind auto-enables `PODCAST_SESSION_AUTHZ=strict`
   and injects `session_token` into the viewer URL. Prefer the public relay over LAN bind.
 - **Remote MCP**: disabled by default; requires `PODCAST_REMOTE_MCP=1` on the host and
