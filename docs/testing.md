@@ -85,11 +85,10 @@ cd gui/web && npm audit --omit=dev --audit-level=high
 ```
 
 Dependabot alerts and automatic security updates are a per-repository GitHub
-setting (Settings → Code security), not something this config controls; they are
-currently disabled for this repository. A `github-actions` **major** version bump
-(for example `actions/checkout@v6` → `@v7`) also needs the pinned-ref contract
-tests updated to match, e.g. `tests/test_secret_scan_workflow.py:34` asserts
-`actions/checkout@v6`.
+setting, not something this config controls; check Settings → Code security for
+their current state. A `github-actions` **major** version bump (for example
+`actions/checkout@v6` → `@v7`) also needs every pinned-ref contract test updated
+to match; find them with `git grep -n 'actions/checkout@v' tests/`.
 
 ### GitHub CI gate
 
