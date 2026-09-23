@@ -79,9 +79,9 @@ setting `data-theme` on `<html>` through the app's `applyTheme`
 the attribute, so tokens follow `prefers-color-scheme` with a dark baseline.
 
 Docs (autodocs and standalone MDX) pages render inside `StudioDocsContainer`
-(`src/storybook/StudioDocsContainer.tsx`). The preview caches Storybook's
-globals update before the docs page mounts, so the container applies the
-toolbar choice even when no story decorator runs. It resolves the effective
+(`src/storybook/StudioDocsContainer.tsx`). The preview applies Storybook's
+globals update before the docs page mounts, so the toolbar choice reaches
+the document even when no story decorator runs. The container resolves the effective
 theme (`resolvedDocumentTheme`) and builds the Storybook docs theme from the
 live `--color-bg-canvas`, `--color-text-primary` and `--color-border`
 tokens, so docs pages and story mode match. Those three tokens must stay
