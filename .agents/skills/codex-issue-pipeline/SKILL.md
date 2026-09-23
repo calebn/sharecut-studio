@@ -119,8 +119,16 @@ action; do not loop indefinitely.
    issue and PR to `pipeline:review`.
 4. Build one review packet from the final diff: changed code with enough
    context, callers and second-hop callers where relevant, sibling CLI/MCP/GUI
-   paths, related tests, and applicable rules. Reuse it for all review passes.
-   Treat the packet as a starting point, never a boundary.
+   paths, related tests, and applicable rules. When `scripts/review_packet.py`
+   exists on trusted `origin/main`, run that version directly with the exact
+   head ref and review range, then pass the resulting file path to each lens;
+   a model does not need to run or retype this deterministic command. Check
+   that the file exists, is nonempty, and was built for the intended head and
+   range. Record the head SHA with the packet. For later rounds, use the
+   feedback-fix range, not the whole PR diff. If the script is unavailable or
+   fails, gather the same context once by hand and still run review. Read
+   omitted or truncated code on demand. Reuse the packet across all passes in
+   that round; treat it as a starting point, never a boundary.
 5. Run the eight distinct reviewer lenses from `pr-multi-review`: bugs, risk,
    wiring, reuse, security, concurrency/resources, performance, and
    algorithms/patterns. Give each available reviewer subagent the shared
@@ -146,7 +154,10 @@ action; do not loop indefinitely.
    posts any missing comments, then asks the verifier to recheck. Stall the
    pipeline if verification still fails.
 6. Only after posting and verification, classify every review item as fix,
-   follow-up, or won't-do. Make safe fixes,
+   follow-up, acknowledged information, or won't-do. Acknowledge a verified
+   observation that calls for no change in this PR with a concrete rationale;
+   reply and resolve its thread without inventing a follow-up issue or an
+   owner hold. This disposition does not apply to an unresolved defect. Make safe fixes,
    add tests/docs, reply to each thread, and verify replies and resolutions.
    GitHub can leave thread replies inside a `PENDING` review even when the
    author sees them in a thread query. Submit each pending review with a
@@ -208,7 +219,7 @@ delegate bounded stages using this starting route:
 | Work | Model / effort | Return to coordinator |
 | --- | --- | --- |
 | Issue-text triage, claim/PR/CI inventory, review-post and reply verification | Luna / low | Facts with source URLs, exact IDs and head SHA, or a specific failure; no inferred gate verdict |
-| Routine plan, implementation, CI fix, feedback implementation, review packet, eight review lenses | Sol / medium | Changed files and focused checks, or a lens report with every finding and evidence |
+| Routine plan, implementation, CI fix, feedback implementation, eight review lenses | Sol / medium | Changed files and focused checks, or a lens report with every finding and evidence |
 | Cross-layer architecture, difficult security/concurrency, conflicting review evidence, feedback decisions requiring judgment | Astra / high only when needed | A bounded decision with supporting code and tradeoffs |
 
 Use a bounded positive `fork_turns` value that carries the user's run request
@@ -235,9 +246,10 @@ exercised. These choices follow
 and its [multi-agent guidance](https://developers.openai.com/api/docs/guides/agents-api/multi-agent);
 recheck availability and guidance when making a future run.
 
-Read issue text before code during triage. Gather shared review context once,
-then read additional files only for concerns that require them. Reuse the
-packet across rounds; focus later rounds on the fix diff and its callers.
+Read issue text before code during triage. Generate shared review context
+deterministically when the trusted script is available, then read additional
+files only for concerns that require them. Rebuild the packet for each review
+round; focus later rounds on the fix diff and its callers.
 Batch independent read-only searches and keep command output bounded. Preserve
 every review concern and the final gate; do
 not claim a percentage saving without measuring comparable runs. A verified
