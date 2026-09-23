@@ -78,7 +78,7 @@ Do not skip this step when reviewing multitrack join quality or when the user re
 
 ## Shared DAW session (bidirectional)
 
-Agent, CLI, and DAW tabs are clients of `SessionSyncService` (typed commands → sqlite log → snapshot / WebSocket). See `docs/session-sync.md`. Legacy mirror: `artifacts/session_state.json`.
+Agent, CLI, and DAW tabs are clients of `SessionSyncService` (typed commands → sqlite log → snapshot / WebSocket). See `docs/session-sync.md`. The only store is `artifacts/session/sync.db`; read it with `get_session_state_tool`.
 
 | Tool | When |
 |------|------|

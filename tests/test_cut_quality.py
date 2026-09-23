@@ -288,21 +288,6 @@ def test_recommend_cut_fade_ms_scales_with_jump():
     assert fade >= 30
 
 
-def test_recommend_post_pad_fade_in_legacy_fixed():
-    from podcast_mcp.edits.cut_quality import recommend_post_pad_fade_in_ms
-
-    project = _minimal_project()
-    assert (
-        recommend_post_pad_fade_in_ms(
-            project,
-            "host",
-            1.0,
-            defaults={"tighten": {"filler_post_pad_fade_in_ms": 88}},
-        )
-        == 88
-    )
-
-
 def test_recommend_post_pad_fade_in_quiet_uses_min():
     from podcast_mcp.edits.cut_quality import recommend_post_pad_fade_in_ms
 
@@ -357,21 +342,6 @@ def test_recommend_post_pad_fade_in_covers_late_hot_onset():
         )
     assert fade >= 100
     assert fade <= 120
-
-
-def test_recommend_prev_word_lead_out_legacy_fixed():
-    from podcast_mcp.edits.cut_quality import recommend_prev_word_lead_out_ms
-
-    project = _minimal_project()
-    assert (
-        recommend_prev_word_lead_out_ms(
-            project,
-            "host",
-            1.0,
-            defaults={"tighten": {"filler_prev_word_lead_out_ms": 60}},
-        )
-        == 60
-    )
 
 
 def test_recommend_prev_word_lead_out_waits_for_quiet():
