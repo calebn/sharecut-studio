@@ -129,8 +129,8 @@ both themes, in story mode and on its docs page, before merging.
 
 ## Governance
 
-- Every `src/**/*.stories.ts(x)` file must default-export a local metadata
-  object with a literal `title` of the form
+- Every `src/**/*.stories.ts(x)` file must default-export a local `const`
+  metadata object with a literal `title` of the form
   `Atoms|Molecules|Organisms|Templates/<Name>` (one nonempty name segment).
   `gui/web/src/test/storyGovernance.test.ts` parses the metadata and checks
   every story in the Vitest suite; computed, missing, blank, and later

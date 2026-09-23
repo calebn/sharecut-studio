@@ -241,6 +241,14 @@ describe("Storybook title tiers", () => {
       "later computed override",
       "export default { title: 'Atoms/Button', ['title']: 'Screens/Home' };",
     ],
+    [
+      "mutable metadata binding",
+      "let meta = { title: 'Atoms/Button' }; meta = { title: 'Screens/Home' }; export default meta;",
+    ],
+    [
+      "mutable alias",
+      "const good = { title: 'Atoms/Button' }; let meta = good; meta = { title: 'Screens/Home' }; export default meta;",
+    ],
   ])("rejects %s", (_case, source) => {
     expect(storyTitleViolation(source)).not.toBeNull();
   });
@@ -257,6 +265,14 @@ describe("Storybook title tiers", () => {
     expect(
       storyTitleViolation(
         "const other = { title: 'Screens/Home' }; export default { ...other, title: 'Atoms/Button' };",
+      ),
+    ).toBeNull();
+  });
+
+  it("accepts a later computed key that cannot override title", () => {
+    expect(
+      storyTitleViolation(
+        "export default { title: 'Atoms/Button', ['component']: Button };",
       ),
     ).toBeNull();
   });
