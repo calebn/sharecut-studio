@@ -1,4 +1,5 @@
 import {
+  ariaValueNow,
   DEFAULT_DANGER_DB,
   DEFAULT_MIN_DB,
   DEFAULT_WARN_DB,
@@ -14,7 +15,7 @@ export type LevelMeterSize = "sm" | "md";
 export type LevelMeterProps = {
   /** Current peak level, dBFS (−Infinity..0). The driver owns ballistics. */
   levelDb: number;
-  /** Peak-hold marker, dBFS. Omit to hide. */
+  /** Peak-hold marker, dBFS. Omit (or pass −Infinity) to hide. */
   peakHoldDb?: number;
   /** Latched clip state — stays lit until the driver clears it. */
   clipped?: boolean;
@@ -35,6 +36,16 @@ export type LevelMeterProps = {
 };
 
 const SCALE_TICKS_DB = [0, -10, -20, -30, -40, -50, -60];
+
+/**
+ * Scale end labels are pulled inside the track by value, not DOM order, so a
+ * `minDb` that isn't a multiple of 10 (e.g. −48) keeps its last tick centered.
+ */
+function tickEdge(tickDb: number, minDb: number): "max" | "min" | undefined {
+  if (tickDb === 0) return "max";
+  if (tickDb === minDb) return "min";
+  return undefined;
+}
 
 function zoneGradient(
   orientation: LevelMeterOrientation,
@@ -58,7 +69,8 @@ function zoneGradient(
  *
  * Pure: it renders whatever the driver hands it — level, peak hold, and the
  * latched clip flag — so Storybook can show every state without a microphone
- * and the record UI can wire it to `useInputPeakDb` later. Zones are real
+ * and the record UI can wire it to `useInputPeakDb` (#174). The root's
+ * `data-zone` tints the numeric readout. Zones are real
  * dBFS thresholds, not decoration: green below `warnDb`, amber to
  * `dangerDb`, red above. Red starts before the 0 dBFS ceiling on purpose —
  * by the time a sample hits 0 dBFS the take has already clipped.
@@ -78,7 +90,9 @@ export function LevelMeter({
 }: LevelMeterProps) {
   const levelFrac = dbToFraction(levelDb, minDb);
   const holdFrac =
-    peakHoldDb === undefined ? null : dbToFraction(peakHoldDb, minDb);
+    peakHoldDb !== undefined && Number.isFinite(peakHoldDb)
+      ? dbToFraction(peakHoldDb, minDb)
+      : null;
   const zone: MeterZone = zoneForDb(levelDb, warnDb, dangerDb);
   const gradient = zoneGradient(orientation, warnDb, dangerDb, minDb);
 
@@ -98,63 +112,70 @@ export function LevelMeter({
     : formatDb(levelDb);
 
   return (
-    <div
-      className={`ui-meter ui-meter--${orientation} ui-meter--${size}`}
-      role="meter"
-      aria-label={label}
-      aria-valuemin={minDb}
-      aria-valuemax={0}
-      aria-valuenow={Number.isFinite(levelDb) ? Math.round(levelDb) : minDb}
-      aria-valuetext={valueText}
-    >
-      <div className="ui-meter-main">
-        <div className="ui-meter-track" aria-hidden="true">
-          <div className="ui-meter-zones" style={{ background: gradient }} />
-          <div
-            className="ui-meter-fill"
-            data-zone={zone}
-            style={{ background: gradient, clipPath: fillClip }}
-          />
-          {holdStyle && (
+    <>
+      <div
+        className={`ui-meter ui-meter--${orientation} ui-meter--${size}`}
+        data-zone={zone}
+        role="meter"
+        aria-label={label}
+        aria-valuemin={minDb}
+        aria-valuemax={0}
+        aria-valuenow={ariaValueNow(levelDb, minDb)}
+        aria-valuetext={valueText}
+      >
+        <div className="ui-meter-main">
+          <div className="ui-meter-track" aria-hidden="true">
             <div
-              className="ui-meter-hold"
-              style={holdStyle}
-              data-testid="peak-hold"
+              className="ui-meter-fill"
+              style={{ background: gradient, clipPath: fillClip }}
             />
+            {holdStyle && (
+              <div
+                className="ui-meter-hold"
+                style={holdStyle}
+                data-testid="peak-hold"
+              />
+            )}
+          </div>
+          {showScale && (
+            <div className="ui-meter-scale" aria-hidden="true">
+              {SCALE_TICKS_DB.filter((t) => t >= minDb).map((t) => (
+                <span
+                  key={t}
+                  className="ui-meter-tick"
+                  data-edge={tickEdge(t, minDb)}
+                  style={
+                    orientation === "horizontal"
+                      ? { left: `${dbToFraction(t, minDb) * 100}%` }
+                      : { bottom: `${dbToFraction(t, minDb) * 100}%` }
+                  }
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
           )}
         </div>
-        {showScale && (
-          <div className="ui-meter-scale" aria-hidden="true">
-            {SCALE_TICKS_DB.filter((t) => t >= minDb).map((t) => (
-              <span
-                key={t}
-                className="ui-meter-tick"
-                style={
-                  orientation === "horizontal"
-                    ? { left: `${dbToFraction(t, minDb) * 100}%` }
-                    : { bottom: `${dbToFraction(t, minDb) * 100}%` }
-                }
-              >
-                {t}
-              </span>
-            ))}
-          </div>
+        <div
+          className="ui-meter-clip"
+          data-lit={clipped}
+          data-testid="clip-led"
+          aria-hidden="true"
+        >
+          <span className="ui-meter-clip-led" />
+          <span className="ui-meter-clip-text">
+            {clipped ? "Clipped" : "Clip"}
+          </span>
+        </div>
+        {showNumeric && (
+          <span className="ui-meter-numeric" aria-hidden="true">
+            {formatDb(levelDb)}
+          </span>
         )}
       </div>
-      <div
-        className="ui-meter-clip"
-        data-lit={clipped}
-        data-testid="clip-led"
-        aria-hidden="true"
-      >
-        <span className="ui-meter-clip-led" />
-        <span className="ui-meter-clip-text">Clip</span>
-      </div>
-      {showNumeric && (
-        <span className="ui-meter-numeric" aria-hidden="true">
-          {formatDb(levelDb)}
-        </span>
-      )}
-    </div>
+      <span className="sr-only" role="status">
+        {clipped ? `${label}: clipping` : ""}
+      </span>
+    </>
   );
 }
