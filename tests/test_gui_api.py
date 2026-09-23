@@ -863,7 +863,7 @@ def test_api_session_state_roundtrip(minimal_project) -> None:
 
     from podcast_mcp.gui.server import create_app
     from podcast_mcp.models import load_project
-    from podcast_mcp.services.session_sync.service import publish_agent_play
+    from podcast_mcp.services.session_sync.viewer import publish_agent_play
 
     proj = load_project(minimal_project)
     publish_agent_play(

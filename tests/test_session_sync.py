@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from concurrent.futures import ThreadPoolExecutor
 
 from podcast_mcp.models import load_project
@@ -9,12 +8,13 @@ from podcast_mcp.services.session_sync.commands import SyncCommand
 from podcast_mcp.services.session_sync.service import (
     SessionSyncService,
     next_client_seq,
-    publish_agent_control,
+    read_session_state,
+    sync_db_path,
+)
+from podcast_mcp.services.session_sync.snapshot import flatten_for_api
+from podcast_mcp.services.session_sync.viewer import (
     publish_agent_play,
     publish_viewer_snapshot,
-    read_session_state,
-    session_meta,
-    sync_db_path,
 )
 from podcast_mcp.services.workspace import ProjectWorkspace
 
@@ -392,7 +392,6 @@ def test_post_session_command_http(minimal_project) -> None:
 
 def test_list_clients_expires_stale_presence(minimal_project) -> None:
     from podcast_mcp.services.session_sync.log import SyncStore
-    from podcast_mcp.services.session_sync.service import sync_db_path
 
     proj = load_project(minimal_project)
     store = SyncStore(sync_db_path(proj))
@@ -415,7 +414,6 @@ def test_list_clients_expires_stale_presence(minimal_project) -> None:
 
 def test_store_commands_after_and_close(minimal_project) -> None:
     from podcast_mcp.services.session_sync.log import SyncStore
-    from podcast_mcp.services.session_sync.service import sync_db_path
 
     proj = load_project(minimal_project)
     path = sync_db_path(proj)
@@ -659,7 +657,6 @@ def test_normalize_presence_meta_anchor_and_ui() -> None:
 
 def test_touch_client_merges_meta_and_followers(minimal_project) -> None:
     from podcast_mcp.services.session_sync.log import SyncStore
-    from podcast_mcp.services.session_sync.service import sync_db_path
 
     proj = load_project(minimal_project)
     store = SyncStore(sync_db_path(proj))
@@ -913,7 +910,7 @@ def test_viewer_snapshot_merge(minimal_project) -> None:
 
 
 def test_session_meta_missing_and_present(minimal_project) -> None:
-    meta = session_meta(minimal_project)
+    meta = SessionSyncService.open(minimal_project).meta()
     assert meta["exists"] is False
     proj = load_project(minimal_project)
     publish_agent_play(
@@ -924,7 +921,7 @@ def test_session_meta_missing_and_present(minimal_project) -> None:
         tier="premix",
         dry_run=True,
     )
-    meta2 = session_meta(minimal_project)
+    meta2 = SessionSyncService.open(minimal_project).meta()
     assert meta2["exists"] is True
     assert meta2["mtime_ns"] > 0
 
@@ -1035,39 +1032,25 @@ def test_track_id_and_mode_helpers(minimal_project) -> None:
     assert viewer["playhead_sec"] == 2.0
     assert viewer["server_seq"] >= 1
 
-    assert publish_agent_control(proj, {"playhead_sec": 3.0})["playhead_sec"] == 3.0
-    assert publish_agent_control(proj, {"is_playing": True})["is_playing"] is True
-    assert (
-        publish_agent_control(proj, {"audition_mode": "fx", "source": "processed"})["audition_mode"]
-        == "fx"
-    )
-    cleared = publish_agent_control(proj, {"region": None, "is_playing": False})
-    assert cleared["region"] is None
-    assert cleared["is_playing"] is False
-    # Clear region without is_playing key
-    publish_agent_control(proj, {"region": {"start_sec": 0.0, "end_sec": 1.0}})
-    only_clear = publish_agent_control(proj, {"region": None})
-    assert only_clear["region"] is None
-    regioned = publish_agent_control(
-        proj,
-        {
-            "region": {"start_sec": 1.0, "end_sec": 2.0},
-            "playhead_sec": 1.0,
-            "is_playing": True,
-            "query": "hi",
-        },
-    )
+    control = SessionControlService(ProjectWorkspace.open(minimal_project))
+    assert control.seek(3.0)["playhead_sec"] == 3.0
+    assert control.set_playing(True)["is_playing"] is True
+    assert control.set_mode("fx")["audition_mode"] == "fx"
+    selected = control.set_selection({"kind": "clip", "id": "c9"})
+    assert selected["selection"] == {"kind": "clip", "id": "c9"}
+    regioned = control.set_region(1.0, 2.0, playing=True, query="hi")
     assert regioned["region"]["end_sec"] == 2.0
     assert regioned["query"] == "hi"
-    muted = publish_agent_control(
-        proj, {"solo_tracks": {"host": True}, "viewer_mute": {"guest": True}}
-    )
+    assert regioned["is_playing"] is True
+    stopped = control.stop()
+    assert stopped["region"] is None
+    assert stopped["is_playing"] is False
+    # SessionControlService has no mute/solo facade; submit the typed command directly.
+    muted = SessionSyncService(proj).submit_control(
+        "SetMuteSolo", {"solo_tracks": {"host": True}, "viewer_mute": {"guest": True}}
+    )["snapshot"]
     assert muted["solo_tracks"] == {"host": True}
     assert muted["viewer_mute"] == {"guest": True}
-    # Fallback: playhead with extra ignored keys
-    assert publish_agent_control(proj, {"playhead_sec": 7.0, "tier": "x"})["playhead_sec"] == 7.0
-    # Empty patch returns current snapshot
-    assert publish_agent_control(proj, {})["playhead_sec"] == 7.0
 
 
 def test_read_empty_authority_returns_none(minimal_project) -> None:
@@ -1077,6 +1060,57 @@ def test_read_empty_authority_returns_none(minimal_project) -> None:
     svc = SessionSyncService(proj)
     svc.store.put_snapshot(0, empty_snapshot())
     assert read_session_state(proj) is None
+
+
+def test_state_or_none_missing_db(minimal_project) -> None:
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+    assert svc.state_or_none() is None
+    # Reading must not create sync.db as a side effect.
+    assert not sync_db_path(proj).exists()
+    assert svc.meta()["exists"] is False
+
+
+def test_state_or_none_empty_authority(minimal_project) -> None:
+    from podcast_mcp.services.session_sync.snapshot import empty_snapshot
+
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+    svc.store.put_snapshot(0, empty_snapshot())
+    assert sync_db_path(proj).is_file()
+    assert svc.state_or_none() is None
+    assert svc.meta()["exists"] is False
+
+
+def test_state_or_none_populated_snapshot(minimal_project) -> None:
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+    applied = svc.submit_control("SetPlayhead", {"playhead_sec": 4.0})
+    state = svc.state_or_none()
+    assert state is not None
+    assert state["playhead_sec"] == 4.0
+    assert state["server_seq"] == applied["server_seq"] >= 1
+    assert state["last_command_id"] == applied["command"]["command_id"]
+    via_fn = read_session_state(proj)
+    assert via_fn is not None
+    assert via_fn["last_command_id"] == state["last_command_id"]
+    meta = svc.meta()
+    assert meta["exists"] is True
+    assert meta["server_seq"] == state["server_seq"]
+
+
+def test_snapshot_has_no_legacy_alias_fields(minimal_project) -> None:
+    proj = load_project(minimal_project)
+    assert not sync_db_path(proj).exists()
+    svc = SessionSyncService(proj)
+    result = svc.submit_control("SetPlayhead", {"playhead_sec": 2.0})
+    raw = svc.store.get_snapshot()
+    assert raw is not None
+    for out in (flatten_for_api(raw, svc.store.list_clients()), svc.snapshot(), result["snapshot"]):
+        assert "revision" not in out
+        assert "command_id" not in out
+        assert out["last_command_id"] == result["command"]["command_id"]
+        assert out["server_seq"] == result["server_seq"] >= 1
 
 
 def test_viewer_snapshot_field_commands(minimal_project) -> None:

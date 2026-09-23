@@ -33,6 +33,14 @@ Client ──submit(command)──► SessionSyncService
 **`PlayOsAudio`** (real `podcast play` / MCP play with speakers): seek + highlight only — `is_playing=false` so the browser does not double-play.  
 **`AuditionInViewer`** (`dry_run=true`): region + browser transport.
 
+## Modules
+
+| Module | Role |
+|--------|------|
+| [`session_sync/service.py`](../src/podcast_mcp/services/session_sync/service.py) | `SessionSyncService` — the sync authority only (`submit`, `snapshot`, `state_or_none` / `meta`; `state_or_none` is the single "empty authority" check) |
+| [`session_sync/viewer.py`](../src/podcast_mcp/services/session_sync/viewer.py) | Blob adapters over that authority: `publish_viewer_snapshot` (`POST /api/session/state`) and `publish_agent_play` (`PlayService`) |
+| [`session_control.py`](../src/podcast_mcp/services/session_control.py) | `SessionControlService` — agent/CLI transport facade (seek, region, mode, selection, stop) |
+
 ## On disk
 
 | Path | Role |
@@ -64,7 +72,7 @@ Local DAW **Play** clears any leftover agent `playUntil` auto-stop so a prior au
 
 ## Presence plane
 
-Live roster, ghost cursors, selection, playhead, and viewport are **ephemeral**. They live only in the `clients.meta` JSON column of `artifacts/session/sync.db` — never in the command log, snapshot transport fields, or `session_state.json`.
+Live roster, ghost cursors, selection, playhead, and viewport are **ephemeral**. They live only in the `clients.meta` JSON column of `artifacts/session/sync.db` — never in the command log or snapshot transport fields.
 
 **Client → server** `Presence` frame (`type` must be the first JSON key for the relay prefix match):
 
@@ -134,7 +142,7 @@ Every GUI surface is classified once as **Look**, **Hear**, or **Do** (`presence
 - `seek_session_tool`, `set_session_*` → typed commands via `SessionControlService`  
 - `PlayService.play` → `PlayOsAudio` or `AuditionInViewer`
 
-**DAW first Snapshot:** apply agent transport (seek/region/mode) **before** recording `command_id` as applied — otherwise the client dedupe guard skips an in-flight agent play when a tab connects mid-command.
+**DAW first Snapshot:** apply agent transport (seek/region/mode) **before** recording `last_command_id` as applied — otherwise the client dedupe guard skips an in-flight agent play when a tab connects mid-command.
 
 ## Planes
 
