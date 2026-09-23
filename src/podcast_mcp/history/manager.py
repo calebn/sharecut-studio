@@ -41,12 +41,7 @@ class HistoryManager:
         self._store = ProjectStore(self.project_path)
 
     def _load_index(self, project: EpisodeProject) -> ProjectHistory:
-        if not project.history.is_empty():
-            return project.history
-        index_path = project.workspace_path() / "history" / "index.json"
-        if index_path.is_file():
-            data = json.loads(index_path.read_text(encoding="utf-8"))
-            project.history = ProjectHistory.model_validate(data)
+        self._store.adopt_history_index(project)
         return project.history
 
     def _save_index(self, project: EpisodeProject) -> None:

@@ -18,7 +18,6 @@ from pathlib import Path
 
 from podcast_mcp.engines.peaks import write_silent_peaks
 from podcast_mcp.models import load_project
-from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.models.episode import (
     Clip,
     CombinedTranscript,
@@ -28,6 +27,7 @@ from podcast_mcp.models.episode import (
     Transcript,
     TranscriptWord,
 )
+from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.project_store import ProjectStore
 from podcast_mcp.util.wav import (
     MAX_PCM_WAV_DATA_BYTES,

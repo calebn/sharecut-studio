@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from podcast_mcp.models import EpisodeProject, load_project, project_file_path, save_project
+from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.util.atomic_json import write_json_atomic
 
 
@@ -17,7 +18,7 @@ class ProjectStore:
 
     def load(self) -> EpisodeProject:
         project = load_project(self.project_path)
-        self._sync_history_index_to_project(project)
+        self.adopt_history_index(project)
         return project
 
     def commit(self, project: EpisodeProject) -> Path:
@@ -31,17 +32,23 @@ class ProjectStore:
         project.__dict__.update(loaded.model_dump())
         return project
 
-    def _sync_history_index_to_project(self, project: EpisodeProject) -> None:
+    def adopt_history_index(self, project: EpisodeProject) -> bool:
+        """Fill an empty in-memory history from ``history/index.json`` if one exists."""
         index_path = project.workspace_path() / "history" / "index.json"
-        if not project.history.is_empty():
+        if not project.history.is_empty() or not index_path.is_file():
+            return False
+        data = json.loads(index_path.read_text(encoding="utf-8"))
+        project.history = ProjectHistory.model_validate(data)
+        return True
+
+    def _sync_history_index_to_project(self, project: EpisodeProject) -> None:
+        """Mirror history to ``history/index.json``; an empty one adopts the index instead."""
+        if self.adopt_history_index(project):
+            return
+        index_path = project.workspace_path() / "history" / "index.json"
+        if index_path.parent.exists() or not project.history.is_empty():
             index_path.parent.mkdir(parents=True, exist_ok=True)
             write_json_atomic(index_path, project.history.model_dump(mode="json"))
-            return
-        if index_path.is_file():
-            data = json.loads(index_path.read_text(encoding="utf-8"))
-            from podcast_mcp.models.history import ProjectHistory
-
-            project.history = ProjectHistory.model_validate(data)
 
     def _mirror_transcript_cache(self, project: EpisodeProject) -> None:
         """Write-through optional caches; canonical data lives in episode.project.json."""
