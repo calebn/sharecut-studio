@@ -39,7 +39,7 @@ are in the compact transport Menu on Timeline, Text, or More.
 | **Two-finger tap** | Undo |
 | **Pinch** | Zoom the timeline in/out |
 | **Long-press** | Open the selection sheet for a comment or track, or correct a transcript word (hosts) |
-| **Swipe left on comment** | Resolve an open comment in the list (hosts). The card slides with your finger; **Undo** appears for a few seconds afterwards |
+| **Swipe left on comment** | Resolve an open comment in the list (hosts). The card slides with your finger; **Undo** appears for a few seconds afterwards (for the most recent one only) |
 | **Double-tap word** | Open word correction (hosts); closing it returns to your previous mode |
 
 A full list is in the app: **More → Gestures**.
