@@ -5,6 +5,8 @@ from __future__ import annotations
 import pytest
 
 from podcast_mcp.models import (
+    AutomationEnvelope,
+    AutomationPoint,
     Clip,
     EditDecision,
     EditDecisionType,
@@ -1157,3 +1159,75 @@ def test_submit_snapshot_dump_tags_resync_when_shell_fails(minimal_project, monk
     assert result["snapshot"]["resync"] is True
     assert int(result["snapshot"]["server_seq"]) >= 1
     assert result["command"]["payload"]["body"] == "note"
+
+
+def _set_envelope_command(expected, *, points=None, client_id="viewer"):
+    return DocumentCommand(
+        type="SetEnvelope",
+        payload={
+            "track_id": "host",
+            "points": points or [{"id": "new", "time": 0.0, "value": 1.0}],
+            "expected_points": expected,
+        },
+        client_id=client_id,
+        role="viewer",
+        client_seq=1,
+    )
+
+
+def test_document_set_envelope_baseline_ignores_pan_listed_first(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.project.automation_envelopes = [
+        AutomationEnvelope(
+            track_id="host",
+            parameter="pan",
+            points=[AutomationPoint(id="pan", time=0.0, value=-1.0)],
+        ),
+        AutomationEnvelope(
+            track_id="host", points=[AutomationPoint(id="vol", time=0.0, value=0.5)]
+        ),
+    ]
+    ws.save()
+    DocumentSyncService.open(minimal_project).submit(
+        _set_envelope_command([{"id": "vol", "time": 0.0, "value": 0.5}])
+    )
+    stored = ProjectWorkspace.open(minimal_project).project.automation_envelopes
+    assert [(e.parameter, [p.id for p in e.points]) for e in stored] == [
+        ("pan", ["pan"]),
+        ("volume", ["new"]),
+    ]
+
+
+def test_document_set_envelope_rejects_baseline_for_missing_envelope(minimal_project):
+    svc = DocumentSyncService.open(minimal_project)
+    with pytest.raises(DocumentConflictError, match="not applied"):
+        svc.submit(_set_envelope_command([{"id": "ghost", "time": 0.0, "value": 1.0}]))
+    assert ProjectWorkspace.open(minimal_project).project.automation_envelopes == []
+    assert svc.store.get_snapshot() is None
+
+
+def test_document_set_envelope_rejects_duplicate_baseline_ids():
+    with pytest.raises(ValueError, match="expected_points IDs must be unique"):
+        validate_payload(
+            "SetEnvelope",
+            {
+                "track_id": "host",
+                "points": [],
+                "expected_points": [
+                    {"id": "same", "time": 0.0, "value": 1.0},
+                    {"id": "same", "time": 1.0, "value": 1.0},
+                ],
+            },
+        )
+
+
+def test_document_set_envelope_caps_point_lists():
+    from podcast_mcp.services.document_sync.payloads import ENVELOPE_POINTS_MAX
+
+    too_many = [
+        {"id": f"p{i}", "time": float(i), "value": 1.0} for i in range(ENVELOPE_POINTS_MAX + 1)
+    ]
+    for key in ("points", "expected_points"):
+        payload = {"track_id": "host", "points": [], "expected_points": [], key: too_many}
+        with pytest.raises(ValueError, match="at most"):
+            validate_payload("SetEnvelope", payload)

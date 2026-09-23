@@ -9,7 +9,6 @@ from typing import Any
 from podcast_mcp.edits.comments import comments_for_view
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.services.document_sync.commands import DocumentCommand
-from podcast_mcp.services.document_sync.errors import DocumentConflictError
 from podcast_mcp.services.document_sync.handlers import apply_command
 from podcast_mcp.services.document_sync.projection_types import (
     ViewProjection,
@@ -175,9 +174,6 @@ class DocumentSyncService:
                 from podcast_mcp.services.document_sync.payloads import validate_payload
 
                 command.payload = validate_payload(command.type, command.payload)
-                self.ws.reload()
-                self.project = self.ws.project
-                self._check_envelope_baseline(command.payload)
             result_payload = self._apply(
                 command,
                 capabilities=capabilities,
@@ -214,31 +210,6 @@ class DocumentSyncService:
             }
         get_hub().publish(self._project_key, event)
         return {"ok": True, **event}
-
-    def _check_envelope_baseline(self, payload: dict[str, Any]) -> None:
-        """Reject a stale full-list envelope replacement before mutation/logging."""
-        track_id = str(payload["track_id"])
-        current = next(
-            (
-                envelope
-                for envelope in self.ws.project.automation_envelopes
-                if envelope.track_id == track_id
-            ),
-            None,
-        )
-        actual = {
-            point.id: (point.time, point.value)
-            for point in (current.points if current is not None else [])
-        }
-        expected_points = payload.get("expected_points") or []
-        expected = {
-            str(point["id"]): (float(point["time"]), float(point["value"]))
-            for point in expected_points
-        }
-        if len(expected) != len(expected_points) or expected != actual:
-            raise DocumentConflictError(
-                f"Envelope on track {track_id!r} changed since this edit started; refresh the envelope and retry."
-            )
 
     def publish_document_changed(self, *, projection: str = "shell") -> dict[str, Any]:
         """Fanout a document snapshot after an out-of-band project mutate."""

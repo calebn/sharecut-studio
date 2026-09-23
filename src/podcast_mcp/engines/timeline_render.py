@@ -138,7 +138,7 @@ def render_track_from_timeline(
 
     crossfade_curve = str(defaults.get("render", {}).get("crossfade_curve", "tri"))
     chain = next((c for c in project.processing_chains if c.track_id == track.id), None)
-    env = next((e for e in project.automation_envelopes if e.track_id == track.id), None)
+    env = project.volume_envelope_for(track.id)
     af = eng.build_track_filter(chain, env)
 
     timeline_edits = [e for e in project.edit_decisions if e.track_id == track.id]
@@ -435,7 +435,7 @@ def render_track_segment(
 
     crossfade_curve = str(defaults.get("render", {}).get("crossfade_curve", "tri"))
     chain = next((c for c in project.processing_chains if c.track_id == track.id), None)
-    env = next((e for e in project.automation_envelopes if e.track_id == track.id), None)
+    env = project.volume_envelope_for(track.id)
     af = eng.build_track_filter(chain, env)
     timeline_edits = [e for e in project.edit_decisions if e.track_id == track.id]
     sorted_clips = sorted(track_clips, key=lambda c: c.timeline_start)

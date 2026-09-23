@@ -31,7 +31,7 @@ def track_render_hash(project: EpisodeProject, track_id: str) -> str:
     """Fingerprint applied edits, clips, mix state for a track (stem/segment cache)."""
     track = project.track_by_id(track_id)
     chain = next((c for c in project.processing_chains if c.track_id == track_id), None)
-    env = next((e for e in project.automation_envelopes if e.track_id == track_id), None)
+    env = project.volume_envelope_for(track_id)
     edits = [
         {
             "id": e.id,
