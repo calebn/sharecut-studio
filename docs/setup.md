@@ -47,7 +47,7 @@ Optional next steps:
 podcast bootstrap --component all          # ffmpeg + whisper model + rnnoise (+ silero check)
 cd gui/web && npm ci && npm run build && cd ../..   # Sharecut Studio static assets
 make hooks                                          # lint-staged + check-only pre-commit hooks
-make worktree-setup                                 # per git worktree: hooks + venv (CI extras) + gui/web node_modules
+make worktree-setup                                 # per git worktree: hooks + venv (incl. pre-commit) + gui/web node_modules
 podcast gui --project /path/to/episode.project.json
 ```
 
@@ -92,7 +92,7 @@ podcast doctor
 | Extra | Adds | When you need it |
 |-------|------|------------------|
 | *(core)* | typer, faster-whisper, mcp, … | Always — `uv sync` with no extras |
-| `dev` | pytest, coverage, mypy, ruff, bandit, vulture, deptry | Running `make test` / `make lint-py` |
+| `dev` | pytest, coverage, mypy, ruff, bandit, vulture, deptry, pre-commit | Running `make test` / `make lint-py` and check-only commit hooks |
 | `bootstrap` | `static-ffmpeg` | `podcast bootstrap --component ffmpeg` without a system FFmpeg |
 | `gui` | fastapi, uvicorn, httpx, boto3, websockets | `podcast gui` / review share host |
 | `relay` | fastapi, uvicorn, websockets | `podcast-relay` edge process |
