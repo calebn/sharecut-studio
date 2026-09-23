@@ -113,6 +113,16 @@ const S_CI = {
   },
   required: ['state', 'head_sha'],
 }
+const S_CI_FIX = {
+  type: 'object',
+  properties: {
+    cause: { enum: ['pr', 'flaky', 'unrelated'], description: 'pr = caused by this PR diff (fixed and pushed); flaky = nondeterministic, failed jobs re-run; unrelated = broken on main / infra (nothing pushed)' },
+    ok: { type: 'boolean', description: 'cause=pr: fix pushed; cause=flaky: rerun queued' },
+    head_sha: { type: 'string' },
+    summary: { type: 'string' },
+  },
+  required: ['cause', 'ok', 'summary'],
+}
 const S_PUSH = {
   type: 'object',
   properties: { ok: { type: 'boolean' }, head_sha: { type: 'string' }, summary: { type: 'string' } },
@@ -242,21 +252,27 @@ function fixCi(issue, pr, branch, ci) {
 CI failed on ${REPO} PR #${pr} (branch ${branch}, head ${ci.head_sha}). Failing required checks: ${(ci.failing || []).join(', ')}.
 ${DETACHED(`origin/${branch}`)}
 ${SETUP}
-Read logs: \`gh run list -R ${REPO} --branch ${branch} --limit 10\` then \`gh run view <id> -R ${REPO} --log-failed\`.
-Fix the root cause (never skip/xfail tests, never lower coverage below 95%). Reproduce and verify with the failing tests only, plus ${VERIFY} Commit (conventional message), push to ${branch}. Return ok and the new head SHA.`,
-    { label: `ci-fix:${tag(issue)}`, phase: 'CI', model: M.worker, isolation: 'worktree', schema: S_PUSH },
+Read logs: \`gh run list -R ${REPO} --branch ${branch} --limit 10\` then \`gh run view <id> -R ${REPO} --log-failed\`. Compare with the PR diff (\`git diff origin/main...HEAD\`) and recent main runs (\`gh run list -R ${REPO} --branch main --limit 5\`).
+First classify the cause:
+- pr: this diff causes it → fix the root cause (never skip/xfail tests, never lower coverage below 95%), verify with the failing tests plus ${VERIFY} commit (conventional message), push to ${branch}, return ok=true and the new head SHA.
+- flaky: nondeterministic and the failing code is untouched by this PR → do not change code; \`gh run rerun <id> -R ${REPO} --failed\` for each failed run on the head; return ok=true.
+- unrelated: main itself is broken or infrastructure failed → change nothing; return ok=false with a summary.`,
+    { label: `ci-fix:${tag(issue)}`, phase: 'CI', model: M.worker, isolation: 'worktree', schema: S_CI_FIX },
   )
 }
 
 // Wait for green with bounded fix attempts. Returns {ok, head_sha, reason}.
 async function ensureGreen(issue, pr, branch, sha) {
   let ci = await waitCi(issue, pr, sha)
+  let note = ''
   for (let i = 0; ci && ci.state === 'fail' && i < CI_FIX_ATTEMPTS; i++) {
     const fix = await fixCi(issue, pr, branch, ci)
-    if (!fix || !fix.ok) break
-    ci = await waitCi(issue, pr, fix.head_sha)
+    if (!fix || !fix.ok) { note = fix ? `CI ${fix.cause}: ${fix.summary}` : ''; break }
+    if (fix.cause === 'flaky') log(`${tag(issue)} CI flaky (${fix.summary}); re-ran failed jobs`)
+    ci = await waitCi(issue, pr, fix.cause === 'pr' ? fix.head_sha : ci.head_sha)
   }
   if (!ci) return { ok: false, head_sha: sha, reason: 'CI watcher died' }
+  if (note && ci.state !== 'pass') return { ok: false, head_sha: ci.head_sha, reason: note }
   const ok = ci.state === 'pass'
   return { ok, head_sha: ci.head_sha, reason: ok ? '' : `CI ${ci.state}: ${(ci.failing || []).join(', ')}` }
 }
