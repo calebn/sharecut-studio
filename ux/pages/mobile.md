@@ -38,9 +38,9 @@ are in the compact transport Menu on Timeline, Text, or More.
 |---------|--------------|
 | **Two-finger tap** | Undo |
 | **Pinch** | Zoom the timeline in/out |
-| **Long-press** | Open the selection sheet for a clip, word, comment, or track |
-| **Swipe left on comment** | Resolve an open host comment |
-| **Double-tap word** | Open word correction |
+| **Long-press** | Open the selection sheet for a comment or track, or correct a transcript word (hosts) |
+| **Swipe left on comment** | Resolve an open comment in the list (hosts) |
+| **Double-tap word** | Open word correction (hosts); closing it returns to your previous mode |
 
 A full list is in the app: **More → Gestures**.
 

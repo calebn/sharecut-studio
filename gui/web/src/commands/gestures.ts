@@ -28,7 +28,7 @@ export const MOBILE_GESTURES: readonly GestureDef[] = [
     gesture: "Long-press",
     label: "Open inspector",
     description:
-      "Open the selection sheet for clips, words, comments, and tracks.",
+      "Open the selection sheet for clips, comments, and tracks; on a transcript word, open correction (hosts).",
   },
   {
     gesture: "Pinch",
@@ -38,12 +38,14 @@ export const MOBILE_GESTURES: readonly GestureDef[] = [
   {
     gesture: "Swipe left on comment",
     label: "Resolve",
-    description: "Swipe left on an open comment to resolve it.",
+    description:
+      "Hosts: swipe left on an open comment in the list to resolve it.",
   },
   {
     gesture: "Double-tap word",
-    label: "Correct word",
-    description: "Open the word correction sheet.",
+    commandIds: ["transcript.correctIntent"],
+    description:
+      "Open the word correction sheet (hosts). Tap seeks immediately; closing restores the previous mode.",
   },
 ];
 

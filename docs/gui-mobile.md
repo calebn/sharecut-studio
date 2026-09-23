@@ -71,17 +71,23 @@ Example: Clip selected → Related shows Copy; More reports no additional action
 
 ### Gestures
 
-Touch gestures for common actions, documented in the **Gestures** cheatsheet (More hub → Gestures). It is an app-level modal (outside inert app chrome) and can switch directly to **Keyboard shortcuts**; that dialog links back to Gestures without stacking. Two-finger Undo and pinch zoom remain available. A touch long-press on a clip, word, comment, or track selects it and opens the existing inspector sheet; movement, cancellation, and multi-touch abort it. Swipe left resolves an eligible open host comment without interfering with vertical scrolling, and touch double-tap on a transcript word opens correction while desktop double-click continues to seek. Native buttons remain available for every action; the cheatsheet lists only shipped gestures.
+Touch gestures for common actions, documented in the **Gestures** cheatsheet (More hub → Gestures). It is an app-level modal (outside inert app chrome) and can switch directly to **Keyboard shortcuts**; that dialog links back to Gestures without stacking. Two-finger Undo and pinch zoom remain available. Native buttons remain available for every action; the cheatsheet lists only shipped gestures. Gesture thresholds (hold time, ghost-click window, double-tap gap, swipe distances) live in one module, `gui/web/src/hooks/touchGestureTiming.ts`.
+
+- **Long-press** (`useLongPress`) selects a comment or track and opens the existing inspector sheet; on a transcript word it opens correction. Clips already select on pointerdown (a hold is just a tap there), so they have no separate recognizer and a hold never reselects or collapses a multi-selection. Movement, cancellation, and a second finger (even on an element that stops propagation) abort it. It fires on release and consumes the synthesized click; a press whose click never arrives is flushed by the next pointerdown rather than dropped. On coarse pointers, transcript words and comment headers set `user-select: none` / `-webkit-touch-callout: none`, and the native context menu is suppressed while a press is armed, so the OS selection UI does not claim the hold. Physical iOS/Android verification is still required; CDP touch in CI does not trigger native selection.
+- **Double-tap word**: the first tap seeks immediately (no added latency); a second tap on the same word within the double-tap gap opens correction. `.transcript-list` sets `touch-action: manipulation` so browser double-tap zoom cannot eat the second tap. Desktop double-click still seeks.
+- **Word correction from a gesture is scoped to that gesture**: it switches the panel to Correct only while the word sheet is open; closing restores the previous mode (and a Select range). Gestures only open correction for hosts with hydrated words — guests and unhydrated transcripts keep tap-to-seek and never enter Correct.
+- **Swipe left** resolves an open comment in the comments list (hosts only; opt-in via `swipeToResolve`, so embedded threads such as the pending-edit Ask thread never resolve from a stray drag). It gives up on vertical travel, must finish before a long-press would, and the card keeps `touch-action: pan-y pinch-zoom`. Controls inside the card (checkbox labels, links, inputs, reply rows) keep their own behavior.
+- In **More → Comments**, selecting a comment (tap, long-press, or posting a new one) opens the Inspector sheet, matching Listen. Other More destinations never open it.
 
 Two-finger Undo is active only while a project is loaded and the shared Undo command is available. Its recognizer yields to timeline pinch/rotation and rejects delayed, moving, or cancelled contacts so zooming does not also undo an edit.
 
 | Gesture | Command | Status |
 |---------|---------|--------|
 | Two-finger tap | Undo | Available |
-| Long-press | Select a clip, word, comment, or track and open its sheet | Available |
+| Long-press | Select a comment or track and open its sheet; correct a transcript word (hosts) | Available |
 | Pinch | Zoom in/out on timeline | Available |
 | Swipe left on open host comment | Resolve | Available |
-| Double-tap word | Correct word | Available |
+| Double-tap word | Correct word (hosts); first tap seeks | Available |
 
 ## Wireframes (ASCII)
 

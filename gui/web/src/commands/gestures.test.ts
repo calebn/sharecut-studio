@@ -29,5 +29,11 @@ describe("MOBILE_GESTURES", () => {
     expect(pinch && gestureLabel(pinch)).toBe(
       `${COMMANDS["view.zoomIn"].label} / ${COMMANDS["view.zoomOut"].label}`,
     );
+    const doubleTap = MOBILE_GESTURES.find(
+      (gesture) => gesture.gesture === "Double-tap word",
+    );
+    expect(doubleTap && gestureLabel(doubleTap)).toBe(
+      COMMANDS["transcript.correctIntent"].label,
+    );
   });
 });

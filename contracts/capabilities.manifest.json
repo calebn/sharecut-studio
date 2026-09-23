@@ -2081,7 +2081,8 @@
       "surfaces": {
         "command": "transcript.correctIntent",
         "gui": [
-          "transcript.correct"
+          "transcript.correct",
+          "mobileShell.gesture.doubleTapWord"
         ]
       },
       "omit": {
