@@ -18,6 +18,8 @@ const STRING_LITERAL_RE = /["'`]([^"'`\n]*)["'`]/g;
 const STORYBOOK_PACKAGE_RE = /^(?:storybook(?:\/|$)|@storybook\/)/;
 const STORIES_SPECIFIER_RE = /\.stories(?:\.[cm]?[jt]sx?)?(?:\?.*)?$/;
 const SOURCE_EXT_RE = /\.[cm]?[jt]sx?$/;
+/** Root build configs resolve `./src/x` to `../src/x`; map it back to src-relative `x`. */
+const FROM_WEB_ROOT_RE = /^\.\.\/src\//;
 
 const SUPPORT_TARGETS = new Set(
   [...STORY_SUPPORT_MODULES].map((rel) => rel.replace(SOURCE_EXT_RE, "")),
@@ -98,7 +100,11 @@ export function globCanMatchStories(patterns: string[]): boolean {
     });
 }
 
-/** Ways `rel` (an app file under src/) could pull stories, Storybook, or test-only modules into the bundle. */
+/**
+ * Ways `rel` could pull stories, Storybook, or test-only modules into the
+ * bundle. `rel` is src-relative for app files, or `../<name>` for a root
+ * build config (gui/web/*.config.*).
+ */
 export function storyLeaks(rel: string, text: string): string[] {
   const leaks: string[] = [];
   for (const spec of importSpecifiers(text)) {
@@ -109,6 +115,7 @@ export function storyLeaks(rel: string, text: string): string[] {
     if (spec.startsWith(".")) {
       const target = posix
         .normalize(posix.join(posix.dirname(rel), spec))
+        .replace(FROM_WEB_ROOT_RE, "")
         .replace(SOURCE_EXT_RE, "");
       if (SUPPORT_TARGETS.has(target)) {
         leaks.push(`${rel}: imports story support ${spec}`);

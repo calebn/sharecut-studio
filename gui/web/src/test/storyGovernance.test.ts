@@ -80,6 +80,13 @@ describe("storyLeaks", () => {
     ["App.tsx", 'import { a } from "./ui/Button.test";', 1],
     ["App.tsx", 'import { t } from "./testing/util";', 0],
     ["App.tsx", 'import { x } from "./storybookHelpers";', 0],
+    [
+      "../vite.config.ts",
+      'import { r } from "./src/record/recordStoryDecorator";',
+      1,
+    ],
+    ["../vite.config.ts", 'import { m } from "./src/test/fixtures";', 1],
+    ["../vite.config.ts", 'import { b } from "./src/ui/Button";', 0],
   ] as const)("%s / %s -> %i leaks", (rel, src, expected) => {
     expect(storyLeaks(rel, src)).toHaveLength(expected);
   });
