@@ -7,13 +7,35 @@ import {
 } from "./cleanupManifest";
 import { committedE2eProjectPath, repoRoot } from "./env";
 
-const SQLITE = new Set(["sync.db", "sync.db-wal", "sync.db-shm"]);
-// Generated, gitignored output that a fresh workspace regenerates on demand.
-// review/ in particular grows unbounded (one mix.wav per share ever created
-// against the committed fixture) and was observed to push this synchronous
-// copy past a slow-machine test timeout once the fixture had accumulated
-// months of local review shares.
-const SKIP_DIRS = new Set(["history", "_build", ".git", "export", "review"]);
+// Workspace copy rule: skip generated output and per-machine review/share
+// state, keeping only committed inputs plus artifacts/peaks/. Source of truth is
+// tests/fixtures/aligned_dialogue/.gitignore (parity enforced in
+// liveProject.test.ts); Python's WORKSPACE_COPY_IGNORE in
+// src/podcast_mcp/project_io.py is stricter and skips all of artifacts/.
+const SQLITE_FILES = new Set(["sync.db", "sync.db-wal", "sync.db-shm"]);
+const SKIP_ANY_DEPTH = new Set([".git"]);
+const SKIP_TOP_LEVEL = new Set(["history", "export", "_build"]);
+const ARTIFACTS_ALLOW = new Set(["peaks"]);
+
+/** Whether a path relative to the fixture workspace root belongs in the copy. */
+export function shouldCopyWorkspaceEntry(relativePath: string): boolean {
+  if (relativePath === "") {
+    return true;
+  }
+  const parts = relativePath.split(/[\\/]/);
+  const name = parts[parts.length - 1];
+  if (SQLITE_FILES.has(name) || SKIP_ANY_DEPTH.has(name)) {
+    return false;
+  }
+  const [top, child] = parts;
+  if (SKIP_TOP_LEVEL.has(top)) {
+    return false;
+  }
+  if (top === "artifacts" && child !== undefined) {
+    return ARTIFACTS_ALLOW.has(child);
+  }
+  return true;
+}
 
 /** Vitest timeout for tests that copy the committed large fixture. */
 export const E2E_FIXTURE_COPY_TEST_TIMEOUT_MS = 20_000;
@@ -39,7 +61,15 @@ export interface RelocatedE2eProject {
   workspaceDir: string;
 }
 
-/** Copy the committed fixture into a disposable workspace with its own state. */
+/**
+ * Copy the committed fixture into a disposable workspace with its own state.
+ *
+ * The copy drops all generated artifacts/ state except peaks/. A locally
+ * modified fixture whose review.versions or render.artifacts entries point at
+ * artifacts/ audio will not resolve that audio in the copy; restore the clean
+ * committed state with
+ * `git checkout -- tests/fixtures/aligned_dialogue/episode.project.json`.
+ */
 export function createRelocatedE2eProject(
   prefix = "sharecut-e2e-",
   registerWorkspace: (
@@ -54,7 +84,7 @@ export function createRelocatedE2eProject(
     fs.cpSync(sourceRoot, workspaceDir, {
       recursive: true,
       filter: (item) =>
-        !SQLITE.has(path.basename(item)) && !SKIP_DIRS.has(path.basename(item)),
+        shouldCopyWorkspaceEntry(path.relative(sourceRoot, item)),
     });
     const projectPath = path.join(workspaceDir, "episode.project.json");
     relocateWorkspaceDir(projectPath, workspaceDir);
