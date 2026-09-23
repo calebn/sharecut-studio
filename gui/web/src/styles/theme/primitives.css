@@ -22,42 +22,52 @@
   /* -- Neutral (warm grays) ------------------------------------------- */
   --primitive-neutral-950: #080706;
   --primitive-neutral-900: #0f0e0c;
-  --primitive-neutral-850: #191816; /* twin: --color-bg-canvas (dark) */
+  --primitive-neutral-875: #0c0e0e; /* dark sunken surface */
+  --primitive-neutral-850: #111313; /* twin: --color-bg-canvas (dark) */
   --primitive-neutral-800: #1a1916;
-  --primitive-neutral-750: #22211e; /* twin: --color-bg-surface (dark) */
-  --primitive-neutral-700: #2a2925; /* twin: --color-bg-elevated (dark) */
+  --primitive-neutral-775: #171a19; /* inverted light surface */
+  --primitive-neutral-750: #181b1a; /* twin: --color-bg-surface (dark) */
+  --primitive-neutral-700: #202322; /* twin: --color-bg-elevated (dark) */
   --primitive-neutral-600: #3a2e24;
-  --primitive-neutral-550: #4a4842; /* twin: --color-border (dark) */
+  --primitive-neutral-550: #383d3b; /* twin: --color-border (dark) */
   --primitive-neutral-500: #5a574e; /* twin: --color-text-secondary (light) */
-  --primitive-neutral-450: #6f6b62; /* twin: --color-border-strong (light) */
-  --primitive-neutral-400: #7a7870; /* twin: --color-border-strong (dark) */
-  --primitive-neutral-300: #a8a39a; /* twin: --color-text-secondary (dark) */
+  --primitive-neutral-450: #8e918d; /* twin: --color-border-strong (light) */
+  --primitive-neutral-400: #69706c; /* twin: --color-border-strong (dark) */
+  --primitive-neutral-350: #8f9691; /* faint dark captions */
+  --primitive-neutral-300: #b6bbb6; /* twin: --color-text-secondary (dark) */
   --primitive-neutral-250: #c5c0b6;
-  --primitive-neutral-200: #cfcabe; /* twin: --color-border (light) */
+  --primitive-neutral-200: #c9c6be; /* twin: --color-border (light) */
   --primitive-neutral-150: #d6d0c4;
-  --primitive-neutral-100: #e2ddd2;
+  --primitive-neutral-100: #e9e5dc; /* light sunken surface */
   --primitive-neutral-75: #f3e8d8;
-  --primitive-neutral-50: #f4f1ea; /* twin: --color-text-primary (dark) */
-  --primitive-neutral-40: #f7f4ee; /* twin: --color-bg-canvas (light) */
-  --primitive-neutral-25: #fcfbf8; /* twin: --color-bg-surface (light) */
-  --primitive-neutral-15: #fffdf9; /* twin: --color-bg-elevated (light) */
+  --primitive-neutral-50: #f1efe8; /* twin: --color-text-primary (dark) */
+  --primitive-neutral-40: #f4f1eb; /* twin: --color-bg-canvas (light) */
+  --primitive-neutral-25: #fffdf9; /* twin: --color-bg-surface (light) */
+  --primitive-neutral-15: #ffffff; /* twin: --color-bg-elevated (light) */
 
   /* -- Orange (brand accent family) ------------------------------------ */
-  --primitive-orange-300: #e8a45a; /* twin: --color-accent (dark) */
+  --primitive-orange-250: #ff6d48; /* twin: --color-accent (dark) */
+  --primitive-orange-300: #e8a45a;
   --primitive-orange-400: #e88c5a;
+  --primitive-orange-450: #df4b28; /* twin: --color-accent (light) */
   --primitive-orange-500: #c46a30;
-  --primitive-orange-600: #b45c28; /* twin: --color-accent-solid (dark) */
-  --primitive-orange-650: #a85a24; /* twin: --color-accent (light) */
+  --primitive-orange-600: #b45c28;
+  --primitive-orange-650: #a85a24;
+  --primitive-orange-675: #c33b1f; /* twin: --color-accent-solid (light) */
   --primitive-orange-700: #8a4a20;
+  --primitive-orange-750: #b13a1e; /* small accent text on light surfaces */
   --primitive-orange-800: #8a3208;
 
   /* -- Amber (warning / marker family) --------------------------------- */
   --primitive-amber-250: #ffb74d;
   --primitive-amber-300: #e8d44d;
+  --primitive-amber-350: #f0b45f;
   --primitive-amber-400: #e8a838;
   --primitive-amber-500: #c4a020;
   --primitive-amber-600: #c4841a;
   --primitive-amber-700: #b89a10;
+  --primitive-amber-750: #a55b00;
+  --primitive-amber-150: #f6e6c9;
 
   /* -- Red (danger family) --------------------------------------------- */
   --primitive-red-400: #e85d5d;
@@ -100,6 +110,10 @@
   --primitive-teal-400: #7ad4c8;
   --primitive-teal-600: #2a9a8e;
   --primitive-teal-700: #0b7a72;
+  --primitive-teal-675: #0d7e75;
+  --primitive-teal-250: #64c9bc;
+  --primitive-teal-100: #dcefeb;
+  --primitive-teal-850: #163d39;
 
   /* -- Brown (clip dialogue-2) ----------------------------------------- */
   --primitive-brown-500: #a07a60;

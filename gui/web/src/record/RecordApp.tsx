@@ -86,7 +86,7 @@ export function RecordApp({ token }: { token: string }) {
   }, [deviceId, token]);
 
   const producer = bootstrap?.role === "producer";
-  const heading = producer ? "Producer — not recorded" : "Join the recording";
+  const heading = producer ? "Producer (not recorded)" : "Join the recording";
   const episodeName = bootstrap?.episode.name.trim() ?? "";
 
   useEffect(() => {
@@ -94,7 +94,7 @@ export function RecordApp({ token }: { token: string }) {
       return;
     }
     const previous = document.title;
-    document.title = episodeName ? `${heading} — ${episodeName}` : heading;
+    document.title = episodeName ? `${heading} | ${episodeName}` : heading;
     return () => {
       document.title = previous;
     };

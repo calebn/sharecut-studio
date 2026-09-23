@@ -26,9 +26,24 @@
   overflow: hidden;
   padding: var(--space-5) var(--space-5) var(--space-6);
   border-radius: var(--radius-xl);
-  background: var(--bg-panel);
+  background: var(--color-bg-overlay);
   color: var(--text);
-  box-shadow: 0 0.75rem 2.5rem var(--shadow);
+  border: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-modal);
+  backdrop-filter: blur(0.5rem);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .command-palette-panel {
+    animation: palette-enter var(--motion-panel) var(--motion-ease-out) both;
+  }
+}
+
+@keyframes palette-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
 }
 
 .command-palette-header {
@@ -51,6 +66,7 @@
 .command-palette-header h2 {
   margin: 0;
   font-size: var(--font-size-heading);
+  font-family: var(--font-family-display);
 }
 
 .command-palette-hint {
@@ -249,7 +265,11 @@
 }
 
 .share-dialog-empty {
-  margin: var(--space-2) 0 var(--space-4);
+  margin: var(--space-3) 0 var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-sunken);
   color: var(--text-muted);
 }
 

@@ -259,7 +259,7 @@ export function MarkerLane({
               c.resolved ? "resolved" : null,
             ]
               .filter(Boolean)
-              .join(" — ");
+              .join(" · ");
             return (
               <button
                 key={c.id}

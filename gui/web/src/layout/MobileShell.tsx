@@ -27,7 +27,7 @@ import { useDaw } from "../state/useDaw";
 import { TimelineView } from "../timeline/TimelineView";
 import { TrackHeadersColumn } from "../tracks/TrackHeadersColumn";
 import type { PresenceTab } from "../types/session";
-import { BottomSheet, CommandButton, ToggleButton } from "../ui";
+import { BottomSheet, CommandButton, Icon, ToggleButton } from "../ui";
 import { isPipelineSlotBusy, pipelineChipOpensPanel } from "../utils/pipeline";
 import { staleRenderBreakdown } from "../utils/staleRender";
 import { formatTimecodePair } from "../utils/time";
@@ -103,7 +103,7 @@ function MoreHub({ guestShare }: { guestShare: boolean }) {
         <div className="mobile-more-settings">
           {emptySession ? (
             <p className="mobile-ingest-hint">
-              No tracks yet — Import Audio adds one dialogue track per file.
+              No tracks yet. Import Audio adds one dialogue track per file.
             </p>
           ) : null}
           <CommandButton commandId="media.import">Import Audio…</CommandButton>
@@ -168,7 +168,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
             aria-label="Stop"
             disabled
           >
-            ■
+            <Icon name="stop" />
           </CommandButton>
           <span className="timecode">{formatTimecodePair(0, 0)}</span>
         </div>
@@ -200,9 +200,10 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
           bare
           commandId="transport.stop"
           className="stop-btn"
+          aria-label="Stop"
           {...presenceAnchorProps(presenceAnchor("transport", "stop"))}
         >
-          ■
+          <Icon name="stop" />
         </CommandButton>
         <span className="timecode">
           {formatTimecodePair(playheadSec, duration)}

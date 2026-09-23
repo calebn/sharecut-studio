@@ -212,7 +212,7 @@ export function applyAllSummary(
   const skipped = Math.max(0, listed - eligible);
   const confirm =
     skipped > 0
-      ? `Apply ${eligible} of ${listed} — ${skipped} skipped as harsh`
+      ? `Apply ${eligible} of ${listed}; ${skipped} skipped as harsh`
       : `Apply ${eligible} of ${listed}`;
   return { apply: eligible, skipped, confirm };
 }

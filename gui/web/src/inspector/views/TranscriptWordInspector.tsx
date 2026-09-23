@@ -163,7 +163,9 @@ export function TranscriptWordInspector({
     >
       <DefinitionList>
         <DefItem label="Confidence">
-          {word.confidence != null ? word.confidence.toFixed(2) : "—"}
+          {word.confidence != null
+            ? word.confidence.toFixed(2)
+            : "Not available"}
           {lowConf ? " (low)" : ""}
         </DefItem>
         <DefItem label="Suppressed">{suppressed ? "yes" : "no"}</DefItem>

@@ -8,7 +8,7 @@
  * Mod+chords (e.g. history undo) are an OS-aware exception to bare-key tool keys.
  *
  * Cheatsheet UI can render {@link keymapByCategory}. Dispatch goes through
- * commands/execute — never scatter key strings in handlers.
+ * commands/execute: never scatter key strings in handlers.
  */
 
 import type { ContextPredicateId } from "../commands/types";
@@ -39,7 +39,7 @@ export type KeymapCommand = {
   requireMod?: boolean;
   /** true = Shift required; false = Shift excluded; omit = Shift optional. */
   requireShift?: boolean;
-  /** Keyboard when-clause — must match command catalog when for that id. */
+  /** Keyboard when-clause: must match command catalog when for that id. */
   when: ContextPredicateId;
   notes?: string;
 };
@@ -175,7 +175,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireMod: true,
     requireShift: false,
     when: "always",
-    notes: "Mod+ArrowLeft — Home alias for laptops",
+    notes: "Mod+ArrowLeft: Home alias for laptops",
   },
   {
     id: "navigation.goToStart",
@@ -195,7 +195,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireMod: true,
     requireShift: false,
     when: "always",
-    notes: "Mod+ArrowRight — End alias for laptops",
+    notes: "Mod+ArrowRight: End alias for laptops",
   },
   {
     id: "navigation.goToEnd",
@@ -259,7 +259,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireMod: true,
     requireShift: false,
     when: "canApplyPass12",
-    notes: "Mod+V — same-track at playhead",
+    notes: "Mod+V: same-track at playhead",
   },
   {
     id: "tighten.applyHit",
@@ -268,7 +268,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     keys: ["Enter"],
     bareKey: true,
     when: "tightenPanelOpen",
-    notes: "Enter — selected tighten hit",
+    notes: "Enter: selected tighten hit",
   },
   {
     id: "tighten.skipHit",
@@ -277,7 +277,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     keys: ["Backspace"],
     bareKey: true,
     when: "tightenPanelOpen",
-    notes: "Backspace — selected tighten hit",
+    notes: "Backspace: selected tighten hit",
   },
   {
     id: "tighten.applyAllSafe",
@@ -288,7 +288,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireMod: true,
     requireShift: true,
     when: "tightenPanelOpen",
-    notes: "Mod+Shift+Enter — skip harsh when Avoid harsh cuts is on",
+    notes: "Mod+Shift+Enter: skip harsh when Avoid harsh cuts is on",
   },
   {
     id: "tighten.previewHit",
@@ -297,7 +297,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     keys: ["P"],
     bareKey: true,
     when: "tightenPanelOpen",
-    notes: "P — Suggested skip when possible",
+    notes: "P: Suggested skip when possible",
   },
   {
     id: "track.remove",
@@ -306,7 +306,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     keys: ["Backspace", "Delete"],
     bareKey: true,
     when: "trackInspectorSelected",
-    notes: "Before edit.delete — inspector track selection only",
+    notes: "Before edit.delete: inspector track selection only",
   },
   {
     id: "track.moveUp",
@@ -356,7 +356,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireMod: true,
     requireShift: false,
     when: "canSuggestStructural",
-    notes: "Mod+K — cut at playhead",
+    notes: "Mod+K: cut at playhead",
   },
   {
     id: "track.selectAll",
@@ -367,7 +367,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireMod: true,
     requireShift: false,
     when: "timelineFocused",
-    notes: "Mod+A — Logic-style track targeting",
+    notes: "Mod+A: Logic-style track targeting",
   },
   {
     id: "track.deselectAll",
@@ -378,7 +378,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireMod: true,
     requireShift: true,
     when: "timelineFocused",
-    notes: "Mod+Shift+A — Logic-style; empty targeting",
+    notes: "Mod+Shift+A: Logic-style; empty targeting",
   },
   {
     id: "track.muteToggle",
@@ -396,7 +396,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: true,
     when: "recordPanelOpen",
     notes:
-      "M — live marker while the record panel is open; with the panel closed, M still mutes the targeted track",
+      "M: live marker while the record panel is open; with the panel closed, M still mutes the targeted track",
   },
   {
     id: "track.soloToggle",
@@ -441,7 +441,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: true,
     requireShift: true,
     when: "timelineFocused",
-    notes: "Shift+ArrowUp — timeline focused",
+    notes: "Shift+ArrowUp: timeline focused",
   },
   {
     id: "view.waveformZoomOut",
@@ -451,7 +451,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: true,
     requireShift: true,
     when: "timelineFocused",
-    notes: "Shift+ArrowDown — timeline focused",
+    notes: "Shift+ArrowDown: timeline focused",
   },
   {
     id: "ui.toggleCommandPalette",
@@ -471,7 +471,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireMod: true,
     requireShift: false,
     when: "canRefreshMix",
-    notes: "Mod+B — rebuild stems/premix when host or Docs Editor",
+    notes: "Mod+B: rebuild stems/premix when host or Docs Editor",
   },
   {
     id: "export.bounce",
@@ -482,7 +482,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireMod: true,
     requireShift: true,
     when: "hostProjectLoaded",
-    notes: "Mod+Shift+B — bounce dialog (export/bounces/)",
+    notes: "Mod+Shift+B: bounce dialog (export/bounces/)",
   },
   {
     id: "export.deliverables",
@@ -493,7 +493,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireMod: true,
     requireShift: true,
     when: "hostProjectLoaded",
-    notes: "Mod+Shift+E — mastered export/ via PipelineService",
+    notes: "Mod+Shift+E: mastered export/ via PipelineService",
   },
   {
     id: "project.new",
@@ -515,7 +515,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireMod: true,
     requireShift: false,
     when: "canManageProjects",
-    notes: "Mod+O — OS dialog via local engine; paste path fallback",
+    notes: "Mod+O: OS dialog via local engine; paste path fallback",
   },
   {
     id: "track.add",
@@ -537,7 +537,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireMod: true,
     requireShift: false,
     when: "canIngestMedia",
-    notes: "Mod+I — Menu or drop on arrange",
+    notes: "Mod+I: Menu or drop on arrange",
   },
 ] as const;
 

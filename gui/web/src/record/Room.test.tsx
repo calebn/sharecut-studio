@@ -42,7 +42,7 @@ describe("Room", () => {
       screen.getByRole("heading", { name: "Live comments" }),
     ).toBeInTheDocument();
     expect(screen.queryByText(LOCAL_KEEPER_COPY)).not.toBeInTheDocument();
-    expect(screen.getByText("REC — local capture failed")).toBeInTheDocument();
+    expect(screen.getByText("REC: local capture failed")).toBeInTheDocument();
     expect(screen.queryByText(HEARING_COPY)).not.toBeInTheDocument();
     expect(screen.getByText(/keeper failed/)).toBeInTheDocument();
     await userEvent.click(

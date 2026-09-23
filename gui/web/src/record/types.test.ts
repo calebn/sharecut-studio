@@ -17,7 +17,7 @@ const base = recordSnapshot({
 describe("hostReconnectPauseCopy", () => {
   it("rounds the offline gap to whole seconds", () => {
     expect(hostReconnectPauseCopy(15_400)).toBe(
-      "Paused — the host was offline for 15s. Resume when everyone is ready.",
+      "Paused: the host was offline for 15s. Resume when everyone is ready.",
     );
   });
 
@@ -154,7 +154,7 @@ describe("hostUploadLine", () => {
     );
     expect(hostUploadLine("Bo", true, 1, 1, true)).toBe("Bo: landed.");
     expect(hostUploadLine("Bo", true, 1, 1, true, true)).toBe(
-      "Bo: landing failed — host must retry.",
+      "Bo: landing failed: host must retry.",
     );
   });
 });

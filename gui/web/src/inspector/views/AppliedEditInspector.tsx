@@ -64,7 +64,7 @@ export function AppliedEditInspector({ rec }: { rec: AppliedEditRecord }) {
     >
       <DefinitionList>
         <DefItem label="Operation">{rec.operation}</DefItem>
-        <DefItem label="Reason">{rec.reason ?? "—"}</DefItem>
+        <DefItem label="Reason">{rec.reason ?? "Not provided"}</DefItem>
         <DefItem label="At">{rec.applied_at}</DefItem>
         {rec.source_start != null ? (
           <DefItem label="Source">
@@ -78,7 +78,7 @@ export function AppliedEditInspector({ rec }: { rec: AppliedEditRecord }) {
         ) : null}
         {!canRestore ? (
           <DefItem label="Restore">
-            Unavailable (no source clocks) — use History undo
+            Unavailable (no source clocks). Use History undo
           </DefItem>
         ) : null}
         {rec.boundary_mode ? (

@@ -46,7 +46,7 @@ Other values lint should not swallow:
 | `font-weight` (`400`/`500`/`600`/`700`) | Small closed set; not a color/space theme |
 | `letter-spacing` in `em` | Relative to glyphs |
 | `opacity` | Often a one-off fade; tokenize only if a named mute recipe repeats |
-| `transition` / `duration` | No motion scale yet |
+| `transition` / `duration` | Use `--motion-hover/toggle/panel/state` and `--motion-ease-out` for chrome; keep animation under `prefers-reduced-motion: no-preference` |
 | `box-shadow` offsets | Shape, not inset; colors in the shadow still `var(--…)` |
 | `z-index` | Prefer `--z-*` when stacking with the mixer; raw `0`/`auto` OK |
 | Canvas `left` / `width` / `height` in TS | Time × zoom math, not chrome |

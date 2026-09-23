@@ -37,9 +37,9 @@ export function RecIndicator({
   let label = "Waiting for host";
   if (snapshot.state === "recording") {
     label = captureFailed
-      ? "REC — local capture failed"
+      ? "REC: local capture failed"
       : capturePending
-        ? "REC — waiting for microphone"
+        ? "REC: waiting for microphone"
         : "REC";
   } else if (snapshot.state === "paused") {
     label = "PAUSED";

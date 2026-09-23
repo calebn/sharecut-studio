@@ -217,7 +217,7 @@ export function StudioShell({ guestShare = false }: { guestShare?: boolean }) {
                     role="status"
                   >
                     <p>
-                      Drop stems here — one file per speaker. Import is also
+                      Drop stems here. Use one file per speaker. Import is also
                       under Menu (Mod+I).
                     </p>
                     <button

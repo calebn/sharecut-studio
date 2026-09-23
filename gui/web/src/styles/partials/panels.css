@@ -308,7 +308,10 @@
 
 .comments-empty {
   color: var(--text-dim);
-  padding: var(--space-3) 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-sunken);
 }
 
 .loading-screen {
@@ -1208,7 +1211,11 @@ button.history-row {
 }
 
 .tighten-empty {
-  margin: 0;
+  margin: var(--space-3) 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-sunken);
   color: var(--text-dim);
 }
 

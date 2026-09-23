@@ -2291,7 +2291,7 @@
     {
       "id": "daw.view.cutAwayWord",
       "label": "Cut-away word",
-      "tooltip": "Cut away \u2014 not in the mix \u00b7 drag nearby boundary to restore",
+      "tooltip": "Cut away: not in the mix \u00b7 drag nearby boundary to restore",
       "service": "Sharecut Studio UI over edit_boundaries",
       "industry_standard_key": false,
       "gates": [

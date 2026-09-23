@@ -2,7 +2,7 @@ import type { CommandDef } from "./types";
 
 /**
  * Full UX command catalog (with or without keybindings).
- * Key strings live in keymap/registry.ts — keep ids aligned.
+ * Key strings live in keymap/registry.ts: keep ids aligned.
  */
 export const COMMANDS: Record<string, CommandDef> = {
   "transport.togglePlay": {
@@ -134,7 +134,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "navigation",
     label: "Go to start",
     when: "always",
-    notes: "Home or Mod+ArrowLeft — seek playhead to 0",
+    notes: "Home or Mod+ArrowLeft: seek playhead to 0",
     breaksFollow: true,
   },
   "navigation.goToEnd": {
@@ -142,7 +142,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "navigation",
     label: "Go to end",
     when: "always",
-    notes: "End or Mod+ArrowRight — seek playhead to session end",
+    notes: "End or Mod+ArrowRight: seek playhead to session end",
     breaksFollow: true,
   },
   "edit.bladeCut": {
@@ -170,77 +170,77 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "edit",
     label: "Delete clip",
     when: "canSuggestStructural",
-    notes: "Backspace/Delete — selected clip (gap left)",
+    notes: "Backspace/Delete: selected clip (gap left)",
   },
   "edit.clearSelection": {
     id: "edit.clearSelection",
     category: "edit",
     label: "Clear selection",
     when: "hasInspectorSelection",
-    notes: "Escape — clear inspector selection (not track targeting)",
+    notes: "Escape: clear inspector selection (not track targeting)",
   },
   "edit.rippleDelete": {
     id: "edit.rippleDelete",
     category: "edit",
     label: "Ripple delete clip",
     when: "canSuggestStructural",
-    notes: "Mod+Backspace — selected clip (close gap)",
+    notes: "Mod+Backspace: selected clip (close gap)",
   },
   "edit.copy": {
     id: "edit.copy",
     category: "edit",
     label: "Copy",
     when: "hasProject",
-    notes: "Mod+C — clip or transcript range → session clipboard",
+    notes: "Mod+C: clip or transcript range → session clipboard",
   },
   "edit.cut": {
     id: "edit.cut",
     category: "edit",
     label: "Cut",
     when: "canApplyPass12",
-    notes: "Mod+X — copy then ripple-delete range (host/edit)",
+    notes: "Mod+X: copy then ripple-delete range (host/edit)",
   },
   "edit.paste": {
     id: "edit.paste",
     category: "edit",
     label: "Paste",
     when: "canApplyPass12",
-    notes: "Mod+V — duplicate clipboard at playhead (same-track)",
+    notes: "Mod+V: duplicate clipboard at playhead (same-track)",
   },
   "track.selectAll": {
     id: "track.selectAll",
     category: "edit",
     label: "Select all tracks",
     when: "timelineFocused",
-    notes: "Mod+A — target every track for blade / mute / solo",
+    notes: "Mod+A: target every track for blade / mute / solo",
   },
   "track.deselectAll": {
     id: "track.deselectAll",
     category: "edit",
     label: "Deselect all tracks",
     when: "timelineFocused",
-    notes: "Mod+Shift+A — empty targeting (blade all dialogue)",
+    notes: "Mod+Shift+A: empty targeting (blade all dialogue)",
   },
   "track.muteToggle": {
     id: "track.muteToggle",
     category: "edit",
     label: "Toggle track mute",
     when: "hasProject",
-    notes: "M — viewer mute for selected track (Args: { trackId? })",
+    notes: "M: viewer mute for selected track (Args: { trackId? })",
   },
   "track.soloToggle": {
     id: "track.soloToggle",
     category: "edit",
     label: "Toggle track solo",
     when: "hasProject",
-    notes: "S — viewer solo for selected track (Args: { trackId? })",
+    notes: "S: viewer solo for selected track (Args: { trackId? })",
   },
   "view.zoomIn": {
     id: "view.zoomIn",
     category: "view",
     label: "Zoom in",
     when: "timelineFocused",
-    notes: "= / + — timeline focused",
+    notes: "= / +: timeline focused",
     breaksFollow: true,
   },
   "view.zoomOut": {
@@ -248,7 +248,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "view",
     label: "Zoom out",
     when: "timelineFocused",
-    notes: "- — timeline focused",
+    notes: "-: timeline focused",
     breaksFollow: true,
   },
   "view.fit": {
@@ -256,7 +256,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "view",
     label: "Fit session in view",
     when: "timelineFocused",
-    notes: "\\ — timeline focused",
+    notes: "\\: timeline focused",
     breaksFollow: true,
   },
   "view.waveformZoomIn": {
@@ -264,7 +264,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "view",
     label: "Waveform amplitude zoom in",
     when: "timelineFocused",
-    notes: "Shift+ArrowUp — timeline focused",
+    notes: "Shift+ArrowUp: timeline focused",
     breaksFollow: true,
   },
   "view.waveformZoomOut": {
@@ -272,7 +272,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "view",
     label: "Waveform amplitude zoom out",
     when: "timelineFocused",
-    notes: "Shift+ArrowDown — timeline focused",
+    notes: "Shift+ArrowDown: timeline focused",
     breaksFollow: true,
   },
   "history.undo": {
@@ -312,7 +312,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "ui",
     label: "Share…",
     when: "hostProjectLoaded",
-    notes: "Open host share dialog — live links, create, revoke",
+    notes: "Open host share dialog: live links, create, revoke",
   },
   "record.start": {
     id: "record.start",
@@ -355,7 +355,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "ui",
     label: "Record marker",
     when: "recordPanelOpen",
-    notes: "M while the record panel is open — posts body Marker",
+    notes: "M while the record panel is open: posts body Marker",
   },
   "mcp.connect": {
     id: "mcp.connect",
@@ -383,14 +383,14 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "ui",
     label: "New project",
     when: "canManageProjects",
-    notes: "Mod+N — host only",
+    notes: "Mod+N: host only",
   },
   "project.open": {
     id: "project.open",
     category: "ui",
     label: "Open project",
     when: "canManageProjects",
-    notes: "Mod+O — OS dialog via local engine; paste path fallback",
+    notes: "Mod+O: OS dialog via local engine; paste path fallback",
   },
   "track.add": {
     id: "track.add",
@@ -413,29 +413,28 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Reorder track",
     when: "canIngestMedia",
     paletteRunnable: false,
-    notes:
-      "Args: { trackId?, index } — ReorderTrack; drag headers use skipWhen",
+    notes: "Args: { trackId?, index }: ReorderTrack; drag headers use skipWhen",
   },
   "track.moveUp": {
     id: "track.moveUp",
     category: "edit",
     label: "Move track up",
     when: "canMoveSelectedTrackUp",
-    notes: "ArrowUp — inspector track one lane up",
+    notes: "ArrowUp: inspector track one lane up",
   },
   "track.moveDown": {
     id: "track.moveDown",
     category: "edit",
     label: "Move track down",
     when: "canMoveSelectedTrackDown",
-    notes: "ArrowDown — inspector track one lane down",
+    notes: "ArrowDown: inspector track one lane down",
   },
   "media.import": {
     id: "media.import",
     category: "edit",
     label: "Import audio",
     when: "canIngestMedia",
-    notes: "Mod+I — Menu or drop on arrange; selected lane or new tracks",
+    notes: "Mod+I: Menu or drop on arrange; selected lane or new tracks",
   },
   "view.transcriptAnnotate": {
     id: "view.transcriptAnnotate",
@@ -547,21 +546,21 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "review",
     label: "Apply eligible tighten hits",
     when: "tightenPanelOpen",
-    notes: "Args: { avoidHarsh?: boolean } — one ApproveEdits batch",
+    notes: "Args: { avoidHarsh?: boolean }: one ApproveEdits batch",
   },
   "tighten.previewHit": {
     id: "tighten.previewHit",
     category: "review",
     label: "Preview tighten hit",
     when: "tightenPanelOpen",
-    notes: "Args: { id?: string } — Suggested skip when possible",
+    notes: "Args: { id?: string }: Suggested skip when possible",
   },
   "tighten.goToHit": {
     id: "tighten.goToHit",
     category: "review",
     label: "Go to tighten hit",
     when: "tightenPanelOpen",
-    notes: "Args: { id?: string } — seek + select pending",
+    notes: "Args: { id?: string }: seek + select pending",
     breaksFollow: true,
   },
 };

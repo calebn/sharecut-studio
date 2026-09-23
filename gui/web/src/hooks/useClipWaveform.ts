@@ -282,8 +282,13 @@ export function useClipWaveform(opts: {
       const t0 = performance.now();
       const base = paintOptsRef.current;
       const opts = latest.override ? { ...base, ...latest.override } : base;
-      const peakFill = getComputedStyle(document.documentElement)
-        .getPropertyValue("--color-waveform-peak")
+      const theme = getComputedStyle(document.documentElement);
+      const peakFill = theme.getPropertyValue("--color-waveform-peak").trim();
+      const peakFillTop = theme
+        .getPropertyValue("--color-timeline-waveform-top")
+        .trim();
+      const peakFillBottom = theme
+        .getPropertyValue("--color-timeline-waveform-bottom")
         .trim();
       paintWaveform(latest.canvas, {
         peaks: opts.peaks,
@@ -294,6 +299,8 @@ export function useClipWaveform(opts: {
         ampZoom: opts.ampZoom,
         devicePixelRatio: opts.devicePixelRatio,
         peakFill,
+        peakFillTop,
+        peakFillBottom,
       });
       skipRef.current = performance.now() - t0 > 12;
       if (skipRef.current) {

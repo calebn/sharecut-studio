@@ -672,7 +672,7 @@ describe("PipelinePanel", () => {
     });
     expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy();
     expect(
-      screen.getByText(/Bounce is running — Cancel frees the pipeline slot/i),
+      screen.getByText(/Bounce is running. Cancel frees the pipeline slot/i),
     ).toBeTruthy();
     expect(screen.queryByText("Pipeline complete")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Cancel" }));

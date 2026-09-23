@@ -34,6 +34,13 @@
   --radius-sm: 0.1875rem;
   --radius-xl: 0.5rem;
 
+  /* Shared motion vocabulary; consumers opt in under no-preference. */
+  --motion-hover: 150ms;
+  --motion-toggle: 200ms;
+  --motion-panel: 300ms;
+  --motion-state: 400ms;
+  --motion-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+
   /* Focus / selection rings — not a spacing step (a11y invariant). */
   --focus-ring-width: 0.125rem;
   --focus-ring-offset: 0.125rem;
@@ -81,8 +88,20 @@
     to right,
     var(--bg-panel) 0,
     var(--bg-panel) var(--header-width),
-    var(--bg-lane) var(--header-width),
-    var(--bg-lane) 100%
+    var(--color-timeline-well) var(--header-width),
+    var(--color-timeline-well) 100%
+  );
+  --bg-timeline-skeleton: linear-gradient(
+    100deg,
+    var(--color-timeline-lane-muted) 25%,
+    var(--color-timeline-lane) 50%,
+    var(--color-timeline-lane-muted) 75%
+  );
+  --bg-timeline-clip-sheen: linear-gradient(
+    to bottom,
+    var(--color-overlay-white-15),
+    transparent 55%,
+    var(--color-overlay-black-22)
   );
   --bg: var(--color-bg-canvas);
   --bg-elevated: var(--color-bg-elevated);

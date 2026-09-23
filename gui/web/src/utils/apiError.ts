@@ -32,7 +32,7 @@ export function isClientRejection(error: unknown): boolean {
 }
 
 const HOST_OFFLINE_MESSAGE =
-  "Host offline — ask them to run podcast tunnel and try again.";
+  "Host offline. Ask them to run podcast tunnel and try again.";
 
 // FastAPI nests ``{detail: {detail: msg}}``; deeper shapes are not ours.
 const MAX_MESSAGE_DEPTH = 3;

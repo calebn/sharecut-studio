@@ -427,7 +427,7 @@ describe("RecordPanel", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByText("Hearing the room.")).toBeInTheDocument();
     expect(screen.getByText(/OPFS unavailable/)).toBeInTheDocument();
-    expect(screen.getByText("REC — local capture failed")).toBeInTheDocument();
+    expect(screen.getByText("REC: local capture failed")).toBeInTheDocument();
     await userEvent.click(
       screen.getByRole("button", { name: "Retry local recording" }),
     );
@@ -685,7 +685,7 @@ describe("RecordPanel", () => {
     });
     const { rerender } = render(<RecordPanel />);
     await screen.findByText(
-      "Paused — the host was offline for 15s. Resume when everyone is ready.",
+      "Paused: the host was offline for 15s. Resume when everyone is ready.",
     );
     expect(loadHostRecordState).toHaveBeenCalledTimes(1);
     useRecordHostStore.getState().setConnected(true);
@@ -719,7 +719,7 @@ describe("RecordPanel", () => {
     const { container } = render(<RecordPanel />);
     expect(
       screen.getByText(
-        "Paused — the host was offline for 15s. Resume when everyone is ready.",
+        "Paused: the host was offline for 15s. Resume when everyone is ready.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Resume" })).toBeEnabled();

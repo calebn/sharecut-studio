@@ -209,7 +209,13 @@ export function TransportBar({
           disabled={!project}
           {...presenceAnchorProps(presenceAnchor("transport", "play"))}
         >
-          {collapsed ? (isPlaying ? "||" : "▶") : isPlaying ? "Pause" : "Play"}
+          {collapsed ? (
+            <Icon name={isPlaying ? "pause" : "play"} />
+          ) : isPlaying ? (
+            "Pause"
+          ) : (
+            "Play"
+          )}
         </CommandButton>
         <CommandButton
           bare
@@ -220,7 +226,7 @@ export function TransportBar({
           disabled={!project}
           {...presenceAnchorProps(presenceAnchor("transport", "stop"))}
         >
-          ■
+          <Icon name="stop" />
         </CommandButton>
       </div>
       {showRecordingChip ? <RecordTransportChip /> : null}

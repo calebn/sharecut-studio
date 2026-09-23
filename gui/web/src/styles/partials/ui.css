@@ -112,8 +112,8 @@
 .ui-control[aria-pressed="true"],
 .ui-control.active {
   color: var(--color-text-primary);
-  border-color: var(--color-accent);
-  background: var(--color-accent-muted);
+  border-color: var(--color-border-strong);
+  background: var(--color-bg-sunken);
 }
 
 /* Comment mode must keep marker fill over generic pressed paint. */
@@ -131,7 +131,7 @@
   color: var(--color-text-primary);
   background: transparent;
   border-color: transparent;
-  border-bottom-color: var(--color-accent);
+  border-bottom-color: var(--color-border-strong);
 }
 
 .ui-control.primary[aria-pressed="true"],
@@ -160,6 +160,20 @@
 
 .ui-control:active:not(:disabled, [aria-disabled="true"]) {
   filter: brightness(0.92);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ui-control {
+    transition:
+      background-color var(--motion-hover) var(--motion-ease-out),
+      border-color var(--motion-hover) var(--motion-ease-out),
+      color var(--motion-hover) var(--motion-ease-out),
+      transform var(--motion-toggle) var(--motion-ease-out);
+  }
+
+  .ui-control:active:not(:disabled, [aria-disabled="true"]) {
+    transform: translateY(0.0625rem);
+  }
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -221,7 +235,7 @@
   .ui-control[data-ui-kind="tab"]:hover:not(:disabled, [aria-disabled="true"]) {
     color: var(--color-text-primary);
     border-color: transparent;
-    background: var(--color-accent-subtle);
+    background: var(--color-bg-sunken);
   }
 
   .ui-control[aria-pressed="true"]:hover:not(
@@ -243,7 +257,7 @@
     .comment-mode-btn
   ) {
     color: var(--color-text-primary);
-    border-color: var(--color-accent);
+    border-color: var(--color-border-strong);
   }
 
   /* Quiet pressed wash — exclude solid segment groups (layout.css owns fill). */
@@ -269,8 +283,8 @@
     border-top-color: transparent;
     border-right-color: transparent;
     border-left-color: transparent;
-    border-bottom-color: var(--color-accent);
-    background: var(--color-accent-subtle);
+    border-bottom-color: var(--color-border-strong);
+    background: var(--color-bg-sunken);
   }
 
   .audition-modes
@@ -292,9 +306,9 @@
       [aria-disabled="true"],
       .comment-mode-btn
     ) {
-    background: var(--color-accent-solid);
-    color: var(--color-accent-on-solid);
-    border-color: var(--color-accent-solid);
+    background: var(--color-bg-inverted);
+    color: var(--color-text-on-inverted);
+    border-color: var(--color-bg-inverted);
   }
 
   .ui-control.comment-mode-btn[aria-pressed="true"]:hover:not(

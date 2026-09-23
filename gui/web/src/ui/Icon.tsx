@@ -1,6 +1,9 @@
 import type { ReactElement, SVGProps } from "react";
 
 export type IconName =
+  | "play"
+  | "pause"
+  | "stop"
   | "select"
   | "blade"
   | "comment"
@@ -17,6 +20,14 @@ type Props = {
 } & Omit<SVGProps<SVGSVGElement>, "children" | "ref">;
 
 const PATHS: Record<IconName, ReactElement> = {
+  play: <path d="m6.5 4.5 9 5.5-9 5.5Z" />,
+  pause: (
+    <>
+      <path d="M6.5 5v10" />
+      <path d="M13.5 5v10" />
+    </>
+  ),
+  stop: <rect x="5.5" y="5.5" width="9" height="9" rx="0.75" />,
   select: (
     <>
       <path d="M5 3.5 5 16.5 8.2 13.2 10.5 18.5 12.6 17.6 10.3 12.3 14.5 12.3Z" />

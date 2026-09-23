@@ -5,14 +5,41 @@
 :root[data-theme="light"] {
   color-scheme: light;
 
+  --color-bg-base: var(--color-bg-surface);
+  --color-bg-raised: var(--color-bg-elevated);
+  --color-bg-overlay: var(--color-bg-elevated);
+  --color-bg-sunken: var(--primitive-neutral-100);
+  --color-bg-inverted: var(--primitive-neutral-775);
+  --color-text-on-canvas: var(--color-text-primary);
+  --color-text-on-base: var(--color-text-primary);
+  --color-text-on-raised: var(--color-text-primary);
+  --color-text-on-overlay: var(--color-text-primary);
+  --color-text-on-sunken: var(--color-text-primary);
+  --color-text-on-inverted: var(--primitive-neutral-50);
+  --color-border-subtle: var(--color-border);
+  --color-timeline-well: var(--primitive-neutral-875);
+  --color-timeline-lane: var(--primitive-neutral-850);
+  --color-timeline-lane-muted: var(--primitive-neutral-900);
+  --color-timeline-border: var(--primitive-neutral-550);
+  --color-timeline-text: var(--primitive-neutral-300);
+  --color-timeline-waveform-top: var(--primitive-teal-250);
+  --color-timeline-waveform-bottom: var(--primitive-teal-600);
+  --color-timeline-playhead: var(--primitive-orange-250);
+  --color-signal: var(--primitive-teal-675);
+  --color-signal-soft: var(--primitive-teal-100);
+  --color-text-faint: var(--primitive-neutral-450);
+  --shadow-raised: 0 0.125rem 0.5rem var(--color-shadow);
+  --shadow-floating: 0 0.5rem 1.5rem var(--color-shadow);
+  --shadow-modal: 0 1rem 3rem var(--color-shadow);
+
   /* Recessed mixer well — darker than chrome panes (surface). */
   --color-bg-lane: var(--primitive-neutral-100);
   --color-bg-lane-muted: var(--primitive-neutral-150);
   --color-text-unmapped: var(--primitive-neutral-500);
   /* Text/links on lane fill (≥4.5:1 on --color-bg-lane). */
-  --color-accent-fg: var(--primitive-orange-700);
-  --color-badge-bg: var(--primitive-neutral-75);
-  --color-badge-fg: var(--primitive-orange-700);
+  --color-accent-fg: var(--primitive-orange-750);
+  --color-badge-bg: var(--primitive-neutral-100);
+  --color-badge-fg: var(--color-text-secondary);
   --color-accent-subtle: color-mix(
     in srgb,
     var(--color-accent) 12%,
@@ -39,7 +66,7 @@
     var(--color-selection) 22%,
     transparent
   );
-  --color-warning: var(--primitive-amber-600);
+  --color-warning: var(--primitive-amber-750);
   --color-warning-subtle: color-mix(
     in srgb,
     var(--color-warning) 18%,
@@ -106,7 +133,7 @@
     var(--color-danger) 28%,
     transparent
   );
-  --color-success: var(--primitive-green-600);
+  --color-success: var(--color-signal);
   --color-success-subtle: color-mix(
     in srgb,
     var(--color-success) 18%,
@@ -122,8 +149,8 @@
     var(--color-success) 60%,
     transparent
   );
-  --color-success-solid: var(--primitive-green-550);
-  --color-clip-dialogue-0: var(--primitive-blue-450);
+  --color-success-solid: var(--color-signal);
+  --color-clip-dialogue-0: var(--primitive-teal-675);
   --color-clip-dialogue-1: var(--primitive-green-450);
   --color-clip-dialogue-2: var(--primitive-brown-500);
   --color-clip-music: var(--primitive-blue-550);
@@ -282,13 +309,40 @@
   :root:not([data-theme]) {
     color-scheme: light;
 
+    --color-bg-base: var(--color-bg-surface);
+    --color-bg-raised: var(--color-bg-elevated);
+    --color-bg-overlay: var(--color-bg-elevated);
+    --color-bg-sunken: var(--primitive-neutral-100);
+    --color-bg-inverted: var(--primitive-neutral-775);
+    --color-text-on-canvas: var(--color-text-primary);
+    --color-text-on-base: var(--color-text-primary);
+    --color-text-on-raised: var(--color-text-primary);
+    --color-text-on-overlay: var(--color-text-primary);
+    --color-text-on-sunken: var(--color-text-primary);
+    --color-text-on-inverted: var(--primitive-neutral-50);
+    --color-border-subtle: var(--color-border);
+    --color-timeline-well: var(--primitive-neutral-875);
+    --color-timeline-lane: var(--primitive-neutral-850);
+    --color-timeline-lane-muted: var(--primitive-neutral-900);
+    --color-timeline-border: var(--primitive-neutral-550);
+    --color-timeline-text: var(--primitive-neutral-300);
+    --color-timeline-waveform-top: var(--primitive-teal-250);
+    --color-timeline-waveform-bottom: var(--primitive-teal-600);
+    --color-timeline-playhead: var(--primitive-orange-250);
+    --color-signal: var(--primitive-teal-675);
+    --color-signal-soft: var(--primitive-teal-100);
+    --color-text-faint: var(--primitive-neutral-450);
+    --shadow-raised: 0 0.125rem 0.5rem var(--color-shadow);
+    --shadow-floating: 0 0.5rem 1.5rem var(--color-shadow);
+    --shadow-modal: 0 1rem 3rem var(--color-shadow);
+
     --color-bg-lane: var(--primitive-neutral-100);
     --color-bg-lane-muted: var(--primitive-neutral-150);
     --color-text-unmapped: var(--primitive-neutral-500);
     /* Text/links on lane fill (≥4.5:1 on --color-bg-lane). */
-    --color-accent-fg: var(--primitive-orange-700);
-    --color-badge-bg: var(--primitive-neutral-75);
-    --color-badge-fg: var(--primitive-orange-700);
+    --color-accent-fg: var(--primitive-orange-750);
+    --color-badge-bg: var(--primitive-neutral-100);
+    --color-badge-fg: var(--color-text-secondary);
     --color-accent-subtle: color-mix(
       in srgb,
       var(--color-accent) 12%,
@@ -315,7 +369,7 @@
       var(--color-selection) 22%,
       transparent
     );
-    --color-warning: var(--primitive-amber-600);
+    --color-warning: var(--primitive-amber-750);
     --color-warning-subtle: color-mix(
       in srgb,
       var(--color-warning) 18%,
@@ -382,7 +436,7 @@
       var(--color-danger) 28%,
       transparent
     );
-    --color-success: var(--primitive-green-600);
+    --color-success: var(--color-signal);
     --color-success-subtle: color-mix(
       in srgb,
       var(--color-success) 18%,
@@ -398,8 +452,8 @@
       var(--color-success) 60%,
       transparent
     );
-    --color-success-solid: var(--primitive-green-550);
-    --color-clip-dialogue-0: var(--primitive-blue-450);
+    --color-success-solid: var(--color-signal);
+    --color-clip-dialogue-0: var(--primitive-teal-675);
     --color-clip-dialogue-1: var(--primitive-green-450);
     --color-clip-dialogue-2: var(--primitive-brown-500);
     --color-clip-music: var(--primitive-blue-550);

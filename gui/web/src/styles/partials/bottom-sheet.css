@@ -46,7 +46,12 @@ html[data-shell="tablet"][data-focus="timeline"] .bottom-sheet-root {
   border-top: 1px solid var(--border);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   box-shadow: 0 -0.5rem 1.5rem var(--shadow);
-  animation: bottom-sheet-up 160ms ease-out;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .bottom-sheet {
+    animation: bottom-sheet-up var(--motion-panel) var(--motion-ease-out);
+  }
 }
 
 .bottom-sheet--half {

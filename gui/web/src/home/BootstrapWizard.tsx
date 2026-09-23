@@ -139,9 +139,9 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
         </p>
       ) : null}
       <ul className="bootstrap-wizard-list">
-        <li>FFmpeg — {ffmpegOk ? "ready" : "needed for audio"}</li>
+        <li>FFmpeg: {ffmpegOk ? "ready" : "needed for audio"}</li>
         <li>
-          Whisper {whisperModel} —{" "}
+          Whisper {whisperModel}:{" "}
           {whisperOk ? "ready" : "needed for transcription"}
         </li>
       </ul>

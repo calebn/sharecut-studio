@@ -79,6 +79,8 @@ export type PaintWaveformOpts = {
   ampZoom: number;
   devicePixelRatio?: number;
   peakFill?: string;
+  peakFillTop?: string;
+  peakFillBottom?: string;
 };
 
 export function paintWaveform(
@@ -99,7 +101,14 @@ export function paintWaveform(
   canvas.height = Math.floor(h * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, drawW, h);
-  ctx.fillStyle = opts.peakFill || "rgba(255,255,255,0.35)";
+  if (opts.peakFillTop && opts.peakFillBottom) {
+    const gradient = ctx.createLinearGradient(0, 0, 0, h);
+    gradient.addColorStop(0, opts.peakFillTop);
+    gradient.addColorStop(1, opts.peakFillBottom);
+    ctx.fillStyle = gradient;
+  } else {
+    ctx.fillStyle = opts.peakFill || "rgba(255,255,255,0.35)";
+  }
   const mid = h / 2;
   const ampZoom = Math.max(1, opts.ampZoom);
   const duration = Math.max(1e-9, opts.sourceEnd - opts.sourceStart);

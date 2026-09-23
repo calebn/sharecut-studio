@@ -81,6 +81,42 @@ describe("range-max paint", () => {
     });
     expect(performance.now() - t0).toBeLessThan(50);
   });
+
+  it("paints the timeline waveform with its themed vertical gradient", () => {
+    const canvas = document.createElement("canvas");
+    const addColorStop = vi.fn();
+    const gradient = { addColorStop };
+    const ctx = {
+      setTransform: vi.fn(),
+      clearRect: vi.fn(),
+      fillRect: vi.fn(),
+      createLinearGradient: vi.fn(() => gradient),
+      fillStyle: "" as string | typeof gradient,
+    };
+    canvas.getContext = vi.fn(() => ctx) as unknown as typeof canvas.getContext;
+    Object.defineProperty(canvas, "offsetHeight", { value: 40 });
+
+    paintWaveform(canvas, {
+      peaks: {
+        peaks: new Uint8Array([255]),
+        sample_rate: 8000,
+        samples_per_pixel: 500,
+        encoding: "uint8",
+      },
+      tiles: [],
+      sourceStart: 0,
+      sourceEnd: 1,
+      cssWidth: 4,
+      ampZoom: 1,
+      peakFillTop: "#64c9bc",
+      peakFillBottom: "#2a9a8e",
+    });
+
+    expect(ctx.createLinearGradient).toHaveBeenCalledWith(0, 0, 0, 40);
+    expect(addColorStop).toHaveBeenNthCalledWith(1, 0, "#64c9bc");
+    expect(addColorStop).toHaveBeenNthCalledWith(2, 1, "#2a9a8e");
+    expect(ctx.fillStyle).toBe(gradient);
+  });
 });
 
 describe("quiet wash + magnet", () => {
