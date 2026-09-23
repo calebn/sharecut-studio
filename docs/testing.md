@@ -132,8 +132,10 @@ To debug a single test without xdist overhead (so `-s` and `pdb` behave), invoke
 - `PODCAST_RELAY_CONFIG` → `tmp_path/relay.yaml` and `PODCAST_RELAY_HOST_ID` unset (`_isolate_relay_config`), so the persisted relay `host_id` never lands in the developer's home
 
 The `published_share` factory fixture builds a premix-backed review version and
-share from `minimal_project`; pass `capabilities=[]` to test the default
-capability fallback, or leave it unset for all capabilities.
+share from `minimal_project`. It reloads the project after publishing before
+minting the share, so its callers also check that the review version was saved
+to disk. Pass `capabilities=[]` to test the default capability fallback, or
+leave it unset for all capabilities.
 
 Tests that need object storage mock `load_object_store_config` / `ObjectStoreClient` explicitly (see `tests/test_review_media_object_store.py`).
 

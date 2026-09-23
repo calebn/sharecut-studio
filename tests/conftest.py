@@ -186,7 +186,7 @@ def minimal_project(tmp_workspace: Path, sample_wav: Path) -> Path:
 def published_share(
     minimal_project: Path, sample_wav: Path
 ) -> Callable[..., tuple[ProjectWorkspace, dict[str, Any], dict[str, Any]]]:
-    """Publish a premix-backed review version and mint a share for a test."""
+    """Publish a review version, then mint a share from the saved project."""
 
     def make_share(
         *, capabilities: list[str] | None = None, label: str = "test"
@@ -198,8 +198,9 @@ def published_share(
         save_project(project, minimal_project)
         ws = ProjectWorkspace.open(minimal_project)
         version = ReviewService(ws).publish(label=label)
+        persisted_project = load_project(minimal_project)
         share = create_share(
-            ws.project,
+            persisted_project,
             review_version_id=version["id"],
             capabilities=list(ALL_CAPABILITIES) if capabilities is None else capabilities,
         )
