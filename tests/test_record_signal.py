@@ -19,7 +19,7 @@ from podcast_mcp.services.share import ShareService
 
 
 def _isolate_registry(tmp_workspace: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(tmp_workspace / "shares_index.json"))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "shares_index.json"))
     monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "reg.sqlite"))
     reset_share_registry_for_tests()
     reset_record_runtime_for_tests()

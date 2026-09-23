@@ -96,19 +96,11 @@ def _iso(dt: datetime) -> str:
 def default_share_registry_db_path() -> Path:
     """Path to the host share registry sqlite DB.
 
-    Prefer pinning with ``PODCAST_SHARE_REGISTRY``. For compatibility, if
-    ``PODCAST_REVIEW_SHARES_INDEX`` points at a ``.json`` path, the sibling
-    ``.sqlite`` file is used so existing test/env harnesses stay isolated.
+    Prefer pinning with ``PODCAST_SHARE_REGISTRY``.
     """
     override = os.environ.get("PODCAST_SHARE_REGISTRY", "").strip()
     if override:
         return Path(override).expanduser().resolve()
-    legacy = os.environ.get("PODCAST_REVIEW_SHARES_INDEX", "").strip()
-    if legacy:
-        p = Path(legacy).expanduser().resolve()
-        if p.suffix.lower() == ".json":
-            return p.with_suffix(".sqlite")
-        return p
     return Path.home() / ".podcast_mcp" / "share_registry.sqlite"
 
 
@@ -453,9 +445,6 @@ class SqliteShareRegistry:
         }
 
 
-# Backward-compatible name used by tests and older imports.
-ShareRegistry = SqliteShareRegistry
-
 _registry_singleton: SqliteShareRegistry | None = None
 _registry_lock = threading.Lock()
 
@@ -521,12 +510,8 @@ def backup_share_registry(
 
 
 def share_last_used_at(row: dict[str, Any]) -> datetime:
-    """Effective last-used clock (falls back to created_at)."""
-    return (
-        _parse_iso(str(row.get("last_used_at") or ""))
-        or _parse_iso(str(row.get("created_at") or ""))
-        or _now()
-    )
+    """Effective last-used clock."""
+    return _parse_iso(str(row.get("last_used_at") or "")) or _now()
 
 
 def share_hard_expired(row: dict[str, Any], *, now: datetime | None = None) -> bool:

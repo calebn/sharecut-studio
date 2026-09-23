@@ -18,7 +18,7 @@ from podcast_mcp.edits.review_shares import (
 from podcast_mcp.edits.share_registry import (
     RECORD_REVIEW_VERSION_SENTINEL,
     SHARE_COOLDOWN_DAYS,
-    ShareRegistry,
+    SqliteShareRegistry,
     claim_with_mint_retry,
     share_is_usable,
 )
@@ -32,8 +32,8 @@ def _iso(dt: datetime) -> str:
 
 
 @pytest.fixture
-def registry(tmp_path: Path) -> ShareRegistry:
-    return ShareRegistry(tmp_path / "share_registry.sqlite")
+def registry(tmp_path: Path) -> SqliteShareRegistry:
+    return SqliteShareRegistry(tmp_path / "share_registry.sqlite")
 
 
 def _share_template(**extra):
@@ -50,7 +50,7 @@ def _share_template(**extra):
     return row
 
 
-def test_claim_with_mint_retry_slug_shape(registry: ShareRegistry):
+def test_claim_with_mint_retry_slug_shape(registry: SqliteShareRegistry):
     token = claim_with_mint_retry(_share_template(), registry=registry)["token"]
     assert token == token.lower()
     assert "-" in token
@@ -58,7 +58,7 @@ def test_claim_with_mint_retry_slug_shape(registry: ShareRegistry):
     assert " " not in token
 
 
-def test_claim_with_mint_retry_skips_active_and_cooldown(registry: ShareRegistry):
+def test_claim_with_mint_retry_skips_active_and_cooldown(registry: SqliteShareRegistry):
     now = datetime.now(UTC)
     reserved = ["alpha-beta-gamma", "delta-epsilon-zeta", "fresh-unique-slug"]
     registry.claim_active(
@@ -94,7 +94,7 @@ def test_claim_with_mint_retry_skips_active_and_cooldown(registry: ShareRegistry
     assert registry.get_active("fresh-unique-slug") is not None
 
 
-def test_cooldown_blocks_remint_until_reserved_until(registry: ShareRegistry):
+def test_cooldown_blocks_remint_until_reserved_until(registry: SqliteShareRegistry):
     now = datetime.now(UTC)
     token = "cool-down-slug"
     registry.claim_active(
@@ -138,7 +138,7 @@ def test_cooldown_blocks_remint_until_reserved_until(registry: ShareRegistry):
     assert registry.get_active(token) is not None
 
 
-def test_touch_last_used_throttled(registry: ShareRegistry):
+def test_touch_last_used_throttled(registry: SqliteShareRegistry):
     now = datetime.now(UTC)
     token = "touch-me-please"
     registry.claim_active(
@@ -205,7 +205,7 @@ def test_registry_migrates_legacy_db_adds_kind_columns(tmp_path: Path):
     conn.commit()
     conn.close()
 
-    registry = ShareRegistry(path)
+    registry = SqliteShareRegistry(path)
     row = registry.get_active("old-style-token")
     assert row is not None
     assert row["kind"] == "review"
@@ -214,7 +214,7 @@ def test_registry_migrates_legacy_db_adds_kind_columns(tmp_path: Path):
     registry.close()
 
 
-def test_claim_active_record_kind_round_trip(registry: ShareRegistry):
+def test_claim_active_record_kind_round_trip(registry: SqliteShareRegistry):
     now = datetime.now(UTC)
     token = "record-guest-slug"
     registry.claim_active(
@@ -239,7 +239,7 @@ def test_claim_active_record_kind_round_trip(registry: ShareRegistry):
     assert row["capabilities"] == ["join", "monitor", "comment"]
 
 
-def test_claim_active_rejects_unknown_kind(registry: ShareRegistry):
+def test_claim_active_rejects_unknown_kind(registry: SqliteShareRegistry):
     now = datetime.now(UTC)
     with pytest.raises(ValueError, match="unknown share kind"):
         registry.claim_active(
@@ -255,7 +255,7 @@ def test_claim_active_rejects_unknown_kind(registry: ShareRegistry):
         )
 
 
-def test_upsert_active_metadata_updates_kind_fields(registry: ShareRegistry):
+def test_upsert_active_metadata_updates_kind_fields(registry: SqliteShareRegistry):
     now = datetime.now(UTC)
     token = "upsert-kind-slug"
     registry.claim_active(
@@ -390,7 +390,7 @@ def test_default_path_legacy_non_json(monkeypatch, tmp_path: Path):
     from podcast_mcp.edits.share_registry import default_share_registry_db_path
 
     monkeypatch.delenv("PODCAST_SHARE_REGISTRY", raising=False)
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(tmp_path / "idx.sqlite"))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_path / "idx.sqlite"))
     assert default_share_registry_db_path().name == "idx.sqlite"
 
 
@@ -399,12 +399,12 @@ def test_chmod_oserror_ignored(tmp_path: Path, monkeypatch):
         "podcast_mcp.edits.share_registry.os.chmod",
         lambda *_a, **_k: (_ for _ in ()).throw(OSError("nope")),
     )
-    reg = ShareRegistry(tmp_path / "chmod.sqlite")
+    reg = SqliteShareRegistry(tmp_path / "chmod.sqlite")
     assert reg.get_active("x") is None
     reg.close()
 
 
-def test_claim_integrity_error(registry: ShareRegistry):
+def test_claim_integrity_error(registry: SqliteShareRegistry):
     now = datetime.now(UTC)
     row = {
         "token": "dup-token-slug",
@@ -424,12 +424,12 @@ def test_claim_integrity_error(registry: ShareRegistry):
         registry.claim_active(row)
 
 
-def test_upsert_empty_token_and_demote_missing(registry: ShareRegistry):
+def test_upsert_empty_token_and_demote_missing(registry: SqliteShareRegistry):
     registry.upsert_active_metadata({"token": ""})
     assert registry.demote_to_cooldown("missing", reason="x") is False
 
 
-def test_bad_capabilities_json(registry: ShareRegistry):
+def test_bad_capabilities_json(registry: SqliteShareRegistry):
     now = datetime.now(UTC)
     token = "bad-caps-slug"
     registry.claim_active(
@@ -452,7 +452,7 @@ def test_bad_capabilities_json(registry: ShareRegistry):
     assert row["capabilities"] == []
 
 
-def test_generate_token_exhausted(registry: ShareRegistry):
+def test_generate_token_exhausted(registry: SqliteShareRegistry):
     with patch(
         "podcast_mcp.edits.share_registry.generate_slug",
         return_value="always-taken-slug",
@@ -516,7 +516,7 @@ def test_create_share_save_failure_releases(
     assert reg.get_active(claimed[0]) is None
 
 
-def test_wal_journal_mode(registry: ShareRegistry):
+def test_wal_journal_mode(registry: SqliteShareRegistry):
     import sqlite3
 
     conn = sqlite3.connect(registry.db_path)
@@ -528,8 +528,8 @@ def test_wal_journal_mode(registry: ShareRegistry):
 
 def test_second_connection_claim_raises(tmp_path: Path):
     path = tmp_path / "multi.sqlite"
-    a = ShareRegistry(path)
-    b = ShareRegistry(path)
+    a = SqliteShareRegistry(path)
+    b = SqliteShareRegistry(path)
     now = datetime.now(UTC)
     row = {
         "token": "shared-slug-token",
@@ -546,7 +546,7 @@ def test_second_connection_claim_raises(tmp_path: Path):
     b.close()
 
 
-def test_demote_leaves_cooldown_not_active(registry: ShareRegistry):
+def test_demote_leaves_cooldown_not_active(registry: SqliteShareRegistry):
     now = datetime.now(UTC)
     token = "demote-tx-slug"
     registry.claim_active(
@@ -564,7 +564,7 @@ def test_demote_leaves_cooldown_not_active(registry: ShareRegistry):
     assert registry.is_reserved(token, now=now)
 
 
-def test_claim_with_mint_retry_on_collision(registry: ShareRegistry):
+def test_claim_with_mint_retry_on_collision(registry: SqliteShareRegistry):
     from podcast_mcp.edits.share_registry import claim_with_mint_retry
 
     now = datetime.now(UTC)
@@ -600,7 +600,7 @@ def test_claim_with_mint_retry_on_collision(registry: ShareRegistry):
     assert registry.get_active("second-free-slug") is not None
 
 
-def test_backup_share_registry(registry: ShareRegistry, tmp_path: Path):
+def test_backup_share_registry(registry: SqliteShareRegistry, tmp_path: Path):
     from podcast_mcp.edits.share_registry import backup_share_registry
 
     now = datetime.now(UTC)
@@ -618,12 +618,12 @@ def test_backup_share_registry(registry: ShareRegistry, tmp_path: Path):
     out = backup_share_registry(dest, registry=registry)
     assert out == dest.resolve()
     assert dest.is_file()
-    restored = ShareRegistry(dest)
+    restored = SqliteShareRegistry(dest)
     assert restored.get_active("backup-me-slug") is not None
     restored.close()
 
 
-def test_release_claim(registry: ShareRegistry):
+def test_release_claim(registry: SqliteShareRegistry):
     now = datetime.now(UTC)
     token = "release-me-slug"
     registry.claim_active(
@@ -738,7 +738,7 @@ def test_lookup_inactive_and_missing_workspace(
         lookup_share(row3["token"])
 
 
-def test_touch_missing_token_and_bad_last_used(registry: ShareRegistry):
+def test_touch_missing_token_and_bad_last_used(registry: SqliteShareRegistry):
     assert registry.touch_last_used("nope") is None
     now = datetime.now(UTC)
     token = "bad-last-used"

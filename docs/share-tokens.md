@@ -41,7 +41,7 @@ stateDiagram-v2
 
 - `SHARE_COOLDOWN_DAYS = 365` (`edits/share_registry.py`)
 - Hard expiry: optional ISO `expires_at` on the share row
-- Activity window: sliding via `last_used_at` (legacy rows without it use `created_at`)
+- Activity window: sliding via `last_used_at` (always populated)
 - Touch throttle: `LAST_USED_TOUCH_MIN_INTERVAL = 1h` (avoids write storms on poll)
 
 Demotion is **lazy** (on mint / lookup). There is no background sweeper in this release.
@@ -52,7 +52,6 @@ Demotion is **lazy** (on mint / lookup). There is no background sweeper in this 
 |--|--|
 | Default path | `~/.podcast_mcp/share_registry.sqlite` |
 | **Pin (recommended)** | `export PODCAST_SHARE_REGISTRY="$HOME/.podcast_mcp/share_registry.sqlite"` so GUI, CLI, and tunnel share one file |
-| Test compat | If `PODCAST_REVIEW_SHARES_INDEX` points at a `.json` path, the sibling `.sqlite` is used |
 
 Tables (portable schema contract for a future relay backend):
 

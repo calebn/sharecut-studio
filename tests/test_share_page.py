@@ -20,7 +20,7 @@ def test_render_share_spa_html_restricted_omits_audio(
 ):
     monkeypatch.setenv("PODCAST_SHARE_ACCOUNTS", "1")
     index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     ws = ProjectWorkspace.open(minimal_project)
     art = Path(ws.project.workspace_dir) / "artifacts"
     art.mkdir(parents=True, exist_ok=True)
@@ -101,7 +101,7 @@ def test_render_share_spa_html_uses_episode_name(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     monkeypatch.setattr(
         "podcast_mcp.services.review_media.load_object_store_config",
         lambda config_path=None: None,
@@ -232,7 +232,7 @@ def test_render_share_spa_html_empty_label_and_audio_type(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     monkeypatch.setattr(
         "podcast_mcp.services.review_media.load_object_store_config",
         lambda config_path=None: None,
@@ -284,7 +284,7 @@ def test_render_record_spa_html_no_audio_tags(
     from podcast_mcp.edits.share_registry import reset_share_registry_for_tests
     from podcast_mcp.services.share_page import render_record_spa_html
 
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(tmp_workspace / "shares_index.json"))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "shares_index.json"))
     monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "reg.sqlite"))
     reset_share_registry_for_tests()
     proj = load_project(minimal_project)

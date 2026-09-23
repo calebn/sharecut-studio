@@ -47,10 +47,10 @@ export default defineConfig({
       ...e2eRuntimeEnv(process.env, `${process.pid}-${e2ePort}`),
       DAW_E2E_PROJECT: guiProject,
       DAW_E2E_PIN_PROJECT: capturingUxScreens ? "1" : "",
-      ...(process.env.PODCAST_REVIEW_SHARES_INDEX
+      ...(process.env.PODCAST_SHARE_REGISTRY
         ? {
-            PODCAST_REVIEW_SHARES_INDEX:
-              process.env.PODCAST_REVIEW_SHARES_INDEX,
+            PODCAST_SHARE_REGISTRY:
+              process.env.PODCAST_SHARE_REGISTRY,
           }
         : {}),
     },
