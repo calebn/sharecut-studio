@@ -7,6 +7,11 @@ import {
   test,
 } from "@playwright/test";
 import { expectReadingSurfaceAxeClean } from "./axe";
+import {
+  createRecordRoom,
+  markSharecutE2e,
+  openRecordLink,
+} from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
 import { withBrowserPages } from "./twoBrowserPages";
 
@@ -43,12 +48,6 @@ async function ensureHostRecordCommand(
   await expect
     .poll(async () => hostRecordState(host, projectPath))
     .toBe(expectedState);
-}
-
-async function markSharecutE2e(page: Page): Promise<void> {
-  await page.addInitScript(() => {
-    (window as unknown as { __SHARECUT_E2E?: boolean }).__SHARECUT_E2E = true;
-  });
 }
 
 async function enableRoomTonePcmHarness(page: Page): Promise<void> {
@@ -173,7 +172,22 @@ async function seedSparseRecoveryKeepers(
       ]) {
         dir = await dir.getDirectoryHandle(part, { create: true });
       }
-      for (const index of [0, 2]) {
+      // Interleave with the recorded segment 0, which may already have
+      // landed and been reclaimed (only its completion .json remains). Index 2
+      // is left genuinely missing so the error counts only lost audio.
+      const exists = async (name: string): Promise<boolean> => {
+        try {
+          await dir.getFileHandle(name);
+          return true;
+        } catch {
+          return false;
+        }
+      };
+      // Start→Stop can race the first segment write, leaving segment 0 with
+      // neither a WAV nor a completion marker; seed it so only 2 is missing.
+      const segment0Recorded =
+        (await exists("0.wav")) || (await exists("0.json"));
+      for (const index of segment0Recorded ? [1, 3] : [0, 1, 3]) {
         const handle = await dir.getFileHandle(`${index}.wav`, {
           create: true,
         });
@@ -199,10 +213,12 @@ async function expectRecoveryDownloads(page: Page): Promise<void> {
   expect(downloads[0]?.name).toMatch(/^keepers-p_.*\.zip$/);
   const archive = await readFile(await downloads[0]!.path);
   expect(archive.readUInt32LE(0)).toBe(0x0403_4b50);
-  expect(archive.includes(Buffer.from("keeper-0-0.wav"))).toBe(true);
-  expect(archive.includes(Buffer.from("keeper-0-2.wav"))).toBe(true);
+  expect(archive.includes(Buffer.from("keeper-0-1.wav"))).toBe(true);
+  expect(archive.includes(Buffer.from("keeper-0-3.wav"))).toBe(true);
+  // Segment 0 is exported if still local or skipped if reclaimed after
+  // landing; either way only the never-written segment 2 is missing.
   await expect(
-    page.getByText(/Downloaded 2 local keeper copies/),
+    page.getByText(/Downloaded [23] local keeper copies; 1 missing segment /),
   ).toBeVisible();
 }
 
@@ -230,15 +246,9 @@ test.describe("record lobby", () => {
         await markSharecutE2e(host);
         await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
         await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
-        const created = await host.request.post("/api/shares/record", {
-          data: { path: projectPath },
-        });
-        expect(created.ok(), await created.text()).toBeTruthy();
-        const room = (await created.json()) as {
-          room: { guest: { token: string } };
-        };
+        const room = await createRecordRoom(host, projectPath);
         await markSharecutE2e(guest);
-        await guest.goto(`/rec/${room.room.guest.token}?e2e=1`);
+        await openRecordLink(guest, room.guest.token);
         await guest.getByLabel("Display name").fill("Ava");
         await guest.getByLabel("I am wearing headphones").check();
         await guest.getByRole("button", { name: "Allow microphone" }).click();
@@ -303,16 +313,7 @@ test.describe("record lobby", () => {
           await markSharecutE2e(host);
           await host.goto(`/?project=${project}&e2e=1`);
           await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
-          const created = await host.request.post("/api/shares/record", {
-            data: { path: projectPath },
-          });
-          expect(created.ok(), await created.text()).toBeTruthy();
-          const room = (await created.json()) as {
-            room: {
-              guest: { token: string };
-              producer: { token: string };
-            };
-          };
+          const room = await createRecordRoom(host, projectPath);
 
           await host.getByRole("button", { name: "Menu" }).click();
           await host.getByRole("menuitem", { name: "Record room…" }).click();
@@ -339,7 +340,7 @@ test.describe("record lobby", () => {
               };
             }
           });
-          await guest.goto(`/rec/${room.room.guest.token}?e2e=1`);
+          await openRecordLink(guest, room.guest.token);
           await expect(
             guest.getByRole("heading", { name: "Join the recording" }),
           ).toBeVisible();
@@ -398,7 +399,7 @@ test.describe("record lobby", () => {
               };
             }
           });
-          await producer.goto(`/rec/${room.room.producer.token}?e2e=1`);
+          await openRecordLink(producer, room.producer.token);
           await expect(
             producer.getByRole("heading", { name: "Producer — not recorded" }),
           ).toBeVisible();
@@ -565,13 +566,7 @@ test.describe("record lobby", () => {
         await markSharecutE2e(host);
         await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
         await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
-        const created = await host.request.post("/api/shares/record", {
-          data: { path: projectPath },
-        });
-        expect(created.ok(), await created.text()).toBeTruthy();
-        const room = (await created.json()) as {
-          room: { guest: { token: string } };
-        };
+        const room = await createRecordRoom(host, projectPath);
         await markSharecutE2e(guest);
         await guest.addInitScript(() => {
           const devices = navigator.mediaDevices;
@@ -584,7 +579,7 @@ test.describe("record lobby", () => {
             return stream;
           };
         });
-        await guest.goto(`/rec/${room.room.guest.token}?e2e=1`);
+        await openRecordLink(guest, room.guest.token);
         await guest.getByLabel("Display name").fill("Ava");
         await guest.getByLabel("I am wearing headphones").check();
         await guest.getByRole("button", { name: "Allow microphone" }).click();
@@ -642,20 +637,14 @@ test.describe("record lobby", () => {
         });
         await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
         await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
-        const created = await host.request.post("/api/shares/record", {
-          data: { path: projectPath },
-        });
-        expect(created.ok(), await created.text()).toBeTruthy();
-        const room = (await created.json()) as {
-          room: { guest: { token: string } };
-        };
+        const room = await createRecordRoom(host, projectPath);
         await host.getByRole("button", { name: "Menu" }).click();
         await host.getByRole("menuitem", { name: "Record room…" }).click();
         const roomDlg = host.getByRole("dialog", { name: "Record room" });
         await expect(roomDlg).toBeVisible();
 
         await markSharecutE2e(guest);
-        await guest.goto(`/rec/${room.room.guest.token}?e2e=1`);
+        await openRecordLink(guest, room.guest.token);
         await guest.getByLabel("Display name").fill("Ava");
         await guest.getByLabel("I am wearing headphones").check();
         await guest.getByRole("button", { name: "Allow microphone" }).click();
@@ -726,14 +715,8 @@ test.describe("record lobby", () => {
             await expect(host.getByRole("heading", { level: 1 })).toBeVisible({
               timeout: 15_000,
             });
-            const created = await host.request.post("/api/shares/record", {
-              data: { path: projectPath },
-            });
-            expect(created.ok(), await created.text()).toBeTruthy();
-            const room = (await created.json()) as {
-              room: { guest: { token: string } };
-            };
-            return room.room.guest.token;
+            const room = await createRecordRoom(host, projectPath);
+            return room.guest.token;
           });
         await test.step("open guest with one denied microphone request", async () => {
           await markSharecutE2e(guest);
@@ -752,7 +735,7 @@ test.describe("record lobby", () => {
               return orig(constraints);
             };
           });
-          await guest.goto(`/rec/${guestToken}?e2e=1`);
+          await openRecordLink(guest, guestToken);
           await expect(
             guest.getByRole("heading", { name: "Join the recording" }),
           ).toBeVisible({ timeout: 15_000 });
@@ -822,10 +805,7 @@ test.describe("record lobby", () => {
         });
         await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
         await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
-        const created = await host.request.post("/api/shares/record", {
-          data: { path: projectPath },
-        });
-        expect(created.ok(), await created.text()).toBeTruthy();
+        await createRecordRoom(host, projectPath);
 
         await host.getByRole("button", { name: "Menu" }).click();
         await host.getByRole("menuitem", { name: "Record room…" }).click();
@@ -861,16 +841,10 @@ test.describe("record lobby", () => {
         await markSharecutE2e(host);
         await host.goto(`/?project=${project}&e2e=1`);
         await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
-        const created = await host.request.post("/api/shares/record", {
-          data: { path: projectPath },
-        });
-        expect(created.ok(), await created.text()).toBeTruthy();
-        const room = (await created.json()) as {
-          room: { guest: { token: string } };
-        };
+        const room = await createRecordRoom(host, projectPath);
         await markSharecutE2e(guest);
         await enableRoomTonePcmHarness(guest);
-        await guest.goto(`/rec/${room.room.guest.token}?e2e=1`);
+        await openRecordLink(guest, room.guest.token);
         await guest.getByLabel("Display name").fill("Ava");
         await guest.getByLabel("I am wearing headphones").check();
         await expect(

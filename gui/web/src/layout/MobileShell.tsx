@@ -510,7 +510,10 @@ export function MobileShell({ guestShare = false }: { guestShare?: boolean }) {
           selection != null &&
           (mobileMode === "timeline" ||
             mobileMode === "listen" ||
-            (mobileMode === "text" && selection.kind === "transcriptWord"))
+            (mobileMode === "text" && selection.kind === "transcriptWord") ||
+            (mobileMode === "more" &&
+              moreDestination === "comments" &&
+              selection.kind === "comment"))
         }
         onClose={closeSheet}
         title="Inspector"

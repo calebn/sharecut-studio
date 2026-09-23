@@ -13,7 +13,7 @@ describe("MOBILE_GESTURES", () => {
     }
   });
 
-  it("derives catalog action labels and marks only unimplemented actions planned", () => {
+  it("derives catalog action labels for shipped gestures", () => {
     const undo = MOBILE_GESTURES.find(
       (gesture) => gesture.gesture === "Two-finger tap",
     );
@@ -21,14 +21,19 @@ describe("MOBILE_GESTURES", () => {
       (gesture) => gesture.gesture === "Long-press",
     );
 
-    expect(undo?.status).toBe("available");
-    expect(longPress?.status).toBe("planned");
+    expect(longPress && gestureLabel(longPress)).toBe("Open inspector");
     expect(undo && gestureLabel(undo)).toBe(COMMANDS["history.undo"].label);
     const pinch = MOBILE_GESTURES.find(
       (gesture) => gesture.gesture === "Pinch",
     );
     expect(pinch && gestureLabel(pinch)).toBe(
       `${COMMANDS["view.zoomIn"].label} / ${COMMANDS["view.zoomOut"].label}`,
+    );
+    const doubleTap = MOBILE_GESTURES.find(
+      (gesture) => gesture.gesture === "Double-tap word",
+    );
+    expect(doubleTap && gestureLabel(doubleTap)).toBe(
+      COMMANDS["transcript.correctIntent"].label,
     );
   });
 });

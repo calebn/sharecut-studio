@@ -133,10 +133,18 @@ describe("EnvelopeOverlay", () => {
     fireEvent.pointerDown(early);
     fireEvent.pointerMove(early, { clientX: 100, clientY: 8 });
     fireEvent.pointerUp(early);
-    expect(setEnvelope).toHaveBeenCalledWith("/tmp/p.json", "host", [
-      { id: "late", time: 0, value: 0.5 },
-      { id: "early", time: 10, value: 1.40625 },
-    ]);
+    expect(setEnvelope).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      "host",
+      [
+        { id: "late", time: 0, value: 0.5 },
+        { id: "early", time: 10, value: 1.40625 },
+      ],
+      [
+        { id: "late", time: 0, value: 0.5 },
+        { id: "early", time: 10, value: 1 },
+      ],
+    );
   });
 
   it("clears a drag draft on pointer cancel", () => {
@@ -178,4 +186,30 @@ describe("EnvelopeOverlay", () => {
     expect(onSelectTrack).toHaveBeenCalledTimes(1);
     expect(useDawStore.getState().selection).toBeNull();
   });
+
+  it.each([
+    [
+      new Error("Envelope on track 'host' changed"),
+      "Envelope on track 'host' changed",
+    ],
+    ["not an error", "Could not apply envelope"],
+  ])(
+    "rolls back the draft and selection when SetEnvelope rejects (%s)",
+    async (rejection, announcement) => {
+      setEnvelope.mockRejectedValue(rejection);
+      const { container } = renderOverlay();
+      const circle = container.querySelectorAll("circle")[1]!;
+      const originalY = circle.getAttribute("cy");
+      fireEvent.pointerDown(circle);
+      fireEvent.pointerMove(circle, { clientX: 80, clientY: 8 });
+      fireEvent.pointerUp(circle);
+      await vi.waitFor(() =>
+        expect(useDawStore.getState().statusAnnouncement).toBe(announcement),
+      );
+      expect(useDawStore.getState().selection).toBeNull();
+      expect(container.querySelectorAll("circle")[1]!.getAttribute("cy")).toBe(
+        originalY,
+      );
+    },
+  );
 });

@@ -1,3 +1,4 @@
+import type { RecordParticipant, RecordSnapshot } from "../record/types";
 import type { ProjectView, TimelineComment } from "../types/project";
 
 /** Minimal ProjectView for unit tests that need DawProvider / store hydrate. */
@@ -51,6 +52,36 @@ export function sampleComment(
     resolved: false,
     resolved_at: null,
     resolved_by: null,
+    ...overrides,
+  };
+}
+
+/** A connected, consented recording participant (defaults to a guest). */
+export function recordParticipant(
+  overrides: Partial<RecordParticipant> = {},
+): RecordParticipant {
+  return {
+    participant_id: "guest-1",
+    role: "guest",
+    display_name: "Bo",
+    connected: true,
+    consented: true,
+    muted: false,
+    headphones_ack: true,
+    ...overrides,
+  };
+}
+
+/** A recording-room snapshot at the default caps (4 recorded / 2 producers). */
+export function recordSnapshot(
+  overrides: Partial<RecordSnapshot> = {},
+): RecordSnapshot {
+  return {
+    session_id: "sess-1",
+    state: "recording",
+    take_index: 0,
+    participants: [],
+    caps: { recorded: 4, producers: 2 },
     ...overrides,
   };
 }

@@ -5,6 +5,8 @@ from __future__ import annotations
 import pytest
 
 from podcast_mcp.models import (
+    AutomationEnvelope,
+    AutomationPoint,
     Clip,
     EditDecision,
     EditDecisionType,
@@ -15,6 +17,7 @@ from podcast_mcp.models import (
 from podcast_mcp.services import ProjectWorkspace
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
+from podcast_mcp.services.document_sync.errors import DocumentConflictError
 from podcast_mcp.services.document_sync.handlers import apply_command
 from podcast_mcp.services.document_sync.payloads import parse_document_command, validate_payload
 from podcast_mcp.services.history import HistoryService
@@ -572,6 +575,7 @@ def test_document_markers_envelope_and_suggest(minimal_project):
                     {"id": "intro", "time": 0.0, "value": 1.0},
                     {"id": "outro", "time": 5.0, "value": 0.5},
                 ],
+                "expected_points": [],
             },
             client_id="c1",
             role="viewer",
@@ -661,10 +665,11 @@ def test_document_markers_envelope_and_suggest(minimal_project):
     assert ws5.project.chapters == []
 
 
-def test_document_set_envelope_accepts_and_journals_legacy_points(minimal_project):
+def test_document_set_envelope_accepts_new_points_with_explicit_baseline(minimal_project):
     payload = {
         "track_id": "host",
         "points": [{"time": 0.0, "value": 1.0}, {"time": 5.0, "value": 0.5}],
+        "expected_points": [],
     }
     host_payload = validate_payload("SetEnvelope", payload)
     assert all(point["id"] for point in host_payload["points"])
@@ -692,6 +697,103 @@ def test_document_set_envelope_accepts_and_journals_legacy_points(minimal_projec
     assert len(set(logged_ids)) == 2
     stored = ProjectWorkspace.open(minimal_project).project.automation_envelopes[0]
     assert [point.id for point in stored.points] == logged_ids
+
+    with pytest.raises(ValueError, match="expected_points"):
+        validate_payload("SetEnvelope", {"track_id": "host", "points": []})
+    with pytest.raises(ValueError, match="id"):
+        validate_payload(
+            "SetEnvelope",
+            {
+                "track_id": "host",
+                "points": [],
+                "expected_points": [{"time": 0.0, "value": 1.0}],
+            },
+        )
+
+
+def test_document_set_envelope_rejects_stale_peer_without_mutation(minimal_project):
+    first = DocumentSyncService.open(minimal_project)
+    second = DocumentSyncService.open(minimal_project)
+    baseline: list[dict[str, object]] = []
+    first.submit(
+        DocumentCommand(
+            type="SetEnvelope",
+            payload={
+                "track_id": "host",
+                "points": [
+                    {"id": "a", "time": 0.0, "value": 1.0},
+                    {"id": "b", "time": 5.0, "value": 0.5},
+                ],
+                "expected_points": baseline,
+            },
+            client_id="first",
+            role="viewer",
+            client_seq=1,
+        )
+    )
+    expected = [
+        {"id": "a", "time": 0.0, "value": 1.0},
+        {"id": "b", "time": 5.0, "value": 0.5},
+    ]
+    drag = DocumentCommand(
+        type="SetEnvelope",
+        payload={
+            "track_id": "host",
+            "points": [
+                {"id": "a", "time": 1.0, "value": 1.0},
+                {"id": "b", "time": 5.0, "value": 0.5},
+            ],
+            "expected_points": expected,
+        },
+        client_id="drag",
+        role="viewer",
+        client_seq=1,
+    )
+    second.submit(drag)
+    seq_after_drag = int(second.store.get_snapshot()["server_seq"])
+    history_after_drag = HistoryService(ProjectWorkspace.open(minimal_project)).list_entries()
+    with pytest.raises(DocumentConflictError, match="changed since this edit started"):
+        first.submit(
+            DocumentCommand(
+                type="SetEnvelope",
+                payload={
+                    "track_id": "host",
+                    "points": [
+                        {"id": "a", "time": 0.0, "value": 1.0},
+                        {"id": "b", "time": 5.0, "value": 0.75},
+                    ],
+                    "expected_points": expected,
+                },
+                client_id="second",
+                role="viewer",
+                client_seq=1,
+            )
+        )
+    assert int(first.store.get_snapshot()["server_seq"]) == seq_after_drag
+    assert (
+        HistoryService(ProjectWorkspace.open(minimal_project)).list_entries() == history_after_drag
+    )
+    replay = second.submit(drag)
+    assert replay["idempotent"] is True
+    second.submit(
+        DocumentCommand(
+            type="SetEnvelope",
+            payload={
+                "track_id": "guest",
+                "points": [{"id": "g", "time": 0.0, "value": 0.25}],
+                "expected_points": [],
+            },
+            client_id="unrelated",
+            role="viewer",
+            client_seq=1,
+        )
+    )
+    stored = ProjectWorkspace.open(minimal_project).project.automation_envelopes
+    host = next(envelope for envelope in stored if envelope.track_id == "host")
+    assert [(point.id, point.time, point.value) for point in host.points] == [
+        ("a", 1.0, 1.0),
+        ("b", 5.0, 0.5),
+    ]
 
 
 def test_authorize_document_command_caps():
@@ -1057,3 +1159,75 @@ def test_submit_snapshot_dump_tags_resync_when_shell_fails(minimal_project, monk
     assert result["snapshot"]["resync"] is True
     assert int(result["snapshot"]["server_seq"]) >= 1
     assert result["command"]["payload"]["body"] == "note"
+
+
+def _set_envelope_command(expected, *, points=None, client_id="viewer"):
+    return DocumentCommand(
+        type="SetEnvelope",
+        payload={
+            "track_id": "host",
+            "points": points or [{"id": "new", "time": 0.0, "value": 1.0}],
+            "expected_points": expected,
+        },
+        client_id=client_id,
+        role="viewer",
+        client_seq=1,
+    )
+
+
+def test_document_set_envelope_baseline_ignores_pan_listed_first(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.project.automation_envelopes = [
+        AutomationEnvelope(
+            track_id="host",
+            parameter="pan",
+            points=[AutomationPoint(id="pan", time=0.0, value=-1.0)],
+        ),
+        AutomationEnvelope(
+            track_id="host", points=[AutomationPoint(id="vol", time=0.0, value=0.5)]
+        ),
+    ]
+    ws.save()
+    DocumentSyncService.open(minimal_project).submit(
+        _set_envelope_command([{"id": "vol", "time": 0.0, "value": 0.5}])
+    )
+    stored = ProjectWorkspace.open(minimal_project).project.automation_envelopes
+    assert [(e.parameter, [p.id for p in e.points]) for e in stored] == [
+        ("pan", ["pan"]),
+        ("volume", ["new"]),
+    ]
+
+
+def test_document_set_envelope_rejects_baseline_for_missing_envelope(minimal_project):
+    svc = DocumentSyncService.open(minimal_project)
+    with pytest.raises(DocumentConflictError, match="not applied"):
+        svc.submit(_set_envelope_command([{"id": "ghost", "time": 0.0, "value": 1.0}]))
+    assert ProjectWorkspace.open(minimal_project).project.automation_envelopes == []
+    assert svc.store.get_snapshot() is None
+
+
+def test_document_set_envelope_rejects_duplicate_baseline_ids():
+    with pytest.raises(ValueError, match="expected_points IDs must be unique"):
+        validate_payload(
+            "SetEnvelope",
+            {
+                "track_id": "host",
+                "points": [],
+                "expected_points": [
+                    {"id": "same", "time": 0.0, "value": 1.0},
+                    {"id": "same", "time": 1.0, "value": 1.0},
+                ],
+            },
+        )
+
+
+def test_document_set_envelope_caps_point_lists():
+    from podcast_mcp.services.document_sync.payloads import ENVELOPE_POINTS_MAX
+
+    too_many = [
+        {"id": f"p{i}", "time": float(i), "value": 1.0} for i in range(ENVELOPE_POINTS_MAX + 1)
+    ]
+    for key in ("points", "expected_points"):
+        payload = {"track_id": "host", "points": [], "expected_points": [], key: too_many}
+        with pytest.raises(ValueError, match="at most"):
+            validate_payload("SetEnvelope", payload)

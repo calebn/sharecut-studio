@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { LONG_PRESS_MS } from "../src/hooks/touchGestureTiming";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
 
@@ -90,7 +91,7 @@ test.describe("Sharecut Studio mobile smoke", () => {
     ).not.toContainText("Soon");
     await expect(
       gestures.getByText("Long-press").locator("xpath=.."),
-    ).toContainText("Soon");
+    ).not.toContainText("Soon");
     await expect(
       gestures.getByText("Pinch").locator("xpath=.."),
     ).not.toContainText("Soon");
@@ -151,5 +152,72 @@ test.describe("Sharecut Studio mobile smoke", () => {
 
     const request = await undoRequest;
     expect(request.postDataJSON()).toMatchObject({ type: "UndoHistory" });
+  });
+
+  test("touch long-press opens the selected transcript word sheet", async ({
+    page,
+    context,
+  }) => {
+    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await page.getByRole("button", { name: "Text" }).click();
+    const word = page.locator("[data-transcript-word]").first();
+    await expect(word).toBeVisible();
+    const box = await word.boundingBox();
+    expect(box).toBeTruthy();
+    const cdp = await context.newCDPSession(page);
+    await cdp.send("Emulation.setTouchEmulationEnabled", {
+      enabled: true,
+      maxTouchPoints: 1,
+    });
+    const point = {
+      x: box!.x + box!.width / 2,
+      y: box!.y + box!.height / 2,
+      id: 1,
+    };
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [point],
+    });
+    // Hold past the shared threshold; the recognizer fires only on release,
+    // so there is no earlier UI state to poll for.
+    await page.waitForTimeout(LONG_PRESS_MS + 150);
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchEnd",
+      touchPoints: [],
+    });
+    await expect(page.locator('[role="dialog"]')).toBeVisible();
+    await expect(page.getByLabel("Corrected text")).toBeVisible();
+  });
+
+  test("touch double-tap opens word correction", async ({ page, context }) => {
+    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await page.getByRole("button", { name: "Text" }).click();
+    const word = page.locator("[data-transcript-word]").first();
+    await expect(word).toBeVisible();
+    const box = await word.boundingBox();
+    expect(box).toBeTruthy();
+    const cdp = await context.newCDPSession(page);
+    await cdp.send("Emulation.setTouchEmulationEnabled", {
+      enabled: true,
+      maxTouchPoints: 1,
+    });
+    const point = {
+      x: box!.x + box!.width / 2,
+      y: box!.y + box!.height / 2,
+      id: 1,
+    };
+    for (let tap = 0; tap < 2; tap += 1) {
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [point],
+      });
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchEnd",
+        touchPoints: [],
+      });
+    }
+    await expect(word).toHaveClass(/selected/);
+    await expect(page.locator('[role="dialog"]')).toBeVisible();
+    await expect(page.getByLabel("Corrected text")).toBeVisible();
   });
 });

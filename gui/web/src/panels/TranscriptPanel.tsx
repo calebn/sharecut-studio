@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { capabilityTooltip } from "../capabilities/copy";
+import { DOUBLE_TAP_MS, withinGhostClick } from "../hooks/touchGestureTiming";
+import { useLongPress } from "../hooks/useLongPress";
+import { useUserScrollIntent } from "../hooks/useUserScrollIntent";
+import { useVirtualTurns } from "../hooks/useVirtualTurns";
 import { TranscriptWordInspector } from "../inspector/views/TranscriptWordInspector";
 import {
   presenceAnchor,
@@ -17,18 +21,23 @@ import {
 import type {
   CombinedUtterance,
   EditBoundaryView,
-  TranscriptWordView,
+  Selection,
 } from "../types/project";
 import { FocusToggle, ToggleButton } from "../ui";
 import {
   findActiveUtteranceIndex,
+  findTurnIndexForUtterance,
   groupConsecutiveSpeakerTurns,
   isUtteranceActive,
   isWordActive,
   scrollChildIntoParent,
   selectUnmappedUtterances,
+  transcriptAnchorTurnIndex,
+  transcriptWordAnchor,
+  turnKey,
   turnSeekSec,
   wordSeekSec,
+  wordsForUtterance,
 } from "../utils/transcript";
 
 const LOW_CONFIDENCE = 0.7;
@@ -37,22 +46,19 @@ const EMPTY_BOUNDARIES: EditBoundaryView[] = [];
 
 type TranscriptIntent = "navigate" | "correct" | "select";
 
-function wordsForUtterance(u: CombinedUtterance): TranscriptWordView[] {
-  if (u.words && u.words.length > 0) {
-    return u.words;
-  }
-  // Fallback when ProjectView lacks word timings: one synthetic token.
-  return [
-    {
-      text: u.text,
-      start: u.start,
-      end: u.end,
-      timeline_start: u.timeline_start,
-      timeline_end: u.timeline_end,
-      mappable: u.mappable,
-    },
-  ];
+function transcriptWordExists(
+  utterances: readonly CombinedUtterance[],
+  trackId: string,
+  wordIndex: number,
+): boolean {
+  return utterances.some(
+    (u) =>
+      u.track_id === trackId &&
+      (u.words ?? []).some((w) => w.word_index === wordIndex),
+  );
 }
+
+type WordRef = { trackId: string; wordIndex: number };
 
 function wordInRange(
   selection: {
@@ -118,16 +124,77 @@ export function TranscriptPanel() {
           activeRef.current = el;
         }
       : undefined;
-  const programmaticScrollRef = useRef(false);
+  const { handlers: scrollIntentHandlers, isUserScroll } =
+    useUserScrollIntent();
+  /** Playhead at which a scroll request won over follow (until it moves). */
+  const followHoldRef = useRef<{ sec: number; follow: boolean } | null>(null);
+  const [focusedTurnIndex, setFocusedTurnIndex] = useState(-1);
+  /** Last scroll-request target; stays mounted until the list range catches up. */
+  const [requestTurnIndex, setRequestTurnIndex] = useState(-1);
   const viewAnchorRafRef = useRef<number | null>(null);
   const clickTimerRef = useRef<number | null>(null);
   const rangeAnchorRef = useRef<number | null>(null);
   const draggingRef = useRef(false);
   /** True when mouseenter extended the range during a drag (survives mouseup→click). */
   const dragExtendedRef = useRef(false);
-  const [intent, setIntent] = useState<TranscriptIntent>("navigate");
+  const [intent, setIntentState] = useState<TranscriptIntent>("navigate");
+  const cancelQueuedSeek = () => {
+    if (clickTimerRef.current != null) {
+      window.clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+    }
+  };
+  /** Switching intent drops a single-tap seek queued under the old one. */
+  const setIntent = (
+    next: TranscriptIntent | ((prev: TranscriptIntent) => TranscriptIntent),
+  ) => {
+    cancelQueuedSeek();
+    setIntentState(next);
+  };
+  const lastTouchTapRef = useRef<(WordRef & { at: number }) | null>(null);
+  const correctedTouchAtRef = useRef(-Infinity);
+  const pendingCorrectionRef = useRef<WordRef | null>(null);
+  /** Word under the finger at pointerdown (long-press fires on release). */
+  const pressedWordRef = useRef<WordRef | null>(null);
+  const longPressReleasedRef = useRef(false);
+  /** State to restore when a gesture-opened correction closes. */
+  const gestureRestoreRef = useRef<{
+    intent: TranscriptIntent;
+    selection: Selection;
+  } | null>(null);
   const hostEditable = !isShareProjectKey(projectPath);
   const wordsHydrated = project?.meta.hydration?.transcript_words !== false;
+  /** Touch gestures only open correction where the Correct toggle could. */
+  const canCorrect = hostEditable && wordsHydrated;
+  const allUtterances = project?.transcript?.utterances ?? EMPTY_UTTERANCES;
+
+  /**
+   * Open word correction from a touch gesture. Scoped to the gesture: the
+   * previous intent (and Select range) comes back once the sheet closes.
+   */
+  const openWordCorrection = ({ trackId, wordIndex }: WordRef): boolean => {
+    if (
+      !canCorrect ||
+      !transcriptWordExists(allUtterances, trackId, wordIndex)
+    ) {
+      return false;
+    }
+    if (intent !== "correct" && gestureRestoreRef.current == null) {
+      gestureRestoreRef.current = {
+        intent,
+        selection: selection?.kind === "transcriptRange" ? selection : null,
+      };
+    }
+    setIntent("correct");
+    setSelection({ kind: "transcriptWord", trackId, wordIndex });
+    return true;
+  };
+
+  const transcriptLongPress = useLongPress(() => {
+    const pressed = pressedWordRef.current;
+    pressedWordRef.current = null;
+    if (pressed) openWordCorrection(pressed);
+  });
 
   useEffect(() => {
     return () => {
@@ -136,6 +203,18 @@ export function TranscriptPanel() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    const restore = gestureRestoreRef.current;
+    if (!restore || selection?.kind === "transcriptWord") {
+      return;
+    }
+    gestureRestoreRef.current = null;
+    setIntentState(restore.intent);
+    if (restore.selection && selection == null) {
+      setSelection(restore.selection);
+    }
+  }, [selection, setSelection]);
 
   useEffect(() => {
     if (
@@ -164,9 +243,7 @@ export function TranscriptPanel() {
   }, []);
 
   const seekTurnSoon = (sec: number) => {
-    if (clickTimerRef.current != null) {
-      window.clearTimeout(clickTimerRef.current);
-    }
+    cancelQueuedSeek();
     // Delay so a double-click can cancel and seek the word instead.
     clickTimerRef.current = window.setTimeout(() => {
       clickTimerRef.current = null;
@@ -175,10 +252,7 @@ export function TranscriptPanel() {
   };
 
   const seekWordNow = (sec: number) => {
-    if (clickTimerRef.current != null) {
-      window.clearTimeout(clickTimerRef.current);
-      clickTimerRef.current = null;
-    }
+    cancelQueuedSeek();
     setPlayheadSec(sec);
   };
 
@@ -191,7 +265,6 @@ export function TranscriptPanel() {
     });
   };
 
-  const allUtterances = project?.transcript?.utterances ?? EMPTY_UTTERANCES;
   const cutAwayCount = useMemo(
     () => selectUnmappedUtterances(allUtterances).length,
     [allUtterances],
@@ -208,6 +281,67 @@ export function TranscriptPanel() {
     () => groupConsecutiveSpeakerTurns(utterances),
     [utterances],
   );
+  const activeIndex = useMemo(
+    () => findActiveUtteranceIndex(utterances, playheadSec),
+    [utterances, playheadSec],
+  );
+  const activeTurnIndex = useMemo(
+    () => findTurnIndexForUtterance(turns, activeIndex),
+    [activeIndex, turns],
+  );
+  const selectedAnchor =
+    selection?.kind === "transcriptWord"
+      ? presenceAnchor(
+          "transcript",
+          "word",
+          selection.trackId,
+          selection.wordIndex,
+        )
+      : selection?.kind === "transcriptRange"
+        ? presenceAnchor(
+            "transcript",
+            "word",
+            selection.trackId,
+            selection.startWordIndex,
+          )
+        : null;
+  // Pinned turns stay mounted when virtualized: follow and scroll requests
+  // always find their element, and focus/selection survive scrolling away.
+  const pinnedTurns = useMemo(
+    () =>
+      [
+        activeTurnIndex,
+        focusedTurnIndex,
+        selectedAnchor ? transcriptAnchorTurnIndex(turns, selectedAnchor) : -1,
+        transcriptScrollRequest
+          ? transcriptAnchorTurnIndex(turns, transcriptScrollRequest)
+          : requestTurnIndex,
+      ].filter((i) => i >= 0),
+    [
+      activeTurnIndex,
+      focusedTurnIndex,
+      requestTurnIndex,
+      selectedAnchor,
+      transcriptScrollRequest,
+      turns,
+    ],
+  );
+  const {
+    virtualized,
+    items: virtualItems,
+    totalSize,
+    measureElement,
+  } = useVirtualTurns(listRef, turns, pinnedTurns);
+  const renderList = virtualized
+    ? virtualItems.map((virtualItem) => ({
+        turn: turns[virtualItem.index]!,
+        turnIndex: virtualItem.index,
+        virtualItem,
+      }))
+    : turns.map((turn, turnIndex) => ({ turn, turnIndex, virtualItem: null }));
+  /** Re-center when rows above the active turn get measured and shift it. */
+  const activeTurnStart =
+    virtualItems.find((item) => item.index === activeTurnIndex)?.start ?? null;
   const boundaryMarksByTurn = useMemo(() => {
     if (!transcriptAnnotate || editBoundaries.length === 0) {
       return null;
@@ -225,8 +359,6 @@ export function TranscriptPanel() {
       placeEditBoundaries(placementTurns, editBoundaries),
     );
   }, [transcriptAnnotate, editBoundaries, turns]);
-  const activeIndex = findActiveUtteranceIndex(utterances, playheadSec);
-
   const renderBoundaryMarks = (
     turnIndex: number,
     afterWordIndex: number,
@@ -252,24 +384,32 @@ export function TranscriptPanel() {
   };
 
   useEffect(() => {
-    if (!transcriptFollowPlayhead || activeIndex < 0) {
+    if (!transcriptFollowPlayhead) {
+      followHoldRef.current = null;
+      return;
+    }
+    const hold = followHoldRef.current;
+    if (hold?.follow && hold.sec === playheadSec) {
+      // A scroll request (e.g. leader jump) wins until the playhead moves.
+      return;
+    }
+    followHoldRef.current = null;
+    if (activeIndex < 0) {
       return;
     }
     const root = listRef.current;
     const el = activeRef.current;
-    if (!root || !el) {
+    if (!root || !el || !root.contains(el)) {
       return;
     }
-    programmaticScrollRef.current = true;
     scrollChildIntoParent(root, el, 0.5);
-    const unlock = window.setTimeout(() => {
-      programmaticScrollRef.current = false;
-    }, 80);
-    return () => {
-      window.clearTimeout(unlock);
-      programmaticScrollRef.current = false;
-    };
-  }, [playheadSec, utterances, transcriptFollowPlayhead, activeIndex]);
+  }, [
+    activeIndex,
+    activeTurnStart,
+    playheadSec,
+    transcriptFollowPlayhead,
+    utterances,
+  ]);
 
   const publishViewAnchor = useCallback(() => {
     const list = listRef.current;
@@ -318,26 +458,41 @@ export function TranscriptPanel() {
     if (!transcriptScrollRequest) {
       return;
     }
+    // One attempt per request: the target turn is pinned (mounted) in this
+    // render, so an unresolvable anchor is dropped instead of retried.
+    setTranscriptScrollRequest(null);
     const root = listRef.current;
     if (!root) {
-      setTranscriptScrollRequest(null);
       return;
     }
-    const el = resolvePresenceAnchor(root, transcriptScrollRequest);
-    setTranscriptScrollRequest(null);
+    const targetTurn = transcriptAnchorTurnIndex(
+      turns,
+      transcriptScrollRequest,
+    );
+    setRequestTurnIndex(targetTurn);
+    const el =
+      resolvePresenceAnchor(root, transcriptScrollRequest) ??
+      (targetTurn >= 0
+        ? resolvePresenceAnchor(
+            root,
+            presenceAnchor("transcript", "turn", targetTurn),
+          )
+        : null);
     if (!el) {
       return;
     }
-    programmaticScrollRef.current = true;
-    scrollChildIntoParent(root, el, 0.2);
-    const unlock = window.setTimeout(() => {
-      programmaticScrollRef.current = false;
-    }, 80);
-    return () => {
-      window.clearTimeout(unlock);
-      programmaticScrollRef.current = false;
+    followHoldRef.current = {
+      sec: playheadSec,
+      follow: transcriptFollowPlayhead,
     };
-  }, [transcriptScrollRequest, setTranscriptScrollRequest]);
+    scrollChildIntoParent(root, el, 0.2);
+  }, [
+    playheadSec,
+    transcriptFollowPlayhead,
+    transcriptScrollRequest,
+    setTranscriptScrollRequest,
+    turns,
+  ]);
 
   if (!allUtterances.length) {
     return <p style={{ color: "var(--text-dim)" }}>No combined transcript.</p>;
@@ -465,11 +620,53 @@ export function TranscriptPanel() {
         </div>
       ) : null}
       <div
-        className="transcript-list"
+        className={`transcript-list${virtualized ? " is-virtualized" : ""}`}
         ref={listRef}
+        {...(virtualized
+          ? {
+              role: "list",
+              "aria-label": `Transcript, ${turns.length} turns`,
+            }
+          : {})}
+        {...scrollIntentHandlers}
+        onFocus={(e) => {
+          const turnEl = (e.target as Element).closest("[data-turn-index]");
+          const idx = Number(turnEl?.getAttribute("data-turn-index") ?? -1);
+          setFocusedTurnIndex(Number.isInteger(idx) ? idx : -1);
+        }}
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+            setFocusedTurnIndex(-1);
+          }
+        }}
+        onPointerDown={(event) => {
+          scrollIntentHandlers.onPointerDown(event);
+          const word =
+            canCorrect && event.target instanceof Element
+              ? event.target.closest<HTMLElement>("[data-transcript-word]")
+              : null;
+          const wordIndex = Number(word?.dataset.wordIndex);
+          const trackId = word?.dataset.trackId;
+          pressedWordRef.current =
+            trackId && Number.isInteger(wordIndex)
+              ? { trackId, wordIndex }
+              : null;
+          // Arm only where correction is possible; elsewhere a hold is a tap.
+          if (pressedWordRef.current) {
+            transcriptLongPress.onPointerDown(event);
+          }
+        }}
+        onClickCapture={transcriptLongPress.onClickCapture}
+        onPointerMove={transcriptLongPress.onPointerMove}
+        onPointerUpCapture={(event) => {
+          longPressReleasedRef.current = transcriptLongPress.onPointerUp(event);
+        }}
+        onPointerCancel={transcriptLongPress.onPointerCancel}
         onScroll={() => {
           scheduleViewAnchor();
-          if (programmaticScrollRef.current) {
+          // Only wheel / touch / scrollbar / scroll-key input unlocks follow;
+          // follow centering and virtualizer re-measure writes never do.
+          if (!isUserScroll()) {
             return;
           }
           if (transcriptFollowPlayhead) {
@@ -480,7 +677,14 @@ export function TranscriptPanel() {
           }
         }}
       >
-        {turns.map((turn, turnIndex) => {
+        {virtualized && (
+          <div
+            className="transcript-virtual-spacer"
+            aria-hidden="true"
+            style={{ height: totalSize }}
+          />
+        )}
+        {renderList.map(({ turn, turnIndex, virtualItem }) => {
           const lead = turn.utterances[0];
           const blockSeek = turnSeekSec(turn);
           const labelSec = blockSeek ?? lead.start;
@@ -493,8 +697,22 @@ export function TranscriptPanel() {
           let flatWordIndex = 0;
           return (
             <div
-              key={`${turn.trackId}-${lead.start}-${turn.startIndex}`}
+              key={turnKey(turn)}
               className={`utterance-turn${turnHasActive ? " active" : ""}${turnAllUnmapped ? " unmapped" : ""}`}
+              ref={virtualItem ? measureElement : undefined}
+              style={
+                virtualItem
+                  ? { transform: `translateY(${virtualItem.start}px)` }
+                  : undefined
+              }
+              {...(virtualItem
+                ? {
+                    role: "listitem",
+                    "aria-setsize": turns.length,
+                    "aria-posinset": turnIndex + 1,
+                  }
+                : {})}
+              data-index={virtualItem?.index}
               data-turn-index={turnIndex}
               {...presenceAnchorProps(
                 presenceAnchor("transcript", "turn", turnIndex),
@@ -572,20 +790,12 @@ export function TranscriptPanel() {
                           wordIndex != null) ||
                         wSeek != null;
                       const wordAnchor = presenceAnchorProps(
-                        wordIndex != null
-                          ? presenceAnchor(
-                              "transcript",
-                              "word",
-                              u.track_id,
-                              wordIndex,
-                            )
-                          : presenceAnchor(
-                              "transcript",
-                              "turn",
-                              turnIndex,
-                              "w",
-                              afterWordIndex,
-                            ),
+                        transcriptWordAnchor(
+                          turnIndex,
+                          u.track_id,
+                          wordIndex,
+                          afterWordIndex,
+                        ),
                       );
                       const cutAwayTip = cutAwayChip
                         ? capabilityTooltip("daw.view.cutAwayWord")
@@ -595,6 +805,9 @@ export function TranscriptPanel() {
                           type="button"
                           ref={bindActiveRef(wActive)}
                           className={chipClass}
+                          data-transcript-word
+                          data-track-id={u.track_id}
+                          data-word-index={wordIndex}
                           {...wordAnchor}
                           title={
                             cutAwayTip ??
@@ -629,6 +842,36 @@ export function TranscriptPanel() {
                             rangeAnchorRef.current = wordIndex;
                             setRange(u.track_id, wordIndex, wordIndex);
                           }}
+                          onPointerUp={(e) => {
+                            // Single taps still act immediately via onClick;
+                            // this only spots a second tap on the same word.
+                            if (
+                              longPressReleasedRef.current ||
+                              !canCorrect ||
+                              e.pointerType !== "touch" ||
+                              wordIndex == null
+                            )
+                              return;
+                            const previous = lastTouchTapRef.current;
+                            const now = Date.now();
+                            lastTouchTapRef.current = {
+                              trackId: u.track_id,
+                              wordIndex,
+                              at: now,
+                            };
+                            if (
+                              previous?.trackId === u.track_id &&
+                              previous.wordIndex === wordIndex &&
+                              now - previous.at <= DOUBLE_TAP_MS
+                            ) {
+                              correctedTouchAtRef.current = now;
+                              lastTouchTapRef.current = null;
+                              pendingCorrectionRef.current = {
+                                trackId: u.track_id,
+                                wordIndex,
+                              };
+                            }
+                          }}
                           onMouseEnter={() => {
                             if (
                               !draggingRef.current ||
@@ -650,11 +893,24 @@ export function TranscriptPanel() {
                           onClick={(e) => {
                             e.stopPropagation();
                             e.preventDefault();
+                            const pending = pendingCorrectionRef.current;
+                            pendingCorrectionRef.current = null;
+                            const recentDoubleTap = withinGhostClick(
+                              correctedTouchAtRef.current,
+                            );
+                            if (
+                              pending?.trackId === u.track_id &&
+                              pending.wordIndex === wordIndex &&
+                              recentDoubleTap
+                            ) {
+                              openWordCorrection(pending);
+                              return;
+                            }
+                            if (recentDoubleTap) {
+                              return;
+                            }
                             if (intent === "correct" && wordIndex != null) {
-                              if (clickTimerRef.current != null) {
-                                window.clearTimeout(clickTimerRef.current);
-                                clickTimerRef.current = null;
-                              }
+                              cancelQueuedSeek();
                               setSelection({
                                 kind: "transcriptWord",
                                 trackId: u.track_id,
@@ -692,6 +948,13 @@ export function TranscriptPanel() {
                               ? (e) => {
                                   e.stopPropagation();
                                   e.preventDefault();
+                                  if (
+                                    withinGhostClick(
+                                      correctedTouchAtRef.current,
+                                    )
+                                  ) {
+                                    return;
+                                  }
                                   seekWordNow(wSeek);
                                 }
                               : undefined
