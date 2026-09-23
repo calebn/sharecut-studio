@@ -1,28 +1,17 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
+import { recordParticipant } from "../test/fixtures";
 import { HostUploadRoster } from "./HostUploadRoster";
-import { hostUploadLine, type RecordParticipant } from "./types";
+import { hostUploadLine } from "./types";
 
-const host: RecordParticipant = {
+const host = recordParticipant({
   participant_id: "p_host",
   role: "host",
   display_name: "Host",
-  connected: true,
-  consented: true,
-  muted: false,
-  headphones_ack: true,
-};
+});
 
-const guest: RecordParticipant = {
-  participant_id: "p_g",
-  role: "guest",
-  display_name: "Ava",
-  connected: true,
-  consented: true,
-  muted: false,
-  headphones_ack: true,
-};
+const guest = recordParticipant({ participant_id: "p_g", display_name: "Ava" });
 
 describe("HostUploadRoster", () => {
   it("lists every recorded participant after Stop", async () => {
@@ -161,5 +150,25 @@ describe("HostUploadRoster", () => {
     );
     expect(screen.getByText("Ava: 1 chunks acked.")).toBeInTheDocument();
     expect(screen.queryByText("Ava: 1/3 chunks acked.")).toBeNull();
+  });
+
+  it("renders nothing while recording before any segment arrives", () => {
+    const { container } = render(
+      <HostUploadRoster
+        participants={[host, guest]}
+        segments={[]}
+        stopped={false}
+      />,
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("lists waiting participants after Stop even with no segments", () => {
+    render(
+      <HostUploadRoster participants={[host, guest]} segments={[]} stopped />,
+    );
+    expect(
+      screen.getByText(hostUploadLine("Ava", false, 0)),
+    ).toBeInTheDocument();
   });
 });
