@@ -15,6 +15,7 @@ import {
 import {
   clampEnvelopeValue,
   replaceEnvelopePoint,
+  sameEnvelopePoint,
   sortedVolumePoints,
 } from "../../utils/envelopes";
 import { formatTime } from "../../utils/time";
@@ -89,12 +90,7 @@ export function EnvelopePointInspector({
       trackId,
     );
     const current = latest[index];
-    if (
-      !current ||
-      current.id !== point.id ||
-      current.time !== point.time ||
-      current.value !== point.value
-    ) {
+    if (!current || !sameEnvelopePoint(current, point)) {
       setError("Envelope point changed; select it again");
       return;
     }
@@ -119,12 +115,7 @@ export function EnvelopePointInspector({
       return;
     }
     const current = latest[index];
-    if (
-      !current ||
-      current.id !== point.id ||
-      current.time !== point.time ||
-      current.value !== point.value
-    ) {
+    if (!current || !sameEnvelopePoint(current, point)) {
       setError("Envelope point changed; select it again");
       return;
     }
