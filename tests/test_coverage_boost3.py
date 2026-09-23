@@ -11,10 +11,10 @@ from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app as cli_app
 from podcast_mcp.edits.review_shares import (
-    default_registry_path,
     register_share_globally,
     resolve_share,
 )
+from podcast_mcp.edits.share_registry import default_share_registry_db_path
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services import ProjectWorkspace, ReviewService
@@ -31,8 +31,6 @@ def _json_from_cli(output: str) -> dict:
 
 
 def _seed(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     proj = load_project(minimal_project)
     art = Path(proj.workspace_dir) / "artifacts"
     art.mkdir(parents=True, exist_ok=True)
@@ -333,27 +331,20 @@ def test_review_shares_find_and_resolve(minimal_project, sample_wav, tmp_workspa
     assert found is not None
     assert found["token"] == token
 
-    # corrupt registry entry path
-    reg = default_registry_path()
+    # corrupt registry entry path (registry_path defaults to the process registry)
     register_share_globally(
         {
             **share,
             "project_workspace": str(ws.project.workspace_dir),
             "revoked": False,
         },
-        registry_path=reg,
     )
-    assert resolve_share(token, registry_path=reg) is not None
+    assert resolve_share(token, registry_path=default_share_registry_db_path()) is not None
 
-    # bad registry file (non-sqlite content) - mapped to sibling .sqlite if .json
+    # bad registry file (non-sqlite content) at an explicit path is used verbatim
     bad_reg = tmp_workspace / "bad.json"
     bad_reg.write_text("not-json", encoding="utf-8")
     assert resolve_share("x", registry_path=bad_reg) is None
-
-    # env override for default path (.json → sibling .sqlite)
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "idx2.json"))
-    p = default_registry_path()
-    assert p.name == "idx2.sqlite"
 
 
 def test_play_cli_dry_run(minimal_project, sample_wav):

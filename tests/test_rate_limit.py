@@ -4,13 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from podcast_relay.limits import (
-    check_proxy_rpm,
-    check_register,
-    get_relay_limiters,
-    is_audio_path,
-    reset_relay_limiters_for_tests,
-)
 from podcast_mcp.services.remote_mcp.limits import (
     check_host_bucket,
     classify_mcp_rpc,
@@ -24,6 +17,13 @@ from podcast_mcp.util.rate_limit import (
     TokenBucket,
     env_flag,
     rate_limit_detail,
+)
+from podcast_relay.limits import (
+    check_proxy_rpm,
+    check_register,
+    get_relay_limiters,
+    is_audio_path,
+    reset_relay_limiters_for_tests,
 )
 
 
@@ -299,12 +299,7 @@ def test_host_mcp_mutate_429(minimal_project, sample_wav, tmp_workspace, monkeyp
     monkeypatch.setenv("PODCAST_RATE_LIMIT_MUTATE_BURST", "1")
     monkeypatch.setenv("PODCAST_RATE_LIMIT_READ_RPM", "10000")
     monkeypatch.setenv("PODCAST_RATE_LIMIT_READ_BURST", "100")
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "reg.sqlite"))
-    from podcast_mcp.edits.share_registry import reset_share_registry_for_tests
 
-    reset_share_registry_for_tests()
     now = [0.0]
     reset_host_limiters_for_tests(clock=lambda: now[0])
 
@@ -361,12 +356,7 @@ def test_host_review_and_mcp_info_read_429(minimal_project, sample_wav, tmp_work
     monkeypatch.setenv("PODCAST_RATE_LIMIT_READ_BURST", "1")
     monkeypatch.setenv("PODCAST_RATE_LIMIT_MUTATE_RPM", "10000")
     monkeypatch.setenv("PODCAST_RATE_LIMIT_MUTATE_BURST", "100")
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "reg.sqlite"))
-    from podcast_mcp.edits.share_registry import reset_share_registry_for_tests
 
-    reset_share_registry_for_tests()
     reset_host_limiters_for_tests(clock=lambda: 0.0)
 
     proj = load_project(minimal_project)

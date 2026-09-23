@@ -68,8 +68,6 @@ def test_same_seq_idempotent(minimal_project, sample_wav):
 def test_structural_mode_propose_from_edit_cap(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     monkeypatch.setattr(
         "podcast_mcp.services.proxy_media.load_object_store_config",
         lambda config_path=None: None,
@@ -220,8 +218,6 @@ def test_share_audio_permission_and_redirect_errors(
 
     from podcast_mcp.services import share as share_mod
 
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     monkeypatch.setattr(
         "podcast_mcp.services.proxy_media.load_object_store_config",
         lambda config_path=None: None,
@@ -277,8 +273,6 @@ def test_open_share_auto_revokes_missing_version(
 
     from podcast_mcp.services import share as share_mod
 
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     monkeypatch.setattr(
         "podcast_mcp.services.proxy_media.load_object_store_config",
         lambda config_path=None: None,
@@ -332,8 +326,6 @@ def test_share_daw_peaks_missing_file(minimal_project, sample_wav, tmp_workspace
 
     from podcast_mcp.services.share import share_daw_peaks
 
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     monkeypatch.setattr(
         "podcast_mcp.services.proxy_media.load_object_store_config",
         lambda config_path=None: None,
