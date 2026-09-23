@@ -12,6 +12,25 @@ from pathlib import Path
 
 from podcast_mcp.util.process import DEVNULL, popen
 
+PACKAGED_CLI_ENV = "PODCAST_PACKAGED_CLI"
+"""Set to ``1`` by the packaged ``sharecut-sidecar --cli`` launcher."""
+
+PACKAGED_CLI_GUI_REFUSAL = (
+    "Sharecut Studio packaged CLI: 'gui' is not supported; "
+    "launch or focus the installed Sharecut Studio app instead."
+)
+
+
+def packaged_cli_gui_refusal() -> str | None:
+    """Refusal message when a packaged CLI call would start a second GUI host.
+
+    The installed app owns the only packaged host (ephemeral port, boot token);
+    a CLI-started ``:8765`` host would race it on the same project files.
+    """
+    if os.environ.get(PACKAGED_CLI_ENV, "").strip() == "1":
+        return PACKAGED_CLI_GUI_REFUSAL
+    return None
+
 
 def resolve_gui_static_root() -> Path:
     """Defer gui import so ``services.__init__`` can finish loading."""
@@ -90,6 +109,18 @@ def ensure_viewer(
 ) -> GuiLaunchResult:
     """Start the read-only DAW viewer in the background if it is not already up."""
     path = Path(project_path).expanduser().resolve()
+    refusal = packaged_cli_gui_refusal()
+    if refusal is not None:
+        return GuiLaunchResult(
+            ok=False,
+            url="",
+            host=host,
+            port=port,
+            project_path=str(path),
+            already_running=False,
+            opened_browser=False,
+            error=refusal,
+        )
     if not path.is_file():
         return GuiLaunchResult(
             ok=False,

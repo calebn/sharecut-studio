@@ -49,7 +49,8 @@ test-web:
 test-web-e2e:
 	cd gui/web && npm ci && npm run build && npm run test:e2e:install && npm run test:e2e && npm run test:e2e:compat
 
-# Tauri host: scaffold verify + rustfmt + clippy --lib --no-default-features +
+# Tauri host: scaffold verify + sidecar launcher (rustfmt/clippy/rustc --test) +
+# rustfmt + clippy --lib --no-default-features +
 # cargo test --lib --no-default-features (no GTK/WebKit). Mirrors path-filtered
 # CI `desktop` → desktop-scaffold (needs rustup + rustfmt/clippy).
 # Not part of `make ci` — desktop workflow is path-filtered and Rust is optional for Python-only work.

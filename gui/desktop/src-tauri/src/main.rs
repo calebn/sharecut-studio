@@ -4,15 +4,14 @@
 use std::io::{self, Write};
 use std::net::TcpStream;
 use std::path::PathBuf;
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Command};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use sharecut::{
-    apply_create_no_window, bundled_sidecar_path, open_sidecar_log, parse_listen_json,
-    random_boot_token, read_health_response, sidecar_listen_path, sidecar_log_path,
-    sidecar_owns_listen,
+    bundled_sidecar_path, detach_to_sidecar_log, parse_listen_json, random_boot_token,
+    read_health_response, sidecar_listen_path, sidecar_log_path, sidecar_owns_listen,
 };
 use tauri::{Manager, RunEvent, WebviewWindow, Window};
 use tauri_plugin_deep_link::DeepLinkExt;
@@ -267,16 +266,9 @@ fn macos_guarded_menu(
 }
 
 fn configure_sidecar_cmd(cmd: &mut Command) {
-    apply_create_no_window(cmd);
     sharecut::apply_distribution_metadata(cmd);
     cmd.env("PODCAST_MAGIC_LINK_PRINT", "0");
-    if let Some(log) = open_sidecar_log() {
-        if let Ok(err_log) = log.try_clone() {
-            cmd.stdout(Stdio::from(log)).stderr(Stdio::from(err_log));
-            return;
-        }
-    }
-    cmd.stdout(Stdio::null()).stderr(Stdio::null());
+    detach_to_sidecar_log(cmd);
 }
 
 fn spawn_bundled(path: PathBuf) -> Result<SidecarHandle, String> {
@@ -737,8 +729,8 @@ fn main() {
                         let pid = handle.child.id();
                         let _ = Command::new("taskkill")
                             .args(["/PID", &pid.to_string(), "/T", "/F"])
-                            .stdout(Stdio::null())
-                            .stderr(Stdio::null())
+                            .stdout(std::process::Stdio::null())
+                            .stderr(std::process::Stdio::null())
                             .status();
                     }
                     let _ = handle.child.kill();

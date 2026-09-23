@@ -30,7 +30,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, BottomSheet |
-| **Templates** | Assembled, context-specific domain screens built from the library, shown with static / representative content — no live app state | Declined, LiveComments (record room) |
+| **Templates** | Assembled, context-specific domain screens built from the library, shown with static / representative content and locked domain copy — no live app state | ConsentGate, Declined, LiveComments (record room) |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -40,16 +40,19 @@ check it composed, then check it in a real screen.
 
 ### Domain surfaces (Templates)
 
-Domain components that still need live app, session or sync context
-(`timeline/`, `inspector/`, transport chrome) stay out of the catalog: they
-compose the library (see `gui/web/docs/ui-library.md`), and stories for them
-would couple the catalog to app state. A domain screen that renders fully
-state-local from a **pure prop contract** — per the rules under
-[Adding a story](#adding-a-story): state in the story, no store, sockets, audio
-or app providers, no network (per #172/#173) — belongs under **Templates**, with
-its story colocated in the feature folder (for example
-`src/record/Declined.stories.tsx`, titled `Templates/Declined`, and
-`src/record/LiveComments.stories.tsx`, titled `Templates/LiveComments`).
+Domain components get stories only when they are **props in, UI out** (scope
+rule from #172/#173): renderable from a pure prop contract alone — no store,
+socket, AudioContext or router. Domain components that still need live app,
+session or sync context (`timeline/`, `inspector/`, transport chrome, the full
+DAW page) stay out of the catalog: they compose the library (see
+`gui/web/docs/ui-library.md`), stories for them would couple the catalog to app
+state, and their integration is covered by Playwright. A domain screen that
+renders fully state-local — per the rules under [Adding a story](#adding-a-story):
+state in the story, no app providers, no network — belongs under **Templates**,
+with its story colocated in the feature folder (for example
+`src/record/Declined.stories.tsx` → `Templates/Declined`,
+`src/record/ConsentGate.stories.tsx` → `Templates/ConsentGate`,
+`src/record/LiveComments.stories.tsx` → `Templates/LiveComments`).
 
 - Render the surface in its production shell and stylesheet so the story
   renders what ships. Record-room stories use `recordStoryDecorator`
@@ -79,27 +82,43 @@ every new component in both themes before merging.
    library, the feature folder for domain surfaces).
 2. Title every story by Atomic Design level:
    `Atoms|Molecules|Organisms|Templates/<Name>`. Library components use the
-   first three; state-local domain screens use `Templates/<Name>`. No
-   per-feature top-level categories (not `Record/…`); `storySort` in
-   `.storybook/preview.ts` orders Atoms → Molecules → Organisms → Templates —
-   don't add new top-level groups without updating it and this doc.
+   first three; **Organisms** are generic and reusable anywhere (Dialog,
+   BottomSheet) and carry no domain-specific fixtures or copy. State-local
+   domain screens use `Templates/<Name>`. No per-feature top-level categories
+   (not `Record/…`); `storySort` in `.storybook/preview.ts` orders Atoms →
+   Molecules → Organisms → Templates — don't add new top-level groups without
+   updating it and this doc.
 3. Library stories import from `./index` (the public API), not deep paths.
    Feature folders without a barrel (for example `src/record/`) import the
-   component module directly (`./Declined`).
+   component module directly (`./ConsentGate`, `./Declined`).
 4. Keep stories state-local (`useState` in the story) — no app providers, no
    network. Components that need DAW context don't get stories until they can
-   render standalone. Use `fn()` from `storybook/test` for callbacks so they
-   show in the Actions panel.
-5. For Templates, follow the shell, stylesheet, layout and fixture rules under
+   render standalone.
+5. Render in production context: if the app mounts the component inside a
+   shell class (e.g. `review-shell record-shell`), use a decorator with those
+   classes so shell-scoped type and heading styles apply. For Templates, follow
+   the shell, stylesheet, layout and fixture rules under
    [Domain surfaces (Templates)](#domain-surfaces-templates).
-6. Give stories that claim behavior a `play` function, and cover them with a
-   `composeStories` Vitest test plus `expectNoA11yViolations` (see
-   `src/record/LiveComments.stories.test.tsx`) so `make test-web` checks them.
-7. Run `npm run build-storybook` before pushing; the Pages workflow rebuilds
-   from `main` anyway.
+6. Reuse locked copy constants (e.g. `record/types.ts`) for fixture text next
+   to the component; never invent UI copy the app doesn't show.
+7. Callback args use `fn()` from `storybook/test` so clicks appear in the
+   Actions panel.
+8. Give fixture element ids a story-unique value — autodocs renders every
+   story on one page.
+9. Give stories that claim behavior a `play` function. Stories with `play`
+   functions are executed in Vitest via `composeStories` + `Story.run()` plus
+   `expectNoA11yViolations` in a colocated test (see
+   `src/record/ConsentGate.test.tsx`, `src/record/LiveComments.stories.test.tsx`);
+   CI does not otherwise render stories.
+10. Run `npm run build-storybook` before pushing; the Pages workflow rebuilds
+    from `main` anyway.
 
 ## Governance
 
+- Fixtures are static placeholders. The built Storybook is published, so never
+  copy real project, share, or guest data (tokens, names) into a story.
+- App code never imports `*.stories.tsx` or globs them (`import.meta.glob`);
+  stories must stay out of the production bundle.
 - Stories render production code — never a copy. If a story needs a tweak to
   the component, the component changes, with its Vitest/axe tests.
 - a11y addon runs wcag2a/wcag2aa checks per story; the repo's axe posture
@@ -118,9 +137,12 @@ every new component in both themes before merging.
   state-local domain screens with a pure prop contract and colocated stories
   (first: `Templates/Declined`); added import, stylesheet, layout and fixture
   rules for them. Domain components that need live app state remain excluded.
+- 2026-09-23 — Added `Templates/ConsentGate` (`record/ConsentGate`): documented
+  shell decorators, locked-copy fixtures, `fn()` callbacks, and running `play`
+  functions through `composeStories` in Vitest.
 - 2026-09-23 — Added `Templates/LiveComments`, the `recordStoryDecorator`
-  record-shell decorator with a 360px viewport, shared record fixture
-  factories, and `play` + `composeStories` coverage for Template stories.
+  record-shell decorator with a 360px viewport, and shared record fixture
+  factories.
 - 2026-09-23 — Added `Atoms/LevelMeter` and the `Molecules/ParticipantMeter`
   layout sketch (story-only). Both drive the meter through `audio/usePeakMeter`,
   the same loop `record/useInputPeakDb` uses, so they preview production code.
