@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { encodeRoomToneWav } from "./encodeRoomTone";
 import type { ByteSink } from "./keeper/store";
-import { roomToneWavPath } from "./keeper/store";
+import { removeBestEffort, roomToneWavPath } from "./keeper/store";
 import {
   type RoomToneStatus,
   roomToneReady,
@@ -48,7 +48,11 @@ export function useRoomToneCapture(args: {
     if (!args.sink || !args.sessionId || !args.participantId) {
       return;
     }
-    await args.sink.remove(roomToneWavPath(args.sessionId, args.participantId));
+    // Disposable bed: a refused delete must not block revoke or status.
+    await removeBestEffort(
+      args.sink,
+      roomToneWavPath(args.sessionId, args.participantId),
+    );
   }, [args.participantId, args.sessionId, args.sink]);
 
   const revokeRemote = useCallback(
@@ -170,7 +174,7 @@ export function useRoomToneCapture(args: {
         controller.signal.throwIfAborted();
         if (roomToneTooLoud(encoded.samples)) {
           pendingWav.current = null;
-          await sink.remove(path);
+          await removeBestEffort(sink, path);
           if (abortRef.current !== controller) {
             return;
           }
@@ -213,8 +217,15 @@ export function useRoomToneCapture(args: {
     setError(null);
     setStatus("skipped");
     void (async () => {
-      await discardLocal();
-      await revokeRemote();
+      try {
+        await discardLocal();
+      } finally {
+        try {
+          await revokeRemote();
+        } catch {
+          // Skip stays local-first; never leave an unhandled rejection.
+        }
+      }
     })();
   }, [discardLocal, revokeRemote]);
 

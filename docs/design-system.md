@@ -25,7 +25,7 @@ organized by Atomic Design level:
 
 | Level | Contents | Examples |
 | ----- | -------- | -------- |
-| **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError |
+| **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow |
 | **Organisms** | Complex components / sections | Dialog, BottomSheet |
 
@@ -67,3 +67,6 @@ every new component in both themes before merging.
 - 2026-09-21 — Scaffolded Storybook 10 (react-vite) with theme toolbar, 11
   story files across Atoms/Molecules/Organisms, and GitHub Pages deploy
   workflow.
+- 2026-09-23 — Added `Atoms/LevelMeter` and the `Molecules/ParticipantMeter`
+  layout sketch (story-only). Both drive the meter through `audio/usePeakMeter`,
+  the same loop `record/useInputPeakDb` uses, so they preview production code.

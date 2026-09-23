@@ -1,4 +1,9 @@
 import { type Browser, expect, test } from "@playwright/test";
+import {
+  createRecordRoom,
+  markSharecutE2e,
+  openRecordLink,
+} from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
 
 test.use({
@@ -28,23 +33,14 @@ test("host publishes close risk across recording and pause, then clears after st
       });
       await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
       await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
-      const created = await host.request.post("/api/shares/record", {
-        data: { path: projectPath },
-      });
-      expect(created.ok(), await created.text()).toBeTruthy();
-      const room = (await created.json()) as {
-        room: { guest: { token: string } };
-      };
+      const room = await createRecordRoom(host, projectPath);
       await host.getByRole("button", { name: "Menu" }).click();
       await host.getByRole("menuitem", { name: "Record room…" }).click();
       const dialog = host.getByRole("dialog", { name: "Record room" });
       await expect(dialog).toBeVisible();
 
-      await guest.addInitScript(() => {
-        (window as unknown as { __SHARECUT_E2E?: boolean }).__SHARECUT_E2E =
-          true;
-      });
-      await guest.goto(`/rec/${room.room.guest.token}?e2e=1`);
+      await markSharecutE2e(guest);
+      await openRecordLink(guest, room.guest.token);
       await guest.getByLabel("Display name").fill("Ava");
       await guest.getByLabel("I am wearing headphones").check();
       await guest.getByRole("button", { name: "Allow microphone" }).click();

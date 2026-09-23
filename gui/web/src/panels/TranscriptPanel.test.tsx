@@ -159,6 +159,166 @@ describe("TranscriptPanel", () => {
     ).toContain("embedded host:0");
   });
 
+  describe("touch gestures", () => {
+    const touch = { pointerType: "touch", isPrimary: true, pointerId: 1 };
+    const word = (container: HTMLElement, name: string) =>
+      within(container).getByRole("button", { name });
+    const correctToggle = (container: HTMLElement) =>
+      within(container).queryByRole("button", { name: /Correct/ });
+    const tap = (el: HTMLElement) => {
+      fireEvent.pointerDown(el, touch);
+      fireEvent.pointerUp(el, touch);
+      fireEvent.click(el);
+    };
+    const longPress = (el: HTMLElement) => {
+      fireEvent.pointerDown(el, touch);
+      act(() => {
+        vi.advanceTimersByTime(600);
+      });
+      fireEvent.pointerUp(el, touch);
+      fireEvent.click(el);
+      act(() => {
+        vi.runOnlyPendingTimers();
+      });
+    };
+    const thereWord = {
+      kind: "transcriptWord",
+      trackId: "host",
+      wordIndex: 1,
+    } as const;
+
+    it("double-tap seeks on the first tap, then opens correction", () => {
+      useDawStore.setState({ playheadSec: 5 });
+      const { container } = render(<TranscriptPanel />);
+      const there = word(container, "there");
+      tap(there);
+      expect(useDawStore.getState().playheadSec).toBe(1);
+      expect(useDawStore.getState().selection).toBeNull();
+      tap(there);
+      expect(useDawStore.getState().selection).toEqual(thereWord);
+      expect(correctToggle(container)).toHaveAttribute("aria-pressed", "true");
+    });
+
+    it("scopes Correct to the gesture: closing restores seek-on-tap", () => {
+      vi.useFakeTimers();
+      const { container } = render(<TranscriptPanel />);
+      const there = word(container, "there");
+      tap(there);
+      tap(there);
+      expect(useDawStore.getState().selection).toEqual(thereWord);
+      act(() => {
+        useDawStore.getState().setSelection(null);
+      });
+      expect(correctToggle(container)).toHaveAttribute("aria-pressed", "false");
+      // A real close happens well after the double-tap's ghost-click window.
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      useDawStore.setState({ playheadSec: 5 });
+      fireEvent.click(word(container, "there"));
+      expect(useDawStore.getState().playheadSec).toBe(1);
+      expect(useDawStore.getState().selection).toBeNull();
+      vi.useRealTimers();
+    });
+
+    it("long-press opens correction without seeking", () => {
+      vi.useFakeTimers();
+      useDawStore.setState({ playheadSec: 5 });
+      const { container } = render(<TranscriptPanel />);
+      longPress(word(container, "there"));
+      expect(useDawStore.getState().selection).toEqual(thereWord);
+      expect(useDawStore.getState().playheadSec).toBe(5);
+      vi.useRealTimers();
+    });
+
+    it("restores the Select range after a gesture correction closes", () => {
+      vi.useFakeTimers();
+      const { container } = render(<TranscriptPanel />);
+      fireEvent.click(
+        within(container).getByRole("button", { name: /Select/ }),
+      );
+      fireEvent.click(word(container, "hello"));
+      fireEvent.click(word(container, "there"), { shiftKey: true });
+      const range = useDawStore.getState().selection;
+      expect(range).toMatchObject({ kind: "transcriptRange" });
+      longPress(word(container, "there"));
+      expect(useDawStore.getState().selection).toEqual(thereWord);
+      act(() => {
+        useDawStore.getState().setSelection(null);
+      });
+      expect(useDawStore.getState().selection).toEqual(range);
+      expect(
+        within(container).getByRole("button", { name: /Select/ }),
+      ).toHaveAttribute("aria-pressed", "true");
+      vi.useRealTimers();
+    });
+
+    it("ignores a long-press whose word vanished during the hold", () => {
+      vi.useFakeTimers();
+      const { container } = render(<TranscriptPanel />);
+      const there = word(container, "there");
+      fireEvent.pointerDown(there, touch);
+      act(() => {
+        vi.advanceTimersByTime(600);
+      });
+      const base = project();
+      act(() => {
+        useDawStore.setState({
+          project: {
+            ...base,
+            transcript: {
+              utterances: base.transcript!.utterances.map((u) => ({
+                ...u,
+                words: u.words?.slice(0, 1),
+              })),
+            },
+          },
+        });
+      });
+      fireEvent.pointerUp(there, touch);
+      act(() => {
+        vi.runOnlyPendingTimers();
+      });
+      expect(useDawStore.getState().selection).toBeNull();
+      vi.useRealTimers();
+    });
+
+    it.each([
+      [
+        "a guest share",
+        () => useDawStore.setState({ projectPath: "share:tok" }),
+      ],
+      [
+        "unhydrated words",
+        () => {
+          const base = project();
+          useDawStore.setState({
+            project: {
+              ...base,
+              meta: {
+                ...base.meta,
+                hydration: { transcript_words: false, history_groups: false },
+              },
+            },
+          });
+        },
+      ],
+    ])("never enters Correct for %s", (_name, arrange) => {
+      vi.useFakeTimers();
+      arrange();
+      useDawStore.setState({ playheadSec: 5 });
+      const { container } = render(<TranscriptPanel />);
+      const there = word(container, "there");
+      tap(there);
+      tap(there);
+      longPress(there);
+      expect(useDawStore.getState().selection).toBeNull();
+      expect(container.textContent).not.toContain("correct mode");
+      expect(useDawStore.getState().playheadSec).toBe(1);
+      vi.useRealTimers();
+    });
+  });
+
   it("Select mode builds a transcript range", () => {
     const { container } = render(<TranscriptPanel />);
     fireEvent.click(within(container).getByRole("button", { name: /Select/i }));

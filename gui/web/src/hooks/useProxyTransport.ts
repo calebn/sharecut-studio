@@ -10,6 +10,7 @@ import {
   mergeOfflineSnapshot,
 } from "../state/offlineStore";
 import { useDaw } from "../state/useDaw";
+import { audioContextCtor } from "../utils/audio";
 import {
   AUDITION_STOP_EPS_SEC,
   nextPlayheadAfterSkip,
@@ -85,10 +86,10 @@ export function useProxyTransport(): boolean {
           return;
         }
         manifestRef.current = manifest;
-        const Ctx =
-          window.AudioContext ||
-          (window as unknown as { webkitAudioContext: typeof AudioContext })
-            .webkitAudioContext;
+        const Ctx = audioContextCtor();
+        if (!Ctx) {
+          throw new Error("Web Audio unavailable");
+        }
         const ctx = new Ctx();
         const engine = new ProxyEngine(ctx, async (trackId, idx) => {
           const url = manifest!.tracks[trackId]?.urls[idx];

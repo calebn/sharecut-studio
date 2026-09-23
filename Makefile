@@ -40,9 +40,9 @@ test-web:
 	cd gui/web && npm ci && npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npx vite-node scripts/generate-keymap-cheatsheet.ts --check
 
 # Sharecut Studio Playwright smoke + full-page axe gate against aligned_dialogue
-# (requires `[gui]` extra + Chromium). Mirrors CI `frontend-e2e` job.
+# + Chromium/WebKit compat matrix (requires `[gui]` extra). Mirrors CI `frontend-e2e` job.
 test-web-e2e:
-	cd gui/web && npm ci && npm run build && npx playwright install chromium && npm run test:e2e
+	cd gui/web && npm ci && npm run build && npm run test:e2e:install && npm run test:e2e && npm run test:e2e:compat
 
 # Tauri host: scaffold verify + rustfmt + clippy --lib --no-default-features +
 # cargo test --lib --no-default-features (no GTK/WebKit). Mirrors path-filtered

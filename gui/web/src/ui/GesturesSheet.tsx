@@ -32,14 +32,7 @@ export function GesturesSheet({
       <dl className="gesture-list">
         {MOBILE_GESTURES.map((g) => (
           <div key={g.gesture} className="gesture-item">
-            <dt className="gesture-name">
-              {g.gesture}
-              {g.status === "planned" && (
-                <span className="pill" aria-label="Coming soon">
-                  Soon
-                </span>
-              )}
-            </dt>
+            <dt className="gesture-name">{g.gesture}</dt>
             <dd className="gesture-detail">
               <strong>{gestureLabel(g)}</strong> — {g.description}
             </dd>

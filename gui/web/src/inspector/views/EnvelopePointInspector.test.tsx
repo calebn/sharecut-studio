@@ -64,19 +64,33 @@ describe("EnvelopePointInspector", () => {
     await userEvent.clear(value);
     await userEvent.type(value, "0.25");
     await userEvent.click(screen.getByRole("button", { name: "Apply" }));
-    expect(setEnvelope).toHaveBeenCalledWith("/tmp/p.json", "host", [
-      { id: "early", time: 0, value: 1 },
-      { id: "late", time: 5, value: 0.25 },
-    ]);
+    expect(setEnvelope).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      "host",
+      [
+        { id: "early", time: 0, value: 1 },
+        { id: "late", time: 5, value: 0.25 },
+      ],
+      [
+        { id: "early", time: 0, value: 1 },
+        { id: "late", time: 5, value: 0.5 },
+      ],
+    );
     await expectNoA11yViolations(container);
   });
 
   it("deletes a point and clears selection", async () => {
     render(<EnvelopePointInspector trackId="host" index={1} />);
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
-    expect(setEnvelope).toHaveBeenCalledWith("/tmp/p.json", "host", [
-      { id: "early", time: 0, value: 1 },
-    ]);
+    expect(setEnvelope).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      "host",
+      [{ id: "early", time: 0, value: 1 }],
+      [
+        { id: "early", time: 0, value: 1 },
+        { id: "late", time: 5, value: 0.5 },
+      ],
+    );
     expect(useDawStore.getState().selection).toBeNull();
   });
 
@@ -86,10 +100,18 @@ describe("EnvelopePointInspector", () => {
     await userEvent.clear(value);
     await userEvent.type(value, "9");
     await userEvent.click(screen.getByRole("button", { name: "Apply" }));
-    expect(setEnvelope).toHaveBeenCalledWith("/tmp/p.json", "host", [
-      { id: "early", time: 0, value: 1 },
-      { id: "late", time: 5, value: 1.5 },
-    ]);
+    expect(setEnvelope).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      "host",
+      [
+        { id: "early", time: 0, value: 1 },
+        { id: "late", time: 5, value: 1.5 },
+      ],
+      [
+        { id: "early", time: 0, value: 1 },
+        { id: "late", time: 5, value: 0.5 },
+      ],
+    );
   });
 
   it("commits time on form Enter", async () => {
@@ -98,10 +120,18 @@ describe("EnvelopePointInspector", () => {
     await userEvent.clear(time);
     await userEvent.type(time, "2");
     await userEvent.keyboard("{Enter}");
-    expect(setEnvelope).toHaveBeenCalledWith("/tmp/p.json", "host", [
-      { id: "early", time: 0, value: 1 },
-      { id: "late", time: 2, value: 0.5 },
-    ]);
+    expect(setEnvelope).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      "host",
+      [
+        { id: "early", time: 0, value: 1 },
+        { id: "late", time: 2, value: 0.5 },
+      ],
+      [
+        { id: "early", time: 0, value: 1 },
+        { id: "late", time: 5, value: 0.5 },
+      ],
+    );
   });
 
   it.each([
@@ -157,5 +187,45 @@ describe("EnvelopePointInspector", () => {
     expect(
       screen.queryByText("Envelope point changed; select it again"),
     ).toBeNull();
+  });
+
+  it.each([
+    ["Apply", "Apply"],
+    ["Delete", "Delete"],
+  ])(
+    "does not %s a point whose value changed underneath it",
+    async (_action, name) => {
+      render(<EnvelopePointInspector trackId="host" index={1} />);
+      const project = useDawStore.getState().project;
+      if (!project) {
+        throw new Error("Expected project to be hydrated");
+      }
+      project.envelopes[0].points[1] = { id: "late", time: 5, value: 0.25 };
+
+      await userEvent.click(screen.getByRole("button", { name }));
+
+      expect(setEnvelope).not.toHaveBeenCalled();
+      expect(
+        screen.getByText("Envelope point changed; select it again"),
+      ).toBeTruthy();
+    },
+  );
+
+  it("shows the host conflict message when SetEnvelope is rejected", async () => {
+    setEnvelope.mockRejectedValue(
+      new Error("Envelope on track 'host' changed since this edit started"),
+    );
+    render(<EnvelopePointInspector trackId="host" index={1} />);
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(
+      await screen.findByText(
+        "Envelope on track 'host' changed since this edit started",
+      ),
+    ).toBeTruthy();
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "envelopePoint",
+      trackId: "host",
+      index: 1,
+    });
   });
 });
