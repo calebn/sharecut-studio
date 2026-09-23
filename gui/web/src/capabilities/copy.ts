@@ -105,8 +105,8 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip: "Go to end",
   },
   "daw.edit.bladeCut": {
-    label: "Blade cut at time",
-    tooltip: "Blade cut at time",
+    label: "Blade cut",
+    tooltip: "Blade cut at the playhead or clicked time",
   },
   "daw.edit.bladeCut.confirm": {
     label: "Confirm blade cut",
@@ -412,6 +412,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   drop: "daw.media.import",
   "transcript.annotate": "daw.view.transcriptAnnotate",
   "transcript.correct": "daw.transcript.correct",
+  "mobileShell.gesture.doubleTapWord": "daw.transcript.correct",
   "transcript.select": "daw.transcript.select",
   "transcript.showCutAway": "daw.view.showCutAway",
   "timeline.clip.trimHandle": "daw.edit.trimClipEdge",

@@ -4,7 +4,9 @@ import {
   findVolumeEnvelope,
   indexOfVolumePointAtTime,
   replaceEnvelopePoint,
+  sameEnvelopePoint,
   sortedVolumePoints,
+  withVolumeEnvelopePoints,
 } from "./envelopes";
 
 describe("envelopes", () => {
@@ -69,5 +71,29 @@ describe("envelopes", () => {
     expect(indexOfVolumePointAtTime(envelopes, "host", 4.9)).toBe(1);
     expect(indexOfVolumePointAtTime(envelopes, "host", 0.1)).toBe(0);
     expect(indexOfVolumePointAtTime(envelopes, "guest", 0)).toBe(-1);
+  });
+
+  it("treats sub-epsilon float noise as the same point, not a new ID", () => {
+    const a = { id: "p", time: 1, value: 0.5 };
+    expect(sameEnvelopePoint(a, { ...a, value: 0.5 + 1e-9 })).toBe(true);
+    expect(sameEnvelopePoint(a, { ...a, value: 0.25 })).toBe(false);
+    expect(sameEnvelopePoint(a, { ...a, time: 2 })).toBe(false);
+    expect(sameEnvelopePoint(a, { ...a, id: "q" })).toBe(false);
+  });
+
+  it("replaces only the volume envelope's points", () => {
+    const pan = {
+      track_id: "host",
+      parameter: "pan",
+      points: [{ id: "pan", time: 0, value: -1 }],
+    };
+    const next = [{ id: "new", time: 1, value: 1 }];
+    expect(withVolumeEnvelopePoints([pan, ...envelopes], "host", next)).toEqual(
+      [pan, { ...envelopes[0], points: next }],
+    );
+    expect(withVolumeEnvelopePoints([pan], "host", next)).toEqual([
+      pan,
+      { track_id: "host", parameter: "volume", points: next },
+    ]);
   });
 });

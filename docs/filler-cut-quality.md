@@ -75,6 +75,8 @@ Dialogue cuts default to **fade joins** (`join_in_mode=fade`): hard concat with 
 
 **Crossfade** (`join_in_mode=crossfade`) is opt-in only — FFmpeg `acrossfade` overlap that shortens the rendered track. Use `crossfade_joins_tool` for music beds or when the user explicitly wants overlapping blend. Configure curve via `render.crossfade_curve` (default `tri`).
 
+**Which neighbours count as a join:** one rule for every join mode — `clips_abut` in `edits/clips_ops.py`, a timeline gap of at most `JOIN_GAP_TOLERANCE_SEC` (50 ms). A gap within the tolerance closes up when rendered (fade and cut joins concat; crossfade joins crossfade), so the stem is shorter than the timeline by that gap, and by the crossfade overlap for crossfade joins. A wider gap stays as silence and gets no crossfade. Crossfade joins with a 1–50 ms gap used to render as fade joins; when render rules like this change, `RENDER_SEMANTICS_REV` in `engines/timeline_render.py` is bumped so cached stems and play segments re-render.
+
 Hard joins (`join_in_mode=cut`, zero fades) use plain concat. See [inaudible-cuts.md](inaudible-cuts.md).
 
 ## CLI / MCP

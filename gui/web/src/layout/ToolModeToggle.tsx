@@ -1,5 +1,5 @@
 import { formatShortcutKeys, keymapCommandById } from "../keymap/registry";
-import { canSuggestStructural } from "../shareMode";
+import { canSuggestStructuralOnProject } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import { CommandButton, Icon } from "../ui";
 
@@ -13,12 +13,19 @@ function toolTitle(commandId: string, fallback: string): string {
 
 /** Select / Blade (and Comment when not compact) tool cluster. */
 export function ToolModeToggle({ compact = false }: { compact?: boolean }) {
-  const { toolMode, commentMode, projectPath, guestMode, shareCapabilities } =
-    useDaw();
-  const allowed = canSuggestStructural(
+  const {
+    toolMode,
+    commentMode,
+    project,
     projectPath,
     guestMode,
     shareCapabilities,
+  } = useDaw();
+  const allowed = canSuggestStructuralOnProject(
+    projectPath,
+    guestMode,
+    shareCapabilities,
+    project != null,
   );
   const selectActive = toolMode === "select" && !commentMode;
   const bladeActive = toolMode === "blade" && !commentMode;

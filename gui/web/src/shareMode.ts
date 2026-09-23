@@ -144,6 +144,18 @@ export function canManageProjects(projectPath: string): boolean {
   return !isShareProjectKey(projectPath);
 }
 
+/** ``canSuggestStructural`` plus a loaded project (blade / delete / tool cluster). */
+export function canSuggestStructuralOnProject(
+  projectPath: string,
+  guestMode: string | null,
+  capabilities: string[] | null | undefined,
+  hasProject: boolean,
+): boolean {
+  return (
+    hasProject && canSuggestStructural(projectPath, guestMode, capabilities)
+  );
+}
+
 /** Host, or guest with the ``comment`` capability (create / Ask). */
 export function canComment(
   projectPath: string,

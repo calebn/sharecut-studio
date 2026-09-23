@@ -10,6 +10,7 @@ import type {
 import {
   clampEnvelopeValue,
   replaceEnvelopePoint,
+  sameEnvelopePoint,
   sortedVolumePoints,
 } from "../utils/envelopes";
 import { LANE_HEIGHT } from "../utils/layout";
@@ -41,7 +42,7 @@ function pointMoved(
   if (!a || !b) {
     return false;
   }
-  return Math.abs(a.time - b.time) > 1e-6 || Math.abs(a.value - b.value) > 1e-6;
+  return !sameEnvelopePoint(a, b);
 }
 
 export function EnvelopeOverlay({
@@ -102,17 +103,19 @@ export function EnvelopeOverlay({
     const replaced = replaceEnvelopePoint(next, dragIndex, movedPoint);
     commitLock.current = true;
     try {
-      await setEnvelope(projectPath, trackId, replaced.points);
+      await setEnvelope(projectPath, trackId, replaced.points, origin);
       setDraft(null);
       setSelection({
         kind: "envelopePoint",
         trackId,
         index: Math.max(0, replaced.index),
       });
-    } catch {
+    } catch (error) {
       setDraft(null);
       setSelection(priorSel.current);
-      announceStatus("Could not apply envelope");
+      announceStatus(
+        error instanceof Error ? error.message : "Could not apply envelope",
+      );
     } finally {
       commitLock.current = false;
     }
