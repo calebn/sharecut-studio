@@ -251,7 +251,12 @@ def map_applied_edits_to_timeline(
 
 
 def map_edit_boundaries(project: EpisodeProject) -> list[dict[str, Any]]:
-    """Derive join/cutaway edit boundaries from abutting clips + transcript words."""
+    """Derive edit boundaries from neighbouring clips + transcript words.
+
+    Every neighbouring clip pair on a track is an edit point, whether the clips
+    abut (see ``clips_abut``) or a timeline gap separates them, so the transcript
+    marks each one. The row is keyed on the pair, not on the join tolerance.
+    """
     rows: list[dict[str, Any]] = []
     track_ids = sorted({c.track_id for c in project.clips})
     for track_id in track_ids:

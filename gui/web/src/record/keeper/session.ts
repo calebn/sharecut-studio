@@ -355,6 +355,7 @@ export class KeeperSession {
       sampleRate: KEEPER_SAMPLE_RATE,
       joinOffsetMs: open.joinOffsetMs,
       samplesWritten,
+      complete: true,
     };
     const json = new TextEncoder().encode(`${JSON.stringify(meta, null, 2)}\n`);
     try {

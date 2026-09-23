@@ -1,4 +1,4 @@
-.PHONY: setup doctor hooks test test-fast test-quick test-e2e test-e2e-slow test-e2e-real test-web test-web-e2e test-desktop desktop-build desktop-linux-appimage-docker ci typecheck lint-py format-py format-py-check install ux-demo ux-demo-screens cheatsheet cheatsheet-check schema-export schema-check capabilities-check progress-check golden-ear
+.PHONY: setup doctor hooks worktree-setup test test-fast test-quick test-e2e test-e2e-slow test-e2e-real test-web test-web-e2e test-desktop desktop-build desktop-linux-appimage-docker ci typecheck lint-py format-py format-py-check install ux-demo ux-demo-screens cheatsheet cheatsheet-check schema-export schema-check capabilities-check progress-check golden-ear
 
 setup:
 	./install.sh
@@ -7,6 +7,11 @@ setup:
 hooks:
 	git config core.hooksPath .githooks
 	chmod +x .githooks/pre-commit
+
+# Idempotent per-checkout/worktree provisioning: hooks + venv (CI extras) + gui/web node_modules.
+# The pre-commit hook runs this automatically in an unprovisioned worktree.
+worktree-setup:
+	sh scripts/worktree-setup.sh
 
 doctor:
 	uv run podcast doctor 2>/dev/null || .venv/bin/podcast doctor 2>/dev/null || podcast doctor
@@ -40,9 +45,9 @@ test-web:
 	cd gui/web && npm ci && npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npx vite-node scripts/generate-keymap-cheatsheet.ts --check
 
 # Sharecut Studio Playwright smoke + full-page axe gate against aligned_dialogue
-# (requires `[gui]` extra + Chromium). Mirrors CI `frontend-e2e` job.
+# + Chromium/WebKit compat matrix (requires `[gui]` extra). Mirrors CI `frontend-e2e` job.
 test-web-e2e:
-	cd gui/web && npm ci && npm run build && npx playwright install chromium && npm run test:e2e
+	cd gui/web && npm ci && npm run build && npm run test:e2e:install && npm run test:e2e && npm run test:e2e:compat
 
 # Tauri host: scaffold verify + rustfmt + clippy --lib --no-default-features +
 # cargo test --lib --no-default-features (no GTK/WebKit). Mirrors path-filtered

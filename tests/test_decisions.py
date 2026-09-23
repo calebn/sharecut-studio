@@ -737,3 +737,34 @@ def test_format_edit_impact_markdown_lists_applied_segments():
     md = format_edit_impact_markdown(report)
     assert "[applied]" in md
     assert "filler:um" in md
+
+
+def test_join_rules_follow_shared_gap_tolerance(monkeypatch):
+    """Edit-time join fades and the gap summary read JOIN_GAP_TOLERANCE_SEC, not a literal."""
+    import podcast_mcp.edits.clips_ops as clips_ops
+    from podcast_mcp.edits.decisions import apply_join_fades_from_decisions
+
+    proj = _project_with_clip()
+    proj.timeline.clips = [
+        Clip(id="c1", track_id="host", source_start=0.0, source_end=5.0, timeline_start=0.0),
+        Clip(id="c2", track_id="host", source_start=10.0, source_end=15.0, timeline_start=6.0),
+    ]
+    assert edit_impact_report(proj)["gap_count"] == 1
+
+    monkeypatch.setattr(clips_ops, "JOIN_GAP_TOLERANCE_SEC", 1.5)
+
+    assert edit_impact_report(proj)["gap_count"] == 0
+    decision = EditDecision(
+        id="f1",
+        track_id="host",
+        type=EditDecisionType.REMOVE,
+        start=4.5,
+        end=5.0,
+        reason="filler:um",
+        crossfade_ms=30,
+        review_required=False,
+        applied=False,
+    )
+    apply_join_fades_from_decisions(proj, [decision])
+    right = next(c for c in proj.clips if c.id == "c2")
+    assert right.fade_in_ms == 30

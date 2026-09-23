@@ -28,6 +28,34 @@ export function sortedVolumePoints(
   return [...env.points].sort((a, b) => a.time - b.time);
 }
 
+/** Positions closer than this are the same point (drag jitter, float noise). */
+export const ENVELOPE_POINT_EPSILON = 1e-6;
+
+/** Same identity and position; the one "point unchanged" rule for drag and inspector. */
+export function sameEnvelopePoint(
+  a: AutomationPoint,
+  b: AutomationPoint,
+): boolean {
+  return (
+    a.id === b.id &&
+    Math.abs(a.time - b.time) <= ENVELOPE_POINT_EPSILON &&
+    Math.abs(a.value - b.value) <= ENVELOPE_POINT_EPSILON
+  );
+}
+
+/** Replace a track's volume points, leaving other parameters (e.g. pan) alone. */
+export function withVolumeEnvelopePoints(
+  envelopes: AutomationEnvelope[],
+  trackId: string,
+  points: AutomationPoint[],
+): AutomationEnvelope[] {
+  const current = findVolumeEnvelope(envelopes, trackId);
+  if (!current) {
+    return [...envelopes, { track_id: trackId, parameter: "volume", points }];
+  }
+  return envelopes.map((e) => (e === current ? { ...e, points } : e));
+}
+
 export function replaceEnvelopePoint(
   points: AutomationPoint[],
   index: number,

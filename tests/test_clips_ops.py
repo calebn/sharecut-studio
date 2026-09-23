@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 from podcast_mcp.edits.clips_ops import (
+    JOIN_GAP_TOLERANCE_SEC,
+    abutting_pairs,
+    clips_abut,
+    clips_for_track,
     remove_timeline_range_from_clips,
     split_clip_at,
 )
-from podcast_mcp.models import Clip
+from podcast_mcp.models import Clip, EpisodeProject
 
 
 def _clip(tl_start: float, src_start: float, dur: float, tid: str = "host") -> Clip:
@@ -32,3 +36,29 @@ def test_remove_timeline_range() -> None:
     assert out[0].source_end == 2.0
     assert out[1].timeline_start == 2.0
     assert out[1].source_start == 7.0
+
+
+def test_clips_for_track_is_canonically_sorted() -> None:
+    project = EpisodeProject.create("sort", "/tmp/sort")
+    project.timeline.clips = [_clip(2.0, 2.0, 1.0), _clip(0.0, 0.0, 1.0)]
+
+    assert [clip.timeline_start for clip in clips_for_track(project, "host")] == [0.0, 2.0]
+
+
+def test_clips_abut_follows_join_gap_tolerance() -> None:
+    left = _clip(0.0, 0.0, 1.0)
+
+    assert clips_abut(left, _clip(1.0, 5.0, 1.0))
+    assert clips_abut(left, _clip(1.0 + JOIN_GAP_TOLERANCE_SEC / 2, 5.0, 1.0))
+    assert not clips_abut(left, _clip(1.0 + JOIN_GAP_TOLERANCE_SEC + 1e-3, 5.0, 1.0))
+    # Overlaps count as abutting.
+    assert clips_abut(left, _clip(0.5, 5.0, 1.0))
+
+
+def test_abutting_pairs_skips_gapped_neighbours() -> None:
+    a = _clip(0.0, 0.0, 1.0)
+    b = _clip(1.0 + JOIN_GAP_TOLERANCE_SEC / 2, 5.0, 1.0)
+    c = _clip(b.timeline_end + JOIN_GAP_TOLERANCE_SEC + 0.5, 9.0, 1.0)
+
+    assert abutting_pairs([a, b, c]) == [(a, b)]
+    assert abutting_pairs([a]) == []
