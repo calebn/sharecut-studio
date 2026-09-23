@@ -90,16 +90,38 @@ describe("CommentsPanel", () => {
     await expectNoA11yViolations(container);
   });
 
-  it("moves focus to the panel after Undo instead of <body>", async () => {
+  it("moves focus to the panel after Undo even when the disabled Undo is blurred", async () => {
     const user = userEvent.setup();
     const { container } = render(<CommentsPanel />);
     await user.click(screen.getByRole("button", { name: "Resolve" }));
     await screen.findByText(/Resolved comment at/);
-    await user.click(screen.getByRole("button", { name: "Undo" }));
+    let release: (value: null) => void = () => undefined;
+    patchComment.mockImplementationOnce(
+      () =>
+        new Promise<null>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const undo = screen.getByRole("button", { name: "Undo" });
+    await user.click(undo);
+    expect(undo).toBeDisabled();
+    // Chromium's focus fixup blurs the focused Undo once it is disabled;
+    // jsdom's native .blur() no-ops on a disabled element, so toggle the
+    // underlying DOM property off just long enough to fire a real blur with
+    // relatedTarget null, then restore it to match the disabled markup React
+    // rendered.
+    act(() => {
+      (undo as HTMLButtonElement).disabled = false;
+      undo.blur();
+      (undo as HTMLButtonElement).disabled = true;
+    });
+    expect(document.activeElement).toBe(document.body);
+    await act(async () => {
+      release(null);
+    });
     await waitFor(() =>
       expect(screen.queryByText(/Resolved comment at/)).not.toBeInTheDocument(),
     );
-    expect(document.activeElement).not.toBe(document.body);
     expect(document.activeElement).toBe(
       container.querySelector(".comments-panel"),
     );
