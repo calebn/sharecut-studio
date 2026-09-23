@@ -255,8 +255,8 @@ export const useDawStore = create<DawStore>((set, get) => ({
       set({
         suppressPublish: true,
         _suppressTimer: timer,
-        lastAppliedRevision: state.server_seq ?? state.revision,
-        lastAppliedCommandId: state.command_id,
+        lastAppliedRevision: state.server_seq,
+        lastAppliedCommandId: state.last_command_id,
         playheadSec: state.playhead_sec,
         lastAgentQuery: state.query,
         sessionRegion: state.region,
@@ -280,8 +280,8 @@ export const useDawStore = create<DawStore>((set, get) => ({
     set({
       suppressPublish: true,
       _suppressTimer: timer,
-      lastAppliedRevision: state.server_seq ?? state.revision,
-      lastAppliedCommandId: state.command_id,
+      lastAppliedRevision: state.server_seq,
+      lastAppliedCommandId: state.last_command_id,
       ...hear,
       ...(nextSel !== undefined && state.selection !== undefined
         ? { selection: nextSel }

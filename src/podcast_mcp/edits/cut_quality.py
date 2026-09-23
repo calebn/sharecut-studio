@@ -172,19 +172,9 @@ def recommend_post_pad_fade_in_ms(
     Scans a short look-ahead after ``source_resume_sec``. Quiet air keeps a
     tiny declick; a hot onset (and how late it arrives) lengthens the fade so
     it still covers the consonant - not a fixed 50/100 ms rule.
-
-    Legacy ``tighten.filler_post_pad_fade_in_ms`` forces a fixed length when
-    min/max are unset (tests / old configs).
     """
     tighten = _tighten_cfg(defaults)
     h = _heuristics(defaults)
-    if (
-        "filler_post_pad_fade_in_ms" in tighten
-        and "filler_post_pad_fade_in_min_ms" not in tighten
-        and "filler_post_pad_fade_in_max_ms" not in tighten
-    ):
-        return max(0, int(tighten["filler_post_pad_fade_in_ms"]))
-
     min_ms = int(tighten.get("filler_post_pad_fade_in_min_ms", 15))
     max_ms = int(tighten.get("filler_post_pad_fade_in_max_ms", 120))
     if max_ms < min_ms:
@@ -238,26 +228,12 @@ def recommend_prev_word_lead_out_ms(
 ) -> int:
     """How far past ASR ``prev_end`` to keep before a replace-gap cut.
 
-    Nasals/releases often ring past the transcript end. Fixed 60 ms still cuts
-    through a hot N; scan until energy reaches the quiet floor (clamped).
-
-    Legacy ``tighten.filler_prev_word_lead_out_ms`` alone forces a fixed length.
+    Nasals/releases often ring past the transcript end. Scan until energy
+    reaches the quiet floor (clamped).
     """
     tighten = _tighten_cfg(defaults)
     h = _heuristics(defaults)
-    if (
-        "filler_prev_word_lead_out_ms" in tighten
-        and "filler_prev_word_lead_out_min_ms" not in tighten
-        and "filler_prev_word_lead_out_max_ms" not in tighten
-    ):
-        return max(0, int(tighten["filler_prev_word_lead_out_ms"]))
-
-    min_ms = int(
-        tighten.get(
-            "filler_prev_word_lead_out_min_ms",
-            tighten.get("filler_prev_word_lead_out_ms", 40),
-        )
-    )
+    min_ms = int(tighten.get("filler_prev_word_lead_out_min_ms", 40))
     max_ms = int(tighten.get("filler_prev_word_lead_out_max_ms", 250))
     if max_ms < min_ms:
         min_ms, max_ms = max_ms, min_ms

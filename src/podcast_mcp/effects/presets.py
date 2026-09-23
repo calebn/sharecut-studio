@@ -10,7 +10,6 @@ _BUILTIN_PRESETS: dict[str, list[dict[str, Any]]] = {
     "noise_reduction_heavy": [{"effect": "afftdn", "params": {"nr": 20, "nf": -25}}],
     "noise_reduction_rnnoise": [{"effect": "arnndn", "params": {}}],
     "deess": [{"effect": "deesser", "params": {"intensity": 0.5, "frequency": 0.5}}],
-    "deess_legacy_notch": [{"effect": "bandreject", "params": {"f": 6500, "w": 3000}}],
     "gate": [
         {
             "effect": "agate",

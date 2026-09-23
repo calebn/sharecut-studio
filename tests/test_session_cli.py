@@ -6,7 +6,7 @@ from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
 from podcast_mcp.models import load_project
-from podcast_mcp.services.session_state import publish_agent_play
+from podcast_mcp.services.session_sync.viewer import publish_agent_play
 
 runner = CliRunner()
 

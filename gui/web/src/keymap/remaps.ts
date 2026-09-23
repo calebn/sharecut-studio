@@ -3,10 +3,9 @@
  * Empty / missing override → use catalog keys.
  */
 
-import { migrateLocalStorageKey } from "../utils/legacyStorage";
+import { readLocal, writeLocal } from "../utils/storage";
 
 const STORAGE_KEY = "sharecut.keymap.overrides";
-const LEGACY_STORAGE_KEY = "dawshell.keymap.overrides";
 
 export type KeymapOverrides = Record<string, string[]>;
 
@@ -16,12 +15,8 @@ function readStorage(): KeymapOverrides {
   if (memory) {
     return memory;
   }
-  if (typeof localStorage === "undefined") {
-    memory = {};
-    return memory;
-  }
+  const raw = readLocal(STORAGE_KEY);
   try {
-    const raw = migrateLocalStorageKey(STORAGE_KEY, LEGACY_STORAGE_KEY);
     memory = raw ? (JSON.parse(raw) as KeymapOverrides) : {};
   } catch {
     memory = {};
@@ -31,14 +26,7 @@ function readStorage(): KeymapOverrides {
 
 function writeStorage(next: KeymapOverrides): void {
   memory = next;
-  if (typeof localStorage === "undefined") {
-    return;
-  }
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  } catch {
-    /* ignore quota */
-  }
+  writeLocal(STORAGE_KEY, JSON.stringify(next));
 }
 
 export function getKeymapOverride(commandId: string): string[] | undefined {
@@ -67,7 +55,6 @@ export function _resetKeymapOverridesForTests(): void {
   try {
     if (typeof localStorage !== "undefined") {
       localStorage.removeItem(STORAGE_KEY);
-      localStorage.removeItem(LEGACY_STORAGE_KEY);
     }
   } catch {
     /* jsdom / incomplete localStorage stubs */

@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from podcast_mcp.config import repo_root
+from podcast_mcp.edits.share_registry import reset_share_registry_for_tests
 from podcast_mcp.models import EpisodeProject, save_project
 from podcast_mcp.services.remote_mcp.limits import reset_host_limiters_for_tests
 from podcast_mcp.util import object_store as object_store_util
@@ -47,6 +48,29 @@ def _isolate_host_limiters() -> None:
         yield
     finally:
         reset_host_limiters_for_tests()
+
+
+@pytest.fixture(autouse=True)
+def _isolate_share_registry(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Pin the host share registry to a per-test sqlite file.
+
+    Tests that need a specific path (verbatim-override / two-registry cases)
+    still ``setenv`` explicitly; the singleton is reset around every test so a
+    connection never outlives its ``tmp_path``.
+    """
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_path / "share_registry.sqlite"))
+    reset_share_registry_for_tests()
+    try:
+        yield
+    finally:
+        reset_share_registry_for_tests()
+
+
+@pytest.fixture(autouse=True)
+def _isolate_relay_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Keep relay.yaml and the persisted relay host_id out of the developer's home."""
+    monkeypatch.setenv("PODCAST_RELAY_CONFIG", str(tmp_path / "relay.yaml"))
+    monkeypatch.delenv("PODCAST_RELAY_HOST_ID", raising=False)
 
 
 @pytest.fixture(autouse=True)

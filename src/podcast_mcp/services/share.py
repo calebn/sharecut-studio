@@ -14,7 +14,6 @@ from typing import Any
 from podcast_mcp.edits.comments import comments_for_view
 from podcast_mcp.edits.review_shares import (
     create_share,
-    default_registry_path,
     drop_share,
     list_room_shares,
     list_shares,
@@ -146,7 +145,7 @@ class ShareService:
             general_access=ga,
             require_sign_in=require_sign_in,
         )
-        register_share_globally(row, registry_path=default_registry_path())
+        register_share_globally(row)
         try:
             upload_review_version_to_object_store(self.ws, review_version_id)
         except Exception:
@@ -247,7 +246,7 @@ class ShareService:
             role=role,
             session_id=session_id,
         )
-        register_share_globally(row, registry_path=default_registry_path())
+        register_share_globally(row)
         return present_share(row, public_base_url=public_base_url)
 
     def create_record_room(
@@ -353,7 +352,7 @@ def lookup_share(token: str, *, kind: str | None = None) -> dict[str, Any]:
     so prefix↔kind checks leak nothing.
     """
     reg = get_share_registry()
-    row = resolve_share(token, registry_path=default_registry_path())
+    row = resolve_share(token)
     if row is None or row.get("revoked"):
         raise KeyError("invalid or revoked share token")
     row_kind = str(row.get("kind") or SHARE_KIND_REVIEW)
@@ -391,11 +390,10 @@ def _mark_share_revoked(token: str, *, ws: ProjectWorkspace | None = None) -> No
     if ws is not None:
         revoke_share(ws.project, token)
         return
-    reg = default_registry_path()
-    entry = resolve_share(token, registry_path=reg)
+    entry = resolve_share(token)
     if entry is not None:
         entry["revoked"] = True
-        register_share_globally(entry, registry_path=reg)
+        register_share_globally(entry)
 
 
 def workspace_from_share_row(row: dict[str, Any]) -> ProjectWorkspace:

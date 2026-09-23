@@ -4,19 +4,16 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { readLocal, writeLocal } from "../utils/storage";
 
 export type ThemePreference = "system" | "light" | "dark";
 
 const STORAGE_KEY = "daw_theme";
 
 function readStored(): ThemePreference {
-  try {
-    const v = localStorage.getItem(STORAGE_KEY);
-    if (v === "light" || v === "dark" || v === "system") {
-      return v;
-    }
-  } catch {
-    // ignore
+  const v = readLocal(STORAGE_KEY);
+  if (v === "light" || v === "dark" || v === "system") {
+    return v;
   }
   return "system";
 }
@@ -48,11 +45,7 @@ export function useTheme(): {
 
   useEffect(() => {
     applyTheme(preference);
-    try {
-      localStorage.setItem(STORAGE_KEY, preference);
-    } catch {
-      // ignore
-    }
+    writeLocal(STORAGE_KEY, preference);
   }, [preference]);
 
   const setPreference = useCallback((p: ThemePreference) => {
