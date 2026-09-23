@@ -84,7 +84,23 @@ def test_local_checks_are_targeted_and_ci_is_the_full_gate() -> None:
     assert "Do NOT run make test, make test-web, make ci" in script
     assert "make test-fast" not in script
     assert "make worktree-setup" in script
+    # CI is awaited once, at the merge gate (plus bounded fix attempts), not per round.
+    assert script.count("await ensureGreen(") == 1
     assert "uv sync --all-extras" not in script
+
+
+def test_cheap_tier_never_writes_code() -> None:
+    """Haiku-tier agents only watch, verify, post and merge; code changes are sonnet/opus."""
+    calls = re.findall(r"\{ label: [^\n]*model: M\.(\w+)[^\n]*\}", _script())
+    assert calls, "no agent option blocks found"
+    for line in re.findall(r"\{ label: [^\n]*model: M\.cheap[^\n]*\}", _script()):
+        assert "isolation: 'worktree'" not in line, line
+
+
+def test_ci_failures_are_classified_before_fixing() -> None:
+    script = _script()
+    assert "cause: { enum: ['pr', 'flaky', 'unrelated']" in script
+    assert "--failed" in script
 
 
 def test_model_tiers() -> None:
