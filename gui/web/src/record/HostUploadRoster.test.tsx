@@ -159,7 +159,7 @@ describe("HostUploadRoster", () => {
         ]}
       />,
     );
-    expect(screen.getByText("Ava: 1 chunks acked.")).toBeInTheDocument();
+    expect(screen.getByText("Ava: 1 chunk acked.")).toBeInTheDocument();
     expect(screen.queryByText("Ava: 1/3 chunks acked.")).toBeNull();
   });
 });
