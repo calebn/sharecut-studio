@@ -80,6 +80,33 @@ describe("tighten commands", () => {
     expect(rejectEdits).toHaveBeenCalledWith("/tmp/p.json", ["e2"]);
   });
 
+  it("applies and skips review-required repetition and restart hits", async () => {
+    useDawStore.setState({
+      project: minimalProject({
+        pending_edits: [
+          pending({
+            id: "repeat",
+            reason: "repetition:word:the",
+            review_required: true,
+          }),
+          pending({
+            id: "restart",
+            reason: "restart:phrase:i went",
+            review_required: true,
+          }),
+        ],
+      }),
+    });
+    expect(await execute("tighten.applyHit", { id: "repeat" })).toEqual({
+      status: "ok",
+    });
+    expect(approveEdits).toHaveBeenCalledWith("/tmp/p.json", ["repeat"]);
+    expect(await execute("tighten.skipHit", { id: "restart" })).toEqual({
+      status: "ok",
+    });
+    expect(rejectEdits).toHaveBeenCalledWith("/tmp/p.json", ["restart"]);
+  });
+
   it("apply-all batches eligible ids into one ApproveEdits", async () => {
     const result = await execute("tighten.applyAllSafe", {
       avoidHarsh: true,

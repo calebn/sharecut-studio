@@ -4,6 +4,8 @@ import json
 import threading
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from podcast_mcp.models import CombinedTranscript, CombinedUtterance, Transcript, TranscriptWord
 from podcast_mcp.services import (
     ClipService,
@@ -310,6 +312,33 @@ def test_pipeline_service_set_envelope(minimal_project):
     )
     assert n == 2
     assert ws.project.automation_envelopes[0].track_id == "host"
+    ids = [point.id for point in ws.project.automation_envelopes[0].points]
+    assert all(ids)
+    assert len(ids) == len(set(ids))
+
+
+def test_pipeline_service_preserves_explicit_envelope_point_id(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    PipelineService(ws).set_envelope("host", [{"id": "stable-point", "time": 0.0, "value": 0.0}])
+    assert ws.project.automation_envelopes[0].points[0].id == "stable-point"
+
+
+def test_pipeline_service_rejects_duplicate_envelope_point_ids(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    with pytest.raises(ValueError, match="point IDs must be unique"):
+        PipelineService(ws).set_envelope(
+            "host",
+            [
+                {"id": "same", "time": 0.0, "value": 0.0},
+                {"id": "same", "time": 5.0, "value": 1.0},
+            ],
+        )
+
+
+def test_pipeline_service_rejects_blank_envelope_point_id(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    with pytest.raises(ValueError, match="at least 1 character"):
+        PipelineService(ws).set_envelope("host", [{"id": "", "time": 0.0, "value": 0.0}])
 
 
 def test_speaker_service_doctor_and_profiles(minimal_project):

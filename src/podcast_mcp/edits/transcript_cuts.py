@@ -360,7 +360,7 @@ def coalesce_edits(
         stack = [edits[0]]
         for e in edits[1:]:
             top = stack[-1]
-            if e.start <= top.end + merge_gap_sec:
+            if e.start <= top.end + merge_gap_sec and not _keeps_independent_review(top, e):
                 top.end = max(top.end, e.end)
                 if e.review_required:
                     top.review_required = True
@@ -372,6 +372,19 @@ def coalesce_edits(
         result.extend(stack)
     project.edit_decisions = result
     return merged_count
+
+
+def _keeps_independent_review(left: EditDecision, right: EditDecision) -> bool:
+    """Keep generated repeat/restart proposals individually reviewable.
+
+    Their reason and id identify a specific linguistic repair.  A neighboring
+    filler or pause can be safely coalesced with ordinary cuts, but merging it
+    into one of these proposals loses that review context.
+    """
+    return any(
+        decision.review_required and (decision.reason or "").startswith(("repetition:", "restart:"))
+        for decision in (left, right)
+    )
 
 
 def cut_time_range(

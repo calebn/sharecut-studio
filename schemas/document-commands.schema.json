@@ -1764,6 +1764,11 @@
     },
     "EnvelopePoint": {
       "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
         "time": {
           "title": "Time",
           "type": "number"

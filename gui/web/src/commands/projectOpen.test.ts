@@ -1,4 +1,4 @@
-import { waitFor } from "@testing-library/react";
+import { act, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
 import { useDawStore } from "../state/dawStore";
@@ -49,6 +49,10 @@ describe("project.open", () => {
   });
 
   it("picks then opens and navigates", async () => {
+    vi.stubGlobal("location", {
+      href: "http://127.0.0.1:8765/?project=old",
+      assign,
+    });
     pickMock.mockResolvedValue({
       project_path: "/tmp/ep/episode.project.json",
     });
@@ -65,6 +69,47 @@ describe("project.open", () => {
     expect(opened.searchParams.get("project")).toBe(
       "/tmp/ep/episode.project.json",
     );
+    expect(opened.searchParams.has("sc_close_guard")).toBe(false);
+  });
+
+  it("blocks New while the native recording guard is armed", async () => {
+    vi.stubGlobal("location", {
+      href: "http://127.0.0.1:8765/?project=old&sc_close_guard=host",
+      assign,
+    });
+    expect((await execute("project.new")).status).toBe("disabled");
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("blocks Open before showing a picker while the guard is armed", async () => {
+    vi.stubGlobal("location", {
+      href: "http://127.0.0.1:8765/?project=old&sc_close_guard=host",
+      assign,
+    });
+    expect((await execute("project.open")).status).toBe("disabled");
+    expect(pickMock).not.toHaveBeenCalled();
+    expect(openMock).not.toHaveBeenCalled();
+  });
+
+  it("does not switch if the guard arms while the picker is open", async () => {
+    let finishPick!: (value: { project_path: string }) => void;
+    pickMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishPick = resolve;
+        }),
+    );
+    expect((await execute("project.open")).status).toBe("ok");
+    await waitFor(() => expect(pickMock).toHaveBeenCalled());
+    vi.stubGlobal("location", {
+      href: "http://127.0.0.1:8765/?project=old&sc_close_guard=host",
+      assign,
+    });
+    await act(async () => {
+      finishPick({ project_path: "/tmp/new/episode.project.json" });
+    });
+    expect(openMock).not.toHaveBeenCalled();
+    expect(assign).not.toHaveBeenCalled();
   });
 
   it("ignores overlapping invocations until pick finishes", async () => {

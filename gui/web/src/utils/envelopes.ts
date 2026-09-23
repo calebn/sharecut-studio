@@ -1,4 +1,4 @@
-import type { AutomationEnvelope } from "../types/project";
+import type { AutomationEnvelope, AutomationPoint } from "../types/project";
 
 export const ENVELOPE_VALUE_MAX = 1.5;
 
@@ -20,7 +20,7 @@ export function findVolumeEnvelope(
 export function sortedVolumePoints(
   envelopes: AutomationEnvelope[] | undefined,
   trackId: string,
-): { time: number; value: number }[] {
+): AutomationPoint[] {
   const env = findVolumeEnvelope(envelopes, trackId);
   if (!env) {
     return [];
@@ -29,15 +29,15 @@ export function sortedVolumePoints(
 }
 
 export function replaceEnvelopePoint(
-  points: { time: number; value: number }[],
+  points: AutomationPoint[],
   index: number,
-  next: { time: number; value: number },
-): { points: { time: number; value: number }[]; index: number } {
+  next: AutomationPoint,
+): { points: AutomationPoint[]; index: number } {
   const tagged = points.map((p, i) => ({ ...p, i }));
   tagged[index] = { ...next, i: index };
   tagged.sort((a, b) => a.time - b.time);
   return {
-    points: tagged.map(({ time, value }) => ({ time, value })),
+    points: tagged.map(({ id, time, value }) => ({ id, time, value })),
     index: tagged.findIndex((p) => p.i === index),
   };
 }

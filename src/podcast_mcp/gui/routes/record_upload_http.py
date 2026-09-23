@@ -54,6 +54,7 @@ async def ingest_record_upload_request(
     sha256: str,
     file_sha256: str | None,
     final: bool,
+    expected_parts: int | None = None,
     join_offset_ms: int | None = None,
     workspace: ProjectWorkspace | None = None,
     clip_scope: str | None = None,
@@ -80,6 +81,7 @@ async def ingest_record_upload_request(
             digest=sha256,
             file_sha256=file_sha256,
             final=final,
+            expected_parts=expected_parts,
             join_offset_ms=join_offset_ms,
             kind=parsed_kind,
         )

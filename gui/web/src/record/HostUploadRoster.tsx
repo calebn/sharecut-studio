@@ -10,6 +10,7 @@ export function HostUploadRoster({
     participant_id: string;
     acked_parts: number[];
     file_ack?: boolean;
+    expected_parts?: number | null;
     landed?: boolean;
     land_failed?: boolean;
   }>;
@@ -30,6 +31,8 @@ export function HostUploadRoster({
     string,
     {
       acked: number;
+      total: number;
+      totalKnown: boolean;
       fileAck: boolean;
       landed: boolean;
       landFailed: boolean;
@@ -39,6 +42,8 @@ export function HostUploadRoster({
   for (const id of ids) {
     byId.set(id, {
       acked: 0,
+      total: 0,
+      totalKnown: true,
       fileAck: false,
       landed: false,
       landFailed: false,
@@ -48,12 +53,21 @@ export function HostUploadRoster({
   for (const row of segments) {
     const slot = byId.get(row.participant_id) ?? {
       acked: 0,
+      total: 0,
+      totalKnown: true,
       fileAck: false,
       landed: false,
       landFailed: false,
       seen: false,
     };
-    slot.acked += row.acked_parts.length;
+    slot.acked += row.file_ack
+      ? (row.expected_parts ?? row.acked_parts.length)
+      : row.acked_parts.length;
+    if (row.expected_parts != null) {
+      slot.total += row.expected_parts;
+    } else {
+      slot.totalKnown = false;
+    }
     const ack = Boolean(row.file_ack);
     slot.fileAck = slot.seen ? slot.fileAck && ack : ack;
     slot.landed = slot.seen
@@ -69,6 +83,7 @@ export function HostUploadRoster({
       names.get(id) || id,
       slot.fileAck,
       slot.acked,
+      slot.seen && slot.totalKnown ? slot.total : null,
       slot.landed,
       slot.landFailed,
     ),

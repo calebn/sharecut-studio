@@ -1,3 +1,4 @@
+import { Button } from "../ui";
 import {
   UPLOAD_DONE_COPY,
   UPLOAD_LAND_FAILED_COPY,
@@ -7,20 +8,48 @@ import {
 } from "./types";
 import type { RecordUploadProgress } from "./upload/useRecordUpload";
 
+function RecoveryActions({
+  onResume,
+  onDownload,
+}: {
+  onResume?: () => void;
+  onDownload?: () => void;
+}) {
+  return (
+    <span className="cluster">
+      {onResume ? (
+        <Button type="button" onClick={onResume}>
+          Resume upload
+        </Button>
+      ) : null}
+      {onDownload ? (
+        <Button type="button" onClick={onDownload}>
+          Download local keeper
+        </Button>
+      ) : null}
+    </span>
+  );
+}
+
 export function UploadStatus({
   progress,
   stopped,
   alive = true,
+  onResume,
+  onDownload,
 }: {
   progress: RecordUploadProgress;
   stopped: boolean;
   alive?: boolean;
+  onResume?: () => void;
+  onDownload?: () => void;
 }) {
   if (progress.error) {
     return (
-      <p id={UPLOAD_STATUS_ID} className="record-warn">
-        {progress.error}
-      </p>
+      <div id={UPLOAD_STATUS_ID} className="record-warn">
+        <p>{progress.error}</p>
+        <RecoveryActions onResume={onResume} onDownload={onDownload} />
+      </div>
     );
   }
   if (progress.landFailed) {
@@ -39,12 +68,15 @@ export function UploadStatus({
   if (
     progress.uploading ||
     (progress.pending && progress.total > 0) ||
-    (stopped && !progress.fileAck && progress.total > 0)
+    (stopped && !progress.fileAck)
   ) {
     return (
-      <p id={UPLOAD_STATUS_ID}>
-        {uploadProgressCopy(progress.acked, progress.total)}
-      </p>
+      <div id={UPLOAD_STATUS_ID}>
+        <p>{uploadProgressCopy(progress.acked, progress.total)}</p>
+        {stopped ? (
+          <RecoveryActions onResume={onResume} onDownload={onDownload} />
+        ) : null}
+      </div>
     );
   }
   return null;

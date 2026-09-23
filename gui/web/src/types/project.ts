@@ -137,7 +137,13 @@ export interface TimelineComment {
 export interface AutomationEnvelope {
   track_id: string;
   parameter: string;
-  points: { time: number; value: number }[];
+  points: AutomationPoint[];
+}
+
+export interface AutomationPoint {
+  readonly id: string;
+  time: number;
+  value: number;
 }
 
 export interface HistoryGroup {
