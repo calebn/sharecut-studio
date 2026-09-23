@@ -97,7 +97,9 @@ def test_export_routes_reject_share_token_guest(
     )
     assert res.status_code == 403
     assert res.json() == {"detail": "remote client requires PODCAST_SESSION_TOKEN"}
-    assert app.state.jobs._job is None  # no bounce/export job was started
+    status = app.state.jobs.status()
+    assert status["jobs"] == []  # no bounce/export job was started (or failed)
+    assert status["running"] is False
 
 
 def test_ensure_non_loopback_session_auth(monkeypatch):
