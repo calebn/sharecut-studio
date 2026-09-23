@@ -278,7 +278,8 @@ export function storyTitleViolation(text: string): string | null {
     "type" in value &&
     typeof value.type === "string";
   for (const statement of ast.program.body) {
-    if (statement.type !== "VariableDeclaration") continue;
+    if (statement.type !== "VariableDeclaration" || statement.kind !== "const")
+      continue;
     for (const declaration of statement.declarations) {
       if (declaration.id.type === "Identifier") {
         declarations.set(declaration.id.name, declaration.init);
@@ -292,13 +293,12 @@ export function storyTitleViolation(text: string): string | null {
     return "missing default-exported metadata";
   }
   let metadata: unknown = exported.declaration;
-  const seen = new Set<string>();
+  let resolvedIdentifier = false;
   while (isNode(metadata)) {
     if (metadata.type === "Identifier") {
-      const name = metadata.name as string;
-      if (seen.has(name)) break;
-      seen.add(name);
-      metadata = declarations.get(name);
+      if (resolvedIdentifier) break;
+      resolvedIdentifier = true;
+      metadata = declarations.get(metadata.name as string);
     } else if (
       metadata.type === "TSAsExpression" ||
       metadata.type === "TSSatisfiesExpression" ||
@@ -343,7 +343,10 @@ export function storyTitleViolation(text: string): string | null {
         (property) =>
           !isNode(property) ||
           property.type === "SpreadElement" ||
-          property.computed === true ||
+          (property.computed === true &&
+            (!isNode(property.key) ||
+              property.key.type !== "StringLiteral" ||
+              property.key.value === "title")) ||
           isTitle(property),
       )
   ) {
