@@ -226,8 +226,10 @@ available model and record the fallback; never skip a stage to save tokens.
 
 This is a Codex skill procedure, not the Claude JavaScript stage launcher.
 Do not start user-visible Codex tasks merely to route stages. Record the models
-and efforts actually used, rather than the intended route. If subagents were
-unavailable, report that model routing and independent review were not
+and efforts requested for each accepted child, its packet/head SHA, and its
+result. If the host exposes the execution model or token usage, record those
+separately; an accepted override alone does not prove either. If subagents
+were unavailable, report that model routing and independent review were not
 exercised. These choices follow
 [OpenAI's model-selection guidance](https://developers.openai.com/api/docs/guides/model-selection)
 and its [multi-agent guidance](https://developers.openai.com/api/docs/guides/agents-api/multi-agent);
