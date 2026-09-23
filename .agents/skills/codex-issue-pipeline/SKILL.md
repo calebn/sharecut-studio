@@ -141,9 +141,10 @@ action; do not loop indefinitely.
    on the PR, inline when the diff permits and as a separate Conversation
    comment otherwise. A clean lens report has no comment to post. Map every
    generated comment to its posted URL or to the combined comment's URL.
-   Separately re-fetch GitHub comments and verify that the number and content
-   posted cover the union of all lens reports. Post any missing comments and
-   stall the pipeline if verification still fails.
+   Have a separate verifier re-fetch GitHub comments and check that the number
+   and content posted cover the union of all lens reports. The coordinator
+   posts any missing comments, then asks the verifier to recheck. Stall the
+   pipeline if verification still fails.
 6. Only after posting and verification, classify every review item as fix,
    follow-up, or won't-do. Make safe fixes,
    add tests/docs, reply to each thread, and verify replies and resolutions.
@@ -200,19 +201,36 @@ status, and merge result.
 
 ## Cost discipline
 
-Choose a model for the actual difficulty when stage-specific subagents are
-available. The current Codex task
-cannot change its own model mid-run. Use Luna with low effort for bounded
-read-only triage and claim/CI inventory; Sol with medium effort for ordinary
-planning, implementation, feedback fixes, and review; raise Sol's effort for
-cross-layer or high-risk review. Use Astra only when architecture, security,
-concurrency, or conflicting findings require deeper judgment. Keep claim
-ownership and the final merge verdict in the deterministic protocol and gate,
-regardless of model. For a small issue, one agent may cost less than handing
-off several stages outside review; the eight review lenses still run. Record
-the models and efforts actually used; if subagents were unavailable, report
-that model routing and independent review were not exercised. These choices
-follow [OpenAI's model-selection guidance](https://developers.openai.com/api/docs/guides/model-selection);
+The current Codex task cannot change its own model mid-run. When the
+collaboration tool exposes `model` and `reasoning_effort` on `spawn_agent`,
+delegate bounded stages using this starting route:
+
+| Work | Model / effort | Return to coordinator |
+| --- | --- | --- |
+| Issue-text triage, claim/PR/CI inventory, review-post and reply verification | Luna / low | Facts with source URLs, exact IDs and head SHA, or a specific failure; no inferred gate verdict |
+| Routine plan, implementation, CI fix, feedback implementation, review packet, eight review lenses | Sol / medium | Changed files and focused checks, or a lens report with every finding and evidence |
+| Cross-layer architecture, difficult security/concurrency, conflicting review evidence, feedback decisions requiring judgment | Astra / high only when needed | A bounded decision with supporting code and tradeoffs |
+
+Use a bounded positive `fork_turns` value that carries the user's run request
+when overriding the model; a full-history fork inherits the coordinator's
+model. Give each child the repo path, issue/PR number, current head SHA,
+stage scope, shared packet or relevant file paths, required output, and its
+read/write boundary. Review lenses are separate read-only tasks; schedule
+them within the available concurrency slots and collect all eight reports.
+Do not run simultaneous writers in a shared checkout. The coordinator owns
+the claim lifecycle, combining and posting all review comments, feedback
+classification, the deterministic gate, and any authorized merge. A cheaper
+agent may collect or verify facts, but its prose never replaces the gate's
+current GitHub checks. If a selected model or override is unavailable, use an
+available model and record the fallback; never skip a stage to save tokens.
+
+This is a Codex skill procedure, not the Claude JavaScript stage launcher.
+Do not start user-visible Codex tasks merely to route stages. Record the models
+and efforts actually used, rather than the intended route. If subagents were
+unavailable, report that model routing and independent review were not
+exercised. These choices follow
+[OpenAI's model-selection guidance](https://developers.openai.com/api/docs/guides/model-selection)
+and its [multi-agent guidance](https://developers.openai.com/api/docs/guides/agents-api/multi-agent);
 recheck availability and guidance when making a future run.
 
 Read issue text before code during triage. Gather shared review context once,
