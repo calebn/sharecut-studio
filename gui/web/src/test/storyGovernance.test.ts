@@ -71,6 +71,14 @@ describe("storyLeaks", () => {
       'import { Button } from "./ui";\nimport "./styles/daw.css";\nimport {\n  a,\n} from "../x";',
       0,
     ],
+    [
+      "record/RecordApp.tsx",
+      'import { makeComment } from "../test/fixtures";',
+      1,
+    ],
+    ["App.tsx", 'import { f } from "./test";', 1],
+    ["App.tsx", 'import { a } from "./ui/Button.test";', 1],
+    ["App.tsx", 'import { t } from "./testing/util";', 0],
     ["App.tsx", 'import { x } from "./storybookHelpers";', 0],
   ] as const)("%s / %s -> %i leaks", (rel, src, expected) => {
     expect(storyLeaks(rel, src)).toHaveLength(expected);
@@ -87,7 +95,7 @@ it("classifies story, test and test-helper files", () => {
 });
 
 describe("stories stay out of the production bundle", () => {
-  it("app code never imports stories, Storybook, or story support", () => {
+  it("app code never imports stories, Storybook, story support, or test-only modules", () => {
     const offenders: string[] = [];
     for (const file of walkTsFiles(SRC_ROOT)) {
       const rel = srcRelative(file);

@@ -96,7 +96,7 @@ export function globCanMatchStories(patterns: string[]): boolean {
     });
 }
 
-/** Ways `rel` (an app file under src/) could pull stories into the bundle. */
+/** Ways `rel` (an app file under src/) could pull stories, Storybook, or test-only modules into the bundle. */
 export function storyLeaks(rel: string, text: string): string[] {
   const leaks: string[] = [];
   for (const spec of importSpecifiers(text)) {
@@ -110,6 +110,8 @@ export function storyLeaks(rel: string, text: string): string[] {
         .replace(SOURCE_EXT_RE, "");
       if (SUPPORT_TARGETS.has(target)) {
         leaks.push(`${rel}: imports story support ${spec}`);
+      } else if (target === "test" || isStoryOrTestFile(`${target}.ts`)) {
+        leaks.push(`${rel}: imports test-only module ${spec}`);
       }
     }
   }

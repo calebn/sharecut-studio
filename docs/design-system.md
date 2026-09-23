@@ -119,11 +119,18 @@ every new component in both themes before merging.
 - Fixtures are static placeholders. The built Storybook is published, so never
   copy real project, share, or guest data (tokens, names) into a story.
 - App code never imports `*.stories.tsx` or globs them (`import.meta.glob`),
-  never imports Storybook packages, and never imports a story-support module
-  (e.g. `record/recordStoryDecorator.tsx`); stories must stay out of the
-  production bundle. `gui/web/src/test/storyGovernance.test.ts` enforces all
-  of this. New story-support modules must be added to
-  `STORY_SUPPORT_MODULES` in `gui/web/src/test/storyGovernance.ts`.
+  never imports Storybook packages, never imports a story-support module
+  (e.g. `record/recordStoryDecorator.tsx`), and never imports a test-only
+  module (anything under `src/test/` or a `*.test.*` file); stories must stay
+  out of the production bundle. `gui/web/src/test/storyGovernance.test.ts`
+  enforces all of this for `src/` and for the root build configs
+  (`gui/web/*.config.*`); only `.storybook/` may glob stories. New
+  story-support modules must be added to `STORY_SUPPORT_MODULES` in
+  `gui/web/src/test/storyGovernance.ts`. The check is a static scan of
+  literal specifiers (`from`, `import()`, `require()`, `import.meta.glob`):
+  non-literal specifiers (variables, template or concatenated strings) and
+  path aliases are not detected, so keep story-adjacent imports literal and
+  relative.
 - Stories render production code — never a copy. If a story needs a tweak to
   the component, the component changes, with its Vitest/axe tests.
 - a11y addon runs wcag2a/wcag2aa checks per story; the repo's axe posture
