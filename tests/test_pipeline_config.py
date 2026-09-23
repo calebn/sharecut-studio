@@ -439,6 +439,38 @@ def test_suggest_pipeline_tuning_seeds_gate_when_base_effects_omit_it(monkeypatc
     ]
 
 
+def test_suggest_pipeline_tuning_shifts_gate_once_for_multiple_tracks(monkeypatch) -> None:
+    import copy
+
+    from podcast_mcp.effects import presets as presets_mod
+    from podcast_mcp.engines import audio_audit
+    from podcast_mcp.models import EpisodeProject
+
+    base = merge_pipeline_config({"effects": {}})
+    assert "gate" not in base["effects"]
+    project = EpisodeProject.create(name="t", workspace_dir="/tmp")
+    track_ids = ["host", "guest1", "guest2"]
+
+    def fake_analyze(project, *, policy=None, progress=None):
+        return {
+            "tracks": [
+                {"track_id": tid, "health": {}, "gate_analysis": {"risk": "high", "issues": []}}
+                for tid in track_ids
+            ]
+        }
+
+    monkeypatch.setattr(audio_audit, "analyze_cleanup", fake_analyze)
+
+    result = suggest_pipeline_tuning(project, base_config=base)
+
+    expected_gate = copy.deepcopy(presets_mod._BUILTIN_PRESETS["gate"])
+    expected_gate[0]["params"]["threshold_db"] = -36.0
+    assert result["patches"]["effects"]["gate"] == expected_gate
+    assert result["proposed_config"]["effects"]["gate"] == expected_gate
+    gate_reasons = [r for r in result["reasons"] if r["code"] == "gate_overreach"]
+    assert [r["track_id"] for r in gate_reasons] == track_ids
+
+
 def test_deep_merge_skips_underscore_keys() -> None:
     assert deep_merge({"a": 1}, {"_secret": 2, "a": 3}) == {"a": 3}
 

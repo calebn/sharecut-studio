@@ -367,6 +367,7 @@ def suggest_pipeline_tuning(
     effects = dict(proposed.get("effects") or {})
     base_effects = dict(base.get("effects") or {})
     presets = resolve_presets(defaults)
+    gate_overreach = False
 
     for row in report.get("tracks") or []:
         tid = row.get("track_id", "?")
@@ -410,14 +411,7 @@ def suggest_pipeline_tuning(
                     "message": f"{tid}: gate overreach findings - proposed a milder gate threshold (-6 dB)",
                 }
             )
-            gate_fx = copy.deepcopy(effects.get("gate") or presets["gate"])
-            for node in gate_fx:
-                params = node.get("params") or {}
-                thr = params.get("threshold_db")
-                if isinstance(thr, (int, float)):
-                    params["threshold_db"] = thr - 6.0
-                    node["params"] = params
-            effects["gate"] = gate_fx
+            gate_overreach = True
 
         if row.get("high_bleed_warning"):
             reasons.append(
@@ -437,6 +431,18 @@ def suggest_pipeline_tuning(
                 }
             )
             set_by_path(proposed, "compression.makeup_db", 0.0)
+
+    if gate_overreach:
+        # effects.gate is one global chain: lower it by 6 dB once per Analyze
+        # call, not once per offending track.
+        gate_fx = copy.deepcopy(effects.get("gate") or presets["gate"])
+        for node in gate_fx:
+            params = node.get("params") or {}
+            thr = params.get("threshold_db")
+            if isinstance(thr, (int, float)):
+                params["threshold_db"] = thr - 6.0
+                node["params"] = params
+        effects["gate"] = gate_fx
 
     proposed["effects"] = effects
     patches: dict[str, Any] = {}

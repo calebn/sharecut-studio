@@ -154,7 +154,8 @@ fails CI if one drifts.
 suggestions from them, not from reading `defaults["effects"]` directly, so its
 proposed config reflects the same presets `apply_preset_to_chain` would apply.
 On a gate-overreach finding it **always** proposes `effects.gate` with the
-threshold lowered by 6 dB: from the working set's own `effects.gate` if
+threshold lowered by 6 dB, once per Analyze call however many tracks report
+overreach (the gate chain is global): from the working set's own `effects.gate` if
 present, otherwise from the resolved `gate` preset. This happens even when the
 base config's `effects` has no `gate` key, which is now the default because the
 repo `effects:` overlay is empty. The proposed config is a per-project working
