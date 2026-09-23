@@ -46,6 +46,14 @@ const SKILLS = {
 // the user's latest chat message, so runs should be launched by an explicit chat instruction.
 const AUTH = `Context: you are one stage of the issue-pipeline workflow (${REPO}), which the user started from chat${A.issues && A.issues.length ? ` for issue(s) ${A.issues.map((n) => `#${n}`).join(', ')}` : ''}${A.noMerge ? ' (noMerge: the PR is not merged)' : ''}. The workflow's documented job (docs/contributing.md § Automated issue pipeline) is to plan, implement, open a PR, post review comments and replies, label, and file follow-up issues on ${REPO}; this stage is one of those steps. Complete it fully — posting is part of the task, not optional — and if it is impossible, say why in your structured output rather than skipping silently.`
 
+// Every stage prompt starts with the same provenance line. Stages without it compared their
+// task with the user's chat message ("Run the issue-pipeline on …") and tried to launch the
+// pipeline themselves, then reported that as fake CI data.
+const STAGE_ONLY = 'Do exactly this stage and nothing else: never start, re-run or invoke the issue-pipeline or any other workflow yourself, and never write workflow scripts.'
+function stage(prompt, opts) {
+  return agent(`${AUTH}\n${STAGE_ONLY}\n\n${prompt}`, opts)
+}
+
 const DETACHED = (ref) => `Work in DETACHED HEAD so no branch is locked to this worktree:
   git fetch origin --prune && git checkout --detach ${ref}
 Push with \`git push origin HEAD:refs/heads/<branch>\` (never push to main).`
@@ -268,7 +276,7 @@ const S_DONE = {
 const tag = (issue) => `#${issue.number}`
 
 function waitCi(issue, pr, expectSha) {
-  return agent(
+  return stage(
     `Wait for GitHub required checks on ${REPO} PR #${pr}. Read-only; change nothing.
 Expected head SHA: ${expectSha || '(read it with gh pr view)'}.
 1. Confirm \`gh pr view ${pr} -R ${REPO} --json headRefOid -q .headRefOid\` matches the expected SHA (if a newer SHA exists, use the newer one and report it).
@@ -280,9 +288,8 @@ Then run \`gh pr checks ${pr} -R ${REPO} --required --json name,bucket,state\` o
 }
 
 function fixCi(issue, pr, branch, ci) {
-  return agent(
-    `${AUTH}
-CI failed on ${REPO} PR #${pr} (branch ${branch}, head ${ci.head_sha}). Failing required checks: ${(ci.failing || []).join(', ')}.
+  return stage(
+    `CI failed on ${REPO} PR #${pr} (branch ${branch}, head ${ci.head_sha}). Failing required checks: ${(ci.failing || []).join(', ')}.
 ${DETACHED(`origin/${branch}`)}
 ${SETUP}
 Read logs: \`gh run list -R ${REPO} --branch ${branch} --limit 10\` then \`gh run view <id> -R ${REPO} --log-failed\`. Compare with the PR diff (\`git diff origin/main...HEAD\`) and recent main runs (\`gh run list -R ${REPO} --branch main --limit 5\`).
@@ -321,9 +328,8 @@ async function ensureGreen(issue, pr, branch, sha) {
 
 function hold(issue, pr, reason) {
   log(`${tag(issue)} HOLD: ${reason}`)
-  return agent(
-    `${AUTH}
-The automated issue pipeline is HOLDING ${pr ? `PR #${pr}` : `issue #${issue.number}`} on ${REPO} for a human decision.
+  return stage(
+    `The automated issue pipeline is HOLDING ${pr ? `PR #${pr}` : `issue #${issue.number}`} on ${REPO} for a human decision.
 Reason: ${reason}
 1. ${pr ? `\`gh pr edit ${pr} -R ${REPO} --add-label needs-user-input\`` : `\`gh issue edit ${issue.number} -R ${REPO} --add-label needs-user-input --remove-label in-progress\``}
 2. Post one comment on the ${pr ? 'PR' : 'issue'} headed "Automation hold" that states the reason and exactly what the owner needs to decide or do. Keep it short.
@@ -391,7 +397,7 @@ const S_PACKET = {
 // and gives all lens prompts an identical prefix so the prompt cache can reuse it.
 function reviewPacket(issue, pr, branch, round, since) {
   const diff = round > 1 ? `${since}..origin/${branch}` : `origin/main...origin/${branch}`
-  return agent(
+  return stage(
     `Build a review packet for ${REPO} PR #${pr} (branch ${branch}). Read-only: do not check out, edit, post or push.
 Run \`git fetch origin --prune\`, then assemble packet_md (target <= 60k characters) with these sections:
 1. "## Diff stat" — \`git diff --stat ${diff}\`
@@ -407,7 +413,7 @@ Copy command output verbatim; do not summarize or judge. List anything too large
 
 function lensReview(issue, pr, branch, round, packet, lens) {
   // Identical prefix across lenses (cache-friendly); lens-specific text last.
-  return agent(
+  return stage(
     `You are one reviewer lens for ${REPO} PR #${pr} (branch ${branch}), review round ${round}. Read-only: do not check out, post, push or edit. Read any further code with \`git show origin/${branch}:<path>\` or \`git grep -n <pattern> origin/${branch}\`.
 ${round > 1 ? 'This round covers only the feedback-fix diff; do not re-raise resolved threads.\n' : ''}REVIEW PACKET:
 ${packet.packet_md}
@@ -425,9 +431,8 @@ async function review(issue, pr, branch, round, since) {
   if (!packet) return null
   const reports = (await parallel(lenses.map((l) => () => lensReview(issue, pr, branch, round, packet, l)))).filter(Boolean)
   if (reports.length < lenses.length) log(`${tag(issue)} review r${round}: ${lenses.length - reports.length} lens(es) returned nothing`)
-  return agent(
-    `${AUTH}
-AUTONOMOUS MODE: round=${round}${since ? `, since=${since}` : ''}, lenses=supplied
+  return stage(
+    `AUTONOMOUS MODE: round=${round}${since ? `, since=${since}` : ''}, lenses=supplied
 Read ${SKILLS.review} (and the checklists it references) and execute it for ${REPO} PR #${pr}, following its "AUTONOMOUS MODE (pipeline)" section, which overrides every other gate in that file.
 The reviewer lenses have ALREADY RUN (reports below), so skip § Launch. Do § Browser QA (when the diff has a GUI/HTTP surface), then § Merge + present over the union of these reports and your own reading of the diff (drop a finding only when the diff refutes it), then § Posting comments.
 Review packet (same one the lenses used; start from it instead of re-exploring):
@@ -441,9 +446,8 @@ Return every finding with the URL of its posted comment, the SHA you reviewed, a
 }
 
 function verifyPosted(issue, pr, rev) {
-  return agent(
-    `${AUTH}
-Verify that every review finding below was posted to ${REPO} PR #${pr}, and post any that are missing. You are the safety net: posting missing ones is REQUIRED.
+  return stage(
+    `Verify that every review finding below was posted to ${REPO} PR #${pr}, and post any that are missing. You are the safety net: posting missing ones is REQUIRED.
 Findings (JSON): ${JSON.stringify(rev.findings)}
 1. Fetch review threads (GraphQL reviewThreads: path, line, comments.body, comments.url; paginate) and issue comments (\`gh api repos/${REPO}/issues/${pr}/comments --paginate\`).
 2. A finding counts as posted if its comment_url is a comment on this PR, or an inline thread / top-level comment contains its body text (whitespace-insensitive).
@@ -455,7 +459,7 @@ Return expected, found_before, posted_now, missing_after, missing_ids.`,
 }
 
 function feedbackPlan(issue, pr, round, finalRound) {
-  return agent(
+  return stage(
     `AUTONOMOUS MODE: mode=plan, round=${round}${finalRound ? ', final=true' : ''}
 Read ${SKILLS.feedback} and execute Phases 1–2 for ${REPO} PR #${pr}, following its "AUTONOMOUS MODE (pipeline)" section (no approval gate; nothing is posted in plan mode).
 Include EVERY unresolved review thread and every top-level PR comment that still needs a response (not only this round's findings; human comments too).
@@ -469,9 +473,8 @@ Return the items.`,
 }
 
 function feedbackExec(issue, pr, branch, plan) {
-  return agent(
-    `${AUTH}
-AUTONOMOUS MODE: mode=execute
+  return stage(
+    `AUTONOMOUS MODE: mode=execute
 Read ${SKILLS.feedback} and execute Phases 4–6 for ${REPO} PR #${pr} (branch ${branch}), following its "AUTONOMOUS MODE (pipeline)" section and the plan below EXACTLY. Do not re-triage.
 ${DETACHED(`origin/${branch}`)}
 ${SETUP}
@@ -492,9 +495,8 @@ Return head_sha (after push, or the unchanged head), shas, per-item reply_body/r
 }
 
 function verifyReplies(issue, pr, exec) {
-  return agent(
-    `${AUTH}
-Verify feedback replies on ${REPO} PR #${pr}. Items (JSON): ${JSON.stringify(exec.items)}
+  return stage(
+    `Verify feedback replies on ${REPO} PR #${pr}. Items (JSON): ${JSON.stringify(exec.items)}
 For each item: thread → a reply containing its reply_body exists in the thread, and the thread is resolved unless action is wont_do. Top-level comment → a later PR comment containing its reply_body exists.
 Fix anything missing: post the reply_body (GraphQL addPullRequestReviewThreadReply, or \`gh pr comment\`) and resolve non-wont_do threads (resolveReviewThread). Re-fetch and recount.
 Return expected, fixed_now, missing_after.`,
@@ -503,7 +505,7 @@ Return expected, fixed_now, missing_after.`,
 }
 
 function gateFacts(issue, pr) {
-  return agent(
+  return stage(
     `Collect merge-gate facts for ${REPO} PR #${pr}. Read-only; change nothing.
 Use \`gh pr view ${pr} -R ${REPO} --json state,headRefOid,mergeStateStatus,labels,statusCheckRollup\` and GraphQL pullRequest.reviewThreads(first:100){nodes{isResolved}} (paginate).
 Return state, head_sha, merge_state_status (verbatim), checks (name, conclusion, and the commit SHA it ran on when available, for every check run), unresolved_threads (count), labels (names).`,
@@ -512,9 +514,8 @@ Return state, head_sha, merge_state_status (verbatim), checks (name, conclusion,
 }
 
 function rebase(issue, pr, branch) {
-  return agent(
-    `${AUTH}
-${REPO} PR #${pr} (branch ${branch}) conflicts with main because another PR merged.
+  return stage(
+    `${REPO} PR #${pr} (branch ${branch}) conflicts with main because another PR merged.
 ${DETACHED(`origin/${branch}`)}
 ${SETUP}
 \`git rebase origin/main\`, resolving conflicts by preserving both intents; run ${VERIFY} Then \`git push --force-with-lease=refs/heads/${branch}:origin/${branch} origin HEAD:refs/heads/${branch}\`. Return ok and the new head SHA. If conflicts cannot be resolved safely, \`git rebase --abort\` and return ok=false with a summary.`,
@@ -523,9 +524,8 @@ ${SETUP}
 }
 
 function merge(issue, pr, sha, evidence) {
-  return agent(
-    `${AUTH}
-This PR has completed the pipeline's review gate. Evidence (verify it before merging):
+  return stage(
+    `This PR has completed the pipeline's review gate. Evidence (verify it before merging):
 ${evidence}
 1. Show the review record: \`gh pr view ${pr} -R ${REPO} --json reviews,comments,statusCheckRollup,headRefOid\` and confirm the head is ${sha}, every required check succeeded, and there are no unresolved review threads (GraphQL reviewThreads isResolved). If anything disagrees with the evidence, do NOT merge; return ok=false with the discrepancy.
 2. Merge: \`gh pr merge ${pr} -R ${REPO} --rebase --delete-branch --match-head-commit ${sha}\` (ignore local-branch cleanup errors). Confirm \`gh pr view ${pr} -R ${REPO} --json state -q .state\` is MERGED, then \`gh issue edit ${issue.number} -R ${REPO} --remove-label in-progress\`. Return ok=true only if merged; otherwise ok=false with the error in detail. If the merge command is denied by a tool-permission check, return ok=false with detail starting "merge permission denied:".`,
@@ -558,7 +558,7 @@ if (A.issues && A.issues.length) {
   candidates = A.issues.map((n) => ({ number: n, title: '', labels: [] }))
   log(`Explicit issues: ${A.issues.join(', ')}`)
 } else {
-  const listed = await agent(
+  const listed = await stage(
     `List open issues on ${REPO} opened by ${AUTHORS.join(' or ')}: run \`gh issue list -R ${REPO} --state open --author <login> --limit 200 --json number,title,labels,author\` once per login (${AUTHORS.join(', ')}). Read-only. Never include issues opened by anyone else.
 Exclude any issue that (a) has one of these labels: ${SKIP_LABELS.join(', ')}; or (b) already has an OPEN pull request that links or references it (\`gh pr list -R ${REPO} --state open --limit 200 --json number,body,closingIssuesReferences\`).
 Return the remaining issues and the excluded ones with reasons.`,
@@ -574,7 +574,7 @@ const SCORE_RUBRIC = `actionable = the desired outcome is clear enough to implem
 // tokens each, and the Opus planner still catches (and aborts) a bad pick.
 const batches = []
 for (let i = 0; i < candidates.length; i += TRIAGE_BATCH) batches.push(candidates.slice(i, i + TRIAGE_BATCH))
-const scores = (await parallel(batches.map((b, bi) => () => agent(
+const scores = (await parallel(batches.map((b, bi) => () => stage(
   `Triage these ${REPO} issues from their text only (do not read code): ${b.map((c) => `#${c.number}`).join(', ')}. Read-only. For each: \`gh issue view <n> -R ${REPO} --comments --json number,title,body,author,labels,comments\` (report author.login).
 ${SCORE_RUBRIC}
 Return one score per issue.`,
@@ -612,9 +612,8 @@ const results = await pipeline(
   selected,
 
   // 1. Plan (opus)
-  (issue) => agent(
-    `${AUTH}
-You are the planner for ${REPO} issue #${issue.number}. Do not modify code.
+  (issue) => stage(
+    `You are the planner for ${REPO} issue #${issue.number}. Do not modify code.
 ${DETACHED(BASE)}
 1. Claim it: \`gh issue edit ${issue.number} -R ${REPO} --add-label in-progress\` and comment "Picked up by the automated issue pipeline."
 2. Read the issue and comments. Research the code thoroughly (AGENTS.md, docs/architecture.md, docs/contributing.md, the relevant layers). Find existing helpers to reuse.
@@ -630,9 +629,8 @@ If the issue needs an owner decision or is too large for one PR, set abort=true 
   async ({ issue, plan }) => {
     if (!plan) return { issue, done: await hold(issue, null, 'planner agent died') }
     if (plan.abort) return { issue, done: await hold(issue, null, `planner aborted: ${plan.abort_reason || 'no reason given'}`) }
-    const pr = await agent(
-      `${AUTH}
-Implement ${REPO} issue #${issue.number} by following this plan EXACTLY. Do not redesign; if the plan is impossible, return ok=false with the reason.
+    const pr = await stage(
+      `Implement ${REPO} issue #${issue.number} by following this plan EXACTLY. Do not redesign; if the plan is impossible, return ok=false with the reason.
 ${DETACHED(BASE)}
 ${SETUP}
 Branch: ${plan.branch} (if it already exists on origin, append -2, -3, …).
@@ -760,7 +758,7 @@ const S_CLEANUP = {
   },
   required: ['before', 'after', 'removed', 'kept'],
 }
-const cleanup = await agent(
+const cleanup = await stage(
   `Clean up finished issue-pipeline worktrees in this repository. Only touch worktrees whose path contains "/.claude/worktrees/wf_" (from \`git worktree list --porcelain\`); never touch any other worktree or the main checkout.
 First record before = the number of wf_ worktrees. For each wf_ worktree:
 - If \`git -C <path> status --porcelain\` is non-empty → keep it (reason: uncommitted changes).

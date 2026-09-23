@@ -202,6 +202,17 @@ def test_executing_agents_get_token_hygiene_guidance() -> None:
     assert "with the current snippet quoted" in script
 
 
+def test_every_agent_gets_the_stage_context() -> None:
+    """Stages without context tried to launch the pipeline from the user's chat message."""
+    script = _script()
+    # agent() is only called inside stage(), which prefixes provenance + stage-only guard.
+    assert len(re.findall(r"\bagent\(", script)) == 1
+    assert "return agent(`${AUTH}\\n${STAGE_ONLY}" in script
+    assert (
+        "never start, re-run or invoke the issue-pipeline or any other workflow yourself" in script
+    )
+
+
 def test_model_tiers() -> None:
     script = _script()
     assert "const M = { cheap: 'haiku', worker: 'sonnet', senior: 'opus' }" in script
