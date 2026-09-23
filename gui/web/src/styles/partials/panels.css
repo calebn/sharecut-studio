@@ -17,6 +17,8 @@
   font-size: var(--font-size-small);
 }
 
+/* Scroll container for the comments list; `.undo-toast-region` (ui.css)
+   is position: sticky against it. Keep overflow here. */
 .comments-panel {
   display: flex;
   flex-direction: column;
