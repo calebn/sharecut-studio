@@ -41,6 +41,20 @@ Do not duplicate project load/save or history snapshot logic in CLI, MCP, or GUI
 - **Biome** formats TS/CSS/JSON (linter off). Commits format staged `gui/web/` files via lint-staged (`.githooks` / `make hooks`) and restage them. Do **not** put `biome check --write` / `ruff format` in `.pre-commit-config.yaml` — pre-commit fails the commit whenever a hook rewrites files. That YAML stays check-only (`ux-pack-sync`, schema, capabilities, cheatsheet).
 - Do **not** add `eslint-disable` / `oxlint-disable` / `biome-ignore` / `stylelint-disable` without **explicit user approval**. Stylelint exceptions: `/* stylelint-disable-next-line RULE -- user-approved: reason */`. Fix the code or add a token instead.
 
+### Dependency updates (Dependabot)
+
+Dependabot PRs (`.github/dependabot.yml`) are ordinary PRs against `main`; the
+[automated issue pipeline](#automated-issue-pipeline) does not pick them up or
+manage them. For the `uv` ecosystem, Dependabot updates `pyproject.toml` and
+`uv.lock` together in the same PR. A new lockfile directory (a new `gui/*`
+package or a new Rust/uv root) needs a new `updates` entry in the same change
+that adds the lockfile — `tests/test_dependabot_config.py` enforces this.
+
+The `frontend` CI job also runs `npm audit --omit=dev --audit-level=high` as an
+advisory, non-blocking step; ignoring a real finding it surfaces still needs
+**explicit user approval**, same as any other suppressed check. See
+[docs/testing.md § Dependency updates and audit](testing.md#dependency-updates-and-audit).
+
 ## Git workflow
 
 Default delivery path is **feature branch → pull request → `main`**. Agents and contributors should not push commits straight to `main` unless the user explicitly says to.
