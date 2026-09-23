@@ -1,7 +1,8 @@
 import { pcmWavHeader } from "../../audio/wavHeader";
+import { KEEPER_BYTES_PER_SECOND } from "../keeper/pcm";
 
 export const RECORD_UPLOAD_WAV_HEADER = pcmWavHeader(0).byteLength;
-export const RECORD_UPLOAD_PART_PCM_BYTES = 48_000 * 2 * 30;
+export const RECORD_UPLOAD_PART_PCM_BYTES = KEEPER_BYTES_PER_SECOND * 30;
 
 /** Split a finalized keeper WAV's PCM into 30 s upload parts. */
 export function keeperPcmParts(wav: Uint8Array): Uint8Array[] {

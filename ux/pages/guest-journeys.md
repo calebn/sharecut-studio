@@ -140,7 +140,7 @@ flowchart TD
   upload --> recovery[Resume upload or Download local keeper]
   recovery --> upload
   upload --> staged[File uploaded; local OPFS WAV kept]
-  staged --> opfs[Local OPFS WAV safe to delete after confirmed landing]
+  staged --> opfs[Local OPFS WAV cleared automatically after confirmed landing]
   staged --> failed[Landing failed; ask host to Retry land]
   failed --> staged
   opfs --> done[Tracks on host timeline]
@@ -186,9 +186,13 @@ flowchart TD
    totals are known, and offers **Resume upload** and **Download local keeper**
    for an incomplete or stalled take. Download produces one ZIP containing all
    retained WAV segments. The local WAVs stay in
-   OPFS (`Sharecut Recordings/`) until the host confirms **Landed. Safe to delete
-   the local backup.** If landing fails, the guest sees **Uploaded but not landed
-   on the host** and keeps the backup while the host uses **Retry land**.
+   OPFS (`Sharecut Recordings/`) until a fresh host status confirms **Landed**.
+   The finalized WAV is then reclaimed automatically while its small completion
+   marker remains to preserve segment numbering; recovery downloads skip
+   reclaimed segments rather than reporting them missing. If landing fails, the guest sees
+   **Uploaded but not landed on the host** and keeps the backup while the host
+   uses **Retry land**. The lobby and host Start panel warn when browser storage
+   headroom is low or cannot be estimated; this advisory never blocks recording.
    If a rejoin finds a readable pending PCM segment, the panel also offers
    **Recover partial take** before upload and announces what it recovered;
    zero-byte or malformed files explain that uncommitted PCM cannot be
@@ -213,9 +217,11 @@ flowchart TD
    If local OPFS capture fails, the client stops claiming that REC is safely
    backed up, preserves finalized segments, and shows **Retry local recording**.
    The host resumes or starts a take before Retry when needed. Retry starts a
-   new segment only after the failed writable is closed best-effort; a failed
-   open segment is not treated as durable. Retry places the new segment at the
-   current recording clock. After Stop, an incomplete local WAV remains for
+   new segment only after the failed writable closes or its bounded close
+   deadline passes, so the leave guard holds until then; a failed open segment
+   is not treated as durable and exports as a `-partial` WAV. A storage stall
+   reads "Local recording stopped: this device's storage couldn't keep up."
+   Retry places the new segment at the current recording clock. After Stop, an incomplete local WAV remains for
    recovery but does not hold Leave once complete segments have uploaded.
 
 **Success:** Guest consents, appears on the host roster, sees REC/PAUSED, hears

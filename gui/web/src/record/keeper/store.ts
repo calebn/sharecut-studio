@@ -43,6 +43,12 @@ export type ByteSink = {
     header: Uint8Array,
     byteLength: number,
   ): Promise<void>;
+  /**
+   * Delete `path`. A missing entry resolves; any other failure (a locked
+   * entry, `NoModificationAllowedError`, `InvalidStateError`) rejects so
+   * keeper reclaim can tell whether bytes were really freed. Callers doing
+   * best-effort cleanup use {@link removeBestEffort}.
+   */
   remove(path: string): Promise<void>;
   open(path: string): Promise<ByteStream>;
   nextSegmentIndex(
@@ -117,6 +123,19 @@ export function keeperMetaMatchesPath(
 ): boolean {
   try {
     return keeperWavPath(meta) === wavPath;
+  } catch {
+    return false;
+  }
+}
+
+/** Best-effort delete for disposable files (room tone, probes). */
+export async function removeBestEffort(
+  sink: ByteSink,
+  path: string,
+): Promise<boolean> {
+  try {
+    await sink.remove(path);
+    return true;
   } catch {
     return false;
   }
@@ -211,6 +230,35 @@ export async function* keeperSegmentPaths(
   }
 }
 
+/**
+ * True when metadata marks its WAV as closed: `complete: true`, or a valid
+ * older-client record without the field (those were only written after
+ * close). Pending (`complete: false`) and unreadable metadata are not complete:
+ * a pending record is written at segment open, so a torn or malformed file may
+ * describe a WAV that never closed.
+ */
+export function keeperMetaComplete(bytes: Uint8Array | null): boolean {
+  const meta = parseKeeperMeta(bytes);
+  return meta !== null && meta.complete !== false;
+}
+
+/**
+ * Single source of truth for why a keeper segment has no local WAV. Callers
+ * probe the WAV themselves (upload reads bytes, recovery a `Blob`) and ask
+ * here only when it is absent:
+ * - `reclaimed`: deleted after confirmed landing; its completion marker
+ *   remains. Not lost audio, so recovery and upload skip it.
+ * - `missing`: no WAV and no completion marker, i.e. genuinely lost.
+ */
+export async function missingKeeperWavState(
+  sink: ByteSink,
+  wavPath: string,
+): Promise<"reclaimed" | "missing"> {
+  return keeperMetaComplete(await sink.read(keeperMetaPath(wavPath)))
+    ? "reclaimed"
+    : "missing";
+}
+
 export function keeperDirPrefix(
   sessionId: string,
   takeIndex: number,
@@ -239,6 +287,8 @@ export function roomToneWavPath(
 function maxWavIndex(names: string[]): number {
   let max = -1;
   for (const name of names) {
+    // Metadata (pending or complete) can outlive its WAV, e.g. after a landed
+    // WAV is reclaimed. Count it so a later take never reuses an identity.
     const match = /^(\d+)\.(?:wav|json)$/i.exec(name);
     if (match) {
       max = Math.max(max, Number(match[1]));
@@ -378,8 +428,11 @@ export async function createOpfsSink(): Promise<ByteSink> {
           dir = await dir.getDirectoryHandle(part);
         }
         await dir.removeEntry(fileName);
-      } catch {
-        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "NotFoundError") {
+          return;
+        }
+        throw error;
       }
     },
     async open(path: string) {

@@ -439,9 +439,6 @@
 
 .gesture-name {
   font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
 }
 
 .gesture-detail {
@@ -472,4 +469,167 @@
 .related-commands-empty {
   margin: 0;
   color: var(--color-text-secondary);
+}
+
+/* LevelMeter: peak input meter (theme tokens only). */
+.ui-meter {
+  --meter-hold-offset: 0.0625rem;
+  --meter-stroke: 0.0625rem;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ui-meter--vertical {
+  flex-direction: column;
+}
+
+.ui-meter-main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ui-meter--vertical .ui-meter-main {
+  flex-direction: row;
+  align-items: stretch;
+}
+
+/* Neutral empty track: the fill keeps ≥3:1 against it (WCAG 1.4.11), and the
+   strong border shows the meter's extent on any row background. */
+.ui-meter-track {
+  position: relative;
+  overflow: hidden;
+  border: var(--meter-stroke) solid var(--color-border-strong);
+  border-radius: var(--radius-xl);
+  background: var(--color-bg-surface);
+}
+
+.ui-meter--horizontal .ui-meter-track {
+  height: 0.625rem;
+}
+
+.ui-meter--horizontal.ui-meter--sm .ui-meter-track {
+  height: 0.375rem;
+}
+
+.ui-meter--vertical .ui-meter-track {
+  width: 0.625rem;
+  height: 7.5rem;
+}
+
+.ui-meter--vertical.ui-meter--sm .ui-meter-track {
+  width: 0.375rem;
+  height: 5rem;
+}
+
+.ui-meter-fill {
+  position: absolute;
+  inset: 0;
+}
+
+.ui-meter-hold {
+  position: absolute;
+  background: var(--color-text-primary);
+}
+
+.ui-meter--horizontal .ui-meter-hold {
+  top: 0;
+  bottom: 0;
+  width: 0.125rem;
+}
+
+.ui-meter--vertical .ui-meter-hold {
+  left: 0;
+  right: 0;
+  height: 0.125rem;
+}
+
+.ui-meter-clip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-secondary);
+}
+
+.ui-meter-clip-led {
+  width: 0.5rem;
+  height: 0.5rem;
+  border: var(--meter-stroke) solid var(--color-border-strong);
+  border-radius: var(--radius-xl);
+  background: var(--color-bg-elevated);
+}
+
+.ui-meter-clip[data-lit="true"] {
+  color: var(--color-danger);
+}
+
+.ui-meter-clip[data-lit="true"] .ui-meter-clip-led {
+  border-color: var(--color-danger);
+  background: var(--color-danger);
+  box-shadow: 0 0 0.375rem var(--color-danger);
+}
+
+.ui-meter-numeric {
+  flex: none;
+  min-width: 7ch;
+  font-size: var(--font-size-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+  text-align: right;
+}
+
+.ui-meter[data-zone="warn"] .ui-meter-numeric {
+  color: var(--color-warning-on-surface);
+}
+
+.ui-meter[data-zone="danger"] .ui-meter-numeric {
+  color: var(--color-danger);
+}
+
+.ui-meter-scale {
+  position: relative;
+  flex: none;
+}
+
+.ui-meter--horizontal .ui-meter-scale {
+  height: 1rem;
+  margin-top: var(--space-1);
+}
+
+.ui-meter--vertical .ui-meter-scale {
+  width: 2rem;
+  margin-left: var(--space-1);
+}
+
+.ui-meter-tick {
+  position: absolute;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-secondary);
+  transform: translate(-50%, 0);
+  white-space: nowrap;
+}
+
+/* Keep the end labels inside the track (edge is keyed by value in TSX). */
+.ui-meter--horizontal .ui-meter-tick[data-edge="max"] {
+  transform: translate(-100%, 0);
+}
+
+.ui-meter--horizontal .ui-meter-tick[data-edge="min"] {
+  transform: translate(0, 0);
+}
+
+.ui-meter--vertical .ui-meter-tick {
+  transform: translate(0, 50%);
+}
+
+.ui-meter--vertical .ui-meter-tick[data-edge="max"] {
+  transform: translate(0, 100%);
+}
+
+.ui-meter--vertical .ui-meter-tick[data-edge="min"] {
+  transform: translate(0, 0);
 }

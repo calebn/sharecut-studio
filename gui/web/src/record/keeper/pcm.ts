@@ -20,6 +20,8 @@ export function isKeeperPcmFormat(header: {
     header.blockAlign === KEEPER_FRAME_BYTES
   );
 }
+/** Uncompressed keeper PCM throughput (mono, 16-bit). */
+export const KEEPER_BYTES_PER_SECOND = KEEPER_SAMPLE_RATE * KEEPER_FRAME_BYTES;
 
 export function floatToInt16(input: Float32Array, muted = false): Int16Array {
   const out = new Int16Array(input.length);

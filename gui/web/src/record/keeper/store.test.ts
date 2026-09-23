@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+import { keeperMetaBytes } from "../../test/keepers";
 import {
   createOpfsSink,
   type KeeperMeta,
+  keeperMetaComplete,
   keeperMetaMatchesPath,
   keeperMetaPath,
   keeperSegmentPaths,
@@ -9,8 +11,10 @@ import {
   MAX_KEEPER_SEGMENTS,
   MAX_KEEPER_TAKES,
   MemorySink,
+  missingKeeperWavState,
   OpfsUnavailableError,
   parseKeeperMeta,
+  removeBestEffort,
   roomToneWavPath,
   writeKeeperMeta,
 } from "./store";
@@ -369,12 +373,88 @@ describe("MemorySink", () => {
     expect(await sink.readBlob("missing.wav")).toBeNull();
   });
 
-  it("does not reuse a segment reserved by pending metadata alone", async () => {
+  it("keeps pending or completion metadata in the segment index without its WAV", async () => {
     const sink = new MemorySink();
     await sink.write(
-      "Sharecut Recordings/cool-room/0/p_g/2.json",
+      "Sharecut Recordings/cool-room/0/p_g/3.json",
       new Uint8Array([1]),
     );
-    expect(await sink.nextSegmentIndex("cool-room", 0, "p_g")).toBe(3);
+    expect(await sink.nextSegmentIndex("cool-room", 0, "p_g")).toBe(4);
+  });
+});
+
+describe("OPFS cleanup", () => {
+  it("ignores already-removed files but reports other deletion failures", async () => {
+    const original = Object.getOwnPropertyDescriptor(navigator, "storage");
+    const removeEntry = vi.fn<() => Promise<void>>();
+    const directory = {
+      getDirectoryHandle: async () => directory,
+      getFileHandle: async () => ({
+        createWritable: async () => ({
+          write: async () => undefined,
+          close: async () => undefined,
+        }),
+      }),
+      removeEntry,
+    };
+    Object.defineProperty(navigator, "storage", {
+      configurable: true,
+      value: { getDirectory: async () => directory },
+    });
+    try {
+      const sink = await createOpfsSink();
+      removeEntry.mockRejectedValueOnce(
+        new DOMException("missing", "NotFoundError"),
+      );
+      await expect(sink.remove("a/b.wav")).resolves.toBeUndefined();
+      removeEntry.mockRejectedValueOnce(
+        new DOMException("denied", "NotAllowedError"),
+      );
+      await expect(sink.remove("a/b.wav")).rejects.toThrow("denied");
+    } finally {
+      if (original) {
+        Object.defineProperty(navigator, "storage", original);
+      } else {
+        Reflect.deleteProperty(navigator, "storage");
+      }
+    }
+  });
+});
+
+describe("keeper completion markers", () => {
+  const enc = (value: unknown) =>
+    new TextEncoder().encode(JSON.stringify(value));
+
+  it("treats legacy and complete:true metadata as complete, pending as not", () => {
+    const ids = { sessionId: "r", takeIndex: 0, participantId: "p" };
+    expect(keeperMetaComplete(null)).toBe(false);
+    expect(keeperMetaComplete(keeperMetaBytes(ids, undefined))).toBe(true);
+    expect(keeperMetaComplete(keeperMetaBytes(ids, true))).toBe(true);
+    expect(keeperMetaComplete(keeperMetaBytes(ids, false))).toBe(false);
+    // A pending record is written at segment open, so a torn or malformed
+    // file may describe a WAV that never closed.
+    expect(keeperMetaComplete(new Uint8Array([123]))).toBe(false);
+    expect(keeperMetaComplete(enc({ complete: true }))).toBe(false);
+  });
+
+  it("classifies a missing WAV as reclaimed only with a completion marker", async () => {
+    const sink = new MemorySink();
+    const ids = { sessionId: "r", takeIndex: 0, participantId: "p" };
+    const wav = keeperWavPath({ ...ids, segmentIndex: 0 });
+    expect(await missingKeeperWavState(sink, wav)).toBe("missing");
+    await sink.write(keeperMetaPath(wav), keeperMetaBytes(ids, false));
+    expect(await missingKeeperWavState(sink, wav)).toBe("missing");
+    await sink.write(keeperMetaPath(wav), new Uint8Array([123]));
+    expect(await missingKeeperWavState(sink, wav)).toBe("missing");
+    await sink.write(keeperMetaPath(wav), keeperMetaBytes(ids, true));
+    expect(await missingKeeperWavState(sink, wav)).toBe("reclaimed");
+  });
+
+  it("removeBestEffort reports failures without throwing", async () => {
+    const sink = new MemorySink();
+    await sink.write("a.wav", new Uint8Array([1]));
+    expect(await removeBestEffort(sink, "a.wav")).toBe(true);
+    vi.spyOn(sink, "remove").mockRejectedValueOnce(new Error("locked"));
+    expect(await removeBestEffort(sink, "a.wav")).toBe(false);
   });
 });

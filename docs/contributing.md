@@ -28,7 +28,7 @@ Do not duplicate project load/save or history snapshot logic in CLI, MCP, or GUI
 
 ### Python quality
 
-- **Ruff** lint (`E`, `F`, `I`, `UP`, `B`, `SIM`, `RUF`) + format (`make format-py` / `make format-py-check`). Commits format staged `*.py` via lint-staged in `.githooks` (`make hooks`; needs `cd gui/web && npm ci`).
+- **Ruff** lint (`E`, `F`, `I`, `UP`, `B`, `SIM`, `RUF`) + format (`make format-py` / `make format-py-check`). Commits format staged `*.py` via lint-staged in `.githooks` (`make hooks`; in a new worktree `make worktree-setup`, which the hook also runs automatically when `.venv` / `gui/web/node_modules` are missing).
 - **Bandit** (medium+ severity on `src/`), **Vulture** (dead code), **Deptry** (dependency hygiene).
 - **mypy** (`make typecheck`; strict on timebase-critical modules — see `[tool.mypy]`).
 - Do **not** add `# noqa` / `# nosec` / mass suppressions without **explicit user approval**. Prefer real fixes. For Bandit, fix findings or use a **line-level** `# nosec Bxxx` on audited call sites (put any rationale in a **separate** preceding comment — Bandit treats words after `# nosec` as test ids and warns). Do not globally skip security rules to greenwash CI.
@@ -50,9 +50,9 @@ Default delivery path is **feature branch → pull request → `main`**. Agents 
 3. Implement code, tests, and docs in the same change.
 4. When asked to ship: create one or more focused commits on the branch.
 5. Run focused local checks as you work; `make ci` remains available as an optional local mirror. GitHub Actions is the required full-CI gate for public pushes and pull requests, so it is safe to push or open a PR before running the entire suite locally.
-6. `git push -u public HEAD`.
-7. `gh pr create` with base **`main`**. Prefer small, focused PRs; split disparate changes into separate branches/PRs when practical. GitHub Actions runs the required checks after the PR is opened. If the PR should close GitHub issues, put `Fixes #N` (or `Closes` / `Resolves`) on its own line in the PR body — merge into `main` then auto-closes them. A `#N` mention without a keyword does not.
-8. Do not merge the PR (and do not force-push `main`) unless the user asks.
+6. `git push -u origin HEAD`.
+7. `gh pr create` with base **`main`**. Prefer small, focused PRs; split disparate changes into separate branches/PRs when practical. GitHub Actions runs the required checks after the PR is opened. If the PR should close GitHub issues, put `Fixes #N` (or `Closes` / `Resolves`) on its own line in the PR body — merge into `main` then auto-closes them. For issues the PR touches but does not finish (including follow-ups filed from review), add a `Related #N` line so they are cross-linked without being closed. A `#N` mention without `Fixes`/`Closes`/`Resolves` never closes anything.
+8. Do not merge the PR (and do not force-push `main`) unless the user asks. Exception: the [automated issue pipeline](#automated-issue-pipeline) is pre-approved to squash-merge its own PRs when its merge gate passes.
 
 ### Branch names
 
@@ -71,6 +71,42 @@ Examples: `feat/guest-sign-in-ui`, `fix/share-acl-401`, `docs/agent-pr-workflow`
 
 Still only create commits or PRs when the user asks to ship (or clearly says to open a PR); this section defines *how* shipping happens.
 
+### Automated issue pipeline
+
+`.claude/workflows/issue-pipeline.js` is a Claude Code workflow that works the GitHub issue backlog end-to-end. Running it counts as asking to ship **and** to merge, but only for PRs that pass its gate.
+
+Run it from a Claude Code session in this repo: ask it to run the `issue-pipeline` workflow, optionally with args:
+
+| Arg | Default | Meaning |
+| --- | ------- | ------- |
+| `authors` | `['calebn']` | Only issues opened by these GitHub logins are considered (also filters explicit `issues`) |
+| `dryRun` | `false` | Triage only; return the selected / skipped table |
+| `issues` | all eligible | Explicit issue numbers (skips the actionable / size / area filters) |
+| `lanes` | `4` | Issues worked in parallel |
+| `maxRounds` | `2` | Review → feedback rounds per PR |
+| `ciFixAttempts` | `1` | Automatic fix attempts per red CI run |
+| `labelsSkip` | `epic`, `needs-user-input`, `deferred-v1`, `do-not-merge`, `in-progress`, `wontfix`, `duplicate` | Issues with these labels are never picked |
+
+Stages per issue (each issue is its own lane; lanes do not wait for each other):
+
+1. **Triage** (Haiku): score every eligible open issue opened by an `authors` login; pick the top `lanes` that are actionable, not size L, unblocked, and in distinct code areas.
+2. **Plan** (Opus): claim the issue (`in-progress`), research, post a detailed implementation plan on the issue, and list related issues.
+3. **Implement** (Sonnet, own worktree): follow the plan, run **targeted** local checks only (changed-file Ruff, the related pytest / Vitest files; never `make test` / `make ci`), and open a PR. GitHub Actions is the full-suite gate whose body has `Fixes #N` plus one `Related #M` line per related issue.
+4. **CI** (Haiku watches; Sonnet makes one fix attempt on red).
+5. **Review** (Opus): `pr-multi-review` in AUTONOMOUS MODE. Posting every finding is mandatory. A separate Haiku verifier re-posts anything missing, and the lane is held if a finding still cannot be posted.
+6. **Feedback**: Opus runs `/feedback` in plan mode and sorts every open item into `implement`, `follow_up` or `wont_do`. Sonnet then runs execute mode: it implements, files follow-up issues (added to the PR body as `Related #M`), and replies to and resolves every thread. Haiku verifies the replies. Steps 4–6 repeat up to `maxRounds`; the last round turns anything not trivially safe into a follow-up.
+7. **Merge gate**, run per PR as soon as its lane finishes. The PR squash-merges only when all of these hold:
+   - every required check (`pytest`, `frontend`, `frontend-e2e`, `gitleaks-history`) is green **on the latest head SHA**,
+   - there are 0 unresolved review threads,
+   - the PR has neither `needs-user-input` nor `do-not-merge`,
+   - there are 0 `wont_do` items.
+
+   A PR that conflicts with `main` is rebased (`--force-with-lease`) and re-checked.
+
+Anything else is **held**: the pipeline adds `needs-user-input` and posts an "Automation hold" comment saying what the owner has to decide. A `wont_do` always holds the PR for owner sign-off. Add `do-not-merge` to any PR or issue to keep automation away from it.
+
+The autonomous behaviour of `pr-multi-review` and `feedback` lives in the **AUTONOMOUS MODE (pipeline)** section of each skill (`~/.agents/skills/…`). That section overrides the skills' interactive approval gates only when a prompt contains `AUTONOMOUS MODE`.
+
 ## Docs in sync
 
 Treat documentation like tests: part of the deliverable, not a follow-up.
@@ -80,7 +116,7 @@ Treat documentation like tests: part of the deliverable, not a follow-up.
 - **MCP/CLI behavior agents rely on** → feature docs under `docs/` and `.agents/skills/`
 - **Defaults or export layout** → `.agents/defaults/pipeline.yaml` and any pipeline doc
 - **Sharecut Studio CSS / theme tokens / units** → [docs/design-tokens.md](design-tokens.md) (naming system), [.agents/rules/gui-styling.md](../.agents/rules/gui-styling.md), [gui/web/README.md](../gui/web/README.md), [ux/pages/brand.md](../ux/pages/brand.md) § Units, [docs/gui-mobile.md](gui-mobile.md)
-- **Sharecut Studio UI / mobile shells / episode schema / share or session-sync docs visible to UX** → [ux/](../ux/README.md) Pages pack (`ux/pages/` including [brand.md](../ux/pages/brand.md) for visual guidelines, and `tests/fixtures/sharecut_ux_demo/` / screenshots when the UI changed). Install hooks with `make hooks` (`core.hooksPath=.githooks`). Format-on-commit is lint-staged (needs `cd gui/web && npm ci`). Check-only hooks (`ux-pack-sync`, schema, capabilities, cheatsheet) run only when the `pre-commit` CLI is installed (`uv tool install pre-commit`). Then `ux-pack-sync` blocks commits that touch GUI shells or related docs (`docs/gui-mobile.md`, `docs/host-online-relay.md`, `docs/session-sync.md`, `docs/recording-session.md`, …) without a UX pack update.
+- **Sharecut Studio UI / mobile shells / episode schema / share or session-sync docs visible to UX** → [ux/](../ux/README.md) Pages pack (`ux/pages/` including [brand.md](../ux/pages/brand.md) for visual guidelines, and `tests/fixtures/sharecut_ux_demo/` / screenshots when the UI changed). Install hooks with `make hooks` (`core.hooksPath=.githooks`). Format-on-commit is lint-staged (the hook provisions `gui/web` node_modules via `make worktree-setup` when missing). Check-only hooks (`ux-pack-sync`, schema, capabilities, cheatsheet) run via the `pre-commit` CLI, or `uvx pre-commit` when it is not installed. Then `ux-pack-sync` blocks commits that touch GUI shells or related docs (`docs/gui-mobile.md`, `docs/host-online-relay.md`, `docs/session-sync.md`, `docs/recording-session.md`, …) without a UX pack update.
 - **Sharecut Studio keymap / command catalog** → run `make cheatsheet` (updates `docs/daw-shortcuts.md` + `ux/pages/shortcuts.md`). `make cheatsheet-check` / pre-commit `keymap-cheatsheet` / `make test-web` fail if stale. Pages **Copy Markdown** is the Google Docs path.
 - **New host capability (GUI / keys / MCP / CLI / skill)** → update [`contracts/capabilities.manifest.json`](../contracts/capabilities.manifest.json) in the same change. Recipe: [entry-points.md](entry-points.md). Run `make schema-export` so [docs.sharecut.studio/#/capabilities](https://docs.sharecut.studio/#/capabilities) stays current. `make capabilities-check` / pre-commit `capabilities-manifest` / `make ci` fail if COMMANDS, keymap, registered MCP tools, skills, or the published capabilities page drift from the manifest. That JSON is the **host** adapter catalog — not the share ACL (`play` / `view` / `comment` / … in [`share_capabilities.py`](../src/podcast_mcp/edits/share_capabilities.py)). `omit.guest` is docs-only. Do not put `guest_*` in `surfaces.mcp`.
 - **New share GUI action** → ship the **share HTTP** route in the same PR (`has_capability` / document-command allowlists). Add a named `guest_*` MCP wrapper only when agents need a tool-shaped job. Do not add powers only on MCP or only in the GUI. See [host-online-relay.md](host-online-relay.md) § Remote MCP.

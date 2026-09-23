@@ -1,7 +1,9 @@
 import { Blob as NodeBlob } from "node:buffer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parseWavHeader, pcmWavHeader } from "../../audio/wavHeader";
+import { keeperMetaBytes } from "../../test/keepers";
 import { KEEPER_SAMPLE_RATE } from "../keeper/pcm";
+import { keeperReclaimHeld } from "../keeper/reclaim";
 import { KeeperSession } from "../keeper/session";
 import {
   type ByteSink,
@@ -9,10 +11,12 @@ import {
   keeperWavPath,
   MemorySink,
 } from "../keeper/store";
+import { KEEPER_ALL_RECLAIMED_COPY } from "../types";
 import {
   downloadLocalKeeper,
   downloadLocalKeepers,
   inspectKeeperRecovery,
+  RECOVERY_RECLAIM_GRACE_MS,
   recoverKeeperSegment,
   recoverLocalKeepers,
 } from "./recovery";
@@ -27,7 +31,7 @@ afterEach(() => {
 
 describe("downloadLocalKeepers", () => {
   it.each(["p_host", "p_guest"])(
-    "exports every retained take and segment for %s without deleting OPFS",
+    "exports every retained take and segment for %s, labeling partials, without deleting OPFS",
     async (participantId) => {
       vi.useFakeTimers();
       const urls: string[] = [];
@@ -57,15 +61,25 @@ describe("downloadLocalKeepers", () => {
         [1, 0],
       ];
       for (const [takeIndex, segmentIndex] of paths) {
-        await sink.write(
-          keeperWavPath({
-            sessionId: "room1",
-            participantId,
-            takeIndex,
-            segmentIndex,
-          }),
-          new Uint8Array([1, 2, 3]),
-        );
+        const wavPath = keeperWavPath({
+          sessionId: "room1",
+          participantId,
+          takeIndex,
+          segmentIndex,
+        });
+        await sink.write(wavPath, new Uint8Array([1, 2, 3]));
+        // Segment 0-1 stopped mid-write, so it has no completion metadata.
+        if (!(takeIndex === 0 && segmentIndex === 1)) {
+          await sink.write(
+            keeperMetaPath(wavPath),
+            keeperMetaBytes({
+              sessionId: "room1",
+              participantId,
+              takeIndex,
+              segmentIndex,
+            }),
+          );
+        }
       }
       const remove = vi.spyOn(sink, "remove");
       await downloadLocalKeepers(sink, "room1", participantId, 1);
@@ -76,11 +90,12 @@ describe("downloadLocalKeepers", () => {
       );
       for (const name of [
         "keeper-0-0.wav",
-        "keeper-0-1.wav",
+        "keeper-0-1-partial.wav",
         "keeper-1-0.wav",
       ]) {
         expect(archive).toContain(name);
       }
+      expect(archive).not.toContain("keeper-0-1.wav");
       expect(remove).not.toHaveBeenCalled();
       await vi.runAllTimersAsync();
       expect(revokeObjectURL).toHaveBeenCalledTimes(1);
@@ -126,6 +141,85 @@ describe("downloadLocalKeepers", () => {
     ).rejects.toThrow("Downloaded 3 local keeper copies; 1 missing segment");
     expect(filenames).toEqual(["keepers-p_guest.zip"]);
     await vi.runAllTimersAsync();
+  });
+
+  function stubDownloads(): string[] {
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn(() => "blob:keeper"),
+      revokeObjectURL: vi.fn(),
+    });
+    const filenames: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      filenames.push(this.download);
+    });
+    return filenames;
+  }
+
+  async function seedSegment(
+    sink: MemorySink,
+    segmentIndex: number,
+    { wav, meta }: { wav: boolean; meta: boolean },
+  ): Promise<string> {
+    const path = keeperWavPath({
+      sessionId: "room1",
+      participantId: "p_guest",
+      takeIndex: 0,
+      segmentIndex,
+    });
+    if (wav) await sink.write(path, new Uint8Array([1, 2, 3]));
+    if (meta) {
+      await sink.write(
+        keeperMetaPath(path),
+        keeperMetaBytes({
+          sessionId: "room1",
+          participantId: "p_guest",
+          takeIndex: 0,
+          segmentIndex,
+        }),
+      );
+    }
+    return path;
+  }
+
+  it("skips reclaimed segments instead of reporting them missing", async () => {
+    vi.useFakeTimers();
+    const filenames = stubDownloads();
+    const sink = new MemorySink();
+    await seedSegment(sink, 0, { wav: false, meta: true });
+    await seedSegment(sink, 1, { wav: false, meta: true });
+    await seedSegment(sink, 2, { wav: true, meta: false });
+    await expect(
+      downloadLocalKeepers(sink, "room1", "p_guest", 0),
+    ).resolves.toBeUndefined();
+    expect(filenames).toEqual(["keepers-p_guest.zip"]);
+    await vi.runAllTimersAsync();
+  });
+
+  it("explains when every segment was reclaimed after landing", async () => {
+    vi.useFakeTimers();
+    const filenames = stubDownloads();
+    const sink = new MemorySink();
+    await seedSegment(sink, 0, { wav: false, meta: true });
+    await expect(
+      downloadLocalKeepers(sink, "room1", "p_guest", 0),
+    ).rejects.toThrow(KEEPER_ALL_RECLAIMED_COPY);
+    expect(filenames).toEqual([]);
+    await vi.runAllTimersAsync();
+  });
+
+  it("holds keeper reclaim through the download grace window", async () => {
+    vi.useFakeTimers();
+    stubDownloads();
+    const sink = new MemorySink();
+    await seedSegment(sink, 0, { wav: true, meta: true });
+    await downloadLocalKeepers(sink, "room1", "p_guest", 0);
+    expect(keeperReclaimHeld(sink)).toBe(true);
+    await vi.advanceTimersByTimeAsync(RECOVERY_RECLAIM_GRACE_MS - 1);
+    expect(keeperReclaimHeld(sink)).toBe(true);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(keeperReclaimHeld(sink)).toBe(false);
   });
 
   it("downloads a native OPFS File without reading its bytes", async () => {
@@ -326,6 +420,19 @@ describe("keeper recovery", () => {
     expect(
       await inspectKeeperRecovery(sink, path, { inspectPending: false }),
     ).toEqual({ kind: "pending" });
+  });
+
+  it("treats an older-client keeper whose WAV was reclaimed as complete, not lost", async () => {
+    const sink = new MemorySink();
+    const { complete: _omit, ...legacy } = { ...META, samplesWritten: 2 };
+    await writeRawMeta(sink, path, legacy);
+    expect(await inspectKeeperRecovery(sink, path)).toEqual({
+      kind: "complete",
+      joinOffsetMs: 1250,
+    });
+    await expect(
+      recoverLocalKeepers(sink, META.sessionId, META.participantId, 0),
+    ).resolves.toEqual({ recovered: 0, trimmed: 0 });
   });
 
   it("does not claim recovery for an OPFS-crash zero-byte file", async () => {

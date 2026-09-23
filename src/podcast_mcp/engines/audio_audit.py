@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import contextlib
-import math
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -20,6 +19,7 @@ from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.timemap import timeline_to_source
 from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.util.binaries import resolve_ffmpeg
+from podcast_mcp.util.dsp import rms_db
 from podcast_mcp.util.process import CalledProcessError, run
 from podcast_mcp.util.progress import (
     ProgressReporter,
@@ -79,15 +79,6 @@ class AnalysisPolicy:
             bleed_text_match_min_dominance_db=(float(min_dom) if min_dom is not None else None),
             bleed_ratio_warn_threshold=float(heur.get("bleed_ratio_warn_threshold", 0.2)),
         )
-
-
-def _rms_db(samples: np.ndarray) -> float | None:
-    if samples.size == 0:
-        return None
-    rms = float(np.sqrt(np.mean(samples**2)))
-    if rms < 1e-10:
-        return -80.0
-    return 20.0 * math.log10(rms)
 
 
 def load_mono_full(
@@ -269,7 +260,7 @@ class TrackRmsCache:
         window = self.window(t_start, t_end)
         if window.size == 0:
             return None
-        return _rms_db(window)
+        return rms_db(window)
 
 
 @dataclass
@@ -308,7 +299,9 @@ def measure_window_rms_db(
         )
     except (ValueError, CalledProcessError):
         return None
-    return _rms_db(window)
+    if window.size == 0:
+        return None
+    return rms_db(window)
 
 
 def _processed_track_path(project: EpisodeProject, track_id: str) -> Path | None:
@@ -824,7 +817,7 @@ def recommend_boundary_fades(
     # on which module a process happens to touch first. Deferring it until this
     # function actually runs sidesteps the cycle: by then audio_audit has already
     # finished initializing.
-    from podcast_mcp.edits.clips_ops import clips_for_track
+    from podcast_mcp.edits.clips_ops import clips_abut, clips_for_track
 
     pol = policy or AnalysisPolicy.from_defaults()
     recs: list[dict[str, Any]] = []
@@ -850,8 +843,8 @@ def recommend_boundary_fades(
 
         for i in range(len(clips) - 1):
             left, right = clips[i], clips[i + 1]
-            gap = right.timeline_start - left.timeline_end
-            if gap > 0.05:
+            if not clips_abut(left, right):
+                gap = right.timeline_start - left.timeline_end
                 recs.append(
                     {
                         "track_id": tid,

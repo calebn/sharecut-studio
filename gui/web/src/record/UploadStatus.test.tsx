@@ -1,7 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
-import { UPLOAD_COPY, UPLOAD_DONE_COPY, uploadProgressCopy } from "./types";
+import {
+  KEEPER_RECLAIM_FAILED_COPY,
+  UPLOAD_COPY,
+  UPLOAD_DONE_COPY,
+  uploadProgressCopy,
+} from "./types";
 import { UploadStatus } from "./UploadStatus";
 import type { KeeperRecoveryActions } from "./upload/useKeeperRecoveryActions";
 
@@ -12,7 +17,7 @@ function keeperActions(
 }
 
 describe("UploadStatus", () => {
-  it("shows chunk progress until file ACK, then safe-to-delete copy", () => {
+  it("shows chunk progress until file ACK, then landed copy", () => {
     const { rerender } = render(
       <UploadStatus
         stopped
@@ -22,6 +27,7 @@ describe("UploadStatus", () => {
           fileAck: false,
           landed: false,
           landFailed: false,
+          reclaimFailed: false,
           uploading: true,
           pending: false,
           recoverable: false,
@@ -39,6 +45,7 @@ describe("UploadStatus", () => {
           fileAck: true,
           landed: true,
           landFailed: false,
+          reclaimFailed: false,
           uploading: false,
           pending: false,
           recoverable: false,
@@ -47,6 +54,29 @@ describe("UploadStatus", () => {
       />,
     );
     expect(screen.getByText(UPLOAD_DONE_COPY)).toBeInTheDocument();
+  });
+
+  it("warns when a landed keeper could not be cleared locally", async () => {
+    const { container } = render(
+      <UploadStatus
+        stopped
+        progress={{
+          acked: 1,
+          total: 1,
+          fileAck: true,
+          landed: true,
+          landFailed: false,
+          reclaimFailed: true,
+          uploading: false,
+          pending: false,
+          recoverable: false,
+          error: null,
+        }}
+      />,
+    );
+    expect(screen.getByText(KEEPER_RECLAIM_FAILED_COPY)).toBeInTheDocument();
+    expect(screen.queryByText(UPLOAD_DONE_COPY)).toBeNull();
+    await expectNoA11yViolations(container);
   });
 
   it("does not show upload copy before a take exists", () => {
@@ -59,6 +89,7 @@ describe("UploadStatus", () => {
           fileAck: false,
           landed: false,
           landFailed: false,
+          reclaimFailed: false,
           uploading: false,
           pending: true,
           recoverable: false,
@@ -80,6 +111,7 @@ describe("UploadStatus", () => {
           fileAck: true,
           landed: false,
           landFailed: true,
+          reclaimFailed: false,
           uploading: false,
           pending: false,
           recoverable: false,
@@ -101,6 +133,7 @@ describe("UploadStatus", () => {
           fileAck: true,
           landed: false,
           landFailed: false,
+          reclaimFailed: false,
           uploading: false,
           pending: false,
           recoverable: false,
@@ -127,6 +160,7 @@ describe("UploadStatus", () => {
           fileAck: false,
           landed: false,
           landFailed: false,
+          reclaimFailed: false,
           uploading: false,
           pending: false,
           recoverable: false,
@@ -155,6 +189,7 @@ describe("UploadStatus", () => {
           fileAck: false,
           landed: false,
           landFailed: false,
+          reclaimFailed: false,
           uploading: false,
           pending: false,
           recoverable: false,
@@ -179,6 +214,7 @@ describe("UploadStatus", () => {
       fileAck: false,
       landed: false,
       landFailed: false,
+      reclaimFailed: false,
       uploading: false,
       pending: false,
       recoverable: true,
@@ -226,6 +262,7 @@ describe("UploadStatus", () => {
       fileAck: false,
       landed: false,
       landFailed: false,
+      reclaimFailed: false,
       uploading: false,
       pending: false,
       recoverable: true,
@@ -254,6 +291,7 @@ describe("UploadStatus", () => {
       fileAck: true,
       landed: true,
       landFailed: false,
+      reclaimFailed: false,
       uploading: false,
       pending: false,
       recoverable: false,

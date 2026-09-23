@@ -12,6 +12,8 @@ on:
       - "src/podcast_mcp/**"
       - "scripts/check_desktop.sh"
       - "scripts/build_desktop.sh"
+      - "scripts/build_sidecar.py"
+      - "scripts/sidecar_*.rs"
       - ".github/workflows/desktop.yml"
   push:
     branches: [main]
@@ -21,6 +23,8 @@ on:
       - "src/podcast_mcp/**"
       - "scripts/check_desktop.sh"
       - "scripts/build_desktop.sh"
+      - "scripts/build_sidecar.py"
+      - "scripts/sidecar_*.rs"
       - ".github/workflows/desktop.yml"
   workflow_dispatch:
 
@@ -81,3 +85,10 @@ jobs:
       - name: Check Windows desktop binary
         working-directory: gui/desktop/src-tauri
         run: cargo check --bin sharecut --features app
+      # Typecheck + test the cfg(windows) arms of the standalone sidecar launcher.
+      - name: Check Windows sidecar launcher
+        shell: bash
+        run: |
+          rustc --edition 2021 scripts/sidecar_launcher.rs -o "$RUNNER_TEMP/sharecut-sidecar.exe"
+          rustc --edition 2021 --test scripts/sidecar_launcher.rs -o "$RUNNER_TEMP/sidecar-launcher-test.exe"
+          "$RUNNER_TEMP/sidecar-launcher-test.exe"

@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadHostRecordState } from "../api";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
@@ -25,6 +25,7 @@ import {
   hostUploadLine,
   type RecordSnapshot,
   ROOM_TONE_PROMPT_COPY,
+  storageLowCopy,
 } from "./types";
 
 const { exec, roomTone } = vi.hoisted(() => ({
@@ -105,6 +106,10 @@ const lobby: RecordSnapshot = {
 };
 
 describe("RecordPanel", () => {
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, "storage");
+  });
+
   beforeEach(() => {
     send.mockReset();
     exec.mockReset();
@@ -294,6 +299,59 @@ describe("RecordPanel", () => {
     });
     await userEvent.click(screen.getByRole("button", { name: "Start" }));
     expect(postTransport).toHaveBeenCalledWith("Start");
+  });
+
+  it("warns about low storage without disabling Start", async () => {
+    Object.defineProperty(navigator, "storage", {
+      configurable: true,
+      value: { estimate: vi.fn(async () => ({ usage: 0, quota: 1 })) },
+    });
+    useRecordHostStore.getState().setSnapshot({
+      ...lobby,
+      start_blockers: [],
+      participants: [
+        {
+          participant_id: "p_g",
+          role: "guest",
+          display_name: "Ava",
+          connected: true,
+          consented: true,
+          muted: false,
+          headphones_ack: true,
+        },
+      ],
+    });
+    const { container } = render(<RecordPanel />);
+    await waitFor(() =>
+      expect(screen.getByText(storageLowCopy(0))).toBeVisible(),
+    );
+    expect(screen.getByRole("button", { name: "Start" })).toBeEnabled();
+    await expectNoA11yViolations(container);
+  });
+
+  it("re-checks storage headroom when a take stops", async () => {
+    const estimate = vi.fn(async () => ({ usage: 0, quota: 1 }));
+    Object.defineProperty(navigator, "storage", {
+      configurable: true,
+      value: { estimate },
+    });
+    useRecordHostStore.getState().setSnapshot({
+      ...lobby,
+      state: "recording",
+      start_blockers: [],
+    });
+    render(<RecordPanel />);
+    await waitFor(() => expect(estimate).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText(storageLowCopy(0))).toBeNull();
+    useRecordHostStore.getState().setSnapshot({
+      ...lobby,
+      state: "stopped",
+      start_blockers: [],
+    });
+    await waitFor(() => expect(estimate).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(screen.getByText(storageLowCopy(0))).toBeVisible(),
+    );
   });
 
   it("disables Start while room tone is capturing", () => {

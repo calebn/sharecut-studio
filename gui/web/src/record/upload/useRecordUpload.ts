@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import {
+  canReclaimKeeperSegment,
+  createKeeperReclaimTracker,
+  keeperReclaimStuck,
+  reclaimKeeperWav,
+} from "../keeper/reclaim";
 import { type ByteSink, keeperSegmentPaths } from "../keeper/store";
+import { UPLOAD_STALLED_COPY } from "../types";
 import { uploadKeeperWav } from "./pump";
 import { inspectKeeperRecovery } from "./recovery";
 import type { RecordUploadStatus, RecordUploadTransport } from "./transport";
@@ -10,6 +17,8 @@ export type RecordUploadProgress = {
   fileAck: boolean;
   landed: boolean;
   landFailed: boolean;
+  /** Landed keeper WAVs could not be deleted after repeated attempts. */
+  reclaimFailed: boolean;
   uploading: boolean;
   pending: boolean;
   recoverable: boolean;
@@ -48,8 +57,6 @@ const RECOVERABLE_COPY =
   "A readable partial keeper was retained. Recover it before uploading.";
 const INCOMPLETE_COPY =
   "An incomplete local keeper segment was retained for recovery.";
-const MISSING_FINALIZED_COPY =
-  "The finalized local keeper is missing and was not acknowledged by the host. Download any other retained segments and ask the host to check the take.";
 
 /** Every retained-segment problem is reported, not only the first. */
 function abandonedCopy(recoverable: boolean, lossReasons: string[]): string {
@@ -63,6 +70,7 @@ const EMPTY: RecordUploadProgress = {
   fileAck: false,
   landed: false,
   landFailed: false,
+  reclaimFailed: false,
   uploading: false,
   pending: false,
   recoverable: false,
@@ -83,6 +91,7 @@ export function useRecordUpload(args: {
 }): RecordUploadProgress {
   const [progress, setProgress] = useState<RecordUploadProgress>(EMPTY);
   const argsRef = useRef(args);
+  const reclaim = useRef(createKeeperReclaimTracker());
   argsRef.current = args;
 
   useEffect(() => {
@@ -110,6 +119,8 @@ export function useRecordUpload(args: {
       inFlight = true;
       const current = argsRef.current;
       const { sessionId, participantId, transport, sink, takeIndex } = current;
+      const stopped = current.roomState === "stopped";
+      const settled = stopped && Boolean(current.captureSettled);
       if (!sessionId || !participantId || !transport || !sink) {
         inFlight = false;
         return;
@@ -127,8 +138,6 @@ export function useRecordUpload(args: {
         let abandoned = false;
         let recoverable = false;
         const lossReasons = new Set<string>();
-        const stopped = current.roomState === "stopped";
-        const settled = stopped && current.captureSettled === true;
         for await (const {
           takeIndex: take,
           segmentIndex,
@@ -147,15 +156,22 @@ export function useRecordUpload(args: {
             total += n;
             allLanded = allLanded && Boolean(remoteSeg.landed);
             landFailed = landFailed || Boolean(remoteSeg.land_failed);
+            if (
+              canReclaimKeeperSegment({ remoteSeg, take, takeIndex, settled })
+            ) {
+              // A fresh status response is the authority for cleanup. The
+              // completion metadata stays as the segment identity marker.
+              await reclaimKeeperWav(sink, wavPath, reclaim.current);
+            }
             continue;
           }
-          allLanded = false;
           // Pending segments are never uploaded, and their WAV is only probed
           // once capture has settled: during REC it may still be open.
           const recovery = await inspectKeeperRecovery(sink, wavPath, {
             inspectPending: settled,
           });
           if (recovery.kind !== "complete") {
+            allLanded = false;
             allAcked = false;
             if (!stopped) continue;
             if (!settled) {
@@ -173,15 +189,12 @@ export function useRecordUpload(args: {
           }
           const wav = await sink.read(wavPath);
           if (!wav) {
-            allAcked = false;
-            if (settled) {
-              abandoned = true;
-              lossReasons.add(MISSING_FINALIZED_COPY);
-            } else {
-              awaitingAck = true;
-            }
+            // Complete metadata without its WAV is a landed, reclaimed segment
+            // (see missingKeeperWavState); the host row may since have gone
+            // (e.g. Discard take). Nothing left to upload or wait on.
             continue;
           }
+          allLanded = false;
           const result = await uploadKeeperWav({
             wav,
             takeIndex: take,
@@ -222,6 +235,7 @@ export function useRecordUpload(args: {
             fileAck: saw && allAcked,
             landed: saw && allAcked && allLanded && !landFailed,
             landFailed,
+            reclaimFailed: keeperReclaimStuck(reclaim.current),
             uploading: (awaitingAck && !stalled) || finalizing,
             pending: false,
             recoverable,
@@ -230,7 +244,7 @@ export function useRecordUpload(args: {
               (!saw && stopped && current.captureExpected !== false
                 ? "No local keeper was captured. Check the local copy before leaving."
                 : stalled
-                  ? "Upload stalled. Resume the upload or download the local keeper copy."
+                  ? UPLOAD_STALLED_COPY
                   : null),
           });
         }

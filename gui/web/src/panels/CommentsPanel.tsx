@@ -220,6 +220,7 @@ export function CommentsPanel({
               selected={selected}
               busy={busy}
               guestShare={guestShare}
+              swipeToResolve
               replyDraft={replyDrafts[c.id] ?? ""}
               onReplyDraftChange={
                 mayReply

@@ -38,7 +38,9 @@ are in the compact transport Menu on Timeline, Text, or More.
 |---------|--------------|
 | **Two-finger tap** | Undo |
 | **Pinch** | Zoom the timeline in/out |
-| **Long-press** | Planned; tap an item to open its actions today |
+| **Long-press** | Open the selection sheet for a comment or track, or correct a transcript word (hosts) |
+| **Swipe left on comment** | Resolve an open comment in the list (hosts) |
+| **Double-tap word** | Open word correction (hosts); closing it returns to your previous mode |
 
 A full list is in the app: **More → Gestures**.
 
@@ -57,7 +59,7 @@ A few things live in different places on mobile:
 
 - **Comments** are in the Listen tab and under More
 - **History, Tighten, and Pipeline** are all under More
-- **Gestures** has a reference list under More; it marks planned actions as Soon
+- **Gestures** has a reference list under More
 - **Mute/Solo** for a track: tap its header row on the left side of Timeline
 - **Audition and export** are in the compact transport Menu outside Listen
 

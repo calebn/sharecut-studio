@@ -11,16 +11,20 @@ import {
   KEEPER_FRAME_BYTES,
   KEEPER_SAMPLE_RATE,
 } from "../keeper/pcm";
+import { holdKeeperReclaim } from "../keeper/reclaim";
 import {
   type ByteSink,
   copyBuffer,
+  keeperMetaComplete,
   keeperMetaMatchesPath,
   keeperMetaPath,
   keeperSegmentPaths,
+  missingKeeperWavState,
   parseKeeperMeta,
   type StoredKeeperMeta,
   writeKeeperMeta,
 } from "../keeper/store";
+import { KEEPER_ALL_RECLAIMED_COPY } from "../types";
 import { makeKeeperArchive } from "./archive";
 
 /** Enough bytes to parse the RIFF/fmt/data chunk headers of a keeper WAV. */
@@ -117,7 +121,9 @@ export async function inspectKeeperRecovery(
   let probe: HeaderProbe | null | undefined;
   if (meta.complete === undefined) {
     probe = await probeKeeperWav(sink, wavPath);
-    if (legacyFinalized(probe, meta)) {
+    // Legacy metadata was only written after a successful close, so a missing
+    // WAV was reclaimed after landing (see missingKeeperWavState), not lost.
+    if (!probe || legacyFinalized(probe, meta)) {
       return { kind: "complete", joinOffsetMs: meta.joinOffsetMs };
     }
   }
@@ -244,6 +250,25 @@ async function keeperBlob(sink: ByteSink, path: string): Promise<Blob | null> {
   return new Blob([copyBuffer(bytes)], { type: "audio/wav" });
 }
 
+/**
+ * Keeper reclaim stays paused this long after a recovery download is handed
+ * to the browser: the archive references OPFS `File`s that are read lazily
+ * while the download is written, so deleting one would fail the ZIP.
+ */
+export const RECOVERY_RECLAIM_GRACE_MS = 5 * 60_000;
+
+async function withReclaimHeld<T>(
+  sink: ByteSink,
+  run: () => Promise<T>,
+): Promise<T> {
+  const release = await holdKeeperReclaim(sink);
+  try {
+    return await run();
+  } finally {
+    window.setTimeout(release, RECOVERY_RECLAIM_GRACE_MS);
+  }
+}
+
 function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -258,10 +283,12 @@ export async function downloadLocalKeeper(
   path: string,
   filename: string,
 ): Promise<boolean> {
-  const blob = await keeperBlob(sink, path);
-  if (!blob) return false;
-  downloadBlob(blob, filename);
-  return true;
+  return withReclaimHeld(sink, async () => {
+    const blob = await keeperBlob(sink, path);
+    if (!blob) return false;
+    downloadBlob(blob, filename);
+    return true;
+  });
 }
 
 export async function downloadLocalKeepers(
@@ -270,34 +297,50 @@ export async function downloadLocalKeepers(
   participantId: string,
   lastTakeIndex: number,
 ): Promise<void> {
-  let downloaded = 0;
-  let missing = 0;
-  const entries: Array<{ filename: string; data: Blob }> = [];
-  for await (const { takeIndex, segmentIndex, wavPath } of keeperSegmentPaths(
-    sink,
-    sessionId,
-    participantId,
-    lastTakeIndex,
-  )) {
-    const blob = await keeperBlob(sink, wavPath);
-    if (blob) {
-      entries.push({
-        filename: `keeper-${takeIndex}-${segmentIndex}.wav`,
-        data: blob,
-      });
-      downloaded += 1;
-    } else {
-      missing += 1;
+  return withReclaimHeld(sink, async () => {
+    let downloaded = 0;
+    let missing = 0;
+    let reclaimed = 0;
+    const entries: Array<{ filename: string; data: Blob }> = [];
+    for await (const { takeIndex, segmentIndex, wavPath } of keeperSegmentPaths(
+      sink,
+      sessionId,
+      participantId,
+      lastTakeIndex,
+    )) {
+      const blob = await keeperBlob(sink, wavPath);
+      if (blob) {
+        // A WAV whose metadata is missing or still `complete: false` stopped
+        // mid-write (its header may still report zero data bytes); label it
+        // rather than pass it off as a finished segment.
+        const complete = keeperMetaComplete(
+          await sink.read(keeperMetaPath(wavPath)),
+        );
+        const suffix = complete ? "" : "-partial";
+        entries.push({
+          filename: `keeper-${takeIndex}-${segmentIndex}${suffix}.wav`,
+          data: blob,
+        });
+        downloaded += 1;
+      } else if ((await missingKeeperWavState(sink, wavPath)) === "reclaimed") {
+        // Landed safely on the host and cleared locally; not lost audio.
+        reclaimed += 1;
+      } else {
+        missing += 1;
+      }
     }
-  }
-  if (downloaded === 0) {
-    throw new Error("No local keeper copy is available to download.");
-  }
-  const archive = await makeKeeperArchive(entries);
-  downloadBlob(archive, `keepers-${participantId}.zip`);
-  if (missing > 0) {
-    throw new Error(
-      `Downloaded ${downloaded} local keeper ${downloaded === 1 ? "copy" : "copies"}; ${missing} missing ${missing === 1 ? "segment" : "segments"} could not be exported.`,
-    );
-  }
+    if (downloaded === 0 && missing === 0 && reclaimed > 0) {
+      throw new Error(KEEPER_ALL_RECLAIMED_COPY);
+    }
+    if (downloaded === 0) {
+      throw new Error("No local keeper copy is available to download.");
+    }
+    const archive = await makeKeeperArchive(entries);
+    downloadBlob(archive, `keepers-${participantId}.zip`);
+    if (missing > 0) {
+      throw new Error(
+        `Downloaded ${downloaded} local keeper ${downloaded === 1 ? "copy" : "copies"}; ${missing} missing ${missing === 1 ? "segment" : "segments"} could not be exported.`,
+      );
+    }
+  });
 }

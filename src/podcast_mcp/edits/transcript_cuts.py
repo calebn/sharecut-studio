@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from podcast_mcp.edits.inaudible_cuts import optimize_source_cut_range
+from podcast_mcp.edits.tighten_reasons import is_review_only_reason
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import (
     CombinedTranscript,
@@ -375,14 +376,19 @@ def coalesce_edits(
 
 
 def _keeps_independent_review(left: EditDecision, right: EditDecision) -> bool:
-    """Keep generated repeat/restart proposals individually reviewable.
+    """Keep generated review-only proposals and approval state separate.
 
-    Their reason and id identify a specific linguistic repair.  A neighboring
-    filler or pause can be safely coalesced with ordinary cuts, but merging it
-    into one of these proposals loses that review context.
+    Repeat/restart and ``filler:acoustic`` reasons and ids identify one specific
+    proposal a human must approve.  A neighboring filler or pause can be safely
+    coalesced with ordinary cuts, but merging it into one of these proposals
+    loses that review context (or auto-applies an acoustic span nobody heard).
+    Decisions whose ``applied`` flags differ are never merged either: the merged
+    edit would silently apply the pending span or un-apply the approved one.
     """
+    if left.applied != right.applied:
+        return True
     return any(
-        decision.review_required and (decision.reason or "").startswith(("repetition:", "restart:"))
+        decision.review_required and is_review_only_reason(decision.reason)
         for decision in (left, right)
     )
 

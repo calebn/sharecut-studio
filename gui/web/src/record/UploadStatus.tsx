@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Button } from "../ui";
 import {
+  KEEPER_RECLAIM_FAILED_COPY,
   UPLOAD_DONE_COPY,
   UPLOAD_LAND_FAILED_COPY,
   UPLOAD_STATUS_ID,
@@ -100,7 +101,13 @@ export function UploadStatus({
       </p>
     );
   } else if (stopped && progress.landed && alive) {
-    status = <p id={UPLOAD_STATUS_ID}>{UPLOAD_DONE_COPY}</p>;
+    status = progress.reclaimFailed ? (
+      <p id={UPLOAD_STATUS_ID} className="record-warn">
+        {KEEPER_RECLAIM_FAILED_COPY}
+      </p>
+    ) : (
+      <p id={UPLOAD_STATUS_ID}>{UPLOAD_DONE_COPY}</p>
+    );
   } else if (stopped && progress.fileAck && !progress.landed) {
     status = <p id={UPLOAD_STATUS_ID}>{UPLOAD_WAITING_TO_LAND_COPY}</p>;
   } else if (

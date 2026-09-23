@@ -1,16 +1,24 @@
 from __future__ import annotations
 
 import logging
-import math
 import re
+from bisect import bisect_left
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from itertools import pairwise
 from typing import Any
 
+from podcast_mcp.config import bounded_float
+from podcast_mcp.edits.acoustic_gap import AcousticGapConfig, find_voiced_gap_runs
 from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_caches
 from podcast_mcp.edits.breath_detect import detect_adjacent_breath, extend_cut_for_breaths
-from podcast_mcp.edits.cut_quality import optimize_and_assess, recommend_cut_fade_ms
+from podcast_mcp.edits.cut_quality import (
+    assess_cut_risk,
+    optimize_and_assess,
+    recommend_cut_fade_ms,
+)
 from podcast_mcp.edits.filler_pacing import apply_filler_pacing
+from podcast_mcp.edits.tighten_reasons import ACOUSTIC_FILLER_REASON
 from podcast_mcp.edits.transcript_cuts import append_remove_decision
 from podcast_mcp.models import (
     EditDecision,
@@ -34,6 +42,13 @@ _DISCOURSE_PAUSE_SEC_MAX = 5.0
 _LexiconHit = tuple[int, int, str]
 
 
+def _word_not_owner(word: TranscriptWord, track_id: str) -> bool:
+    """True when ``word`` is bleed or speaker-matched to another track."""
+    if word.audibility_status == "bleed":
+        return True
+    return bool(word.speaker_match_track and word.speaker_match_track != track_id)
+
+
 def _cut_span_is_bleed_not_owner(
     project: EpisodeProject,
     track_id: str,
@@ -45,9 +60,7 @@ def _cut_span_is_bleed_not_owner(
         for w in tr.words:
             if w.end <= start or w.start >= end:
                 continue
-            if w.audibility_status == "bleed":
-                return True
-            if w.speaker_match_track and w.speaker_match_track != track_id:
+            if _word_not_owner(w, track_id):
                 return True
     try:
         from podcast_mcp.engines.speaker_id import (
@@ -121,16 +134,6 @@ def _cluster_lexicon_hits(
     if current:
         clusters.append(current)
     return clusters
-
-
-def _bounded_float(value: Any, default: float, lo: float, hi: float) -> float:
-    try:
-        parsed = float(value)
-    except (TypeError, ValueError):
-        return default
-    if not math.isfinite(parsed):
-        return default
-    return max(lo, min(hi, parsed))
 
 
 def _discourse_marker_set(tighten: dict[str, Any]) -> set[str]:
@@ -257,6 +260,33 @@ class _CutCandidate:
     filler_confidence: float | None = None
     # Pause cuts: hard ceiling so trailing-energy / breath cannot eat the retain floor.
     max_end: float | None = None
+    # Strictly bounded candidates (acoustic gap runs): hard floor so waveform
+    # snapping, breath extension, and pacing never move the cut back onto an ASR
+    # word; such candidates also skip gap expansion during pacing.
+    min_start: float | None = None
+    # Proposal-only regardless of risk (never auto-applied).
+    review_only: bool = False
+
+    @property
+    def strictly_bounded(self) -> bool:
+        return self.min_start is not None
+
+
+def _candidate_order(candidate: _CutCandidate) -> tuple[float, float, str]:
+    return (candidate.start, candidate.end, candidate.reason)
+
+
+def _clamp_to_candidate(
+    candidate: _CutCandidate, start: float, end: float
+) -> tuple[float, float] | None:
+    """Clamp a cut to the candidate's hard bounds; ``None`` when nothing is left."""
+    if candidate.min_start is not None:
+        start = max(start, candidate.min_start)
+    if candidate.max_end is not None:
+        end = min(end, candidate.max_end)
+    if end <= start:
+        return None
+    return start, end
 
 
 _RESTART_MARKERS = re.compile(r"(?:[-\u2013\u2014]|\.\.\.|\u2026)$")
@@ -298,7 +328,7 @@ def _collect_repetition_candidates(
     disfluency.  A trailing cut-off marker (``stor- store``) is the sole partial
     word exception and is likewise never auto-applied.
     """
-    max_gap = _bounded_float(
+    max_gap = bounded_float(
         tighten.get("repeat_max_gap_sec", _REPEAT_GAP_SEC), _REPEAT_GAP_SEC, 0.0, 2.0
     )
     filler_words = {
@@ -615,15 +645,15 @@ def _collect_filler_candidates(
     """Lexicon filler hits that pass cluster + discourse-safe gates (read-only)."""
     fillers = {normalize_text(w) for w in tighten.get("filler_words", []) if str(w).strip()}
     min_cluster = int(tighten.get("min_filler_cluster", 2))
-    cluster_gap_sec = _bounded_float(tighten.get("filler_cluster_gap_sec", 2.0), 2.0, 0.0, 60.0)
+    cluster_gap_sec = bounded_float(tighten.get("filler_cluster_gap_sec", 2.0), 2.0, 0.0, 60.0)
     discourse = _discourse_marker_set(tighten)
-    pause_sec = _bounded_float(
+    pause_sec = bounded_float(
         tighten.get("discourse_pause_sec", DEFAULT_DISCOURSE_PAUSE_SEC),
         DEFAULT_DISCOURSE_PAUSE_SEC,
         0.0,
         _DISCOURSE_PAUSE_SEC_MAX,
     )
-    confidence_max = _bounded_float(
+    confidence_max = bounded_float(
         tighten.get("discourse_confidence_max", DEFAULT_DISCOURSE_CONFIDENCE_MAX),
         DEFAULT_DISCOURSE_CONFIDENCE_MAX,
         0.0,
@@ -668,7 +698,11 @@ def _collect_candidates(
     project: EpisodeProject | None = None,
     skip_counts: dict[str, int] | None = None,
 ) -> list[_CutCandidate]:
-    """Find filler-cluster and long-pause candidates in one transcript (read-only)."""
+    """Find filler-cluster, repetition, and long-pause candidates (read-only).
+
+    Acoustic gap candidates need decoded audio; add them with
+    :func:`_add_acoustic_candidates`.
+    """
     tighten = defaults.get("tighten", {})
     max_pause = float(tighten.get("max_pause_sec", 1.2))
     track_id = transcript.track_id
@@ -709,9 +743,199 @@ def _collect_candidates(
                             max_end=trim_end,
                         )
                     )
-    return sorted(
-        candidates, key=lambda candidate: (candidate.start, candidate.end, candidate.reason)
+    return sorted(candidates, key=_candidate_order)
+
+
+# Acoustic runs keep this much air next to each flanking ASR word, and waveform
+# snapping / breath handling may move the cut at most ``_RUN_PAD`` past the run.
+_ACOUSTIC_EDGE_MARGIN_SEC = 0.025
+_ACOUSTIC_RUN_PAD_SEC = 0.05
+_ACOUSTIC_MIN_CUT_SEC = 0.1
+
+
+class _SpanIndex:
+    """Static half-open spans with O(log n) "does anything overlap" queries."""
+
+    def __init__(self, spans: Iterable[tuple[float, float]]) -> None:
+        ordered = sorted(spans)
+        self._starts = [start for start, _end in ordered]
+        self._max_end: list[float] = []
+        running = float("-inf")
+        for _start, end in ordered:
+            running = max(running, end)
+            self._max_end.append(running)
+
+    def overlaps(self, start: float, end: float) -> bool:
+        idx = bisect_left(self._starts, end)
+        return idx > 0 and self._max_end[idx - 1] > start
+
+
+def _acoustic_scan_gaps(
+    words: list[TranscriptWord], cfg: AcousticGapConfig
+) -> Iterator[tuple[TranscriptWord, TranscriptWord]]:
+    """Adjacent live word pairs whose gap is long enough to scan."""
+    for word, nxt in pairwise(words):
+        if word.suppressed or nxt.suppressed or word.end <= word.start or nxt.end <= nxt.start:
+            continue
+        if nxt.start - word.end >= cfg.min_gap_sec:
+            yield word, nxt
+
+
+def _collect_acoustic_candidates(
+    words: list[TranscriptWord],
+    track_id: str,
+    cfg: AcousticGapConfig,
+    audio_cache: TrackAudioCache,
+    occupied: _SpanIndex,
+    *,
+    project: EpisodeProject | None = None,
+    skip_counts: dict[str, int] | None = None,
+) -> list[_CutCandidate]:
+    """Review-only ``filler:acoustic`` candidates for voiced runs in owner gaps."""
+    candidates: list[_CutCandidate] = []
+    for word, nxt in _acoustic_scan_gaps(words, cfg):
+        gap_start, gap_end = word.end, nxt.start
+        if _word_not_owner(word, track_id) or _word_not_owner(nxt, track_id):
+            _count_skip(skip_counts, "acoustic:not_owner")
+            continue
+        # A peer speaking in the gap makes voiced energy here most likely bleed.
+        if project is not None and _peer_speaking_in_gap(project, track_id, gap_start, gap_end):
+            _count_skip(skip_counts, "acoustic:peer_speaking")
+            continue
+        runs = find_voiced_gap_runs(
+            audio_cache,
+            gap_start,
+            gap_end,
+            min_gap_sec=cfg.min_gap_sec,
+            max_run_sec=cfg.max_run_sec,
+            max_frames=cfg.max_frames,
+        )
+        lo, hi = gap_start + _ACOUSTIC_EDGE_MARGIN_SEC, gap_end - _ACOUSTIC_EDGE_MARGIN_SEC
+        for run in runs:
+            start, end = max(lo, run.start), min(hi, run.end)
+            if end - start < _ACOUSTIC_MIN_CUT_SEC:
+                _count_skip(skip_counts, "acoustic:edge_margin")
+                continue
+            if occupied.overlaps(start, end):
+                _count_skip(skip_counts, "acoustic:occupied")
+                continue
+            candidates.append(
+                _CutCandidate(
+                    track_id=track_id,
+                    start=start,
+                    end=end,
+                    reason=ACOUSTIC_FILLER_REASON,
+                    cut_kind="filler",
+                    filler_confidence=run.confidence,
+                    min_start=max(lo, start - _ACOUSTIC_RUN_PAD_SEC),
+                    max_end=min(hi, end + _ACOUSTIC_RUN_PAD_SEC),
+                    review_only=True,
+                )
+            )
+    return candidates
+
+
+def _add_acoustic_candidates(
+    candidates: list[_CutCandidate],
+    transcript: Transcript,
+    defaults: dict[str, Any],
+    *,
+    project: EpisodeProject | None = None,
+    audio_cache: TrackAudioCache | None = None,
+    skip_counts: dict[str, int] | None = None,
+) -> list[_CutCandidate]:
+    """``candidates`` plus acoustic gap candidates when enabled and audio decoded."""
+    cfg = AcousticGapConfig.from_tighten(defaults.get("tighten"))
+    if not cfg.enabled:
+        return candidates
+    if audio_cache is None:
+        # Decode failures are only logged at debug level; surface the skipped
+        # scan when there was something to scan.
+        if next(_acoustic_scan_gaps(transcript.words, cfg), None) is not None:
+            _count_skip(skip_counts, "acoustic:no_audio")
+        return candidates
+    occupied = _SpanIndex((c.start, c.end) for c in candidates if c.cut_kind != "pause")
+    extra = _collect_acoustic_candidates(
+        transcript.words,
+        transcript.track_id,
+        cfg,
+        audio_cache,
+        occupied,
+        project=project,
+        skip_counts=skip_counts,
     )
+    if not extra:
+        return candidates
+    return sorted([*candidates, *extra], key=_candidate_order)
+
+
+def _resolve_analyzed_cuts(
+    candidates: list[_CutCandidate],
+    results: list[_AnalyzedCut | None],
+    *,
+    existing: Iterable[EditDecision] = (),
+    skip_counts: dict[str, int] | None = None,
+) -> list[_AnalyzedCut]:
+    """Resolve overlaps between analyzed cuts, preserving candidate order.
+
+    Runs after analysis so it sees final (post-pacing) spans:
+
+    * A cut overlapping an already *applied* decision in ``existing`` on the
+      same track is dropped: applying does not suppress transcript words, so
+      re-proposal would otherwise stack a pending duplicate over approved audio
+      (coalescing never merges across ``applied``).
+    * A strictly bounded (acoustic) cut overlapping a surviving word-based cut on
+      the same track is dropped -- pacing may have widened ``filler:um`` across
+      the gap.
+    * A pause trim is replaced only by an acoustic cut that *survived* analysis;
+      when the acoustic candidate is rejected the pause trim still stands.
+    """
+    applied_spans: dict[str, list[tuple[float, float]]] = {}
+    for decision in existing:
+        if decision.applied:
+            applied_spans.setdefault(decision.track_id, []).append((decision.start, decision.end))
+    applied_index = {tid: _SpanIndex(spans) for tid, spans in applied_spans.items()}
+    pairs: list[tuple[_CutCandidate, _AnalyzedCut | None]] = []
+    for candidate, result in zip(candidates, results, strict=True):
+        index = applied_index.get(candidate.track_id)
+        if result is not None and index is not None and index.overlaps(result.start, result.end):
+            _count_skip(skip_counts, "applied_overlap")
+            result = None
+        pairs.append((candidate, result))
+    word_spans: dict[str, list[tuple[float, float]]] = {}
+    for candidate, result in pairs:
+        if result is not None and candidate.cut_kind != "pause" and not candidate.strictly_bounded:
+            word_spans.setdefault(candidate.track_id, []).append((result.start, result.end))
+    word_index = {tid: _SpanIndex(spans) for tid, spans in word_spans.items()}
+
+    dropped: set[int] = set()
+    bounded_spans: dict[str, list[tuple[float, float]]] = {}
+    for idx, (candidate, result) in enumerate(pairs):
+        if not candidate.strictly_bounded:
+            continue
+        if result is None:
+            _count_skip(skip_counts, "acoustic:rejected")
+            continue
+        index = word_index.get(candidate.track_id)
+        if index is not None and index.overlaps(result.start, result.end):
+            _count_skip(skip_counts, "acoustic:overlaps_cut")
+            dropped.add(idx)
+            continue
+        bounded_spans.setdefault(candidate.track_id, []).append((result.start, result.end))
+    bounded_index = {tid: _SpanIndex(spans) for tid, spans in bounded_spans.items()}
+
+    for idx, (candidate, result) in enumerate(pairs):
+        if result is None or candidate.cut_kind != "pause":
+            continue
+        index = bounded_index.get(candidate.track_id)
+        if index is not None and index.overlaps(result.start, result.end):
+            _count_skip(skip_counts, "acoustic:replaced_pause")
+            dropped.add(idx)
+    return [
+        result
+        for idx, (_candidate, result) in enumerate(pairs)
+        if result is not None and idx not in dropped
+    ]
 
 
 def _analyze_candidate(
@@ -745,17 +969,21 @@ def _analyze_candidate(
         audio_cache=audio_cache,
     )
     cut_start, cut_end = opt.start, opt.end
+    if candidate.strictly_bounded:
+        # Acoustic evidence is local to the inter-word gap; waveform snapping
+        # must never expand it back onto an ASR word.
+        snapped = _clamp_to_candidate(candidate, cut_start, cut_end)
+        if snapped is None:
+            return None
+        cut_start, cut_end = snapped
 
     breaths = detect_adjacent_breath(
         project, track_id, cut_start, cut_end, defaults=defaults, audio_cache=audio_cache
     )
-    cut_start, cut_end = extend_cut_for_breaths(cut_start, cut_end, breaths)
-
-    if candidate.max_end is not None and cut_end > candidate.max_end:
-        cut_end = candidate.max_end
-
-    if cut_end <= cut_start:
+    extended = _clamp_to_candidate(candidate, *extend_cut_for_breaths(cut_start, cut_end, breaths))
+    if extended is None:
         return None
+    cut_start, cut_end = extended
 
     if _cut_span_is_bleed_not_owner(project, track_id, cut_start, cut_end):
         return None
@@ -767,16 +995,37 @@ def _analyze_candidate(
         cut_end,
         defaults=defaults,
         cut_kind=candidate.cut_kind,
+        # Bounded candidates never widen onto the rest of the gap or get a pad,
+        # so the pause left behind is never longer than the original.
+        allow_gap_expand=not candidate.strictly_bounded,
     )
     if paced is None:
         return None
-    cut_start, cut_end = paced.start, paced.end
+    paced_span = _clamp_to_candidate(candidate, paced.start, paced.end)
+    if paced_span is None:
+        return None
+    cut_start, cut_end = paced_span
+    if candidate.strictly_bounded and (cut_start, cut_end) != (opt.start, opt.end):
+        # Risk was measured on the optimized span; re-assess the span we cut.
+        risk = assess_cut_risk(
+            project,
+            track_id,
+            cut_start,
+            cut_end,
+            filler_confidence=candidate.filler_confidence,
+            boundary_confidence=opt.confidence,
+            defaults=defaults,
+            cache=jump_cache,
+            audio_cache=audio_cache,
+        )
 
     reason = candidate.reason
-    # Repetition/restart detection is intentionally proposal-only.  Even an
-    # exact token repeat can be emphasis ("very very"), and a phrase restart
-    # can change meaning if the repair is mistaken for the reparandum.
-    review_required = candidate.cut_kind in {"repeat", "restart"}
+    # Repetition/restart detection and acoustic-only gap fillers are
+    # intentionally proposal-only.  Even an exact token repeat can be emphasis
+    # ("very very"), a phrase restart can change meaning if the repair is
+    # mistaken for the reparandum, and voiced energy in an ASR gap may be a
+    # breath, laugh, or missed word rather than a filler.
+    review_required = candidate.review_only or candidate.cut_kind in {"repeat", "restart"}
     replace_gap = paced.replace_gap_sec
     # Contiguous retain before the next word can be shorter than the floor when
     # prior ripples punched holes; pad the shortfall with silence after ripple.
@@ -932,12 +1181,26 @@ def analyze_fillers_and_pauses(
     path, just without cross-track parallelism.
     """
     candidates = _collect_candidates(transcript, defaults, project=project, skip_counts=skip_counts)
-    audio_caches = build_track_audio_caches(project, [transcript.track_id]) if candidates else {}
+    acoustic_enabled = AcousticGapConfig.from_tighten(defaults.get("tighten")).enabled
+    audio_caches = (
+        build_track_audio_caches(project, [transcript.track_id])
+        if candidates or acoustic_enabled
+        else {}
+    )
     audio_cache = audio_caches.get(transcript.track_id)
-
-    decisions: list[EditDecision] = []
-    for candidate in candidates:
-        result = _analyze_candidate(project, candidate, defaults, audio_cache=audio_cache)
-        if result is not None:
-            decisions.append(_apply_analyzed_cut(project, result))
-    return decisions
+    candidates = _add_acoustic_candidates(
+        candidates,
+        transcript,
+        defaults,
+        project=project,
+        audio_cache=audio_cache,
+        skip_counts=skip_counts,
+    )
+    results = [
+        _analyze_candidate(project, candidate, defaults, audio_cache=audio_cache)
+        for candidate in candidates
+    ]
+    resolved = _resolve_analyzed_cuts(
+        candidates, results, existing=list(project.edit_decisions), skip_counts=skip_counts
+    )
+    return [_apply_analyzed_cut(project, result) for result in resolved]

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from podcast_mcp.edits.envelopes import envelope_matches_baseline
 from podcast_mcp.services.clip import ClipService
+from podcast_mcp.services.document_sync.errors import DocumentConflictError
 from podcast_mcp.services.edit import EditService
 from podcast_mcp.services.pipeline import PipelineService
 from podcast_mcp.services.workspace import ProjectWorkspace
@@ -52,8 +54,21 @@ def delete_social_clip(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any
 
 
 def set_envelope(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    """Replace the volume envelope only if ``expected_points`` is still current.
+
+    Runs under ``document_submit_lock`` (from ``DocumentSyncService.submit``);
+    reload first so a long-lived WS service never checks a stale workspace.
+    A conflict raises before mutation, history, or the command log.
+    """
+    track_id = str(p["track_id"])
+    ws.reload()
+    if not envelope_matches_baseline(ws.project, track_id, p["expected_points"]):
+        raise DocumentConflictError(
+            f"Envelope on track {track_id!r} changed since this edit started, so the edit "
+            "was not applied. Redo it against the current envelope."
+        )
     points = list(p.get("points") or [])
-    n = PipelineService(ws).set_envelope(str(p["track_id"]), points)
+    n = PipelineService(ws).set_envelope(track_id, points)
     return {"track_id": p["track_id"], "count": n}
 
 
