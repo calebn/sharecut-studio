@@ -167,8 +167,6 @@ def test_gui_serve_main_and_missing_uvicorn():
 
 
 def _seed_share(minimal_project, sample_wav, tmp_workspace, monkeypatch, caps=None):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     proj = load_project(minimal_project)
     art = Path(proj.workspace_dir) / "artifacts"
     art.mkdir(parents=True, exist_ok=True)
@@ -200,12 +198,9 @@ def test_share_error_paths_and_replies(minimal_project, sample_wav, tmp_workspac
     # Missing project file
     row = lookup_share(tok)
     row["project_workspace"] = str(tmp_workspace / "gone")
-    from podcast_mcp.edits.review_shares import (
-        default_registry_path,
-        register_share_globally,
-    )
+    from podcast_mcp.edits.review_shares import register_share_globally
 
-    register_share_globally(row, registry_path=default_registry_path())
+    register_share_globally(row)
     with pytest.raises(FileNotFoundError):
         open_share_workspace(tok)
 
@@ -263,8 +258,6 @@ def test_review_share_route_errors(minimal_project, sample_wav, tmp_workspace, m
 
 
 def test_review_share_cli(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     proj = load_project(minimal_project)
     art = Path(proj.workspace_dir) / "artifacts"
     art.mkdir(parents=True, exist_ok=True)
@@ -301,8 +294,6 @@ def test_create_review_share_tool(minimal_project, sample_wav, tmp_workspace, mo
         set_active_review_version_tool,
     )
 
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     proj = load_project(minimal_project)
     art = Path(proj.workspace_dir) / "artifacts"
     art.mkdir(parents=True, exist_ok=True)

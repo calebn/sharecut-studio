@@ -9,7 +9,6 @@ import pytest
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app as cli_app
-from podcast_mcp.edits.share_registry import reset_share_registry_for_tests
 from podcast_mcp.mcp.tools.record import (
     record_pause_tool,
     record_resume_tool,
@@ -29,10 +28,7 @@ from podcast_mcp.services.record.service import (
 from podcast_mcp.services.share import ShareService
 
 
-def _isolate(tmp_workspace: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "shares_index.json"))
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "reg.sqlite"))
-    reset_share_registry_for_tests()
+def _isolate() -> None:
     reset_record_runtime_for_tests()
 
 
@@ -46,7 +42,7 @@ def _seed(minimal_project, sample_wav):
 
 
 def test_record_cli_state_without_room(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     _seed(minimal_project, sample_wav)
     runner = CliRunner()
     result = runner.invoke(cli_app, ["record", "state", "--project", str(minimal_project)])
@@ -57,7 +53,7 @@ def test_record_cli_state_without_room(minimal_project, sample_wav, tmp_workspac
 def test_record_cli_and_mcp_state_with_room(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     ShareService(ws).create_record_room()
     runner = CliRunner()
@@ -74,7 +70,7 @@ def test_record_cli_and_mcp_state_with_room(
 
 
 def test_record_mcp_state_without_room(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     _seed(minimal_project, sample_wav)
     payload = json.loads(record_state_tool(str(minimal_project)))
     assert payload["available"] is False
@@ -92,7 +88,7 @@ def test_record_mcp_state_without_room(minimal_project, sample_wav, tmp_workspac
 def test_record_cli_and_mcp_transport_after_consent(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc = RecordSessionService(ws.project, session_id=room["session_id"])

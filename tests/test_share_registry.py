@@ -20,7 +20,9 @@ from podcast_mcp.edits.share_registry import (
     SHARE_COOLDOWN_DAYS,
     SqliteShareRegistry,
     claim_with_mint_retry,
+    share_inactive,
     share_is_usable,
+    share_last_used_at,
 )
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services import ProjectWorkspace, ReviewService, ShareService
@@ -315,6 +317,38 @@ def test_share_is_usable_inactive_and_expired():
     assert share_is_usable(ok, now=now)
 
 
+def test_share_last_used_falls_back_to_created_at_when_missing():
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    created = now - timedelta(days=400)
+    row = {"token": "x", "created_at": _iso(created), "revoked": False}
+    assert share_last_used_at(row) == created
+    # Caller's clock decides inactivity (not wall-clock now).
+    assert share_inactive(row, now=now)
+    assert not share_is_usable(row, now=now)
+    assert share_is_usable(row, now=created + timedelta(days=1))
+
+
+def test_share_last_used_malformed_falls_back_to_created_at():
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    created = now - timedelta(days=2)
+    row = {"token": "x", "created_at": _iso(created), "last_used_at": "not-a-date"}
+    assert share_last_used_at(row) == created
+    assert not share_inactive(row, now=now)
+    assert share_is_usable(row, now=now)
+
+
+def test_share_last_used_fails_closed_without_timestamps():
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    for row in (
+        {"token": "x"},
+        {"token": "x", "created_at": "garbage", "last_used_at": ""},
+    ):
+        assert share_last_used_at(row) == datetime.min.replace(tzinfo=UTC)
+        assert share_inactive(row, now=now)
+        assert not share_is_usable(row, now=now)
+        assert not share_is_usable(row)
+
+
 def _seed_premix(minimal_project, sample_wav):
     proj = load_project(minimal_project)
     art = Path(proj.workspace_dir) / "artifacts"
@@ -327,7 +361,6 @@ def _seed_premix(minimal_project, sample_wav):
 def test_create_share_coolname_and_lookup_touch(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "reg.sqlite"))
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="Slug")
     share = ShareService(ws).create(review_version_id=ver["id"])
@@ -348,7 +381,6 @@ def test_create_share_coolname_and_lookup_touch(
 
 
 def test_create_share_sidecar_serializes(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "reg-lock.sqlite"))
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="Lock")
     errors: list[BaseException] = []
@@ -369,7 +401,6 @@ def test_create_share_sidecar_serializes(minimal_project, sample_wav, tmp_worksp
 
 
 def test_lookup_demotes_hard_expired(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "reg2.sqlite"))
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="Exp")
     past = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
@@ -386,12 +417,49 @@ def test_lookup_demotes_hard_expired(minimal_project, sample_wav, tmp_workspace,
     assert get_share_registry().is_reserved(row["token"])
 
 
-def test_default_path_legacy_non_json(monkeypatch, tmp_path: Path):
-    from podcast_mcp.edits.share_registry import default_share_registry_db_path
+def test_override_path_used_verbatim(monkeypatch, tmp_path: Path):
+    from podcast_mcp.edits import share_registry as sr
 
-    monkeypatch.delenv("PODCAST_SHARE_REGISTRY", raising=False)
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_path / "idx.sqlite"))
-    assert default_share_registry_db_path().name == "idx.sqlite"
+    override = tmp_path / "idx.json"
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(override))
+    sr.reset_share_registry_for_tests()
+    expected = override.resolve()
+    # No .json -> .sqlite rewrite anywhere: env default and explicit path agree.
+    assert sr.default_share_registry_db_path() == expected
+    explicit = sr.get_share_registry(override)
+    assert explicit.db_path == expected
+    # Same path as the default -> the process singleton, not a second connection.
+    assert explicit is sr.get_share_registry()
+    assert expected.is_file()
+    assert not expected.with_suffix(".sqlite").exists()
+
+
+def test_json_override_revoke_is_seen_by_lookup(
+    minimal_project, sample_wav, tmp_path: Path, monkeypatch
+):
+    """Regression: revoke and resolve must hit the same file for a *.json override."""
+    from podcast_mcp.edits.share_registry import reset_share_registry_for_tests
+
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_path / "shares.json"))
+    reset_share_registry_for_tests()
+    ws = _seed_premix(minimal_project, sample_wav)
+    ver = ReviewService(ws).publish(label="JsonPin")
+    token = ShareService(ws).create(review_version_id=ver["id"])["token"]
+    assert lookup_share(token)["token"] == token
+    ShareService(ws).revoke(token)
+    with pytest.raises(KeyError):
+        lookup_share(token)
+
+
+def test_explicit_non_default_path_is_separate_registry(tmp_path: Path):
+    from podcast_mcp.edits import share_registry as sr
+
+    other = sr.get_share_registry(tmp_path / "other.sqlite")
+    try:
+        assert other is not sr.get_share_registry()
+        assert other.db_path == (tmp_path / "other.sqlite").resolve()
+    finally:
+        other.close()
 
 
 def test_chmod_oserror_ignored(tmp_path: Path, monkeypatch):
@@ -488,10 +556,8 @@ def test_create_share_save_failure_releases(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     from podcast_mcp.edits import review_shares as rs
-    from podcast_mcp.edits.share_registry import get_share_registry, reset_share_registry_for_tests
+    from podcast_mcp.edits.share_registry import get_share_registry
 
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "fail.sqlite"))
-    reset_share_registry_for_tests()
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="FailSave")
 
@@ -647,10 +713,7 @@ def test_touch_share_and_register_paths(minimal_project, sample_wav, tmp_workspa
         resolve_share,
         touch_share_last_used,
     )
-    from podcast_mcp.edits.share_registry import reset_share_registry_for_tests
 
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "touch.sqlite"))
-    reset_share_registry_for_tests()
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="Touch")
     row = create_share(ws.project, review_version_id=ver["id"])
@@ -667,7 +730,7 @@ def test_touch_share_and_register_paths(minimal_project, sample_wav, tmp_workspa
     # Throttled immediately after
     assert touch_share_last_used(ws.project, row["token"]) is None
 
-    reg_path = tmp_workspace / "touch.sqlite"
+    reg_path = get_share_registry().db_path
     register_share_globally({}, registry_path=reg_path)
     register_share_globally({**row, "revoked": True}, registry_path=reg_path)
     assert resolve_share(row["token"], registry_path=reg_path) is None
@@ -707,11 +770,9 @@ def test_resolve_share_exception(monkeypatch, tmp_path: Path):
 def test_lookup_inactive_and_missing_workspace(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    from podcast_mcp.edits.share_registry import get_share_registry, reset_share_registry_for_tests
+    from podcast_mcp.edits.share_registry import get_share_registry
     from podcast_mcp.services.share import _mark_share_revoked
 
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "inact.sqlite"))
-    reset_share_registry_for_tests()
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="Inact")
     row = create_share(ws.project, review_version_id=ver["id"])
@@ -756,10 +817,7 @@ def test_touch_missing_token_and_bad_last_used(registry: SqliteShareRegistry):
 
 
 def test_lookup_touch_exception_fallback(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    from podcast_mcp.edits.share_registry import reset_share_registry_for_tests
 
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "touchfail.sqlite"))
-    reset_share_registry_for_tests()
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="TouchFail")
     share = ShareService(ws).create(review_version_id=ver["id"])
@@ -838,10 +896,7 @@ def test_sanitize_guest_view():
 def test_revoke_object_store_cleanup_warning(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    from podcast_mcp.edits.share_registry import reset_share_registry_for_tests
 
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "object_store.sqlite"))
-    reset_share_registry_for_tests()
     monkeypatch.setattr(
         "podcast_mcp.services.proxy_media.load_object_store_config",
         lambda config_path=None: None,
