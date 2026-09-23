@@ -1,57 +1,181 @@
 #!/usr/bin/env python3
 """Create a disposable long-form project for browser performance profiling.
 
-The generated project uses sparse silent WAVs. It is a UI/data-shape fixture,
-not an audio fidelity fixture, and must never be written below
-``tests/fixtures`` or committed. The output is suitable for
+The generated project uses sparse silent WAVs and flat overview peaks. It is a
+UI/data-shape fixture, not an audio fidelity fixture, and is refused below
+``tests/fixtures`` so it is never committed. The output is suitable for
 ``DAW_E2E_PROJECT`` and can be removed after the benchmark.
 """
 
 from __future__ import annotations
 
 import argparse
-import json
-import struct
+import math
+import shutil
+import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+
+from podcast_mcp.engines.peaks import write_silent_peaks
+from podcast_mcp.models import load_project
+from podcast_mcp.models.episode import (
+    Clip,
+    CombinedTranscript,
+    CombinedUtterance,
+    EpisodeProject,
+    RenderSection,
+    Transcript,
+    TranscriptWord,
+)
+from podcast_mcp.project_store import ProjectStore
+from podcast_mcp.util.wav import (
+    MAX_PCM_WAV_DATA_BYTES,
+    PCM_SAMPLE_WIDTH_BYTES,
+    WAV_HEADER_BYTES,
+    pcm_wav_header,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE_FIXTURE = ROOT / "tests" / "fixtures" / "aligned_dialogue"
+FIXTURES_ROOT = ROOT / "tests" / "fixtures"
+SOURCE_FIXTURE = FIXTURES_ROOT / "aligned_dialogue"
+BENCHMARK_NAME = "large-project benchmark (disposable)"
 DEFAULT_DURATION = 2 * 60 * 60
 DEFAULT_CLIPS = 1_200
 DEFAULT_UTTERANCES = 10_000
+SAMPLE_RATE = 48_000
 TRACKS = ("reference", "guest")
+# Each utterance holds the first 55% of its slot, leaving a silent gap before the next.
+UTTERANCE_FILL = 0.55
+# Timestamps are stored at millisecond precision; spans must survive rounding.
+MIN_SPAN_SEC = 0.002
 
 
-def _word(index: int, start: float, end: float) -> dict[str, Any]:
-    return {
-        "text": f"benchmark-{index:05d}",
-        "start": round(start, 3),
-        "end": round(end, 3),
-        "confidence": 0.95,
-    }
+def _ms(value: float) -> float:
+    return round(value, 3)
 
 
-def _write_sparse_wav(path: Path, duration: float) -> None:
+def _validate(output: Path, duration: float, clip_count: int, utterance_count: int) -> int:
+    """Reject bad arguments before touching the filesystem; return the frame count."""
+    if output.resolve().is_relative_to(FIXTURES_ROOT.resolve()):
+        raise ValueError(f"refusing to write a disposable benchmark below {FIXTURES_ROOT}")
+    if output.exists():
+        raise FileExistsError(output)
+    if not math.isfinite(duration) or duration <= 0:
+        raise ValueError("duration must be a positive finite number of seconds")
+    if clip_count < 2 or utterance_count < 2:
+        raise ValueError("counts must be at least two")
+    if clip_count % len(TRACKS):
+        raise ValueError("clip count must be divisible by the track count")
+    frames = round(duration * SAMPLE_RATE)
+    if frames * PCM_SAMPLE_WIDTH_BYTES > MAX_PCM_WAV_DATA_BYTES:
+        raise ValueError("duration is too long for a 16-bit mono RIFF WAV")
+    duration_sec = frames / SAMPLE_RATE
+    if duration_sec / (clip_count // len(TRACKS)) < MIN_SPAN_SEC:
+        raise ValueError("too many clips for the duration (clips would be under 2 ms)")
+    if duration_sec / utterance_count * UTTERANCE_FILL < MIN_SPAN_SEC:
+        raise ValueError("too many utterances for the duration (words would be under 2 ms)")
+    return frames
+
+
+def _clips(duration_sec: float, clip_count: int) -> list[Clip]:
+    """Contiguous clips per track from one shared bounds list (no rounding gaps)."""
+    per_track = clip_count // len(TRACKS)
+    span = duration_sec / per_track
+    bounds = [_ms(index * span) for index in range(per_track)] + [duration_sec]
+    return [
+        Clip(
+            id=f"benchmark-clip-{slot * len(TRACKS) + lane:05d}",
+            track_id=track_id,
+            source_start=bounds[slot],
+            source_end=bounds[slot + 1],
+            timeline_start=bounds[slot],
+        )
+        for slot in range(per_track)
+        for lane, track_id in enumerate(TRACKS)
+    ]
+
+
+def _utterances(duration_sec: float, utterance_count: int) -> list[CombinedUtterance]:
+    """One global, non-overlapping slot per utterance; speakers strictly alternate."""
+    slot = duration_sec / utterance_count
+    return [
+        CombinedUtterance(
+            track_id=TRACKS[index % len(TRACKS)],
+            speaker=TRACKS[index % len(TRACKS)],
+            start=_ms(index * slot),
+            end=_ms(index * slot + slot * UTTERANCE_FILL),
+            text=f"benchmark-{index:05d}",
+        )
+        for index in range(utterance_count)
+    ]
+
+
+def _shape_project(
+    project: EpisodeProject, duration_sec: float, clip_count: int, utterance_count: int
+) -> None:
+    project.meta.name = BENCHMARK_NAME
+    project.meta.created_at = datetime.now(UTC).isoformat()
+    # The source's ingest offsets and render/pipeline state describe its 60 s audio.
+    project.meta.ingest_alignment = None
+    project.render = RenderSection()
+    project.history = None
+    project.timeline.duration_sec = duration_sec
+    for track in project.timeline.tracks:
+        if track.media is not None:
+            track.media.duration_sec = duration_sec
+            track.media.sample_rate = SAMPLE_RATE
+            track.media.channels = 1
+    for source in project.sources:
+        source.duration_sec = duration_sec
+        source.sample_rate = SAMPLE_RATE
+        source.channels = 1
+    project.timeline.clips = _clips(duration_sec, clip_count)
+
+    utterances = _utterances(duration_sec, utterance_count)
+    project.transcript_data.per_track = [
+        Transcript(
+            track_id=track_id,
+            language="en",
+            words=[
+                TranscriptWord(text=row.text, start=row.start, end=row.end, confidence=0.95)
+                for row in utterances
+                if row.track_id == track_id
+            ],
+        )
+        for track_id in TRACKS
+    ]
+    # Keep the combined view explicit: the normal merge groups close words into
+    # long turns, which would benchmark one pathological DOM node instead of a
+    # realistic alternating-speaker transcript.
+    project.transcript_data.combined = CombinedTranscript(utterances=utterances)
+
+
+def _write_sparse_wav(path: Path, frames: int) -> None:
     """Create a seekable silent WAV whose data payload consumes no blocks."""
-    sample_rate, channels, sample_width = 48_000, 1, 2
-    data_size = int(duration * sample_rate * channels * sample_width)
-    byte_rate = sample_rate * channels * sample_width
-    header = b"RIFF" + struct.pack("<I", 36 + data_size) + b"WAVE"
-    header += b"fmt " + struct.pack(
-        "<IHHIIHH",
-        16,
-        1,
-        channels,
-        sample_rate,
-        byte_rate,
-        channels * sample_width,
-        sample_width * 8,
-    )
-    header += b"data" + struct.pack("<I", data_size)
+    data_size = frames * PCM_SAMPLE_WIDTH_BYTES
     with path.open("wb") as wav:
-        wav.write(header)
-        wav.truncate(44 + data_size)
+        wav.write(pcm_wav_header(data_size, SAMPLE_RATE))
+        wav.truncate(WAV_HEADER_BYTES + data_size)
+
+
+def _write_tree(
+    staging: Path, final: Path, project: EpisodeProject, frames: int, duration_sec: float
+) -> None:
+    project.meta.workspace_dir = str(staging)
+    ProjectStore(staging / "episode.project.json").commit(project)
+    for folder in ("raw", "sources"):
+        (staging / folder).mkdir()
+        for track_id in TRACKS:
+            _write_sparse_wav(staging / folder / f"{track_id}.wav", frames)
+    for track in project.timeline.tracks:
+        if track.media is None:
+            continue
+        write_silent_peaks(
+            staging / track.media.path,
+            staging / "artifacts" / "peaks" / f"{track.id}.json",
+            duration_sec,
+            source=final / track.media.path,
+        )
 
 
 def build_project(
@@ -61,87 +185,26 @@ def build_project(
     clip_count: int = DEFAULT_CLIPS,
     utterance_count: int = DEFAULT_UTTERANCES,
 ) -> Path:
-    """Write a valid project with unique clips and alternating speaker turns."""
-    if duration <= 0 or clip_count < 2 or utterance_count < 2:
-        raise ValueError("duration must be positive; counts must be at least two")
-    if clip_count % len(TRACKS):
-        raise ValueError("clip count must be divisible by the track count")
-    output.mkdir(parents=True, exist_ok=False)
-    project = json.loads((SOURCE_FIXTURE / "episode.project.json").read_text(encoding="utf-8"))
-    project["meta"]["name"] = "large-project benchmark (disposable)"
-    project["meta"]["workspace_dir"] = "."
-    project["timeline"]["duration_sec"] = duration
-    source_duration = duration
-    for track in project["timeline"]["tracks"]:
-        track["media"]["duration_sec"] = source_duration
-    for source in project["sources"]:
-        source["duration_sec"] = source_duration
-        source["sample_rate"] = 48_000
-        source["channels"] = 1
+    """Write a valid project with unique clips and alternating speaker turns.
 
-    clips: list[dict[str, Any]] = []
-    clip_duration = duration / (clip_count // len(TRACKS))
-    for index in range(clip_count):
-        track_id = TRACKS[index % len(TRACKS)]
-        start = (index // len(TRACKS)) * clip_duration
-        source_start = start
-        clips.append(
-            {
-                "id": f"benchmark-clip-{index:05d}",
-                "track_id": track_id,
-                "source_start": round(source_start, 3),
-                "source_end": round(source_start + clip_duration, 3),
-                "timeline_start": round(start, 3),
-                "source_id": None,
-            }
-        )
-    project["timeline"]["clips"] = clips
+    The tree is built in a sibling staging directory and renamed into place, so
+    a failure never leaves a partial ``output`` behind.
+    """
+    frames = _validate(output, duration, clip_count, utterance_count)
+    duration_sec = frames / SAMPLE_RATE
+    project = load_project(SOURCE_FIXTURE / "episode.project.json")
+    _shape_project(project, duration_sec, clip_count, utterance_count)
 
-    words_per_track = (utterance_count + 1) // 2
-    spacing = source_duration / max(words_per_track, 1)
-    transcripts = []
-    for track_id in TRACKS:
-        words = []
-        for local_index in range(words_per_track):
-            global_index = local_index * 2 + (0 if track_id == "reference" else 1)
-            if global_index >= utterance_count:
-                break
-            start = local_index * spacing
-            words.append(_word(global_index, start, min(start + spacing * 0.55, source_duration)))
-        transcripts.append({"track_id": track_id, "language": "en", "words": words})
-    project["transcripts"]["per_track"] = transcripts
-    # Keep the combined view explicit: the normal merge groups close words into
-    # long turns, which would benchmark one pathological DOM node instead of a
-    # realistic alternating-speaker transcript.  Each projected utterance is a
-    # single word, with a stable source clock and speaker.
-    project["transcripts"]["combined"] = {
-        "utterances": sorted(
-            [
-                {
-                    "track_id": track["track_id"],
-                    "speaker": track["track_id"],
-                    "start": word["start"],
-                    "end": word["end"],
-                    "text": word["text"],
-                }
-                for track in transcripts
-                for word in track["words"]
-            ],
-            key=lambda utterance: (utterance["start"], utterance["track_id"]),
-        )
-    }
-
-    (output / "episode.project.json").write_text(
-        json.dumps(project, indent=2) + "\n", encoding="utf-8"
-    )
-    raw = output / "raw"
-    raw.mkdir()
-    sources = output / "sources"
-    sources.mkdir()
-    for track_id in TRACKS:
-        _write_sparse_wav(raw / f"{track_id}.wav", duration)
-        _write_sparse_wav(sources / f"{track_id}.wav", duration)
-    return output / "episode.project.json"
+    final = output.resolve()
+    final.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=f".{final.name}.", dir=final.parent))
+    try:
+        _write_tree(staging, final, project, frames, duration_sec)
+        staging.rename(final)
+    except BaseException:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+    return final / "episode.project.json"
 
 
 def main() -> None:
