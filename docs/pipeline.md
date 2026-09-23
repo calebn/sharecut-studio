@@ -64,7 +64,7 @@ Sharecut Studio Pipeline pane and MCP tools share a **working set** of enabled s
 - MCP: `pipeline_get_config_tool`, `pipeline_set_config_tool`, `pipeline_analyze_tool`, then `pipeline_run` (skill **podcast-pipeline-tune**)
 - CLI: `podcast pipeline run --unattended` and optional `--skip a,b,c`
 - Enabling a step expands `depends_on`; missing FFmpeg/whisper/rnnoise show as component badges (bootstrap CTAs)
-- **Analyze** proposes static knobs from diagnostics (hum, noise floor, gate, bleed, clipping); a gate-overreach finding always proposes a milder `effects.gate` (-6 dB threshold), seeded from the resolved `gate` preset when the working set has none (see [audio-engineering.md](audio-engineering.md#effect-presets-source-of-truth)); loudness measure→target still happens inside balance/master at run time
+- **Analyze** proposes static knobs from diagnostics (hum, noise floor, gate, bleed, clipping); any gate-overreach finding always proposes a milder `effects.gate` (-6 dB threshold, applied once per Analyze call regardless of how many tracks are flagged), seeded from the resolved `gate` preset when the working set has none (see [audio-engineering.md](audio-engineering.md#effect-presets-source-of-truth)); loudness measure→target still happens inside balance/master at run time
 
 ## Resume from a step
 
