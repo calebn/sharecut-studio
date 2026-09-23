@@ -355,6 +355,29 @@ def test_concurrent_runs_do_not_cancel_each_other() -> None:
     assert "If the issue is CLOSED, or an open PR links it" in script
 
 
+def test_feedback_plan_must_cover_every_open_thread() -> None:
+    """A planner covered 6 of 10 threads on #300 and invented a placeholder row."""
+    script = _script()
+    finish = script[script.index("async function finishLane(") :]
+    # Plan items are checked against the PR's real unresolved threads, with one re-plan.
+    assert finish.index("await feedbackPlan(issue, pr, round, finalRound)") < finish.index(
+        "const open = await openThreads(issue, pr)"
+    )
+    assert "open thread(s) missing" in finish
+    assert "await feedbackPlan(issue, pr, round, finalRound, g.missing)" in finish
+    # Invented ids are dropped, and thread ids from GitHub are validated.
+    assert "plan.items = plan.items.filter((it) => !g.fake.includes(it))" in finish
+    assert "const THREAD_ID_RE = /^PRRT_[A-Za-z0-9_-]+$/" in script
+    assert "never invent placeholder rows" in script
+    # Threads still open after a pass (except won't-dos) get one more pass before the gate.
+    assert "still open after feedback r${round}; one more pass" in finish
+    assert "const left = after ? after.threads.filter((t) => !wontDoIds.has(t.id)) : []" in finish
+    assert (
+        "exec.items.filter((i) => i.action === 'wont_do').forEach((i) => wontDoIds.add(i.id))"
+        in finish
+    )
+
+
 def test_model_tiers() -> None:
     script = _script()
     assert "const M = { cheap: 'haiku', worker: 'sonnet', senior: 'opus' }" in script
