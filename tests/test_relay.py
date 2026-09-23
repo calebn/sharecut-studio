@@ -6,8 +6,8 @@ import asyncio
 
 from fastapi.testclient import TestClient
 
-from podcast_mcp.relay.app import RelayState, TunnelSession, create_relay_app
-from podcast_mcp.relay.protocol import msg
+from podcast_relay.app import RelayState, TunnelSession, create_relay_app
+from podcast_relay.protocol import msg
 
 # ---------------------------------------------------------------------------
 # RelayState unit tests (no real WebSocket needed)
@@ -235,7 +235,7 @@ def test_relay_swagger_disabled():
 
 
 def test_read_relay_version_env_override(monkeypatch):
-    from podcast_mcp.relay.version import read_relay_git_sha, read_relay_version
+    from podcast_relay.version import read_relay_git_sha, read_relay_version
 
     monkeypatch.setenv("PODCAST_RELAY_VERSION", "9.9.9")
     assert read_relay_version() == "9.9.9"
@@ -306,7 +306,7 @@ def test_protocol_msg_with_id():
 
 
 def test_read_relay_version_fallback_dev(monkeypatch):
-    from podcast_mcp.relay import version as ver_mod
+    from podcast_relay import version as ver_mod
 
     monkeypatch.delenv("PODCAST_RELAY_VERSION", raising=False)
     monkeypatch.setattr(ver_mod, "_read_version_file", lambda path: None)
@@ -314,7 +314,7 @@ def test_read_relay_version_fallback_dev(monkeypatch):
 
 
 def test_read_version_file_oserror(tmp_path):
-    from podcast_mcp.relay.version import _read_version_file
+    from podcast_relay.version import _read_version_file
 
     missing = tmp_path / "nope"
     assert _read_version_file(missing) is None

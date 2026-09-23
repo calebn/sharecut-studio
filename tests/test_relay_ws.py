@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 from websockets.sync.client import connect as ws_connect
 
-from podcast_mcp.relay.app import (
+from podcast_relay.app import (
     GuestWsStream,
     RelayState,
     TunnelSession,
@@ -26,7 +26,7 @@ from podcast_mcp.relay.app import (
     create_relay_app,
     main,
 )
-from podcast_mcp.relay.protocol import new_id
+from podcast_relay.protocol import new_id
 from podcast_relay.share_claims import attach_share_claims
 
 
@@ -266,7 +266,7 @@ class _AutoAnswerWs:
         pending = session.pending.get(data["id"])
         if pending is None:
             return
-        from podcast_mcp.relay.app import _ingest_http_response
+        from podcast_relay.app import _ingest_http_response
 
         await _ingest_http_response(
             pending,
@@ -340,7 +340,7 @@ async def test_proxy_timeout(monkeypatch):
     async def short_wait(aw, timeout=None):
         return await real_wait(aw, timeout=0.05)
 
-    monkeypatch.setattr("podcast_mcp.relay.app.asyncio.wait_for", short_wait)
+    monkeypatch.setattr("podcast_relay.app.asyncio.wait_for", short_wait)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://t") as http:
         r = await http.get("/r/slow")
@@ -583,7 +583,7 @@ def test_guest_daw_ws_requires_view_cap(monkeypatch):
 
 def test_guest_daw_ws_concurrency_limit(monkeypatch):
     monkeypatch.setenv("PODCAST_RELAY_WS_CONCURRENT", "1")
-    from podcast_mcp.relay.limits import get_relay_limiters, reset_relay_limiters_for_tests
+    from podcast_relay.limits import get_relay_limiters, reset_relay_limiters_for_tests
 
     reset_relay_limiters_for_tests()
     lim = get_relay_limiters()
@@ -640,7 +640,7 @@ def test_unregister_tunnel_closes_ws_streams():
 
 def test_guest_daw_ws_concurrency_rejected_live(monkeypatch):
     monkeypatch.setenv("PODCAST_RELAY_WS_CONCURRENT", "1")
-    from podcast_mcp.relay.limits import get_relay_limiters, reset_relay_limiters_for_tests
+    from podcast_relay.limits import get_relay_limiters, reset_relay_limiters_for_tests
 
     reset_relay_limiters_for_tests()
     with _live_relay(monkeypatch) as base:
@@ -671,7 +671,7 @@ def test_guest_daw_ws_concurrency_rejected_live(monkeypatch):
 def test_guest_daw_ws_msg_rate_limit_drops(monkeypatch):
     monkeypatch.setenv("PODCAST_RELAY_WS_MSG_RPM", "1")
     monkeypatch.setenv("PODCAST_RELAY_WS_MSG_BURST", "1")
-    from podcast_mcp.relay.limits import reset_relay_limiters_for_tests
+    from podcast_relay.limits import reset_relay_limiters_for_tests
 
     reset_relay_limiters_for_tests()
     with _live_relay(monkeypatch) as base:
@@ -712,7 +712,7 @@ def test_relay_presence_frames_use_presence_bucket(monkeypatch):
     monkeypatch.setenv("PODCAST_RELAY_WS_MSG_BURST", "1")
     monkeypatch.setenv("PODCAST_RELAY_WS_PRESENCE_RPM", "100")
     monkeypatch.setenv("PODCAST_RELAY_WS_PRESENCE_BURST", "10")
-    from podcast_mcp.relay.limits import (
+    from podcast_relay.limits import (
         is_presence_ws_text,
         reset_relay_limiters_for_tests,
     )
@@ -758,7 +758,7 @@ def test_relay_presence_frames_drop_when_bucket_exhausted(monkeypatch):
     monkeypatch.setenv("PODCAST_RELAY_WS_MSG_BURST", "10")
     monkeypatch.setenv("PODCAST_RELAY_WS_PRESENCE_RPM", "1")
     monkeypatch.setenv("PODCAST_RELAY_WS_PRESENCE_BURST", "1")
-    from podcast_mcp.relay.limits import reset_relay_limiters_for_tests
+    from podcast_relay.limits import reset_relay_limiters_for_tests
 
     reset_relay_limiters_for_tests()
     with _live_relay(monkeypatch) as base:

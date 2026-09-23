@@ -168,7 +168,7 @@ def test_gui_serve_main_and_missing_uvicorn():
 
 def _seed_share(minimal_project, sample_wav, tmp_workspace, monkeypatch, caps=None):
     index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     proj = load_project(minimal_project)
     art = Path(proj.workspace_dir) / "artifacts"
     art.mkdir(parents=True, exist_ok=True)
@@ -264,7 +264,7 @@ def test_review_share_route_errors(minimal_project, sample_wav, tmp_workspace, m
 
 def test_review_share_cli(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     proj = load_project(minimal_project)
     art = Path(proj.workspace_dir) / "artifacts"
     art.mkdir(parents=True, exist_ok=True)
@@ -302,7 +302,7 @@ def test_create_review_share_tool(minimal_project, sample_wav, tmp_workspace, mo
     )
 
     index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(index))
     proj = load_project(minimal_project)
     art = Path(proj.workspace_dir) / "artifacts"
     art.mkdir(parents=True, exist_ok=True)
@@ -324,14 +324,6 @@ def test_create_review_share_tool(minimal_project, sample_wav, tmp_workspace, mo
         capabilities="play,view,suggest,edit",
     )
     assert "suggest" in out or "edit" in out
-
-
-def test_relay_lazy_getattr():
-    import podcast_mcp.relay as relay
-
-    assert callable(relay.create_relay_app)
-    with pytest.raises(AttributeError):
-        _ = relay.does_not_exist
 
 
 def test_share_object_store_warning_and_daw_meta(
