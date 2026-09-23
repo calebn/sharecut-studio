@@ -157,7 +157,7 @@ explicit passes over the shared packet.
 Keep a count of unresolved won't-do items from feedback. Run:
 
 ```bash
-python3 scripts/codex_issue_gate.py --repo calebn/sharecut-studio --pr <N> \
+.venv/bin/python scripts/codex_issue_gate.py --repo calebn/sharecut-studio --pr <N> \
   --issue <issue-N> --claim-token <token> --wont-do <count>
 ```
 
