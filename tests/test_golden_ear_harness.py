@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib.util
 import json
 import shutil
 import wave
@@ -24,18 +23,14 @@ from podcast_mcp.services.golden_ear import (
     source_fingerprint,
 )
 from podcast_mcp.services.play import PlayResult, PlayService
+from script_loader import load_script
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "aligned_dialogue"
-SCRIPT = ROOT / "scripts" / "golden_ear_harness.py"
 
 
 def _load_script():
-    spec = importlib.util.spec_from_file_location("golden_ear_harness", SCRIPT)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    return load_script("golden_ear_harness")
 
 
 def _decision(

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib.util
 import subprocess
 from pathlib import Path
 from types import ModuleType
@@ -10,15 +9,11 @@ from unittest.mock import patch
 
 import pytest
 
-SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "biome_format.py"
+from script_loader import load_script
 
 
 def _load_formatter() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("biome_format", SCRIPT)
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return load_script("biome_format")
 
 
 def test_biome_formatter_uses_web_config_and_cleans_temporary_file(tmp_path: Path) -> None:

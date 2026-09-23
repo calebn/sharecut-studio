@@ -6,6 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from script_loader import load_script
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -32,15 +34,7 @@ def test_capabilities_docs_export_check_passes() -> None:
 
 
 def test_gui_capability_without_presence_is_an_error() -> None:
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location(
-        "check_capabilities_manifest",
-        ROOT / "scripts" / "check_capabilities_manifest.py",
-    )
-    assert spec and spec.loader
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    mod = load_script("check_capabilities_manifest")
     errors = mod.presence_errors(
         {
             "id": "daw.example",

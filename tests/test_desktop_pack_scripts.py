@@ -1,12 +1,13 @@
 """Desktop pack scripts must not re-notarize on DMG retry."""
 
-import importlib.util
 import json
 import os
 import subprocess
 from pathlib import Path
 
 import pytest
+
+from script_loader import load_script
 
 ROOT = Path(__file__).resolve().parents[1]
 TAURI_CONF = ROOT / "gui/desktop/src-tauri/tauri.conf.json"
@@ -376,12 +377,7 @@ def test_tauri_before_build_ensures_sidecar() -> None:
 
 
 def test_tauri_sidecar_hook_finds_repo(tmp_path: Path, monkeypatch) -> None:
-    spec = importlib.util.spec_from_file_location(
-        "tauri_sidecar_hook", ROOT / "scripts" / "tauri_sidecar_hook.py"
-    )
-    assert spec is not None and spec.loader is not None
-    hook = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(hook)
+    hook = load_script("tauri_sidecar_hook")
 
     nested = tmp_path / "gui" / "desktop"
     nested.mkdir(parents=True)

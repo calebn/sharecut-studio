@@ -2,23 +2,20 @@
 
 from __future__ import annotations
 
-import importlib.util
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
+from script_loader import load_script
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "build_sidecar.py"
 
 
 def _load_build_sidecar():
-    spec = importlib.util.spec_from_file_location("build_sidecar", SCRIPT)
-    assert spec is not None and spec.loader is not None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    return load_script("build_sidecar")
 
 
 def test_dry_run_emits_posix_launcher(tmp_path: Path) -> None:

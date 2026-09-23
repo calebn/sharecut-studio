@@ -24,6 +24,12 @@ Hang protection: `pytest-timeout` (`--timeout=60 --timeout-method=thread` in `py
 
 `e2e_slow` (live ASR / HF downloads) and `e2e_real` (AMI / benchmark regression) are **not** in the default gate — run `make e2e-slow` / `make e2e-real` locally or on a schedule. Fast `e2e` fixture tests stay in `make test` so coverage stays above 95%.
 
+Tests that execute a Python file from `scripts/` use `tests/script_loader.py`'s
+`load_script(name)`. Each call executes a fresh module without changing
+`sys.modules`, matching the usual script test behavior. Pass `register=True`
+only when import-time code (such as dataclass processing) needs to find the
+module in `sys.modules`; the loader restores any prior entry if execution fails.
+
 Coverage reports:
 
 - Terminal: missing lines after each run
