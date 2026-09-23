@@ -5,6 +5,7 @@ import { useProjectMutation } from "../hooks/useProjectMutation";
 import { useDaw } from "../state/useDaw";
 import type { HistoryDiff, HistoryGroup } from "../types/project";
 import { Button, InlineError } from "../ui";
+import { plural } from "../utils/format";
 
 function groupTitle(g: HistoryGroup): string {
   return g.title ?? g.label ?? g.operation ?? "snapshot";
@@ -58,7 +59,7 @@ export function HistoryPanel() {
             {historyHydrated ? (
               <>
                 {" · "}
-                {groups.length} step{groups.length === 1 ? "" : "s"}
+                {`${groups.length} ${plural(groups.length, "step")}`}
               </>
             ) : null}
           </span>

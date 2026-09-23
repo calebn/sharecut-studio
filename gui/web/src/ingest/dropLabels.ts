@@ -1,3 +1,4 @@
+import { plural } from "../utils/format";
 import { readLocal, writeLocal } from "../utils/storage";
 
 export const AUDIO_INGEST_EXTENSIONS = [
@@ -54,7 +55,7 @@ export function laneDropLabel(opts: {
   }
   const extras = opts.fileCount - 1;
   const head = opts.replacing ? `1 replaces ${name}` : `1 adds to ${name}`;
-  return `${head} · ${extras} new track${extras === 1 ? "" : "s"}`;
+  return `${head} · ${extras} new ${plural(extras, "track")}`;
 }
 
 /** Overlay while dragging onto the + Track / empty-session target. */

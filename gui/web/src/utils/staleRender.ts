@@ -1,4 +1,5 @@
 import type { ProjectView } from "../types/project";
+import { plural } from "./format";
 import { projectHasSourceAudio } from "./projectMedia";
 
 export type RenderInvalidationReason =
@@ -172,7 +173,7 @@ export function staleRenderBreakdown(
     const reasons = [...new Set(invalidations.map((i) => i.reason))];
     const regionalCount = invalidations.filter(isRegional).length;
     if (regionalCount) {
-      parts.push(`${regionalCount} region${regionalCount === 1 ? "" : "s"}`);
+      parts.push(`${regionalCount} ${plural(regionalCount, "region")}`);
     }
     const wholeReasons = reasons.filter((r) =>
       invalidations.some((i) => i.reason === r && !isRegional(i)),
