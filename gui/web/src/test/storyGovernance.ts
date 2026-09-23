@@ -8,6 +8,8 @@ export const STORY_SUPPORT_MODULES = new Set([
   "record/recordStoryDecorator.tsx",
 ]);
 
+// Literal specifiers only: non-literal `import(x)`, template/concatenated
+// strings and path aliases are not detected (see docs/design-system.md).
 const IMPORT_SPECIFIER_RE =
   /(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*)["'`]([^"'`\n]+)["'`]/g;
 const GLOB_CALL_RE =
