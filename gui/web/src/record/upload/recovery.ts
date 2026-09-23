@@ -1,4 +1,4 @@
-import { type ByteSink, keeperWavPath } from "../keeper/store";
+import { type ByteSink, keeperMetaPath, keeperWavPath } from "../keeper/store";
 import { makeKeeperArchive } from "./archive";
 
 async function keeperBlob(sink: ByteSink, path: string): Promise<Blob | null> {
@@ -50,7 +50,15 @@ export async function downloadLocalKeepers(
       });
       const blob = await keeperBlob(sink, path);
       if (blob) {
-        entries.push({ filename: `keeper-${take}-${segment}.wav`, data: blob });
+        // A WAV without its completion metadata stopped mid-write (its header
+        // may still report zero data bytes); label it rather than pass it off
+        // as a finished segment.
+        const complete = (await sink.read(keeperMetaPath(path))) !== null;
+        const suffix = complete ? "" : "-partial";
+        entries.push({
+          filename: `keeper-${take}-${segment}${suffix}.wav`,
+          data: blob,
+        });
         downloaded += 1;
       } else {
         missing += 1;
