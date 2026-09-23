@@ -94,6 +94,7 @@ Args:
 | `ciFixAttempts` | `1` | Automatic fix attempts per red CI run |
 | `labelsSkip` | `epic`, `needs-user-input`, `deferred-v1`, `do-not-merge`, `wontfix`, `duplicate` (`in-progress` is handled by claim liveness) | Issues with these labels are never picked |
 | `staleHours` | `6` | A claim with no heartbeat for this long, and no open PR, is released and the issue picked up again |
+| `noResume` | `false` | Don't resume `pipeline:stalled` PRs from earlier runs |
 
 **Coordination with other agents** follows [.agents/rules/issue-claims.md](../.agents/rules/issue-claims.md). Each lane claims its issue before planning: it adds `in-progress` and `pipeline:planning`, and posts a `pipeline-claim` comment with a token and heartbeat. The earliest live claim wins a race. As the lane progresses it moves the `pipeline:implementing` → `pipeline:review` → `pipeline:merging` labels (mirrored on the PR) and refreshes the heartbeat. It releases the claim on merge, hold or abort, and a sweep at the end of the run releases claims left by crashed lanes. Triage skips live claims. It releases stale ones (no heartbeat for `staleHours`, default 6, and no open PR) and considers those issues again.
 
@@ -115,7 +116,10 @@ Stages per issue (each issue is its own lane; lanes do not wait for each other):
 
 When every lane has finished, a Sonnet agent (low effort; a Haiku one fabricated its report) removes the run's clean `.claude/worktrees/wf_*` worktrees whose commit is on some branch, local or remote (so squash- or rebase-merged work counts). Any worktree with uncommitted or branchless commits is kept and reported, and the reported counts are cross-checked.
 
-Anything else is **held**: the pipeline adds `needs-user-input` and posts an "Automation hold" comment saying what the owner has to decide. A `wont_do` always holds the PR for owner sign-off. Add `do-not-merge` to any PR or issue to keep automation away from it.
+A lane that doesn't merge ends in one of two ways, so `needs-user-input` always means there's a real question:
+
+- **Decision needed** (merging is blocked): the lane adds `needs-user-input` and posts an "Automation hold — decision needed" comment with the **question**. This only happens for won't-do items (accept the rationale or ask for the change), a planner abort, or an owner hold label (`needs-user-input` or `do-not-merge`). Add `do-not-merge` to any PR or issue to keep automation away from it.
+- **Technical stall** (no decision needed): for a CI timeout or bad CI data, a blocked merge permission, a crashed agent, or a failure to post, the lane adds `pipeline:stalled` and posts an "Automation stall — no decision needed" comment. **The next run resumes stalled PRs automatically.** It re-claims the issue and continues from the merge gate if review and feedback had finished, otherwise from review, so nothing merges unreviewed. Pass `noResume: true` to skip resuming.
 
 The autonomous behaviour of `pr-multi-review` and `feedback` lives in the **AUTONOMOUS MODE (pipeline)** section of each skill (`~/.agents/skills/…`). That section overrides the skills' interactive approval gates only when a prompt contains `AUTONOMOUS MODE`.
 

@@ -80,10 +80,13 @@ def test_claims_coordinate_through_github_labels() -> None:
     assert lane.index("await claimIssue(issue)") < lane.index("You are the planner")
     # Every exit releases: merge, hold, and crashed lanes at the end of the run.
     assert "await releaseClaim(issue, pr, 'merged')" in script
-    assert "await releaseClaim(issue, pr, 'held')" in script
+    assert "await releaseClaim(issue, pr, 'needs-decision')" in script
+    assert "await releaseClaim(issue, pr, 'stalled')" in script
     assert "releaseClaim({ number: n }, null, 'crashed')" in script
-    for key in ("implementing", "review", "merging"):
+    for key in ("implementing", "review"):
         assert f"'{key}')" in lane, key
+    finish = script[script.index("async function finishLane(") :]
+    assert "await setStage(issue, pr, 'merging')" in finish
 
 
 def test_only_owner_authored_issues_are_eligible() -> None:
@@ -253,6 +256,42 @@ def test_every_agent_gets_the_stage_context() -> None:
     assert (
         "never start, re-run or invoke the issue-pipeline or any other workflow yourself" in script
     )
+
+
+def test_only_owner_questions_block_merging() -> None:
+    """needs-user-input means a real question; technical failures stall and resume."""
+    script = _script()
+    assert "function hold(" not in script
+    decision = script[
+        script.index("async function holdForDecision(") : script.index("async function stall(")
+    ]
+    assert "needs-user-input" in decision
+    assert "**Question:**" in decision
+    stall_fn = script[script.index("async function stall(") : script.index("// pr-multi-review")]
+    assert "needs-user-input" not in stall_fn
+    assert "no decision needed" in stall_fn
+    # Decision holds come only from won't-do, planner abort, or owner hold labels.
+    assert script.count("holdForDecision(") == 3
+    assert (
+        "const decision = wontDo > 0 || (facts && facts.labels.some((l) => HOLD_LABELS.includes(l)))"
+        in script
+    )
+
+
+def test_stalled_prs_resume_without_skipping_review() -> None:
+    script = _script()
+    assert "const STALL_LABEL = 'pipeline:stalled'" in script
+    # Review-stage stalls resume at review; only gate stalls skip straight to the gate.
+    assert script.count("'review')") >= 5
+    assert "stall(issue, pr, blockers.join('; '), 'gate')" in script
+    assert (
+        "finishLane(issue, r.pr, r.branch, r.head_sha, { gateOnly: r.resume === 'gate' })" in script
+    )
+    assert "!gateOnly && round <= MAX_ROUNDS" in script
+    # Resumed lanes re-claim the issue and never pick up PRs with owner hold labels.
+    resume = script[script.index("async function resumeLane(") :]
+    assert resume.index("await claimIssue(issue)") < resume.index("finishLane(")
+    assert "that do NOT also carry ${HOLD_LABELS.join(' or ')}" in script
 
 
 def test_model_tiers() -> None:
