@@ -5,7 +5,9 @@ import type {
   TranscriptWordView,
 } from "../types/project";
 
-export type TightenClass = "filler" | "pause";
+const TIGHTEN_CLASSES = ["filler", "pause", "repetition", "restart"] as const;
+
+export type TightenClass = (typeof TIGHTEN_CLASSES)[number];
 
 export type TightenFilters = {
   classFilter: "all" | TightenClass;
@@ -23,22 +25,13 @@ export type TightenHit = PendingEditView & {
   riskBadge: "risky" | "review" | "ok";
 };
 
-const TIGHTEN_PREFIXES = ["filler:", "pause:"] as const;
-
 export function isTightenPending(edit: PendingEditView): boolean {
-  const reason = edit.reason ?? "";
-  return TIGHTEN_PREFIXES.some((p) => reason.startsWith(p));
+  return tightenClassOf(edit) !== null;
 }
 
 export function tightenClassOf(edit: PendingEditView): TightenClass | null {
   const reason = edit.reason ?? "";
-  if (reason.startsWith("filler:")) {
-    return "filler";
-  }
-  if (reason.startsWith("pause:")) {
-    return "pause";
-  }
-  return null;
+  return TIGHTEN_CLASSES.find((name) => reason.startsWith(`${name}:`)) ?? null;
 }
 
 export function isHarshTightenHit(edit: PendingEditView): boolean {

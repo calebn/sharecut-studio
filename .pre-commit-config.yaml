@@ -6,7 +6,7 @@ repos:
         entry: python3 scripts/check_ux_pack_sync.py
         language: system
         pass_filenames: true
-        files: ^(gui/web/src/layout/|gui/web/src/keymap/|gui/web/src/commands/catalog\.ts|gui/web/src/styles/partials/(responsive|bottom-sheet)\.css|gui/web/src/ui/BottomSheet|docs/gui-(mobile|integration)\.md|docs/daw-editing\.md|docs/host-online-relay\.md|docs/session-sync\.md|schemas/episode\.project\.schema\.json)
+        files: ^(gui/web/src/layout/|gui/web/src/keymap/|gui/web/src/commands/catalog\.ts|gui/web/src/styles/partials/(responsive|bottom-sheet)\.css|gui/web/src/ui/BottomSheet|docs/gui-(mobile|integration)\.md|docs/daw-editing\.md|docs/host-online-relay\.md|docs/session-sync\.md|docs/recording-session\.md|schemas/episode\.project\.schema\.json)
       - id: keymap-cheatsheet
         name: Keymap cheatsheet docs stay generated
         entry: bash -c 'cd gui/web && npx vite-node scripts/generate-keymap-cheatsheet.ts --check'

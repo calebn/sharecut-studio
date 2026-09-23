@@ -55,8 +55,8 @@ Open the in-app cheatsheet with **?** while Sharecut Studio is focused.
 |----------|---------|------|-------|
 | `Escape` | Exit comment mode (`review.exitCommentMode`) | Comment mode on |  |
 | `Mod+Shift+C` | Toggle comment mode (`review.toggleCommentMode`) | Always (when not typing in an input) | Mod+Shift+C |
-| `Enter` | Apply tighten hit (`tighten.applyHit`) | tightenPanelOpen | Enter — selected filler/pause hit |
-| `Backspace` | Skip tighten hit (`tighten.skipHit`) | tightenPanelOpen | Backspace — selected filler/pause hit |
+| `Enter` | Apply tighten hit (`tighten.applyHit`) | tightenPanelOpen | Enter — selected tighten hit |
+| `Backspace` | Skip tighten hit (`tighten.skipHit`) | tightenPanelOpen | Backspace — selected tighten hit |
 | `Mod+Shift+Enter` | Apply eligible tighten hits (`tighten.applyAllSafe`) | tightenPanelOpen | Mod+Shift+Enter — skip harsh when Avoid harsh cuts is on |
 | `P` | Preview tighten hit (`tighten.previewHit`) | tightenPanelOpen | P — Suggested skip when possible |
 

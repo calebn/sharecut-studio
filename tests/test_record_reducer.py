@@ -79,6 +79,43 @@ def test_start_allowed_with_producer_and_consented_guest() -> None:
     assert out.takes[0].session_start_wall_ms == 10
 
 
+def test_rejoined_guest_must_consent_again_before_start() -> None:
+    snap = empty_record_snapshot("sess")
+    snap = _join(snap, pid="p_host", role="host", name="Host", now=0)
+    snap = _join(snap, pid="p_g", role="guest", name="Ava", now=1, seq=2)
+    snap = apply_record_command(
+        snap,
+        _cmd("Consent", pid="p_g", payload={"accepted": True}, seq=3),
+        now_wall_ms=2,
+    )
+    assert start_blockers(snap) == []
+    snap = apply_record_command(snap, _cmd("Leave", pid="p_g", seq=4), now_wall_ms=3)
+    snap = _join(snap, pid="p_g", role="guest", name="Ava", now=4, seq=5)
+    assert next(p for p in snap.participants if p.participant_id == "p_g").consented is None
+    assert start_blockers(snap) == ["Ava"]
+    with pytest.raises(RecordStateError, match="waiting for consent"):
+        apply_record_command(snap, _cmd("Start", role="host", pid="p_host"), now_wall_ms=5)
+    snap = apply_record_command(
+        snap,
+        _cmd("Consent", pid="p_g", payload={"accepted": True}, seq=6),
+        now_wall_ms=6,
+    )
+    assert start_blockers(snap) == []
+
+
+def test_join_requires_fresh_consent_even_before_disconnect_is_observed() -> None:
+    snap = empty_record_snapshot("sess")
+    snap = _join(snap, pid="p_host", role="host", name="Host", now=0)
+    snap = _join(snap, pid="p_g", role="guest", name="Ava", now=1, seq=2)
+    snap = apply_record_command(
+        snap,
+        _cmd("Consent", pid="p_g", payload={"accepted": True}, seq=3),
+        now_wall_ms=2,
+    )
+    snap = _join(snap, pid="p_g", role="guest", name="Ava", now=3, seq=4)
+    assert start_blockers(snap) == ["Ava"]
+
+
 def test_start_blocked_when_nobody_joined() -> None:
     snap = empty_record_snapshot("sess")
     snap = _join(snap, pid="p_host", role="host", name="Host", now=0)

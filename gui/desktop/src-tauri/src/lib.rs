@@ -1,5 +1,6 @@
 //! Pure helpers for the Sharecut Studio Tauri host (no WebView / sidecar IO).
 
+mod close_guard;
 mod share_url;
 mod sidecar;
 
@@ -54,6 +55,10 @@ pub fn apply_distribution_metadata_values(cmd: &mut Command, metadata: Distribut
     }
 }
 
+pub use close_guard::{
+    close_decision, close_decision_from_url, is_guarded_quit_menu_item, CloseDecision, CloseRisk,
+    GUARDED_QUIT_MENU_ID,
+};
 pub use share_url::{
     allow_engine_microphone, decide_webview_media, is_allowed_share_url,
     is_allowed_webview_navigation, parse_share_deep_link, ShareDeepLink, ShareDeepLinkError,

@@ -8,7 +8,11 @@ Assumes::
 Example::
 
     uv run python scripts/verify_remote_mcp_shares.py \\
-      --project tests/fixtures/aligned_dialogue/episode.project.json
+      --project /path/to/episode.project.json
+
+Without ``--project`` the committed ``aligned_dialogue`` fixture is copied into a
+temporary relocated workspace first, so publishing the review version never
+writes into ``tests/fixtures/``. An explicit ``--project`` runs in place.
 """
 
 from __future__ import annotations
@@ -16,12 +20,14 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import tempfile
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp.project_io import copy_relocated_workspace
 from podcast_mcp.services.remote_mcp.allowlist import tools_for_capabilities
 from podcast_mcp.services.review import ReviewService
 from podcast_mcp.services.share import ShareService
@@ -124,6 +130,11 @@ def _capability_error(msg: str) -> bool:
         or "unknown tool" in low
         or "method not found" in low
     )
+
+
+def _relocated_default_project(tmp_root: Path) -> Path:
+    """Copy the committed fixture under *tmp_root* so the run never writes into it."""
+    return copy_relocated_workspace(DEFAULT_PROJECT, tmp_root / "workspace")
 
 
 def _ensure_review_version(ws: ProjectWorkspace) -> str:
@@ -480,7 +491,15 @@ def verify_mcp_tier(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--project", type=Path, default=DEFAULT_PROJECT)
+    parser.add_argument(
+        "--project",
+        type=Path,
+        default=None,
+        help=(
+            "Episode project to share (runs in place). Default: a temporary relocated "
+            "copy of the committed aligned_dialogue fixture."
+        ),
+    )
     parser.add_argument("--base", default="http://127.0.0.1:8765")
     parser.add_argument(
         "--revoke",
@@ -496,13 +515,25 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     revoke = args.revoke and not args.keep_shares
 
-    project = args.project.expanduser().resolve()
+    if args.project is not None:
+        return _run(args.project.expanduser().resolve(), args.base, revoke=revoke)
+    with tempfile.TemporaryDirectory(prefix="verify-remote-mcp-") as tmp:
+        if not revoke:
+            print(
+                "WARN: --keep-shares with the default project leaves shares pointing at a "
+                "temporary workspace that is deleted when the run ends",
+                file=sys.stderr,
+            )
+        return _run(_relocated_default_project(Path(tmp)), args.base, revoke=revoke)
+
+
+def _run(project: Path, base: str, *, revoke: bool) -> int:
     if not project.is_file():
         print(f"project not found: {project}", file=sys.stderr)
         return 2
 
     # Health + remote MCP enabled
-    status, _health = _http_json("GET", f"{args.base.rstrip('/')}/api/health")
+    status, _health = _http_json("GET", f"{base.rstrip('/')}/api/health")
     if status != 200:
         # Some builds may lack /api/health - try opening a bogus mcp info
         print(
@@ -514,7 +545,7 @@ def main(argv: list[str] | None = None) -> int:
     version_id = _ensure_review_version(ws)
     track_id = _first_track_id(ws)
     print(f"project={project}")
-    print(f"base={args.base}")
+    print(f"base={base}")
     print(f"review_version={version_id}")
     print(f"track_id={track_id}")
 
@@ -527,7 +558,7 @@ def main(argv: list[str] | None = None) -> int:
         reports.append(report)
         share = ShareService(ws).create(
             review_version_id=version_id,
-            public_base_url=args.base,
+            public_base_url=base,
             capabilities=caps,
         )
         token = str(share["token"])
@@ -536,14 +567,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  token={token}")
         if share.get("mcp_url"):
             print(f"  mcp_url={share['mcp_url']}")
-            print(f"  local_mcp={args.base.rstrip('/')}/mcp/{token}/mcp")
+            print(f"  local_mcp={base.rstrip('/')}/mcp/{token}/mcp")
 
         try:
             if "mcp" not in caps:
-                verify_tier_no_mcp(args.base, token, report)
+                verify_tier_no_mcp(base, token, report)
             else:
                 # Confirm info endpoint says enabled
-                st, info = _http_json("GET", f"{args.base.rstrip('/')}/mcp/{token}")
+                st, info = _http_json("GET", f"{base.rstrip('/')}/mcp/{token}")
                 _assert(
                     report,
                     "info_ok",
@@ -555,7 +586,7 @@ def main(argv: list[str] | None = None) -> int:
                         "ERROR: GUI is running but PODCAST_REMOTE_MCP is not set on the host.",
                         file=sys.stderr,
                     )
-                verify_mcp_tier(args.base, token, caps, report, track_id=track_id)
+                verify_mcp_tier(base, token, caps, report, track_id=track_id)
         except Exception as exc:
             _assert(report, "tier_exception", False, str(exc))
 

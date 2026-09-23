@@ -8,11 +8,11 @@ from podcast_mcp.edits.timeline_span import map_source_span_fields
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import AppliedEditRecord, EditDecision, EpisodeProject
 
-TIGHTEN_REASON_PREFIXES = ("filler:", "pause:")
+TIGHTEN_REASON_PREFIXES = ("filler:", "pause:", "repetition:", "restart:")
 
 
 def is_tighten_reason(reason: str | None) -> bool:
-    """True for pending filler/pause tighten proposals."""
+    """True for pending tighten proposals."""
     text = reason or ""
     return text.startswith(TIGHTEN_REASON_PREFIXES)
 
