@@ -64,7 +64,7 @@ old value would still matter.
 
 ### GitHub CI gate
 
-GitHub Actions runs the required full suite on public pushes and pull requests. There is no pre-push full-CI hook or local CI stamp: contributors may push a branch and open a PR without running `make ci` first, then use the GitHub results to make targeted fixes. `make ci` remains an optional local mirror when early end-to-end feedback is useful.
+GitHub Actions runs the required full suite on public pushes and pull requests. Run focused tests locally while changing code, for example `uv run pytest -q --no-cov tests/test_effects_presets.py`; a single file cannot satisfy the repo-wide 95% coverage threshold. There is no pre-push full-CI hook or local CI stamp: contributors may push a branch and open a PR without running `make test` or `make ci` first, then use the GitHub results to make targeted fixes. Run local `make test` or `make ci` when changes are extensive or a failure needs full-suite diagnosis. Wait for the required GitHub checks on the latest PR head before merging.
 
 ## Fast inner loop
 

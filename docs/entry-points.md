@@ -49,6 +49,8 @@ Rules:
 
 Hard fail when a `COMMANDS` / keymap / registered MCP tool / skill is missing from the manifest (hubs/deprecated skills live under `hub_skills`), or when the published docs catalog is stale.
 
+Repo automation skills such as `codex-issue-pipeline` also live under `hub_skills`: they guide contributors but do not add a Sharecut Studio product command or MCP tool.
+
 ## Matrix
 
 Live browsable matrix: [docs.sharecut.studio/#/capabilities](https://docs.sharecut.studio/#/capabilities)
