@@ -279,11 +279,6 @@ effects:
       params:
         intensity: 0.5
         frequency: 0.5
-  deess_legacy_notch:
-    - effect: bandreject
-      params:
-        f: 6500
-        w: 3000
   gate:
     - effect: agate
       params:

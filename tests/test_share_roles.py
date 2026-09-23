@@ -136,8 +136,6 @@ def _seed_premix(minimal_project, sample_wav):
 
 
 def test_cli_share_role_viewer(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="role")
 
@@ -169,8 +167,6 @@ def test_cli_share_role_viewer(minimal_project, sample_wav, tmp_workspace, monke
 def test_cli_share_restricted_invite_and_revoke(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     monkeypatch.setenv("PODCAST_SHARE_ACCOUNTS", "1")
     idb = tmp_workspace / "identity.sqlite"
     monkeypatch.setenv("PODCAST_SHARE_IDENTITY", str(idb))
@@ -274,8 +270,6 @@ def test_cli_share_restricted_invite_and_revoke(
 def test_create_review_share_tool_role(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     from podcast_mcp.mcp.tools.review import create_review_share_tool
 
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     monkeypatch.setenv("PODCAST_SHARE_ACCOUNTS", "1")
     idb = tmp_workspace / "id.sqlite"
     monkeypatch.setenv("PODCAST_SHARE_IDENTITY", str(idb))
