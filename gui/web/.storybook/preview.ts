@@ -1,7 +1,16 @@
 import type { Preview } from "@storybook/react-vite";
+import { GLOBALS_UPDATED } from "storybook/internal/core-events";
+import { addons } from "storybook/preview-api";
 import "../src/styles/daw.css";
 import { applyTheme, isThemePreference } from "../src/hooks/useTheme";
+import { updateDocsThemeGlobal } from "../src/storybook/docsThemeGlobal";
 import { StudioDocsContainer } from "../src/storybook/StudioDocsContainer";
+
+// Storybook emits this before mounting a docs entry, including MDX without a
+// story. Cache it so the docs container can read the current toolbar choice.
+addons.getChannel().on(GLOBALS_UPDATED, ({ globals }) => {
+  updateDocsThemeGlobal(globals);
+});
 
 const preview: Preview = {
   parameters: {
