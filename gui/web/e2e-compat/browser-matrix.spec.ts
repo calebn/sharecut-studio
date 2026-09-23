@@ -1,82 +1,97 @@
-import { expect, test } from "@playwright/test";
-import { e2eProjectPath } from "../e2e/env";
+import { devices, expect, test } from "@playwright/test";
+import { openHostProject } from "../e2e/overlayReachability";
+import {
+  createRecordRoom,
+  markSharecutE2e,
+  openRecordLink,
+} from "../e2e/recordRoom";
 import { withShareableProject } from "../e2e/shareableProject";
+import {
+  stubSyntheticMicrophone,
+  syntheticMicrophoneRequested,
+} from "../e2e/syntheticMicrophone";
 import { withBrowserPages } from "../e2e/twoBrowserPages";
+
+// `defaultBrowserType` would force a new worker per describe; each project
+// already pins its engine, so borrow only the phone viewport/touch traits.
+const { defaultBrowserType: _phoneEngine, ...phone } = devices["iPhone 13"];
+
+/** Subpixel rounding can place a right/bottom edge a fraction past the viewport. */
+const SUBPIXEL_TOLERANCE = 1;
 
 test.describe("browser compatibility matrix", () => {
   test("renders the playback control across browser engines", async ({
     page,
   }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-
-    await expect(page.getByRole("heading", { level: 1 })).toContainText(
-      /aligned dialogue/i,
-    );
-    const play = page.getByRole("button", { name: "Play" });
-    await expect(play).toBeEnabled();
+    await openHostProject(page);
+    await expect(page.getByRole("button", { name: "Play" })).toBeEnabled();
   });
 
-  test("keeps the listening shell usable at a phone viewport", async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  test.describe("phone", () => {
+    test.use(phone);
 
-    await expect(page.locator(".daw-shell--phone")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Listen" })).toBeVisible();
-    await expect(page.locator(".mobile-listen-transport")).toBeVisible();
-    await page
-      .getByRole("navigation", { name: "Primary" })
-      .getByRole("button", { name: "More" })
-      .click();
-    const menu = page.getByRole("button", { name: "Menu", exact: true });
-    await expect(menu).toBeVisible();
-    const box = await menu.boundingBox();
-    expect(box).toBeTruthy();
-    expect(box!.x).toBeGreaterThanOrEqual(0);
-    expect(box!.x + box!.width).toBeLessThanOrEqual(390);
+    test("keeps the listening shell usable on a touch phone", async ({
+      page,
+    }) => {
+      await openHostProject(page);
+
+      await expect(page.locator(".daw-shell--phone")).toBeVisible();
+      await expect(page.getByRole("button", { name: "Listen" })).toBeVisible();
+      await expect(page.locator(".mobile-listen-transport")).toBeVisible();
+      expect(
+        await page.evaluate(() => matchMedia("(pointer: coarse)").matches),
+      ).toBe(true);
+      await page
+        .getByRole("navigation", { name: "Primary" })
+        .getByRole("button", { name: "More" })
+        .click();
+      const menu = page.getByRole("button", { name: "Menu", exact: true });
+      await expect(menu).toBeVisible();
+      const viewport = page.viewportSize();
+      expect(viewport).toBeTruthy();
+      const box = await menu.boundingBox();
+      expect(box).toBeTruthy();
+      expect(box!.x).toBeGreaterThanOrEqual(0);
+      expect(box!.y).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(
+        viewport!.width + SUBPIXEL_TOLERANCE,
+      );
+      expect(box!.y + box!.height).toBeLessThanOrEqual(
+        viewport!.height + SUBPIXEL_TOLERANCE,
+      );
+    });
   });
 
-  test("exposes the microphone consent path for a recording guest", async ({
+  test("takes a recording guest from microphone consent to a live level", async ({
     browser,
+    browserName,
   }) => {
     await withShareableProject(async (projectPath) => {
       await withBrowserPages(browser, [{}, {}], async ([host, guest]) => {
         await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
         await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
-        const response = await host.request.post("/api/shares/record", {
-          data: { path: projectPath },
-        });
-        expect(response.ok(), await response.text()).toBeTruthy();
-        const body = (await response.json()) as {
-          room: { guest: { token: string } };
-        };
+        const room = await createRecordRoom(host, projectPath);
 
-        await guest.addInitScript(() => {
-          (window as unknown as { __SHARECUT_E2E?: boolean }).__SHARECUT_E2E =
-            true;
-          // Exercise the app flow independently of headless engine hardware.
-          Object.defineProperty(navigator, "permissions", {
-            configurable: true,
-            value: { query: async () => ({ state: "prompt" }) },
-          });
-          Object.defineProperty(navigator, "mediaDevices", {
-            configurable: true,
-            value: {
-              getUserMedia: async () => {
-                (
-                  window as unknown as { __gumStubCalled: boolean }
-                ).__gumStubCalled = true;
-                return new MediaStream();
-              },
-              enumerateDevices: async () => [],
-            },
-          });
+        await markSharecutE2e(guest);
+        // Safari lacks permissions.query({ name: "microphone" }); keep the
+        // native Permissions API elsewhere so each engine takes its own branch.
+        await stubSyntheticMicrophone(guest, {
+          removePermissionsApi: browserName === "webkit",
         });
-        await guest.goto(`/rec/${body.room.guest.token}?e2e=1`);
+        await openRecordLink(guest, room.guest.token);
         await expect(
           guest.getByRole("heading", { name: "Join the recording" }),
         ).toBeVisible();
+        expect(
+          await guest.evaluate(
+            () =>
+              typeof (
+                navigator as Navigator & {
+                  permissions?: { query?: unknown };
+                }
+              ).permissions?.query === "function",
+          ),
+        ).toBe(browserName !== "webkit");
         await guest.getByLabel("Display name").fill("Ava");
         await guest.getByLabel("I am wearing headphones").check();
         await expect(
@@ -84,22 +99,15 @@ test.describe("browser compatibility matrix", () => {
             name: "Record 3 seconds of room tone",
           }),
         ).toBeVisible();
-        await expect(
-          guest.getByRole("button", { name: "Allow microphone" }),
-        ).toBeVisible();
-        await guest.getByRole("button", { name: "Allow microphone" }).click();
+        const allow = guest.getByRole("button", { name: "Allow microphone" });
+        await expect(allow).toBeVisible();
+        await allow.click();
+        await expect.poll(() => syntheticMicrophoneRequested(guest)).toBe(true);
+        const level = guest.getByLabel("Level");
+        await expect(level).toBeVisible();
         await expect
-          .poll(() =>
-            guest.evaluate(
-              () =>
-                (window as unknown as { __gumStubCalled?: boolean })
-                  .__gumStubCalled ?? false,
-            ),
-          )
-          .toBe(true);
-        await expect(guest.getByLabel("Level")).toBeVisible({
-          timeout: 15_000,
-        });
+          .poll(() => level.evaluate((el) => (el as HTMLMeterElement).value))
+          .toBeGreaterThan(0);
       });
     });
   });
