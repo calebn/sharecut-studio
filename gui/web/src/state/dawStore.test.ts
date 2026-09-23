@@ -6,11 +6,10 @@ import { useDawStore } from "./dawStore";
 function agentSession(partial: Partial<SessionState> = {}): SessionState {
   return {
     version: 1,
-    revision: 1,
     origin: "agent",
     last_role: "agent",
     updated_at_ns: 0,
-    command_id: "c1",
+    last_command_id: "c1",
     playhead_sec: 5,
     is_playing: true,
     audition_mode: "mix",

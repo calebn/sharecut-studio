@@ -1400,7 +1400,7 @@ def project_meta(project_path: Path) -> dict[str, Any]:
 
 
 def session_file_meta(project_path: Path) -> dict[str, Any]:
-    """mtime/size of artifacts/session_state.json (zeros if missing)."""
-    from podcast_mcp.services.session_state import session_meta
+    """mtime/size of artifacts/session/sync.db (zeros if missing)."""
+    from podcast_mcp.services.session_sync.service import session_meta
 
     return session_meta(project_path)

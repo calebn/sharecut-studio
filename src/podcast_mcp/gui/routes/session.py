@@ -25,11 +25,11 @@ from podcast_mcp.services.record.service import (
     route_record_ws_message,
 )
 from podcast_mcp.services.record.state import HOST_PARTICIPANT_ID
-from podcast_mcp.services.session_state import (
+from podcast_mcp.services.session_sync.authz import authorize_client
+from podcast_mcp.services.session_sync.service import (
     publish_viewer_snapshot,
     read_session_state,
 )
-from podcast_mcp.services.session_sync.authz import authorize_client
 from podcast_mcp.services.session_sync.commands import SyncCommand
 from podcast_mcp.services.session_sync.hub import get_hub
 from podcast_mcp.services.session_sync.service import SessionSyncService

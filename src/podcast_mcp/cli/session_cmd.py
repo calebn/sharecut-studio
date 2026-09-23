@@ -15,7 +15,7 @@ session_app = typer.Typer(help="Read/control shared DAW session state.")
 def session_status(
     project: Path = typer.Option(..., "--project"),
 ) -> None:
-    """Print artifacts/session_state.json (or note if missing)."""
+    """Print live session state snapshot (or note if missing)."""
     ws = ProjectWorkspace.open(project)
     state = SessionControlService(ws).get_state()
     if state is None:
