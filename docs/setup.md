@@ -341,6 +341,10 @@ distribution profile. Configuration is split by responsibility:
 Host runtime configuration lives at `~/.config/podcast_mcp/relay.yaml`; copy
 [`config/relay.example.yaml`](../config/relay.example.yaml). Relay-field precedence
 is explicit CLI/API argument, environment, YAML, then a safe loopback default.
+The tunnel identity `host_id` (`PODCAST_RELAY_HOST_ID` / YAML `host_id`) defaults to
+a uuid minted once and persisted as `relay_host_id` next to `relay.yaml`; it must
+match the `host_id:` prefix when the relay pins this host's secret (see
+[host-online-relay.md](host-online-relay.md) § Security notes).
 Object-store precedence is environment, YAML, then disabled. The only
 object-store environment names are
 `PODCAST_OBJECT_STORE_ENDPOINT_URL`, `PODCAST_OBJECT_STORE_REGION`,

@@ -6,7 +6,6 @@ import asyncio
 import base64
 import contextlib
 import os
-import secrets
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -173,28 +172,26 @@ class RelayState:
         # Durable ownership across disconnect (cleared when owner omits token).
         self.token_bindings: dict[str, str] = {}
 
-    def token_ok(self, token: str, *, host_id: str | None = None) -> bool:
+    def token_ok(self, token: str, *, host_id: str) -> bool:
+        """True if *token* authenticates a tunnel presenting *host_id*.
+
+        Shared secrets authenticate any host_id; a ``host_id:secret`` entry
+        authenticates only the host presenting that exact host_id.
+        """
         if not token:
             return False
         if not self.host_tokens and not self.host_secrets:
             return self.allow_open_tunnel
         from podcast_relay.share_claims import resolve_tunnel_secret
 
-        if host_id:
-            return resolve_tunnel_secret(
+        return (
+            resolve_tunnel_secret(
                 token,
                 shared_secrets=self.host_tokens,
                 host_secrets=self.host_secrets,
                 host_id=host_id,
-            ) is not None or (
-                self.allow_open_tunnel and not self.host_tokens and not self.host_secrets
             )
-        # Pre-host_id hello check: accept any known secret.
-        if any(len(token) == len(t) and secrets.compare_digest(token, t) for t in self.host_tokens):
-            return True
-        return any(
-            len(token) == len(t) and secrets.compare_digest(token, t)
-            for t in self.host_secrets.values()
+            is not None
         )
 
     def secret_for_session(self, session: TunnelSession) -> str | None:
@@ -368,7 +365,6 @@ def create_relay_app() -> FastAPI:
     @app.websocket("/tunnel")
     async def tunnel_ws(websocket: WebSocket) -> None:
         await websocket.accept()
-        host_id: str | None = None
         session: TunnelSession | None = None
         try:
             first = await websocket.receive_json()
@@ -377,10 +373,7 @@ def create_relay_app() -> FastAPI:
                 await websocket.close(code=4400)
                 return
             host_token = str(first.get("host_token") or "")
-            if not state.token_ok(host_token):
-                await websocket.send_json(msg("error", detail="invalid host_token"))
-                await websocket.close(code=4403)
-                return
+            host_id = str(first.get("host_id") or new_id())
             reg = check_register(host_token)
             if not reg.allowed:
                 await websocket.send_json(
@@ -393,7 +386,6 @@ def create_relay_app() -> FastAPI:
                 )
                 await websocket.close(code=4429)
                 return
-            host_id = str(first.get("host_id") or new_id())
             if not state.token_ok(host_token, host_id=host_id):
                 await websocket.send_json(msg("error", detail="invalid host_token for host_id"))
                 await websocket.close(code=4403)
@@ -473,8 +465,10 @@ def create_relay_app() -> FastAPI:
         except WebSocketDisconnect:
             pass
         finally:
-            if host_id:
-                await state.unregister_tunnel(host_id)
+            # host_id is read before auth; only tear down a tunnel this socket registered
+            # so a rejected hello cannot evict a live host presenting the same host_id.
+            if session is not None:
+                await state.unregister_tunnel(session.host_id)
 
     async def _proxy(
         request: Request,

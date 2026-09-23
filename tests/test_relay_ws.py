@@ -795,3 +795,89 @@ def test_relay_presence_frames_drop_when_bucket_exhausted(monkeypatch):
                     guest.recv(timeout=5)
         finally:
             tunnel.close()
+
+
+def test_per_host_token_with_default_relay_config_host_id(monkeypatch):
+    from podcast_mcp.runtime_config import RelayConfig, relay_host_id_path
+
+    cfg = RelayConfig(host_token="host-secret")
+    # Default host_id is the persisted per-install id, not a fresh uuid per process.
+    assert relay_host_id_path().read_text(encoding="utf-8").strip() == cfg.host_id
+    monkeypatch.setenv("PODCAST_RELAY_HOST_TOKENS", f"{cfg.host_id}:host-secret,other:x")
+    client = TestClient(create_relay_app())
+    with client.websocket_connect("/tunnel") as ws:
+        ws.send_json({"type": "hello", "host_token": cfg.host_token, "host_id": cfg.host_id})
+        hello = ws.receive_json()
+        assert hello["ok"] is True
+        assert hello["host_id"] == cfg.host_id
+
+
+def test_host_bound_secret_rejected_under_unmapped_host_id(monkeypatch):
+    from starlette.websockets import WebSocketDisconnect
+
+    monkeypatch.setenv("PODCAST_RELAY_HOST_TOKENS", "host-1:secret-1")
+    app = create_relay_app()
+    client = TestClient(app)
+    with client.websocket_connect("/tunnel") as live:
+        live.send_json({"type": "hello", "host_token": "secret-1", "host_id": "host-1"})
+        assert live.receive_json()["ok"] is True
+        for host_id in ("host-2", None):
+            with client.websocket_connect("/tunnel") as ws:
+                hello = {"type": "hello", "host_token": "secret-1"}
+                if host_id:
+                    hello["host_id"] = host_id
+                ws.send_json(hello)
+                err = ws.receive_json()
+                assert err["type"] == "error"
+                assert err["detail"] == "invalid host_token for host_id"
+                with pytest.raises(WebSocketDisconnect) as closed:
+                    ws.receive_json()
+                assert closed.value.code == 4403
+        # A rejected hello naming the live host's host_id must not evict it.
+        with client.websocket_connect("/tunnel") as spoof:
+            spoof.send_json({"type": "hello", "host_token": "wrong", "host_id": "host-1"})
+            assert spoof.receive_json()["type"] == "error"
+        assert "host-1" in app.state.relay.tunnels
+
+
+def test_restarted_host_readvertises_bound_tokens(monkeypatch):
+    from podcast_mcp.runtime_config import RelayConfig
+
+    first = RelayConfig(host_token="host-secret")
+    monkeypatch.setenv(
+        "PODCAST_RELAY_HOST_TOKENS", f"{first.host_id}:host-secret,intruder:intruder-secret"
+    )
+    app = create_relay_app()
+    state = app.state.relay
+    client = TestClient(app)
+
+    def _connect_and_register(cfg: RelayConfig, token: str) -> int:
+        with client.websocket_connect("/tunnel") as ws:
+            ws.send_json({"type": "hello", "host_token": cfg.host_token, "host_id": cfg.host_id})
+            assert ws.receive_json()["ok"] is True
+            shares = attach_share_claims(
+                [{"token": token, "capabilities": ["play"]}],
+                host_id=cfg.host_id,
+                secret=cfg.host_token,
+            )
+            ws.send_json({"type": "register", "shares": shares})
+            ack = ws.receive_json()
+            assert ack["ok"] is True
+            if ack["share_count"]:
+                assert state.token_to_host[token] == cfg.host_id
+            return int(ack["share_count"])
+
+    assert _connect_and_register(first, "bound-slug") == 1
+    # Host disconnected: live routing gone, durable binding kept.
+    assert state.tunnel_for_token("bound-slug") is None
+    assert state.token_bindings["bound-slug"] == first.host_id
+
+    # Another mapped host cannot steal the offline token.
+    intruder = RelayConfig(host_token="intruder-secret", host_id="intruder")
+    assert _connect_and_register(intruder, "bound-slug") == 0
+
+    # "Restart": a new process builds a fresh RelayConfig and gets the same persisted id.
+    restarted = RelayConfig(host_token="host-secret")
+    assert restarted.host_id == first.host_id
+    assert _connect_and_register(restarted, "bound-slug") == 1
+    assert state.token_bindings["bound-slug"] == first.host_id

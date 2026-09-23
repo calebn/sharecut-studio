@@ -32,7 +32,7 @@ def test_parse_host_token_map_mixed_entries() -> None:
     assert by_host == {"host-a": "sec-a"}
 
 
-def test_resolve_tunnel_secret_bound_shared_and_legacy() -> None:
+def test_resolve_tunnel_secret_bound_shared_rejects_unmapped_host_bound() -> None:
     assert resolve_tunnel_secret("", shared_secrets={"s"}, host_secrets={}, host_id="h") is None
     assert (
         resolve_tunnel_secret(
@@ -50,12 +50,12 @@ def test_resolve_tunnel_secret_bound_shared_and_legacy() -> None:
         resolve_tunnel_secret("shared", shared_secrets={"shared"}, host_secrets={}, host_id="h")
         == "shared"
     )
-    # Legacy CSV secret with arbitrary host_id is no longer accepted
+    # A host-bound secret is valid only under its mapped host_id.
     assert (
         resolve_tunnel_secret(
-            "legacy",
+            "bound-elsewhere",
             shared_secrets=set(),
-            host_secrets={"other": "legacy"},
+            host_secrets={"other": "bound-elsewhere"},
             host_id="unknown",
         )
         is None
