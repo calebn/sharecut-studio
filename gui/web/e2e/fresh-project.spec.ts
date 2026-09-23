@@ -4,11 +4,15 @@ import path from "node:path";
 import { expect, test } from "@playwright/test";
 import { registerE2eCleanupWorkspace } from "./cleanupManifest";
 import { e2eProjectPath } from "./env";
-import { switchE2eProject } from "./shareableProject";
+import {
+  assertDisposableE2eProject,
+  switchE2eProject,
+} from "./shareableProject";
 
 test("new project stays fresh without an audio error on desktop and phone", async ({
   page,
 }) => {
+  assertDisposableE2eProject(e2eProjectPath);
   const workspaceDir = fs.mkdtempSync(
     path.join(os.tmpdir(), "sharecut-e2e-fresh-"),
   );
