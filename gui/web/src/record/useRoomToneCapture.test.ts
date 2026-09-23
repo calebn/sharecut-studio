@@ -124,6 +124,66 @@ describe("useRoomToneCapture", () => {
     ).toBeNull();
   });
 
+  it("still revokes the remote bed when the local delete throws on skip", async () => {
+    const sink = new MemorySink();
+    vi.spyOn(sink, "remove").mockRejectedValue(
+      new DOMException("locked", "NoModificationAllowedError"),
+    );
+    const transport = memoryUploadTransport();
+    const revokeRoomTone = vi.fn(async () => undefined);
+    transport.revokeRoomTone = revokeRoomTone;
+    const { result } = renderHook(() =>
+      useRoomToneCapture(hookArgs({ sink, transport })),
+    );
+    act(() => {
+      result.current.record();
+    });
+    await waitFor(() => {
+      expect(result.current.status).toBe("recorded");
+    });
+    act(() => {
+      result.current.skip();
+    });
+    await waitFor(() => expect(revokeRoomTone).toHaveBeenCalledTimes(1));
+    expect(result.current.status).toBe("skipped");
+    expect(result.current.error).toBeNull();
+  });
+
+  it("reports too_loud even when deleting the loud bed throws", async () => {
+    encode.mockResolvedValue({
+      wav: new Uint8Array(44 + 8),
+      samples: new Float32Array(4).fill(1),
+    });
+    const sink = new MemorySink();
+    vi.spyOn(sink, "remove").mockRejectedValue(
+      new DOMException("stale", "InvalidStateError"),
+    );
+    const { result } = renderHook(() => useRoomToneCapture(hookArgs({ sink })));
+    act(() => {
+      result.current.record();
+    });
+    await waitFor(() => {
+      expect(result.current.status).toBe("too_loud");
+    });
+    expect(result.current.error).toBeNull();
+  });
+
+  it("swallows a throwing delete when capture is disabled", async () => {
+    const sink = new MemorySink();
+    const remove = vi
+      .spyOn(sink, "remove")
+      .mockRejectedValue(
+        new DOMException("locked", "NoModificationAllowedError"),
+      );
+    const { rerender } = renderHook(
+      (props: { enabled: boolean }) =>
+        useRoomToneCapture(hookArgs({ sink, enabled: props.enabled })),
+      { initialProps: { enabled: true } },
+    );
+    rerender({ enabled: false });
+    await waitFor(() => expect(remove).toHaveBeenCalled());
+  });
+
   it("surfaces an error when the hook is not ready", () => {
     const { result } = renderHook(() =>
       useRoomToneCapture(

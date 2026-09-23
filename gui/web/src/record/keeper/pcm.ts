@@ -1,6 +1,9 @@
 export const KEEPER_SAMPLE_RATE = 48_000;
 export const KEEPER_CHANNELS = 1;
 export const KEEPER_BITS = 16;
+/** Uncompressed keeper PCM throughput (mono, 16-bit). */
+export const KEEPER_BYTES_PER_SECOND =
+  KEEPER_SAMPLE_RATE * KEEPER_CHANNELS * (KEEPER_BITS / 8);
 
 export function floatToInt16(input: Float32Array, muted = false): Int16Array {
   const out = new Int16Array(input.length);
