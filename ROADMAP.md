@@ -187,6 +187,7 @@ Required for v1 credibility with video-first creators — not just audio post.
 | **Theme-token blade/comment cursors** | Per-theme cursor assets (CSS `url()` cannot read variables). |
 | **Pending inspector leftovers ([PR #174](https://github.com/calebn/sharecut-studio/pull/174))** | Pin/scroll shipped; still open: (1) mutation error is React state — StudioShell ↔ tablet/phone remount drops it (tests re-click Approve after resize); persist on the document/session plane. (2) Original overlap report was Firefox @ 1280; `frontend-e2e` is Chromium only. (3) `useProjectMutation.run` can start overlapping Approve calls before `busy` disables the button (pre-existing TOCTOU). |
 | **Background waveform peaks** | Full job/SSE fan-in, cancel, streamed decode for hour-long ingest. |
+| **Large-project performance ([#29](https://github.com/calebn/sharecut-studio/issues/29))** | Opt-in benchmark shipped ([docs/testing.md](docs/testing.md) § Large-project browser profile). Still open: timeline clip and transcript virtualization (the two-hour fixture renders ~81k DOM nodes), a many-entry history profile, and long-duration memory tracking. |
 | **Edit preference learning** | Persist reject/approve/undo as preference events for join ranker priors. |
 | **Room-tone pad from matched air** | Score quiet non-speech spans for `filler_pad_mode: room_tone`. |
 | **Find room-tone candidates tool** | MCP/CLI scan for suitable room-tone segments. |

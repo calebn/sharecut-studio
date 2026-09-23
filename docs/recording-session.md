@@ -262,8 +262,8 @@ MM4 asserts the monitor drop; keeper mute zeros are covered by keeper session te
 
 Relay never stores audio, but keeper chunks may transit the tunnel. Keeper + local backup live on each device until
 chunked upload and host ingest **ACK** (sha256 + byte length per chunk, then
-per file). Assembled WAV lands in `artifacts/record/acked/` until landing copies it into
-`raw/` and registers clips.
+per file) and confirmed timeline landing. Assembled WAV lands in
+`artifacts/record/acked/` until landing copies it into `raw/` and registers clips.
 
 Chunks (target 5 MB or 30 s, whichever first) `POST` to a **dedicated record
 upload route** gated by `join` (not `edit`, not `POST …/daw/media/upload`).
@@ -278,6 +278,38 @@ A stalled or zero-sample keeper remains in OPFS for a single ZIP download
 containing every retained take and segment. Surviving files still export if a
 segment is missing, and Leave is never held indefinitely by an errored upload.
 Lossy host-side backup mix is **not** in audio MVP.
+
+After a fresh status response confirms both `file_ack` and successful timeline
+landing (`landed` without `land_failed`), the client may reclaim that finalized
+segment's local `.wav` (`keeper/reclaim.ts`: `canReclaimKeeperSegment` policy +
+`reclaimKeeperWav`). Its completion `.json` remains as a small segment
+identity marker, so later takes never reuse the segment number. Reclaim
+requires that marker to be complete (`complete: true`, or absent on legacy
+metadata written only after close); a pending `complete: false` marker never
+allows a delete. Unlanded, failed, incomplete, or actively captured segments
+remain available for recovery.
+
+A WAV that is absent but has a complete marker is **reclaimed**, not lost
+(`missingKeeperWavState` in `keeper/store.ts`): upload treats it as done even
+if the host row later disappears (e.g. Discard take), and **Download local
+keeper** skips it instead of counting it as a missing segment. While a
+recovery download runs, and for a grace window after it is handed to the
+browser, reclaim is paused (`holdKeeperReclaim`) so the lazily read OPFS
+`File`s in the archive stay readable. `ByteSink.remove` rejects on real delete
+failures; room-tone cleanup uses `removeBestEffort`. Reclaim failures are
+non-fatal and leave the WAV in place; after three consecutive failures the
+upload panel warns that the local backup could not be cleared. Known gaps:
+reclaim does not yet compare the landed SHA-256/length with the local file
+([#222](https://github.com/calebn/sharecut-studio/issues/222)), and it trusts
+the host `landed` flag even where landing skipped a missing acked source
+([#223](https://github.com/calebn/sharecut-studio/issues/223)).
+
+The recording UI also performs an advisory one-hour mono 48 kHz PCM headroom
+check where `navigator.storage.estimate()` is available
+(`StorageHeadroomWarning`). Nothing renders while the estimate is pending; a
+low estimate, a rejected estimate, or a missing API warns the operator in a
+persistent `role="status"` region but never blocks recording by itself. The
+host panel re-checks after a take stops.
 
 ```mermaid
 sequenceDiagram
@@ -454,8 +486,8 @@ take. Landing appends takes **sequentially** on the timeline with a fixed
 participants across takes; a participant absent from a take simply has no
 clip there. Deleting a bad take before landing is refused while that take's
 manifest is non-terminal; otherwise a take-tombstone aborts in-flight upload
-and voids ACK. "Safe to delete" local backup only after ACK **and** the take
-is still alive / landed. Same-room retakes are not auto-spliced into the
+and voids ACK. The local backup is reclaimed automatically only after ACK
+**and** confirmed landing. Same-room retakes are not auto-spliced into the
 previous take — that is an edit.
 
 Peer add/remove renegotiates only the affected `RTCPeerConnection`s; the
@@ -637,7 +669,8 @@ stateDiagram-v2
 | Host reconnect pause | "Paused — the host was offline for {N}s. Resume when everyone is ready." (host DAW only; guests keep the PAUSED indicator) |
 | Host offline | "Host offline — still recording locally." |
 | Upload panel | "Uploading your take… {n}/{total} chunks. Keep this tab open." |
-| Safe to delete | "Uploaded. Safe to delete local backup while this take is still on the host." (only after ACK **and** the take is still alive) |
+| Landed | "Landed on the host. The local backup is cleared automatically." (only after ACK **and** confirmed landing) |
+| Reclaim stuck | "Landed on the host, but this browser could not clear the local backup. Free device storage manually before recording again." (after 3 consecutive failed deletes of a landed WAV) |
 | Full room | "This room is full (4 recorded / 2 producers)." |
 | Declined | "You declined recording. You can wait in the lobby, or the host can invite you as a producer (listen only)." |
 
@@ -651,13 +684,37 @@ Producers simply lose audio and reconnect. Pending live comments queue with
 idempotency keys and upsert on reconnect.
 
 If an OPFS write or close fails, the keeper latches a local-capture failure and
-stops accepting PCM; the REC indicator is no longer a claim that a durable
-local copy is being made. Already finalized segments remain available, while
-the failed open segment is not advertised as durable because
-`FileSystemFileHandle.createWritable()` commits changes on close. The client
-offers **Retry local recording** while the take is recording; during pause or
-after Stop, the host must resume or start a take first. Retry closes the failed
-stream best-effort and starts a new segment without overwriting the failed one.
+stops accepting PCM. The keeper has a single OPFS writer per segment: PCM that
+arrives while a write is in flight is coalesced into the next write, so a slow
+write costs one bounded write rather than one per audio chunk, and a finalize
+flush is at most the in-flight write plus one coalesced write. The queue is
+bounded to fifteen seconds of PCM, above the per-operation limit, so a burst
+delivered after a main-thread stall (background tab, GC) does not fail a
+healthy OPFS while a write that truly hangs still fails local capture instead
+of retaining unbounded memory or silently dropping audio. Each OPFS open,
+write, metadata commit, and the resume segment scan has a five-second
+wall-clock limit; close gets five seconds plus an allowance of 1 ms per
+10 KB of segment audio, because `createWritable()` commits its swap file on
+close and that cost grows with segment size. A close that still lands after
+its deadline leaves a complete WAV without metadata, which is treated like any
+other partial after Stop. A timed-out operation is abandoned; its late
+completion cannot advance a replacement segment. Metadata that lands after its
+deadline is kept, since the WAV was already closed and the pair is consistent;
+this relies on segment indexes being reserved before a segment opens, so no
+later segment can share that path. Timeouts are not cancellation: a truly hung
+`FileSystemWritableFileStream` can keep its file lock (and one writable per
+Retry) until the browser gives up, which is why Retry always moves to a new
+segment path and never reopens the stuck one. The guest sees plain wording
+("this device's storage couldn't keep up") for stalls; the technical detail
+stays on the error's `cause`. The REC indicator is no longer a claim that a
+durable local copy is being made. Already finalized segments remain available,
+while the failed open segment is not advertised as durable because
+`FileSystemFileHandle.createWritable()` commits changes on close; **Download
+local keeper** still exports it, named `keeper-<take>-<segment>-partial.wav`.
+The client offers **Retry local recording** while the take is recording; during
+pause or after Stop, the host must resume or start a take first. Retry waits
+for the failed stream to close (bounded by the close deadline) and starts a
+new segment without overwriting the failed one.
 The retry segment uses the current recording clock so its landing offset follows
 the lost span. A stopped, incomplete local `.wav` remains in OPFS for recovery
 without a completion `.json`; it is never given a file ACK or landed. Once all
@@ -721,8 +778,8 @@ Keeper + local backup live on each device until chunked upload and host ingest A
 Assembled WAV is stored under
 `artifacts/record/acked/` until landing writes `raw/` + clips. Guest
 device keeps keepers under `Sharecut Recordings/` (OPFS, plus optional
-download) until host ACK; UI says "safe to delete" only after ACK **and** the
-take is still alive. Host keeps
+download) until host ACK and confirmed landing, after which the client
+reclaims the finalized WAV itself. Host keeps
 `raw/` forever (existing rule) once landing copies files there. Beta still requires a live host; that is a
 category gap — say it in lobby copy.
 

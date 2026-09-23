@@ -92,7 +92,6 @@ def generate_peaks(
     decode_hz = overview_decode_hz()
     spp = samples_per_pixel if samples_per_pixel is not None else overview_samples_per_pixel()
     spp = max(1, int(spp))
-    bins_per_sec = decode_hz / spp
     output_json.parent.mkdir(parents=True, exist_ok=True)
     cmd = [
         resolve_ffmpeg(),
@@ -125,13 +124,61 @@ def generate_peaks(
         peaks = np.clip(np.round(abs_max * 255.0), 0, 255).astype(np.uint8).tolist()
         duration_sec = len(data) / float(decode_hz)
 
+    return _write_peaks_payload(
+        audio_path,
+        output_json,
+        peaks=peaks,
+        duration_sec=duration_sec,
+        decode_hz=decode_hz,
+        spp=spp,
+    )
+
+
+def write_silent_peaks(
+    audio_path: Path,
+    output_json: Path,
+    duration_sec: float,
+    *,
+    source: Path | None = None,
+) -> Path:
+    """Write all-zero overview peaks for media known to be silent, without decoding.
+
+    ``source`` overrides the recorded source path (for trees built in a staging
+    directory and renamed into place); size and mtime still come from ``audio_path``.
+    """
+    decode_hz = overview_decode_hz()
+    spp = max(1, int(overview_samples_per_pixel()))
+    bins = int(duration_sec * decode_hz) // spp
+    output_json.parent.mkdir(parents=True, exist_ok=True)
+    return _write_peaks_payload(
+        audio_path,
+        output_json,
+        peaks=[0] * bins,
+        duration_sec=duration_sec,
+        decode_hz=decode_hz,
+        spp=spp,
+        source=source,
+    )
+
+
+def _write_peaks_payload(
+    audio_path: Path,
+    output_json: Path,
+    *,
+    peaks: list[int],
+    duration_sec: float,
+    decode_hz: int,
+    spp: int,
+    source: Path | None = None,
+) -> Path:
+    st = audio_path.stat()
     payload = {
-        "source": str(audio_path),
-        "source_mtime_ns": audio_path.stat().st_mtime_ns,
-        "source_size": audio_path.stat().st_size,
+        "source": str(source or audio_path),
+        "source_mtime_ns": st.st_mtime_ns,
+        "source_size": st.st_size,
         "sample_rate": decode_hz,
         "samples_per_pixel": spp,
-        "bins_per_sec": bins_per_sec,
+        "bins_per_sec": decode_hz / spp,
         "duration_sec": duration_sec,
         "encoding": "uint8",
         "peaks": peaks,

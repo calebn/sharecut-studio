@@ -1,5 +1,6 @@
 import { submitDocumentCommand } from "../api";
 import { shareProjectKey } from "../shareMode";
+import { isClientRejection } from "../utils/apiError";
 import {
   loadCommandQueue,
   loadHostCommandQueue,
@@ -51,7 +52,12 @@ export async function drainHostOfflineQueue(
         break;
       }
       completed.push(cmd.command_id);
-    } catch {
+    } catch (error) {
+      // A 4xx was already recorded as a conflict and dequeued; later,
+      // unrelated edits must still drain. Network errors / 5xx keep order.
+      if (isClientRejection(error)) {
+        continue;
+      }
       break;
     }
   }

@@ -1,18 +1,24 @@
 import { describe, expect, it } from "vitest";
+import { presenceAnchor } from "../presence/anchors";
 import type { CombinedUtterance } from "../types/project";
 import {
   centeredScrollTop,
   findActiveUtteranceIndex,
+  findTurnIndexForUtterance,
   groupConsecutiveSpeakerTurns,
   isUtteranceActive,
   isWordActive,
   selectUnmappedUtterances,
+  transcriptAnchorTurnIndex,
+  transcriptWordAnchor,
+  turnKey,
   turnSeekSec,
   utteranceSeekSec,
   utteranceTimelineEnd,
   utteranceTimelineSpans,
   utteranceTimelineStart,
   wordSeekSec,
+  wordsForUtterance,
 } from "./transcript";
 
 function u(
@@ -245,5 +251,97 @@ describe("word seek helpers", () => {
     expect(isWordActive(w, 5)).toBe(true);
     expect(isWordActive(w, 6.9)).toBe(true);
     expect(isWordActive(w, 7)).toBe(false);
+  });
+});
+
+describe("turn identity and lookup", () => {
+  const rows = [
+    u({ start: 0, end: 1, text: "a", speaker: "A", track_id: "a" }),
+    u({ start: 1, end: 2, text: "b", speaker: "A", track_id: "a" }),
+    u({
+      start: 2,
+      end: 3,
+      text: "c",
+      speaker: "B",
+      track_id: "b",
+      mappable: false,
+    }),
+    u({ start: 3, end: 4, text: "d", speaker: "A", track_id: "a" }),
+  ];
+
+  it("keys turns independently of the visible-row filter", () => {
+    const all = groupConsecutiveSpeakerTurns(rows);
+    const mapped = groupConsecutiveSpeakerTurns(
+      rows.filter((r) => r.mappable !== false),
+    );
+    expect(turnKey(all[0]!)).toBe(turnKey(mapped[0]!));
+    // Hiding the cut-away row shifts startIndex but not the first turn's key.
+    expect(all[0]!.startIndex).toBe(mapped[0]!.startIndex);
+    expect(new Set(all.map(turnKey)).size).toBe(all.length);
+    expect(turnKey({ ...all[0]!, utterances: [] })).toBe("a:empty");
+  });
+
+  it("finds the turn for a flat utterance index via start/end", () => {
+    const turns = groupConsecutiveSpeakerTurns(rows);
+    expect(findTurnIndexForUtterance(turns, 0)).toBe(0);
+    expect(findTurnIndexForUtterance(turns, 1)).toBe(0);
+    expect(findTurnIndexForUtterance(turns, 2)).toBe(1);
+    expect(findTurnIndexForUtterance(turns, 3)).toBe(2);
+    expect(findTurnIndexForUtterance(turns, -1)).toBe(-1);
+    expect(findTurnIndexForUtterance(turns, 9)).toBe(-1);
+  });
+
+  it("falls back to one synthetic word when timings are missing", () => {
+    const row = u({ start: 1, end: 2, text: "whole" });
+    expect(wordsForUtterance(row)).toEqual([
+      expect.objectContaining({ text: "whole", start: 1, end: 2 }),
+    ]);
+  });
+
+  it("resolves turn and word anchors to their turn without parsing", () => {
+    const withWords = u({
+      start: 5,
+      end: 6,
+      text: "x",
+      speaker: "C",
+      track_id: "Host Room",
+      words: [{ text: "x", start: 5, end: 6, word_index: 12 }],
+    });
+    const turns = groupConsecutiveSpeakerTurns([...rows, withWords]);
+    expect(
+      transcriptAnchorTurnIndex(
+        turns,
+        presenceAnchor("transcript", "word", "Host Room", 12),
+      ),
+    ).toBe(3);
+    expect(
+      transcriptAnchorTurnIndex(
+        turns,
+        transcriptWordAnchor(2, "a", undefined, 0),
+      ),
+    ).toBe(2);
+    expect(
+      transcriptAnchorTurnIndex(turns, presenceAnchor("transcript", "turn", 1)),
+    ).toBe(1);
+    expect(transcriptAnchorTurnIndex(turns, "transcript:turn:9999")).toBe(-1);
+    expect(transcriptAnchorTurnIndex(turns, "track:a")).toBe(-1);
+  });
+
+  it("matches truncated anchors for long track ids", () => {
+    const longTrack = "t".repeat(120);
+    const turns = groupConsecutiveSpeakerTurns([
+      u({ start: 0, end: 1, text: "a", speaker: "A" }),
+      u({
+        start: 1,
+        end: 2,
+        text: "b",
+        speaker: "B",
+        track_id: longTrack,
+        words: [{ text: "b", start: 1, end: 2, word_index: 12 }],
+      }),
+    ]);
+    const anchor = presenceAnchor("transcript", "word", longTrack, 12);
+    expect(anchor).toHaveLength(96);
+    expect(transcriptAnchorTurnIndex(turns, anchor)).toBe(1);
   });
 });

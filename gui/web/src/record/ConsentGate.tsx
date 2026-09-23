@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { Button } from "../ui";
 import { CONSENT_COPY } from "./types";
 
@@ -14,9 +15,10 @@ export function ConsentGate({
   canAccept = true,
   acceptDescribedBy,
 }: Props) {
+  const headingId = useId();
   return (
-    <section className="stack" aria-labelledby="consent-heading">
-      <h2 id="consent-heading">Recording consent</h2>
+    <section className="stack" aria-labelledby={headingId}>
+      <h2 id={headingId}>Recording consent</h2>
       <p>{CONSENT_COPY}</p>
       <div className="cluster">
         <Button

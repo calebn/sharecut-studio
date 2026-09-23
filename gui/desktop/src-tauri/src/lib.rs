@@ -65,9 +65,9 @@ pub use share_url::{
     WebviewMediaDecision, WebviewMediaKind,
 };
 pub use sidecar::{
-    apply_create_no_window, bundled_sidecar_path, open_sidecar_log, parse_listen_json,
-    random_boot_token, read_health_response, sidecar_listen_path, sidecar_log_path,
-    sidecar_owns_listen,
+    apply_create_no_window, bundled_sidecar_path, detach_to_sidecar_log, open_sidecar_log,
+    parse_listen_json, random_boot_token, read_health_response, sidecar_listen_path,
+    sidecar_log_path, sidecar_owns_listen,
 };
 
 #[cfg(test)]

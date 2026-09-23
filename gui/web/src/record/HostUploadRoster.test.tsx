@@ -1,17 +1,17 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
-import { sampleParticipant } from "../test/fixtures";
+import { recordParticipant } from "../test/fixtures";
 import { HostUploadRoster } from "./HostUploadRoster";
 import { hostUploadLine } from "./types";
 
-const host = sampleParticipant({
+const host = recordParticipant({
   participant_id: "p_host",
   role: "host",
   display_name: "Host",
 });
 
-const guest = sampleParticipant({ participant_id: "p_g", display_name: "Ava" });
+const guest = recordParticipant({ participant_id: "p_g", display_name: "Ava" });
 
 describe("HostUploadRoster", () => {
   it("lists every recorded participant after Stop", async () => {

@@ -40,6 +40,7 @@ make format-py-check  # ruff format --check
 make capabilities-check
 make progress-check   # progress framework compliance (warn by default)
 make hooks            # lint-staged formats staged Ruff/Biome; check-only pre-commit hooks
+make worktree-setup   # new git worktree: hooks + venv + gui/web node_modules (pre-commit self-provisions)
 make typecheck        # mypy (strict on timebase modules)
 ```
 
@@ -170,6 +171,8 @@ requires HTTP 200 and host setup still waits for `networkidle`.
 | Zoom-matched waveforms | `test_timeline_zoom.py`, `test_peaks.py`, `test_waveform_zoom.py` (incl. guest overview + snap ACL), `gui/web/src/audio/waveformExtract.test.ts`, `gui/web/src/timeline/drawWaveform.test.ts`, Playwright `e2e/waveform.spec.ts` (host always; guest `/r/{token}` when share tokens exist) |
 | Brand / public CSS | `test_brand_color_roles.py`, `test_public_sites.py`, `test_css_policy.py`, `test_css_no_important.py` |
 | Body / host security hardening | `test_security_hardening.py` (pure ASGI `MaxBodySizeMiddleware`, authz, served_project) |
+| Large-project benchmark fixture | `test_large_project_fixture.py` (`scripts/build_large_project_fixture.py`; two-hour shape under `e2e_real`), Playwright `e2e/large-project.spec.ts` (opt-in) |
+| PCM WAV header | `test_wav_util.py` (`util/wav.py`, shared by record landing and the benchmark fixture) |
 
 Audio integration tests skip automatically when FFmpeg is unavailable.
 
@@ -210,7 +213,7 @@ Read-only tests can still use `e2e_project_file` directly, since they only load 
 
 ## E2E fixture tests
 
-Committed fixtures (Tier A):
+### Committed fixtures (Tier A)
 
 - `tests/fixtures/aligned_dialogue/` — smoke / edits (canned transcript)
 - `tests/fixtures/synthetic_bleed_60s/` — bleed/reconcile/precorrect gold
@@ -245,6 +248,59 @@ Fixture registry: [fixture-catalog.md](fixture-catalog.md). Expansion plan: [e2e
 
 E2e runs use `--no-cov` so they do not affect the coverage gate when run standalone.
 
+### Large-project browser profile (opt-in)
+
+Issue #29 has a disposable performance fixture rather than committed media.
+`scripts/build_large_project_fixture.py` derives it from the
+`aligned_dialogue` project (through `load_project` / `ProjectStore`). Run the
+browser profile against it after building the web frontend:
+
+```bash
+tmp_dir=$(mktemp -d)
+trap 'rm -rf "$tmp_dir"' EXIT
+uv run python scripts/build_large_project_fixture.py --out "$tmp_dir/project"
+(cd gui/web && npm run build)
+DAW_E2E_PROJECT="$tmp_dir/project/episode.project.json" \
+  DAW_BENCHMARK_PROJECT=1 \
+  npm --prefix gui/web run test:e2e -- large-project.spec.ts
+```
+
+Keep the `large-project.spec.ts` file filter: `DAW_E2E_PROJECT` applies to the
+whole Playwright run, so every other spec would otherwise run against the
+benchmark project and fail. The spec skips unless `DAW_BENCHMARK_PROJECT` is
+set, and fails fast when `DAW_E2E_PROJECT` does not point at a generated
+benchmark project. Expected clip and utterance counts are read from the
+project file, so non-default `--clips` / `--utterances` need no matching
+environment variables.
+
+The generated project is two hours long with 1,200 uniquely identified clips
+and 10,000 non-overlapping transcript utterances that strictly alternate
+speakers. It creates sparse silent WAVs with real two-hour source clocks (no
+media blocks are consumed where the filesystem supports sparse files) and flat
+`artifacts/peaks/*.json`, so `/api/peaks` serves waveform data and the timeline
+numbers include waveform drawing. It measures project shape and browser
+surfaces, not audio fidelity. The builder rejects output below
+`tests/fixtures`, an existing output directory, and arguments that would
+produce sub-2 ms clips or words or a WAV beyond the RIFF size limit. It builds
+in a staging directory, so a failure leaves nothing behind.
+
+`initial-load` includes hydration (the `phase=detail` response and the first
+clip). The profile then exercises timeline scroll/seek (last clip in view,
+playhead at session end), transcript scroll/seek (last turn visible, playhead
+moved to its seek time), and history loading (`aria-busy` cleared). Each step
+waits two animation frames before sampling. It prints operation duration, DOM
+node count, and the post-GC Chromium heap from CDP. Those measurements are
+diagnostic only and have no machine-dependent timing threshold; the spec raises
+its own test and `expect` timeouts only to bound a hung run. The GUI writes
+`sync.db` and history into the generated project while it runs, so build a
+fresh one per measurement (the `trap` above deletes it). The history fixture is
+currently empty, so a many-entry history profile and long-duration memory
+tracking remain follow-ups ([ROADMAP.md](../ROADMAP.md) § Follow-up).
+
+`make test` builds a two-minute fixture; the full two-hour shape is checked by
+`test_large_project_fixture_default_two_hour_shape` under the `e2e_real`
+marker (`make e2e-real`).
+
 ## CI
 
 GitHub Actions workflow `.github/workflows/test.yml` runs three parallel jobs on push and pull requests to `main`. **All three must pass** (including Playwright axe) for a green build:
@@ -265,9 +321,55 @@ point at which the request can occur.
 |-----|------|
 | `pytest` | `ruff check` + `ruff format --check` + `bandit` + `vulture` + `deptry` + `mypy` + `pytest -n auto -m "not e2e_slow and not e2e_real"` (Python coverage gate) |
 | `frontend` | In `gui/web`: `npm ci`, `npm run lint` (oxlint + Stylelint tokens/rem/`@container`; `!important`/`@layer` consent-gated), `npm run format:check` (Biome), `npm run typecheck` (strict `tsc`), `npm test` (Vitest + `axe-core` via `expectNoA11yViolations`; keeper PCM/WAV/segment bars in `gui/web/src/record/keeper/`; mix-minus MM1–MM9 in `gui/web/src/audio/mixMinus.test.ts`), `npm run build` |
-| `frontend-e2e` | Build Sharecut Studio, install Chromium, Playwright smoke against a **temp copy** of `aligned_dialogue` (committed uint8 overview JSON under `artifacts/peaks/` so `/api/peaks/` does not need ffmpeg; the copy keeps only `artifacts/peaks/` and skips `history/`, `export/`, `_build/`, `.git`, and sync sqlite — see [§ Fixture hygiene](#fixture-hygiene)). Ordinary loopback Playwright launches leave `podcast gui` unpinned and explicitly provide each temporary `?project=` path, allowing share and record scenarios to use a fresh relocated fixture. `npm run test:e2e` deletes the live copy after Playwright terminates its web server (sqlite stays in the temp workspace — never rewritten in place). Host→guest follow seeds a temp premix and needs `ffmpeg` on PATH to publish the share mix. Presence follow also covers tab follow, chrome ghosts, lane-bottom no-jump, and guest Pipeline/FX degrade (`e2e/presence-follow.spec.ts`). Full-page axe via `expectPageAxeClean` in `gui/web/e2e/axe.ts`. Firefox pending-inspector layout remains [Follow-up](../ROADMAP.md#follow-up) (original #155 report was Firefox @ 1280). |
+| `frontend-e2e` | Build Sharecut Studio, install Chromium + WebKit (`--with-deps`), Playwright smoke against a **temp copy** of `aligned_dialogue` (committed uint8 overview JSON under `artifacts/peaks/` so `/api/peaks/` does not need ffmpeg; the copy keeps only `artifacts/peaks/` and skips `history/`, `export/`, `_build/`, `.git`, and sync sqlite — see [§ Fixture hygiene](#fixture-hygiene)). Ordinary loopback Playwright launches leave `podcast gui` unpinned and explicitly provide each temporary `?project=` path, allowing share and record scenarios to use a fresh relocated fixture. `npm run test:e2e` deletes the live copy after Playwright terminates its web server (sqlite stays in the temp workspace — never rewritten in place). Host→guest follow seeds a temp premix and needs `ffmpeg` on PATH to publish the share mix. Presence follow also covers tab follow, chrome ghosts, lane-bottom no-jump, and guest Pipeline/FX degrade (`e2e/presence-follow.spec.ts`). Full-page axe via `expectPageAxeClean` in `gui/web/e2e/axe.ts`. Then runs the Chromium/WebKit compatibility matrix (`npm run test:e2e:compat`; see [§ Browser compatibility matrix](#browser-compatibility-matrix)). Firefox pending-inspector layout remains [Follow-up](../ROADMAP.md#follow-up) (original #155 report was Firefox @ 1280). |
 
 `expectPageAxeClean(page, selector)` can also check a focused surface; the open transport-menu test scopes its axe check to the menu while unrelated track-header and loading-timeline ARIA names are tracked in #114. Do not disable additional axe rules to hide failures.
+
+### Browser compatibility matrix
+
+After the full fast Playwright suite in bundled Chromium, `frontend-e2e` runs
+the focused `gui/web/e2e-compat/` matrix (`playwright.compat.config.ts`) in
+bundled Chromium and Playwright WebKit. It covers the project shell and playback
+control, the phone listening shell under an `iPhone 13` touch profile (coarse
+pointer, viewport-derived x/y bounds), and the recording guest's
+microphone-consent-to-level path.
+
+The recording check uses `stubSyntheticMicrophone` (`gui/web/e2e/syntheticMicrophone.ts`):
+`getUserMedia` returns a live oscillator track, and the test polls the Level
+meter until it reads a non-zero value. Chromium keeps its native Permissions
+API; WebKit hides `navigator.permissions` so the matrix exercises Safari's
+missing-`permissions.query` branch (`src/record/micPermission.ts`). It does not
+verify native permission prompts, hardware capture, or keeper audio. Record
+rooms and E2E flags come from the shared `gui/web/e2e/recordRoom.ts` helpers.
+This keeps coverage focused on high-risk entry points without multiplying the
+full suite across engines.
+
+The compat config pins `workers: 1` / `fullyParallel: false` (one shared web
+server and live project fixture) and writes to `test-results/compat` so the
+main run's traces survive. `playwright.config.ts`, `playwright.compat.config.ts`,
+`e2e-compat/`, and the shared recording helpers are type-checked through
+`gui/web/tsconfig.e2e.json` as part of `npm run typecheck`.
+
+Run it locally (or use `make test-web-e2e`, which runs both suites):
+
+```bash
+cd gui/web
+npm ci
+npm run test:e2e:install   # chromium + webkit
+npm run build
+npm run test:e2e:compat
+```
+
+Playwright WebKit is a useful Safari-compatible signal, but it is not a test of
+Apple's Safari browser. To exercise an installed branded Chrome locally, set
+`E2E_BRANDED_CHROME=1`; CI intentionally uses the reproducible bundled
+Chromium engine.
+
+Playwright traces (`trace: "retain-on-failure"`) and reports from these runs
+contain guest record-share tokens (`/rec/<token>` URLs and
+`/api/shares/record` responses). CI does not upload them; do not add an
+artifact upload for `gui/web/test-results/` or `playwright-report/` without
+redacting those tokens.
 
 The path-filtered `.github/workflows/desktop.yml` also builds the web distribution,
 runs the portable desktop scaffold checks on Linux, and runs `cargo check` for the
@@ -281,8 +383,8 @@ Local mirrors:
 make lint-py format-py-check typecheck  # Python static gates
 make test         # Python coverage gate
 make test-web     # Sharecut Studio lint + format:check + typecheck + vitest + build
-make test-web-e2e # Playwright smoke + full-page axe (requires `[gui]` extra / uv)
-make test-desktop # Tauri scaffold + rustfmt + clippy --lib + lib tests (optional Rust)
+make test-web-e2e # Playwright smoke + full-page axe + Chromium/WebKit compat matrix (requires `[gui]` extra / uv)
+make test-desktop # Tauri scaffold + sidecar launcher fmt/clippy/rustc --test + rustfmt + clippy --lib + lib tests (optional Rust)
 make desktop-build # Freeze sidecar + installer (local only; not part of make ci)
 make desktop-linux-appimage-docker # Ubuntu 22.04 AppImage (iterate before GHA)
 make ci           # optional full local CI mirror (GitHub Actions is the required gate)

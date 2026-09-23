@@ -39,6 +39,7 @@ flip `tighten.enabled`.
   uses defaults; explicit `[]` disables demotion.
 - **When to cut fillers** — remove **clusters** only (`tighten.min_filler_cluster: 2`, default). Isolated um/uh are left in. Group nearby fillers with `tighten.filler_cluster_gap_sec` (~2s).
 - **Repetitions and restarts** — propose local exact word repeats, repeated phrase prefixes (up to four words), and explicitly marked partial-word cut-offs. Complete filler-lexicon phrases stay in the filler path. These hits always require listen-first, individual approval because emphasis or a meaning change can resemble a restart. They remain separate decisions during coalescing.
+- **Acoustic gap fillers (`filler:acoustic`)** — with `tighten.acoustic_gap_filler.enabled` (default true), propose also flags short voiced runs inside ASR word gaps that the transcript missed. These are **review-only and listen-first**: never auto-applied, never coalesced into neighbouring cuts, and bounded to the detected run (no gap-wide pacing pad). The detector can mistake a breath, laugh, cough, or a missed real word for a filler, so audition each one with `play_pending_preview_tool` before `approve_edits_tool`. Flat hum/rumble and gaps where a peer is speaking are skipped; skip reasons appear as `acoustic:*` in `skip_counts`. The audition context raises an `acoustic_gap_filler` hypothesis per pending hit. Tuning and limits: [docs/filler-cut-quality.md](../../../docs/filler-cut-quality.md) § Acoustic gap candidates.
 - **Leave risky cuts in** — `tighten.leave_in_if_risky: true` (default). Low-confidence boundaries, harsh joins, or low ASR filler confidence → skip the cut. See `docs/filler-cut-quality.md`.
 - **Join continuity gate** — `tighten.join_continuity_gate: true` skips candidates whose `assess_proposed_cut` verdict is `fail`. Use `join_quality_tool` / `podcast edit join-sweep` to audit splices.
 - Max pause to cut: ~1.2s between words (`tighten.max_pause_sec`). Retain floor depends on context: ~0.18s when a peer is speaking in the gap (`min_retained_pause_sec`); ~0.55s for solo same-speaker pauses (`min_retained_solo_pause_sec`) so thinking / list-restart air is not crushed.
@@ -49,7 +50,7 @@ flip `tighten.enabled`.
 - **Per-cut fades** — `recommend_cut_fade_ms` sets each decision's `crossfade_ms` (fade-length hint). Apply sets `join_in_mode=fade` with per-join clip fades capped by `render.join_fade_max_ms` (default 40 ms). Render uses butt splice + `afade`, not overlap.
 - **Breath co-removal** — adjacent breath energy is included in filler/pause cuts when detected (`tighten.breath_handling.enabled`, default true). Detection defaults to an RMS-percentile heuristic; `tighten.breath_handling.vad_backend: silero` opts into Silero-VAD-based detection instead (zero extra install — bundled with `faster-whisper`), with automatic fallback to the heuristic if unavailable. See [docs/audio-engineering.md](../../../docs/audio-engineering.md#silero-vad-breath-detection-opt-in).
 - Apply uses **batch ripple** (one-pass clips + transcript) instead of per-cut ripple loops.
-- **Parallel analysis + audio cache** — `propose-edits` decodes each track's raw audio once (`edits/audio_cache.py`) instead of spawning `ffmpeg` per tiny window read, and analyzes filler, pause, repetition, and restart candidates across all tracks concurrently (`performance.max_workers`, default auto), then applies decisions serially in the original order. See [docs/pipeline.md#performance](../../../docs/pipeline.md#performance).
+- **Parallel analysis + audio cache** — `propose-edits` decodes each track's raw audio once (`edits/audio_cache.py`) instead of spawning `ffmpeg` per tiny window read, gathers candidates per track (including the acoustic gap scan) and analyzes filler, pause, repetition, restart, and acoustic candidates across all tracks concurrently (`performance.max_workers`, default auto), then applies decisions serially in the original order. See [docs/pipeline.md#performance](../../../docs/pipeline.md#performance).
 
 If cuts still sound clicky after tighten: run `fade_joins_tool` or `recommend_fades_tool` (see **podcast-audio-cleanup**).
 
@@ -78,10 +79,11 @@ podcast propose-edits --project episode.project.json
 
 MCP `propose_edits` returns `{operation, edits, skip_counts, summary}`
 (`operation` is `propose_edits`; not a bare array). Report `skip_counts`
-(`discourse:like`, …) as “N discourse uses kept”.
+(`discourse:like`, …) as “N discourse uses kept”, and `filler:acoustic` hits
+separately (“N acoustic, review each”).
 
 4. Review each pending decision listen-first:
-   - Sharecut Studio **Tighten** tab (host): search/filter filler, pause, repetition, and restart hits,
+   - Sharecut Studio **Tighten** tab (host): search/filter filler (incl. `filler:acoustic`), pause, repetition, and restart hits,
      Preview / Skip / Apply one, or Apply eligible with Avoid harsh cuts
      (one `ApproveEdits` batch; skips `review_required` / `:risky` /
      `:join_review`), or

@@ -146,7 +146,18 @@ export function uploadProgressCopy(acked: number, total: number): string {
 }
 
 export const UPLOAD_DONE_COPY =
-  "Landed on the host. Safe to delete the local backup.";
+  "Landed on the host. The local backup is cleared automatically.";
+export const UPLOAD_STALLED_COPY =
+  "Upload stalled. Resume the upload or download the local keeper copy.";
+export const KEEPER_ALL_RECLAIMED_COPY =
+  "Every recorded segment landed on the host and its local copy was cleared, so there is nothing left to download.";
+export const KEEPER_RECLAIM_FAILED_COPY =
+  "Landed on the host, but this browser could not clear the local backup. Free device storage manually before recording again.";
+export const STORAGE_UNKNOWN_COPY =
+  "Storage availability could not be checked. Check your device's free space before recording; if upload fails, download the local keeper.";
+export function storageLowCopy(minutes: number): string {
+  return `Local recording storage is low (estimated space for about ${minutes} minutes of audio). Free space before recording; if upload fails, download the local keeper.`;
+}
 export const UPLOAD_WAITING_TO_LAND_COPY =
   "Uploaded; waiting to land on the host. Keep the local backup.";
 export const UPLOAD_LAND_FAILED_COPY =

@@ -1020,7 +1020,7 @@ class PlayService:
         out_dir.mkdir(parents=True, exist_ok=True)
         # Include snapshot ids so re-recording the same indices cannot reuse
         # stale A/B wavs after history was rewritten (goto + new mutate).
-        entries = list(self.project.history.entries) if self.project.history is not None else []
+        entries = list(self.project.history.entries)
         before_id = entries[before_index].id if 0 <= before_index < len(entries) else ""
         after_id = entries[after_index].id if 0 <= after_index < len(entries) else ""
         pair_key = (

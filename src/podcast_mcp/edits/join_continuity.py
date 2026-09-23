@@ -28,6 +28,7 @@ from podcast_mcp.edits.audio_cache import (
 from podcast_mcp.edits.join_cost_spectral import score_spectral_join
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.util.dsp import autocorr_peak, rms_db
 from podcast_mcp.util.timebase import TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
 
@@ -36,6 +37,11 @@ Verdict = Literal["pass", "review", "fail"]
 _DEFAULT_SIDE_SEC = 0.045
 _CALIBRATE_N = 24
 _CALIBRATE_MARGIN = 1.15
+# Digital-silence level for splice-side measurements (matches 20*log10(1e-20)).
+_SILENT_DB = -400.0
+# Speech F0 search range for the f0_jump detector.
+_F0_MIN_HZ = 70.0
+_F0_MAX_HZ = 400.0
 _DISCLAIMER = (
     "Fail-closed multi-detector join cost (TTS/forensic fusion). "
     "Not PEAQ/POLQA and not a human-ear guarantee - prefer leave-in when unsure."
@@ -154,10 +160,6 @@ def _rms(x: np.ndarray) -> float:
     return float(np.sqrt(np.mean(np.square(x, dtype=np.float64)) + 1e-20))
 
 
-def _rms_db(x: np.ndarray) -> float:
-    return 20.0 * float(np.log10(_rms(x) + 1e-20))
-
-
 def _hann(n: int) -> np.ndarray:
     if n <= 1:  # pragma: no cover
         return np.ones(max(n, 0), dtype=np.float64)
@@ -180,22 +182,10 @@ def _stft_mags(samples: np.ndarray, *, n_fft: int = 256, hop: int = 64) -> np.nd
 def _estimate_f0(samples: np.ndarray, sr: int) -> float | None:
     if samples.size < sr * 0.02 or _rms(samples) < 1e-4:
         return None
-    x = samples.astype(np.float64)
-    x = x - np.mean(x)
-    min_lag = int(sr / 400)
-    max_lag = min(int(sr / 70), x.size // 2)
-    if max_lag <= min_lag + 2:  # pragma: no cover
+    peak = autocorr_peak(samples, sr, fmin=_F0_MIN_HZ, fmax=_F0_MAX_HZ)
+    if peak is None or peak[1] < 0.3:  # pragma: no cover
         return None
-    corr = np.correlate(x, x, mode="full")
-    mid = corr.size // 2
-    seg = corr[mid + min_lag : mid + max_lag]
-    if seg.size == 0:  # pragma: no cover
-        return None
-    lag = int(np.argmax(seg)) + min_lag
-    peak = float(seg[lag - min_lag])
-    if peak < 0.3 * float(corr[mid] + 1e-20):  # pragma: no cover
-        return None
-    return float(sr) / float(lag)
+    return peak[0]
 
 
 def _bicoherence_proxy(left: np.ndarray, right: np.ndarray, sr: int) -> float:
@@ -269,8 +259,8 @@ def score_splice_samples(
             )
         )
 
-    pre_db = _rms_db(left[-min(left.size, int(0.05 * sample_rate)) :])
-    post_db = _rms_db(right[: min(right.size, int(0.05 * sample_rate))])
+    pre_db = rms_db(left[-min(left.size, int(0.05 * sample_rate)) :], floor_db=_SILENT_DB)
+    post_db = rms_db(right[: min(right.size, int(0.05 * sample_rate))], floor_db=_SILENT_DB)
     jump = abs(post_db - pre_db)
     hits.append(
         DetectorHit(
@@ -323,7 +313,7 @@ def score_splice_samples(
         hop = max(1, int(0.01 * sample_rate))
         vals = [_rms(x[i : i + hop]) for i in range(0, max(0, x.size - hop), hop)]
         if not vals:  # pragma: no cover
-            return _rms_db(x)
+            return rms_db(x, floor_db=_SILENT_DB)
         return 20.0 * float(np.log10(float(np.percentile(vals, 10)) + 1e-20))
 
     nf = abs(floor_db(left) - floor_db(right))
@@ -360,7 +350,7 @@ def score_splice_samples(
 
     edge = right[: min(right.size, int(0.03 * sample_rate))]
     if edge.size >= 8:
-        early_db = _rms_db(edge[: max(1, edge.size // 3)])
+        early_db = rms_db(edge[: max(1, edge.size // 3)], floor_db=_SILENT_DB)
         onset_score = _clamp01((early_db + 45.0) / 20.0) if early_db > -50 else 0.0
         hits.append(
             DetectorHit(

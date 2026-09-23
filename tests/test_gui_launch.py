@@ -4,9 +4,14 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from podcast_mcp.services.gui_launch import (
+    PACKAGED_CLI_ENV,
+    PACKAGED_CLI_GUI_REFUSAL,
     ensure_viewer,
     is_viewer_up,
+    packaged_cli_gui_refusal,
     viewer_url,
 )
 
@@ -190,3 +195,57 @@ def test_gui_cli_background(tmp_path: Path) -> None:
         )
     assert result.exit_code == 0
     assert json.loads(result.stdout)["ok"] is True
+
+
+def test_packaged_cli_gui_refusal_only_when_marker_is_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(PACKAGED_CLI_ENV, raising=False)
+    assert packaged_cli_gui_refusal() is None
+    monkeypatch.setenv(PACKAGED_CLI_ENV, "0")
+    assert packaged_cli_gui_refusal() is None
+    monkeypatch.setenv(PACKAGED_CLI_ENV, "1")
+    assert packaged_cli_gui_refusal() == PACKAGED_CLI_GUI_REFUSAL
+
+
+def test_ensure_viewer_refuses_under_packaged_cli(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    proj = tmp_path / "episode.project.json"
+    proj.write_text("{}", encoding="utf-8")
+    monkeypatch.setenv(PACKAGED_CLI_ENV, "1")
+    with patch("podcast_mcp.services.gui_launch.popen") as spawn:
+        result = ensure_viewer(proj, open_browser=False)
+    assert result.ok is False
+    assert result.error == PACKAGED_CLI_GUI_REFUSAL
+    spawn.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["gui", "--no-open"],
+        ["--no-progress", "gui", "--no-open"],
+        ["--json-progress", "gui", "--background", "--project", "PROJECT"],
+    ],
+)
+def test_packaged_cli_refuses_gui_after_root_options(
+    argv: list[str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from typer.testing import CliRunner
+
+    from podcast_mcp.cli.main import app
+
+    proj = tmp_path / "episode.project.json"
+    proj.write_text("{}", encoding="utf-8")
+    monkeypatch.setenv(PACKAGED_CLI_ENV, "1")
+    argv = [str(proj) if a == "PROJECT" else a for a in argv]
+    with (
+        patch("podcast_mcp.cli.gui.ensure_viewer") as ensure,
+        patch("podcast_mcp.gui.bind.run_gui_server") as serve,
+    ):
+        result = CliRunner().invoke(app, argv)
+    assert result.exit_code == 2
+    assert PACKAGED_CLI_GUI_REFUSAL in result.stderr
+    ensure.assert_not_called()
+    serve.assert_not_called()

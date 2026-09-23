@@ -162,6 +162,7 @@ def apply_filler_pacing(
     *,
     defaults: dict[str, Any] | None = None,
     cut_kind: str = "filler",
+    allow_gap_expand: bool = True,
 ) -> FillerPacingResult | None:
     """Enforce post-filler pacing; return adjusted cut or ``None`` to skip.
 
@@ -171,6 +172,12 @@ def apply_filler_pacing(
       (``filler_pad_mode``: silence by default, or room_tone). Pad keeps a
       fraction of the original gap (floor/cap) so long hesitations stay airy.
     * ``pause`` - no-op (pause candidates already use ``min_retained_pause_sec``).
+
+    ``allow_gap_expand=False`` skips the room-tone expansion even when
+    ``filler_room_tone_replace`` is on: the cut only shrinks to keep
+    ``min_gap_after_filler_sec`` and no pad is added. Strictly bounded
+    candidates (``filler:acoustic``) use this so the edit can never widen onto
+    the rest of the gap or leave a longer pause than the original.
     """
     if cut_kind in {"pause", "repeat", "restart"}:
         return FillerPacingResult(start=cut_start, end=cut_end)
@@ -187,7 +194,7 @@ def apply_filler_pacing(
     if prev is None or nxt is None:
         return FillerPacingResult(start=cut_start, end=cut_end)
 
-    replace = bool(cfg.get("filler_room_tone_replace", True))
+    replace = allow_gap_expand and bool(cfg.get("filler_room_tone_replace", True))
     margin_ms = float(
         (defaults or load_defaults()).get("inaudible_cuts", {}).get("min_word_margin_ms", 5)
     )

@@ -147,12 +147,31 @@ def set_envelope(
     project_path: str,
     track_id: str,
     points_json: str,
+    expected_points_json: str | None = None,
 ) -> str:
-    """Set the volume automation envelope for a track from JSON points."""
-    ws = ProjectWorkspace.open(project_path)
-    raw = json.loads(points_json)
-    n = PipelineService(ws).set_envelope(track_id, raw)
-    return f"Envelope set for {track_id} ({n} points)"
+    """Set the volume automation envelope for a track from JSON points.
+
+    Submits a ``SetEnvelope`` document command (same lock, conflict check, undo
+    history, and GUI fanout as a DAW edit). ``expected_points_json`` is the
+    ``[{id, time, value}]`` list you last read; if the envelope changed since,
+    the call fails with a conflict instead of overwriting the edit. When
+    omitted, the envelope as read at call time is the baseline.
+    """
+    from podcast_mcp.edits.envelopes import volume_envelope_baseline
+    from podcast_mcp.mcp.tools.agent_document import submit_host_document_command
+
+    if expected_points_json is None:
+        expected = volume_envelope_baseline(ProjectWorkspace.open(project_path).project, track_id)
+    else:
+        expected = json.loads(expected_points_json)
+    result = submit_host_document_command(
+        project_path,
+        "SetEnvelope",
+        {"track_id": track_id, "points": json.loads(points_json), "expected_points": expected},
+    )
+    payload = (result.get("command") or {}).get("payload") or {}
+    count = (payload.get("result") or {}).get("count", 0)
+    return f"Envelope set for {track_id} ({count} points)"
 
 
 def render_preview(project_path: str, rerender: bool = True) -> str:

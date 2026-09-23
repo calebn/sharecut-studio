@@ -82,7 +82,7 @@ Open the in-app cheatsheet with **?** while Sharecut Studio is focused.
 | `ArrowDown` | Move track down (`track.moveDown`) | canMoveSelectedTrackDown | Inspector track selected |
 | `Backspace` | Delete clip (`edit.delete`) | Structural edits allowed |  |
 | `Mod+Backspace` | Ripple delete clip (`edit.rippleDelete`) | Structural edits allowed | Mod+Backspace |
-| `Mod+K` | Blade cut at playhead (`edit.bladeCut`) | Structural edits allowed | Mod+K — cut at playhead |
+| `Mod+K` | Blade cut (`edit.bladeCut`) | Structural edits allowed | Mod+K — cut at playhead |
 | `Mod+A` | Select all tracks (`track.selectAll`) | Timeline focused | Mod+A — Logic-style track targeting |
 | `Mod+Shift+A` | Deselect all tracks (`track.deselectAll`) | Timeline focused | Mod+Shift+A — Logic-style; empty targeting |
 | `M` | Toggle track mute (`track.muteToggle`) | Project loaded |  |
@@ -106,8 +106,8 @@ Open the in-app cheatsheet with **?** while Sharecut Studio is focused.
 |----------|---------|------|-------|
 | `M` | Record marker (`record.marker`) | recordPanelOpen | M — live marker while the record panel is open; with the panel closed, M still mutes the targeted track |
 | `?` | Command cheatsheet (`ui.toggleCommandPalette`) | Always (when not typing in an input) | Also Shift+/ |
-| `Mod+Shift+B` | Bounce… (`export.bounce`) | Host project management | Mod+Shift+B — bounce dialog (export/bounces/) |
-| `Mod+Shift+E` | Export deliverables (`export.deliverables`) | Host project management | Mod+Shift+E — mastered export/ via PipelineService |
+| `Mod+Shift+B` | Bounce… (`export.bounce`) | Loaded host project | Mod+Shift+B — bounce dialog (export/bounces/) |
+| `Mod+Shift+E` | Export deliverables (`export.deliverables`) | Loaded host project | Mod+Shift+E — mastered export/ via PipelineService |
 | `Mod+N` | New project (`project.new`) | Host project management | Mod+N |
 | `Mod+O` | Open project (`project.open`) | Host project management | Mod+O — OS dialog via local engine; paste path fallback |
 
@@ -129,13 +129,13 @@ Available via toolbar / `execute` (and the in-app palette). Agents use session/d
 | Cycle focus mode | `focus.cycle` | Always (when not typing in an input) |  |
 | Confirm blade cut | `edit.bladeCut.confirm` | Structural edits allowed |  |
 | Cancel blade cut | `edit.bladeCut.cancel` | Always (when not typing in an input) |  |
-| Share… | `share.manage` | Host project management | Open host share dialog — live links, create, revoke |
+| Share… | `share.manage` | Loaded host project | Open host share dialog — live links, create, revoke |
 | Start recording | `record.start` | Host project management |  |
 | Pause recording | `record.pause` | Host project management |  |
 | Resume recording | `record.resume` | Host project management |  |
 | Stop recording | `record.stop` | Host project management |  |
 | Land recording on timeline | `record.land` | Host project management |  |
-| Record panel | `record.openPanel` | Host project management |  |
+| Record panel | `record.openPanel` | Loaded host project |  |
 | Connect agent… | `mcp.connect` | Host project management | Copy local Streamable HTTP MCP URL for Cursor/Claude |
 | Help… | `help.diagnosticsBundle` | Host project management | Host-only sanitized diagnostics zip for bug reports |
 | Reorder track | `track.reorder` | Media ingest allowed | Args: { trackId?, index } — ReorderTrack; drag headers use skipWhen |

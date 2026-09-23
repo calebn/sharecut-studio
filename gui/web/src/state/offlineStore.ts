@@ -1,5 +1,7 @@
 /** Minimal IndexedDB helpers for offline snapshot + command queue. */
 
+import { chainQueuedEnvelopeBaseline } from "./queuedEnvelopeBaseline";
+
 const DB_NAME = "podcast-daw-offline";
 const DB_VERSION = 1;
 const STORE = "kv";
@@ -283,7 +285,7 @@ export async function enqueueHostCommand(
           result: { persisted: true, hadPredecessor: existingIndex > 0 },
         };
       }
-      const queue = [...existing, cmd];
+      const queue = [...existing, chainQueuedEnvelopeBaseline(existing, cmd)];
       const hadPredecessor = existing.length > 0;
       return { queue, result: { persisted: true, hadPredecessor } };
     });

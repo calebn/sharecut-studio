@@ -12,6 +12,7 @@ from podcast_mcp.engines.peaks import (
     generate_peaks,
     schedule_track_peaks,
     wait_peaks_jobs,
+    write_silent_peaks,
 )
 from podcast_mcp.models import MediaAsset, Track
 from podcast_mcp.services.workspace import ProjectWorkspace
@@ -136,3 +137,22 @@ def test_shutdown_peaks_pool_is_idempotent():
     _peaks_pool()
     _shutdown_peaks_pool()
     _shutdown_peaks_pool()
+
+
+def test_write_silent_peaks_is_current_for_its_source(tmp_path):
+    audio = tmp_path / "silent.wav"
+    audio.write_bytes(b"RIFF")
+    out = write_silent_peaks(audio, tmp_path / "peaks" / "silent.json", 2.0)
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["source"] == str(audio)
+    assert payload["source_size"] == 4
+    assert payload["bins_per_sec"] == overview_bins_per_sec()
+    assert payload["peaks"] == [0] * int(2.0 * overview_bins_per_sec())
+
+
+def test_write_silent_peaks_records_source_override(tmp_path):
+    audio = tmp_path / "staging.wav"
+    audio.write_bytes(b"RIFF")
+    final = tmp_path / "final" / "raw.wav"
+    out = write_silent_peaks(audio, tmp_path / "silent.json", 1.0, source=final)
+    assert json.loads(out.read_text(encoding="utf-8"))["source"] == str(final)

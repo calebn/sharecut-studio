@@ -1,21 +1,21 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { sampleParticipant } from "../test/fixtures";
+import { recordParticipant } from "../test/fixtures";
 import { HostUploadRoster } from "./HostUploadRoster";
 
 // Factories, not shared constants: each story gets fresh objects so a future
 // `play` function cannot leak mutations into sibling stories.
 const host = () =>
-  sampleParticipant({
+  recordParticipant({
     participant_id: "host-1",
     role: "host",
     display_name: "Ada",
   });
 
 const guest = () =>
-  sampleParticipant({ participant_id: "guest-1", display_name: "Bo" });
+  recordParticipant({ participant_id: "guest-1", display_name: "Bo" });
 
 const producer = () =>
-  sampleParticipant({
+  recordParticipant({
     participant_id: "prod-1",
     role: "producer",
     display_name: "Cy",
@@ -222,13 +222,13 @@ export const StressLongNamesMobile: Story = {
   args: {
     participants: [
       ...longNames.map((display_name, index) =>
-        sampleParticipant({
+        recordParticipant({
           participant_id: `p_${index}`,
           role: index === 0 ? "host" : "guest",
           display_name,
         }),
       ),
-      sampleParticipant({
+      recordParticipant({
         participant_id: "p_removed",
         display_name: "Departed Guest From An Earlier Take",
         connected: false,

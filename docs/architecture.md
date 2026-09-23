@@ -26,7 +26,7 @@ Models                   models/  (EpisodeProject, snapshots)
 11. **Extensions** (`podcast_mcp.extensions`) — public FeatureRegistry / soft-load SPI; built-in FOSS `collaboration` extension; optional independently installed provider extension named `online`; example stub. `collaboration` composes share CLI/MCP, anonymous guest identity, review/record/remote-MCP routes, guest SPA hooks, and share/tunnel feature slots. `online` contributes only provider account/auth surfaces. Absent extension ⇒ no contributed routes/tools/UI ([extension-seams.md](extension-seams.md)). FOSS share mint works against any self-hosted relay; provider defaults, accounts, and quotas remain outside this repository.
 12. **Relay** (`podcast_relay`) — FOSS host-online reverse tunnel edge (`podcast-relay`); host connects via `podcast tunnel` (`services/tunnel.py`). Packaging: `deploy/relay/` plus static vhosts (`/download`, Sharecut marketing, company page). See [host-online-relay.md](host-online-relay.md).
 
-Shared utilities: `project_store.py` (canonical load/commit), `project_io.py`, `history/session.py`, `util/`, `export/`.
+Shared utilities: `project_store.py` (canonical load/commit), `project_io.py`, `history/session.py`, `util/` (incl. `util/dsp.py` — shared RMS dB, pitch autocorrelation, and boolean-run primitives; reuse them instead of private copies in `edits/` / `engines/`), `export/`.
 
 **Configuration seam:** `runtime_config.py` validates host relay and optional
 S3-compatible storage. Relay fields use explicit > environment > YAML > safe
