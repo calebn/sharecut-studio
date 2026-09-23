@@ -19,14 +19,14 @@ Sharecut Studio tokens: [`gui/web/src/styles/theme/`](https://github.com/calebn/
 
 ## Planes (information hierarchy)
 
-Paint and markup share one stack. **Chrome panes** (transport, headers, bottom tabs, inspector, status) sit on surface — lighter / “up.” The **timeline well** is recessed: `--color-bg-lane` is **darker** than surface in both themes so arranging and reading don’t share one flat slab. Elevated sheets are temporary objects above surface. Timeline `--z-*` is **paint order** on the mixer, not chrome elevation.
+Paint and markup share one stack. **Chrome panes** (transport, headers, bottom tabs, inspector, status) sit on surface. The timeline uses a dark `--color-timeline-*` well in either app theme, with light chrome surrounding it when light mode is selected. Raised and overlay surfaces use named shadows. Timeline `--z-*` is paint order on the mixer, not chrome elevation.
 
 | Plane | Meaning | Markup | Token |
 |-------|---------|--------|-------|
 | Canvas | Place — the floor | `.cover`, `body` | `--color-bg-canvas` |
 | Surface | Chrome panes / durable cards | `.box`, transport, tabs, inspector | `--color-bg-surface` |
 | Elevated | Temporary object (form, coach, compose) | `.box.elevated` | `--color-bg-elevated` |
-| Lane | Recessed work well (ruler → lanes / empty drop) | `.time-ruler`, `.marker-lane`, `.lane-row`, `.timeline-scroll` | `--color-bg-lane` |
+| Lane | Recessed dark work well (ruler → lanes / empty drop) | `.time-ruler`, `.marker-lane`, `.lane-row`, `.timeline-scroll` | `--color-timeline-*` |
 | Accent | Act — do this | `.primary`, links, focus | `--color-accent*` |
 | Function | State | `role="alert"`, `.badge`, danger / warning | `--color-danger` / `--color-warning` |
 
@@ -43,7 +43,7 @@ Change hex in [`deploy/brand/brand-tokens.css`](https://github.com/calebn/sharec
 | Canvas / surface / elevated | Linen paper (light) or smoked graphite (dark) — not icy SaaS gray, not brown cave, not `#000` / `#fff`. Copper is the only warm metal. |
 | Ink / muted | Cream or ink; cooler muted for secondary copy so copper can pop |
 | Accent | Copper (new penny) for links and focus |
-| Accent solid | Brighter copper fill; light label ≥ **4.5:1** — not chocolate brown |
+| Accent solid | Button fill with on-color text ≥ **4.5:1**; light mode uses a darker variant of the decorative orange |
 | Border strong | Plate edge on `.box` (≥ **3:1** vs the plate fill) |
 | Danger / warning | Destructive vs attention only |
 
@@ -53,7 +53,7 @@ Light and dark are the same room with the lights up or down.
 
 ## Type
 
-System UI or one grotesque. Optional serif on the **product wordmark** only. No display font of the year. No pill radii (`border-radius: 999px`) on marketing.
+Studio bundles IBM Plex Sans for body and IBM Plex Mono for labels and timecodes. Numeric readouts use tabular numerals. The existing display serif is reserved for prominent headings. No pill radii (`border-radius: 999px`) on marketing.
 
 ## Space and measure
 
@@ -105,13 +105,13 @@ Sharecut Studio chrome uses one paint primitive: **`.ui-control`** (see [`gui/we
 | Hover | Fine pointer only | Lighten ink / strengthen border. `@media (hover: hover) and (pointer: fine)` so touch does not stick hover. **Never** the only cue that something is clickable |
 | Focus-visible | Keyboard (and programmatic) focus | **2.4.7** Focus Visible. 2px `outline` in `--color-accent`, offset 2px. Use `:focus-visible`, not `:focus` |
 | Active (while down) | Pointer down / Space on a button | Brief darker/stronger press. Works on touch |
-| Pressed / selected / current | Sticky mode (Focus, Follow, Annotate, tab, Mix/FX/Raw, M/S) | Visible without hover: accent border + `--color-accent-muted` fill. Use `aria-pressed` / `aria-current` / `aria-expanded`, not color alone |
+| Pressed / selected / current | Sticky mode (Focus, Follow, Annotate, tab, Mix/FX/Raw, M/S) | Visible without hover: neutral border or inverted fill. Use `aria-pressed` / `aria-current` / `aria-expanded`, not color alone |
 | Disabled | Cannot run | `cursor: not-allowed`; reduced opacity is an allowed WCAG exception. Prefer remaining enabled and explaining *why* when the user might try |
 | Busy | In-flight | `aria-busy` + label change (Creating… / Downloading…). Keep the control focusable |
 | Open | Menus, More, sheets | `aria-expanded`; panel is the confirmation |
 | Error | Failed act | `role="alert"` + danger ink |
 
-Accent = “you can act / you are acting.” Function colors stay mute/solo/stale/danger.
+Accent identifies actions and focus. Function colors stay mute/solo/stale/danger. Motion uses `--motion-*` timing under `prefers-reduced-motion: no-preference`; reduced-motion views change state immediately.
 
 ## Units
 
@@ -127,7 +127,7 @@ Prefer layout that wraps from leftover space (`flex-wrap` + `gap` + `flex-basis`
 
 **Do** use tokens. **Do** keep light and dark as the same room. **Do** keep reading surfaces axe-clean **including color-contrast** (do not copy the dense-DAW Playwright exemptions).
 
-**Don’t** use full-pill radii (`999px`, huge rem, or `9999px` without `-- user-approved:`), purple SaaS gradients, coral/maroon CTAs, or copper on the playhead. **Don’t** copy Descript or Riverside. **Don’t** apply 60ch inside the timeline. **Don’t** hardcode chrome padding/type/color — add a token or snap to the nearest step. **Don’t** use `!important` or CSS `@layer` unless cascade review plus a `stylelint-disable` with `-- user-approved:` (not a third theme file).
+**Don’t** use full-pill radii (`999px`, huge rem, or `9999px` without `-- user-approved:`), loud gradients, or heavy glass effects. **Don’t** copy Descript or Riverside. **Don’t** apply 60ch inside the timeline. **Don’t** hardcode chrome padding/type/color — add a token or snap to the nearest step. **Don’t** use `!important` or CSS `@layer` unless cascade review plus a `stylelint-disable` with `-- user-approved:` (not a third theme file).
 
 ## How to add a page
 

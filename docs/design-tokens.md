@@ -64,6 +64,11 @@ literals. Never force layout geometry (`width`, `min-height`) onto `--space-*`.
 
 **Elevation** — `--shadow-<role>`, `--z-<role>` (`--z-sheet`, `--z-playhead`).
 
+**Motion** — `--motion-hover` (150ms), `--motion-toggle` (200ms),
+`--motion-panel` (300ms), and `--motion-state` (400ms) with
+`--motion-ease-out`. Animate only inside `prefers-reduced-motion: no-preference`;
+essential state changes remain immediate with reduced motion.
+
 ## Surface ladder
 
 Backgrounds stack in five named rungs — a fixed semantic ladder, not an open
@@ -78,6 +83,24 @@ category-first pattern (`bg` category, rung as role).
 | **raised** | `--color-bg-raised` | Cards, panels, lanes that sit above base. (Replaces `--color-bg-elevated`.) |
 | **overlay** | `--color-bg-overlay` | Menus, dialogs, popovers, toasts, bottom sheets — anything floating above the app. |
 | **sunken** | `--color-bg-sunken` | Recessed wells, inputs, code blocks — visually *below* base. |
+
+The #20 polish pass implements this ladder alongside the older shared brand
+names. The timeline has separate `--color-timeline-*` roles: its dark well,
+lane, border, text, waveform gradient, and playhead stay dark in both app
+themes, while the surrounding chrome follows the selected theme. Raised,
+floating, and modal objects use `--shadow-raised`, `--shadow-floating`, and
+`--shadow-modal`; the modal panel also uses restrained backdrop blur.
+
+The palette follows the DAW UX briefing: warm paper canvas and near-white
+surfaces in light mode; graphite layers in dark mode; orange for actions and
+teal for positive signals and dialogue. The light decorative orange
+`#df4b28` is too light for small white button text, so filled controls use
+`#c33b1f` with `#fff9f5` (at least 4.5:1). `--color-accent-fg` uses a darker
+orange for small text on light surfaces. `tests/test_brand_color_roles.py`
+checks the contrast pairs. Studio bundles IBM Plex Sans and IBM Plex Mono
+locally; timecodes and numeric inspector values use the mono family and
+tabular numerals. The existing display serif remains limited to prominent
+titles.
 
 Research basis (surface conventions only): Material Design 3's tonal surface
 scale (`surface-dim` → containers → `surface-bright`, elevation as tone

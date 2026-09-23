@@ -210,7 +210,7 @@ export function useAudioTransport(enabled = true): void {
         // Tracks without source media have nothing to play. The absent premix
         // is expected until audio exists (#78).
         if (projectHasSourceAudio(project)) {
-          setAudioError("No premix — run Pipeline or render-preview");
+          setAudioError("No premix. Run Pipeline or render-preview");
         }
         return;
       }
@@ -416,7 +416,7 @@ export function useAudioTransport(enabled = true): void {
             e instanceof DOMException && e.name === "NotAllowedError";
           setAudioError(
             blocked
-              ? "Browser blocked autoplay — click Play in the transport"
+              ? "Browser blocked autoplay. Click Play in the transport"
               : msg,
           );
           setIsPlaying(false);
@@ -524,7 +524,7 @@ export function useAudioTransport(enabled = true): void {
                       e instanceof DOMException && e.name === "NotAllowedError";
                     setAudioError(
                       blocked
-                        ? "Browser blocked autoplay — click Play in the transport"
+                        ? "Browser blocked autoplay. Click Play in the transport"
                         : msg,
                     );
                     setIsPlaying(false);

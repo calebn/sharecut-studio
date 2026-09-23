@@ -2,17 +2,17 @@
 .lane-row {
   position: relative;
   height: var(--lane-height);
-  background: var(--bg-lane);
-  border-bottom: 1px solid var(--border);
+  background: var(--color-timeline-lane);
+  border-bottom: 1px solid var(--color-timeline-border);
 }
 
 .lane-row.muted {
-  background: var(--bg-lane-muted);
+  background: var(--color-timeline-lane-muted);
 }
 
 .timeline-skeleton-lane {
-  background: var(--bg-lane-muted);
-  opacity: 0.55;
+  background: var(--bg-timeline-skeleton);
+  background-size: 200% 100%;
 }
 
 .lane-seek {
@@ -51,6 +51,16 @@
   padding: var(--space-1) var(--space-2);
   /* Above applied-tick (z=2); join diamond / trim handles sit above clip-hit. */
   z-index: 3;
+}
+
+.clip-block::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: var(--bg-timeline-clip-sheen);
 }
 
 .clip-hit {
@@ -444,12 +454,12 @@ button.join-diamond {
 .marker-lane {
   position: relative;
   height: var(--marker-lane-height);
-  background: var(--bg-lane);
-  border-bottom: 1px solid var(--border);
+  background: var(--color-timeline-lane);
+  border-bottom: 1px solid var(--color-timeline-border);
 }
 
 .marker-lane.empty {
-  opacity: 0.4;
+  background: var(--color-timeline-well);
 }
 
 .marker-row {
@@ -596,8 +606,8 @@ button.join-diamond {
   position: relative;
   height: 1.5rem;
   /* Same recessed well as lanes — avoids a surface strip + dark fit-gutter edge. */
-  background: var(--bg-lane);
-  border-bottom: 1px solid var(--border);
+  background: var(--color-timeline-well);
+  border-bottom: 1px solid var(--color-timeline-border);
   cursor: pointer;
   overflow: hidden;
 }
@@ -606,14 +616,32 @@ button.join-diamond {
   position: absolute;
   top: 0;
   height: 100%;
-  border-left: 1px solid var(--border);
+  border-left: 1px solid var(--color-timeline-border);
   font-size: var(--font-size-micro);
-  color: var(--text-dim);
+  color: var(--color-timeline-text);
   padding-left: var(--space-1);
   padding-right: var(--space-1);
   white-space: nowrap;
   box-sizing: border-box;
   pointer-events: none;
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .timeline-skeleton-lane {
+    animation: timeline-shimmer 1.6s linear infinite;
+  }
+
+  .playhead {
+    transition: left var(--motion-hover) linear;
+  }
+}
+
+@keyframes timeline-shimmer {
+  to {
+    background-position: -200% 0;
+  }
 }
 
 .ruler-tick--end {
@@ -621,7 +649,7 @@ button.join-diamond {
   padding-left: 0;
   text-align: right;
   border-left: none;
-  border-right: 1px solid var(--border);
+  border-right: 1px solid var(--color-timeline-border);
 }
 
 .time-ruler.comment-mode {

@@ -143,7 +143,7 @@ export function TrackInspector({
           <TrackMuteSoloButtons trackId={track.id} />
         </div>
         <p className="track-sheet-gain">
-          Gain {track.gain_db.toFixed(1)} dB — drag Levels, then edit the
+          Gain {track.gain_db.toFixed(1)} dB. Drag Levels, then edit the
           selected point in the inspector
         </p>
       </div>

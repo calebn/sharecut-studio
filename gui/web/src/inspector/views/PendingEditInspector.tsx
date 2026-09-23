@@ -223,7 +223,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
     >
       <DefinitionList>
         <DefItem label="Type">{edit.type}</DefItem>
-        <DefItem label="Reason">{edit.reason ?? "—"}</DefItem>
+        <DefItem label="Reason">{edit.reason ?? "Not provided"}</DefItem>
         {isSplit ? (
           <>
             <DefItem label="Cut time (timeline)">

@@ -34,7 +34,7 @@ export function GesturesSheet({
           <div key={g.gesture} className="gesture-item">
             <dt className="gesture-name">{g.gesture}</dt>
             <dd className="gesture-detail">
-              <strong>{gestureLabel(g)}</strong> — {g.description}
+              <strong>{gestureLabel(g)}</strong>: {g.description}
             </dd>
           </div>
         ))}

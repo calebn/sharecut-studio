@@ -243,7 +243,9 @@ export function TightenPanel() {
                     </td>
                     <td>{trackLabel(hit.track_id)}</td>
                     <td>{hit.tightenClass}</td>
-                    <td className="tighten-snippet">{hit.snippet || "—"}</td>
+                    <td className="tighten-snippet">
+                      {hit.snippet || "No snippet"}
+                    </td>
                     <td>
                       <span
                         className={`tighten-badge tighten-badge--${hit.riskBadge}`}

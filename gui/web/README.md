@@ -88,13 +88,20 @@ Semantic CSS variables live under `src/styles/theme/`:
 |------|------|
 | `brand-tokens.css` | Shared scale + brand `--color-*` (sync-copy from `deploy/brand/`; self-contained — see below) |
 | `primitives.css` | **Primitive tier:** raw `--primitive-*` literals, theme-invariant; never `var()`, never consumed by components |
-| `tokens.css` | Sharecut Studio-only scales (`--space-*`, `--font-size-*`, `--z-*`), layout dims, legacy aliases |
+| `tokens.css` | Sharecut Studio-only scales (`--space-*`, `--font-size-*`, `--motion-*`, `--z-*`), layout dims, legacy aliases |
 | `theme-dark.css` | **Semantic tier:** dark `--color-*` roles mapped onto primitives |
 | `theme-light.css` | **Semantic tier:** light `--color-*` roles + `prefers-color-scheme` when no `data-theme` |
-| `../theme.css` | Imports brand-tokens, primitives, then the three above |
+| `../theme.css` | Imports bundled IBM Plex fonts, brand-tokens, primitives, then the three above |
 
 Naming system (tiers, patterns, state modifiers, minting rules):
 [docs/design-tokens.md](../../docs/design-tokens.md).
+
+The timeline consumes its own dark `--color-timeline-*` roles in both app
+themes. Chrome uses the semantic surface ladder (`base`, `raised`, `overlay`,
+`sunken`, `inverted`) and named shadow levels. Hover, toggle, panel, and state
+motion share `--motion-*` tokens and run only when reduced motion is not
+requested. Playwright's `e2e/design-polish.spec.ts` checks both themes and
+the reduced-motion path.
 
 Root switching (same CSS contract as marketing):
 

@@ -114,7 +114,7 @@ describe("tighten commands", () => {
     });
     expect(result).toEqual({ status: "ok" });
     expect(window.confirm).toHaveBeenCalledWith(
-      "Apply 1 of 2 — 1 skipped as harsh",
+      "Apply 1 of 2; 1 skipped as harsh",
     );
     expect(approveEdits).toHaveBeenCalledTimes(1);
     expect(approveEdits).toHaveBeenCalledWith("/tmp/p.json", ["e1"]);

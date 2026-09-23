@@ -370,7 +370,7 @@ describe("RecordApp", () => {
     const { container } = render(<RecordApp token="prod-tok" />);
     await waitFor(() => {
       expect(
-        screen.getByRole("heading", { name: "Producer — not recorded" }),
+        screen.getByRole("heading", { name: "Producer (not recorded)" }),
       ).toBeInTheDocument();
     });
     expect(
@@ -383,7 +383,7 @@ describe("RecordApp", () => {
     expect(screen.queryByText(ROOM_TONE_PROMPT_COPY)).toBeNull();
     expect(getUserMedia).not.toHaveBeenCalled();
     await waitFor(() => {
-      expect(document.title).toBe("Producer — not recorded — Shot of Truth");
+      expect(document.title).toBe("Producer (not recorded) | Shot of Truth");
     });
     expect(sockets).toHaveLength(0);
     expect(closeGuardSpy).toHaveBeenLastCalledWith(false, "guest", false);
@@ -488,7 +488,7 @@ describe("RecordApp", () => {
     const { unmount } = render(<RecordApp token="prod-tok" />);
 
     await waitFor(() => {
-      expect(document.title).toBe("Producer — not recorded — Shot of Truth");
+      expect(document.title).toBe("Producer (not recorded) | Shot of Truth");
     });
     unmount();
     expect(document.title).toBe("Sharecut Studio");

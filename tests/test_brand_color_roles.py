@@ -270,15 +270,15 @@ def test_theme_light_prefers_matches_data_theme() -> None:
 
 
 def test_daw_functional_accent_follows_brand_var() -> None:
-    """Echo brand accent where the hue is the same; light fg uses a contrast primitive."""
+    """Keep small accent text legible and reserve badges for neutral status."""
     dark = _color_props(_first_rule_body(THEME_DARK.read_text(encoding="utf-8"), DARK_SELECTOR))
     assert dark["--color-accent-fg"] == "var(--color-accent)"
-    assert dark["--color-badge-fg"] == "var(--color-accent)"
+    assert dark["--color-badge-fg"] == "var(--color-text-secondary)"
     assert dark["--color-selection"] == "var(--color-accent)"
 
-    primitive = "--primitive-orange-700"
+    primitive = "--primitive-orange-750"
     primitive_value = _custom_property_value(PRIMITIVES_CSS.read_text(encoding="utf-8"), primitive)
-    assert primitive_value == "#8a4a20"
+    assert primitive_value == "#b13a1e"
 
     light_css = THEME_LIGHT.read_text(encoding="utf-8")
     light_rules = (
@@ -289,4 +289,36 @@ def test_daw_functional_accent_follows_brand_var() -> None:
         light = _color_props(light_rule)
         assert light["--color-selection"] == "var(--color-accent)"
         assert light["--color-accent-fg"] == f"var({primitive})"
-        assert light["--color-badge-fg"] == f"var({primitive})"
+        assert light["--color-badge-fg"] == "var(--color-text-secondary)"
+
+
+def _contrast_ratio(first: str, second: str) -> float:
+    def luminance(value: str) -> float:
+        channels = [int(value[index : index + 2], 16) / 255 for index in (1, 3, 5)]
+        linear = [
+            channel / 12.92 if channel <= 0.04045 else ((channel + 0.055) / 1.055) ** 2.4
+            for channel in channels
+        ]
+        return sum(
+            weight * channel
+            for weight, channel in zip((0.2126, 0.7152, 0.0722), linear, strict=True)
+        )
+
+    lighter, darker = sorted((luminance(first), luminance(second)), reverse=True)
+    return (lighter + 0.05) / (darker + 0.05)
+
+
+def test_design_palette_preserves_text_and_action_contrast() -> None:
+    """The visual target's decorative accent needs a darker filled action in light mode."""
+    light = brand_light_data_roles()
+    dark = brand_dark_roles()
+    assert light["--color-bg-canvas"] == "#f4f1eb"
+    assert light["--color-bg-surface"] == "#fffdf9"
+    assert light["--color-accent"] == "#df4b28"
+    assert dark["--color-bg-canvas"] == "#111313"
+    assert dark["--color-accent"] == "#ff6d48"
+    for roles in (light, dark):
+        assert _contrast_ratio(roles["--color-text-primary"], roles["--color-bg-surface"]) >= 4.5
+        assert (
+            _contrast_ratio(roles["--color-accent-on-solid"], roles["--color-accent-solid"]) >= 4.5
+        )

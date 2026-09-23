@@ -18,4 +18,14 @@ describe("Icon", () => {
     expect(svg?.getAttribute("role")).toBe("img");
     expect(svg?.getAttribute("aria-hidden")).toBeNull();
   });
+
+  it.each(["play", "pause", "stop"] as const)(
+    "uses the shared stroke contract for %s",
+    (name) => {
+      const { container } = render(<Icon name={name} />);
+      const svg = container.querySelector("svg");
+      expect(svg).toHaveAttribute("stroke", "currentColor");
+      expect(svg).toHaveAttribute("stroke-width", "1.75");
+    },
+  );
 });

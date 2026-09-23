@@ -375,7 +375,7 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   },
   "daw.view.cutAwayWord": {
     label: "Cut-away word",
-    tooltip: "Cut away — not in the mix · drag nearby boundary to restore",
+    tooltip: "Cut away: not in the mix · drag nearby boundary to restore",
   },
 };
 

@@ -55,7 +55,7 @@ def _keymap_chords() -> dict[str, str]:
         ]
         primary = key_vals[0] if key_vals else ""
         if notes_m:
-            head = re.split(r"\s+[—\-]", _unescape_ts_string(notes_m.group(1)), maxsplit=1)[
+            head = re.split(r"(?:\s+[—\-]|:)", _unescape_ts_string(notes_m.group(1)), maxsplit=1)[
                 0
             ].strip()
             if (

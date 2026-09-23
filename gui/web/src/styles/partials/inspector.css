@@ -1,9 +1,10 @@
 /* Inspector / modifier chrome */
 .inspector {
-  background: var(--bg-panel);
+  background: var(--color-bg-raised);
   border-left: 1px solid var(--border);
-  padding: var(--space-4);
+  padding: var(--space-5);
   overflow: auto;
+  box-shadow: var(--shadow-raised);
 }
 
 .modifier-inspector {
@@ -230,14 +231,15 @@
   position: absolute;
   top: 0;
   width: 0.125rem;
-  background: var(--playhead);
+  background: var(--color-timeline-playhead);
+  box-shadow: 0 0 0.5rem var(--color-timeline-playhead);
   pointer-events: none;
   z-index: 10;
 }
 
 .inspector h2 {
-  font-size: var(--font-size-ui);
-  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-heading);
+  margin: 0 0 var(--space-5);
 }
 
 .inspector dl {
@@ -252,6 +254,7 @@
 
 .inspector dd {
   margin: var(--space-0) 0 0;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-family-mono);
   font-size: var(--font-size-small);
+  font-variant-numeric: tabular-nums;
 }

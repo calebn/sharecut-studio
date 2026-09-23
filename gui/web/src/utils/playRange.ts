@@ -55,10 +55,10 @@ export function suggestDisabledReason(edit: SkipEdit): string | null {
     return "A split does not change the mix until you delete a side.";
   }
   if (edit.type === "mute") {
-    return "Mute-in-place keeps timeline length — hear Current around the hole.";
+    return "Mute-in-place keeps timeline length. Hear Current around the hole.";
   }
   if ((edit.scope ?? "session") === "track") {
-    return "Track punch keeps timeline length — hear Current around the hole.";
+    return "Track punch keeps timeline length. Hear Current around the hole.";
   }
   if (!edit.mappable) {
     return "This cut is not on the current timeline.";

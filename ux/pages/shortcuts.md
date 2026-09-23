@@ -22,7 +22,7 @@ Open the in-app cheatsheet with **?** while Sharecut Studio is focused.
 |----------|---------|------|-------|
 | `Space` | Play / pause (`transport.togglePlay`) | Timeline or transcript focused | When timeline or transcript is focused |
 | `K` | Stop playback (`transport.stop`) | Always (when not typing in an input) |  |
-| `Mod+B` | Refresh mix (`render.refreshMix`) | Refresh mix allowed | Mod+B — rebuild stems/premix when host or Docs Editor |
+| `Mod+B` | Refresh mix (`render.refreshMix`) | Refresh mix allowed | Mod+B: rebuild stems/premix when host or Docs Editor |
 
 ## tools
 
@@ -46,9 +46,9 @@ Open the in-app cheatsheet with **?** while Sharecut Studio is focused.
 |----------|---------|------|-------|
 | `ArrowLeft` | Nudge playhead back (`navigation.nudgePlayheadBack`) | Always (when not typing in an input) | Shift for 5 seconds |
 | `ArrowRight` | Nudge playhead forward (`navigation.nudgePlayheadForward`) | Always (when not typing in an input) | Shift for 5 seconds |
-| `Mod+ArrowLeft` | Go to start (`navigation.goToStart`) | Always (when not typing in an input) | Mod+ArrowLeft — Home alias for laptops |
+| `Mod+ArrowLeft` | Go to start (`navigation.goToStart`) | Always (when not typing in an input) | Mod+ArrowLeft: Home alias for laptops |
 | `Home` | Go to start (`navigation.goToStart`) | Always (when not typing in an input) | Also Mod+ArrowLeft (laptops without Home) |
-| `Mod+ArrowRight` | Go to end (`navigation.goToEnd`) | Always (when not typing in an input) | Mod+ArrowRight — End alias for laptops |
+| `Mod+ArrowRight` | Go to end (`navigation.goToEnd`) | Always (when not typing in an input) | Mod+ArrowRight: End alias for laptops |
 | `End` | Go to end (`navigation.goToEnd`) | Always (when not typing in an input) | Also Mod+ArrowRight (laptops without End) |
 
 ## review
@@ -57,10 +57,10 @@ Open the in-app cheatsheet with **?** while Sharecut Studio is focused.
 |----------|---------|------|-------|
 | `Escape` | Exit comment mode (`review.exitCommentMode`) | Comment mode on |  |
 | `Mod+Shift+C` | Toggle comment mode (`review.toggleCommentMode`) | Always (when not typing in an input) | Mod+Shift+C |
-| `Enter` | Apply tighten hit (`tighten.applyHit`) | tightenPanelOpen | Enter — selected tighten hit |
-| `Backspace` | Skip tighten hit (`tighten.skipHit`) | tightenPanelOpen | Backspace — selected tighten hit |
-| `Mod+Shift+Enter` | Apply eligible tighten hits (`tighten.applyAllSafe`) | tightenPanelOpen | Mod+Shift+Enter — skip harsh when Avoid harsh cuts is on |
-| `P` | Preview tighten hit (`tighten.previewHit`) | tightenPanelOpen | P — Suggested skip when possible |
+| `Enter` | Apply tighten hit (`tighten.applyHit`) | tightenPanelOpen | Enter: selected tighten hit |
+| `Backspace` | Skip tighten hit (`tighten.skipHit`) | tightenPanelOpen | Backspace: selected tighten hit |
+| `Mod+Shift+Enter` | Apply eligible tighten hits (`tighten.applyAllSafe`) | tightenPanelOpen | Mod+Shift+Enter: skip harsh when Avoid harsh cuts is on |
+| `P` | Preview tighten hit (`tighten.previewHit`) | tightenPanelOpen | P: Suggested skip when possible |
 
 ## history
 
@@ -76,19 +76,19 @@ Open the in-app cheatsheet with **?** while Sharecut Studio is focused.
 | `Escape` | Clear selection (`edit.clearSelection`) | hasInspectorSelection | After exitCommentMode; does not clear track targeting |
 | `Mod+C` | Copy (`edit.copy`) | Project loaded | Mod+C |
 | `Mod+X` | Cut (`edit.cut`) | Host or shared edit mode | Mod+X |
-| `Mod+V` | Paste (`edit.paste`) | Host or shared edit mode | Mod+V — same-track at playhead |
-| `Backspace` | Remove track (`track.remove`) | trackInspectorSelected | Before edit.delete — inspector track selection only |
+| `Mod+V` | Paste (`edit.paste`) | Host or shared edit mode | Mod+V: same-track at playhead |
+| `Backspace` | Remove track (`track.remove`) | trackInspectorSelected | Before edit.delete: inspector track selection only |
 | `ArrowUp` | Move track up (`track.moveUp`) | canMoveSelectedTrackUp | Inspector track selected |
 | `ArrowDown` | Move track down (`track.moveDown`) | canMoveSelectedTrackDown | Inspector track selected |
 | `Backspace` | Delete clip (`edit.delete`) | Structural edits allowed |  |
 | `Mod+Backspace` | Ripple delete clip (`edit.rippleDelete`) | Structural edits allowed | Mod+Backspace |
-| `Mod+K` | Blade cut (`edit.bladeCut`) | Structural edits allowed | Mod+K — cut at playhead |
-| `Mod+A` | Select all tracks (`track.selectAll`) | Timeline focused | Mod+A — Logic-style track targeting |
-| `Mod+Shift+A` | Deselect all tracks (`track.deselectAll`) | Timeline focused | Mod+Shift+A — Logic-style; empty targeting |
+| `Mod+K` | Blade cut (`edit.bladeCut`) | Structural edits allowed | Mod+K: cut at playhead |
+| `Mod+A` | Select all tracks (`track.selectAll`) | Timeline focused | Mod+A: Logic-style track targeting |
+| `Mod+Shift+A` | Deselect all tracks (`track.deselectAll`) | Timeline focused | Mod+Shift+A: Logic-style; empty targeting |
 | `M` | Toggle track mute (`track.muteToggle`) | Project loaded |  |
 | `S` | Toggle track solo (`track.soloToggle`) | Project loaded |  |
 | `Mod+Shift+T` | New track (`track.add`) | Media ingest allowed | Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T) |
-| `Mod+I` | Import audio (`media.import`) | Media ingest allowed | Mod+I — Menu or drop on arrange |
+| `Mod+I` | Import audio (`media.import`) | Media ingest allowed | Mod+I: Menu or drop on arrange |
 
 ## view
 
@@ -97,19 +97,19 @@ Open the in-app cheatsheet with **?** while Sharecut Studio is focused.
 | `=` | Zoom in (`view.zoomIn`) | Timeline focused | Timeline focused; also numpad + |
 | `-` | Zoom out (`view.zoomOut`) | Timeline focused | Timeline focused; also numpad - |
 | `\` | Fit session in view (`view.fit`) | Timeline focused | Timeline focused |
-| `Shift+ArrowUp` | Waveform amplitude zoom in (`view.waveformZoomIn`) | Timeline focused | Shift+ArrowUp — timeline focused |
-| `Shift+ArrowDown` | Waveform amplitude zoom out (`view.waveformZoomOut`) | Timeline focused | Shift+ArrowDown — timeline focused |
+| `Shift+ArrowUp` | Waveform amplitude zoom in (`view.waveformZoomIn`) | Timeline focused | Shift+ArrowUp: timeline focused |
+| `Shift+ArrowDown` | Waveform amplitude zoom out (`view.waveformZoomOut`) | Timeline focused | Shift+ArrowDown: timeline focused |
 
 ## ui
 
 | Shortcut | Command | When | Notes |
 |----------|---------|------|-------|
-| `M` | Record marker (`record.marker`) | recordPanelOpen | M — live marker while the record panel is open; with the panel closed, M still mutes the targeted track |
+| `M` | Record marker (`record.marker`) | recordPanelOpen | M: live marker while the record panel is open; with the panel closed, M still mutes the targeted track |
 | `?` | Command cheatsheet (`ui.toggleCommandPalette`) | Always (when not typing in an input) | Also Shift+/ |
-| `Mod+Shift+B` | Bounce… (`export.bounce`) | Loaded host project | Mod+Shift+B — bounce dialog (export/bounces/) |
-| `Mod+Shift+E` | Export deliverables (`export.deliverables`) | Loaded host project | Mod+Shift+E — mastered export/ via PipelineService |
+| `Mod+Shift+B` | Bounce… (`export.bounce`) | Loaded host project | Mod+Shift+B: bounce dialog (export/bounces/) |
+| `Mod+Shift+E` | Export deliverables (`export.deliverables`) | Loaded host project | Mod+Shift+E: mastered export/ via PipelineService |
 | `Mod+N` | New project (`project.new`) | Host project management | Mod+N |
-| `Mod+O` | Open project (`project.open`) | Host project management | Mod+O — OS dialog via local engine; paste path fallback |
+| `Mod+O` | Open project (`project.open`) | Host project management | Mod+O: OS dialog via local engine; paste path fallback |
 
 ## presence
 
@@ -130,7 +130,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Cycle focus mode | `focus.cycle` | Always (when not typing in an input) |  |
 | Confirm blade cut | `edit.bladeCut.confirm` | Structural edits allowed |  |
 | Cancel blade cut | `edit.bladeCut.cancel` | Always (when not typing in an input) |  |
-| Share… | `share.manage` | Loaded host project | Open host share dialog — live links, create, revoke |
+| Share… | `share.manage` | Loaded host project | Open host share dialog: live links, create, revoke |
 | Start recording | `record.start` | Host project management |  |
 | Pause recording | `record.pause` | Host project management |  |
 | Resume recording | `record.resume` | Host project management |  |
@@ -139,7 +139,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Record panel | `record.openPanel` | Loaded host project |  |
 | Connect agent… | `mcp.connect` | Host project management | Copy local Streamable HTTP MCP URL for Cursor/Claude |
 | Help… | `help.diagnosticsBundle` | Host project management | Host-only sanitized diagnostics zip for bug reports |
-| Reorder track | `track.reorder` | Media ingest allowed | Args: { trackId?, index } — ReorderTrack; drag headers use skipWhen |
+| Reorder track | `track.reorder` | Media ingest allowed | Args: { trackId?, index }: ReorderTrack; drag headers use skipWhen |
 | Annotate transcript | `view.transcriptAnnotate` | Always (when not typing in an input) |  |
 | Correct transcript | `transcript.correctIntent` | Project loaded |  |
 | Select transcript range | `transcript.selectIntent` | Project loaded |  |
@@ -152,7 +152,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Focus cut-away word | `view.focusCutAwayWord` | Project loaded |  |
 | Switch editor tab | `view.setTab` | Project loaded | Args: { tab: DawTab } |
 | Switch phone mode | `view.setMobileMode` | Project loaded | Args: { mode: MobileMode, destination?: MoreDestination } |
-| Go to tighten hit | `tighten.goToHit` | tightenPanelOpen | Args: { id?: string } — seek + select pending |
+| Go to tighten hit | `tighten.goToHit` | tightenPanelOpen | Args: { id?: string }: seek + select pending |
 
 ## Governance
 

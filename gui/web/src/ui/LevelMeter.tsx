@@ -108,7 +108,7 @@ export function LevelMeter({
         : { bottom: `calc(${holdFrac * 100}% - var(--meter-hold-offset))` };
 
   const valueText = clipped
-    ? `Clipping — peak ${formatDb(Math.max(levelDb, peakHoldDb ?? levelDb))}`
+    ? `Clipping: peak ${formatDb(Math.max(levelDb, peakHoldDb ?? levelDb))}`
     : formatDb(levelDb);
 
   return (

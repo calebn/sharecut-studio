@@ -80,11 +80,11 @@ export const DECLINED_COPY =
 export const SPEAKERS_WARNING =
   "Use headphones. Playing the room on speakers will echo into every mic.";
 
-export const HOST_OFFLINE_COPY = "Host offline — still recording locally.";
+export const HOST_OFFLINE_COPY = "Host offline: still recording locally.";
 
 export function hostReconnectPauseCopy(offlineGapMs: number): string {
   const seconds = Math.max(0, Math.round(offlineGapMs / 1000));
-  return `Paused — the host was offline for ${seconds}s. Resume when everyone is ready.`;
+  return `Paused: the host was offline for ${seconds}s. Resume when everyone is ready.`;
 }
 
 export function hostReconnectPauseCopyFromSnapshot(
@@ -179,10 +179,10 @@ export const UPLOAD_STATUS_ID = "record-upload-status";
 export const ROOM_TONE_DURATION_SEC = 3;
 export const ROOM_TONE_TOO_LOUD_DBFS = -35;
 export const ROOM_TONE_PROMPT_COPY = "Record 3 seconds of room tone";
-export const ROOM_TONE_TOO_LOUD_COPY = "Too loud — is something playing?";
+export const ROOM_TONE_TOO_LOUD_COPY = "Too loud: is something playing?";
 export const ROOM_TONE_DONE_COPY = "Room tone saved";
 export const ROOM_TONE_CAPTURING_COPY = "Recording room tone…";
-/** Guest Accept requires record or skip. Host Start does not — idle is an implicit skip. */
+/** Guest Accept requires record or skip. Host Start does not: idle is an implicit skip. */
 export const ROOM_TONE_GATE_COPY = "Record or skip room tone before accepting.";
 export const ROOM_TONE_NOT_READY_COPY = "Room tone capture is not ready yet.";
 
@@ -195,7 +195,7 @@ export function hostUploadLine(
   landFailed = false,
 ): string {
   if (landFailed) {
-    return `${name}: landing failed — host must retry.`;
+    return `${name}: landing failed: host must retry.`;
   }
   if (landed) {
     return `${name}: landed.`;

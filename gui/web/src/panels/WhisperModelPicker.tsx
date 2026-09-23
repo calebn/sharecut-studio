@@ -17,7 +17,7 @@ export type WhisperDownloadRequest = {
 
 function optionLabel(model: WhisperModelChoice): string {
   const chrome = model.cached ? "Downloaded" : "Needs download";
-  return `${model.label} (${model.id}, ${model.size}) — ${chrome}`;
+  return `${model.label} (${model.id}, ${model.size}) · ${chrome}`;
 }
 
 type PickerProps = {

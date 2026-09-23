@@ -92,8 +92,9 @@ export function HostMcpDialog({ open, onClose, hasProject }: Props) {
     >
       <div className="share-dialog-body">
         <p className="host-mcp-lead">
-          Keep Sharecut Studio running. Paste this URL into Cursor or Claude —
-          same shape as Figma desktop MCP. Tools apply to the open episode.
+          Keep Sharecut Studio running. Paste this URL into Cursor or Claude.
+          The connection works like Figma desktop MCP. Tools apply to the open
+          episode.
         </p>
         {hasProject ? null : (
           <p className="share-dialog-empty" role="status">

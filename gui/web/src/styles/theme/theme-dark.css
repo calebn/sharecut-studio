@@ -5,6 +5,34 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
 
+  /* Named surface ladder; legacy shared brand names remain aliases. */
+  --color-bg-base: var(--color-bg-surface);
+  --color-bg-raised: var(--color-bg-elevated);
+  --color-bg-overlay: var(--color-bg-elevated);
+  --color-bg-sunken: var(--primitive-neutral-875);
+  --color-bg-inverted: var(--primitive-neutral-50);
+  --color-text-on-canvas: var(--color-text-primary);
+  --color-text-on-base: var(--color-text-primary);
+  --color-text-on-raised: var(--color-text-primary);
+  --color-text-on-overlay: var(--color-text-primary);
+  --color-text-on-sunken: var(--color-text-primary);
+  --color-text-on-inverted: var(--primitive-neutral-775);
+  --color-border-subtle: var(--color-border);
+  --color-timeline-well: var(--primitive-neutral-875);
+  --color-timeline-lane: var(--primitive-neutral-850);
+  --color-timeline-lane-muted: var(--primitive-neutral-900);
+  --color-timeline-border: var(--primitive-neutral-550);
+  --color-timeline-text: var(--primitive-neutral-300);
+  --color-timeline-waveform-top: var(--primitive-teal-250);
+  --color-timeline-waveform-bottom: var(--primitive-teal-600);
+  --color-timeline-playhead: var(--primitive-orange-250);
+  --color-signal: var(--primitive-teal-250);
+  --color-signal-soft: var(--primitive-teal-850);
+  --color-text-faint: var(--primitive-neutral-350);
+  --shadow-raised: 0 0.125rem 0.5rem var(--color-shadow);
+  --shadow-floating: 0 0.5rem 1.5rem var(--color-shadow);
+  --shadow-modal: 0 1rem 3rem var(--color-shadow);
+
   /* Recessed mixer well — darker than chrome panes (surface). */
   --color-bg-lane: var(--primitive-neutral-900);
   --color-bg-lane-muted: var(--primitive-neutral-950);
@@ -13,8 +41,8 @@
   /* Text/links on dark surfaces (≥4.5:1 on --color-bg-lane). */
   --color-accent-fg: var(--color-accent);
   /* Filled controls with light label (≥4.5:1 white-on-solid). */
-  --color-badge-bg: var(--primitive-neutral-600);
-  --color-badge-fg: var(--color-accent);
+  --color-badge-bg: var(--primitive-neutral-700);
+  --color-badge-fg: var(--color-text-secondary);
   --color-accent-subtle: color-mix(
     in srgb,
     var(--color-accent) 12%,
@@ -41,7 +69,7 @@
     var(--color-selection) 22%,
     transparent
   );
-  --color-warning: var(--primitive-amber-400);
+  --color-warning: var(--primitive-amber-350);
   --color-warning-subtle: color-mix(
     in srgb,
     var(--color-warning) 20%,
@@ -108,7 +136,7 @@
     var(--color-danger) 35%,
     transparent
   );
-  --color-success: var(--primitive-green-400);
+  --color-success: var(--color-signal);
   --color-success-subtle: color-mix(
     in srgb,
     var(--color-success) 20%,
@@ -124,8 +152,8 @@
     var(--color-success) 65%,
     transparent
   );
-  --color-success-solid: var(--primitive-green-500);
-  --color-clip-dialogue-0: var(--primitive-blue-650);
+  --color-success-solid: var(--color-signal);
+  --color-clip-dialogue-0: var(--primitive-teal-675);
   --color-clip-dialogue-1: var(--primitive-green-650);
   --color-clip-dialogue-2: var(--primitive-brown-700);
   --color-clip-music: var(--primitive-blue-750);

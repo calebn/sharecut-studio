@@ -47,7 +47,7 @@ describe("RecIndicator", () => {
     render(
       <RecIndicator snapshot={{ ...base, state: "recording" }} captureFailed />,
     );
-    expect(screen.getByText("REC — local capture failed")).toBeInTheDocument();
+    expect(screen.getByText("REC: local capture failed")).toBeInTheDocument();
     expect(screen.queryByText("REC")).not.toBeInTheDocument();
     expect(document.querySelector(".record-rec-dot")).toBeNull();
   });

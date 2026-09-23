@@ -111,7 +111,7 @@
   flex-direction: column;
   min-inline-size: 0;
   overflow: hidden;
-  background: var(--bg-lane);
+  background: var(--color-timeline-well);
   /* Pane-size density for --header-width (Every Layout Container escape hatch). */
   container: timeline / inline-size;
 }
@@ -388,7 +388,7 @@
 }
 
 .transport h1 {
-  font-size: var(--font-size-body);
+  font-size: var(--font-size-emphasis);
   font-weight: 600;
   margin: 0;
   min-width: 0;
@@ -401,7 +401,7 @@
 
 .timecode {
   display: inline-block;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-family-mono);
   font-variant-numeric: tabular-nums;
   font-size: var(--font-size-small);
   letter-spacing: 0;

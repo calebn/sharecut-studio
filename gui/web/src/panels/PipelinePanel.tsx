@@ -120,7 +120,7 @@ function ParamControl({
         ? `Options: ${field.enum.join(", ")}`
         : null;
   const displayText = formatUnknown(display);
-  const defaultText = formatUnknown(defaultValue ?? "—");
+  const defaultText = formatUnknown(defaultValue ?? "Not set");
 
   return (
     <label
@@ -592,13 +592,13 @@ export function PipelinePanel() {
 
       {agentRecent && (
         <p className="pipeline-ambient" role="status">
-          Agent recently active in this session (ambient — not required to run).
+          Agent recently active in this session (optional).
         </p>
       )}
 
       {foreignSlotBusy && slotJob ? (
         <p className="pipeline-ambient" role="status">
-          {slotJob.label || pipelineKindLabel(slotJob.kind)} is running — Cancel
+          {slotJob.label || pipelineKindLabel(slotJob.kind)} is running. Cancel
           frees the pipeline slot
           {slotJob.message ? `: ${slotJob.message}` : "."}
         </p>

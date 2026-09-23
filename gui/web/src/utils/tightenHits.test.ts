@@ -184,7 +184,7 @@ describe("tightenHits", () => {
     expect(applyAllSummary(31, 23)).toEqual({
       apply: 23,
       skipped: 8,
-      confirm: "Apply 23 of 31 — 8 skipped as harsh",
+      confirm: "Apply 23 of 31; 8 skipped as harsh",
     });
   });
 

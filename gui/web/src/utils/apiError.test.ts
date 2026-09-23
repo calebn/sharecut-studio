@@ -68,7 +68,7 @@ describe("readApiFailure", () => {
       new Response(JSON.stringify("Host offline"), { status: 502 }),
     );
     expect(error.message).toBe(
-      "Host offline — ask them to run podcast tunnel and try again.",
+      "Host offline. Ask them to run podcast tunnel and try again.",
     );
   });
 
