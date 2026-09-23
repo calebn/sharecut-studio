@@ -396,6 +396,7 @@ async def post_record_upload(
         workspace=ws,
         clip_scope=pid,
         kind=kind,
+        before_ingest=lambda: _require_guest_upload_consent(session, pid, kind, take_index),
     )
 
 
