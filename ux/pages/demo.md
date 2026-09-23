@@ -22,12 +22,12 @@ Fixture path: [`tests/fixtures/sharecut_ux_demo/`](https://github.com/calebn/sha
 ### Guest share against the fixture
 
 ```bash
-# Terminal A — GUI with a shares index (use a free port)
-export PODCAST_REVIEW_SHARES_INDEX=/tmp/podcast_ux_demo_shares.json
+# Terminal A — GUI with a share registry (use a free port)
+export PODCAST_SHARE_REGISTRY=/tmp/podcast_ux_demo_shares.sqlite
 podcast gui --project tests/fixtures/sharecut_ux_demo/episode.project.json --port 8777
 
 # Terminal B — publish review mix + create tokens
-PODCAST_REVIEW_SHARES_INDEX=/tmp/podcast_ux_demo_shares.json \
+PODCAST_SHARE_REGISTRY=/tmp/podcast_ux_demo_shares.sqlite \
   python3 scripts/ux_demo_prepare_shares.py --base-url http://127.0.0.1:8777
 # Open the printed ReviewApp URL and Sharecut Studio guest URL
 ```

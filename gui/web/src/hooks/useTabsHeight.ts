@@ -5,6 +5,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { readLocal } from "../utils/storage";
 
 export const TABS_HEIGHT_STORAGE_KEY = "sharecut.tabsHeight";
 export const DEFAULT_TABS_HEIGHT_REM = 12.5;
@@ -41,16 +42,12 @@ export function clampTabsHeightRem(
 }
 
 function readStoredRem(): number | null {
-  try {
-    const raw = localStorage.getItem(TABS_HEIGHT_STORAGE_KEY);
-    if (raw == null) {
-      return null;
-    }
-    const n = Number.parseFloat(raw);
-    return Number.isFinite(n) ? n : null;
-  } catch {
+  const raw = readLocal(TABS_HEIGHT_STORAGE_KEY);
+  if (raw == null) {
     return null;
   }
+  const n = Number.parseFloat(raw);
+  return Number.isFinite(n) ? n : null;
 }
 
 function writeStoredRem(rem: number | null): void {
