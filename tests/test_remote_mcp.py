@@ -33,8 +33,6 @@ def _seed_premix(minimal_project, sample_wav):
 
 
 def _share(ws, monkeypatch, tmp_workspace, caps: list[str], label: str = "mcp"):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
     ver = ReviewService(ws).publish(label=label)
     return ShareService(ws).create(
@@ -408,8 +406,6 @@ def test_claude_authless_handshake_and_share_alias(
 
 
 def test_remote_mcp_disabled_returns_501(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     monkeypatch.delenv("PODCAST_REMOTE_MCP", raising=False)
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="mcp-off")

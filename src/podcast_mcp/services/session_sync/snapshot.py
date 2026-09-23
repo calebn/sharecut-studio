@@ -40,10 +40,7 @@ def empty_snapshot() -> dict[str, Any]:
         "wav": None,
         "compare_segments": None,
         "clients": [],
-        # Compatibility aliases for existing DAW/MCP consumers
-        "revision": 0,
         "origin": "viewer",
-        "command_id": None,
     }
 
 
@@ -167,10 +164,8 @@ def apply_command(snap: dict[str, Any], cmd: dict[str, Any]) -> dict[str, Any]:
         pass
 
     snap["server_seq"] = server_seq
-    snap["revision"] = server_seq  # legacy alias
     snap["updated_at_ns"] = int(cmd.get("ts_ns") or time.time_ns())
     snap["last_command_id"] = cmd["command_id"]
-    snap["command_id"] = cmd["command_id"]  # legacy alias
     snap["last_client_id"] = client_id
     snap["last_role"] = role
     snap["origin"] = role if role in ("agent", "viewer") else "agent"

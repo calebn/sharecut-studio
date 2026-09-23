@@ -5,11 +5,14 @@ from pathlib import Path
 import pytest
 
 from podcast_mcp.runtime_config import (
+    RelayConfig,
     RuntimeConfigError,
     default_relay_config_path,
     load_host_runtime_config,
     load_object_store_config,
     load_relay_config,
+    persisted_relay_host_id,
+    relay_host_id_path,
 )
 
 
@@ -241,3 +244,63 @@ def test_object_store_cdn_is_validated_and_normalized(tmp_path: Path) -> None:
 def test_default_relay_path_honors_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PODCAST_RELAY_CONFIG", "~/custom-relay.yaml")
     assert default_relay_config_path() == Path.home() / "custom-relay.yaml"
+
+
+def test_relay_host_id_precedence_env_yaml_persisted(tmp_path: Path) -> None:
+    path = tmp_path / "relay.yaml"
+    persisted = load_relay_config(path, environ={}).host_id
+    id_file = tmp_path / "relay_host_id"
+    assert id_file.read_text(encoding="utf-8").strip() == persisted
+    assert id_file.stat().st_mode & 0o777 == 0o600
+    # Stable across loads (i.e. process restarts) - not a fresh uuid each time.
+    assert load_relay_config(path, environ={}).host_id == persisted
+    assert load_relay_config(path, environ={"PODCAST_RELAY_HOST_ID": ""}).host_id == persisted
+    path.write_text("host_id: yaml-host\n", encoding="utf-8")
+    assert load_relay_config(path, environ={}).host_id == "yaml-host"
+    env = {"PODCAST_RELAY_HOST_ID": "env-host"}
+    assert load_host_runtime_config(path, environ=env).relay.host_id == "env-host"
+
+
+def test_relay_host_id_rejects_token_map_separators(tmp_path: Path) -> None:
+    path = tmp_path / "relay.yaml"
+    for bad in ("host:1", "a,b", "has space"):
+        with pytest.raises(RuntimeConfigError, match="host_id"):
+            load_relay_config(path, environ={"PODCAST_RELAY_HOST_ID": bad})
+
+
+def test_default_relay_config_uses_persisted_host_id() -> None:
+    # conftest points PODCAST_RELAY_CONFIG at tmp_path/relay.yaml
+    first = RelayConfig()
+    assert RelayConfig().host_id == first.host_id
+    assert relay_host_id_path() == default_relay_config_path().with_name("relay_host_id")
+    assert relay_host_id_path().read_text(encoding="utf-8").strip() == first.host_id
+
+
+def test_persisted_host_id_unwritable_falls_back_to_ephemeral(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import podcast_mcp.runtime_config as rc
+
+    def _deny(*_a, **_k):
+        raise PermissionError("read-only")
+
+    monkeypatch.setattr(rc.os, "open", _deny)
+    cfg = tmp_path / "ro" / "relay.yaml"
+    a = persisted_relay_host_id(cfg)
+    assert a
+    assert not relay_host_id_path(cfg).exists()
+
+
+def test_persisted_host_id_uses_winner_of_create_race(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import podcast_mcp.runtime_config as rc
+
+    cfg = tmp_path / "relay.yaml"
+
+    def _lose_race(path, *_a, **_k):
+        Path(path).write_text("winner-id\n", encoding="utf-8")
+        raise FileExistsError(path)
+
+    monkeypatch.setattr(rc.os, "open", _lose_race)
+    assert persisted_relay_host_id(cfg) == "winner-id"

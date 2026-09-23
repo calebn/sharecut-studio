@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ErrorScreen, FocusPull, LoadingScreen } from "../ui";
 import "../styles/partials/record-entry.css";
 import { useDesktopCloseGuard } from "../desktop/useDesktopCloseGuard";
+import { readLocal, writeLocal } from "../utils/storage";
 import { Declined } from "./Declined";
 import { FullRoom } from "./FullRoom";
 import {
@@ -43,11 +44,11 @@ export function RecordApp({ token }: { token: string }) {
   const [bootstrap, setBootstrap] = useState<RecordBootstrap | null>(null);
   const [bootError, setBootError] = useState<string | null>(null);
   const [name, setName] = useState(
-    () => localStorage.getItem(storageKey(token, "name")) || "",
+    () => readLocal(storageKey(token, "name")) || "",
   );
   const [headphonesOk, setHeadphonesOk] = useState(false);
   const [deviceId, setDeviceId] = useState(
-    () => localStorage.getItem(storageKey(token, "mic")) || "",
+    () => readLocal(storageKey(token, "mic")) || "",
   );
   const [producerJoined, setProducerJoined] = useState(false);
 
@@ -73,11 +74,11 @@ export function RecordApp({ token }: { token: string }) {
   }, [token]);
 
   useEffect(() => {
-    localStorage.setItem(storageKey(token, "name"), name);
+    writeLocal(storageKey(token, "name"), name);
   }, [name, token]);
 
   useEffect(() => {
-    localStorage.setItem(storageKey(token, "mic"), deviceId);
+    writeLocal(storageKey(token, "mic"), deviceId);
   }, [deviceId, token]);
 
   const producer = bootstrap?.role === "producer";

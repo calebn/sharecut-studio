@@ -35,7 +35,7 @@ from podcast_mcp.engines.transcript_gated_play import (
 )
 from podcast_mcp.models import TrackRole
 from podcast_mcp.render import rerender_preview
-from podcast_mcp.services.session_state import publish_agent_play
+from podcast_mcp.services.session_sync.viewer import publish_agent_play
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.process import run
 from podcast_mcp.util.tracks import track_audio_path

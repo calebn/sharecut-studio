@@ -165,8 +165,6 @@ branch = true
 omit = [
     # Optional neural inference that downloads weights (CI stays torch-free).
     "**/join_neural.py",
-    # Thin sys.modules shims — implementation lives in podcast_relay.
-    "**/podcast_mcp/relay/**",
     # Protocol-only module (no runtime bodies).
     "**/podcast_mcp/extensions/spi.py",
 ]

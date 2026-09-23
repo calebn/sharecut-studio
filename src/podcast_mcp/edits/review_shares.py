@@ -25,7 +25,6 @@ from podcast_mcp.edits.share_registry import (
     SHARE_TOKEN_IS_GLOBALLY_UNIQUE,
     _parse_iso,
     claim_with_mint_retry,
-    default_share_registry_db_path,
     get_share_registry,
     share_is_usable,
 )
@@ -33,9 +32,6 @@ from podcast_mcp.models import EpisodeProject
 
 _SHARES_NAME = "shares.json"
 _sidecar_lock = threading.Lock()
-
-# Re-export for callers / docs that referenced the JSON index path name.
-default_registry_path = default_share_registry_db_path
 
 
 def shares_path(project: EpisodeProject) -> Path:
@@ -207,12 +203,12 @@ def resolve_share(
     *,
     registry_path: Path | None = None,
 ) -> dict[str, Any] | None:
-    """Resolve token via the host sqlite share registry (active pool only)."""
+    """Resolve token via the host sqlite share registry (active pool only).
+
+    *registry_path* defaults to the process registry (see ``get_share_registry``).
+    """
     try:
-        reg = (
-            get_share_registry(registry_path) if registry_path is not None else get_share_registry()
-        )
-        return reg.get_active(token)
+        return get_share_registry(registry_path).get_active(token)
     except Exception:
         return None
 
@@ -220,7 +216,7 @@ def resolve_share(
 def register_share_globally(
     row: dict[str, Any],
     *,
-    registry_path: Path,
+    registry_path: Path | None = None,
 ) -> None:
     """Upsert an active registry row (or demote when revoked).
 

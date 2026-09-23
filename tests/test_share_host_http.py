@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -28,6 +29,7 @@ def test_present_share_adds_host_fields() -> None:
             "capabilities": ["play", "view", "mcp"],
             "revoked": False,
             "project_workspace": "/host/secret/episode",
+            "created_at": datetime.now(UTC).isoformat(),
         },
         public_base_url="https://share.example",
         version_label="Guest v1",
@@ -44,7 +46,6 @@ def test_present_share_adds_host_fields() -> None:
 def test_host_shares_http_list_create_revoke(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(tmp_workspace / "shares_index.json"))
     monkeypatch.delenv("PODCAST_SESSION_AUTHZ", raising=False)
     ws = _seed_premix(minimal_project, sample_wav)
     path = str(minimal_project)
@@ -111,7 +112,6 @@ def test_host_shares_http_list_create_revoke(
 
 
 def test_create_for_host_auto_publishes(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(tmp_workspace / "shares_index.json"))
     ws = _seed_premix(minimal_project, sample_wav)
     assert ReviewService(ws).list_versions() == []
     row = ShareService(ws).create_for_host(
@@ -128,7 +128,6 @@ def test_create_for_host_auto_publishes(minimal_project, sample_wav, tmp_workspa
 def test_create_for_host_uses_latest_created_mix(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(tmp_workspace / "shares_index.json"))
     ws = _seed_premix(minimal_project, sample_wav)
     first = ReviewService(ws).publish(label="Later mix")
     second = ReviewService(ws).publish(label="Earlier mix")
@@ -147,7 +146,6 @@ def test_create_for_host_uses_latest_created_mix(
 def test_create_for_host_uses_explicit_version(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(tmp_workspace / "shares_index.json"))
     ws = _seed_premix(minimal_project, sample_wav)
     chosen = ReviewService(ws).publish(label="Chosen")
     ReviewService(ws).publish(label="Other")
@@ -160,7 +158,6 @@ def test_create_for_host_uses_explicit_version(
 
 
 def test_host_shares_unknown_version(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(tmp_workspace / "shares_index.json"))
     monkeypatch.delenv("PODCAST_SESSION_AUTHZ", raising=False)
     _seed_premix(minimal_project, sample_wav)
     path = str(minimal_project)
@@ -173,7 +170,6 @@ def test_host_shares_unknown_version(minimal_project, sample_wav, tmp_workspace,
 
 
 def test_host_shares_create_without_premix(minimal_project, tmp_workspace, monkeypatch):
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(tmp_workspace / "shares_index.json"))
     monkeypatch.delenv("PODCAST_SESSION_AUTHZ", raising=False)
     path = str(minimal_project)
     client = TestClient(create_app(served_project=Path(minimal_project)))
