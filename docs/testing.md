@@ -282,7 +282,7 @@ make lint-py format-py-check typecheck  # Python static gates
 make test         # Python coverage gate
 make test-web     # Sharecut Studio lint + format:check + typecheck + vitest + build
 make test-web-e2e # Playwright smoke + full-page axe (requires `[gui]` extra / uv)
-make test-desktop # Tauri scaffold + rustfmt + clippy --lib + lib tests (optional Rust)
+make test-desktop # Tauri scaffold + sidecar launcher fmt/clippy/rustc --test + rustfmt + clippy --lib + lib tests (optional Rust)
 make desktop-build # Freeze sidecar + installer (local only; not part of make ci)
 make desktop-linux-appimage-docker # Ubuntu 22.04 AppImage (iterate before GHA)
 make ci           # optional full local CI mirror (GitHub Actions is the required gate)
