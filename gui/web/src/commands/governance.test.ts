@@ -1,9 +1,10 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { KEYMAP_COMMANDS, matchKeymapCommands } from "../keymap/registry";
 import { isProgrammaticUi, withProgrammaticUi } from "../presence/followSync";
 import { useDawStore } from "../state/dawStore";
+import { SRC_ROOT, srcRelative, walkTsFiles } from "../test/sourceFiles";
 import { COMMANDS, listCatalogIds } from "./catalog";
 import { buildCommandContext, evaluateWhen } from "./context";
 import {
@@ -13,24 +14,6 @@ import {
   registerCommand,
 } from "./execute";
 import { registerDawCommands } from "./register";
-
-function walkTsFiles(dir: string, out: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    if (name === "node_modules" || name === "dist") {
-      continue;
-    }
-    const p = join(dir, name);
-    const st = statSync(p);
-    if (st.isDirectory()) {
-      walkTsFiles(p, out);
-    } else if (/\.(ts|tsx)$/.test(name)) {
-      out.push(p);
-    }
-  }
-  return out;
-}
-
-const SRC_ROOT = join(__dirname, "..");
 
 type ManifestCapability = {
   id: string;
@@ -304,7 +287,7 @@ describe("command governance", () => {
     const offenders: string[] = [];
     const re = /addEventListener\(\s*["'`]keydown["'`]/;
     for (const file of files) {
-      const rel = relative(SRC_ROOT, file).replace(/\\/g, "/");
+      const rel = srcRelative(file);
       const text = readFileSync(file, "utf8");
       if (re.test(text) && !KEYDOWN_LISTENER_ALLOWLIST.has(rel)) {
         offenders.push(rel);
@@ -318,7 +301,7 @@ describe("command governance", () => {
     const offenders: string[] = [];
     const re = /\bonKeyDown\s*=/;
     for (const file of files) {
-      const rel = relative(SRC_ROOT, file).replace(/\\/g, "/");
+      const rel = srcRelative(file);
       if (rel.includes(".test.")) {
         continue;
       }

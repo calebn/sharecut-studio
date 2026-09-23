@@ -118,8 +118,12 @@ every new component in both themes before merging.
 
 - Fixtures are static placeholders. The built Storybook is published, so never
   copy real project, share, or guest data (tokens, names) into a story.
-- App code never imports `*.stories.tsx` or globs them (`import.meta.glob`);
-  stories must stay out of the production bundle.
+- App code never imports `*.stories.tsx` or globs them (`import.meta.glob`),
+  never imports Storybook packages, and never imports a story-support module
+  (e.g. `record/recordStoryDecorator.tsx`); stories must stay out of the
+  production bundle. `gui/web/src/test/storyGovernance.test.ts` enforces all
+  of this. New story-support modules must be added to
+  `STORY_SUPPORT_MODULES` in `gui/web/src/test/storyGovernance.ts`.
 - Stories render production code — never a copy. If a story needs a tweak to
   the component, the component changes, with its Vitest/axe tests.
 - a11y addon runs wcag2a/wcag2aa checks per story; the repo's axe posture
@@ -144,6 +148,8 @@ every new component in both themes before merging.
 - 2026-09-23 — Added `Templates/LiveComments`, the `recordStoryDecorator`
   record-shell decorator with a 360px viewport, and shared record fixture
   factories.
+- 2026-09-23 — Enforced the "stories stay out of the production bundle" rule
+  with gui/web/src/test/storyGovernance.test.ts (#206).
 - 2026-09-23 — Added `Atoms/LevelMeter` and the `Molecules/ParticipantMeter`
   layout sketch (story-only). Both drive the meter through `audio/usePeakMeter`,
   the same loop `record/useInputPeakDb` uses, so they preview production code.
