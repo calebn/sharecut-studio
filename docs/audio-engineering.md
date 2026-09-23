@@ -144,8 +144,8 @@ The `effects:` block in a pipeline defaults YAML is a **by-name overlay** on
 top of the builtins, not a second place to define presets: it can add new
 preset names, or override a builtin's definition, but only in a custom
 `PODCAST_MCP_PIPELINE_DEFAULTS` file. Repo-tracked YAMLs
-(any YAML under `.agents/`, `config/`, `deploy/`, or `tests/fixtures/`,
-scanned recursively) must not redefine a builtin preset name —
+(any git-tracked YAML under `.agents/`, `config/`, `deploy/`, or `tests/fixtures/`,
+listed recursively with `git ls-files`) must not redefine a builtin preset name —
 `tests/test_effects_presets.py` has a parity test that enforces this and
 fails CI if one drifts.
 
