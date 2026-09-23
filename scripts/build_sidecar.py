@@ -26,6 +26,8 @@ PYTHON_VERSION = "3.12"
 FREEZE_COMPLETE = ".freeze-complete"
 PYTHON_HOME_MARKER = ".python-home"
 
+# --dry-run placeholders only (GUI mode, no ``--cli``). Packaged builds always
+# ship the compiled ``sidecar_launcher.rs``; do not extend these templates.
 POSIX_LAUNCHER = """\
 #!/bin/sh
 # Frozen Sharecut Studio sidecar — set PODCAST_GUI_DIST and exec bundled Python.
@@ -174,6 +176,7 @@ def sidecar_output_name(triple: str) -> str:
 
 
 def write_script_launcher(path: Path, *, windows: bool) -> None:
+    """Write a GUI-only ``--dry-run`` placeholder launcher (never packaged)."""
     path.parent.mkdir(parents=True, exist_ok=True)
     if windows:
         body = WINDOWS_LAUNCHER.format(runtime=RUNTIME_NAME, marker=PYTHON_HOME_MARKER)
@@ -189,10 +192,20 @@ def write_script_launcher(path: Path, *, windows: bool) -> None:
     path.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
-def compile_rust_launcher(dest: Path) -> bool:
+def require_rustc() -> str:
+    """Fail fast (before the minutes-long freeze) when the launcher cannot be compiled."""
     rustc = shutil.which("rustc")
-    if rustc is None or not LAUNCHER_RS.is_file():
-        return False
+    if rustc is None:
+        raise SystemExit(
+            "rustc is required to compile sharecut-sidecar "
+            "(the packaged launcher requires CLI mode support)"
+        )
+    return rustc
+
+
+def compile_rust_launcher(dest: Path) -> None:
+    """Compile ``sidecar_launcher.rs`` to ``dest``; compiler errors surface as-is."""
+    rustc = require_rustc()
     dest.parent.mkdir(parents=True, exist_ok=True)
     cmd = [
         rustc,
@@ -206,9 +219,14 @@ def compile_rust_launcher(dest: Path) -> bool:
     ]
     try:
         subprocess.check_call(cmd)
-    except subprocess.CalledProcessError:
-        return False
-    return dest.is_file()
+    except subprocess.CalledProcessError as exc:
+        raise SystemExit(
+            f"rustc failed to compile {LAUNCHER_RS.name} (exit {exc.returncode}); "
+            "see the compiler output above"
+        ) from exc
+    if not dest.is_file():
+        raise SystemExit(f"rustc did not produce {dest}")
+    print(f"compiled launcher: {dest}")
 
 
 def ensure_web_dist(*, rebuild: bool) -> Path:
@@ -563,7 +581,7 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     p.add_argument(
         "--dry-run",
         action="store_true",
-        help="Write launcher scripts only (no CPython, no web dist copy)",
+        help="Write GUI-only placeholder launcher scripts (no CPython, no web dist copy)",
     )
     p.add_argument(
         "--dev-stub",
@@ -593,7 +611,7 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     p.add_argument(
         "--ensure",
         action="store_true",
-        help="Skip freeze when sharecut-runtime/.freeze-complete already exists",
+        help="Reuse sharecut-runtime when .freeze-complete exists (launcher is always recompiled)",
     )
     p.add_argument(
         "--extension-wheels-dir",
@@ -647,8 +665,11 @@ def main(argv: list[str] | None = None) -> int:
         (runtime / "web-dist").mkdir(exist_ok=True)
         return 0
 
-    launcher_ok = launcher.is_file()
-    if args.ensure and runtime_is_complete(runtime, windows=windows) and launcher_ok:
+    require_rustc()
+    if args.ensure and runtime_is_complete(runtime, windows=windows):
+        # Always rebuild the launcher: a cached one may predate `--cli` or be a
+        # --dry-run shell script. Cheap next to the freeze, which is reused.
+        compile_rust_launcher(launcher)
         print(f"reusing complete freeze: {runtime}")
         return 0
 
@@ -656,14 +677,7 @@ def main(argv: list[str] | None = None) -> int:
     clear_freeze_complete(runtime)
     copy_web_dist(runtime, rebuild=args.rebuild_web)
     freeze_python(runtime, extension_wheels_dir=args.extension_wheels_dir)
-    compiled = compile_rust_launcher(launcher)
-    if not compiled:
-        raise SystemExit(
-            "rustc is required to compile sharecut-sidecar "
-            "(the packaged launcher requires CLI mode support)"
-        )
-    else:
-        print(f"compiled launcher: {launcher}")
+    compile_rust_launcher(launcher)
     print(f"runtime: {runtime}")
     if sys.platform == "darwin" and identity:
         codesign_runtime(runtime, identity)
