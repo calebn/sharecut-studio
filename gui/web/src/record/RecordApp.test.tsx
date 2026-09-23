@@ -172,7 +172,8 @@ function stubWebSocket(
   reply: FakeSocket["reply"] = "join",
 ) {
   const ctor = Object.assign(
-    vi.fn(() => {
+    // `function`, not an arrow: Vitest >= 4 requires a constructible mock for `new`.
+    vi.fn(function () {
       const ws = new FakeSocket();
       ws.reply = reply;
       sockets.push(ws);
