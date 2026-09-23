@@ -1,7 +1,7 @@
-import { defineConfig, devices } from "@playwright/test";
+import { defineConfig, devices, type Project } from "@playwright/test";
 import baseConfig from "./playwright.config";
 
-const projects = [
+const projects: Project[] = [
   {
     name: "chromium",
     use: { ...devices["Desktop Chrome"] },
@@ -22,5 +22,10 @@ if (process.env.E2E_BRANDED_CHROME === "1") {
 export default defineConfig({
   ...baseConfig,
   testDir: "./e2e-compat",
+  // One web server and one live project fixture are shared by every test.
+  fullyParallel: false,
+  workers: 1,
+  // Keep the main suite's traces and workspace stamp when both runs share a job.
+  outputDir: "./test-results/compat",
   projects,
 });
