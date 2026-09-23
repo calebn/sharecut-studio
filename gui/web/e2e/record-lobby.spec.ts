@@ -531,9 +531,12 @@ test.describe("record lobby", () => {
             "Stopped",
           );
           await expect(
-            guest.getByRole("button", { name: "Leave" }),
+            guest.getByRole("button", { name: "Accept" }),
           ).toBeVisible();
-          await expect(host.getByText(/Ava · consented/)).toBeVisible();
+          await expect(host.getByText(/Ava · consented/)).toHaveCount(0);
+          await expect(
+            roomDlg.getByRole("button", { name: "Start", exact: true }),
+          ).toBeDisabled();
 
           // RecordApp changes views through FocusPull. Visible text assertions
           // can pass while the incoming view is still fading in over the outgoing
@@ -786,6 +789,66 @@ test.describe("record lobby", () => {
           ).toBeEnabled({ timeout: 15_000 });
         });
       });
+    });
+  });
+
+  test("desktop host sees operating-system recovery after microphone denial", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    await withShareableProject(async (projectPath) => {
+      const hostCtx = await browser.newContext({
+        userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)",
+      });
+      const host = await hostCtx.newPage();
+      try {
+        await markSharecutE2e(host);
+        await host.addInitScript(() => {
+          (
+            window as Window & { __TAURI_INTERNALS__?: object }
+          ).__TAURI_INTERNALS__ = {};
+          let deniedOnce = true;
+          const md = navigator.mediaDevices;
+          if (!md) {
+            return;
+          }
+          const orig = md.getUserMedia.bind(md);
+          md.getUserMedia = async (constraints) => {
+            if (deniedOnce) {
+              deniedOnce = false;
+              throw new DOMException("Permission denied", "NotAllowedError");
+            }
+            return orig(constraints);
+          };
+        });
+        await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
+        await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
+        const created = await host.request.post("/api/shares/record", {
+          data: { path: projectPath },
+        });
+        expect(created.ok(), await created.text()).toBeTruthy();
+
+        await host.getByRole("button", { name: "Menu" }).click();
+        await host.getByRole("menuitem", { name: "Record room…" }).click();
+        const room = host.getByRole("dialog", { name: "Record room" });
+        await expect(
+          room.getByText(
+            /Microphone access is blocked by your operating system/,
+          ),
+        ).toBeVisible();
+        await room.getByRole("button", { name: "Retry" }).click();
+        await expect(
+          room.getByText(
+            /Microphone access is blocked by your operating system/,
+          ),
+        ).toHaveCount(0);
+        await expect(
+          room.getByRole("button", { name: "Record room tone" }),
+        ).toBeEnabled();
+      } finally {
+        await hostCtx.close();
+      }
     });
   });
 

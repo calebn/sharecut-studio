@@ -3,6 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { urlOf } from "../test/urlOf";
+import {
+  createOpfsSink,
+  MemorySink,
+  OpfsUnavailableError,
+} from "./keeper/store";
 import { MIC_ALLOW_LABEL } from "./micPermission";
 import { RecordApp } from "./RecordApp";
 import {
@@ -11,6 +16,11 @@ import {
   FULL_ROOM_COPY,
   ROOM_TONE_PROMPT_COPY,
 } from "./types";
+
+const closeGuardSpy = vi.hoisted(() => vi.fn());
+vi.mock("../desktop/useDesktopCloseGuard", () => ({
+  useDesktopCloseGuard: closeGuardSpy,
+}));
 
 vi.mock("./monitor/useRecordMonitor", () => ({
   useRecordMonitor: () => ({ hearing: false, remoteCount: 0, error: null }),
@@ -24,7 +34,7 @@ vi.mock("./keeper/store", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./keeper/store")>();
   return {
     ...actual,
-    createOpfsSink: async () => new actual.MemorySink(),
+    createOpfsSink: vi.fn(async () => new actual.MemorySink()),
   };
 });
 
@@ -180,6 +190,7 @@ describe("RecordApp", () => {
   });
 
   beforeEach(() => {
+    closeGuardSpy.mockClear();
     sockets = [];
     stubWebSocket(sockets);
     getUserMedia = vi.fn(async () => {
@@ -202,6 +213,8 @@ describe("RecordApp", () => {
         enumerateDevices: vi.fn(async () => []),
       },
     });
+    vi.mocked(createOpfsSink).mockReset();
+    vi.mocked(createOpfsSink).mockResolvedValue(new MemorySink());
   });
 
   it("shows guest copy, consent, and is axe-clean", async () => {
@@ -368,7 +381,94 @@ describe("RecordApp", () => {
       expect(document.title).toBe("Producer — not recorded — Shot of Truth");
     });
     expect(sockets).toHaveLength(0);
+    expect(closeGuardSpy).toHaveBeenLastCalledWith(false, "guest", false);
     await expectNoA11yViolations(container);
+  });
+
+  it("blocks guest consent when local backup storage is unavailable", async () => {
+    vi.mocked(createOpfsSink).mockRejectedValueOnce(new Error("quota"));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (urlOf(input).includes("/bootstrap")) {
+          return new Response(JSON.stringify(guestBootstrap), { status: 200 });
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+    render(<RecordApp token="guest-tok" />);
+    await screen.findByText(
+      "Local recording backup is unavailable. Check that this browser or app environment allows local storage, then retry.",
+    );
+    expect(screen.getByRole("button", { name: "Accept" })).toBeDisabled();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Retry local backup" }),
+    );
+    await waitFor(() => expect(createOpfsSink).toHaveBeenCalledTimes(2));
+    expect(
+      screen.queryByText(
+        "Local recording backup is unavailable. Check that this browser or app environment allows local storage, then retry.",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows pending backup copy while the guest storage preflight is running", async () => {
+    vi.mocked(createOpfsSink).mockImplementationOnce(
+      () => new Promise(() => undefined),
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (urlOf(input).includes("/bootstrap")) {
+          return new Response(JSON.stringify(guestBootstrap), { status: 200 });
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+    render(<RecordApp token="guest-tok" />);
+    expect(
+      await screen.findByText("Preparing local recording backup…"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Accept" })).toBeDisabled();
+  });
+
+  it("shows the specific OPFS copy when the storage API is missing", async () => {
+    vi.mocked(createOpfsSink).mockRejectedValueOnce(new OpfsUnavailableError());
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (urlOf(input).includes("/bootstrap")) {
+          return new Response(JSON.stringify(guestBootstrap), { status: 200 });
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+    render(<RecordApp token="guest-tok" />);
+    expect(
+      await screen.findByText(
+        "Local recording backup is unavailable because this browser or app environment does not support OPFS. Use a compatible browser, then retry.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("preflights storage for room-tone upload even without keeper capture", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (urlOf(input).includes("/bootstrap")) {
+          return new Response(
+            JSON.stringify({
+              ...guestBootstrap,
+              build: { capture: false, monitor: false, upload: true },
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+    render(<RecordApp token="guest-tok" />);
+    await waitFor(() => expect(createOpfsSink).toHaveBeenCalledOnce());
   });
 
   it("restores the previous document title after unmount", async () => {
@@ -511,5 +611,6 @@ describe("RecordApp", () => {
     stubWebSocket(sockets, "declined");
     render(<RecordApp token="guest-tok" />);
     expect(await screen.findByText(DECLINED_COPY)).toBeInTheDocument();
+    expect(closeGuardSpy).toHaveBeenLastCalledWith(false, "guest", true);
   });
 });

@@ -287,8 +287,8 @@ describe("PresenceOverlay", () => {
           track_id: "host",
           parameter: "volume",
           points: [
-            { time: 0, value: 1 },
-            { time: 4, value: 0.5 },
+            { id: "early", time: 0, value: 1 },
+            { id: "late", time: 4, value: 0.5 },
           ],
         },
       ],

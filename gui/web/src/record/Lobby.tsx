@@ -6,7 +6,7 @@ import type { MicPermissionStatus } from "./micPermission";
 import { RoomToneCapture } from "./RoomToneCapture";
 import type { RoomToneStatus } from "./roomTone";
 import { useStorageHeadroom } from "./storageQuota";
-import { ROOM_TONE_GATE_COPY } from "./types";
+import { LOCAL_KEEPER_PENDING_COPY, ROOM_TONE_GATE_COPY } from "./types";
 
 type Props = {
   producer: boolean;
@@ -35,6 +35,9 @@ type Props = {
   onRetryRoomTone?: () => void;
   roomToneReady?: boolean;
   roomToneCaptureReady?: boolean;
+  localStorageReady?: boolean;
+  localStorageError?: string | null;
+  onRetryStorage?: () => void;
   showRoomTone?: boolean;
 };
 
@@ -65,6 +68,9 @@ export function Lobby({
   onRetryRoomTone = () => undefined,
   roomToneReady = true,
   roomToneCaptureReady = true,
+  localStorageReady = true,
+  localStorageError = null,
+  onRetryStorage,
   showRoomTone = true,
 }: Props) {
   const storage = useStorageHeadroom();
@@ -73,12 +79,18 @@ export function Lobby({
   const grantHintId = useId();
   const headphonesHintId = useId();
   const roomToneGateId = useId();
+  const localStorageGateId = useId();
   const micReady = permission === "granted";
-  const canAccept = headphonesOk && micReady && roomToneReady;
+  const localStorageCopy =
+    localStorageError ??
+    (!localStorageReady ? LOCAL_KEEPER_PENDING_COPY : null);
+  const canAccept =
+    headphonesOk && micReady && roomToneReady && localStorageReady;
   const acceptDescribedBy = [
     !micReady ? grantHintId : null,
     !headphonesOk ? headphonesHintId : null,
-    !roomToneReady ? roomToneGateId : null,
+    !roomToneReady && localStorageReady ? roomToneGateId : null,
+    !localStorageReady ? localStorageGateId : null,
   ]
     .filter((id): id is string => id != null)
     .join(" ");
@@ -140,10 +152,20 @@ export function Lobby({
                     onSkip={onSkipRoomTone}
                     onRetry={onRetryRoomTone}
                   />
-                  {!roomToneReady ? (
+                  {!roomToneReady && localStorageReady ? (
                     <p id={roomToneGateId}>{ROOM_TONE_GATE_COPY}</p>
                   ) : null}
                 </>
+              ) : null}
+              {localStorageCopy ? (
+                <div>
+                  <p id={localStorageGateId}>{localStorageCopy}</p>
+                  {localStorageError && onRetryStorage ? (
+                    <Button type="button" onClick={onRetryStorage}>
+                      Retry local backup
+                    </Button>
+                  ) : null}
+                </div>
               ) : null}
               <ConsentGate
                 onAccept={onAccept}

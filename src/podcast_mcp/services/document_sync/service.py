@@ -170,6 +170,10 @@ class DocumentSyncService:
                     "idempotent": True,
                 }
 
+            if command.type == "SetEnvelope":
+                from podcast_mcp.services.document_sync.payloads import validate_payload
+
+                command.payload = validate_payload(command.type, command.payload)
             result_payload = self._apply(
                 command,
                 capabilities=capabilities,

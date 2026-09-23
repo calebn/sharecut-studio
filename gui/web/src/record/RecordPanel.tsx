@@ -1,16 +1,25 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { hostRecordUploadTransport, loadHostRecordState } from "../api";
 import { useDaw } from "../state/useDaw";
 import { Button, CommandButton, Dialog } from "../ui";
 import { startBlockers } from "./blockers";
 import { HostUploadRoster } from "./HostUploadRoster";
+import {
+  prepareHostKeeperStorage,
+  retryHostKeeperStorage,
+} from "./hostKeeperStorage";
 import { useRecordHostStore } from "./hostStore";
 import { submitHostRecordTransport } from "./hostTransport";
 import { sendRecordHostCommand } from "./hostWire";
-import { type ByteSink, createOpfsSink } from "./keeper/store";
 import { LiveComments } from "./LiveComments";
 import { HOST_COMMENT_QUEUE_TOKEN } from "./liveCommentQueue";
 import { MicLossNotice } from "./MicLossNotice";
+import {
+  copyForMicStatus,
+  MIC_RETRY_LABEL,
+  type MicPermissionStatus,
+  micGrantFailed,
+} from "./micPermission";
 import { RecIndicator } from "./RecIndicator";
 import { RoomToneCapture } from "./RoomToneCapture";
 import { Roster } from "./Roster";
@@ -19,8 +28,8 @@ import {
   HEARING_COPY,
   hostReconnectPauseCopyFromSnapshot,
   LOCAL_KEEPER_COPY,
+  LOCAL_KEEPER_PENDING_COPY,
   shouldApplyRecordSnapshot,
-  UPLOAD_SINK_ERROR_COPY,
 } from "./types";
 import { UploadStatus } from "./UploadStatus";
 import { downloadLocalKeepers } from "./upload/recovery";
@@ -34,8 +43,12 @@ import { useRoomToneCapture } from "./useRoomToneCapture";
 
 type Props = {
   recordingLocally?: boolean;
+  keeperFinalizing?: boolean;
   keeperError?: string | null;
   onRetryKeeper?: () => void;
+  micError?: string | null;
+  micPending?: boolean;
+  micStatus?: MicPermissionStatus | null;
   hearing?: boolean;
   monitorError?: string | null;
   stream?: MediaStream | null;
@@ -45,14 +58,19 @@ type Props = {
 
 export function RecordPanel({
   recordingLocally = false,
+  keeperFinalizing = false,
   keeperError = null,
   onRetryKeeper,
+  micError = null,
+  micPending = false,
+  micStatus = null,
   hearing = false,
   monitorError = null,
   stream = null,
   micLost = false,
   onRetryMic,
 }: Props) {
+  const micHintId = useId();
   const {
     recordPanelOpen,
     setRecordPanelOpen,
@@ -78,8 +96,6 @@ export function RecordPanel({
       void refreshStorage();
     }
   }, [state, refreshStorage]);
-  const canStart =
-    blockers.length === 0 && (state === "lobby" || state === "stopped");
   const recording = state === "recording";
   const paused = state === "paused";
   const host = snapshot?.participants.find(
@@ -97,27 +113,18 @@ export function RecordPanel({
   const [transportError, setTransportError] = useState<string | null>(null);
   const [hydrateError, setHydrateError] = useState<string | null>(null);
   const [transportBusy, setTransportBusy] = useState(false);
-  const [sink, setSink] = useState<ByteSink | null>(null);
-  const [sinkError, setSinkError] = useState<string | null>(null);
+  const sink = useRecordHostStore((s) => s.keeperSink);
+  const sinkError = useRecordHostStore((s) => s.keeperStorageError);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const [uploadRetryNonce, setUploadRetryNonce] = useState(0);
   useEffect(() => {
-    let cancelled = false;
-    void createOpfsSink()
-      .then((next) => {
-        if (!cancelled) {
-          setSink(next);
-          setSinkError(null);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setSinkError(UPLOAD_SINK_ERROR_COPY);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
+    void prepareHostKeeperStorage().catch(() => undefined);
   }, []);
+  const localStorageReady = sink !== null;
+  const canStart =
+    blockers.length === 0 &&
+    (state === "lobby" || state === "stopped") &&
+    localStorageReady;
   const uploadTransport = useMemo(
     () => (projectPath ? hostRecordUploadTransport(projectPath) : null),
     [projectPath],
@@ -125,7 +132,7 @@ export function RecordPanel({
   const upload = useRecordUpload({
     enabled: !!snapshot,
     roomState: snapshot?.state,
-    captureSettled: !recordingLocally,
+    captureSettled: !recordingLocally && !keeperFinalizing,
     sessionId: snapshot?.session_id ?? null,
     takeIndex: snapshot?.take_index ?? 0,
     participantId: "p_host",
@@ -191,6 +198,10 @@ export function RecordPanel({
   const reconnectCopy = snapshot
     ? hostReconnectPauseCopyFromSnapshot(snapshot)
     : null;
+  const micCopy =
+    micStatus && micStatus !== "lost" ? copyForMicStatus(micStatus) : null;
+  const micFailed =
+    micStatus && micStatus !== "lost" ? micGrantFailed(micStatus) : false;
 
   return (
     <Dialog
@@ -215,7 +226,7 @@ export function RecordPanel({
             status={roomTone.status}
             error={roomTone.error}
             micReady={!!stream}
-            captureReady={roomTone.captureReady}
+            captureReady={localStorageReady && roomTone.captureReady}
             onRecord={roomTone.record}
             onSkip={roomTone.skip}
             onRetry={roomTone.retry}
@@ -228,6 +239,27 @@ export function RecordPanel({
           {recordingLocally && !keeperError ? <p>{LOCAL_KEEPER_COPY}</p> : null}
           {micLost ? <MicLossNotice onRetry={onRetryMic} /> : null}
           {hearing ? <p>{HEARING_COPY}</p> : null}
+          {micCopy ? (
+            <p
+              id={micHintId}
+              role={micPending ? "status" : undefined}
+              className={micFailed ? "record-warn" : undefined}
+            >
+              {micCopy}
+            </p>
+          ) : null}
+          {micError && micStatus === "error" ? (
+            <p className="record-warn">{micError}</p>
+          ) : null}
+          {micFailed && onRetryMic && !micLost ? (
+            <Button
+              type="button"
+              onClick={onRetryMic}
+              aria-describedby={micHintId}
+            >
+              {MIC_RETRY_LABEL}
+            </Button>
+          ) : null}
           <UploadStatus
             progress={upload}
             stopped={state === "stopped"}
@@ -241,7 +273,7 @@ export function RecordPanel({
                       "p_host",
                       snapshot.take_index,
                     ).catch((error: unknown) => {
-                      setSinkError(
+                      setDownloadError(
                         error instanceof Error ? error.message : String(error),
                       );
                     });
@@ -279,7 +311,22 @@ export function RecordPanel({
               ) : null}
             </>
           ) : null}
-          {sinkError ? <p className="record-warn">{sinkError}</p> : null}
+          {sinkError ? (
+            <>
+              <p className="record-warn">{sinkError}</p>
+              <Button
+                type="button"
+                onClick={() => {
+                  void retryHostKeeperStorage().catch(() => undefined);
+                }}
+              >
+                Retry local backup
+              </Button>
+            </>
+          ) : null}
+          {downloadError ? (
+            <p className="record-warn">{downloadError}</p>
+          ) : null}
           {monitorError ? <p className="record-warn">{monitorError}</p> : null}
           {hydrateError ? <p className="record-warn">{hydrateError}</p> : null}
           {transportError ? (
@@ -301,8 +348,16 @@ export function RecordPanel({
             onSubmitNote={liveComments.submitNote}
           />
         ) : null}
-        {!canStart && blockers.length > 0 ? (
-          <p className="record-warn">{blockers.join(", ")}</p>
+        {!canStart &&
+        (blockers.length > 0 || (!localStorageReady && !sinkError)) ? (
+          <p className="record-warn">
+            {[
+              ...blockers,
+              ...(!localStorageReady && !sinkError
+                ? [LOCAL_KEEPER_PENDING_COPY]
+                : []),
+            ].join(", ")}
+          </p>
         ) : null}
         {host ? (
           <label className="cluster">

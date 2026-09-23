@@ -150,15 +150,22 @@ flowchart TD
 2. Name and headphones check, then browser **Allow microphone** (explicit
    grant; Consent stays disabled until granted **and** headphones are checked),
    then mic test and device picker.
+   The desktop host's **Record room** panel also shows microphone permission
+   status and **Retry** after denial. macOS and Windows point to system
+   microphone privacy settings; Linux identifies its WebKit prompt and directs
+   blocked users to the supported browser recording path.
 3. Optional **Record 3 seconds of room tone** (skip allowed). Too-loud beds warn
    if RMS is above −35 dBFS and stay off the host. The bed is captured locally;
    nothing is uploaded until Accept. Producers never see this step.
 4. Separate **recording consent** step. Encoder armed on Accept; **zero keeper
    WAV bytes** until host Start. Room-tone PUT waits for Accept (local lobby
    capture is allowed; Skip/Decline discards it).
-5. Host Start is enabled when every **recorded guest** currently in the lobby
-   has consented (producers skip this gate; `"No one has joined"` until a guest
-   connects).
+5. Host Start requires a verified writable local OPFS backup for the host and
+   is enabled when every **recorded guest** currently in the lobby has consented
+   (producers skip this gate; `"No one has joined"` until a guest connects). A
+   guest who rejoins before a new take must retry local backup readiness and
+   Accept again. The previous take’s upload and download recovery stays available
+   in the lobby. Failed backup readiness offers **Retry local backup**.
 6. While REC is on, guest sees the roster, clock, "Recording locally on this
    device," and **Hearing the room.** Press **M** for a Marker or type a note
    (other guests in the record room never see it; after land it is an ordinary
@@ -192,6 +199,14 @@ flowchart TD
    indicator). A shorter blip stays REC and does not remount the host keeper. A
    sidecar crash that never sent Leave still pauses on the next host Join.
    Reminting a new room while REC/PAUSED is refused until the take is Stopped.
+9. In the native desktop app, a host or recorded guest who closes the window
+   during REC, PAUSED, or finalizing sees a role-specific confirmation. The
+   host warning says closing stops the session for everyone; the guest warning
+   says it can lose that guest's local keeper. This protects the native window
+   close request while the take is still recoverable, without sending a remote
+   close command. On macOS, the app menu and **Cmd+Q** use the native
+   confirmation path. Dock **Quit** and OS shutdown can bypass the app menu
+   and remain best-effort paths.
 
    If local OPFS capture fails, the client stops claiming that REC is safely
    backed up, preserves finalized segments, and shows **Retry local recording**.
