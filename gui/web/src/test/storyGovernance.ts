@@ -293,12 +293,14 @@ export function storyTitleViolation(text: string): string | null {
     return "missing default-exported metadata";
   }
   let metadata: unknown = exported.declaration;
+  let metadataName: string | undefined;
   let resolvedIdentifier = false;
   while (isNode(metadata)) {
     if (metadata.type === "Identifier") {
       if (resolvedIdentifier) break;
       resolvedIdentifier = true;
-      metadata = declarations.get(metadata.name as string);
+      metadataName = metadata.name as string;
+      metadata = declarations.get(metadataName);
     } else if (
       metadata.type === "TSAsExpression" ||
       metadata.type === "TSSatisfiesExpression" ||
@@ -311,6 +313,47 @@ export function storyTitleViolation(text: string): string | null {
   }
   if (!isNode(metadata) || metadata.type !== "ObjectExpression") {
     return "default export must be a local metadata object";
+  }
+  if (metadataName) {
+    const namesMetadata = (value: unknown): boolean =>
+      isNode(value) &&
+      value.type === "Identifier" &&
+      value.name === metadataName;
+    const targetsMetadata = (value: unknown): boolean => {
+      let target = value;
+      while (
+        isNode(target) &&
+        (target.type === "MemberExpression" ||
+          target.type === "OptionalMemberExpression")
+      ) {
+        target = target.object;
+      }
+      return namesMetadata(target);
+    };
+    const mutatesMetadata = (value: unknown): boolean => {
+      if (Array.isArray(value)) return value.some(mutatesMetadata);
+      if (!isNode(value)) return false;
+      if (
+        (value.type === "VariableDeclarator" && namesMetadata(value.init)) ||
+        (value.type === "AssignmentExpression" &&
+          (targetsMetadata(value.left) || namesMetadata(value.right))) ||
+        (value.type === "UpdateExpression" &&
+          targetsMetadata(value.argument)) ||
+        (value.type === "UnaryExpression" &&
+          value.operator === "delete" &&
+          targetsMetadata(value.argument)) ||
+        (value.type === "CallExpression" &&
+          (targetsMetadata(value.callee) ||
+            (Array.isArray(value.arguments) &&
+              value.arguments.some(namesMetadata))))
+      ) {
+        return true;
+      }
+      return Object.values(value).some(mutatesMetadata);
+    };
+    if (mutatesMetadata(ast.program.body)) {
+      return "default-exported metadata must not be mutated or aliased";
+    }
   }
   const isTitle = (property: unknown): boolean => {
     if (
