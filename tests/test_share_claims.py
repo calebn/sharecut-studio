@@ -50,6 +50,7 @@ def test_resolve_tunnel_secret_bound_shared_and_legacy() -> None:
         resolve_tunnel_secret("shared", shared_secrets={"shared"}, host_secrets={}, host_id="h")
         == "shared"
     )
+    # Legacy CSV secret with arbitrary host_id is no longer accepted
     assert (
         resolve_tunnel_secret(
             "legacy",
@@ -57,7 +58,7 @@ def test_resolve_tunnel_secret_bound_shared_and_legacy() -> None:
             host_secrets={"other": "legacy"},
             host_id="unknown",
         )
-        == "legacy"
+        is None
     )
     assert (
         resolve_tunnel_secret(
