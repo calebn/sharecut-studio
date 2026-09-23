@@ -132,6 +132,27 @@ rolling up `master_qc.json`'s issues **plus** transcript reconciliation stalenes
 see [podcast-master-export](../.agents/skills/podcast-master-export/SKILL.md#final-ship-gate-export_qcjson)
 for the exact shape and what to do when `ok` is `false`.
 
+## Effect presets (source of truth)
+
+`src/podcast_mcp/effects/presets.py::_BUILTIN_PRESETS` is the single source of
+truth for effect preset definitions (`noise_reduction`, `noise_reduction_heavy`,
+`noise_reduction_rnnoise`, `deess`, `gate`, `eq_presence`, `eq_clarity`,
+`eq_warm`, `podcast_standard`). `get_preset` / `list_presets` /
+`resolve_presets` read from there.
+
+The `effects:` block in a pipeline defaults YAML is a **by-name overlay** on
+top of the builtins, not a second place to define presets: it can add new
+preset names, or override a builtin's definition, but only in a custom
+`PODCAST_MCP_PIPELINE_DEFAULTS` file. Repo-tracked YAMLs
+(`.agents/defaults/pipeline.yaml`, `tests/fixtures/*.yaml`) must not redefine
+a builtin preset name — `tests/test_effects_presets.py` has a parity test
+that enforces this and fails CI if one drifts.
+
+`suggest_pipeline_tuning` (Analyze) seeds its `noise_reduction` and `gate`
+suggestions from `get_preset(...)` (the resolved presets), not from reading
+`defaults["effects"]` directly, so its proposed config always reflects the
+same presets `apply_preset_to_chain` would apply.
+
 ## RNNoise noise reduction (`noise_reduction_rnnoise`)
 
 An alternate to `afftdn` using FFmpeg's `arnndn` filter (a small recurrent-network

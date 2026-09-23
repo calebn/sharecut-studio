@@ -14,6 +14,7 @@ description: >-
 
 **Apply effects**
 - `add_effect_tool(project_path, speaker=…, preset=…)` — presets: `noise_reduction`, `noise_reduction_rnnoise`, `deess`, `gate`, `eq_presence`, `eq_clarity`, `podcast_standard`
+  - Preset definitions live in `effects/presets.py` (`_BUILTIN_PRESETS`); `effects:` in pipeline defaults YAML only adds new presets or overrides one by name (see [audio-engineering.md](../../docs/audio-engineering.md#effect-presets-source-of-truth)).
   - `deess` uses FFmpeg's native `deesser` filter (`intensity`/`frequency` params). For a manual EQ notch instead, use `add_effect_tool(effect="bandreject", params_json='{"f": 6500, "w": 3000}')`.
   - `noise_reduction_rnnoise` uses FFmpeg's `arnndn` filter (a small recurrent-network denoiser); needs a one-time `podcast bootstrap --component rnnoise` to fetch its model. Often a real upgrade over `noise_reduction`/`afftdn` for room noise/HVAC hiss.
 - `remove_effect_tool`, `list_effects_tool`

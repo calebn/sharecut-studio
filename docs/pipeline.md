@@ -78,7 +78,7 @@ podcast pipeline run --project episode.project.json --only master_loudness
 
 `--from reconcile_transcript` resumes at pass 1. Pass 2 reconcile is included when resuming from `assemble_timeline`.
 
-Defaults: `.agents/defaults/pipeline.yaml` (tighten, mix, export, effects, and other step parameters). Cut boundaries: [inaudible-cuts.md](inaudible-cuts.md). **Tuning filler/pause cuts:** [filler-cut-quality.md](filler-cut-quality.md). **Audio diagnostics and mastering QC:** [audio-engineering.md](audio-engineering.md).
+Defaults: `.agents/defaults/pipeline.yaml` (tighten, mix, export, and other step parameters; `effects:` is only a by-name overlay on the FX presets built into `effects/presets.py`, see [audio-engineering.md](audio-engineering.md#effect-presets-source-of-truth)). Cut boundaries: [inaudible-cuts.md](inaudible-cuts.md). **Tuning filler/pause cuts:** [filler-cut-quality.md](filler-cut-quality.md). **Audio diagnostics and mastering QC:** [audio-engineering.md](audio-engineering.md).
 
 ## Tighten params
 
