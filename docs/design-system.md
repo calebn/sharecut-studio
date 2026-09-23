@@ -20,7 +20,7 @@ and open the URL it reports.
 
 ## What's in it
 
-Stories live next to their components (`src/ui/*.stories.tsx`) and are
+Library stories live next to their components (`src/ui/*.stories.tsx`) and are
 organized by Atomic Design level:
 
 | Level | Contents | Examples |
@@ -29,10 +29,28 @@ organized by Atomic Design level:
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow |
 | **Organisms** | Complex components / sections | Dialog, BottomSheet |
 
-Domain components (`timeline/`, `inspector/`, transport chrome) are intentionally
-out — they compose the library (see `gui/web/docs/ui-library.md`), and stories
-for them would couple the catalog to app state. Atoms → molecules → organisms
-is the traversal order: design the atom in isolation, then check it composed.
+Atoms → molecules → organisms is the traversal order: design the atom in
+isolation, then check it composed.
+
+### Domain surfaces
+
+Domain components that render standalone — no app providers, no network, no
+session or sync context — may also get stories, colocated with the component
+(for example `src/record/Declined.stories.tsx`). Components that need DAW state
+(`timeline/`, `inspector/`, transport chrome) stay out; they compose the
+library (see `gui/web/docs/ui-library.md`), and stories for them would couple
+the catalog to app state.
+
+- Load the surface's production entry stylesheet in the story (record surfaces:
+  `styles/partials/record-entry.css`, as `RecordApp.tsx` does) so the story
+  renders what ships.
+- Full-viewport screens (`.cover`, `min-block-size: 100dvh`) set
+  `parameters: { layout: "fullscreen" }`.
+- Use made-up fixtures only — never real share tokens, guest names, or relay
+  URLs.
+- If a surface starts reading session or sync context, it needs a decorator
+  that provides that context before its story can stay standalone.
+- The story does not replace the component's own Vitest + axe test.
 
 ## Theme toolbar
 
@@ -42,9 +60,12 @@ every new component in both themes before merging.
 
 ## Adding a story
 
-1. Colocate: `src/ui/<Name>.stories.tsx` next to `<Name>.tsx`.
-2. Title it `Atoms|Molecules|Organisms/<Name>`.
-3. Import from `./index` (the public API), not deep paths.
+1. Colocate: `<Name>.stories.tsx` next to `<Name>.tsx` (`src/ui/` for the
+   library, the feature folder for domain surfaces).
+2. Library stories: title it `Atoms|Molecules|Organisms/<Name>`.
+3. Library stories import from `./index` (the public API), not deep paths.
+   Feature folders without a barrel (for example `src/record/`) import the
+   component module directly (`./Declined`).
 4. Keep stories state-local (`useState` in the story) — no app providers, no
    network. Components that need DAW context don't get stories until they can
    render standalone.
@@ -67,3 +88,6 @@ every new component in both themes before merging.
 - 2026-09-21 — Scaffolded Storybook 10 (react-vite) with theme toolbar, 11
   story files across Atoms/Molecules/Organisms, and GitHub Pages deploy
   workflow.
+- 2026-09-23 — Domain surfaces that render standalone may have colocated
+  stories (first: `src/record/Declined.stories.tsx`); added import, stylesheet,
+  layout and fixture rules for them.
