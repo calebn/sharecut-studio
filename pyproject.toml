@@ -33,6 +33,7 @@ dev = [
     "bandit[toml]>=1.8.0",
     "vulture>=2.14",
     "deptry>=0.23.0",
+    "pre-commit>=4.0.0",
 ]
 speaker = [
     "torch>=2.0.0",

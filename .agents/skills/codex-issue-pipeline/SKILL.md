@@ -102,9 +102,11 @@ action; do not loop indefinitely.
 1. Fetch the latest `main`. Work in a feature branch or isolated worktree;
    preserve unrelated local files. In a new worktree run
    `make worktree-setup` before committing; the pre-commit hook also
-   provisions it if needed. Read the issue's labels and comments, then claim
-   it as above before researching code or planning. Inspect only the relevant
-   code, callers, tests, and AGENTS.md rows, then post a concrete plan.
+   provisions it if needed. The setup installs the check-only `pre-commit`
+   runner in this worktree's `.venv`. Read the issue's labels and comments,
+   then claim it as above before researching code or planning. Inspect only
+   the relevant code, callers, tests, and AGENTS.md rows, then post a concrete
+   plan.
 2. Move to `pipeline:implementing`. Implement through the domain, service,
    and adapter layers described in `docs/architecture.md`. Add tests and
    update docs in the same change. Run focused tests with `--no-cov` and the
