@@ -175,10 +175,22 @@ async function seedSparseRecoveryKeepers(
       // Interleave with the recorded segment 0, which may already have
       // landed and been reclaimed (only its completion .json remains). Index 2
       // is left genuinely missing so the error counts only lost audio.
+      const exists = async (name: string): Promise<boolean> => {
+        try {
+          await dir.getFileHandle(name);
+          return true;
+        } catch {
+          return false;
+        }
+      };
+      // Start→Stop can race the first segment write, leaving segment 0 with
+      // neither a WAV nor a completion marker; seed it so only 2 is missing.
+      const segment0Recorded =
+        (await exists("0.wav")) || (await exists("0.json"));
       // Seeded WAVs have no completion metadata: they model segments cut off
       // mid-write, which upload leaves alone once capture has settled and
       // recovery exports with a `-partial` label.
-      for (const index of [1, 3]) {
+      for (const index of segment0Recorded ? [1, 3] : [0, 1, 3]) {
         const handle = await dir.getFileHandle(`${index}.wav`, {
           create: true,
         });
