@@ -173,13 +173,29 @@ async function seedSparseRecoveryKeepers(
       ]) {
         dir = await dir.getDirectoryHandle(part, { create: true });
       }
-      for (const index of [0, 2]) {
-        const handle = await dir.getFileHandle(`${index}.wav`, {
-          create: true,
-        });
+      const put = async (name: string, bytes: Uint8Array) => {
+        const handle = await dir.getFileHandle(name, { create: true });
         const writer = await handle.createWritable();
-        await writer.write(new Uint8Array(52));
+        await writer.write(bytes);
         await writer.close();
+      };
+      for (const index of [0, 2]) {
+        await put(`${index}.wav`, new Uint8Array(52));
+        // Finished segments carry completion metadata (KeeperMeta); without
+        // it recovery labels the WAV `-partial`.
+        const meta = {
+          sessionId,
+          takeIndex,
+          participantId,
+          segmentIndex: index,
+          sampleRate: 48_000,
+          joinOffsetMs: 0,
+          samplesWritten: 4,
+        };
+        await put(
+          `${index}.json`,
+          new TextEncoder().encode(`${JSON.stringify(meta)}\n`),
+        );
       }
     },
     { sessionId, takeIndex, participantId },
@@ -201,6 +217,7 @@ async function expectRecoveryDownloads(page: Page): Promise<void> {
   expect(archive.readUInt32LE(0)).toBe(0x0403_4b50);
   expect(archive.includes(Buffer.from("keeper-0-0.wav"))).toBe(true);
   expect(archive.includes(Buffer.from("keeper-0-2.wav"))).toBe(true);
+  expect(archive.includes(Buffer.from("-partial.wav"))).toBe(false);
   await expect(
     page.getByText(/Downloaded 2 local keeper copies/),
   ).toBeVisible();

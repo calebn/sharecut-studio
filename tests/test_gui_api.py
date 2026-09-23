@@ -36,6 +36,21 @@ def _bypass_whisper_run_gate(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+def _wait_pipeline_idle(client, timeout_s: float = 10.0) -> None:
+    """Block until the single-flight pipeline slot is free.
+
+    ``/api/pipeline/run`` returns as soon as the job thread starts, so a
+    follow-up run can hit 409 while a stubbed job is still finishing on a
+    loaded worker.
+    """
+    import time
+
+    deadline = time.monotonic() + timeout_s
+    while client.get("/api/pipeline/status").json()["running"]:
+        assert time.monotonic() < deadline, "pipeline job did not finish"
+        time.sleep(0.02)
+
+
 def _minimal() -> EpisodeProject:
     p = EpisodeProject.create("gui", "/tmp/gui")
     p.timeline.tracks = [
@@ -1798,6 +1813,8 @@ def test_api_pipeline_run_validation_and_cancel(minimal_project, monkeypatch) ->
     # Working-set skip_steps path when enabled_steps already stored
     from podcast_mcp.services.pipeline_config import config_store
 
+    # The pipeline slot is single-flight; let the first job finish first.
+    _wait_pipeline_idle(client)
     config_store().put(path, enabled_steps=["ingest_tracks"], unattended=True)
     ws_run = client.post(
         "/api/pipeline/run",
