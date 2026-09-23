@@ -33,12 +33,19 @@ Client ──submit(command)──► SessionSyncService
 **`PlayOsAudio`** (real `podcast play` / MCP play with speakers): seek + highlight only — `is_playing=false` so the browser does not double-play.  
 **`AuditionInViewer`** (`dry_run=true`): region + browser transport.
 
+## Modules
+
+| Module | Role |
+|--------|------|
+| [`session_sync/service.py`](../src/podcast_mcp/services/session_sync/service.py) | `SessionSyncService` — the sync authority only (`submit`, `snapshot`, `state_or_none` / `meta`; `state_or_none` is the single "empty authority" check) |
+| [`session_sync/viewer.py`](../src/podcast_mcp/services/session_sync/viewer.py) | Blob adapters over that authority: `publish_viewer_snapshot` (`POST /api/session/state`) and `publish_agent_play` (`PlayService`) |
+| [`session_control.py`](../src/podcast_mcp/services/session_control.py) | `SessionControlService` — agent/CLI transport facade (seek, region, mode, selection, stop) |
+
 ## On disk
 
 | Path | Role |
 |------|------|
 | `artifacts/session/sync.db` | Authority: command log + snapshot + presence |
-| `artifacts/session_state.json` | Materialized mirror for legacy readers |
 
 ## HTTP / WS API
 
@@ -47,7 +54,7 @@ Client ──submit(command)──► SessionSyncService
 | `GET /api/session/state` | Materialized snapshot (+ `clients[]`) |
 | `GET /api/session/meta` | `server_seq` / mtime for fallback poll |
 | `POST /api/session/command` | Submit typed command (agent = viewer = cli) |
-| `POST /api/session/state` | Compat: viewer blob → typed commands |
+| `POST /api/session/state` | Viewer blob → typed commands (bootstrap / non-command-log clients) |
 | `WS /api/session/ws?path=&client_id=` | Push `Applied` / `Snapshot`; client may send `Command` / `Ack` / `Presence` |
 
 **Playhead while playing:** viewer HTTP heartbeats use `PresenceHeartbeat` (ephemeral `clients[]` playhead). Do **not** journal continuous `SetPlayhead` — that fans out Applied events, the DAW re-seeks `HTMLAudioElement`, and audio stutters. Durable `SetPlayhead` is for paused scrub only.
@@ -65,7 +72,7 @@ Local DAW **Play** clears any leftover agent `playUntil` auto-stop so a prior au
 
 ## Presence plane
 
-Live roster, ghost cursors, selection, playhead, and viewport are **ephemeral**. They live only in the `clients.meta` JSON column of `artifacts/session/sync.db` — never in the command log, snapshot transport fields, or `session_state.json`.
+Live roster, ghost cursors, selection, playhead, and viewport are **ephemeral**. They live only in the `clients.meta` JSON column of `artifacts/session/sync.db` — never in the command log or snapshot transport fields.
 
 **Client → server** `Presence` frame (`type` must be the first JSON key for the relay prefix match):
 
@@ -135,7 +142,7 @@ Every GUI surface is classified once as **Look**, **Hear**, or **Do** (`presence
 - `seek_session_tool`, `set_session_*` → typed commands via `SessionControlService`  
 - `PlayService.play` → `PlayOsAudio` or `AuditionInViewer`
 
-**DAW first Snapshot:** apply agent transport (seek/region/mode) **before** recording `command_id` as applied — otherwise the client dedupe guard skips an in-flight agent play when a tab connects mid-command.
+**DAW first Snapshot:** apply agent transport (seek/region/mode) **before** recording `last_command_id` as applied — otherwise the client dedupe guard skips an in-flight agent play when a tab connects mid-command.
 
 ## Planes
 
@@ -193,7 +200,7 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 | `CorrectTranscriptWord` | `EditService.correct_word` | `track_id`, `word_index`, `text` |
 | `CorrectTranscriptPhrase` | `EditService.correct_phrase` | `track_id`, `start_word_index`, `end_word_index`, `text` |
 | `SetTranscriptWordSuppressed` | `EditService.set_word_suppressed` | `track_id`, `word_index`, `suppressed` |
-| `SetEnvelope` | `PipelineService.set_envelope` | `track_id`, `points: [{time, value}]` |
+| `SetEnvelope` | `PipelineService.set_envelope` | `track_id`, `points: [{time, value, id?}]`; missing IDs are generated before the command is journaled |
 | `AddChapter` | `EditService.add_chapter` | `time`, `title` (timeline clocks) |
 | `UpdateChapter` | `EditService.update_chapter` | `old_time`, `old_title`, `time`, `title` |
 | `DeleteChapter` | `EditService.delete_chapter` | `time`, `title` |
@@ -232,7 +239,7 @@ Share guests with the `view` capability connect to:
 - **Frontend:** `useGuestSync` demuxes planes into the same store paths as host hooks (progress → StatusBar `activityJob`); reconnects after 2s; while the socket is down it HTTP-polls `/daw/project` every 1.5s (in addition to `useProjectPoll` mtime). Presence events update the status-bar roster.
 - **ReviewApp (no `view`):** commenters cannot open `daw/ws`. They subscribe to `WS /api/review/{token}/progress/ws` (valid review token only) and render the same Activity chip.
 - **Remote guests:** relay terminates `wss` and bridges via tunnel frames `ws_open` / `ws_data` / `ws_close` ([host-online-relay.md](host-online-relay.md)).
-- **Offline queue:** share-guest document commands persist `(command_id, client_seq)` in IndexedDB before send; retries reuse the same seq. Offline structural commands demote to `structural_mode=propose` (suggestion branch). Conflicts return HTTP 409 (`conflict: true`) and land in the guest **Needs attention** banner (`GuestAttentionBanner` / IndexedDB `conflicts:{token}`). Successful project + proxy manifest loads merge into `snap:{token}` so a later offline boot can hydrate from IndexedDB when bootstrap fetch fails. `DocumentSyncService.submit` serializes apply+append per workspace so same-seq retries cannot double-apply.
+- **Offline queue:** document commands persist `(client_id, command_id, client_seq)` in IndexedDB before send. Share guests use `queue:{token}`; host commands use the project-path-namespaced `host-queue:{projectPath}` bucket, so the two modes never collide. Retries retain the original identity; host commands drain in persisted insertion order after document WebSocket reconnect or browser `online`, and new host commands wait behind older queued work. Successful host replays remove completed records in one batch; the matching `host-queue-count:{projectPath}` key lets the attention banner count them without reading every payload. Offline structural guest commands demote to `structural_mode=propose` (suggestion branch). Transport failures and HTTP 5xx responses remain queued when storage is available. If storage fails, a host command is sent directly only when the readable queue proves no older edit is waiting; otherwise it reports an ordering error. A cleanup failure after a committed server response does not report that edit as failed, and its existing identity makes later replay idempotent. Validation/auth failures are removed rather than silently retried. HTTP 409 conflicts are persisted in the matching `conflicts:{token}` or `host-conflicts:{projectPath}` bucket and shown in the **Needs attention** banner (`GuestAttentionBanner`); host conflict upserts use one transaction so simultaneous conflicts survive. Host Comments actions that need a returned comment accept a queued result and wait for document sync before selecting the new row. A response from a previous host project does not apply to the current project's UI after navigation. Guest queue records created before `client_id` was persisted cannot recover that original tab identity after the tab closes; the first replay uses the current tab identity and preserves it for subsequent retries. Successful project + proxy manifest loads merge into `snap:{token}` so a later offline boot can hydrate from IndexedDB when bootstrap fetch fails. `DocumentSyncService.submit` serializes apply+append per workspace so same-seq retries cannot double-apply.
 
 ## Multi-user (Phase 3 hooks)
 

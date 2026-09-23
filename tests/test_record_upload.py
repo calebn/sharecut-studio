@@ -8,7 +8,6 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from podcast_mcp.edits.share_registry import reset_share_registry_for_tests
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services import ProjectWorkspace
@@ -25,10 +24,7 @@ from podcast_mcp.services.record.upload import (
 from podcast_mcp.services.share import ShareService
 
 
-def _isolate_registry(tmp_workspace: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(tmp_workspace / "shares_index.json"))
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "reg.sqlite"))
-    reset_share_registry_for_tests()
+def _isolate() -> None:
     reset_record_runtime_for_tests()
 
 
@@ -42,7 +38,7 @@ def _seed_premix(minimal_project, sample_wav):
 
 
 def _room(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    _isolate_registry(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed_premix(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     return ws, room, TestClient(create_app())
@@ -89,12 +85,14 @@ def test_service_acks_parts_and_resumes_after_gap(minimal_project, sample_wav):
         part_seq=0,
         data=first,
         digest=h1,
+        expected_parts=2,
     )
     assert a["acked"] is True
     assert a["file_ack"] is False
     status = svc.status(session_id=sid, participant_id="p_aa")
     assert status["segments"][0]["acked_parts"] == [0]
-    with pytest.raises(RecordUploadError, match="part gap"):
+    assert status["segments"][0]["expected_parts"] == 2
+    with pytest.raises(RecordUploadError, match="expected_parts incomplete"):
         svc.ingest_part(
             session_id=sid,
             take_index=0,
@@ -105,6 +103,7 @@ def test_service_acks_parts_and_resumes_after_gap(minimal_project, sample_wav):
             digest=h2,
             file_sha256=file_hash,
             final=True,
+            expected_parts=2,
         )
     b = svc.ingest_part(
         session_id=sid,
@@ -116,6 +115,7 @@ def test_service_acks_parts_and_resumes_after_gap(minimal_project, sample_wav):
         digest=h2,
         file_sha256=file_hash,
         final=True,
+        expected_parts=2,
     )
     assert b["file_ack"] is True
     assert b["newly_acked"] is True
@@ -129,6 +129,7 @@ def test_service_acks_parts_and_resumes_after_gap(minimal_project, sample_wav):
         digest=h2,
         file_sha256=file_hash,
         final=True,
+        expected_parts=2,
     )
     assert again["file_ack"] is True
     assert again["newly_acked"] is False
@@ -143,6 +144,127 @@ def test_service_acks_parts_and_resumes_after_gap(minimal_project, sample_wav):
         / "0.wav"
     )
     assert dest.read_bytes() == wav
+
+
+def test_expected_chunks_survive_reconnect_and_gate_file_ack(minimal_project, sample_wav):
+    ws = _seed_premix(minimal_project, sample_wav)
+    sid = "room1"
+    first, first_hash, _ = _pcm_part(64)
+    second, second_hash, _ = _pcm_part(32)
+    file_hash = sha256_hex(pcm_wav_header(len(first) + len(second)) + first + second)
+    svc = RecordUploadService(ws.project)
+    svc.ingest_part(
+        session_id=sid,
+        take_index=0,
+        participant_id="p_aa",
+        segment_index=0,
+        part_seq=0,
+        data=first,
+        digest=first_hash,
+        expected_parts=2,
+    )
+    reset_record_runtime_for_tests()
+    svc = RecordUploadService(ws.project)
+    segment = svc.status(session_id=sid)["segments"][0]
+    assert segment["acked_parts"] == [0]
+    assert segment["expected_parts"] == 2
+    assert segment["file_ack"] is False
+    with pytest.raises(RecordUploadError, match="expected_parts mismatch"):
+        svc.ingest_part(
+            session_id=sid,
+            take_index=0,
+            participant_id="p_aa",
+            segment_index=0,
+            part_seq=0,
+            data=first,
+            digest=first_hash,
+            file_sha256=file_hash,
+            final=True,
+        )
+    with pytest.raises(RecordUploadError, match="expected_parts incomplete"):
+        svc.ingest_part(
+            session_id=sid,
+            take_index=0,
+            participant_id="p_aa",
+            segment_index=0,
+            part_seq=0,
+            data=first,
+            digest=first_hash,
+            file_sha256=file_hash,
+            final=True,
+            expected_parts=2,
+        )
+    assert svc.status(session_id=sid)["segments"][0]["file_ack"] is False
+    with pytest.raises(RecordUploadError, match="expected_parts mismatch"):
+        svc.ingest_part(
+            session_id=sid,
+            take_index=0,
+            participant_id="p_aa",
+            segment_index=0,
+            part_seq=1,
+            data=second,
+            digest=second_hash,
+            expected_parts=3,
+        )
+    assert svc.status(session_id=sid)["segments"][0]["acked_parts"] == [0]
+    result = svc.ingest_part(
+        session_id=sid,
+        take_index=0,
+        participant_id="p_aa",
+        segment_index=0,
+        part_seq=1,
+        data=second,
+        digest=second_hash,
+        file_sha256=file_hash,
+        final=True,
+        expected_parts=2,
+    )
+    assert result["file_ack"] is True
+    segment = svc.status(session_id=sid)["segments"][0]
+    assert segment["file_ack"] is True
+    assert segment["expected_parts"] == 2
+
+
+def test_legacy_final_keeper_infers_count_and_requires_all_parts(minimal_project, sample_wav):
+    ws = _seed_premix(minimal_project, sample_wav)
+    svc = RecordUploadService(ws.project)
+    first, first_hash, _ = _pcm_part(64)
+    second, second_hash, _ = _pcm_part(32)
+    file_hash = sha256_hex(pcm_wav_header(len(first) + len(second)) + first + second)
+    with pytest.raises(RecordUploadError, match="expected_parts incomplete"):
+        svc.ingest_part(
+            session_id="legacy-room",
+            take_index=0,
+            participant_id="p_aa",
+            segment_index=0,
+            part_seq=1,
+            data=second,
+            digest=second_hash,
+            file_sha256=file_hash,
+            final=True,
+        )
+    svc.ingest_part(
+        session_id="legacy-room",
+        take_index=0,
+        participant_id="p_aa",
+        segment_index=0,
+        part_seq=0,
+        data=first,
+        digest=first_hash,
+    )
+    ack = svc.ingest_part(
+        session_id="legacy-room",
+        take_index=0,
+        participant_id="p_aa",
+        segment_index=0,
+        part_seq=1,
+        data=second,
+        digest=second_hash,
+        file_sha256=file_hash,
+        final=True,
+    )
+    assert ack["file_ack"] is True
+    assert svc.status(session_id="legacy-room")["segments"][0]["expected_parts"] == 2
 
 
 def test_service_rejects_bad_hash_and_path(minimal_project, sample_wav):
@@ -199,7 +321,7 @@ def test_service_rejects_bad_hash_and_path(minimal_project, sample_wav):
             data=b"",
             digest="",
         )
-    with pytest.raises(RecordUploadError, match="missing parts"):
+    with pytest.raises(RecordUploadError, match="expected_parts incomplete"):
         svc.ingest_part(
             session_id="room1",
             take_index=0,
@@ -210,6 +332,7 @@ def test_service_rejects_bad_hash_and_path(minimal_project, sample_wav):
             digest="",
             file_sha256="ab",
             final=True,
+            expected_parts=1,
         )
     first, h1, _ = _pcm_part(32)
     svc.ingest_part(
@@ -299,7 +422,7 @@ def test_service_omits_missing_part_files_and_restores(minimal_project, sample_w
             data=pcm,
             digest=digest,
         )
-    with pytest.raises(RecordUploadError, match="missing parts"):
+    with pytest.raises(RecordUploadError, match="expected_parts incomplete"):
         svc.ingest_part(
             session_id="room1",
             take_index=0,
@@ -310,6 +433,7 @@ def test_service_omits_missing_part_files_and_restores(minimal_project, sample_w
             digest="",
             file_sha256="ab",
             final=True,
+            expected_parts=1,
         )
 
 
@@ -349,6 +473,7 @@ def test_sweep_stale_parts_and_assembled_size_cap(
             digest=digest,
             file_sha256=wav_hash,
             final=True,
+            expected_parts=1,
         )
 
 
@@ -381,6 +506,7 @@ def test_guest_upload_resume_and_producer_forbidden(
             "sha256": h2,
             "file_sha256": file_hash,
             "final": True,
+            "expected_parts": 2,
         }
         r2 = client.post(f"/api/rec/{token}/upload", params=q2, headers=headers, content=second)
         assert r2.status_code == 200, r2.text
@@ -423,6 +549,7 @@ def test_host_upload_acks_own_keeper(minimal_project, sample_wav, tmp_workspace,
         "sha256": digest,
         "file_sha256": wav_hash,
         "final": True,
+        "expected_parts": 1,
     }
     res = client.post("/api/record/upload", params=params, content=pcm)
     assert res.status_code == 200, res.text
@@ -450,6 +577,7 @@ def test_host_status_lists_guest_segments(minimal_project, sample_wav, tmp_works
                 "sha256": digest,
                 "file_sha256": wav_hash,
                 "final": True,
+                "expected_parts": 1,
             },
             headers={"X-Record-Participant": pid, "X-Record-Lease": lease},
             content=pcm,
@@ -517,6 +645,7 @@ def test_join_offset_not_persisted_on_rejected_part(minimal_project, sample_wav)
         digest=digest,
         file_sha256=wav_hash,
         final=True,
+        expected_parts=1,
         join_offset_ms=250,
     )
     assert first["newly_acked"] is True
@@ -553,6 +682,7 @@ def test_join_offset_not_persisted_on_rejected_part(minimal_project, sample_wav)
             digest=digest,
             file_sha256=wav_hash,
             final=True,
+            expected_parts=1,
             join_offset_ms=500,
         )
 

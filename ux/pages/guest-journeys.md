@@ -132,8 +132,13 @@ flowchart TD
   roomTone --> consent[Accept recording notice]
   consent --> wait[Wait for host Start]
   wait --> rec[REC: local dry WAV + mix-minus]
+  rec --> lost[Mic disconnected: local capture paused]
+  lost --> reconnect[Reconnect microphone]
+  reconnect --> rec
   rec --> stop[Host Stop]
-  stop --> upload[Upload panel until ACK]
+  stop --> upload[Upload panel with N/M or stalled state]
+  upload --> recovery[Resume upload or Download local keeper]
+  recovery --> upload
   upload --> staged[File uploaded; local OPFS WAV kept]
   staged --> opfs[Local OPFS WAV safe to delete after confirmed landing]
   staged --> failed[Landing failed; ask host to Retry land]
@@ -145,30 +150,68 @@ flowchart TD
 2. Name and headphones check, then browser **Allow microphone** (explicit
    grant; Consent stays disabled until granted **and** headphones are checked),
    then mic test and device picker.
+   The desktop host's **Record room** panel also shows microphone permission
+   status and **Retry** after denial. macOS and Windows point to system
+   microphone privacy settings; Linux identifies its WebKit prompt and directs
+   blocked users to the supported browser recording path.
 3. Optional **Record 3 seconds of room tone** (skip allowed). Too-loud beds warn
    if RMS is above −35 dBFS and stay off the host. The bed is captured locally;
    nothing is uploaded until Accept. Producers never see this step.
 4. Separate **recording consent** step. Encoder armed on Accept; **zero keeper
    WAV bytes** until host Start. Room-tone PUT waits for Accept (local lobby
    capture is allowed; Skip/Decline discards it).
-5. Host Start is enabled when every **recorded guest** currently in the lobby
-   has consented (producers skip this gate; `"No one has joined"` until a guest
-   connects).
+5. Host Start requires a verified writable local OPFS backup for the host and
+   is enabled when every **recorded guest** currently in the lobby has consented
+   (producers skip this gate; `"No one has joined"` until a guest connects). A
+   guest who rejoins before a new take must retry local backup readiness and
+   Accept again. The previous take’s upload and download recovery stays available
+   in the lobby. Failed backup readiness offers **Retry local backup**.
 6. While REC is on, guest sees the roster, clock, "Recording locally on this
    device," and **Hearing the room.** Press **M** for a Marker or type a note
    (other guests in the record room never see it; after land it is an ordinary
-   timeline comment on the host).
-7. Host Stop. The upload panel stays until chunk ACK. The local WAV stays in
+   timeline comment on the host). While the local keeper is writing, a refresh
+   or navigation asks for the browser's native leave confirmation; dismissing
+   it keeps the guest in the live take. Browsers require prior page activation
+   before they may show that prompt, and they control its wording. PAUSED does
+   not show this native prompt.
+7. If the microphone ends involuntarily, the local keeper closes its current
+   segment and a persistent warning offers **Reconnect microphone**. The room
+   clock can still show REC, but the local recording copy is paused. Reconnect
+   opens a new segment at the current room clock; if a selected device was
+   unplugged, recovery can use the default available input. In the lobby,
+   microphone loss disables Accept until recovery.
+8. Host Stop. The native leave warning stays until the keeper finishes saving
+   the final WAV and metadata, then clears. The upload panel warns the guest
+   to keep the tab open until the final file ACK, shows N/M chunks where all
+   totals are known, and offers **Resume upload** and **Download local keeper**
+   for an incomplete or stalled take. Download produces one ZIP containing all
+   retained WAV segments. The local WAVs stay in
    OPFS (`Sharecut Recordings/`) until the host confirms **Landed. Safe to delete
    the local backup.** If landing fails, the guest sees **Uploaded but not landed
    on the host** and keeps the backup while the host uses **Retry land**.
-8. If the host laptop drops during REC: reconnect the same link (lease reuse);
+9. If the host laptop drops during REC: reconnect the same link (lease reuse);
    the keeper keeps growing ("Host offline — still recording locally.") and
    upload retries. If the host is gone for **10 s or more**, the take is forced
    **PAUSED** when they return (host must Resume; guests see the usual PAUSED
    indicator). A shorter blip stays REC and does not remount the host keeper. A
    sidecar crash that never sent Leave still pauses on the next host Join.
    Reminting a new room while REC/PAUSED is refused until the take is Stopped.
+9. In the native desktop app, a host or recorded guest who closes the window
+   during REC, PAUSED, or finalizing sees a role-specific confirmation. The
+   host warning says closing stops the session for everyone; the guest warning
+   says it can lose that guest's local keeper. This protects the native window
+   close request while the take is still recoverable, without sending a remote
+   close command. On macOS, the app menu and **Cmd+Q** use the native
+   confirmation path. Dock **Quit** and OS shutdown can bypass the app menu
+   and remain best-effort paths.
+
+   If local OPFS capture fails, the client stops claiming that REC is safely
+   backed up, preserves finalized segments, and shows **Retry local recording**.
+   The host resumes or starts a take before Retry when needed. Retry starts a
+   new segment only after the failed writable is closed best-effort; a failed
+   open segment is not treated as durable. Retry places the new segment at the
+   current recording clock. After Stop, an incomplete local WAV remains for
+   recovery but does not hold Leave once complete segments have uploaded.
 
 **Success:** Guest consents, appears on the host roster, sees REC/PAUSED, hears
 the mix-minus, writes a local dry WAV, and uploads chunks until ACK. Timeline

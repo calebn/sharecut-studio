@@ -9,10 +9,17 @@ import { expect } from "@playwright/test";
 export const STUDIO_AXE_DISABLED_RULES = ["color-contrast", "region"] as const;
 
 /** Fail the test when axe reports any violations (pretty-printed). */
-export async function expectPageAxeClean(page: Page): Promise<void> {
-  const results = await new AxeBuilder({ page })
-    .disableRules([...STUDIO_AXE_DISABLED_RULES])
-    .analyze();
+export async function expectPageAxeClean(
+  page: Page,
+  selector?: string,
+): Promise<void> {
+  const builder = new AxeBuilder({ page }).disableRules([
+    ...STUDIO_AXE_DISABLED_RULES,
+  ]);
+  const results = await (selector
+    ? builder.include(selector)
+    : builder
+  ).analyze();
   expect(
     results.violations,
     JSON.stringify(results.violations, null, 2),

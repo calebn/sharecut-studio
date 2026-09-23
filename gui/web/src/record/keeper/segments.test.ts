@@ -10,6 +10,7 @@ function gate(partial: Partial<KeeperGate>): KeeperGate {
     takeIndex: 0,
     recordingMs: 0,
     muted: false,
+    streamAvailable: true,
     ...partial,
   };
 }

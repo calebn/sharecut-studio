@@ -172,7 +172,7 @@ def apply_filler_pacing(
       fraction of the original gap (floor/cap) so long hesitations stay airy.
     * ``pause`` - no-op (pause candidates already use ``min_retained_pause_sec``).
     """
-    if cut_kind == "pause":
+    if cut_kind in {"pause", "repeat", "restart"}:
         return FillerPacingResult(start=cut_start, end=cut_end)
 
     if cut_end <= cut_start:
@@ -207,7 +207,7 @@ def apply_filler_pacing(
     overlap_prev = air_after_prev < 0.04
     end_margin = word_margin if overlap_next else max(word_margin, lead_in)
     # Keep previous-word release (e.g. N in "mean") - ASR ends often early on
-    # nasals. Adaptive when audio is available; fixed legacy key otherwise.
+    # nasals. Adaptive based on audio energy.
     if overlap_prev:
         start_margin = word_margin
     else:

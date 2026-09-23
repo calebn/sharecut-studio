@@ -67,6 +67,13 @@ GitHub Actions runs the required full suite on public pushes and pull requests. 
 
 ## Fast inner loop
 
+The audio-audit cache regression tests use deterministic decoder-call counts
+and numerical equality, not a wall-clock ratio. One test invokes the production
+`compute_word_audibility_map` path and asserts that its processed stem is decoded
+once with no per-word window decodes. Machine load and filesystem state make
+sub-millisecond timing thresholds flaky even when cache behavior is correct;
+call accounting verifies its reuse contract directly.
+
 During development, skip coverage and the e2e/slow tiers for the quickest feedback:
 
 ```bash
@@ -87,6 +94,8 @@ To debug a single test without xdist overhead (so `-s` and `pdb` behave), invoke
 
 - `PODCAST_MCP_PIPELINE_DEFAULTS` → repo `.agents/defaults/pipeline.yaml`
 - S3-compatible object storage (`PODCAST_OBJECT_STORE_*` and `~/.config/podcast_mcp/relay.yaml`) → disabled so review-share `/audio` serves local `mix.mp3` instead of redirecting to object storage
+- `PODCAST_SHARE_REGISTRY` → per-test `tmp_path/share_registry.sqlite` (`_isolate_share_registry`, singleton reset before/after). Do not re-`setenv` it in tests unless the test needs a specific path (verbatim-override / two-registry cases)
+- `PODCAST_RELAY_CONFIG` → `tmp_path/relay.yaml` and `PODCAST_RELAY_HOST_ID` unset (`_isolate_relay_config`), so the persisted relay `host_id` never lands in the developer's home
 
 Tests that need object storage mock `load_object_store_config` / `ObjectStoreClient` explicitly (see `tests/test_review_media_object_store.py`).
 
@@ -142,7 +151,7 @@ requires HTTP 200 and host setup still waits for `networkidle`.
 |------|-----------|
 | Models / project I/O | `test_models.py` |
 | Filler / tighten edits | `test_edits.py`, `test_tighten.py` |
-| Golden-ear A/B harness | `test_golden_ear_harness.py` (`scripts/golden_ear_harness.py`, `make golden-ear ARGS=…`) |
+| Golden-ear A/B harness | `test_golden_ear_harness.py` (`scripts/golden_ear_harness.py`, `make golden-ear ARGS=…`; rollups require valid preference and leftover-consonant responses) |
 | FFmpeg engine | `test_ffmpeg_engine.py` (requires `ffmpeg` on PATH) |
 | Audition context / audio reasoning eval | `test_audition_context.py`, `test_audition_context_eval.py` (defect injection; `scripts/eval_audition_context.py`) |
 | Transcript merge | `test_transcribe.py` |
@@ -153,7 +162,7 @@ requires HTTP 200 and host setup still waits for `networkidle`.
 | History / undo-redo | `test_history.py` |
 | Source↔timeline mapping | `test_session_timeline.py`, `test_timebase_regression.py` |
 | Timebase architecture guards / conformance | `test_timebase_guards.py`, `test_time_conformance.py` |
-| Agent ↔ DAW session sync | `test_session_sync.py`, `test_session_state.py`, `test_gui_api.py` (session endpoints) |
+| Agent ↔ DAW session sync | `test_session_sync.py`, `test_gui_api.py` (session endpoints) |
 | Document-command contract (schema + boundary rejects) | `test_document_command_payloads.py`, `test_document_command_boundary.py` (HTTP/WS/MCP 422/-32602 + OpenAPI↔schema) |
 | Share HTTP / MCP / WS parity | `test_share_http_mcp_parity.py` (`scripts/export_docs_site_contract.py`; WS discovery + curated notes for `/api/rec/` and `/api/review/`) |
 | Document handlers / caps | `test_document_sync.py`, `test_review_share.py`, `test_remote_mcp.py`, `test_structural_policy.py` |
@@ -190,6 +199,8 @@ Two meta-tests keep the source/timeline split (see [architecture.md § Timebase]
 ### Fixture hygiene
 
 Tests must never write into the committed fixture tree. Mutating pytest e2e tests use the `e2e_workspace` / `*_workspace` fixtures, which copy the fixture into `tmp_path` **and rewrite the copy's `meta.workspace_dir` to point at that tmp directory** (`copy_relocated_workspace` / `rewrite_workspace_dir` in `project_io.py`, used by `tests/e2e/conftest.py`). Playwright copies `aligned_dialogue` to `tmpdir`, exports that path as `DAW_E2E_PROJECT`; the `npm run test:e2e` wrapper deletes registered copies after Playwright terminates its web server. Share and record callbacks switch to their disposable project through the existing loopback-only project-open endpoint and restore the suite project before cleanup; UX screenshot runs remain pinned to their selected project. Each ordinary Playwright run allocates a loopback port and exports it as `DAW_E2E_PORT` before starting the GUI, workers, and teardown; set `DAW_E2E_PORT` explicitly for a fixed origin such as UX screenshots.
+
+The Playwright copy (`createRelocatedE2eProject` in `gui/web/e2e/liveProject.ts`) mirrors the fixture's `.gitignore`: under `artifacts/` it keeps only `peaks/`, and it skips top-level `history/`, `export/`, and `_build/`, any `.git`, and session-sync sqlite files (`sync.db`, `-wal`, `-shm`). Nested directories such as `transcripts/review/` are kept. This differs from Python's `copy_relocated_workspace` (`WORKSPACE_COPY_IGNORE` in `project_io.py`), which skips all of `artifacts/`. `gui/web/e2e/liveProject.test.ts` checks the rule against a seeded source tree and against the fixture `.gitignore`. `scripts/verify_remote_mcp_shares.py` without `--project` also publishes into a relocated temp copy, never into the fixture. To remove gitignored cruft an older run left in the committed fixture (for example `artifacts/review/` mixes), run `git clean -fX tests/fixtures/aligned_dialogue`.
 
 Vitest tests that copy the committed large fixture use the shared `E2E_FIXTURE_COPY_TEST_TIMEOUT_MS` (20 seconds) timeout; tests that only exercise registration failure keep the default timeout. Unit tests for shareable-project lifecycle behavior inject a minimal fixture source so they verify isolation and cleanup without copying the committed audio payload; the default factory used by Playwright still copies the complete fixture.
 
@@ -254,7 +265,9 @@ point at which the request can occur.
 |-----|------|
 | `pytest` | `ruff check` + `ruff format --check` + `bandit` + `vulture` + `deptry` + `mypy` + `pytest -n auto -m "not e2e_slow and not e2e_real"` (Python coverage gate) |
 | `frontend` | In `gui/web`: `npm ci`, `npm run lint` (oxlint + Stylelint tokens/rem/`@container`; `!important`/`@layer` consent-gated), `npm run format:check` (Biome), `npm run typecheck` (strict `tsc`), `npm test` (Vitest + `axe-core` via `expectNoA11yViolations`; keeper PCM/WAV/segment bars in `gui/web/src/record/keeper/`; mix-minus MM1–MM9 in `gui/web/src/audio/mixMinus.test.ts`), `npm run build` |
-| `frontend-e2e` | Build Sharecut Studio, install Chromium, Playwright smoke against a **temp copy** of `aligned_dialogue` (committed uint8 overview JSON under `artifacts/peaks/` so `/api/peaks/` does not need ffmpeg). Ordinary loopback Playwright launches leave `podcast gui` unpinned and explicitly provide each temporary `?project=` path, allowing share and record scenarios to use a fresh relocated fixture. `npm run test:e2e` deletes the live copy after Playwright terminates its web server (sqlite stays in the temp workspace — never rewritten in place). Host→guest follow seeds a temp premix and needs `ffmpeg` on PATH to publish the share mix. Presence follow also covers tab follow, chrome ghosts, lane-bottom no-jump, and guest Pipeline/FX degrade (`e2e/presence-follow.spec.ts`). Full-page axe via `expectPageAxeClean` in `gui/web/e2e/axe.ts`. Firefox pending-inspector layout remains [Follow-up](../ROADMAP.md#follow-up) (original #155 report was Firefox @ 1280). |
+| `frontend-e2e` | Build Sharecut Studio, install Chromium, Playwright smoke against a **temp copy** of `aligned_dialogue` (committed uint8 overview JSON under `artifacts/peaks/` so `/api/peaks/` does not need ffmpeg; the copy keeps only `artifacts/peaks/` and skips `history/`, `export/`, `_build/`, `.git`, and sync sqlite — see [§ Fixture hygiene](#fixture-hygiene)). Ordinary loopback Playwright launches leave `podcast gui` unpinned and explicitly provide each temporary `?project=` path, allowing share and record scenarios to use a fresh relocated fixture. `npm run test:e2e` deletes the live copy after Playwright terminates its web server (sqlite stays in the temp workspace — never rewritten in place). Host→guest follow seeds a temp premix and needs `ffmpeg` on PATH to publish the share mix. Presence follow also covers tab follow, chrome ghosts, lane-bottom no-jump, and guest Pipeline/FX degrade (`e2e/presence-follow.spec.ts`). Full-page axe via `expectPageAxeClean` in `gui/web/e2e/axe.ts`. Firefox pending-inspector layout remains [Follow-up](../ROADMAP.md#follow-up) (original #155 report was Firefox @ 1280). |
+
+`expectPageAxeClean(page, selector)` can also check a focused surface; the open transport-menu test scopes its axe check to the menu while unrelated track-header and loading-timeline ARIA names are tracked in #114. Do not disable additional axe rules to hide failures.
 
 The path-filtered `.github/workflows/desktop.yml` also builds the web distribution,
 runs the portable desktop scaffold checks on Linux, and runs `cargo check` for the
@@ -277,7 +290,7 @@ make golden-ear ARGS='build --project tests/fixtures/aligned_dialogue --out /tmp
 make golden-ear ARGS='score --dir /tmp/golden --answers listen/answers.csv'
 ```
 
-Golden-ear (`scripts/golden_ear_harness.py`) is an owner listening harness, not a `make ci` job. See [filler-cut-quality.md](filler-cut-quality.md) § Golden-ear protocol.
+Golden-ear (`scripts/golden_ear_harness.py`) is an owner listening harness, not a `make ci` job. Build-time `audition_context.v2` is timeline metadata; Current and Suggested audio diagnostics are measured on their rendered WAVs, with owner-only waveform PNGs under `diagnostics/` and explicit per-side errors in `key.json`. The listener manifest remains blinded. Scoring reports acceptance rollups by cut class, full reason, and speaker track, including tie and missing-answer counts. See [filler-cut-quality.md](filler-cut-quality.md) § Golden-ear protocol.
 
 Axe policy: do not silence violations with ignore comments. Prefer native `<button>` / correct roles; share helpers (`src/test/a11y.ts`, `e2e/axe.ts`) instead of duplicating axe setup. Dense DAW chrome disables only `color-contrast` and `region` in Playwright (`expectPageAxeClean`) — other rules stay enforced. Loading timeline and track-header containers use named `group` roles so their accessible names and busy state are valid ARIA semantics; `TrackHeadersColumn.test.tsx` and `TimelineView.test.tsx` keep those loading states covered. Reading surfaces (HomeScreen without `?project=`, marketing/download/company HTML) use `expectReadingSurfaceAxeClean`, which keeps contrast and region on.
 

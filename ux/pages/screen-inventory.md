@@ -201,7 +201,7 @@ Lane identity is a slim sticky gutter in the same scroller as the waveforms. Tap
 | Comments | Thread list / detail | `review.comments` |
 | History | Undo/redo · grouped steps (follows document snapshots) | `history` |
 | Impact | Pending bulk + removed duration | `editorial.edit_decisions` + impact report |
-| Tighten | Searchable filler/pause list · preview/skip/apply · apply-all avoiding harsh cuts | pending `filler:`/`pause:` decisions |
+| Tighten | Searchable filler/pause/repetition/restart list · preview/skip/apply · apply-all avoiding harsh cuts | pending tighten decisions |
 | Pipeline | Step checklist · params · Analyze · Batch/gates · run · progress (headline + bar/elapsed) | working-set config + live job |
 
 Plus **Overlay legend** on the hub. Theme and audition mode live in transport **Menu**, not a Settings destination.
@@ -253,7 +253,7 @@ flowchart TB
 | **Comments** | List + thread · timeline seek · action items |
 | **History** | Groups · Undo/Redo · diff affordances; list updates from Applied snapshots (SHELL project, or DETAIL/TRACKS/CLIPS/FX/ENVELOPES/COMMENTS patches) |
 | **Impact** | Pending count · bulk approve/reject · removed duration |
-| **Tighten** | Filler/pause list · search/filters · preview/skip/apply · apply-all (avoid harsh) |
+| **Tighten** | Filler/pause/repetition/restart list · search/filters · preview/skip/apply · apply-all (avoid harsh) |
 | **Pipeline** | Checklist · param inspector · Analyze · Batch vs leave-gates (align + refine) · SSE progress (live headline) |
 | **Transcript** | Follow/edit (also focus mode `text`) |
 | **Status** | Actionable chips (pending, stale render, reconcile); overflow-x on narrow |
@@ -338,6 +338,7 @@ Journeys: [Guest journeys § 6–7](#/journeys).
 | **Full room** | 5th recorded or 3rd producer | Full-room copy; never `getUserMedia`. **Shipped (no screenshot yet).** |
 | **Declined** | Guest who declined while REC/PAUSED | Declined copy; host may re-invite as producer. **Shipped (no screenshot yet).** |
 | **Host offline** | Recorded guest | “Host offline — still recording locally.” Keeper stays open. **Shipped with keepers.** |
+| **Native close confirmation** | Host or recorded guest in the desktop app | During REC, PAUSED, or finalizing, closing the native window asks for confirmation. Host copy warns that the session stops for everyone; guest copy warns about the local keeper. This is local desktop protection and sends no remote close command. The macOS app menu and **Cmd+Q** use the confirmation path; Dock **Quit** and OS shutdown remain best-effort. |
 
 Not ReviewApp. Prefix `/rec/` 404s a review token.
 
@@ -353,8 +354,8 @@ Not ReviewApp. Prefix `/rec/` 404s a review token.
 | **Pipeline / activity running** | Pipeline tab lists pipeline jobs in the summary. While bounce/export/`render_preview` occupy the shared pipeline-slot, Run is disabled and Cancel is on the Pipeline tab. Host StatusBar + phone Listen chip show the most recent live job (`status-pipeline` chrome: truncated headline, dim **stale “last update Ns ago”** companion, elapsed, pulse; phone chip ellipsizes overflow). Guests also see the chip on phone Listen (non-interactive — Pipeline tab is host-only). Non-pipeline kinds (`agent` from in-process host MCP, `bounce`, `export`, `render_preview`, guest remote MCP) use **Activity** copy; a count badge (“2 activities”) when more than one job is live. Chip/Listen open Pipeline only for slot jobs; agent chips are not a navigation target. Instant tools never flash a chip. |
 | **Loading episode** | `?project=` known, shell not yet (HTTP or document WS): DAW grid/skeleton chrome (“Loading episode…”). Distinct from zero-track ingest coach. After shell, live edits apply SHELL snapshots and overlay word chips by source clocks |
 | **Offline host (relay)** | Share/tunnel offline page |
-| **Guest offline queue** | Edits wait offline; drain on reconnect; structural ops demote to propose |
-| **Guest conflicts** | **Needs attention** banner (dismissible conflict list) |
+| **Offline edit queue** | Host and guest edits wait offline and drain on reconnect; guest structural ops demote to propose |
+| **Offline attention** | Host pending count and host/guest conflicts appear in **Needs attention**; conflicts are dismissible |
 | **Presence** | Transport **avatar stack** (follow/unfollow); ghost cursors on timeline lanes and DAW chrome (`data-presence-anchor`); unresolved anchors hidden. Follow mirrors tab/transcript/audition/selection when capable. Status-bar names on desktop/tablet; phone **More → People**. Follow banner is a dedicated shell row (guest Mix / host-only tab hints). Phone Listen = listen-along; phone Timeline = colored center needle (not a copied zoom window). Follower count only; followers do not broadcast a lagging playhead. Guests never draw their own cursor. |
 
 ---

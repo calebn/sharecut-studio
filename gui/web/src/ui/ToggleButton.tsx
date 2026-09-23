@@ -16,6 +16,10 @@ export function ToggleButton({
   children,
   ...rest
 }: Props) {
+  const menuitemRadio = rest.role === "menuitemradio";
+  const stateProps = menuitemRadio
+    ? { "aria-checked": pressed }
+    : { "aria-pressed": pressed };
   const classes = [
     "ui-control",
     quiet ? "ui-control--quiet" : "",
@@ -25,7 +29,7 @@ export function ToggleButton({
     .filter(Boolean)
     .join(" ");
   return (
-    <button type={type} className={classes} {...rest} aria-pressed={pressed}>
+    <button type={type} className={classes} {...rest} {...stateProps}>
       {children}
     </button>
   );

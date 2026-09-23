@@ -73,7 +73,11 @@ def post_document_command(
             detail={"detail": str(exc), "conflict": True},
         ) from exc
     except TranscriptRefineRequiredError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+            headers={"X-Sharecut-Error-Code": "transcript_refine_required"},
+        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except PermissionError as exc:

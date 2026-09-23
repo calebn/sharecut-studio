@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
+import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
 import { TransportBar } from "./TransportBar";
 
@@ -45,9 +46,7 @@ describe("TransportBar collapsed", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Menu" }));
     const menu = screen.getByRole("menu");
-    expect(
-      within(menu).getByRole("group", { name: "Audition mode" }),
-    ).toBeTruthy();
+    expect(within(menu).getByRole("group", { name: "Audition" })).toBeTruthy();
     expect(
       within(menu).getByRole("menuitem", { name: "Keyboard shortcuts (?)" }),
     ).toBeTruthy();
@@ -66,6 +65,16 @@ describe("TransportBar collapsed", () => {
         name: "Fit to window",
       }),
     ).toBeTruthy();
+  });
+
+  it("keeps the open overflow menu accessible", async () => {
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <TransportBar compact />
+      </DawProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Menu" }));
+    await expectNoA11yViolations(container);
   });
 
   it("disables Play and Stop while project is null", () => {
@@ -170,15 +179,16 @@ describe("TransportBar track menu actions", () => {
 });
 
 describe("TransportBar guest Mix lock", () => {
-  function expectMixLocked(scope: HTMLElement) {
-    const audition = within(scope).getByRole("group", {
-      name: "Audition mode",
-    });
+  function expectMixLocked(scope: HTMLElement, menu: boolean) {
+    const audition = menu
+      ? within(scope).getByRole("group", { name: "Audition" })
+      : within(scope).getByRole("group", { name: "Audition mode" });
+    const role = menu ? "menuitemradio" : "button";
     expect(
-      within(audition).getByRole("button", { name: "Mix" }),
+      within(audition).getByRole(role, { name: "Mix" }),
     ).not.toBeDisabled();
-    const fx = within(audition).getByRole("button", { name: "FX" });
-    const raw = within(audition).getByRole("button", { name: "Raw" });
+    const fx = within(audition).getByRole(role, { name: "FX" });
+    const raw = within(audition).getByRole(role, { name: "Raw" });
     expect(fx).toBeDisabled();
     expect(raw).toBeDisabled();
     expect(fx.getAttribute("aria-description")).toBe("Guests listen in Mix");
@@ -197,7 +207,7 @@ describe("TransportBar guest Mix lock", () => {
       </DawProvider>,
     );
     await userEvent.click(screen.getByRole("button", { name: "Menu" }));
-    expectMixLocked(screen.getByRole("menu"));
+    expectMixLocked(screen.getByRole("menu"), true);
   });
 
   it("disables FX and Raw inline for an editor guest", () => {
@@ -224,7 +234,7 @@ describe("TransportBar guest Mix lock", () => {
           <TransportBar />
         </DawProvider>,
       );
-      expectMixLocked(document.body);
+      expectMixLocked(document.body, false);
     } finally {
       globalThis.ResizeObserver = OrigRO;
       Reflect.deleteProperty(HTMLElement.prototype, "clientWidth");

@@ -6,7 +6,7 @@ Guide for building a desktop or web editor on top of Podcast MCP services and MC
 
 - **State:** `episode.project.json` is the source of truth for clips, pending edits, FX chains, and `editorial.edit_log`.
 - **Mutations:** Route all timeline changes through `EditService` / MCP tools or typed document commands (`POST /api/document/command` — never bare domain calls). Each mutation creates history snapshots.
-- **Sharecut Studio today:** comments (incl. Ask threads on pending edits), pipeline, History Undo/Redo, pending Approve/Reject (incl. Impact bulk + host **Tighten** review of `filler:`/`pause:` hits), pending nudge, Current/Suggested/A/B audition, applied Restore, clip fades / join mode, Track FX bypass, Transcript Edit-mode correct/suppress, chapter/social marker CRUD, blade/delete, project/track/audio ingest via document commands, host **Menu → Share…** (live links, mint, revoke), host **Menu → Record room…** (lobby/consent/Start + local keepers + mix-minus), and host **Menu → Connect agent…** (local Streamable HTTP MCP URL) — [daw-editing.md](daw-editing.md), [share-tokens.md](share-tokens.md), [recording-session.md](recording-session.md).
+- **Sharecut Studio today:** comments (incl. Ask threads on pending edits), pipeline, History Undo/Redo, pending Approve/Reject (incl. Impact bulk + host **Tighten** review of `filler:`/`pause:`/`repetition:`/`restart:` hits), pending nudge, Current/Suggested/A/B audition, applied Restore, clip fades / join mode, Track FX bypass, Transcript Edit-mode correct/suppress, chapter/social marker CRUD, blade/delete, project/track/audio ingest via document commands, host **Menu → Share…** (live links, mint, revoke), host **Menu → Record room…** (lobby/consent/Start + local keepers + mix-minus), and host **Menu → Connect agent…** (local Streamable HTTP MCP URL) — [daw-editing.md](daw-editing.md), [share-tokens.md](share-tokens.md), [recording-session.md](recording-session.md).
 - **Host MCP (local Streamable HTTP):** `gui/host_mcp.py` mounts the same `MCPServer` as stdio at `http://127.0.0.1:8765/mcp` (official `mcp` SDK). Tools apply to the open episode (`app.state.served_project`). See § Local host MCP.
 - **Remote MCP (share tokens):** `gui/routes/remote_mcp.py` + `services/remote_mcp/` — capability-scoped guest tools over JSON-RPC; mutations still go through `ShareService` / `DocumentSyncService` (no forked domain logic). See [host-online-relay.md](host-online-relay.md) § Remote MCP.
 - **Audio:** Rendered stems and premix live under `artifacts/`; undo restores project JSON only — call `render_preview` or `history_undo(rerender=true)` after undo.
@@ -148,11 +148,24 @@ Host and share **`edit`** guests may add tracks, attach/replace audio, edit trac
 
 Sharecut Studio arrange is the import surface: drop on a lane (replace that track’s media), drop below tracks / empty session (new tracks), **Menu → Import Audio…** / **New Track**, inspector Import/Replace. One frontend path: `gui/web/src/ingest/ingestFiles.ts` → upload then `submitDocumentCommand`. Permissions: `canIngestMedia` / `canManageProjects` in `shareMode.ts`. Details: [daw-editing.md](daw-editing.md) § Pass 8.
 
+### Transcript refine recovery
+
+The host-only `POST /api/transcript/refine/waive` endpoint accepts `{path,
+reason}` and records the waiver through `TranscriptRefineService` with source
+`user`. The GUI exposes it only when an approval receives the transcript-refine
+gate error. Share guests cannot use this recovery path; waiving never approves
+the pending edit automatically.
+The document-command gate responds with HTTP 409 and
+`X-Sharecut-Error-Code: transcript_refine_required`; the GUI uses that stable
+code to show recovery guidance without exposing the CLI-oriented server hint.
+The waiver route is host-origin protected and serializes its project save with
+document commands.
+
 ### Layout (Reaper-style)
 
 | Region | Content |
 |--------|---------|
-| Transport | Play/Pause, audition mode (Mix / FX / Raw), playhead, duration, render-health, layer toggles, zoom; secondary controls in overflow on narrow / decluttered desktop |
+| Transport | Play/Pause, audition mode (Mix / FX / Raw), playhead, duration, render-health, layer toggles, zoom; secondary controls in overflow on narrow / decluttered desktop. The overflow uses menuitem, menuitemradio, and menuitemcheckbox semantics for keyboard and assistive-technology navigation. At compact widths every row, including audition radios and layer checkboxes, has `min-block-size: var(--touch-min)` (44px); browser coverage verifies their roles, selected state, arrow-key navigation, touch targets, and axe. |
 | Track headers | Label, role, gain strip, viewer **M**ute/**S**olo, FX badge, stem freshness. On arrange, headers live inside `.timeline-scroll` as a sticky identity column (`flex-wrap: nowrap` — not Every Layout Sidebar wrap) so they share vertical scroll with lanes and stay fixed while panning time. Pane width via `@container timeline` switches gutter (`4rem`, mixer chrome hidden) vs mid/full rail; phone Timeline uses the same `headerSlot` path with CapCut fixed-center playhead. |
 | Timeline | Full-session auto-fit on load; clips; volume envelopes; pending/applied edit overlays; chapter + social markers; playhead; pinch / Ctrl-wheel zoom claimed on the timeline only (non-passive listeners so browser page-zoom does not fight); phone shell uses fixed-center playhead scrub |
 | Inspector | Selection details (clip, pending with Current/Suggested/A/B + Ask thread, track FX, chapter, social); unmapped pending list when idle; phone/tablet peek via bottom sheet. Pending approval errors remain visible while the selected edit is refreshed; changing selection clears the prior edit's error. |
@@ -162,6 +175,8 @@ Sharecut Studio arrange is the import surface: drop on a lane (replace that trac
 ### Responsive shells
 
 Phone (`<768`), tablet (`768–1100`), and desktop (`>1100`) share domain components but not the same chrome. Phone uses Listen / Timeline / Text / More modes + selection sheets. Full map, wireframes, and desktop back-apply: [gui-mobile.md](gui-mobile.md).
+
+Host and guest shells reserve a banner row for offline command attention on all three sizes. Host pending edits remain visible there until replay; host and guest 409 conflicts appear in the same **Needs attention** list and can be dismissed. The guest share-mode label stays guest-only.
 
 ### Live project reload
 
@@ -216,14 +231,14 @@ Pending **Suggested** audition is a transport **skip** over `[timeline_start, ti
 
 ### Shared session state (agent ↔ DAW)
 
-Agent, CLI, local DAW tabs, and future remote web users are **clients** of one sync engine (`SessionSyncService`). Authority: sqlite `artifacts/session/sync.db` (append-only command log + per-field LWW snapshot). `artifacts/session_state.json` is a materialized mirror for legacy readers. Full design: [session-sync.md](session-sync.md).
+Agent, CLI, local DAW tabs, and future remote web users are **clients** of one sync engine (`SessionSyncService`). Authority: sqlite `artifacts/session/sync.db` (append-only command log + per-field LWW snapshot) is the only session store; read it through `get_session_state_tool` / `SessionSyncService`. Full design: [session-sync.md](session-sync.md).
 
 | Endpoint | Purpose |
 |----------|---------|
 | `GET /api/session/meta` | `server_seq` / mtime (or `exists: false`) |
 | `GET /api/session/state` | Materialized snapshot + `clients[]` (404 if empty) |
 | `POST /api/session/command` | Submit typed command (agent = viewer = cli) |
-| `POST /api/session/state` | Compat: viewer blob → typed commands |
+| `POST /api/session/state` | Viewer blob → typed commands (Ack, presence heartbeat, durable deltas) |
 | `WS /api/session/ws?path=&client_id=` | Push `Applied` / `Snapshot`; primary DAW transport |
 
 **Agent → DAW:** `PlayService.play()` emits `PlayOsAudio` (speakers only — DAW seeks/highlights) or `AuditionInViewer` (`dry_run=true` — browser plays). `SessionControlService` / MCP session tools submit the same typed commands; optional `selection` / `set_session_selection_tool` highlights a modifier in the inspector. WebSocket fanout updates open tabs; HTTP snapshot poll is fallback.
@@ -232,7 +247,7 @@ Agent, CLI, local DAW tabs, and future remote web users are **clients** of one s
 
 **Transport authority (Figma-like):** each DAW tab owns its own play/pause clock. Agent commands (`SetRegion` / `AuditionInViewer` / `SetPlaying` from role `agent`) may drive transport; other viewers’ `SetPlaying` / playhead echoes are ignored (ack cursor only). Local Play clears any leftover agent `playUntil` auto-stop so a prior audition region cannot halt free scrubbing. Agents call `get_session_state_tool` (or `podcast session status`) before “cut from here”; prefer the viewer entry in `clients[]` for the live playhead while transport is rolling.
 
-**First Snapshot:** the DAW applies agent transport from the connect snapshot **before** recording `command_id` as applied (see `gui/web/src/session/dedupe.ts`), so an in-flight agent play still seeks/highlights when a tab opens mid-command.
+**First Snapshot:** the DAW applies agent transport from the connect snapshot **before** recording `last_command_id` as applied (see `gui/web/src/session/dedupe.ts`), so an in-flight agent play still seeks/highlights when a tab opens mid-command.
 
 Keep the viewer pointed at the same `episode.project.json`.
 
@@ -354,7 +369,7 @@ Keyboard **`=` / `+` / `-` / `\`** (zoom in / out / fit) require **`timelineFocu
 
 Pending edits and combined transcript utterances in `/api/project` include **dual clocks** (`source_*` / `start`·`end` plus mapped `timeline_*` / `timeline_spans` / `mappable`) via `SessionTimeline` — the UI must not plot raw source times on the timeline ruler or seek the playhead with source clocks after cuts. Utterances also carry `words[]` (per-track tokens including suppressed, with `word_index` / `confidence` / `suppressed` and timeline clocks) for seek and **Correct**-mode selection; on-disk `combined.json` is unchanged.
 
-`pending_edits[].join_risk` is optional view metadata for tighten proposals (`filler:` / `pause:`). It maps propose-time reason suffixes (`:risky`, `:join_review`) through `gui/mapper.py` — **not** a live `EditService.join_quality` sweep on every ProjectView snapshot. Verdicts are `review` when those suffixes are present; otherwise the field is `null`. Use `join_quality_tool` for a per-decision live score. The host Tighten tab treats `review_required`, `join_risk.verdict` `fail`/`review`, and `:risky` as harsh (excluded from apply-all when Avoid harsh cuts is on).
+`pending_edits[].join_risk` is optional view metadata for tighten proposals (`filler:` / `pause:` / `repetition:` / `restart:`). It maps propose-time reason suffixes (`:risky`, `:join_review`) through `gui/mapper.py` — **not** a live `EditService.join_quality` sweep on every ProjectView snapshot. Verdicts are `review` when those suffixes are present; otherwise the field is `null`. Use `join_quality_tool` for a per-decision live score. The host Tighten tab treats `review_required`, `join_risk.verdict` `fail`/`review`, and `:risky` as harsh (excluded from apply-all when Avoid harsh cuts is on).
 
 **Transcript display is non-destructive:** cut-away (`mappable === false`) utterances stay in on-disk `combined.json` with source clocks. The DAW hides them by default and can show them dimmed (non-seekable); export already omits unmapped lines. Follow/active/seek use **timeline spans only** (no fallback to source `start`/`end`).
 

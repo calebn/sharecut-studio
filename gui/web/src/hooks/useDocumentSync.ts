@@ -55,12 +55,26 @@ export function useDocumentSync(
     let ws: WebSocket | null = null;
     let closed = false;
     let retry: ReturnType<typeof setTimeout> | null = null;
+    let drainInFlight = false;
+    const drain = () => {
+      if (drainInFlight) return;
+      drainInFlight = true;
+      void import("../state/drainOfflineQueue")
+        .then(({ drainHostOfflineQueue }) => drainHostOfflineQueue(projectPath))
+        .catch(() => undefined)
+        .finally(() => {
+          drainInFlight = false;
+        });
+    };
 
     const connect = () => {
       if (closed) {
         return;
       }
       ws = new WebSocket(documentWsUrl(projectPath));
+      ws.onopen = () => {
+        drain();
+      };
       ws.onmessage = (ev) => {
         try {
           const msg = JSON.parse(ev.data as string) as DocumentSnapshotMsg;
@@ -109,8 +123,13 @@ export function useDocumentSync(
       };
     };
     connect();
+    const onOnline = () => drain();
+    window.addEventListener("online", onOnline);
+    const drainTimer = window.setInterval(drain, 10_000);
     return () => {
       closed = true;
+      window.removeEventListener("online", onOnline);
+      window.clearInterval(drainTimer);
       if (retry) {
         clearTimeout(retry);
       }

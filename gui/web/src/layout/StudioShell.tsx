@@ -143,6 +143,7 @@ export function StudioShell({ guestShare = false }: { guestShare?: boolean }) {
       className={[
         "daw-shell",
         guestShare ? "daw-shell-guest" : "",
+        !guestShare ? "daw-shell--attention" : "",
         followingClientId ? "daw-shell--following" : "",
         `daw-shell--${shell}`,
         focusMode !== "default" ? `daw-shell--focus-${focusMode}` : "",
@@ -151,16 +152,16 @@ export function StudioShell({ guestShare = false }: { guestShare?: boolean }) {
         .join(" ")}
       data-shell={shell}
     >
-      <Slot id={FEATURE_SHARE_UI_BANNER}>
-        {guestShare ? (
-          <div className="daw-shell-banners">
+      <div className="daw-shell-banners">
+        <Slot id={FEATURE_SHARE_UI_BANNER}>
+          {guestShare ? (
             <div className="guest-banner" role="status">
               {guestShareBannerLabel(guestMode)}
             </div>
-            <GuestAttentionBanner />
-          </div>
-        ) : null}
-      </Slot>
+          ) : null}
+        </Slot>
+        <GuestAttentionBanner />
+      </div>
       <FollowBanner />
       <div ref={transportFocusRef}>
         <TransportBar compact={shell === "tablet"} />

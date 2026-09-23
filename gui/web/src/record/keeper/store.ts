@@ -16,6 +16,8 @@ export type ByteStream = {
 export type ByteSink = {
   write(path: string, bytes: Uint8Array): Promise<void>;
   read(path: string): Promise<Uint8Array | null>;
+  /** Return the native file when available so recovery need not copy large WAVs. */
+  readBlob?(path: string): Promise<Blob | null>;
   remove(path: string): Promise<void>;
   open(path: string): Promise<ByteStream>;
   nextSegmentIndex(
@@ -24,6 +26,15 @@ export type ByteSink = {
     participantId: string,
   ): Promise<number>;
 };
+
+export class OpfsUnavailableError extends Error {
+  constructor() {
+    super(
+      "Local recording backup is unavailable because this browser or app environment does not support OPFS.",
+    );
+    this.name = "OpfsUnavailableError";
+  }
+}
 
 function assertSafePart(part: string): string {
   if (
@@ -157,11 +168,10 @@ export class MemorySink implements ByteSink {
 export async function createOpfsSink(): Promise<ByteSink> {
   const storage = navigator.storage;
   if (!storage?.getDirectory) {
-    throw new Error(
-      "This browser cannot store a local keeper copy (OPFS unavailable).",
-    );
+    throw new OpfsUnavailableError();
   }
   const root = await storage.getDirectory();
+  await assertOpfsWritable(root);
   return {
     async write(path: string, bytes: Uint8Array) {
       const file = await fileHandle(root, path, true);
@@ -177,6 +187,14 @@ export async function createOpfsSink(): Promise<ByteSink> {
         const file = await fileHandle(root, path, false);
         const blob = await file.getFile();
         return new Uint8Array(await blob.arrayBuffer());
+      } catch {
+        return null;
+      }
+    },
+    async readBlob(path: string) {
+      try {
+        const file = await fileHandle(root, path, false);
+        return await file.getFile();
       } catch {
         return null;
       }
@@ -239,6 +257,46 @@ export async function createOpfsSink(): Promise<ByteSink> {
       }
     },
   };
+}
+
+function probeFileName(): string {
+  const id =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  return `.sharecut-opfs-probe-${id}`;
+}
+
+async function assertOpfsWritable(
+  root: FileSystemDirectoryHandle,
+): Promise<void> {
+  const name = probeFileName();
+  const keeperRoot = await root.getDirectoryHandle("Sharecut Recordings", {
+    create: true,
+  });
+  let writable: FileSystemWritableFileStream | undefined;
+  try {
+    const file = await keeperRoot.getFileHandle(name, { create: true });
+    writable = await file.createWritable();
+    await writable.write(new Uint8Array([0]));
+    await writable.close();
+    writable = undefined;
+  } catch (error) {
+    if (writable) {
+      try {
+        await writable.close();
+      } catch {
+        // Preserve the original OPFS readiness failure.
+      }
+    }
+    throw error;
+  } finally {
+    try {
+      await keeperRoot.removeEntry(name);
+    } catch {
+      // A cleanup failure must not hide a readiness failure.
+    }
+  }
 }
 
 async function fileHandle(

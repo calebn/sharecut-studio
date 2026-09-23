@@ -17,6 +17,7 @@ from typing import Any
 
 from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_caches
 from podcast_mcp.edits.pending_preview import resolve_pending_preview
+from podcast_mcp.engines.audio_audit import detect_mains_hum, measure_astats
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models import EditDecision, EditDecisionType
 from podcast_mcp.models.episode import EPISODE_PROJECT_FILENAME
@@ -35,7 +36,9 @@ from podcast_mcp.util.progress import progress_task
 DEFAULT_LIMIT = 40
 MAX_LIMIT = 500
 DEFAULT_PAD_SEC = 2.0
-ALLOWED_CLASSES = ("filler", "pause")
+# Repetition/restart proposals use the same pending-preview A/B harness as
+# fillers and pauses.  They remain review-required in the tighten path.
+ALLOWED_CLASSES = ("filler", "pause", "repetition", "restart")
 PREFER_EDIT_GATED_MIN = 0.90
 GATED_N_FLOOR = 2
 ANSWERS_FIELDS = ("pair_id", "prefer", "leftover_consonant", "notes")
@@ -59,10 +62,10 @@ def parse_classes(raw: str | tuple[str, ...] | list[str] | None) -> tuple[str, .
     else:
         parts = tuple(str(p).strip().lower() for p in raw if str(p).strip())
     if not parts:
-        raise ValueError("classes must include at least one of filler, pause")
+        raise ValueError("classes must include at least one of filler, pause, repetition, restart")
     unknown = [p for p in parts if p not in ALLOWED_CLASSES]
     if unknown:
-        raise ValueError(f"unsupported classes {unknown!r}; use filler,pause")
+        raise ValueError(f"unsupported classes {unknown!r}; use filler,pause,repetition,restart")
     return parts
 
 
@@ -256,6 +259,51 @@ def _render_pair_wavs(
     }
 
 
+def _pair_audition_context(
+    play: PlayService, wavs: dict[str, Any]
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Build owner-only diagnostics, recording failures without unblinding listeners."""
+    try:
+        return (
+            play.audition_context(
+                float(wavs["play_start"]),
+                float(wavs["play_end"]),
+                detail="summary",
+                include_dsp=False,
+            ),
+            None,
+        )
+    except JOIN_ERRORS as exc:
+        return None, f"{type(exc).__name__}: {exc}"
+
+
+def _pair_audio_diagnostics(
+    pair_dir: Path, wavs: dict[str, Any], diagnostics_dir: Path, pair_id: str
+) -> dict[str, Any]:
+    """Analyze only the two rendered WAVs; keep images outside the listen pack."""
+    engine = FFmpegEngine()
+    result: dict[str, Any] = {"source": "rendered_pair_wavs"}
+    for role, file_key in (("current", "leave_file"), ("suggested", "edit_file")):
+        filename = str(wavs[file_key])
+        audio_path = pair_dir / filename
+        image_relative = Path("diagnostics") / pair_id / f"{role}.png"
+        image_path = diagnostics_dir / f"{role}.png"
+        entry: dict[str, Any] = {"file": filename}
+        try:
+            astats = measure_astats(audio_path)
+            entry["astats"] = astats
+            if not any(value is not None for value in astats.values()):
+                entry["error"] = "astats unavailable: no metrics"
+            entry["hum"] = detect_mains_hum(audio_path)
+            engine.render_showwavespic(audio_path, image_path)
+            entry["waveform_png"] = str(image_relative)
+        except JOIN_ERRORS as exc:
+            image_path.unlink(missing_ok=True)
+            entry["error"] = f"{type(exc).__name__}: {exc}"
+        result[role] = entry
+    return result
+
+
 def _join_metrics(
     edit_svc: EditService,
     edit: EditDecision,
@@ -376,6 +424,10 @@ def build_golden_ear(
                 continue
             join_quality = _join_metrics(edit_svc, edit, audio_caches)
             reason_class = _reason_class(edit.reason, class_names) or "filler"
+            audition_context, audition_context_error = _pair_audition_context(play, wavs)
+            pair_diagnostics = _pair_audio_diagnostics(
+                pair_dir, wavs, staging / "diagnostics" / pair_id, pair_id
+            )
             pairs.append(
                 {
                     "id": pair_id,
@@ -387,6 +439,14 @@ def build_golden_ear(
                     "end": edit.end,
                     "gated": _gated(join_quality),
                     "join_quality": join_quality,
+                    "audition_context": audition_context,
+                    "audition_context_source": "project_timeline_metadata_only",
+                    "pair_diagnostics": pair_diagnostics,
+                    **(
+                        {"audition_context_error": audition_context_error}
+                        if audition_context_error is not None
+                        else {}
+                    ),
                     **wavs,
                 }
             )
@@ -502,7 +562,9 @@ def score_golden_ear(out_dir: Path, answers: Path) -> dict[str, Any]:
         row = answer_rows.get(pair_id) or {}
         prefer = _normalize_prefer(row.get("prefer") or "", meta)
         leftover = _normalize_leftover(row.get("leftover_consonant") or "")
-        if prefer is None:
+        missing = prefer is None
+        answered = prefer is not None and leftover is not None
+        if missing:
             missing_n += 1
             incomplete = True
             prefer = "leave-in"
@@ -516,8 +578,12 @@ def score_golden_ear(out_dir: Path, answers: Path) -> dict[str, Any]:
             {
                 "id": pair_id,
                 "prefer": prefer,
+                "missing": missing,
+                "answered": answered,
                 "leftover_consonant": leftover,
                 "class": meta.get("class") or "filler",
+                "reason": meta.get("reason") or "",
+                "track_id": meta.get("track_id") or "",
                 "gated": bool(meta.get("gated")),
                 "notes": row.get("notes") or "",
             }
@@ -528,15 +594,33 @@ def score_golden_ear(out_dir: Path, answers: Path) -> dict[str, Any]:
             return None
         return sum(1 for r in rows if r["prefer"] == "edit") / len(rows)
 
+    def _acceptance_rollup(rows: list[dict[str, Any]]) -> dict[str, Any]:
+        answered = [row for row in rows if row["answered"]]
+        return {
+            "n": len(rows),
+            "answered_n": len(answered),
+            "missing_n": len(rows) - len(answered),
+            "prefer_edit": _rate(rows),
+            "prefer_edit_answered": _rate(answered),
+            "ties": sum(1 for row in rows if row["prefer"] == "tie"),
+            "leftover_consonant_fails": sum(1 for row in rows if row["leftover_consonant"]),
+        }
+
     gated_rows = [r for r in scored if r["gated"]]
     per_class: dict[str, Any] = {}
     for name in ALLOWED_CLASSES:
         class_rows = [r for r in scored if r["class"] == name]
         per_class[name] = {
-            "n": len(class_rows),
-            "prefer_edit": _rate(class_rows),
-            "leftover_consonant_fails": sum(1 for r in class_rows if r["leftover_consonant"]),
+            **_acceptance_rollup(class_rows),
         }
+    per_reason = {
+        reason: _acceptance_rollup([row for row in scored if row["reason"] == reason])
+        for reason in sorted({row["reason"] for row in scored})
+    }
+    per_track = {
+        track_id: _acceptance_rollup([row for row in scored if row["track_id"] == track_id])
+        for track_id in sorted({row["track_id"] for row in scored})
+    }
     prefer_edit_gated = _rate(gated_rows)
     prefer_edit_all = _rate(scored)
     gated_n = len(gated_rows)
@@ -580,6 +664,8 @@ def score_golden_ear(out_dir: Path, answers: Path) -> dict[str, Any]:
         "prefer_edit_all": prefer_edit_all,
         "prefer_edit_gated": prefer_edit_gated,
         "per_class": per_class,
+        "per_reason": per_reason,
+        "per_track": per_track,
         "leftover_consonant_fails": leftover_fails,
         "bar": (
             f"prefer-edit on gated cuts >= {PREFER_EDIT_GATED_MIN:.0%} "

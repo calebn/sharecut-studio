@@ -66,6 +66,10 @@ relay_url: ws://127.0.0.1:8080/tunnel   # or wss://share.example.com/tunnel
 host_token: <from relay admin>
 public_base_url: http://127.0.0.1:8080
 local_gui_url: http://127.0.0.1:8765
+# Optional stable tunnel identity (env: PODCAST_RELAY_HOST_ID). Must equal the
+# `host_id:` prefix when the relay pins this host's secret in PODCAST_RELAY_HOST_TOKENS.
+# When unset, a uuid is minted once and persisted next to this file (`relay_host_id`).
+host_id: host-1
 
 # Optional: pin the host share-token registry so GUI/CLI/tunnel share one DB.
 # Env equivalent: PODCAST_SHARE_REGISTRY=~/.podcast_mcp/share_registry.sqlite
@@ -83,7 +87,10 @@ object_store:
   # optional: cdn_endpoint: https://media.example.test
 ```
 
-Env overrides (same fields): `PODCAST_OBJECT_STORE_ENDPOINT_URL`, `PODCAST_OBJECT_STORE_REGION`,
+Relay env overrides: `PODCAST_RELAY_URL`, `PODCAST_RELAY_HOST_TOKEN`, `PODCAST_RELAY_PUBLIC_BASE_URL`,
+`PODCAST_RELAY_LOCAL_GUI_URL`, `PODCAST_RELAY_HOST_ID` (letters, digits, `.`, `_`, `-`; no `:` or `,`).
+
+Object-store env overrides (same fields): `PODCAST_OBJECT_STORE_ENDPOINT_URL`, `PODCAST_OBJECT_STORE_REGION`,
 `PODCAST_OBJECT_STORE_BUCKET`, `PODCAST_OBJECT_STORE_ACCESS_KEY_ID`, `PODCAST_OBJECT_STORE_SECRET_ACCESS_KEY`,
 `PODCAST_OBJECT_STORE_CDN_ENDPOINT`.
 
@@ -439,7 +446,7 @@ Audio paths skip RPM (concurrency only). Guest WS fanout (host→guest) is unlim
 | `PODCAST_GUEST_WS_PRESENCE_RPM` / `_BURST` | Host per-connection guest Presence frames (900/min burst 60) |
 | `PODCAST_GUEST_WS_PRESENCE_TOKEN_RPM` / `_BURST` | Host per-token guest Presence frames (3600/min burst 200) |
 
-Modules: `util/rate_limit.py`, `relay/limits.py`, `services/remote_mcp/limits.py`.
+Modules: `util/rate_limit.py`, `podcast_relay/limits.py`, `services/remote_mcp/limits.py`.
 
 ### Manual verification (capability matrix)
 
@@ -457,6 +464,13 @@ The script creates short-lived shares for tiers A–G (play → edit, plus no-`m
 `tools/list` exact allowlists, exercises allowed `tools/call`s (path-sanitized payloads),
 asserts denied tools return capability errors, and revokes tokens on success (use
 `--keep-shares` to leave them). Exit non-zero on any matrix failure.
+
+`--project` runs in place: the script publishes a review version (writing
+`artifacts/review/<id>/mix.wav`) and share sidecars into that workspace. Omit
+`--project` to verify against the committed `aligned_dialogue` fixture: the script
+copies it into a temporary relocated workspace (`copy_relocated_workspace`) and
+publishes there, so `tests/fixtures/` is never written. The host resolves those
+share tokens through the share registry, so it can keep serving any project.
 
 Optional: with `podcast tunnel` up, recreate one `play,view,mcp` share with
 `--base-url https://<relay>` and repeat `tools/list` against the printed `mcp_url`.
@@ -476,12 +490,27 @@ use the supplied Compose and Caddy examples as a starting point.
 # On the operator-managed relay host
 export RELAY_DOMAIN=share.example.com
 export RELAY_IMAGE=podcast-relay:local
-export PODCAST_RELAY_HOST_TOKENS="host-1:$(openssl rand -hex 32)"
+HOST_SECRET="$(openssl rand -hex 32)"   # hand this to the host operator out of band
+export PODCAST_RELAY_HOST_TOKENS="host-1:${HOST_SECRET}"
 docker compose \
   -f deploy/relay/docker-compose.prod.yml \
   -f deploy/relay/docker-compose.build.yml \
   up -d --build
 ```
+
+The `host_id:` prefix pins that secret to one host identity. On the host, present the
+same `host_id` (env `PODCAST_RELAY_HOST_ID` or `host_id:` in `relay.yaml`) together with
+the secret:
+
+```bash
+# On the episode host (the half that pairs with host-1:<secret> above)
+export PODCAST_RELAY_HOST_ID=host-1
+podcast tunnel --project /path/to/episode.project.json \
+  --relay-url wss://share.example.com/tunnel --host-token "<secret>"
+```
+
+A bare secret in `PODCAST_RELAY_HOST_TOKENS` (no `host_id:` prefix) is shared and
+authenticates any `host_id`.
 
 Verify the public endpoint after configuring TLS and DNS for your chosen domain:
 
@@ -509,8 +538,8 @@ deploy/relay/
 .github/workflows/
   desktop.yml             # FOSS Tauri scaffold + web dist
   release-desktop-build.yml # reusable installer-artifact builder
+src/podcast_relay/         # FOSS relay server (FastAPI + WebSocket tunnel)
 src/podcast_mcp/
-  relay/                  # FOSS relay server (FastAPI + WebSocket tunnel)
   services/tunnel.py      # TunnelClient + run_tunnel_sync
   runtime_config.py       # validated relay/object-store configuration
   cli/tunnel.py           # podcast tunnel CLI
@@ -527,7 +556,13 @@ src/podcast_mcp/
 - **Tunnel auth**: `PODCAST_RELAY_HOST_TOKENS` required (empty set rejects tunnels unless
   `PODCAST_RELAY_ALLOW_OPEN_TUNNEL=1` for local/dev). Relay process exits on startup if
   tokens are empty without the open-tunnel flag. Entries may be bare secrets or
-  `host_id:secret` per-host pairs. Production Compose rejects every effective secret
+  `host_id:secret` per-host pairs. A `host_id:secret` pair only authenticates a tunnel
+  whose hello presents that exact `host_id`; the same secret under any other (or a
+  missing) `host_id` is rejected with close code `4403`. The host must therefore set
+  `PODCAST_RELAY_HOST_ID` / `relay.yaml` `host_id` to match the prefix, or keep its
+  persisted default (`relay_host_id` next to `relay.yaml`, minted once per install) and
+  use that value as the prefix. The stable id also lets a restarted host re-advertise
+  tokens still bound to it. Production Compose rejects every effective secret
   shorter than 32 characters. Hosts attach HMAC share claims when registering;
   `token → host_id` bindings persist across disconnect so another host cannot steal
   an offline coolname (beyond live refuse-remap).

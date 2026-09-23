@@ -13,8 +13,8 @@ description: >-
 ## Tools
 
 **Apply effects**
-- `add_effect_tool(project_path, speaker=…, preset=…)` — presets: `noise_reduction`, `noise_reduction_rnnoise`, `deess`, `deess_legacy_notch`, `gate`, `eq_presence`, `eq_clarity`, `podcast_standard`
-  - `deess` uses FFmpeg's native `deesser` filter (`intensity`/`frequency` params); `deess_legacy_notch` is the older `bandreject` EQ notch, kept as a manual fallback.
+- `add_effect_tool(project_path, speaker=…, preset=…)` — presets: `noise_reduction`, `noise_reduction_rnnoise`, `deess`, `gate`, `eq_presence`, `eq_clarity`, `podcast_standard`
+  - `deess` uses FFmpeg's native `deesser` filter (`intensity`/`frequency` params). For a manual EQ notch instead, use `add_effect_tool(effect="bandreject", params_json='{"f": 6500, "w": 3000}')`.
   - `noise_reduction_rnnoise` uses FFmpeg's `arnndn` filter (a small recurrent-network denoiser); needs a one-time `podcast bootstrap --component rnnoise` to fetch its model. Often a real upgrade over `noise_reduction`/`afftdn` for room noise/HVAC hiss.
 - `remove_effect_tool`, `list_effects_tool`
 - `set_effect_bypass_tool(project_path, effect_index=…, bypass=…, speaker=…)` — A/B without removing the chain entry (Sharecut Studio Track inspector Bypass toggles use the same path via `SetEffectBypass`)

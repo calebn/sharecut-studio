@@ -18,6 +18,9 @@ vi.mock("../api", () => ({
   pickEpisodeProject: vi.fn(),
   createDiagnosticsBundle: vi.fn(),
   fetchDiagnosticsMeta: vi.fn(),
+  fetchBootstrapStatus: vi.fn(() => new Promise(() => {})),
+  runBootstrap: vi.fn(),
+  waitForBootstrapJob: vi.fn(),
 }));
 
 const closeMock = vi.mocked(closeEpisodeProject);
@@ -48,6 +51,27 @@ describe("HomeScreen", () => {
       href: "http://127.0.0.1:8765/",
       assign,
     });
+  });
+
+  it("keeps an armed recording marker and blocks project switching", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("location", {
+      href: "http://127.0.0.1:8765/?sc_close_guard=host",
+      assign,
+    });
+    render(<HomeScreen />);
+    expect(closeMock).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "New project…" }));
+    await user.type(
+      screen.getByLabelText("Workspace directory"),
+      "/tmp/workspace",
+    );
+    await user.click(screen.getByRole("button", { name: "Create" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Return to the recording project",
+    );
+    expect(createMock).not.toHaveBeenCalled();
+    expect(assign).not.toHaveBeenCalled();
   });
 
   afterEach(() => {
@@ -233,16 +257,31 @@ describe("HomeScreen", () => {
     await expectNoA11yViolations(container);
   });
 
-  it("migrates dawshell.bootstrap.skip and skips the wizard", async () => {
+  it("skips the wizard when sharecut.bootstrap.skip is set", async () => {
     window.localStorage.clear();
-    window.localStorage.setItem("dawshell.bootstrap.skip", "1");
+    window.localStorage.setItem("sharecut.bootstrap.skip", "1");
     render(<HomeScreen />);
     expect(
       screen.getByRole("heading", { name: "Sharecut Studio" }),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "New project…" })).toBeTruthy();
-    expect(window.localStorage.getItem("sharecut.bootstrap.skip")).toBe("1");
-    expect(window.localStorage.getItem("dawshell.bootstrap.skip")).toBeNull();
+  });
+
+  it("still renders when localStorage.getItem throws", () => {
+    const getItem = vi
+      .spyOn(Storage.prototype, "getItem")
+      .mockImplementation(() => {
+        throw new DOMException("denied", "SecurityError");
+      });
+    try {
+      render(<HomeScreen />);
+      // Unreadable skip flag → setup wizard, not a crashed Home screen.
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Checking installed tools",
+      );
+    } finally {
+      getItem.mockRestore();
+    }
   });
 
   it("opens Connect agent from home and unpins the served project", async () => {

@@ -50,6 +50,11 @@ refine decision wins. Partial runs that skip the gate, runs with refine mode
 require a new intentional refine decision. A lock beside the status file
 coordinates status writers across local processes.
 
+In the host GUI, an approval blocked by this gate offers a **Waive with
+reason** recovery form. The waiver is recorded as a user decision; it does not
+retry or automatically approve the edit. Review the transcript, enter a
+non-empty reason, then retry approval intentionally.
+
 Resume examples:
 
 ```bash

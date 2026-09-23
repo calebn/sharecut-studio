@@ -52,11 +52,11 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   },
   "daw.tighten.applyHit": {
     label: "Apply tighten hit",
-    tooltip: "Apply the selected filler or pause cut",
+    tooltip: "Apply the selected tighten cut",
   },
   "daw.tighten.skipHit": {
     label: "Skip tighten hit",
-    tooltip: "Skip the selected filler or pause cut",
+    tooltip: "Skip the selected tighten cut",
   },
   "daw.tighten.applyAllSafe": {
     label: "Apply eligible tighten hits",

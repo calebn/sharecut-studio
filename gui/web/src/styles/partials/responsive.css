@@ -212,7 +212,8 @@ html[data-shell="tablet"] {
   overflow: hidden;
 }
 
-.daw-shell--phone.daw-shell-guest {
+.daw-shell--phone.daw-shell-guest,
+.daw-shell--phone.daw-shell--attention {
   grid-template-rows: auto var(--transport-height) minmax(0, 1fr) var(
       --mobile-nav-height
     );
@@ -224,7 +225,8 @@ html[data-shell="tablet"] {
     );
 }
 
-.daw-shell--phone.daw-shell-guest.daw-shell--following {
+.daw-shell--phone.daw-shell-guest.daw-shell--following,
+.daw-shell--phone.daw-shell--attention.daw-shell--following {
   grid-template-rows: auto auto var(--transport-height) minmax(0, 1fr) var(
       --mobile-nav-height
     );
@@ -236,11 +238,13 @@ html[data-shell="tablet"] {
 }
 
 .daw-shell--phone.daw-shell--listen.daw-shell-guest,
-.daw-shell--phone.daw-shell--listen.daw-shell--following {
+.daw-shell--phone.daw-shell--listen.daw-shell--following,
+.daw-shell--phone.daw-shell--listen.daw-shell--attention {
   grid-template-rows: auto minmax(0, 1fr) var(--mobile-nav-height);
 }
 
-.daw-shell--phone.daw-shell--listen.daw-shell-guest.daw-shell--following {
+.daw-shell--phone.daw-shell--listen.daw-shell-guest.daw-shell--following,
+.daw-shell--phone.daw-shell--listen.daw-shell--attention.daw-shell--following {
   grid-template-rows: auto auto minmax(0, 1fr) var(--mobile-nav-height);
 }
 

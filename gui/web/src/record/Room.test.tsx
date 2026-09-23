@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { Room } from "./Room";
 import type { RecordParticipant, RecordSnapshot } from "./types";
@@ -26,6 +27,7 @@ const snapshot: RecordSnapshot = {
 
 describe("Room", () => {
   it("shows local keeper and host-offline copy while recording", async () => {
+    const retry = vi.fn();
     const { container } = render(
       <Room
         snapshot={snapshot}
@@ -39,6 +41,7 @@ describe("Room", () => {
         connected={false}
         recordingLocally
         keeperError="keeper failed"
+        onRetryKeeper={retry}
         hearing
       />,
     );
@@ -46,10 +49,53 @@ describe("Room", () => {
     expect(
       screen.getByRole("heading", { name: "Live comments" }),
     ).toBeInTheDocument();
-    expect(screen.getByText(LOCAL_KEEPER_COPY)).toBeInTheDocument();
+    expect(screen.queryByText(LOCAL_KEEPER_COPY)).not.toBeInTheDocument();
+    expect(screen.getByText("REC — local capture failed")).toBeInTheDocument();
     expect(screen.queryByText(HEARING_COPY)).not.toBeInTheDocument();
-    expect(screen.getByText("keeper failed")).toBeInTheDocument();
+    expect(screen.getByText(/keeper failed/)).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Retry local recording" }),
+    );
+    expect(retry).toHaveBeenCalledOnce();
     await expectNoA11yViolations(container);
+  });
+
+  it("waits for the host to resume before offering local capture retry", async () => {
+    const retry = vi.fn();
+    const { container } = render(
+      <Room
+        snapshot={{ ...snapshot, state: "paused" }}
+        me={me}
+        onMute={() => undefined}
+        onLeave={() => undefined}
+        keeperError="storage failed"
+        onRetryKeeper={retry}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Retry local recording" }),
+    ).toBeDisabled();
+    expect(screen.getByText(/ask the host to resume/i)).toBeInTheDocument();
+    await expectNoA11yViolations(container);
+  });
+
+  it("does not confuse upload storage with local capture failure", () => {
+    render(
+      <Room
+        snapshot={snapshot}
+        me={me}
+        onMute={() => undefined}
+        onLeave={() => undefined}
+        recordingLocally
+        uploadSinkError="Upload storage unavailable"
+      />,
+    );
+    expect(screen.getByText("REC")).toBeInTheDocument();
+    expect(screen.getByText(LOCAL_KEEPER_COPY)).toBeInTheDocument();
+    expect(screen.getByText("Upload storage unavailable")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/local recording stopped/i),
+    ).not.toBeInTheDocument();
   });
 
   it("blocks Leave until the stopped take is file-ACK'd", () => {
@@ -72,6 +118,24 @@ describe("Room", () => {
       />,
     );
     expect(screen.getByRole("button", { name: "Leave" })).toBeDisabled();
+  });
+
+  it("offers microphone reconnect while local capture is lost", async () => {
+    const retry = vi.fn();
+    render(
+      <Room
+        snapshot={snapshot}
+        me={me}
+        onMute={() => undefined}
+        onLeave={() => undefined}
+        micLost
+        onRetryMic={retry}
+      />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Reconnect microphone" }),
+    );
+    expect(retry).toHaveBeenCalledOnce();
   });
 
   it("re-enables Leave after file ACK or upload error", () => {

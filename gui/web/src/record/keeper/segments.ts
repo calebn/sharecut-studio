@@ -7,6 +7,7 @@ export type KeeperGate = {
   takeIndex: number;
   recordingMs: number;
   muted: boolean;
+  streamAvailable: boolean;
 };
 
 export type OpenSegment = {
@@ -39,7 +40,8 @@ export function planKeeperSegment(
 ): SegmentPlan {
   const recorded = gate.role === "host" || gate.role === "guest";
   const allowed = recorded && gate.consented === true;
-  const shouldWrite = allowed && gate.roomState === "recording";
+  const shouldWrite =
+    allowed && gate.roomState === "recording" && gate.streamAvailable;
 
   let takeIndex = cursor.takeIndex;
   let nextSegmentIndex = cursor.nextSegmentIndex;

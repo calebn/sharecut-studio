@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS record_upload_files (
   segment_index INTEGER NOT NULL,
   file_sha256 TEXT,
   byte_length INTEGER,
+  expected_parts INTEGER,
   acked_ns INTEGER,
   join_offset_ms INTEGER,
   landed_ns INTEGER,
@@ -72,6 +73,7 @@ CREATE TABLE IF NOT EXISTS record_take_tombstones (
 _FILE_COLUMN_MIGRATIONS: dict[str, str] = {
     "join_offset_ms": "INTEGER",
     "landed_ns": "INTEGER",
+    "expected_parts": "INTEGER",
     "land_failed_ns": "INTEGER",
 }
 
@@ -365,6 +367,52 @@ class RecordUploadStore:
                 (session_id, take_index, participant_id, segment_index, join_offset_ms),
             )
 
+    def set_expected_parts(
+        self,
+        *,
+        session_id: str,
+        take_index: int,
+        participant_id: str,
+        segment_index: int,
+        expected_parts: int,
+    ) -> None:
+        if expected_parts < 1 or expected_parts > RECORD_UPLOAD_MAX_PARTS:
+            raise RecordUploadError("invalid expected_parts")
+        with self._lock:
+            existing = self._conn.execute(
+                """
+                SELECT expected_parts FROM record_upload_files
+                WHERE session_id = ? AND take_index = ? AND participant_id = ?
+                  AND segment_index = ?
+                """,
+                (session_id, take_index, participant_id, segment_index),
+            ).fetchone()
+            if (
+                existing is not None
+                and existing["expected_parts"] is not None
+                and int(existing["expected_parts"]) != expected_parts
+            ):
+                raise RecordUploadError("expected_parts mismatch")
+            self._conn.execute(
+                """
+                INSERT INTO record_upload_files (
+                  session_id, take_index, participant_id, segment_index,
+                  expected_parts
+                ) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(session_id, take_index, participant_id, segment_index)
+                DO UPDATE SET expected_parts = excluded.expected_parts
+                WHERE record_upload_files.expected_parts IS NULL
+                   OR record_upload_files.expected_parts = excluded.expected_parts
+                """,
+                (
+                    session_id,
+                    take_index,
+                    participant_id,
+                    segment_index,
+                    expected_parts,
+                ),
+            )
+
     def mark_file(
         self,
         *,
@@ -455,11 +503,11 @@ class RecordUploadStore:
         with self._lock:
             row = self._conn.execute(
                 """
-                SELECT file_sha256, byte_length, acked_ns, join_offset_ms,
-                       landed_ns, land_failed_ns
+                SELECT file_sha256, byte_length, expected_parts, acked_ns,
+                       join_offset_ms, landed_ns, land_failed_ns
                 FROM record_upload_files
                 WHERE session_id = ? AND take_index = ? AND participant_id = ?
-                  AND segment_index = ?
+                  AND segment_index = ? AND acked_ns IS NOT NULL
                 """,
                 (session_id, take_index, participant_id, segment_index),
             ).fetchone()
@@ -470,6 +518,9 @@ class RecordUploadStore:
         return {
             "file_sha256": str(row["file_sha256"]),
             "byte_length": int(row["byte_length"]),
+            "expected_parts": (
+                int(row["expected_parts"]) if row["expected_parts"] is not None else None
+            ),
             "acked_ns": int(row["acked_ns"]),
             "join_offset_ms": int(join) if join is not None else 0,
             "landed": landed is not None,
@@ -583,9 +634,9 @@ class RecordUploadStore:
                 """
             file_sql = """
                 SELECT take_index, participant_id, segment_index, file_sha256, byte_length,
-                       join_offset_ms, landed_ns, land_failed_ns
+                       expected_parts, acked_ns, join_offset_ms, landed_ns, land_failed_ns
                 FROM record_upload_files
-                WHERE session_id = ? AND participant_id = ? AND acked_ns IS NOT NULL
+                WHERE session_id = ? AND participant_id = ?
                 """
             params: tuple[Any, ...] = (session_id, participant_id)
         else:
@@ -597,9 +648,9 @@ class RecordUploadStore:
                 """
             file_sql = """
                 SELECT take_index, participant_id, segment_index, file_sha256, byte_length,
-                       join_offset_ms, landed_ns, land_failed_ns
+                       expected_parts, acked_ns, join_offset_ms, landed_ns, land_failed_ns
                 FROM record_upload_files
-                WHERE session_id = ? AND acked_ns IS NOT NULL
+                WHERE session_id = ?
                 """
             params = (session_id,)
         with self._lock:
@@ -623,6 +674,7 @@ class RecordUploadStore:
                     "join_offset_ms": 0,
                     "landed": False,
                     "land_failed": False,
+                    "expected_parts": None,
                 },
             )
             slot["acked_parts"].append(int(row["part_seq"]))
@@ -643,13 +695,17 @@ class RecordUploadStore:
                     "landed": False,
                 },
             )
-            slot["file_ack"] = True
-            slot["file_sha256"] = str(row["file_sha256"])
-            slot["byte_length"] = int(row["byte_length"])
+            slot["file_ack"] = row["acked_ns"] is not None
+            if row["file_sha256"] is not None:
+                slot["file_sha256"] = str(row["file_sha256"])
+            if row["byte_length"] is not None:
+                slot["byte_length"] = int(row["byte_length"])
             join = row["join_offset_ms"]
             slot["join_offset_ms"] = int(join) if join is not None else 0
             slot["landed"] = row["landed_ns"] is not None
             slot["land_failed"] = row["land_failed_ns"] is not None
+            if row["expected_parts"] is not None:
+                slot["expected_parts"] = int(row["expected_parts"])
         return list(segments.values())
 
 
@@ -710,6 +766,7 @@ class RecordUploadService:
         digest: str,
         file_sha256: str | None = None,
         final: bool = False,
+        expected_parts: int | None = None,
         join_offset_ms: int | None = None,
         kind: str | None = None,
     ) -> dict[str, Any]:
@@ -732,6 +789,7 @@ class RecordUploadService:
                 final=final,
                 join_offset_ms=join_offset_ms,
                 upload_kind=upload_kind,
+                expected_parts=expected_parts,
             )
 
     def _ingest_part_locked(
@@ -746,6 +804,7 @@ class RecordUploadService:
         digest: str,
         file_sha256: str | None,
         final: bool,
+        expected_parts: int | None,
         join_offset_ms: int | None,
         upload_kind: str,
     ) -> dict[str, Any]:
@@ -761,6 +820,21 @@ class RecordUploadService:
         else:
             take = parse_upload_index(take_index, name="take_index")
             segment = parse_upload_index(segment_index, name="segment_index")
+        declared_parts = (
+            parse_upload_index(expected_parts, name="expected_parts")
+            if expected_parts is not None
+            else None
+        )
+        if upload_kind == UPLOAD_KIND_ROOM_TONE:
+            declared_parts = None
+        else:
+            if final and declared_parts is None:
+                # Older recording tabs omit the count. Their final sequence still
+                # gives an exact count, while the stored manifest (if present)
+                # remains authoritative through set_expected_parts below.
+                declared_parts = seq + 1
+            if declared_parts is not None and seq >= declared_parts:
+                raise RecordUploadError("part_seq exceeds expected_parts")
         payload = bytes(data or b"")
         offset: int | None = None
         if join_offset_ms is not None:
@@ -771,10 +845,22 @@ class RecordUploadService:
             raise RecordUploadError("room tone too large")
         if len(payload) > record_upload_max_part_bytes():
             raise RecordUploadError("part too large")
+        if final and not file_sha256:
+            raise RecordUploadError("file_sha256 required")
+        if not payload and not final:
+            raise RecordUploadError("empty part")
+        if payload and digest != sha256_hex(payload):
+            raise RecordUploadError("sha256 mismatch")
+        if declared_parts is not None:
+            self._store.set_expected_parts(
+                session_id=sid,
+                take_index=take,
+                participant_id=pid,
+                segment_index=segment,
+                expected_parts=declared_parts,
+            )
         if payload:
-            expected = sha256_hex(payload)
-            if digest != expected:
-                raise RecordUploadError("sha256 mismatch")
+            expected = digest
             path = self._part_path(sid, take, pid, segment, seq, kind=upload_kind)
             known = self._store.part_sha256(
                 session_id=sid,
@@ -823,10 +909,20 @@ class RecordUploadService:
                 except Exception:
                     tmp.unlink(missing_ok=True)
                     raise
-        elif not final:
-            raise RecordUploadError("empty part")
-        if final and not file_sha256:
-            raise RecordUploadError("file_sha256 required")
+        if (
+            final
+            and declared_parts is not None
+            and len(
+                self._store.parts(
+                    session_id=sid,
+                    take_index=take,
+                    participant_id=pid,
+                    segment_index=segment,
+                )
+            )
+            != declared_parts
+        ):
+            raise RecordUploadError("expected_parts incomplete")
         if offset is not None:
             self._store.set_join_offset(
                 session_id=sid,

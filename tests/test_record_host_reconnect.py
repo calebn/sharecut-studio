@@ -9,7 +9,6 @@ from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app as cli_app
-from podcast_mcp.edits.share_registry import reset_share_registry_for_tests
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.tools.review import create_record_room_tool
 from podcast_mcp.models import load_project, save_project
@@ -39,10 +38,7 @@ from podcast_mcp.services.record.upload import RecordUploadService, pcm_wav_head
 from podcast_mcp.services.share import ShareService
 
 
-def _isolate(tmp_workspace: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(tmp_workspace / "shares_index.json"))
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "reg.sqlite"))
-    reset_share_registry_for_tests()
+def _isolate() -> None:
     reset_record_runtime_for_tests()
 
 
@@ -82,6 +78,7 @@ def _ack(
         digest=digest,
         file_sha256=file_hash,
         final=True,
+        expected_parts=1,
         join_offset_ms=join_offset_ms,
     )
 
@@ -130,7 +127,7 @@ def _consent_room(ws, room):
 def test_service_host_leave_join_threshold_and_resume(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, _guest = _consent_room(ws, room)
@@ -156,7 +153,7 @@ def test_service_host_leave_join_threshold_and_resume(
 def test_restart_empty_conns_still_pauses_on_host_join(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, _guest = _consent_room(ws, room)
@@ -186,7 +183,7 @@ def test_restart_empty_conns_still_pauses_on_host_join(
 def test_remint_refused_while_recording_or_paused_allowed_when_idle(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, _guest = _consent_room(ws, room)
@@ -216,7 +213,7 @@ def test_remint_refused_while_recording_or_paused_allowed_when_idle(
 def test_land_after_host_reconnect_pause_clips_abut(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, guest = _consent_room(ws, room)
@@ -258,7 +255,7 @@ def test_land_after_host_reconnect_pause_clips_abut(
 def test_restart_without_leave_still_pauses_on_host_join(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, _guest = _consent_room(ws, room)
@@ -288,13 +285,19 @@ def test_restart_without_leave_still_pauses_on_host_join(
     assert out["host_offline_since_wall_ms"] is None
 
 
-def test_last_host_conn_pop_stamps_offline_since(
-    minimal_project, sample_wav, tmp_workspace, monkeypatch
+@pytest.mark.parametrize(("close_wall_ms", "return_wall_ms"), [(4_900, 10_100), (5_100, 10_200)])
+def test_observed_host_disconnect_uses_close_time_for_reconnect_threshold(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, close_wall_ms, return_wall_ms
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, _guest = _consent_room(ws, room)
+    clock = {"wall_ms": 0}
+    monkeypatch.setattr(
+        "podcast_mcp.services.record.service.time.time_ns",
+        lambda: clock["wall_ms"] * 1_000_000,
+    )
     svc.join(
         token="",
         role="host",
@@ -303,11 +306,170 @@ def test_last_host_conn_pop_stamps_offline_since(
         connection_id="h-live",
         capabilities=["join", "monitor"],
     )
-    svc.submit(_cmd("Start"), now_wall_ms=10)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    clock["wall_ms"] = close_wall_ms
     svc.disconnect(HOST_PARTICIPANT_ID, connection_id="h-live")
     snap = svc.snapshot()
     assert snap["state"] == "recording"
-    assert snap["host_offline_since_wall_ms"] is not None
+    assert snap["host_offline_since_wall_ms"] == close_wall_ms
+
+    clock["wall_ms"] = return_wall_ms
+    svc.join(
+        token="",
+        role="host",
+        display_name="Host",
+        client_id="host-return",
+        connection_id="h-return",
+        capabilities=["join", "monitor"],
+    )
+    assert svc.snapshot()["state"] == "recording"
+
+    clock["wall_ms"] = 11_000
+    svc.disconnect(HOST_PARTICIPANT_ID, connection_id="h-return")
+    clock["wall_ms"] = 21_100
+    svc.join(
+        token="",
+        role="host",
+        display_name="Host",
+        client_id="host-late-return",
+        connection_id="h-late-return",
+        capabilities=["join", "monitor"],
+    )
+    assert svc.snapshot()["state"] == "paused"
+    assert svc.snapshot()["pause_reason"] == "host_reconnect"
+
+
+@pytest.mark.parametrize(("close_wall_ms", "return_wall_ms"), [(9_000, 12_000), (31_000, 32_000)])
+def test_delayed_host_disconnect_uses_stale_beat_for_reconnect_threshold(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, close_wall_ms, return_wall_ms
+):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, _guest = _consent_room(ws, room)
+    clock = {"wall_ms": 1_000}
+    monkeypatch.setattr(
+        "podcast_mcp.services.record.service.time.time_ns",
+        lambda: clock["wall_ms"] * 1_000_000,
+    )
+    svc.join(
+        token="",
+        role="host",
+        display_name="Host",
+        client_id="host-live",
+        connection_id="h-live",
+        capabilities=["join", "monitor"],
+    )
+    svc.submit(_cmd("Start"), now_wall_ms=1_000)
+    clock["wall_ms"] = close_wall_ms
+    svc.disconnect(HOST_PARTICIPANT_ID, connection_id="h-live")
+    assert svc.snapshot()["host_offline_since_wall_ms"] == 1_000
+
+    clock["wall_ms"] = return_wall_ms
+    svc.join(
+        token="",
+        role="host",
+        display_name="Host",
+        client_id="host-return",
+        connection_id="h-return",
+        capabilities=["join", "monitor"],
+    )
+    assert svc.snapshot()["state"] == "paused"
+    assert svc.snapshot()["pause_reason"] == "host_reconnect"
+
+
+def test_new_take_ignores_stopped_interval_when_host_reconnects(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, _guest = _consent_room(ws, room)
+    clock = {"wall_ms": 1_000}
+    monkeypatch.setattr(
+        "podcast_mcp.services.record.service.time.time_ns",
+        lambda: clock["wall_ms"] * 1_000_000,
+    )
+    svc.join(
+        token="",
+        role="host",
+        display_name="Host",
+        client_id="host-live",
+        connection_id="h-live",
+        capabilities=["join", "monitor"],
+    )
+    svc.submit(_cmd("Start"), now_wall_ms=1_000)
+    svc.submit(_cmd("Stop"), now_wall_ms=2_000)
+
+    clock["wall_ms"] = 100_000
+    svc.submit(_cmd("Start"), now_wall_ms=100_000)
+    assert svc.snapshot()["host_last_beat_wall_ms"] == 100_000
+    clock["wall_ms"] = 100_050
+    svc.join(
+        token="",
+        role="host",
+        display_name="Host",
+        client_id="host-second",
+        connection_id="h-second",
+        capabilities=["join", "monitor"],
+    )
+    assert svc.snapshot()["state"] == "recording"
+
+    svc.disconnect(HOST_PARTICIPANT_ID, connection_id="h-second")
+    clock["wall_ms"] = 100_100
+    svc.disconnect(HOST_PARTICIPANT_ID, connection_id="h-live")
+    assert svc.snapshot()["host_offline_since_wall_ms"] == 100_100
+    clock["wall_ms"] = 100_200
+    svc.join(
+        token="",
+        role="host",
+        display_name="Host",
+        client_id="host-return",
+        connection_id="h-return",
+        capabilities=["join", "monitor"],
+    )
+    assert svc.snapshot()["state"] == "recording"
+
+
+def test_resumed_take_ignores_paused_interval_when_host_reconnects(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, _guest = _consent_room(ws, room)
+    clock = {"wall_ms": 1_000}
+    monkeypatch.setattr(
+        "podcast_mcp.services.record.service.time.time_ns",
+        lambda: clock["wall_ms"] * 1_000_000,
+    )
+    svc.join(
+        token="",
+        role="host",
+        display_name="Host",
+        client_id="host-live",
+        connection_id="h-live",
+        capabilities=["join", "monitor"],
+    )
+    svc.submit(_cmd("Start"), now_wall_ms=1_000)
+    svc.submit(_cmd("Pause"), now_wall_ms=2_000)
+
+    clock["wall_ms"] = 100_000
+    svc.submit(_cmd("Resume"), now_wall_ms=100_000)
+    assert svc.snapshot()["host_last_beat_wall_ms"] == 100_000
+    clock["wall_ms"] = 100_100
+    svc.disconnect(HOST_PARTICIPANT_ID, connection_id="h-live")
+    assert svc.snapshot()["host_offline_since_wall_ms"] == 100_100
+    clock["wall_ms"] = 100_200
+    svc.join(
+        token="",
+        role="host",
+        display_name="Host",
+        client_id="host-return",
+        connection_id="h-return",
+        capabilities=["join", "monitor"],
+    )
+    assert svc.snapshot()["state"] == "recording"
 
 
 def test_begin_record_session_refuses_open_take(
@@ -315,7 +477,7 @@ def test_begin_record_session_refuses_open_take(
 ):
     from podcast_mcp.services.record.service import begin_record_session
 
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, _guest = _consent_room(ws, room)
@@ -364,14 +526,14 @@ def test_persist_host_offline_since_skips_lobby_and_already_stamped(tmp_path: Pa
 def test_assert_no_open_take_skips_missing_snapshot(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     ShareService(ws).create_record_token(role="guest", session_id="ghost", require_room=False)
     assert_no_open_take(ws.project)
 
 
 def test_verify_lease_rejects_host(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, _guest = _consent_room(ws, room)
@@ -381,7 +543,7 @@ def test_verify_lease_rejects_host(minimal_project, sample_wav, tmp_workspace, m
 def test_failed_host_join_persists_last_conn_beat(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, _guest = _consent_room(ws, room)
@@ -407,7 +569,7 @@ def test_failed_host_join_persists_last_conn_beat(
 def test_guest_leave_skipped_while_connection_held(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    _isolate(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, guest = _consent_room(ws, room)

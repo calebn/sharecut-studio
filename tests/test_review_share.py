@@ -33,8 +33,6 @@ def _seed_premix(minimal_project, sample_wav):
 
 
 def test_share_create_and_api(minimal_project, sample_wav, tmp_workspace, monkeypatch, tmp_path):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
 
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="Guest v1")
@@ -99,8 +97,6 @@ def test_share_create_and_api(minimal_project, sample_wav, tmp_workspace, monkey
 
 
 def test_guest_action_done_http_twin(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="Action")
     share = ShareService(ws).create(
@@ -140,8 +136,6 @@ def test_guest_action_done_http_twin(minimal_project, sample_wav, tmp_workspace,
 
 
 def test_share_capabilities_and_remote_mcp(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="Caps")
 
@@ -351,8 +345,6 @@ def test_sanitize_guest_project_view_proxy_and_edges():
 def test_share_create_proxy_ensure_failure_swallowed(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     monkeypatch.setattr(
         "podcast_mcp.services.proxy_media.ensure_and_upload_all_proxies",
         MagicMock(side_effect=RuntimeError("proxy boom")),
@@ -369,8 +361,6 @@ def test_share_create_proxy_ensure_failure_swallowed(
 def test_share_revoke_proxy_cleanup_failure_swallowed(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     monkeypatch.setattr(
         "podcast_mcp.services.proxy_media.load_object_store_config",
         lambda config_path=None: None,
@@ -390,8 +380,6 @@ def test_share_revoke_proxy_cleanup_failure_swallowed(
 
 
 def test_share_daw_routes_view_cap(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="Daw")
     share = ShareService(ws).create(
@@ -448,8 +436,6 @@ def test_share_daw_routes_view_cap(minimal_project, sample_wav, tmp_workspace, m
 def test_guest_detail_http_does_not_build_words(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="DawDetail")
     share = ShareService(ws).create(
@@ -475,8 +461,6 @@ def test_guest_detail_http_does_not_build_words(
 
 
 def test_share_daw_requires_view_cap(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="NoView")
     share = ShareService(ws).create(
@@ -490,8 +474,6 @@ def test_share_daw_requires_view_cap(minimal_project, sample_wav, tmp_workspace,
 def test_share_expired_token(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     from datetime import datetime, timedelta
 
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="Exp")
     past = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
@@ -515,8 +497,6 @@ def test_share_daw_document_command_caps(minimal_project, sample_wav, tmp_worksp
         TrackRole,
     )
 
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     ws = _seed_premix(minimal_project, sample_wav)
     ws.project.timeline.tracks = [
         Track(
@@ -658,8 +638,6 @@ def test_guest_render_preview_requires_edit(
     from podcast_mcp.services.review import ReviewService
     from podcast_mcp.services.share import ShareService
 
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     monkeypatch.setenv("PODCAST_GUEST_RENDER", "1")
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="RenderPreview")
@@ -704,8 +682,6 @@ def test_guest_render_preview_disabled_by_default(
     from podcast_mcp.services.review import ReviewService
     from podcast_mcp.services.share import ShareService
 
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     monkeypatch.delenv("PODCAST_GUEST_RENDER", raising=False)
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="NoGuestRender")
@@ -732,8 +708,6 @@ def test_guest_render_preview_conflict_when_host_job_running(
     from podcast_mcp.services.review import ReviewService
     from podcast_mcp.services.share import ShareService
 
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     monkeypatch.setenv("PODCAST_GUEST_RENDER", "1")
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="RenderBusy")
@@ -810,8 +784,6 @@ def test_share_service_refuses_restricted_without_accounts_flag(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     monkeypatch.delenv("PODCAST_SHARE_ACCOUNTS", raising=False)
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     ws = _seed_premix(minimal_project, sample_wav)
     from podcast_mcp.services.review import ReviewService
     from podcast_mcp.services.share import ShareService
@@ -879,8 +851,6 @@ def test_sanitize_guest_document_event_strips_paths():
 
 
 def test_guest_daw_ws_snapshots_and_fanout(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="GuestWS")
     share = ShareService(ws).create(
@@ -962,8 +932,6 @@ def test_guest_daw_ws_snapshots_and_fanout(minimal_project, sample_wav, tmp_work
 def test_guest_daw_ws_rejects_invalid_token(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     client = TestClient(create_app())
     try:
         with client.websocket_connect("/api/review/no-such-token/daw/ws") as ws:
@@ -975,8 +943,6 @@ def test_guest_daw_ws_rejects_invalid_token(
 
 
 def test_guest_daw_ws_requires_view_cap(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="NoViewWS")
     share = ShareService(ws).create(
@@ -1036,8 +1002,6 @@ def test_map_share_exc_branches():
 
 
 def test_guest_daw_ws_authz_denied(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="AuthzDeny")
     share = ShareService(ws).create(
@@ -1058,8 +1022,6 @@ def test_guest_daw_ws_authz_denied(minimal_project, sample_wav, tmp_workspace, m
 
 
 def test_guest_daw_ws_rate_limit_disabled(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     monkeypatch.setenv("PODCAST_RATE_LIMIT", "0")
     from podcast_mcp.services.remote_mcp.limits import reset_host_limiters_for_tests
 
@@ -1082,8 +1044,6 @@ def test_guest_daw_ws_concurrency_rejected(minimal_project, sample_wav, tmp_work
         reset_host_limiters_for_tests,
     )
 
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     monkeypatch.setenv("PODCAST_GUEST_WS_CONCURRENT", "1")
     reset_host_limiters_for_tests()
     ws = _seed_premix(minimal_project, sample_wav)
@@ -1106,8 +1066,6 @@ def test_guest_daw_ws_concurrency_rejected(minimal_project, sample_wav, tmp_work
 
 
 def test_guest_daw_ws_missing_project(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="Missing")
     share = ShareService(ws).create(
@@ -1145,8 +1103,6 @@ def _seed_track_for_proxy(ws):
 
 
 def test_proxy_manifest_local_fallback(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     monkeypatch.setattr(
         "podcast_mcp.services.proxy_media.load_object_store_config",
         lambda config_path=None: None,
@@ -1174,8 +1130,6 @@ def test_proxy_manifest_local_fallback(minimal_project, sample_wav, tmp_workspac
 
 
 def test_proxy_manifest_requires_view(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     ws = _seed_premix(minimal_project, sample_wav)
     _seed_track_for_proxy(ws)
     ver = ReviewService(ws).publish(label="ProxyNoView")
@@ -1191,8 +1145,6 @@ def test_proxy_manifest_requires_view(minimal_project, sample_wav, tmp_workspace
 def test_proxy_manifest_presigned(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     from podcast_mcp.util.object_store import ObjectStoreConfig
 
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     cfg = ObjectStoreConfig(
         endpoint_url="https://s3.example.test",
         region="us-test-1",
@@ -1242,8 +1194,6 @@ def test_proxy_manifest_presigned(minimal_project, sample_wav, tmp_workspace, mo
 
 
 def test_proxy_chunk_unknown_404(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     monkeypatch.setattr(
         "podcast_mcp.services.proxy_media.load_object_store_config",
         lambda config_path=None: None,
@@ -1263,8 +1213,6 @@ def test_proxy_chunk_unknown_404(minimal_project, sample_wav, tmp_workspace, mon
 def test_proxy_manifest_lazy_ensure_failure(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     monkeypatch.setattr(
         "podcast_mcp.services.proxy_media.load_object_store_config",
         lambda config_path=None: None,
@@ -1293,8 +1241,6 @@ def test_proxy_manifest_lazy_ensure_failure(
 def test_share_proxy_manifest_play_denied(monkeypatch, minimal_project, sample_wav, tmp_workspace):
     from podcast_mcp.services import share as share_mod
 
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     monkeypatch.setattr(
         "podcast_mcp.services.proxy_media.load_object_store_config",
         lambda config_path=None: None,
@@ -1359,8 +1305,6 @@ def test_guest_restricted_origin_helper(monkeypatch) -> None:
 
 
 def test_guest_daw_ws_presence_inbound(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="GuestPresence")
     share = ShareService(ws).create(
@@ -1409,8 +1353,6 @@ def test_guest_daw_ws_presence_inbound(minimal_project, sample_wav, tmp_workspac
 
 
 def test_guest_daw_ws_reserved_name(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="GuestName")
     share = ShareService(ws).create(
@@ -1432,8 +1374,6 @@ def test_guest_daw_ws_reserved_name(minimal_project, sample_wav, tmp_workspace, 
 def test_guest_daw_ws_malformed_and_oversize(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="GuestBad")
     share = ShareService(ws).create(
@@ -1461,8 +1401,6 @@ def test_guest_daw_ws_malformed_and_oversize(
 
 
 def test_guest_daw_ws_revocation_recheck(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     monkeypatch.setattr(
         "podcast_mcp.gui.routes.review_share.GUEST_SHARE_RECHECK_ON_FRAME_S",
         0.0,
@@ -1492,8 +1430,6 @@ def test_guest_daw_ws_revocation_recheck(minimal_project, sample_wav, tmp_worksp
 def test_guest_daw_ws_revocation_recheck_idle(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     monkeypatch.setattr(
         "podcast_mcp.gui.routes.review_share.GUEST_SHARE_RECHECK_S",
         0.05,

@@ -131,7 +131,7 @@ internally, via a shared thread-pool helper (`util/parallel.py`):
 
 | Step | What runs concurrently |
 |------|-------------------------|
-| `analyze_fillers_pauses` | Every filler/pause candidate across **all** dialogue tracks is analyzed (waveform boundary snap, risk assessment, fade sizing) in one shared pool, then decisions are applied serially in the original order |
+| `analyze_fillers_pauses` | Every filler, pause, repetition, or restart candidate across **all** dialogue tracks is analyzed (waveform boundary snap, risk assessment, fade sizing) in one shared pool, then decisions are applied serially in the original order |
 | `assemble_timeline` / `render_dialogue_stems` | Each track's stem is rendered concurrently (`_render_track_stems`) |
 | `export_deliverables` | Each configured output format is encoded concurrently |
 
@@ -172,17 +172,13 @@ points.
 
 ### Per-track audio cache (the bigger win)
 
-Independent of thread-pool parallelism, `analyze_fillers_pauses` also decodes each
-track's raw source audio **once** up front (`edits/audio_cache.py::TrackAudioCache`,
-built in `propose_tighten_edits`) instead of spawning a fresh `ffmpeg` subprocess
-for every tiny window read inside boundary-snap/breath-detection/join-jump
-measurement. A single `ffmpeg` subprocess call costs ~70ms regardless of how small
-the requested window is, dominated by process-spawn overhead, not decode time;
-with hundreds of candidates each needing several window reads, that overhead was
-the single largest cost in the whole pipeline. The same track's audio is now
-decoded once (~1-2s for an hour of audio) and every subsequent window read is an
-in-memory numpy slice (~0.0006ms). `engines/audio_audit.py::analyze_gate_overreach`
-uses the same pattern for its raw-audio reads.
+Independent of thread-pool parallelism, `analyze_fillers_pauses` decodes each
+track's raw source audio once for each required sample rate up front
+(`edits/audio_cache.py::TrackAudioCache`, built in `propose_tighten_edits`):
+8 kHz for join/RMS measurement and 16 kHz for waveform-boundary and breath
+analysis. Each later cached window read is an in-memory NumPy slice. The
+`engines/audio_audit.py::TrackRmsCache` applies the same pattern to processed
+stems; `analyze_gate_overreach` also caches raw-audio reads.
 
 Measured on a real 65-minute, 2-track episode (`analyze_fillers_pauses`, 181 final
 decisions, byte-identical output across all variants):
@@ -194,10 +190,12 @@ decisions, byte-identical output across all variants):
 | + per-track audio cache (serial) | 11.2s | 9.9x |
 | + audio cache + parallelism | 10.9s | **10.1x** |
 
-Both optimizations are complementary and safe to run together, but the audio
-cache accounts for most of the win — once `ffmpeg` subprocess spawning is
-eliminated, the remaining per-candidate work is fast enough that thread-pool
-overhead and the cache's one-time decode cost roughly cancel out any further
-gain from concurrency on this step. Parallelism still matters more for
+Both optimizations are complementary and safe to run together. The historical
+benchmark's uncached path spent most of its time spawning `ffmpeg` for each
+candidate window. Current PCM WAV window reads use the in-process decoder;
+other containers retain the `ffmpeg` fallback. The cache still eliminates
+repeated decoding and leaves the remaining per-candidate work small enough that
+thread-pool overhead and the cache's one-time decode cost roughly cancel out
+further concurrency gains for this step. Parallelism still matters more for
 `assemble_timeline` (real per-track rendering work, not just tiny reads) and for
 episodes with more dialogue tracks.

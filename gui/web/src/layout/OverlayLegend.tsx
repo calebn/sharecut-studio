@@ -11,17 +11,23 @@ const TOGGLES: { key: keyof LayerVisibility; label: string }[] = [
   { key: "showComments", label: "Comments" },
 ];
 
-export function OverlayLegend() {
+export function OverlayLegend({ menu = false }: { menu?: boolean }) {
   const { layers, setLayerVisible, projectPath, playheadSec, setSelection } =
     useDaw();
   const hostEditable = !isShareProjectKey(projectPath);
 
   return (
-    <div className="overlay-legend" role="group" aria-label="Timeline layers">
+    <div
+      className="overlay-legend"
+      role={menu ? "none" : "group"}
+      aria-label={menu ? undefined : "Timeline layers"}
+    >
       {TOGGLES.map(({ key, label }) => (
         <label key={key} className="overlay-legend-item">
           <input
             type="checkbox"
+            role={menu ? "menuitemcheckbox" : undefined}
+            aria-checked={menu ? layers[key] : undefined}
             checked={layers[key]}
             onChange={(e) => setLayerVisible(key, e.target.checked)}
           />
@@ -30,6 +36,7 @@ export function OverlayLegend() {
       ))}
       {hostEditable && layers.showMarkers && (
         <Button
+          role={menu ? "menuitem" : undefined}
           className="transcript-follow-btn"
           title="Add chapter marker at playhead"
           onClick={() => {

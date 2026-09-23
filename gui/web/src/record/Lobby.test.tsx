@@ -100,6 +100,27 @@ describe("Lobby", () => {
     expect(describedBy?.split(" ")).toContain(warning.id);
   });
 
+  it("keeps Accept disabled after the granted mic is lost", () => {
+    render(
+      <Lobby
+        producer={false}
+        name="Ava"
+        onName={() => undefined}
+        headphonesOk
+        onHeadphones={() => undefined}
+        deviceId=""
+        onDeviceId={() => undefined}
+        onJoinProducer={() => undefined}
+        onAccept={() => undefined}
+        onDecline={() => undefined}
+        showMic
+        {...mic}
+        permission="lost"
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Accept" })).toBeDisabled();
+  });
+
   it("holds Accept until room tone is recorded or skipped", async () => {
     const { container, rerender } = render(
       <Lobby

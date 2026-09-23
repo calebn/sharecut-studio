@@ -30,7 +30,7 @@ def main(argv: list[str] | None = None) -> int:
     build.add_argument("--project", type=Path, required=True)
     build.add_argument("--out", type=Path, required=True)
     build.add_argument("--limit", type=int, default=DEFAULT_LIMIT)
-    build.add_argument("--classes", default="filler,pause")
+    build.add_argument("--classes")
     build.add_argument("--seed", type=int, default=None)
     build.add_argument("--force", action="store_true")
 
