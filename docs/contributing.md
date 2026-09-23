@@ -92,9 +92,9 @@ Stages per issue (each issue is its own lane; lanes do not wait for each other):
 1. **Triage** (Haiku): score every eligible open issue opened by an `authors` login; pick the top `lanes` that are actionable, not size L, unblocked, and in distinct code areas.
 2. **Plan** (Opus): claim the issue (`in-progress`), research, post a detailed implementation plan on the issue, and list related issues.
 3. **Implement** (Sonnet, own worktree): follow the plan, run **targeted** local checks only (changed-file Ruff, the related pytest / Vitest files; never `make test` / `make ci`), and open a PR. GitHub Actions is the full-suite gate whose body has `Fixes #N` plus one `Related #M` line per related issue.
-4. **CI** (Haiku watches; Sonnet makes one fix attempt on red).
+4. **CI** runs on GitHub in parallel with review and feedback; the pipeline waits for it only once, at the merge gate, on the final head (Haiku watches; Sonnet makes one fix attempt on red).
 5. **Review** (Opus): `pr-multi-review` in AUTONOMOUS MODE. Posting every finding is mandatory. A separate Haiku verifier re-posts anything missing, and the lane is held if a finding still cannot be posted.
-6. **Feedback**: Opus runs `/feedback` in plan mode and sorts every open item into `implement`, `follow_up` or `wont_do`. Sonnet then runs execute mode: it implements, files follow-up issues (added to the PR body as `Related #M`), and replies to and resolves every thread. Haiku verifies the replies. Steps 4–6 repeat up to `maxRounds`; the last round turns anything not trivially safe into a follow-up.
+6. **Feedback**: Opus runs `/feedback` in plan mode and sorts every open item into `implement`, `follow_up` or `wont_do`. Sonnet then runs execute mode: it implements, files follow-up issues (added to the PR body as `Related #M`), and replies to and resolves every thread. Haiku verifies the replies. Steps 5–6 repeat up to `maxRounds`; the last round turns anything not trivially safe into a follow-up.
 7. **Merge gate**, run per PR as soon as its lane finishes. The PR squash-merges only when all of these hold:
    - every required check (`pytest`, `frontend`, `frontend-e2e`, `gitleaks-history`) is green **on the latest head SHA**,
    - there are 0 unresolved review threads,

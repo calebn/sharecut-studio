@@ -6,7 +6,7 @@ export const meta = {
     { title: 'Triage', detail: 'list + score open issues, pick lanes', model: 'haiku' },
     { title: 'Plan', detail: 'research issue, write implementation plan', model: 'opus' },
     { title: 'Implement', detail: 'follow plan, open PR', model: 'sonnet' },
-    { title: 'CI', detail: 'wait for required checks on the head SHA', model: 'haiku' },
+    { title: 'CI', detail: 'wait once, at the gate, for required checks on the final head SHA', model: 'haiku' },
     { title: 'Review', detail: 'pr-multi-review AUTONOMOUS MODE + post verification', model: 'opus' },
     { title: 'Feedback', detail: 'feedback AUTONOMOUS MODE plan (opus) + execute (sonnet)' },
     { title: 'Merge', detail: 'gate facts, rebase on conflict, squash-merge', model: 'haiku' },
@@ -494,9 +494,9 @@ Return ok, pr number, branch, head_sha.`,
     const { pr, branch } = lane.pr
     let head = lane.pr.head_sha
 
-    // Red CI is still reviewed (reviewers fold it into High findings); the gate enforces green.
-    let green = await ensureGreen(issue, pr, branch, head)
-    head = green.head_sha
+    // GitHub CI runs while review/feedback proceed; it is waited on once, at the
+    // merge gate, against the final head (the gate enforces green).
+    let green = { ok: false, head_sha: head, reason: 'CI not yet checked' }
 
     let wontDo = 0
     let findingsTotal = 0
@@ -528,11 +528,7 @@ Return ok, pr number, branch, head_sha.`,
       followups.push(...exec.items.filter((i) => i.followup_issue).map((i) => i.followup_issue))
 
       const changed = !!exec.head_sha && exec.head_sha !== head
-      if (changed) {
-        head = exec.head_sha
-        green = await ensureGreen(issue, pr, branch, head)
-        head = green.head_sha
-      }
+      if (changed) head = exec.head_sha
       // No new code → nothing new to re-review.
       if (!changed) break
     }

@@ -84,6 +84,8 @@ def test_local_checks_are_targeted_and_ci_is_the_full_gate() -> None:
     assert "Do NOT run make test, make test-web, make ci" in script
     assert "make test-fast" not in script
     assert "make worktree-setup" in script
+    # CI is awaited once, at the merge gate (plus bounded fix attempts), not per round.
+    assert script.count("await ensureGreen(") == 1
     assert "uv sync --all-extras" not in script
 
 
