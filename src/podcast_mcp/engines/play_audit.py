@@ -8,6 +8,7 @@ from typing import Any
 
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.mute_regions import mute_regions_payload
+from podcast_mcp.engines.timeline_render import RENDER_SEMANTICS_REV
 from podcast_mcp.models import AutomationEnvelope, EpisodeProject
 
 log = logging.getLogger(__name__)
@@ -28,7 +29,11 @@ def envelope_audio_payload(envelope: AutomationEnvelope | None) -> dict[str, Any
 
 
 def track_render_hash(project: EpisodeProject, track_id: str) -> str:
-    """Fingerprint applied edits, clips, mix state for a track (stem/segment cache)."""
+    """Fingerprint applied edits, clips, mix state for a track (stem/segment cache).
+
+    Includes ``RENDER_SEMANTICS_REV`` so stems and play segments rendered under
+    older renderer rules are treated as stale after a semantics change.
+    """
     track = project.track_by_id(track_id)
     chain = next((c for c in project.processing_chains if c.track_id == track_id), None)
     env = project.volume_envelope_for(track_id)
@@ -56,6 +61,7 @@ def track_render_hash(project: EpisodeProject, track_id: str) -> str:
         for c in clips_for_track(project, track_id)
     ]
     payload: dict[str, Any] = {
+        "render_rev": RENDER_SEMANTICS_REV,
         "track_id": track_id,
         "gain_db": track.gain_db if track else 0.0,
         "muted": track.muted if track else False,
