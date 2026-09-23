@@ -18,14 +18,17 @@ export const e2eProjectPath =
   process.env.DAW_E2E_PROJECT || committedE2eProjectPath;
 
 // realpathSync.native follows symlinks and, on case-insensitive volumes
-// (default macOS APFS), returns the on-disk spelling. Paths that do not
-// exist yet fall back to path.resolve.
+// (default macOS APFS), returns the on-disk spelling. Only paths that do
+// not exist yet (ENOENT / ENOTDIR) fall back to path.resolve; any other
+// realpath failure is rethrown so the guard fails closed.
 function canonicalE2ePath(projectPath: string): string {
   const resolved = path.resolve(projectPath);
   try {
     return fs.realpathSync.native(resolved);
-  } catch {
-    return resolved;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "ENOTDIR") return resolved;
+    throw error;
   }
 }
 
