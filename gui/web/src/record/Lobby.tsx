@@ -5,7 +5,7 @@ import { DeviceCheck } from "./DeviceCheck";
 import type { MicPermissionStatus } from "./micPermission";
 import { RoomToneCapture } from "./RoomToneCapture";
 import type { RoomToneStatus } from "./roomTone";
-import { useStorageHeadroom } from "./storageQuota";
+import { StorageHeadroomWarning } from "./StorageHeadroomWarning";
 import { LOCAL_KEEPER_PENDING_COPY, ROOM_TONE_GATE_COPY } from "./types";
 
 type Props = {
@@ -73,7 +73,6 @@ export function Lobby({
   onRetryStorage,
   showRoomTone = true,
 }: Props) {
-  const storage = useStorageHeadroom();
   const nameId = useId();
   const phonesId = useId();
   const grantHintId = useId();
@@ -110,11 +109,7 @@ export function Lobby({
         </Button>
       ) : (
         <>
-          {storage.status !== "sufficient" ? (
-            <p className="record-warn" role="status">
-              {storage.message}
-            </p>
-          ) : null}
+          <StorageHeadroomWarning />
           <label className="cluster" htmlFor={phonesId}>
             <input
               id={phonesId}

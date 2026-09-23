@@ -1,11 +1,17 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { KEEPER_BYTES_PER_SECOND } from "./keeper/pcm";
+import { STORAGE_UNKNOWN_COPY, storageLowCopy } from "./types";
 
-/** Uncompressed mono 16-bit PCM at the keeper's fixed sample rate. */
-export const KEEPER_BYTES_PER_SECOND = 48_000 * 2;
 export const STORAGE_HEADROOM_SECONDS = 60 * 60;
 
+export type StorageHeadroomStatus =
+  | "checking"
+  | "sufficient"
+  | "low"
+  | "unknown";
+
 export type StorageHeadroom = {
-  status: "sufficient" | "low" | "unknown";
+  status: StorageHeadroomStatus;
   availableBytes: number | null;
   requiredBytes: number;
   message: string;
@@ -15,11 +21,27 @@ export type StorageHeadroomCheck = StorageHeadroom & {
   refresh: () => Promise<void>;
 };
 
+function requiredBytesFor(expectedSeconds: number): number {
+  return Math.max(0, expectedSeconds) * KEEPER_BYTES_PER_SECOND;
+}
+
+/** Silent initial state while `navigator.storage.estimate()` is in flight. */
+export function checkingStorageHeadroom(
+  expectedSeconds = STORAGE_HEADROOM_SECONDS,
+): StorageHeadroom {
+  return {
+    status: "checking",
+    availableBytes: null,
+    requiredBytes: requiredBytesFor(expectedSeconds),
+    message: "",
+  };
+}
+
 export function assessStorageHeadroom(
   estimate: { quota?: number; usage?: number } | null | undefined = null,
   expectedSeconds = STORAGE_HEADROOM_SECONDS,
 ): StorageHeadroom {
-  const requiredBytes = Math.max(0, expectedSeconds) * KEEPER_BYTES_PER_SECOND;
+  const requiredBytes = requiredBytesFor(expectedSeconds);
   const quota = estimate?.quota;
   const usage = estimate?.usage;
   if (
@@ -32,8 +54,7 @@ export function assessStorageHeadroom(
       status: "unknown",
       availableBytes: null,
       requiredBytes,
-      message:
-        "Storage availability could not be checked. Check your device's free space before recording; if upload fails, download the local keeper.",
+      message: STORAGE_UNKNOWN_COPY,
     };
   }
   const availableBytes = Math.max(0, (quota as number) - (usage as number));
@@ -43,7 +64,7 @@ export function assessStorageHeadroom(
       status: "low",
       availableBytes,
       requiredBytes,
-      message: `Local recording storage is low (estimated space for about ${minutes} minutes of audio). Free space before recording; if upload fails, download the local keeper.`,
+      message: storageLowCopy(minutes),
     };
   }
   return {
@@ -56,21 +77,36 @@ export function assessStorageHeadroom(
 
 export function useStorageHeadroom(): StorageHeadroomCheck {
   const [headroom, setHeadroom] = useState<StorageHeadroom>(() =>
-    assessStorageHeadroom(),
+    checkingStorageHeadroom(),
   );
-  const refresh = useCallback(() => {
+  // Only the latest refresh may commit, and never after unmount: an older
+  // estimate taken before keeper reclaim must not overwrite a newer one.
+  const latest = useRef(0);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const refresh = useCallback(async () => {
+    latest.current += 1;
+    const request = latest.current;
+    const commit = (next: StorageHeadroom) => {
+      if (mounted.current && request === latest.current) {
+        setHeadroom(next);
+      }
+    };
     const storage = globalThis.navigator?.storage;
     if (typeof storage?.estimate !== "function") {
-      return Promise.resolve();
+      commit(assessStorageHeadroom());
+      return;
     }
-    return storage
-      .estimate()
-      .then((result) => {
-        setHeadroom(assessStorageHeadroom(result));
-      })
-      .catch(() => {
-        setHeadroom(assessStorageHeadroom());
-      });
+    try {
+      commit(assessStorageHeadroom(await storage.estimate()));
+    } catch {
+      commit(assessStorageHeadroom());
+    }
   }, []);
   useEffect(() => void refresh(), [refresh]);
   return { ...headroom, refresh };

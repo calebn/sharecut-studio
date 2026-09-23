@@ -22,6 +22,7 @@ import {
   hostUploadLine,
   type RecordSnapshot,
   ROOM_TONE_PROMPT_COPY,
+  storageLowCopy,
 } from "./types";
 
 const { exec, roomTone } = vi.hoisted(() => ({
@@ -317,11 +318,37 @@ describe("RecordPanel", () => {
         },
       ],
     });
-    render(<RecordPanel />);
+    const { container } = render(<RecordPanel />);
     await waitFor(() =>
-      expect(screen.getByText(/local recording storage is low/i)).toBeVisible(),
+      expect(screen.getByText(storageLowCopy(0))).toBeVisible(),
     );
     expect(screen.getByRole("button", { name: "Start" })).toBeEnabled();
+    await expectNoA11yViolations(container);
+  });
+
+  it("re-checks storage headroom when a take stops", async () => {
+    const estimate = vi.fn(async () => ({ usage: 0, quota: 1 }));
+    Object.defineProperty(navigator, "storage", {
+      configurable: true,
+      value: { estimate },
+    });
+    useRecordHostStore.getState().setSnapshot({
+      ...lobby,
+      state: "recording",
+      start_blockers: [],
+    });
+    render(<RecordPanel />);
+    await waitFor(() => expect(estimate).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText(storageLowCopy(0))).toBeNull();
+    useRecordHostStore.getState().setSnapshot({
+      ...lobby,
+      state: "stopped",
+      start_blockers: [],
+    });
+    await waitFor(() => expect(estimate).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(screen.getByText(storageLowCopy(0))).toBeVisible(),
+    );
   });
 
   it("disables Start while room tone is capturing", () => {

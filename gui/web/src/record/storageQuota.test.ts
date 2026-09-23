@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { KEEPER_BYTES_PER_SECOND } from "./keeper/pcm";
 import {
   assessStorageHeadroom,
-  KEEPER_BYTES_PER_SECOND,
   STORAGE_HEADROOM_SECONDS,
 } from "./storageQuota";
 

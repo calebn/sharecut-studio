@@ -23,7 +23,7 @@ import {
 import { RecIndicator } from "./RecIndicator";
 import { RoomToneCapture } from "./RoomToneCapture";
 import { Roster } from "./Roster";
-import { useStorageHeadroom } from "./storageQuota";
+import { StorageHeadroomWarning } from "./StorageHeadroomWarning";
 import {
   HEARING_COPY,
   hostReconnectPauseCopyFromSnapshot,
@@ -86,16 +86,6 @@ export function RecordPanel({
   const setSnapshot = useRecordHostStore((s) => s.setSnapshot);
   const blockers = startBlockers(snapshot);
   const state = snapshot?.state;
-  const {
-    status: storageStatus,
-    message: storageMessage,
-    refresh: refreshStorage,
-  } = useStorageHeadroom();
-  useEffect(() => {
-    if (state === "stopped") {
-      void refreshStorage();
-    }
-  }, [state, refreshStorage]);
   const recording = state === "recording";
   const paused = state === "paused";
   const host = snapshot?.participants.find(
@@ -214,12 +204,10 @@ export function RecordPanel({
         {snapshot ? (
           <RecIndicator snapshot={snapshot} captureFailed={!!keeperError} />
         ) : null}
-        {storageStatus !== "sufficient" &&
-        (state === "lobby" || state === "stopped") ? (
-          <p className="record-warn" role="status">
-            {storageMessage}
-          </p>
-        ) : null}
+        <StorageHeadroomWarning
+          visible={state === "lobby" || state === "stopped"}
+          recheck={state === "stopped"}
+        />
         {snapshot &&
         (snapshot.state === "lobby" || snapshot.state === "stopped") ? (
           <RoomToneCapture

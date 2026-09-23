@@ -7,6 +7,7 @@ import {
   ROOM_TONE_GATE_COPY,
   ROOM_TONE_PROMPT_COPY,
   SPEAKERS_WARNING,
+  storageLowCopy,
 } from "./types";
 
 const mic = {
@@ -29,7 +30,7 @@ describe("Lobby", () => {
       configurable: true,
       value: { estimate: vi.fn(async () => ({ usage: 0, quota: 1 })) },
     });
-    render(
+    const { container } = render(
       <Lobby
         producer={false}
         name="Ava"
@@ -49,9 +50,10 @@ describe("Lobby", () => {
       />,
     );
     await waitFor(() =>
-      expect(screen.getByText(/local recording storage is low/i)).toBeVisible(),
+      expect(screen.getByText(storageLowCopy(0))).toBeVisible(),
     );
     expect(screen.getByRole("button", { name: "Accept" })).toBeEnabled();
+    await expectNoA11yViolations(container);
   });
 
   it("omits mic UI on the producer path", async () => {
