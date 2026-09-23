@@ -4,9 +4,10 @@
 definitions. The ``effects:`` block in a pipeline defaults YAML is a by-name
 overlay applied on top of it: it can add new presets, or override a builtin
 preset's definition, but only in a custom ``PODCAST_MCP_PIPELINE_DEFAULTS``
-file. Repo-tracked YAMLs (``.agents/defaults/pipeline.yaml``,
-``tests/fixtures/*.yaml``) must not redefine a builtin preset name --
-``tests/test_effects_presets.py`` enforces this with a parity test.
+file. Repo-tracked YAMLs (any YAML under ``.agents/``, ``config/``,
+``deploy/`` or ``tests/fixtures/``, recursive) must not redefine a builtin
+preset name -- ``tests/test_effects_presets.py`` enforces this with a parity
+test.
 """
 
 from __future__ import annotations
@@ -72,10 +73,16 @@ def resolve_presets(defaults: Mapping[str, Any] | None = None) -> dict[str, Pres
 
 
 def list_presets() -> list[str]:
+    """Sorted preset names. Reloads pipeline defaults on every call."""
     return sorted(resolve_presets())
 
 
 def get_preset(name: str) -> PresetSpec:
+    """One resolved preset (deep copy). Reloads pipeline defaults on every call.
+
+    In loops or per-request hot paths, call ``resolve_presets(defaults)`` once
+    and index the returned map instead.
+    """
     presets = resolve_presets()
     if name not in presets:
         raise ValueError(f"unknown effect preset: {name!r}")
