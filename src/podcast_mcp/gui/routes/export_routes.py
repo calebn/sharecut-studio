@@ -23,6 +23,13 @@ def _auth(
     token: str | None = None,
     x_podcast_token: str | None = None,
 ) -> None:
+    """Host-only gate for export jobs (bounce + deliverables).
+
+    Share tokens never satisfy this check: remote peers under strict authz must
+    present ``PODCAST_SESSION_TOKEN``, and the relay tunnel never maps
+    ``/api/export/*`` (``util/proxy_paths.py``). See issue #219 and
+    docs/host-online-relay.md § Security notes.
+    """
     require_authz(
         client_id="viewer",
         role="viewer",

@@ -586,6 +586,10 @@ src/podcast_mcp/
   see absolute paths.
 - **Diagnostics bundle**: host-only (`POST /api/diagnostics/bundle`). Guests cannot
   reach it via the proxy allowlist. The zip is written locally and never uploaded.
+- **Host export jobs**: `POST /api/export/bounce` and `POST /api/export/deliverables` are
+  host-only. The tunnel never maps `/api/export/*` (proxy allowlist), and a direct remote
+  request under strict authz must present `PODCAST_SESSION_TOKEN`. A share token in
+  `?token=` / `X-Podcast-Token` is never accepted as that credential (403, no job started).
 - **Host GUI**: defaults to loopback. Non-loopback bind auto-enables `PODCAST_SESSION_AUTHZ=strict`
   and injects `session_token` into the viewer URL. Prefer the public relay over LAN bind.
 - **Remote MCP**: disabled by default; requires `PODCAST_REMOTE_MCP=1` on the host and

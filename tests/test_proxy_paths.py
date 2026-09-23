@@ -32,6 +32,9 @@ def test_allowed_local_paths():
     assert is_allowed_local_gui_path("/mcp/tok/mcp", "tok")
     assert not is_allowed_local_gui_path("/api/pipeline/run", "tok")
     assert not is_allowed_local_gui_path("/api/diagnostics/bundle", "tok")
+    # #219: host export jobs are never proxied to guests.
+    assert not is_allowed_local_gui_path("/api/export/bounce", "tok")
+    assert not is_allowed_local_gui_path("/api/export/deliverables", "tok")
     assert not is_allowed_local_gui_path("/api/review/other/project", "tok")
     assert not is_allowed_local_gui_path("/assets/../../api/x", "tok")
     assert not is_allowed_local_gui_path("/r/tok", "")

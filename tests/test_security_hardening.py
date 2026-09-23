@@ -62,6 +62,44 @@ def test_strict_authz_remote_peer_needs_token(minimal_project, monkeypatch):
     assert ok.status_code == 200
 
 
+@pytest.mark.parametrize("route", ["/api/export/bounce", "/api/export/deliverables"])
+def test_export_routes_reject_share_token_guest(
+    route: str, minimal_project, sample_wav, monkeypatch
+) -> None:
+    """#219: a minted share token (all caps) cannot start host export jobs."""
+    from podcast_mcp.edits.review_shares import create_share
+    from podcast_mcp.edits.share_capabilities import ALL_CAPABILITIES
+    from podcast_mcp.models import load_project, save_project
+    from podcast_mcp.services import ProjectWorkspace, ReviewService
+
+    proj = load_project(minimal_project)
+    art = Path(proj.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    save_project(proj, minimal_project)
+    ws = ProjectWorkspace.open(minimal_project)
+    ver = ReviewService(ws).publish(label="guest")
+    share_token = create_share(
+        ws.project, review_version_id=ver["id"], capabilities=list(ALL_CAPABILITIES)
+    )["token"]
+
+    monkeypatch.setenv("PODCAST_SESSION_AUTHZ", "strict")
+    monkeypatch.setenv("PODCAST_SESSION_TOKEN", "session-token")
+    monkeypatch.setattr(
+        "podcast_mcp.gui.routes.export_routes.peer_host", lambda _request: "10.0.0.5"
+    )
+    app = create_app(bind_host="0.0.0.0")
+    client = TestClient(app)
+    res = client.post(
+        f"{route}?token={share_token}",
+        json={"path": str(minimal_project)},
+        headers={"X-Podcast-Token": share_token},
+    )
+    assert res.status_code == 403
+    assert res.json() == {"detail": "remote client requires PODCAST_SESSION_TOKEN"}
+    assert app.state.jobs._job is None  # no bounce/export job was started
+
+
 def test_ensure_non_loopback_session_auth(monkeypatch):
     # delenv on an already-unset key does not register undo - SUT writes
     # os.environ directly, so always pop in finally to avoid xdist worker leaks.

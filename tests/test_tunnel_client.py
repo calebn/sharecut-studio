@@ -98,6 +98,22 @@ def test_map_unknown_prefix_rejected():
         _map_local_path("other/foo", "tok")
 
 
+@pytest.mark.parametrize(
+    "suffix",
+    [
+        "api/export/bounce",
+        "api/export/deliverables",
+        "api/review/../export/bounce",
+        "r/../api/export/deliverables",
+        "api/review/%2e%2e/%2e%2e/api/export/bounce",
+    ],
+)
+def test_map_export_routes_rejected(suffix: str) -> None:
+    """#219: the tunnel never forwards a guest request to host export jobs."""
+    with pytest.raises(UnsafeProxyPath):
+        _map_local_path(suffix, "tok")
+
+
 def test_map_local_path_rec_prefixes():
     assert _map_local_path("rec/", "abc") == "/rec/abc"
     assert _map_local_path("rec/assets/foo.js", "abc") == "/assets/foo.js"
