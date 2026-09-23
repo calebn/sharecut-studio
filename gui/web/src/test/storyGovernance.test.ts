@@ -19,6 +19,7 @@ describe("storyLeaks", () => {
     ["App.tsx", 'const s = require("storybook/test");', 1],
     ["App.tsx", 'const s = require("./ui/Button.stories");', 1],
     ["App.tsx", 'import Story = require("storybook/test");', 1],
+    ["App.tsx", 'type Story = import("storybook/test").Mock;', 1],
     ["App.tsx", '// import "./ui/Button.stories";', 0],
     ["App.tsx", '/* require("storybook/test") */', 0],
     ["App.tsx", 'const example = `from "storybook/test"`;', 0],

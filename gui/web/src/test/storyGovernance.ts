@@ -70,6 +70,8 @@ export function importSpecifiers(text: string): string[] {
       addLiteral(value.source);
     } else if (value.type === "TSExternalModuleReference") {
       addLiteral(value.expression);
+    } else if (value.type === "TSImportType") {
+      addLiteral(value.argument);
     } else if (value.type === "CallExpression" && isNode(value.callee)) {
       if (
         value.callee.type === "Import" ||
