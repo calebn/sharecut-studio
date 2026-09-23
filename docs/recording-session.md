@@ -655,6 +655,15 @@ participant's live consent flag. Takes stored before this change have
 `consented_participant_ids = None`; for those legacy takes the check falls
 back to "participant exists and has not declined" (`consented is not False`).
 
+A host **RemoveParticipant** drops the target from the current take's roster,
+and a removed participant is refused for every take and for room tone (removal
+is permanent). A recorded participant who consented and then lost their
+connection before Start (without being removed) is still in the new take's
+roster. That way a brief network drop at Start does not cost them the take, and
+they still need a valid lease to upload. The guest route checks consent again
+after it reads the request body and before it writes the part, so a Decline that
+lands mid-upload stops that chunk.
+
 Host admit / waiting room is **not** in this PR (ROADMAP Follow-up).
 
 ```mermaid
@@ -980,7 +989,7 @@ warning appears; sidetone level sane.
 
 | Area | How |
 |------|-----|
-| Consent vs lobby | Explicit **Allow microphone** before the meter (`useMicPermission`; one `getUserMedia` path). Accept disabled with `aria-describedby` until granted **and** headphones are checked. WAV tap + keeper chunks **and** room-tone PUT **zero bytes** to the host until consent (local OPFS bed capture is allowed; Skip/Decline discards it); Start disabled while any **recorded** in-lobby client lacks consent; producers skip the gate and never call `getUserMedia`. Host Start does not require the host to record or skip room tone (idle is an implicit skip). The upload route re-checks server-side: a keeper chunk requires the uploader in that take's `consented_participant_ids`, room tone requires current `consented is True`, both returning `403 consent required` (`tests/test_record_upload.py::test_guest_keeper_upload_requires_take_consent`, `::test_guest_room_tone_upload_rejected_after_decline`). |
+| Consent vs lobby | Explicit **Allow microphone** before the meter (`useMicPermission`; one `getUserMedia` path). Accept disabled with `aria-describedby` until granted **and** headphones are checked. WAV tap + keeper chunks **and** room-tone PUT **zero bytes** to the host until consent (local OPFS bed capture is allowed; Skip/Decline discards it); Start disabled while any **recorded** in-lobby client lacks consent; producers skip the gate and never call `getUserMedia`. Host Start does not require the host to record or skip room tone (idle is an implicit skip). The upload route re-checks server-side: a keeper chunk requires the uploader in that take's `consented_participant_ids`, room tone requires current `consented is True`, both returning `403 consent required` (`tests/test_record_upload.py::test_guest_keeper_upload_requires_take_consent`, `::test_guest_room_tone_upload_rejected_after_decline`, `::test_guest_keeper_upload_rechecks_consent_after_body_read`, `::test_guest_keeper_upload_rejected_after_host_removal`). |
 | Room tone | After mic granted, optional 3 s keeper-constraint PCM→WAV (skip allowed); RMS > −35 dBFS warns "Too loud — is something playing?" and does not upload; guest PUT `kind=room_tone` only after Accept (403 before consent), 403 for producer, reject > 10 s 48 kHz mono; Retry replaces the prior ACK; landing sets `track.room_tone` under the land lock; `filler_pad_mode: room_tone` prefers the bed then stem-steal; undo restores and re-lands. Producers omit the step. |
 | Late-join pad | Joiner at T+10 s → clip at `join_offset_ms` = 10 s ± 1 frame (default, no in-file pad). Optional origin encoding of **segment 0 only**: leading zeros 10 s ± 1 frame at 48 kHz. Later segments never padded in-file. |
 | Progressive upload | Fake transport + HTTP resume; keys `(session_id, take, participant, segment, part_seq)`; chunk hashes; current clients declare `expected_parts` and older open tabs infer it at finalization; kill mid-session; resume on same token completes; incomplete/stalled and zero-sample keepers expose a ZIP of retained local segments and upload retry; host GET lists all participants with `N/M` where every segment total is known; only `complete: true` (or verified legacy) segments upload, pending WAVs are never read during REC, Leave is held while Stop finalizes a lone segment, and **Recover partial take** (host + guest) patches the header once, re-polls upload, and reports failures outside the storage error channel. |

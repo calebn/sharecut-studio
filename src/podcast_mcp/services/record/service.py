@@ -480,7 +480,10 @@ class RecordSessionService:
         if cmd.type == "Comment":
             self._rewrite_comment(cmd, now_wall_ms=wall)
         stored_payload = dict(cmd.payload)
-        stored_payload["participant_id"] = cmd.participant_id
+        if cmd.type != "RemoveParticipant":
+            # RemoveParticipant's own payload.participant_id is the removal
+            # target, not the (host) actor; do not clobber it.
+            stored_payload["participant_id"] = cmd.participant_id
         stored_payload.pop("lease", None)
         hub = self._hub_key
 

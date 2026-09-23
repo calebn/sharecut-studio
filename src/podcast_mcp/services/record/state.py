@@ -86,6 +86,16 @@ def _current_take(snap: RecordSnapshot) -> TakeState | None:
     return snap.takes[-1] if snap.takes else None
 
 
+def find_participant(snap: RecordSnapshot, participant_id: str | None) -> ParticipantState | None:
+    """Roster row for ``participant_id`` (None for a falsy or unknown id)."""
+    if not participant_id:
+        return None
+    for person in snap.participants:
+        if person.participant_id == participant_id:
+            return person
+    return None
+
+
 def take_containing_wall(snap: RecordSnapshot, wall_ms: int) -> TakeState | None:
     """Take whose wall span includes ``wall_ms`` (open take has no end)."""
     for take in snap.takes:
@@ -148,7 +158,11 @@ def start_blockers(snap: RecordSnapshot) -> list[str]:
 
 
 def take_consented_participant_ids(snap: RecordSnapshot) -> list[str]:
-    """Recorded participants who have currently consented (for a new take's roster)."""
+    """Recorded participants who have currently consented (for a new take's roster).
+
+    Liveness is deliberately not required: a consented guest whose socket dropped
+    just before Start keeps the take (they still need a valid lease to upload).
+    """
     return [
         p.participant_id
         for p in snap.participants
@@ -165,9 +179,11 @@ def guest_upload_consented(
     against the take's consent roster captured at Start and updated by mid-take
     Accept/Decline; a legacy take (``consented_participant_ids is None``) falls
     back to "participant exists and has not declined".
+
+    A participant the host removed is refused for every take and for room tone.
     """
-    person = next((p for p in snap.participants if p.participant_id == participant_id), None)
-    if person is None:
+    person = find_participant(snap, participant_id)
+    if person is None or person.removed:
         return False
     if take_index is None:
         return person.consented is True
