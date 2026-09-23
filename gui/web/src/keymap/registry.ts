@@ -350,7 +350,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
   {
     id: "edit.bladeCut",
     category: "edit",
-    label: "Blade cut at playhead",
+    label: "Blade cut",
     keys: ["K"],
     bareKey: false,
     requireMod: true,
@@ -481,7 +481,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: false,
     requireMod: true,
     requireShift: true,
-    when: "canExportProject",
+    when: "hostProjectLoaded",
     notes: "Mod+Shift+B — bounce dialog (export/bounces/)",
   },
   {
@@ -492,7 +492,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: false,
     requireMod: true,
     requireShift: true,
-    when: "canManageProjects",
+    when: "hostProjectLoaded",
     notes: "Mod+Shift+E — mastered export/ via PipelineService",
   },
   {

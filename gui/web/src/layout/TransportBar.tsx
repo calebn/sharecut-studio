@@ -378,22 +378,32 @@ export function TransportBar({ compact = false, showFit = true }: Props) {
               >
                 Help…
               </CommandMenuItem>
-              <CommandMenuItem commandId="export.bounce" onSelect={closeMenu}>
+              <CommandMenuItem
+                commandId="export.bounce"
+                respectWhen
+                onSelect={closeMenu}
+              >
                 Bounce…
               </CommandMenuItem>
               <Slot id={FEATURE_SHARE_UI_MENU}>
-                <CommandMenuItem commandId="share.manage" onSelect={closeMenu}>
+                <CommandMenuItem
+                  commandId="share.manage"
+                  respectWhen
+                  onSelect={closeMenu}
+                >
                   Share…
                 </CommandMenuItem>
               </Slot>
               <CommandMenuItem
                 commandId="record.openPanel"
+                respectWhen
                 onSelect={closeMenu}
               >
                 Record room…
               </CommandMenuItem>
               <CommandMenuItem
                 commandId="export.deliverables"
+                respectWhen
                 onSelect={closeMenu}
               >
                 Export deliverables

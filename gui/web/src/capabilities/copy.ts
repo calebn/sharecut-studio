@@ -105,8 +105,8 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip: "Go to end",
   },
   "daw.edit.bladeCut": {
-    label: "Blade cut at time",
-    tooltip: "Blade cut at time",
+    label: "Blade cut",
+    tooltip: "Blade cut at the playhead or clicked time",
   },
   "daw.edit.bladeCut.confirm": {
     label: "Confirm blade cut",

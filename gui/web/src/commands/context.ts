@@ -4,7 +4,6 @@ import {
   canManageProjects,
   canRefreshMix,
   canSuggestStructural,
-  isShareProjectKey,
 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { ContextPredicateId } from "./types";
@@ -19,7 +18,6 @@ export type CommandContext = {
   canRefreshMix: boolean;
   canIngestMedia: boolean;
   canManageProjects: boolean;
-  canExportProject: boolean;
   hasProject: boolean;
   shellBreakpoint: string;
   playheadSec: number;
@@ -55,9 +53,11 @@ export function buildCommandContext(): CommandContext {
     transcriptFocused,
     layoutFocused: s.timelineFocused || transcriptFocused,
     commentMode: s.commentMode,
-    canSuggestStructural:
-      s.project != null &&
-      canSuggestStructural(s.projectPath, s.guestMode, s.shareCapabilities),
+    canSuggestStructural: canSuggestStructural(
+      s.projectPath,
+      s.guestMode,
+      s.shareCapabilities,
+    ),
     canApplyPass12: canApplyPass12(
       s.projectPath,
       s.guestMode,
@@ -74,7 +74,6 @@ export function buildCommandContext(): CommandContext {
       s.shareCapabilities,
     ),
     canManageProjects: canManageProjects(s.projectPath),
-    canExportProject: s.project != null && canManageProjects(s.projectPath),
     hasProject: s.project != null,
     shellBreakpoint: s.shellBreakpoint,
     playheadSec: s.playheadSec,
@@ -128,12 +127,18 @@ export function evaluateWhen(
         ? { ok: true }
         : { ok: false, reason: "Not in comment mode" };
     case "canSuggestStructural":
+      if (!ctx.hasProject) {
+        return { ok: false, reason: "No project loaded" };
+      }
       return ctx.canSuggestStructural
         ? { ok: true }
         : { ok: false, reason: "Structural edits not allowed" };
     case "timelineAndStructural":
       if (!ctx.timelineFocused) {
         return { ok: false, reason: "Timeline not focused" };
+      }
+      if (!ctx.hasProject) {
+        return { ok: false, reason: "No project loaded" };
       }
       if (!ctx.canSuggestStructural) {
         return { ok: false, reason: "Structural edits not allowed" };
@@ -165,16 +170,19 @@ export function evaluateWhen(
         ? { ok: true }
         : { ok: false, reason: "Media ingest not allowed" };
     case "canManageProjects":
-      return ctx.canManageProjects && !isShareProjectKey(ctx.projectPath)
+      return ctx.canManageProjects
         ? { ok: true }
         : { ok: false, reason: "Project create/open is host-only" };
-    case "canExportProject":
-      return ctx.canExportProject && !isShareProjectKey(ctx.projectPath)
+    case "hostProjectLoaded":
+      if (!ctx.canManageProjects) {
+        return {
+          ok: false,
+          reason: "Host-only (not available on share links)",
+        };
+      }
+      return ctx.hasProject
         ? { ok: true }
-        : {
-            ok: false,
-            reason: "Project export requires a loaded host project",
-          };
+        : { ok: false, reason: "No project loaded" };
     case "trackInspectorSelected":
       return evaluateTrackInspectorSelection(ctx);
     case "canMoveSelectedTrackUp":
