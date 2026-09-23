@@ -9,7 +9,11 @@ import {
 /** Colour format `studioDocsTheme` accepts (Storybook's polished helpers need real colours). */
 export const HEX_COLOR_RE = /^#[0-9a-f]{3,8}$/i;
 
-/** Re-render when the toolbar flips `data-theme` or the OS scheme changes. */
+/**
+ * Re-render when the toolbar flips `data-theme` or the OS scheme changes.
+ * Each subscriber owns its observer; Storybook mounts one docs container at a
+ * time, so share a module-level observer only if more consumers appear.
+ */
 function subscribe(onChange: () => void): () => void {
   const observer = new MutationObserver(onChange);
   observer.observe(document.documentElement, {
