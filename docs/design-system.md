@@ -20,23 +20,45 @@ and open the URL it reports.
 
 ## What's in it
 
-Stories live next to their components (`src/ui/*.stories.tsx` for the shared
-library, `src/<area>/*.stories.tsx` for domain components such as
-`src/record/`) and are organized by Atomic Design level:
+Stories live next to their components and are organized by Atomic Design
+level. Library stories (`src/ui/*.stories.tsx`) are atoms, molecules or
+organisms; domain screens (for example `src/record/`) are templates:
 
 | Level | Contents | Examples |
 | ----- | -------- | -------- |
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow |
 | **Organisms** | Complex components / sections | Dialog, BottomSheet |
-| **Templates** | Domain screens / sections with representative fixtures and locked copy | ConsentGate |
+| **Templates** | Assembled, context-specific screens shown with static / representative content and locked domain copy — no live app state | ConsentGate, Declined |
+
+Atoms → molecules → organisms → templates is the traversal order: design the
+atom in isolation, check it composed, then check it in a real screen.
+
+### Domain surfaces (Templates)
 
 Domain components get stories only when they are **props in, UI out** (scope
 rule from #172): renderable from props alone — no store, socket, AudioContext
-or router. Components whose essence is live DAW state (timeline, inspector,
-the full DAW page) stay out; integration is covered by Playwright. Atoms →
-molecules → organisms → templates is the traversal order: design the atom in
-isolation, then check it composed.
+or router. Domain components that still need live app, session or sync context
+(`timeline/`, `inspector/`, transport chrome, the full DAW page) stay out of the
+catalog: they compose the library (see `gui/web/docs/ui-library.md`), stories
+for them would couple the catalog to app state, and their integration is
+covered by Playwright. A domain screen that renders fully state-local — per the
+rules under [Adding a story](#adding-a-story): state in the story, no app
+providers, no network — belongs under **Templates**, with its story colocated
+in the feature folder (for example `src/record/Declined.stories.tsx`, titled
+`Templates/Declined`, or `src/record/ConsentGate.stories.tsx`, titled
+`Templates/ConsentGate`).
+
+- Load the surface's production entry stylesheet in the story (record surfaces:
+  `styles/partials/record-entry.css`, as `RecordApp.tsx` does) so the story
+  renders what ships.
+- Full-viewport screens (`.cover`, `min-block-size: 100dvh`) set
+  `parameters: { layout: "fullscreen" }`.
+- Use made-up fixtures only — never real share tokens, guest names, or relay
+  URLs.
+- If a surface starts reading session or sync context, it needs a decorator
+  that provides that context before its story can stay standalone.
+- The story does not replace the component's own Vitest + axe test.
 
 ## Theme toolbar
 
@@ -46,18 +68,18 @@ every new component in both themes before merging.
 
 ## Adding a story
 
-1. Colocate: `<Name>.stories.tsx` next to `<Name>.tsx` (`src/ui/` or the
-   domain folder).
-2. Title it `Atoms|Molecules|Organisms|Templates/<Name>`. **Organisms** are
-   generic and reusable anywhere (Dialog, BottomSheet) and carry no
-   domain-specific fixtures or copy. **Templates** are domain screens or
-   sections (e.g. `src/record/`) assembled from the lower tiers, rendered with
-   static representative content and locked domain copy, and kept state-local
-   per step 4 — no live app state. Sidebar order is set by `storySort.order`
-   in `.storybook/preview.ts`.
-3. `src/ui/` stories import from `./index` (the public API), not deep paths.
-   Domain stories import the component module directly (`./ConsentGate`) —
-   domain folders have no barrel.
+1. Colocate: `<Name>.stories.tsx` next to `<Name>.tsx` (`src/ui/` for the
+   library, the feature folder for domain surfaces).
+2. Title every story by Atomic Design level:
+   `Atoms|Molecules|Organisms|Templates/<Name>`. Library components use the
+   first three; **Organisms** are generic and reusable anywhere (Dialog,
+   BottomSheet) and carry no domain-specific fixtures or copy. State-local
+   domain screens use `Templates/<Name>`. No per-feature top-level categories
+   (not `Record/…`); `storySort` in `.storybook/preview.ts` orders Atoms →
+   Molecules → Organisms → Templates.
+3. Library stories import from `./index` (the public API), not deep paths.
+   Feature folders without a barrel (for example `src/record/`) import the
+   component module directly (`./ConsentGate`, `./Declined`).
 4. Keep stories state-local (`useState` in the story) — no app providers, no
    network. Components that need DAW context don't get stories until they can
    render standalone.
@@ -96,10 +118,14 @@ every new component in both themes before merging.
 - 2026-09-21 — Scaffolded Storybook 10 (react-vite) with theme toolbar, 11
   story files across Atoms/Molecules/Organisms, and GitHub Pages deploy
   workflow.
-- 2026-09-23 — First domain story (`record/ConsentGate`): documented domain
-  colocation, direct imports, shell decorators, locked-copy fixtures, `fn()`
-  callbacks, and running `play` functions through `composeStories` in Vitest.
-  Added the **Templates** tier for domain screens.
+- 2026-09-23 — Added a fourth Atomic Design level, **Templates**, for
+  state-local domain screens with colocated stories (first:
+  `src/record/Declined.stories.tsx`, `Templates/Declined`); added import,
+  stylesheet, layout and fixture rules for them. Domain components that need
+  live app state remain excluded.
+- 2026-09-23 — Added `Templates/ConsentGate` (`record/ConsentGate`): documented
+  shell decorators, locked-copy fixtures, `fn()` callbacks, and running `play`
+  functions through `composeStories` in Vitest.
 - 2026-09-23 — Added `Atoms/LevelMeter` and the `Molecules/ParticipantMeter`
   layout sketch (story-only). Both drive the meter through `audio/usePeakMeter`,
   the same loop `record/useInputPeakDb` uses, so they preview production code.
