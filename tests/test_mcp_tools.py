@@ -136,7 +136,32 @@ def test_set_envelope(tmp_path):
     path = mcp_server.episode_create(str(ws))
     points = json.dumps([{"time": 0, "value": 0}, {"time": 1, "value": 1}])
     result = mcp_server.set_envelope(path, "music", points)
-    assert "music" in result
+    assert result == "Envelope set for music (2 points)"
+
+
+def test_set_envelope_goes_through_document_log_and_baseline(tmp_path):
+    from podcast_mcp.services.document_sync import DocumentSyncService
+    from podcast_mcp.services.document_sync.errors import DocumentConflictError
+
+    path = mcp_server.episode_create(str(tmp_path / "workspace"))
+    first = json.dumps([{"id": "a", "time": 0, "value": 1}])
+    mcp_server.set_envelope(path, "music", first)
+    svc = DocumentSyncService.open(path)
+    assert svc.store.get_snapshot()["last_type"] == "SetEnvelope"
+
+    # A peer edit landed after the agent read ``first``: conflict, no overwrite.
+    peer = [{"id": "a", "time": 0, "value": 0.25}]
+    mcp_server.set_envelope(path, "music", json.dumps(peer), expected_points_json=first)
+    with pytest.raises(DocumentConflictError, match="not applied"):
+        mcp_server.set_envelope(
+            path,
+            "music",
+            json.dumps([{"id": "a", "time": 0, "value": 0.9}]),
+            expected_points_json=first,
+        )
+    stored = load_project(Path(path)).volume_envelope_for("music")
+    assert stored is not None
+    assert [(p.id, p.value) for p in stored.points] == [("a", 0.25)]
 
 
 def test_propose_and_apply_edits(tmp_path):
