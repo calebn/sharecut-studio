@@ -8,12 +8,10 @@ import {
 import { desktopCloseGuardArmed } from "../desktop/useDesktopCloseGuard";
 import { HostMcpDialog } from "../layout/HostMcpDialog";
 import { Button, Field } from "../ui";
-import { migrateLocalStorageKey } from "../utils/legacyStorage";
 import { BootstrapWizard } from "./BootstrapWizard";
 import { HelpDialog } from "./HelpDialog";
 
 const SKIP_KEY = "sharecut.bootstrap.skip";
-const LEGACY_SKIP_KEY = "dawshell.bootstrap.skip";
 
 function navigateToProject(path: string): void {
   const url = new URL(window.location.href);
@@ -22,7 +20,7 @@ function navigateToProject(path: string): void {
 }
 
 function bootstrapSkipped(): boolean {
-  return migrateLocalStorageKey(SKIP_KEY, LEGACY_SKIP_KEY) === "1";
+  return localStorage.getItem(SKIP_KEY) === "1";
 }
 
 export function HomeScreen() {
