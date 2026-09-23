@@ -13,7 +13,9 @@ def resolve_within(root: Path, stored: str, *, base: Path | None = None) -> Path
     Relative *stored* paths join onto *base* (default: *root*). Symlinks are
     followed before the check, so a link that points outside *root* is rejected.
     *root* itself is resolved too, so a symlinked root directory still works.
-    Raises ``ValueError`` when the resolved path escapes *root*.
+    Raises ``ValueError`` when the resolved path escapes *root*. The message
+    includes *stored* (possibly an absolute host path); guest-facing callers must
+    catch it and raise a scrubbed message (see ``edits/review_versions._resolve_review_media``).
     """
     root_resolved = root.expanduser().resolve()
     path = Path(stored).expanduser()
@@ -26,7 +28,11 @@ def resolve_within(root: Path, stored: str, *, base: Path | None = None) -> Path
 
 
 def resolve_under_workspace(project: EpisodeProject, stored: str) -> Path:
-    """Join *stored* to the workspace and require the result stays inside it."""
+    """Join *stored* to the workspace and require the result stays inside it.
+
+    Host-only: the ``ValueError`` message echoes *stored*. Scrub it before using
+    this from a guest-facing route.
+    """
     try:
         return resolve_within(project.workspace_path(), stored)
     except ValueError:
