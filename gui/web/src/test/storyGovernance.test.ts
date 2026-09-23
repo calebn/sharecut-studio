@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { SRC_ROOT, srcRelative, walkTsFiles } from "./sourceFiles";
 import {
+  globPatterns,
   importsStorybook,
   isStoryOrTestFile,
   STORY_SUPPORT_MODULES,
@@ -83,6 +84,10 @@ describe("storyLeaks", () => {
       1,
     ],
     ["App.tsx", 'const m = import.meta.glob("./**/*.[jt]s?(x)");', 1],
+    ["App.tsx", '// import.meta.glob("./**/*.tsx")', 0],
+    ["App.tsx", '/* import.meta.glob("./*.tsx") */', 0],
+    ["App.tsx", "const example = \"import.meta.glob('./**/*.tsx')\";", 0],
+    ["App.tsx", 'const example = `import.meta.glob("./**/*.tsx")`;', 0],
     [
       "App.tsx",
       'const m = import.meta.glob(["./**/*.ts?(x)", "!**/*.stories.{ts,tsx}"]);',
@@ -112,6 +117,22 @@ describe("storyLeaks", () => {
   ] as const)("%s / %s -> %i leaks", (rel, src, expected) => {
     expect(storyLeaks(rel, src)).toHaveLength(expected);
   });
+});
+
+it.each([
+  ['// import.meta.glob("./**/*.tsx")', []],
+  ["const example = \"import.meta.glob('./**/*.tsx')\";", []],
+  ['const modules = import.meta.glob("./**/*.tsx");', [["./**/*.tsx"]]],
+  [
+    'const modules = import.meta.glob<{ default: string }>(["./**/*.ts", "!**/*.stories.ts"]);',
+    [["./**/*.ts", "!**/*.stories.ts"]],
+  ],
+  [
+    'const a = import.meta.glob("./a/*.tsx"); const b = import.meta.glob(["./b/*.ts", "!**/*.stories.ts"]);',
+    [["./a/*.tsx"], ["./b/*.ts", "!**/*.stories.ts"]],
+  ],
+] as const)("extracts glob calls from syntax: %s", (source, expected) => {
+  expect(globPatterns(source)).toEqual(expected);
 });
 
 it("classifies story, test and test-helper files", () => {
