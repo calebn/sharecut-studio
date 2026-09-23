@@ -1,4 +1,8 @@
-import { hostUploadLine, type RecordParticipant } from "./types";
+import {
+  hostUploadLine,
+  type RecordParticipant,
+  type RecordSegmentAck,
+} from "./types";
 
 export function HostUploadRoster({
   participants,
@@ -6,14 +10,7 @@ export function HostUploadRoster({
   stopped,
 }: {
   participants: RecordParticipant[];
-  segments: Array<{
-    participant_id: string;
-    acked_parts: number[];
-    file_ack?: boolean;
-    expected_parts?: number | null;
-    landed?: boolean;
-    land_failed?: boolean;
-  }>;
+  segments: RecordSegmentAck[];
   stopped: boolean;
 }) {
   const recorded = participants.filter((person) => person.role !== "producer");

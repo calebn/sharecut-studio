@@ -1,15 +1,10 @@
+import type { RecordSegmentAck } from "../types";
+
 export type RecordUploadStatus = {
   session_id?: string;
-  segments: Array<{
-    take_index: number;
-    participant_id: string;
-    segment_index: number;
-    acked_parts: number[];
-    file_ack?: boolean;
-    expected_parts?: number | null;
-    landed?: boolean;
-    land_failed?: boolean;
-  }>;
+  segments: Array<
+    RecordSegmentAck & { take_index: number; segment_index: number }
+  >;
 };
 
 export type RecordUploadAck = {

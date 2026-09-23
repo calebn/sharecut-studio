@@ -1,3 +1,4 @@
+import type { RecordParticipant } from "../record/types";
 import type { ProjectView, TimelineComment } from "../types/project";
 
 /** Minimal ProjectView for unit tests that need DawProvider / store hydrate. */
@@ -51,6 +52,25 @@ export function sampleComment(
     resolved: false,
     resolved_at: null,
     resolved_by: null,
+    ...overrides,
+  };
+}
+
+/**
+ * Connected, consented guest for record-room tests and stories. Returns a
+ * fresh object per call so callers never share mutable fixture state.
+ */
+export function sampleParticipant(
+  overrides: Partial<RecordParticipant> = {},
+): RecordParticipant {
+  return {
+    participant_id: "p_guest",
+    role: "guest",
+    display_name: "Guest",
+    connected: true,
+    consented: true,
+    muted: false,
+    headphones_ack: true,
     ...overrides,
   };
 }
