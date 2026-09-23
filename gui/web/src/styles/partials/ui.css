@@ -446,7 +446,10 @@
   color: var(--color-text-secondary);
 }
 
-/* UndoToast: sticky polite status with Undo (theme tokens only). */
+/* UndoToast: sticky polite status with Undo (theme tokens only).
+   Sticky relies on the nearest scrolling ancestor (`.comments-panel`,
+   overflow: auto in panels.css). If scrolling moves to a parent, the
+   toast will scroll out of view. */
 .undo-toast-region {
   position: sticky;
   inset-block-end: 0;
