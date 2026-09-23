@@ -347,16 +347,21 @@ const LENSES = [
   { key: 'risk', section: '2. Risk hunt',
     prompt: 'Bug-hunt the diff for things Bugbot/CI reviewers flag. Check especially: theme/contrast tokens, interaction CSS specificity, a11y, test gaps, CI failures (gh pr checks), deploy/copy drift, docs claims vs code, and incomplete migrations. If truly nothing, say so but list residual risks.' },
   { key: 'wiring', section: '3. Wiring / migration review',
+    context: 'Required reading: the packet\'s "Twin paths" section; for every touched service/domain call, open each sibling CLI (cli/), MCP (mcp/tools/) and GUI (gui/routes/, gui/web/) adapter and confirm it was updated or still matches.',
     prompt: "Review component/CSS/service migrations for regressions, Bugbot-style. Look for: missing aria attributes, rest-spread clobbering controlled props, hover that fires wrongly on touch, className merges dropping shared primitives, leftover CSS fighting new primitives, twin paths (CLI/MCP/GUI) left unmigrated, tests that do not assert what they claim." },
   { key: 'reuse', section: '4. DRY / SOLID / reuse / conventions', checklist: '~/.agents/skills/pr-multi-review/reuse-solid-checklist.md',
+    context: 'Required reading: docs/architecture.md and the relevant docs/contributing.md sections (layering, where code belongs). For EVERY new function, helper, constant or repeated snippet in the diff, search the whole repo (`git grep -n` on the PR branch, by name and by a distinctive fragment of its logic) for an existing equivalent; each finding or clearance cites the search you ran.',
     prompt: "DRY / SOLID / reuse / repo conventions (AGENTS.md). Require grep/search evidence for every reuse claim: name the existing symbol/file, or state 'searched, none found'." },
   { key: 'security', section: '5. Security', checklist: '~/.agents/skills/multi-review/security-checklist.md',
+    context: 'Required reading when the diff touches routes, auth, shares, uploads, relay or remote MCP: the authz helpers it relies on (e.g. require_authz, services/share_auth/), how the route is registered, and the security notes in docs/host-online-relay.md and docs/share-tokens.md. Evaluate guest/share-token vs owner access explicitly.',
     prompt: 'Trace untrusted input to sinks. Flag injection, path traversal, authz bypass (including guest/share vs owner), secrets in logs/source, SSRF, unsafe deserialization, and validation dropped on a twin path (MCP/CLI/GUI/relay). Ignore style and theoretical hardening with no exploit path.' },
   { key: 'concurrency', section: '6. Concurrency / errors / resources', checklist: '~/.agents/skills/multi-review/concurrency-checklist.md',
+    context: 'Required reading: for each changed function, trace its callers until you know which thread/task/event loop runs it (worker threads, asyncio, GUI server, browser main thread) and what else touches the same state.',
     prompt: 'Flag races, check-then-act, lock inversion, unawaited async, missing cancellation, shared mutable state without an owner, resource leaks, swallowed errors, and partial failure with no cleanup. Ignore happy-path logic (other lenses cover it).' },
   { key: 'performance', section: '7. Performance', checklist: '~/.agents/skills/multi-review/performance-checklist.md',
     prompt: 'Flag only work that plausibly hurts a hot path or unbounded input: quadratic loops, N+1 queries/fetches, unbounded reads, blocking I/O on UI/async threads, repeated parse/fetch per row/frame, caches without eviction. No micro-optimizations; if there is no hot or unbounded path, return none.' },
   { key: 'patterns', section: '8. Algorithms / contracts', checklist: '~/.agents/skills/pr-multi-review/patterns-antipatterns.md',
+    context: 'Required reading: follow each changed control flow at least two hops upstream (producers) and downstream (consumers) so every Require/Guarantee in your inventory is grounded in code you read.',
     prompt: 'For every queue, cache, retry, debounce/coalesce, snapshot vs delta, poll, merge, or similar control flow: write Require (what the data must be) and Guarantee (what the next consumer gets), check the composition chain, and flag where this diff breaks it or a "fix" is a sibling algorithm with the same false require. Findings use Trigger → Path → Expected vs actual.' },
 ]
 // Round 2+ only re-reviews the (small) feedback-fix diff.
@@ -403,7 +408,8 @@ Run \`git fetch origin --prune\`, then assemble packet_md (target <= 60k charact
 1. "## Diff stat" — \`git diff --stat ${diff}\`
 2. "## Diff" — \`git diff ${diff}\` (full; if larger than ~35k characters, include the largest hunks in full, list the rest under omitted).
 3. "## Changed files in context" — for each changed file, about 30 lines around each hunk from \`git show origin/${branch}:<path>\`.
-4. "## Callers and references" — \`git grep -n\` (on origin/${branch}) for each changed or added function/class/export name; list file:line hits (cap 20 per symbol).
+4. "## Callers and references" — \`git grep -n\` (on origin/${branch}) for each changed or added function/class/export name; list file:line hits (cap 20 per symbol). For changed functions under src/podcast_mcp/services/ or domain packages (edits/, clips/, pipeline/, engines/), also list the callers of those callers (second hop, cap 10 each).
+4b. "## Twin paths" — for each touched service/domain function, the CLI (cli/), MCP (mcp/tools/) and GUI (gui/routes/, gui/web/src/) call sites that reach it, marked changed/unchanged in this diff.
 5. "## Related tests" — test files touched by the diff plus tests that reference the changed modules (paths + the relevant test names).
 6. "## Applicable repo rules" — the rows of AGENTS.md "Docs in sync" whose left column matches the changed paths, and any .agents/rules file that governs them (paths only).
 Copy command output verbatim; do not summarize or judge. List anything too large in omitted.`,
@@ -419,8 +425,8 @@ ${round > 1 ? 'This round covers only the feedback-fix diff; do not re-raise res
 ${packet.packet_md}
 ${packet.omitted.length ? `Omitted from the packet (read on demand): ${packet.omitted.join(', ')}\n` : ''}---
 YOUR LENS: "${lens.key}" (pr-multi-review § Launch → ${lens.section}).
-${lens.prompt}${lens.checklist ? `\nChecklist: read and follow ${lens.checklist}.` : ''}
-Start from the packet; read more code only where your lens needs evidence. If the packet shows no surface for your lens, return an empty findings list with a one-line residual_risks entry saying why. Otherwise return every concrete finding (severity, path, line, title, detail with evidence) and residual risks.`,
+${lens.prompt}${lens.checklist ? `\nChecklist: read and follow ${lens.checklist}.` : ''}${lens.context ? `\n${lens.context}` : ''}
+The packet is a starting point, not the boundary: complete your required reading and follow any lead outside it before concluding. If the packet shows no surface for your lens, return an empty findings list with a one-line residual_risks entry saying why. Otherwise return every concrete finding (severity, path, line, title, detail with evidence) and residual risks.`,
     { label: `lens:${lens.key}:${tag(issue)}:r${round}`, phase: 'Review', model: M.worker, schema: S_LENS },
   )
 }

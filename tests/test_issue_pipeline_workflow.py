@@ -152,6 +152,17 @@ def test_lenses_share_one_review_packet_prefix() -> None:
     assert review_fn.index("await reviewPacket(") < review_fn.index("lensReview(")
 
 
+def test_context_hungry_lenses_have_required_reading() -> None:
+    script = _script()
+    lenses = script[script.index("const LENSES = [") : script.index("// Round 2+ only")]
+    for key in ("wiring", "reuse", "security", "concurrency", "patterns"):
+        block = lenses[lenses.index(f"key: '{key}'") :]
+        block = block[: block.index("},")]
+        assert "context: 'Required reading" in block, key
+    assert "The packet is a starting point, not the boundary" in script
+    assert '"## Twin paths"' in script
+
+
 def test_ci_state_is_derived_from_raw_rows() -> None:
     script = _script()
     assert "const SHA_RE = /^[0-9a-f]{40}$/" in script
