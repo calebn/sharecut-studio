@@ -149,11 +149,7 @@ export function TrackHeader({
         className="track-header-open"
         aria-label={`Open track details, ${label}`}
         aria-expanded={selected}
-        onPointerDown={longPress.onPointerDown}
-        onClickCapture={longPress.onClickCapture}
-        onPointerMove={longPress.onPointerMove}
-        onPointerUp={longPress.onPointerUp}
-        onPointerCancel={longPress.onPointerCancel}
+        {...longPress}
         onClick={select}
       />
       {mayReorder ? (
