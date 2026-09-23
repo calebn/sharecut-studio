@@ -221,6 +221,7 @@ describe("Storybook title tiers", () => {
   it.each([
     ["unknown tier", 'export default { title: "Screens/Home" };'],
     ["empty name", 'export default { title: "Atoms/" };'],
+    ["blank name", 'export default { title: "Atoms/ " };'],
     ["extra tier", 'export default { title: "Atoms/Forms/Button" };'],
     ["no title", "const meta = { component: Button }; export default meta;"],
     [
@@ -232,8 +233,32 @@ describe("Storybook title tiers", () => {
       "const meta = {}; export const Default = { title: 'Atoms/Button' }; export default meta;",
     ],
     ["no default", "const meta = { title: 'Atoms/Button' };"],
+    [
+      "later spread override",
+      "const other = { title: 'Screens/Home' }; export default { title: 'Atoms/Button', ...other };",
+    ],
+    [
+      "later computed override",
+      "export default { title: 'Atoms/Button', ['title']: 'Screens/Home' };",
+    ],
   ])("rejects %s", (_case, source) => {
     expect(storyTitleViolation(source)).not.toBeNull();
+  });
+
+  it("accepts assertions around a local metadata reference", () => {
+    expect(
+      storyTitleViolation(
+        "const meta = { title: 'Atoms/Button' }; export default (meta satisfies Meta);",
+      ),
+    ).toBeNull();
+  });
+
+  it("accepts an earlier spread when a final literal title overrides it", () => {
+    expect(
+      storyTitleViolation(
+        "const other = { title: 'Screens/Home' }; export default { ...other, title: 'Atoms/Button' };",
+      ),
+    ).toBeNull();
   });
 
   it("all checked-in stories have a sanctioned title", () => {

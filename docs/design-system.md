@@ -133,7 +133,8 @@ both themes, in story mode and on its docs page, before merging.
   object with a literal `title` of the form
   `Atoms|Molecules|Organisms|Templates/<Name>` (one nonempty name segment).
   `gui/web/src/test/storyGovernance.test.ts` parses the metadata and checks
-  every story in the Vitest suite; computed titles and missing titles fail.
+  every story in the Vitest suite; computed, missing, blank, and later
+  overridden titles fail.
 - Fixtures are static placeholders. The built Storybook is published, so never
   copy real project, share, or guest data (tokens, names) into a story.
 - App code never imports `*.stories.tsx` or globs them (`import.meta.glob`),
