@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
@@ -58,6 +58,34 @@ describe("TrackHeader", () => {
     ).toBeTruthy();
     await user.click(details);
     expect(onSelect).toHaveBeenCalledWith(false);
+  });
+
+  it("a touch long-press selects the track once and consumes the click", () => {
+    vi.useFakeTimers();
+    const onSelect = vi.fn();
+    const project = projectWithTrack();
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <TrackHeader
+          track={project.tracks[0]}
+          trackIndex={0}
+          selected={false}
+          onSelect={onSelect}
+        />
+      </DawProvider>,
+    );
+    const details = screen.getByRole("button", {
+      name: /Open track details, Guest/i,
+    });
+    const touch = { pointerType: "touch", isPrimary: true, pointerId: 1 };
+    fireEvent.pointerDown(details, touch);
+    vi.advanceTimersByTime(600);
+    fireEvent.pointerUp(details, touch);
+    fireEvent.click(details, { shiftKey: true });
+    vi.runOnlyPendingTimers();
+    expect(onSelect).toHaveBeenCalledOnce();
+    expect(onSelect).toHaveBeenCalledWith(false);
+    vi.useRealTimers();
   });
 
   it("marks the open control expanded when the row is selected", () => {

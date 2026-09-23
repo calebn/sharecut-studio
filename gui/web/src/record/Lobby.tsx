@@ -5,6 +5,7 @@ import { DeviceCheck } from "./DeviceCheck";
 import type { MicPermissionStatus } from "./micPermission";
 import { RoomToneCapture } from "./RoomToneCapture";
 import type { RoomToneStatus } from "./roomTone";
+import { StorageHeadroomWarning } from "./StorageHeadroomWarning";
 import { LOCAL_KEEPER_PENDING_COPY, ROOM_TONE_GATE_COPY } from "./types";
 
 type Props = {
@@ -108,6 +109,7 @@ export function Lobby({
         </Button>
       ) : (
         <>
+          <StorageHeadroomWarning />
           <label className="cluster" htmlFor={phonesId}>
             <input
               id={phonesId}

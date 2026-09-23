@@ -56,7 +56,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `SetActionDone` | `action_id` (string), `by` (string), `comment_id` (string) | `done` (boolean) |
 | `SetClipFade` | `clip_id` (string), `fade_in_ms` (integer), `fade_out_ms` (integer) | — |
 | `SetEffectBypass` | `bypass` (boolean), `effect_index` (integer), `track_id` (string) | — |
-| `SetEnvelope` | `track_id` (string) | `points` (array[object]) |
+| `SetEnvelope` | `expected_points` (array[object]), `track_id` (string) | `points` (array[object]) |
 | `SetJoinMode` | `clip_id` (string), `join_in_mode` (fade \| crossfade \| cut) | — |
 | `SetTrackMedia` | `rel_path` (string), `track_id` (string) | — |
 | `SetTrackMeta` | `track_id` (string) | `label` (string \| null), `role` (string \| null), `speaker` (string \| null) |

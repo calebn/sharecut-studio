@@ -26,7 +26,7 @@ their domain component (`src/<area>/*.stories.tsx`, e.g. `src/record/`).
 
 | Level | Contents | Examples |
 | ----- | -------- | -------- |
-| **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError |
+| **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, BottomSheet |
 | **Templates** | Assembled, context-specific domain screens built from the library, with static content | LiveComments (record room) |
@@ -94,3 +94,6 @@ every new component in both themes before merging.
   with a pure prop contract) after Organisms in `storySort.order`, colocated
   domain stories under `src/<area>/`, the record-shell decorator and 360px
   viewport, and the first Template: `Templates/LiveComments`.
+- 2026-09-23 — Added `Atoms/LevelMeter` and the `Molecules/ParticipantMeter`
+  layout sketch (story-only). Both drive the meter through `audio/usePeakMeter`,
+  the same loop `record/useInputPeakDb` uses, so they preview production code.

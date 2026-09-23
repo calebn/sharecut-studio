@@ -1,3 +1,4 @@
+import { linearToDb } from "../utils/audio";
 import { ROOM_TONE_TOO_LOUD_DBFS } from "./types";
 
 export type RoomToneStatus =
@@ -16,11 +17,7 @@ export function rmsDbfs(samples: Float32Array): number {
   for (const value of samples) {
     sum += value * value;
   }
-  const rms = Math.sqrt(sum / samples.length);
-  if (rms <= 0) {
-    return Number.NEGATIVE_INFINITY;
-  }
-  return 20 * Math.log10(rms);
+  return linearToDb(Math.sqrt(sum / samples.length));
 }
 
 export function roomToneTooLoud(samples: Float32Array): boolean {

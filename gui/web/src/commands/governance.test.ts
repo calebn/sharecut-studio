@@ -32,6 +32,42 @@ function walkTsFiles(dir: string, out: string[] = []): string[] {
 
 const SRC_ROOT = join(__dirname, "..");
 
+type ManifestCapability = {
+  id: string;
+  label: string;
+  gates?: string[];
+  surfaces?: { command?: string; keyboard?: string };
+};
+
+const MANIFEST_CAPABILITIES: ManifestCapability[] = JSON.parse(
+  readFileSync(
+    join(SRC_ROOT, "../../../contracts/capabilities.manifest.json"),
+    "utf-8",
+  ),
+).capabilities;
+
+/**
+ * Known manifest `gates` that do not list the catalog `when` yet (composite or
+ * surface-specific gates). Shrink this list; do not grow it (#221).
+ */
+const MANIFEST_GATE_DRIFT_ALLOWLIST = new Set([
+  "track.moveUp",
+  "track.moveDown",
+  "edit.copy",
+  "view.zoomIn",
+  "view.zoomOut",
+  "view.fit",
+  "view.waveformZoomIn",
+  "view.waveformZoomOut",
+  "transcript.correctIntent",
+  "transcript.selectIntent",
+  "edit.trimClipEdge",
+  "edit.rollClipJoin",
+  "edit.setClipFade",
+  "view.focusEditBoundary",
+  "view.focusCutAwayWord",
+]);
+
 /** Allowlisted non-bus keydown sites (component Escape / a11y widgets). */
 const KEYDOWN_LISTENER_ALLOWLIST = new Set([
   "keymap/listener.ts",
@@ -166,6 +202,90 @@ describe("command governance", () => {
       expect(COMMANDS[k.id], k.id).toBeDefined();
       expect(k.when).toBe(COMMANDS[k.id].when);
     }
+  });
+
+  it("keeps labels consistent between the keymap and catalog", () => {
+    for (const keymapCommand of KEYMAP_COMMANDS) {
+      const catalogCommand = COMMANDS[keymapCommand.id];
+      if (catalogCommand) {
+        expect(catalogCommand.label, keymapCommand.id).toBe(
+          keymapCommand.label,
+        );
+      }
+    }
+  });
+
+  it("keeps manifest labels in step with keyboard commands", () => {
+    for (const cap of MANIFEST_CAPABILITIES) {
+      const commandId = cap.surfaces?.command;
+      if (!commandId || !cap.surfaces?.keyboard || !COMMANDS[commandId]) {
+        continue;
+      }
+      expect(cap.label, cap.id).toBe(COMMANDS[commandId].label);
+    }
+  });
+
+  it("lists each catalog when-clause in the manifest gates", () => {
+    const drift: string[] = [];
+    for (const cap of MANIFEST_CAPABILITIES) {
+      const commandId = cap.surfaces?.command;
+      const def = commandId ? COMMANDS[commandId] : undefined;
+      if (!def || MANIFEST_GATE_DRIFT_ALLOWLIST.has(def.id)) {
+        continue;
+      }
+      if (!(cap.gates ?? []).includes(def.when)) {
+        drift.push(
+          `${def.id}: when=${def.when} gates=${(cap.gates ?? []).join(",")}`,
+        );
+      }
+    }
+    expect(drift).toEqual([]);
+  });
+
+  it("gates host project commands on a loaded host project", async () => {
+    const hostProjectCommands = [
+      "export.bounce",
+      "export.deliverables",
+      "share.manage",
+      "record.openPanel",
+    ];
+    for (const id of hostProjectCommands) {
+      expect(COMMANDS[id].when, id).toBe("hostProjectLoaded");
+    }
+    clearRegisteredCommands();
+    registerDawCommands();
+
+    useDawStore.setState({
+      projectPath: "/tmp/ep",
+      guestMode: null,
+      project: { meta: { name: "t" }, tracks: [] } as never,
+    });
+    expect(evaluateWhen("hostProjectLoaded", buildCommandContext()).ok).toBe(
+      true,
+    );
+
+    useDawStore.setState({ project: null });
+    const ctx = buildCommandContext();
+    const noProject = { ok: false, reason: "No project loaded" };
+    expect(evaluateWhen("canSuggestStructural", ctx)).toEqual(noProject);
+    expect(evaluateWhen("hostProjectLoaded", ctx)).toEqual(noProject);
+    for (const id of hostProjectCommands) {
+      // Handlers (menu clicks skip when) report the same reason as the when-clause.
+      expect(await execute(id, {}, { skipWhen: true }), id).toEqual({
+        status: "disabled",
+        reason: "No project loaded",
+      });
+    }
+
+    useDawStore.setState({
+      projectPath: "share:token",
+      guestMode: "edit",
+      project: { meta: { name: "t" }, tracks: [] } as never,
+    });
+    expect(evaluateWhen("hostProjectLoaded", buildCommandContext()).ok).toBe(
+      false,
+    );
+    clearRegisteredCommands();
   });
 
   it("every keybinding declares a when predicate", () => {

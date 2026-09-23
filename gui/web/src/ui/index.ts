@@ -14,6 +14,12 @@ export { GesturesSheet } from "./GesturesSheet";
 export { Icon, type IconName } from "./Icon";
 export { InlineError } from "./InlineError";
 export { InspectorSeekFooter } from "./InspectorSeekFooter";
+export {
+  LevelMeter,
+  type LevelMeterOrientation,
+  type LevelMeterProps,
+  type LevelMeterSize,
+} from "./LevelMeter";
 export { LoadingScreen } from "./LoadingScreen";
 export { Menu, MenuItem, MenuSection } from "./Menu";
 export { ToggleButton } from "./ToggleButton";

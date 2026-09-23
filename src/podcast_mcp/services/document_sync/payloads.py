@@ -25,6 +25,16 @@ class EnvelopePoint(BaseModel):
     value: float
 
 
+class ExpectedEnvelopePoint(EnvelopePoint):
+    """A baseline point; unlike a new point, its identity is never implicit."""
+
+    id: str = Field(min_length=1)
+
+
+# Bounds the O(n) baseline comparison that runs under ``document_submit_lock``.
+ENVELOPE_POINTS_MAX = 10_000
+
+
 class PasteExtract(BaseModel):
     """Clipboard extract for PasteSegment (opaque dict-compatible fields)."""
 
@@ -211,7 +221,19 @@ class DeleteSocialClipPayload(BaseModel):
 
 class SetEnvelopePayload(BaseModel):
     track_id: str
-    points: list[EnvelopePoint] = Field(default_factory=list)
+    points: list[EnvelopePoint] = Field(default_factory=list, max_length=ENVELOPE_POINTS_MAX)
+    # Echo the server's current volume points verbatim (exact float compare).
+    expected_points: list[ExpectedEnvelopePoint] = Field(max_length=ENVELOPE_POINTS_MAX)
+
+    @field_validator("expected_points")
+    @classmethod
+    def _unique_expected_ids(
+        cls, value: list[ExpectedEnvelopePoint]
+    ) -> list[ExpectedEnvelopePoint]:
+        ids = [point.id for point in value]
+        if len(ids) != len(set(ids)):
+            raise ValueError("expected_points IDs must be unique")
+        return value
 
 
 class SuggestPendingEditPayload(BaseModel):

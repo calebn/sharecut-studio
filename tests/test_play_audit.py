@@ -174,3 +174,39 @@ def test_stem_not_fresh_when_duration_mismatches(tmp_path, sample_wav) -> None:
     assert not stem_is_fresh(project, "host")
     assert expected_stem_duration_sec(project, "host") == pytest.approx(1.0)
     assert not stem_duration_matches_timeline(project, "host")
+
+
+def test_track_render_hash_includes_render_semantics_rev(tmp_path, sample_wav, monkeypatch) -> None:
+    """A renderer semantics bump must stale stems (and segment-cache keys) with no edit."""
+    import podcast_mcp.engines.play_audit as play_audit
+    from podcast_mcp.engines.timeline_render import RENDER_SEMANTICS_REV
+
+    ws = tmp_path / "ws_rev"
+    (ws / "artifacts" / "tracks").mkdir(parents=True)
+    project = EpisodeProject.create("rev", str(ws))
+    project.timeline.tracks.append(Track(id="host", label="Host", role=TrackRole.DIALOGUE))
+    project.timeline.clips = [
+        Clip(id="c1", track_id="host", source_start=0.0, source_end=2.0, timeline_start=0.0)
+    ]
+    (ws / "artifacts" / "tracks" / "host.wav").write_bytes(sample_wav.read_bytes())
+    write_stem_hash(project, "host")
+    before = track_render_hash(project, "host")
+    assert stem_is_fresh(project, "host")
+
+    monkeypatch.setattr(play_audit, "RENDER_SEMANTICS_REV", RENDER_SEMANTICS_REV + 1)
+
+    assert track_render_hash(project, "host") != before
+    assert not stem_is_fresh(project, "host")
+
+
+def test_track_render_hash_ignores_clip_list_order(tmp_path) -> None:
+    project = EpisodeProject.create("order", str(tmp_path))
+    project.timeline.tracks.append(Track(id="host", label="Host", role=TrackRole.DIALOGUE))
+    first = Clip(id="a", track_id="host", source_start=0.0, source_end=1.0, timeline_start=0.0)
+    second = Clip(id="b", track_id="host", source_start=2.0, source_end=3.0, timeline_start=1.0)
+    project.timeline.clips = [first, second]
+    in_order = track_render_hash(project, "host")
+
+    project.timeline.clips = [second, first]
+
+    assert track_render_hash(project, "host") == in_order

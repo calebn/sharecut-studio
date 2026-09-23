@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+import type { ReactNode, PointerEvent as ReactPointerEvent } from "react";
+import { useLongPress } from "../hooks/useLongPress";
+import { useSwipeLeft } from "../hooks/useSwipeLeft";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import type { TimelineComment } from "../types/project";
 import { Button } from "../ui";
@@ -21,8 +23,18 @@ type Props = {
   showReply?: boolean;
   /** When false, omit interactive action checkboxes. */
   showActions?: boolean;
+  /**
+   * Opt in to touch swipe-left → Resolve (comment lists only). Off by default
+   * so embedded threads (e.g. the pending-edit Ask thread) never resolve from
+   * a stray horizontal drag.
+   */
+  swipeToResolve?: boolean;
   children?: ReactNode;
 };
+
+/** Controls inside the card keep their own touch behavior. */
+const GESTURE_EXEMPT_SELECTOR =
+  "button,input,textarea,label,select,a,[contenteditable],.comment-replies";
 
 export function CommentCard({
   comment: c,
@@ -38,8 +50,38 @@ export function CommentCard({
   showResolve = true,
   showReply = true,
   showActions = true,
+  swipeToResolve = false,
   children,
 }: Props) {
+  const canResolve = showResolve && !guestShare && onResolve;
+  const swipe = useSwipeLeft(
+    Boolean(swipeToResolve && canResolve && !busy && !c.resolved),
+    () => onResolve?.(true),
+  );
+  const longPress = useLongPress(() => {
+    swipe.reset();
+    onSelect?.();
+  });
+  const onPointerDown = (event: ReactPointerEvent<HTMLLIElement>) => {
+    const target = event.target as Element;
+    if (
+      target.closest(GESTURE_EXEMPT_SELECTOR) &&
+      !target.closest(".comment-card-main")
+    ) {
+      swipe.reset();
+      return;
+    }
+    if (onSelect) longPress.onPointerDown(event);
+    swipe.onPointerDown(event);
+  };
+  const onPointerMove = (event: ReactPointerEvent<HTMLLIElement>) => {
+    longPress.onPointerMove(event);
+    swipe.onPointerMove(event);
+  };
+  const onPointerUp = (event: ReactPointerEvent<HTMLLIElement>) => {
+    longPress.onPointerUp(event);
+    swipe.onPointerUp(event);
+  };
   const className = `comment-card${selected ? " selected" : ""}${
     c.resolved ? " resolved" : ""
   }`;
@@ -58,10 +100,25 @@ export function CommentCard({
   return (
     <li
       className={className}
+      onPointerDown={onPointerDown}
+      onClickCapture={longPress.onClickCapture}
+      onPointerUp={onPointerUp}
+      onPointerMove={onPointerMove}
+      onPointerCancel={(event) => {
+        longPress.onPointerCancel(event);
+        swipe.onPointerCancel(event);
+      }}
       {...presenceAnchorProps(presenceAnchor("comment", c.id))}
     >
       {onSelect ? (
-        <button type="button" className="comment-card-main" onClick={onSelect}>
+        <button
+          type="button"
+          className="comment-card-main"
+          onClick={() => {
+            if (swipe.justSwiped()) return;
+            onSelect();
+          }}
+        >
           {main}
         </button>
       ) : (
@@ -110,7 +167,7 @@ export function CommentCard({
           </Button>
         </div>
       ) : null}
-      {showResolve && !guestShare && onResolve ? (
+      {canResolve ? (
         <div className="comment-card-footer">
           {c.resolved ? (
             <Button disabled={busy} onClick={() => onResolve(false)}>
