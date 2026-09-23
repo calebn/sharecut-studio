@@ -261,6 +261,14 @@ describe("Storybook title tiers", () => {
       "const metadata alias mutation",
       "const meta = { title: 'Atoms/Button' }; const alias = meta; alias.title = 'Screens/Home'; export default meta;",
     ],
+    [
+      "asserted metadata alias",
+      "const meta = { title: 'Atoms/Button' }; const alias = meta as typeof meta; alias.title = 'Screens/Home'; export default meta;",
+    ],
+    [
+      "asserted metadata write",
+      "const meta = { title: 'Atoms/Button' }; (meta as typeof meta).title = 'Screens/Home'; export default meta;",
+    ],
   ])("rejects %s", (_case, source) => {
     expect(storyTitleViolation(source)).not.toBeNull();
   });
@@ -285,6 +293,19 @@ describe("Storybook title tiers", () => {
     expect(
       storyTitleViolation(
         "export default { title: 'Atoms/Button', ['component']: Button };",
+      ),
+    ).toBeNull();
+  });
+
+  it("accepts a shadowed local metadata name", () => {
+    expect(
+      storyTitleViolation(
+        "const meta = { title: 'Atoms/Button' }; function helper(meta: { title: string }) { meta.title = 'Screens/Home'; } export default meta;",
+      ),
+    ).toBeNull();
+    expect(
+      storyTitleViolation(
+        "const meta = { title: 'Atoms/Button' }; function helper() { const meta = { title: 'Screens/Home' }; meta.title = 'Screens/Other'; } export default meta;",
       ),
     ).toBeNull();
   });
