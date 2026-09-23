@@ -677,6 +677,26 @@ def test_json_progress_never_leaks_to_stdout(capsys):
         reset_progress()
 
 
+def test_cli_json_progress_reporter_does_not_outlive_invocation():
+    """A ``--json-progress`` run must not leave its (closed) stderr bound.
+
+    CliRunner swaps in a stderr buffer and closes it after ``invoke``; a
+    process-wide reporter still pointing at it broke every later progress
+    emit in the same worker with ``I/O operation on closed file``.
+    """
+    from typer.testing import CliRunner
+
+    from podcast_mcp.cli import context as cli_context
+    from podcast_mcp.cli.main import app
+
+    result = CliRunner().invoke(app, ["--json-progress", "history-status", "--help"])
+    assert result.exit_code == 0
+    assert isinstance(current_progress(), NullProgress)
+    assert isinstance(cli_context.get_progress(), NullProgress)
+    with progress_task("after", "After", total=1) as p:
+        p.advance(1)
+
+
 def test_progress_disabled_is_null_consumer(monkeypatch):
     from podcast_mcp.util.progress import (
         NullProgress,

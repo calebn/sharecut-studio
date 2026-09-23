@@ -14,6 +14,8 @@ Long-running CLI operations report progress on **stderr** so stdout stays clean 
 
 When stderr is **not** a TTY and `--json-progress` is off, there is no CLI consumer → `NullProgress` (progress stays silent). Use `--json-progress` in pipes when you want machine-readable events.
 
+The root callback's reporter is scoped to one invocation (`ctx.call_on_close(reset_progress)`), so in-process callers such as `CliRunner` never leave a reporter bound to a stderr stream they have since closed.
+
 Adapters compose sinks with `compose_progress` (CLI + optional in-process GUI SSE). See [progress.md](progress.md) § Consumer fan-out.
 
 ## Event schema (`--json-progress`)

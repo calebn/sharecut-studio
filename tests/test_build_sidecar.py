@@ -183,6 +183,60 @@ def test_freeze_extras_include_bootstrap() -> None:
     assert "gui" in mod.GUI_EXTRAS
 
 
+def _fail(*_args, **_kwargs):
+    raise AssertionError("must not be reached")
+
+
+def test_packaged_build_requires_rustc_before_freeze(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    mod = _load_build_sidecar()
+    monkeypatch.setattr(mod.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(mod, "copy_web_dist", _fail)
+    monkeypatch.setattr(mod, "freeze_python", _fail)
+
+    with pytest.raises(SystemExit, match="rustc is required"):
+        mod.main(["--out", str(tmp_path), "--triple", "aarch64-apple-darwin"])
+
+    assert not (tmp_path / "sharecut-runtime" / ".freeze-complete").exists()
+
+
+def test_launcher_compile_error_is_not_reported_as_missing_rustc(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    mod = _load_build_sidecar()
+    monkeypatch.setattr(mod.shutil, "which", lambda _name: "/usr/bin/rustc")
+
+    def boom(cmd: list[str]) -> None:
+        raise subprocess.CalledProcessError(1, cmd)
+
+    monkeypatch.setattr(mod.subprocess, "check_call", boom)
+    with pytest.raises(SystemExit, match=r"rustc failed to compile sidecar_launcher\.rs") as exc:
+        mod.compile_rust_launcher(tmp_path / "sharecut-sidecar")
+    assert "required" not in str(exc.value)
+
+
+def test_ensure_recompiles_stale_script_launcher(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    mod = _load_build_sidecar()
+    runtime = tmp_path / "sharecut-runtime"
+    py = runtime / "venv" / "bin" / "python"
+    py.parent.mkdir(parents=True)
+    py.write_text("#!/bin/sh\n", encoding="utf-8")
+    mod.write_freeze_complete(runtime)
+    launcher = tmp_path / "sharecut-sidecar-aarch64-apple-darwin"
+    launcher.write_text("#!/bin/sh\nexec python -m podcast_mcp.cli.main gui\n", encoding="utf-8")
+    compiled: list[Path] = []
+    monkeypatch.setattr(mod.shutil, "which", lambda _name: "/usr/bin/rustc")
+    monkeypatch.setattr(mod, "compile_rust_launcher", compiled.append)
+    monkeypatch.setattr(mod, "copy_web_dist", _fail)
+    monkeypatch.setattr(mod, "freeze_python", _fail)
+
+    assert mod.main(["--ensure", "--out", str(tmp_path), "--triple", "aarch64-apple-darwin"]) == 0
+    assert compiled == [launcher]
+
+
 def test_extension_wheels_requires_exactly_one_top_level_wheel(tmp_path: Path) -> None:
     mod = _load_build_sidecar()
     with pytest.raises(SystemExit, match="exactly one top-level wheel"):
@@ -254,7 +308,8 @@ def test_rust_launcher_searches_appimage_lib() -> None:
     shared = (ROOT / "scripts" / "sidecar_shared.rs").read_text(encoding="utf-8")
     assert "SharecutStudio" in text
     assert "lib" in text
-    assert "args_os" not in text
+    assert "args_os" in text
+    assert '"-P"' in text
     assert "KILL_ON_JOB_CLOSE" in text
     assert "LOCALAPPDATA" in shared
     assert "0x0800_0000" in shared
@@ -268,7 +323,8 @@ def test_rust_launcher_searches_appimage_lib() -> None:
     assert "PODCAST_GUI_OPENAPI" in text
     assert "PODCAST_SIDECAR_EPHEMERAL" in text
     assert "sidecar_shared" in text
-    assert "Stdio::null" in text
+    assert "detach_to_sidecar_log" in text
+    assert "Stdio::null" in shared
 
 
 def test_rewrite_pyvenv_cfg_windows_paths(tmp_path: Path) -> None:
@@ -349,9 +405,7 @@ def test_write_python_home_marker(tmp_path: Path) -> None:
     assert marker == "python/cpython-3.12-windows-x86_64-none"
 
 
-def test_windows_freeze_requires_rustc_exe() -> None:
-    text = SCRIPT.read_text(encoding="utf-8")
-    assert "Tauri externalBin expects .exe" in text
+def test_release_workflow_has_rustc_for_compiled_launcher() -> None:
     workflow = ROOT / ".github/workflows/release-desktop-build.yml"
     yml = workflow.read_text(encoding="utf-8")
     assert "rustc --version" in yml
