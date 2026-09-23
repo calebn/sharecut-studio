@@ -49,7 +49,9 @@ Filler / hesitation pacing (`tighten.min_gap_after_filler_sec`, `filler_room_ton
    - *Delete utterance N* → `cut_utterance_tool`.
    - *Tighten fillers* → skill **podcast-tighten-dialogue** (`propose_edits`, then
      listen-first review / `approve_edits`; optional `edit_mode=mute` to silence
-     in place; do not bulk `apply_edits` on a production episode).
+     in place; do not bulk `apply_edits` on a production episode). Tighten may
+     also propose `filler:acoustic` hits (voiced audio the ASR missed inside a
+     word gap); they are always review-only — play each before approving.
 6. `edit_impact_report_tool` (markdown=true) — show seconds removed and pending review.
 7. `play_pending_preview_tool` (Suggested) so the user hears the skip before deciding; then `approve_edits_tool` with JSON array of ids — applies cuts to the clip timeline (not just flags).
 8. `render_preview` — then `play_transcript_query_tool` or `play_audio_tool` on the span so the user can hear it (not only the premix path).

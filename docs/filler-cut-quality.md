@@ -29,13 +29,13 @@ Implementation: `edits/fillers.py`, `edits/cut_quality.py`, `edits/join_continui
 
 ## Policy
 
-- **Repetition and restart proposals** — Tighten detects same-track, timestamp-adjacent exact word repeats (`repetition:word:*`), repeated prefixes up to four words (`restart:phrase:*`), and only explicitly marked partial-word cut-offs (`stor- store`, `restart:partial:*`). Split repairs remove the repeated prefix and partial together (`I w- I went` removes `I w-`, retaining `I went`). The detector uses a bounded 0.45 s gap by default (`tighten.repeat_max_gap_sec`, capped at 2 s), skips suppressed/overlapping words and complete filler-lexicon spans (including split multi-word entries such as `you know`), and never compares across tracks. It consumes a matched repair window so periodic text cannot stack adjacent restart proposals. These remain proposal-only (`review_required: true`) because emphasis and semantic repairs (for example “store—no, park”) cannot be inferred safely from text alone; coalescing keeps each repeat/restart proposal's id and reason separate from adjacent cuts. The existing golden-ear A/B harness includes `filler`, `pause`, `repetition`, and `restart` by default; listen and approve each hit individually.
+- **Repetition and restart proposals** — Tighten detects same-track, timestamp-adjacent exact word repeats (`repetition:word:*`), repeated prefixes up to four words (`restart:phrase:*`), and only explicitly marked partial-word cut-offs (`stor- store`, `restart:partial:*`). Split repairs remove the repeated prefix and partial together (`I w- I went` removes `I w-`, retaining `I went`). The detector uses a bounded 0.45 s gap by default (`tighten.repeat_max_gap_sec`, capped at 2 s), skips suppressed/overlapping words and complete filler-lexicon spans (including split multi-word entries such as `you know`), and never compares across tracks. It consumes a matched repair window so periodic text cannot stack adjacent restart proposals. These remain proposal-only (`review_required: true`) because emphasis and semantic repairs (for example “store—no, park”) cannot be inferred safely from text alone; coalescing keeps each repeat/restart (and `filler:acoustic`) proposal's id and reason separate from adjacent cuts. The existing golden-ear A/B harness includes `filler`, `pause`, `repetition`, and `restart` by default; listen and approve each hit individually.
 
 - **Leave isolated fillers in** — `tighten.min_filler_cluster: 2` (default). Only cut fillers that appear in clusters within `filler_cluster_gap_sec`.
 - **Discourse-safe selection** — Tokens in `tighten.discourse_markers` (default `like`, `you know`, `sort of`, `kind of`) remain in `filler_words` but are **not** cut unless at least one of: (a) an **adjacent** true disfluency (`um` / `uh` / `erm` / `ah`, or any other non-marker lexicon hit) or an immediate repeat (`like like`); (b) a pause ≥ `tighten.discourse_pause_sec` (default 0.35 s) on at least one side of the marker span; (c) ASR confidence < `tighten.discourse_confidence_max` (default 0.6). Multi-word markers match split ASR tokens via adjacent-token windows (`you`+`know` → `you know`). Pause and low-confidence are intentional escape hatches: a fluent quotative/comparative `like` with a ≥0.35 s flanking gap or ASR confidence below 0.6 still becomes `filler:like`. Fluent uses without those signals are counted as `discourse:{token}` (including isolated hits rejected by `min_filler_cluster`) and show up in the propose summary (`N discourse kept`). Accepted hits still use reason `filler:{token}`. Missing `discourse_markers` uses the defaults; explicit `[]` disables demotion.
 - **Leave risky cuts in** — When `tighten.leave_in_if_risky: true` (default), cuts that fail the risk model are skipped rather than applied.
 - **Join continuity gate** — When `tighten.join_continuity_gate: true` (default), `assess_proposed_cut` runs after boundary optimization; verdict `fail` skips the candidate (fail-closed). Verdict `review` marks `review_required`. See [inaudible-cuts.md](inaudible-cuts.md) § Join continuity.
-- **GUI review loop** — Sharecut Studio **Tighten** tab lists pending `filler:`, `pause:`, `repetition:`, and `restart:` hits (search, class/track filters, harsh-only). Preview / skip / apply one, or apply-all with **Avoid harsh cuts** (default on; skips `review_required` and `:risky` / `:join_review`). Same `ApproveEdits` / `RejectEdits` path as the pending inspector. See [daw-editing.md](daw-editing.md) § Tighten review.
+- **GUI review loop** — Sharecut Studio **Tighten** tab lists pending `filler:` (including review-only `filler:acoustic`), `pause:`, `repetition:`, and `restart:` hits (search, class/track filters, harsh-only). Preview / skip / apply one, or apply-all with **Avoid harsh cuts** (default on; skips `review_required` and `:risky` / `:join_review`). Same `ApproveEdits` / `RejectEdits` path as the pending inspector. See [daw-editing.md](daw-editing.md) § Tighten review.
 - **Waveform boundaries** — Proposals call `optimize_source_cut_range` when `tighten.inaudible_opt: true` (default). Short cuts also **extend the end to the quietest point before the next word** (within `trailing_energy_extend_ms`) when ASR ends a filler early (see [inaudible-cuts.md](inaudible-cuts.md) `trailing_energy_*`).
 - **Adaptive fades** — Each decision gets `crossfade_ms` from `recommend_cut_fade_ms` (roughly 15–50 ms for fillers, up to ~150 ms for long pauses, scaled by join level jump).
 - **Breath co-removal** — Adjacent breath-shaped energy before/after a cut is included in the remove range when detected (`tighten.breath_handling.enabled`).
@@ -195,6 +195,54 @@ tighten:
 | `analysis.heuristics.boundary_jump_db` | `12` | dB jump that triggers longer fades |
 | `render.join_fade_max_ms` | `40` | Cap dialogue edge fades (fade join mode); harsh-join recommendations scale up to this |
 | `render.crossfade_curve` | `tri` | FFmpeg acrossfade curve when `join_in_mode=crossfade` |
+| `tighten.acoustic_gap_filler.enabled` | `true` | Propose review-only `filler:acoustic` cuts for voiced audio inside ASR gaps (see below) |
+| `tighten.acoustic_gap_filler.min_gap_sec` | `0.35` | Shortest inter-word gap scanned; values below `0.35` clamp up (max `10`) |
+| `tighten.acoustic_gap_filler.max_run_sec` | `1.5` | Longest voiced run proposed; values above `1.5` clamp down (min `0.1`) |
+| `tighten.acoustic_gap_filler.max_frames` | `600` | 10 ms analysis frames per gap (~6 s); gaps longer than the budget are skipped; values above `600` clamp down (min `20`) |
+
+#### Acoustic gap candidates
+
+When `tighten.acoustic_gap_filler.enabled` is on (the default), propose scans
+the decoded 16 kHz track cache for a short voiced run inside an owner-word gap
+of at least `min_gap_sec`. It never auto-cuts: every hit is `filler:acoustic`
+with `review_required: true`, because ASR-free VAD can mistake breaths, noise,
+laughter, music, or a missed word for a filler. **Listen before approving.**
+
+Detection (`edits/acoustic_gap.py`, shared DSP in `util/dsp.py`):
+
+- Gaps are skipped when either flanking word is suppressed, bleed, or
+  speaker-matched to another track, or when another dialogue track has words in
+  the gap (peer bleed).
+- Frame levels (25 ms / 10 ms hop) must show real contrast: the loudest frame
+  must sit at least 12 dB above the gap's 20th-percentile noise estimate, so
+  flat hum, HVAC, or steady rumble never yields a candidate. Active frames must
+  clear that noise estimate by 8 dB (and -55 dBFS); dips up to 60 ms are bridged.
+- A run must last 0.1 s–`max_run_sec`, cover at most 80% of the gap (a longer
+  run is a level plateau), and pass a speech-pitch (70–350 Hz) autocorrelation
+  voicing check.
+- The proposed cut is bounded by the run, not the gap: waveform snapping and
+  breath handling may move it at most 50 ms past the run, and never within
+  25 ms of either word. Pacing never widens it across the gap or adds a paced
+  pad, so the pause left behind is always shorter than the original and keeps
+  `min_gap_after_filler_sec`. Risk is re-assessed on the final span.
+
+Interaction with other proposals:
+
+- An acoustic hit that overlaps a word-based filler cut after pacing (for
+  example `filler:um` widened across the gap) is dropped.
+- A long-pause trim in the same gap is replaced only when the acoustic cut
+  survives analysis; if the acoustic candidate is rejected, the pause trim is
+  still proposed.
+- Coalescing keeps `filler:acoustic` separate from neighbouring cuts (like
+  repetition/restart), and never merges decisions whose `applied` flags differ.
+- Re-proposal (`replace_existing`) regenerates pending acoustic hits and keeps
+  ones a human already applied; new proposals that overlap an applied decision
+  are skipped (`applied_overlap`).
+- Propose summaries report acoustic hits separately (`N acoustic (review)`) and
+  count skipped scans (`acoustic:*` skip reasons such as `no_audio`,
+  `peer_speaking`, `rejected`, `replaced_pause`).
+- The audition context adds an `acoustic_gap_filler` hypothesis per pending hit,
+  with the edit's own span in `evidence`.
 
 ### Debug workflow
 

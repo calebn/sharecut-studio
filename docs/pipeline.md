@@ -93,8 +93,12 @@ Pipeline auto-tighten stays **off** (`tighten.enabled: false`) until the golden-
 | `tighten.discourse_confidence_max` | `0.6` | ASR confidence below this qualifies a discourse marker |
 | `tighten.min_filler_cluster` | `2` | Min lexicon hits in a gap cluster before cutting |
 | `tighten.max_pause_sec` | `1.2` | Inter-word gap before pause trim |
+| `tighten.acoustic_gap_filler.enabled` | `true` | Review-only `filler:acoustic` proposals for voiced audio inside ASR gaps (never auto-applied) |
+| `tighten.acoustic_gap_filler.min_gap_sec` | `0.35` | Shortest gap scanned (floor `0.35`) |
+| `tighten.acoustic_gap_filler.max_run_sec` | `1.5` | Longest voiced run proposed (ceiling `1.5`) |
+| `tighten.acoustic_gap_filler.max_frames` | `600` | 10 ms frames per gap (ceiling `600`, ~6 s); longer gaps are skipped |
 
-Propose summaries include `N discourse kept` (`discourse:{token}` skip counts). Full table and symptom → knob guide: [filler-cut-quality.md](filler-cut-quality.md).
+Propose summaries include `N discourse kept` (`discourse:{token}` skip counts) and, when relevant, `N acoustic (review)` / `N acoustic skipped` (`acoustic:*` skip counts). Full table and symptom → knob guide: [filler-cut-quality.md](filler-cut-quality.md).
 
 ## Export formats
 
@@ -131,7 +135,7 @@ internally, via a shared thread-pool helper (`util/parallel.py`):
 
 | Step | What runs concurrently |
 |------|-------------------------|
-| `analyze_fillers_pauses` | Every filler, pause, repetition, or restart candidate across **all** dialogue tracks is analyzed (waveform boundary snap, risk assessment, fade sizing) in one shared pool, then decisions are applied serially in the original order |
+| `analyze_fillers_pauses` | Candidate gathering runs one task per dialogue track (including the per-gap acoustic scan for `filler:acoustic`, vectorized NumPy over the shared audio cache). Every filler, pause, repetition, restart, or acoustic candidate across **all** tracks is then analyzed (waveform boundary snap, risk assessment, fade sizing) in one shared pool; overlaps are resolved and decisions applied serially in the original order |
 | `assemble_timeline` / `render_dialogue_stems` | Each track's stem is rendered concurrently (`_render_track_stems`) |
 | `export_deliverables` | Each configured output format is encoded concurrently |
 

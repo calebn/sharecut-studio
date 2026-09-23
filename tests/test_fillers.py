@@ -1618,14 +1618,14 @@ def test_discourse_leading_silence_and_trailing_like():
 
 
 def test_discourse_bounds_reject_invalid_numbers():
-    from podcast_mcp.edits.fillers import _bounded_float
+    from podcast_mcp.config import bounded_float
 
-    assert _bounded_float("nope", 0.35, 0.0, 5.0) == 0.35
-    assert _bounded_float(None, 0.35, 0.0, 5.0) == 0.35
-    assert _bounded_float(float("inf"), 0.35, 0.0, 5.0) == 0.35
-    assert _bounded_float(float("nan"), 0.35, 0.0, 5.0) == 0.35
-    assert _bounded_float(-1.0, 0.35, 0.0, 5.0) == 0.0
-    assert _bounded_float(99.0, 0.35, 0.0, 5.0) == 5.0
+    assert bounded_float("nope", 0.35, 0.0, 5.0) == 0.35
+    assert bounded_float(None, 0.35, 0.0, 5.0) == 0.35
+    assert bounded_float(float("inf"), 0.35, 0.0, 5.0) == 0.35
+    assert bounded_float(float("nan"), 0.35, 0.0, 5.0) == 0.35
+    assert bounded_float(-1.0, 0.35, 0.0, 5.0) == 0.0
+    assert bounded_float(99.0, 0.35, 0.0, 5.0) == 5.0
     words = [
         TranscriptWord(text="hello", start=0.0, end=0.2, confidence=0.95),
         TranscriptWord(text="like", start=0.25, end=0.4, confidence=0.95),

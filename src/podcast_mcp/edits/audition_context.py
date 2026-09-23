@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from podcast_mcp.edits.comments import list_comments
+from podcast_mcp.edits.tighten_reasons import is_acoustic_filler_reason
 from podcast_mcp.engines.audio_audit import clipping_indicated
 from podcast_mcp.engines.render_status import render_status_report
 from podcast_mcp.engines.session_timeline import SessionTimeline
@@ -81,6 +82,14 @@ HYPOTHESIS_CATALOG: dict[str, dict[str, Any]] = {
         "skill": "podcast-edit-natural-language",
         "tools": ["play_pending_preview_tool"],
         "meaning": "Pending or applied edits overlap this window.",
+    },
+    "acoustic_gap_filler": {
+        "severity": "info",
+        "confidence": "heuristic",
+        "autonomy": "needs_approval",
+        "skill": "podcast-tighten-dialogue",
+        "tools": ["play_pending_preview_tool"],
+        "meaning": "A local DSP candidate found voiced audio inside an ASR gap; review before cutting.",
     },
     "suppressed_only_track": {
         "severity": "info",
@@ -458,6 +467,24 @@ def _build_hypotheses(
                 ),
             )
         )
+        for e in pending:
+            if not is_acoustic_filler_reason(e.get("reason")):
+                continue
+            # The edit's own span (not the whole audition window) so the reviewer
+            # can seek straight to the candidate.
+            span_keys = ("timeline_start", "timeline_end", "source_start", "source_end")
+            out.append(
+                _hypothesis(
+                    "acoustic_gap_filler",
+                    tracks=[e["track_id"]] if e.get("track_id") else list(track_ids),
+                    window=window,
+                    evidence={
+                        "edit_id": e.get("id"),
+                        "reason": e.get("reason"),
+                        **{key: e[key] for key in span_keys if e.get(key) is not None},
+                    },
+                )
+            )
     for t in tracks_out:
         if t.get("suppressed_only"):
             out.append(
