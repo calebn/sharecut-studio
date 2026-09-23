@@ -753,7 +753,7 @@ def _copy_room_tone(project: EpisodeProject, acked: Path, participant_id: str) -
     ws = Path(project.workspace_dir)
     pid = parse_participant_id(participant_id)
     dest = ws / "raw" / "room-tone" / f"{pid}.wav"
-    _dest, rel = _copy_into_raw(project, acked, f"room-tone-{pid}", dest=dest)
+    _dest, rel = _copy_into_raw(project, acked, room_tone_source_id(slug_track_id(pid)), dest=dest)
     return rel
 
 
