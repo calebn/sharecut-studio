@@ -315,24 +315,72 @@ export function storyTitleViolation(text: string): string | null {
     return "default export must be a local metadata object";
   }
   if (metadataName) {
-    const namesMetadata = (value: unknown): boolean =>
-      isNode(value) &&
-      value.type === "Identifier" &&
-      value.name === metadataName;
+    const unwrap = (value: unknown): unknown => {
+      let current = value;
+      while (
+        isNode(current) &&
+        (current.type === "TSAsExpression" ||
+          current.type === "TSSatisfiesExpression" ||
+          current.type === "TSTypeAssertion" ||
+          current.type === "TSNonNullExpression" ||
+          current.type === "ParenthesizedExpression")
+      ) {
+        current = current.expression;
+      }
+      return current;
+    };
+    const namesMetadata = (value: unknown): boolean => {
+      const target = unwrap(value);
+      return (
+        isNode(target) &&
+        target.type === "Identifier" &&
+        target.name === metadataName
+      );
+    };
     const targetsMetadata = (value: unknown): boolean => {
-      let target = value;
+      let target = unwrap(value);
       while (
         isNode(target) &&
         (target.type === "MemberExpression" ||
           target.type === "OptionalMemberExpression")
       ) {
-        target = target.object;
+        target = unwrap(target.object);
       }
       return namesMetadata(target);
     };
+    const shadowsMetadata = (value: {
+      type: string;
+      [key: string]: unknown;
+    }): boolean => {
+      if (
+        (value.type === "FunctionDeclaration" ||
+          value.type === "FunctionExpression" ||
+          value.type === "ArrowFunctionExpression" ||
+          value.type === "ObjectMethod") &&
+        Array.isArray(value.params) &&
+        value.params.some(namesMetadata)
+      )
+        return true;
+      return (
+        value.type === "BlockStatement" &&
+        Array.isArray(value.body) &&
+        value.body.some(
+          (statement: unknown) =>
+            isNode(statement) &&
+            statement.type === "VariableDeclaration" &&
+            Array.isArray(statement.declarations) &&
+            statement.declarations.some(
+              (declaration: unknown) =>
+                isNode(declaration) && namesMetadata(declaration.id),
+            ),
+        )
+      );
+    };
     const mutatesMetadata = (value: unknown): boolean => {
-      if (Array.isArray(value)) return value.some(mutatesMetadata);
+      if (Array.isArray(value))
+        return value.some((entry) => mutatesMetadata(entry));
       if (!isNode(value)) return false;
+      if (shadowsMetadata(value)) return false;
       if (
         (value.type === "VariableDeclarator" && namesMetadata(value.init)) ||
         (value.type === "AssignmentExpression" &&
@@ -349,7 +397,7 @@ export function storyTitleViolation(text: string): string | null {
       ) {
         return true;
       }
-      return Object.values(value).some(mutatesMetadata);
+      return Object.values(value).some((entry) => mutatesMetadata(entry));
     };
     if (mutatesMetadata(ast.program.body)) {
       return "default-exported metadata must not be mutated or aliased";
