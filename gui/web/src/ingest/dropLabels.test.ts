@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   fileCountFromDataTransfer,
   formatIngestDuration,
@@ -73,14 +73,22 @@ describe("dropLabels", () => {
     expect(isAudioIngestFile({ name: "notes.txt", type: "" })).toBe(false);
   });
 
-  it("migrates dawshell.ingestCoachDismissed", () => {
-    window.localStorage.setItem("dawshell.ingestCoachDismissed", "1");
+  it("treats a throwing getItem as not dismissed", () => {
+    const getItem = vi
+      .spyOn(Storage.prototype, "getItem")
+      .mockImplementation(() => {
+        throw new DOMException("denied", "SecurityError");
+      });
+    try {
+      expect(isIngestCoachDismissed()).toBe(false);
+    } finally {
+      getItem.mockRestore();
+    }
+  });
+
+  it("reads ingest coach dismissed status from storage", () => {
+    expect(isIngestCoachDismissed()).toBe(false);
+    window.localStorage.setItem("sharecut.ingestCoachDismissed", "1");
     expect(isIngestCoachDismissed()).toBe(true);
-    expect(window.localStorage.getItem("sharecut.ingestCoachDismissed")).toBe(
-      "1",
-    );
-    expect(
-      window.localStorage.getItem("dawshell.ingestCoachDismissed"),
-    ).toBeNull();
   });
 });

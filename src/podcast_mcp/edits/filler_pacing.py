@@ -207,7 +207,7 @@ def apply_filler_pacing(
     overlap_prev = air_after_prev < 0.04
     end_margin = word_margin if overlap_next else max(word_margin, lead_in)
     # Keep previous-word release (e.g. N in "mean") - ASR ends often early on
-    # nasals. Adaptive when audio is available; fixed legacy key otherwise.
+    # nasals. Adaptive based on audio energy.
     if overlap_prev:
         start_margin = word_margin
     else:
