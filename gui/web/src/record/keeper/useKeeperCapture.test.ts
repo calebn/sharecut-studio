@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RecordSnapshot } from "../types";
 import { KeeperSession } from "./session";
 import {
@@ -8,6 +8,7 @@ import {
   keeperMetaPath,
   keeperWavPath,
   MemorySink,
+  OpfsUnavailableError,
 } from "./store";
 import { useKeeperCapture } from "./useKeeperCapture";
 
@@ -56,6 +57,8 @@ const args = {
 };
 
 describe("useKeeperCapture", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it("reports activity only after the keeper is actively writing", async () => {
     const onActivity = vi.fn();
     const stream = { getTracks: () => [] } as unknown as MediaStream;
@@ -84,7 +87,6 @@ describe("useKeeperCapture", () => {
     graphActivity();
     expect(onActivity).toHaveBeenCalledOnce();
   });
-
   it("does not start a session until enabled", () => {
     const stream = { getTracks: () => [] } as unknown as MediaStream;
     const { result } = renderHook(() =>
@@ -204,6 +206,57 @@ describe("useKeeperCapture", () => {
     });
   });
 
+  it("keeps close protection when the microphone disappears at Stop", async () => {
+    const sink = new MemorySink();
+    let releaseClose = () => {};
+    const closeGate = new Promise<void>((resolve) => {
+      releaseClose = resolve;
+    });
+    let closeStarted = false;
+    vi.mocked(createOpfsSink).mockResolvedValueOnce({
+      write: (path, bytes) => sink.write(path, bytes),
+      read: (path) => sink.read(path),
+      remove: (path) => sink.remove(path),
+      nextSegmentIndex: (sessionId, takeIndex, participantId) =>
+        sink.nextSegmentIndex(sessionId, takeIndex, participantId),
+      open: async (path) => {
+        const writable = await sink.open(path);
+        return {
+          write: (bytes: Uint8Array, offset?: number) =>
+            writable.write(bytes, offset),
+          close: async () => {
+            closeStarted = true;
+            await closeGate;
+            await writable.close();
+          },
+        };
+      },
+    });
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    const { rerender, result } = renderHook(
+      ({
+        snapshot,
+        mic,
+      }: {
+        snapshot: RecordSnapshot;
+        mic: MediaStream | null;
+      }) => useKeeperCapture({ ...args, enabled: true, snapshot, stream: mic }),
+      { initialProps: { snapshot: snap, mic: stream as MediaStream | null } },
+    );
+    await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+
+    rerender({ snapshot: { ...snap, state: "stopped" }, mic: null });
+    expect(result.current.recordingLocally).toBe(false);
+    expect(result.current.finalizing).toBe(true);
+    await waitFor(() => expect(closeStarted).toBe(true));
+    expect(
+      window.dispatchEvent(new Event("beforeunload", { cancelable: true })),
+    ).toBe(false);
+
+    releaseClose();
+    await waitFor(() => expect(result.current.finalizing).toBe(false));
+  });
+
   it("removes the warning when active capture unmounts", async () => {
     const stream = { getTracks: () => [] } as unknown as MediaStream;
     const { result, unmount } = renderHook(() =>
@@ -220,11 +273,7 @@ describe("useKeeperCapture", () => {
 
   it("does not claim a local copy when OPFS is unavailable", async () => {
     const { createOpfsSink } = await import("./store");
-    vi.mocked(createOpfsSink).mockRejectedValueOnce(
-      new Error(
-        "This browser cannot store a local keeper copy (OPFS unavailable).",
-      ),
-    );
+    vi.mocked(createOpfsSink).mockRejectedValueOnce(new OpfsUnavailableError());
     const stream = { getTracks: () => [] } as unknown as MediaStream;
     const { result } = renderHook(() =>
       useKeeperCapture({
@@ -234,7 +283,7 @@ describe("useKeeperCapture", () => {
       }),
     );
     await waitFor(() => {
-      expect(result.current.error).toMatch(/OPFS unavailable/);
+      expect(result.current.error).toMatch(/does not support OPFS/);
     });
     expect(result.current.recordingLocally).toBe(false);
 
@@ -360,6 +409,77 @@ describe("useKeeperCapture", () => {
     await waitFor(() => {
       expect(result.current.error).toBeNull();
     });
+  });
+
+  it("does not let an old disposal clear a newer Stop flush", async () => {
+    const originalDispose = Reflect.get(
+      KeeperSession.prototype,
+      "dispose",
+    ) as KeeperSession["dispose"];
+    const originalApply = Reflect.get(
+      KeeperSession.prototype,
+      "apply",
+    ) as KeeperSession["apply"];
+    let releaseOldDispose: (() => void) | undefined;
+    let releaseStop: (() => void) | undefined;
+    let oldDisposalStarted = false;
+    vi.spyOn(KeeperSession.prototype, "dispose").mockImplementation(function (
+      this: KeeperSession,
+    ) {
+      if (oldDisposalStarted) {
+        return originalDispose.call(this);
+      }
+      oldDisposalStarted = true;
+      return new Promise<void>((resolve) => {
+        releaseOldDispose = () => {
+          void originalDispose.call(this).then(resolve);
+        };
+      });
+    });
+    vi.spyOn(KeeperSession.prototype, "apply").mockImplementation(function (
+      this: KeeperSession,
+      gate,
+    ) {
+      if (gate.roomState !== "stopped") {
+        return originalApply.call(this, gate);
+      }
+      return new Promise<void>((resolve) => {
+        releaseStop = () => {
+          void originalApply.call(this, gate).then(resolve);
+        };
+      });
+    });
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    const { rerender, result } = renderHook(
+      ({
+        resetKey,
+        snapshot,
+      }: {
+        resetKey: number;
+        snapshot: RecordSnapshot;
+      }) =>
+        useKeeperCapture({
+          ...args,
+          enabled: true,
+          stream,
+          resetKey,
+          snapshot,
+        }),
+      { initialProps: { resetKey: 0, snapshot: snap } },
+    );
+    await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+
+    rerender({ resetKey: 1, snapshot: snap });
+    await waitFor(() => expect(oldDisposalStarted).toBe(true));
+    await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+    rerender({ resetKey: 1, snapshot: { ...snap, state: "stopped" } });
+    await waitFor(() => expect(releaseStop).toBeDefined());
+    expect(result.current.finalizing).toBe(true);
+
+    await act(async () => releaseOldDispose?.());
+    expect(result.current.finalizing).toBe(true);
+    await act(async () => releaseStop?.());
+    await waitFor(() => expect(result.current.finalizing).toBe(false));
   });
 
   it("preserves loss and reconnect gates behind pending storage work", async () => {
@@ -497,5 +617,185 @@ describe("useKeeperCapture", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("keeps close risk active until local finalization settles", async () => {
+    let finish: (() => void) | undefined;
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    vi.spyOn(KeeperSession.prototype, "dispose").mockImplementation(
+      () => pending,
+    );
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    const { result, rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) =>
+        useKeeperCapture({ ...args, enabled, stream }),
+      { initialProps: { enabled: true } },
+    );
+    await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+    rerender({ enabled: false });
+    await waitFor(() => expect(result.current.finalizing).toBe(true));
+    expect(result.current.recordingLocally).toBe(false);
+    await act(async () => finish?.());
+    await waitFor(() => expect(result.current.finalizing).toBe(false));
+  });
+
+  it("retains close risk and reports an error when finalization fails", async () => {
+    vi.spyOn(KeeperSession.prototype, "dispose").mockRejectedValue(
+      new Error("keeper flush failed"),
+    );
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    const { result, rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) =>
+        useKeeperCapture({ ...args, enabled, stream }),
+      { initialProps: { enabled: true } },
+    );
+    await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+    rerender({ enabled: false });
+    await waitFor(() =>
+      expect(result.current.error).toBe("keeper flush failed"),
+    );
+    expect(result.current.finalizing).toBe(true);
+  });
+
+  it("does not let a new session retry clear an older failed disposal", async () => {
+    vi.spyOn(KeeperSession.prototype, "dispose")
+      .mockRejectedValueOnce(new Error("old WAV flush failed"))
+      .mockResolvedValue(undefined);
+    const newSink = new MemorySink();
+    const open = newSink.open.bind(newSink);
+    let failClose = true;
+    newSink.open = async (path): Promise<ByteStream> => {
+      const writable = await open(path);
+      return {
+        write: (bytes, offset) => writable.write(bytes, offset),
+        close: async () => {
+          if (failClose) {
+            failClose = false;
+            throw new Error("new WAV close failed");
+          }
+          await writable.close();
+        },
+      };
+    };
+    vi.mocked(createOpfsSink)
+      .mockResolvedValueOnce(new MemorySink())
+      .mockResolvedValueOnce(newSink);
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    const { result, rerender } = renderHook(
+      ({
+        resetKey,
+        snapshot,
+      }: {
+        resetKey: number;
+        snapshot: RecordSnapshot;
+      }) =>
+        useKeeperCapture({
+          ...args,
+          enabled: true,
+          resetKey,
+          snapshot,
+          stream,
+        }),
+      { initialProps: { resetKey: 0, snapshot: snap } },
+    );
+    await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+    rerender({ resetKey: 1, snapshot: snap });
+    await waitFor(() => expect(result.current.finalizing).toBe(true));
+    await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+    const nextTake = { ...snap, take_index: 1 };
+    rerender({ resetKey: 1, snapshot: nextTake });
+    await waitFor(() =>
+      expect(result.current.error).toBe("new WAV close failed"),
+    );
+    act(() => result.current.retry());
+    await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+    expect(result.current.finalizing).toBe(true);
+  });
+
+  it("retains close risk if Stop fails while applying the final keeper gate", async () => {
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    const { result, rerender } = renderHook(
+      ({ snapshot }: { snapshot: RecordSnapshot }) =>
+        useKeeperCapture({ ...args, enabled: true, snapshot, stream }),
+      { initialProps: { snapshot: snap } },
+    );
+    await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+    vi.spyOn(KeeperSession.prototype, "apply").mockRejectedValueOnce(
+      new Error("stop flush failed"),
+    );
+    rerender({ snapshot: { ...snap, state: "stopped" } });
+    await waitFor(() => expect(result.current.error).toBe("stop flush failed"));
+    expect(result.current.recordingLocally).toBe(false);
+    expect(result.current.finalizing).toBe(true);
+  });
+
+  it("retains close risk when the OPFS writable fails to close", async () => {
+    const sink = new MemorySink();
+    const open = sink.open.bind(sink);
+    sink.open = async (path): Promise<ByteStream> => {
+      const writable = await open(path);
+      return {
+        write: (bytes, offset) => writable.write(bytes, offset),
+        close: async () => {
+          throw new Error("OPFS close failed");
+        },
+      };
+    };
+    vi.mocked(createOpfsSink).mockResolvedValueOnce(sink);
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    const { result, rerender } = renderHook(
+      ({ snapshot }: { snapshot: RecordSnapshot }) =>
+        useKeeperCapture({ ...args, enabled: true, snapshot, stream }),
+      { initialProps: { snapshot: snap } },
+    );
+    await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+
+    rerender({ snapshot: { ...snap, state: "stopped" } });
+    await waitFor(() => expect(result.current.error).toBe("OPFS close failed"));
+    expect(result.current.recordingLocally).toBe(false);
+    expect(result.current.finalizing).toBe(true);
+  });
+
+  it("clears a recovered finalization failure after retry and Stop", async () => {
+    const sink = new MemorySink();
+    const open = sink.open.bind(sink);
+    let failClose = true;
+    sink.open = async (path): Promise<ByteStream> => {
+      const writable = await open(path);
+      return {
+        write: (bytes, offset) => writable.write(bytes, offset),
+        close: async () => {
+          if (failClose) {
+            failClose = false;
+            throw new Error("transient OPFS close failure");
+          }
+          await writable.close();
+        },
+      };
+    };
+    vi.mocked(createOpfsSink).mockResolvedValueOnce(sink);
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    const { result, rerender } = renderHook(
+      ({ snapshot }: { snapshot: RecordSnapshot }) =>
+        useKeeperCapture({ ...args, enabled: true, snapshot, stream }),
+      { initialProps: { snapshot: snap } },
+    );
+    await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+
+    const nextTake = { ...snap, take_index: 1 };
+    rerender({ snapshot: nextTake });
+    await waitFor(() =>
+      expect(result.current.error).toBe("transient OPFS close failure"),
+    );
+    expect(result.current.finalizing).toBe(true);
+    act(() => result.current.retry());
+    await waitFor(() => expect(result.current.recordingLocally).toBe(true));
+    expect(result.current.finalizing).toBe(false);
+
+    rerender({ snapshot: { ...nextTake, state: "stopped" } });
+    await waitFor(() => expect(result.current.recordingLocally).toBe(false));
+    expect(result.current.finalizing).toBe(false);
   });
 });

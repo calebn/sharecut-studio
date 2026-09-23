@@ -120,6 +120,11 @@ def _join(snap: RecordSnapshot, cmd: RecordCommand, *, now_wall_ms: int) -> Reco
             existing.consented_wall_ms = now_wall_ms
         snap.host_last_beat_wall_ms = now_wall_ms
         return _apply_host_return(snap, now_wall_ms=now_wall_ms)
+    if cmd.role == "guest" and snap.state in ("lobby", "stopped"):
+        # A returning device must preflight its own local keeper before it can
+        # consent to the next take, even when its prior consent was persisted.
+        existing.consented = None
+        existing.consented_wall_ms = None
     return snap
 
 

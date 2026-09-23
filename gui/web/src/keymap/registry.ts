@@ -268,7 +268,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     keys: ["Enter"],
     bareKey: true,
     when: "tightenPanelOpen",
-    notes: "Enter — selected filler/pause hit",
+    notes: "Enter — selected tighten hit",
   },
   {
     id: "tighten.skipHit",
@@ -277,7 +277,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     keys: ["Backspace"],
     bareKey: true,
     when: "tightenPanelOpen",
-    notes: "Backspace — selected filler/pause hit",
+    notes: "Backspace — selected tighten hit",
   },
   {
     id: "tighten.applyAllSafe",

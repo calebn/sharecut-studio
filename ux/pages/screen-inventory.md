@@ -201,7 +201,7 @@ Lane identity is a slim sticky gutter in the same scroller as the waveforms. Tap
 | Comments | Thread list / detail | `review.comments` |
 | History | Undo/redo · grouped steps (follows document snapshots) | `history` |
 | Impact | Pending bulk + removed duration | `editorial.edit_decisions` + impact report |
-| Tighten | Searchable filler/pause list · preview/skip/apply · apply-all avoiding harsh cuts | pending `filler:`/`pause:` decisions |
+| Tighten | Searchable filler/pause/repetition/restart list · preview/skip/apply · apply-all avoiding harsh cuts | pending tighten decisions |
 | Pipeline | Step checklist · params · Analyze · Batch/gates · run · progress (headline + bar/elapsed) | working-set config + live job |
 
 Plus **Overlay legend** on the hub. Theme and audition mode live in transport **Menu**, not a Settings destination.
@@ -253,7 +253,7 @@ flowchart TB
 | **Comments** | List + thread · timeline seek · action items |
 | **History** | Groups · Undo/Redo · diff affordances; list updates from Applied snapshots (SHELL project, or DETAIL/TRACKS/CLIPS/FX/ENVELOPES/COMMENTS patches) |
 | **Impact** | Pending count · bulk approve/reject · removed duration |
-| **Tighten** | Filler/pause list · search/filters · preview/skip/apply · apply-all (avoid harsh) |
+| **Tighten** | Filler/pause/repetition/restart list · search/filters · preview/skip/apply · apply-all (avoid harsh) |
 | **Pipeline** | Checklist · param inspector · Analyze · Batch vs leave-gates (align + refine) · SSE progress (live headline) |
 | **Transcript** | Follow/edit (also focus mode `text`) |
 | **Status** | Actionable chips (pending, stale render, reconcile); overflow-x on narrow |
@@ -338,6 +338,7 @@ Journeys: [Guest journeys § 6–7](#/journeys).
 | **Full room** | 5th recorded or 3rd producer | Full-room copy; never `getUserMedia`. **Shipped (no screenshot yet).** |
 | **Declined** | Guest who declined while REC/PAUSED | Declined copy; host may re-invite as producer. **Shipped (no screenshot yet).** |
 | **Host offline** | Recorded guest | “Host offline — still recording locally.” Keeper stays open. **Shipped with keepers.** |
+| **Native close confirmation** | Host or recorded guest in the desktop app | During REC, PAUSED, or finalizing, closing the native window asks for confirmation. Host copy warns that the session stops for everyone; guest copy warns about the local keeper. This is local desktop protection and sends no remote close command. The macOS app menu and **Cmd+Q** use the confirmation path; Dock **Quit** and OS shutdown remain best-effort. |
 
 Not ReviewApp. Prefix `/rec/` 404s a review token.
 
