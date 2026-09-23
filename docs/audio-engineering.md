@@ -147,7 +147,11 @@ preset names, or override a builtin's definition, but only in a custom
 (any git-tracked YAML under `.agents/`, `config/`, `deploy/`, or `tests/fixtures/`,
 listed recursively with `git ls-files`) must not redefine a builtin preset name —
 `tests/test_effects_presets.py` has a parity test that enforces this and
-fails CI if one drifts.
+fails CI if one drifts. The test explicitly classifies the three pipeline
+defaults files (`.agents/defaults/pipeline.yaml` and the two `*_pipeline.yaml`
+fixtures). A new tracked YAML with a top-level `effects:` block fails the test
+until its path is classified as pipeline defaults or unrelated effects YAML;
+an unrelated file is not mistaken for pipeline defaults.
 
 `suggest_pipeline_tuning` (Analyze) resolves presets once per call
 (`resolve_presets(defaults)`) and seeds its `noise_reduction` and `gate`
