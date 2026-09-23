@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -74,6 +75,14 @@ def test_set_effect_bypass_and_list() -> None:
 
 
 _YAML_SCAN_ROOTS = (".agents", "config", "deploy", "tests/fixtures")
+_PIPELINE_DEFAULTS_YAMLS = frozenset(
+    {
+        ".agents/defaults/pipeline.yaml",
+        "tests/fixtures/e2e_pipeline.yaml",
+        "tests/fixtures/synthetic_bleed_e2e_pipeline.yaml",
+    }
+)
+_UNRELATED_EFFECTS_YAMLS: frozenset[str] = frozenset()
 
 
 def _repo_yaml_paths() -> list[Path]:
@@ -106,11 +115,45 @@ def _repo_yaml_paths() -> list[Path]:
 
 def test_repo_yaml_scan_includes_known_pipeline_defaults() -> None:
     rel = {p.relative_to(repo_root()).as_posix() for p in _repo_yaml_paths()}
-    assert {
-        ".agents/defaults/pipeline.yaml",
-        "tests/fixtures/e2e_pipeline.yaml",
-        "tests/fixtures/synthetic_bleed_e2e_pipeline.yaml",
-    } <= rel
+    assert rel >= _PIPELINE_DEFAULTS_YAMLS
+
+
+def _pipeline_effects_overlay(rel: str, data: object) -> dict | None:
+    if rel not in _PIPELINE_DEFAULTS_YAMLS:
+        assert (
+            rel in _UNRELATED_EFFECTS_YAMLS or not isinstance(data, dict) or "effects" not in data
+        ), (
+            f"{rel}: unclassified YAML with top-level effects:; classify it as "
+            "pipeline defaults or unrelated effects YAML"
+        )
+        return None
+    assert isinstance(data, dict) and "effects" in data, (
+        f"{rel}: allowlisted pipeline defaults must contain an effects: mapping"
+    )
+    overlay = data["effects"]
+    assert isinstance(overlay, dict), f"{rel}: effects: must be a mapping"
+    return overlay
+
+
+def test_pipeline_effects_overlay_requires_classification(monkeypatch) -> None:
+    with pytest.raises(AssertionError, match="unclassified YAML"):
+        _pipeline_effects_overlay("config/unrelated.yaml", {"effects": {"gate": []}})
+    assert _pipeline_effects_overlay("config/unrelated.yaml", {"services": {}}) is None
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "_UNRELATED_EFFECTS_YAMLS",
+        frozenset({"config/unrelated.yaml"}),
+    )
+    assert _pipeline_effects_overlay("config/unrelated.yaml", {"effects": {"gate": []}}) is None
+
+
+def test_pipeline_effects_overlay_guards_allowlisted_files() -> None:
+    rel = ".agents/defaults/pipeline.yaml"
+    assert _pipeline_effects_overlay(rel, {"effects": {}}) == {}
+    with pytest.raises(AssertionError, match="must contain an effects: mapping"):
+        _pipeline_effects_overlay(rel, {"render": {}})
+    with pytest.raises(AssertionError, match="effects: must be a mapping"):
+        _pipeline_effects_overlay(rel, {"effects": []})
 
 
 @pytest.mark.parametrize(
@@ -120,10 +163,9 @@ def test_repo_yaml_scan_includes_known_pipeline_defaults() -> None:
 )
 def test_repo_pipeline_yamls_do_not_redefine_builtin_presets(path: Path) -> None:
     data = yaml.safe_load(path.read_text())
-    if not isinstance(data, dict) or "effects" not in data:
-        return  # not a pipeline-defaults YAML (e.g. docker-compose, ground-truth manifest)
-    overlay = data.get("effects") or {}
-    assert isinstance(overlay, dict), f"{path}: effects: must be a mapping"
+    overlay = _pipeline_effects_overlay(path.relative_to(repo_root()).as_posix(), data)
+    if overlay is None:
+        return  # scanned YAML classified as unrelated to pipeline defaults
     collisions = set(overlay) & set(_BUILTIN_PRESETS)
     assert not collisions, (
         f"{path}: effects: redefines builtin preset name(s) {sorted(collisions)}; "
