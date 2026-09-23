@@ -291,7 +291,38 @@ def test_stalled_prs_resume_without_skipping_review() -> None:
     # Resumed lanes re-claim the issue and never pick up PRs with owner hold labels.
     resume = script[script.index("async function resumeLane(") :]
     assert resume.index("await claimIssue(issue)") < resume.index("finishLane(")
-    assert "that do NOT also carry ${HOLD_LABELS.join(' or ')}" in script
+    assert "that do NOT carry ${HOLD_LABELS.join(' or ')}" in script
+
+
+def test_outages_do_not_mark_prs_stalled() -> None:
+    script = _script()
+    fn = script[
+        script.index("async function stallOrInterrupt(") : script.index(
+            "// A decision only the owner can make"
+        )
+    ]
+    # A trivial probe tells a real agent failure from an outage that fails every agent.
+    assert fn.index("Health check") < fn.index("return stall(")
+    assert "interrupted.add(issue.number)" in fn
+    # Every "agent returned nothing" path goes through the probe.
+    for died in (
+        "review round ${round} agent died",
+        "feedback plan round ${round} agent died",
+        "feedback execute round ${round} agent died",
+        "'gate agent died'",
+        "'planner agent died'",
+    ):
+        line = next(ln for ln in script.splitlines() if died in ln and "return" in ln)
+        assert "stallOrInterrupt" in line, died
+    # Interrupted lanes keep their claims (the crash sweep skips them).
+    assert "[...claims.keys()].filter((k) => !interrupted.has(k))" in script
+
+
+def test_orphaned_prs_from_dead_runs_are_adopted() -> None:
+    script = _script()
+    assert "(b) ORPHANED by a run that died" in script
+    assert "Orphans always resume = review." in script
+    assert "if the issue has no claim comment, treat it as live (skip)" in script
 
 
 def test_model_tiers() -> None:
