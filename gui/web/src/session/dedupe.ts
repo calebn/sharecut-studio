@@ -22,7 +22,7 @@ export function sessionRole(state: SessionState): string | null | undefined {
 }
 
 export function sessionSeq(state: SessionState): number {
-  return state.server_seq ?? state.revision ?? 0;
+  return state.server_seq;
 }
 
 export function sessionClientId(state: SessionState): string | null {
@@ -45,14 +45,14 @@ export function baselineFromSnapshot(
   const role = sessionRole(snap);
   return {
     apply: role === "agent",
-    next: { serverSeq: seq, commandId: snap.command_id },
+    next: { serverSeq: seq, commandId: snap.last_command_id },
   };
 }
 
 function advance(cursor: AppliedCursor, state: SessionState): AppliedCursor {
   return {
     serverSeq: Math.max(sessionSeq(state), cursor.serverSeq),
-    commandId: state.command_id ?? cursor.commandId,
+    commandId: state.last_command_id ?? cursor.commandId,
   };
 }
 
@@ -76,7 +76,7 @@ export function shouldApplyRemote(
   } = {},
 ): { apply: boolean; next: AppliedCursor } {
   const seq = sessionSeq(state);
-  const cmd = state.command_id;
+  const cmd = state.last_command_id;
   if (cmd && cmd === cursor.commandId) {
     return { apply: false, next: cursor };
   }
@@ -154,10 +154,10 @@ export function shouldHandleWsMessage(
     return false;
   }
   if (ctype && DISCRETE_VIEWER_COMMANDS.has(ctype)) {
-    return (snap.server_seq ?? 0) > cursor.serverSeq;
+    return sessionSeq(snap) > cursor.serverSeq;
   }
   if (opts.localPlaying) {
     return false;
   }
-  return (snap.server_seq ?? 0) > cursor.serverSeq;
+  return sessionSeq(snap) > cursor.serverSeq;
 }

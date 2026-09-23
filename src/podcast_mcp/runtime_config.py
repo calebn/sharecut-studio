@@ -7,7 +7,9 @@ separate from the build-time desktop distribution profile.
 from __future__ import annotations
 
 import ipaddress
+import logging
 import os
+import re
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -20,6 +22,13 @@ import yaml
 DEFAULT_RELAY_URL = "ws://127.0.0.1:8080/tunnel"
 DEFAULT_PUBLIC_BASE_URL = "http://127.0.0.1:8080"
 DEFAULT_LOCAL_GUI_URL = "http://127.0.0.1:8765"
+RELAY_HOST_ID_FILENAME = "relay_host_id"
+
+# host_id is the ``host_id:`` prefix in PODCAST_RELAY_HOST_TOKENS, so it must not
+# contain the ``:`` / ``,`` separators that map is parsed with.
+_HOST_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+
+log = logging.getLogger(__name__)
 
 
 class RuntimeConfigError(ValueError):
@@ -44,7 +53,9 @@ class RelayConfig:
     host_token: str = ""
     public_base_url: str = DEFAULT_PUBLIC_BASE_URL
     local_gui_url: str = DEFAULT_LOCAL_GUI_URL
-    host_id: str = field(default_factory=lambda: uuid.uuid4().hex)
+    # Stable per-install identity (see persisted_relay_host_id); a fresh uuid per
+    # process would never match a ``host_id:secret`` entry on the relay.
+    host_id: str = field(default_factory=lambda: persisted_relay_host_id())
 
 
 @dataclass(frozen=True)
@@ -58,6 +69,7 @@ _RELAY_ENV = {
     "host_token": "PODCAST_RELAY_HOST_TOKEN",
     "public_base_url": "PODCAST_RELAY_PUBLIC_BASE_URL",
     "local_gui_url": "PODCAST_RELAY_LOCAL_GUI_URL",
+    "host_id": "PODCAST_RELAY_HOST_ID",
 }
 
 _OBJECT_STORE_ENV = {
@@ -79,6 +91,44 @@ def default_relay_config_path() -> Path:
     if override:
         return Path(override).expanduser()
     return Path.home() / ".config" / "podcast_mcp" / "relay.yaml"
+
+
+def relay_host_id_path(config_path: Path | None = None) -> Path:
+    """Per-install relay host identity file, stored next to ``relay.yaml``."""
+    return (config_path or default_relay_config_path()).with_name(RELAY_HOST_ID_FILENAME)
+
+
+def persisted_relay_host_id(config_path: Path | None = None) -> str:
+    """Return this install's relay ``host_id``, minting a uuid once on first use.
+
+    Used when neither ``PODCAST_RELAY_HOST_ID`` nor the ``host_id`` YAML key is
+    set, so a restarted host presents the same identity (and keeps its relay
+    token bindings / ``host_id:secret`` mapping).
+    """
+    path = relay_host_id_path(config_path)
+    try:
+        existing = path.read_text(encoding="utf-8").strip()
+    except OSError:
+        existing = ""
+    if existing:
+        return existing
+    minted = uuid.uuid4().hex
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        # Another process minted it first; use theirs.
+        return path.read_text(encoding="utf-8").strip() or minted
+    except OSError:
+        log.warning(
+            "Cannot persist relay host_id at %s; using an ephemeral id. "
+            "Set PODCAST_RELAY_HOST_ID for a stable identity.",
+            path,
+        )
+        return minted
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(minted + "\n")
+    return minted
 
 
 def _read_mapping(path: Path) -> dict[str, Any]:
@@ -214,6 +264,10 @@ def validate_relay_config(config: RelayConfig) -> RelayConfig:
     local_host = urlparse(local_gui_url).hostname
     if not is_loopback_host(local_host):
         raise RuntimeConfigError("local_gui_url must use a loopback host")
+    if not _HOST_ID_RE.match(config.host_id):
+        raise RuntimeConfigError(
+            "host_id must be 1-128 characters of letters, digits, '.', '_' or '-'"
+        )
     return RelayConfig(
         relay_url=relay_url,
         host_token=config.host_token,
@@ -279,6 +333,7 @@ def _load_object_store(
 def _load_relay_config(
     file_cfg: Mapping[str, Any],
     *,
+    config_path: Path,
     relay_url: str | None,
     host_token: str | None,
     public_base_url: str | None,
@@ -315,6 +370,14 @@ def _load_relay_config(
                 file_cfg=file_cfg,
                 default=DEFAULT_LOCAL_GUI_URL,
             ),
+            host_id=_select(
+                "host_id",
+                explicit=None,
+                environ=environ,
+                file_cfg=file_cfg,
+                default="",
+            )
+            or persisted_relay_host_id(config_path),
         )
     )
 
@@ -335,6 +398,7 @@ def load_relay_config(
     _validate_top_level_keys(file_cfg)
     return _load_relay_config(
         file_cfg,
+        config_path=path,
         relay_url=relay_url,
         host_token=host_token,
         public_base_url=public_base_url,
@@ -359,6 +423,7 @@ def load_host_runtime_config(
     _validate_top_level_keys(file_cfg)
     relay = _load_relay_config(
         file_cfg,
+        config_path=path,
         relay_url=relay_url,
         host_token=host_token,
         public_base_url=public_base_url,

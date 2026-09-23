@@ -91,7 +91,7 @@ def test_play_service_dry_run(minimal_project, sample_wav, tmp_workspace) -> Non
         )
     assert result.wav_path.suffix == ".wav"
     mock_extract.assert_called_once()
-    from podcast_mcp.services.session_state import read_session_state
+    from podcast_mcp.services.session_sync.service import read_session_state
 
     state = read_session_state(ws.project)
     assert state is not None
@@ -100,7 +100,7 @@ def test_play_service_dry_run(minimal_project, sample_wav, tmp_workspace) -> Non
     assert state["region"] == {"start_sec": 0.0, "end_sec": 1.0}
     assert state["source"] == "track:host"
     assert state["track_id"] == "host"
-    assert state["command_id"]
+    assert state["last_command_id"]
     assert state["origin"] == "agent"
 
 
@@ -127,7 +127,7 @@ def test_play_publish_audition_can_skip(minimal_project, sample_wav, tmp_workspa
             dry_run=True,
             publish_audition=False,
         )
-    from podcast_mcp.services.session_state import read_session_state
+    from podcast_mcp.services.session_sync.service import read_session_state
 
     assert read_session_state(ws.project) is None
 

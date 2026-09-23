@@ -8,7 +8,6 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from podcast_mcp.edits.share_registry import reset_share_registry_for_tests
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services import ProjectWorkspace
@@ -25,10 +24,7 @@ from podcast_mcp.services.record.upload import (
 from podcast_mcp.services.share import ShareService
 
 
-def _isolate_registry(tmp_workspace: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(tmp_workspace / "shares_index.json"))
-    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_workspace / "reg.sqlite"))
-    reset_share_registry_for_tests()
+def _isolate() -> None:
     reset_record_runtime_for_tests()
 
 
@@ -42,7 +38,7 @@ def _seed_premix(minimal_project, sample_wav):
 
 
 def _room(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    _isolate_registry(tmp_workspace, monkeypatch)
+    _isolate()
     ws = _seed_premix(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     return ws, room, TestClient(create_app())

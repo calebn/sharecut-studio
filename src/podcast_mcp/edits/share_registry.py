@@ -93,23 +93,21 @@ def _iso(dt: datetime) -> str:
     return dt.astimezone(UTC).isoformat()
 
 
+def _resolve_registry_path(path: str | Path) -> Path:
+    """Normalize a registry path. The path is used verbatim (no suffix rewrite)."""
+    return Path(path).expanduser().resolve()
+
+
 def default_share_registry_db_path() -> Path:
     """Path to the host share registry sqlite DB.
 
-    Prefer pinning with ``PODCAST_SHARE_REGISTRY``. For compatibility, if
-    ``PODCAST_REVIEW_SHARES_INDEX`` points at a ``.json`` path, the sibling
-    ``.sqlite`` file is used so existing test/env harnesses stay isolated.
+    Prefer pinning with ``PODCAST_SHARE_REGISTRY``; the override is used
+    verbatim (whatever its suffix) so every caller opens the same file.
     """
     override = os.environ.get("PODCAST_SHARE_REGISTRY", "").strip()
     if override:
-        return Path(override).expanduser().resolve()
-    legacy = os.environ.get("PODCAST_REVIEW_SHARES_INDEX", "").strip()
-    if legacy:
-        p = Path(legacy).expanduser().resolve()
-        if p.suffix.lower() == ".json":
-            return p.with_suffix(".sqlite")
-        return p
-    return Path.home() / ".podcast_mcp" / "share_registry.sqlite"
+        return _resolve_registry_path(override)
+    return _resolve_registry_path(Path.home() / ".podcast_mcp" / "share_registry.sqlite")
 
 
 @runtime_checkable
@@ -453,9 +451,6 @@ class SqliteShareRegistry:
         }
 
 
-# Backward-compatible name used by tests and older imports.
-ShareRegistry = SqliteShareRegistry
-
 _registry_singleton: SqliteShareRegistry | None = None
 _registry_lock = threading.Lock()
 
@@ -470,15 +465,19 @@ def reset_share_registry_for_tests() -> None:
 
 
 def get_share_registry(db_path: Path | None = None) -> ShareRegistryProtocol:
-    """Process-wide registry, or an ephemeral one when *db_path* is passed."""
+    """Process-wide registry for the default path; ephemeral for any other *db_path*.
+
+    *db_path* is used verbatim (no suffix rewrite). When it resolves to
+    :func:`default_share_registry_db_path` the process singleton is returned so
+    lookups do not open a second connection to the same file.
+    """
     global _registry_singleton
+    path = default_share_registry_db_path()
     if db_path is not None:
-        path = Path(db_path)
-        if path.suffix.lower() == ".json":
-            path = path.with_suffix(".sqlite")
-        return SqliteShareRegistry(path)
+        requested = _resolve_registry_path(db_path)
+        if requested != path:
+            return SqliteShareRegistry(requested)
     with _registry_lock:
-        path = default_share_registry_db_path()
         if _registry_singleton is None or _registry_singleton.db_path != path:
             if _registry_singleton is not None:
                 _registry_singleton.close()
@@ -520,12 +519,20 @@ def backup_share_registry(
     return reg.backup_to(Path(dest))
 
 
+_NEVER_USED = datetime.min.replace(tzinfo=UTC)
+
+
 def share_last_used_at(row: dict[str, Any]) -> datetime:
-    """Effective last-used clock (falls back to created_at)."""
+    """Effective last-used clock.
+
+    Registry rows always carry ``last_used_at`` (NOT NULL column), but project
+    sidecar rows are not schema-enforced: fall back to ``created_at``, and when
+    neither parses fail closed (``datetime.min``) so the share reads inactive.
+    """
     return (
         _parse_iso(str(row.get("last_used_at") or ""))
         or _parse_iso(str(row.get("created_at") or ""))
-        or _now()
+        or _NEVER_USED
     )
 
 

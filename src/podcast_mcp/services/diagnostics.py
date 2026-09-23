@@ -69,7 +69,6 @@ ENV_ALLOWLIST = (
     "PODCAST_SHARE_ACCOUNTS",
     "PODCAST_MAGIC_LINK_PRINT",
     "PODCAST_PROGRESS_COMPLIANCE",
-    "PODCAST_REVIEW_SHARES_INDEX",
     "PODCAST_SHARE_REGISTRY",
 )
 _BOOL_VALUES = frozenset({"0", "1", "true", "false", "yes", "no", "on", "off"})
