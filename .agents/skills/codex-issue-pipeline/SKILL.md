@@ -129,6 +129,10 @@ action; do not loop indefinitely.
    Post actionable findings and verify they appear on the PR.
 6. Classify every review item as fix, follow-up, or won't-do. Make safe fixes,
    add tests/docs, reply to each thread, and verify replies and resolutions.
+   GitHub can leave thread replies inside a `PENDING` review even when the
+   author sees them in a thread query. Submit each pending review with a
+   `COMMENT` event, then verify its state is `COMMENTED` and re-read the
+   threads. Do not count an author-visible pending reply as posted feedback.
    File real follow-up issues for deferred work and add `Related #M` to the PR.
    A won't-do item holds the PR for owner sign-off. Repeat review only on the
    changed surface and affected adjacent code; keep the same eight-concern
