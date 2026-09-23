@@ -1,5 +1,7 @@
 import type { Preview } from "@storybook/react-vite";
 import "../src/styles/daw.css";
+import { applyTheme, isThemePreference } from "../src/hooks/useTheme";
+import { StudioDocsContainer } from "../src/storybook/StudioDocsContainer";
 
 const preview: Preview = {
   parameters: {
@@ -8,6 +10,7 @@ const preview: Preview = {
     },
     controls: { matchers: { color: /(background|color)$/i, date: /Date$/i } },
     backgrounds: { disable: true },
+    docs: { container: StudioDocsContainer },
     a11y: {
       // Reuse the project's axe posture: contrast is enforced by theme
       // tokens, not per-story spot checks.
@@ -17,7 +20,8 @@ const preview: Preview = {
   globalTypes: {
     theme: {
       name: "Theme",
-      description: "Light / dark Studio theme (sets data-theme on <html>)",
+      description:
+        "Light / dark / system Studio theme (sets data-theme on <html>; docs pages follow it)",
       defaultValue: "system",
       toolbar: {
         icon: "paintbrush",
@@ -32,12 +36,8 @@ const preview: Preview = {
   },
   decorators: [
     (Story, context) => {
-      const theme = context.globals.theme as string;
-      if (theme === "system") {
-        document.documentElement.removeAttribute("data-theme");
-      } else {
-        document.documentElement.dataset.theme = theme;
-      }
+      const theme: unknown = context.globals.theme;
+      applyTheme(isThemePreference(theme) ? theme : "system");
       return Story();
     },
   ],

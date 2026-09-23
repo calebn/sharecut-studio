@@ -35,7 +35,7 @@ deploying it.
 
 | Kind | Where | Notes |
 |------|-------|-------|
-| Unit | `src/**/*.test.ts` | Pure utils, session dedupe, share mode, theme init |
+| Unit | `src/**/*.test.ts` | Pure utils, session dedupe, share mode, theme init/resolution |
 | Component + a11y | `src/**/*.test.tsx` | React Testing Library + Deque `axe-core` via `expectNoA11yViolations` |
 | E2E smoke + a11y | `e2e/*.spec.ts` | Playwright + `@axe-core/playwright` via shared `expectPageAxeClean` (dense DAW) or `expectReadingSurfaceAxeClean` (Home / marketing HTML; required for green CI) |
 | Browser compatibility | `e2e-compat/*.spec.ts` | Small cross-browser matrix for the playback control, phone layout, and synthetic-media recording consent; runs Chromium and Playwright WebKit. Shared helpers: `e2e/recordRoom.ts` (record rooms, E2E flag, record links) and `e2e/syntheticMicrophone.ts` (oscillator mic stub). Set `E2E_BRANDED_CHROME=1` locally to also use installed Chrome. |
