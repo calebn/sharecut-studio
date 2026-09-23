@@ -29,6 +29,13 @@ SHARED_COLOR_ROLES: tuple[str, ...] = (
     "--color-shadow-soft",
 )
 
+DOCS_THEME_ROLES = (
+    "--color-bg-canvas",
+    "--color-text-primary",
+    "--color-border",
+)
+CSS_HEX_RE = re.compile(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})")
+
 _PROP_RE = re.compile(
     r"(--color-[a-z0-9-]+)\s*:\s*([^;]+);",
     re.IGNORECASE | re.DOTALL,
@@ -232,6 +239,19 @@ def test_brand_light_prefers_matches_data_theme() -> None:
         assert primary[role] == other[role], (
             f"{role} mismatch: data-theme={primary[role]!r} prefers={other[role]!r}"
         )
+
+
+def test_docs_theme_roles_are_valid_hex_in_each_brand_theme() -> None:
+    """Storybook's docs theme passes these roles to its color parser."""
+    for theme_name, roles in (
+        ("dark", brand_dark_roles()),
+        ("light data-theme", brand_light_data_roles()),
+        ("light OS preference", brand_light_prefers_roles()),
+    ):
+        for role in DOCS_THEME_ROLES:
+            value = roles.get(role)
+            assert value is not None, f"{theme_name} missing {role}"
+            assert CSS_HEX_RE.fullmatch(value), f"{theme_name} {role} is not CSS hex: {value}"
 
 
 def test_theme_light_prefers_matches_data_theme() -> None:

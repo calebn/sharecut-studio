@@ -3,6 +3,7 @@ import { act, render, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import type { ThemeVars } from "storybook/theming";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { stubMatchMedia } from "../test/matchMedia";
 import { StudioDocsContainer } from "./StudioDocsContainer";
 
 const seen = vi.hoisted(() => ({
@@ -27,14 +28,6 @@ vi.mock("@storybook/addon-docs/blocks", () => ({
   },
 }));
 
-function stubDarkOs(): void {
-  vi.stubGlobal("matchMedia", () => ({
-    matches: false,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-  }));
-}
-
 const context = {
   marker: "docs-context",
 } as unknown as DocsContainerProps["context"];
@@ -48,7 +41,7 @@ afterEach(() => {
 
 describe("StudioDocsContainer", () => {
   it("passes context, children and a theme that follows data-theme", async () => {
-    stubDarkOs();
+    stubMatchMedia(false);
     const { getByText } = render(
       <StudioDocsContainer context={context}>
         <p>Docs body</p>
@@ -69,7 +62,7 @@ describe("StudioDocsContainer", () => {
   });
 
   it("reuses the memoized theme while the base is unchanged", () => {
-    stubDarkOs();
+    stubMatchMedia(false);
     const { rerender } = render(
       <StudioDocsContainer context={context}>
         <p>Docs body</p>

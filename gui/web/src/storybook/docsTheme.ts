@@ -7,7 +7,7 @@ import {
 } from "../hooks/useTheme";
 
 /** Colour format `studioDocsTheme` accepts (Storybook's polished helpers need real colours). */
-export const HEX_COLOR_RE = /^#[0-9a-f]{3,8}$/i;
+const HEX_COLOR_RE = /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 
 /**
  * Re-render when the toolbar flips `data-theme` or the OS scheme changes.
