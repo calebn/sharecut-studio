@@ -88,3 +88,16 @@ def test_frontend_job_runs_nonblocking_prod_audit_after_install() -> None:
     audit_step = steps[audit_index]
     assert audit_step["continue-on-error"] is True
     assert "working-directory" not in audit_step
+
+
+def test_frontend_audit_failure_is_written_to_job_summary() -> None:
+    steps = load_github_yaml(TEST_WORKFLOW)["jobs"]["frontend"]["steps"]
+    run_commands = [step.get("run") for step in steps]
+    assert AUDIT_COMMAND in run_commands, f"frontend job must run {AUDIT_COMMAND}"
+    audit_index = run_commands.index(AUDIT_COMMAND)
+    assert steps[audit_index]["id"] == "npm-audit"
+
+    summary_step = steps[audit_index + 1]
+    assert summary_step["if"] == "steps.npm-audit.outcome == 'failure'"
+    assert "GITHUB_STEP_SUMMARY" in summary_step["run"]
+    assert "continue-on-error" not in summary_step

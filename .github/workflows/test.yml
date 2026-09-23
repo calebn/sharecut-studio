@@ -68,11 +68,21 @@ jobs:
 
       - run: npm ci
       - name: npm audit (production deps, non-blocking)
+        id: npm-audit
         # Advisory only: surfaces high/critical advisories in shipped runtime
         # deps without making the required `frontend` check depend on upstream
         # advisory timing. Dependabot (.github/dependabot.yml) opens the fix PRs.
         continue-on-error: true
         run: npm audit --omit=dev --audit-level=high
+      - name: Summarize npm audit findings
+        # continue-on-error keeps `conclusion` green; `outcome` still reports failure.
+        if: steps.npm-audit.outcome == 'failure'
+        run: |
+          {
+            echo "### npm audit (advisory): high/critical advisories in production deps"
+            echo
+            echo "\`npm audit --omit=dev --audit-level=high\` failed in \`gui/web\` (non-blocking). Open the npm audit step log for details."
+          } >> "$GITHUB_STEP_SUMMARY"
       - run: npm run lint
       - run: npm run format:check
       - run: npm run typecheck
