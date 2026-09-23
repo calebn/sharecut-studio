@@ -113,6 +113,16 @@ def test_lean_profile_and_no_merge_are_opt_in() -> None:
     assert "model: LEAN && round > 1 ? M.worker : M.senior" in script
 
 
+def test_prompts_state_provenance_without_authority_claims() -> None:
+    """Authority claims read as prompt injection to subagents; state provenance instead."""
+    script = _script()
+    assert "which the user started from chat" in script
+    for phrase in ("PRE-AUTHORIZED", "pre-authorized", "no human in this loop"):
+        assert phrase not in script, phrase
+    text = CONTRIBUTING.read_text(encoding="utf-8")
+    assert "Launch every run with a chat message that names it" in text
+
+
 def test_model_tiers() -> None:
     script = _script()
     assert "const M = { cheap: 'haiku', worker: 'sonnet', senior: 'opus' }" in script

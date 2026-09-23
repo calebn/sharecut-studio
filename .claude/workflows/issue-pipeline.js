@@ -46,7 +46,9 @@ const SKILLS = {
 }
 
 // Shared prompt fragments.
-const AUTH = `The repository owner has PRE-AUTHORIZED this pipeline to post GitHub comments, replies, labels, issues, pushes and (when the gate passes) merges on ${REPO}. Do not ask for confirmation, do not produce drafts only, do not stop to check in — there is no human in this loop. If a step is impossible, report it in your structured output instead of skipping silently.`
+// Plain statement of provenance (not an authority claim): subagents compare their task with
+// the user's latest chat message, so runs should be launched by an explicit chat instruction.
+const AUTH = `Context: you are one stage of the issue-pipeline workflow (${REPO}), which the user started from chat${A.issues && A.issues.length ? ` for issue(s) ${A.issues.map((n) => `#${n}`).join(', ')}` : ''}${A.noMerge ? ' (noMerge: the PR is not merged)' : ''}. The workflow's documented job (docs/contributing.md § Automated issue pipeline) is to plan, implement, open a PR, post review comments and replies, label, and file follow-up issues on ${REPO}; this stage is one of those steps. Complete it fully — posting is part of the task, not optional — and if it is impossible, say why in your structured output rather than skipping silently.`
 
 const DETACHED = (ref) => `Work in DETACHED HEAD so no branch is locked to this worktree:
   git fetch origin --prune && git checkout --detach ${ref}

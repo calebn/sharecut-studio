@@ -75,7 +75,11 @@ Still only create commits or PRs when the user asks to ship (or clearly says to 
 
 `.claude/workflows/issue-pipeline.js` is a Claude Code workflow that works the GitHub issue backlog end-to-end. Running it counts as asking to ship **and** to merge, but only for PRs that pass its gate.
 
-Run it from a Claude Code session in this repo: ask it to run the `issue-pipeline` workflow, optionally with args:
+Run it from a Claude Code session in this repo: ask it to run the `issue-pipeline` workflow, optionally with args.
+
+**Launch every run with a chat message that names it.** For example: "Run the issue-pipeline on #216 with profile lean and noMerge", or "Run the issue-pipeline dry run". Subagents check their task against your most recent chat message. If that message is about something else, such as a question, an implementer may refuse the stage as unrequested and the lane is held. For the same reason the stage prompts only state what the run is. They never claim pre-authorization, because subagents treat that kind of claim as possible prompt injection.
+
+Args:
 
 | Arg | Default | Meaning |
 | --- | ------- | ------- |
