@@ -909,6 +909,33 @@ def test_viewer_snapshot_merge(minimal_project) -> None:
     assert out["playhead_sec"] == 1.0
 
 
+def test_viewer_heartbeat_reuses_command_snapshot(minimal_project, monkeypatch) -> None:
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+    svc.submit_control("SetPlaying", {"is_playing": True})
+    store = svc.store
+    original_snapshot = SessionSyncService.snapshot
+    reads = 0
+
+    def counted_snapshot(self: SessionSyncService):
+        nonlocal reads
+        reads += 1
+        return original_snapshot(self)
+
+    monkeypatch.setattr(SessionSyncService, "snapshot", counted_snapshot)
+    for n in range(16):
+        out = publish_viewer_snapshot(
+            proj,
+            {"client_id": f"viewer-{n % 8}", "is_playing": True, "playhead_sec": float(n)},
+        )
+        assert out["clients"]
+        assert out["is_playing"] is True
+    # One authority read for comparison and one from PresenceHeartbeat; the
+    # returned command snapshot replaces a redundant final read.
+    assert reads == 32
+    assert SessionSyncService(proj).store is store
+
+
 def test_session_meta_missing_and_present(minimal_project) -> None:
     meta = SessionSyncService.open(minimal_project).meta()
     assert meta["exists"] is False
