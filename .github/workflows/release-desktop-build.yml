@@ -126,7 +126,7 @@ jobs:
       # Checkout itself does not execute repository files. The following inline step
       # verifies the checked-out SHA before any script, package manager, or secret use.
       - name: Checkout candidate source
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: ${{ steps.source.outputs.repository }}
           ref: ${{ steps.source.outputs.ref }}
@@ -182,7 +182,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: ${{ needs.verify-source.outputs.source_repository }}
           ref: ${{ needs.verify-source.outputs.source_sha }}
@@ -354,7 +354,7 @@ jobs:
           echo "::error::sign=true requires a source commit reachable from protected main" >&2
           exit 1
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: ${{ needs.verify-source.outputs.source_repository }}
           ref: ${{ needs.verify-source.outputs.source_sha }}
