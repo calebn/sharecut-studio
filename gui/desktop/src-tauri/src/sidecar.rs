@@ -6,8 +6,13 @@ mod sidecar_shared;
 use std::path::{Path, PathBuf};
 
 pub use sidecar_shared::{
-    apply_create_no_window, open_sidecar_log, sidecar_listen_path, sidecar_log_path,
+    apply_create_no_window, detach_to_sidecar_log, open_sidecar_log, sidecar_log_path,
 };
+
+/// Per-process listen file the packaged sidecar writes its ephemeral port to.
+pub fn sidecar_listen_path() -> PathBuf {
+    sidecar_log_path().with_file_name(format!("sidecar.listen.{}.json", std::process::id()))
+}
 
 /// Filenames to try beside the host executable (Windows first).
 pub fn sidecar_file_names(windows: bool) -> &'static [&'static str] {

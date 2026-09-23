@@ -285,9 +285,8 @@ def test_tauri_production_window_waits_on_splash() -> None:
     assert "pid_owns_loopback_listen" in sidecar_rs
     assert "loopback_listener_owned" not in sidecar_rs
     assert "200 OK" not in sidecar_rs.split("health_body_ok")[1].split("pub fn health_http_ok")[0]
-    shared = (ROOT / "scripts" / "sidecar_shared.rs").read_text(encoding="utf-8")
-    assert "sidecar.listen.{}.json" in shared
-    assert 'with_file_name("sidecar.listen.json")' not in shared
+    assert "sidecar.listen.{}.json" in sidecar_rs
+    assert 'with_file_name("sidecar.listen.json")' not in sidecar_rs
     share_url = (ROOT / "gui/desktop/src-tauri/src/share_url.rs").read_text(encoding="utf-8")
     assert "fn is_discovered_engine_origin" in share_url
     assert 'host == "127.0.0.1"' in share_url

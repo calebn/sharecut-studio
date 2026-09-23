@@ -1,35 +1,54 @@
 //! Tiny frozen sidecar: set PODCAST_GUI_DIST + PYTHONHOME, rewrite pyvenv.cfg, exec Python.
 //! Compiled by scripts/build_sidecar.py (no crates).
+//!
+//! `sharecut-sidecar --cli <podcast args>` forwards to the bundled CLI. Which
+//! subcommands are allowed is Python's call (`PODCAST_PACKAGED_CLI`, see
+//! `services/gui_launch.py`); this launcher never parses the CLI grammar.
 
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
 #[path = "sidecar_shared.rs"]
 mod sidecar_shared;
 
-use sidecar_shared::{apply_create_no_window, open_sidecar_log};
+use sidecar_shared::detach_to_sidecar_log;
 use std::env;
+use std::ffi::OsString;
 use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
-use std::process::{exit, Command, Stdio};
+use std::process::{exit, Command};
 
 const PYTHON_HOME_MARKER: &str = ".python-home";
+const CLI_FLAG: &str = "--cli";
+/// Python-side marker: the packaged CLI must not start a second GUI host.
+const PACKAGED_CLI_ENV: &str = "PODCAST_PACKAGED_CLI";
+/// `-P`: never put the (untrusted) caller cwd on `sys.path`. Not `-I`/`-E`,
+/// which would ignore the `PYTHONHOME` relocation below.
+const PYTHON_MODULE_ARGS: [&str; 3] = ["-P", "-m", "podcast_mcp.cli.main"];
+/// Dummy CLI port; Python resolved_bind_port honors PODCAST_SIDECAR_EPHEMERAL.
+const GUI_ARGS: [&str; 6] = ["gui", "--host", "127.0.0.1", "--port", "8765", "--no-open"];
+/// Shell env (pyenv / conda / venv) that would point the frozen runtime at a
+/// foreign stdlib or site-packages.
+const FOREIGN_PYTHON_ENV: [&str; 5] = [
+    "PYTHONHOME",
+    "PYTHONPATH",
+    "PYTHONSTARTUP",
+    "PYTHONUSERBASE",
+    "VIRTUAL_ENV",
+];
 
 #[derive(Debug, PartialEq, Eq)]
 enum LauncherMode {
     Gui,
-    Cli(Vec<String>),
+    Cli(Vec<OsString>),
 }
 
-fn parse_mode(args: impl IntoIterator<Item = String>) -> LauncherMode {
+fn parse_mode(args: impl IntoIterator<Item = OsString>) -> LauncherMode {
     let mut args = args.into_iter();
-    match args.next().as_deref() {
-        Some("--cli") => LauncherMode::Cli(args.collect()),
+    match args.next() {
+        Some(first) if first == CLI_FLAG => LauncherMode::Cli(args.collect()),
         _ => LauncherMode::Gui,
     }
-}
-
-fn is_gui_cli_request(mode: &LauncherMode) -> bool {
-    matches!(mode, LauncherMode::Cli(args) if args.first().is_some_and(|arg| arg == "gui"))
 }
 
 fn runtime_dir(exe: &Path) -> Option<PathBuf> {
@@ -140,12 +159,7 @@ fn base_python_exe(home: &Path) -> PathBuf {
 /// Windows `venv\Scripts\python.exe` is a stub that reads absolute `home` /
 /// `executable` from `pyvenv.cfg`. After NSIS/AppImage relocate those still
 /// point at the freeze host (e.g. `D:\a\sharecut-studio\...`).
-fn rewrite_pyvenv_cfg(runtime: &Path, home: &Path) {
-    let cfg_path = runtime.join("venv").join("pyvenv.cfg");
-    let Ok(text) = fs::read_to_string(&cfg_path) else {
-        return;
-    };
-    let exe = base_python_exe(home);
+fn rewritten_pyvenv_cfg(text: &str, home: &Path, exe: &Path) -> String {
     let home_s = home.display().to_string();
     let exe_s = exe.display().to_string();
     let mut out = Vec::new();
@@ -179,64 +193,117 @@ fn rewrite_pyvenv_cfg(runtime: &Path, home: &Path) {
     if !saw_base {
         out.push(format!("base-executable = {exe_s}"));
     }
-    let _ = fs::write(&cfg_path, out.join("\n") + "\n");
+    out.join("\n") + "\n"
 }
 
-fn apply_python_home(cmd: &mut Command, runtime: &Path) {
-    if env::var_os("PYTHONHOME").is_some() {
+/// Point `pyvenv.cfg` at `home`. Returns whether the file was rewritten.
+///
+/// Concurrent `--cli` calls and the app's own sidecar may all run this, and
+/// another interpreter may be reading the file: skip the write when nothing
+/// changed (the normal case after first launch) and otherwise replace it
+/// atomically via a sibling temp file + rename, never truncate in place.
+fn sync_pyvenv_cfg(runtime: &Path, home: &Path) -> io::Result<bool> {
+    let cfg_path = runtime.join("venv").join("pyvenv.cfg");
+    let text = match fs::read_to_string(&cfg_path) {
+        Ok(text) => text,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(err) => return Err(err),
+    };
+    let updated = rewritten_pyvenv_cfg(&text, home, &base_python_exe(home));
+    if updated == text {
+        return Ok(false);
+    }
+    let tmp = cfg_path.with_file_name(format!("pyvenv.cfg.{}.tmp", std::process::id()));
+    fs::write(&tmp, updated)?;
+    if let Err(err) = fs::rename(&tmp, &cfg_path) {
+        let _ = fs::remove_file(&tmp);
+        return Err(err);
+    }
+    Ok(true)
+}
+
+/// Set `PYTHONHOME` to the bundled prefix. GUI mode keeps an inherited
+/// `PYTHONHOME` (contributor override); CLI mode always uses the bundle.
+fn apply_python_home(cmd: &mut Command, runtime: &Path, keep_inherited: bool) {
+    if keep_inherited && env::var_os("PYTHONHOME").is_some() {
         return;
     }
     if let Some(home) = bundled_cpython_prefix(runtime) {
-        rewrite_pyvenv_cfg(runtime, &home);
+        if let Err(err) = sync_pyvenv_cfg(runtime, &home) {
+            eprintln!(
+                "Sharecut Studio sidecar: could not update {}: {err}",
+                runtime.join("venv").join("pyvenv.cfg").display()
+            );
+        }
         cmd.env("PYTHONHOME", home);
     }
 }
 
-fn python_command(py: &Path, dist: &Path, runtime: &Path, mode: &LauncherMode) -> Command {
+/// Build the Python child. `detach` wires GUI-mode stdio (the sidecar log in
+/// production); CLI mode never calls it, so it inherits the terminal's stdio.
+fn python_command(
+    py: &Path,
+    dist: &Path,
+    runtime: &Path,
+    mode: &LauncherMode,
+    detach: impl FnOnce(&mut Command),
+) -> Command {
     let mut cmd = Command::new(py);
-    cmd.env("PODCAST_GUI_DIST", dist);
+    cmd.env("PODCAST_GUI_DIST", dist).args(PYTHON_MODULE_ARGS);
     match mode {
         LauncherMode::Gui => {
             cmd.current_dir(runtime)
+                .env_remove(PACKAGED_CLI_ENV)
                 .env("PODCAST_MAGIC_LINK_PRINT", "0")
                 .env("PODCAST_GUI_OPENAPI", "0")
-                // Dummy CLI port; Python resolved_bind_port honors PODCAST_SIDECAR_EPHEMERAL.
-                .args([
-                    "-m",
-                    "podcast_mcp.cli.main",
-                    "gui",
-                    "--host",
-                    "127.0.0.1",
-                    "--port",
-                    "8765",
-                    "--no-open",
-                ]);
+                .args(GUI_ARGS);
+            apply_python_home(&mut cmd, runtime, true);
+            detach(&mut cmd);
         }
         LauncherMode::Cli(args) => {
-            cmd.args(["-m", "podcast_mcp.cli.main"]).args(args);
-        }
-    }
-    apply_python_home(&mut cmd, runtime);
-    if matches!(mode, LauncherMode::Gui) {
-        apply_create_no_window(&mut cmd);
-        if let Some(log) = open_sidecar_log() {
-            if let Ok(err_log) = log.try_clone() {
-                cmd.stdout(Stdio::from(log)).stderr(Stdio::from(err_log));
-            } else {
-                cmd.stdout(Stdio::null()).stderr(Stdio::null());
+            for key in FOREIGN_PYTHON_ENV {
+                cmd.env_remove(key);
             }
-        } else {
-            cmd.stdout(Stdio::null()).stderr(Stdio::null());
+            cmd.env(PACKAGED_CLI_ENV, "1")
+                .env("PYTHONNOUSERSITE", "1")
+                .args(args);
+            apply_python_home(&mut cmd, runtime, false);
         }
     }
     cmd
 }
 
+/// The launcher is a GUI-subsystem exe: cmd/PowerShell do not wait for it and
+/// a console child would flash in its own window, losing output and exit code.
+/// Fail clearly until a console shim ships (#97).
+#[cfg(windows)]
+fn report_windows_cli_unsupported() {
+    use std::io::Write;
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn AttachConsole(process_id: u32) -> i32;
+    }
+    const ATTACH_PARENT_PROCESS: u32 = u32::MAX;
+    let msg = "Sharecut Studio sidecar: --cli is not supported on Windows yet; \
+               use the installed Sharecut Studio app or the pip `podcast` CLI.";
+    unsafe {
+        AttachConsole(ATTACH_PARENT_PROCESS);
+    }
+    let _ = writeln!(io::stderr(), "{msg}");
+    if let Some(mut log) = sidecar_shared::open_sidecar_log() {
+        let _ = writeln!(log, "{msg}");
+    }
+}
+
 fn main() {
-    let mode = parse_mode(env::args().skip(1));
-    if is_gui_cli_request(&mode) {
-        eprintln!("Sharecut Studio packaged launcher: '--cli gui' is not supported; launch or focus the installed Sharecut Studio app instead.");
-        exit(2);
+    let mode = parse_mode(env::args_os().skip(1));
+    #[cfg(windows)]
+    {
+        if matches!(mode, LauncherMode::Cli(_)) {
+            report_windows_cli_unsupported();
+            exit(2);
+        }
     }
     let exe = env::current_exe().unwrap_or_else(|err| {
         eprintln!("Sharecut Studio sidecar: current_exe failed: {err}");
@@ -258,7 +325,7 @@ fn main() {
         );
         exit(1);
     }
-    let mut cmd = python_command(&py, &dist, &runtime, &mode);
+    let mut cmd = python_command(&py, &dist, &runtime, &mode, detach_to_sidecar_log);
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
@@ -281,50 +348,180 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cell::Cell;
+    use std::ffi::OsStr;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn os_args(args: &[&str]) -> Vec<OsString> {
+        args.iter().map(OsString::from).collect()
+    }
+
+    fn build(mode: &LauncherMode, detached: &Cell<bool>) -> Command {
+        python_command(
+            Path::new("python"),
+            Path::new("dist"),
+            Path::new("runtime"),
+            mode,
+            |_| detached.set(true),
+        )
+    }
+
+    fn env_value(cmd: &Command, key: &str) -> Option<Option<OsString>> {
+        cmd.get_envs()
+            .find(|(k, _)| *k == OsStr::new(key))
+            .map(|(_, v)| v.map(OsStr::to_os_string))
+    }
+
+    fn scratch_dir(tag: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or_default();
+        let dir = env::temp_dir().join(format!(
+            "sharecut-launcher-{tag}-{}-{nanos}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&dir).expect("scratch dir");
+        dir
+    }
 
     #[test]
     fn missing_cli_flag_preserves_gui_mode() {
-        assert_eq!(parse_mode(Vec::<String>::new()), LauncherMode::Gui);
-        assert_eq!(parse_mode(["--other"].map(String::from)), LauncherMode::Gui);
+        assert_eq!(parse_mode(Vec::<OsString>::new()), LauncherMode::Gui);
+        assert_eq!(parse_mode(os_args(&["--other"])), LauncherMode::Gui);
     }
 
     #[test]
     fn cli_mode_forwards_every_argument_after_flag() {
         assert_eq!(
-            parse_mode(["--cli", "doctor", "--json"].map(String::from)),
-            LauncherMode::Cli(vec!["doctor".into(), "--json".into()])
+            parse_mode(os_args(&["--cli", "doctor", "--json"])),
+            LauncherMode::Cli(os_args(&["doctor", "--json"]))
         );
     }
 
     #[test]
-    fn cli_command_uses_python_module_and_forwards_args() {
-        let mode = LauncherMode::Cli(vec!["doctor".into(), "--json".into()]);
-        let cmd = python_command(
-            Path::new("python"),
-            Path::new("dist"),
-            Path::new("runtime"),
-            &mode,
+    fn cli_flag_alone_forwards_no_arguments() {
+        assert_eq!(parse_mode(os_args(&["--cli"])), LauncherMode::Cli(vec![]));
+        let detached = Cell::new(false);
+        let cmd = build(&LauncherMode::Cli(vec![]), &detached);
+        assert_eq!(
+            cmd.get_args().collect::<Vec<_>>(),
+            vec!["-P", "-m", "podcast_mcp.cli.main"]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cli_mode_forwards_non_utf8_arguments() {
+        use std::os::unix::ffi::OsStringExt;
+        let latin1 = OsString::from_vec(b"epis\xf3dio.json".to_vec());
+        let mode = parse_mode(vec![OsString::from("--cli"), latin1.clone()]);
+        assert_eq!(mode, LauncherMode::Cli(vec![latin1.clone()]));
+        let cmd = build(&mode, &Cell::new(false));
+        assert_eq!(cmd.get_args().last(), Some(latin1.as_os_str()));
+    }
+
+    #[test]
+    fn cli_command_isolates_cwd_and_forwards_args() {
+        let detached = Cell::new(false);
+        let cmd = build(
+            &LauncherMode::Cli(os_args(&["doctor", "--json"])),
+            &detached,
         );
         assert_eq!(
             cmd.get_args().collect::<Vec<_>>(),
-            vec!["-m", "podcast_mcp.cli.main", "doctor", "--json"]
+            vec!["-P", "-m", "podcast_mcp.cli.main", "doctor", "--json"]
         );
         assert_eq!(cmd.get_current_dir(), None);
     }
 
     #[test]
-    fn gui_command_runs_from_runtime_and_rejects_cli_gui() {
-        let gui = python_command(
-            Path::new("python"),
-            Path::new("dist"),
-            Path::new("runtime"),
-            &LauncherMode::Gui,
+    fn cli_command_keeps_inherited_stdio_and_marks_packaged_cli() {
+        let detached = Cell::new(false);
+        let cmd = build(&LauncherMode::Cli(os_args(&["gui"])), &detached);
+        assert!(
+            !detached.get(),
+            "CLI mode must not redirect to the sidecar log"
         );
-        assert_eq!(gui.get_current_dir(), Some(Path::new("runtime")));
-        assert!(is_gui_cli_request(&LauncherMode::Cli(vec!["gui".into()])));
-        assert!(!is_gui_cli_request(&LauncherMode::Cli(vec![
-            "doctor".into()
-        ])));
+        assert_eq!(env_value(&cmd, PACKAGED_CLI_ENV), Some(Some("1".into())));
+        assert_eq!(env_value(&cmd, "PODCAST_GUI_OPENAPI"), None);
+        assert_eq!(env_value(&cmd, "PODCAST_MAGIC_LINK_PRINT"), None);
+    }
+
+    #[test]
+    fn cli_command_scrubs_foreign_python_env() {
+        let cmd = build(&LauncherMode::Cli(vec![]), &Cell::new(false));
+        for key in [
+            "PYTHONPATH",
+            "PYTHONSTARTUP",
+            "PYTHONUSERBASE",
+            "VIRTUAL_ENV",
+        ] {
+            assert_eq!(env_value(&cmd, key), Some(None), "{key} not removed");
+        }
+        assert_eq!(env_value(&cmd, "PYTHONNOUSERSITE"), Some(Some("1".into())));
+    }
+
+    #[test]
+    fn gui_command_runs_from_runtime_detached_with_gui_env() {
+        let detached = Cell::new(false);
+        let cmd = build(&LauncherMode::Gui, &detached);
+        assert!(detached.get(), "GUI mode must detach stdio");
+        assert_eq!(cmd.get_current_dir(), Some(Path::new("runtime")));
+        assert_eq!(
+            cmd.get_args().collect::<Vec<_>>(),
+            vec![
+                "-P",
+                "-m",
+                "podcast_mcp.cli.main",
+                "gui",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "8765",
+                "--no-open"
+            ]
+        );
+        assert_eq!(
+            env_value(&cmd, "PODCAST_GUI_OPENAPI"),
+            Some(Some("0".into()))
+        );
+        assert_eq!(
+            env_value(&cmd, "PODCAST_MAGIC_LINK_PRINT"),
+            Some(Some("0".into()))
+        );
+        assert_eq!(env_value(&cmd, PACKAGED_CLI_ENV), Some(None));
+    }
+
+    #[test]
+    fn sync_pyvenv_cfg_writes_once_then_skips_unchanged() {
+        let runtime = scratch_dir("pyvenv");
+        let home = runtime.join("python").join("cpython-3.12");
+        fs::create_dir_all(runtime.join("venv")).expect("venv dir");
+        let cfg = runtime.join("venv").join("pyvenv.cfg");
+        fs::write(&cfg, "home = /install\nversion = 3.12.0\n").expect("seed cfg");
+
+        assert!(sync_pyvenv_cfg(&runtime, &home).expect("first sync"));
+        let text = fs::read_to_string(&cfg).expect("read cfg");
+        assert!(text.contains(&format!("home = {}", home.display())));
+        assert!(text.contains("version = 3.12.0"));
+        assert!(text.contains("base-executable = "));
+
+        assert!(!sync_pyvenv_cfg(&runtime, &home).expect("second sync"));
+        let leftovers: Vec<_> = fs::read_dir(runtime.join("venv"))
+            .expect("list venv")
+            .flatten()
+            .filter(|e| e.file_name() != "pyvenv.cfg")
+            .collect();
+        assert!(leftovers.is_empty(), "temp file left behind");
+        let _ = fs::remove_dir_all(&runtime);
+    }
+
+    #[test]
+    fn sync_pyvenv_cfg_missing_file_is_noop() {
+        let runtime = scratch_dir("nocfg");
+        assert!(!sync_pyvenv_cfg(&runtime, Path::new("/nowhere")).expect("noop"));
+        let _ = fs::remove_dir_all(&runtime);
     }
 }
 
