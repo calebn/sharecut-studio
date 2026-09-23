@@ -863,7 +863,7 @@ def test_api_session_state_roundtrip(minimal_project) -> None:
 
     from podcast_mcp.gui.server import create_app
     from podcast_mcp.models import load_project
-    from podcast_mcp.services.session_state import publish_agent_play
+    from podcast_mcp.services.session_sync.viewer import publish_agent_play
 
     proj = load_project(minimal_project)
     publish_agent_play(
@@ -889,7 +889,7 @@ def test_api_session_state_roundtrip(minimal_project) -> None:
     assert body["region"]["end_sec"] == 18.0
     assert body["source"] == "premix"
     assert body["is_playing"] is True
-    assert body["command_id"]
+    assert body["last_command_id"]
     assert body["origin"] == "agent"
 
     # While agent transport is playing, viewer playhead is presence-only
@@ -900,7 +900,7 @@ def test_api_session_state_roundtrip(minimal_project) -> None:
         json={
             "playhead_sec": 13.0,
             "client_id": "viewer-gui-test",
-            "ack_command_id": body["command_id"],
+            "ack_command_id": body["last_command_id"],
         },
     )
     assert posted.status_code == 200

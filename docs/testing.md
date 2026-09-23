@@ -94,6 +94,8 @@ To debug a single test without xdist overhead (so `-s` and `pdb` behave), invoke
 
 - `PODCAST_MCP_PIPELINE_DEFAULTS` → repo `.agents/defaults/pipeline.yaml`
 - S3-compatible object storage (`PODCAST_OBJECT_STORE_*` and `~/.config/podcast_mcp/relay.yaml`) → disabled so review-share `/audio` serves local `mix.mp3` instead of redirecting to object storage
+- `PODCAST_SHARE_REGISTRY` → per-test `tmp_path/share_registry.sqlite` (`_isolate_share_registry`, singleton reset before/after). Do not re-`setenv` it in tests unless the test needs a specific path (verbatim-override / two-registry cases)
+- `PODCAST_RELAY_CONFIG` → `tmp_path/relay.yaml` and `PODCAST_RELAY_HOST_ID` unset (`_isolate_relay_config`), so the persisted relay `host_id` never lands in the developer's home
 
 Tests that need object storage mock `load_object_store_config` / `ObjectStoreClient` explicitly (see `tests/test_review_media_object_store.py`).
 
@@ -160,7 +162,7 @@ requires HTTP 200 and host setup still waits for `networkidle`.
 | History / undo-redo | `test_history.py` |
 | Source↔timeline mapping | `test_session_timeline.py`, `test_timebase_regression.py` |
 | Timebase architecture guards / conformance | `test_timebase_guards.py`, `test_time_conformance.py` |
-| Agent ↔ DAW session sync | `test_session_sync.py`, `test_session_state.py`, `test_gui_api.py` (session endpoints) |
+| Agent ↔ DAW session sync | `test_session_sync.py`, `test_gui_api.py` (session endpoints) |
 | Document-command contract (schema + boundary rejects) | `test_document_command_payloads.py`, `test_document_command_boundary.py` (HTTP/WS/MCP 422/-32602 + OpenAPI↔schema) |
 | Share HTTP / MCP / WS parity | `test_share_http_mcp_parity.py` (`scripts/export_docs_site_contract.py`; WS discovery + curated notes for `/api/rec/` and `/api/review/`) |
 | Document handlers / caps | `test_document_sync.py`, `test_review_share.py`, `test_remote_mcp.py`, `test_structural_policy.py` |

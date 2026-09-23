@@ -126,9 +126,3 @@ def register_share(mcp: MCPServer) -> None:
     mcp.tool()(create_review_share_tool)
     mcp.tool()(create_record_room_tool)
     mcp.tool()(revoke_record_room_tool)
-
-
-def register(mcp: MCPServer) -> None:
-    """Backward-compatible: core + share (prefer register_core + extension)."""
-    register_core(mcp)
-    register_share(mcp)

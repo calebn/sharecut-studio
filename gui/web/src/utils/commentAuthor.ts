@@ -1,21 +1,14 @@
+import { readLocal, writeLocal } from "./storage";
+
 const STORAGE_KEY = "podcast-mcp-comment-author";
 const DEFAULT_AUTHOR = "viewer";
 
 export function loadCommentAuthor(): string {
-  try {
-    return localStorage.getItem(STORAGE_KEY) ?? DEFAULT_AUTHOR;
-  } catch {
-    return DEFAULT_AUTHOR;
-  }
+  return readLocal(STORAGE_KEY) ?? DEFAULT_AUTHOR;
 }
 
 export function saveCommentAuthor(author: string): void {
-  const who = author.trim() || DEFAULT_AUTHOR;
-  try {
-    localStorage.setItem(STORAGE_KEY, who);
-  } catch {
-    /* ignore quota / private mode */
-  }
+  writeLocal(STORAGE_KEY, author.trim() || DEFAULT_AUTHOR);
 }
 
 /** Identity for resolve / action-item completion; never empty. */

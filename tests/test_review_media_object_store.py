@@ -140,8 +140,6 @@ def test_review_guest_audio_prefers_mp3(minimal_project, sample_wav):
 def test_share_audio_mp3_without_object_store(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     for key in (
         "PODCAST_OBJECT_STORE_ENDPOINT_URL",
         "PODCAST_OBJECT_STORE_REGION",
@@ -166,8 +164,6 @@ def test_share_audio_mp3_without_object_store(
 def test_share_audio_redirects_when_object_store_uploaded(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     fake = _FakeObjectStore()
     cfg = ObjectStoreConfig(
         endpoint_url="https://s3.example.test",
@@ -200,8 +196,6 @@ def test_share_audio_redirects_when_object_store_uploaded(
 def test_revoke_deletes_object_store_object_when_unused(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     fake = _FakeObjectStore()
     cfg = ObjectStoreConfig(
         endpoint_url="https://s3.example.test",
@@ -412,8 +406,6 @@ def test_delete_object_store_skips_when_other_share_active(
 ):
     from podcast_mcp.services.review_media import delete_object_store_object_if_unused
 
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     fake = _FakeObjectStore()
     cfg = ObjectStoreConfig(
         endpoint_url="https://s3.example.test",
@@ -485,8 +477,6 @@ def test_presign_and_delete_client_variants(
         upload_review_version_to_object_store,
     )
 
-    index = tmp_workspace / "shares_index.json"
-    monkeypatch.setenv("PODCAST_REVIEW_SHARES_INDEX", str(index))
     fake = _FakeObjectStore()
     cfg = ObjectStoreConfig(
         endpoint_url="https://s3.example.test",

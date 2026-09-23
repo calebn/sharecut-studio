@@ -25,14 +25,11 @@ from podcast_mcp.services.record.service import (
     route_record_ws_message,
 )
 from podcast_mcp.services.record.state import HOST_PARTICIPANT_ID
-from podcast_mcp.services.session_state import (
-    publish_viewer_snapshot,
-    read_session_state,
-)
 from podcast_mcp.services.session_sync.authz import authorize_client
 from podcast_mcp.services.session_sync.commands import SyncCommand
 from podcast_mcp.services.session_sync.hub import get_hub
-from podcast_mcp.services.session_sync.service import SessionSyncService
+from podcast_mcp.services.session_sync.service import SessionSyncService, read_session_state
+from podcast_mcp.services.session_sync.viewer import publish_viewer_snapshot
 
 router = APIRouter()
 
@@ -181,7 +178,7 @@ def post_session_state(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
-    """Compat: viewer snapshot → typed commands."""
+    """Viewer blob -> typed commands (Ack, presence heartbeat, durable deltas)."""
     _auth(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     ws = ProjectWorkspace.open(project_path)
