@@ -9,7 +9,7 @@ export const STORY_SUPPORT_MODULES = new Set([
 ]);
 
 const IMPORT_SPECIFIER_RE =
-  /(?:\bfrom\s*|\bimport\s*\(?\s*)["'`]([^"'`\n]+)["'`]/g;
+  /(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*)["'`]([^"'`\n]+)["'`]/g;
 const GLOB_CALL_RE =
   /import\.meta\.glob\s*(?:<[^>]*>)?\s*\(\s*(\[[^\]]*\]|["'`][^"'`\n]*["'`])/g;
 const STRING_LITERAL_RE = /["'`]([^"'`\n]*)["'`]/g;
@@ -26,7 +26,7 @@ export function isStoryOrTestFile(rel: string): boolean {
   return /\.(?:stories|test)\.[jt]sx?$/.test(rel) || rel.startsWith("test/");
 }
 
-/** Module specifiers from static/dynamic imports and re-exports. */
+/** Module specifiers from static/dynamic imports, re-exports and `require()`. */
 export function importSpecifiers(text: string): string[] {
   return [...text.matchAll(IMPORT_SPECIFIER_RE)].map((m) => m[1]);
 }

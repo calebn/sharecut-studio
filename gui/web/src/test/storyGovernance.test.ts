@@ -16,6 +16,8 @@ describe("storyLeaks", () => {
     ["App.tsx", 'export { default } from "./ui/Menu.stories";', 1],
     ["App.tsx", 'import { fn } from "storybook/test";', 1],
     ["App.tsx", 'import type { Meta } from "@storybook/react-vite";', 1],
+    ["App.tsx", 'const s = require("storybook/test");', 1],
+    ["App.tsx", 'const s = require("./ui/Button.stories");', 1],
     [
       "record/RecordApp.tsx",
       'import { recordStoryDecorator } from "./recordStoryDecorator";',
