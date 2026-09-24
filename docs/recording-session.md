@@ -6,7 +6,9 @@ Audio-first MVP; beta still requires a **host laptop online**. Mint `/rec/`
 URLs with `podcast review share --kind record` (or Share dialog / MCP
 `create_record_room_tool`). `build.capture`, `build.monitor`, and `build.upload`
 are on. After file ACK, keepers copy into `raw/` as one clip per segment.
-Optional 3 s room-tone beds land at `raw/room-tone/{participant}.wav`.
+Optional 3 s room-tone beds land at `raw/room-tone/{session}/{participant}.wav`
+(the older `raw/room-tone/{participant}.wav` path still works for projects
+that used it).
 
 ## Scope and non-goals
 
@@ -939,7 +941,7 @@ sidecar JSON.**
 | Participant leases | `RecordParticipantStore` (`record_participants`); Echo-only plaintext lease |
 | Live comments | `record_live_comments` in the same sqlite (`sync.db`); PK `(session_id, comment_id)` |
 | Local keeper WAV | Guest/host OPFS `Sharecut Recordings/{session}/{take}/{participant}/{segment}.wav` (+ `.json` tags). Not a host sidecar. |
-| Room-tone bed | OPFS `Sharecut Recordings/{session}/room-tone/{participant}.wav` (local until Accept); upload `kind=room_tone` after consent (storage take `2147483647`); assembled `artifacts/record/acked/{session}/room_tone/{participant}.wav` until landing copies `raw/room-tone/{participant}.wav` and sets `track.room_tone` |
+| Room-tone bed | OPFS `Sharecut Recordings/{session}/room-tone/{participant}.wav` (local until Accept); upload `kind=room_tone` after consent (storage take `2147483647`); assembled `artifacts/record/acked/{session}/room_tone/{participant}.wav` until landing atomically copies `raw/room-tone/{session}/{participant}.wav` and sets `track.room_tone` |
 | Chunk / ACK manifests | `record_upload_parts` / `record_upload_files` in the same `sync.db`; finalized file rows persist `expected_parts` and file ACK requires that count. Current clients declare it; older open tabs infer it from the final part sequence, still requiring contiguous parts and the whole-file hash. Part bytes live in `artifacts/record/uploads/`; assembled WAV in `artifacts/record/acked/` until landing copies to `raw/`. `land_failed_ns` records a failed landing attempt and keeps the staged WAV available for retry. |
 | Timeline landing | `RecordLandingService` copies ACK'd WAV into `raw/`, one clip per segment at `take_offset_s + join_offset_ms/1000`, 2 s take gap. `join_offset_ms` is stored on `record_upload_files`. The UI distinguishes staged/uploaded/landed/land-failed; only confirmed `landed` permits deleting the local keeper. Host `Retry land` reuses the existing `record.land` command. A corrupt registered raw file is replaced at a fresh path on retry, and its track media path follows the replaced source. A new clip is registered and returned only after its raw WAV matches the row's `file_sha256`; missing or mismatched raw stays land-failed. Landed and failed writes compare the expected ACK hash so a concurrent replacement remains pending. Landing publishes `landed` only after the project JSON commits; the source check, project commit, and landed-state write share the in-process project mutation lock. Separate processes and direct filesystem changes still require their own coordination. |
 
@@ -950,6 +952,18 @@ room caps 4 recorded / 2 producers; host Join auto-consents as `p_host`; no host
 admit step. Each take's `consented_participant_ids` roster (set at Start,
 updated by mid-take Accept/Decline) gates that take's guest keeper uploads
 server-side, independent of the participant's live `consented` flag.
+
+Room-tone raw artifact: each record session lands its room-tone bed to its
+own session-qualified path, `raw/room-tone/{session}/{participant}.wav`
+(`room_tone_raw_rel` in `services/record/landing.py`), and publishes it with
+`copy_file_atomic` so a concurrent session landing the same participant
+(most likely `p_host`, shared by every session) can never observe or copy
+over a partial file. `track.room_tone` and the `room-tone-{track}` source
+still mean "whichever landing committed last"; an earlier session's landed
+row keeps pointing at its own verified bytes at its own path even after a
+later session's landing overwrites the track/source. Projects that used the
+older shared `raw/room-tone/{participant}.wav` path need no migration; that
+path still resolves for their existing beds.
 
 See [persistence.md](persistence.md) and
 [session-sync.md § Recording session](session-sync.md#recording-session).
