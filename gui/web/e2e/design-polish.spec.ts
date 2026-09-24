@@ -90,6 +90,7 @@ test("capture issue 20 review views", async ({ browser }) => {
     viewport: { width: 1440, height: 900 },
   });
   try {
+    await desktop.emulateMedia({ reducedMotion: "reduce" });
     await desktop.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
     await expect(desktop.locator(".lane-row").first()).toBeVisible();
     await expect
@@ -121,6 +122,13 @@ test("capture issue 20 review views", async ({ browser }) => {
     await desktop.getByRole("button", { name: "Menu", exact: true }).click();
     await desktop.getByRole("menuitem", { name: /Share/ }).click();
     await expect(desktop.getByRole("dialog", { name: "Share" })).toBeVisible();
+    await expect
+      .poll(() =>
+        desktop
+          .getByRole("dialog", { name: "Share" })
+          .evaluate((dialog) => getComputedStyle(dialog).opacity),
+      )
+      .toBe("1");
     await desktop.screenshot({
       path: path.join(directory!, "share-dialog.png"),
     });
@@ -147,6 +155,7 @@ test("capture issue 20 review views", async ({ browser }) => {
     viewport: { width: 390, height: 844 },
   });
   try {
+    await phone.emulateMedia({ reducedMotion: "reduce" });
     await phone.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
     await expect(
       phone.getByRole("navigation", { name: "Primary" }),
