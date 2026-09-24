@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -464,6 +465,13 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
     }
   }, [toolMode, commentMode]);
 
+  // Stable context value: TimelineView renders every playhead tick, and a new
+  // object would re-render the headers column and every metrics reader too.
+  const metrics = useMemo(
+    () => ({ laneHeight, markerLaneHeight: markerLaneHeightPx }),
+    [laneHeight, markerLaneHeightPx],
+  );
+
   if (!project) {
     return (
       <div
@@ -501,7 +509,6 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
     zoomPxPerSec,
     timeViewportPx,
   );
-  const metrics = { laneHeight, markerLaneHeight: markerLaneHeightPx };
   const laneStackHeight =
     markerLaneHeightPx + project.tracks.length * laneHeight;
 
