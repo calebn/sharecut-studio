@@ -19,7 +19,7 @@ async function transportTimecode(page: Page): Promise<string> {
   // Phone Listen renders a full pair in its body; other shells use header
   // transport's compact timecode. Compare the shared playhead portion.
   const [timecode = ""] = await page
-    .locator(".mobile-listen-transport .timecode, header.transport .timecode")
+    .locator(".listen-hero .timecode, header.transport .timecode")
     .allTextContents();
   return timecode.split("/")[0]?.trim() ?? "";
 }
