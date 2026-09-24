@@ -4,6 +4,7 @@ import atexit
 import contextlib
 import json
 import logging
+from collections import OrderedDict
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from threading import Lock
@@ -15,6 +16,7 @@ from podcast_mcp.models import EpisodeProject, Track
 from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.process import run
 from podcast_mcp.util.progress import progress_task
+from podcast_mcp.util.project_state import FileRevision, file_revision
 from podcast_mcp.util.timeline_zoom import (
     overview_bins_per_sec,
     overview_decode_hz,
@@ -30,10 +32,12 @@ _PEAKS_POOL: ThreadPoolExecutor | None = None
 _PEAKS_POOL_LOCK = Lock()
 _PEAKS_JOBS: list[Future[Path | None]] = []
 _PEAKS_JOBS_LOCK = Lock()
-# Pending (peaks_out, audio) jobs, and the source stamp of the last failed
-# attempt per peaks_out path. Both guarded by _PEAKS_JOBS_LOCK.
+# Pending (peaks_out, audio) jobs, and the file revision (util.project_state
+# file_revision) of the last failed source per peaks_out path, capped at
+# _PEAKS_FAILED_MAX entries (oldest evicted). Both guarded by _PEAKS_JOBS_LOCK.
 _PEAKS_PENDING: set[tuple[Path, Path]] = set()
-_PEAKS_FAILED: dict[Path, tuple[str, int, int]] = {}
+_PEAKS_FAILED: OrderedDict[Path, FileRevision] = OrderedDict()
+_PEAKS_FAILED_MAX = 256
 
 
 def _peaks_pool() -> ThreadPoolExecutor:
@@ -252,9 +256,13 @@ def _peaks_job_paths(project: EpisodeProject, track: Track) -> tuple[Path, Path]
     return peaks_out, audio
 
 
-def _source_stamp(audio: Path) -> tuple[str, int, int]:
-    st = audio.stat()
-    return (str(audio), st.st_mtime_ns, st.st_size)
+def _remember_failed_source(peaks_out: Path, revision: FileRevision) -> None:
+    """Record a failed source so it is not retried until it changes (bounded, LRU)."""
+    with _PEAKS_JOBS_LOCK:
+        _PEAKS_FAILED[peaks_out] = revision
+        _PEAKS_FAILED.move_to_end(peaks_out)
+        while len(_PEAKS_FAILED) > _PEAKS_FAILED_MAX:
+            _PEAKS_FAILED.popitem(last=False)
 
 
 def peaks_generation_pending(project: EpisodeProject, track: Track) -> bool:
@@ -292,8 +300,8 @@ def ensure_track_peaks(project: EpisodeProject, track: Track) -> Path | None:
             prog.advance(1)
     except Exception as exc:
         log.debug("peaks generation failed for %s: %s", track.id, exc)
-        with _PEAKS_JOBS_LOCK:
-            _PEAKS_FAILED[peaks_out] = _source_stamp(path)
+        with contextlib.suppress(OSError):
+            _remember_failed_source(peaks_out, file_revision(path))
         return None
     with _PEAKS_JOBS_LOCK:
         _PEAKS_FAILED.pop(peaks_out, None)
@@ -320,7 +328,7 @@ def schedule_track_peaks(project: EpisodeProject, track: Track) -> bool:
         return False
     peaks_out, audio = paths
     try:
-        stamp = _source_stamp(audio)
+        stamp = file_revision(audio)
     except OSError:
         return False
     with _PEAKS_JOBS_LOCK:
