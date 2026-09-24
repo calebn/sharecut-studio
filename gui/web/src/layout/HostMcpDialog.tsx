@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Button, Dialog, Field, InlineError } from "../ui";
+import { Button, Dialog, EmptyState, Field, InlineError } from "../ui";
 import { errorMessage } from "../utils/apiError";
 import { localHostMcpUrl, mcpClientSnippet } from "./hostMcp";
 
@@ -97,9 +97,9 @@ export function HostMcpDialog({ open, onClose, hasProject }: Props) {
           episode.
         </p>
         {hasProject ? null : (
-          <p className="share-dialog-empty ui-empty-state" role="status">
+          <EmptyState className="share-dialog-empty" role="status">
             Open an episode first; tools error until a project is open.
-          </p>
+          </EmptyState>
         )}
         <Field label="MCP URL" htmlFor={urlId}>
           <input

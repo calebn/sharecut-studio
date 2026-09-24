@@ -3,7 +3,7 @@ import { execute } from "../commands/execute";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
-import { Button, CommandButton, Field, ToggleButton } from "../ui";
+import { Button, CommandButton, EmptyState, Field, ToggleButton } from "../ui";
 import {
   applyAllSummary,
   eligibleApplyAllIds,
@@ -179,11 +179,11 @@ export function TightenPanel() {
       </p>
 
       {filtered.length === 0 ? (
-        <p className="tighten-empty ui-empty-state">
+        <EmptyState className="tighten-empty">
           {hits.length === 0
             ? "No pending tighten decisions."
             : "No hits match these filters."}
-        </p>
+        </EmptyState>
       ) : (
         <div className="tighten-table-wrap">
           <table className="tighten-table">

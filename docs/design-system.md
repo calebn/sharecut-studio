@@ -27,10 +27,10 @@ organisms; domain screens are templates, colocated with their domain component
 
 | Level | Contents | Examples |
 | ----- | -------- | -------- |
-| **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter |
-| **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow |
+| **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, Pill, Timecode, EmptyState, SurfaceLadder (token reference) |
+| **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, BottomSheet |
-| **Templates** | Assembled, context-specific domain screens built from the library, shown with static / representative content and locked domain copy — no live app state | ConsentGate, Declined, LiveComments, HostUploadRoster (record room) |
+| **Templates** | Assembled, context-specific domain screens built from the library, shown with static / representative content and locked domain copy — no live app state | ConsentGate, Declined, LiveComments, HostUploadRoster (record room), Transport |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -43,8 +43,8 @@ check it composed, then check it in a real screen.
 Domain components get stories only when they are **props in, UI out** (scope
 rule from #172/#173): renderable from a pure prop contract alone — no store,
 socket, AudioContext or router. Domain components that still need live app,
-session or sync context (`timeline/`, `inspector/`, transport chrome, the full
-DAW page) stay out of the catalog: they compose the library (see
+session or sync context (`timeline/`, `inspector/`, the live `TransportBar`,
+the full DAW page) stay out of the catalog: they compose the library (see
 `gui/web/docs/ui-library.md`), stories for them would couple the catalog to app
 state, and their integration is covered by Playwright. A domain screen that
 renders fully state-local — per the rules under [Adding a story](#adding-a-story):
@@ -70,6 +70,19 @@ with its story colocated in the feature folder (for example
 - If a surface starts reading session or sync context, it needs a decorator
   that provides that context before its story can stay standalone.
 - The story does not replace the component's own Vitest + axe test.
+
+A live surface can still get a template when its chrome is split into a
+presentational frame that the live component renders. `Templates/Transport`
+(`src/layout/TransportFrame.stories.tsx`) assembles `TransportFrame` /
+`TransportZone` with `Timecode`, `SegmentedControl`, `Pill`, `Button`, and
+`Icon`; `TransportBar` renders the same frame and adds command wiring, the
+store-driven tool cluster, avatars, and menus. Templates that render a page
+banner also render a `<main>` region beside it, so the story harness does not
+nest the banner inside its fallback main landmark.
+
+`Atoms/SurfaceLadder` renders the five ladder rungs, fields, the selected chip,
+stage, transport, accent, and danger from the live tokens — iterate on the
+palette there and flip the theme toolbar before touching components.
 
 ## Theme toolbar
 
@@ -200,6 +213,10 @@ both themes, in story mode and on its docs page, before merging.
 - 2026-09-23 — Added `Templates/HostUploadRoster` (`record/HostUploadRoster`):
   post-Stop upload states per participant, with a 360px long-name stress
   fixture.
+- 2026-09-23 — Added `Molecules/SegmentedControl`, `Atoms/Pill`,
+  `Atoms/Timecode`, `Atoms/EmptyState`, the `Atoms/SurfaceLadder` token
+  reference, and `Templates/Transport` (presentational `TransportFrame`);
+  `Molecules/Menu` gained section labels and shortcut rows (#20).
 - 2026-09-23 — Docs pages follow the theme toolbar (System on a dark OS no
   longer renders a white docs canvas): StudioDocsContainer builds the docs
   theme from Studio tokens; the toolbar decorator reuses useTheme's

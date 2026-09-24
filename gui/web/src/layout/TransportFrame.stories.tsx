@@ -1,0 +1,156 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
+import { expect, userEvent, within } from "storybook/test";
+import {
+  Button,
+  Icon,
+  Pill,
+  SegmentedControl,
+  Timecode,
+  ToggleButton,
+} from "../ui";
+import { TransportFrame, TransportZone } from "./TransportFrame";
+
+/**
+ * The fixed dark transport assembled from its presentational pieces with
+ * static content. The live bar (TransportBar) adds command wiring, the
+ * store-driven tool cluster, avatars, and menus.
+ */
+const meta: Meta<typeof TransportFrame> = {
+  title: "Templates/Transport",
+  component: TransportFrame,
+  parameters: { layout: "fullscreen" },
+};
+
+export default meta;
+type Story = StoryObj<typeof TransportFrame>;
+
+const MODES = ["Mix", "FX", "Raw"] as const;
+
+function TransportTemplate({
+  collapsed = false,
+  stale = false,
+  initiallyPlaying = false,
+}: {
+  collapsed?: boolean;
+  stale?: boolean;
+  initiallyPlaying?: boolean;
+}) {
+  const [playing, setPlaying] = useState(initiallyPlaying);
+  const [mode, setMode] = useState<(typeof MODES)[number]>("Mix");
+  return (
+    <>
+      <div style={{ blockSize: "var(--transport-height)" }}>
+        <TransportFrame collapsed={collapsed} playing={playing}>
+          <TransportZone position="start">
+            <h1>Episode 12: Field notes</h1>
+          </TransportZone>
+          <TransportZone position="center">
+            <div className="transport-play">
+              <Button
+                className="play-btn"
+                data-playing={playing}
+                aria-label={playing ? "Pause" : "Play"}
+                onClick={() => setPlaying((value) => !value)}
+              >
+                <Icon name={playing ? "pause" : "play"} />
+              </Button>
+              <Button
+                className="stop-btn"
+                aria-label="Stop"
+                onClick={() => setPlaying(false)}
+              >
+                <Icon name="stop" />
+              </Button>
+            </div>
+            <Timecode
+              current="00:12.480"
+              total={collapsed ? undefined : "01:00.000"}
+              title="00:12.480 / 01:00.000"
+            />
+            {collapsed ? null : (
+              <SegmentedControl
+                className="audition-modes"
+                label="Audition mode"
+              >
+                {MODES.map((m) => (
+                  <ToggleButton
+                    key={m}
+                    quiet
+                    pressed={mode === m}
+                    onClick={() => setMode(m)}
+                  >
+                    {m}
+                  </ToggleButton>
+                ))}
+              </SegmentedControl>
+            )}
+          </TransportZone>
+          <TransportZone position="end">
+            {collapsed ? null : stale ? (
+              <Pill tone="warning">Stale render</Pill>
+            ) : (
+              <Pill tone="ok">Fresh</Pill>
+            )}
+            <div className="transport-primary-actions">
+              <Button
+                className="ui-control--compact transport-icon-btn fit-btn"
+                aria-label="Fit"
+              >
+                <Icon name="fit" />
+              </Button>
+              {collapsed ? null : (
+                <Button
+                  className="ui-control--compact transport-icon-btn transport-more-btn"
+                  aria-label="View"
+                >
+                  <Icon name="layers" />
+                </Button>
+              )}
+              <Button
+                className="ui-control--compact transport-icon-btn transport-more-btn"
+                aria-label="Menu"
+              >
+                <Icon name="menu" />
+              </Button>
+            </div>
+          </TransportZone>
+        </TransportFrame>
+      </div>
+      {/* The banner sits beside the page's main region, as in the app. */}
+      <main
+        aria-label="Stage"
+        style={{
+          blockSize: "12rem",
+          background: "var(--color-timeline-well)",
+        }}
+      />
+    </>
+  );
+}
+
+export const Wide: Story = {
+  render: () => <TransportTemplate />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Play" }));
+    await expect(canvas.getByRole("button", { name: "Pause" })).toBeTruthy();
+    await expect(canvasElement.querySelector(".transport")).toHaveAttribute(
+      "data-playing",
+      "true",
+    );
+  },
+};
+
+export const Playing: Story = {
+  render: () => <TransportTemplate initiallyPlaying />,
+};
+
+export const StaleRender: Story = {
+  render: () => <TransportTemplate stale />,
+};
+
+export const Collapsed: Story = {
+  render: () => <TransportTemplate collapsed />,
+  parameters: { viewport: { defaultViewport: "mobile1" } },
+};

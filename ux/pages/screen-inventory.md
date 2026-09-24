@@ -82,7 +82,7 @@ The overflow Menu panel caps to remaining space under the trigger (`min(90dvh, v
 | **Open** | Menu → Project → **Share…** (`share.manage`; collaboration extension slot `share.ui.menu`) |
 | **Primary actions** | Role (viewer / commenter / editor) · Allow agent (MCP) · **Create link** · Copy link (button reads **Copied** briefly) · Stop sharing |
 | **Data shown** | Live coolname, Docs-like role, review mix label, last used; MCP URL when `mcp` is granted |
-| **Empty / error** | “No live share links.” Create publishes a **Share mix** review version if none exists (needs premix/mastered) |
+| **Empty / error** | Quiet “No live review links.” / “No live record rooms.” text (no field-like box). Create publishes a **Share mix** review version if none exists (needs premix/mastered) |
 | **Out of scope** | Restricted ACL / invites; expiry picker; in-place role edit (rotate = new link + stop old); guest connect-an-agent UI |
 
 The dialog caps to `90dvh` with a single `.command-palette-body` scroller so **Record rooms** and other lower sections stay reachable on phone and short laptop viewports. Header (title + Close) stays pinned.
