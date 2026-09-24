@@ -1,8 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
-import { type BrowserContext, expect, type Page, test } from "@playwright/test";
+import {
+  type BrowserContext,
+  expect,
+  type Locator,
+  type Page,
+  test,
+} from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
+import { settleAnimations } from "./motion";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { setTheme } from "./theme";
 
@@ -524,6 +531,49 @@ test("stage edges dim the lane floor at both ends, never a clip (#387)", async (
   expect(withoutEdges[0] - withEdges[0]).toBeGreaterThan(2);
   expect(withoutEdges[1] - withEdges[1]).toBeGreaterThan(1);
   expect(Math.abs(withoutEdges[2] - withEdges[2])).toBeLessThan(0.5);
+});
+
+test("menu rows press in place; standalone controls sink (#389)", async ({
+  page,
+}) => {
+  // The compact transport, where Menu is a labelled button.
+  await page.setViewportSize({ width: 800, height: 844 });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await expect(page.locator(".lane-row").first()).toBeVisible();
+  const transformWhilePressed = async (control: Locator) => {
+    // Menu rows can sit below the panel's scroll fold.
+    await control.scrollIntoViewIfNeeded();
+    const box = await control.boundingBox();
+    if (!box) {
+      throw new Error("control has no box");
+    }
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    // Past --motion-press, so a pressed transform has fully applied.
+    await page.waitForTimeout(200);
+    const transform = await control.evaluate(
+      (el) => getComputedStyle(el).transform,
+    );
+    // Release off the control, so the press never activates it.
+    await page.mouse.move(0, 0);
+    await page.mouse.up();
+    return transform;
+  };
+
+  const trigger = page.getByRole("button", { name: "Menu", exact: true });
+  expect(await transformWhilePressed(trigger)).not.toBe("none");
+
+  const menu = page.getByRole("menu", { name: "Transport menu" });
+  for (const role of ["menuitemcheckbox", "menuitemradio"] as const) {
+    if (!(await menu.isVisible())) {
+      await trigger.click();
+    }
+    await settleAnimations(menu);
+    expect(await transformWhilePressed(menu.getByRole(role).first())).toBe(
+      "none",
+    );
+  }
 });
 
 test("capture issue 20 review views", async ({ browser }) => {

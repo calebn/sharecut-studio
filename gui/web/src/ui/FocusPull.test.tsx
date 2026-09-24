@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { act, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
+import { SRC_ROOT } from "../test/sourceFiles";
 import {
   FOCUS_PULL_ENTER_MS,
   FOCUS_PULL_EXIT_MS,
@@ -16,7 +16,7 @@ describe("FocusPull", () => {
   });
 
   it("times the swap with the motion tokens the CSS animates on", () => {
-    const styles = join(dirname(fileURLToPath(import.meta.url)), "../styles");
+    const styles = join(SRC_ROOT, "styles");
     const tokens = readFileSync(join(styles, "theme/tokens.css"), "utf8");
     const ui = readFileSync(join(styles, "partials/ui.css"), "utf8");
     const ms = (token: string) =>
@@ -39,7 +39,7 @@ describe("FocusPull", () => {
     expect(wrapper?.textContent).toBe("Lobby content");
   });
 
-  it("keeps outgoing content for 200ms, then enters the next view for 250ms", async () => {
+  it("keeps outgoing content for the exit, then enters the next view", async () => {
     vi.useFakeTimers();
     const { container, rerender } = render(
       <FocusPull viewKey="lobby">
@@ -57,9 +57,13 @@ describe("FocusPull", () => {
     expect(container.querySelector(".focus-pull-pending")?.textContent).toBe(
       "Room content",
     );
+    // The fading view can't take a quick second tap.
+    expect(
+      container.querySelector(".focus-pull-exit")?.hasAttribute("inert"),
+    ).toBe(true);
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(199);
+      await vi.advanceTimersByTimeAsync(FOCUS_PULL_EXIT_MS - 1);
     });
     expect(container.querySelector(".focus-pull-exit")).not.toBeNull();
     expect(container.querySelector(".focus-pull-pending")).not.toBeNull();
@@ -73,7 +77,7 @@ describe("FocusPull", () => {
     );
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(250);
+      await vi.advanceTimersByTimeAsync(FOCUS_PULL_ENTER_MS);
     });
     expect(container.querySelector(".focus-pull-exit")).toBeNull();
     expect(container.textContent).toBe("Room content");
@@ -105,7 +109,9 @@ describe("FocusPull", () => {
     );
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(450);
+      await vi.advanceTimersByTimeAsync(
+        FOCUS_PULL_EXIT_MS + FOCUS_PULL_ENTER_MS,
+      );
     });
     expect(container.textContent).toBe("Finished content");
     expect(container.textContent).not.toContain("Room content");

@@ -569,3 +569,22 @@ def test_timeline_edge_stays_under_the_clips() -> None:
         if d.preludes == (".timeline-edge",)
     }
     assert {("z-index", "var(--z-timeline-edge)"), ("pointer-events", "none")} <= edges
+
+
+def test_wide_and_adjacent_controls_press_in_place() -> None:
+    """A press scale moves a control's hit edge, so a press near it can
+    release outside and lose the click. Menu rows (in a panel or not),
+    segments and phone nav tabs keep a colour-only press."""
+    press = [
+        d
+        for d in _file_declarations(_PARTIALS_DIR / "ui.css")
+        if d.prop == "transform" and "scale(" in d.value and ".ui-control:active" in d.preludes[-1]
+    ]
+    assert len(press) == 1
+    for excluded in (
+        ".ui-menu-panel *",
+        '[role^="menuitem"]',
+        ".ui-segmented > *",
+        ".mobile-nav *",
+    ):
+        assert excluded in press[0].preludes[-1], excluded

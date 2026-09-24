@@ -319,11 +319,9 @@ html[data-shell="tablet"] {
 }
 
 @media (prefers-reduced-motion: no-preference) {
+  /* Tabs keep the shared .ui-control transitions, on the toggle timing. */
   .mobile-nav button {
-    transition:
-      color var(--motion-toggle) var(--motion-ease-out),
-      background-color var(--motion-toggle) var(--motion-ease-out),
-      transform var(--motion-toggle) var(--motion-ease-out);
+    transition-duration: var(--motion-toggle);
   }
 }
 

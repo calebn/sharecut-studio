@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
+import { settleAnimations } from "./motion";
 
 test.describe("compact transport menu accessibility", () => {
   test.use({ viewport: { width: 800, height: 844 } });
@@ -43,6 +44,9 @@ test.describe("compact transport menu accessibility", () => {
 
     const layers = menu.getByRole("menuitemcheckbox");
     await expect(layers).toHaveCount(4);
+    // Measure the settled menu: mid drop-in, the panel's fractional translate
+    // puts float noise into every row's rect (43.99998px, not 44px).
+    await settleAnimations(menu);
     const controls = [
       ...(await menu.getByRole("menuitem").all()),
       ...(await radios.all()),
