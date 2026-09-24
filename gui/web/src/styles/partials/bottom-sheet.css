@@ -52,6 +52,11 @@ html[data-shell="tablet"][data-focus="timeline"] .bottom-sheet-root {
   .bottom-sheet {
     animation: bottom-sheet-up var(--motion-panel) var(--motion-ease-out);
   }
+
+  /* The scrim fades in as the sheet rises, like a dialog's. */
+  .bottom-sheet-scrim {
+    animation: fade-in var(--motion-panel) var(--motion-ease-out);
+  }
 }
 
 .bottom-sheet--half {

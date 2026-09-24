@@ -630,9 +630,10 @@
   }
 }
 
-/* Play presses in like every control (after the hover lift, so it wins). */
+/* Play (transport and Listen) presses in deeper than other controls; after
+   the transport hover lift, so it wins. */
 @media (prefers-reduced-motion: no-preference) {
-  .transport .play-btn:active:not(:disabled) {
+  :is(.transport, .listen-hero) .play-btn:active:not(:disabled) {
     transform: scale(0.96);
     transition-duration: var(--motion-press);
   }

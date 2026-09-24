@@ -1,11 +1,30 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { act, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
-import { FocusPull } from "./FocusPull";
+import {
+  FOCUS_PULL_ENTER_MS,
+  FOCUS_PULL_EXIT_MS,
+  FocusPull,
+} from "./FocusPull";
 
 describe("FocusPull", () => {
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("times the swap with the motion tokens the CSS animates on", () => {
+    const styles = join(dirname(fileURLToPath(import.meta.url)), "../styles");
+    const tokens = readFileSync(join(styles, "theme/tokens.css"), "utf8");
+    const ui = readFileSync(join(styles, "partials/ui.css"), "utf8");
+    const ms = (token: string) =>
+      Number(tokens.match(new RegExp(`${token}:\\s*(\\d+)ms;`))?.[1]);
+    expect(ui).toMatch(/focus-pull-out var\(--motion-panel\)/);
+    expect(ui).toMatch(/focus-pull-in var\(--motion-state\)/);
+    expect(ms("--motion-panel")).toBe(FOCUS_PULL_EXIT_MS);
+    expect(ms("--motion-state")).toBe(FOCUS_PULL_ENTER_MS);
   });
 
   it("does not animate its initial view", () => {

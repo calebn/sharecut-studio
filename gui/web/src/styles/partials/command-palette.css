@@ -36,25 +36,14 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .command-palette-panel {
-    animation: palette-enter var(--motion-panel) var(--motion-ease-out) both;
+    animation:
+      fade-in var(--motion-panel) var(--motion-ease-out) both,
+      rise-in var(--motion-panel) var(--motion-ease-out) both;
   }
 
   /* The scrim fades in with the panel instead of snapping on under it. */
   .command-palette-scrim {
-    animation: scrim-fade var(--motion-panel) var(--motion-ease-out) both;
-  }
-}
-
-@keyframes scrim-fade {
-  from {
-    opacity: 0;
-  }
-}
-
-@keyframes palette-enter {
-  from {
-    opacity: 0;
-    transform: translateY(0.5rem);
+    animation: fade-in var(--motion-panel) var(--motion-ease-out) both;
   }
 }
 

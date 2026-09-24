@@ -322,7 +322,8 @@ html[data-shell="tablet"] {
   .mobile-nav button {
     transition:
       color var(--motion-toggle) var(--motion-ease-out),
-      background-color var(--motion-toggle) var(--motion-ease-out);
+      background-color var(--motion-toggle) var(--motion-ease-out),
+      transform var(--motion-toggle) var(--motion-ease-out);
   }
 }
 
