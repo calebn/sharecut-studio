@@ -18,9 +18,11 @@ import {
   CommandButton,
   CommandMenuItem,
   Icon,
+  type IconName,
   Menu,
   MenuItem,
   MenuSection,
+  type MenuTriggerProps,
   Pill,
   pillClassName,
   SegmentedControl,
@@ -80,7 +82,7 @@ export function TransportBar({
   } = useDaw();
   const { preference, cyclePreference } = useTheme();
   const [overflowOpen, setOverflowOpen] = useState(false);
-  const [viewOpen, setViewOpen] = useState(false);
+  const [viewOpenState, setViewOpenState] = useState(false);
   const [narrow, setNarrow] = useState(false);
   const headerRef = useRef<HTMLElement>(null);
 
@@ -183,18 +185,48 @@ export function TransportBar({
     setHighlightStaleRender(on);
   };
 
+  // The two transport menus are exclusive: each Menu listens on window, so
+  // two open panels would fight over arrow keys and Escape.
   const setMenuOpen = useCallback(
     (open: boolean) => {
       setOverflowOpen(open);
-      if (!open) {
+      if (open) {
+        setViewOpenState(false);
+      } else {
         setHighlightStaleRender(false);
       }
     },
     [setHighlightStaleRender],
   );
   const closeMenu = () => setMenuOpen(false);
+  const setViewOpen = (open: boolean) => {
+    setViewOpenState(open);
+    if (open) {
+      setMenuOpen(false);
+    }
+  };
+  const closeView = () => setViewOpen(false);
+  // The View menu only exists in the wide bar; collapsing closes it, so it
+  // never remounts already open when the bar widens again.
+  if (collapsed && viewOpenState) {
+    setViewOpenState(false);
+  }
+  const viewOpen = viewOpenState && !collapsed;
 
-  const viewSections = () => (
+  const menuTrigger =
+    (label: string, title: string, icon: IconName) => (t: MenuTriggerProps) => (
+      <button
+        type="button"
+        className="ui-control ui-control--compact transport-icon-btn transport-more-btn"
+        {...t}
+        aria-label={label}
+        title={title}
+      >
+        <Icon name={icon} />
+      </button>
+    );
+
+  const viewSections = (close: () => void) => (
     <>
       <MenuSection label="Layers">
         <OverlayLegend menu />
@@ -209,7 +241,7 @@ export function TransportBar({
           </CommandMenuItem>
         </div>
         {!showFit ? (
-          <CommandMenuItem commandId="view.fit" onSelect={closeMenu}>
+          <CommandMenuItem commandId="view.fit" onSelect={close}>
             Fit to window
           </CommandMenuItem>
         ) : null}
@@ -353,23 +385,13 @@ export function TransportBar({
               label="View menu"
               menuId="transport-view-menu"
               className="transport-overflow ui-menu-root"
-              trigger={(t) => (
-                <button
-                  type="button"
-                  className="ui-control ui-control--compact transport-icon-btn transport-more-btn"
-                  ref={t.ref}
-                  aria-expanded={t["aria-expanded"]}
-                  aria-haspopup={t["aria-haspopup"]}
-                  aria-controls={t["aria-controls"]}
-                  aria-label="View"
-                  title="Layers, zoom, theme, and focus"
-                  onClick={t.onClick}
-                >
-                  <Icon name="layers" />
-                </button>
+              trigger={menuTrigger(
+                "View",
+                "Layers, zoom, theme, and focus",
+                "layers",
               )}
             >
-              {viewSections()}
+              {viewSections(closeView)}
             </Menu>
           ) : null}
           <Menu
@@ -378,24 +400,12 @@ export function TransportBar({
             label="Transport menu"
             menuId="transport-overflow-menu"
             className="transport-overflow ui-menu-root"
-            trigger={(t) => (
-              <button
-                type="button"
-                className="ui-control ui-control--compact transport-icon-btn transport-more-btn"
-                ref={t.ref}
-                aria-expanded={t["aria-expanded"]}
-                aria-haspopup={t["aria-haspopup"]}
-                aria-controls={t["aria-controls"]}
-                aria-label="Menu"
-                title={
-                  collapsed
-                    ? "Layers, zoom, theme, and more"
-                    : "Project, media, and help"
-                }
-                onClick={t.onClick}
-              >
-                <Icon name="menu" />
-              </button>
+            trigger={menuTrigger(
+              "Menu",
+              collapsed
+                ? "Layers, zoom, theme, and more"
+                : "Project, media, and help",
+              "menu",
             )}
           >
             {collapsed ? <AvatarStack variant="menu" /> : null}
@@ -507,7 +517,7 @@ export function TransportBar({
                 )}
               </MenuSection>
             ) : null}
-            {collapsed ? viewSections() : null}
+            {collapsed ? viewSections(closeMenu) : null}
             <MenuSection label="Help">
               {mayManage ? (
                 <CommandMenuItem

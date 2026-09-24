@@ -23,7 +23,12 @@ export {
   type LevelMeterSize,
 } from "./LevelMeter";
 export { LoadingScreen } from "./LoadingScreen";
-export { Menu, MenuItem, MenuSection } from "./Menu";
+export {
+  Menu,
+  MenuItem,
+  MenuSection,
+  type MenuTriggerProps,
+} from "./Menu";
 export { Pill, type PillTone, pillClassName } from "./Pill";
 export { SegmentedControl } from "./SegmentedControl";
 export { Timecode } from "./Timecode";

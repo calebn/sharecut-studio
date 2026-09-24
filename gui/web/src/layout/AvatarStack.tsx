@@ -146,12 +146,8 @@ export function AvatarStack({ variant = "inline" }: Props) {
             <button
               type="button"
               className="ui-control avatar-stack-more"
-              ref={t.ref}
-              aria-expanded={t["aria-expanded"]}
-              aria-haspopup={t["aria-haspopup"]}
-              aria-controls={t["aria-controls"]}
+              {...t}
               aria-label={`+${overflow.length} more`}
-              onClick={t.onClick}
             >
               +{overflow.length}
             </button>

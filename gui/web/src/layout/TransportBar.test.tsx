@@ -387,6 +387,52 @@ describe("TransportBar wide layout", () => {
     await expectNoA11yViolations(main);
   });
 
+  it("keeps the View menu and the main Menu exclusive from the keyboard", async () => {
+    render(
+      <DawProvider
+        projectPath="/tmp/p.json"
+        initialProject={minimalProject({ tracks: TRACKS })}
+      >
+        <TransportBar />
+      </DawProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "View" }));
+    expect(screen.getByRole("menu", { name: "View menu" })).toBeTruthy();
+
+    // Keyboard-only path (no outside pointerdown): Enter on the Menu trigger.
+    act(() => screen.getByRole("button", { name: "Menu" }).focus());
+    await userEvent.keyboard("{Enter}");
+    expect(screen.getByRole("menu", { name: "Transport menu" })).toBeTruthy();
+    expect(screen.queryByRole("menu", { name: "View menu" })).toBeNull();
+
+    act(() => screen.getByRole("button", { name: "View" }).focus());
+    await userEvent.keyboard("{Enter}");
+    expect(screen.getByRole("menu", { name: "View menu" })).toBeTruthy();
+    expect(screen.queryByRole("menu", { name: "Transport menu" })).toBeNull();
+  });
+
+  it("does not reopen the View menu after the bar collapses and widens", async () => {
+    const tree = (compact: boolean) => (
+      <DawProvider
+        projectPath="/tmp/p.json"
+        initialProject={minimalProject({ tracks: TRACKS })}
+      >
+        <TransportBar compact={compact} />
+      </DawProvider>
+    );
+    const { rerender } = render(tree(false));
+    await userEvent.click(screen.getByRole("button", { name: "View" }));
+    expect(screen.getByRole("menu", { name: "View menu" })).toBeTruthy();
+    rerender(tree(true));
+    expect(screen.queryByRole("button", { name: "View" })).toBeNull();
+    rerender(tree(false));
+    expect(screen.getByRole("button", { name: "View" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(screen.queryByRole("menu", { name: "View menu" })).toBeNull();
+  });
+
   it("disables Play until the project has media", () => {
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>

@@ -40,6 +40,15 @@ function layoutOpenMenuPanel(trigger: HTMLElement, panel: HTMLElement): void {
   panel.style.setProperty("--menu-available-height", `${rem}rem`);
 }
 
+/** Props a Menu hands its trigger; spread them onto the trigger button. */
+export type MenuTriggerProps = {
+  "aria-expanded": boolean;
+  "aria-haspopup": "menu";
+  "aria-controls": string;
+  onClick: () => void;
+  ref: RefObject<HTMLButtonElement | null>;
+};
+
 type MenuProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -47,13 +56,7 @@ type MenuProps = {
   label: string;
   /** id of the menu panel (aria-controls on the trigger). */
   menuId?: string;
-  trigger: (props: {
-    "aria-expanded": boolean;
-    "aria-haspopup": "menu";
-    "aria-controls": string;
-    onClick: () => void;
-    ref: RefObject<HTMLButtonElement | null>;
-  }) => ReactNode;
+  trigger: (props: MenuTriggerProps) => ReactNode;
   children: ReactNode;
   className?: string;
 };
