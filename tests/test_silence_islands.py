@@ -89,6 +89,14 @@ def test_silence_islands_from_hops_clusters_quiet():
     assert abs(islands[0].midpoint - 1.5) < 1e-9
 
 
+def test_silence_islands_from_irregular_hops_preserves_last_quiet_time():
+    hops = [(2.0, -60.0), (0.0, -60.0), (0.4, -60.0), (0.4, -20.0), (1.0, -60.0)]
+    assert silence_islands_from_hops(hops, min_duration_sec=0.3) == [
+        SilenceIsland(start=0.0, end=0.4),
+        SilenceIsland(start=1.0, end=2.0),
+    ]
+
+
 def test_suggest_handoff_retains_air_and_removes_um(tmp_path):
     """Retain ~1s on each keep; um in the middle is inside the cut."""
     p = _project(tmp_path)

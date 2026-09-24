@@ -5,11 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
+
 from podcast_mcp.engines.audio_audit import (
     build_track_rms_caches,
     measure_timeline_rms_db,
 )
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.util.dsp import bool_runs
 
 
 @dataclass(frozen=True)
@@ -47,26 +50,12 @@ def silence_islands_from_hops(
     if not hops:
         return []
     ordered = sorted(hops, key=lambda h: h[0])
-    islands: list[SilenceIsland] = []
-    in_quiet = False
-    start = 0.0
-    last_t = ordered[0][0]
-    for t, db in ordered:
-        quiet = db <= quiet_db
-        if quiet and not in_quiet:
-            in_quiet = True
-            start = t
-        elif not quiet and in_quiet:
-            end = last_t
-            if end - start >= min_duration_sec:
-                islands.append(SilenceIsland(start=start, end=end))
-            in_quiet = False
-        last_t = t
-    if in_quiet:
-        end = ordered[-1][0]
-        if end - start >= min_duration_sec:
-            islands.append(SilenceIsland(start=start, end=end))
-    return islands
+    quiet = np.asarray([db <= quiet_db for _, db in ordered], dtype=bool)
+    return [
+        SilenceIsland(start=ordered[start][0], end=ordered[end - 1][0])
+        for start, end in bool_runs(quiet)
+        if ordered[end - 1][0] - ordered[start][0] >= min_duration_sec
+    ]
 
 
 _MIN_CUT_SEC = 0.05

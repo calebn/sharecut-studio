@@ -27,6 +27,7 @@ Models                   models/  (EpisodeProject, snapshots)
 12. **Relay** (`podcast_relay`) — FOSS host-online reverse tunnel edge (`podcast-relay`); host connects via `podcast tunnel` (`services/tunnel.py`). Packaging: `deploy/relay/` plus static vhosts (`/download`, Sharecut marketing, company page). See [host-online-relay.md](host-online-relay.md).
 
 Shared utilities: `project_store.py` (canonical load/commit), `project_io.py`, `history/session.py`, `util/` (incl. `util/dsp.py` — shared RMS dB, pitch autocorrelation, and boolean-run primitives; reuse them instead of private copies in `edits/` / `engines/`), `export/`.
+The alignment energy VAD, heuristic/Silero breath scans, and silence-island scan use `util.dsp.bool_runs` for contiguous masks. Only alignment VAD bridges a single quiet chunk before extracting runs; each caller still owns its threshold, duration, and timestamp policy.
 
 **Configuration seam:** `runtime_config.py` validates host relay and optional
 S3-compatible storage. Relay fields use explicit > environment > YAML > safe

@@ -161,6 +161,18 @@ def test_vad_speech_intervals_stops_at_past_eof_and_keeps_prior_speech(sample_wa
     assert load_window.call_count == 3
 
 
+def test_vad_speech_intervals_bridges_one_quiet_chunk_only(sample_wav: Path):
+    """A single quiet chunk joins runs; two quiet chunks split them."""
+    loud = np.ones(2000, dtype=np.float32)
+    quiet = np.zeros(2000, dtype=np.float32)
+    windows = [loud, quiet, loud, quiet, quiet, loud, quiet]
+    with patch("podcast_mcp.engines.alignment_audit.load_mono_window", side_effect=windows):
+        intervals = vad_speech_intervals(
+            sample_wav, start_sec=2.0, duration_sec=1.75, min_run_sec=0.2
+        )
+    assert intervals == [(2.0, 2.75), (3.25, 3.5)]
+
+
 def test_score_session_start_handles_estimate_failure(sample_wav: Path):
     with patch(
         "podcast_mcp.engines.align.estimate_offset_sec",

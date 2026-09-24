@@ -105,6 +105,24 @@ def test_find_breath_in_window_rejects_silence_only():
     assert hit is None
 
 
+def test_find_breath_in_window_returns_first_qualifying_run():
+    samples = np.full(30, 0.001, dtype=np.float32)
+    samples[2:3] = 0.03  # Too short.
+    samples[5:8] = 0.03
+    samples[11:15] = 0.03
+    hit = _find_breath_in_window(
+        samples,
+        4.0,
+        sample_rate=100,
+        noise_floor=0.002,
+        speech_rms=0.2,
+        min_duration_sec=0.02,
+        max_duration_sec=0.04,
+    )
+    assert hit is not None
+    assert (hit.start, hit.end) == pytest.approx((4.05, 4.08))
+
+
 def test_detect_adjacent_breath_finds_before_and_after():
     from podcast_mcp.edits.breath_detect import detect_adjacent_breath
     from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, Track, TrackRole
@@ -237,6 +255,19 @@ def test_find_breath_in_window_silero_rejects_dip_outside_duration_bounds():
             max_duration_sec=0.2,
         )
     assert hit is None
+
+
+def test_find_breath_in_window_silero_returns_first_qualifying_run():
+    vad = _fake_silero_vad([0.2, 0.9, 0.2, 0.2, 0.9, 0.2, 0.2])
+    with patch("podcast_mcp.engines.vad_silero.get_shared_vad", return_value=vad):
+        hit = _find_breath_in_window_silero(
+            np.zeros(3584, dtype=np.float32),
+            4.0,
+            min_duration_sec=0.05,
+            max_duration_sec=0.08,
+        )
+    assert hit is not None
+    assert (hit.start, hit.end) == pytest.approx((4.064, 4.128))
 
 
 def test_detect_adjacent_breath_uses_silero_backend_when_configured():
