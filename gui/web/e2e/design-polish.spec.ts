@@ -204,6 +204,22 @@ test("light transport keeps legible status and stable control hover paint", asyn
   await play.hover();
   expect(await playPaint(play)).toEqual(playRest);
 
+  // Unselected strip segments lift to the transport control fill on hover,
+  // never the light-pane sunken wash.
+  const controlFill = await page.locator(".transport").evaluate((transport) => {
+    const swatch = document.createElement("span");
+    swatch.style.backgroundColor = "var(--color-transport-control)";
+    transport.appendChild(swatch);
+    const fill = getComputedStyle(swatch).backgroundColor;
+    swatch.remove();
+    return fill;
+  });
+  const fx = page
+    .getByRole("group", { name: "Audition mode" })
+    .getByRole("button", { name: "FX", exact: true });
+  await fx.hover();
+  await expect(fx).toHaveCSS("background-color", controlFill);
+
   const row = page.locator(".track-header-row").first();
   const rowRest = await row.evaluate(
     (node) => getComputedStyle(node).backgroundColor,

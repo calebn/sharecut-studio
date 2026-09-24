@@ -451,6 +451,34 @@
     background: var(--color-transport-control);
   }
 
+  /* Unselected strip segments: lift toward the control fill with full text,
+     never the light-pane sunken wash. */
+  .transport
+    .ui-segmented[role="group"]
+    > .ui-control--quiet:hover:not(
+      :disabled,
+      [aria-pressed="true"],
+      .active,
+      .comment-mode-btn
+    ) {
+    color: var(--color-transport-text);
+    border-color: transparent;
+    background: var(--color-transport-control);
+  }
+
+  .listen-hero .play-btn:hover:not(:disabled) {
+    color: var(--color-transport-play-fg);
+    border-color: var(--color-transport-play);
+    background: var(--color-transport-play);
+  }
+
+  .listen-hero .stop-btn:hover:not(:disabled),
+  .listen-hero-skip button:hover:not(:disabled) {
+    color: var(--color-transport-text);
+    border-color: var(--color-transport-muted);
+    background: var(--color-transport-control);
+  }
+
   .transport .record-rec-chip:hover:not(:disabled),
   .transport .avatar-stack-more:hover:not(:disabled) {
     color: var(--color-transport-text);
