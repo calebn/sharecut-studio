@@ -341,32 +341,35 @@ button.pill.pill--info {
       transform var(--motion-toggle) var(--motion-ease-out);
   }
 
-  /* Press physics: sink in fast, release on the toggle timing. */
-  .ui-control:active:not(:disabled, [aria-disabled="true"]) {
+  /* Press physics: sink in fast, release on the toggle timing. Menu rows
+     and segments stay put: scaling a row that wide moves its hit edge, so a
+     press near the edge would release outside it and lose the click. */
+  .ui-control:active:not(:disabled, [aria-disabled="true"]):where(
+    :not(.ui-menu-panel *, .ui-segmented > *)
+  ) {
     transform: translateY(0.0625rem) scale(0.98);
     transition-duration: var(--motion-press);
   }
-
-  /* Menus drop from their trigger; transform only, so text never renders
-     half-faded (menus always open below the trigger). */
-  .ui-menu-panel {
-    animation: menu-drop var(--motion-hover) var(--motion-ease-out);
-  }
-
-  .undo-toast {
-    animation: toast-rise var(--motion-panel) var(--motion-ease-out);
-  }
 }
 
-@keyframes menu-drop {
+/* Shared entrances; each component opts in under no-preference. Rise and
+   drop move transform only, so text never renders half-faded (axe and
+   pointer tests measure menus and toasts as they open). */
+@keyframes fade-in {
   from {
-    transform: translateY(-0.25rem);
+    opacity: 0;
   }
 }
 
-@keyframes toast-rise {
+@keyframes rise-in {
   from {
     transform: translateY(0.5rem);
+  }
+}
+
+@keyframes drop-in {
+  from {
+    transform: translateY(-0.25rem);
   }
 }
 
@@ -533,6 +536,13 @@ button.pill.pill--info {
   overflow-y: auto;
 }
 
+/* Menus drop from their trigger (they always open below it). */
+@media (prefers-reduced-motion: no-preference) {
+  .ui-menu-panel {
+    animation: drop-in var(--motion-hover) var(--motion-ease-out);
+  }
+}
+
 .ui-menu-panel > * {
   flex-shrink: 0;
 }
@@ -618,7 +628,8 @@ button.pill.pill--info {
   }
 }
 
-/* FocusPull exits for 200ms, then enters for 250ms. */
+/* FocusPull exits on --motion-panel, then enters on --motion-state;
+   FocusPull.tsx times the swap to match (FocusPull.test.tsx). */
 .focus-pull {
   display: grid;
 }
@@ -728,6 +739,12 @@ button.pill.pill--info {
   background: var(--color-bg-overlay);
   color: var(--text);
   box-shadow: var(--shadow-floating);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .undo-toast {
+    animation: rise-in var(--motion-panel) var(--motion-ease-out);
+  }
 }
 
 .undo-toast-message {

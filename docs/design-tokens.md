@@ -76,22 +76,25 @@ immediate with reduced motion.
 
 | Token | Used for |
 | --- | --- |
-| `--motion-press` | Press-in on every `.ui-control` (a 1px sink and 0.98 scale) and on Play (0.96). Release eases back on `--motion-toggle`. |
-| `--motion-hover` | Hover and color washes; menus dropping 0.25rem from their trigger; comment-card swipe; stale highlights; edit-boundary chips. |
-| `--motion-toggle` | Control and track-row transforms; phone nav tab color; the pipeline progress bar. |
-| `--motion-panel` | Dialog panels rising in and their scrim fading in; bottom sheets; undo toasts rising 0.5rem; focus-pull out. |
+| `--motion-press` | Press-in on standalone `.ui-control`s (a 1px sink and 0.98 scale) and on Play, in the transport and on Listen (0.96). Menu rows and segments stay put, so their hit edge never moves under a press. Release eases back on `--motion-toggle`. |
+| `--motion-hover` | Hover and color washes; menus dropping 0.25rem from their trigger (`drop-in`); comment-card swipe; stale highlights; edit-boundary chips. |
+| `--motion-toggle` | Control and track-row transforms; phone nav tab color and press; the pipeline progress bar. |
+| `--motion-panel` | Dialog panels rising in (`fade-in` with `rise-in`); dialog and bottom-sheet scrims fading in (`fade-in`); bottom sheets; undo toasts rising 0.5rem (`rise-in`); focus-pull out. |
 | `--motion-state` | Play's playing glow; track-row and empty-stage shadows; the ruler glow; focus-pull in. |
 | `--motion-loop-*` | The pipeline pulse, the loading shimmer, and the REC dot. |
 
-Menus and toasts animate transform only, so their text never renders
-half-faded (axe and pointer tests measure them as they open). Every
-transition and animation in a partial, loops included, times with a
-`--motion-*` token and sits inside exactly
+The shared entrances (`fade-in`, `rise-in`, `drop-in`) live in `ui.css`, and
+each component opts in beside its own rules. Menus and toasts animate
+transform only, so their text never renders half-faded (axe and pointer tests
+measure them as they open). Every transition and animation in a partial,
+loops included, times with a `--motion-*` token and sits inside exactly
 `@media (prefers-reduced-motion: no-preference)`; anywhere else, `reduce`
 blocks included, motion may only stop (`none`). Stylelint rejects raw
 durations on `transition*` and `animation*`
 (`declaration-property-unit-disallowed-list`), and `tests/test_css_policy.py`
-checks both rules.
+checks both rules. FocusPull's timers (`FOCUS_PULL_EXIT_MS`,
+`FOCUS_PULL_ENTER_MS`) mirror `--motion-panel` and `--motion-state`, and a
+Vitest parity test keeps them equal.
 
 ## Surface ladder
 

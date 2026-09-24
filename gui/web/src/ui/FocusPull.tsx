@@ -7,9 +7,15 @@ type Props = {
   className?: string;
 };
 
+/** Exit length: the CSS runs it on --motion-panel (styles/theme/tokens.css). */
+export const FOCUS_PULL_EXIT_MS = 200;
+/** Enter length: the CSS runs it on --motion-state. */
+export const FOCUS_PULL_ENTER_MS = 250;
+
 /**
- * Focus-pull view transition: outgoing content fades and blurs for 200ms,
- * then incoming content fades in and sharpens over 250ms.
+ * Focus-pull view transition: outgoing content fades and blurs for
+ * FOCUS_PULL_EXIT_MS, then incoming content fades in and sharpens over
+ * FOCUS_PULL_ENTER_MS.
  *
  * The initial view is static. CSS makes reduced motion an instant visual cut,
  * without making this component depend on a JavaScript media-query listener.
@@ -38,11 +44,11 @@ export function FocusPull({ viewKey, children, className }: Props) {
       setTransition((current) =>
         current ? { ...current, entering: true } : current,
       );
-    }, 200);
+    }, FOCUS_PULL_EXIT_MS);
     const finish = window.setTimeout(() => {
       displayedKey.current = viewKey;
       setTransition(null);
-    }, 450);
+    }, FOCUS_PULL_EXIT_MS + FOCUS_PULL_ENTER_MS);
 
     return () => {
       window.clearTimeout(enter);
