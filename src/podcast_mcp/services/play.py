@@ -42,6 +42,7 @@ from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.process import run
 from podcast_mcp.util.project_state import project_state_lock, snapshot_project
 from podcast_mcp.util.tracks import track_audio_path
+from podcast_mcp.util.workspace_paths import resolve_within
 
 # Full-stem rebuild on --rerender is only worth it for long windows. Short
 # auditions use segment render (faster, and avoids silent stem-slice races).
@@ -237,8 +238,10 @@ class PlayService:
         if normalized in ("stem", "processed", "fx"):
             src = stem_path(self.project, track_id)
             tracks_dir = (self.project.artifacts_dir() / "tracks").resolve()
-            if not src.resolve().is_relative_to(tracks_dir):
-                raise ValueError(f"stem path escaped artifacts/tracks for {track_id!r}")
+            try:
+                src = resolve_within(tracks_dir, str(src))
+            except ValueError:
+                raise ValueError(f"stem path escaped artifacts/tracks for {track_id!r}") from None
             if not src.is_file():
                 raise FileNotFoundError(f"processed stem missing for {track_id!r}")
             label = f"wf_stem_{track_id}"

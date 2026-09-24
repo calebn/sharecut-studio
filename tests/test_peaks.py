@@ -37,6 +37,19 @@ def test_ensure_track_peaks_skips_unsafe_id(minimal_project, sample_wav):
     assert not peaks_dir.exists() or not any(peaks_dir.iterdir())
 
 
+def test_ensure_track_peaks_skips_outward_symlink(minimal_project, sample_wav, tmp_path):
+    ws = ProjectWorkspace.open(minimal_project)
+    raw = ws.project.workspace_path() / "raw"
+    raw.mkdir(exist_ok=True)
+    (raw / "import.wav").write_bytes(sample_wav.read_bytes())
+    peaks = ws.project.artifacts_dir() / "peaks"
+    peaks.mkdir(parents=True, exist_ok=True)
+    (peaks / "host.json").symlink_to(tmp_path / "outside.json")
+    track = Track(id="host", label="Host", media=MediaAsset(path="raw/import.wav"))
+    assert ensure_track_peaks(ws.project, track) is None
+    assert not (tmp_path / "outside.json").exists()
+
+
 def test_generate_peaks_uint8_overview_and_timeout(tmp_path, sample_wav):
     out = tmp_path / "peaks.json"
     path = generate_peaks(Path(sample_wav), out)

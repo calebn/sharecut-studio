@@ -22,7 +22,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress_task
-from podcast_mcp.util.workspace_paths import resolve_under_workspace
+from podcast_mcp.util.workspace_paths import resolve_under_workspace, resolve_within
 from podcast_mcp.whisper_models import (
     DEFAULT_WHISPER_MODEL,
     ensure_whisper_model_cached,
@@ -114,11 +114,10 @@ class TranscriptionEngine:
     def cache_path(self, project: EpisodeProject, track_id: str, audio_path: Path) -> Path:
         key = sha256_file(audio_path)[:16]
         name = f"{_cache_id_part(track_id)}_{key}.json"
-        cache = (project.transcripts_dir() / name).resolve()
-        root = project.transcripts_dir().resolve()
-        if not cache.is_relative_to(root):
-            raise ValueError(f"transcript cache escaped transcripts dir: {track_id}")
-        return cache
+        try:
+            return resolve_within(project.transcripts_dir(), name)
+        except ValueError:
+            raise ValueError(f"transcript cache escaped transcripts dir: {track_id}") from None
 
     def transcribe_file(
         self,

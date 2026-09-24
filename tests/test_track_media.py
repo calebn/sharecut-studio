@@ -91,3 +91,13 @@ def test_resolve_workspace_raw_audio_rejects_symlink_escape(minimal_project, sam
     (raw / "link").symlink_to(outside)
     with pytest.raises(ValueError, match="raw/"):
         resolve_workspace_raw_audio(root, "raw/link/secret.wav")
+
+
+def test_resolve_workspace_raw_audio_rejects_symlinked_raw_root(tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (workspace / "raw").symlink_to(outside, target_is_directory=True)
+    with pytest.raises(ValueError, match="raw/"):
+        resolve_workspace_raw_audio(workspace, "raw/guest.wav")

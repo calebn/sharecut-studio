@@ -17,6 +17,7 @@ Guest / share-token remote MCP: `services/remote_mcp/` (context, allowlist, prot
 Do not duplicate project load/save or history snapshot logic in CLI, MCP, or GUI. Use [`ProjectWorkspace`](../src/podcast_mcp/services/workspace.py) and [`run_mutation`](../src/podcast_mcp/history/session.py). GUI audio/pipeline must call `PlayService` / `PipelineService` (same as CLI), not reimplement artifact paths. Agent ↔ DAW transport uses [`SessionSyncService`](../src/podcast_mcp/services/session_sync/service.py) (typed commands + log); see [session-sync.md](session-sync.md). Facades: [`SessionControlService`](../src/podcast_mcp/services/session_control.py). Keep `ffmpeg` subprocesses inside [`FFmpegEngine`](../src/podcast_mcp/engines/ffmpeg.py) so a later in-process mobile backend can swap in ([cross-platform-byok.md](cross-platform-byok.md) § Interim).
 
 Use [`util.hashing.sha256_file`](../src/podcast_mcp/util/hashing.py) for streamed full-file SHA-256 digests. Apply any shortened cache-key representation at its caller.
+Use [`util.workspace_paths.resolve_within`](../src/podcast_mcp/util/workspace_paths.py) for path containment. Keep caller-specific path syntax and error messages at the call site; the utility resolves symlinks and rejects escapes from the allowed root.
 
 ## Adding a feature
 

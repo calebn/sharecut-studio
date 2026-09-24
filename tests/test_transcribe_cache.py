@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 
+import pytest
+
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import Transcript, TranscriptWord, load_project
 
@@ -15,6 +17,17 @@ def test_transcript_cache_keeps_short_file_hash(minimal_project, tmp_path):
     cache = TranscriptionEngine().cache_path(project, "host", audio)
 
     assert cache.name == f"host_{hashlib.sha256(b'recording').hexdigest()[:16]}.json"
+
+
+def test_transcript_cache_rejects_outward_symlink(minimal_project, tmp_path):
+    project = load_project(minimal_project)
+    audio = tmp_path / "recording.wav"
+    audio.write_bytes(b"recording")
+    name = f"host_{hashlib.sha256(b'recording').hexdigest()[:16]}.json"
+    project.transcripts_dir().mkdir(parents=True, exist_ok=True)
+    (project.transcripts_dir() / name).symlink_to(audio)
+    with pytest.raises(ValueError, match="transcript cache escaped"):
+        TranscriptionEngine().cache_path(project, "host", audio)
 
 
 def test_transcribe_track_uses_cache(minimal_project, sample_wav, tmp_workspace):
