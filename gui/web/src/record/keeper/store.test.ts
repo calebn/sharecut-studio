@@ -457,6 +457,77 @@ describe("MemorySink", () => {
     ).toBe(1);
     expect(await sink.read(wav)).toBeNull();
   });
+
+  it("keeps an expired OPFS WAV while another tab holds its download", async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(navigator, "locks");
+    let shared = 0;
+    const locks = {
+      async request(
+        _name: string,
+        options: { mode?: string },
+        callback: (lock: Lock | null) => unknown,
+      ) {
+        if (options.mode === "shared") {
+          shared += 1;
+          try {
+            return await callback({} as Lock);
+          } finally {
+            shared -= 1;
+          }
+        }
+        return callback(shared ? null : ({} as Lock));
+      },
+    };
+    Object.defineProperty(navigator, "locks", {
+      configurable: true,
+      value: locks,
+    });
+    try {
+      const sink = Object.assign(new MemorySink(), {
+        deletionLockName: "sharecut-test-keeper-deletion",
+      });
+      const otherTab = Object.create(sink) as MemorySink;
+      const wav = keeperWavPath({
+        sessionId: "room",
+        takeIndex: 0,
+        participantId: "guest",
+        segmentIndex: 0,
+      });
+      await sink.write(wav, new Uint8Array([1]));
+      sink.modified.set(wav, 0);
+      const release = await holdKeeperReclaim(otherTab);
+      expect(
+        await pruneExpiredKeeperWavs(sink, "room", "guest", 0, () => true),
+      ).toBe(0);
+      expect(await sink.read(wav)).not.toBeNull();
+      release();
+      await vi.waitFor(() => expect(shared).toBe(0));
+      expect(
+        await pruneExpiredKeeperWavs(sink, "room", "guest", 0, () => true),
+      ).toBe(1);
+    } finally {
+      if (descriptor) Object.defineProperty(navigator, "locks", descriptor);
+      else Reflect.deleteProperty(navigator, "locks");
+    }
+  });
+
+  it("retains OPFS WAVs when origin-wide locking is unavailable", async () => {
+    const sink = Object.assign(new MemorySink(), {
+      deletionLockName: "sharecut-test-keeper-deletion",
+    });
+    const wav = keeperWavPath({
+      sessionId: "room",
+      takeIndex: 0,
+      participantId: "guest",
+      segmentIndex: 0,
+    });
+    await sink.write(wav, new Uint8Array([1]));
+    sink.modified.set(wav, 0);
+    expect(
+      await pruneExpiredKeeperWavs(sink, "room", "guest", 0, () => true),
+    ).toBe(0);
+    expect(await sink.read(wav)).not.toBeNull();
+  });
 });
 
 describe("OPFS cleanup", () => {

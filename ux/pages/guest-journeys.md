@@ -264,6 +264,9 @@ flowchart TD
    A metadata-free partial is eligible for cleanup seven days after its last
    write. An hourly settled upload poll in that room can expire it; the panel says the local
    audio is no longer available, and its segment number remains reserved.
+   Recovery downloads hold an origin-wide Web Lock so another tab cannot prune
+   or reclaim the WAV while the browser still reads it; without Web Locks,
+   deletion leaves the WAV available.
    Pending metadata and finalized WAVs follow their separate recovery and
    landed-file rules.
 
