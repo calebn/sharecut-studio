@@ -76,21 +76,34 @@ export function RecordPanel({
   const {
     recordPanelOpen,
     setRecordPanelOpen,
+    shareDialogOpen,
     projectPath,
     setShareDialogOpen,
   } = useDaw();
   const snapshot = useRecordHostStore((s) => s.snapshot);
   const setSnapshot = useRecordHostStore((s) => s.setSnapshot);
+  const captureHealth = useRecordHostStore((s) => s.captureHealth);
   const blockers = startBlockers(snapshot);
   const state = snapshot?.state;
   const recording = state === "recording";
   const paused = state === "paused";
-  const captureUnavailable = recording && micStatus !== null && stream === null;
+  const captureUnavailable = recording && captureHealth !== null;
+  const micLossNeedsAttention = (recording || paused) && micLost;
   useEffect(() => {
-    if ((micLost || captureUnavailable) && !recordPanelOpen) {
+    if (
+      (micLossNeedsAttention || captureUnavailable) &&
+      !recordPanelOpen &&
+      !shareDialogOpen
+    ) {
       setRecordPanelOpen(true);
     }
-  }, [captureUnavailable, micLost, recordPanelOpen, setRecordPanelOpen]);
+  }, [
+    captureUnavailable,
+    micLossNeedsAttention,
+    recordPanelOpen,
+    setRecordPanelOpen,
+    shareDialogOpen,
+  ]);
   const host = snapshot?.participants.find(
     (person) => person.participant_id === "p_host",
   );
@@ -135,7 +148,7 @@ export function RecordPanel({
     participantId: "p_host",
     transport: uploadTransport,
     sink,
-    captureExpected: stream != null,
+    captureExpected: (snapshot?.take_index ?? -1) >= 0 && host != null,
     retryNonce: uploadRetryNonce,
   });
   const keeperActions = useKeeperRecoveryActions({
@@ -213,16 +226,16 @@ export function RecordPanel({
       open={recordPanelOpen}
       onClose={() => setRecordPanelOpen(false)}
       title="Record room"
-      closeDisabled={uploadBlocking || micLost || captureUnavailable}
+      closeDisabled={
+        uploadBlocking || micLossNeedsAttention || captureUnavailable
+      }
     >
       <div className="stack record-panel">
         {snapshot ? (
           <RecIndicator
             snapshot={snapshot}
-            captureFailed={
-              !!keeperError || (captureUnavailable && micStatus !== "prompting")
-            }
-            capturePending={captureUnavailable && micStatus === "prompting"}
+            captureFailed={!!keeperError || captureHealth === "failed"}
+            capturePending={captureHealth === "pending"}
           />
         ) : null}
         <StorageHeadroomWarning
@@ -246,7 +259,9 @@ export function RecordPanel({
             <p className="record-warn">{reconnectCopy}</p>
           ) : null}
           {recordingLocally && !keeperError ? <p>{LOCAL_KEEPER_COPY}</p> : null}
-          {micLost ? <MicLossNotice onRetry={onRetryMic} /> : null}
+          {micLossNeedsAttention ? (
+            <MicLossNotice onRetry={onRetryMic} />
+          ) : null}
           {hearing ? <p>{HEARING_COPY}</p> : null}
           {micCopy ? (
             <p

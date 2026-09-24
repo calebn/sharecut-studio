@@ -318,6 +318,23 @@ describe("useHostKeeperCapture", () => {
     expect(keeper.mock.calls.at(-1)?.[0].resetKey).toBe(0);
   });
 
+  it("marks a lost microphone retry as pending until the new stream arrives", () => {
+    mic.mockReturnValueOnce({
+      stream: null,
+      devices: [],
+      error: null,
+      errorName: null,
+      settingsWarning: null,
+      pending: true,
+      lost: true,
+      retry: vi.fn(),
+    });
+    const { result } = renderHook(() => useHostKeeperCapture());
+    expect(result.current.micStatus).toBe("prompting");
+    expect(result.current.micLost).toBe(true);
+    expect(useRecordHostStore.getState().captureHealth).toBe("pending");
+  });
+
   it("clears capture failure after the take stops", () => {
     mic.mockReturnValueOnce({
       stream: null,

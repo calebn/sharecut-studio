@@ -188,6 +188,9 @@ flowchart TD
    transport chip show local capture as failed, or waiting while a retry is
    acquiring the microphone. A successful Retry restores the live capture
    state without discarding existing keeper segments.
+   After Stop, microphone loss no longer locks the host dialog. A take with no
+   host keeper warns that no local audio was captured, even if the mic never
+   became available.
 8. Host Stop. The native leave warning stays until the keeper finishes saving
    the final WAV and metadata, then clears. The upload panel warns the guest
    to keep the tab open until the final file ACK, shows N/M chunks where all
