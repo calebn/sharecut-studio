@@ -23,7 +23,7 @@ export function HistoryPanel() {
     return null;
   }
 
-  const { cursor, can_undo, can_redo, groups } = project.history;
+  const { can_undo, can_redo, groups } = project.history;
   const historyHydrated = project.meta.hydration?.history_groups !== false;
 
   const runHistoryAction = async (action: "undo" | "redo") => {
@@ -54,15 +54,13 @@ export function HistoryPanel() {
           >
             Redo
           </Button>
-          <span className="transcript-meta">
-            cursor {cursor}
-            {historyHydrated ? (
-              <>
-                {" · "}
-                {`${groups.length} ${plural(groups.length, "step")}`}
-              </>
-            ) : null}
-          </span>
+          {historyHydrated ? (
+            <span className="transcript-meta">
+              {groups.length === 0
+                ? "No edits yet"
+                : `${groups.length} ${plural(groups.length, "step")}`}
+            </span>
+          ) : null}
         </div>
         <InlineError message={error} />
       </div>

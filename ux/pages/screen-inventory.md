@@ -255,11 +255,11 @@ flowchart TB
 | **Track headers** | Identity bar in the lane color · track name · stem status dot (trailing) · M/S · FX badge · role · gain strip; content is top-aligned, selected = neutral chip |
 | **Timeline** | Clips · body-drag move (Select tool) · fades/joins · layer overlays · moving playhead · pinch/ctrl-wheel zoom. Lanes grow to fill the stage when every track fits (72–240px) and scroll beyond that; the marker lane shows only rows with content (chapters, social, comments) and collapses to one 24px row when empty |
 | **Inspector** | Selection modifier (same shapes as sheet): eyebrow badge, title, subtitle only when it differs, full-width fields, one section gap; the body scrolls with edge shadows |
-| **Comments** | List + thread · timeline seek · action items |
-| **History** | Groups · Undo/Redo · diff affordances; list updates from Applied snapshots (SHELL project, or DETAIL/TRACKS/CLIPS/FX/ENVELOPES/COMMENTS patches) |
+| **Comments** | Filter segmented control (Open · Open actions · Resolved · All) · list + thread · timeline seek · action items |
+| **History** | Groups · Undo/Redo · step count (“No edits yet” when empty) · diff affordances; list updates from Applied snapshots (SHELL project, or DETAIL/TRACKS/CLIPS/FX/ENVELOPES/COMMENTS patches) |
 | **Impact** | Pending count · bulk approve/reject · removed duration |
 | **Tighten** | Filler/pause/repetition/restart list · search/filters · preview/skip/apply · apply-all (avoid harsh) |
-| **Pipeline** | Checklist · param inspector · Analyze · Batch vs leave-gates (align + refine) · SSE progress (live headline) |
+| **Pipeline** | Checklist (empty state until Analyze) · param inspector · Analyze · Batch vs leave-gates (align + refine) · SSE progress (live headline) |
 | **Transcript** | Follow/edit (also focus mode `text`); Follow unlocks only on wheel / touch / scrollbar / scroll-key input. Long transcripts (≥200 turns) render only nearby turns plus the active, selected and focused ones — browser find-in-page reaches only rendered turns |
 | **Status** | Actionable chips (pending, **Render: fresh/stale** from the same state as the transport pill, **Transcript: needs sync** only when stale); overflow-x on narrow |
 

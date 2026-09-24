@@ -20,14 +20,16 @@
 
   --s3: calc(var(--s2) * var(--ratio));
 
-  /* Spacing scale */
+  /* Spacing scale: a 4px rhythm (2px hairline step). space-2, space-05, and
+     space-45 are legacy names snapped onto the grid (8/12/16px); new code
+     uses space-0/1/3/4/5/6. */
   --space-0: 0.125rem;
   --space-1: 0.25rem;
-  --space-2: 0.375rem;
-  --space-05: 0.625rem;
+  --space-2: 0.5rem;
+  --space-05: 0.75rem;
   --space-3: 0.5rem;
   --space-4: 0.75rem;
-  --space-45: 0.875rem;
+  --space-45: 1rem;
   --space-5: 1rem;
   --space-6: 1.5rem;
 
