@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { build } from "vite";
@@ -60,5 +60,30 @@ describe("production build story guard", () => {
     } else {
       await expect(run).resolves.toBeDefined();
     }
+  });
+
+  it("rejects copied public JavaScript outside the transform graph", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "sharecut-public-script-"));
+    dirs.push(dir);
+    mkdirSync(join(dir, "public"));
+    writeFileSync(
+      join(dir, "index.html"),
+      '<script type="module" src="/main.js"></script>',
+    );
+    writeFileSync(join(dir, "main.js"), "console.log(42)");
+    writeFileSync(
+      join(dir, "public", "storybook-leak.js"),
+      'import "@storybook/react-vite";',
+    );
+
+    await expect(
+      build({
+        root: dir,
+        configFile: false,
+        logLevel: "silent",
+        plugins: [forbidStoryModules()],
+        build: { outDir: "dist" },
+      }),
+    ).rejects.toThrow("Uninspected public JavaScript can ship story code");
   });
 });

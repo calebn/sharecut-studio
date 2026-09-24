@@ -160,7 +160,9 @@ both themes, in story mode and on its docs page, before merging.
   and rejects stories, Storybook packages, and story-support modules. This
   checks the shipped build graph even when minification removes import text;
   ordinary Storybook-related app copy is unaffected. Storybook's own build
-  does not use the production-app guard.
+  does not use the production-app guard. The app build also rejects JavaScript
+  under `gui/web/public/`, which Vite would copy without module inspection;
+  add scripts to `src/` so the build can inspect them.
 - Stories render production code — never a copy. If a story needs a tweak to
   the component, the component changes, with its Vitest/axe tests.
 - a11y addon runs wcag2a/wcag2aa checks per story; the repo's axe posture
