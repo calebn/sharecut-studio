@@ -47,7 +47,7 @@ test-web:
 # Sharecut Studio Playwright smoke + full-page axe gate against aligned_dialogue
 # + Chromium/WebKit compat matrix (requires `[gui]` extra). Mirrors CI `frontend-e2e` job.
 test-web-e2e:
-	cd gui/web && npm ci && npm run build && npm run test:e2e:install && npm run test:e2e && npm run test:e2e:compat
+	cd gui/web && npm ci && VITE_SHARECUT_E2E=1 npm run build && npm run test:e2e:install && npm run test:e2e && npm run test:e2e:compat
 
 # Tauri host: scaffold verify + sidecar launcher (rustfmt/clippy/rustc --test) +
 # rustfmt + clippy --lib --no-default-features +

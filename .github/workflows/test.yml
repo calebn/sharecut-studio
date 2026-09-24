@@ -123,7 +123,7 @@ jobs:
 
       - name: Build Sharecut Studio static assets
         working-directory: gui/web
-        run: npm run build
+        run: VITE_SHARECUT_E2E=1 npm run build
 
       - name: Playwright smoke + axe (aligned_dialogue)
         working-directory: gui/web

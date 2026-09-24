@@ -975,8 +975,11 @@ spies miss a second accidental connection.
 ### Wiring e2e (Playwright, once `/rec/` exists)
 
 Two, then three browser contexts. Inject oscillators via a test-only
-`MediaStream` hook behind `?e2e=1` **and** `window.__SHARECUT_E2E` (Playwright
+`MediaStream` hook compiled only with `VITE_SHARECUT_E2E=1`, then gated by
+`?e2e=1` **and** `window.__SHARECUT_E2E` (Playwright
 `addInitScript` in `e2e/record-lobby.spec.ts`; wired in `record/monitor/e2eHook.ts`).
+Ordinary and release builds omit the hook and signal counter; the app build
+rejects emitted assets containing their E2E markers.
 Read speaker-bus and keeper-tap spectra with `page.evaluate` on exposed
 AnalyserNodes when asserting MM1/MM5. Lives in `gui/web/e2e/` next to
 presence-follow. Lobby e2e uses the same hook so "Hearing the

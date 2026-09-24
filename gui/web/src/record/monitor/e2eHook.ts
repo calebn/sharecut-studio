@@ -1,7 +1,10 @@
+export const RECORD_E2E_BUILD =
+  import.meta.env.MODE === "test" || import.meta.env.VITE_SHARECUT_E2E === "1";
+
 export function recordE2eEnabled(
   search: string = window.location.search,
 ): boolean {
-  if (new URLSearchParams(search).get("e2e") !== "1") {
+  if (!RECORD_E2E_BUILD || new URLSearchParams(search).get("e2e") !== "1") {
     return false;
   }
   return Boolean(
@@ -29,6 +32,9 @@ export function e2eRoomTonePcm(
   durationSec: number,
   search: string = window.location.search,
 ): Float32Array | null {
+  if (!RECORD_E2E_BUILD) {
+    return null;
+  }
   const e2eWindow = window as RecordE2eWindow;
   if (!recordE2eEnabled(search) || !e2eWindow[E2E_ROOM_TONE_PCM_FLAG]) {
     return null;
@@ -49,6 +55,9 @@ export function injectE2eRemote(
   peerId: string,
   muted = false,
 ): AudioNode | null {
+  if (!RECORD_E2E_BUILD) {
+    return null;
+  }
   if (sources.has(peerId) && oscillators.has(peerId)) {
     graph.setRemoteMuted(peerId, muted);
     return sources.get(peerId) ?? null;
@@ -74,6 +83,9 @@ export function detachE2eRemote(
   oscillators: Map<string, OscillatorNode>,
   peerId: string,
 ): void {
+  if (!RECORD_E2E_BUILD) {
+    return;
+  }
   const osc = oscillators.get(peerId);
   if (osc) {
     try {

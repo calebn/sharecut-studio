@@ -23,7 +23,7 @@ npm run format:check
 Repo root:
 
 - `make test-web` — lint + format:check + typecheck + vitest + build (CI `frontend` job)
-- `make test-web-e2e` — build + Playwright against `aligned_dialogue`, then the Chromium/WebKit compat matrix (CI `frontend-e2e` job)
+- `make test-web-e2e` — E2E-flagged build + Playwright against `aligned_dialogue`, then the Chromium/WebKit compat matrix (CI `frontend-e2e` job). Ordinary `npm run build` rejects emitted E2E hooks.
 - `npm run test:e2e:compat` — focused Chromium/WebKit compatibility matrix only (`npm run test:e2e:install` installs both engines)
 
 Storybook uses the real `src/ui/` components and theme tokens. See
