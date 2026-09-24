@@ -11,6 +11,7 @@ from starlette.websockets import WebSocketDisconnect
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services import ProjectWorkspace
+from podcast_mcp.services.record.commands import RecordCommand
 from podcast_mcp.services.record.control import RecordControlService
 from podcast_mcp.services.record.reducer import RecordStateError
 from podcast_mcp.services.record.service import (
@@ -834,7 +835,7 @@ def test_guest_ws_invalid_lease_and_room_full(
     with client.websocket_connect(f"/api/rec/{token}/ws") as sock:
         _join(sock, name="Ava", participant_id="p_nope", lease="not-a-lease")
         err = _drain_until(sock, lambda m: m.get("type") == "Error")
-        assert err["code"] == "forbidden"
+        assert err["code"] == "invalid_lease"
     svc = RecordSessionService(ws.project, session_id=room["session_id"])
     for i in range(3):
         svc.join(
@@ -1035,7 +1036,7 @@ def test_record_service_helpers(minimal_project, sample_wav, tmp_workspace, monk
     release_connection("p_grace", "c2", hub_key=hub)
     from podcast_mcp.services.record.commands import RecordAuthzError
 
-    with pytest.raises(RecordAuthzError, match="invalid lease"):
+    with pytest.raises(RecordAuthzError, match="invalid_lease"):
         svc.join(
             token=room["guest"]["token"],
             role="guest",
@@ -1046,6 +1047,39 @@ def test_record_service_helpers(minimal_project, sample_wav, tmp_workspace, monk
             connection_id="cx",
             capabilities=["join", "monitor"],
         )
+
+
+def test_rejected_join_distinguishes_expired_lease_from_removed_participant(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    token = room["guest"]["token"]
+    with client.websocket_connect(f"/api/rec/{token}/ws") as first:
+        _join(first, name="Ava")
+        echo = _drain_until(first, lambda m: m.get("type") == "Echo")
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    svc._participants.revoke(echo["participant_id"], session_id=room["session_id"])
+    with client.websocket_connect(f"/api/rec/{token}/ws") as expired:
+        _join(expired, name="Ava", participant_id=echo["participant_id"], lease=echo["lease"])
+        err = _drain_until(expired, lambda m: m.get("type") == "Error")
+        assert err["code"] == "invalid_lease"
+        _join(expired, name="Ava")
+        fresh = _drain_until(expired, lambda m: m.get("type") == "Echo")
+        assert fresh["participant_id"] != echo["participant_id"]
+    svc.submit(
+        RecordCommand.parse(
+            command_type="RemoveParticipant",
+            payload={"participant_id": echo["participant_id"]},
+            client_id="host",
+            role="host",
+            participant_id="host",
+            client_seq=1,
+        )
+    )
+    with client.websocket_connect(f"/api/rec/{token}/ws") as removed:
+        _join(removed, name="Ava", participant_id=echo["participant_id"], lease=echo["lease"])
+        err = _drain_until(removed, lambda m: m.get("type") == "Error")
+        assert err["code"] == "participant_removed"
 
 
 @pytest.mark.asyncio

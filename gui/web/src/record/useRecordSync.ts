@@ -3,6 +3,7 @@ import { applyServerClock } from "../presence/clock";
 import { newClientId } from "../session/clientId";
 import { bindWsSender } from "../session/wsSend";
 import {
+  clearRecordParticipant,
   loadRecordParticipant,
   saveRecordParticipant,
 } from "../state/offlineStore";
@@ -59,6 +60,7 @@ export function useRecordSync(
   const clientIdRef = useRef(newClientId());
   const nameRef = useRef(displayName);
   const retryMsRef = useRef(1000);
+  const skipLeaseRef = useRef(false);
   nameRef.current = displayName;
 
   const send = useCallback(
@@ -101,7 +103,9 @@ export function useRecordSync(
       if (cancelled) {
         return;
       }
-      const cached = await loadRecordParticipant(token);
+      const cached = skipLeaseRef.current
+        ? undefined
+        : await loadRecordParticipant(token);
       if (cancelled || accessEnded) {
         return;
       }
@@ -153,7 +157,19 @@ export function useRecordSync(
               thisSocket.close();
               return;
             }
-            if (msg.code === "forbidden") {
+            if (msg.code === "invalid_lease" && !joined) {
+              skipLeaseRef.current = true;
+              retryMsRef.current = 250;
+              void clearRecordParticipant(token).then(
+                () => thisSocket.close(),
+                () => thisSocket.close(),
+              );
+              return;
+            }
+            if (
+              msg.code === "participant_removed" ||
+              msg.code === "forbidden"
+            ) {
               if (!joined) {
                 accessEnded = true;
                 setError("access_removed");
@@ -168,6 +184,7 @@ export function useRecordSync(
           }
           if (msg.type === "Echo" && msg.participant_id && msg.lease) {
             joined = true;
+            skipLeaseRef.current = false;
             setMeId(msg.participant_id);
             setLease(msg.lease);
             void saveRecordParticipant(token, {
