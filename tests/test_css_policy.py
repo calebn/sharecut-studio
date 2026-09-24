@@ -355,11 +355,13 @@ def test_studio_references_only_defined_custom_properties() -> None:
     inline by a component."""
     studio = ROOT / "gui/web/src"
     css_files = sorted(studio.rglob("*.css"))
+    all_scripts = sorted([*studio.rglob("*.ts"), *studio.rglob("*.tsx")])
     script_files = [
-        path
-        for path in sorted([*studio.rglob("*.ts"), *studio.rglob("*.tsx")])
-        if ".test." not in path.name and ".stories." not in path.name
+        path for path in all_scripts if ".test." not in path.name and ".stories." not in path.name
     ]
+    # Stories render what ships, so their var() reads must resolve too; they
+    # never count as defining a property (production doesn't load them).
+    story_files = [path for path in all_scripts if ".stories." in path.name]
     defined: set[str] = set()
     for path in css_files:
         defined.update(_CUSTOM_PROP_DEF.findall(_CSS_COMMENT.sub("", path.read_text())))
@@ -367,13 +369,14 @@ def test_studio_references_only_defined_custom_properties() -> None:
         for first, second in _TS_PROP_SET.findall(path.read_text()):
             defined.add(first or second)
     missing: list[str] = []
-    for path in [*css_files, *script_files]:
+    for path in [*css_files, *script_files, *story_files]:
         text = path.read_text()
         if path.suffix == ".css":
             text = _CSS_COMMENT.sub("", text)
         used = {*_CUSTOM_PROP_USE.findall(text), *_TS_PROP_READ.findall(text)}
         for name in sorted(used - defined):
-            if name in _DYNAMIC_PROP_PREFIXES:
+            # Template reads (`var(--color-bg-${rung})`) capture only a prefix.
+            if name.endswith("-") and name.startswith(_DYNAMIC_PROP_PREFIXES):
                 continue
             missing.append(f"{path.relative_to(ROOT)}: {name}")
     assert not missing, "undefined custom properties:\n" + "\n".join(missing)
