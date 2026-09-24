@@ -158,7 +158,9 @@ The same file fault-injects MP3 export failure to check that the new version dir
 removed without changing existing review media or the source mix, and checks that a generated
 ID collision does not overwrite an existing directory. Additional fault injection covers
 interruption, retargeting a symlinked review root during failure cleanup, directory replacement
-during both generation and persistence failure cleanup, and the service's persisted-state contract.
+during both generation and persistence failure cleanup (pinned and path-based), replacement before
+the service callback records its identity, failure of the identity read, and the service's
+persisted-state contract.
 
 Tests that need object storage mock `load_object_store_config` / `ObjectStoreClient` explicitly (see `tests/test_review_media_object_store.py`).
 

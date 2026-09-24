@@ -39,6 +39,32 @@ _SAFE_FAILED_CLEANUP_SUPPORTED = (
 )
 REVIEW_ARTIFACTS_RELDIR = "artifacts/review"
 
+DirectoryIdentity = tuple[int, int]
+
+
+def _dir_identity(metadata: os.stat_result) -> DirectoryIdentity:
+    return (metadata.st_dev, metadata.st_ino)
+
+
+def _is_created_dir(metadata: os.stat_result, identity: DirectoryIdentity) -> bool:
+    return stat.S_ISDIR(metadata.st_mode) and _dir_identity(metadata) == identity
+
+
+def _open_pinned_dir(path: Path) -> int:
+    return os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+
+
+def _created_dir_identity(version_dir: Path) -> DirectoryIdentity:
+    """Record the identity of a just-created directory; remove it if the read fails."""
+    try:
+        return _dir_identity(version_dir.stat(follow_symlinks=False))
+    except BaseException:
+        try:
+            version_dir.rmdir()
+        except OSError:
+            log.warning("Could not remove review version directory %s", version_dir)
+        raise
+
 
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
@@ -161,40 +187,42 @@ def _clean_stale_mp3_temps(version_dir: Path) -> None:
             os.close(directory_fd)
 
 
-def clean_created_version(version_dir: Path, identity: tuple[int, int]) -> None:
+def clean_created_version(version_dir: Path, identity: DirectoryIdentity) -> None:
     """Quarantine one exclusively created directory before removing its contents.
 
-    A mismatch leaves the directory in place. The quarantine is private so a
-    cooperating local writer cannot retarget the public version name into cleanup.
+    A mismatch leaves the directory in place. Where descriptor-relative operations
+    exist the root and quarantine are pinned by fd; otherwise the same
+    identity-checked quarantine runs on resolved paths.
     """
-    if not _SAFE_FAILED_CLEANUP_SUPPORTED:
-        log.warning(
-            "Skipping failed review cleanup without safe directory operations: %s", version_dir
-        )
-        return
+    pinned = _SAFE_FAILED_CLEANUP_SUPPORTED
     root = version_dir.parent
-    root_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    root_fd: int | None = None
+    quarantine_fd: int | None = None
     quarantine: Path | None = None
     try:
-        current = os.stat(version_dir.name, dir_fd=root_fd, follow_symlinks=False)
-        if (current.st_dev, current.st_ino) != identity or not stat.S_ISDIR(current.st_mode):
+        if pinned:
+            root_fd = _open_pinned_dir(root)
+        public: str | Path = version_dir.name if pinned else version_dir
+        current = os.stat(public, dir_fd=root_fd, follow_symlinks=False)
+        if not _is_created_dir(current, identity):
             log.warning("Review version directory changed; keeping %s", version_dir)
             return
         quarantine = Path(tempfile.mkdtemp(prefix=".failed-review-", dir=root))
-        quarantine_fd = os.open(quarantine, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-        try:
-            os.rename(version_dir.name, "media", src_dir_fd=root_fd, dst_dir_fd=quarantine_fd)
-            moved = os.stat("media", dir_fd=quarantine_fd, follow_symlinks=False)
-            if (moved.st_dev, moved.st_ino) != identity or not stat.S_ISDIR(moved.st_mode):
-                log.warning(
-                    "Review version directory changed during quarantine; keeping %s", quarantine
-                )
-                return
-            shutil.rmtree("media", dir_fd=quarantine_fd)
-        finally:
-            os.close(quarantine_fd)
+        if pinned:
+            quarantine_fd = _open_pinned_dir(quarantine)
+        moved: str | Path = "media" if pinned else quarantine / "media"
+        os.rename(public, moved, src_dir_fd=root_fd, dst_dir_fd=quarantine_fd)
+        after = os.stat(moved, dir_fd=quarantine_fd, follow_symlinks=False)
+        if not _is_created_dir(after, identity):
+            log.warning(
+                "Review version directory changed during quarantine; keeping %s", quarantine
+            )
+            return
+        shutil.rmtree(moved, dir_fd=quarantine_fd)
     finally:
-        os.close(root_fd)
+        for fd in (quarantine_fd, root_fd):
+            if fd is not None:
+                os.close(fd)
         if quarantine is not None:
             try:
                 quarantine.rmdir()
@@ -254,9 +282,13 @@ def publish_version(
     prefer: str = "premix",
     set_active: bool = True,
     eng: FFmpegEngine | None = None,
-    on_media_created: Callable[[Path], None] | None = None,
+    on_media_created: Callable[[Path, DirectoryIdentity], None] | None = None,
 ) -> ReviewMixVersion:
-    """Copy current premix/mastered into artifacts/review/{id}/mix.wav (+ mix.mp3)."""
+    """Copy current premix/mastered into artifacts/review/{id}/mix.wav (+ mix.mp3).
+
+    ``on_media_created(version_dir, identity)`` receives the identity recorded once
+    at creation so callers clean up the same directory this call made.
+    """
     text = (label or "").strip()
     if not text:
         raise ValueError("label is required")
@@ -268,14 +300,13 @@ def publish_version(
     resolved_root = review_root.resolve(strict=True)
     version_dir = resolved_root / vid
     version_dir.mkdir(parents=True, exist_ok=False)
-    metadata = version_dir.stat(follow_symlinks=False)
-    created_identity = (metadata.st_dev, metadata.st_ino)
+    created_identity = _created_dir_identity(version_dir)
     dest = version_dir / "mix.wav"
     mp3_rel = f"{REVIEW_ARTIFACTS_RELDIR}/{vid}/mix.mp3"
     mp3_path = version_dir / "mix.mp3"
     try:
         if on_media_created is not None:
-            on_media_created(version_dir)
+            on_media_created(version_dir, created_identity)
         shutil.copy2(src, dest)
         engine = eng or FFmpegEngine()
         engine.export_mp3(dest, mp3_path, bitrate_kbps=_REVIEW_MP3_BITRATE_KBPS)
