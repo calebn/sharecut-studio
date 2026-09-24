@@ -2706,7 +2706,7 @@ def test_room_tone_rerecord_stale_during_commit_clears_overwritten_bed(
     assert landed_a["clips"] == []
     track = ws.project.track_by_id(track_id)
     assert track is not None and track.room_tone is not None
-    assert track.room_tone.path == f"raw/room-tone/{guest}.wav"
+    assert track.room_tone.path == f"raw/room-tone/{room['session_id']}/{guest}.wav"
 
     pcm_b, digest_b, hash_b = _pcm(96)
     uploader.ingest_part(
@@ -2737,7 +2737,8 @@ def test_room_tone_rerecord_stale_during_commit_clears_overwritten_bed(
     _race_on_commit(
         monkeypatch,
         when=lambda project: any(
-            s.id == source_id and s.path == f"raw/room-tone/{guest}.wav" for s in project.sources
+            s.id == source_id and s.path == f"raw/room-tone/{room['session_id']}/{guest}.wav"
+            for s in project.sources
         ),
         race=race,
     )
@@ -2793,9 +2794,13 @@ def test_room_tone_newer_bed_on_disk_before_rollback_is_kept(
             file_sha256=replacement_hash,
             byte_length=480,
         )
-        (Path(ws.project.workspace_dir) / "raw" / "room-tone" / f"{guest}.wav").write_bytes(
-            b"newer-generation-bed"
-        )
+        (
+            Path(ws.project.workspace_dir)
+            / "raw"
+            / "room-tone"
+            / room["session_id"]
+            / f"{guest}.wav"
+        ).write_bytes(b"newer-generation-bed")
 
     _race_on_commit(
         monkeypatch,
@@ -2810,7 +2815,7 @@ def test_room_tone_newer_bed_on_disk_before_rollback_is_kept(
     track = ws.project.track_by_id(track_id)
     assert track is not None
     assert track.room_tone is not None
-    assert track.room_tone.path == f"raw/room-tone/{guest}.wav"
+    assert track.room_tone.path == f"raw/room-tone/{room['session_id']}/{guest}.wav"
 
     beds = uploader.room_tone_status(session_id=room["session_id"])
     assert beds[0]["file_sha256"] == replacement_hash
