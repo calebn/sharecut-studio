@@ -20,6 +20,9 @@ import {
   Menu,
   MenuItem,
   MenuSection,
+  Pill,
+  SegmentedControl,
+  Timecode,
   ToggleButton,
 } from "../ui";
 import { staleRenderBreakdown } from "../utils/staleRender";
@@ -31,6 +34,7 @@ import {
 import { AvatarStack } from "./AvatarStack";
 import { OverlayLegend } from "./OverlayLegend";
 import { ToolModeToggle } from "./ToolModeToggle";
+import { TransportFrame, TransportZone } from "./TransportFrame";
 
 const MODES: { id: AuditionMode; label: string; title: string }[] = [
   { id: "mix", label: "Mix", title: "Full premix (all tracks)" },
@@ -135,10 +139,10 @@ export function TransportBar({
     Boolean(breakdown?.premixMissing || breakdown?.premixStaleVsStems);
   const guestMixOnly = guestHearsMixOnly(guestMode);
   const auditionGroup = (menu = false) => (
-    <div
+    <SegmentedControl
       className="audition-modes"
       role={menu ? "none" : "group"}
-      aria-label={menu ? undefined : "Audition mode"}
+      label="Audition mode"
     >
       {MODES.map((m) => (
         <ToggleButton
@@ -168,7 +172,7 @@ export function TransportBar({
           {m.label}
         </ToggleButton>
       ))}
-    </div>
+    </SegmentedControl>
   );
 
   const staleTitle = mayRefresh
@@ -230,21 +234,16 @@ export function TransportBar({
   );
 
   return (
-    <header
+    <TransportFrame
       ref={headerRef}
-      data-playing={isPlaying}
-      className={[
-        "transport",
-        compact ? "transport--compact" : "",
-        collapsed ? "transport--collapsed" : "",
-      ]
-        .filter(Boolean)
-        .join(" ")}
+      compact={compact}
+      collapsed={collapsed}
+      playing={isPlaying}
     >
-      <div className="transport-zone transport-zone--start">
+      <TransportZone position="start">
         <h1>{project?.meta.name ?? "Loading episode…"}</h1>
-      </div>
-      <div className="transport-zone transport-zone--center">
+      </TransportZone>
+      <TransportZone position="center">
         <div className="transport-play">
           <CommandButton
             bare
@@ -277,26 +276,19 @@ export function TransportBar({
           </CommandButton>
         </div>
         {showRecordingChip ? <RecordTransportChip /> : null}
-        <span
-          className={
-            duration >= 3600 && !collapsed
-              ? "timecode timecode-hours"
-              : "timecode"
-          }
+        <Timecode
+          current={currentTimecode}
+          total={collapsed ? undefined : totalTimecode}
           title={fullTimecode}
-        >
-          <span className="timecode-current">{currentTimecode}</span>
-          {!collapsed ? (
-            <span className="timecode-total">{` / ${totalTimecode}`}</span>
-          ) : null}
-        </span>
+          hours={duration >= 3600 && !collapsed}
+        />
         {!collapsed ? auditionGroup() : null}
-      </div>
-      <div className="transport-zone transport-zone--end">
+      </TransportZone>
+      <TransportZone position="end">
         {ingestBusy ? (
-          <span className="pill warning" title="Importing audio…">
+          <Pill tone="warning" title="Importing audio…">
             {collapsed ? "…" : "Importing…"}
-          </span>
+          </Pill>
         ) : null}
         {!collapsed && stale ? (
           <CommandButton
@@ -327,21 +319,21 @@ export function TransportBar({
             {renderPreviewBusy ? "Refreshing…" : "Stale render"}
           </CommandButton>
         ) : null}
-        {!collapsed && !stale ? <span className="pill ok">Fresh</span> : null}
+        {!collapsed && !stale ? <Pill tone="ok">Fresh</Pill> : null}
         {audioError && (
-          <span className="pill warning" title={audioError}>
+          <Pill tone="warning" title={audioError}>
             Err
-          </span>
+          </Pill>
         )}
         {!collapsed && sessionRegion ? (
-          <span
-            className="pill audition"
+          <Pill
+            tone="audition"
             title={`${sessionRegion.start_sec.toFixed(1)}–${sessionRegion.end_sec.toFixed(1)}s`}
           >
             {lastAgentQuery
               ? `Agent: “${lastAgentQuery}”`
               : `Region ${sessionRegion.start_sec.toFixed(1)}–${sessionRegion.end_sec.toFixed(1)}s`}
-          </span>
+          </Pill>
         ) : null}
 
         <div className="transport-primary-actions">
@@ -566,7 +558,7 @@ export function TransportBar({
             </MenuSection>
           </Menu>
         </div>
-      </div>
-    </header>
+      </TransportZone>
+    </TransportFrame>
   );
 }

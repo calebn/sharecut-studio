@@ -7,9 +7,15 @@
   background: var(--color-transport-control);
 }
 
-.transport .audition-modes .ui-control--quiet {
+.transport .ui-segmented {
+  border-color: var(--color-transport-control-border);
+  background: var(--color-transport-segment);
+}
+
+.transport .ui-segmented > .ui-control--quiet {
   border-color: transparent;
   background: transparent;
+  color: var(--color-transport-muted);
 }
 
 /* One selected language in the transport: a lifted neutral chip with full

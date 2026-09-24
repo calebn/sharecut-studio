@@ -9,7 +9,8 @@ Intentional in-house chrome library under [`src/ui/`](../src/ui/). **No Radix / 
 | Button, ToggleButton, Field, FieldRow, InlineError | ClipBlock, TrackLane, Playhead |
 | Dialog, Menu, BottomSheet, `useDialogModal` | Timeline zoom / selection math |
 | CommandButton, CommandMenuItem, `useCommand` | Pipeline param schemas |
-| Icon (stroke SVGs), LoadingScreen, ErrorScreen, FocusPull, FocusToggle, DefinitionList | Comment domain (`comments/` — use library Button/Field) |
+| Icon (stroke SVGs, filled transport glyphs), LoadingScreen, ErrorScreen, FocusPull, FocusToggle, DefinitionList | Comment domain (`comments/` — use library Button/Field) |
+| SegmentedControl, Pill, Timecode, EmptyState | Transport wiring (`layout/TransportBar` over the presentational `layout/TransportFrame`) |
 
 ## Public API
 
@@ -23,12 +24,12 @@ Import from [`src/ui/index.ts`](../src/ui/index.ts) (or `../ui`). Hooks used by 
 
 ### `.ui-control` interaction primitive
 
-`Button`, `ToggleButton`, `CommandButton` (including `bare`), and `FocusToggle` always apply `ui-control`. Domain classes may set padding / min-size / grouping layout; they must **not** re-declare `:hover` / `:focus-visible` / pressed paint unless a documented exception (e.g. stale-pill warning outline). Default `.ui-control:hover` color/border does **not** apply to `.pill`, `.status-chip`, `.status-pipeline`, `.trk-btn.mute` / `.solo`, or `.comment-mode-btn` so semantic / link-style / function colors stay intact; action pills still use their outline-on-hover exception. Quiet pressed hover wash likewise skips solid segment groups (`.audition-modes`, `.tool-mode-toggle`), which keep fill from layout CSS.
+`Button`, `ToggleButton`, `CommandButton` (including `bare`), and `FocusToggle` always apply `ui-control`. Domain classes may set padding / min-size / grouping layout; they must **not** re-declare `:hover` / `:focus-visible` / pressed paint unless a documented exception (e.g. stale-pill warning outline). Default `.ui-control:hover` color/border does **not** apply to `.pill`, `.status-chip`, `.status-pipeline`, `.trk-btn.mute` / `.solo`, or `.comment-mode-btn` so semantic / link-style / function colors stay intact; action pills still use their outline-on-hover exception. Quiet pressed hover wash likewise skips segment groups (`.ui-segmented`, `.tool-mode-toggle`), which keep the selected chip (`--color-chip-selected`) on hover. Every pressed toggle, segment, tab, and menu-row hover uses that one chip; the accent is never a selected state.
 
 | Modifier | Use |
 |----------|-----|
 | (default) | Lane-fill chip with strong-enough border |
-| `.primary` | Copper solid fill (`--color-accent-solid`) |
+| `.primary` | Copper solid fill (`--color-accent-solid`); one per context |
 | `.danger` | Destructive text/border |
 | `.ui-control--quiet` or `[data-ui-kind="tab"]` | Tabs / segmented tools — quieter rest, still hover + focus-visible + pressed |
 | `.ui-control--compact` | Transport icons, M/S |
@@ -89,7 +90,11 @@ Every interactive library component has Vitest coverage including `expectNoA11yV
 | `Menu` / `CommandMenuItem` | Popup menu + command items |
 | `BottomSheet` | Phone/tablet peek sheet (non-modal) |
 | `useDialogModal` | Focus trap / Escape / inert / restore (`mode: modal \| sheet`) |
-| `Icon` | Compact stroke icons for transport / tools (`currentColor`) |
+| `Icon` | Compact stroke icons for transport / tools (`currentColor`); play, pause, and stop are filled |
+| `SegmentedControl` | Track of quiet `ToggleButton`s (audition Mix/FX/Raw); themed on panes, dark in the transport, radio rows in a `Menu` |
+| `Pill` | Read-only status chip (`neutral` / `ok` / `warning` / `audition`) |
+| `Timecode` | Tabular playhead readout: large current time, muted total |
+| `EmptyState` | Quiet empty list or panel text (no fill or border, so it never reads as a disabled field) |
 | `FocusPull` | View-keyed lobby/room transition: 200ms outgoing blur/fade, then 250ms incoming fade/sharpen; initial mount stays static and reduced motion visually cuts instantly |
 | `LevelMeter` | Presentational peak meter (`role="meter"`, clamped `aria-valuenow`, polite clip announcement). Display helpers in `ui/metering.ts` (`dbToFraction`, `zoneForDb`, `formatDb`, `ariaValueNow`); DSP (`peakDbFromSamples`, `decayPeakHold`, `stepMeter`) in `audio/metering.ts`; `audio/usePeakMeter` owns the rAF loop and `record/useInputPeakDb` adapts a mic stream. Exists but not yet wired into DeviceCheck / the record room (#174) |
 | `DefinitionList`, screens, `FocusToggle`, `InspectorSeekFooter` | Existing chrome |

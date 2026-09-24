@@ -2,13 +2,22 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Icon, type IconName } from "./index";
 
 const NAMES: IconName[] = [
+  "play",
+  "pause",
+  "stop",
   "select",
   "blade",
   "comment",
   "fit",
   "menu",
+  "layers",
+  "close",
   "cutAtPlayhead",
   "agent",
+  "listen",
+  "timeline",
+  "text",
+  "more",
 ];
 
 const meta: Meta<typeof Icon> = {
@@ -31,7 +40,8 @@ export const AllIcons: Story = {
     <div
       style={{
         display: "flex",
-        gap: "var(--space-3)",
+        flexWrap: "wrap",
+        gap: "var(--space-4)",
         alignItems: "center",
         color: "var(--color-text-primary)",
       }}

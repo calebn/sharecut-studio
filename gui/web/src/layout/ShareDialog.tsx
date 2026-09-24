@@ -9,7 +9,7 @@ import {
 import { execute } from "../commands/execute";
 import { useDaw } from "../state/useDaw";
 import type { HostShareRow, ShareRole } from "../types/shares";
-import { Button, Dialog, Field, InlineError } from "../ui";
+import { Button, Dialog, EmptyState, Field, InlineError } from "../ui";
 import { errorMessage } from "../utils/apiError";
 
 const ROLES: { id: ShareRole; label: string }[] = [
@@ -386,9 +386,9 @@ export function ShareDialog() {
           </h3>
           <div className="share-dialog-scroller">
             {reviewLive.length === 0 ? (
-              <p className="share-dialog-empty ui-empty-state">
+              <EmptyState className="share-dialog-empty">
                 No live review links.
-              </p>
+              </EmptyState>
             ) : (
               <ul className="share-dialog-list">
                 {reviewLive.map((row) => (
@@ -457,9 +457,9 @@ export function ShareDialog() {
           </h3>
           <div className="share-dialog-scroller-rooms">
             {recordRooms.length === 0 ? (
-              <p className="share-dialog-empty ui-empty-state">
+              <EmptyState className="share-dialog-empty">
                 No live record rooms.
-              </p>
+              </EmptyState>
             ) : (
               <ul className="share-dialog-list">
                 {recordRooms.map((room) => (
