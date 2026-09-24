@@ -119,11 +119,10 @@ both themes, in story mode and on its docs page, before merging.
    Actions panel.
 8. Give fixture element ids a story-unique value — autodocs renders every
    story on one page.
-9. Give stories that claim behavior a `play` function. Stories with `play`
-   functions are executed in Vitest via `composeStories` + `Story.run()` plus
-   `expectNoA11yViolations` in a colocated test (see
-   `src/record/ConsentGate.test.tsx`, `src/record/LiveComments.stories.test.tsx`);
-   CI does not otherwise render stories.
+9. Give stories that claim behavior a `play` function. The generic
+   `src/test/allStories.test.tsx` suite discovers every colocated story, runs
+   its `play` function, and checks the rendered DOM with axe in CI. Keep
+   colocated component tests for behavior that needs specific assertions.
 10. Run `npm run build-storybook` before pushing; the Pages workflow rebuilds
     from `main` anyway.
 
