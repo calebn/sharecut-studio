@@ -327,7 +327,8 @@ def publish_version(
     except BaseException:
         try:
             clean_created_version(version_dir, created_identity)
-        except OSError:
+        except BaseException:
+            # Same contract as ReviewService._clean_uncommitted_media: never mask the original error.
             log.warning(
                 "Could not remove failed review version directory %s", version_dir, exc_info=True
             )

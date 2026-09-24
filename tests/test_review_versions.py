@@ -472,6 +472,101 @@ def test_publish_identity_failure_removes_empty_version_dir(
     assert load_project(minimal_project).review.versions == []
 
 
+def test_failed_publish_cleanup_error_preserves_original_error(
+    minimal_project, sample_wav, monkeypatch
+):
+    project = load_project(minimal_project)
+    art = Path(project.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    monkeypatch.setattr(review_versions, "_new_id", lambda: "cleanup-bug")
+
+    def broken_cleanup(version_dir, identity):
+        raise ValueError("cleanup bug")
+
+    monkeypatch.setattr(review_versions, "clean_created_version", broken_cleanup)
+    _fail_publication("generation", project, minimal_project, monkeypatch)
+
+    assert (art / "review" / "cleanup-bug").is_dir()
+    assert load_project(minimal_project).review.versions == []
+
+
+@pytest.mark.parametrize("pinned", [pytest.param(True, marks=requires_safe_failed_cleanup), False])
+def test_failed_publish_keeps_quarantine_when_rmtree_fails(
+    minimal_project, sample_wav, monkeypatch, pinned
+):
+    monkeypatch.setattr(review_versions, "_SAFE_FAILED_CLEANUP_SUPPORTED", pinned)
+    project = load_project(minimal_project)
+    art = Path(project.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    monkeypatch.setattr(review_versions, "_new_id", lambda: "rmtree-fail")
+
+    def fail_rmtree(*args, **kwargs):
+        raise OSError("rmtree failed")
+
+    monkeypatch.setattr(review_versions.shutil, "rmtree", fail_rmtree)
+    _fail_publication("generation", project, minimal_project, monkeypatch)
+
+    review_root = art / "review"
+    assert not (review_root / "rmtree-fail").exists()
+    kept = list(review_root.glob(".failed-review-*/media/mix.wav"))
+    assert len(kept) == 1
+    assert load_project(minimal_project).review.versions == []
+
+
+def _created_version_dir(tmp_path):
+    version_dir = tmp_path / "review" / "created"
+    version_dir.mkdir(parents=True)
+    (version_dir / "mix.wav").write_bytes(b"partial")
+    return version_dir, review_versions._dir_identity(version_dir.stat(follow_symlinks=False))
+
+
+@pytest.mark.parametrize("pinned", [pytest.param(True, marks=requires_safe_failed_cleanup), False])
+def test_clean_created_version_keeps_directory_replaced_before_check(tmp_path, monkeypatch, pinned):
+    monkeypatch.setattr(review_versions, "_SAFE_FAILED_CLEANUP_SUPPORTED", pinned)
+    version_dir, identity = _created_version_dir(tmp_path)
+    original = version_dir.with_name("original")
+    version_dir.rename(original)
+    version_dir.mkdir()
+    (version_dir / "mix.wav").write_bytes(b"replacement")
+
+    review_versions.clean_created_version(version_dir, identity)
+
+    assert (version_dir / "mix.wav").read_bytes() == b"replacement"
+    assert (original / "mix.wav").read_bytes() == b"partial"
+    assert not list(version_dir.parent.glob(".failed-review-*"))
+
+
+def test_clean_created_version_mkdtemp_failure_keeps_directory(tmp_path, monkeypatch):
+    version_dir, identity = _created_version_dir(tmp_path)
+
+    def fail_mkdtemp(*args, **kwargs):
+        raise OSError("mkdtemp failed")
+
+    monkeypatch.setattr(review_versions.tempfile, "mkdtemp", fail_mkdtemp)
+    with pytest.raises(OSError, match="mkdtemp failed"):
+        review_versions.clean_created_version(version_dir, identity)
+    assert (version_dir / "mix.wav").read_bytes() == b"partial"
+
+
+@requires_safe_failed_cleanup
+def test_clean_created_version_quarantine_open_failure_keeps_directory(tmp_path, monkeypatch):
+    version_dir, identity = _created_version_dir(tmp_path)
+    real_open = review_versions._open_pinned_dir
+
+    def fail_quarantine_open(path, *args, **kwargs):
+        if Path(path).name.startswith(".failed-review-"):
+            raise OSError("quarantine open failed")
+        return real_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(review_versions, "_open_pinned_dir", fail_quarantine_open)
+    with pytest.raises(OSError, match="quarantine open failed"):
+        review_versions.clean_created_version(version_dir, identity)
+    assert (version_dir / "mix.wav").read_bytes() == b"partial"
+    assert not list(version_dir.parent.glob(".failed-review-*"))
+
+
 def test_publish_id_collision_preserves_existing_directory(
     minimal_project, sample_wav, monkeypatch
 ):

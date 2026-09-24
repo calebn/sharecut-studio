@@ -160,7 +160,10 @@ ID collision does not overwrite an existing directory. Additional fault injectio
 interruption, retargeting a symlinked review root during failure cleanup, directory replacement
 during both generation and persistence failure cleanup (pinned and path-based), replacement before
 the service callback records its identity, failure of the identity read, and the service's
-persisted-state contract.
+persisted-state contract. Direct `clean_created_version` tests cover replacement before the first
+identity check, quarantine creation and open failures, and `rmtree` failing mid-cleanup (the
+quarantine is kept and the original publish error still surfaces, including when cleanup raises
+a non-`OSError`).
 
 Tests that need object storage mock `load_object_store_config` / `ObjectStoreClient` explicitly (see `tests/test_review_media_object_store.py`).
 
