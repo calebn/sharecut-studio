@@ -295,6 +295,121 @@ test("Share dialog floats on the overlay rung over a dark scrim", async ({
   }
 });
 
+test("primary buttons keep their fill on hover in both themes", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await expect(page.locator(".lane-row").first()).toBeVisible();
+  await page.evaluate(() => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "ui-control modifier-action primary";
+    button.textContent = "Approve";
+    button.id = "e2e-primary-probe";
+    button.style.position = "fixed";
+    button.style.insetBlockStart = "4rem";
+    button.style.insetInlineStart = "4rem";
+    button.style.zIndex = "9999";
+    document.body.appendChild(button);
+  });
+  const probe = page.locator("#e2e-primary-probe");
+  for (const theme of ["light", "dark"] as const) {
+    await setTheme(page, theme);
+    await page.mouse.move(0, 0);
+    const rest = await probe.evaluate(
+      (el) => getComputedStyle(el).backgroundColor,
+    );
+    await probe.hover();
+    const hover = await probe.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return { fill: style.backgroundColor, ink: style.color };
+    });
+    // The generic hover wash must never replace the primary fill (#20 review).
+    expect(hover.fill, theme).toBe(rest);
+    expect(contrastRatio(hover.ink, hover.fill), theme).toBeGreaterThanOrEqual(
+      4.5,
+    );
+  }
+});
+
+test("every text on the fixed-dark transport reads in both themes", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await expect(page.locator(".lane-row").first()).toBeVisible();
+  for (const theme of ["light", "dark"] as const) {
+    await setTheme(page, theme);
+    const samples = await page.locator(".transport").evaluate((transport) => {
+      const parse = (value: string) => {
+        const m = value.match(/[\d.]+/g)?.map(Number) ?? [0, 0, 0, 0];
+        const srgb = value.startsWith("color(srgb");
+        const [r, g, b] = srgb ? m.slice(0, 3).map((c) => c * 255) : m;
+        const a = (srgb ? m[3] : m[3]) ?? 1;
+        return {
+          r,
+          g,
+          b,
+          a: value.includes("/") || value.startsWith("rgba") ? a : 1,
+        };
+      };
+      const swatch = document.createElement("span");
+      swatch.style.color = "var(--color-transport-top)";
+      transport.appendChild(swatch);
+      const strip = parse(getComputedStyle(swatch).color);
+      swatch.remove();
+      // Composite each ancestor fill (outermost first) over the strip.
+      const backdrop = (el: Element) => {
+        const chain: Element[] = [];
+        for (
+          let e: Element | null = el;
+          e && e !== transport;
+          e = e.parentElement
+        ) {
+          chain.unshift(e);
+        }
+        let base = strip;
+        for (const e of chain) {
+          const fill = parse(getComputedStyle(e).backgroundColor);
+          if (fill.a > 0) {
+            base = {
+              r: fill.r * fill.a + base.r * (1 - fill.a),
+              g: fill.g * fill.a + base.g * (1 - fill.a),
+              b: fill.b * fill.a + base.b * (1 - fill.a),
+              a: 1,
+            };
+          }
+        }
+        return `rgb(${base.r}, ${base.g}, ${base.b})`;
+      };
+      const out: { text: string; ink: string; back: string }[] = [];
+      const walker = document.createTreeWalker(transport, NodeFilter.SHOW_TEXT);
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        const el = n.parentElement;
+        const text = n.textContent?.trim();
+        if (!el || !text) continue;
+        const style = getComputedStyle(el);
+        if (
+          style.visibility === "hidden" ||
+          el.closest("[aria-hidden='true'] .sr-only, .sr-only, .ui-menu-panel")
+        )
+          continue;
+        if (!el.getClientRects().length) continue;
+        out.push({ text, ink: style.color, back: backdrop(el) });
+      }
+      return out;
+    });
+    expect(samples.length, theme).toBeGreaterThan(3);
+    for (const { text, ink, back } of samples) {
+      expect(
+        contrastRatio(ink, back),
+        `${theme}: "${text}" ${ink} on ${back}`,
+      ).toBeGreaterThanOrEqual(4.5);
+    }
+  }
+});
+
 test("capture issue 20 review views", async ({ browser }) => {
   test.setTimeout(90_000);
   const directory = process.env.DESIGN_POLISH_SCREENSHOT_DIR;
