@@ -531,8 +531,13 @@
       box-shadow var(--motion-state) var(--motion-ease-out),
       background-color var(--motion-hover) var(--motion-ease-out);
   }
+}
 
-  .transport .play-btn:hover:not(:disabled) {
-    transform: scale(1.04);
+/* Touch keeps a sticky :hover after a tap, so the lift is for fine pointers. */
+@media (hover: hover) and (pointer: fine) {
+  @media (prefers-reduced-motion: no-preference) {
+    .transport .play-btn:hover:not(:disabled) {
+      transform: scale(1.04);
+    }
   }
 }
