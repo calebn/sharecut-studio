@@ -195,6 +195,7 @@ export function TransportBar({
   return (
     <header
       ref={headerRef}
+      data-playing={isPlaying}
       className={[
         "transport",
         compact ? "transport--compact" : "",

@@ -42,7 +42,7 @@ html[data-shell="tablet"][data-focus="timeline"] .bottom-sheet-root {
   width: 100%;
   /* Root is already inset above shell chrome — never grow past that slot. */
   max-height: 100%;
-  background: var(--bg-panel);
+  background: var(--color-bg-overlay);
   border-top: 1px solid var(--border);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   box-shadow: 0 -0.5rem 1.5rem var(--shadow);

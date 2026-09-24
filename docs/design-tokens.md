@@ -65,8 +65,8 @@ literals. Never force layout geometry (`width`, `min-height`) onto `--space-*`.
 **Elevation** — `--shadow-<role>`, `--z-<role>` (`--z-sheet`, `--z-playhead`).
 
 **Motion** — `--motion-hover` (150ms), `--motion-toggle` (200ms),
-`--motion-panel` (300ms), and `--motion-state` (400ms) with
-`--motion-ease-out`. Animate only inside `prefers-reduced-motion: no-preference`;
+`--motion-panel` (200ms), and `--motion-state` (250ms) with
+`--motion-ease-out`. Pro-tool chrome stays quick; nothing pulses. Animate only inside `prefers-reduced-motion: no-preference`;
 essential state changes remain immediate with reduced motion.
 
 ## Surface ladder
@@ -79,47 +79,64 @@ category-first pattern (`bg` category, rung as role).
 | Rung | Token | Used for |
 | ---- | ----- | -------- |
 | **canvas** | `--color-bg-canvas` | App background; the bottom of the stack. |
-| **base** | `--color-bg-base` | Panes, chrome, sidebars. (Replaces the old `--color-bg-surface` name — "surface" describes every rung, so it can't name one.) |
-| **raised** | `--color-bg-raised` | Cards, panels, lanes that sit above base. (Replaces `--color-bg-elevated`.) |
+| **base** | `--color-bg-base` | Panes, chrome, sidebars: track headers, bottom panel, tool rail. (Studio name for the shared `--color-bg-surface`.) |
+| **raised** | `--color-bg-raised` | Inspector, cards, and badges that sit above base. (Studio name for the shared `--color-bg-elevated`.) |
 | **overlay** | `--color-bg-overlay` | Menus, dialogs, popovers, toasts, bottom sheets — anything floating above the app. |
 | **sunken** | `--color-bg-sunken` | Recessed wells, inputs, code blocks — visually *below* base. |
 
-The #20 polish pass implements this ladder alongside the older shared brand
-names. The timeline has separate `--color-timeline-*` roles: its dark well,
-lane, border, text, waveform gradient, and playhead stay dark in both app
-themes, while the surrounding chrome follows the selected theme. Raised,
-floating, and modal objects use `--shadow-raised`, `--shadow-floating`, and
-`--shadow-modal`; the modal panel also uses restrained backdrop blur. Overlay
-has a distinct tone from raised: a warm tint over white in light mode and a
-lifted graphite tone in dark mode.
+Every rung has a contrast partner, `--color-text-on-<rung>`, held at ≥4.5:1
+(`tests/test_brand_color_roles.py` resolves the chains and checks each pair,
+plus sunken < base and overlay ≥ raised). Studio stylesheets consume the rungs
+directly; the old `--bg-app`, `--bg-panel`, `--bg-elevated`, `--bg-lane`, and
+`--bg` aliases are gone (#135). The shared brand names (`--color-bg-surface`,
+`--color-bg-elevated`) stay in `brand-tokens.css` because marketing, relay, and
+splash pages use them without the Studio ladder.
 
-The palette follows the DAW UX briefing: warm paper canvas and near-white
-surfaces in light mode; graphite layers in dark mode; orange for actions and
-teal for positive signals and dialogue. The light decorative orange
-`#df4b28` is too light for small white button text, so filled controls use
-`#c33b1f` with `#fff9f5` (at least 4.5:1). `--color-accent-fg` uses a darker
-orange for small text on light surfaces. `tests/test_brand_color_roles.py`
-checks the contrast pairs. Studio bundles IBM Plex Sans and IBM Plex Mono
-locally; timecodes and numeric inspector values use the mono family and
-tabular numerals. The existing display serif remains limited to prominent
-titles.
+Two roles sit beside the ladder:
+
+- `--color-field` — form fields. White with a strong border in light mode;
+  recessed below the pane in dark mode. `base.css` applies it (and the Plex
+  sans family) to every input, select, and textarea at zero specificity.
+- `--color-chip-selected` / `--color-chip-selected-fg` — the one selected
+  state for toggles, segments, tabs, and selected rows: a neutral chip with
+  full-strength text. Selection never uses the accent.
+
+**Palette.** One warm stone neutral ramp serves both themes (`primitives.css`,
+ordered dark → light). Light mode is paper and white panes with warm near-black
+ink; dark mode is warm stone, never a cool reskin of light. Orange belongs to
+Play, the playhead, and one primary action per context; teal marks positive
+signals and dialogue. The light decorative orange `#df4b28` is too light for
+small white button text, so filled controls use `#c33b1f` with `#fff9f5`
+(at least 4.5:1); `--color-accent-fg` uses a darker orange for small text on
+light surfaces. Danger is crimson (`--primitive-red-650` light,
+`--primitive-red-350` dark), at least 20° of hue from the accent so a primary
+button never reads as destructive. The modal scrim is black in both themes.
+Studio bundles IBM Plex Sans and IBM Plex Mono locally; timecodes and numeric
+inspector values use the mono family and tabular numerals. Dialog titles use
+Plex Sans; the display serif is limited to cover-layout headings. The static
+relay, splash, and marketing copies of `brand-tokens.css` name IBM Plex first
+and fall back to the system UI font where Plex is not installed.
+
+**Stage.** `--color-timeline-*` roles paint the track area. Light mode uses a
+light stage: the well one recessed step below the panes and lanes near paper,
+so clips carry the color and each track header reads as one row with its lane.
+Dark mode keeps the stage darkest with lanes one step up. The playhead is the
+accent in each theme. Waveforms take their tints from each clip's own fill
+(`clipWaveformFill`), mirrored around the midline. The empty-session stage
+keeps a decorative grid; lanes do not, because a grid that ignores the ruler
+reads as false time divisions.
+
+**Transport.** The transport is fixed dark in both themes (`--color-transport-*`,
+`--bg-transport`, `--shadow-transport-*`). Play is the only orange control and
+glows only while playing (static, never pulsing); selected audition segments
+and tools use `--color-transport-chip` with full-strength text. Transport status
+pills use their own light-on-dark warning and success inks.
 
 Use `--accent-fg` for small accent text, including links and status labels;
 `--accent` remains available for non-text decoration and focus rings. Shared
 empty-state chrome lives in `.ui-empty-state`. The live playhead position comes
 from the transport animation frame and changes immediately for seeks; CSS
 motion applies to controls and panels, not that time coordinate.
-
-The issue #20 mixer treatment uses a fixed dark transport in both themes. Its
-warm charcoal ramp, gradient, play glow, selected audition segment, and
-timecode shadow are semantic `--color-transport-*`, `--bg-transport-*`, and
-`--shadow-transport-*` tokens. The light theme's timeline well uses warm
-charcoal; dark mode keeps its neutral well. Both use `--color-timeline-grid`
-and `--color-timeline-vignette`. Track identity bars reuse the clip color
-returned by `laneColor`. Default controls are outlined and transparent;
-primary controls carry solid accent fill. Playback glow and hover motion are
-inside `prefers-reduced-motion: no-preference`; the playhead's time coordinate
-never transitions.
 
 Research basis (surface conventions only): Material Design 3's tonal surface
 scale (`surface-dim` → containers → `surface-bright`, elevation as tone

@@ -1,4 +1,4 @@
-/* Issue 20: shared transport, timeline, and interaction depth. */
+/* Issue 20: fixed dark transport, stage lighting, and interaction depth. */
 .transport-primary-actions > .ui-control,
 .transport .tool-mode-toggle .ui-control--quiet,
 .transport .transport-more-btn {
@@ -12,12 +12,22 @@
   background: transparent;
 }
 
+/* One selected language in the transport: a lifted neutral chip with full
+   text. Orange stays on Play. */
 .transport .audition-modes .ui-control--quiet[aria-pressed="true"],
-.transport .audition-modes .ui-control--quiet.active {
-  color: var(--color-transport-play-fg);
+.transport .audition-modes .ui-control--quiet.active,
+.transport
+  .tool-mode-toggle
+  .ui-control--quiet[aria-pressed="true"]:not(.comment-mode-btn),
+.transport .tool-mode-toggle .ui-control--quiet.active:not(.comment-mode-btn) {
+  color: var(--color-transport-text);
   border-color: transparent;
-  background: var(--bg-transport-selected);
-  box-shadow: var(--shadow-transport-selected);
+  background: var(--color-transport-chip);
+  box-shadow: var(--shadow-transport-chip);
+}
+
+.transport .tool-mode-toggle {
+  border-color: var(--color-transport-control-border);
 }
 
 .transport .comment-mode-btn[aria-pressed="true"],
@@ -46,6 +56,14 @@
   opacity: 0.55;
 }
 
+.transport .play-btn[data-playing="true"] {
+  box-shadow: var(--shadow-transport-playing);
+}
+
+.transport[data-playing="true"] .timecode {
+  text-shadow: var(--shadow-transport-timecode);
+}
+
 .transcript-toolbar .transcript-annotate-btn,
 .transcript-toolbar .focus-pane-btn {
   border-color: transparent;
@@ -54,37 +72,9 @@
 
 .transcript-toolbar .transcript-annotate-btn[aria-pressed="true"],
 .transcript-toolbar .focus-pane-btn[aria-pressed="true"] {
-  color: var(--color-text-on-inverted);
-  border-color: var(--color-bg-inverted);
-  background: var(--color-bg-inverted);
-}
-
-.transcript-toolbar .transcript-correct-btn:not(:disabled) {
-  color: var(--color-accent-fg);
-  border-color: var(--color-accent);
-}
-
-.transcript-toolbar .transcript-correct-btn[aria-pressed="true"] {
-  color: var(--color-accent-on-solid);
-  background: var(--color-accent-solid);
-  border-color: var(--color-accent-solid);
-}
-
-.lane-row {
-  background-image: repeating-linear-gradient(
-    to right,
-    var(--color-timeline-grid) 0 0.0625rem,
-    transparent 0.0625rem 4rem
-  );
-}
-
-.timeline-area::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: var(--z-overlay);
-  pointer-events: none;
-  box-shadow: inset 0 0 4rem var(--color-timeline-vignette);
+  color: var(--color-chip-selected-fg);
+  border-color: transparent;
+  background: var(--color-chip-selected);
 }
 
 .timeline-area[data-playing="true"] .playhead {
@@ -99,7 +89,7 @@
   inset-inline-start: 50%;
   transform: translateX(-50%);
   background: var(--bg-ruler-glow);
-  opacity: 0.65;
+  opacity: 0;
 }
 
 .timeline-area[data-playing="true"] .time-ruler .playhead::before {
@@ -110,7 +100,7 @@
   --color-track-hover: color-mix(
     in srgb,
     var(--track-identity-color) 11%,
-    var(--bg-panel)
+    var(--color-bg-base)
   );
 }
 
@@ -126,8 +116,8 @@
 
   .transport .play-btn:hover:not(:disabled) {
     color: var(--color-transport-play-fg);
-    border-color: var(--color-timeline-playhead);
-    background: var(--bg-transport-play);
+    border-color: var(--color-transport-play);
+    background: var(--color-transport-play);
   }
 
   .transport .stop-btn:hover:not(:disabled) {
@@ -147,9 +137,9 @@
     .transcript-annotate-btn[aria-pressed="true"]:hover:not(:disabled),
   .transcript-toolbar
     .focus-pane-btn[aria-pressed="true"]:hover:not(:disabled) {
-    color: var(--color-text-on-inverted);
-    border-color: var(--color-bg-inverted);
-    background: var(--color-bg-inverted);
+    color: var(--color-chip-selected-fg);
+    border-color: var(--color-border-strong);
+    background: var(--color-chip-selected);
   }
 
   .transport button.pill.pill--action:hover:not(:disabled) {
@@ -158,10 +148,16 @@
 
   .transport
     .audition-modes
-    .ui-control--quiet[aria-pressed="true"]:hover:not(:disabled) {
-    color: var(--color-transport-play-fg);
+    .ui-control--quiet[aria-pressed="true"]:hover:not(:disabled),
+  .transport
+    .tool-mode-toggle
+    .ui-control--quiet[aria-pressed="true"]:hover:not(
+      :disabled,
+      .comment-mode-btn
+    ) {
+    color: var(--color-transport-text);
     border-color: transparent;
-    background: var(--bg-transport-selected);
+    background: var(--color-transport-chip);
   }
 
   .track-header-row:hover:not(.dragging) {
@@ -179,27 +175,11 @@
       background-color var(--motion-hover) var(--motion-ease-out);
   }
 
+  .time-ruler .playhead::before {
+    transition: opacity var(--motion-state) var(--motion-ease-out);
+  }
+
   .transport .play-btn:hover:not(:disabled) {
-    transform: scale(1.06);
-  }
-
-  .transport .play-btn[data-playing="true"] {
-    animation: transport-playing-glow 2s ease-in-out infinite alternate;
-  }
-
-  .timeline-area[data-playing="true"] .time-ruler .playhead::before {
-    animation: ruler-playing-glow 2s ease-in-out infinite alternate;
-  }
-}
-
-@keyframes transport-playing-glow {
-  to {
-    box-shadow: var(--shadow-transport-playing);
-  }
-}
-
-@keyframes ruler-playing-glow {
-  to {
-    opacity: 0.55;
+    transform: scale(1.04);
   }
 }

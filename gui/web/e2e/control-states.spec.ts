@@ -173,6 +173,17 @@ test.describe("control state parity", () => {
     expect(mixHover.bg).toBe(mixRest.bg);
     expect(mixHover.image).toBe(mixRest.image);
     expect(mixHover.color).toBe(mixRest.color);
-    expect(mixRest.image).toContain("gradient");
+
+    // Selected audition mode is the transport's neutral chip, not the accent.
+    const chipToken = await page.evaluate(() => {
+      const el = document.createElement("div");
+      el.style.background = "var(--color-transport-chip)";
+      document.body.appendChild(el);
+      const bg = getComputedStyle(el).backgroundColor;
+      el.remove();
+      return bg;
+    });
+    expect(mixRest.bg).toBe(chipToken);
+    expect(mixRest.image).toBe("none");
   });
 });

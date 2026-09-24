@@ -13,6 +13,7 @@ import { snapBinsPerSec } from "../audio/waveformTiles";
 import { canApplyPass12, canSuggestStructural } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import {
+  clipWaveformFill,
   paintWaveform,
   visibleClipWindow,
   WAVEFORM_OVERSCAN_PX,
@@ -284,12 +285,10 @@ export function useClipWaveform(opts: {
       const opts = latest.override ? { ...base, ...latest.override } : base;
       const theme = getComputedStyle(document.documentElement);
       const peakFill = theme.getPropertyValue("--color-waveform-peak").trim();
-      const peakFillTop = theme
-        .getPropertyValue("--color-timeline-waveform-top")
-        .trim();
-      const peakFillBottom = theme
-        .getPropertyValue("--color-timeline-waveform-bottom")
-        .trim();
+      const clip = latest.canvas.closest(".clip-block");
+      const fill = clip
+        ? clipWaveformFill(getComputedStyle(clip).backgroundColor)
+        : null;
       paintWaveform(latest.canvas, {
         peaks: opts.peaks,
         tiles: opts.tiles,
@@ -299,8 +298,8 @@ export function useClipWaveform(opts: {
         ampZoom: opts.ampZoom,
         devicePixelRatio: opts.devicePixelRatio,
         peakFill,
-        peakFillTop,
-        peakFillBottom,
+        peakFillCore: fill?.core,
+        peakFillEdge: fill?.edge,
       });
       skipRef.current = performance.now() - t0 > 12;
       if (skipRef.current) {

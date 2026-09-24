@@ -44,7 +44,7 @@
 }
 
 .comments-toolbar input {
-  background: var(--bg-lane);
+  background: var(--color-field);
   border: 1px solid var(--border);
   color: var(--text);
   padding: var(--space-1) var(--space-2);
@@ -71,7 +71,7 @@
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-3);
-  background: var(--bg-lane);
+  background: var(--color-bg-sunken);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
 }
@@ -82,7 +82,7 @@
 }
 
 .comment-compose textarea {
-  background: var(--bg-app);
+  background: var(--color-field);
   border: 1px solid var(--border);
   color: var(--text);
   padding: var(--space-2);
@@ -112,7 +112,7 @@
   position: relative;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--bg-lane);
+  background: var(--color-bg-raised);
   padding: var(--space-2) var(--space-3);
   /* Horizontal drags feed swipe-to-resolve; keep vertical scroll + pinch zoom. */
   touch-action: pan-y pinch-zoom;
@@ -135,7 +135,7 @@
   align-items: center;
   padding-inline: var(--space-3);
   border-radius: var(--radius-md);
-  background: var(--bg-elevated);
+  background: var(--color-bg-raised);
   color: var(--text-dim);
   pointer-events: none;
 }
@@ -245,7 +245,7 @@
 .comment-reply-compose input {
   flex: 1;
   min-width: 0;
-  background: var(--bg);
+  background: var(--color-field);
   border: 1px solid var(--border);
   color: var(--text);
   padding: var(--space-1) var(--space-2);
@@ -254,7 +254,7 @@
 }
 
 .comment-reply-compose button {
-  background: var(--bg-lane);
+  background: var(--color-bg-sunken);
   border: 1px solid var(--border);
   color: var(--text);
   padding: var(--space-1) var(--space-3);
@@ -474,7 +474,7 @@
 }
 
 .edit-boundary-mark.dragging {
-  background: var(--accent);
+  background: var(--accent-solid);
   color: var(--accent-on-solid);
   z-index: 5;
   box-shadow: 0 0 0 1px var(--accent);
@@ -506,7 +506,7 @@
   opacity: 0.45;
   font-style: italic;
   color: var(--color-text-unmapped);
-  border-bottom: 1px dashed var(--color-overlay-white-40);
+  border-bottom: 1px dashed var(--color-border-strong);
   margin: 0 var(--space-0);
 }
 
@@ -666,7 +666,7 @@ button.history-row {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--bg-panel, var(--bg));
+  background: var(--color-bg-base);
   padding-bottom: var(--space-2);
   border-bottom: 1px solid var(--border);
 }
@@ -686,7 +686,7 @@ button.history-row {
 }
 
 .pipeline-mode select {
-  background: var(--bg-lane);
+  background: var(--color-field);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -795,7 +795,7 @@ button.history-row {
   font-size: var(--font-size-micro);
   padding: 1px var(--space-2);
   border-radius: var(--radius-sm);
-  background: var(--bg-lane);
+  background: var(--color-badge-bg);
   color: var(--text-dim);
 }
 
@@ -848,7 +848,7 @@ button.history-row {
 .pipeline-param input[type="number"],
 .pipeline-param input[type="text"],
 .pipeline-param select {
-  background: var(--bg-lane);
+  background: var(--color-field);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -915,7 +915,7 @@ button.history-row {
 }
 
 .pipeline-controls select {
-  background: var(--bg-lane);
+  background: var(--color-field);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -951,7 +951,7 @@ button.history-row {
     bottom: 0;
     top: 20%;
     z-index: 40;
-    background: var(--bg-panel, var(--bg));
+    background: var(--color-bg-overlay);
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     box-shadow: 0 -0.5rem 1.5rem var(--shadow-soft);
   }
@@ -959,7 +959,7 @@ button.history-row {
   .pipeline-detail-close {
     display: inline-block;
     margin-bottom: var(--space-3);
-    background: var(--bg-lane);
+    background: var(--color-bg-sunken);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     padding: var(--space-1) var(--space-05);
@@ -993,7 +993,7 @@ button.history-row {
   font-weight: 700;
   padding: var(--space-0) var(--space-2);
   border-radius: var(--radius-sm);
-  background: var(--bg-lane);
+  background: var(--color-badge-bg);
 }
 
 .pipeline-status.running,
@@ -1013,7 +1013,7 @@ button.history-row {
 }
 
 .pipeline-status.cancelled {
-  background: var(--bg-lane);
+  background: var(--color-badge-bg);
   color: var(--text-dim);
 }
 
@@ -1033,7 +1033,7 @@ button.history-row {
 
 .pipeline-bar {
   height: 0.5rem;
-  background: var(--bg-lane);
+  background: var(--color-bg-sunken);
   border-radius: var(--radius-md);
   overflow: hidden;
 }
@@ -1235,7 +1235,7 @@ button.history-row {
 }
 
 .tighten-row--selected {
-  background: var(--bg-lane);
+  background: var(--color-chip-selected);
 }
 
 .tighten-snippet {

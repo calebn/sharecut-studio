@@ -149,7 +149,7 @@
   overflow: hidden;
   display: block;
   pointer-events: none;
-  color: var(--accent-on-solid);
+  color: var(--color-clip-label);
   font-weight: 600;
   text-shadow: var(--shadow-clip-label);
 }
@@ -260,7 +260,7 @@
   opacity: 0.45;
   pointer-events: none;
   background: var(--color-overlay-white-10);
-  border-left: 1px dashed var(--color-overlay-white-40);
+  border-left: 1px dashed var(--color-timeline-text);
   z-index: 2;
 }
 
@@ -446,7 +446,7 @@ button.join-diamond {
 }
 
 .envelope-overlay .envelope-svg circle.envelope-point-selected {
-  fill: var(--bg);
+  fill: var(--color-timeline-lane);
   stroke: var(--envelope-line);
   stroke-width: var(--focus-ring-width);
 }

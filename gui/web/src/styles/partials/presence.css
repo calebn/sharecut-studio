@@ -38,7 +38,7 @@
   min-inline-size: 0.9rem;
   padding: 0 var(--space-0);
   border-radius: 50%;
-  background: var(--color-bg-elevated);
+  background: var(--color-bg-raised);
   color: var(--color-text-primary);
   font-size: var(--font-size-micro);
   line-height: 0.9rem;
@@ -165,7 +165,7 @@
   gap: var(--space-3);
   padding: var(--space-2) var(--space-4);
   min-inline-size: 0;
-  background: var(--color-bg-surface);
+  background: var(--color-bg-overlay);
   color: var(--color-text-primary);
   font-size: var(--font-size-ui);
 }

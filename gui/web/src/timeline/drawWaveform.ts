@@ -79,9 +79,50 @@ export type PaintWaveformOpts = {
   ampZoom: number;
   devicePixelRatio?: number;
   peakFill?: string;
-  peakFillTop?: string;
-  peakFillBottom?: string;
+  /** Mid-line tint; with `peakFillEdge`, draws a gradient mirrored at mid. */
+  peakFillCore?: string;
+  /** Tint at the canvas edges, reached only by loud peaks. */
+  peakFillEdge?: string;
 };
+
+const WAVEFORM_CORE_LIGHTEN = 0.45;
+const WAVEFORM_EDGE_LIGHTEN = 0.72;
+
+function parseRgb(color: string): [number, number, number] | null {
+  const match = color
+    .trim()
+    .match(/^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i);
+  if (!match) {
+    return null;
+  }
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+function towardWhite(
+  [r, g, b]: [number, number, number],
+  amount: number,
+): string {
+  const mix = (channel: number) =>
+    Math.round(channel + (255 - channel) * amount);
+  return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
+}
+
+/**
+ * Waveform tints derived from the clip's own fill, so every track keeps its
+ * identity color. Returns null when the fill is not a plain rgb() value.
+ */
+export function clipWaveformFill(
+  clipBackground: string,
+): { core: string; edge: string } | null {
+  const rgb = parseRgb(clipBackground);
+  if (!rgb) {
+    return null;
+  }
+  return {
+    core: towardWhite(rgb, WAVEFORM_CORE_LIGHTEN),
+    edge: towardWhite(rgb, WAVEFORM_EDGE_LIGHTEN),
+  };
+}
 
 export function paintWaveform(
   canvas: HTMLCanvasElement,
@@ -101,10 +142,12 @@ export function paintWaveform(
   canvas.height = Math.floor(h * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, drawW, h);
-  if (opts.peakFillTop && opts.peakFillBottom) {
+  if (opts.peakFillCore && opts.peakFillEdge) {
+    // Mirrored around the midline: both lobes shade alike, loud peaks glow.
     const gradient = ctx.createLinearGradient(0, 0, 0, h);
-    gradient.addColorStop(0, opts.peakFillTop);
-    gradient.addColorStop(1, opts.peakFillBottom);
+    gradient.addColorStop(0, opts.peakFillEdge);
+    gradient.addColorStop(0.5, opts.peakFillCore);
+    gradient.addColorStop(1, opts.peakFillEdge);
     ctx.fillStyle = gradient;
   } else {
     ctx.fillStyle = opts.peakFill || "rgba(255,255,255,0.35)";
