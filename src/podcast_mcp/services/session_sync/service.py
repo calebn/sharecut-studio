@@ -156,7 +156,11 @@ class SessionSyncService:
             meta = normalize_presence_meta(raw, guest=guest)
             return self._touch_and_fanout(command, meta)
 
-        existing = store.find_by_client_seq(command.client_id, command.client_seq)
+        existing = (
+            store.find_by_client_seq(command.client_id, command.client_seq)
+            if command.client_seq is not None
+            else None
+        )
         if existing is not None:
             api_snap = self.snapshot()
             return {
@@ -286,7 +290,7 @@ class SessionSyncService:
                 payload=payload,
                 client_id=client_id,
                 role=role,
-                client_seq=next_client_seq(),
+                client_seq=None,
             )
         )
 
@@ -304,7 +308,7 @@ class SessionSyncService:
                 payload=payload,
                 client_id=client_id,
                 role=role,
-                client_seq=next_client_seq(),
+                client_seq=None,
             )
         )
 
