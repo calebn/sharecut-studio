@@ -952,7 +952,7 @@ button.history-row {
     z-index: 40;
     background: var(--color-bg-overlay);
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-    box-shadow: 0 -0.5rem 1.5rem var(--shadow-soft);
+    box-shadow: var(--shadow-floating-up);
   }
 
   .pipeline-detail-close {

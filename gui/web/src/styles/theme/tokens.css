@@ -48,6 +48,8 @@
   /* Elevation recipes; --color-shadow is themed. */
   --shadow-raised: 0 1px 0.25rem var(--color-shadow);
   --shadow-floating: 0 0.5rem 1.5rem var(--color-shadow);
+  /* Floating surfaces that rise from the bottom edge (sheets, docked bars). */
+  --shadow-floating-up: 0 -0.5rem 1.5rem var(--color-shadow);
   --shadow-modal: 0 1rem 3rem var(--color-shadow);
 
   /* Focus / selection rings — not a spacing step (a11y invariant). */
