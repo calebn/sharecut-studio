@@ -51,16 +51,19 @@ flowchart TB
 
 | | |
 |--|--|
-| **Purpose** | Playhead control, audition mode, comment entry, zoom Fit, overflow Menu |
-| **Primary actions** | Play / Stop, seek via timecode context, Select/Blade/Comment when expanded, Fit, Menu |
+| **Purpose** | Playhead control, audition mode, comment entry, zoom Fit, View and project menus |
+| **Layout (wide)** | Three zones: project name · Play/Stop, timecode, and audition mode centered · render status, tools, Fit, **View** menu, and **Menu** on the right. Play is the only orange control and is disabled until the project has media. |
+| **Primary actions** | Play / Stop, seek via timecode context, Select/Blade/Comment when expanded, Fit, View, Menu |
 | **Always visible (collapsed)** | Outside Listen: Play/Stop, compact playhead time, Comment icon, Fit, Menu icon. Listen uses its own body transport and no header transport. |
-| **Menu → Project (host)** | New / Open, **Connect agent…** (local Streamable HTTP MCP URL), Bounce…, **Share…** (collaboration extension), Export deliverables |
-| **Menu (secondary)** | Audition Mix/FX/Raw, layer toggles, zoom, theme, focus modes, Fit if omitted; **Refresh mix** when render is stale |
+| **Menu → Project (host)** | New / Open, **Connect agent…** (local Streamable HTTP MCP URL), Bounce…, **Share…** (collaboration extension), Record room…, Export deliverables |
+| **Menu → Media / Help** | Import audio, track add / remove / move; Help… and Keyboard shortcuts. Items show their shortcut (⌘ on Apple platforms, Ctrl elsewhere) and sections carry visible labels. |
+| **View menu (wide)** | Layer toggles, zoom, Fit if omitted, theme, focus modes |
+| **Menu (collapsed)** | One combined menu: Project, Media, audition Mix/FX/Raw, session, **Refresh mix** when render is stale, layers, view, Help |
 | **Data shown** | Playhead (timeline sec) · duration · audition kind · optional stale-render note |
 | **Empty / error** | Known `?project=` but shell not yet: real transport chrome, **Loading episode…**, play disabled. Zero tracks after load: ingest “Drop audio files” (not the loading well). Host with no path: home launch. Guest: token/project load failure |
 | **Out of scope** | Full mixer; pipeline step runner (status chips / Pipeline tab) |
 
-The overflow Menu panel caps to remaining space under the trigger (`min(90dvh, var(--menu-available-height))`) and scrolls so **Keyboard shortcuts (?)** stays reachable on short laptop heights, including when guest/follow banners sit above the transport. The shortcut dialog explains that character keys apply when the timeline or transcript has focus.
+The overflow Menu panel caps to remaining space under the trigger (`min(90dvh, var(--menu-available-height))`) and scrolls so **Keyboard shortcuts** stays reachable on short laptop heights, including when guest/follow banners sit above the transport. The shortcut dialog explains that character keys apply when the timeline or transcript has focus.
 
 **Collapsed when:** phone, tablet compact, or bar width ≤720px.
 
@@ -256,7 +259,7 @@ flowchart TB
 | **Tighten** | Filler/pause/repetition/restart list · search/filters · preview/skip/apply · apply-all (avoid harsh) |
 | **Pipeline** | Checklist · param inspector · Analyze · Batch vs leave-gates (align + refine) · SSE progress (live headline) |
 | **Transcript** | Follow/edit (also focus mode `text`); Follow unlocks only on wheel / touch / scrollbar / scroll-key input. Long transcripts (≥200 turns) render only nearby turns plus the active, selected and focused ones — browser find-in-page reaches only rendered turns |
-| **Status** | Actionable chips (pending, stale render, reconcile); overflow-x on narrow |
+| **Status** | Actionable chips (pending, **Render: fresh/stale** from the same state as the transport pill, **Transcript: needs sync** only when stale); overflow-x on narrow |
 
 ### Focus modes (desktop)
 

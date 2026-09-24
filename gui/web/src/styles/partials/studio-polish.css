@@ -73,7 +73,7 @@
 .transcript-toolbar .transcript-annotate-btn[aria-pressed="true"],
 .transcript-toolbar .focus-pane-btn[aria-pressed="true"] {
   color: var(--color-chip-selected-fg);
-  border-color: transparent;
+  border-color: var(--color-border-strong);
   background: var(--color-chip-selected);
 }
 

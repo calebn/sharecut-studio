@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  displayShortcutKeys,
   formatShortcutKeys,
   KEYMAP_COMMANDS,
   keymapByCategory,
@@ -232,5 +233,22 @@ describe("keymap registry", () => {
       "tool.select",
     );
     _resetKeymapOverridesForTests();
+  });
+});
+
+describe("displayShortcutKeys", () => {
+  it("uses platform modifiers instead of Mod", () => {
+    const bounce = keymapCommandById("export.bounce")!;
+    expect(displayShortcutKeys(bounce, true)).toBe("⌘⇧B");
+    expect(displayShortcutKeys(bounce, false)).toBe("Ctrl+Shift+B");
+  });
+
+  it("keeps bare keys and names Space", () => {
+    expect(displayShortcutKeys(keymapCommandById("tool.select")!, true)).toBe(
+      "V",
+    );
+    expect(
+      displayShortcutKeys(keymapCommandById("transport.togglePlay")!, false),
+    ).toBe("Space");
   });
 });

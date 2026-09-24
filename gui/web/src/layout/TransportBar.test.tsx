@@ -1,6 +1,6 @@
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useRecordHostStore } from "../record/hostStore";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
@@ -107,9 +107,10 @@ describe("TransportBar collapsed", () => {
     await userEvent.click(screen.getByRole("button", { name: "Menu" }));
     const menu = screen.getByRole("menu");
     expect(within(menu).getByRole("group", { name: "Audition" })).toBeTruthy();
-    expect(
-      within(menu).getByRole("menuitem", { name: "Keyboard shortcuts (?)" }),
-    ).toBeTruthy();
+    const shortcuts = within(menu).getByRole("menuitem", {
+      name: "Keyboard shortcuts",
+    });
+    expect(shortcuts.querySelector("kbd")?.textContent).toBe("?");
   });
 
   it("hides Fit icon when showFit is false and offers Fit in Menu", async () => {
@@ -323,5 +324,77 @@ describe("TransportBar guest Mix lock", () => {
       globalThis.ResizeObserver = OrigRO;
       Reflect.deleteProperty(HTMLElement.prototype, "clientWidth");
     }
+  });
+});
+
+describe("TransportBar wide layout", () => {
+  beforeEach(() => {
+    useDawStore
+      .getState()
+      .hydrate("/tmp/p.json", minimalProject({ tracks: TRACKS }));
+    // jsdom clientWidth is 0; treat the bar as wide (desktop zones).
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+      configurable: true,
+      get: () => 1400,
+    });
+  });
+
+  afterEach(() => {
+    Reflect.deleteProperty(HTMLElement.prototype, "clientWidth");
+  });
+
+  it("groups the bar into start, center, and end zones", () => {
+    const { container } = render(
+      <DawProvider
+        projectPath="/tmp/p.json"
+        initialProject={minimalProject({ tracks: TRACKS })}
+      >
+        <TransportBar />
+      </DawProvider>,
+    );
+    const zones = [...container.querySelectorAll(".transport-zone")];
+    expect(zones.map((zone) => zone.className)).toEqual([
+      "transport-zone transport-zone--start",
+      "transport-zone transport-zone--center",
+      "transport-zone transport-zone--end",
+    ]);
+    expect(zones[0].querySelector("h1")).toBeTruthy();
+    expect(zones[1].querySelector(".play-btn")).toBeTruthy();
+    expect(zones[1].querySelector(".timecode")).toBeTruthy();
+    expect(zones[2].querySelector(".transport-primary-actions")).toBeTruthy();
+  });
+
+  it("splits view controls into their own menu on desktop", async () => {
+    render(
+      <DawProvider
+        projectPath="/tmp/p.json"
+        initialProject={minimalProject({ tracks: TRACKS })}
+      >
+        <TransportBar />
+      </DawProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "View" }));
+    const view = screen.getByRole("menu", { name: "View menu" });
+    expect(within(view).getByRole("group", { name: "Layers" })).toBeTruthy();
+    expect(within(view).getByRole("menuitem", { name: /Theme:/ })).toBeTruthy();
+    await userEvent.keyboard("{Escape}");
+
+    await userEvent.click(screen.getByRole("button", { name: "Menu" }));
+    const main = screen.getByRole("menu", { name: "Transport menu" });
+    expect(within(main).queryByRole("group", { name: "Layers" })).toBeNull();
+    expect(within(main).getByRole("group", { name: "Project" })).toBeTruthy();
+    expect(within(main).getByRole("group", { name: "Help" })).toBeTruthy();
+    await expectNoA11yViolations(main);
+  });
+
+  it("disables Play until the project has media", () => {
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <TransportBar />
+      </DawProvider>,
+    );
+    const play = screen.getByRole("button", { name: "Play" });
+    expect(play).toBeDisabled();
+    expect(play).toHaveAttribute("title", "Import audio to play");
   });
 });

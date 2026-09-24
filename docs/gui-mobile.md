@@ -191,7 +191,7 @@ The host recording chip remains a full touch target in the collapsed tablet tran
 | Primary (always visible) | Play/Stop, compact playhead timecode, **Comment** icon, **Fit** (except Listen), Menu icon |
 | Menu → People | Live roster (follow / unfollow) when the bar is collapsed. Rows are `var(--touch-min)` (`2.75rem`) via `@container transport`. |
 | Menu → Project (host) | New / Open, **Connect agent…**, Bounce…, **Share…** (collaboration extension), Export deliverables. Home also has **Connect agent…** |
-| Menu (secondary) | Audition Mix/FX/Raw, layers, zoom, theme, focus, **Refresh mix** when render is stale, Fit if omitted from bar |
+| Menu (secondary) | One combined menu on phone and tablet: Project, Media, audition Mix/FX/Raw, **Refresh mix** when render is stale, layers, zoom, theme, focus, Fit if omitted from bar, Help (wide desktop splits layers/zoom/theme/focus into a **View** menu) |
 
 ### Editing tool rail (phone / tablet Timeline)
 

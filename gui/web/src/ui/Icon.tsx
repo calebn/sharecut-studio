@@ -10,7 +10,13 @@ export type IconName =
   | "fit"
   | "menu"
   | "cutAtPlayhead"
-  | "agent";
+  | "agent"
+  | "layers"
+  | "close"
+  | "listen"
+  | "timeline"
+  | "text"
+  | "more";
 
 type Props = {
   name: IconName;
@@ -19,15 +25,18 @@ type Props = {
   size?: number;
 } & Omit<SVGProps<SVGSVGElement>, "children" | "ref">;
 
+/** Transport glyphs are filled by convention; the rest of the set is stroked. */
+const FILLED = { fill: "currentColor" } as const;
+
 const PATHS: Record<IconName, ReactElement> = {
-  play: <path d="m6.5 4.5 9 5.5-9 5.5Z" />,
+  play: <path {...FILLED} d="m6.5 4.5 9 5.5-9 5.5Z" />,
   pause: (
     <>
-      <path d="M6.5 5v10" />
-      <path d="M13.5 5v10" />
+      <rect {...FILLED} x="5.5" y="4.5" width="3" height="11" rx="0.75" />
+      <rect {...FILLED} x="11.5" y="4.5" width="3" height="11" rx="0.75" />
     </>
   ),
-  stop: <rect x="5.5" y="5.5" width="9" height="9" rx="0.75" />,
+  stop: <rect {...FILLED} x="5.5" y="5.5" width="9" height="9" rx="1" />,
   select: (
     <>
       <path d="M5 3.5 5 16.5 8.2 13.2 10.5 18.5 12.6 17.6 10.3 12.3 14.5 12.3Z" />
@@ -77,6 +86,49 @@ const PATHS: Record<IconName, ReactElement> = {
       <path d="M7.5 14h5" />
       <path d="M10 3.5v3" />
       <path d="M7 5.5h6" />
+    </>
+  ),
+  layers: (
+    <>
+      <path d="m10 3.5 6.5 3.25L10 10 3.5 6.75Z" />
+      <path d="m3.5 10.25 6.5 3.25 6.5-3.25" />
+      <path d="m3.5 13.75 6.5 3.25 6.5-3.25" />
+    </>
+  ),
+  close: (
+    <>
+      <path d="m5.5 5.5 9 9" />
+      <path d="m14.5 5.5-9 9" />
+    </>
+  ),
+  listen: (
+    <>
+      <path d="M4 12.5V10a6 6 0 0 1 12 0v2.5" />
+      <rect x="3.5" y="11.5" width="3.5" height="5" rx="1.25" />
+      <rect x="13" y="11.5" width="3.5" height="5" rx="1.25" />
+    </>
+  ),
+  timeline: (
+    <>
+      <path d="M3.5 6.5h8" />
+      <path d="M6.5 10h10" />
+      <path d="M3.5 13.5h6" />
+      <path d="M13 3.5v13" />
+    </>
+  ),
+  text: (
+    <>
+      <path d="M4 5.5h12" />
+      <path d="M4 9h12" />
+      <path d="M4 12.5h12" />
+      <path d="M4 16h7" />
+    </>
+  ),
+  more: (
+    <>
+      <circle {...FILLED} cx="5" cy="10" r="1.25" stroke="none" />
+      <circle {...FILLED} cx="10" cy="10" r="1.25" stroke="none" />
+      <circle {...FILLED} cx="15" cy="10" r="1.25" stroke="none" />
     </>
   ),
 };

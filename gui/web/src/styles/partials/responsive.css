@@ -91,16 +91,17 @@
   top: calc(100% + 0.25rem);
   right: 0;
   z-index: var(--z-menu);
-  min-width: 13.75rem;
+  min-width: 15rem;
   min-height: 0;
-  padding: var(--space-05);
+  padding: var(--space-1);
   background: var(--color-bg-overlay);
+  color: var(--color-text-on-overlay);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  box-shadow: 0 0.5rem 1.5rem var(--shadow);
+  gap: 0;
+  box-shadow: var(--shadow-floating);
 }
 
 /* Status bar: hide low-priority chips when the shell is narrow */
@@ -134,6 +135,18 @@
 
 .status-bar .status-chip {
   color: var(--text-dim);
+  text-decoration: none;
+}
+
+.status-bar-end {
+  margin-inline-start: auto;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .status-bar .status-chip:hover:not(:disabled) {
+    color: var(--color-text-primary);
+    text-decoration: underline;
+  }
 }
 
 .snap-guide {

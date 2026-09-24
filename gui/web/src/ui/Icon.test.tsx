@@ -20,12 +20,17 @@ describe("Icon", () => {
   });
 
   it.each(["play", "pause", "stop"] as const)(
-    "uses the shared stroke contract for %s",
+    "uses the shared stroke contract and fills the %s glyph",
     (name) => {
       const { container } = render(<Icon name={name} />);
       const svg = container.querySelector("svg");
       expect(svg).toHaveAttribute("stroke", "currentColor");
       expect(svg).toHaveAttribute("stroke-width", "1.75");
+      const shapes = container.querySelectorAll("path, rect");
+      expect(shapes.length).toBeGreaterThan(0);
+      for (const shape of shapes) {
+        expect(shape).toHaveAttribute("fill", "currentColor");
+      }
     },
   );
 });

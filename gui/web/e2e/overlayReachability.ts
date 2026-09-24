@@ -126,7 +126,7 @@ export async function expectMenuLastItemReachable(page: Page): Promise<void> {
     }
   }
   const last = menu.getByRole("menuitem", {
-    name: "Keyboard shortcuts (?)",
+    name: "Keyboard shortcuts",
   });
   await expect(last).toBeVisible();
   const menuitemCount = await menu.getByRole("menuitem").count();

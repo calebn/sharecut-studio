@@ -6,6 +6,7 @@ import {
   pipelineKindLabel,
   pipelineStatusLabel,
 } from "../utils/pipelineProgress";
+import { staleRenderBreakdown } from "../utils/staleRender";
 import { PipelineStatusChip } from "./PipelineStatusChip";
 
 export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
@@ -59,12 +60,13 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
     );
   }
 
-  const { edit_impact, render_status, pending_edits, social_clips } = project;
+  const { edit_impact, pending_edits, social_clips } = project;
   const unmappable = selectUnmappedPending(pending_edits).length;
   const narrow = shellBreakpoint === "phone" || shellBreakpoint === "tablet";
   const viewers = sessionClients.filter((c) => c.role !== "agent").length;
-  const reconcileHighlight =
-    highlightStaleRender && render_status.reconciliation.stale;
+  // Same source as the transport pill, so the two never disagree.
+  const render = staleRenderBreakdown(project);
+  const reconcileHighlight = highlightStaleRender && render.reconcileStale;
 
   return (
     <footer className="status-bar">
@@ -109,19 +111,19 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
           Social: {social_clips.length}
         </span>
       )}
-      <span className={narrow ? "status-bar-secondary" : undefined}>
-        Premix: {render_status.premix.exists ? "yes" : "no"}
-      </span>
       <button
         type="button"
         className="ui-control status-chip"
+        title={render.summary}
         onClick={() => setActiveTab("pipeline")}
       >
-        Rerender: {render_status.needs_rerender ? "needed" : "ok"}
+        Render: {render.stale ? "stale" : "fresh"}
       </button>
-      <span className={reconcileHighlight ? "stale-highlight" : undefined}>
-        Reconcile: {render_status.reconciliation.stale ? "stale" : "fresh"}
-      </span>
+      {render.reconcileStale ? (
+        <span className={reconcileHighlight ? "stale-highlight" : undefined}>
+          Transcript: needs sync
+        </span>
+      ) : null}
       {chipJob && (
         <PipelineStatusChip
           job={chipJob}
@@ -135,7 +137,7 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
       )}
       <button
         type="button"
-        className={`ui-control status-chip${narrow ? " status-bar-secondary" : ""}`}
+        className={`ui-control status-chip status-bar-end${narrow ? " status-bar-secondary" : ""}`}
         onClick={() => {
           setActiveTab("comments");
           setFocusMode("review");

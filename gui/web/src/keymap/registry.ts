@@ -541,14 +541,14 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
   },
 ] as const;
 
-export function formatShortcutKeys(cmd: KeymapCommand): string {
+function shortcutParts(cmd: KeymapCommand): string[] {
   const override = getKeymapOverride(cmd.id);
   if (override?.length) {
-    return override.join("+");
+    return [...override];
   }
   const primary = cmd.keys[0] ?? "";
   if (primary === " " || primary === "Space") {
-    return "Space";
+    return ["Space"];
   }
   const parts: string[] = [];
   if (cmd.requireMod) {
@@ -557,8 +557,45 @@ export function formatShortcutKeys(cmd: KeymapCommand): string {
   if (cmd.requireShift) {
     parts.push("Shift");
   }
-  parts.push(primary === "?" ? "?" : primary);
-  return parts.join("+");
+  parts.push(primary);
+  return parts;
+}
+
+/** Catalog form (`Mod+Shift+B`) — docs, cheatsheet, tooltips. */
+export function formatShortcutKeys(cmd: KeymapCommand): string {
+  return shortcutParts(cmd).join("+");
+}
+
+const APPLE_MODIFIERS: Record<string, string> = {
+  Mod: "⌘",
+  Shift: "⇧",
+  Alt: "⌥",
+  Ctrl: "⌃",
+};
+const OTHER_MODIFIERS: Record<string, string> = { Mod: "Ctrl" };
+const KEY_GLYPHS: Record<string, string> = {
+  ArrowLeft: "←",
+  ArrowRight: "→",
+  ArrowUp: "↑",
+  ArrowDown: "↓",
+  Escape: "Esc",
+};
+
+/**
+ * Menu form: platform modifiers instead of `Mod` (⌘⇧B on Apple platforms,
+ * Ctrl+Shift+B elsewhere).
+ */
+export function displayShortcutKeys(
+  cmd: KeymapCommand,
+  apple: boolean,
+): string {
+  const parts = shortcutParts(cmd).map((part) => {
+    const modifier = apple ? APPLE_MODIFIERS[part] : OTHER_MODIFIERS[part];
+    const key =
+      KEY_GLYPHS[part] ?? (part.length === 1 ? part.toUpperCase() : part);
+    return modifier ?? key;
+  });
+  return apple ? parts.join("") : parts.join("+");
 }
 
 export function keymapCommandById(id: string): KeymapCommand | undefined {
