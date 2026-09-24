@@ -133,7 +133,7 @@ Sharecut Studio chrome library — see [`docs/ui-library.md`](docs/ui-library.md
 | `DefinitionList` / `DefItem` | Inspector `<dl>` rows |
 | `InspectorSeekFooter` | Seek + play-around footers |
 | `FocusToggle` | Pane focus control |
-| `LevelMeter` | Peak input meter (dBFS zones, peak hold, latching clip LED); drive it with `record/useInputPeakDb`. Its silent AudioWorklet graph inspects every mic render block, including while the tab is hidden, and `audio/usePeakMeter.ts` handles visible level and peak hold. Not wired into the record UI yet (#174) |
+| `LevelMeter` | Peak input meter (dBFS zones, peak hold, latching clip LED); drive it with `record/useInputPeakDb`. Its silent AudioWorklet graph inspects every mic render block, including while the tab is hidden. Routine reports hold the latest level briefly between worklet messages; clip clear uses a worklet acknowledgement so hot blocks processed during the request can re-latch. The worklet is emitted as a file for CSP-compatible loading, and `audio/usePeakMeter.ts` handles visible level and peak hold. Not wired into the record UI yet (#174) |
 
 The command palette's **Actions** tab renders unbound catalog commands only
 when `paletteRunnable` is not `false`. Mark commands that need arguments or a

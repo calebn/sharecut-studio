@@ -6,7 +6,13 @@ import { useInputPeakDb } from "./useInputPeakDb";
 const micA = {} as MediaStream;
 const micB = {} as MediaStream;
 
-type Message = { peak: number; clipped: boolean; epoch: number };
+type Message = {
+  type?: "clearAck";
+  peak?: number;
+  clipped?: boolean;
+  epoch: number;
+  hotBlocks: number;
+};
 
 function stubAudioGraph(
   options: {
@@ -88,10 +94,14 @@ async function ready(nodes: ReturnType<typeof stubAudioGraph>["nodes"]) {
 }
 
 describe("useInputPeakDb", () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
 
   it("builds a silent worklet graph and reads peak blocks on rAF", async () => {
     const raf = stubRaf();
+    const clock = vi.spyOn(performance, "now").mockReturnValue(1000);
     const graph = stubAudioGraph();
     const { result } = renderHook(() => useInputPeakDb(micA));
     const node = await ready(graph.nodes);
@@ -106,14 +116,53 @@ describe("useInputPeakDb", () => {
     expect(graph.silent.gain.value).toBe(0);
     expect(graph.silent.connect).toHaveBeenCalledWith(graph.ctx.destination);
     act(() => {
-      node.emit({ peak: 0.3, clipped: false, epoch: 0 });
-      node.emit({ peak: 0.5, clipped: false, epoch: 0 });
+      node.emit({ peak: 0.3, clipped: false, epoch: 0, hotBlocks: 0 });
+      node.emit({ peak: 0.5, clipped: false, epoch: 0, hotBlocks: 0 });
       raf.fire(1000);
     });
     expect(result.current.levelDb).toBeCloseTo(-6.02, 2);
     expect(result.current.peakHoldDb).toBeCloseTo(-6.02, 2);
-    act(() => raf.fire(1050));
+    clock.mockReturnValue(1150);
+    act(() => raf.fire(1150));
     expect(result.current.levelDb).toBe(Number.NEGATIVE_INFINITY);
+  });
+
+  it("keeps steady input visible between 8-block worklet reports", async () => {
+    const raf = stubRaf();
+    const clock = vi.spyOn(performance, "now").mockReturnValue(1000);
+    const graph = stubAudioGraph();
+    const { result } = renderHook(() => useInputPeakDb(micA));
+    const node = await ready(graph.nodes);
+    act(() => node.emit({ peak: 0.5, clipped: false, epoch: 0, hotBlocks: 0 }));
+    act(() => raf.fire(1000));
+    clock.mockReturnValue(1017);
+    act(() => raf.fire(1017));
+    expect(result.current.levelDb).toBeCloseTo(-6.02, 2);
+    clock.mockReturnValue(1021);
+    act(() => node.emit({ peak: 0.5, clipped: false, epoch: 0, hotBlocks: 0 }));
+    clock.mockReturnValue(1034);
+    act(() => raf.fire(1034));
+    expect(result.current.levelDb).toBeCloseTo(-6.02, 2);
+    clock.mockReturnValue(1130);
+    act(() => raf.fire(1130));
+    expect(result.current.levelDb).toBe(Number.NEGATIVE_INFINITY);
+  });
+
+  it("keeps the loudest report until sampled, then holds the latest report", async () => {
+    const raf = stubRaf();
+    const clock = vi.spyOn(performance, "now").mockReturnValue(1000);
+    const graph = stubAudioGraph();
+    const { result } = renderHook(() => useInputPeakDb(micA));
+    const node = await ready(graph.nodes);
+    act(() => {
+      node.emit({ peak: 0.8, clipped: false, epoch: 0, hotBlocks: 0 });
+      node.emit({ peak: 0.1, clipped: false, epoch: 0, hotBlocks: 0 });
+      raf.fire(1000);
+    });
+    expect(result.current.levelDb).toBeCloseTo(-1.94, 2);
+    clock.mockReturnValue(1050);
+    act(() => raf.fire(1050));
+    expect(result.current.levelDb).toBeCloseTo(-20, 2);
   });
 
   it("latches a hidden-tab clip without an animation frame and survives quiet blocks", async () => {
@@ -121,9 +170,9 @@ describe("useInputPeakDb", () => {
     const graph = stubAudioGraph();
     const { result } = renderHook(() => useInputPeakDb(micA));
     const node = await ready(graph.nodes);
-    act(() => node.emit({ peak: 0.95, clipped: true, epoch: 0 }));
+    act(() => node.emit({ peak: 0.95, clipped: true, epoch: 0, hotBlocks: 1 }));
     expect(result.current.clipped).toBe(true);
-    act(() => node.emit({ peak: 0, clipped: true, epoch: 0 }));
+    act(() => node.emit({ peak: 0, clipped: true, epoch: 0, hotBlocks: 1 }));
     expect(result.current.clipped).toBe(true);
   });
 
@@ -135,7 +184,7 @@ describe("useInputPeakDb", () => {
     expect(graph.Node).toHaveBeenCalledWith(graph.ctx, "sharecut-input-meter", {
       processorOptions: { clipThreshold: 10 ** (-6 / 20) },
     });
-    act(() => node.emit({ peak: 0.7, clipped: true, epoch: 0 }));
+    act(() => node.emit({ peak: 0.7, clipped: true, epoch: 0, hotBlocks: 1 }));
     expect(result.current.clipped).toBe(true);
     act(() => result.current.clearClip());
     expect(node.port.postMessage).toHaveBeenCalledWith({
@@ -143,9 +192,23 @@ describe("useInputPeakDb", () => {
       epoch: 1,
     });
     expect(result.current.clipped).toBe(false);
-    act(() => node.emit({ peak: 0.95, clipped: true, epoch: 0 }));
+    act(() => node.emit({ peak: 0.95, clipped: true, epoch: 0, hotBlocks: 1 }));
     expect(result.current.clipped).toBe(false);
-    act(() => node.emit({ peak: 0.7, clipped: true, epoch: 1 }));
+    act(() => node.emit({ type: "clearAck", epoch: 1, hotBlocks: 1 }));
+    expect(result.current.clipped).toBe(false);
+    act(() => node.emit({ peak: 0.7, clipped: true, epoch: 1, hotBlocks: 2 }));
+    expect(result.current.clipped).toBe(true);
+  });
+
+  it("re-latches when a hot block ran after clear but before the worklet handled it", async () => {
+    stubRaf();
+    const graph = stubAudioGraph();
+    const { result } = renderHook(() => useInputPeakDb(micA));
+    const node = await ready(graph.nodes);
+    act(() => result.current.clearClip());
+    act(() => node.emit({ peak: 0.95, clipped: true, epoch: 0, hotBlocks: 1 }));
+    expect(result.current.clipped).toBe(false);
+    act(() => node.emit({ type: "clearAck", epoch: 1, hotBlocks: 1 }));
     expect(result.current.clipped).toBe(true);
   });
 
@@ -157,7 +220,7 @@ describe("useInputPeakDb", () => {
       { initialProps: { stream: micA as MediaStream | null } },
     );
     const old = await ready(graph.nodes);
-    act(() => old.emit({ peak: 0.95, clipped: true, epoch: 0 }));
+    act(() => old.emit({ peak: 0.95, clipped: true, epoch: 0, hotBlocks: 1 }));
     rerender({ stream: micB });
     expect(result.current.clipped).toBe(false);
     expect(graph.ctx.close).toHaveBeenCalledTimes(1);

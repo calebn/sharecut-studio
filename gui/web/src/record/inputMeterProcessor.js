@@ -7,8 +7,16 @@ class SharecutInputMeterProcessor extends AudioWorkletProcessor {
     this.clipped = false;
     this.peak = 0;
     this.blocks = 0;
+    this.hotBlocks = 0;
     this.port.onmessage = (event) => {
       if (event.data?.type === "clear") {
+        // A hot block can run after the UI clears but before this message
+        // arrives. Report its sequence before resetting the sticky latch.
+        this.port.postMessage({
+          type: "clearAck",
+          epoch: event.data.epoch,
+          hotBlocks: this.hotBlocks,
+        });
         this.epoch = event.data.epoch;
         this.clipped = false;
         this.peak = 0;
@@ -25,6 +33,7 @@ class SharecutInputMeterProcessor extends AudioWorkletProcessor {
       }
     }
     const firstClip = !this.clipped && peak >= this.clipThreshold;
+    if (peak >= this.clipThreshold) this.hotBlocks += 1;
     if (firstClip) this.clipped = true;
     this.peak = Math.max(this.peak, peak);
     this.blocks += 1;
@@ -34,6 +43,7 @@ class SharecutInputMeterProcessor extends AudioWorkletProcessor {
         peak: this.peak,
         clipped: this.clipped,
         epoch: this.epoch,
+        hotBlocks: this.hotBlocks,
       });
       this.peak = 0;
       this.blocks = 0;

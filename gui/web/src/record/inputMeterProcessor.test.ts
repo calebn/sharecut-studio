@@ -40,6 +40,7 @@ describe("input meter worklet", () => {
       peak: expect.closeTo(0.7),
       clipped: false,
       epoch: 0,
+      hotBlocks: 0,
     });
   });
 
@@ -54,12 +55,14 @@ describe("input meter worklet", () => {
       peak: expect.closeTo(0.9),
       clipped: true,
       epoch: 0,
+      hotBlocks: 1,
     });
     for (let i = 0; i < 8; i++) processor.process([[new Float32Array([0.01])]]);
     expect(processor.port.postMessage).toHaveBeenLastCalledWith({
       peak: expect.closeTo(0.01),
       clipped: true,
       epoch: 0,
+      hotBlocks: 1,
     });
   });
 
@@ -72,12 +75,27 @@ describe("input meter worklet", () => {
       peak: expect.closeTo(0.1),
       clipped: false,
       epoch: 2,
+      hotBlocks: 1,
     });
     processor.process([[new Float32Array([-0.81])]]);
     expect(processor.port.postMessage).toHaveBeenLastCalledWith({
       peak: expect.closeTo(0.81),
       clipped: true,
       epoch: 2,
+      hotBlocks: 2,
     });
+  });
+
+  it("acknowledges a hot block processed before the clear command arrives", () => {
+    const processor = makeProcessor();
+    processor.process([[new Float32Array([0.9])]]);
+    processor.port.onmessage?.({ data: { type: "clear", epoch: 1 } });
+    expect(processor.port.postMessage).toHaveBeenLastCalledWith({
+      type: "clearAck",
+      epoch: 1,
+      hotBlocks: 1,
+    });
+    processor.process([[new Float32Array([0.1])]]);
+    expect(processor.port.postMessage).toHaveBeenCalledTimes(2);
   });
 });
