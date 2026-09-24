@@ -165,7 +165,7 @@ Requires the FOSS `collaboration` extension (default; disable with `PODCAST_EXTE
 
 Token algorithm, roles, Restricted identity: **[share-tokens.md](share-tokens.md)**. Revoke: `podcast review revoke-share --token …`. Threat model: on link shares the token is the capability set; on Restricted shares the coolname alone is insufficient. Guest JSON never includes host absolute paths. object storage keys stay on the host only. Remote MCP guests never receive `project_path` and cannot call host-only tools (pipeline, ingest, laptop play).
 
-**Comment resolve is host-only.** Guests (human and agent) may add comments, replies, and toggle action items when those caps are on the token. There is no share HTTP or `guest_*` tool to resolve/reopen a thread — that stays on the host DAW (`resolve_comment_tool` / Comments tab). If we ever add guest resolve, it must ship HTTP and MCP together; until then agents must not get it either.
+**Comment resolve is host-only.** The host can resolve or reopen a thread in the Comments tab; that state lives in the project and persists when the host publishes another review version. ReviewApp shows the state on each thread and offers **Open comments only** to hide resolved threads temporarily; clearing the filter makes them readable again. Guests (human and agent) may add comments, replies, and toggle action items when those caps are on the token. There is no share HTTP or `guest_*` tool to resolve/reopen a thread. Anonymous link shares have no verified per-guest identity for own-thread resolve; if guest resolve is added later, it must ship HTTP and MCP together.
 
 ## Live comments during recording
 
