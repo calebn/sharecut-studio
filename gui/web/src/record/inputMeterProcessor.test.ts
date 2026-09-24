@@ -10,6 +10,7 @@ type Processor = {
         }) => void)
       | null;
     postMessage: ReturnType<typeof vi.fn>;
+    close: ReturnType<typeof vi.fn>;
   };
   process: (inputs: Float32Array[][]) => boolean;
 };
@@ -20,7 +21,7 @@ function makeProcessor(clipThreshold = 0.8) {
     processorOptions: { clipThreshold: number };
   }) => Processor;
   class AudioWorkletProcessor {
-    port = { onmessage: null, postMessage: vi.fn() };
+    port = { onmessage: null, postMessage: vi.fn(), close: vi.fn() };
   }
   runInNewContext(source, {
     AudioWorkletProcessor,
@@ -53,6 +54,7 @@ describe("input meter worklet", () => {
   it("stops processing when its owner retires it", () => {
     const processor = makeProcessor();
     processor.port.onmessage?.({ data: { type: "stop" } });
+    expect(processor.port.close).toHaveBeenCalledOnce();
     expect(processor.process([[new Float32Array([1])]])).toBe(false);
     expect(processor.port.postMessage).not.toHaveBeenCalled();
   });

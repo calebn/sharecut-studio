@@ -12,6 +12,7 @@ class SharecutInputMeterProcessor extends AudioWorkletProcessor {
     this.port.onmessage = (event) => {
       if (event.data?.type === "stop") {
         this.stopped = true;
+        this.port.close();
         return;
       }
       if (event.data?.type === "clear") {
