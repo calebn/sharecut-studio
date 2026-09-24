@@ -491,8 +491,11 @@ export async function createOpfsSink(): Promise<ByteSink> {
           }
         }
         return maxWavIndex(names);
-      } catch {
-        return 0;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "NotFoundError") {
+          return 0;
+        }
+        throw error;
       }
     },
   };

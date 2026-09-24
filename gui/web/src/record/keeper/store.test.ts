@@ -384,6 +384,38 @@ describe("MemorySink", () => {
 });
 
 describe("OPFS cleanup", () => {
+  it("returns zero only for a missing segment directory and propagates scan failures", async () => {
+    const entries = vi.fn<() => AsyncIterable<[string, { kind: string }]>>();
+    const directory = {
+      getDirectoryHandle: vi.fn<() => Promise<unknown>>(),
+      getFileHandle: async () => ({
+        createWritable: async () => ({
+          write: async () => undefined,
+          close: async () => undefined,
+        }),
+      }),
+      removeEntry: async () => undefined,
+      entries,
+    };
+    directory.getDirectoryHandle.mockResolvedValue(directory);
+    vi.stubGlobal("navigator", {
+      storage: { getDirectory: async () => directory },
+    });
+    try {
+      const sink = await createOpfsSink();
+      entries.mockImplementationOnce(async function* () {
+        throw new DOMException("busy", "InvalidStateError");
+      });
+      await expect(sink.nextSegmentIndex("s", 0, "p")).rejects.toThrow("busy");
+      directory.getDirectoryHandle.mockRejectedValueOnce(
+        new DOMException("missing", "NotFoundError"),
+      );
+      await expect(sink.nextSegmentIndex("s", 0, "p")).resolves.toBe(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("returns null only for missing reads and propagates transient read errors", async () => {
     const getFile = vi.fn<() => Promise<Blob>>();
     const root = {

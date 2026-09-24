@@ -135,6 +135,9 @@ Each open keeper segment writes a small OPFS metadata record before PCM capture
 with its trusted `join_offset_ms` and `complete: false`. The record changes to
 `complete: true` only after the WAV header and writable have closed successfully;
 upload never infers completion from a WAV file alone. On rejoin, a readable
+segment directory is scanned before choosing the next index; an absent
+directory starts at zero, while a transient OPFS scan error stops capture
+instead of reusing a path that may already contain keeper bytes. A readable
 pending PCM WAV can be recovered explicitly: the client validates its fixed
 48 kHz mono PCM format from the header alone, patches the header in place
 (dropping at most one incomplete trailing sample, which the panel reports), and
