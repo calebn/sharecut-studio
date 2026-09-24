@@ -158,6 +158,23 @@ def test_store_rejects_distinct_command_id_on_existing_client_seq(tmp_path) -> N
     second.close()
 
 
+def test_prefixed_store_keeps_sequence_only_retries(tmp_path) -> None:
+    store = SyncStore(tmp_path / "sync.db", table_prefix="record_")
+    args = {
+        "client_id": "guest-1",
+        "client_seq": 1,
+        "role": "viewer",
+        "type": "SetPlayhead",
+        "payload": {"playhead_sec": 1.0},
+        "causation_id": None,
+    }
+    first = store.append_command(command_id="first", **args)
+    retry = store.append_command(command_id="new-id", **args)
+    assert retry["server_seq"] == first["server_seq"]
+    assert retry["command_id"] == "first"
+    store.close()
+
+
 def test_generated_client_seq_survives_new_process_counter(minimal_project, monkeypatch) -> None:
     from podcast_mcp.services.session_sync import service
 
