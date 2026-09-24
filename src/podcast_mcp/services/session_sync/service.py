@@ -48,7 +48,7 @@ def _store_for(project: EpisodeProject, *, create: bool = False) -> SyncStore | 
         return store
     if not path.is_file() and not create:
         return None
-    store = cached_sync_store(path, table_prefix="")
+    store = cached_sync_store(path, table_prefix="", enforce_command_ids=True)
     return store
 
 

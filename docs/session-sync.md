@@ -48,7 +48,9 @@ can silently replay the historical command; the caller must use a fresh
 positive sequence. This compatibility rule preserves existing command rows and
 server sequence order. Old positive generated rows remain in their original
 range, so clients that reuse those keys must handle this explicit collision.
-The session WebSocket reports such collisions as `Error` frames with
+The session authority enables this check only for session commands; record and
+document command planes retain their existing retry contracts. The session
+WebSocket reports such collisions as `Error` frames with
 `code=client_seq_conflict` and stays open for a corrected command.
 
 ## Modules
