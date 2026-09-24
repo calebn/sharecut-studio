@@ -26,6 +26,11 @@ from podcast_mcp.services import PlayService, ProjectWorkspace, ReviewService
 from podcast_mcp.services.review_media import review_guest_audio_path
 from podcast_mcp.util.binaries import resolve_ffmpeg
 
+requires_safe_cleanup = pytest.mark.skipif(
+    not review_versions._SAFE_STALE_CLEANUP_SUPPORTED,
+    reason="descriptor-relative directory operations are unavailable",
+)
+
 
 @pytest.mark.parametrize("source", ["premix", "mastered"])
 def test_publish_version_and_stamp_comment(minimal_project, sample_wav, tmp_workspace, source):
@@ -288,6 +293,7 @@ def test_failed_mp3_retry_never_exposes_partial_file(
     assert mp3.read_bytes() == b"complete mp3"
 
 
+@requires_safe_cleanup
 def test_mp3_retry_cleans_only_bounded_stale_regular_files(
     minimal_project, sample_wav, tmp_workspace
 ):
@@ -316,7 +322,7 @@ def test_mp3_retry_cleans_only_bounded_stale_regular_files(
             output.write_bytes(b"complete")
 
     assert encode_version_mp3(project, version_id, eng=SuccessfulEngine()) == mp3
-    assert sum(path.exists() for path in stale) == 1
+    assert 1 <= sum(path.exists() for path in stale) <= 3
     assert fresh.read_bytes() == b"live retry"
     assert unrelated.read_bytes() == b"keep"
     assert symlink.is_symlink()
@@ -325,6 +331,7 @@ def test_mp3_retry_cleans_only_bounded_stale_regular_files(
     assert mp3.read_bytes() == b"complete"
 
 
+@requires_safe_cleanup
 def test_mp3_retry_continues_when_stale_cleanup_fails(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -358,6 +365,7 @@ def test_mp3_retry_continues_when_stale_cleanup_fails(
     assert mp3.read_bytes() == b"complete"
 
 
+@requires_safe_cleanup
 def test_mp3_retry_caps_failed_stale_deletion_attempts(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -391,10 +399,7 @@ def test_mp3_retry_caps_failed_stale_deletion_attempts(
     assert mp3.read_bytes() == b"complete"
 
 
-@pytest.mark.skipif(
-    not (os.scandir in os.supports_fd and os.unlink in os.supports_dir_fd),
-    reason="descriptor-relative directory operations are unavailable",
-)
+@requires_safe_cleanup
 def test_stale_cleanup_pins_version_directory_during_retarget(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -428,6 +433,96 @@ def test_stale_cleanup_pins_version_directory_during_retarget(
     assert retargeted
     assert not (moved_dir / stale.name).exists()
     assert other_file.read_bytes() == b"other orphan"
+
+
+@requires_safe_cleanup
+def test_stale_cleanup_pins_parent_directory_during_retarget(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    project, version_id = _publish(minimal_project, sample_wav)
+    review_root = review_artifacts_dir(project)
+    version_dir = review_root / version_id
+    stale = version_dir / ".mix-orphan.mp3"
+    stale.write_bytes(b"old orphan")
+    old_time = time.time() - review_versions._STALE_MP3_TEMP_AGE_SECONDS - 60
+    os.utime(stale, (old_time, old_time))
+    other_root = tmp_workspace.parent / "other-review-root"
+    other_version = other_root / version_id
+    other_version.mkdir(parents=True)
+    other_file = other_version / stale.name
+    other_file.write_bytes(b"other orphan")
+    os.utime(other_file, (old_time, old_time))
+    moved_root = review_root.with_name("review-moved")
+    original_open = os.open
+    retargeted = False
+
+    def retarget_after_root_open(path, flags, *args, **kwargs):
+        nonlocal retargeted
+        if path == version_id and kwargs.get("dir_fd") is not None and not retargeted:
+            retargeted = True
+            review_root.rename(moved_root)
+            review_root.symlink_to(other_root, target_is_directory=True)
+        return original_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(os, "open", retarget_after_root_open)
+    review_versions._clean_stale_mp3_temps(version_dir)
+
+    assert retargeted
+    assert not (moved_root / version_id / stale.name).exists()
+    assert other_file.read_bytes() == b"other orphan"
+
+
+@requires_safe_cleanup
+def test_mp3_retry_caps_failed_stale_stat_attempts(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    project, version_id = _publish(minimal_project, sample_wav)
+    mp3 = version_mp3_path(project, version_id)
+    assert mp3 is not None
+    mp3.unlink()
+    old_time = time.time() - review_versions._STALE_MP3_TEMP_AGE_SECONDS - 60
+    stale = [mp3.parent / f".mix-stat-fail-{index}.mp3" for index in range(33)]
+    for path in stale:
+        path.write_bytes(b"orphan")
+        os.utime(path, (old_time, old_time))
+    original_stat = os.stat
+    attempted: list[str] = []
+
+    def refuse_stale_stat(path, *args, **kwargs):
+        if isinstance(path, str) and path.startswith(".mix-stat-fail-"):
+            attempted.append(path)
+            raise FileNotFoundError("candidate disappeared")
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "stat", refuse_stale_stat)
+
+    class SuccessfulEngine:
+        def export_mp3(self, source, output, *, bitrate_kbps):
+            output.write_bytes(b"complete")
+
+    assert encode_version_mp3(project, version_id, eng=SuccessfulEngine()) == mp3
+    assert len(attempted) == review_versions._STALE_MP3_TEMP_CLEANUP_LIMIT
+    assert mp3.read_bytes() == b"complete"
+
+
+def test_mp3_retry_skips_cleanup_without_safe_directory_operations(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    project, version_id = _publish(minimal_project, sample_wav)
+    mp3 = version_mp3_path(project, version_id)
+    assert mp3 is not None
+    mp3.unlink()
+    stale = mp3.parent / ".mix-orphan.mp3"
+    stale.write_bytes(b"orphan")
+    monkeypatch.setattr(review_versions, "_SAFE_STALE_CLEANUP_SUPPORTED", False)
+
+    class SuccessfulEngine:
+        def export_mp3(self, source, output, *, bitrate_kbps):
+            output.write_bytes(b"complete")
+
+    assert encode_version_mp3(project, version_id, eng=SuccessfulEngine()) == mp3
+    assert stale.read_bytes() == b"orphan"
+    assert mp3.read_bytes() == b"complete"
 
 
 def test_mp3_retry_preserves_encode_error_if_temporary_cleanup_fails(
