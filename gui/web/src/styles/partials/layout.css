@@ -772,13 +772,6 @@ button.pill.pill--info {
   border-bottom-color: transparent;
 }
 
-.audition-modes .ui-control--quiet[aria-pressed="true"],
-.audition-modes .ui-control--quiet.active {
-  background: var(--bg-transport-selected);
-  color: var(--color-transport-play-fg);
-  box-shadow: var(--shadow-transport-selected);
-}
-
 .blade-cut-guide {
   position: absolute;
   width: 0.125rem;

@@ -4,6 +4,29 @@ import { expect, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
 
+function contrastRatio(foreground: string, background: string): number {
+  const luminance = (color: string) => {
+    const channels = color
+      .match(/[\d.]+/g)
+      ?.slice(0, 3)
+      .map(Number);
+    if (!channels || channels.length !== 3) {
+      throw new Error(`Expected computed RGB color, got ${color}`);
+    }
+    const linear = channels.map((channel) => {
+      const value = channel / 255;
+      return value <= 0.04045
+        ? value / 12.92
+        : ((value + 0.055) / 1.055) ** 2.4;
+    });
+    return linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722;
+  };
+  const values = [luminance(foreground), luminance(background)].sort(
+    (a, b) => b - a,
+  );
+  return (values[0] + 0.05) / (values[1] + 0.05);
+}
+
 test("timeline stays recessed across themes and motion respects preference", async ({
   page,
 }) => {
@@ -95,6 +118,75 @@ test("fixed phone playhead stays visible on the dark timeline", async ({
       (element) => getComputedStyle(element).backgroundColor,
     ),
   ).toBe("rgb(255, 109, 72)");
+});
+
+test("light transport keeps legible status and stable control hover paint", async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await expect(page.locator(".lane-row").first()).toBeVisible();
+  await page.evaluate(() => {
+    document.documentElement.dataset.theme = "light";
+  });
+
+  const colors = await page.locator(".transport").evaluate((transport) => {
+    const swatch = document.createElement("span");
+    swatch.style.color = "var(--color-transport-top)";
+    transport.appendChild(swatch);
+    const top = getComputedStyle(swatch).color;
+    swatch.remove();
+    const fresh = document.createElement("span");
+    fresh.className = "pill ok";
+    transport.appendChild(fresh);
+    const ok = getComputedStyle(fresh).color;
+    fresh.remove();
+    const warning = getComputedStyle(
+      transport.querySelector(".pill.warning")!,
+    ).color;
+    return { top, ok, warning };
+  });
+  expect(contrastRatio(colors.ok, colors.top)).toBeGreaterThanOrEqual(4.5);
+  expect(contrastRatio(colors.warning, colors.top)).toBeGreaterThanOrEqual(4.5);
+
+  const play = page.getByRole("button", { name: "Play", exact: true });
+  const playPaint = (element: typeof play) =>
+    element.evaluate((node) => {
+      const style = getComputedStyle(node);
+      return { image: style.backgroundImage, color: style.color };
+    });
+  const playRest = await playPaint(play);
+  await play.hover();
+  expect(await playPaint(play)).toEqual(playRest);
+
+  const row = page.locator(".track-header-row").first();
+  const rowRest = await row.evaluate(
+    (node) => getComputedStyle(node).backgroundColor,
+  );
+  await row.hover();
+  const rowHover = await row.evaluate(
+    (node) => getComputedStyle(node).backgroundColor,
+  );
+  expect(rowHover).not.toBe(rowRest);
+});
+
+test("compact light transport keeps Comment readable", async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 800 });
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  const comment = page.locator(
+    ".transport-primary-actions > .comment-mode-btn",
+  );
+  await expect(comment).toBeVisible();
+  const colors = await comment.evaluate((button) => {
+    const swatch = document.createElement("span");
+    swatch.style.color = "var(--color-transport-top)";
+    button.parentElement!.appendChild(swatch);
+    const top = getComputedStyle(swatch).color;
+    swatch.remove();
+    return { top, ink: getComputedStyle(button).color };
+  });
+  expect(contrastRatio(colors.ink, colors.top)).toBeGreaterThanOrEqual(4.5);
 });
 
 test("Share dialog floats on a distinct tone from the raised inspector", async ({
