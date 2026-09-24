@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from urllib.parse import quote
 from uuid import uuid4
 
@@ -102,6 +103,40 @@ def test_document_ws_snapshot_command_and_error(minimal_project):
         )
         err2 = _recv_until(ws, "Error")
         assert "unknown" in err2["detail"].lower() or "detail" in err2
+
+
+def test_document_ws_submit_runs_off_event_loop(minimal_project, monkeypatch):
+    from podcast_mcp.gui.routes import document as document_route
+    from podcast_mcp.services.document_sync import DocumentSyncService
+
+    thread_ids: dict[str, int] = {}
+    original_parse = document_route.parse_document_command
+    original_submit = DocumentSyncService.submit
+
+    def parse_on_loop(*args, **kwargs):
+        thread_ids["loop"] = threading.get_ident()
+        return original_parse(*args, **kwargs)
+
+    def submit_in_worker(self, *args, **kwargs):
+        thread_ids["submit"] = threading.get_ident()
+        return original_submit(self, *args, **kwargs)
+
+    monkeypatch.setattr(document_route, "parse_document_command", parse_on_loop)
+    monkeypatch.setattr(DocumentSyncService, "submit", submit_in_worker)
+    client = TestClient(create_app())
+    url = f"/api/document/ws?path={quote(str(minimal_project))}&client_id=ws-worker&role=viewer"
+    with client.websocket_connect(url) as ws:
+        assert ws.receive_json()["type"] == "Snapshot"
+        ws.send_json(
+            {
+                "type": "Command",
+                "command_type": "AddComment",
+                "payload": {"body": "worker submit", "author": "ws", "timeline_start": 1.25},
+                "client_seq": 1,
+            }
+        )
+        assert _recv_until(ws, "Echo")["ok"] is True
+    assert thread_ids["submit"] != thread_ids["loop"]
 
 
 def test_document_ws_guest_denied(minimal_project):

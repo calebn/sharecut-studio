@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
+from starlette.concurrency import run_in_threadpool
 
 from podcast_mcp.edits.transcript_refine_status import TranscriptRefineRequiredError
 from podcast_mcp.gui.middleware_host_binding import websocket_host_binding_denied
@@ -163,7 +164,9 @@ async def document_ws(
                         "structural_mode": msg.get("structural_mode"),
                     }
                 )
-                result = svc.submit(cmd, structural_mode=msg.get("structural_mode"))
+                result = await run_in_threadpool(
+                    svc.submit, cmd, structural_mode=msg.get("structural_mode")
+                )
                 await websocket.send_json({**result, "type": "Echo"})
             except ValidationError as exc:
                 await websocket.send_json({"type": "Error", "detail": str(exc)})
