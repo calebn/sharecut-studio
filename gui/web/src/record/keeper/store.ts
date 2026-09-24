@@ -474,29 +474,27 @@ export async function createOpfsSink(): Promise<ByteSink> {
       takeIndex: number,
       participantId: string,
     ) {
+      const parts = keeperDirPrefix(sessionId, takeIndex, participantId).split(
+        "/",
+      );
+      let dir = root;
       try {
-        const parts = keeperDirPrefix(
-          sessionId,
-          takeIndex,
-          participantId,
-        ).split("/");
-        let dir = root;
         for (const part of parts) {
           dir = await dir.getDirectoryHandle(part);
         }
-        const names: string[] = [];
-        for await (const [name, handle] of dir.entries()) {
-          if (handle.kind === "file") {
-            names.push(name);
-          }
-        }
-        return maxWavIndex(names);
       } catch (error) {
         if (error instanceof DOMException && error.name === "NotFoundError") {
           return 0;
         }
         throw error;
       }
+      const names: string[] = [];
+      for await (const [name, handle] of dir.entries()) {
+        if (handle.kind === "file") {
+          names.push(name);
+        }
+      }
+      return maxWavIndex(names);
     },
   };
 }

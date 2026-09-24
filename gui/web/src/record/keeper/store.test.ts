@@ -407,6 +407,13 @@ describe("OPFS cleanup", () => {
         throw new DOMException("busy", "InvalidStateError");
       });
       await expect(sink.nextSegmentIndex("s", 0, "p")).rejects.toThrow("busy");
+      entries.mockImplementationOnce(async function* () {
+        yield ["0.wav", { kind: "file" }];
+        throw new DOMException("scan disappeared", "NotFoundError");
+      });
+      await expect(sink.nextSegmentIndex("s", 0, "p")).rejects.toThrow(
+        "scan disappeared",
+      );
       directory.getDirectoryHandle.mockRejectedValueOnce(
         new DOMException("missing", "NotFoundError"),
       );
