@@ -60,7 +60,7 @@ flowchart TB
 | **View menu (wide)** | Layer toggles, zoom, Fit if omitted, theme, focus modes |
 | **Menu (collapsed)** | One combined menu: Project, Media, audition Mix/FX/Raw, session, **Refresh mix** when render is stale, layers, view, Help |
 | **Data shown** | Playhead (timeline sec) · duration · audition kind · optional stale-render note |
-| **Empty / error** | Known `?project=` but shell not yet: real transport chrome, **Loading episode…**, play disabled. Zero tracks after load: ingest “Drop audio files” (not the loading well). Host with no path: home launch. Guest: token/project load failure |
+| **Empty / error** | Known `?project=` but shell not yet: real transport chrome, **Loading episode…**, play disabled. Zero tracks after load: ingest “Drop audio files” (not the loading well). Host with no path: home launch. Guest: token/project load failure The empty stage names the import shortcut in platform form (⌘I on Apple platforms, Ctrl+I elsewhere) and uses themed ink on the light stage; Play stays disabled until the project has media. |
 | **Out of scope** | Full mixer; pipeline step runner (status chips / Pipeline tab) |
 
 The overflow Menu panel caps to remaining space under the trigger (`min(90dvh, var(--menu-available-height))`) and scrolls so **Keyboard shortcuts** stays reachable on short laptop heights, including when guest/follow banners sit above the transport. The shortcut dialog explains that character keys apply when the timeline or transcript has focus.

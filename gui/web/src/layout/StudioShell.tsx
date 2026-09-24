@@ -13,6 +13,7 @@ import {
 } from "../ingest/dropLabels";
 import { ingestFiles } from "../ingest/ingestFiles";
 import { Inspector } from "../inspector/Inspector";
+import { displayShortcutKeys, keymapCommandById } from "../keymap/registry";
 import { CommentsPanel } from "../panels/CommentsPanel";
 import { HistoryPanel } from "../panels/HistoryPanel";
 import { ImpactPanel } from "../panels/ImpactPanel";
@@ -29,6 +30,7 @@ import { TimelineView } from "../timeline/TimelineView";
 import { TrackHeadersColumn } from "../tracks/TrackHeadersColumn";
 import { BottomSheet, FocusToggle, ToggleButton } from "../ui";
 import { isPipelineSlotBusy } from "../utils/pipeline";
+import { isApplePlatform } from "../utils/platform";
 import { BottomTabsSplitter } from "./BottomTabsSplitter";
 import { EditingToolRail } from "./EditingToolRail";
 import { FollowBanner } from "./FollowBanner";
@@ -39,6 +41,10 @@ import { TransportBar } from "./TransportBar";
 import { TAB_LABELS } from "./tabLabels";
 
 export function StudioShell({ guestShare = false }: { guestShare?: boolean }) {
+  const importBinding = keymapCommandById("media.import");
+  const importShortcut = importBinding
+    ? displayShortcutKeys(importBinding, isApplePlatform())
+    : "Menu";
   const {
     project,
     selection,
@@ -211,7 +217,7 @@ export function StudioShell({ guestShare = false }: { guestShare?: boolean }) {
                   <span className="empty-session-drop-label">
                     {addDropOver
                       ? newTracksDropLabel(addFileCount)
-                      : "Drop audio files here, or Import Audio (Mod+I)"}
+                      : `Drop audio files here, or Import Audio (${importShortcut})`}
                   </span>
                 </button>
                 {coachOpen ? (
@@ -221,7 +227,7 @@ export function StudioShell({ guestShare = false }: { guestShare?: boolean }) {
                   >
                     <p>
                       Drop stems here. Use one file per speaker. Import is also
-                      under Menu (Mod+I).
+                      under Menu ({importShortcut}).
                     </p>
                     <button
                       type="button"
