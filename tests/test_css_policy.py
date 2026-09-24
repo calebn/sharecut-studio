@@ -60,7 +60,10 @@ _PRIMITIVES_CSS = ROOT / "gui/web/src/styles/theme/primitives.css"
 _THEME_CSS = (
     ROOT / "gui/web/src/styles/theme/theme-dark.css",
     ROOT / "gui/web/src/styles/theme/theme-light.css",
+    ROOT / "gui/web/src/styles/theme/theme-fixed.css",
 )
+_PARTIALS_DIR = ROOT / "gui/web/src/styles/partials"
+_PRIMITIVE_REF = re.compile(r"var\(\s*--primitive-")
 _CSS_VAR_REF = re.compile(r"var\(\s*--")
 _CSS_HEX = re.compile(r"#[0-9a-fA-F]{3,8}\b")
 _CSS_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
@@ -283,11 +286,39 @@ def test_theme_files_use_primitives_not_raw_hex() -> None:
     assert not hits, "raw hex in theme files:\n" + "\n".join(hits)
 
 
+def test_partials_never_read_primitives() -> None:
+    """Component tier: partials consume semantic roles only. Reading
+    --primitive-* from a partial skips the theme and fixed tiers."""
+    hits: list[str] = []
+    for path in sorted(_PARTIALS_DIR.rglob("*.css")):
+        rel = path.relative_to(ROOT)
+        text = _CSS_COMMENT.sub("", path.read_text(encoding="utf-8"))
+        for i, line in enumerate(text.splitlines(), 1):
+            if _PRIMITIVE_REF.search(line):
+                hits.append(f"{rel}:{i}: reads a primitive (map it in a theme file)")
+    assert not hits, "partials must not read primitives:\n" + "\n".join(hits)
+
+
+def test_color_roles_live_in_theme_tier_files() -> None:
+    """tokens.css holds scale, layout and composite tokens; every --color-*
+    role that maps a primitive lives in theme-dark/light/fixed.css."""
+    tokens = ROOT / "gui/web/src/styles/theme/tokens.css"
+    text = _CSS_COMMENT.sub("", tokens.read_text(encoding="utf-8"))
+    hits = [
+        f"{tokens.relative_to(ROOT)}:{i}: {line.strip()[:60]}"
+        for i, line in enumerate(text.splitlines(), 1)
+        if re.match(r"\s*--color-[\w-]+\s*:", line) and _PRIMITIVE_REF.search(line)
+    ]
+    assert not hits, "color roles belong in a theme tier file:\n" + "\n".join(hits)
+
+
 def test_tier_regex_helpers() -> None:
     assert _CSS_VAR_REF.search("color: var(--primitive-neutral-900)")
     assert not _CSS_VAR_REF.search("color: #0f0e0c")
     assert _CSS_HEX.search("#0f0e0c")
     assert not _CSS_HEX.search("var(--primitive-neutral-900)")
+    assert _PRIMITIVE_REF.search("mask: var(--primitive-black)")
+    assert not _PRIMITIVE_REF.search("color: var(--color-text-primary)")
     assert _declaration_values("--a: #fff;\n--b: var(--a);")[0] == (1, "#fff")
     # hex inside comments is not a declaration value
     assert _declaration_values("/* #fff */\n--a: var(--b);") == [(2, "var(--b)")]

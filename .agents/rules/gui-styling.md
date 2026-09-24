@@ -12,8 +12,9 @@ Lint: Stylelint in `gui/web` (`meowtec/no-px`, `declaration-strict-value`, viewp
 | Primitive color values (raw literals, no `var()`) | `gui/web/src/styles/theme/primitives.css` |
 | Studio density (`--space-*`, `--font-size-*`, `--radius-xs/sm/xl`, `--focus-ring-*`, `--z-*`) | `gui/web/src/styles/theme/tokens.css` |
 | Light / dark functional colors (semantic roles mapped onto primitives) | `theme-dark.css` / `theme-light.css` |
+| Theme-invariant color roles (the fixed-dark transport strip and Listen card) | `theme-fixed.css` |
 
-Tier discipline: primitives are raw values; theme files reference primitives, never raw hex (`tests/test_css_policy.py` enforces both). `brand-tokens.css` is exempt — its copies ship to splash/relay static contexts that never load `primitives.css`, so it stays self-contained; Studio primitives may restate a brand hex (marked `twin:`) rather than cross-reference it. Full naming system: [docs/design-tokens.md](../../docs/design-tokens.md).
+Tier discipline: primitives are raw values; theme files (`theme-dark/light/fixed.css`) reference primitives, never raw hex; `tokens.css` holds scale, layout and composite tokens but no `--color-*` role that maps a primitive; partials never read `--primitive-*` (`tests/test_css_policy.py` enforces all four). `brand-tokens.css` is exempt — its copies ship to splash/relay static contexts that never load `primitives.css`, so it stays self-contained; Studio primitives may restate a brand hex (marked `twin:`) rather than cross-reference it. Full naming system: [docs/design-tokens.md](../../docs/design-tokens.md).
 
 Partials, TSX `style={{…}}`, and marketing copies consume `var(--…)`. If a **themed** value is missing, **add a token** — do not hardcode padding, margin, gap, font-size, radius, or color. Snap to the nearest existing step rather than minting a 1–4px rung. Promote a reused a11y recipe (`--focus-ring-width` / `--focus-ring-offset`) so density tweaks cannot shrink focus rings.
 
