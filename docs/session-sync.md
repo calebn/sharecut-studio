@@ -38,8 +38,13 @@ allocates their next negative `client_seq` in the insert statement. Separate CLI
 processes therefore cannot restart the same dedupe key. Explicit client sequences
 from WebSocket/HTTP callers must be positive and remain unchanged for retries;
 the separate ranges prevent collisions with newly generated commands. Older
-`sync.db` logs can retain positive generated rows under the same stable ID;
-see [#333](https://github.com/calebn/sharecut-studio/issues/333) for migration.
+`sync.db` logs can retain positive generated rows under the same stable ID.
+For these upgraded logs, a repeated `(client_id, client_seq)` is a replay only
+when `command_id` also matches. A different command ID is rejected before it
+can silently replay the historical command; the caller must use a fresh
+positive sequence. This compatibility rule preserves existing command rows and
+server sequence order. Old positive generated rows remain in their original
+range, so clients that reuse those keys must handle this explicit collision.
 
 ## Modules
 
