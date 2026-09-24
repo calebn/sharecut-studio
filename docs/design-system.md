@@ -152,11 +152,13 @@ both themes, in story mode and on its docs page, before merging.
   specifiers and real `import.meta.glob` calls, so comments and ordinary
   strings cannot look like imports or glob calls. Literal glob arguments may
   be one quoted string, a static backtick string, or an array of those;
-  existing story-negation rules apply
-  to each call. For both checks,
+  existing story-negation rules apply to each call. For both checks,
   non-literal specifiers (variables, template or concatenated strings) and
   path aliases are not detected, so keep story-adjacent imports literal and
   relative.
+- The frontend CI job also runs `npm run check:bundle-no-stories` after the
+  app build. It scans emitted JavaScript chunks for story-file and Storybook
+  package markers, so the shipped output is checked as well as source imports.
 - Stories render production code — never a copy. If a story needs a tweak to
   the component, the component changes, with its Vitest/axe tests.
 - a11y addon runs wcag2a/wcag2aa checks per story; the repo's axe posture
