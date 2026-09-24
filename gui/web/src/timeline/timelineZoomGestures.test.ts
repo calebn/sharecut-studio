@@ -57,6 +57,31 @@ describe("shouldClaimTimelineZoom", () => {
     input.remove();
   });
 
+  it("claims over the scroller but not inside an excluded region (#385)", () => {
+    // Fixed-playhead lead pads are scroller margin, not the time column.
+    const pad = document.createElement("div");
+    const headers = document.createElement("div");
+    el.append(pad, headers);
+    let hit: Element = pad;
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => hit,
+    });
+    const claim = () =>
+      shouldClaimTimelineZoom({
+        el,
+        clientX: 10,
+        clientY: 10,
+        eventTarget: hit,
+        activeElement: document.body,
+        exclude: headers,
+      });
+    expect(claim()).toBe(true);
+    hit = headers;
+    expect(claim()).toBe(false);
+    expect(isPointerOverTimeline(el, 10, 10, headers, headers)).toBe(false);
+  });
+
   it("refuses when the pointer hit is outside the timeline", () => {
     Object.defineProperty(document, "elementFromPoint", {
       configurable: true,

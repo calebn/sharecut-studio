@@ -14,29 +14,27 @@ export function isZoomWheelEvent(
   return e.ctrlKey || e.metaKey;
 }
 
+/** Inside `el` and not inside `exclude` (e.g. the track headers). */
 export function isPointerOverTimeline(
   el: HTMLElement,
   clientX: number,
   clientY: number,
   eventTarget?: EventTarget | null,
+  exclude?: Element | null,
 ): boolean {
+  const inside = (node: Node) =>
+    el.contains(node) && !(exclude?.contains(node) ?? false);
   if (
     typeof document !== "undefined" &&
     typeof document.elementFromPoint === "function"
   ) {
     const hit = document.elementFromPoint(clientX, clientY);
-    if (hit instanceof Node && el.contains(hit)) {
-      return true;
-    }
-    if (hit instanceof Node && !el.contains(hit)) {
-      return false;
+    if (hit instanceof Node) {
+      return inside(hit);
     }
     // elementFromPoint null/odd during some gesture frames — fall through.
   }
-  if (eventTarget instanceof Node && el.contains(eventTarget)) {
-    return true;
-  }
-  return false;
+  return eventTarget instanceof Node && inside(eventTarget);
 }
 
 export type ClaimTimelineZoomInput = {
@@ -45,6 +43,8 @@ export type ClaimTimelineZoomInput = {
   clientY: number;
   eventTarget?: EventTarget | null;
   activeElement?: EventTarget | null;
+  /** A region inside `el` that never claims zoom (the track headers). */
+  exclude?: Element | null;
 };
 
 /** Spatial hit-test + typing guard — do not require prior timelineFocused. */
@@ -62,6 +62,7 @@ export function shouldClaimTimelineZoom(
     input.clientX,
     input.clientY,
     input.eventTarget,
+    input.exclude,
   );
 }
 
@@ -91,6 +92,7 @@ function supportsSafariGestureEvents(): boolean {
 
 function claimOrIgnore(
   el: HTMLElement,
+  exclude: Element | null | undefined,
   e: { clientX: number; clientY: number; target: EventTarget | null },
   prevent: () => void,
   apply: () => void,
@@ -102,6 +104,7 @@ function claimOrIgnore(
       clientX: e.clientX,
       clientY: e.clientY,
       eventTarget: e.target,
+      exclude,
     })
   ) {
     return false;
@@ -122,14 +125,15 @@ export type TimelineZoomHitTest =
  * Attach non-passive wheel / touch / Safari gesture listeners so preventDefault
  * can claim pinch-zoom for the timeline instead of browser page zoom.
  * Listeners attach to `el` (usually `.timeline-scroll`); hit-tests use
- * `hitTestEl` when provided (`.timeline-time`) so mute/solo headers do not claim zoom.
- * Pass a getter so a late `.timeline-time` mount is visible to `claimEl`.
+ * `hitTestEl` when provided, minus `excludeEl` (the track headers) so mute/solo
+ * headers do not claim zoom. Pass getters so late mounts are visible.
  * Returns a disposer.
  */
 export function attachTimelineZoomGestures(
   el: HTMLElement,
   handlers: TimelineZoomHandlers,
   hitTestEl?: TimelineZoomHitTest,
+  excludeEl?: TimelineZoomHitTest,
 ): () => void {
   let pinch: { dist: number; zoom: number } | null = null;
   let safariGesture: { zoom: number; clientX: number } | null = null;
@@ -137,6 +141,8 @@ export function attachTimelineZoomGestures(
     const hit = typeof hitTestEl === "function" ? hitTestEl() : hitTestEl;
     return hit ?? el;
   };
+  const excluded = () =>
+    typeof excludeEl === "function" ? excludeEl() : excludeEl;
 
   const onWheel = (e: WheelEvent) => {
     if (!isZoomWheelEvent(e)) {
@@ -149,6 +155,7 @@ export function attachTimelineZoomGestures(
     }
     claimOrIgnore(
       claimEl(),
+      excluded(),
       e,
       () => e.preventDefault(),
       () => {
@@ -170,6 +177,7 @@ export function attachTimelineZoomGestures(
     if (
       !shouldClaimTimelineZoom({
         el: claimEl(),
+        exclude: excluded(),
         clientX: midX,
         clientY: midY,
         eventTarget: e.target,
@@ -195,6 +203,7 @@ export function attachTimelineZoomGestures(
     if (
       !shouldClaimTimelineZoom({
         el: claimEl(),
+        exclude: excluded(),
         clientX: midX,
         clientY: midY,
         eventTarget: e.target,
@@ -220,6 +229,7 @@ export function attachTimelineZoomGestures(
     if (
       !shouldClaimTimelineZoom({
         el: claimEl(),
+        exclude: excluded(),
         clientX: ge.clientX,
         clientY: ge.clientY,
         eventTarget: e.target,

@@ -183,7 +183,6 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
   );
   const areaRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const timeRef = useRef<HTMLDivElement>(null);
   const lanesRef = useRef<HTMLDivElement>(null);
   const syncingScroll = useRef(false);
   const prevZoomForPlayheadRef = useRef(zoomPxPerSec);
@@ -293,7 +292,10 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
         },
         onZoomClaimed: () => setTimelineFocused(true),
       },
-      () => timeRef.current ?? el,
+      // The whole scroller claims zoom, fixed-playhead lead pads included,
+      // except the track headers (mute/solo, reorder).
+      el,
+      () => el.querySelector(".track-headers"),
     );
   }, [project, setTimelineFocused]);
 
@@ -720,7 +722,6 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
             <div className={lockClass}>
               {headerSlot}
               <div
-                ref={timeRef}
                 className={
                   toolMode === "blade" && !commentMode
                     ? "timeline-time timeline-blade-mode"
