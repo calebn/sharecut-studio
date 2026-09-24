@@ -21,6 +21,12 @@
   pointer-events: none;
 }
 
+/* Half-viewport lead pads (TimelineView sets --timeline-lead) so the scroll
+   can put any time, 0 and the end included, under the centre line (#385). */
+.timeline-area--fixed-playhead .timeline-time {
+  margin-inline: var(--timeline-lead, 0);
+}
+
 /* Desktop focus modes */
 .daw-shell--focus-timeline {
   grid-template-rows: var(--transport-height) 1fr 0 var(--status-height);

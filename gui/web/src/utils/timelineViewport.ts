@@ -49,3 +49,35 @@ export function timelineCanvasSize(
   );
   return { widthPx, durationSec: widthPx / zoom };
 }
+
+/**
+ * Fixed-playhead (phone) timelines pad the time column by half the time
+ * viewport on each side, so every time from 0 to the end can sit under the
+ * centre line even at fit zoom. Store `scrollLeft` stays logical (time × zoom
+ * from the column's left edge); the scroller's DOM `scrollLeft` is logical +
+ * lead, so a logical value can go as low as −lead.
+ */
+export function fixedPlayheadLeadPx(viewportWidthPx: number): number {
+  return Math.max(0, viewportWidthPx) / 2;
+}
+
+/** Logical `scrollLeft` that puts `sec` at the centre of the time viewport. */
+export function scrollLeftCenteringSec(
+  sec: number,
+  zoomPxPerSec: number,
+  viewportWidthPx: number,
+): number {
+  return sec * zoomPxPerSec - Math.max(0, viewportWidthPx) / 2;
+}
+
+/** Time at the centre of the time viewport, clamped to the canvas. */
+export function secAtViewportCenter(
+  scrollLeft: number,
+  zoomPxPerSec: number,
+  viewportWidthPx: number,
+  canvasSec: number,
+): number {
+  const zoom = Math.max(zoomPxPerSec, 1e-6);
+  const sec = (scrollLeft + Math.max(0, viewportWidthPx) / 2) / zoom;
+  return Math.max(0, Math.min(canvasSec, sec));
+}

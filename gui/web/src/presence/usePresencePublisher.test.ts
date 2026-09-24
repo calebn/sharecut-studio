@@ -47,6 +47,24 @@ describe("usePresencePublisher", () => {
     }
   });
 
+  it("publishes a padded fixed-playhead viewport from 0 (#385)", () => {
+    // Scrolled 15 s before the start; no measured viewport, so a 60 s span.
+    useDawStore.setState({
+      followingClientId: null,
+      scrollLeft: -150,
+      zoomPxPerSec: 10,
+    });
+    const sent: Record<string, unknown>[] = [];
+    renderHook(() =>
+      usePresencePublisher((frame) => sent.push(frame), "Guest"),
+    );
+    const viewports = sent
+      .map((f) => (f.meta as { viewport?: unknown }).viewport)
+      .filter(Boolean) as { start_sec: number; end_sec: number }[];
+    expect(viewports.length).toBeGreaterThan(0);
+    expect(viewports.at(-1)).toEqual({ start_sec: 0, end_sec: 45 });
+  });
+
   it("still publishes ui while following", () => {
     useDawStore.setState({
       followingClientId: "host",

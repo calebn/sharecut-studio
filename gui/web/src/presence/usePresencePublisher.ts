@@ -124,10 +124,14 @@ export function usePresencePublisher(
     const el = useDawStore.getState()._timelineEl;
     const width = timelineTimeViewportWidth(el);
     const zoom = zoomPxPerSec > 0 ? zoomPxPerSec : 1;
-    const start = scrollLeft / zoom;
+    // A padded fixed-playhead view can scroll before 0; publish from 0.
+    const left = scrollLeft / zoom;
     const span = width > 0 ? width / zoom : 60;
     throttleRef.current.push({
-      viewport: { start_sec: start, end_sec: start + Math.max(span, 0.1) },
+      viewport: {
+        start_sec: Math.max(0, left),
+        end_sec: left + Math.max(span, 0.1),
+      },
     });
   }, [send, scrollLeft, zoomPxPerSec, followingClientId]);
 

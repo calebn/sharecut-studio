@@ -321,6 +321,8 @@ export const useDawStore = create<DawStore>((set, get) => ({
   pointerTrackId: null as string | null,
   setPointerTrackId: (pointerTrackId) => set({ pointerTrackId }),
   scrollLeft: 0,
+  timelineLeadPx: 0,
+  setTimelineLeadPx: (timelineLeadPx) => set({ timelineLeadPx }),
   selection: null as Selection,
   activeTab: "transcript" as DawTab,
   userZoomed: false,
@@ -483,6 +485,8 @@ export const useDawStore = create<DawStore>((set, get) => ({
       clientX: anchorX,
       rectLeft,
       scrollLeft: get().scrollLeft,
+      // `0 - lead`, not `-lead`: an unpadded view keeps a +0 floor.
+      minScrollLeft: 0 - get().timelineLeadPx,
     });
     // Store first; TimelineView applies el.scrollLeft in useLayoutEffect after
     // the wider (duration * zoom) content commits — avoids browser clamp.

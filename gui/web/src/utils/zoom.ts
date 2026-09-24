@@ -39,6 +39,8 @@ export type AnchoredZoomInput = {
   clientX: number;
   rectLeft: number;
   scrollLeft: number;
+  /** Lowest logical scroll: 0, or −lead in a padded fixed-playhead view. */
+  minScrollLeft?: number;
 };
 
 export type AnchoredZoomResult = {
@@ -55,7 +57,7 @@ export function anchoredZoomScroll(
   const anchorX = input.clientX - input.rectLeft + input.scrollLeft;
   const anchorSec = anchorX / current;
   const scrollLeft = Math.max(
-    0,
+    input.minScrollLeft ?? 0,
     anchorSec * zoom - (input.clientX - input.rectLeft),
   );
   return { zoom, scrollLeft };

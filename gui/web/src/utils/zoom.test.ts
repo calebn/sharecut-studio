@@ -62,4 +62,22 @@ describe("anchoredZoomScroll", () => {
     expect(zoom).toBe(currentZoom * ZOOM_STEP);
     expect((clientX - rectLeft + nextScroll) / zoom).toBeCloseTo(anchorSec, 8);
   });
+
+  it("clamps at 0 by default and at a lower bound when the view is padded", () => {
+    const input = {
+      currentZoom: 10,
+      nextZoom: 20,
+      clientX: 150,
+      rectLeft: 0,
+      scrollLeft: -100,
+    };
+    // Anchor at 5 s: 5 s × 20 px/s − 150 px = −50 px.
+    expect(anchoredZoomScroll(input).scrollLeft).toBe(0);
+    expect(
+      anchoredZoomScroll({ ...input, minScrollLeft: -187.5 }).scrollLeft,
+    ).toBe(-50);
+    expect(
+      anchoredZoomScroll({ ...input, minScrollLeft: -20 }).scrollLeft,
+    ).toBe(-20);
+  });
 });
