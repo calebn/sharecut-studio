@@ -15,10 +15,11 @@ export interface PeaksState {
   status: PeaksStatus;
 }
 
-/** Backoff schedule while the server is still generating an overview. */
+/** Backoff schedule while the server is still generating an overview.
+ * Polling continues at the capped interval for as long as the server answers
+ * `generating: true`; only `generating: false` settles on "unavailable". */
 export const PEAKS_RETRY_BASE_MS = 1000;
 export const PEAKS_RETRY_MAX_MS = 10000;
-export const PEAKS_MAX_RETRIES = 30;
 
 export function peaksRetryDelayMs(attempt: number): number {
   return Math.min(PEAKS_RETRY_BASE_MS * 2 ** attempt, PEAKS_RETRY_MAX_MS);
@@ -33,8 +34,6 @@ interface ReadyEntry {
 const cache = new Map<string, ReadyEntry>();
 /** Dedupes concurrent fetches for the same project::track::version. */
 const inflight = new Map<string, Promise<PeaksFetchResult>>();
-const listeners = new Set<() => void>();
-
 function cacheKey(projectPath: string, trackId: string): string {
   return `${projectPath}::${trackId}`;
 }
@@ -63,28 +62,6 @@ function fetchOnce(
   return pending;
 }
 
-/** Clear the cached ready peaks and wake mounted hooks so they refetch.
- *
- * Pass `projectPath` and `trackId` to invalidate one track, `projectPath`
- * alone to invalidate every track in a project, or nothing to clear all. */
-export function invalidatePeaks(projectPath?: string, trackId?: string): void {
-  if (projectPath && trackId) {
-    cache.delete(cacheKey(projectPath, trackId));
-  } else if (projectPath) {
-    const prefix = `${projectPath}::`;
-    for (const key of Array.from(cache.keys())) {
-      if (key.startsWith(prefix)) {
-        cache.delete(key);
-      }
-    }
-  } else {
-    cache.clear();
-  }
-  for (const listener of listeners) {
-    listener();
-  }
-}
-
 function cachedReady(
   projectPath: string,
   trackId: string,
@@ -99,16 +76,16 @@ function cachedReady(
 
 /** Track-level peaks cache — one fetch per (project, track, version), shared by clips.
  *
- * While the server reports it is still generating an overview, this polls with
- * capped backoff up to `PEAKS_MAX_RETRIES` before settling on "unavailable".
- * Call `invalidatePeaks()` to force every mounted hook to refetch. */
+ * While the server reports it is still generating an overview, this keeps
+ * polling with capped backoff (`peaksRetryDelayMs`). It settles on
+ * "unavailable" only when the server answers `generating: false`. A change to
+ * `version` (media path / duration) refetches. */
 export function usePeaks(
   projectPath: string,
   trackId: string,
   enabled: boolean,
   version = "",
 ): PeaksState {
-  const [nonce, setNonce] = useState(0);
   const [state, setState] = useState<PeaksState>(() => {
     if (!enabled) {
       return { peaks: null, status: "idle" };
@@ -120,14 +97,6 @@ export function usePeaks(
       }
     );
   });
-
-  useEffect(() => {
-    const listener = () => setNonce((n) => n + 1);
-    listeners.add(listener);
-    return () => {
-      listeners.delete(listener);
-    };
-  }, []);
 
   useEffect(() => {
     if (!enabled || !projectPath || !trackId) {
@@ -157,7 +126,7 @@ export function usePeaks(
           setState({ peaks: coerced, status: "ready" });
           return;
         }
-        if (result.status === "generating" && retry < PEAKS_MAX_RETRIES) {
+        if (result.status === "generating") {
           setState({ peaks: null, status: "generating" });
           timer = setTimeout(
             () => attempt(retry + 1),
@@ -177,8 +146,7 @@ export function usePeaks(
         clearTimeout(timer);
       }
     };
-    // `nonce` has no value of its own; it only re-runs this effect on invalidatePeaks().
-  }, [projectPath, trackId, enabled, version, nonce]);
+  }, [projectPath, trackId, enabled, version]);
 
   return state;
 }

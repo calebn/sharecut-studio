@@ -14,8 +14,6 @@ vi.mock("../api", () => ({
 }));
 
 import {
-  invalidatePeaks,
-  PEAKS_MAX_RETRIES,
   PEAKS_RETRY_BASE_MS,
   PEAKS_RETRY_MAX_MS,
   peaksRetryDelayMs,
@@ -29,6 +27,10 @@ const READY: PeaksFetchResult = {
 const GENERATING: PeaksFetchResult = { status: "generating" };
 const UNAVAILABLE: PeaksFetchResult = { status: "unavailable" };
 
+let projectSeq = 0;
+/** Unique project path per test; the module-level ready cache is keyed by it. */
+const nextProject = () => `/tmp/peaks-${++projectSeq}.json`;
+
 describe("peaksRetryDelayMs", () => {
   it("doubles from the base delay and caps at the max", () => {
     expect(peaksRetryDelayMs(0)).toBe(PEAKS_RETRY_BASE_MS);
@@ -41,37 +43,20 @@ describe("peaksRetryDelayMs", () => {
 describe("usePeaks", () => {
   afterEach(() => {
     loadPeaksMock.mockReset();
-    invalidatePeaks();
     vi.useRealTimers();
   });
 
-  it("goes unavailable, then invalidatePeaks() refetches to ready", async () => {
-    loadPeaksMock.mockResolvedValueOnce(UNAVAILABLE);
-    const { result } = renderHook(() =>
-      usePeaks("/tmp/p.json", "host", true, "v1"),
-    );
-    await waitFor(() => expect(result.current.status).toBe("unavailable"));
-
-    loadPeaksMock.mockResolvedValueOnce(READY);
-    act(() => {
-      invalidatePeaks("/tmp/p.json", "host");
-    });
-    await waitFor(() => expect(result.current.status).toBe("ready"));
-    expect(Array.from(result.current.peaks?.peaks ?? [])).toEqual([1, 2, 3]);
-  });
-
   it("does not cache an unavailable result across mounts", async () => {
+    const project = nextProject();
     loadPeaksMock.mockResolvedValue(UNAVAILABLE);
-    const first = renderHook(() => usePeaks("/tmp/p.json", "host", true, "v1"));
+    const first = renderHook(() => usePeaks(project, "host", true, "v1"));
     await waitFor(() =>
       expect(first.result.current.status).toBe("unavailable"),
     );
     first.unmount();
 
     const calls = loadPeaksMock.mock.calls.length;
-    const second = renderHook(() =>
-      usePeaks("/tmp/p.json", "host", true, "v1"),
-    );
+    const second = renderHook(() => usePeaks(project, "host", true, "v1"));
     await waitFor(() =>
       expect(loadPeaksMock.mock.calls.length).toBeGreaterThan(calls),
     );
@@ -82,14 +67,13 @@ describe("usePeaks", () => {
 
   it("polls while generating and settles on ready", async () => {
     vi.useFakeTimers();
+    const project = nextProject();
     loadPeaksMock
       .mockResolvedValueOnce(GENERATING)
       .mockResolvedValueOnce(GENERATING)
       .mockResolvedValueOnce(READY);
 
-    const { result } = renderHook(() =>
-      usePeaks("/tmp/p.json", "host", true, "v1"),
-    );
+    const { result } = renderHook(() => usePeaks(project, "host", true, "v1"));
 
     await vi.waitFor(() => expect(result.current.status).toBe("generating"));
     await act(async () => {
@@ -104,10 +88,11 @@ describe("usePeaks", () => {
   });
 
   it("caches ready results per version, and a version change refetches", async () => {
+    const project = nextProject();
     loadPeaksMock.mockResolvedValue(READY);
     const { result, rerender } = renderHook(
       ({ version }: { version: string }) =>
-        usePeaks("/tmp/p.json", "host", true, version),
+        usePeaks(project, "host", true, version),
       { initialProps: { version: "v1" } },
     );
     await waitFor(() => expect(result.current.status).toBe("ready"));
@@ -123,18 +108,18 @@ describe("usePeaks", () => {
   });
 
   it("stays idle and makes no request when disabled", () => {
-    const { result } = renderHook(() =>
-      usePeaks("/tmp/p.json", "host", false, "v1"),
-    );
+    const project = nextProject();
+    const { result } = renderHook(() => usePeaks(project, "host", false, "v1"));
     expect(result.current).toEqual({ peaks: null, status: "idle" });
     expect(loadPeaksMock).not.toHaveBeenCalled();
   });
 
   it("stops polling once unmounted", async () => {
     vi.useFakeTimers();
+    const project = nextProject();
     loadPeaksMock.mockResolvedValue(GENERATING);
     const { result, unmount } = renderHook(() =>
-      usePeaks("/tmp/p.json", "host", true, "v1"),
+      usePeaks(project, "host", true, "v1"),
     );
     await vi.waitFor(() => expect(result.current.status).toBe("generating"));
     const callsBeforeUnmount = loadPeaksMock.mock.calls.length;
@@ -145,7 +130,39 @@ describe("usePeaks", () => {
     expect(loadPeaksMock.mock.calls.length).toBe(callsBeforeUnmount);
   });
 
-  it("exposes the retry ceiling used by generating polls", () => {
-    expect(PEAKS_MAX_RETRIES).toBeGreaterThan(0);
+  it("keeps polling while generating, however long the queue", async () => {
+    vi.useFakeTimers();
+    const project = nextProject();
+    for (let i = 0; i < 40; i += 1) {
+      loadPeaksMock.mockResolvedValueOnce(GENERATING);
+    }
+    loadPeaksMock.mockResolvedValueOnce(READY);
+    const { result } = renderHook(() => usePeaks(project, "host", true, "v1"));
+    await vi.waitFor(() => expect(result.current.status).toBe("generating"));
+    for (let i = 0; i < 40; i += 1) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(PEAKS_RETRY_MAX_MS);
+      });
+    }
+    expect(result.current.status).toBe("ready");
+    expect(loadPeaksMock).toHaveBeenCalledTimes(41);
+  });
+
+  it("settles on unavailable only when the server stops generating", async () => {
+    vi.useFakeTimers();
+    const project = nextProject();
+    loadPeaksMock
+      .mockResolvedValueOnce(GENERATING)
+      .mockResolvedValueOnce(UNAVAILABLE);
+    const { result } = renderHook(() => usePeaks(project, "host", true, "v1"));
+    await vi.waitFor(() => expect(result.current.status).toBe("generating"));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(PEAKS_RETRY_BASE_MS);
+    });
+    expect(result.current.status).toBe("unavailable");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(PEAKS_RETRY_MAX_MS * 2);
+    });
+    expect(loadPeaksMock).toHaveBeenCalledTimes(2);
   });
 });
