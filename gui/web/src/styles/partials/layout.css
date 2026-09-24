@@ -41,7 +41,7 @@
 
 .guest-banner {
   padding: var(--space-2) var(--space-4);
-  background: var(--bg-elevated);
+  background: var(--color-bg-raised);
   border-bottom: 1px solid var(--border);
   color: var(--text-muted);
   font-size: var(--font-size-small);
@@ -99,7 +99,7 @@
 .track-headers {
   display: flex;
   flex-direction: column;
-  background: var(--bg-panel);
+  background: var(--color-bg-base);
   border-inline-end: 1px solid var(--border);
   overflow: hidden;
   inline-size: var(--header-width);
@@ -119,7 +119,15 @@
 .timeline-scroll {
   flex: 1;
   overflow: auto;
-  /* Header plane continues to the well floor even when tracks are short. */
+  /* Header plane continues to the well floor even when tracks are short.
+     Declared here, not as a :root token: --header-width is overridden per
+     pane below, and a root-level token would freeze it at 11.25rem. */
+  --bg-timeline-scroll: linear-gradient(
+    to right,
+    var(--color-bg-base) 0 var(--header-width),
+    var(--color-timeline-well) var(--header-width) 100%
+  );
+
   background: var(--bg-timeline-scroll);
   /* Scroll OK; browser pinch-zoom off — JS claims pinch via non-passive listeners. */
   touch-action: pan-x pan-y;
@@ -172,7 +180,7 @@
 .bottom-tabs {
   display: flex;
   flex-direction: column;
-  background: var(--bg-panel);
+  background: var(--color-bg-base);
   border-top: 1px solid var(--border);
   min-height: 0;
   position: relative;
@@ -319,7 +327,7 @@
   margin-bottom: var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--bg-panel, var(--bg));
+  background: var(--color-bg-base);
 }
 
 .transcript-docked-editor .inspector.modifier-inspector--embedded {
@@ -368,7 +376,7 @@
   padding: 0 var(--space-4);
   font-size: var(--font-size-caption);
   color: var(--text-dim);
-  background: var(--bg-panel);
+  background: var(--color-bg-canvas);
   overflow-x: auto;
   scrollbar-width: thin;
   min-width: 0;
@@ -414,7 +422,6 @@
   letter-spacing: 0;
   white-space: nowrap;
   flex: 0 0 auto;
-  text-shadow: var(--shadow-transport-timecode);
 }
 
 .timecode-current {
@@ -651,10 +658,10 @@ button.pill.pill--info {
   min-inline-size: 2.875rem;
   min-block-size: 2.875rem;
   padding: 0;
-  border: 1px solid var(--color-timeline-playhead);
+  border: 1px solid var(--color-transport-play);
   border-radius: 50%;
   color: var(--color-transport-play-fg);
-  background: var(--bg-transport-play);
+  background: var(--color-transport-play);
   box-shadow: var(--shadow-transport-play);
 }
 
@@ -766,8 +773,8 @@ button.pill.pill--info {
 .tool-mode-toggle
   .ui-control--quiet[aria-pressed="true"]:not(.comment-mode-btn),
 .tool-mode-toggle .ui-control--quiet.active:not(.comment-mode-btn) {
-  background: var(--color-bg-inverted);
-  color: var(--color-text-on-inverted);
+  background: var(--color-chip-selected);
+  color: var(--color-chip-selected-fg);
   border-color: transparent;
   border-bottom-color: transparent;
 }
@@ -847,7 +854,7 @@ button.pill.pill--info {
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--border);
-  background: var(--bg-panel);
+  background: var(--color-bg-base);
 }
 
 .blade-confirm-sheet {
@@ -1108,7 +1115,7 @@ button.pill.pill--info {
 .gain-strip {
   position: relative;
   height: 0.75rem;
-  background: var(--bg-lane);
+  background: var(--color-bg-sunken);
   border: 1px solid var(--border);
   border-radius: var(--radius-xs);
   overflow: hidden;

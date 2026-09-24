@@ -11,5 +11,47 @@ body,
   font-family: var(--font-family-sans);
   font-size: var(--font-size-review);
   color: var(--text);
-  background: var(--bg-app);
+  background: var(--color-bg-canvas);
+}
+
+/* Native checkboxes, radios, and range thumbs take the brand accent. */
+html {
+  accent-color: var(--color-accent-solid);
+}
+
+/* Form controls use the product typeface and the field surface. `:where()`
+   keeps these at zero specificity so component rules still win. Fields name
+   the sans family (not inherit) so values in mono `dd` rows stay readable. */
+:where(button) {
+  font-family: inherit;
+}
+
+:where(input, select, textarea) {
+  font-family: var(--font-family-sans);
+}
+
+:where(
+    input:not(
+        [type="checkbox"],
+        [type="radio"],
+        [type="range"],
+        [type="file"],
+        [type="color"],
+        [type="hidden"]
+      ),
+    select,
+    textarea
+  ) {
+  min-block-size: var(--control-height-compact);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-field);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-ui);
+}
+
+:where(input, select, textarea):focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: 1px;
 }

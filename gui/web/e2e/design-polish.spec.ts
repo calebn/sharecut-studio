@@ -27,7 +27,7 @@ function contrastRatio(foreground: string, background: string): number {
   return (values[0] + 0.05) / (values[1] + 0.05);
 }
 
-test("timeline stays recessed across themes and motion respects preference", async ({
+test("stage follows the theme and motion respects preference", async ({
   page,
 }) => {
   await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
@@ -74,11 +74,12 @@ test("timeline stays recessed across themes and motion respects preference", asy
         rulerGlow,
       };
     });
+    // Light mode gets a light stage; dark mode keeps the stage darkest.
     expect(colors.timeline).toBe(
-      theme === "light" ? "rgb(43, 37, 33)" : "rgb(12, 14, 14)",
+      theme === "light" ? "rgb(230, 227, 221)" : "rgb(14, 12, 11)",
     );
     expect(colors.transport).toContain("gradient");
-    expect(colors.transportHeight).toBe(72);
+    expect(colors.transportHeight).toBe(56);
     expect(colors.playheadMotion).toBe("0s");
     expect(colors.controlMotion).toBe("0s");
     expect(colors.rulerGlow).toContain("gradient");
@@ -100,7 +101,7 @@ test("timeline stays recessed across themes and motion respects preference", asy
     .not.toBe("0s");
 });
 
-test("fixed phone playhead stays visible on the dark timeline", async ({
+test("fixed phone playhead uses the stage playhead in each theme", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -113,12 +114,56 @@ test("fixed phone playhead stays visible on the dark timeline", async ({
     ".timeline-area--fixed-playhead .playhead--fixed",
   );
   await expect(playhead).toBeVisible();
-  expect(
-    await playhead.evaluate(
-      (element) => getComputedStyle(element).backgroundColor,
-    ),
-  ).toBe("rgb(255, 109, 72)");
+  for (const [theme, color] of [
+    ["light", "rgb(223, 75, 40)"],
+    ["dark", "rgb(255, 109, 72)"],
+  ] as const) {
+    await page.evaluate((value) => {
+      document.documentElement.dataset.theme = value;
+    }, theme);
+    expect(
+      await playhead.evaluate(
+        (element) => getComputedStyle(element).backgroundColor,
+      ),
+      theme,
+    ).toBe(color);
+  }
 });
+
+for (const viewport of [
+  { width: 1440, height: 900 },
+  { width: 1280, height: 720 },
+  { width: 768, height: 1024 },
+  { width: 390, height: 844 },
+]) {
+  test(`header plane ends at the track headers at ${viewport.width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    if (viewport.width < 768) {
+      await page
+        .getByRole("navigation", { name: "Primary" })
+        .getByRole("button", { name: "Timeline" })
+        .click();
+    }
+    await expect(page.locator(".lane-row").first()).toBeVisible();
+    const plane = await page.evaluate(() => {
+      const headers = document.querySelector(".timeline-scroll .track-headers");
+      const scroll = document.querySelector(".timeline-scroll");
+      if (!headers || !scroll) {
+        throw new Error("timeline did not mount");
+      }
+      return {
+        headers: Math.round(headers.getBoundingClientRect().width),
+        gradient: getComputedStyle(scroll).backgroundImage,
+      };
+    });
+    // The paper header plane must stop where the header column stops, or a
+    // strip of it leaks into the stage (#20 review).
+    expect(plane.gradient).toContain(`${plane.headers}px`);
+  });
+}
 
 test("light transport keeps legible status and stable control hover paint", async ({
   page,
@@ -189,7 +234,7 @@ test("compact light transport keeps Comment readable", async ({ page }) => {
   expect(contrastRatio(colors.ink, colors.top)).toBeGreaterThanOrEqual(4.5);
 });
 
-test("Share dialog floats on a distinct tone from the raised inspector", async ({
+test("Share dialog floats on the overlay rung over a dark scrim", async ({
   page,
 }) => {
   await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
@@ -210,11 +255,26 @@ test("Share dialog floats on a distinct tone from the raised inspector", async (
     const raised = await page
       .locator(".inspector")
       .evaluate((element) => getComputedStyle(element).backgroundColor);
-    const overlay = await dialog
+    const panel = await dialog
       .locator(".command-palette-panel")
+      .evaluate((element) => {
+        const style = getComputedStyle(element);
+        return { background: style.backgroundColor, shadow: style.boxShadow };
+      });
+    const scrim = await dialog
+      .locator(".command-palette-scrim")
       .evaluate((element) => getComputedStyle(element).backgroundColor);
-    expect(overlay, `${theme} overlay should differ from raised`).not.toBe(
-      raised,
+    // Overlay never sits below raised; light mode lifts with shadow + scrim.
+    expect(
+      contrastRatio(panel.background, "rgb(0, 0, 0)"),
+      `${theme} overlay luminance`,
+    ).toBeGreaterThanOrEqual(contrastRatio(raised, "rgb(0, 0, 0)"));
+    if (theme === "dark") {
+      expect(panel.background).not.toBe(raised);
+    }
+    expect(panel.shadow).not.toBe("none");
+    expect(scrim, `${theme} scrim is black`).toMatch(
+      /^(?:rgba\(0, 0, 0, 0\.\d+\)|color\(srgb 0 0 0 \/ 0\.\d+\))$/,
     );
   }
 });

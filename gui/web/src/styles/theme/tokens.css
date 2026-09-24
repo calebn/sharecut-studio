@@ -39,9 +39,14 @@
   /* Shared motion vocabulary; consumers opt in under no-preference. */
   --motion-hover: 150ms;
   --motion-toggle: 200ms;
-  --motion-panel: 300ms;
-  --motion-state: 400ms;
+  --motion-panel: 200ms;
+  --motion-state: 250ms;
   --motion-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Elevation recipes; --color-shadow is themed. */
+  --shadow-raised: 0 1px 0.25rem var(--color-shadow);
+  --shadow-floating: 0 0.5rem 1.5rem var(--color-shadow);
+  --shadow-modal: 0 1rem 3rem var(--color-shadow);
 
   /* Focus / selection rings — not a spacing step (a11y invariant). */
   --focus-ring-width: 0.125rem;
@@ -72,7 +77,11 @@
   --marker-lane-height: 72px;
   --header-width: 11.25rem;
   --inspector-width: 17.5rem;
-  --transport-height: 4.5rem;
+  --transport-height: 3.5rem;
+  /* Control heights: one per role so rows line up. */
+  --control-height: 2rem;
+  --control-height-compact: 1.75rem;
+  --status-chip-height: 1.5rem;
   /* 44pt touch floor at 16px root; phone/tablet follow chrome via @container */
   --touch-min: 2.75rem;
   --status-height: 1.75rem;
@@ -80,15 +89,20 @@
   --mobile-nav-height: 3.25rem;
   --menu-available-height: 90dvh;
 
-  /* The transport stays dark in either app theme, like the mixer well. */
+  /* Fixed dark transport in both themes. Orange belongs to Play alone (and its
+     glow while playing); selected segments and tools use a lifted chip.
+     Transport text ≥4.5:1: text 15.4:1 and muted 6.8:1 on the strip, muted
+     5.3:1 on controls; selected chips carry full text (9.5:1). */
   --color-transport-top: var(--primitive-warm-925);
   --color-transport-bottom: var(--primitive-warm-950);
   --color-transport-border: var(--primitive-warm-975);
-  --color-transport-text: var(--primitive-neutral-50);
+  --color-transport-text: var(--primitive-neutral-60);
   --color-transport-muted: var(--primitive-warm-300);
   --color-transport-control: var(--primitive-warm-800);
   --color-transport-control-border: var(--primitive-warm-700);
   --color-transport-segment: var(--primitive-warm-975);
+  --color-transport-chip: var(--primitive-warm-700);
+  --color-transport-play: var(--primitive-orange-250);
   --color-transport-shadow: color-mix(
     in srgb,
     var(--primitive-black) 38%,
@@ -96,7 +110,7 @@
   );
   --color-transport-play-glow: color-mix(
     in srgb,
-    var(--primitive-orange-250) 50%,
+    var(--color-transport-play) 45%,
     transparent
   );
   --color-transport-play-fg: var(--primitive-warm-975);
@@ -118,50 +132,21 @@
     var(--color-transport-bottom)
   );
   --shadow-transport:
-    inset 0 1px 0 var(--color-overlay-white-10),
-    0 0.125rem 0.75rem var(--color-transport-shadow);
-  --shadow-transport-timecode: 0 0 0.875rem var(--color-transport-play-glow);
-  --bg-transport-play: radial-gradient(
-    circle at 35% 30%,
-    color-mix(
-      in srgb,
-      var(--color-timeline-playhead) 75%,
-      var(--primitive-white)
-    ),
-    var(--color-timeline-playhead) 55%,
-    color-mix(
-      in srgb,
-      var(--color-timeline-playhead) 78%,
-      var(--primitive-black)
-    )
-  );
+    inset 0 1px 0 var(--color-overlay-white-08),
+    0 1px 0.5rem var(--color-transport-shadow);
   --shadow-transport-play:
-    0 0 1.125rem var(--color-transport-play-glow),
-    0 0 2.5rem
-    color-mix(in srgb, var(--color-timeline-playhead) 22%, transparent),
-    inset 0 1px 0 var(--color-overlay-white-35),
-    0 0.125rem 0.375rem var(--color-transport-shadow);
-  --bg-transport-selected: linear-gradient(
-    to bottom,
-    var(--color-timeline-playhead),
-    color-mix(
-      in srgb,
-      var(--color-timeline-playhead) 78%,
-      var(--primitive-black)
-    )
-  );
-  --shadow-transport-selected:
-    0 0 0.75rem var(--color-transport-play-glow),
-    inset 0 1px 0 var(--color-overlay-white-25);
+    inset 0 1px 0 var(--color-overlay-white-25),
+    0 1px 0.25rem var(--color-transport-shadow);
+  /* Live-state light: only while playing, never pulsing. */
   --shadow-transport-playing:
-    0 0 1.75rem var(--color-transport-play-glow),
-    0 0 3rem var(--color-transport-play-glow);
-  --shadow-playhead-playing:
-    0 0 0.625rem var(--color-timeline-playhead),
-    0 0 1.5rem var(--color-transport-play-glow);
+    inset 0 1px 0 var(--color-overlay-white-25),
+    0 0 1.25rem var(--color-transport-play-glow);
+  --shadow-transport-timecode: 0 0 0.75rem var(--color-transport-play-glow);
+  --shadow-transport-chip: inset 0 1px 0 var(--color-overlay-white-10);
+  --shadow-playhead-playing: 0 0 0.5rem var(--color-timeline-playhead);
   --bg-ruler-glow: radial-gradient(
     ellipse at center,
-    var(--color-transport-play-glow),
+    color-mix(in srgb, var(--color-timeline-playhead) 35%, transparent),
     transparent 72%
   );
   --bg-empty-stage-card: color-mix(
@@ -180,18 +165,6 @@
     0 0 1.5rem var(--color-transport-play-glow);
 
   /* Legacy aliases → semantic (themes set the semantic names) */
-  --bg-app: var(--color-bg-canvas);
-  --bg-panel: var(--color-bg-surface);
-  --bg-lane: var(--color-bg-lane);
-  --bg-lane-muted: var(--color-bg-lane-muted);
-  /* Header plane + lane floor under sticky track headers. */
-  --bg-timeline-scroll: linear-gradient(
-    to right,
-    var(--bg-panel) 0,
-    var(--bg-panel) var(--header-width),
-    var(--color-timeline-well) var(--header-width),
-    var(--color-timeline-well) 100%
-  );
   --bg-timeline-skeleton: linear-gradient(
     100deg,
     var(--color-timeline-lane-muted) 25%,
@@ -204,8 +177,6 @@
     transparent 55%,
     var(--color-overlay-black-22)
   );
-  --bg: var(--color-bg-canvas);
-  --bg-elevated: var(--color-bg-elevated);
   --border: var(--color-border);
   --border-strong: var(--color-border-strong);
   --text: var(--color-text-primary);

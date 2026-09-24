@@ -76,7 +76,7 @@
 
 .transport-more-btn,
 .focus-mode-btn {
-  background: var(--bg-lane);
+  background: var(--color-bg-sunken);
   border: 1px solid var(--border);
   color: var(--text);
   padding: var(--space-1) var(--space-05);
@@ -94,7 +94,7 @@
   min-width: 13.75rem;
   min-height: 0;
   padding: var(--space-05);
-  background: var(--bg-panel);
+  background: var(--color-bg-overlay);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   display: flex;
@@ -281,7 +281,7 @@ html[data-shell="tablet"] {
 .mobile-nav {
   display: flex;
   border-top: 1px solid var(--border);
-  background: var(--bg-panel);
+  background: var(--color-bg-base);
   min-height: var(--mobile-nav-height);
   position: relative;
   z-index: var(--z-shell-chrome);
@@ -299,8 +299,8 @@ html[data-shell="tablet"] {
 }
 
 .mobile-nav button.active {
-  color: var(--color-text-on-inverted);
-  background: var(--color-bg-inverted);
+  color: var(--color-chip-selected-fg);
+  background: var(--color-chip-selected);
   box-shadow: inset 0 -0.125rem 0 var(--color-border-strong);
 }
 
@@ -344,7 +344,7 @@ html[data-shell="tablet"] {
 .mobile-nudge button {
   min-height: 2.5rem;
   min-width: 4rem;
-  background: var(--bg-lane);
+  background: var(--color-bg-sunken);
   border: 1px solid var(--border);
   color: var(--text);
   border-radius: var(--radius-md);
@@ -457,7 +457,7 @@ html[data-shell="tablet"] {
   display: block;
   width: 100%;
   text-align: left;
-  background: var(--bg-lane);
+  background: var(--color-bg-raised);
   border: 1px solid var(--border);
   color: var(--text);
   border-radius: var(--radius-md);

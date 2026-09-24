@@ -5,6 +5,7 @@ import {
   peaksCanvasCssWidth,
 } from "../utils/peaks";
 import {
+  clipWaveformFill,
   paintWaveform,
   rangeMaxColumn,
   visibleClipWindow,
@@ -82,7 +83,7 @@ describe("range-max paint", () => {
     expect(performance.now() - t0).toBeLessThan(50);
   });
 
-  it("paints the timeline waveform with its themed vertical gradient", () => {
+  it("paints a gradient mirrored at the midline from the clip tints", () => {
     const canvas = document.createElement("canvas");
     const addColorStop = vi.fn();
     const gradient = { addColorStop };
@@ -108,14 +109,33 @@ describe("range-max paint", () => {
       sourceEnd: 1,
       cssWidth: 4,
       ampZoom: 1,
-      peakFillTop: "#64c9bc",
-      peakFillBottom: "#2a9a8e",
+      peakFillCore: "rgb(1, 2, 3)",
+      peakFillEdge: "rgb(4, 5, 6)",
     });
 
     expect(ctx.createLinearGradient).toHaveBeenCalledWith(0, 0, 0, 40);
-    expect(addColorStop).toHaveBeenNthCalledWith(1, 0, "#64c9bc");
-    expect(addColorStop).toHaveBeenNthCalledWith(2, 1, "#2a9a8e");
+    expect(addColorStop).toHaveBeenNthCalledWith(1, 0, "rgb(4, 5, 6)");
+    expect(addColorStop).toHaveBeenNthCalledWith(2, 0.5, "rgb(1, 2, 3)");
+    expect(addColorStop).toHaveBeenNthCalledWith(3, 1, "rgb(4, 5, 6)");
     expect(ctx.fillStyle).toBe(gradient);
+  });
+});
+
+describe("clipWaveformFill", () => {
+  it("lightens the clip fill toward white, brighter at the edge", () => {
+    expect(clipWaveformFill("rgb(13, 126, 117)")).toEqual({
+      core: "rgb(122, 184, 179)",
+      edge: "rgb(187, 219, 216)",
+    });
+    expect(clipWaveformFill("rgba(0, 0, 0, 0.5)")).toEqual({
+      core: "rgb(115, 115, 115)",
+      edge: "rgb(184, 184, 184)",
+    });
+  });
+
+  it("returns null for non-rgb fills so the themed peak color applies", () => {
+    expect(clipWaveformFill("transparent")).toBeNull();
+    expect(clipWaveformFill("")).toBeNull();
   });
 });
 

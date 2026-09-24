@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import colorsys
 import re
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -315,7 +318,7 @@ def test_design_palette_preserves_text_and_action_contrast() -> None:
     assert light["--color-bg-canvas"] == "#f4f1eb"
     assert light["--color-bg-surface"] == "#fffdf9"
     assert light["--color-accent"] == "#df4b28"
-    assert dark["--color-bg-canvas"] == "#111313"
+    assert dark["--color-bg-canvas"] == "#181614"
     assert dark["--color-accent"] == "#ff6d48"
     accent_text = _custom_property_value(
         PRIMITIVES_CSS.read_text(encoding="utf-8"), "--primitive-orange-750"
@@ -327,3 +330,83 @@ def test_design_palette_preserves_text_and_action_contrast() -> None:
         assert (
             _contrast_ratio(roles["--color-accent-on-solid"], roles["--color-accent-solid"]) >= 4.5
         )
+
+
+_VAR_ONLY_RE = re.compile(r"^var\(\s*(--[\w-]+)\s*\)$")
+_PRIMITIVE_HEX_RE = re.compile(r"(--primitive-[\w-]+)\s*:\s*(#[0-9a-fA-F]{6})\b")
+LADDER_RUNGS = ("canvas", "base", "raised", "overlay", "sunken")
+
+
+def _studio_roles(theme: str) -> dict[str, str]:
+    """Primitives + brand + Studio theme roles for one theme (explicit data-theme)."""
+    primitives = dict(_PRIMITIVE_HEX_RE.findall(PRIMITIVES_CSS.read_text(encoding="utf-8")))
+    if theme == "dark":
+        brand = brand_dark_roles()
+        block = _first_rule_body(THEME_DARK.read_text(encoding="utf-8"), DARK_SELECTOR)
+    else:
+        brand = brand_light_data_roles()
+        block = _first_rule_body(THEME_LIGHT.read_text(encoding="utf-8"), LIGHT_DATA_SELECTOR)
+    return {**primitives, **brand, **_color_props(block)}
+
+
+def _resolve_hex(name: str, roles: dict[str, str]) -> str:
+    value = roles[name]
+    for _ in range(8):
+        match = _VAR_ONLY_RE.match(value)
+        if not match:
+            break
+        value = roles[match.group(1)]
+    assert CSS_HEX_RE.fullmatch(value), f"{name} does not resolve to a hex color: {value}"
+    return value
+
+
+def _hue_distance(first: str, second: str) -> float:
+    def hue(value: str) -> float:
+        red, green, blue = (int(value[index : index + 2], 16) / 255 for index in (1, 3, 5))
+        return colorsys.rgb_to_hls(red, green, blue)[0] * 360
+
+    distance = abs(hue(first) - hue(second)) % 360
+    return min(distance, 360 - distance)
+
+
+@pytest.mark.parametrize("theme", ["dark", "light"])
+def test_surface_ladder_text_partners_meet_contrast(theme: str) -> None:
+    """Five-rung ladder (#135): each rung has a text-on-* partner at ≥4.5:1."""
+    roles = _studio_roles(theme)
+    for rung in LADDER_RUNGS:
+        background = _resolve_hex(f"--color-bg-{rung}", roles)
+        foreground = _resolve_hex(f"--color-text-on-{rung}", roles)
+        assert _contrast_ratio(foreground, background) >= 4.5, (theme, rung)
+
+
+@pytest.mark.parametrize("theme", ["dark", "light"])
+def test_ladder_rungs_stack_in_order(theme: str) -> None:
+    """Sunken sits below base; overlay never sits below raised."""
+    roles = _studio_roles(theme)
+
+    def luminance(name: str) -> float:
+        value = _resolve_hex(name, roles)
+        return _contrast_ratio(value, "#000000")
+
+    assert luminance("--color-bg-sunken") < luminance("--color-bg-base")
+    assert luminance("--color-bg-overlay") >= luminance("--color-bg-raised")
+
+
+@pytest.mark.parametrize("theme", ["dark", "light"])
+def test_danger_reads_apart_from_the_accent(theme: str) -> None:
+    """Primary actions and destructive actions must not share a red (#20 review)."""
+    roles = _studio_roles(theme)
+    accent = _resolve_hex("--color-accent-solid", roles)
+    danger = _resolve_hex("--color-danger", roles)
+    assert _hue_distance(accent, danger) >= 20
+    assert _contrast_ratio(danger, _resolve_hex("--color-bg-surface", roles)) >= 4.5
+
+
+@pytest.mark.parametrize("theme", ["dark", "light"])
+def test_selected_chip_and_fields_keep_text_contrast(theme: str) -> None:
+    roles = _studio_roles(theme)
+    chip = _resolve_hex("--color-chip-selected", roles)
+    field = _resolve_hex("--color-field", roles)
+    for text in ("--color-text-primary", "--color-text-secondary"):
+        assert _contrast_ratio(_resolve_hex(text, roles), chip) >= 4.5, (theme, text, "chip")
+        assert _contrast_ratio(_resolve_hex(text, roles), field) >= 4.5, (theme, text, "field")

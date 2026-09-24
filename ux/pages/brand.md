@@ -19,14 +19,14 @@ Sharecut Studio tokens: [`gui/web/src/styles/theme/`](https://github.com/calebn/
 
 ## Planes (information hierarchy)
 
-Paint and markup share one stack. **Chrome panes** (headers, bottom tabs, inspector, status) sit on surface; transport is a fixed dark focal strip in either theme. The timeline uses a dark `--color-timeline-*` well in either app theme, with a warm charcoal well and light chrome in light mode. Raised and overlay surfaces have distinct tones as well as named shadows: overlays are warm tinted in light mode and lifted graphite in dark mode. Timeline `--z-*` is paint order on the mixer, not chrome elevation.
+Paint and markup share one stack. Sharecut Studio uses the five-rung ladder from [design tokens](https://github.com/calebn/sharecut-studio/blob/main/docs/design-tokens.md#surface-ladder): **canvas** frames the app (status bar), **base** holds the panes (track headers, bottom panel), **raised** holds the inspector and cards, **overlay** holds menus, sheets, toasts, and dialogs, and **sunken** holds wells, meters, and code. The transport is a fixed dark focal strip in either theme. The stage (`--color-timeline-*`) is light in light mode, one recessed step below the panes so clips carry the color, and darkest in dark mode. In light mode, overlays lift with shadow and a dark scrim rather than a darker tint. Timeline `--z-*` is paint order on the mixer, not chrome elevation.
 
 | Plane | Meaning | Markup | Token |
 |-------|---------|--------|-------|
 | Canvas | Place — the floor | `.cover`, `body` | `--color-bg-canvas` |
-| Surface | Chrome panes / durable cards | `.box`, tabs, inspector | `--color-bg-surface` |
-| Elevated | Temporary object (form, coach, compose) | `.box.elevated` | `--color-bg-elevated` |
-| Lane | Recessed dark work well (ruler → lanes / empty drop) | `.time-ruler`, `.marker-lane`, `.lane-row`, `.timeline-scroll` | `--color-timeline-*` |
+| Surface | Chrome panes / durable cards | `.box`, tabs, track headers | `--color-bg-surface` (Studio: `--color-bg-base`) |
+| Elevated | Temporary object (form, coach, compose), inspector | `.box.elevated`, inspector | `--color-bg-elevated` (Studio: `--color-bg-raised`, `--color-bg-overlay`) |
+| Stage | Recessed work well (ruler → lanes / empty drop) | `.time-ruler`, `.marker-lane`, `.lane-row`, `.timeline-scroll` | `--color-timeline-*` |
 | Accent | Act — do this | `.primary`, links, focus | `--color-accent*` |
 | Function | State | `role="alert"`, `.badge`, danger / warning | `--color-danger` / `--color-warning` |
 
@@ -40,12 +40,12 @@ Change hex in [`deploy/brand/brand-tokens.css`](https://github.com/calebn/sharec
 
 | Role | Use |
 |------|-----|
-| Canvas / surface / elevated | Linen paper (light) or smoked graphite (dark) — not icy SaaS gray, not brown cave, not `#000` / `#fff`. Copper is the only warm metal. |
+| Canvas / surface / elevated | Linen paper and white panes (light) or warm stone (dark) — not icy SaaS gray, not brown cave, not `#000`. One warm neutral ramp serves both themes. Copper is the only warm metal. |
 | Ink / muted | Cream or ink; cooler muted for secondary copy so copper can pop |
 | Accent | Copper (new penny) for links and focus |
 | Accent solid | Button fill with on-color text ≥ **4.5:1**; light mode uses a darker variant of the decorative orange |
 | Border strong | Plate edge on `.box` (≥ **3:1** vs the plate fill) |
-| Danger / warning | Destructive vs attention only |
+| Danger / warning | Destructive vs attention only. Danger is crimson, at least 20° of hue from the accent, so a primary button never reads as destructive |
 
 One accent for primary actions. Links use accent, **never** browser-default blue. Do not `@media` / `@container` to swap `font-family` or accent hue.
 
@@ -53,7 +53,7 @@ Light and dark are the same room with the lights up or down.
 
 ## Type
 
-Studio bundles IBM Plex Sans for body and IBM Plex Mono for labels and timecodes. Numeric readouts use tabular numerals. The existing display serif is reserved for prominent headings. No pill radii (`border-radius: 999px`) on marketing.
+Studio bundles IBM Plex Sans for body, controls, form fields, and dialog titles, and IBM Plex Mono for labels and timecodes. Numeric readouts use tabular numerals. The display serif is reserved for cover-layout headings. No pill radii (`border-radius: 999px`) on marketing.
 
 ## Space and measure
 
@@ -111,7 +111,7 @@ Sharecut Studio chrome uses one paint primitive: **`.ui-control`** (see [`gui/we
 | Open | Menus, More, sheets | `aria-expanded`; panel is the confirmation |
 | Error | Failed act | `role="alert"` + danger ink |
 
-Accent identifies actions and focus; small links and running-status text use the darker `--accent-fg` role for contrast. Function colors stay mute/solo/stale/danger. Primary controls use solid accent fill, default controls have transparent fill and a contour, and quiet toggles use text treatment. The transport Play control and selected audition mode use the orange accent; transcript Correct carries an accent outline until active. Track identity bars reuse lane clip colors. Shared empty panels use `.ui-empty-state`; the empty timeline is a gridded drop stage. Motion uses `--motion-*` timing under `prefers-reduced-motion: no-preference`; reduced-motion views change state immediately. The playhead position follows the audio clock without a CSS transition, and the centered phone playhead uses `--color-timeline-playhead` against the dark well.
+Accent identifies actions and focus; small links and running-status text use the darker `--accent-fg` role for contrast. Function colors stay mute/solo/stale/danger. Primary controls use solid accent fill, default controls have transparent fill and a contour, and quiet toggles use text treatment. Orange belongs to the transport Play control, the playhead, and one primary action per view. Every selected toggle, segment, tab, and row uses the neutral selected chip (`--color-chip-selected`) with full-strength text. Track identity bars and waveform tints reuse lane clip colors. Shared empty panels use `.ui-empty-state`; the empty timeline is a gridded drop stage. Motion uses `--motion-*` timing under `prefers-reduced-motion: no-preference`; reduced-motion views change state immediately, and nothing pulses. The playhead position follows the audio clock without a CSS transition, and the centered phone playhead uses `--color-timeline-playhead` on the stage.
 
 ## Units
 

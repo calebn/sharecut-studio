@@ -291,3 +291,42 @@ def test_tier_regex_helpers() -> None:
     assert _declaration_values("--a: #fff;\n--b: var(--a);")[0] == (1, "#fff")
     # hex inside comments is not a declaration value
     assert _declaration_values("/* #fff */\n--a: var(--b);") == [(2, "var(--b)")]
+
+
+_CUSTOM_PROP_DEF = re.compile(r"(--[\w-]+)\s*:")
+_CUSTOM_PROP_USE = re.compile(r"var\(\s*(--[\w-]+)")
+_TS_PROP_READ = re.compile(r"getPropertyValue\(\s*[\"'](--[\w-]+)[\"']")
+_TS_PROP_SET = re.compile(r"[\"'](--[\w-]+)[\"']\s*:|setProperty\(\s*[\"'](--[\w-]+)")
+# Template prefixes composed at runtime (e.g. `--presence-${i}`).
+_DYNAMIC_PROP_PREFIXES = ("--color-", "--presence-")
+
+
+def test_studio_references_only_defined_custom_properties() -> None:
+    """An undefined var() silently invalidates the whole declaration (#20: dashed
+    edit ghosts and the undo toast size never rendered). Every custom property a
+    Studio stylesheet or script reads must be defined by a stylesheet or set
+    inline by a component."""
+    studio = ROOT / "gui/web/src"
+    css_files = sorted(studio.rglob("*.css"))
+    script_files = [
+        path
+        for path in sorted([*studio.rglob("*.ts"), *studio.rglob("*.tsx")])
+        if ".test." not in path.name and ".stories." not in path.name
+    ]
+    defined: set[str] = set()
+    for path in css_files:
+        defined.update(_CUSTOM_PROP_DEF.findall(_CSS_COMMENT.sub("", path.read_text())))
+    for path in script_files:
+        for first, second in _TS_PROP_SET.findall(path.read_text()):
+            defined.add(first or second)
+    missing: list[str] = []
+    for path in [*css_files, *script_files]:
+        text = path.read_text()
+        if path.suffix == ".css":
+            text = _CSS_COMMENT.sub("", text)
+        used = {*_CUSTOM_PROP_USE.findall(text), *_TS_PROP_READ.findall(text)}
+        for name in sorted(used - defined):
+            if name in _DYNAMIC_PROP_PREFIXES:
+                continue
+            missing.append(f"{path.relative_to(ROOT)}: {name}")
+    assert not missing, "undefined custom properties:\n" + "\n".join(missing)

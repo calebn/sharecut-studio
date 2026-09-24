@@ -85,7 +85,7 @@
 .ui-control[data-variant="danger"] {
   color: var(--color-danger);
   border-color: var(--color-border-strong);
-  background: var(--color-bg-lane);
+  background: transparent;
 }
 
 .ui-control.linkish,
@@ -314,9 +314,9 @@
       [aria-disabled="true"],
       .comment-mode-btn
     ) {
-    background: var(--color-bg-inverted);
-    color: var(--color-text-on-inverted);
-    border-color: var(--color-bg-inverted);
+    background: var(--color-chip-selected);
+    color: var(--color-chip-selected-fg);
+    border-color: transparent;
   }
 
   .ui-control.comment-mode-btn[aria-pressed="true"]:hover:not(
@@ -486,7 +486,7 @@
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--bg-elevated);
+  background: var(--color-bg-overlay);
   color: var(--text);
   box-shadow: var(--shadow-soft);
 }
@@ -503,7 +503,7 @@
 }
 
 .related-commands-heading {
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-small);
   font-weight: 600;
   color: var(--color-text-secondary);
   margin: 0 0 var(--space-2) 0;
@@ -552,7 +552,7 @@
   overflow: hidden;
   border: var(--meter-stroke) solid var(--color-border-strong);
   border-radius: var(--radius-xl);
-  background: var(--color-bg-surface);
+  background: var(--color-bg-sunken);
 }
 
 .ui-meter--horizontal .ui-meter-track {
@@ -609,7 +609,7 @@
   height: 0.5rem;
   border: var(--meter-stroke) solid var(--color-border-strong);
   border-radius: var(--radius-xl);
-  background: var(--color-bg-elevated);
+  background: var(--color-bg-sunken);
 }
 
 .ui-meter-clip[data-lit="true"] {

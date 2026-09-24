@@ -5,54 +5,48 @@
 :root[data-theme="light"] {
   color-scheme: light;
 
+  /* Named surface ladder: canvas (paper frame) < base (panes); raised and
+     overlay are white. Light elevation reads through shadow and a dark scrim,
+     not a darker tint; sunken sits one step below base. */
   --color-bg-base: var(--color-bg-surface);
   --color-bg-raised: var(--color-bg-elevated);
-  --color-bg-overlay: color-mix(
-    in srgb,
-    var(--color-bg-elevated) 60%,
-    var(--primitive-neutral-75)
-  );
-  --color-bg-sunken: var(--primitive-neutral-100);
-  --color-bg-inverted: var(--primitive-neutral-775);
+  --color-bg-overlay: var(--color-bg-elevated);
+  --color-bg-sunken: var(--primitive-neutral-125);
+  /* Contrast partners (≥4.5:1): 15.4 canvas, 17.1 base, 17.4 raised,
+     17.4 overlay, 14.2 sunken. */
   --color-text-on-canvas: var(--color-text-primary);
   --color-text-on-base: var(--color-text-primary);
   --color-text-on-raised: var(--color-text-primary);
   --color-text-on-overlay: var(--color-text-primary);
   --color-text-on-sunken: var(--color-text-primary);
-  --color-text-on-inverted: var(--primitive-neutral-50);
   --color-border-subtle: var(--color-border);
-  --color-timeline-well: var(--primitive-warm-850);
-  --color-timeline-lane: var(--primitive-warm-800);
-  --color-timeline-lane-muted: var(--primitive-warm-900);
-  --color-timeline-border: var(--primitive-warm-700);
-  --color-timeline-text: var(--primitive-warm-300);
+  /* Form fields: white and bordered on every pane. */
+  --color-field: var(--primitive-neutral-15);
+  /* Selected toggles, segments, and tabs: a neutral chip, never the accent.
+     Chip text ≥4.5:1: primary 13.3:1, secondary 5.5:1. */
+  --color-chip-selected: var(--primitive-neutral-150);
+  --color-chip-selected-fg: var(--color-text-primary);
+  /* Light stage: one recessed step below the panes with lanes near paper, so
+     clips carry the color and each track row reads as one row (#20). */
+  --color-timeline-well: var(--primitive-neutral-140);
+  --color-timeline-lane: var(--primitive-neutral-55);
+  --color-timeline-lane-muted: var(--primitive-neutral-125);
+  --color-timeline-border: var(--primitive-neutral-250);
+  --color-timeline-text: var(--primitive-neutral-650);
   --color-timeline-grid: color-mix(
     in srgb,
-    var(--primitive-warm-300) 12%,
+    var(--primitive-neutral-650) 9%,
     transparent
   );
-  --color-timeline-vignette: color-mix(
-    in srgb,
-    var(--primitive-black) 36%,
-    transparent
-  );
-  --color-timeline-waveform-top: var(--primitive-teal-250);
-  --color-timeline-waveform-bottom: var(--primitive-teal-600);
-  --color-timeline-playhead: var(--primitive-orange-250);
+  --color-timeline-vignette: transparent;
+  /* 3.2:1 on the stage well (non-text ≥3:1). */
+  --color-timeline-playhead: var(--primitive-orange-450);
   --color-signal: var(--primitive-teal-675);
-  --color-signal-soft: var(--primitive-teal-100);
-  --color-text-faint: var(--primitive-neutral-450);
-  --shadow-raised: 0 0.125rem 0.5rem var(--color-shadow);
-  --shadow-floating: 0 0.5rem 1.5rem var(--color-shadow);
-  --shadow-modal: 0 1rem 3rem var(--color-shadow);
 
-  /* Recessed mixer well — darker than chrome panes (surface). */
-  --color-bg-lane: var(--primitive-neutral-100);
-  --color-bg-lane-muted: var(--primitive-neutral-150);
-  --color-text-unmapped: var(--primitive-neutral-500);
-  /* Text/links on lane fill (≥4.5:1 on --color-bg-lane). */
+  --color-text-unmapped: var(--primitive-neutral-650);
+  /* Text/links on lane fill (≥4.5:1 on --color-bg-sunken). */
   --color-accent-fg: var(--primitive-orange-750);
-  --color-badge-bg: var(--primitive-neutral-100);
+  --color-badge-bg: var(--primitive-neutral-125);
   --color-badge-fg: var(--color-text-secondary);
   --color-accent-subtle: color-mix(
     in srgb,
@@ -136,7 +130,7 @@
     var(--color-warning) 16%,
     var(--color-bg-elevated)
   );
-  --color-danger: var(--primitive-red-600);
+  --color-danger: var(--primitive-red-650);
   --color-danger-muted: color-mix(
     in srgb,
     var(--color-danger) 22%,
@@ -215,7 +209,7 @@
     var(--color-envelope-line) 40%,
     transparent
   );
-  --color-playhead: var(--primitive-neutral-800);
+  --color-playhead: var(--primitive-neutral-860);
   --color-marker: var(--primitive-amber-700);
   --color-social-marker: color-mix(
     in srgb,
@@ -312,8 +306,10 @@
     var(--primitive-black) 70%,
     transparent
   );
-  --color-scrim: color-mix(in srgb, var(--color-bg-canvas) 45%, transparent);
+  /* Dialogs dim the app with black in both themes (see theme-dark.css). */
+  --color-scrim: color-mix(in srgb, var(--primitive-black) 32%, transparent);
   --color-shadow: color-mix(in srgb, var(--primitive-black) 22%, transparent);
+  --color-clip-label: var(--primitive-white);
   --shadow-clip-label:
     0 0 0.125rem var(--color-overlay-black-90),
     0 1px 0.125rem var(--color-overlay-black-75);
@@ -323,53 +319,48 @@
   :root:not([data-theme]) {
     color-scheme: light;
 
+    /* Named surface ladder: canvas (paper frame) < base (panes); raised and
+       overlay are white. Light elevation reads through shadow and a dark scrim,
+       not a darker tint; sunken sits one step below base. */
     --color-bg-base: var(--color-bg-surface);
     --color-bg-raised: var(--color-bg-elevated);
-    --color-bg-overlay: color-mix(
-      in srgb,
-      var(--color-bg-elevated) 60%,
-      var(--primitive-neutral-75)
-    );
-    --color-bg-sunken: var(--primitive-neutral-100);
-    --color-bg-inverted: var(--primitive-neutral-775);
+    --color-bg-overlay: var(--color-bg-elevated);
+    --color-bg-sunken: var(--primitive-neutral-125);
+    /* Contrast partners (≥4.5:1): 15.4 canvas, 17.1 base, 17.4 raised,
+       17.4 overlay, 14.2 sunken. */
     --color-text-on-canvas: var(--color-text-primary);
     --color-text-on-base: var(--color-text-primary);
     --color-text-on-raised: var(--color-text-primary);
     --color-text-on-overlay: var(--color-text-primary);
     --color-text-on-sunken: var(--color-text-primary);
-    --color-text-on-inverted: var(--primitive-neutral-50);
     --color-border-subtle: var(--color-border);
-    --color-timeline-well: var(--primitive-warm-850);
-    --color-timeline-lane: var(--primitive-warm-800);
-    --color-timeline-lane-muted: var(--primitive-warm-900);
-    --color-timeline-border: var(--primitive-warm-700);
-    --color-timeline-text: var(--primitive-warm-300);
+    /* Form fields: white and bordered on every pane. */
+    --color-field: var(--primitive-neutral-15);
+    /* Selected toggles, segments, and tabs: a neutral chip, never the accent.
+       Chip text ≥4.5:1: primary 13.3:1, secondary 5.5:1. */
+    --color-chip-selected: var(--primitive-neutral-150);
+    --color-chip-selected-fg: var(--color-text-primary);
+    /* Light stage: one recessed step below the panes with lanes near paper, so
+       clips carry the color and each track row reads as one row (#20). */
+    --color-timeline-well: var(--primitive-neutral-140);
+    --color-timeline-lane: var(--primitive-neutral-55);
+    --color-timeline-lane-muted: var(--primitive-neutral-125);
+    --color-timeline-border: var(--primitive-neutral-250);
+    --color-timeline-text: var(--primitive-neutral-650);
     --color-timeline-grid: color-mix(
       in srgb,
-      var(--primitive-warm-300) 12%,
+      var(--primitive-neutral-650) 9%,
       transparent
     );
-    --color-timeline-vignette: color-mix(
-      in srgb,
-      var(--primitive-black) 36%,
-      transparent
-    );
-    --color-timeline-waveform-top: var(--primitive-teal-250);
-    --color-timeline-waveform-bottom: var(--primitive-teal-600);
-    --color-timeline-playhead: var(--primitive-orange-250);
+    --color-timeline-vignette: transparent;
+    /* 3.2:1 on the stage well (non-text ≥3:1). */
+    --color-timeline-playhead: var(--primitive-orange-450);
     --color-signal: var(--primitive-teal-675);
-    --color-signal-soft: var(--primitive-teal-100);
-    --color-text-faint: var(--primitive-neutral-450);
-    --shadow-raised: 0 0.125rem 0.5rem var(--color-shadow);
-    --shadow-floating: 0 0.5rem 1.5rem var(--color-shadow);
-    --shadow-modal: 0 1rem 3rem var(--color-shadow);
 
-    --color-bg-lane: var(--primitive-neutral-100);
-    --color-bg-lane-muted: var(--primitive-neutral-150);
-    --color-text-unmapped: var(--primitive-neutral-500);
-    /* Text/links on lane fill (≥4.5:1 on --color-bg-lane). */
+    --color-text-unmapped: var(--primitive-neutral-650);
+    /* Text/links on lane fill (≥4.5:1 on --color-bg-sunken). */
     --color-accent-fg: var(--primitive-orange-750);
-    --color-badge-bg: var(--primitive-neutral-100);
+    --color-badge-bg: var(--primitive-neutral-125);
     --color-badge-fg: var(--color-text-secondary);
     --color-accent-subtle: color-mix(
       in srgb,
@@ -453,7 +444,7 @@
       var(--color-warning) 16%,
       var(--color-bg-elevated)
     );
-    --color-danger: var(--primitive-red-600);
+    --color-danger: var(--primitive-red-650);
     --color-danger-muted: color-mix(
       in srgb,
       var(--color-danger) 22%,
@@ -532,7 +523,7 @@
       var(--color-envelope-line) 40%,
       transparent
     );
-    --color-playhead: var(--primitive-neutral-800);
+    --color-playhead: var(--primitive-neutral-860);
     --color-marker: var(--primitive-amber-700);
     --color-social-marker: color-mix(
       in srgb,
@@ -629,8 +620,10 @@
       var(--primitive-black) 70%,
       transparent
     );
-    --color-scrim: color-mix(in srgb, var(--color-bg-canvas) 45%, transparent);
+    /* Dialogs dim the app with black in both themes (see theme-dark.css). */
+    --color-scrim: color-mix(in srgb, var(--primitive-black) 32%, transparent);
     --color-shadow: color-mix(in srgb, var(--primitive-black) 22%, transparent);
+    --color-clip-label: var(--primitive-white);
     --shadow-clip-label:
       0 0 0.125rem var(--color-overlay-black-90),
       0 1px 0.125rem var(--color-overlay-black-75);

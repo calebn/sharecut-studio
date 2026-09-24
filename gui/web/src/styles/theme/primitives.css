@@ -19,28 +19,32 @@
  */
 
 :root {
-  /* -- Neutral (warm grays) ------------------------------------------- */
-  --primitive-neutral-950: #080706;
-  --primitive-neutral-900: #0f0e0c;
-  --primitive-neutral-875: #0c0e0e; /* dark sunken surface */
-  --primitive-neutral-850: #111313; /* twin: --color-bg-canvas (dark) */
-  --primitive-neutral-800: #1a1916;
-  --primitive-neutral-775: #171a19; /* inverted light surface */
-  --primitive-neutral-750: #181b1a; /* twin: --color-bg-surface (dark) */
-  --primitive-neutral-700: #202322; /* twin: --color-bg-elevated (dark) */
-  --primitive-neutral-600: #3a2e24;
-  --primitive-neutral-550: #383d3b; /* twin: --color-border (dark) */
-  --primitive-neutral-500: #5a574e; /* twin: --color-text-secondary (light) */
-  --primitive-neutral-450: #8e918d; /* twin: --color-border-strong (light) */
-  --primitive-neutral-400: #69706c; /* twin: --color-border-strong (dark) */
-  --primitive-neutral-350: #8f9691; /* faint dark captions */
-  --primitive-neutral-300: #b6bbb6; /* twin: --color-text-secondary (dark) */
-  --primitive-neutral-250: #c5c0b6;
-  --primitive-neutral-200: #c9c6be; /* twin: --color-border (light) */
-  --primitive-neutral-150: #d6d0c4;
-  --primitive-neutral-100: #e9e5dc; /* light sunken surface */
-  --primitive-neutral-75: #f3e8d8;
-  --primitive-neutral-50: #f1efe8; /* twin: --color-text-primary (dark) */
+  /* -- Neutral (warm stone; one family for both themes, dark → light) --- */
+  --primitive-neutral-975: #0e0c0b; /* dark timeline well */
+  --primitive-neutral-950: #110f0e; /* dark muted lane */
+  --primitive-neutral-925: #131211; /* dark sunken wells and fields */
+  --primitive-neutral-900: #161412; /* dark timeline lane */
+  --primitive-neutral-875: #181614; /* twin: --color-bg-canvas (dark) */
+  --primitive-neutral-860: #1c1a17; /* twin: --color-text-primary (light) */
+  --primitive-neutral-850: #1e1c1a; /* twin: --color-bg-surface (dark) */
+  --primitive-neutral-825: #262320; /* twin: --color-bg-elevated (dark) */
+  --primitive-neutral-800: #2b2825; /* dark timeline hairlines */
+  --primitive-neutral-775: #302c29; /* dark overlay */
+  --primitive-neutral-750: #3a3632; /* twin: --color-border (dark) */
+  --primitive-neutral-725: #403b37; /* dark selected chip */
+  --primitive-neutral-650: #5c5750; /* twin: --color-text-secondary (light) */
+  --primitive-neutral-600: #6f6963; /* twin: --color-border-strong (dark) */
+  --primitive-neutral-500: #8a837a; /* twin: --color-border-strong (light) */
+  --primitive-neutral-475: #8f887f; /* dark unmapped transcript */
+  --primitive-neutral-425: #aaa39a; /* dark timeline text */
+  --primitive-neutral-400: #b5aea6; /* twin: --color-text-secondary (dark) */
+  --primitive-neutral-250: #d6d1c8; /* light timeline hairlines */
+  --primitive-neutral-225: #d9d4cb; /* twin: --color-border (light) */
+  --primitive-neutral-150: #e6e1d8; /* light selected chip */
+  --primitive-neutral-140: #e6e3dd; /* light timeline well */
+  --primitive-neutral-125: #ebe8e3; /* light sunken wells, muted lane */
+  --primitive-neutral-60: #f1efe8; /* twin: --color-text-primary (dark) */
+  --primitive-neutral-55: #f3f1ed; /* light timeline lane */
   --primitive-neutral-40: #f4f1eb; /* twin: --color-bg-canvas (light) */
   --primitive-neutral-25: #fffdf9; /* twin: --color-bg-surface (light) */
   --primitive-neutral-15: #ffffff; /* twin: --color-bg-elevated (light) */
@@ -81,9 +85,9 @@
   --primitive-amber-750: #a55b00;
   --primitive-amber-150: #f6e6c9;
 
-  /* -- Red (danger family) --------------------------------------------- */
-  --primitive-red-400: #e85d5d;
-  --primitive-red-600: #c43c3c;
+  /* -- Red (danger family; crimson, clear of the vermilion accent) ------- */
+  --primitive-red-350: #ff6b8b; /* dark danger */
+  --primitive-red-650: #b3244d; /* light danger */
   --primitive-red-700: #c2185b;
 
   /* -- Green (success family) ------------------------------------------ */
