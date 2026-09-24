@@ -273,10 +273,13 @@ export function useSessionSync(
     if (meta.exists) {
       mtimeRef.current = meta.mtime_ns;
     }
-    cursorRef.current = {
-      serverSeq: sessionSeq(written),
-      commandId: written.last_command_id ?? cursorRef.current.commandId,
-    };
+    const writtenSeq = sessionSeq(written);
+    if (writtenSeq > cursorRef.current.serverSeq) {
+      cursorRef.current = {
+        serverSeq: writtenSeq,
+        commandId: written.last_command_id ?? cursorRef.current.commandId,
+      };
+    }
   });
 
   useEffect(() => {
