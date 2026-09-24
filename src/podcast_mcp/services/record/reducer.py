@@ -229,12 +229,14 @@ def apply_record_command(
         person.display_name = str(cmd.payload.get("display_name") or person.display_name)
         return out
     if ctype == "Heartbeat":
-        _require_self(out, cmd)
+        if cmd.role != "host":
+            _require_self(out, cmd)
         if cmd.participant_id == HOST_PARTICIPANT_ID:
             out.host_last_beat_wall_ms = now_wall_ms
         return out
     if ctype == "Comment":
-        _require_self(out, cmd)
+        if cmd.role != "host":
+            _require_self(out, cmd)
         return out
     if ctype == "Start":
         if out.state not in ("lobby", "stopped"):
