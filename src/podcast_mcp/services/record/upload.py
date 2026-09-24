@@ -1078,6 +1078,30 @@ class RecordUploadService:
             expected_sha256=expected_sha256,
         )
 
+    def acked_file_sha256(
+        self,
+        *,
+        session_id: str,
+        take_index: int,
+        participant_id: str,
+        segment_index: int,
+    ) -> str | None:
+        """The current ACK generation's whole-file SHA-256, or None if un-ACKed.
+
+        A re-ACK (replacement upload) or a revoke changes this between when
+        landing copies bytes and when it registers them in the project, so
+        callers compare this against the hash captured at copy time (#366).
+        """
+        row = self._store.file_row(
+            session_id=parse_session_id(session_id),
+            take_index=parse_upload_index(take_index, name="take_index"),
+            participant_id=parse_participant_id(participant_id),
+            segment_index=parse_upload_index(segment_index, name="segment_index"),
+        )
+        if row is None:
+            return None
+        return str(row["file_sha256"])
+
     def _acked_path(
         self,
         session_id: str,
