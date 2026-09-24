@@ -1,0 +1,134 @@
+/* Issue 20: shared transport, timeline, and interaction depth. */
+.transport-primary-actions > .ui-control:not(.comment-mode-btn),
+.transport .tool-mode-toggle .ui-control--quiet,
+.transport .transport-more-btn {
+  color: var(--color-transport-muted);
+  border-color: var(--color-transport-control-border);
+  background: var(--color-transport-control);
+}
+
+.transport .audition-modes .ui-control--quiet {
+  border-color: transparent;
+  background: transparent;
+}
+
+.transport .audition-modes .ui-control--quiet[aria-pressed="true"],
+.transport .audition-modes .ui-control--quiet.active {
+  color: var(--color-transport-play-fg);
+  border-color: transparent;
+  background: var(--bg-transport-selected);
+}
+
+.transport .play-btn:disabled,
+.transport .stop-btn:disabled {
+  opacity: 0.55;
+}
+
+.transcript-toolbar .transcript-annotate-btn,
+.transcript-toolbar .focus-pane-btn {
+  border-color: transparent;
+  background: transparent;
+}
+
+.transcript-toolbar .transcript-correct-btn:not(:disabled) {
+  color: var(--color-accent-fg);
+  border-color: var(--color-accent);
+}
+
+.transcript-toolbar .transcript-correct-btn[aria-pressed="true"] {
+  color: var(--color-accent-on-solid);
+  background: var(--color-accent-solid);
+  border-color: var(--color-accent-solid);
+}
+
+.lane-row {
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--color-timeline-grid) 0 0.0625rem,
+    transparent 0.0625rem 4rem
+  );
+}
+
+.timeline-area::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-overlay);
+  pointer-events: none;
+  box-shadow: inset 0 0 4rem var(--color-timeline-vignette);
+}
+
+.timeline-area[data-playing="true"] .playhead {
+  box-shadow: var(--shadow-playhead-playing);
+}
+
+.time-ruler .playhead::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inline-size: 3rem;
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-ruler-glow);
+  opacity: 0.65;
+}
+
+.timeline-area[data-playing="true"] .time-ruler .playhead::before {
+  opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .transport-primary-actions
+    > .ui-control:hover:not(:disabled, [aria-disabled="true"]),
+  .transport .tool-mode-toggle .ui-control--quiet:hover:not(:disabled),
+  .transport .transport-more-btn:hover:not(:disabled) {
+    color: var(--color-transport-text);
+    border-color: var(--color-transport-muted);
+  }
+
+  .transport
+    .audition-modes
+    .ui-control--quiet[aria-pressed="true"]:hover:not(:disabled) {
+    color: var(--color-transport-play-fg);
+    border-color: transparent;
+  }
+
+  .track-header-row:hover:not(.dragging) {
+    background: var(--color-track-hover);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .transport .play-btn,
+  .track-header-row,
+  .empty-session-drop {
+    transition:
+      transform var(--motion-toggle) var(--motion-ease-out),
+      box-shadow var(--motion-state) var(--motion-ease-out),
+      background-color var(--motion-hover) var(--motion-ease-out);
+  }
+
+  .transport .play-btn:hover:not(:disabled) {
+    transform: scale(1.06);
+  }
+
+  .transport .play-btn[data-playing="true"] {
+    animation: transport-playing-glow 2s ease-in-out infinite alternate;
+  }
+
+  .timeline-area[data-playing="true"] .playhead {
+    animation: timeline-playing-glow 2s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes transport-playing-glow {
+  to {
+    box-shadow: var(--shadow-transport-playing);
+  }
+}
+
+@keyframes timeline-playing-glow {
+  to {
+    box-shadow: var(--shadow-playhead-playing-peak);
+  }
+}

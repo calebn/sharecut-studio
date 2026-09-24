@@ -529,6 +529,7 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
       ref={areaRef}
       className={`timeline-area${fixedPlayhead ? " timeline-area--fixed-playhead" : ""}`}
       data-following={followingClientId ? "" : undefined}
+      data-playing={isPlaying}
       style={
         followingClientId
           ? ({

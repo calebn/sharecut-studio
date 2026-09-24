@@ -105,6 +105,24 @@ describe("TrackHeader", () => {
     ).toHaveAttribute("aria-expanded", "true");
   });
 
+  it("uses the lane color for the track identity bar", () => {
+    const project = projectWithTrack();
+    const track = { ...project.tracks[0], role: "music" as const };
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <TrackHeader
+          track={track}
+          trackIndex={0}
+          selected={false}
+          onSelect={() => undefined}
+        />
+      </DawProvider>,
+    );
+    expect(container.querySelector(".track-header-row")).toHaveStyle({
+      "--track-identity-color": "var(--clip-music)",
+    });
+  });
+
   it("shows a single FX badge with its effect-count title", () => {
     const project = projectWithTrack();
     const track = { ...project.tracks[0], fx_count: 2 };

@@ -23,7 +23,11 @@ import {
   ToggleButton,
 } from "../ui";
 import { staleRenderBreakdown } from "../utils/staleRender";
-import { formatTimecodeCompact, formatTimecodePair } from "../utils/time";
+import {
+  formatTime,
+  formatTimecodeCompact,
+  formatTimecodePair,
+} from "../utils/time";
 import { AvatarStack } from "./AvatarStack";
 import { OverlayLegend } from "./OverlayLegend";
 import { ToolModeToggle } from "./ToolModeToggle";
@@ -103,9 +107,10 @@ export function TransportBar({
   const mayManage = canManageProjects(projectPath);
   const duration = project?.timeline_duration_sec ?? 0;
   const fullTimecode = formatTimecodePair(playheadSec, duration);
-  const timecodeLabel = collapsed
-    ? formatTimecodeCompact(playheadSec, duration)
-    : fullTimecode;
+  const currentTimecode = formatTimecodeCompact(playheadSec, duration);
+  const totalTimecode = formatTime(duration, {
+    forceHours: duration >= 3600,
+  });
 
   const themeLabel =
     preference === "system"
@@ -204,18 +209,13 @@ export function TransportBar({
           bare
           commandId="transport.togglePlay"
           className="play-btn"
+          data-playing={isPlaying}
           title={isPlaying ? "Pause (Space)" : "Play (Space)"}
           aria-label={isPlaying ? "Pause" : "Play"}
           disabled={!project}
           {...presenceAnchorProps(presenceAnchor("transport", "play"))}
         >
-          {collapsed ? (
-            <Icon name={isPlaying ? "pause" : "play"} />
-          ) : isPlaying ? (
-            "Pause"
-          ) : (
-            "Play"
-          )}
+          <Icon name={isPlaying ? "pause" : "play"} />
         </CommandButton>
         <CommandButton
           bare
@@ -238,7 +238,10 @@ export function TransportBar({
         }
         title={fullTimecode}
       >
-        {timecodeLabel}
+        <span className="timecode-current">{currentTimecode}</span>
+        {!collapsed ? (
+          <span className="timecode-total">{` / ${totalTimecode}`}</span>
+        ) : null}
       </span>
       {!collapsed ? auditionGroup() : null}
       {ingestBusy ? (

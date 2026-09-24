@@ -527,7 +527,7 @@ export function TranscriptPanel() {
           <FocusToggle mode="text" label="Transcript" />
           <ToggleButton
             pressed={transcriptAnnotate}
-            className="transcript-follow-btn"
+            className="transcript-follow-btn transcript-annotate-btn"
             title={capabilityTooltip("daw.view.transcriptAnnotate", {
               pressed: transcriptAnnotate,
             })}
@@ -558,7 +558,7 @@ export function TranscriptPanel() {
               <ToggleButton
                 pressed={intent === "correct"}
                 disabled={!wordsHydrated}
-                className="transcript-follow-btn"
+                className="transcript-follow-btn transcript-correct-btn"
                 title={
                   wordsHydrated
                     ? capabilityTooltip("daw.transcript.correct", {

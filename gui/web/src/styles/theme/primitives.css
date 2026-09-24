@@ -45,6 +45,18 @@
   --primitive-neutral-25: #fffdf9; /* twin: --color-bg-surface (light) */
   --primitive-neutral-15: #ffffff; /* twin: --color-bg-elevated (light) */
 
+  /* -- Warm charcoal (light-theme mixer and fixed-dark transport) -------- */
+  --primitive-warm-975: #0c0a09;
+  --primitive-warm-950: #141210;
+  --primitive-warm-925: #1b1815;
+  --primitive-warm-900: #221d19;
+  --primitive-warm-850: #2b2521;
+  --primitive-warm-800: #332c26;
+  --primitive-warm-700: #453b32;
+  --primitive-warm-450: #6f665c;
+  --primitive-warm-350: #8a8178;
+  --primitive-warm-300: #a89f92;
+
   /* -- Orange (brand accent family) ------------------------------------ */
   --primitive-orange-250: #ff6d48; /* twin: --color-accent (dark) */
   --primitive-orange-300: #e8a45a;

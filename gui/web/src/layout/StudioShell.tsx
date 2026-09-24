@@ -207,12 +207,15 @@ export function StudioShell({ guestShare = false }: { guestShare?: boolean }) {
                     void execute("media.import", {}, { skipWhen: true });
                   }}
                 >
-                  {addDropOver
-                    ? newTracksDropLabel(addFileCount)
-                    : "Drop audio files here, or Import Audio (Mod+I)"}
+                  <span className="empty-session-ghost" aria-hidden="true" />
+                  <span className="empty-session-drop-label">
+                    {addDropOver
+                      ? newTracksDropLabel(addFileCount)
+                      : "Drop audio files here, or Import Audio (Mod+I)"}
+                  </span>
                 </button>
                 {coachOpen ? (
-                  <aside
+                  <div
                     className="box elevated empty-session-coach"
                     role="status"
                   >
@@ -230,7 +233,7 @@ export function StudioShell({ guestShare = false }: { guestShare?: boolean }) {
                     >
                       Got it
                     </button>
-                  </aside>
+                  </div>
                 ) : null}
               </div>
             ) : (

@@ -110,6 +110,17 @@ empty-state chrome lives in `.ui-empty-state`. The live playhead position comes
 from the transport animation frame and changes immediately for seeks; CSS
 motion applies to controls and panels, not that time coordinate.
 
+The issue #20 mixer treatment uses a fixed dark transport in both themes. Its
+warm charcoal ramp, gradient, play glow, selected audition segment, and
+timecode shadow are semantic `--color-transport-*`, `--bg-transport-*`, and
+`--shadow-transport-*` tokens. The light theme's timeline well uses warm
+charcoal; dark mode keeps its neutral well. Both use `--color-timeline-grid`
+and `--color-timeline-vignette`. Track identity bars reuse the clip color
+returned by `laneColor`. Default controls are outlined and transparent;
+primary controls carry solid accent fill. Playback glow and hover motion are
+inside `prefers-reduced-motion: no-preference`; the playhead's time coordinate
+never transitions.
+
 Research basis (surface conventions only): Material Design 3's tonal surface
 scale (`surface-dim` → containers → `surface-bright`, elevation as tone
 shifts, not shadows); Radix's `*-aN` alpha steps that composite over any

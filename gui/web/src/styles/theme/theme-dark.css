@@ -27,6 +27,16 @@
   --color-timeline-lane-muted: var(--primitive-neutral-900);
   --color-timeline-border: var(--primitive-neutral-550);
   --color-timeline-text: var(--primitive-neutral-300);
+  --color-timeline-grid: color-mix(
+    in srgb,
+    var(--primitive-neutral-300) 8%,
+    transparent
+  );
+  --color-timeline-vignette: color-mix(
+    in srgb,
+    var(--primitive-black) 30%,
+    transparent
+  );
   --color-timeline-waveform-top: var(--primitive-teal-250);
   --color-timeline-waveform-bottom: var(--primitive-teal-600);
   --color-timeline-playhead: var(--primitive-orange-250);

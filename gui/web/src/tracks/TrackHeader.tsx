@@ -1,8 +1,9 @@
-import type { DragEvent, MouseEvent } from "react";
+import type { CSSProperties, DragEvent, MouseEvent } from "react";
 import { useLongPress } from "../hooks/useLongPress";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { canIngestMedia } from "../shareMode";
 import { useDaw } from "../state/useDaw";
+import { laneColor } from "../timeline/laneColors";
 import type { TrackView } from "../types/project";
 import {
   reasonChipLabel,
@@ -94,6 +95,9 @@ export function TrackHeader({
       breakdown.staleTrackIds.includes(track.id));
   const dropHighlight = ingestDropTrackId === track.id;
   const label = track.label || track.id;
+  const identityStyle = {
+    "--track-identity-color": laneColor(track.role, trackIndex),
+  } as CSSProperties;
   const longPress = useLongPress(() => onSelect(false));
 
   const select = (e: MouseEvent) => {
@@ -140,6 +144,7 @@ export function TrackHeader({
   return (
     <div
       className={`track-header-row${muted ? " muted" : ""}${selected ? " selected" : ""}${headerHighlight ? " stale-highlight" : ""}${wholeReasons.length ? " stale-whole-track" : ""}${dropHighlight ? " lane-drop-target" : ""}${dragging ? " dragging" : ""}${edgeClass}${mayReorder ? " reorderable" : ""}`}
+      style={identityStyle}
       {...presenceAnchorProps(presenceAnchor("track", track.id))}
       onDragOver={allowReorderDrop}
       onDrop={onDrop}

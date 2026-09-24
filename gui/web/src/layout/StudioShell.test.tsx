@@ -114,6 +114,26 @@ describe("StudioShell tablet peek", () => {
     expect(main?.className).not.toContain("daw-main--arrange");
   });
 
+  it("keeps the empty timeline an accessible import target with decorative waveform", async () => {
+    render(
+      <DawProvider
+        projectPath="/tmp/p.json"
+        initialProject={minimalProject({ tracks: [] })}
+      >
+        <StudioShell />
+      </DawProvider>,
+    );
+    const target = screen.getByRole("button", {
+      name: "Drop audio files or import",
+    });
+    expect(target.querySelector(".empty-session-ghost")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+    expect(target).toHaveTextContent("Drop audio files here");
+    await expectNoA11yViolations(target);
+  });
+
   it("renders when localStorage.getItem throws", () => {
     const getItem = vi
       .spyOn(Storage.prototype, "getItem")
