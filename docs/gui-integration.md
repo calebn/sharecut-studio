@@ -103,7 +103,7 @@ On **loopback**, `--project` is optional: omitting it serves the host **home** (
 
 Navigating the browser to `/?project=<other>` while a project is pinned returns a friendly recovery page (HTTP 403 HTML) naming the served project with links to open it or choose a different project. The recovery page is rendered only for requests that accept `text/html`; API clients receive the JSON `403 {"detail":"project path not allowed for this server instance"}`. On a non-loopback strict-auth server, the request must carry the launch `session_token` before the page reveals served-project metadata, and both recovery links retain that token.
 
-The loopback GUI is a **privileged local RPC** (not “safe because localhost”). Host/Origin binding rejects DNS-rebind forged `Host` headers on host APIs. Treat `127.0.0.1:8765` like a local agent with full project open/create and pipeline powers.
+The loopback GUI is a **privileged local RPC** (not “safe because localhost”). Host/Origin binding rejects DNS-rebind forged `Host` headers on host APIs. Treat `127.0.0.1:8765` like a local agent with full project open/create and pipeline powers. Owner GUI routes also require the **host role** (`gui/routes/deps.require_host`): a loopback peer, or `PODCAST_SESSION_TOKEN` under strict authz — never relay-tunneled traffic, even from loopback. See [host-online-relay.md § Security notes](host-online-relay.md#security-notes).
 
 **Native shell (optional):** Tauri 2 under [`gui/desktop/`](../gui/desktop/) spawns `podcast gui` and opens a WebView on the same URL. Packaging boundaries: [desktop-packaging.md](desktop-packaging.md).
 

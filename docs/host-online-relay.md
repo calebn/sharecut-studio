@@ -299,6 +299,7 @@ Revoke deletes the object when no other active shares reference that version.
 - Guest uploads are probed with FFmpeg `-protocol_whitelist file,crypto,data`. Chunk uploads cap `total_chunks`, sweep stale `.uploads/`, and enforce a pending-bytes quota.
 - Restricted / guest accounts are **fail-closed**: `/auth` is not mounted and Restricted minting is refused unless `PODCAST_SHARE_ACCOUNTS=1` (stub testing only). Leftover Restricted tokens stay 401 via `ShareIdentityMiddleware`; Restricted share HTML never embeds object-store/OG audio.
 - Loopback GUI is a **privileged local RPC**. Host/Origin binding rejects DNS-rebind forged `Host` headers on host APIs (`/api/project/*`, pipeline, media, document, session, comments).
+- **Host role on owner routes** (#393): owner GUI routes — project, pipeline, export, diagnostics, bootstrap, record, shares, media, transcript (`require_host` from `gui/routes/deps.py`) and the session/document sync REST + WS surfaces (`authorize_client`) — are gated by the **host role** (`authorize_host` in `services/session_sync/authz.py`). The tunnel stamps `x-sharecut-relayed: 1` on every proxied HTTP request and WS dial into the local GUI (`services/tunnel.py`), dropping any guest-supplied copy of that header first. The host role refuses a request carrying that marker even from a loopback peer or in non-strict mode (`403`, or WebSocket close `4403`), as defense in depth behind the tunnel's path allowlist and the client-side `isShareProjectKey` check.
 - Token lifecycle (usable vs cooldown 404, revoke, hard `expires_at`, inactivity): [share-tokens.md](share-tokens.md).
 - Prefer short `expires_at` for public demos; revoke with `podcast review revoke-share`.
 - Do not put `/?project=/abs/path` on the public relay.
@@ -307,7 +308,9 @@ Revoke deletes the object when no other active shares reference that version.
   relay never needs them. Bucket stays private; only presigned URLs are handed out.
 
 The host tunnel strips `X-Forwarded-*` when calling the local GUI (so Starlette
-does not redirect to HTTPS on plain HTTP) and rewrites share HTML so root-absolute
+does not redirect to HTTPS on plain HTTP) and stamps `x-sharecut-relayed: 1` on the
+forwarded request (dropping any guest-supplied copy first), so owner routes can
+refuse relayed traffic (see § Security notes). It also rewrites share HTML so root-absolute
 `/assets/…` URLs become `/r/{token}/assets/…` on the public origin. It also injects
 `<base href="/r/{token}/">` so Vite's relative lazy chunks (`base: './'`) resolve under
 the share path when the document URL has no trailing slash.
@@ -379,7 +382,7 @@ Do not put `guest_*` names in the host manifest MCP column. Share agents never c
 | record `join` / `monitor` | **no MCP** — `/rec/{token}` lobby; `join` also unlocks `GET`/`POST`/`DELETE /api/rec/{token}/upload` |
 | record `monitor` WS | **no MCP by design** — `WS /api/rec/{token}/ws` (record room / live comments / WebRTC signal). Record MCP twins remain a product decision, not a missing-twin bug. Parity CI (`check_share_http_mcp_parity`) requires a curated `http-only:` note. |
 
-**Denied even when `mcp` is set:** pipeline run, full ingest consolidate, episode create (never on guest), host-speaker `play`, FX/envelope/transcript host-only mutations, absolute paths / history dumps, **comment resolve** (host-only: no share HTTP or guest MCP). Share **`edit`** may still use `guest_submit_document_command` for track CRUD (`AddTrack` / `SetTrackMedia` / …) and `guest_upload_media` / the HTTP chunked media upload route; that is not the host `ingest_*` / `episode_create` surface.
+**Denied even when `mcp` is set:** pipeline run, full ingest consolidate, episode create (never on guest), host-speaker `play`, FX/envelope/transcript host-only mutations, absolute paths / history dumps, **comment resolve** (host-only: no share HTTP or guest MCP). Share **`edit`** may still use `guest_submit_document_command` for track CRUD (`AddTrack` / `SetTrackMedia` / …) and `guest_upload_media` / the HTTP chunked media upload route; that is not the host `ingest_*` / `episode_create` surface. Owner GUI REST/WS routes (project, pipeline, export, diagnostics, bootstrap, record, shares, transcript, comments, session/document sync) require the **host role** (`require_host` / `authorize_host`, #393): relay-tunneled requests never satisfy it, even on loopback or in non-strict mode. See § Security notes.
 
 **Audio:** `guest_audio_info` (full-file stream URLs), `guest_pending_preview` (pending cut), and `guest_audition_context` (arbitrary timeline window: captions + windowed hum/clip in `warnings`; optional wave/spec PNG) return relative share URLs (`/api/review/{token}/…`). Agents must stream via HTTP — remote MCP does **not** play on the host laptop. Sharecut Studio Suggested for a human is a transport skip; the share HTTP concat is the agent-usable twin (optional `visual` waveform/spectrogram PNGs). The hear-context contract is additive (new fields later without a new cap bit). Host `audition_context_tool` puts the same DSP in typed `hypotheses[]`.
 
@@ -596,6 +599,7 @@ src/podcast_mcp/
   Strict authz is auto-enabled on a non-loopback bind only when `PODCAST_SESSION_AUTHZ`
   is unset. An explicit non-strict value (e.g. `PODCAST_SESSION_AUTHZ=off`) with
   `--host 0.0.0.0` removes this gate, and any LAN peer can start export jobs.
+  Relay-tunneled requests are refused regardless (host role, #393).
 - **Host GUI**: defaults to loopback. Non-loopback bind auto-enables `PODCAST_SESSION_AUTHZ=strict`
   and injects `session_token` into the viewer URL. Prefer the public relay over LAN bind.
 - **Remote MCP**: disabled by default; requires `PODCAST_REMOTE_MCP=1` on the host and

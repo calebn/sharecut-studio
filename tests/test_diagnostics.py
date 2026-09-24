@@ -271,7 +271,7 @@ def test_diagnostics_routes_host_only(tmp_path: Path, monkeypatch: pytest.Monkey
 
     monkeypatch.setenv("PODCAST_SESSION_AUTHZ", "strict")
     monkeypatch.setattr(
-        "podcast_mcp.gui.routes.diagnostics.peer_host",
+        "podcast_mcp.gui.routes.deps.peer_host",
         lambda _request: "10.0.0.5",
     )
     remote = TestClient(create_app()).post("/api/diagnostics/bundle", json={})

@@ -253,7 +253,7 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 
 **Structural apply vs propose:** `services/document_sync/policy.py` (`resolve_structural_mode`). Host (`caps is None`) and `edit` apply immediately (History undo). `suggest` only appends pending decisions; Approve/Reject via existing Pass 1 commands.
 
-REST `/api/comments*` still mutates via `CommentService` and best-effort notifies the document hub (`notify_comments_changed` → `COMMENTS` projection). New GUI mutations (history, edits, transcript, envelopes, markers) use the document command path only. Host: `POST /api/document/command`. Guest shares: `POST /api/review/{token}/daw/document/command` with `authorize_document_command` (`edit` / `suggest` allowlists in `services/document_sync/capabilities.py`, plus structural commands under `policy.py`). **Remote MCP** guests use the same allowlists via `guest_submit_document_command` ([host-online-relay.md](host-online-relay.md) § Remote MCP). Authz: same `authorize_client` as session WS for host (strict mode + token for non-loopback).
+REST `/api/comments*` still mutates via `CommentService` and best-effort notifies the document hub (`notify_comments_changed` → `COMMENTS` projection). New GUI mutations (history, edits, transcript, envelopes, markers) use the document command path only. Host: `POST /api/document/command`. Guest shares: `POST /api/review/{token}/daw/document/command` with `authorize_document_command` (`edit` / `suggest` allowlists in `services/document_sync/capabilities.py`, plus structural commands under `policy.py`). **Remote MCP** guests use the same allowlists via `guest_submit_document_command` ([host-online-relay.md](host-online-relay.md) § Remote MCP). Authz: same `authorize_client` as session WS for host (strict mode + token for non-loopback); relayed share traffic is refused.
 
 Host document WebSocket connection snapshots, JSON decoding, command validation, and submits run in worker threads so project parsing and mutation do not block the socket event loop. `ProjectWorkspace.reload()` checks the project file's mtime, size, and file identity under the existing submit lock; it reuses the loaded project when unchanged and reads it again after an external write. Workspace save/mutate paths invalidate that signature after committing, so the next reload reads a fresh file before caching it.
 
@@ -284,7 +284,7 @@ Phases 1–2 run the authority inside `podcast gui` (localhost). Remote humans a
 |------|--------|
 | `FollowUser` command | Shipped — presence meta `following`; GUI follow slaves viewport + tab + transcript + monitor state (when the follower is capable) |
 | Account-scoped presence | Deferred — person id vs connection id when an optional account provider is installed |
-| `authorize_client` | Default allow; `PODCAST_SESSION_AUTHZ=strict` + `PODCAST_SESSION_TOKEN` for non-loopback |
+| `authorize_client` | Default allow; `PODCAST_SESSION_AUTHZ=strict` + `PODCAST_SESSION_TOKEN` for non-loopback; denies relayed traffic (host role). Owner REST routes use the host role directly, `authorize_host` (#393). |
 | Guest share WS | Shipped — inbound **Presence** only (`view`); unique `guest-{token[:8]}-…` ids |
 | Shared host / relay | Shipped MVP — see [host-online-relay.md](host-online-relay.md) |
 

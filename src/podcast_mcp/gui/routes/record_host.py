@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from podcast_mcp.gui.routes.deps import peer_host, require_authz, resolve_project
+from podcast_mcp.gui.routes.deps import require_host, resolve_project
 from podcast_mcp.gui.routes.record_upload_http import UploadKindParam, ingest_record_upload_request
 from podcast_mcp.services import ProjectWorkspace
 from podcast_mcp.services.record.commands import RecordAuthzError
@@ -32,20 +32,6 @@ class RecordCommandBody(BaseModel):
     payload: dict[str, Any] = Field(default_factory=dict)
 
 
-def _auth(
-    request: Request,
-    *,
-    token: str | None = None,
-    x_podcast_token: str | None = None,
-) -> None:
-    require_authz(
-        client_id="cli",
-        role="viewer",
-        peer_host=peer_host(request),
-        token=token or x_podcast_token,
-    )
-
-
 @router.get("/api/record/state")
 def get_record_state(
     request: Request,
@@ -53,7 +39,7 @@ def get_record_state(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     ws = ProjectWorkspace.open(project_path)
     session_id = RecordSessionService.active_session_id(ws.project)
@@ -69,7 +55,7 @@ def post_record_command(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(body.path, request)
     ws = ProjectWorkspace.open(project_path)
     try:
@@ -99,7 +85,7 @@ def get_host_record_upload(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     uploader, session_id, _ws = _host_upload(request, path)
     return uploader.status(session_id=session_id)
 
@@ -120,7 +106,7 @@ async def post_host_record_upload(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     uploader, session_id, ws = _host_upload(request, path)
     return await ingest_record_upload_request(
         request,
@@ -148,7 +134,7 @@ def delete_host_record_upload(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     uploader, session_id, _ws = _host_upload(request, path)
     try:
         parsed = parse_upload_kind(kind)
@@ -172,7 +158,7 @@ def post_host_record_land(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     ws = ProjectWorkspace.open(resolve_project(path, request))
     try:
         return RecordControlService(ws).land()
@@ -189,7 +175,7 @@ def post_host_record_discard_take(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     ws = ProjectWorkspace.open(resolve_project(body.path, request))
     try:
         return RecordControlService(ws).discard_take(body.take_index)

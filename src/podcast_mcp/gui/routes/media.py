@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request
 
-from podcast_mcp.gui.routes.deps import peer_host, require_authz, resolve_project
+from podcast_mcp.gui.routes.deps import require_host, resolve_project
 from podcast_mcp.services import ProjectWorkspace
 from podcast_mcp.services.media_store import (
     gui_media_chunk_max_bytes,
@@ -14,20 +14,6 @@ from podcast_mcp.services.media_store import (
 from podcast_mcp.util.body_limits import BodyTooLarge, payload_too_large_response, read_body_capped
 
 router = APIRouter()
-
-
-def _auth(
-    request: Request,
-    *,
-    token: str | None,
-    x_podcast_token: str | None,
-) -> None:
-    require_authz(
-        client_id="viewer",
-        role="viewer",
-        peer_host=peer_host(request),
-        token=token or x_podcast_token,
-    )
 
 
 @router.post("/api/media/upload")
@@ -41,7 +27,7 @@ async def upload_media(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     limit = gui_media_chunk_max_bytes() if total_chunks > 1 else gui_media_max_bytes()
     try:

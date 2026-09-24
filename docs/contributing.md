@@ -23,7 +23,7 @@ Use [`util.workspace_paths.resolve_within`](../src/podcast_mcp/util/workspace_pa
 
 1. Implement domain logic (or extend an existing module).
 2. Expose via a method on the appropriate service (`EditService`, `ClipService`, `CommentService`, `PlayService`, etc.).
-3. Add a thin CLI command in `cli/<area>.py` and an MCP handler in `mcp/tools/<area>.py`. If the DAW viewer needs it, add a thin route under `gui/routes/` (`project.py` / `session.py` / `pipeline.py`) that calls the same service method; keep `gui/server.py` as `create_app` wiring only.
+3. Add a thin CLI command in `cli/<area>.py` and an MCP handler in `mcp/tools/<area>.py`. If the DAW viewer needs it, add a thin route under `gui/routes/` (`project.py` / `session.py` / `pipeline.py`) that calls the same service method; keep `gui/server.py` as `create_app` wiring only. Gate owner routes with `require_host` from `gui/routes/deps.py` (host role); never copy a per-module `_auth` helper.
 4. Register the MCP tool in `mcp/tools/__init__.py` via `register_all`.
 5. Re-export the handler from `mcp/server.py` if tests call it directly.
 6. Add tests under `tests/`; run the affected tests locally with `--no-cov`, plus `make lint-py` / `make format-py-check` / `make typecheck` for Python changes. GitHub Actions runs the full `make test` suite and enforces **≥95%** coverage on the PR. For `gui/web/` changes, run focused Vitest tests and relevant static checks locally; CI runs the equivalent frontend checks (oxlint + Stylelint + Biome `format:check` + strict `typecheck` + Vitest + build). Use local `make test` / `make ci` for extensive changes or full-suite diagnosis.

@@ -9,7 +9,7 @@ from fastapi import APIRouter, Header, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
 from podcast_mcp.gui.jobs import PipelineJobManager
-from podcast_mcp.gui.routes.deps import peer_host, require_authz, resolve_project
+from podcast_mcp.gui.routes.deps import require_host, resolve_project
 from podcast_mcp.gui.schemas import (
     PipelineAnalyzeRequest,
     PipelineCancelRequest,
@@ -36,20 +36,6 @@ def _jobs(request: Request) -> PipelineJobManager:
     return request.app.state.jobs
 
 
-def _auth(
-    request: Request,
-    *,
-    token: str | None = None,
-    x_podcast_token: str | None = None,
-) -> None:
-    require_authz(
-        client_id="viewer",
-        role="viewer",
-        peer_host=peer_host(request),
-        token=token or x_podcast_token,
-    )
-
-
 @router.get("/api/pipeline/steps")
 def pipeline_steps() -> dict[str, Any]:
     return {"steps": list(STEP_NAMES)}
@@ -62,7 +48,7 @@ def pipeline_get_config(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     return build_config_payload(project_path)
 
@@ -74,7 +60,7 @@ def pipeline_put_config(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(req.path, request)
     config_store().put(
         project_path,
@@ -93,7 +79,7 @@ def pipeline_analyze(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(req.path, request)
     ws = ProjectWorkspace.open(project_path)
     working = config_store().get(project_path)
@@ -113,7 +99,7 @@ def pipeline_status(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     served = getattr(request.app.state, "served_project", None)
     return _jobs(request).status(project_path=str(served) if served is not None else None)
 
@@ -125,7 +111,7 @@ def pipeline_run(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     jobs = _jobs(request)
     project_path = resolve_project(req.path, request)
     if req.from_step and req.from_step not in STEP_NAMES:
@@ -196,7 +182,7 @@ def pipeline_cancel(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     job = _jobs(request).cancel(req.job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="No pipeline job")
@@ -211,7 +197,7 @@ def pipeline_render_preview(
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
     """Rebuild stems/premix (``PipelineService.render_preview``) as a background job."""
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     jobs = _jobs(request)
     project_path = resolve_project(req.path, request)
     try:
@@ -228,7 +214,7 @@ def pipeline_events(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> StreamingResponse:
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     job = _jobs(request).get_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="No pipeline job")

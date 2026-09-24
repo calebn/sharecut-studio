@@ -1718,7 +1718,7 @@ def test_api_transcript_vocabulary_rejects_unauthorized_remote(
 
     monkeypatch.setenv("PODCAST_SESSION_AUTHZ", "strict")
     monkeypatch.setenv("PODCAST_SESSION_TOKEN", "session-token")
-    monkeypatch.setattr("podcast_mcp.gui.routes.transcript.peer_host", lambda _request: "10.0.0.5")
+    monkeypatch.setattr("podcast_mcp.gui.routes.deps.peer_host", lambda _request: "10.0.0.5")
     client = TestClient(create_app(bind_host="0.0.0.0"))
     response = client.put(
         "/api/transcript/vocabulary",
@@ -1730,6 +1730,32 @@ def test_api_transcript_vocabulary_rejects_unauthorized_remote(
         },
     )
     assert response.status_code == 403
+
+
+def test_api_transcript_vocabulary_rejects_relayed_request(minimal_project, monkeypatch) -> None:
+    """#393: relay-tunneled traffic never reaches owner routes, even non-strict."""
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.services.session_sync.authz import HOST_ROLE_RELAYED_REASON
+
+    monkeypatch.delenv("PODCAST_SESSION_AUTHZ", raising=False)
+    client = TestClient(create_app())
+    response = client.put(
+        "/api/transcript/vocabulary",
+        json={
+            "path": str(minimal_project),
+            "terms": ["Kaczynski"],
+            "guest_names": [],
+            "base_revision": None,
+        },
+        headers={"X-Sharecut-Relayed": "1"},
+    )
+    assert response.status_code == 403
+    assert response.json() == {"detail": HOST_ROLE_RELAYED_REASON}
+    context_path = minimal_project.parent / "artifacts" / "transcript_context.yaml"
+    assert not context_path.exists()
 
 
 def test_api_transcript_refine_waive_records_user_source(minimal_project, monkeypatch) -> None:
@@ -1798,7 +1824,7 @@ def test_api_transcript_refine_waive_rejects_unauthorized_remote(
 
     monkeypatch.setenv("PODCAST_SESSION_AUTHZ", "strict")
     monkeypatch.setenv("PODCAST_SESSION_TOKEN", "session-token")
-    monkeypatch.setattr("podcast_mcp.gui.routes.transcript.peer_host", lambda _request: "10.0.0.5")
+    monkeypatch.setattr("podcast_mcp.gui.routes.deps.peer_host", lambda _request: "10.0.0.5")
     client = TestClient(create_app(bind_host="0.0.0.0"))
     response = client.post(
         "/api/transcript/refine/waive",
