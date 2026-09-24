@@ -312,7 +312,11 @@ segment's local `.wav` (`keeper/reclaim.ts`: `canReclaimKeeperSegment` policy +
 `reclaimKeeperWav`). Its completion `.json` remains as a small segment
 identity marker, so later takes never reuse the segment number. Reclaim
 requires that marker to be complete (`complete: true`, or absent on legacy
-metadata written only after close); a pending `complete: false` marker, or
+metadata written only after close), and that its SHA-256 and byte length match
+both the local WAV and the landed host status. New finalized and recovered
+segments record this fingerprint after their WAV closes. A mismatch or older
+marker without a fingerprint retains the WAV and displays a download warning;
+the older marker still identifies a WAV that was already reclaimed. A pending `complete: false` marker, or
 metadata that does not parse as a keeper record (it may be a torn pending
 write), never allows a delete and never marks a missing WAV as reclaimed. Unlanded, failed, incomplete, or actively captured segments
 remain available for recovery.
@@ -330,9 +334,7 @@ browser, reclaim is paused (`holdKeeperReclaim`) so the lazily read OPFS
 `File`s in the archive stay readable. `ByteSink.remove` rejects on real delete
 failures; room-tone cleanup uses `removeBestEffort`. Reclaim failures are
 non-fatal and leave the WAV in place; after three consecutive failures the
-upload panel warns that the local backup could not be cleared. Known gaps:
-reclaim does not yet compare the landed SHA-256/length with the local file
-([#222](https://github.com/calebn/sharecut-studio/issues/222)). Landing never
+upload panel warns that the local backup could not be cleared. Landing never
 reports `landed` for a segment whose staged `artifacts/record/acked/` WAV is
 missing unless its registered source (`rec-…` clip source or room-tone bed)
 already exists in the workspace with the row's ACK'd `file_sha256` (so a

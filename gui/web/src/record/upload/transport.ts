@@ -44,9 +44,15 @@ export function memoryUploadTransport(): RecordUploadTransport & {
   joinOffsets: number[];
 } {
   const acked = new Map<string, Set<number>>();
+  const partLengths = new Map<string, Map<number, number>>();
   const files = new Map<
     string,
-    { expectedParts?: number; complete: boolean }
+    {
+      expectedParts?: number;
+      complete: boolean;
+      fileSha256?: string;
+      byteLength: number;
+    }
   >();
   const joinOffsets: number[] = [];
   const state = { failNext: false, puts: 0 };
@@ -74,6 +80,8 @@ export function memoryUploadTransport(): RecordUploadTransport & {
           expected_parts: files.get(id)?.expectedParts ?? null,
           landed: files.get(id)?.complete ?? false,
           land_failed: false,
+          file_sha256: files.get(id)?.fileSha256 ?? null,
+          byte_length: files.get(id)?.byteLength ?? null,
         };
       });
       return { segments };
@@ -89,10 +97,27 @@ export function memoryUploadTransport(): RecordUploadTransport & {
       const parts = acked.get(id) ?? new Set<number>();
       parts.add(args.partSeq);
       acked.set(id, parts);
+      const lengths = partLengths.get(id) ?? new Map<number, number>();
+      lengths.set(args.partSeq, args.data.byteLength);
+      partLengths.set(id, lengths);
+      const byteLength =
+        44 + [...lengths.values()].reduce((sum, length) => sum + length, 0);
       if (args.final) {
-        files.set(id, { expectedParts: args.expectedParts, complete: true });
+        files.set(id, {
+          expectedParts: args.expectedParts,
+          complete: true,
+          fileSha256: args.fileSha256,
+          byteLength,
+        });
       } else if (!files.has(id)) {
-        files.set(id, { expectedParts: undefined, complete: false });
+        files.set(id, {
+          expectedParts: undefined,
+          complete: false,
+          byteLength,
+        });
+      } else {
+        const file = files.get(id);
+        if (file) file.byteLength = byteLength;
       }
       return {
         acked: true,
@@ -107,6 +132,7 @@ export function memoryUploadTransport(): RecordUploadTransport & {
     },
     async revokeRoomTone() {
       files.clear();
+      partLengths.clear();
     },
   };
 }

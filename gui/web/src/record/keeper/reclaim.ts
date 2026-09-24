@@ -1,10 +1,13 @@
-import { type ByteSink, keeperMetaComplete, keeperMetaPath } from "./store";
+import { sha256Hex } from "./fingerprint";
+import { type ByteSink, keeperMetaPath, parseKeeperMeta } from "./store";
 
 /** Host status fields the reclaim policy reads (a subset of the upload row). */
 export type ReclaimStatusRow = {
   file_ack?: boolean;
   landed?: boolean;
   land_failed?: boolean;
+  file_sha256?: string | null;
+  byte_length?: number | null;
 };
 
 /**
@@ -80,7 +83,12 @@ export async function holdKeeperReclaim(sink: ByteSink): Promise<() => void> {
   return release;
 }
 
-export type KeeperReclaimResult = "reclaimed" | "skipped" | "held" | "failed";
+export type KeeperReclaimResult =
+  | "reclaimed"
+  | "skipped"
+  | "held"
+  | "failed"
+  | "mismatch";
 
 /**
  * Delete a landed keeper WAV, keeping its completion `.json` as the segment
@@ -92,6 +100,7 @@ export async function reclaimKeeperWav(
   sink: ByteSink,
   wavPath: string,
   tracker: KeeperReclaimTracker,
+  remoteSeg: ReclaimStatusRow,
 ): Promise<KeeperReclaimResult> {
   if (tracker.reclaimed.has(wavPath)) {
     return "skipped";
@@ -99,8 +108,25 @@ export async function reclaimKeeperWav(
   if (keeperReclaimHeld(sink)) {
     return "held";
   }
-  if (!keeperMetaComplete(await sink.read(keeperMetaPath(wavPath)))) {
+  const meta = parseKeeperMeta(await sink.read(keeperMetaPath(wavPath)));
+  if (!meta || meta.complete === false) {
     return "skipped";
+  }
+  const wav = await sink.read(wavPath);
+  const expectedHash = remoteSeg.file_sha256;
+  const expectedLength = remoteSeg.byte_length;
+  if (
+    !wav ||
+    !meta.fileSha256 ||
+    meta.byteLength == null ||
+    !expectedHash ||
+    expectedLength == null ||
+    wav.byteLength !== meta.byteLength ||
+    wav.byteLength !== expectedLength ||
+    (await sha256Hex(wav)) !== meta.fileSha256 ||
+    meta.fileSha256 !== expectedHash
+  ) {
+    return "mismatch";
   }
   // Re-check synchronously before registering the delete so a hold taken
   // during the metadata read either blocks it or waits for it.

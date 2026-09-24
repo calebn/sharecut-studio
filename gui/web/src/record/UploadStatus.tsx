@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Button } from "../ui";
 import {
   KEEPER_RECLAIM_FAILED_COPY,
+  KEEPER_RECLAIM_MISMATCH_COPY,
   UPLOAD_DONE_COPY,
   UPLOAD_LAND_FAILED_COPY,
   UPLOAD_STATUS_ID,
@@ -87,6 +88,17 @@ export function UploadStatus({
     status = (
       <div id={UPLOAD_STATUS_ID} className="record-warn">
         <p>{progress.error}</p>
+        <RecoveryActions
+          onResume={onResume}
+          actions={actions}
+          canRecover={canRecover}
+        />
+      </div>
+    );
+  } else if (progress.reclaimMismatch) {
+    status = (
+      <div id={UPLOAD_STATUS_ID} className="record-warn">
+        <p>{KEEPER_RECLAIM_MISMATCH_COPY}</p>
         <RecoveryActions
           onResume={onResume}
           actions={actions}

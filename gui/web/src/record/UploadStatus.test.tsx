@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import {
   KEEPER_RECLAIM_FAILED_COPY,
+  KEEPER_RECLAIM_MISMATCH_COPY,
   UPLOAD_COPY,
   UPLOAD_DONE_COPY,
   uploadProgressCopy,
@@ -17,6 +18,35 @@ function keeperActions(
 }
 
 describe("UploadStatus", () => {
+  it("warns and offers a download when landed bytes do not match", async () => {
+    const download = vi.fn();
+    const { container } = render(
+      <UploadStatus
+        stopped
+        actions={keeperActions({ download })}
+        progress={{
+          acked: 1,
+          total: 1,
+          fileAck: true,
+          landed: true,
+          landFailed: false,
+          reclaimFailed: false,
+          reclaimMismatch: true,
+          uploading: false,
+          pending: false,
+          recoverable: false,
+          error: null,
+        }}
+      />,
+    );
+    expect(screen.getByText(KEEPER_RECLAIM_MISMATCH_COPY)).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Download local keeper" }),
+    );
+    expect(download).toHaveBeenCalledOnce();
+    await expectNoA11yViolations(container);
+  });
+
   it("shows chunk progress until file ACK, then landed copy", () => {
     const { rerender } = render(
       <UploadStatus

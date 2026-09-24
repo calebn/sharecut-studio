@@ -20,6 +20,8 @@ export type RecordUploadProgress = {
   landFailed: boolean;
   /** Landed keeper WAVs could not be deleted after repeated attempts. */
   reclaimFailed: boolean;
+  /** Local WAV, metadata, and landed host fingerprint do not agree. */
+  reclaimMismatch?: boolean;
   uploading: boolean;
   pending: boolean;
   recoverable: boolean;
@@ -72,6 +74,7 @@ const EMPTY: RecordUploadProgress = {
   landed: false,
   landFailed: false,
   reclaimFailed: false,
+  reclaimMismatch: false,
   uploading: false,
   pending: false,
   recoverable: false,
@@ -138,6 +141,7 @@ export function useRecordUpload(args: {
         let finalizing = false;
         let abandoned = false;
         let recoverable = false;
+        let reclaimMismatch = false;
         const lossReasons = new Set<string>();
         for await (const {
           takeIndex: take,
@@ -167,7 +171,16 @@ export function useRecordUpload(args: {
             ) {
               // A fresh status response is the authority for cleanup. The
               // completion metadata stays as the segment identity marker.
-              await reclaimKeeperWav(sink, wavPath, reclaim.current);
+              if (
+                (await reclaimKeeperWav(
+                  sink,
+                  wavPath,
+                  reclaim.current,
+                  remoteSeg,
+                )) === "mismatch"
+              ) {
+                reclaimMismatch = true;
+              }
             }
             continue;
           }
@@ -239,6 +252,7 @@ export function useRecordUpload(args: {
             landed: saw && allAcked && allLanded && !landFailed,
             landFailed,
             reclaimFailed: keeperReclaimStuck(reclaim.current),
+            reclaimMismatch,
             uploading: (awaitingAck && !stalled) || finalizing,
             pending: false,
             recoverable,

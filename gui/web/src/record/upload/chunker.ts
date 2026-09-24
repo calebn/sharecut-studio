@@ -1,6 +1,8 @@
 import { pcmWavHeader } from "../../audio/wavHeader";
 import { KEEPER_BYTES_PER_SECOND } from "../keeper/pcm";
 
+export { sha256Hex } from "../keeper/fingerprint";
+
 export const RECORD_UPLOAD_WAV_HEADER = pcmWavHeader(0).byteLength;
 export const RECORD_UPLOAD_PART_PCM_BYTES = KEEPER_BYTES_PER_SECOND * 30;
 
@@ -19,13 +21,4 @@ export function keeperPcmParts(wav: Uint8Array): Uint8Array[] {
     offset = end;
   }
   return parts;
-}
-
-export async function sha256Hex(data: Uint8Array): Promise<string> {
-  const copy = new Uint8Array(data.byteLength);
-  copy.set(data);
-  const digest = await crypto.subtle.digest("SHA-256", copy);
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
 }
