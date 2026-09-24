@@ -4,6 +4,7 @@ import {
   followExportJob,
   hostLandRecord,
   pasteSegment,
+  patchComment,
   redoHistory,
   refreshProject,
   rippleDeleteClips,
@@ -307,6 +308,43 @@ export function registerDawCommands(): void {
   registerCommand("review.toggleCommentMode", () => {
     useDawStore.getState().toggleCommentMode();
     return { status: "ok" };
+  });
+
+  registerCommand("comment.resolve", async (args) => {
+    const s = useDawStore.getState();
+    if (
+      !s.project ||
+      s.guestMode != null ||
+      !canManageProjects(s.projectPath)
+    ) {
+      return { status: "disabled", reason: "Comment resolve is host-only" };
+    }
+    const { commentId, resolved, by } = args;
+    if (
+      typeof commentId !== "string" ||
+      !commentId ||
+      typeof resolved !== "boolean" ||
+      typeof by !== "string" ||
+      !by.trim()
+    ) {
+      return {
+        status: "disabled",
+        reason: "Invalid comment resolve arguments",
+      };
+    }
+    const comment = s.project.comments?.find((c) => c.id === commentId);
+    if (!comment) {
+      return { status: "disabled", reason: "Unknown comment" };
+    }
+    if (resolved && comment.resolved) {
+      return { status: "disabled", reason: "Comment is already resolved" };
+    }
+    try {
+      await patchComment(s.projectPath, commentId, { resolved, by });
+      return { status: "ok" };
+    } catch (e) {
+      return { status: "disabled", reason: errorMessage(e) };
+    }
   });
 
   const setFocus = (mode: FocusMode) => {

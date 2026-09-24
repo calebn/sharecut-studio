@@ -266,6 +266,30 @@
       }
     },
     {
+      "id": "daw.review.resolveComment",
+      "label": "Resolve comment",
+      "service": "Sharecut Studio command bus \u2192 comment patch service",
+      "industry_standard_key": false,
+      "gates": [
+        "hostProjectLoaded"
+      ],
+      "surfaces": {
+        "command": "comment.resolve",
+        "gui": [
+          "mobileShell.gesture.swipeLeftComment"
+        ]
+      },
+      "omit": {
+        "guest": true,
+        "keyboard_reason": "Direct comment card gesture and button; no standard shortcut"
+      },
+      "tooltip": "Resolve this comment",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.tighten.applyHit",
       "label": "Apply tighten hit",
       "service": "Sharecut Studio command bus \u2192 ApproveEdits",

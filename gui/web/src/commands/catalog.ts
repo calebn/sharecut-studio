@@ -71,6 +71,14 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Toggle comment mode",
     when: "always",
   },
+  "comment.resolve": {
+    id: "comment.resolve",
+    category: "review",
+    label: "Resolve comment",
+    when: "hostProjectLoaded",
+    notes:
+      "Args: { commentId: string, resolved: boolean, by: string } — host only",
+  },
   "focus.default": {
     id: "focus.default",
     category: "focus",

@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**94** capabilities · **78** Sharecut Studio commands · **49** keyed · **160** MCP tools · **16** skills on rows (+ **18** hub skills).
+**95** capabilities · **79** Sharecut Studio commands · **49** keyed · **160** MCP tools · **16** skills on rows (+ **18** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -38,6 +38,7 @@ Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Documen
 | Exit comment mode | `review.exitCommentMode` | `Escape` | — | — | — | — | — | — |
 | Clear selection | `edit.clearSelection` | `Escape` | — | — | — | — | — | — |
 | Toggle comment mode | `review.toggleCommentMode` | `Mod+Shift+C` | `transport.comment` | — | — | — | — | none · none |
+| Resolve comment | `comment.resolve` | — (Direct comment card gesture and button; no standard shortcut) | `mobileShell.gesture.swipeLeftComment` | — | — | — | yes | none · none |
 | Apply tighten hit | `tighten.applyHit` | `Enter` | `tightenPanel` | — | — | `podcast-tighten-dialogue` | — | none · none |
 | Skip tighten hit | `tighten.skipHit` | `Backspace` | `tightenPanel` | — | — | `podcast-tighten-dialogue` | — | none · none |
 | Apply eligible tighten hits | `tighten.applyAllSafe` | `Mod+Shift+Enter` | `tightenPanel` | — | — | `podcast-tighten-dialogue` | — | none · none |
