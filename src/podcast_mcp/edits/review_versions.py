@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import logging
+import os
 import shutil
+import tempfile
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -117,7 +119,18 @@ def encode_version_mp3(
     mp3_path = Path(project.workspace_dir) / mp3_rel
     mp3_path.parent.mkdir(parents=True, exist_ok=True)
     engine = eng or FFmpegEngine()
-    engine.export_mp3(wav, mp3_path, bitrate_kbps=_REVIEW_MP3_BITRATE_KBPS)
+    with tempfile.NamedTemporaryFile(
+        prefix=".mix-", suffix=".mp3", dir=mp3_path.parent, delete=False
+    ) as temporary:
+        temporary_path = Path(temporary.name)
+    try:
+        engine.export_mp3(wav, temporary_path, bitrate_kbps=_REVIEW_MP3_BITRATE_KBPS)
+        os.replace(temporary_path, mp3_path)
+    finally:
+        try:
+            temporary_path.unlink(missing_ok=True)
+        except OSError:
+            log.warning("Could not remove temporary review MP3 %s", temporary_path, exc_info=True)
     ver.mp3_relpath = mp3_rel
     return mp3_path.resolve()
 
