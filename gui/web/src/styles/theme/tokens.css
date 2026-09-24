@@ -20,8 +20,8 @@
 
   --s3: calc(var(--s2) * var(--ratio));
 
-  /* Spacing scale: a 4px rhythm (2px hairline step). space-2, space-05, and
-     space-45 are legacy names snapped onto the grid (8/12/16px); new code
+  /* Spacing scale: a 0.25rem rhythm (0.125rem hairline step). space-2,
+     space-05, and space-45 are legacy names snapped onto that grid; new code
      uses space-0/1/3/4/5/6. */
   --space-0: 0.125rem;
   --space-1: 0.25rem;
@@ -171,17 +171,13 @@
      shadows stay at the edges, so they show only when more content exists. */
   --bg-scroll-shadows-raised:
     linear-gradient(var(--color-bg-raised) 30%, transparent) top / 100% 2rem
-      no-repeat local,
+    no-repeat local,
     linear-gradient(transparent, var(--color-bg-raised) 70%) bottom / 100%
-      2rem no-repeat local,
+    2rem no-repeat local,
     radial-gradient(farthest-side at 50% 0, var(--color-shadow), transparent)
-      top / 100% 0.5rem no-repeat,
-    radial-gradient(
-        farthest-side at 50% 100%,
-        var(--color-shadow),
-        transparent
-      )
-      bottom / 100% 0.5rem no-repeat;
+    top / 100% 0.5rem no-repeat,
+    radial-gradient(farthest-side at 50% 100%, var(--color-shadow), transparent)
+    bottom / 100% 0.5rem no-repeat;
   --bg-timeline-skeleton: linear-gradient(
     100deg,
     var(--color-timeline-lane-muted) 25%,

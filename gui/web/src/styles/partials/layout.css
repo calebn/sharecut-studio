@@ -469,7 +469,7 @@
   gap: var(--space-3);
 }
 
-/* Centering needs equal side columns; below ~1360px the zones flow left to
+/* Centering needs equal side columns; below 85rem the zones flow left to
    right instead, with status and tools pushed to the end. */
 @container app (inline-size < 85rem) {
   .transport:not(.transport--collapsed) {

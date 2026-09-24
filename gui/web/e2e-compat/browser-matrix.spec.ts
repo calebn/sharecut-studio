@@ -37,7 +37,7 @@ test.describe("browser compatibility matrix", () => {
 
       await expect(page.locator(".daw-shell--phone")).toBeVisible();
       await expect(page.getByRole("button", { name: "Listen" })).toBeVisible();
-      await expect(page.locator(".mobile-listen-transport")).toBeVisible();
+      await expect(page.locator(".listen-hero")).toBeVisible();
       expect(
         await page.evaluate(() => matchMedia("(pointer: coarse)").matches),
       ).toBe(true);

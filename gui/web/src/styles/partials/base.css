@@ -31,17 +31,17 @@ html {
 }
 
 :where(
-    input:not(
-        [type="checkbox"],
-        [type="radio"],
-        [type="range"],
-        [type="file"],
-        [type="color"],
-        [type="hidden"]
-      ),
-    select,
-    textarea
-  ) {
+  input:not(
+    [type="checkbox"],
+    [type="radio"],
+    [type="range"],
+    [type="file"],
+    [type="color"],
+    [type="hidden"]
+  ),
+  select,
+  textarea
+) {
   min-block-size: var(--control-height-compact);
   padding: var(--space-1) var(--space-3);
   border: 1px solid var(--color-border-strong);
