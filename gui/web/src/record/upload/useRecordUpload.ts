@@ -151,7 +151,12 @@ export function useRecordUpload(args: {
               row.segment_index === segmentIndex &&
               row.participant_id === participantId,
           );
-          if (remoteSeg?.file_ack) {
+          // Local completion is required even when the host reports an ACK.
+          // A pending WAV must still surface recovery instead of looking landed.
+          const recovery = await inspectKeeperRecovery(sink, wavPath, {
+            inspectPending: settled,
+          });
+          if (remoteSeg?.file_ack && recovery.kind === "complete") {
             const n = remoteSeg.expected_parts ?? remoteSeg.acked_parts.length;
             acked += n;
             total += n;
@@ -168,9 +173,6 @@ export function useRecordUpload(args: {
           }
           // Pending segments are never uploaded, and their WAV is only probed
           // once capture has settled: during REC it may still be open.
-          const recovery = await inspectKeeperRecovery(sink, wavPath, {
-            inspectPending: settled,
-          });
           if (recovery.kind !== "complete") {
             allLanded = false;
             allAcked = false;
