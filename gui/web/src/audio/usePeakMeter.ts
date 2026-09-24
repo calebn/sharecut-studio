@@ -11,6 +11,7 @@ export type FrameReader = () => ArrayLike<number>;
 
 export type PeakMeterLevels = MeterState & {
   clearClip: () => void;
+  latchClip: () => void;
 };
 
 export type PeakMeterOptions = StepMeterOptions & {
@@ -81,5 +82,11 @@ export function usePeakMeter(
     setLevels((s) => ({ ...s, clipped: false }));
   }, []);
 
-  return { ...levels, clearClip };
+  const latchClip = useCallback(() => {
+    if (stateRef.current.clipped) return;
+    stateRef.current = { ...stateRef.current, clipped: true };
+    setLevels((s) => ({ ...s, clipped: true }));
+  }, []);
+
+  return { ...levels, clearClip, latchClip };
 }
