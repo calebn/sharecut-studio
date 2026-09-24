@@ -75,8 +75,23 @@
     flex: 0 1 auto;
   }
 
+  /* Fixed-size controls never shrink (they spilled over their neighbours);
+     the title and the agent/session region pill are what give way. */
+  .transport:not(.transport--collapsed) .transport-zone--center {
+    flex: 0 0 auto;
+  }
+
   .transport:not(.transport--collapsed) .transport-zone--end {
     flex: 1 1 auto;
+  }
+
+  .transport:not(.transport--collapsed) .transport-zone--end > * {
+    flex: 0 0 auto;
+  }
+
+  .transport:not(.transport--collapsed) .transport-zone--end > .pill.audition {
+    flex: 0 1 auto;
+    min-inline-size: 3rem;
   }
 }
 
