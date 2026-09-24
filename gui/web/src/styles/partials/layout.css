@@ -463,8 +463,8 @@
 @media (prefers-reduced-motion: no-preference) {
   .stale-highlight {
     transition:
-      outline-color 120ms ease,
-      box-shadow 120ms ease;
+      outline-color var(--motion-hover) var(--motion-ease-out),
+      box-shadow var(--motion-hover) var(--motion-ease-out);
   }
 }
 

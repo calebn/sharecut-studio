@@ -341,8 +341,32 @@ button.pill.pill--info {
       transform var(--motion-toggle) var(--motion-ease-out);
   }
 
+  /* Press physics: sink in fast, release on the toggle timing. */
   .ui-control:active:not(:disabled, [aria-disabled="true"]) {
-    transform: translateY(0.0625rem);
+    transform: translateY(0.0625rem) scale(0.98);
+    transition-duration: var(--motion-press);
+  }
+
+  /* Menus drop from their trigger; transform only, so text never renders
+     half-faded (menus always open below the trigger). */
+  .ui-menu-panel {
+    animation: menu-drop var(--motion-hover) var(--motion-ease-out);
+  }
+
+  .undo-toast {
+    animation: toast-rise var(--motion-panel) var(--motion-ease-out);
+  }
+}
+
+@keyframes menu-drop {
+  from {
+    transform: translateY(-0.25rem);
+  }
+}
+
+@keyframes toast-rise {
+  from {
+    transform: translateY(0.5rem);
   }
 }
 
@@ -607,7 +631,8 @@ button.pill.pill--info {
 
 @media (prefers-reduced-motion: no-preference) {
   .focus-pull-exit {
-    animation: focus-pull-out 200ms ease-out forwards;
+    animation: focus-pull-out var(--motion-panel) var(--motion-ease-out)
+      forwards;
   }
 
   .focus-pull-pending,
@@ -623,7 +648,7 @@ button.pill.pill--info {
 
   .focus-pull-enter {
     visibility: visible;
-    animation: focus-pull-in 250ms ease-out forwards;
+    animation: focus-pull-in var(--motion-state) var(--motion-ease-out) forwards;
   }
 }
 
