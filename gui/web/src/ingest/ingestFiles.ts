@@ -1,3 +1,4 @@
+import { errorMessage } from "../utils/apiError";
 /**
  * Single ingest path for drop / picker / Import command.
  * Upload bytes then document commands (never fork probe/clip logic in the UI).
@@ -138,7 +139,7 @@ export async function ingestFiles(
   } catch (err) {
     // Every call site is fire-and-forget with no rejection handler, so the
     // error must surface here or the UI stalls on "Importing…" forever (#223).
-    const reason = err instanceof Error ? err.message : String(err);
+    const reason = errorMessage(err);
     s.announceStatus(`Import failed: ${reason}`);
   } finally {
     s.setIngestBusy(false);

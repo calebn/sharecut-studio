@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { MIX_MINUS_RAMP_S, MixMinusGraph } from "../../audio/mixMinus";
+import { errorMessage } from "../../utils/apiError";
 import { audioContextCtor } from "../../utils/audio";
 import type { RecordRole, RecordSnapshot } from "../types";
 import { detachE2eRemote, injectE2eRemote, recordE2eEnabled } from "./e2eHook";
@@ -162,7 +163,7 @@ export function useRecordMonitor({
       localStream: streamRef.current,
       send: (payload) => sendRef.current(payload),
       onError: (err) => {
-        setError(err instanceof Error ? err.message : "signal failed");
+        setError(errorMessage(err, "signal failed"));
       },
       onRemoteTrack: (peerId, stream) => {
         if (cancelled) {
@@ -208,7 +209,7 @@ export function useRecordMonitor({
     void ctx.resume().catch(() => undefined);
     const unsub = subscribeRecordSignal((msg) => {
       void mesh.handleSignal(msg).catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : "signal failed");
+        setError(errorMessage(err, "signal failed"));
       });
     });
     syncRosterRef.current();

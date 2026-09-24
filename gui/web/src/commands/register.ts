@@ -52,6 +52,7 @@ import type {
   MobileMode,
   MoreDestination,
 } from "../state/types";
+import { errorMessage } from "../utils/apiError";
 import { bladeTrackIds } from "../utils/bladeTracks";
 import { discreteZoomFactor } from "../utils/zoom";
 import { type CommandContext, evaluateWhen } from "./context";
@@ -131,7 +132,7 @@ async function applyTrackReorder(
     return { status: "ok" };
   } catch (e) {
     revertOptimisticIfUnchanged(previous, seqAtStart);
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = errorMessage(e);
     useDawStore.getState().announceStatus(`Reorder failed: ${msg}`);
     return { status: "disabled", reason: msg };
   }
@@ -220,7 +221,7 @@ async function runDeleteClip(
     store.announceStatus(ripple ? "Ripple deleted clip" : "Deleted clip");
     return { status: "ok" };
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = errorMessage(e);
     useDawStore.getState().announceStatus(`Delete failed: ${msg}`);
     return { status: "disabled", reason: msg };
   }
@@ -610,7 +611,7 @@ export function registerDawCommands(): void {
       store.announceStatus("Cut to clipboard");
       return { status: "ok" };
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = errorMessage(e);
       useDawStore.getState().announceStatus(`Cut failed: ${msg}`);
       return { status: "disabled", reason: msg };
     }
@@ -648,7 +649,7 @@ export function registerDawCommands(): void {
       useDawStore.getState().announceStatus("Pasted at playhead (same track)");
       return { status: "ok" };
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = errorMessage(e);
       useDawStore.getState().announceStatus(`Paste failed: ${msg}`);
       return { status: "disabled", reason: msg };
     }
@@ -713,7 +714,7 @@ export function registerDawCommands(): void {
       store.announceStatus("Mix preview refreshed");
       return { status: "ok" };
     } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
+      const reason = errorMessage(err);
       if (isCurrentProject()) {
         useDawStore.getState().announceStatus(`Refresh failed: ${reason}`);
       }
@@ -787,7 +788,7 @@ export function registerDawCommands(): void {
       await submitHostRecordTransport("Start");
       return { status: "ok" };
     } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
+      const reason = errorMessage(err);
       useDawStore.getState().announceStatus(reason);
       return { status: "disabled", reason };
     }
@@ -797,7 +798,7 @@ export function registerDawCommands(): void {
       await submitHostRecordTransport("Pause");
       return { status: "ok" };
     } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
+      const reason = errorMessage(err);
       useDawStore.getState().announceStatus(reason);
       return { status: "disabled", reason };
     }
@@ -807,7 +808,7 @@ export function registerDawCommands(): void {
       await submitHostRecordTransport("Resume");
       return { status: "ok" };
     } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
+      const reason = errorMessage(err);
       useDawStore.getState().announceStatus(reason);
       return { status: "disabled", reason };
     }
@@ -817,7 +818,7 @@ export function registerDawCommands(): void {
       await submitHostRecordTransport("Stop");
       return { status: "ok" };
     } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
+      const reason = errorMessage(err);
       useDawStore.getState().announceStatus(reason);
       return { status: "disabled", reason };
     }
@@ -837,7 +838,7 @@ export function registerDawCommands(): void {
         .announceStatus(`Landed ${n} clip(s) on the timeline`);
       return { status: "ok" };
     } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
+      const reason = errorMessage(err);
       useDawStore.getState().announceStatus(reason);
       return { status: "disabled", reason };
     }
@@ -877,7 +878,7 @@ export function registerDawCommands(): void {
       s.announceStatus(`Exported ${paths.length} file(s) to export/`);
       return { status: "ok" };
     } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
+      const reason = errorMessage(err);
       useDawStore.getState().announceStatus(`Export failed: ${reason}`);
       return { status: "disabled", reason };
     } finally {
@@ -927,7 +928,7 @@ export function registerDawCommands(): void {
             path = picked.project_path;
           }
         } catch (err) {
-          const reason = err instanceof Error ? err.message : String(err);
+          const reason = errorMessage(err);
           useDawStore.getState().announceStatus(`Open failed: ${reason}`);
           return;
         }
@@ -948,7 +949,7 @@ export function registerDawCommands(): void {
           url.searchParams.set("project", out.project_path);
           window.location.assign(url.toString());
         } catch (err) {
-          const reason = err instanceof Error ? err.message : String(err);
+          const reason = errorMessage(err);
           useDawStore.getState().announceStatus(`Open failed: ${reason}`);
         }
       } finally {
@@ -994,7 +995,7 @@ export function registerDawCommands(): void {
         next.setSelection(null);
         return { status: "ok" };
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = errorMessage(e);
         useDawStore.getState().announceStatus(`Remove failed: ${msg}`);
         return { status: "disabled", reason: msg };
       }
@@ -1166,7 +1167,7 @@ export function registerDawCommands(): void {
         return { status: "ok" };
       } catch (e) {
         revertOptimisticIfUnchanged(previous, seqAtStart);
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = errorMessage(e);
         useDawStore.getState().announceStatus(`Move failed: ${msg}`);
         return { status: "disabled", reason: msg };
       }

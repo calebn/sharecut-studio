@@ -3,7 +3,7 @@ import { refreshProject } from "../api";
 import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
 import { useDaw } from "../state/useDaw";
 import type { ProjectView } from "../types/project";
-import { ApiError } from "../utils/apiError";
+import { ApiError, errorMessage } from "../utils/apiError";
 
 /**
  * Shared busy/error wrapper for inspector/panel mutations that hit the project API.
@@ -40,7 +40,7 @@ export function useProjectMutation(): {
       try {
         return await fn();
       } catch (e) {
-        setErrorState(e instanceof Error ? e.message : String(e));
+        setErrorState(errorMessage(e));
         setErrorCode(e instanceof ApiError ? e.code : null);
         return undefined;
       } finally {

@@ -7,6 +7,7 @@ import type {
   AutomationPoint,
   Selection,
 } from "../types/project";
+import { errorMessage } from "../utils/apiError";
 import {
   clampEnvelopeValue,
   replaceEnvelopePoint,
@@ -113,9 +114,7 @@ export function EnvelopeOverlay({
     } catch (error) {
       setDraft(null);
       setSelection(priorSel.current);
-      announceStatus(
-        error instanceof Error ? error.message : "Could not apply envelope",
-      );
+      announceStatus(errorMessage(error, "Could not apply envelope"));
     } finally {
       commitLock.current = false;
     }

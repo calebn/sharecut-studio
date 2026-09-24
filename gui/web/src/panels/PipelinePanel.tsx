@@ -15,6 +15,7 @@ import type {
   PipelineStepMeta,
 } from "../types/pipeline";
 import { Button, InlineError } from "../ui";
+import { errorMessage } from "../utils/apiError";
 import { formatElapsed } from "../utils/format";
 import {
   isPipelineKindJob,
@@ -259,7 +260,7 @@ export function PipelinePanel() {
       })
       .catch((e) => {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : String(e));
+          setError(errorMessage(e));
         }
       });
     return () => {
@@ -357,7 +358,7 @@ export function PipelinePanel() {
     try {
       await persist(patch);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
     }
   };
 
@@ -383,7 +384,7 @@ export function PipelinePanel() {
       if (seq === persistSeq.current) {
         setCfg(snapshot);
       }
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
     }
   };
 
@@ -412,7 +413,7 @@ export function PipelinePanel() {
         setCfg(await loadPipelineConfig(projectPath));
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
     } finally {
       setAnalyzing(false);
     }
@@ -425,7 +426,7 @@ export function PipelinePanel() {
     try {
       await persist({ reset: true });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
     }
   };
 
@@ -454,7 +455,7 @@ export function PipelinePanel() {
       setPipelineJob(job);
       setActiveTab("pipeline");
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
     } finally {
       setStarting(false);
     }
@@ -488,13 +489,13 @@ export function PipelinePanel() {
           setPipelineJob(job);
           setActiveTab("pipeline");
         } catch (e) {
-          setError(e instanceof Error ? e.message : String(e));
+          setError(errorMessage(e));
         } finally {
           setStarting(false);
         }
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
     }
   };
 
@@ -508,7 +509,7 @@ export function PipelinePanel() {
       }
       setActivityJob(job);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
     }
   };
 

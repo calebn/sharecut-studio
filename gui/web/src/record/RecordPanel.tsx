@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useState } from "react";
 import { hostRecordUploadTransport, loadHostRecordState } from "../api";
 import { useDaw } from "../state/useDaw";
 import { Button, CommandButton, Dialog } from "../ui";
+import { errorMessage } from "../utils/apiError";
 import { startBlockers } from "./blockers";
 import { HostUploadRoster } from "./HostUploadRoster";
 import {
@@ -164,7 +165,7 @@ export function RecordPanel({
     setTransportError(null);
     void submitHostRecordTransport(commandType)
       .catch((err: unknown) => {
-        setTransportError(err instanceof Error ? err.message : String(err));
+        setTransportError(errorMessage(err));
       })
       .finally(() => {
         setTransportBusy(false);
@@ -189,7 +190,7 @@ export function RecordPanel({
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setHydrateError(err instanceof Error ? err.message : String(err));
+          setHydrateError(errorMessage(err));
         }
       });
     return () => {

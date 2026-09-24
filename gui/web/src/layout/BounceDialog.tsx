@@ -3,6 +3,7 @@ import { followExportJob, startBounceJob } from "../api";
 import { seedStudioJob } from "../state/seedStudioJob";
 import { useDaw } from "../state/useDaw";
 import { Button, Dialog, InlineError } from "../ui";
+import { errorMessage } from "../utils/apiError";
 
 type SourceMode = "entire" | "selected" | "soloed";
 
@@ -84,7 +85,7 @@ export function BounceDialog() {
       if (err instanceof DOMException && err.name === "AbortError") {
         return;
       }
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err));
     } finally {
       if (abortRef.current === ac) {
         abortRef.current = null;

@@ -10,6 +10,7 @@ import {
   mergeOfflineSnapshot,
 } from "../state/offlineStore";
 import { useDaw } from "../state/useDaw";
+import { errorMessage } from "../utils/apiError";
 import { audioContextCtor } from "../utils/audio";
 import {
   AUDITION_STOP_EPS_SEC,
@@ -196,7 +197,7 @@ export function useProxyTransport(): boolean {
               try {
                 engine.play(followup.start);
               } catch (e: unknown) {
-                const msg = e instanceof Error ? e.message : String(e);
+                const msg = errorMessage(e);
                 setAudioError(msg);
                 setIsPlaying(false);
                 return;

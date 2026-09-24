@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { loadReviewBootstrap } from "./api";
+import { errorMessage } from "./utils/apiError";
 import "./styles/daw.css";
 import { FeatureProvider } from "./extensions/FeatureProvider";
 import { useFeaturesReady, useHasFeature } from "./extensions/FeaturesContext";
@@ -121,7 +122,7 @@ function AppInner() {
             setError(null);
             return;
           }
-          setError(e instanceof Error ? e.message : String(e));
+          setError(errorMessage(e));
         } finally {
           if (!cancelled) {
             setShareBootstrapping(false);

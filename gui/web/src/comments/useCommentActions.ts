@@ -1,3 +1,4 @@
+import { errorMessage } from "../utils/apiError";
 /**
  * Shared resolve / reply / action-item mutations for host project comments.
  */
@@ -45,7 +46,7 @@ export function useCommentActions(opts?: {
         await fn();
         return true;
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(errorMessage(e));
         return false;
       } finally {
         setBusy(false);

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ErrorScreen, FocusPull, LoadingScreen } from "../ui";
+import { errorMessage } from "../utils/apiError";
 import "../styles/partials/record-entry.css";
 import { useDesktopCloseGuard } from "../desktop/useDesktopCloseGuard";
 import { readLocal, writeLocal } from "../utils/storage";
@@ -69,7 +70,7 @@ export function RecordApp({ token }: { token: string }) {
         if (controller.signal.aborted) {
           return;
         }
-        setBootError(e instanceof Error ? e.message : String(e));
+        setBootError(errorMessage(e));
       });
     return () => {
       controller.abort();
