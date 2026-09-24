@@ -726,7 +726,7 @@ button.history-row {
   gap: var(--space-2);
 }
 
-.pipeline-vocabulary-field > form,
+.pipeline-vocabulary-field form,
 .pipeline-vocabulary-field ul {
   display: flex;
   flex-wrap: wrap;
@@ -737,10 +737,15 @@ button.history-row {
   min-width: 0;
   flex: 1;
   color: var(--text);
-  background: var(--color-field);
+  background: var(--bg-lane);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-3);
+}
+
+.pipeline-vocabulary-field input:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .pipeline-vocabulary-field ul {
