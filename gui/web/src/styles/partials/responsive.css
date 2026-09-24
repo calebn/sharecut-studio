@@ -6,17 +6,9 @@
 
 .timeline-area--fixed-playhead .playhead--fixed {
   position: absolute;
-  /* Center of the time viewport, measured by TimelineView (header plus half
-     the viewport, scrollbar gutter excluded); before the first measure, the
-     center of the area past the header. */
-  inset-inline-start: var(
-    --timeline-fixed-line,
-    calc(
-      var(--timeline-header-offset, 0) +
-      (100% - var(--timeline-header-offset, 0)) /
-      2
-    )
-  );
+  /* Center of the time viewport (header plus half its width), measured by
+     TimelineView with the scroll math, so a scrollbar gutter can't shift it. */
+  inset-inline-start: var(--timeline-fixed-line, 50%);
   inset-block: 0;
   inline-size: 0.125rem;
   /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- user-approved: playhead half-width center offset */

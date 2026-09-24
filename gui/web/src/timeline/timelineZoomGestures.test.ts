@@ -79,7 +79,15 @@ describe("shouldClaimTimelineZoom", () => {
     expect(claim()).toBe(true);
     hit = headers;
     expect(claim()).toBe(false);
-    expect(isPointerOverTimeline(el, 10, 10, headers, headers)).toBe(false);
+    expect(
+      isPointerOverTimeline({
+        el,
+        clientX: 10,
+        clientY: 10,
+        eventTarget: headers,
+        exclude: headers,
+      }),
+    ).toBe(false);
   });
 
   it("refuses when the pointer hit is outside the timeline", () => {
@@ -87,7 +95,14 @@ describe("shouldClaimTimelineZoom", () => {
       configurable: true,
       value: () => outside,
     });
-    expect(isPointerOverTimeline(el, 10, 10, outside)).toBe(false);
+    expect(
+      isPointerOverTimeline({
+        el,
+        clientX: 10,
+        clientY: 10,
+        eventTarget: outside,
+      }),
+    ).toBe(false);
     expect(
       shouldClaimTimelineZoom({
         el,
@@ -300,8 +315,14 @@ describe("attachTimelineZoomGestures", () => {
     expect(applied).toEqual([{ zoom: 40 * ZOOM_STEP, clientX: 200 }]);
   });
 
-  it("re-reads a live hit-test getter after a late timeline-time mount", () => {
-    let hit: HTMLElement | null = null;
+  it("does not claim wheel zoom over the excluded headers (#385)", () => {
+    const headers = document.createElement("div");
+    el.append(headers);
+    let hit: Element = el;
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => hit,
+    });
     attachTimelineZoomGestures(
       el,
       {
@@ -310,40 +331,28 @@ describe("attachTimelineZoomGestures", () => {
           applied.push({ zoom: next, clientX });
         },
       },
-      () => hit,
+      { exclude: () => headers },
     );
+    const wheel = () => {
+      const e = new WheelEvent("wheel", {
+        deltaY: -10,
+        ctrlKey: true,
+        clientX: 120,
+        clientY: 40,
+        cancelable: true,
+        bubbles: true,
+      });
+      el.dispatchEvent(e);
+      return e;
+    };
 
-    const first = new WheelEvent("wheel", {
-      deltaY: -10,
-      ctrlKey: true,
-      clientX: 120,
-      clientY: 40,
-      cancelable: true,
-      bubbles: true,
-    });
-    Object.defineProperty(first, "target", { value: el });
-    el.dispatchEvent(first);
+    expect(wheel().defaultPrevented).toBe(true);
     expect(applied).toHaveLength(1);
 
-    const time = document.createElement("div");
-    document.body.appendChild(time);
-    hit = time;
+    hit = headers;
     applied = [];
-    Object.defineProperty(document, "elementFromPoint", {
-      configurable: true,
-      value: () => el,
-    });
-    const second = new WheelEvent("wheel", {
-      deltaY: -10,
-      ctrlKey: true,
-      clientX: 120,
-      clientY: 40,
-      cancelable: true,
-      bubbles: true,
-    });
-    Object.defineProperty(second, "target", { value: el });
-    el.dispatchEvent(second);
+    // Over the headers the browser keeps the wheel (no page-zoom claim).
+    expect(wheel().defaultPrevented).toBe(false);
     expect(applied).toEqual([]);
-    time.remove();
   });
 });

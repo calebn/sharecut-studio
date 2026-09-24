@@ -3,10 +3,12 @@ import { clientXToTimelineSec } from "./timelinePointer";
 import {
   centerSecToScrollLeft,
   domToLogicalScrollLeft,
+  fixedPlayheadCanvasSize,
   fixedPlayheadLeadPx,
   fixedPlayheadLinePx,
   logicalToDomScrollLeft,
   MIN_TIMELINE_WIDTH_PX,
+  minLogicalScrollLeft,
   scrollLeftToCenterSec,
   timelineCanvasSize,
   timelineHeaderOffsetWidth,
@@ -105,6 +107,25 @@ describe("fixed-playhead geometry", () => {
     expect(scrollLeftToCenterSec(10_000, zoom, viewport, 60)).toBe(60);
     // Below fit the canvas outlasts the session; callers pass the session end.
     expect(scrollLeftToCenterSec(10_000, zoom / 2, viewport, 60)).toBe(60);
+  });
+
+  it("sizes a fixed-playhead canvas to the session, even below fit", () => {
+    // Below fit (5 px/s < 400/60) the range must still end at 60 s.
+    const lead = fixedPlayheadLeadPx(viewport);
+    const { widthPx, durationSec } = fixedPlayheadCanvasSize(60, 5);
+    expect(widthPx).toBe(300);
+    expect(durationSec).toBe(60);
+    const maxDom = lead + widthPx + lead - viewport;
+    const maxLogical = domToLogicalScrollLeft(maxDom, lead);
+    expect(scrollLeftToCenterSec(maxLogical, 5, viewport, 60)).toBe(60);
+    expect(
+      scrollLeftToCenterSec(minLogicalScrollLeft(lead), 5, viewport, 60),
+    ).toBe(0);
+  });
+
+  it("floors logical scroll at −lead, or +0 when unpadded", () => {
+    expect(minLogicalScrollLeft(200)).toBe(-200);
+    expect(Object.is(minLogicalScrollLeft(0), 0)).toBe(true);
   });
 
   it("agrees with the pointer mapping at the viewport's center", () => {
