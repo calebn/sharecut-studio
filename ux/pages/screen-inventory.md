@@ -60,7 +60,7 @@ flowchart TB
 | **Empty / error** | Known `?project=` but shell not yet: real transport chrome, **Loading episode…**, play disabled. Zero tracks after load: ingest “Drop audio files” (not the loading well). Host with no path: home launch. Guest: token/project load failure |
 | **Out of scope** | Full mixer; pipeline step runner (status chips / Pipeline tab) |
 
-The overflow Menu panel caps to remaining space under the trigger (`min(90dvh, var(--menu-available-height))`) and scrolls so **Keyboard shortcuts (?)** stays reachable on short laptop heights, including when guest/follow banners sit above the transport.
+The overflow Menu panel caps to remaining space under the trigger (`min(90dvh, var(--menu-available-height))`) and scrolls so **Keyboard shortcuts (?)** stays reachable on short laptop heights, including when guest/follow banners sit above the transport. The shortcut dialog explains that character keys apply when the timeline or transcript has focus.
 
 **Collapsed when:** phone, tablet compact, or bar width ≤720px.
 
