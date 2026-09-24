@@ -1,5 +1,6 @@
 import type { CSSProperties, DragEvent, MouseEvent } from "react";
 import { useLongPress } from "../hooks/useLongPress";
+import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { canIngestMedia } from "../shareMode";
 import { useDaw } from "../state/useDaw";
@@ -8,7 +9,6 @@ import type { TrackView } from "../types/project";
 import { trackHasSourceAudio } from "../utils/projectMedia";
 import {
   reasonChipLabel,
-  staleRenderBreakdown,
   wholeTrackReasonsForTrack,
 } from "../utils/staleRender";
 import { TrackMuteSoloButtons } from "./TrackMuteSoloButtons";
@@ -71,7 +71,7 @@ export function TrackHeader({
   const mayReorder =
     reorderEnabled && canIngestMedia(projectPath, guestMode, shareCapabilities);
   const muted = Boolean(viewerMute[track.id]) || track.muted;
-  const breakdown = staleRenderBreakdown(project);
+  const breakdown = useStaleRenderBreakdown(project);
   // Same source as the status bar and transport: a track with no audio has
   // nothing to render (no dot), and "stale" means the breakdown says so.
   const stemClass = !trackHasSourceAudio(track)

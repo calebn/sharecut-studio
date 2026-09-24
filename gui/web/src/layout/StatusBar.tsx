@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
 import { useDaw } from "../state/useDaw";
 import { selectUnmappedPending } from "../utils/edits";
 import { pipelineChipOpensPanel } from "../utils/pipeline";
@@ -6,7 +7,6 @@ import {
   pipelineKindLabel,
   pipelineStatusLabel,
 } from "../utils/pipelineProgress";
-import { staleRenderBreakdown } from "../utils/staleRender";
 import { PipelineStatusChip } from "./PipelineStatusChip";
 
 export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
@@ -44,6 +44,9 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
     announceStatus(parts.join(": "));
   }, [activityRunningCount, announceStatus, jobKind, jobStatus, jobMessage]);
 
+  // Same source as the transport pill, so the two never disagree.
+  const render = useStaleRenderBreakdown(project);
+
   if (!project) {
     return (
       <footer className="status-bar">
@@ -64,8 +67,6 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
   const unmappable = selectUnmappedPending(pending_edits).length;
   const narrow = shellBreakpoint === "phone" || shellBreakpoint === "tablet";
   const viewers = sessionClients.filter((c) => c.role !== "agent").length;
-  // Same source as the transport pill, so the two never disagree.
-  const render = staleRenderBreakdown(project);
   const reconcileHighlight = highlightStaleRender && render.reconcileStale;
 
   return (

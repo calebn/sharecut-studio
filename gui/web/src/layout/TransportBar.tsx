@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { execute } from "../commands/execute";
 import { FEATURE_SHARE_UI_MENU } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
+import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
 import { useTheme } from "../hooks/useTheme";
 import { displayShortcutFor } from "../keymap/registry";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
@@ -30,7 +31,6 @@ import {
   ToggleButton,
 } from "../ui";
 import { audioErrorLabel } from "../utils/audioErrorLabel";
-import { staleRenderBreakdown } from "../utils/staleRender";
 import { transportTimecode } from "../utils/time";
 import { AvatarStack } from "./AvatarStack";
 import { OverlayLegend } from "./OverlayLegend";
@@ -109,7 +109,8 @@ export function TransportBar({
   const collapsed = compact || narrow;
   const loading = project == null;
   const emptyProject = (project?.tracks.length ?? 0) === 0;
-  const breakdown = project ? staleRenderBreakdown(project) : null;
+  const projectBreakdown = useStaleRenderBreakdown(project);
+  const breakdown = project ? projectBreakdown : null;
   const stale = breakdown?.stale ?? false;
   const mayRefresh = canRefreshMix(projectPath, guestMode, shareCapabilities);
   const mayIngest = canIngestMedia(projectPath, guestMode, shareCapabilities);

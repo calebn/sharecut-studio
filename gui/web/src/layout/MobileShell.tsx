@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { execute } from "../commands/execute";
 import { FEATURE_SHARE_UI_BANNER } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
+import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
 import { useTimelineFocusRegion } from "../hooks/useTimelineFocusRegion";
 import { useTwoFingerTap } from "../hooks/useTwoFingerTap";
 import { Inspector } from "../inspector/Inspector";
@@ -37,7 +38,6 @@ import {
   ToggleButton,
 } from "../ui";
 import { isPipelineSlotBusy, pipelineChipOpensPanel } from "../utils/pipeline";
-import { staleRenderBreakdown } from "../utils/staleRender";
 import { formatTimecodePair, transportTimecode } from "../utils/time";
 import { AvatarStack } from "./AvatarStack";
 import { EditingToolRail } from "./EditingToolRail";
@@ -155,7 +155,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
     activityJob,
     activityRunningCount,
   } = useDaw();
-  const stale = useMemo(() => staleRenderBreakdown(project).stale, [project]);
+  const stale = useStaleRenderBreakdown(project).stale;
 
   if (!project) {
     return (
