@@ -629,8 +629,10 @@ class RecordLandingService:
                     self._rollback_stale(stale)
                 except Exception:
                     # Confirmed items already committed and were marked landed;
-                    # the stale rows stay pending, so the next land() replaces
-                    # their registration. Don't fail a successful land.
+                    # don't fail a successful land. A re-ACK'd row stays pending,
+                    # so the next land() replaces its registration. A revoked
+                    # room-tone row is deleted, so its stale registration stays
+                    # until removed by hand or undone through history.
                     log.exception(
                         "record land stale ACK rollback failed session=%s", self.session_id
                     )
