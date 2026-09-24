@@ -41,7 +41,7 @@ Category SOTA is **Riverside / Zencastr / SquadCast / Descript Rooms**, not Zoom
 - Join link is a **studio/room**, not a review/listen link.
 - Lobby: **name, headphones check, mic test, device picker, optional 3 s room
   tone** before the host hits Record.
-- While recording: persistent **REC** indicator and a start notification.
+- While recording: persistent **REC** indicator with a visible red dot and running clock in the host transport, plus a start notification. The dot stays static for reduced-motion users; PAUSED and local capture failure remain distinct text states.
 - **Live timestamped notes** are table stakes: Riverside markers (`M` key →
   dots on the editor timeline), Zencastr Footnotes (host-only), Descript Rooms
   Editor Comments (host/co-host/producer; private from guests; land in the

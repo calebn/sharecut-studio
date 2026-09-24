@@ -46,6 +46,29 @@ describe("TransportBar collapsed", () => {
     ).toHaveTextContent("REC — local capture failed");
   });
 
+  it("keeps the recording control visible and accessible in a compact transport", async () => {
+    useRecordHostStore
+      .getState()
+      .setSnapshot(
+        recordSnapshot({ state: "recording", recording_ms: 12_000 }),
+      );
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <TransportBar compact />
+      </DawProvider>,
+    );
+    const control = screen.getByRole("button", {
+      name: "Recording — open record panel",
+    });
+    expect(control).toHaveTextContent("REC");
+    expect(control).toHaveTextContent("0:12");
+    expect(control.querySelector(".record-rec-dot")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+    await expectNoA11yViolations(container);
+  });
+
   it("keeps Comment and Fit as primary controls when compact", async () => {
     render(
       <DawProvider

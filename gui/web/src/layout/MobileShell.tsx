@@ -16,6 +16,7 @@ import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { isHostOnlyTab } from "../presence/followSync";
 import { PresenceGhostLayer } from "../presence/PresenceGhostLayer";
 import { usePresenceCursorSource } from "../presence/usePresenceCursorSource";
+import { RecordTransportChip } from "../record/RecordTransportChip";
 import {
   canApplyPass12,
   canIngestMedia,
@@ -186,6 +187,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
   return (
     <div className="mobile-listen">
       <h1 className="sr-only">{project.meta.name}</h1>
+      <RecordTransportChip />
       <div className="mobile-listen-transport">
         <CommandButton
           bare

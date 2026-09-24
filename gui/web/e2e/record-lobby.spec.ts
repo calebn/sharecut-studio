@@ -680,6 +680,19 @@ test.describe("record lobby", () => {
           .getByRole("button", { name: "Close", exact: true })
           .click();
         await expect(roomDlg).toBeHidden();
+        const recChip = host.getByRole("button", {
+          name: "Recording — open record panel",
+        });
+        await expect(recChip).toBeVisible();
+        await expect(recChip.locator(".record-rec-dot")).toBeVisible();
+        await host.emulateMedia({ reducedMotion: "reduce" });
+        await expect(recChip.locator(".record-rec-dot")).toHaveCSS(
+          "animation-name",
+          "none",
+        );
+        await host.setViewportSize({ width: 390, height: 844 });
+        await expect(recChip).toBeVisible();
+        await expect(recChip).toContainText(/REC.*\d+:\d\d/);
 
         await host.evaluate(() => {
           (window as unknown as { __denyHostRetry?: boolean }).__denyHostRetry =
@@ -699,6 +712,9 @@ test.describe("record lobby", () => {
             name: "Local capture failed — open record panel",
           }),
         ).toContainText("REC — local capture failed");
+        await expect(
+          host.locator(".record-rec-chip .record-rec-dot"),
+        ).toHaveCount(0);
         await expect(
           roomDlg.getByText(
             "Microphone disconnected. Local recording is paused.",

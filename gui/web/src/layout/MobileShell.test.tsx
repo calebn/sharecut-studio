@@ -3,10 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
+import { useRecordHostStore } from "../record/hostStore";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
-import { minimalProject } from "../test/fixtures";
+import { minimalProject, recordSnapshot } from "../test/fixtures";
 import { CheatsheetDialogs } from "./CheatsheetDialogs";
 import { MobileShell } from "./MobileShell";
 
@@ -35,6 +36,8 @@ describe("MobileShell", () => {
     useDawStore.getState().setMobileMode("listen");
     useDawStore.getState().setGesturesSheetOpen(false);
     useDawStore.getState().setCommandPaletteOpen(false);
+    useRecordHostStore.getState().setSnapshot(null);
+    useRecordHostStore.getState().setCaptureHealth(null);
   });
 
   afterEach(() => {
@@ -63,6 +66,24 @@ describe("MobileShell", () => {
     );
     expect(screen.getByRole("heading", { level: 1 })).toHaveClass("sr-only");
     await expectNoA11yViolations(nav);
+  });
+
+  it("shows recording status in Listen mode without a header transport", async () => {
+    useRecordHostStore
+      .getState()
+      .setSnapshot(recordSnapshot({ state: "recording" }));
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <MobileShell />
+      </DawProvider>,
+    );
+    expect(container.querySelector("header.transport")).toBeNull();
+    const chip = screen.getByRole("button", {
+      name: "Recording — open record panel",
+    });
+    expect(chip).toHaveTextContent("REC");
+    expect(chip.querySelector(".record-rec-dot")).toBeTruthy();
+    await expectNoA11yViolations(container);
   });
 
   it("does not show Stale render for a new empty project", () => {

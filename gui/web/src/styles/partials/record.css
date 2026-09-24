@@ -36,6 +36,28 @@
   font-weight: 600;
 }
 
+.record-rec-dot {
+  display: inline-block;
+  inline-size: 0.625rem;
+  block-size: 0.625rem;
+  margin-inline-end: var(--space-2);
+  border-radius: 50%;
+  background: var(--color-danger);
+  animation: record-rec-pulse 1.8s ease-out infinite;
+}
+
+@keyframes record-rec-pulse {
+  50% {
+    box-shadow: 0 0 0 0.3125rem var(--color-danger-muted);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .record-rec-dot {
+    animation: none;
+  }
+}
+
 .record-rec-label[data-state="recording"] {
   color: var(--color-danger);
 }
@@ -65,10 +87,26 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  min-block-size: var(--touch-min);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-xl);
+  background: var(--color-bg-elevated);
+  font-size: var(--font-size-ui);
+  font-weight: 700;
+}
+
+.record-rec-chip[data-state="recording"] {
+  border-color: var(--color-danger-subtle);
+  background: var(--color-danger-muted);
 }
 
 .record-rec-chip .record-indicator {
   gap: var(--space-2);
+}
+
+.record-rec-chip .record-clock {
+  color: var(--color-text-primary);
 }
 
 .record-shell meter {

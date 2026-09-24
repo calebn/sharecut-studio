@@ -51,6 +51,9 @@ export function RecIndicator({
   return (
     <div className="cluster record-indicator" role="status">
       <span className="record-rec-label" data-state={snapshot.state}>
+        {snapshot.state === "recording" && !captureFailed && !capturePending ? (
+          <span className="record-rec-dot" aria-hidden="true" />
+        ) : null}
         {label}
       </span>
       <span className="record-clock" aria-live="off">
