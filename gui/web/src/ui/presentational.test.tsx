@@ -4,6 +4,7 @@ import { expectNoA11yViolations } from "../test/a11y";
 import {
   EmptyState,
   Pill,
+  pillClassName,
   SegmentedControl,
   Timecode,
   ToggleButton,
@@ -53,6 +54,13 @@ describe("Pill", () => {
     const [ok, neutral] = container.querySelectorAll(".pill");
     expect(ok).toHaveClass("pill", "ok");
     expect(neutral.className).toBe("pill");
+  });
+
+  it("shares the tone mapping with action pills", () => {
+    expect(pillClassName("warning", "pill--action", false)).toBe(
+      "pill warning pill--action",
+    );
+    expect(pillClassName()).toBe("pill");
   });
 });
 

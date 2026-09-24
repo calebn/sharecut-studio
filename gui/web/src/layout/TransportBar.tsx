@@ -21,6 +21,7 @@ import {
   MenuItem,
   MenuSection,
   Pill,
+  pillClassName,
   SegmentedControl,
   Timecode,
   ToggleButton,
@@ -293,14 +294,11 @@ export function TransportBar({
           <CommandButton
             bare
             commandId="render.refreshMix"
-            className={[
-              "pill",
+            className={pillClassName(
               "warning",
               mayRefresh ? "pill--action" : "pill--info",
-              renderPreviewBusy ? "pill--busy" : "",
-            ]
-              .filter(Boolean)
-              .join(" ")}
+              renderPreviewBusy && "pill--busy",
+            )}
             title={staleTitle}
             aria-label={staleAria}
             aria-busy={renderPreviewBusy || undefined}
