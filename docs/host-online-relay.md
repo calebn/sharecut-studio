@@ -568,6 +568,9 @@ src/podcast_mcp/
   an offline coolname (beyond live refuse-remap).
 - **Proxy path allowlist**: relay rejects `..` / encoded traversal; tunnel maps only to
   `/assets`, `/r/{token}`, `/rec/{token}`, `/api/review/{token}`, `/api/rec/{token}`, `/mcp/{token}` (see `util/proxy_paths.py`).
+  The seeded invariant test in `tests/test_proxy_paths.py` checks mixed encodings,
+  separators, and repeated slashes through the tunnel mapper, including that
+  no mapped path reaches host-only APIs.
 - **Body / WS size**: `PODCAST_RELAY_MAX_BODY_BYTES` (4 MiB), `PODCAST_RELAY_WS_MAX_SIZE`
   (16 MiB), GUI `PODCAST_GUI_MAX_BODY_BYTES` (pure ASGI `MaxBodySizeMiddleware` on the host),
   MCP `PODCAST_REMOTE_MCP_MAX_BODY_BYTES` (1 MiB). Record keeper `POST …/upload`

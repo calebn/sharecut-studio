@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import posixpath
+import random
+
 import pytest
 
+from podcast_mcp.services.tunnel import _map_local_path
 from podcast_mcp.util.proxy_paths import (
     UnsafeProxyPath,
     assert_allowed_local_gui_path,
@@ -11,6 +15,70 @@ from podcast_mcp.util.proxy_paths import (
     is_allowed_local_gui_path,
     proxy_path_is_safe,
 )
+
+_RELAY_PREFIXES = ("r/", "rec/", "api/review/", "api/rec/", "mcp/")
+_HOST_ONLY_APIS = ("/api/export", "/api/pipeline", "/api/diagnostics")
+
+
+def _relay_suffixes() -> list[str]:
+    """Build a reproducible mix of ordinary and adversarial relay suffixes."""
+    rng = random.Random(247)
+    parts = (
+        "daw",
+        "project",
+        "assets/app.js",
+        "upload",
+        "mcp",
+        "",
+        ".",
+        "..",
+        "%2e%2E",
+        "%252e%252e",
+        "%2E.",
+        ".%2e",
+        "//",
+        ";api/export",
+        "?next=/api/pipeline",
+        "api/diagnostics",
+        "../api/export",
+    )
+    suffixes = [prefix + part for prefix in _RELAY_PREFIXES for part in parts]
+    for prefix in _RELAY_PREFIXES:
+        for _ in range(100):
+            suffixes.append(prefix + "/".join(rng.choices(parts, k=rng.randint(1, 4))))
+    return suffixes
+
+
+@pytest.mark.parametrize("suffix", _relay_suffixes())
+def test_relay_mapping_preserves_guest_path_allowlist(suffix: str):
+    """Every mapped path remains guest-scoped, including mixed encodings."""
+    token = "test-token"
+    try:
+        mapped = _map_local_path(suffix, token)
+    except UnsafeProxyPath:
+        return
+
+    assert is_allowed_local_gui_path(mapped, token), (suffix, mapped)
+    normalized = posixpath.normpath(mapped.split("?", 1)[0])
+    assert all(
+        normalized != host_api and not normalized.startswith(host_api + "/")
+        for host_api in _HOST_ONLY_APIS
+    ), (suffix, mapped)
+
+
+@pytest.mark.parametrize(
+    "suffix",
+    [
+        "r/../api/export",
+        "rec/%2e%2E/api/pipeline",
+        "api/review/%252e%252e/api/export",
+        "api/rec/.%2e/api/diagnostics",
+        "mcp/%2E./api/export",
+    ],
+)
+def test_relay_mapping_rejects_named_traversal_forms(suffix: str):
+    with pytest.raises(UnsafeProxyPath):
+        _map_local_path(suffix, "test-token")
 
 
 def test_proxy_path_rejects_dotdot_and_encoded():
