@@ -3,6 +3,7 @@ import { execute } from "../commands/execute";
 import { FEATURE_SHARE_UI_MENU } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
 import { useTheme } from "../hooks/useTheme";
+import { displayShortcutFor } from "../keymap/registry";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { RecordTransportChip } from "../record/RecordTransportChip";
 import {
@@ -171,7 +172,7 @@ export function TransportBar({
   );
 
   const staleTitle = mayRefresh
-    ? `${breakdown?.summary ?? ""}. Click or Mod+B to refresh mix.`
+    ? `${breakdown?.summary ?? ""}. Click or ${displayShortcutFor("render.refreshMix") ?? "use the Menu"} to refresh mix.`
     : (breakdown?.summary ?? "");
   const staleAria = renderPreviewBusy
     ? "Refreshing mix preview"

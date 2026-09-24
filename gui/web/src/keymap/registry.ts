@@ -13,6 +13,7 @@
 
 import type { ContextPredicateId } from "../commands/types";
 import { useDawStore } from "../state/dawStore";
+import { isApplePlatform } from "../utils/platform";
 import { getKeymapOverride } from "./remaps";
 
 export type KeymapCategory =
@@ -542,11 +543,8 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
 ] as const;
 
 function shortcutParts(cmd: KeymapCommand): string[] {
-  const override = getKeymapOverride(cmd.id);
-  if (override?.length) {
-    return [...override];
-  }
-  const primary = cmd.keys[0] ?? "";
+  // A remap replaces the key only; Mod/Shift still apply (see effectiveKeys).
+  const primary = getKeymapOverride(cmd.id)?.[0] ?? cmd.keys[0] ?? "";
   if (primary === " " || primary === "Space") {
     return ["Space"];
   }
@@ -596,6 +594,36 @@ export function displayShortcutKeys(
     return modifier ?? key;
   });
   return apple ? parts.join("") : parts.join("+");
+}
+
+/** Menu-form shortcut for a command id, or undefined when it has no binding. */
+export function displayShortcutFor(
+  commandId: string,
+  apple: boolean = isApplePlatform(),
+): string | undefined {
+  const cmd = keymapCommandById(commandId);
+  return cmd ? displayShortcutKeys(cmd, apple) : undefined;
+}
+
+const ARIA_MODIFIERS_APPLE: Record<string, string> = { Mod: "Meta" };
+const ARIA_MODIFIERS_OTHER: Record<string, string> = { Mod: "Control" };
+
+/** `aria-keyshortcuts` value (e.g. `Meta+Shift+B`) for a command id. */
+export function ariaKeyShortcutsFor(
+  commandId: string,
+  apple: boolean = isApplePlatform(),
+): string | undefined {
+  const cmd = keymapCommandById(commandId);
+  if (!cmd) {
+    return undefined;
+  }
+  const modifiers = apple ? ARIA_MODIFIERS_APPLE : ARIA_MODIFIERS_OTHER;
+  return shortcutParts(cmd)
+    .map(
+      (part) =>
+        modifiers[part] ?? (part.length === 1 ? part.toUpperCase() : part),
+    )
+    .join("+");
 }
 
 export function keymapCommandById(id: string): KeymapCommand | undefined {

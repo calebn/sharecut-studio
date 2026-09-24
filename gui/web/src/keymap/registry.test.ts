@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  ariaKeyShortcutsFor,
+  displayShortcutFor,
   displayShortcutKeys,
   formatShortcutKeys,
   KEYMAP_COMMANDS,
@@ -250,5 +252,47 @@ describe("displayShortcutKeys", () => {
     expect(
       displayShortcutKeys(keymapCommandById("transport.togglePlay")!, false),
     ).toBe("Space");
+  });
+});
+
+describe("remapped shortcuts", () => {
+  it("replace the key only, so display and matching agree", () => {
+    _resetKeymapOverridesForTests();
+    setKeymapOverride("export.bounce", ["X"]);
+    const bounce = keymapCommandById("export.bounce")!;
+    expect(formatShortcutKeys(bounce)).toBe("Mod+Shift+X");
+    expect(displayShortcutKeys(bounce, true)).toBe("⌘⇧X");
+    expect(
+      matchKeymapCommand(
+        keyEvent({ key: "X", code: "KeyX", metaKey: true, shiftKey: true }),
+      )?.id,
+    ).toBe("export.bounce");
+    // Bare X alone must not look bound in menus nor fire Bounce.
+    expect(
+      matchKeymapCommand(keyEvent({ key: "x", code: "KeyX" }))?.id,
+    ).not.toBe("export.bounce");
+    _resetKeymapOverridesForTests();
+  });
+
+  it("normalize a typed combo to its key", () => {
+    _resetKeymapOverridesForTests();
+    setKeymapOverride("export.bounce", ["Mod+Shift+Y"]);
+    expect(displayShortcutFor("export.bounce", false)).toBe("Ctrl+Shift+Y");
+    expect(
+      matchKeymapCommand(
+        keyEvent({ key: "Y", code: "KeyY", ctrlKey: true, shiftKey: true }),
+      )?.id,
+    ).toBe("export.bounce");
+    _resetKeymapOverridesForTests();
+  });
+});
+
+describe("shortcut helpers by command id", () => {
+  it("format menu labels and aria-keyshortcuts per platform", () => {
+    expect(displayShortcutFor("export.bounce", true)).toBe("⌘⇧B");
+    expect(displayShortcutFor("not.a.command")).toBeUndefined();
+    expect(ariaKeyShortcutsFor("export.bounce", true)).toBe("Meta+Shift+B");
+    expect(ariaKeyShortcutsFor("export.bounce", false)).toBe("Control+Shift+B");
+    expect(ariaKeyShortcutsFor("transport.togglePlay", true)).toBe("Space");
   });
 });

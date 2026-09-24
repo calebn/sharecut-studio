@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
-import { displayShortcutKeys, keymapCommandById } from "../keymap/registry";
-import { isApplePlatform } from "../utils/platform";
+import { ariaKeyShortcutsFor, displayShortcutFor } from "../keymap/registry";
 import { MenuItem } from "./Menu";
 import { useCommand } from "./useCommand";
 
@@ -43,9 +42,9 @@ export function CommandMenuItem({
 }: Props) {
   const { run, enabled, label } = useCommand(commandId);
   const disabled = respectWhen && !enabled;
-  const binding = showShortcut ? keymapCommandById(commandId) : undefined;
-  const shortcut = binding
-    ? displayShortcutKeys(binding, isApplePlatform())
+  const shortcut = showShortcut ? displayShortcutFor(commandId) : undefined;
+  const keyShortcuts = showShortcut
+    ? ariaKeyShortcutsFor(commandId)
     : undefined;
 
   return (
@@ -58,6 +57,7 @@ export function CommandMenuItem({
       onFocus={onFocus}
       onBlur={onBlur}
       shortcut={shortcut}
+      keyShortcuts={keyShortcuts}
       onSelect={() => {
         onSelect?.();
         void run(args, { skipWhen: !respectWhen });
