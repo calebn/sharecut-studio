@@ -38,7 +38,7 @@ export const Pressed: Story = {
 
 export const AllStates: Story = {
   render: () => (
-    <div style={{ display: "flex", gap: "var(--space-2)" }}>
+    <div style={{ display: "flex", gap: "var(--space-3)" }}>
       <ToggleButton pressed={false}>Off</ToggleButton>
       <ToggleButton pressed>On</ToggleButton>
       <ToggleButton pressed={false} quiet>

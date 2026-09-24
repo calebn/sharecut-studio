@@ -82,7 +82,7 @@
 .command-palette-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  gap: var(--space-3);
   margin-bottom: var(--space-4);
 }
 
@@ -90,7 +90,7 @@
   font: inherit;
   font-size: var(--font-size-small);
   text-transform: capitalize;
-  padding: var(--space-1) var(--space-05);
+  padding: var(--space-1) var(--space-4);
   border-radius: var(--radius-md);
   border: 1px solid var(--color-overlay-white-15);
   background: transparent;
@@ -110,14 +110,14 @@
 .command-palette-remap-toggle {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
   font-size: var(--font-size-ui);
   opacity: 0.85;
   cursor: pointer;
 }
 
 .command-palette-section h3 {
-  margin: var(--space-4) 0 var(--space-2);
+  margin: var(--space-4) 0 var(--space-3);
   font-size: var(--font-size-small);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -144,7 +144,7 @@
   display: flex;
   justify-content: space-between;
   gap: var(--space-5);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-3);
   border: 0;
   border-radius: var(--radius-md);
   background: transparent;
@@ -165,14 +165,14 @@
 .command-palette-remap {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
   font-size: var(--font-size-small);
   opacity: 0.85;
 }
 
 .command-palette-remap input {
   width: 3.5rem;
-  padding: var(--space-0) var(--space-2);
+  padding: var(--space-0) var(--space-3);
 }
 
 .bounce-dialog-panel {
@@ -226,7 +226,7 @@
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-3);
   font: inherit;
 }
 
@@ -254,7 +254,7 @@
 }
 
 .share-dialog-heading {
-  margin: var(--space-5) 0 var(--space-2);
+  margin: var(--space-5) 0 var(--space-3);
   font-size: var(--font-size-body);
   font-weight: 600;
 }
@@ -290,7 +290,7 @@
 .share-dialog-row {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: var(--space-05) var(--space-4);
+  padding: var(--space-4) var(--space-4);
   display: grid;
   gap: var(--space-3);
 }
@@ -311,7 +311,7 @@
 .share-dialog-row-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  gap: var(--space-3);
 }
 
 .host-mcp-lead {
@@ -327,7 +327,7 @@
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-3);
   font-family: ui-monospace, monospace;
   font-size: var(--font-size-caption);
   line-height: 1.4;
