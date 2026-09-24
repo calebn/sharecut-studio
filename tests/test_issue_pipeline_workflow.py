@@ -306,7 +306,7 @@ def test_stalled_prs_resume_without_skipping_review() -> None:
     assert "!gateOnly && round <= MAX_ROUNDS" in script
     # Resumed lanes re-claim the issue and never pick up PRs with owner hold labels.
     resume = script[script.index("async function resumeLane(") :]
-    assert resume.index("await claimIssue(issue)") < resume.index("finishLane(")
+    assert resume.index("await claimIssue(issue, { resumePr: r.pr })") < resume.index("finishLane(")
     assert "that do NOT carry ${HOLD_LABELS.join(' or ')}" in script
 
 
@@ -353,6 +353,9 @@ def test_concurrent_runs_do_not_cancel_each_other() -> None:
     assert "lastGate.unresolved_threads > 0 ? 'review' : 'gate'" in script
     # Explicitly named issues skip triage, so the claim refuses closed issues and open-PR issues.
     assert "If the issue is CLOSED, or an open PR links it" in script
+    # A resume lane's own PR links the issue by design; only a different open PR blocks the claim.
+    assert "claimIssue(issue, { resumePr: r.pr })" in script
+    assert "refuse only if a DIFFERENT open PR links it" in script
 
 
 def test_feedback_plan_must_cover_every_open_thread() -> None:

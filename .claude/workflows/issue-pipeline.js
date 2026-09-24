@@ -351,11 +351,11 @@ ${CLAIM_MARK} token=<token> stage=<stage> heartbeat=<UTC ISO time> released=<no|
 🤖 Claimed by issue-pipeline run \`<token>\` · stage: <stage> · heartbeat: <UTC ISO time>
 A claim is LIVE when released=no and its heartbeat is less than ${STALE_HOURS} hours old.`
 
-function claimIssue(issue) {
+function claimIssue(issue, { resumePr } = {}) {
   return stage(
     `Claim ${REPO} issue #${issue.number} for this pipeline run, safely against other runs/agents.
 ${CLAIM_FORMAT}
-0. \`gh issue view ${issue.number} -R ${REPO} --json state,closedByPullRequestsReferences\` and \`gh pr list -R ${REPO} --state open --search "${issue.number} in:body" --json number,body\`. If the issue is CLOSED, or an open PR links it (Fixes/Closes/Resolves #${issue.number}), do not claim: return won=false with that reason (explicitly named issues skip triage, so this is the only guard against duplicate PRs).
+0. \`gh issue view ${issue.number} -R ${REPO} --json state,closedByPullRequestsReferences\` and \`gh pr list -R ${REPO} --state open --search "${issue.number} in:body" --json number,body\`. If the issue is CLOSED, or an open PR links it (Fixes/Closes/Resolves #${issue.number}), do not claim: return won=false with that reason (explicitly named issues skip triage, so this is the only guard against duplicate PRs).${resumePr ? ` Exception: this run is RESUMING PR #${resumePr}, so that PR linking the issue is expected and is not a reason to refuse; refuse only if a DIFFERENT open PR links it.` : ''}
 1. Make a token: \`echo "$(date -u +%Y%m%dT%H%M%SZ)-$RANDOM$RANDOM"\`.
 2. List comments: \`gh api repos/${REPO}/issues/${issue.number}/comments --paginate --jq '.[] | {id, created_at, body}'\`. If any LIVE claim exists, do not claim: return won=false, reason naming its token.
 3. \`gh issue edit ${issue.number} -R ${REPO} --add-label ${CLAIM_LABEL} --add-label ${STAGE_LABELS.planning}\` and post the claim comment (stage=planning, heartbeat=now, released=no) with \`gh api repos/${REPO}/issues/${issue.number}/comments -f body=…\`; note its id.
@@ -941,7 +941,7 @@ if (A.dryRun || (!selected.length && !toResume.length)) {
 
 async function resumeLane(r) {
   const issue = { number: r.issue }
-  const claim = await claimIssue(issue)
+  const claim = await claimIssue(issue, { resumePr: r.pr })
   if (!claim || !claim.won) return { issue: r.issue, pr: r.pr, merged: false, skipped: true, reason: `not claimed: ${claim ? claim.reason : 'claim agent died'}` }
   await setStage(issue, r.pr, r.resume === 'gate' ? 'merging' : 'review')
   return finishLane(issue, r.pr, r.branch, r.head_sha, { gateOnly: r.resume === 'gate' })
