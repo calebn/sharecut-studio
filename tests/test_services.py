@@ -259,6 +259,17 @@ def test_transcript_service_transcribe_all_and_combined_get(minimal_project):
     assert "hi" in body
 
 
+def test_transcript_combined_get_does_not_change_unsaved_project(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.project.transcripts = [
+        Transcript(track_id="host", words=[TranscriptWord(text="hi", start=0.0, end=0.5)])
+    ]
+    ws.save()
+    assert ws.project.combined_transcript is None
+    assert "hi" in TranscriptService(ws).get(combined=True)
+    assert ws.project.combined_transcript is None
+
+
 def test_transcript_service_single_track_returns_only_processed_id(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     ws.project.transcripts = [Transcript(track_id="guest", words=[])]
