@@ -41,6 +41,9 @@ REVIEW_ARTIFACTS_RELDIR = "artifacts/review"
 
 DirectoryIdentity = tuple[int, int]
 
+_QUARANTINE_PREFIX = ".failed-review-"
+_QUARANTINE_ENTRY = "media"
+
 
 def _dir_identity(metadata: os.stat_result) -> DirectoryIdentity:
     return (metadata.st_dev, metadata.st_ino)
@@ -207,10 +210,10 @@ def clean_created_version(version_dir: Path, identity: DirectoryIdentity) -> Non
         if not _is_created_dir(current, identity):
             log.warning("Review version directory changed; keeping %s", version_dir)
             return
-        quarantine = Path(tempfile.mkdtemp(prefix=".failed-review-", dir=root))
+        quarantine = Path(tempfile.mkdtemp(prefix=_QUARANTINE_PREFIX, dir=root))
         if pinned:
             quarantine_fd = _open_pinned_dir(quarantine)
-        moved: str | Path = "media" if pinned else quarantine / "media"
+        moved: str | Path = _QUARANTINE_ENTRY if pinned else quarantine / _QUARANTINE_ENTRY
         os.rename(public, moved, src_dir_fd=root_fd, dst_dir_fd=quarantine_fd)
         after = os.stat(moved, dir_fd=quarantine_fd, follow_symlinks=False)
         if not _is_created_dir(after, identity):

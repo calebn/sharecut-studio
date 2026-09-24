@@ -358,7 +358,10 @@ def test_failed_publish_does_not_delete_replacement_directory(
 
     def replace_before_quarantine(src, dst, *args, **kwargs):
         nonlocal raced
-        is_target = Path(os.fspath(src)).name == "race" and Path(os.fspath(dst)).name == "media"
+        is_target = (
+            Path(os.fspath(src)).name == "race"
+            and Path(os.fspath(dst)).name == review_versions._QUARANTINE_ENTRY
+        )
         if is_target and not raced:
             raced = True
             original_rename(version_dir, moved_original)
@@ -369,10 +372,14 @@ def test_failed_publish_does_not_delete_replacement_directory(
     monkeypatch.setattr(os, "rename", replace_before_quarantine)
     _fail_publication(stage, project, minimal_project, monkeypatch)
 
-    assert raced
+    assert raced, "quarantine rename was not intercepted; update the race hook"
     assert (moved_original / "mix.wav").read_bytes() == sample_wav.read_bytes()
     assert existing_mix.read_bytes() == b"existing"
-    quarantine = list(review_root.glob(".failed-review-*/media/mix.wav"))
+    quarantine = list(
+        review_root.glob(
+            f"{review_versions._QUARANTINE_PREFIX}*/{review_versions._QUARANTINE_ENTRY}/mix.wav"
+        )
+    )
     assert len(quarantine) == 1
     assert quarantine[0].read_bytes() == b"replacement"
     assert load_project(minimal_project).review.versions == []
