@@ -3,6 +3,7 @@ export { BottomSheet, type BottomSheetSize } from "./BottomSheet";
 export { Button, type ButtonVariant } from "./Button";
 export { CommandButton, type CommandButtonProps } from "./CommandButton";
 export { CommandMenuItem } from "./CommandMenuItem";
+export { CoverScreen } from "./CoverScreen";
 export { DefItem, DefinitionList } from "./DefinitionList";
 export { Dialog } from "./Dialog";
 export { ErrorScreen } from "./ErrorScreen";
