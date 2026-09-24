@@ -329,7 +329,12 @@ def schedule_track_peaks(project: EpisodeProject, track: Track) -> bool:
         if _PEAKS_FAILED.get(peaks_out) == stamp:
             return False
         _PEAKS_PENDING.add(paths)
-    fut = _peaks_pool().submit(_run_peaks_job, project, track, paths)
+    try:
+        fut = _peaks_pool().submit(_run_peaks_job, project, track, paths)
+    except BaseException:
+        with _PEAKS_JOBS_LOCK:
+            _PEAKS_PENDING.discard(paths)
+        raise
     with _PEAKS_JOBS_LOCK:
         _PEAKS_JOBS.append(fut)
     fut.add_done_callback(_forget_peaks_job)
