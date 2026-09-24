@@ -1,5 +1,8 @@
-import { useSyncExternalStore } from "react";
 import { create, type ThemeVars } from "storybook/theming";
+import {
+  mediaQuerySubscription,
+  useMediaQueryStore,
+} from "../hooks/useMediaQueryStore";
 import {
   PREFERS_LIGHT_QUERY,
   type ResolvedTheme,
@@ -14,26 +17,22 @@ const HEX_COLOR_RE = /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
  * Each subscriber owns its observer; Storybook mounts one docs container at a
  * time, so share a module-level observer only if more consumers appear.
  */
-function subscribe(onChange: () => void): () => void {
+const subscribe = mediaQuerySubscription([PREFERS_LIGHT_QUERY], (onChange) => {
   const observer = new MutationObserver(onChange);
   observer.observe(document.documentElement, {
     attributes: true,
     attributeFilter: ["data-theme"],
   });
-  const media =
-    typeof globalThis.matchMedia === "function"
-      ? globalThis.matchMedia(PREFERS_LIGHT_QUERY)
-      : null;
-  media?.addEventListener("change", onChange);
   return () => {
     observer.disconnect();
-    media?.removeEventListener("change", onChange);
   };
-}
+});
+
+const serverTheme = (): ResolvedTheme => "dark";
 
 /** Effective Studio theme on <html>, kept live for the docs container. */
 export function useDocumentTheme(): ResolvedTheme {
-  return useSyncExternalStore(subscribe, resolvedDocumentTheme);
+  return useMediaQueryStore(subscribe, resolvedDocumentTheme, serverTheme);
 }
 
 /** A resolved Studio token as hex, or undefined (Storybook's polished helpers need real colours). */

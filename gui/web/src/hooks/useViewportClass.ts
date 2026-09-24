@@ -7,7 +7,10 @@
  * matchMedia + visualViewport follow the CSS viewport the shell must use.
  */
 
-import { useEffect, useState } from "react";
+import {
+  mediaQuerySubscription,
+  useMediaQueryStore,
+} from "./useMediaQueryStore";
 
 export type ShellBreakpoint = "phone" | "tablet" | "desktop";
 
@@ -42,7 +45,10 @@ export function shellBreakpointFromMatchMedia(
 }
 
 function readShell(): ShellBreakpoint {
-  if (typeof window === "undefined") {
+  if (
+    typeof window === "undefined" ||
+    typeof window.matchMedia !== "function"
+  ) {
     return "desktop";
   }
   return shellBreakpointFromMatchMedia(
@@ -50,6 +56,21 @@ function readShell(): ShellBreakpoint {
     window.matchMedia(TABLET_MQ).matches,
   );
 }
+
+const subscribeShell = mediaQuerySubscription(
+  [PHONE_MQ, TABLET_MQ],
+  (onChange) => {
+    window.addEventListener("resize", onChange);
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", onChange);
+    return () => {
+      window.removeEventListener("resize", onChange);
+      vv?.removeEventListener("resize", onChange);
+    };
+  },
+);
+
+const serverShell = (): ShellBreakpoint => "desktop";
 
 /** CSS-px viewport width (visualViewport, then innerWidth). */
 export function cssViewportWidth(): number {
@@ -60,31 +81,5 @@ export function cssViewportWidth(): number {
 }
 
 export function useViewportClass(): ShellBreakpoint {
-  const [shell, setShell] = useState<ShellBreakpoint>(() => readShell());
-
-  useEffect(() => {
-    const phoneMq = window.matchMedia(PHONE_MQ);
-    const tabletMq = window.matchMedia(TABLET_MQ);
-
-    const update = () => {
-      setShell(
-        shellBreakpointFromMatchMedia(phoneMq.matches, tabletMq.matches),
-      );
-    };
-
-    update();
-    phoneMq.addEventListener("change", update);
-    tabletMq.addEventListener("change", update);
-    window.addEventListener("resize", update);
-    const vv = window.visualViewport;
-    vv?.addEventListener("resize", update);
-    return () => {
-      phoneMq.removeEventListener("change", update);
-      tabletMq.removeEventListener("change", update);
-      window.removeEventListener("resize", update);
-      vv?.removeEventListener("resize", update);
-    };
-  }, []);
-
-  return shell;
+  return useMediaQueryStore(subscribeShell, readShell, serverShell);
 }

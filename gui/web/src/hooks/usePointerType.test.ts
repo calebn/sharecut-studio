@@ -113,6 +113,41 @@ describe("usePointerType", () => {
     expect(useDawStore.getState().pointerKind).toBe("coarse");
   });
 
+  it("tracks capability changes but keeps the last real pointer event", () => {
+    let coarse = false;
+    const listeners = new Set<() => void>();
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      get matches() {
+        return query === "(any-pointer: coarse)" && coarse;
+      },
+      addEventListener: (_event: string, listener: () => void) =>
+        listeners.add(listener),
+      removeEventListener: (_event: string, listener: () => void) =>
+        listeners.delete(listener),
+    }));
+    const { result } = renderHook(() => usePointerType());
+    expect(result.current).toBe("fine");
+    act(() => {
+      coarse = true;
+      for (const listener of listeners) listener();
+    });
+    expect(result.current).toBe("coarse");
+    pointerDown("mouse");
+    expect(result.current).toBe("fine");
+    act(() => {
+      coarse = false;
+      for (const listener of listeners) listener();
+    });
+    expect(result.current).toBe("fine");
+    act(() => {
+      coarse = true;
+      for (const listener of listeners) listener();
+    });
+    expect(result.current).toBe("fine");
+    pointerDown("touch");
+    expect(result.current).toBe("coarse");
+  });
+
   it("updates live on pointerdown: touch -> coarse, pen/mouse -> fine", () => {
     stubAnyPointerCoarse(false);
     const { result } = renderHook(() => usePointerType());
