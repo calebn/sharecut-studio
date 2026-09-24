@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { CoverScreen } from "./CoverScreen";
+import { CoverScreen } from "./index";
 
 const meta: Meta<typeof CoverScreen> = {
-  title: "Templates/CoverScreen",
+  title: "Organisms/CoverScreen",
   component: CoverScreen,
   tags: ["autodocs"],
   parameters: { layout: "fullscreen" },
@@ -13,11 +13,11 @@ type Story = StoryObj<typeof CoverScreen>;
 
 export const WithHeading: Story = {
   args: {
-    heading: "Room full",
-    children: <p>Ask the host for a new room link.</p>,
+    heading: "Example heading",
+    children: <p>Example body content.</p>,
   },
 };
 
 export const StatusOnly: Story = {
-  args: { children: <p>Loading studio…</p> },
+  args: { children: <p role="status">Loading…</p> },
 };
