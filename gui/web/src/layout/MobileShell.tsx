@@ -187,7 +187,6 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
   return (
     <div className="mobile-listen">
       <h1 className="sr-only">{project.meta.name}</h1>
-      <RecordTransportChip />
       <div className="mobile-listen-transport">
         <CommandButton
           bare
@@ -407,10 +406,13 @@ export function MobileShell({ guestShare = false }: { guestShare?: boolean }) {
       </span>
       {mobileMode !== "listen" ? (
         <div ref={transportFocusRef}>
-          <TransportBar compact showFit />
+          <TransportBar compact showFit showRecordingChip={false} />
         </div>
       ) : null}
       <main className="mobile-mode-body">
+        <div className="mobile-record-status">
+          <RecordTransportChip />
+        </div>
         {mobileMode === "listen" && <ListenMode guestShare={guestShare} />}
         {mobileMode === "timeline" && (
           <div className="mobile-timeline-mode">

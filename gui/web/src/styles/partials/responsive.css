@@ -264,6 +264,15 @@ html[data-shell="tablet"] {
   flex-direction: column;
 }
 
+.mobile-record-status:has(.record-rec-chip) {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-shell-chrome);
+  display: flex;
+  padding: var(--space-2) var(--space-4);
+  background: var(--bg-panel);
+}
+
 .mobile-nav {
   display: flex;
   border-top: 1px solid var(--border);

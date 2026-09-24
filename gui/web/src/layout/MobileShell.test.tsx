@@ -82,6 +82,7 @@ describe("MobileShell", () => {
       name: "Recording — open record panel",
     });
     expect(chip).toHaveTextContent("REC");
+    expect(chip).toHaveAccessibleDescription("0:00");
     expect(chip.querySelector(".record-rec-dot")).toBeTruthy();
     await expectNoA11yViolations(container);
   });

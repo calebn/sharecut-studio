@@ -184,7 +184,7 @@ Keyboard: `1` default, `2` timeline, `3` text, `4` review (when timeline focused
 
 When the transport is **collapsed** (tablet/phone, or bar width ≤720px via ResizeObserver):
 
-The host recording chip remains a full touch target in the collapsed transport and appears above the Listen controls when that mode has no header transport. During a healthy take it shows a red dot, REC, and the running take clock; PAUSED and local capture failure use distinct text. Reduced-motion settings keep the dot static.
+The host recording chip remains a full touch target in the collapsed tablet transport. On phone it occupies a persistent row above every mode body, leaving the header controls reachable. During a healthy take it shows a red dot, REC, and the running take clock; PAUSED and local capture failure use distinct text. Its accessible description includes the current take time. Reduced-motion settings keep the dot static.
 
 | Tier | Controls |
 |------|----------|
