@@ -32,6 +32,7 @@ import { makeKeeperArchive } from "./archive";
 
 /** Enough bytes to parse the RIFF/fmt/data chunk headers of a keeper WAV. */
 const HEADER_PROBE_BYTES = 4096;
+const knownPrunedAbsent = new WeakMap<ByteSink, Set<string>>();
 
 /** Everything a recovery rewrite needs, gathered by one header-only probe. */
 export type KeeperRecoveryPlan = {
@@ -108,12 +109,20 @@ export async function inspectKeeperRecovery(
   const metaBytes = await sink.read(keeperMetaPath(wavPath));
   if (prunedKeeperMarker(metaBytes, wavPath)) {
     // A failed remove can leave the WAV alongside its marker; keep it visible.
-    return (await probeKeeperWav(sink, wavPath))
-      ? {
-          kind: "unrecoverable",
-          reason: "The local keeper has no readable recovery metadata.",
-        }
-      : { kind: "pruned" };
+    if (knownPrunedAbsent.get(sink)?.has(wavPath)) return { kind: "pruned" };
+    if (await probeKeeperWav(sink, wavPath)) {
+      return {
+        kind: "unrecoverable",
+        reason: "The local keeper has no readable recovery metadata.",
+      };
+    }
+    let absent = knownPrunedAbsent.get(sink);
+    if (!absent) {
+      absent = new Set();
+      knownPrunedAbsent.set(sink, absent);
+    }
+    absent.add(wavPath);
+    return { kind: "pruned" };
   }
   const meta = parseKeeperMeta(metaBytes);
   if (!meta) {
@@ -321,6 +330,7 @@ export async function downloadLocalKeepers(
     let downloaded = 0;
     let missing = 0;
     let reclaimed = 0;
+    let pruned = 0;
     const entries: Array<{ filename: string; data: Blob }> = [];
     for await (const { takeIndex, segmentIndex, wavPath } of keeperSegmentPaths(
       sink,
@@ -349,20 +359,34 @@ export async function downloadLocalKeepers(
           reclaimed += 1;
         } else if (state === "missing") {
           missing += 1;
+        } else {
+          pruned += 1;
         }
       }
     }
-    if (downloaded === 0 && missing === 0 && reclaimed > 0) {
+    if (downloaded === 0 && missing === 0 && pruned === 0 && reclaimed > 0) {
       throw new Error(KEEPER_ALL_RECLAIMED_COPY);
     }
     if (downloaded === 0) {
-      throw new Error("No local keeper copy is available to download.");
+      throw new Error(
+        pruned > 0
+          ? `${pruned} local keeper ${plural(pruned, "segment")} expired after seven days; no local copy is available to download.`
+          : "No local keeper copy is available to download.",
+      );
     }
     const archive = await makeKeeperArchive(entries);
     downloadBlob(archive, `keepers-${participantId}.zip`);
-    if (missing > 0) {
+    if (missing > 0 || pruned > 0) {
+      const losses = [
+        missing > 0
+          ? `${missing} missing ${plural(missing, "segment")} could not be exported`
+          : null,
+        pruned > 0
+          ? `${pruned} ${plural(pruned, "segment")} expired after seven days`
+          : null,
+      ].filter(Boolean);
       throw new Error(
-        `Downloaded ${downloaded} local keeper ${plural(downloaded, "copy", "copies")}; ${missing} missing ${plural(missing, "segment")} could not be exported.`,
+        `Downloaded ${downloaded} local keeper ${plural(downloaded, "copy", "copies")}; ${losses.join("; ")}.`,
       );
     }
   });

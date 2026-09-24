@@ -52,10 +52,34 @@ describe("downloadLocalKeepers", () => {
     await sink.write(recent, new Uint8Array([2]));
     sink.modified.set(old, Date.now() - ORPHAN_KEEPER_RETENTION_MS - 1);
     await pruneExpiredKeeperWavs(sink, "room1", "p_guest", 0, () => true);
+    const readBlob = vi.spyOn(sink, "readBlob");
     expect(await inspectKeeperRecovery(sink, old)).toEqual({ kind: "pruned" });
-    await downloadLocalKeepers(sink, "room1", "p_guest", 0);
+    expect(await inspectKeeperRecovery(sink, old)).toEqual({ kind: "pruned" });
+    expect(readBlob).toHaveBeenCalledTimes(1);
+    await expect(
+      downloadLocalKeepers(sink, "room1", "p_guest", 0),
+    ).rejects.toThrow(
+      "Downloaded 1 local keeper copy; 1 segment expired after seven days",
+    );
     expect(filenames).toEqual(["keepers-p_guest.zip"]);
     await vi.runAllTimersAsync();
+  });
+
+  it("does not call a mixed reclaimed and expired take fully landed", async () => {
+    const sink = new MemorySink();
+    const ids = { sessionId: "room1", takeIndex: 0, participantId: "p_guest" };
+    const old = keeperWavPath({ ...ids, segmentIndex: 0 });
+    const landed = keeperWavPath({ ...ids, segmentIndex: 1 });
+    await sink.write(old, new Uint8Array([1]));
+    sink.modified.set(old, Date.now() - ORPHAN_KEEPER_RETENTION_MS - 1);
+    await sink.write(
+      keeperMetaPath(landed),
+      keeperMetaBytes({ ...ids, segmentIndex: 1 }, true),
+    );
+    await pruneExpiredKeeperWavs(sink, "room1", "p_guest", 0, () => true);
+    await expect(
+      downloadLocalKeepers(sink, "room1", "p_guest", 0),
+    ).rejects.toThrow("1 local keeper segment expired after seven days");
   });
   it.each(["p_host", "p_guest"])(
     "exports every retained take and segment for %s, labeling partials, without deleting OPFS",

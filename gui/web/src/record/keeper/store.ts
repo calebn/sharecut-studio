@@ -1,3 +1,4 @@
+import { removeKeeperUnlessHeld } from "./deletionGuard";
 import { KEEPER_SAMPLE_RATE } from "./pcm";
 
 export type KeeperMeta = {
@@ -191,7 +192,7 @@ export async function pruneExpiredKeeperWavs(
       new TextEncoder().encode(JSON.stringify(marker)),
     );
     if (!canPrune()) break;
-    await sink.remove(wavPath);
+    if ((await removeKeeperUnlessHeld(sink, wavPath)) === "held") break;
     pruned += 1;
   }
   return pruned;

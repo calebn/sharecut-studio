@@ -118,7 +118,9 @@ export function useRecordUpload(args: {
     let stalledTicks = 0;
     let lastAcked = -1;
     let lastTotal = -1;
-    let checkedExpired = false;
+    let cleanupInFlight = false;
+    let nextCleanupAt = 0;
+    let refreshAfterCleanup = false;
     const abort = new AbortController();
     setProgress((prev) => ({ ...prev, pending: true, error: null }));
     const tick = async () => {
@@ -135,10 +137,11 @@ export function useRecordUpload(args: {
         return;
       }
       try {
-        if (settled && !checkedExpired) {
-          checkedExpired = true;
-          // Expiry is maintenance: a failed delete must not block upload.
-          await pruneExpiredKeeperWavs(
+        if (settled && !cleanupInFlight && Date.now() >= nextCleanupAt) {
+          cleanupInFlight = true;
+          nextCleanupAt = Date.now() + 60 * 60_000;
+          // Maintenance runs outside the host-status/upload critical path.
+          void pruneExpiredKeeperWavs(
             sink,
             sessionId,
             participantId,
@@ -147,9 +150,22 @@ export function useRecordUpload(args: {
               !cancelled &&
               argsRef.current.roomState === "stopped" &&
               Boolean(argsRef.current.captureSettled),
-          ).catch(() => {
-            checkedExpired = false;
-          });
+          )
+            .then((pruned) => {
+              if (pruned > 0 && !cancelled) {
+                refreshAfterCleanup = true;
+                if (!inFlight) {
+                  refreshAfterCleanup = false;
+                  window.setTimeout(() => void tick(), 0);
+                }
+              }
+            })
+            .catch(() => {
+              nextCleanupAt = Date.now() + 30_000;
+            })
+            .finally(() => {
+              cleanupInFlight = false;
+            });
         }
         const remote = await transport.status(abort.signal);
         let acked = 0;
@@ -273,6 +289,12 @@ export function useRecordUpload(args: {
             abandoned && !awaitingAck
               ? abandonedCopy(recoverable, [...lossReasons])
               : null;
+          const expiredError = expired
+            ? "A local keeper without recovery metadata expired after seven days; that audio is no longer available here."
+            : null;
+          const recoveryError = [abandonedError, expiredError]
+            .filter(Boolean)
+            .join(" ");
           setProgress({
             acked,
             total,
@@ -285,10 +307,7 @@ export function useRecordUpload(args: {
             pending: false,
             recoverable,
             error:
-              abandonedError ??
-              (expired
-                ? "An incomplete local keeper expired after seven days; that audio is no longer available here."
-                : null) ??
+              (recoveryError || null) ??
               (!saw && stopped && current.captureExpected !== false
                 ? "No local keeper was captured. Check the local copy before leaving."
                 : stalled
@@ -310,6 +329,10 @@ export function useRecordUpload(args: {
         }
       } finally {
         inFlight = false;
+        if (refreshAfterCleanup && !cancelled) {
+          refreshAfterCleanup = false;
+          window.setTimeout(() => void tick(), 0);
+        }
       }
     };
     void tick();

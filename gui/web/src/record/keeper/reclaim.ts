@@ -1,5 +1,8 @@
+import { keeperReclaimHeld, removeKeeperUnlessHeld } from "./deletionGuard";
 import { keeperFileFingerprint } from "./fingerprint";
 import { type ByteSink, keeperMetaPath, parseKeeperMeta } from "./store";
+
+export { holdKeeperReclaim, keeperReclaimHeld } from "./deletionGuard";
 
 /** Host status fields the reclaim policy reads (a subset of the upload row). */
 export type ReclaimStatusRow = {
@@ -59,40 +62,6 @@ export function keeperReclaimStuck(tracker: KeeperReclaimTracker): boolean {
     }
   }
   return false;
-}
-
-const holds = new WeakMap<ByteSink, number>();
-const inflight = new WeakMap<ByteSink, Set<Promise<unknown>>>();
-
-export function keeperReclaimHeld(sink: ByteSink): boolean {
-  return (holds.get(sink) ?? 0) > 0;
-}
-
-/**
- * Pause reclaim on `sink` (e.g. while recovery archives OPFS `File`s that are
- * read lazily) and wait for any delete already in flight. Returns an
- * idempotent release.
- */
-export async function holdKeeperReclaim(sink: ByteSink): Promise<() => void> {
-  holds.set(sink, (holds.get(sink) ?? 0) + 1);
-  let released = false;
-  const release = () => {
-    if (released) {
-      return;
-    }
-    released = true;
-    const next = (holds.get(sink) ?? 1) - 1;
-    if (next > 0) {
-      holds.set(sink, next);
-    } else {
-      holds.delete(sink);
-    }
-  };
-  const pending = inflight.get(sink);
-  if (pending?.size) {
-    await Promise.allSettled([...pending]);
-  }
-  return release;
 }
 
 export type KeeperReclaimResult =
@@ -197,15 +166,8 @@ export async function reclaimKeeperWav(
   if (keeperReclaimHeld(sink)) {
     return "held";
   }
-  const op = sink.remove(wavPath);
-  let ops = inflight.get(sink);
-  if (!ops) {
-    ops = new Set();
-    inflight.set(sink, ops);
-  }
-  ops.add(op);
   try {
-    await op;
+    if ((await removeKeeperUnlessHeld(sink, wavPath)) === "held") return "held";
     tracker.reclaimed.add(wavPath);
     tracker.failures.delete(wavPath);
     tracker.failedDeletes.delete(wavPath);
@@ -220,7 +182,5 @@ export async function reclaimKeeperWav(
       });
     }
     return "failed";
-  } finally {
-    ops.delete(op);
   }
 }
