@@ -316,6 +316,47 @@ def test_mp3_retry_preserves_encode_error_if_temporary_cleanup_fails(
     assert review_guest_audio_path(project, version_id) == version_audio_path(project, version_id)
 
 
+def test_mp3_retry_retargeted_review_root_preserves_other_media(
+    minimal_project, sample_wav, tmp_workspace
+):
+    project = load_project(minimal_project)
+    artifacts = Path(project.workspace_dir) / "artifacts"
+    artifacts.mkdir(parents=True, exist_ok=True)
+    (artifacts / "premix.wav").write_bytes(sample_wav.read_bytes())
+    old_root = tmp_workspace.parent / "retry-review-old"
+    new_root = tmp_workspace.parent / "retry-review-new"
+    old_root.mkdir()
+    new_root.mkdir()
+    review_root = artifacts / "review"
+    review_root.symlink_to(old_root, target_is_directory=True)
+    version = publish_version(project, label="retry")
+    mp3 = old_root / version.id / "mix.mp3"
+    mp3.unlink()
+    original_metadata = version.model_dump()
+    wav = old_root / version.id / "mix.wav"
+    wav_bytes = wav.read_bytes()
+    (new_root / version.id).mkdir()
+    other_mp3 = new_root / version.id / "mix.mp3"
+    other_mp3.write_bytes(b"other valid mp3")
+
+    class RetargetingEngine:
+        def export_mp3(self, source, output, *, bitrate_kbps):
+            assert source == wav
+            assert output.parent == old_root / version.id
+            output.write_bytes(b"retry mp3")
+            review_root.unlink()
+            review_root.symlink_to(new_root, target_is_directory=True)
+
+    with pytest.raises(RuntimeError, match="directory changed"):
+        encode_version_mp3(project, version.id, eng=RetargetingEngine())
+
+    assert not mp3.exists()
+    assert not list(mp3.parent.glob(".mix-*.mp3"))
+    assert other_mp3.read_bytes() == b"other valid mp3"
+    assert wav.read_bytes() == wav_bytes
+    assert version.model_dump() == original_metadata
+
+
 def test_review_artifacts_dir_matches_writer_reldir(minimal_project, sample_wav, tmp_workspace):
     p, vid = _publish(minimal_project, sample_wav)
     assert review_artifacts_dir(p) == p.workspace_path() / REVIEW_ARTIFACTS_RELDIR
