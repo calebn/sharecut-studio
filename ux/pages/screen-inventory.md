@@ -52,7 +52,7 @@ flowchart TB
 | | |
 |--|--|
 | **Purpose** | Playhead control, audition mode, comment entry, zoom Fit, View and project menus |
-| **Layout (wide)** | Three zones: project name · Play/Stop, timecode, and audition mode centered · render status, tools, Fit, **View** menu, and **Menu** on the right. Play is the only orange control and is disabled until the project has media. |
+| **Layout (wide)** | Three zones: project name · Play/Stop, timecode, and audition mode centered · render status, tools, Fit, **View** menu, and **Menu** on the right. When status pills widen the right zone, the center shifts left and the project name truncates; zones never overlap. Play is the only orange control and is disabled until the project has media. |
 | **Primary actions** | Play / Stop, seek via timecode context, Select/Blade/Comment when expanded, Fit, View, Menu |
 | **Always visible (collapsed)** | Outside Listen: Play/Stop, compact playhead time, Comment icon, Fit, Menu icon. Listen uses its own body transport and no header transport. |
 | **Menu → Project (host)** | New / Open, **Connect agent…** (local Streamable HTTP MCP URL), Bounce…, **Share…** (collaboration extension), Record room…, Export deliverables |

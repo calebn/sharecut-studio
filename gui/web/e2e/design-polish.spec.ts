@@ -178,6 +178,40 @@ for (const viewport of [
   });
 }
 
+test("transport zones never overlap across desktop widths", async ({
+  page,
+}) => {
+  // The fixture is stale with no preview, so the end zone carries two
+  // warning pills: wider than half the centered grid's spare room at 1440.
+  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await expect(page.locator(".timeline-scroll .track-headers")).toBeVisible();
+  for (const width of [1280, 1360, 1440, 1520, 1680, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    const zones = await page.evaluate(() =>
+      [...document.querySelectorAll("header.transport .transport-zone")].map(
+        (zone) => {
+          const boxes = [...zone.children]
+            .map((child) => child.getBoundingClientRect())
+            .filter((box) => box.width > 0);
+          return {
+            left: Math.min(...boxes.map((box) => box.left)),
+            right: Math.max(...boxes.map((box) => box.right)),
+          };
+        },
+      ),
+    );
+    expect(zones, `${width}px`).toHaveLength(3);
+    const [start, center, end] = zones;
+    expect(start.right, `${width}px start vs center`).toBeLessThanOrEqual(
+      center.left,
+    );
+    expect(center.right, `${width}px center vs end`).toBeLessThanOrEqual(
+      end.left,
+    );
+    expect(end.right, `${width}px end vs viewport`).toBeLessThanOrEqual(width);
+  }
+});
+
 test("light transport keeps legible status and stable control hover paint", async ({
   page,
 }) => {

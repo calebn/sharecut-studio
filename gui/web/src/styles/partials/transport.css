@@ -3,9 +3,12 @@
 
 /* Shell strip: three zones, timecode, primary actions, controls. */
 .transport {
-  /* Three zones: project | transport + timecode (centered) | status + tools. */
+  /* Three zones: project | transport + timecode (centered) | status + tools.
+     The end column never drops below its content: when status pills make it
+     wider than half the spare room, the center shifts left and the title
+     truncates instead of the pills spilling over the audition modes. */
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr);
   block-size: 100%;
   box-sizing: border-box;
   align-items: center;
