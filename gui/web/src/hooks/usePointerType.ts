@@ -1,6 +1,10 @@
-import { useLayoutEffect } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { useDawStore } from "../state/dawStore";
 import type { PointerKind } from "../state/types";
+import {
+  mediaQuerySubscription,
+  useMediaQueryStore,
+} from "./useMediaQueryStore";
 
 export type { PointerKind };
 
@@ -44,6 +48,12 @@ export function initialPointerKind(): PointerKind {
   return window.matchMedia("(any-pointer: coarse)").matches ? "coarse" : "fine";
 }
 
+const subscribePointerCapabilities = mediaQuerySubscription([
+  "(pointer: fine)",
+  "(any-pointer: coarse)",
+]);
+const serverPointerKind = (): PointerKind => "fine";
+
 /**
  * Track the last-used pointing device: fine (mouse/pen) vs coarse (touch).
  *
@@ -59,13 +69,24 @@ export function initialPointerKind(): PointerKind {
  */
 export function usePointerType(): PointerKind {
   const pointerKind = useDawStore((s) => s.pointerKind);
+  const pointerSeen = useRef(false);
+  const capabilityKind = useMediaQueryStore(
+    subscribePointerCapabilities,
+    initialPointerKind,
+    serverPointerKind,
+  );
   useLayoutEffect(() => {
     // Capability baseline before first paint; live updates after.
-    useDawStore.getState().setPointerKind(initialPointerKind());
+    if (!pointerSeen.current) {
+      useDawStore.getState().setPointerKind(capabilityKind);
+    }
     const onPointer = (e: PointerEvent) => {
       const kind = pointerKindFromPointerType(e.pointerType);
       if (kind !== null && useDawStore.getState().pointerKind !== kind) {
         useDawStore.getState().setPointerKind(kind);
+      }
+      if (kind !== null) {
+        pointerSeen.current = true;
       }
     };
     window.addEventListener("pointerdown", onPointer, {
@@ -80,6 +101,6 @@ export function usePointerType(): PointerKind {
       window.removeEventListener("pointerdown", onPointer, true);
       window.removeEventListener("pointermove", onPointer, true);
     };
-  }, []);
+  }, [capabilityKind]);
   return pointerKind;
 }
