@@ -85,10 +85,11 @@ export function useClipWaveform(opts: {
   const rafRef = useRef<number | null>(null);
   const skipClearRef = useRef<number | null>(null);
   const skipRef = useRef(false);
-  const latestPaintRef = useRef<{
-    canvas: HTMLCanvasElement;
-    override?: WaveformPaintOverride;
-  } | null>(null);
+  // One pending slot per canvas: the main waveform and the trim ghost can
+  // both ask to paint in the same commit, and neither may drop the other.
+  const [pendingPaints] = useState(
+    () => new Map<HTMLCanvasElement, WaveformPaintOverride | undefined>(),
+  );
   const paintOptsRef = useRef({
     peaks,
     tiles,
@@ -276,31 +277,34 @@ export function useClipWaveform(opts: {
   const flushPaint = () => {
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = null;
-      const latest = latestPaintRef.current;
-      if (!latest) {
+      if (pendingPaints.size === 0) {
         return;
       }
+      const batch = [...pendingPaints];
+      pendingPaints.clear();
       const t0 = performance.now();
       const base = paintOptsRef.current;
-      const opts = latest.override ? { ...base, ...latest.override } : base;
       const theme = getComputedStyle(document.documentElement);
       const peakFill = theme.getPropertyValue("--color-waveform-peak").trim();
-      const clip = latest.canvas.closest(".clip-block");
-      const fill = clip
-        ? clipWaveformFill(getComputedStyle(clip).backgroundColor)
-        : null;
-      paintWaveform(latest.canvas, {
-        peaks: opts.peaks,
-        tiles: opts.tiles,
-        sourceStart: opts.sourceStart,
-        sourceEnd: opts.sourceEnd,
-        cssWidth: opts.cssWidth,
-        ampZoom: opts.ampZoom,
-        devicePixelRatio: opts.devicePixelRatio,
-        peakFill,
-        peakFillCore: fill?.core,
-        peakFillEdge: fill?.edge,
-      });
+      for (const [canvas, override] of batch) {
+        const opts = override ? { ...base, ...override } : base;
+        const clip = canvas.closest(".clip-block");
+        const fill = clip
+          ? clipWaveformFill(getComputedStyle(clip).backgroundColor)
+          : null;
+        paintWaveform(canvas, {
+          peaks: opts.peaks,
+          tiles: opts.tiles,
+          sourceStart: opts.sourceStart,
+          sourceEnd: opts.sourceEnd,
+          cssWidth: opts.cssWidth,
+          ampZoom: opts.ampZoom,
+          devicePixelRatio: opts.devicePixelRatio,
+          peakFill,
+          peakFillCore: fill?.core,
+          peakFillEdge: fill?.edge,
+        });
+      }
       skipRef.current = performance.now() - t0 > 12;
       if (skipRef.current) {
         skipClearRef.current = requestAnimationFrame(() => {
@@ -332,7 +336,7 @@ export function useClipWaveform(opts: {
     if (!canvas || (win.offscreen && !override)) {
       return;
     }
-    latestPaintRef.current = { canvas, override };
+    pendingPaints.set(canvas, override);
     if (skipRef.current) {
       return;
     }
