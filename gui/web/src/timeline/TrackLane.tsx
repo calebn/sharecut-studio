@@ -230,6 +230,7 @@ export function TrackLane({
               clip={clip}
               trackId={originId}
               role={track.role}
+              trackLabel={track.label || track.id}
               zoomPxPerSec={zoomPxPerSec}
               color={laneColor(track.role, trackIndex)}
               selected={

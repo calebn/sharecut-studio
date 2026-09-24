@@ -31,6 +31,9 @@ interface ClipBlockProps {
   clip: ClipRow;
   trackId: string;
   role: string;
+  /** Track name; shown on the clip label only where the header rail is too
+   *  narrow to name the lane (phone). */
+  trackLabel?: string;
   zoomPxPerSec: number;
   color: string;
   selected: boolean;
@@ -144,6 +147,7 @@ export function ClipBlock({
   clip,
   trackId,
   role,
+  trackLabel,
   zoomPxPerSec,
   color,
   selected,
@@ -800,7 +804,14 @@ export function ClipBlock({
           />
         );
       })}
-      {label && <span className="clip-label">{label}</span>}
+      {label && (
+        <span className="clip-label">
+          {trackLabel ? (
+            <span className="clip-label-track">{trackLabel}</span>
+          ) : null}
+          {label}
+        </span>
+      )}
     </div>
   );
 }

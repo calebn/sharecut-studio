@@ -62,7 +62,7 @@ Example: Clip selected → Related shows Copy; More reports no additional action
 | Transport play/time/audition | Listen hero (`layout/ListenHero`, story `Templates/ListenHero`); compact header transport on Timeline, Text, and More (the project name moves to the Listen hero when the bar is under 30rem); audition/zoom in Menu |
 | Mode nav | Icon + label tabs; the active tab is tinted with an accent top indicator (no filled block) |
 | Comment / Fit | Header primary **icons** outside Listen; Fit is available on Timeline and in the non-Listen Menu |
-| Track headers M/S/FX | Lane gutter tap (whole row + ›) → track sheet (**M**/**S** toggles + gain readout; drag Levels for envelopes). Header mixer chrome hidden when the timeline pane is narrow |
+| Track headers M/S/FX | Lane gutter tap (the whole rail; the initials chip is the affordance) → track sheet (**M**/**S** toggles + gain readout; drag Levels for envelopes). Header mixer chrome hidden when the timeline pane is narrow; reorder via Menu → Move track up/down |
 | Timeline overlays | Timeline mode + layer chips |
 | Inspector | Selection sheet |
 | Transcript tab | Text mode |
@@ -124,13 +124,13 @@ Two-finger Undo is active only while a project is loaded and the shared Undo com
 │ └───────────────────────────────┘ │
 ```
 
-Lane identity is a **Ferrite-style sticky gutter** beside the waveforms (same scroller; `headerSlot` into `TimelineView`). A trailing **›** disclosure marks that the whole row opens the track sheet. **Mute/Solo** live in that sheet (same commands as the desktop header); gain is a readout there — envelopes stay on **Levels** (drag a point, then edit time/value in the inspector). Do not put a mixer strip in the 4rem gutter.
+Lane identity is a sticky gutter beside the waveforms (same scroller; `headerSlot` into `TimelineView`), identity first, following praised mobile editors (BandLab, GarageBand, Ferrite): in the narrow rail each lane shows a **44pt initials chip** tinted with the lane color (full-strength ink, dashed and dimmed when muted), the lane color on the rail edge, and the **full track name on the lane's clip labels** ("reference · dialogue · 1:00"). The whole rail opens the track sheet; a trailing **›** disclosure marks that only in the wider phone rail. **Mute/Solo** live in that sheet (same commands as the desktop header); gain is a readout there — envelopes stay on **Levels** (drag a point, then edit time/value in the inspector). Do not put a mixer strip in the 4rem gutter.
 
 **Arrange density** follows the timeline pane via `@container timeline` on `.timeline-area` (Every Layout Container escape hatch), not `window.innerWidth`:
 
 | Pane inline-size | `--header-width` | Header chrome |
 |------------------|------------------|---------------|
-| `< 30rem` | `4rem` | Gutter: color bar + truncated name + › disclosure |
+| `< 30rem` | `4rem` | Gutter: lane-color edge + 44pt initials chip; the name moves onto the lane's clip labels; no grip (Menu → Move track up/down) |
 | `< 68.75rem` | `8.75rem` | Mid mixer rail |
 | else | `11.25rem` (root token) | Full desktop headers |
 

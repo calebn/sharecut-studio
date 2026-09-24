@@ -219,4 +219,22 @@ describe("TrackHeader", () => {
     );
     expect(container.querySelector(".stem-dot")).toBeNull();
   });
+
+  it("carries a lane-colored initials chip for the phone rail", () => {
+    const project = projectWithTrack();
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <TrackHeader
+          track={project.tracks[0]}
+          trackIndex={0}
+          selected={false}
+          onSelect={() => undefined}
+        />
+      </DawProvider>,
+    );
+    const chip = container.querySelector(".track-chip");
+    expect(chip).toHaveTextContent("G");
+    // The open button already names the track; the chip is visual only.
+    expect(chip).toHaveAttribute("aria-hidden", "true");
+  });
 });

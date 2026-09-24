@@ -249,6 +249,13 @@ html[data-shell="tablet"] {
   display: inline-block;
 }
 
+/* In the narrow rail the initials chip is the tap affordance instead. */
+@container timeline (inline-size < 30rem) {
+  .daw-shell--phone .track-header-disclose {
+    display: none;
+  }
+}
+
 .mobile-mode-body {
   min-height: 0;
   overflow: auto;

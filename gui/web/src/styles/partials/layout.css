@@ -167,13 +167,6 @@
   }
 }
 
-/* Narrow header rail: no room for trailing stem status next to a 1-letter name. */
-@container timeline (inline-size < 30rem) {
-  .stem-dot {
-    display: none;
-  }
-}
-
 /* Narrow arrange pane: gutter token (chrome hide rules live after .track-meta). */
 @container timeline (inline-size < 30rem) {
   .timeline-scroll,
@@ -806,6 +799,37 @@
   transform: scale(1.15);
 }
 
+/* Initials chip: shown only in the narrow (phone) rail, see the
+   @container timeline block below. Tinted lane color with full ink, so it
+   reads on every lane color; muted tracks dash and dim it. */
+.track-chip {
+  --track-chip-fill: color-mix(
+    in srgb,
+    var(--track-identity-color) 22%,
+    var(--color-bg-base)
+  );
+
+  display: none;
+  place-items: center;
+  inline-size: var(--touch-min);
+  block-size: var(--touch-min);
+  flex: 0 0 auto;
+  border-width: 0.125rem;
+  border-style: solid;
+  border-color: var(--track-identity-color);
+  border-radius: 50%;
+  background: var(--track-chip-fill);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-ui);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.track-header-row.muted .track-chip {
+  border-style: dashed;
+  opacity: 0.6;
+}
+
 .track-title {
   font-weight: 600;
   display: flex;
@@ -933,24 +957,45 @@
     display: none;
   }
 
+  /* Phone rail: identity first (the pattern praised mobile editors use).
+     A lane-colored initials chip at the top of each lane, the lane color on
+     the edge, and the full name on the lane's clip labels; mute, solo, gain
+     and reorder live in the track sheet and the Menu. */
   .track-header-row {
     padding-block: var(--space-3);
-    padding-inline: var(--space-3);
-    justify-content: center;
+    padding-inline: var(--space-1);
+    align-items: center;
     gap: 0;
-    border-inline-start: 0.25rem solid var(--color-accent-subtle);
+    border-inline-start: 0.25rem solid var(--track-identity-color);
   }
 
   .track-title {
-    font-size: var(--font-size-caption);
+    justify-content: center;
     padding-block: 0;
-    min-block-size: 100%;
-    flex: 1 1 auto;
+    flex: 0 0 auto;
+    width: auto;
     text-overflow: unset;
   }
 
-  .track-header-disclose {
-    display: inline-block;
+  .track-chip {
+    display: grid;
+  }
+
+  .track-title-text,
+  .track-header-disclose,
+  .track-reorder-handle,
+  .stem-dot {
+    display: none;
+  }
+
+  /* No grip on the phone rail: drop its gutter so the chip centers, and the
+     whole rail opens the track. */
+  .track-header-row:has(.track-reorder-handle) {
+    padding-inline-start: var(--space-1);
+  }
+
+  .track-header-row.reorderable .track-header-open {
+    left: 0;
   }
 
   .track-headers-chrome {
