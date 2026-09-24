@@ -692,6 +692,9 @@ roster. That way a brief network drop at Start does not cost them the take, and
 they still need a valid lease to upload. The guest route checks lease and
 consent again after it reads the request body and before it writes the part,
 so removal or a Decline that lands mid-upload stops that chunk.
+An already joined removed participant's record WebSocket closes with 4403:
+inbound commands (including Signal, Heartbeat, and Comment), outbound room
+events, and idle connections recheck membership. Other guests stay connected.
 
 Host admit / waiting room is **not** in this PR (ROADMAP Follow-up).
 

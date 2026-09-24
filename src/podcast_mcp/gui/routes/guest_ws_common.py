@@ -40,14 +40,18 @@ class GuestWsGuard:
         self.malformed = 0
         self.last_recheck = time.monotonic()
         self.write_lock = asyncio.Lock()
+        self._closed = False
 
     async def send_json(self, payload: dict[str, Any]) -> None:
         async with self.write_lock:
-            await self.websocket.send_json(payload)
+            if not self._closed:
+                await self.websocket.send_json(payload)
 
     async def close(self, code: int, reason: str) -> None:
         async with self.write_lock:
-            await self.websocket.close(code=code, reason=reason[:120])
+            if not self._closed:
+                self._closed = True
+                await self.websocket.close(code=code, reason=reason[:120])
 
     async def recheck_loop(self) -> None:
         while True:

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
@@ -16,6 +17,7 @@ from podcast_mcp.services.record.service import (
     RecordSessionService,
     apply_record_ws_message,
     reset_record_runtime_for_tests,
+    route_record_ws_message,
 )
 from podcast_mcp.services.share import ShareService
 
@@ -204,6 +206,115 @@ def test_second_tab_lease_in_use(minimal_project, sample_wav, tmp_workspace, mon
             _join(second, name="Ava", participant_id=pid, lease=lease)
             err = _drain_until(second, lambda m: m.get("type") == "Error")
             assert err["code"] == "lease_in_use"
+
+
+@pytest.mark.parametrize("command_type", ["Signal", "Heartbeat", "Comment"])
+def test_removed_guest_ws_closes_without_closing_other_guest(
+    command_type, minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    token = room["guest"]["token"]
+    with client.websocket_connect(f"/api/rec/{token}/ws") as removed:
+        _join(removed, name="Ava")
+        echo = _drain_until(removed, lambda m: m.get("type") == "Echo")
+        _drain_until(removed, lambda m: m.get("type") == "Snapshot")
+        with client.websocket_connect(f"/api/rec/{token}/ws") as other:
+            _join(other, name="Bea")
+            _drain_until(other, lambda m: m.get("type") == "Snapshot")
+            response = client.post(
+                "/api/record/command",
+                json={
+                    "path": str(ws.path),
+                    "command_type": "RemoveParticipant",
+                    "payload": {"participant_id": echo["participant_id"]},
+                },
+            )
+            assert response.status_code == 200, response.text
+            removed.send_json(
+                {
+                    "type": "Record",
+                    "command_type": command_type,
+                    "payload": {"body": "removed comment"} if command_type == "Comment" else {},
+                    "client_seq": 2,
+                }
+            )
+            with pytest.raises(WebSocketDisconnect) as closed:
+                _drain_until(removed, lambda m: m.get("type") == "Echo")
+            assert closed.value.code == 4403
+            _drain_until(
+                other,
+                lambda m: (
+                    m.get("type") == "Applied"
+                    and m.get("command", {}).get("type") == "RemoveParticipant"
+                ),
+            )
+            other.send_json(
+                {"type": "Record", "command_type": "Heartbeat", "payload": {}, "client_seq": 2}
+            )
+            _drain_until(other, lambda m: m.get("command_type") == "Heartbeat")
+
+
+def test_removed_guest_signal_dispatch_rejected(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, room, _client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    echo, _snap = svc.join(
+        token=room["guest"]["token"],
+        role="guest",
+        display_name="Ava",
+        client_id="rec-ava",
+        connection_id="ava-socket",
+        capabilities=["join", "monitor"],
+        client_seq=1,
+    )
+    RecordControlService(ws).submit_host(
+        "RemoveParticipant", payload={"participant_id": echo["participant_id"]}
+    )
+    with pytest.raises(RecordStateError, match="participant removed"):
+        route_record_ws_message(
+            svc,
+            {"type": "Record", "command_type": "Signal", "payload": {}, "client_seq": 2},
+            client_id="rec-ava",
+            role="guest",
+            participant_id=echo["participant_id"],
+            seq=2,
+            capabilities=["join", "monitor"],
+            connection_id="ava-socket",
+        )
+
+
+def test_removed_guest_ws_closes_on_room_event_without_inbound_frame(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    token = room["guest"]["token"]
+    with client.websocket_connect(f"/api/rec/{token}/ws") as removed:
+        _join(removed, name="Ava")
+        echo = _drain_until(removed, lambda m: m.get("type") == "Echo")
+        _drain_until(removed, lambda m: m.get("type") == "Snapshot")
+        with client.websocket_connect(f"/api/rec/{token}/ws") as other:
+            _join(other, name="Bea")
+            _drain_until(other, lambda m: m.get("type") == "Snapshot")
+            response = client.post(
+                "/api/record/command",
+                json={
+                    "path": str(ws.path),
+                    "command_type": "RemoveParticipant",
+                    "payload": {"participant_id": echo["participant_id"]},
+                },
+            )
+            assert response.status_code == 200, response.text
+            with pytest.raises(WebSocketDisconnect) as closed:
+                _drain_until(removed, lambda m: m.get("type") == "Echo")
+            assert closed.value.code == 4403
+            _drain_until(
+                other,
+                lambda m: (
+                    m.get("type") == "Applied"
+                    and m.get("command", {}).get("type") == "RemoveParticipant"
+                ),
+            )
 
 
 def test_review_token_on_record_ws_rejected(
@@ -806,6 +917,10 @@ async def test_guest_ws_guard_recheck_and_malformed():
     await guard.send_json({"ok": True})
     await guard.recheck_loop()
     assert any(code == 4403 for code, _reason in ws.closed)
+    await guard.close(4403, "already closed")
+    await guard.send_json({"ignored": True})
+    assert len(ws.closed) == 2
+    assert ws.sent == [{"ok": True}]
 
 
 def test_host_refcount_touch_stale_connection_and_sid_cache(
