@@ -50,7 +50,6 @@ import {
   logicalToDomScrollLeft,
   measureTimelineColumns,
   minLogicalScrollLeft,
-  NO_TIMELINE_COLUMNS,
   PLAYHEAD_MOVE_MIN_PX,
   SCROLL_SYNC_EPS_PX,
   scrollLeftToCenterSec,
@@ -203,8 +202,11 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
   const [bladeHoverSec, setBladeHoverSec] = useState<number | null>(null);
   // One measurement of the scroller drives the fit, the lead pads, the fixed
   // line, the center math and the stage edges, so they cannot disagree.
-  const [columns, setColumns] = useState(NO_TIMELINE_COLUMNS);
-  const { timePx: timeViewportPx, headerPx: headerOffsetPx } = columns;
+  const [columns, setColumns] = useState({
+    headerOffsetPx: 0,
+    timeViewportPx: 0,
+  });
+  const { timeViewportPx, headerOffsetPx } = columns;
   // Fixed playhead: pad the time column by the viewport's center offset on
   // each side so every time, 0 and the end included, can sit under the
   // center line. Store scroll stays logical; the DOM scroll is logical + lead.
@@ -420,9 +422,22 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
     }
     const sessionSec = project.timeline_duration_sec;
     const measure = () => {
-      const next = measureTimelineColumns(el);
+      const { scrollbarInlinePx, scrollbarBlockPx, ...next } =
+        measureTimelineColumns(el);
       setColumns((prev) => (shallow(prev, next) ? prev : next));
-      const timeWidth = next.timePx;
+      // Only the stage edges read the scrollbar insets: write them straight
+      // to the area, so a scrollbar coming or going moves the edges in this
+      // frame without re-rendering the timeline.
+      const areaStyle = areaRef.current?.style;
+      areaStyle?.setProperty(
+        "--timeline-scrollbar-inline",
+        `${scrollbarInlinePx}px`,
+      );
+      areaStyle?.setProperty(
+        "--timeline-scrollbar-block",
+        `${scrollbarBlockPx}px`,
+      );
+      const timeWidth = next.timeViewportPx;
       stageHeightRef.current = el.clientHeight;
       refitLanes();
       if (useDawStore.getState().followingClientId) {
@@ -707,10 +722,10 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
               "--marker-row-height": `${MARKER_ROW_HEIGHT}px`,
               "--lane-height": `${laneHeight}px`,
               "--marker-lane-height": `${markerLaneHeightPx}px`,
-              // The stage edges sit inside the header column and scrollbars.
+              // The stage edges start past the header column (this changes
+              // only when the header resizes). measure() writes the scrollbar
+              // insets directly.
               "--timeline-header-offset": `${headerOffsetPx}px`,
-              "--timeline-scrollbar-inline": `${columns.scrollbarInlinePx}px`,
-              "--timeline-scrollbar-block": `${columns.scrollbarBlockPx}px`,
               // Only fixed-playhead CSS reads these; keep them off other
               // views so a resize there restyles nothing.
               ...(fixedPlayhead
@@ -975,6 +990,10 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
               </div>
             </div>
           </div>
+          {/* After the scroller on purpose: at the lane floor's z, tree order
+              paints the edges over it, and clips and markers stay above. */}
+          <div className="timeline-edge timeline-edge--start" aria-hidden />
+          <div className="timeline-edge timeline-edge--end" aria-hidden />
         </div>
       </TimelineGestureProvider>
     </TimelineMetricsProvider>

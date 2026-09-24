@@ -29,31 +29,30 @@
 
 /* Stage edge falloff (#387): the lane floor darkens faintly toward the well's
    inline edges, from below the ruler, inside the header column and the
-   scrollbars (TimelineView measures both). Two edge strips, not one
-   full-stage layer; under the clips, so labels keep their contrast. */
-.timeline-area:not([aria-busy="true"])::before,
-.timeline-area:not([aria-busy="true"])::after {
-  content: "";
+   scrollbars (TimelineView measures both). TimelineView renders the two strips
+   after the scroller, so at --z-timeline-edge tree order paints them over the
+   z-auto lane floor; clips and markers (--z-clip) paint over them. The width
+   is a geometry, not a spacing step. */
+.timeline-edge {
   position: absolute;
   inset-block: var(--ruler-height) var(--timeline-scrollbar-block, 0);
-  inline-size: var(--timeline-edge-width);
+  inline-size: 1.5rem;
   z-index: var(--z-timeline-edge);
   pointer-events: none;
 }
 
-.timeline-area:not([aria-busy="true"])::before {
+.timeline-edge--start {
   inset-inline-start: var(--timeline-header-offset, 0);
   background: var(--bg-timeline-edge-start);
 }
 
-.timeline-area:not([aria-busy="true"])::after {
+.timeline-edge--end {
   inset-inline-end: var(--timeline-scrollbar-inline, 0);
   background: var(--bg-timeline-edge-end);
 }
 
 @media (forced-colors: active) {
-  .timeline-area::before,
-  .timeline-area::after {
+  .timeline-edge {
     display: none;
   }
 }
