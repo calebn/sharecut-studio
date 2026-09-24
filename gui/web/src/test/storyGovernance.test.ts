@@ -328,6 +328,7 @@ describe("Storybook title tiers", () => {
       "try {} catch (meta) { meta.title = 'Screens/Home'; } meta.title = 'Screens/Other';",
       "for (const meta of Object.assign(meta, { title: 'Screens/Home' })) { meta.title = 'Other'; }",
       "for (const meta of items) { meta.title = 'Other'; } meta.title = 'Screens/Home';",
+      "const helper = { [(Object.assign(meta, { title: 'Screens/Home' }), 'helper')]({ meta }: { meta: unknown }) {} };",
     ]) {
       expect(
         storyTitleViolation(
@@ -335,6 +336,14 @@ describe("Storybook title tiers", () => {
         ),
       ).toBe("default-exported metadata must not be mutated or aliased");
     }
+  });
+
+  it("accepts a computed method key that does not mutate exported metadata", () => {
+    expect(
+      storyTitleViolation(
+        "const meta = { title: 'Atoms/Button' }; const helper = { [String('helper')]({ meta }: { meta: unknown }) { meta.title = 'Screens/Home'; } }; export default meta;",
+      ),
+    ).toBeNull();
   });
 
   it("all checked-in stories have a sanctioned title", () => {
