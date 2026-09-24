@@ -11,7 +11,12 @@ type VocabularyField = "terms" | "guest_names";
 
 /** Mirrors VOCABULARY_MAX_ENTRIES in services/transcript_precorrect.py. */
 export const VOCABULARY_MAX_ENTRIES = 100;
-/** Mirrors VOCABULARY_MAX_ENTRY_CHARS in services/transcript_precorrect.py. */
+/**
+ * Mirrors VOCABULARY_MAX_ENTRY_CHARS in services/transcript_precorrect.py.
+ * The browser counts UTF-16 code units (`maxLength`, `.length`) and Python counts
+ * code points, so entries with astral characters hit the UI cap first. The UI is
+ * only stricter, never looser.
+ */
 export const VOCABULARY_MAX_ENTRY_CHARS = 100;
 
 export const VOCABULARY_CONFLICT_MESSAGE =
@@ -98,8 +103,10 @@ export function TranscriptVocabularyEditor({
         if (previous === null) setError(null);
       })
       .catch((reason) => {
-        if (active && seq === requestSeq.current)
-          setError(errorMessage(reason));
+        if (!active || seq !== requestSeq.current) return;
+        // A failed reload must not leave a pending 409 replace armed for a later load.
+        replaceDraftOnLoad.current = false;
+        setError(errorMessage(reason));
       });
     return () => {
       active = false;
@@ -161,6 +168,8 @@ export function TranscriptVocabularyEditor({
     } catch (reason) {
       if (reason instanceof ApiError && reason.status === 409) {
         replaceDraftOnLoad.current = true;
+        // The reload drops unsaved entries, so stop announcing them as pending.
+        setAnnouncement("");
         setError(VOCABULARY_CONFLICT_MESSAGE);
       } else {
         setError(errorMessage(reason));
