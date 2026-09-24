@@ -337,3 +337,40 @@ def test_failed_source_memory_is_capped(monkeypatch, tmp_path):
     for name in ("a", "b", "c"):
         peaks_engine._remember_failed_source(tmp_path / f"{name}.json", revision)
     assert list(peaks_engine._PEAKS_FAILED) == [tmp_path / "b.json", tmp_path / "c.json"]
+
+
+def test_lookup_track_peaks_reports_generating_while_stale_sidecar_regenerates(
+    minimal_project, sample_wav
+):
+    ws = ProjectWorkspace.open(minimal_project)
+    raw = Path(ws.project.workspace_dir) / "raw"
+    raw.mkdir(exist_ok=True)
+    (raw / "import.wav").write_bytes(Path(sample_wav).read_bytes())
+    track = Track(
+        id="host",
+        label="Host",
+        media=MediaAsset(path="raw/import.wav", duration_sec=1.0),
+    )
+    ws.project.tracks.append(track)
+    peaks_dir = ws.project.artifacts_dir() / "peaks"
+    peaks_dir.mkdir(parents=True, exist_ok=True)
+    (peaks_dir / "host.json").write_text('{"stale": true}', encoding="utf-8")
+
+    release = threading.Event()
+    real_generate_peaks = generate_peaks
+
+    def _delayed(*a, **k):
+        release.wait(timeout=5)
+        return real_generate_peaks(*a, **k)
+
+    with patch("podcast_mcp.engines.peaks.generate_peaks", side_effect=_delayed):
+        assert schedule_track_peaks(ws.project, track) is True
+        during = lookup_track_peaks(ws.project, "host")
+        assert during.path is None
+        assert during.generating is True
+        release.set()
+        wait_peaks_jobs()
+
+    after = lookup_track_peaks(ws.project, "host")
+    assert after.path is not None
+    assert "stale" not in json.loads(after.path.read_text(encoding="utf-8"))

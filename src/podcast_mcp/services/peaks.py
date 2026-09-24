@@ -38,7 +38,15 @@ class PeaksUnavailableError(FileNotFoundError):
 
 
 def lookup_track_peaks(project: EpisodeProject, track_id: str) -> TrackPeaksLookup:
-    """Resolve peaks for ``track_id``, queuing generation when missing and possible."""
+    """Resolve peaks for ``track_id``, queuing generation when missing and possible.
+
+    The pending check runs before the file check on purpose: while a job is
+    regenerating a stale sidecar (for example after ``set_track_media``), the old
+    file is still on disk and must not be served as ready. ``_run_peaks_job``
+    drops the pending key only after ``generate_peaks`` has renamed the new file
+    into place, so a lookup that sees "not pending" also sees the finished file;
+    ``schedule_track_peaks`` dedupes concurrent callers under its lock.
+    """
     track = next((t for t in project.tracks if t.id == track_id), None)
     if track is None:
         return TrackPeaksLookup(path=None, generating=False)
