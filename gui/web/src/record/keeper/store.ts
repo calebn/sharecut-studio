@@ -26,6 +26,8 @@ export type StoredKeeperMeta = Omit<KeeperMeta, "complete"> & {
 /** Upper bounds for OPFS keeper enumeration; guards stray or hostile names. */
 export const MAX_KEEPER_TAKES = 1000;
 export const MAX_KEEPER_SEGMENTS = 1000;
+/** Incomplete WAVs without metadata remain available for manual export. */
+export const ORPHAN_KEEPER_RETENTION_MS = 7 * 24 * 60 * 60_000;
 
 export type ByteStream = {
   write(bytes: Uint8Array, offset?: number): Promise<void>;
@@ -37,6 +39,8 @@ export type ByteSink = {
   read(path: string): Promise<Uint8Array | null>;
   /** Return the native file when available so recovery need not copy large WAVs. */
   readBlob?(path: string): Promise<Blob | null>;
+  /** Modification time for bounded-age cleanup, without loading PCM. */
+  modifiedAt?(path: string): Promise<number | null>;
   /**
    * Atomically replace the leading bytes of an existing file and truncate it
    * to `byteLength`, keeping the remaining bytes without copying them.
@@ -114,6 +118,83 @@ export function keeperWavPath(
 
 export function keeperMetaPath(wavPath: string): string {
   return wavPath.replace(/\.wav$/i, ".json");
+}
+
+type PrunedKeeperMarker = {
+  pruned: true;
+  sessionId: string;
+  takeIndex: number;
+  participantId: string;
+  segmentIndex: number;
+};
+
+/** A marker reserves the segment identity after its expired WAV is removed. */
+export function prunedKeeperMarker(
+  bytes: Uint8Array | null,
+  wavPath: string,
+): boolean {
+  if (!bytes) return false;
+  try {
+    const value: unknown = JSON.parse(new TextDecoder().decode(bytes));
+    if (!value || typeof value !== "object") return false;
+    const marker = value as Partial<PrunedKeeperMarker>;
+    return (
+      marker.pruned === true &&
+      typeof marker.sessionId === "string" &&
+      typeof marker.participantId === "string" &&
+      isIndex(marker.takeIndex) &&
+      isIndex(marker.segmentIndex) &&
+      keeperWavPath(marker as PrunedKeeperMarker) === wavPath
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Prune only settled, old metadata-free WAVs; keep their indexes reserved. */
+export async function pruneExpiredKeeperWavs(
+  sink: ByteSink,
+  sessionId: string,
+  participantId: string,
+  lastTakeIndex: number,
+  canPrune: () => boolean,
+  now = Date.now(),
+): Promise<number> {
+  if (!sink.modifiedAt) return 0;
+  let pruned = 0;
+  for await (const { takeIndex, segmentIndex, wavPath } of keeperSegmentPaths(
+    sink,
+    sessionId,
+    participantId,
+    lastTakeIndex,
+  )) {
+    if (!canPrune()) break;
+    const metaPath = keeperMetaPath(wavPath);
+    const existing = await sink.read(metaPath);
+    if (existing && !prunedKeeperMarker(existing, wavPath)) continue;
+    const modified = await sink.modifiedAt(wavPath);
+    if (modified === null || now - modified < ORPHAN_KEEPER_RETENTION_MS) {
+      continue;
+    }
+    if (!canPrune()) break;
+    const currentMeta = await sink.read(metaPath);
+    if (currentMeta && !prunedKeeperMarker(currentMeta, wavPath)) continue;
+    const marker: PrunedKeeperMarker = {
+      pruned: true,
+      sessionId,
+      takeIndex,
+      participantId,
+      segmentIndex,
+    };
+    await sink.write(
+      metaPath,
+      new TextEncoder().encode(JSON.stringify(marker)),
+    );
+    if (!canPrune()) break;
+    await sink.remove(wavPath);
+    pruned += 1;
+  }
+  return pruned;
 }
 
 /** True when `meta` names exactly the keeper file at `wavPath`. */
@@ -266,10 +347,10 @@ export function keeperMetaComplete(bytes: Uint8Array | null): boolean {
 export async function missingKeeperWavState(
   sink: ByteSink,
   wavPath: string,
-): Promise<"reclaimed" | "missing"> {
-  return keeperMetaComplete(await sink.read(keeperMetaPath(wavPath)))
-    ? "reclaimed"
-    : "missing";
+): Promise<"reclaimed" | "pruned" | "missing"> {
+  const meta = await sink.read(keeperMetaPath(wavPath));
+  if (prunedKeeperMarker(meta, wavPath)) return "pruned";
+  return keeperMetaComplete(meta) ? "reclaimed" : "missing";
 }
 
 export function keeperDirPrefix(
@@ -312,9 +393,15 @@ function maxWavIndex(names: string[]): number {
 
 export class MemorySink implements ByteSink {
   readonly files = new Map<string, Uint8Array>();
+  readonly modified = new Map<string, number>();
 
   async write(path: string, bytes: Uint8Array): Promise<void> {
     this.files.set(path, bytes);
+    this.modified.set(path, Date.now());
+  }
+
+  async modifiedAt(path: string): Promise<number | null> {
+    return this.modified.get(path) ?? null;
   }
 
   async read(path: string): Promise<Uint8Array | null> {
@@ -341,6 +428,7 @@ export class MemorySink implements ByteSink {
 
   async remove(path: string): Promise<void> {
     this.files.delete(path);
+    this.modified.delete(path);
   }
 
   async open(path: string): Promise<ByteStream> {
@@ -355,9 +443,11 @@ export class MemorySink implements ByteSink {
         }
         data.set(bytes, offset);
         this.files.set(path, data);
+        this.modified.set(path, Date.now());
       },
       close: async () => {
         this.files.set(path, data);
+        this.modified.set(path, Date.now());
       },
     };
   }
@@ -428,6 +518,17 @@ export async function createOpfsSink(): Promise<ByteSink> {
       try {
         const file = await fileHandle(root, path, false);
         return await file.getFile();
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "NotFoundError") {
+          return null;
+        }
+        throw error;
+      }
+    },
+    async modifiedAt(path: string) {
+      try {
+        const file = await fileHandle(root, path, false);
+        return (await file.getFile()).lastModified;
       } catch (error) {
         if (error instanceof DOMException && error.name === "NotFoundError") {
           return null;

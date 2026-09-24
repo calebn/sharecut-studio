@@ -23,6 +23,7 @@ import {
   keeperSegmentPaths,
   missingKeeperWavState,
   parseKeeperMeta,
+  prunedKeeperMarker,
   type StoredKeeperMeta,
   writeKeeperMeta,
 } from "../keeper/store";
@@ -43,6 +44,7 @@ export type KeeperRecoveryPlan = {
 
 export type KeeperRecoveryStatus =
   | { kind: "complete"; joinOffsetMs: number }
+  | { kind: "pruned" }
   /** Not finalized, and not inspected because capture may still be open. */
   | { kind: "pending" }
   | { kind: "recoverable"; plan: KeeperRecoveryPlan }
@@ -103,7 +105,17 @@ export async function inspectKeeperRecovery(
   wavPath: string,
   options: { inspectPending?: boolean } = {},
 ): Promise<KeeperRecoveryStatus> {
-  const meta = parseKeeperMeta(await sink.read(keeperMetaPath(wavPath)));
+  const metaBytes = await sink.read(keeperMetaPath(wavPath));
+  if (prunedKeeperMarker(metaBytes, wavPath)) {
+    // A failed remove can leave the WAV alongside its marker; keep it visible.
+    return (await probeKeeperWav(sink, wavPath))
+      ? {
+          kind: "unrecoverable",
+          reason: "The local keeper has no readable recovery metadata.",
+        }
+      : { kind: "pruned" };
+  }
+  const meta = parseKeeperMeta(metaBytes);
   if (!meta) {
     return {
       kind: "unrecoverable",
@@ -330,11 +342,14 @@ export async function downloadLocalKeepers(
           data: blob,
         });
         downloaded += 1;
-      } else if ((await missingKeeperWavState(sink, wavPath)) === "reclaimed") {
-        // Landed safely on the host and cleared locally; not lost audio.
-        reclaimed += 1;
       } else {
-        missing += 1;
+        const state = await missingKeeperWavState(sink, wavPath);
+        if (state === "reclaimed") {
+          // Landed safely on the host and cleared locally; not lost audio.
+          reclaimed += 1;
+        } else if (state === "missing") {
+          missing += 1;
+        }
       }
     }
     if (downloaded === 0 && missing === 0 && reclaimed > 0) {
