@@ -2693,6 +2693,68 @@ def test_room_tone_rerecord_stale_during_commit_clears_overwritten_bed(
     assert beds[0]["landed"] is False
 
 
+def test_room_tone_newer_bed_on_disk_before_rollback_is_kept(
+    minimal_project, sample_wav, monkeypatch
+):
+    from podcast_mcp.edits.timeline_ops import room_tone_source_id
+    from podcast_mcp.edits.track_ids import slug_track_id
+    from podcast_mcp.services.record.upload import ROOM_TONE_TAKE_INDEX
+
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    _svc, guest = _consent_room(ws, room)
+    uploader = RecordUploadService(ws.project)
+    pcm, digest, file_hash = _pcm(480)
+    uploader.ingest_part(
+        session_id=room["session_id"],
+        take_index=0,
+        participant_id=guest,
+        segment_index=0,
+        part_seq=0,
+        data=pcm,
+        digest=digest,
+        file_sha256=file_hash,
+        final=True,
+        kind="room_tone",
+    )
+    track_id = slug_track_id(guest)
+    source_id = room_tone_source_id(track_id)
+    replacement_hash = "f" * 64
+
+    def race():
+        uploader._store.mark_file(
+            session_id=room["session_id"],
+            take_index=ROOM_TONE_TAKE_INDEX,
+            participant_id=guest,
+            segment_index=0,
+            file_sha256=replacement_hash,
+            byte_length=480,
+        )
+        (Path(ws.project.workspace_dir) / "raw" / "room-tone" / f"{guest}.wav").write_bytes(
+            b"newer-generation-bed"
+        )
+
+    _race_on_commit(
+        monkeypatch,
+        when=lambda project: any(src.id == source_id for src in project.sources),
+        race=race,
+    )
+
+    result = RecordLandingService(ws).land(align=lambda _p: None)
+    assert result["clips"] == []
+
+    assert any(src.id == source_id for src in ws.project.sources)
+    track = ws.project.track_by_id(track_id)
+    assert track is not None
+    assert track.room_tone is not None
+    assert track.room_tone.path == f"raw/room-tone/{guest}.wav"
+
+    beds = uploader.room_tone_status(session_id=room["session_id"])
+    assert beds[0]["file_sha256"] == replacement_hash
+    assert beds[0]["landed"] is False
+
+
 def test_ack_replaced_before_registration_skips_project_media(
     minimal_project, sample_wav, monkeypatch
 ):

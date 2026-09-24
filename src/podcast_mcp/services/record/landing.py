@@ -814,6 +814,11 @@ class RecordLandingService:
             touched: set[str] = set()
             for item in reversed(stale):
                 prior: PriorRegistration = item["prior"]
+                if prior.room_tone and not self._copied_raw_matches(project, item):
+                    # Beds share one fixed raw path per participant, so the path
+                    # guard in revert_registration can't tell generations apart;
+                    # a newer bed already overwrote the stale bytes -- keep it.
+                    continue
                 if revert_registration(project, prior):
                     touched.add(prior.track_id)
             if touched:
