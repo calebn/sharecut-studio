@@ -1,6 +1,7 @@
 import { type ReactNode, useCallback, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "./Button";
+import { CloseButton } from "./CloseButton";
 import { useDialogModal } from "./useDialogModal";
 
 export type BottomSheetSize = "half" | "full";
@@ -87,15 +88,7 @@ export function BottomSheet({
                   {isFull ? "Collapse" : "Expand"}
                 </Button>
               ) : null}
-              <Button
-                ref={closeRef}
-                variant="link"
-                type="button"
-                aria-label="Close"
-                onClick={dismiss}
-              >
-                Close
-              </Button>
+              <CloseButton ref={closeRef} onClick={dismiss} />
             </div>
           </div>
         </div>
