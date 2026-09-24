@@ -85,10 +85,13 @@ def revert_registration(project: EpisodeProject, prior: PriorRegistration) -> bo
     """Undo the registration landing made for *prior*, if nothing else built on it.
 
     A no-op (returns False) unless ``project.sources[prior.source_id]`` still points
-    at ``prior.rel`` — the raw path the stale copy overwrote. Raw files are never
-    deleted here; history references them.
+    at ``prior.rel`` — the raw path the stale copy overwrote. That path check tells
+    generations apart only for per-segment sources (``unique_raw_path``); room-tone
+    beds reuse a fixed ``raw/room-tone/{pid}.wav``, so the caller must first confirm
+    the on-disk bed still holds the stale bytes (``RecordLandingService._rollback_stale``
+    does). Raw files are never deleted here; history references them.
     """
-    current_source = next((src for src in project.sources if src.id == prior.source_id), None)
+    current_source = project.source_by_id(prior.source_id)
     if current_source is None or current_source.path != prior.rel:
         return False
 
