@@ -45,4 +45,17 @@ describe("RecIndicator", () => {
     expect(screen.getByText("REC — local capture failed")).toBeInTheDocument();
     expect(screen.queryByText("REC")).not.toBeInTheDocument();
   });
+
+  it("distinguishes a pending microphone from healthy capture", () => {
+    render(
+      <RecIndicator
+        snapshot={{ ...base, state: "recording" }}
+        capturePending
+      />,
+    );
+    expect(
+      screen.getByText("REC — waiting for microphone"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("REC")).not.toBeInTheDocument();
+  });
 });

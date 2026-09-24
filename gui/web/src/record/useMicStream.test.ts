@@ -75,6 +75,44 @@ describe("useMicStream", () => {
     expect(gum).not.toHaveBeenCalled();
   });
 
+  it("reacquires a live stream after an initial permission denial", async () => {
+    const track = {
+      readyState: "live",
+      stop: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      getSettings: () => ({
+        echoCancellation: false,
+        autoGainControl: false,
+        noiseSuppression: false,
+      }),
+    };
+    const gum = vi
+      .fn()
+      .mockRejectedValueOnce(
+        Object.assign(new Error("denied"), { name: "NotAllowedError" }),
+      )
+      .mockResolvedValueOnce({
+        getTracks: () => [track],
+        getAudioTracks: () => [track],
+      });
+    vi.stubGlobal("navigator", {
+      mediaDevices: {
+        getUserMedia: gum,
+        enumerateDevices: vi.fn(async () => []),
+      },
+    });
+    const { result } = renderHook(() => useMicStream(true, ""));
+    await waitFor(() =>
+      expect(result.current.errorName).toBe("NotAllowedError"),
+    );
+    expect(result.current.stream).toBeNull();
+    result.current.retry();
+    await waitFor(() => expect(result.current.stream).not.toBeNull());
+    expect(result.current.error).toBeNull();
+    expect(gum).toHaveBeenCalledTimes(2);
+  });
+
   it("marks an active track loss and retries without reacting to stale tracks", async () => {
     let ended: (() => void) | undefined;
     const firstTrack = {

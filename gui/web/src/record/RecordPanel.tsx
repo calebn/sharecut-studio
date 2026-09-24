@@ -79,17 +79,18 @@ export function RecordPanel({
     projectPath,
     setShareDialogOpen,
   } = useDaw();
-  useEffect(() => {
-    if (micLost && !recordPanelOpen) {
-      setRecordPanelOpen(true);
-    }
-  }, [micLost, recordPanelOpen, setRecordPanelOpen]);
   const snapshot = useRecordHostStore((s) => s.snapshot);
   const setSnapshot = useRecordHostStore((s) => s.setSnapshot);
   const blockers = startBlockers(snapshot);
   const state = snapshot?.state;
   const recording = state === "recording";
   const paused = state === "paused";
+  const captureUnavailable = recording && micStatus !== null && stream === null;
+  useEffect(() => {
+    if ((micLost || captureUnavailable) && !recordPanelOpen) {
+      setRecordPanelOpen(true);
+    }
+  }, [captureUnavailable, micLost, recordPanelOpen, setRecordPanelOpen]);
   const host = snapshot?.participants.find(
     (person) => person.participant_id === "p_host",
   );
@@ -212,11 +213,17 @@ export function RecordPanel({
       open={recordPanelOpen}
       onClose={() => setRecordPanelOpen(false)}
       title="Record room"
-      closeDisabled={uploadBlocking || micLost}
+      closeDisabled={uploadBlocking || micLost || captureUnavailable}
     >
       <div className="stack record-panel">
         {snapshot ? (
-          <RecIndicator snapshot={snapshot} captureFailed={!!keeperError} />
+          <RecIndicator
+            snapshot={snapshot}
+            captureFailed={
+              !!keeperError || (captureUnavailable && micStatus !== "prompting")
+            }
+            capturePending={captureUnavailable && micStatus === "prompting"}
+          />
         ) : null}
         <StorageHeadroomWarning
           visible={state === "lobby" || state === "stopped"}

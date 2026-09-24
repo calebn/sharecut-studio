@@ -1,10 +1,11 @@
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
+import { useRecordHostStore } from "../record/hostStore";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
-import { minimalProject } from "../test/fixtures";
+import { minimalProject, recordSnapshot } from "../test/fixtures";
 import { TransportBar } from "./TransportBar";
 
 const TRACKS = ["a", "b", "c"].map((id) => ({
@@ -24,6 +25,25 @@ describe("TransportBar collapsed", () => {
     useDawStore
       .getState()
       .hydrate("/tmp/p.json", minimalProject({ timeline_duration_sec: 4000 }));
+    useRecordHostStore.getState().setSnapshot(null);
+    useRecordHostStore.getState().setCaptureHealth(null);
+  });
+
+  it("shows host capture failure in the transport chip during REC", () => {
+    useRecordHostStore
+      .getState()
+      .setSnapshot(recordSnapshot({ state: "recording" }));
+    useRecordHostStore.getState().setCaptureHealth("failed");
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <TransportBar />
+      </DawProvider>,
+    );
+    expect(
+      screen.getByRole("button", {
+        name: "Local capture failed — open record panel",
+      }),
+    ).toHaveTextContent("REC — local capture failed");
   });
 
   it("keeps Comment and Fit as primary controls when compact", async () => {

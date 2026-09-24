@@ -8,6 +8,8 @@ type RecordHostState = {
   startPending: boolean;
   keeperSink: ByteSink | null;
   keeperStorageError: string | null;
+  captureHealth: "pending" | "failed" | null;
+  setCaptureHealth: (health: "pending" | "failed" | null) => void;
   setKeeperStorage: (sink: ByteSink | null, error: string | null) => void;
   setSnapshot: (snap: RecordSnapshot | null) => void;
   setConnected: (connected: boolean) => void;
@@ -21,6 +23,8 @@ export const useRecordHostStore = create<RecordHostState>((set) => ({
   startPending: false,
   keeperSink: null,
   keeperStorageError: null,
+  captureHealth: null,
+  setCaptureHealth: (captureHealth) => set({ captureHealth }),
   setKeeperStorage: (keeperSink, keeperStorageError) =>
     set({ keeperSink, keeperStorageError }),
   setSnapshot: (snapshot) => set({ snapshot }),

@@ -71,6 +71,7 @@ describe("useHostKeeperCapture", () => {
     useRecordHostStore.getState().setSnapshot(recording);
     useRecordHostStore.getState().setKeeperStorage(new MemorySink(), null);
     useRecordHostStore.getState().setConnected(false);
+    useRecordHostStore.getState().setCaptureHealth(null);
     bindRecordHostSend(null);
   });
 
@@ -280,8 +281,61 @@ describe("useHostKeeperCapture", () => {
 
     expect(result.current.micStatus).toBe("denied");
     expect(result.current.micError).toBe("permission blocked");
+    expect(useRecordHostStore.getState().captureHealth).toBe("failed");
     act(() => result.current.retryMic());
     expect(retry).toHaveBeenCalledOnce();
     expect(keeper.mock.calls.at(-1)?.[0].resetKey).toBe(0);
+  });
+
+  it("reports an unavailable microphone and clears capture failure after retry", () => {
+    mic.mockReturnValueOnce({
+      stream: null,
+      devices: [],
+      error: "No device",
+      errorName: "NotFoundError",
+      settingsWarning: null,
+      pending: false,
+      lost: false,
+      retry: vi.fn(),
+    });
+    const { result, rerender } = renderHook(() => useHostKeeperCapture());
+    expect(result.current.micStatus).toBe("unavailable");
+    expect(useRecordHostStore.getState().captureHealth).toBe("failed");
+
+    mic.mockReturnValueOnce({
+      stream: {} as MediaStream,
+      devices: [],
+      error: null,
+      errorName: null,
+      settingsWarning: null,
+      pending: false,
+      lost: false,
+      retry: vi.fn(),
+    });
+    rerender();
+    expect(result.current.micStatus).toBe("granted");
+    expect(useRecordHostStore.getState().captureHealth).toBeNull();
+    expect(keeper.mock.calls.at(-1)?.[0].resetKey).toBe(0);
+  });
+
+  it("clears capture failure after the take stops", () => {
+    mic.mockReturnValueOnce({
+      stream: null,
+      devices: [],
+      error: "Permission denied",
+      errorName: "NotAllowedError",
+      settingsWarning: null,
+      pending: false,
+      lost: false,
+      retry: vi.fn(),
+    });
+    renderHook(() => useHostKeeperCapture());
+    expect(useRecordHostStore.getState().captureHealth).toBe("failed");
+    act(() =>
+      useRecordHostStore
+        .getState()
+        .setSnapshot({ ...recording, state: "stopped" }),
+    );
+    expect(useRecordHostStore.getState().captureHealth).toBeNull();
   });
 });
