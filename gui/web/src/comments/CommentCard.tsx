@@ -98,6 +98,11 @@ export function CommentCard({
     <>
       <span className="comment-card-time">{commentTimeLabel(c)}</span>
       <span className="comment-card-author">{c.author}</span>
+      {!canResolve ? (
+        <span className="comment-card-status">
+          {c.resolved ? "Resolved" : "Open"}
+        </span>
+      ) : null}
       <span className="comment-card-body">{c.body}</span>
       {c.track_ids.length > 0 ? (
         <span className="comment-card-tracks">{c.track_ids.join(", ")}</span>

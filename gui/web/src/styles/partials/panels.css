@@ -194,6 +194,11 @@
   color: var(--text-dim);
 }
 
+.comment-card-status {
+  color: var(--text-dim);
+  font-size: var(--font-size-caption);
+}
+
 .comment-card-body {
   white-space: pre-wrap;
 }

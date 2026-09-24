@@ -51,12 +51,19 @@ export function ReviewApp({ token }: { token: string }) {
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const inflightRef = useRef(false);
+  const refreshSeqRef = useRef(0);
   const projectKey = shareProjectKey(token);
 
   const audioUrl = useMemo(
     () => `/api/review/${encodeURIComponent(token)}/audio`,
     [token],
   );
+  const visibleComments = useMemo(() => {
+    if (!project) return [];
+    return openOnly
+      ? project.comments.filter((comment) => !comment.resolved)
+      : project.comments;
+  }, [openOnly, project]);
 
   const beginInflight = (): boolean => {
     if (inflightRef.current) {
@@ -74,14 +81,28 @@ export function ReviewApp({ token }: { token: string }) {
   };
 
   const refresh = useCallback(async () => {
-    setProject(await loadReview(token));
+    const seq = ++refreshSeqRef.current;
+    const next = await loadReview(token);
+    if (seq === refreshSeqRef.current) setProject(next);
   }, [token]);
 
   useEffect(() => {
-    loadReview(token)
-      .then(setProject)
-      .catch((e: unknown) => setError(errorMessage(e)));
-  }, [token]);
+    void refresh().catch((e: unknown) => setError(errorMessage(e)));
+    return () => {
+      refreshSeqRef.current += 1;
+    };
+  }, [refresh]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== "hidden") {
+        void refresh().catch(() => {
+          // Keep the last loaded review visible; the next poll can recover.
+        });
+      }
+    }, 15_000);
+    return () => window.clearInterval(timer);
+  }, [refresh]);
 
   useEffect(() => {
     if (!project?.meta?.name) {
@@ -170,9 +191,6 @@ export function ReviewApp({ token }: { token: string }) {
   const canReply = hasShareCapability(caps, "reply");
   const canAction = hasShareCapability(caps, "action");
   const modeLabel = project.guest_mode ?? "comment";
-  const visibleComments = openOnly
-    ? project.comments.filter((comment) => !comment.resolved)
-    : project.comments;
 
   const onReply = async (commentId: string, text: string) => {
     const who = resolveCommentActor(author);

@@ -122,6 +122,7 @@ describe("ReviewApp", () => {
 
     render(<ReviewApp token="tok" />);
     expect(await screen.findByText("Cut addressed")).toBeInTheDocument();
+    expect(screen.getByText("Resolved")).toBeInTheDocument();
     await user.click(
       screen.getByRole("checkbox", { name: "Open comments only" }),
     );
@@ -155,6 +156,43 @@ describe("ReviewApp", () => {
     await user.click(
       await screen.findByRole("checkbox", { name: "Open comments only" }),
     );
+    expect(screen.getByText("No open comments.")).toBeInTheDocument();
+  });
+
+  it("refreshes the open-only list after the host resolves a thread", async () => {
+    const user = userEvent.setup();
+    let resolved = false;
+    const intervalSpy = vi.spyOn(window, "setInterval");
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (urlOf(input).includes("/project")) {
+          return new Response(
+            JSON.stringify({
+              ...reviewProject,
+              comments: [sampleComment({ body: "Host update", resolved })],
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+
+    render(<ReviewApp token="tok" />);
+    expect(await screen.findByText("Host update")).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("checkbox", { name: "Open comments only" }),
+    );
+    resolved = true;
+    const refreshTick = intervalSpy.mock.calls.find(
+      ([, delay]) => delay === 15_000,
+    )?.[0] as (() => void) | undefined;
+    expect(refreshTick).toBeDefined();
+    await act(async () => {
+      refreshTick?.();
+    });
     expect(screen.getByText("No open comments.")).toBeInTheDocument();
   });
 

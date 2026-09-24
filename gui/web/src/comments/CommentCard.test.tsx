@@ -43,6 +43,21 @@ describe("CommentCard", () => {
     expect(onResolve).toHaveBeenCalledWith(false);
   });
 
+  it("labels resolved read-only comments without offering a mutation", async () => {
+    const { container } = render(
+      <ul>
+        <CommentCard
+          comment={sampleComment({ resolved: true })}
+          showResolve={false}
+          showReply={false}
+        />
+      </ul>,
+    );
+    expect(screen.getByText("Resolved")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Reopen/ })).toBeNull();
+    await expectNoA11yViolations(container);
+  });
+
   it("replies via draft + Reply button", async () => {
     const user = userEvent.setup();
     const onReply = vi.fn();
