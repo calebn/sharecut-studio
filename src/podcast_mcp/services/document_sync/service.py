@@ -18,11 +18,10 @@ from podcast_mcp.services.history import HistoryService
 from podcast_mcp.services.session_sync.hub import get_hub
 from podcast_mcp.services.session_sync.log import SyncStore
 from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.util.project_state import project_state_lock
 
 _STORE_CACHE: dict[str, SyncStore] = {}
 _STORE_LOCK = threading.Lock()
-_SUBMIT_LOCKS: dict[str, threading.RLock] = {}
-_SUBMIT_LOCKS_GUARD = threading.Lock()
 
 
 def document_db_path(project: EpisodeProject) -> Path:
@@ -42,13 +41,7 @@ def document_submit_lock(project: EpisodeProject) -> threading.RLock:
     too, so they cannot overwrite a document mutation with a stale workspace.
     The lock is reentrant for callers such as ``submit`` that take snapshots.
     """
-    key = str(project.workspace_path().resolve())
-    with _SUBMIT_LOCKS_GUARD:
-        lock = _SUBMIT_LOCKS.get(key)
-        if lock is None:
-            lock = threading.RLock()
-            _SUBMIT_LOCKS[key] = lock
-        return lock
+    return project_state_lock(project)
 
 
 def _store_for(project: EpisodeProject) -> SyncStore:

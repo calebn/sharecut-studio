@@ -6,7 +6,7 @@ from threading import Event
 from podcast_mcp.history.session import run_mutation
 from podcast_mcp.models import EditDecision, EditDecisionType, load_project
 from podcast_mcp.project_io import open_project
-from podcast_mcp.util.project_state import snapshot_project
+from podcast_mcp.util.project_state import project_state_lock, snapshot_project
 
 
 def test_run_mutation_records_history(minimal_project):
@@ -57,3 +57,13 @@ def test_render_snapshot_waits_for_mutation_to_commit(minimal_project):
         copied = snapshot.result(timeout=2)
 
     assert copied.name == "committed"
+
+
+def test_render_and_document_snapshots_share_workspace_lock(minimal_project):
+    from podcast_mcp.services.document_sync.service import document_submit_lock
+
+    _, first = open_project(minimal_project)
+    _, second = open_project(minimal_project)
+    assert first is not second
+    assert project_state_lock(first) is project_state_lock(second)
+    assert project_state_lock(first) is document_submit_lock(first)
