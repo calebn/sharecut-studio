@@ -4,6 +4,7 @@ import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
+import { MARKER_ROW_HEIGHT, RULER_HEIGHT } from "../utils/layout";
 import { StudioShell } from "./StudioShell";
 
 const offlineStore = vi.hoisted(() => ({
@@ -112,6 +113,44 @@ describe("StudioShell tablet peek", () => {
     expect(screen.getByLabelText("Loading timeline")).toBeTruthy();
     const main = document.querySelector("main.daw-main");
     expect(main?.className).not.toContain("daw-main--arrange");
+  });
+
+  it("aligns the loading header chrome with the timeline skeleton", () => {
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={null}>
+        <StudioShell />
+      </DawProvider>,
+    );
+    const chrome = document.querySelector(
+      ".track-headers-chrome",
+    ) as HTMLElement;
+    const skeleton = document.querySelector(
+      ".timeline-skeleton-chrome",
+    ) as HTMLElement;
+    expect(chrome.style.height).not.toBe("");
+    expect(skeleton.style.height).toBe(chrome.style.height);
+  });
+
+  it("hosts headers in the timeline for an empty session without ingest", () => {
+    useDawStore.getState().hydrate("share:tok", minimalProject({ tracks: [] }));
+    render(
+      <DawProvider
+        projectPath="share:tok"
+        initialProject={minimalProject({ tracks: [] })}
+      >
+        <StudioShell />
+      </DawProvider>,
+    );
+    expect(screen.queryByText(/Drop audio files/)).toBeNull();
+    // Inside TimelineView's metrics provider, so the header chrome matches
+    // the ruler + quiet marker row the timeline draws.
+    const chrome = document.querySelector(
+      ".timeline-scroll .track-headers .track-headers-chrome",
+    ) as HTMLElement;
+    expect(chrome.style.height).toBe(`${RULER_HEIGHT + MARKER_ROW_HEIGHT}px`);
+    expect(document.querySelector("main.daw-main")?.className).toContain(
+      "daw-main--arrange",
+    );
   });
 
   it("keeps the empty timeline an accessible import target with decorative waveform", async () => {

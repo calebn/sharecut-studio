@@ -60,6 +60,7 @@ import {
   TimelineGestureProvider,
   TimelineMetricsProvider,
   useGestureStable,
+  useTimelineMetrics,
 } from "./timelineMetrics";
 import { attachTimelineZoomGestures } from "./timelineZoomGestures";
 
@@ -71,6 +72,9 @@ type Props = {
 };
 
 export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
+  // Before a project loads this view provides no metrics, so its skeleton and
+  // any header column beside or inside it read the same ambient defaults.
+  const loadingMetrics = useTimelineMetrics();
   const {
     projectPath,
     zoomPxPerSec,
@@ -519,6 +523,13 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
             {headerSlot}
             <div className="timeline-time" style={{ minInlineSize: "100%" }}>
               <div className="timeline-skeleton" aria-hidden>
+                {/* Ruler + marker room, as the header chrome beside it reserves. */}
+                <div
+                  className="timeline-skeleton-chrome"
+                  style={{
+                    height: RULER_HEIGHT + loadingMetrics.markerLaneHeight,
+                  }}
+                />
                 {[0, 1, 2].map((i) => (
                   <div key={i} className="lane-row timeline-skeleton-lane" />
                 ))}
