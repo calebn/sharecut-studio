@@ -115,17 +115,28 @@ def encode_version_mp3(
     if existing is not None:
         return existing
     wav = version_audio_path(project, version_id)
+    review_root = review_artifacts_dir(project)
+    resolved_root = review_root.resolve(strict=True)
+    if not wav.is_relative_to(resolved_root):
+        raise RuntimeError("review artifacts directory changed during MP3 retry")
     mp3_rel = f"{REVIEW_ARTIFACTS_RELDIR}/{version_id}/mix.mp3"
-    mp3_path = Path(project.workspace_dir) / mp3_rel
-    mp3_path.parent.mkdir(parents=True, exist_ok=True)
+    version_dir = (resolved_root / version_id).resolve()
+    if not version_dir.is_relative_to(resolved_root):
+        raise ValueError("review version directory must stay under artifacts/review/")
+    version_dir.mkdir(parents=True, exist_ok=True)
+    mp3_path = version_dir / "mix.mp3"
     engine = eng or FFmpegEngine()
     with tempfile.NamedTemporaryFile(
-        prefix=".mix-", suffix=".mp3", dir=mp3_path.parent, delete=False
+        prefix=".mix-", suffix=".mp3", dir=version_dir, delete=False
     ) as temporary:
         temporary_path = Path(temporary.name)
     try:
         engine.export_mp3(wav, temporary_path, bitrate_kbps=_REVIEW_MP3_BITRATE_KBPS)
+        if review_root.resolve(strict=True) != resolved_root:
+            raise RuntimeError("review artifacts directory changed during MP3 retry")
         os.replace(temporary_path, mp3_path)
+        if review_root.resolve(strict=True) != resolved_root:
+            raise RuntimeError("review artifacts directory changed during MP3 retry")
     finally:
         try:
             temporary_path.unlink(missing_ok=True)
