@@ -59,7 +59,7 @@ download; it is at most a lossy backup. Keepers must target WAV/PCM.
 
 - Riverside is always-on cloud. Sharecut beta needs the **host laptop online**.
   Mitigation: keep recording locally + resume chunked upload; guest copy
-  "Host offline — still recording locally."
+  "Host offline: still recording locally."
 - Video-first creators expect cameras on day one. **Audio-first MVP**; external
   import covers "recorded video elsewhere."
 - No cloud lossy backup (relay stores nothing on disk; keeper chunks may transit
@@ -782,13 +782,13 @@ stateDiagram-v2
 | No input device | "No microphone was found. Connect an input device, then Retry." |
 | Mic required for consent | "Allow the microphone before you accept recording." |
 | Room tone | "Record 3 seconds of room tone" |
-| Room tone too loud | "Too loud — is something playing?" |
+| Room tone too loud | "Too loud: is something playing?" |
 | Room tone saved | "Room tone saved" |
 | Consent | "This session will be recorded locally on your device. Files stay on this browser until they finish uploading to the host after you Accept. Producers/listeners may be present and are shown in the roster. [Accept] [Decline]" |
 | REC | "REC" persistent indicator + start notification |
 | PAUSED | "PAUSED — still listening, not recording" |
-| Host reconnect pause | "Paused — the host was offline for {N}s. Resume when everyone is ready." (host DAW only; guests keep the PAUSED indicator) |
-| Host offline | "Host offline — still recording locally." |
+| Host reconnect pause | "Paused: the host was offline for {N}s. Resume when everyone is ready." (host DAW only; guests keep the PAUSED indicator) |
+| Host offline | "Host offline: still recording locally." |
 | Upload panel | "Uploading your take… {n}/{total} chunks. Keep this tab open." |
 | Landed | "Landed on the host. The local backup is cleared automatically." (only after ACK **and** confirmed landing) |
 | Reclaim stuck | "Landed on the host, but this browser could not clear the local backup. Free device storage manually before recording again." (after 3 consecutive failed deletes of a landed WAV) |
@@ -800,7 +800,7 @@ stateDiagram-v2
 Guest keeps recording locally **when the segment is still open** (tunnel/host
 offline, mic held); monitor tracks end; closed segments retry upload (the
 open segment waits until it closes); rejoin the same
-token. Copy: "Host offline — still recording locally." Intentional leave /
+token. Copy: "Host offline: still recording locally." Intentional leave /
 lost mic uses **segments** ([Roster changes](#roster-changes-join-leave-rejoin-pause-takes)).
 Producers simply lose audio and reconnect. Pending live comments queue with
 idempotency keys and upsert on reconnect.
@@ -1071,7 +1071,7 @@ warning appears; sidetone level sane.
 | Area | How |
 |------|-----|
 | Consent vs lobby | Explicit **Allow microphone** before the meter (`useMicPermission`; one `getUserMedia` path). Accept disabled with `aria-describedby` until granted **and** headphones are checked. WAV tap + keeper chunks **and** room-tone PUT **zero bytes** to the host until consent (local OPFS bed capture is allowed; Skip/Decline discards it); Start disabled while any **recorded** in-lobby client lacks consent; producers skip the gate and never call `getUserMedia`. Host Start does not require the host to record or skip room tone (idle is an implicit skip). The upload route re-checks server-side: a keeper chunk requires the uploader in that take's `consented_participant_ids`, room tone requires current `consented is True`, both returning `403 consent required` (`tests/test_record_upload.py::test_guest_keeper_upload_requires_take_consent`, `::test_guest_room_tone_upload_rejected_after_decline`, `::test_guest_keeper_upload_rechecks_consent_after_body_read`, `::test_guest_keeper_upload_rejected_after_host_removal`). |
-| Room tone | After mic granted, optional 3 s keeper-constraint PCM→WAV (skip allowed); RMS > −35 dBFS warns "Too loud — is something playing?" and does not upload; guest PUT `kind=room_tone` only after Accept (403 before consent), 403 for producer, reject > 10 s 48 kHz mono; Retry replaces the prior ACK; landing sets `track.room_tone` under the land lock; `filler_pad_mode: room_tone` prefers the bed then stem-steal; undo restores and re-lands. Producers omit the step. |
+| Room tone | After mic granted, optional 3 s keeper-constraint PCM→WAV (skip allowed); RMS > −35 dBFS warns "Too loud: is something playing?" and does not upload; guest PUT `kind=room_tone` only after Accept (403 before consent), 403 for producer, reject > 10 s 48 kHz mono; Retry replaces the prior ACK; landing sets `track.room_tone` under the land lock; `filler_pad_mode: room_tone` prefers the bed then stem-steal; undo restores and re-lands. Producers omit the step. |
 | Late-join pad | Joiner at T+10 s → clip at `join_offset_ms` = 10 s ± 1 frame (default, no in-file pad). Optional origin encoding of **segment 0 only**: leading zeros 10 s ± 1 frame at 48 kHz. Later segments never padded in-file. |
 | Progressive upload | Fake transport + HTTP resume; keys `(session_id, take, participant, segment, part_seq)`; chunk hashes; current clients declare `expected_parts` and older open tabs infer it at finalization; kill mid-session; resume on same token completes; incomplete/stalled and zero-sample keepers expose a ZIP of retained local segments and upload retry; host GET lists all participants with `N/M` where every segment total is known; only `complete: true` (or verified legacy) segments upload, pending WAVs are never read during REC, Leave is held while Stop finalizes a lone segment, and **Recover partial take** (host + guest) patches the header once, re-polls upload, and reports failures outside the storage error channel. |
 | Host offline | Monitor tracks end; if the segment is still open, local WAV length **keeps growing**; copy string asserted. Intentional leave / lost mic finalizes the segment. |
