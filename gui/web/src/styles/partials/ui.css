@@ -240,16 +240,26 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  /* Pills / chips / domain pressed keep their own semantic paint. */
+  /* Generic hover wash. The exclusions sit in :where() so this rule stays at
+     (0,2,0): any component that paints its own control (transport, Listen
+     hero, variants, pills, domain pressed) wins instead of turning grey. */
   .ui-control:hover:not(
-    :disabled,
-    [aria-disabled="true"],
-    .pill,
-    .status-chip,
-    .status-pipeline,
-    .trk-btn.mute,
-    .trk-btn.solo,
-    .comment-mode-btn
+    :where(
+      :disabled,
+      [aria-disabled="true"],
+      .primary,
+      [data-variant="primary"],
+      .danger,
+      [data-variant="danger"],
+      .linkish,
+      [data-variant="link"],
+      .pill,
+      .status-chip,
+      .status-pipeline,
+      .trk-btn.mute,
+      .trk-btn.solo,
+      .comment-mode-btn
+    )
   ) {
     color: var(--color-text-primary);
     border-color: var(--color-text-secondary);
@@ -263,6 +273,7 @@
   ) {
     color: var(--color-accent-on-solid);
     border-color: var(--color-accent-solid);
+    background: var(--color-accent-solid);
     filter: brightness(1.06);
   }
 
@@ -303,22 +314,30 @@
   }
 
   .ui-control[aria-pressed="true"]:hover:not(
-    :disabled,
-    [aria-disabled="true"],
-    .ui-control--quiet,
-    [data-ui-kind="tab"],
-    .trk-btn.mute,
-    .trk-btn.solo,
-    .comment-mode-btn
+    :where(
+      :disabled,
+      [aria-disabled="true"],
+      .primary,
+      [data-variant="primary"],
+      .ui-control--quiet,
+      [data-ui-kind="tab"],
+      .trk-btn.mute,
+      .trk-btn.solo,
+      .comment-mode-btn
+    )
   ),
   .ui-control.active:hover:not(
-    :disabled,
-    [aria-disabled="true"],
-    .ui-control--quiet,
-    [data-ui-kind="tab"],
-    .trk-btn.mute,
-    .trk-btn.solo,
-    .comment-mode-btn
+    :where(
+      :disabled,
+      [aria-disabled="true"],
+      .primary,
+      [data-variant="primary"],
+      .ui-control--quiet,
+      [data-ui-kind="tab"],
+      .trk-btn.mute,
+      .trk-btn.solo,
+      .comment-mode-btn
+    )
   ) {
     color: var(--color-text-primary);
     border-color: var(--color-border-strong);
