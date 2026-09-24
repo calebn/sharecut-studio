@@ -695,16 +695,16 @@ def share_daw_meta(token: str) -> dict[str, Any]:
 
 
 def share_daw_peaks(token: str, track_id: str) -> dict[str, Any]:
-    from podcast_mcp.gui.peaks import resolve_peaks_path
+    from podcast_mcp.services.peaks import PeaksUnavailableError, lookup_track_peaks
 
     _row, ws = require_share_cap(token, CAP_VIEW)
     track_ids = {t.id for t in ws.project.tracks}
     if track_id not in track_ids:
         raise KeyError("track not found")
-    peaks_path = resolve_peaks_path(ws.project, track_id)
-    if peaks_path is None:
-        raise FileNotFoundError("peaks not available")
-    payload = json.loads(peaks_path.read_text(encoding="utf-8"))
+    lookup = lookup_track_peaks(ws.project, track_id)
+    if lookup.path is None:
+        raise PeaksUnavailableError(generating=lookup.generating)
+    payload = json.loads(lookup.path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise FileNotFoundError("peaks not available")
     payload.pop("source", None)

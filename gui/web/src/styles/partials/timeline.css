@@ -685,3 +685,13 @@ button.join-diamond {
 .theme-toggle-btn {
   min-width: 2rem;
 }
+
+.lane-peaks-status {
+  position: absolute;
+  z-index: 5;
+  left: var(--space-3);
+  bottom: var(--space-1);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-secondary);
+  pointer-events: none;
+}

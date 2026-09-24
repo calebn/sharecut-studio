@@ -20,10 +20,10 @@ from podcast_mcp.gui.audio import (
 )
 from podcast_mcp.gui.host_file_dialog import pick_episode_project_path
 from podcast_mcp.gui.jobs import project_meta
-from podcast_mcp.gui.peaks import resolve_peaks_path
 from podcast_mcp.gui.routes.deps import peer_host, require_host, resolve_project
 from podcast_mcp.project_io import require_episode_project_file
 from podcast_mcp.services import HistoryService, ProjectWorkspace
+from podcast_mcp.services.peaks import lookup_track_peaks, peaks_unavailable_body
 from podcast_mcp.services.session_sync.authz import is_loopback_host
 
 router = APIRouter()
@@ -217,13 +217,13 @@ def get_peaks(
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     ws = ProjectWorkspace.open(project_path)
-    peaks_path = resolve_peaks_path(ws.project, track_id)
-    if peaks_path is None:
+    lookup = lookup_track_peaks(ws.project, track_id)
+    if lookup.path is None:
         return JSONResponse(
             status_code=404,
-            content={"available": False, "track_id": track_id},
+            content=peaks_unavailable_body(track_id, generating=lookup.generating),
         )
-    return json.loads(peaks_path.read_text(encoding="utf-8"))
+    return json.loads(lookup.path.read_text(encoding="utf-8"))
 
 
 @router.get("/api/waveform-snap")

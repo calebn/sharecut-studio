@@ -24,6 +24,11 @@ vi.mock("../hooks/useViewportClass", () => ({
   shellBreakpointFromWidth: () => "tablet" as const,
 }));
 
+// Full-shell render; not exercising waveform fetching.
+vi.mock("../hooks/usePeaks", () => ({
+  usePeaks: () => ({ peaks: null, status: "idle" }),
+}));
+
 const tabletProject = () =>
   minimalProject({
     tracks: [

@@ -1,11 +1,15 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ClipRow, TrackView } from "../types/project";
 import { TrackLane } from "./TrackLane";
 
+const mockPeaksState = vi.hoisted(() => ({
+  current: { peaks: null as unknown, status: "idle" as string },
+}));
+
 vi.mock("../hooks/usePeaks", () => ({
-  usePeaks: () => null,
+  usePeaks: () => mockPeaksState.current,
 }));
 
 vi.mock("../hooks/useClipWaveform", () => ({
@@ -68,6 +72,10 @@ const baseProps = {
 };
 
 describe("TrackLane bladeMode", () => {
+  afterEach(() => {
+    mockPeaksState.current = { peaks: null, status: "idle" };
+  });
+
   it("routes clip hit through onSeek with lane-seek underlay when bladeMode", async () => {
     const onSeek = vi.fn();
     const onSelectClip = vi.fn();
@@ -162,5 +170,57 @@ describe("TrackLane bladeMode", () => {
       />,
     );
     expect(container.querySelector(".blade-cut-guide--lane")).toBeNull();
+  });
+});
+
+describe("TrackLane peaks status hint", () => {
+  afterEach(() => {
+    mockPeaksState.current = { peaks: null, status: "idle" };
+  });
+
+  it("shows a generating hint and marks the lane while waveform peaks are pending", () => {
+    mockPeaksState.current = { peaks: null, status: "generating" };
+    const { container } = render(
+      <TrackLane {...baseProps} onSeek={vi.fn()} onSelectClip={vi.fn()} />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Generating waveform…",
+    );
+    expect(
+      container.querySelector("[data-peaks-status='generating']"),
+    ).toBeTruthy();
+  });
+
+  it("shows an unavailable hint when peaks cannot be generated", () => {
+    mockPeaksState.current = { peaks: null, status: "unavailable" };
+    const { container } = render(
+      <TrackLane {...baseProps} onSeek={vi.fn()} onSelectClip={vi.fn()} />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Waveform unavailable",
+    );
+    expect(
+      container.querySelector("[data-peaks-status='unavailable']"),
+    ).toBeTruthy();
+  });
+
+  it("shows no hint once peaks are ready", () => {
+    mockPeaksState.current = {
+      peaks: { peaks: [], samples_per_pixel: 1, sample_rate: 1 },
+      status: "ready",
+    };
+    const { container } = render(
+      <TrackLane {...baseProps} onSeek={vi.fn()} onSelectClip={vi.fn()} />,
+    );
+    expect(container.querySelector(".lane-peaks-status")).toBeNull();
+    expect(container.querySelector("[data-peaks-status='ready']")).toBeTruthy();
+  });
+
+  it("shows no hint while idle", () => {
+    mockPeaksState.current = { peaks: null, status: "idle" };
+    const { container } = render(
+      <TrackLane {...baseProps} onSeek={vi.fn()} onSelectClip={vi.fn()} />,
+    );
+    expect(container.querySelector(".lane-peaks-status")).toBeNull();
   });
 });

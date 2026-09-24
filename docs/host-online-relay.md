@@ -216,7 +216,7 @@ All under `/api/review/{token}/…` (proxied by the relay; **no** `?project=` pa
 |-------|-----|--------|
 | `GET …/daw/project` | `view` | Sanitized ProjectView (no host filesystem paths) |
 | `GET …/daw/meta` | `view` | mtime/size for poll reload |
-| `GET …/daw/peaks/{track_id}` | `view` | Uint8 overview waveform (same file as host; no extra coarsen) |
+| `GET …/daw/peaks/{track_id}` | `view` | Uint8 overview waveform (same file as host; no extra coarsen); 404 `{"available": false, "track_id", "generating"}` while missing, with generation queued when possible |
 | `GET …/daw/waveform-snap` | `suggest` / `edit` | Windowed snap ticks for the DAW overlay; view-only guests get the quiet wash only |
 | `GET …/daw/audio?kind=` | `play` | Whitelist: `premix`, `stem`, `processed`, `review`. Rejects `raw` and `rerender=true` |
 | `GET …/daw/pending-preview` | `play` + `view` | Listen-first Current / Suggested / A/B WAV (concat; not host speakers). First hit is FFmpeg (mutate RPM); cached GET uses audio concurrency. |

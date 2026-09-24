@@ -22,6 +22,7 @@ import type {
   Selection,
   TrackView,
 } from "../types/project";
+import { trackHasSourceAudio } from "../utils/projectMedia";
 import type { RenderInvalidationView } from "../utils/staleRender";
 import { originTrackId } from "../utils/timebase";
 import { AppliedEditOverlay } from "./AppliedEditOverlay";
@@ -105,7 +106,12 @@ export function TrackLane({
   staleInvalidations = [],
   showStaleInvalidations = false,
 }: TrackLaneProps) {
-  const peaks = usePeaks(projectPath, track.id, hasPeaks);
+  const { peaks, status: peaksStatus } = usePeaks(
+    projectPath,
+    track.id,
+    hasPeaks || trackHasSourceAudio(track),
+    `${hasPeaks ? 1 : 0}|${track.media_path ?? ""}|${track.duration_sec ?? ""}`,
+  );
   const seekRef = useRef<HTMLDivElement>(null);
   const {
     project,
@@ -156,6 +162,7 @@ export function TrackLane({
       className={`lane-row${track.muted ? " muted" : ""}${bladeHighlight ? " blade-target" : ""}${staleWholeTrack ? " stale-whole-track" : ""}${dropOver ? " lane-drop-target" : ""}`}
       style={{ width }}
       data-track-id={track.id}
+      data-peaks-status={peaksStatus}
       onPointerEnter={(e) => {
         if (e.pointerType === "touch") {
           return;
@@ -197,6 +204,13 @@ export function TrackLane({
             replacing,
             fileCount: dragFileCount,
           })}
+        </div>
+      ) : null}
+      {peaksStatus === "generating" || peaksStatus === "unavailable" ? (
+        <div className="lane-peaks-status" role="status">
+          {peaksStatus === "generating"
+            ? "Generating waveform…"
+            : "Waveform unavailable"}
         </div>
       ) : null}
       {/*

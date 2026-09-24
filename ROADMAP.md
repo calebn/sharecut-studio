@@ -99,7 +99,7 @@ From [PR #73](https://github.com/calebn/sharecut-studio/pull/73) — projection 
 
 | Item | Notes |
 |------|--------|
-| **Extract `ViewProjection` type under services** | Enum + `parse_view_projection` live in `services/document_sync/projection_types.py` ([PR #125](https://github.com/calebn/sharecut-studio/pull/125)). `dump_project_projection` stays in `gui/assembler.py` by design (ProjectView seam). Remaining services→gui imports (peaks/audio/mapper/jobs) are a follow-up. [PR #73 comment](https://github.com/calebn/sharecut-studio/pull/73#discussion_r3943220105). |
+| **Extract `ViewProjection` type under services** | Enum + `parse_view_projection` live in `services/document_sync/projection_types.py` ([PR #125](https://github.com/calebn/sharecut-studio/pull/125)). `dump_project_projection` stays in `gui/assembler.py` by design (ProjectView seam). Remaining services→gui imports (audio/mapper/jobs) are a follow-up. [PR #73 comment](https://github.com/calebn/sharecut-studio/pull/73#discussion_r3943220105). |
 
 ### Collaboration maintenance
 
@@ -186,7 +186,7 @@ Required for v1 credibility with video-first creators — not just audio post.
 | **Named work regions** | Named timeline regions for agent/edit scopes + optional share deep-links. |
 | **Theme-token blade/comment cursors** | Per-theme cursor assets (CSS `url()` cannot read variables). |
 | **Pending inspector leftovers ([PR #174](https://github.com/calebn/sharecut-studio/pull/174))** | Pin/scroll shipped; still open: (1) mutation error is React state — StudioShell ↔ tablet/phone remount drops it (tests re-click Approve after resize); persist on the document/session plane. (2) Original overlap report was Firefox @ 1280; `frontend-e2e` is Chromium only. (3) `useProjectMutation.run` can start overlapping Approve calls before `busy` disables the button (pre-existing TOCTOU). |
-| **Background waveform peaks** | Full job/SSE fan-in, cancel, streamed decode for hour-long ingest. |
+| **Background waveform peaks** | On-demand generation + viewer polling shipped (#397). Still open: full job/SSE fan-in, cancel, streamed decode for hour-long ingest. |
 | **Large-project performance ([#29](https://github.com/calebn/sharecut-studio/issues/29))** | Opt-in benchmark shipped ([docs/testing.md](docs/testing.md) § Large-project browser profile). Still open: timeline clip and transcript virtualization (the two-hour fixture renders ~81k DOM nodes), a many-entry history profile, and long-duration memory tracking. |
 | **Edit preference learning** | Persist reject/approve/undo as preference events for join ranker priors. |
 | **Room-tone pad from matched air** | Score quiet non-speech spans for `filler_pad_mode: room_tone`. |
