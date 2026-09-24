@@ -66,6 +66,7 @@ export function TransportBar({ compact = false, showFit = true }: Props) {
     ingestBusy,
   } = useDaw();
   const recordSnap = useRecordHostStore((s) => s.snapshot);
+  const captureHealth = useRecordHostStore((s) => s.captureHealth);
   const { preference, cyclePreference } = useTheme();
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [narrow, setNarrow] = useState(false);
@@ -226,13 +227,21 @@ export function TransportBar({ compact = false, showFit = true }: Props) {
           className="record-rec-chip"
           aria-label={
             recordSnap.state === "recording"
-              ? "Recording — open record panel"
+              ? captureHealth === "failed"
+                ? "Local capture failed — open record panel"
+                : captureHealth === "pending"
+                  ? "Waiting for microphone — open record panel"
+                  : "Recording — open record panel"
               : recordSnap.state === "paused"
                 ? "Paused — open record panel"
                 : "Open record panel"
           }
         >
-          <RecIndicator snapshot={recordSnap} />
+          <RecIndicator
+            snapshot={recordSnap}
+            captureFailed={captureHealth === "failed"}
+            capturePending={captureHealth === "pending"}
+          />
         </CommandButton>
       ) : null}
       <span

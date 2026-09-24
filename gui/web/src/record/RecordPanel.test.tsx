@@ -166,6 +166,29 @@ describe("RecordPanel", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("reopens a closed active room on mic denial and keeps REC unhealthy until recovery", async () => {
+    useRecordHostStore
+      .getState()
+      .setSnapshot({ ...lobby, state: "recording", take_index: 0 });
+    useDawStore.setState({ recordPanelOpen: false });
+    const { rerender } = render(
+      <RecordPanel
+        micStatus="denied"
+        micError="Permission denied"
+        onRetryMic={vi.fn()}
+      />,
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Record room" });
+    expect(dialog).toHaveTextContent("REC — local capture failed");
+    expect(screen.getByText(MIC_DENIED_COPY)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+
+    rerender(<RecordPanel micStatus="granted" stream={{} as MediaStream} />);
+    expect(dialog).toHaveTextContent("REC");
+    expect(dialog).not.toHaveTextContent("REC — local capture failed");
+    expect(screen.getByRole("button", { name: "Close" })).toBeEnabled();
+  });
+
   it("shows operating-system recovery in the macOS desktop host panel", async () => {
     Object.defineProperty(window, "__TAURI_INTERNALS__", {
       configurable: true,

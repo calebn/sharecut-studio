@@ -631,6 +631,15 @@ test.describe("record lobby", () => {
             navigator.mediaDevices,
           );
           navigator.mediaDevices.getUserMedia = async (constraints) => {
+            if (
+              (window as unknown as { __denyHostRetry?: boolean })
+                .__denyHostRetry
+            ) {
+              (
+                window as unknown as { __denyHostRetry?: boolean }
+              ).__denyHostRetry = false;
+              throw new DOMException("Permission denied", "NotAllowedError");
+            }
             const stream = await original(constraints);
             (
               window as unknown as { __testHostMicTrack?: MediaStreamTrack }
@@ -673,6 +682,8 @@ test.describe("record lobby", () => {
         await expect(roomDlg).toBeHidden();
 
         await host.evaluate(() => {
+          (window as unknown as { __denyHostRetry?: boolean }).__denyHostRetry =
+            true;
           const track = (
             window as unknown as { __testHostMicTrack?: MediaStreamTrack }
           ).__testHostMicTrack;
@@ -683,6 +694,11 @@ test.describe("record lobby", () => {
           track.dispatchEvent(new Event("ended"));
         });
         await expect(roomDlg).toBeVisible();
+        await expect(
+          host.getByRole("button", {
+            name: "Local capture failed — open record panel",
+          }),
+        ).toContainText("REC — local capture failed");
         await expect(
           roomDlg.getByText(
             "Microphone disconnected. Local recording is paused.",
@@ -695,9 +711,21 @@ test.describe("record lobby", () => {
           .getByRole("button", { name: "Reconnect microphone" })
           .click();
         await expect(
+          roomDlg.getByText(/Microphone is blocked for this site/),
+        ).toBeVisible();
+        await expect(
+          roomDlg.getByRole("button", { name: "Close", exact: true }),
+        ).toBeDisabled();
+        await roomDlg
+          .getByRole("button", { name: "Reconnect microphone" })
+          .click();
+        await expect(
           roomDlg.getByText(
             "Microphone disconnected. Local recording is paused.",
           ),
+        ).toBeHidden();
+        await expect(
+          roomDlg.getByText(/Microphone is blocked for this site/),
         ).toBeHidden();
       });
     });

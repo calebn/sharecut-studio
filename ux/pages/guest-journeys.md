@@ -183,6 +183,11 @@ flowchart TD
    opens a new segment at the current room clock; if a selected device was
    unplugged, recovery can use the default available input. In the lobby,
    microphone loss disables Accept until recovery.
+   If the host microphone is denied or missing during REC, the Record room
+   panel reopens and stays open with an actionable Retry. Both the panel and
+   transport chip show local capture as failed, or waiting while a retry is
+   acquiring the microphone. A successful Retry restores the live capture
+   state without discarding existing keeper segments.
 8. Host Stop. The native leave warning stays until the keeper finishes saving
    the final WAV and metadata, then clears. The upload panel warns the guest
    to keep the tab open until the final file ACK, shows N/M chunks where all

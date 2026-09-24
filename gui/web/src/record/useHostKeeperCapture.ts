@@ -29,6 +29,7 @@ export function useHostKeeperCapture(enabled = true): {
   const setSnapshot = useRecordHostStore((s) => s.setSnapshot);
   const connected = useRecordHostStore((s) => s.connected);
   const sink = useRecordHostStore((s) => s.keeperSink);
+  const setCaptureHealth = useRecordHostStore((s) => s.setCaptureHealth);
   const pathRef = useRef(projectPath);
 
   useEffect(() => {
@@ -107,6 +108,26 @@ export function useHostKeeperCapture(enabled = true): {
       micStatus = "granted";
     }
   }
+
+  useEffect(() => {
+    const health =
+      roomState !== "recording" || !hostOn
+        ? null
+        : keeper.error || (micStatus !== "prompting" && !mic.stream)
+          ? "failed"
+          : !mic.stream
+            ? "pending"
+            : null;
+    setCaptureHealth(health);
+    return () => setCaptureHealth(null);
+  }, [
+    hostOn,
+    keeper.error,
+    mic.stream,
+    micStatus,
+    roomState,
+    setCaptureHealth,
+  ]);
 
   return {
     error: keeper.error,

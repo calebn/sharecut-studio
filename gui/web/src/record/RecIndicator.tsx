@@ -12,9 +12,11 @@ function formatClock(ms: number): string {
 export function RecIndicator({
   snapshot,
   captureFailed = false,
+  capturePending = false,
 }: {
   snapshot: RecordSnapshot;
   captureFailed?: boolean;
+  capturePending?: boolean;
 }) {
   const [now, setNow] = useState(() => Date.now());
   const [markedAt, setMarkedAt] = useState(() => Date.now());
@@ -32,7 +34,11 @@ export function RecIndicator({
 
   let label = "Waiting for host";
   if (snapshot.state === "recording") {
-    label = captureFailed ? "REC — local capture failed" : "REC";
+    label = captureFailed
+      ? "REC — local capture failed"
+      : capturePending
+        ? "REC — waiting for microphone"
+        : "REC";
   } else if (snapshot.state === "paused") {
     label = "PAUSED";
   } else if (snapshot.state === "stopped") {

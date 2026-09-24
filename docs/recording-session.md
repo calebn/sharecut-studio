@@ -470,6 +470,14 @@ loss/segment close. The host record dialog reopens if necessary and stays open
 while the microphone is lost. A normal unmount or application stop removes the
 listener before stopping tracks and does not show the warning.
 
+If the host's microphone is denied or unavailable when an active take begins,
+the record dialog opens and stays open with browser or desktop recovery copy
+and Retry. The REC label says local capture failed (or that it is waiting for
+the microphone during acquisition) until a live stream is restored; the
+transport chip uses the same capture state. Retry reacquires the mic without
+deleting any keeper segment. A stopped take clears the capture warning. An
+empty, zero-sample WAV cannot be acknowledged as an uploaded take.
+
 ```mermaid
 sequenceDiagram
   participant B as Guest B
