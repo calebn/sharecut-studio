@@ -21,6 +21,7 @@ export function stubRaf() {
   vi.stubGlobal("cancelAnimationFrame", cancel);
   return {
     cancel,
+    pendingCount: () => pending.size,
     fire(t: number) {
       // Snapshot: a tick schedules the next frame while running.
       const batch = [...pending.values()];

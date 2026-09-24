@@ -129,6 +129,30 @@ describe("useInputPeakDb", () => {
     expect(result.current.levelDb).toBe(Number.NEGATIVE_INFINITY);
   });
 
+  it("shares one context and frame loop across concurrent mic meters", async () => {
+    const raf = stubRaf();
+    const graph = stubAudioGraph();
+    const first = renderHook(() => useInputPeakDb(micA));
+    const second = renderHook(() => useInputPeakDb(micB));
+    await waitFor(() => expect(graph.nodes).toHaveLength(2));
+    expect(graph.Ctor).toHaveBeenCalledTimes(1);
+    expect(graph.ctx.audioWorklet.addModule).toHaveBeenCalledTimes(1);
+    expect(raf.pendingCount()).toBe(1);
+    act(() => {
+      graph.nodes[0].emit({ peak: 0.5, clipped: false, epoch: 0 });
+      graph.nodes[1].emit({ peak: 0.95, clipped: true, epoch: 0 });
+      raf.fire(1000);
+    });
+    expect(first.result.current.clipped).toBe(false);
+    expect(second.result.current.clipped).toBe(true);
+    first.unmount();
+    expect(graph.ctx.close).not.toHaveBeenCalled();
+    expect(raf.pendingCount()).toBe(1);
+    second.unmount();
+    expect(graph.ctx.close).toHaveBeenCalledTimes(1);
+    expect(raf.pendingCount()).toBe(0);
+  });
+
   it("keeps steady input visible between 8-block worklet reports", async () => {
     const raf = stubRaf();
     const clock = vi.spyOn(performance, "now").mockReturnValue(1000);

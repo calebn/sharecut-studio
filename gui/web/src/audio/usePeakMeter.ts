@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { subscribeMeterFrame } from "./meterFrameLoop";
 import {
   type MeterState,
   SILENT_METER,
@@ -26,7 +27,7 @@ export type PeakMeterOptions = StepMeterOptions & {
 export const METER_PUBLISH_INTERVAL_MS = 33;
 
 /**
- * Drive a `LevelMeter` from any frame source: one rAF loop that steps the
+ * Drive a `LevelMeter` from any frame source: a shared rAF loop that steps the
  * meter (sample peak → PPM hold → clip latch) via `stepMeter`.
  *
  * The meter resets to silence whenever `read` changes or becomes `null`, so a
@@ -51,7 +52,6 @@ export function usePeakMeter(
     setLevels(SILENT_METER);
     if (!read) return;
 
-    let raf = 0;
     let last: number | null = null;
     let lastPublish = Number.NEGATIVE_INFINITY;
     const tick = (now: number) => {
@@ -71,10 +71,8 @@ export function usePeakMeter(
         lastPublish = now;
         setLevels(next);
       }
-      raf = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    return subscribeMeterFrame(tick);
   }, [read, clipDb, fallDbPerSec, floorDb, publishIntervalMs]);
 
   const clearClip = useCallback(() => {
