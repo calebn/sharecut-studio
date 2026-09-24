@@ -27,7 +27,7 @@ flowchart TB
 | Store | Technology | Role | Agent rule |
 |-------|------------|------|------------|
 | Episode project + history | JSON + history snapshots | Editorial source of truth; snapshots publish before the atomically replaced `history/index.json` | Use `ProjectWorkspace.mutate` / services |
-| Transcript context | YAML (`transcript_context.yaml`) | Episode glossary and vocabulary revision; project `transcripts.vocabulary_revision_applied` records the last successful transcription | Use `TranscriptPrecorrectService`; adjacent `.lock` coordinates writers, and YAML is replaced atomically |
+| Transcript context | YAML (`transcript_context.yaml`) | Episode glossary and vocabulary revision; each project transcript stores the `vocabulary_revision` it was produced with | Use `TranscriptPrecorrectService`; `artifacts/transcript_context.yaml.lock` coordinates writers (re-entrant, 10 s timeout), and YAML is replaced atomically |
 | Align accept gate | JSON sidecar (`artifacts/align_accept_status.json`) | Listen/nudge gate after `align_tracks` | Via `AlignAcceptService` / `edits.align_accept_status`; do not hand-edit |
 | Conversation align artifact | JSON (`artifacts/alignment/conversation_align.json`) | Last applied/planned clip offsets | Written by `run_conversation_align` after a successful apply |
 | Transcript refine gate | JSON sidecar (`artifacts/transcript_refine_status.json`) | Agent gate after precorrect | Via `TranscriptRefineService` / `edits.transcript_refine_status`; adjacent `.lock` file only coordinates writers and stores no decision |

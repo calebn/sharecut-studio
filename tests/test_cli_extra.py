@@ -315,3 +315,50 @@ def test_e2e_project_path_env_override(tmp_path, monkeypatch):
 
     monkeypatch.setenv("PODCAST_E2E_PROJECT", str(project))
     assert e2e_project_path() == project.resolve()
+
+
+def test_transcript_context_set_marks_existing_transcript_stale(tmp_path):
+    from podcast_mcp.models import Transcript
+    from podcast_mcp.services import ProjectWorkspace, TranscriptPrecorrectService
+
+    project = _init_project(tmp_path)
+    proj = load_project(project)
+    proj.transcripts = [Transcript(track_id="host", words=[])]
+    save_project(proj, project)
+    result = runner.invoke(
+        transcript_app,
+        ["context", "set", "--project", str(project), "--term", "Kaczynski"],
+    )
+    assert result.exit_code == 0
+    vocabulary = TranscriptPrecorrectService(ProjectWorkspace.open(project)).get_vocabulary()
+    assert vocabulary["terms"] == ["Kaczynski"]
+    assert vocabulary["needs_retranscription"] is True
+
+
+def test_transcript_context_set_reports_prompt_limit_without_traceback(tmp_path):
+    project = _init_project(tmp_path)
+    args = ["context", "set", "--project", str(project)]
+    for index in range(5):
+        args += ["--term", str(index) + "a" * 99]
+    result = runner.invoke(transcript_app, args)
+    assert result.exit_code == 2
+    assert not isinstance(result.exception, ValueError)
+
+
+def test_transcript_context_set_reports_busy_lock(tmp_path, monkeypatch):
+    from filelock import Timeout
+
+    project = _init_project(tmp_path)
+
+    def busy(self, **_kwargs):
+        raise Timeout("transcript_context.yaml.lock")
+
+    monkeypatch.setattr(
+        "podcast_mcp.services.transcript_precorrect.TranscriptPrecorrectService.update_context",
+        busy,
+    )
+    result = runner.invoke(
+        transcript_app, ["context", "set", "--project", str(project), "--term", "A"]
+    )
+    assert result.exit_code == 1
+    assert "busy" in result.output

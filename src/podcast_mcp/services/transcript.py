@@ -18,17 +18,20 @@ class TranscriptService:
     def transcribe(self, track_id: str | None = None) -> list[str]:
         ctx = load_transcript_context(self.ws.project.workspace_path())
         prompt = ctx.initial_prompt_text()
+        # Prompt and vocabulary_revision must come from this one load: a concurrent
+        # edit mints a newer revision, so these transcripts stay stale in Studio.
 
         def mutate(p) -> list[str]:
             if track_id:
                 t = self._engine.transcribe_track(p, track_id, initial_prompt=prompt)
+                t.vocabulary_revision = ctx.vocabulary_revision
                 p.transcripts = [x for x in p.transcripts if x.track_id != track_id]
                 p.transcripts.append(t)
                 return [t.track_id]
-            else:
-                p.transcripts = self._engine.transcribe_all_dialogue(p, initial_prompt=prompt)
-                if p.transcripts:
-                    p.transcript_data.vocabulary_revision_applied = ctx.vocabulary_revision
+            transcripts = self._engine.transcribe_all_dialogue(p, initial_prompt=prompt)
+            for t in transcripts:
+                t.vocabulary_revision = ctx.vocabulary_revision
+            p.transcripts = transcripts
             return [t.track_id for t in p.transcripts]
 
         return self.ws.mutate("before transcribe", "after transcribe", mutate)

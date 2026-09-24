@@ -1,7 +1,8 @@
-"""Atomic JSON sidecar load/write (unique tmp + replace)."""
+"""Atomic JSON/text sidecar load/write (unique tmp + fsync + replace)."""
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import tempfile
@@ -37,18 +38,18 @@ def write_json_atomic(
     mode: int | None = None,
     compact: bool = False,
 ) -> Path:
+    text = json.dumps(payload, separators=(",", ":")) if compact else json.dumps(payload, indent=2)
+    return write_text_atomic(path, text + "\n", mode=mode)
+
+
+def write_text_atomic(path: Path, text: str, *, mode: int | None = None) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_name = tempfile.mkstemp(
-        prefix=f".{path.name}.",
-        suffix=".tmp",
-        dir=path.parent,
-    )
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
     tmp = Path(tmp_name)
     replaced = False
-    text = json.dumps(payload, separators=(",", ":")) if compact else json.dumps(payload, indent=2)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(text + "\n")
+            handle.write(text)
             handle.flush()
             os.fsync(handle.fileno())
         if mode is not None:
@@ -57,7 +58,20 @@ def write_json_atomic(
         replaced = True
         if mode is not None:
             os.chmod(path, mode)
+        _fsync_directory(path.parent)
     finally:
         if not replaced:
             tmp.unlink(missing_ok=True)
     return path
+
+
+def _fsync_directory(directory: Path) -> None:
+    """Persist a completed rename on POSIX; Windows cannot open directories."""
+    if os.name != "posix":
+        return
+    with contextlib.suppress(OSError):
+        fd = os.open(directory, os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)

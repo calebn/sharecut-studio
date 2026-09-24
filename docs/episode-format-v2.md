@@ -66,7 +66,7 @@ Word `start`/`end` (and combined utterance times) are **source-media seconds** o
 
 Files under `transcripts/*.json` are **caches only**; `ProjectStore.commit()` may refresh them from the project.
 
-`transcripts.vocabulary_revision_applied` records the vocabulary revision used for a successful transcription. The revision in `transcript_context.yaml` is compared with this project value to show when re-transcription is needed. A failed or empty transcription leaves the applied revision unchanged.
+`transcripts.per_track[].vocabulary_revision` records the `transcript_context.yaml` vocabulary revision whose Whisper prompt produced that transcript. Studio asks for re-transcription when any stored transcript has a different revision than the context; a project with no transcripts never asks. Single-track runs stamp only that track, and a failed or empty transcription leaves existing stamps unchanged.
 
 ## Timebase invariant
 
