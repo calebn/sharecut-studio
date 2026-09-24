@@ -31,6 +31,11 @@ Storybook uses the real `src/ui/` components and theme tokens. See
 the GitHub Pages publishing setup. Pull requests build the catalog without
 deploying it.
 
+Full-viewport loading, error, and record entry screens share `ui/CoverScreen`.
+It supplies the `main.cover` shell and centered content; callers provide an
+optional heading, body content, and any existing shell classes. Keep status or
+alert roles on the caller's content so each screen retains its own semantics.
+
 ## Testing
 
 | Kind | Where | Notes |

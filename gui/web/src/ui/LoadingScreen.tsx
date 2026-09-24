@@ -1,9 +1,9 @@
+import { CoverScreen } from "./CoverScreen";
+
 export function LoadingScreen({ label = "Loading…" }: { label?: string }) {
   return (
-    <main className="cover loading-screen">
-      <div className="cover-center center stack">
-        <p>{label}</p>
-      </div>
-    </main>
+    <CoverScreen shellClassName="loading-screen">
+      <p>{label}</p>
+    </CoverScreen>
   );
 }
