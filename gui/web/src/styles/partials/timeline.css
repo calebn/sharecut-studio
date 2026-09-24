@@ -592,6 +592,19 @@ button.join-diamond {
   background: var(--color-success-strong);
 }
 
+/* Needle: Playhead.tsx moves it with translateX, so the glow that
+   studio-polish.css adds only while playing composites instead of repainting. */
+.playhead {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0.125rem;
+  background: var(--color-timeline-playhead);
+  pointer-events: none;
+  z-index: var(--z-playhead);
+  will-change: transform;
+}
+
 .time-ruler {
   position: relative;
   height: 1.5rem;

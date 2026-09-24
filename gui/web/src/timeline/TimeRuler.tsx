@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { formatTimeShort, rulerTickTimes } from "../utils/time";
 import { MIN_TIMELINE_WIDTH_PX } from "../utils/timelineViewport";
+import { Playhead } from "./Playhead";
 import {
   dropCollidingRulerEndTick,
   estimateRulerLabelWidthPx,
@@ -162,9 +163,10 @@ export function TimeRuler({
         );
       })}
       {!hidePlayhead ? (
-        <div
-          className="playhead"
-          style={{ left: playheadSec * zoomPxPerSec, height: "100%" }}
+        <Playhead
+          playheadSec={playheadSec}
+          zoomPxPerSec={zoomPxPerSec}
+          height="100%"
         />
       ) : null}
     </div>
