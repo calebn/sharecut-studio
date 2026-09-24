@@ -98,8 +98,9 @@ class ReviewService:
             if any(version.id == version_id for version in persisted.review.versions):
                 self.ws.project = persisted
                 return
-            current_index = load_json_object(history_index_path)
             expected_index = self.ws.project.history.model_dump(mode="json")
+            self.ws.project = persisted
+            current_index = load_json_object(history_index_path)
             if current_index not in (history_before, expected_index):
                 log.warning(
                     "Review history changed during failed publication; keeping %s", created_dir
