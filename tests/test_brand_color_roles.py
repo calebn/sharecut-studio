@@ -445,6 +445,15 @@ def test_transport_inks_meet_contrast_on_the_strip() -> None:
             "--color-transport-control",
         )
     ]
+    # The live REC chip: transport text on the danger tint over the strip.
+    danger = _resolve_hex("--color-transport-danger", fixed)
+    for fill in fills:
+        tinted = "#" + "".join(
+            f"{round(int(danger[i : i + 2], 16) * 0.18 + int(fill[i : i + 2], 16) * 0.82):02x}"
+            for i in (1, 3, 5)
+        )
+        text = _resolve_hex("--color-transport-text", fixed)
+        assert _contrast_ratio(text, tinted) >= 4.5, ("REC chip", fill)
     for ink in (
         "--color-transport-text",
         "--color-transport-muted",

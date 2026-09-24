@@ -321,6 +321,18 @@
   color: var(--color-transport-muted);
 }
 
+/* record.css loads later and tints the live chip with light-pane roles, so
+   the strip restates the recording state with transport inks. */
+.transport .record-rec-chip[data-state="recording"] {
+  border-color: var(--color-transport-danger);
+  background: var(--color-transport-danger-bg);
+}
+
+.transport .record-rec-chip[data-state="recording"] .record-rec-label,
+.transport .record-rec-chip .record-clock {
+  color: var(--color-transport-text);
+}
+
 .transport button.pill.pill--action:focus-visible {
   outline-color: var(--color-transport-warning);
 }
