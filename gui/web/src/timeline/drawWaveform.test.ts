@@ -136,6 +136,28 @@ describe("clipWaveformFill", () => {
   it("returns null for non-rgb fills so the themed peak color applies", () => {
     expect(clipWaveformFill("transparent")).toBeNull();
     expect(clipWaveformFill("")).toBeNull();
+    expect(clipWaveformFill("oklch(0.5 0.1 180)")).toBeNull();
+  });
+
+  it("reads color(srgb …), what color-mix() and oklch() fills compute to", () => {
+    const fromRgb = clipWaveformFill("rgb(13, 126, 117)");
+    expect(clipWaveformFill("color(srgb 0.0509804 0.494118 0.458824)")).toEqual(
+      fromRgb,
+    );
+    expect(
+      clipWaveformFill("color(srgb 0.0509804 0.494118 0.458824 / 0.5)"),
+    ).toEqual(fromRgb);
+    // Out-of-gamut channels clamp instead of overshooting white.
+    expect(clipWaveformFill("color(srgb 1.2 -0.1 1)")).toEqual(
+      clipWaveformFill("rgb(255, 0, 255)"),
+    );
+  });
+
+  it("treats a fully transparent fill as no fill", () => {
+    expect(clipWaveformFill("rgba(0, 0, 0, 0)")).toBeNull();
+    expect(clipWaveformFill("color(srgb 0 0 0 / 0)")).toBeNull();
+    expect(clipWaveformFill("color(srgb 0 0 0 / 0%)")).toBeNull();
+    expect(clipWaveformFill("rgb(0 0 0 / 0)")).toBeNull();
   });
 });
 
