@@ -2,6 +2,7 @@ import {
   type CSSProperties,
   type ReactNode,
   type PointerEvent as ReactPointerEvent,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -29,7 +30,12 @@ import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { ClipRow } from "../types/project";
 import { Avatar } from "../ui/Avatar";
-import { FIT_GUTTER, MARKER_ROW_HEIGHT, RULER_HEIGHT } from "../utils/layout";
+import {
+  FIT_GUTTER,
+  LANE_HEIGHT,
+  MARKER_ROW_HEIGHT,
+  RULER_HEIGHT,
+} from "../utils/layout";
 import { staleRenderBreakdown } from "../utils/staleRender";
 import { clientXToTimelineSec } from "../utils/timelinePointer";
 import {
@@ -262,7 +268,47 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
     );
   }, [project, setTimelineFocused]);
 
-  useEffect(() => {
+  // Fit-to-window lanes: few tracks grow to fill the stage. The stage height
+  // lives in a ref; state changes only when the whole-px lane height does, so
+  // a vertical resize (e.g. the tabs splitter) does not re-render every clip.
+  const rows = markerRows({
+    chapters: project?.chapters ?? [],
+    socialClips: project?.social_clips ?? [],
+    comments: project?.comments ?? [],
+    showMarkers: layers.showMarkers,
+    showComments: layers.showComments,
+  });
+  const markerLaneHeightPx = markerLaneHeight(rows);
+  const trackCount = project?.tracks.length ?? 0;
+  const [laneHeight, setLaneHeight] = useState(LANE_HEIGHT);
+  const laneHeightRef = useRef(LANE_HEIGHT);
+  const stageHeightRef = useRef(0);
+  const fitInputsRef = useRef({ trackCount, markerLaneHeightPx });
+  const refitLanes = useCallback(() => {
+    const inputs = fitInputsRef.current;
+    const next = fitLaneHeight(
+      stageHeightRef.current -
+        RULER_HEIGHT -
+        inputs.markerLaneHeightPx -
+        FIT_GUTTER,
+      inputs.trackCount,
+    );
+    if (next !== laneHeightRef.current) {
+      laneHeightRef.current = next;
+      setLaneHeight(next);
+    }
+  }, []);
+
+  // Tracks or marker rows changed without a resize: re-fit from the last
+  // measured stage. Declared before the observer so its inputs are current.
+  useLayoutEffect(() => {
+    fitInputsRef.current = { trackCount, markerLaneHeightPx };
+    refitLanes();
+  }, [trackCount, markerLaneHeightPx, refitLanes]);
+
+  // One observer on the scroller: width drives fit-to-window zoom, height the
+  // lane fit. Layout effect so the first frame already has both.
+  useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el || !project) {
       return;
@@ -281,35 +327,21 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
         });
       }
     };
-    applyFit(el.clientWidth);
+    const measure = (width: number, height: number) => {
+      applyFit(width);
+      stageHeightRef.current = height;
+      refitLanes();
+    };
+    measure(el.clientWidth, el.clientHeight);
     const ro = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (entry) {
-        applyFit(entry.contentRect.width);
+        measure(entry.contentRect.width, entry.contentRect.height);
       }
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [project, userZoomed, fitToWindow, followingClientId]);
-
-  // Stage height drives fit-to-window lane height (few tracks fill the stage).
-  const [stageHeightPx, setStageHeightPx] = useState(0);
-  const hasProject = project != null;
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el || !hasProject) {
-      return;
-    }
-    setStageHeightPx(el.clientHeight);
-    const ro = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry) {
-        setStageHeightPx(entry.contentRect.height);
-      }
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [hasProject]);
+  }, [project, userZoomed, fitToWindow, followingClientId, refitLanes]);
 
   useLayoutEffect(() => {
     if (!fixedPlayhead) {
@@ -468,18 +500,6 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
     sessionSec,
     zoomPxPerSec,
     timeViewportPx,
-  );
-  const rows = markerRows({
-    chapters: project.chapters,
-    socialClips: project.social_clips ?? [],
-    comments: project.comments ?? [],
-    showMarkers: layers.showMarkers,
-    showComments: layers.showComments,
-  });
-  const markerLaneHeightPx = markerLaneHeight(rows);
-  const laneHeight = fitLaneHeight(
-    stageHeightPx - RULER_HEIGHT - markerLaneHeightPx - FIT_GUTTER,
-    project.tracks.length,
   );
   const metrics = { laneHeight, markerLaneHeight: markerLaneHeightPx };
   const laneStackHeight =
