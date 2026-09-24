@@ -294,6 +294,12 @@ export interface PeaksData {
   duration_sec?: number;
 }
 
+/** Result of a peaks fetch: ready with data, still generating server-side, or unavailable. */
+export type PeaksFetchResult =
+  | { status: "ready"; peaks: PeaksData }
+  | { status: "generating" }
+  | { status: "unavailable" };
+
 export interface HistoryDiff {
   from_index?: number | null;
   to_index?: number | null;

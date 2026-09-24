@@ -340,3 +340,41 @@ def test_guest_peaks_are_overview_not_coarsened(
         )
     assert ok.status_code == 200
     assert "ticks" in ok.json()
+
+
+def test_guest_peaks_missing_reports_generating_then_serves(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    pytest.importorskip("fastapi")
+    from podcast_mcp.engines.peaks import wait_peaks_jobs
+    from podcast_mcp.services.episode import EpisodeService
+
+    ws = ProjectWorkspace.open(minimal_project)
+    EpisodeService(ws).add_track("host", str(sample_wav), speaker="Host")
+    wait_peaks_jobs()
+    art = Path(ws.project.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(Path(sample_wav).read_bytes())
+    save_project(ws.project, minimal_project)
+    ws = ProjectWorkspace.open(minimal_project)
+    ver = ReviewService(ws).publish(label="Wave")
+    view_share = ShareService(ws).create(
+        review_version_id=ver["id"],
+        capabilities=["play", "view"],
+    )
+
+    peaks_json = ws.project.artifacts_dir() / "peaks" / "host.json"
+    assert peaks_json.is_file()
+    peaks_json.unlink()
+
+    client = TestClient(create_app())
+    missing = client.get(f"/api/review/{view_share['token']}/daw/peaks/host")
+    assert missing.status_code == 404
+    body = missing.json()
+    assert body["available"] is False
+    assert body["generating"] is True
+
+    wait_peaks_jobs()
+    ready = client.get(f"/api/review/{view_share['token']}/daw/peaks/host")
+    assert ready.status_code == 200
+    assert "peaks" in ready.json()

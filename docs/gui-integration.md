@@ -217,13 +217,13 @@ Zoom knobs live in [`contracts/timeline-zoom.json`](../contracts/timeline-zoom.j
 
 | Layer | What |
 |-------|------|
-| **Overview** | Uint8 peaks JSON at `overview_bins_per_sec` (16 Hz) from 8 kHz FFmpeg (`-threads 1`). Same file for host `GET /api/peaks/{track_id}` and guest share (no extra coarsen). Written under `artifacts/peaks/{id}.json`. Pipeline `ingest_tracks` still generates inline; `add_track` / `set_track_media` **schedule** generation on a one-worker background thread so HTTP returns before the sidecar exists. |
+| **Overview** | Uint8 peaks JSON at `overview_bins_per_sec` (16 Hz) from 8 kHz FFmpeg (`-threads 1`). Same file for host `GET /api/peaks/{track_id}` and guest share (no extra coarsen). Written under `artifacts/peaks/{id}.json`. Pipeline `ingest_tracks` still generates inline; `add_track` / `set_track_media` **schedule** generation on a one-worker background thread so HTTP returns before the sidecar exists. When the sidecar is missing at request time, `services/peaks.lookup_track_peaks` queues it (`schedule_track_peaks`, deduped on `(peaks_out, audio)`; a source that already failed to decode is not retried until its mtime/size change) and the route answers `404 {"available": false, "track_id", "generating": true}`; no usable media, or an unchanged failed source, answers `generating: false`. |
 | **Detail tiles** | Visible source window only, at `min(zoom × paintDpr, max_zoom × dpr_headroom)`. Discrete `ZOOM_STEP` rates and 2s tiles; LRU; global extract cap (~2); WAV Range → stem WAV → windowed PCM → overview. Guests reuse `ProxyEngine` PCM when present and never Range-fetch host WAV through the tunnel. Without a proxy engine, guests stay on the overview file — the scheduler does not enqueue detail jobs. |
 | **Edit-focus loupe** | ~`edit_focus_sec` (0.2s) around playhead / trim / blade at a higher bin rate, still windowed. |
 | **Paint** | Viewport + overscan canvases, range-max downsample, rAF, skip late frames / offscreen clips; one pending paint per canvas (main + trim ghost). Clips re-render on every playhead tick, so a canvas repaints only when its paint key changes (source window and width, peaks / tile identity, amp zoom, DPR, lane height, lane colour, theme), and its backing store is reallocated only when its pixel size changes. Peaks take a gradient tinted from the clip's lane colour, resolved once per (lane colour, theme) in `timeline/waveformTheme.ts`; a theme flip (Theme menu or OS scheme under System) repaints. **Shift+ArrowUp/Down** amplitude-zoom at paint (`view.waveformZoomIn` / `Out`). |
 | **Snap overlay** | Quiet wash from visible uint8 tiles; ticks from `GET /api/waveform-snap` (`EditService.waveform_snap_window` → `preview_inaudible_cut` + windowed islands). Magnet for blade/trim. View-only guests get wash only. Theme: `--color-waveform-quiet`, `--color-waveform-snap`. |
 
-Waveforms never block play, seek, edit, scroll, or `add_track`. Full job/SSE fan-in for peaks stays on the ROADMAP.
+Waveforms never block play, seek, edit, scroll, or `add_track`. The viewer polls `usePeaks`/`GET /api/peaks` (capped backoff, `PEAKS_MAX_RETRIES`) rather than a push channel; `TrackLane` shows a "Generating waveform…"/"Waveform unavailable" hint (`.lane-peaks-status`, `data-peaks-status`) while it waits. Full job/SSE fan-in for peaks stays on the ROADMAP.
 
 **Budgets (CI):** Vitest 2–3 hour synthetic clip geometry (`drawWaveform.test.ts`); pytest `add_track` returns before peaks (`test_episode_service_add_track_returns_before_peaks`); Playwright `e2e/waveform.spec.ts` (overview byte size, no full-file WAV, canvas ≈ viewport). Guest overview payload is the same uint8 file (`share_daw_peaks` / `test_guest_peaks_are_overview_not_coarsened`); view-only guests cannot fetch snap ticks.
 
@@ -335,7 +335,7 @@ Keyboard **`=` / `+` / `-` / `\`** (zoom in / out / fit) require **`timelineFocu
 | `POST /api/project/close` | Loopback — unpin `served_project` (host home / New project) |
 | `GET /api/project/meta?path=` | `{ mtime_ns, size, server_seq }` for live reload |
 | `GET /api/audio?path=&kind=&track_id=&rerender=` | Stream premix / stem / raw via `PlayService` (Range + ETag). Optional `start_sec`/`end_sec` windowed PCM |
-| `GET /api/peaks/{track_id}?path=` | Uint8 overview peaks JSON (contract `overview_bins_per_sec`) |
+| `GET /api/peaks/{track_id}?path=` | Uint8 overview peaks JSON (contract `overview_bins_per_sec`); 404 `{"available": false, "track_id", "generating"}` while the overview is missing (generation is queued when possible) |
 | `GET /api/waveform-snap?path=&track_id=&start=&end=` | Windowed inaudible-cut ticks + islands for the snap overlay |
 | `GET /api/history/diff?path=&from_index=&to_index=` | Snapshot delta |
 | `POST /api/document/command?path=` | Typed document commands (`UndoHistory`, `SetClipFade`, `TrimClipEdge`, `SetEnvelope`, `AddChapter`, …) |

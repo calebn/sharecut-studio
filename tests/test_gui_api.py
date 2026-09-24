@@ -828,7 +828,60 @@ def test_api_peaks_missing_track(minimal_project) -> None:
         params={"path": str(minimal_project)},
     )
     assert res.status_code == 404
-    assert res.json()["available"] is False
+    body = res.json()
+    assert body["available"] is False
+    assert body["generating"] is False
+
+
+def test_api_peaks_generates_missing_overview(minimal_project, sample_wav) -> None:
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.engines.peaks import wait_peaks_jobs
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.services.episode import EpisodeService
+    from podcast_mcp.services.workspace import ProjectWorkspace
+
+    ws = ProjectWorkspace.open(minimal_project)
+    EpisodeService(ws).add_track("host", str(sample_wav))
+    wait_peaks_jobs()
+    peaks_json = ws.project.artifacts_dir() / "peaks" / "host.json"
+    assert peaks_json.is_file()
+    peaks_json.unlink()
+
+    client = TestClient(create_app())
+    missing = client.get("/api/peaks/host", params={"path": str(minimal_project)})
+    assert missing.status_code == 404
+    body = missing.json()
+    assert body["available"] is False
+    assert body["generating"] is True
+
+    wait_peaks_jobs()
+    ready = client.get("/api/peaks/host", params={"path": str(minimal_project)})
+    assert ready.status_code == 200
+    assert "peaks" in ready.json()
+
+    project = client.get("/api/project", params={"path": str(minimal_project)}).json()
+    assert project["peaks_index"]["host"] is True
+
+
+def test_api_peaks_unavailable_without_media(minimal_project) -> None:
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.services.episode import EpisodeService
+    from podcast_mcp.services.workspace import ProjectWorkspace
+
+    ws = ProjectWorkspace.open(minimal_project)
+    EpisodeService(ws).add_empty_track("host")
+
+    client = TestClient(create_app())
+    res = client.get("/api/peaks/host", params={"path": str(minimal_project)})
+    assert res.status_code == 404
+    body = res.json()
+    assert body["available"] is False
+    assert body["generating"] is False
 
 
 def test_api_health() -> None:

@@ -24,6 +24,9 @@ import { useTimelineMetrics } from "./timelineMetrics";
 const execute = vi.hoisted(() => vi.fn());
 vi.mock("../commands/execute", () => ({ execute }));
 // Clips here exercise geometry and gestures, not waveform fetching.
+vi.mock("../hooks/usePeaks", () => ({
+  usePeaks: () => ({ peaks: null, status: "idle" }),
+}));
 vi.mock("../hooks/useClipWaveform", () => ({
   useClipWaveform: () => ({
     window: {

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import time
 from pathlib import Path
 from unittest.mock import patch
@@ -10,11 +11,13 @@ from podcast_mcp.engines.peaks import (
     PEAKS_FFMPEG_TIMEOUT_SEC,
     ensure_track_peaks,
     generate_peaks,
+    peaks_generation_pending,
     schedule_track_peaks,
     wait_peaks_jobs,
     write_silent_peaks,
 )
 from podcast_mcp.models import MediaAsset, Track
+from podcast_mcp.services.peaks import lookup_track_peaks, peaks_unavailable_body
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.timeline_zoom import overview_bins_per_sec, overview_decode_hz
 
@@ -169,3 +172,130 @@ def test_write_silent_peaks_records_source_override(tmp_path):
     final = tmp_path / "final" / "raw.wav"
     out = write_silent_peaks(audio, tmp_path / "silent.json", 1.0, source=final)
     assert json.loads(out.read_text(encoding="utf-8"))["source"] == str(final)
+
+
+def test_schedule_track_peaks_dedupes_pending_jobs(minimal_project, sample_wav):
+    ws = ProjectWorkspace.open(minimal_project)
+    raw = Path(ws.project.workspace_dir) / "raw"
+    raw.mkdir(exist_ok=True)
+    dest = raw / "import.wav"
+    dest.write_bytes(Path(sample_wav).read_bytes())
+    track = Track(
+        id="host",
+        label="Host",
+        media=MediaAsset(path="raw/import.wav", duration_sec=1.0),
+    )
+
+    release = threading.Event()
+    calls = []
+
+    def _blocked(*a, **k):
+        calls.append(1)
+        release.wait(timeout=5)
+        return dest
+
+    with patch("podcast_mcp.engines.peaks.generate_peaks", side_effect=_blocked):
+        assert peaks_generation_pending(ws.project, track) is False
+        first = schedule_track_peaks(ws.project, track)
+        second = schedule_track_peaks(ws.project, track)
+        assert first is True
+        assert second is True
+        assert peaks_generation_pending(ws.project, track) is True
+        release.set()
+        wait_peaks_jobs()
+
+    assert len(calls) == 1
+    assert peaks_generation_pending(ws.project, track) is False
+
+
+def test_schedule_track_peaks_remembers_failed_source(minimal_project, sample_wav):
+    ws = ProjectWorkspace.open(minimal_project)
+    raw = Path(ws.project.workspace_dir) / "raw"
+    raw.mkdir(exist_ok=True)
+    dest = raw / "import.wav"
+    dest.write_bytes(Path(sample_wav).read_bytes())
+    track = Track(
+        id="host",
+        label="Host",
+        media=MediaAsset(path="raw/import.wav", duration_sec=1.0),
+    )
+
+    with patch("podcast_mcp.engines.peaks.generate_peaks", side_effect=RuntimeError("boom")):
+        scheduled = schedule_track_peaks(ws.project, track)
+        assert scheduled is True
+        wait_peaks_jobs()
+
+    with patch("podcast_mcp.engines.peaks.generate_peaks") as gen:
+        retried = schedule_track_peaks(ws.project, track)
+        assert retried is False
+        gen.assert_not_called()
+
+    os.utime(dest, (0, time.time() + 10))
+    with patch("podcast_mcp.engines.peaks.generate_peaks") as gen:
+        gen.side_effect = lambda *a, **k: dest
+        retried_after_change = schedule_track_peaks(ws.project, track)
+        assert retried_after_change is True
+        wait_peaks_jobs()
+        gen.assert_called_once()
+
+
+def test_schedule_track_peaks_no_media_gives_false(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    track = Track(id="host", label="Host")
+    assert schedule_track_peaks(ws.project, track) is False
+    assert peaks_generation_pending(ws.project, track) is False
+
+
+def test_lookup_track_peaks_states(minimal_project, sample_wav):
+    ws = ProjectWorkspace.open(minimal_project)
+    raw = Path(ws.project.workspace_dir) / "raw"
+    raw.mkdir(exist_ok=True)
+    dest = raw / "import.wav"
+    dest.write_bytes(Path(sample_wav).read_bytes())
+    track = Track(
+        id="host",
+        label="Host",
+        media=MediaAsset(path="raw/import.wav", duration_sec=1.0),
+    )
+    ws.project.tracks.append(track)
+
+    unknown = lookup_track_peaks(ws.project, "nonexistent")
+    assert unknown.path is None
+    assert unknown.generating is False
+
+    release = threading.Event()
+    real_generate_peaks = generate_peaks
+
+    def _delayed(*a, **k):
+        release.wait(timeout=5)
+        return real_generate_peaks(*a, **k)
+
+    with patch("podcast_mcp.engines.peaks.generate_peaks", side_effect=_delayed):
+        first = lookup_track_peaks(ws.project, "host")
+        assert first.path is None
+        assert first.generating is True
+
+        pending = lookup_track_peaks(ws.project, "host")
+        assert pending.path is None
+        assert pending.generating is True
+
+        release.set()
+        wait_peaks_jobs()
+
+    ready = lookup_track_peaks(ws.project, "host")
+    assert ready.path is not None
+    assert ready.path.is_file()
+    assert ready.generating is False
+
+
+def test_peaks_unavailable_body_shape():
+    assert peaks_unavailable_body("host", generating=True) == {
+        "available": False,
+        "track_id": "host",
+        "generating": True,
+    }
+    assert peaks_unavailable_body("host", generating=False) == {
+        "available": False,
+        "track_id": "host",
+        "generating": False,
+    }

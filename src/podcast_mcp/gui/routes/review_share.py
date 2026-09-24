@@ -42,6 +42,7 @@ from podcast_mcp.services.document_sync.payloads import (
 )
 from podcast_mcp.services.document_sync.service import document_hub_key
 from podcast_mcp.services.guest_progress import guest_progress_hub
+from podcast_mcp.services.peaks import PeaksUnavailableError, peaks_unavailable_body
 from podcast_mcp.services.remote_mcp.limits import (
     get_host_limiters,
     host_rate_limit_enabled,
@@ -220,10 +221,15 @@ def get_daw_peaks(token: str, track_id: str):
     _rate_limit(token, "read")
     try:
         return share_daw_peaks(token, track_id)
+    except PeaksUnavailableError as exc:
+        return JSONResponse(
+            status_code=404,
+            content=peaks_unavailable_body(track_id, generating=exc.generating),
+        )
     except FileNotFoundError:
         return JSONResponse(
             status_code=404,
-            content={"available": False, "track_id": track_id},
+            content=peaks_unavailable_body(track_id, generating=False),
         )
     except Exception as exc:
         raise _map_share_exc(exc) from exc

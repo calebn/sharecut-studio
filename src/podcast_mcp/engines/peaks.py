@@ -30,6 +30,10 @@ _PEAKS_POOL: ThreadPoolExecutor | None = None
 _PEAKS_POOL_LOCK = Lock()
 _PEAKS_JOBS: list[Future[Path | None]] = []
 _PEAKS_JOBS_LOCK = Lock()
+# Pending (peaks_out, audio) jobs, and the source stamp of the last failed
+# attempt per peaks_out path. Both guarded by _PEAKS_JOBS_LOCK.
+_PEAKS_PENDING: set[tuple[Path, Path]] = set()
+_PEAKS_FAILED: dict[Path, tuple[str, int, int]] = {}
 
 
 def _peaks_pool() -> ThreadPoolExecutor:
@@ -236,6 +240,32 @@ def _peaks_are_current(peaks_out: Path, audio_path: Path) -> bool:
     return payload.get("source_size") == st.st_size
 
 
+def _peaks_job_paths(project: EpisodeProject, track: Track) -> tuple[Path, Path] | None:
+    """Resolve the (peaks_out, audio) key used to dedupe/track a peaks job."""
+    peaks_out = _peaks_out_path(project, track)
+    if peaks_out is None or track.media is None:
+        return None
+    try:
+        audio = resolve_under_workspace(project, track.media.path)
+    except ValueError:
+        return None
+    return peaks_out, audio
+
+
+def _source_stamp(audio: Path) -> tuple[str, int, int]:
+    st = audio.stat()
+    return (str(audio), st.st_mtime_ns, st.st_size)
+
+
+def peaks_generation_pending(project: EpisodeProject, track: Track) -> bool:
+    """True while a background job for this track's peaks is queued or running."""
+    paths = _peaks_job_paths(project, track)
+    if paths is None:
+        return False
+    with _PEAKS_JOBS_LOCK:
+        return paths in _PEAKS_PENDING
+
+
 def ensure_track_peaks(project: EpisodeProject, track: Track) -> Path | None:
     """Best-effort write ``artifacts/peaks/{track.id}.json`` for GUI waveforms.
 
@@ -260,17 +290,47 @@ def ensure_track_peaks(project: EpisodeProject, track: Track) -> Path | None:
         ) as prog:
             out = generate_peaks(path, peaks_out)
             prog.advance(1)
-            return out
     except Exception as exc:
         log.debug("peaks generation failed for %s: %s", track.id, exc)
+        with _PEAKS_JOBS_LOCK:
+            _PEAKS_FAILED[peaks_out] = _source_stamp(path)
         return None
+    with _PEAKS_JOBS_LOCK:
+        _PEAKS_FAILED.pop(peaks_out, None)
+    return out
 
 
-def schedule_track_peaks(project: EpisodeProject, track: Track) -> None:
-    """Generate peaks off the caller thread (one worker; does not block ingest)."""
-    if _peaks_out_path(project, track) is None:
-        return
-    fut = _peaks_pool().submit(ensure_track_peaks, project, track)
+def _run_peaks_job(project: EpisodeProject, track: Track, key: tuple[Path, Path]) -> Path | None:
+    try:
+        return ensure_track_peaks(project, track)
+    finally:
+        with _PEAKS_JOBS_LOCK:
+            _PEAKS_PENDING.discard(key)
+
+
+def schedule_track_peaks(project: EpisodeProject, track: Track) -> bool:
+    """Queue background peak generation (one worker; does not block ingest).
+
+    Returns ``True`` when a job is already pending or was just queued, and
+    ``False`` when the track has no usable media or its source already
+    failed to decode and has not changed since.
+    """
+    paths = _peaks_job_paths(project, track)
+    if paths is None:
+        return False
+    peaks_out, audio = paths
+    try:
+        stamp = _source_stamp(audio)
+    except OSError:
+        return False
+    with _PEAKS_JOBS_LOCK:
+        if paths in _PEAKS_PENDING:
+            return True
+        if _PEAKS_FAILED.get(peaks_out) == stamp:
+            return False
+        _PEAKS_PENDING.add(paths)
+    fut = _peaks_pool().submit(_run_peaks_job, project, track, paths)
     with _PEAKS_JOBS_LOCK:
         _PEAKS_JOBS.append(fut)
     fut.add_done_callback(_forget_peaks_job)
+    return True
