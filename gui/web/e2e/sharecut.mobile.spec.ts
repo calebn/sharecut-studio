@@ -145,7 +145,11 @@ test.describe("Sharecut Studio mobile smoke", () => {
           timeLeft: timeBox.left,
           timeWidth: timeBox.width,
           viewLeft: headers.getBoundingClientRect().right,
-          viewRight: scroll.getBoundingClientRect().right,
+          // Past a classic scrollbar, a tap lands on the scrollbar.
+          viewRight:
+            scroll.getBoundingClientRect().left +
+            scroll.clientLeft +
+            scroll.clientWidth,
           current,
           total,
         };
@@ -170,6 +174,13 @@ test.describe("Sharecut Studio mobile smoke", () => {
       page,
     }) => {
       await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+      // Classic (space-taking) scrollbars on every platform, as on Linux and
+      // Windows: the scroller's stable gutter must not shift the line off the
+      // centre the scroll math uses.
+      await page.addStyleTag({
+        content:
+          ".timeline-scroll::-webkit-scrollbar { width: 0.75rem; height: 0.75rem; }",
+      });
       const hero = page.locator(".listen-hero");
       await expect(hero.getByRole("button", { name: "Play" })).toBeEnabled();
       await hero.getByRole("button", { name: "+15s" }).click();

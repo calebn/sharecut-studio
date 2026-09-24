@@ -153,7 +153,7 @@ Audition Mix / FX / Raw remains available in the compact transport Menu on Timel
 
 | | |
 |--|--|
-| **Purpose** | Spatial seek/edit with **fixed-center playhead**; drag timeline to scrub. The line always shows the transport time, from 0 to the end even at Fit: half-viewport margins before 0 and after the end give the scroll room, and switching Listen → Timeline or fitting never moves the time. |
+| **Purpose** | Spatial seek/edit with **fixed-center playhead**; drag timeline to scrub. The line always shows the transport time, from 0 to the end even at Fit, with overlay or classic scrollbars: half-viewport margins before 0 and after the end give the scroll room, and switching Listen → Timeline or fitting never moves the time. |
 | **Primary actions** | Scrub · Fit · layer chips · select clip/edit → sheet · drag clip (Select tool) · tap lane gutter → track sheet |
 | **Always visible** | Transport (Comment + Fit) · layer chips · sticky lane gutter (44pt lane-colored initials chip per lane, lane-colored edge) + waveforms whose clip labels carry the full track name · Select/Blade rail · mode nav |
 | **Data shown** | `timeline.tracks` · `timeline.clips` rectangles · overlay layers (edits/levels/markers/comments) |
