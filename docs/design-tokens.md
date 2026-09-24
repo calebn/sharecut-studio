@@ -111,7 +111,8 @@ Two roles sit beside the ladder:
   control never looks selected.
 
 **Palette.** One warm stone neutral ramp serves both themes (`primitives.css`,
-ordered dark → light). Light mode is paper and white panes with warm near-black
+ordered dark → light); a separate warm-charcoal ramp (`--primitive-warm-*`)
+serves only the fixed-dark transport (`theme-fixed.css`). Light mode is paper and white panes with warm near-black
 ink; dark mode is warm stone, never a cool reskin of light. Orange belongs to
 Play, the playhead, and one primary action per context; teal marks positive
 signals and dialogue. The light decorative orange `#df4b28` is too light for

@@ -47,30 +47,21 @@
   --primitive-neutral-55: #f3f1ed; /* light timeline lane */
   --primitive-neutral-40: #f4f1eb; /* twin: --color-bg-canvas (light) */
   --primitive-neutral-25: #fffdf9; /* twin: --color-bg-surface (light) */
-  --primitive-neutral-15: #ffffff; /* twin: --color-bg-elevated (light) */
 
-  /* -- Warm charcoal (light-theme mixer and fixed-dark transport) -------- */
+  /* -- Warm charcoal: the fixed-dark transport only (theme-fixed.css) ----- */
   --primitive-warm-975: #0c0a09;
   --primitive-warm-950: #141210;
   --primitive-warm-925: #1b1815;
-  --primitive-warm-900: #221d19;
-  --primitive-warm-850: #2b2521;
   --primitive-warm-800: #332c26;
   --primitive-warm-700: #453b32;
-  --primitive-warm-450: #6f665c;
-  --primitive-warm-350: #8a8178;
   --primitive-warm-300: #a89f92;
 
   /* -- Orange (brand accent family) ------------------------------------ */
   --primitive-orange-250: #ff6d48; /* twin: --color-accent (dark) */
-  --primitive-orange-300: #e8a45a;
   --primitive-orange-400: #e88c5a;
   --primitive-orange-450: #df4b28; /* twin: --color-accent (light) */
   --primitive-orange-500: #c46a30;
-  --primitive-orange-600: #b45c28;
-  --primitive-orange-650: #a85a24;
   --primitive-orange-675: #c33b1f; /* twin: --color-accent-solid (light) */
-  --primitive-orange-700: #8a4a20;
   --primitive-orange-750: #b13a1e; /* small accent text on light surfaces */
   --primitive-orange-800: #8a3208;
 
@@ -80,10 +71,8 @@
   --primitive-amber-350: #f0b45f;
   --primitive-amber-400: #e8a838;
   --primitive-amber-500: #c4a020;
-  --primitive-amber-600: #c4841a;
   --primitive-amber-700: #b89a10;
   --primitive-amber-750: #a55b00;
-  --primitive-amber-150: #f6e6c9;
 
   /* -- Red (danger family; crimson, clear of the vermilion accent) ------- */
   --primitive-red-350: #ff6b8b; /* dark danger */
@@ -92,11 +81,7 @@
 
   /* -- Green (success family) ------------------------------------------ */
   --primitive-green-300: #aed581;
-  --primitive-green-400: #7ad49a;
   --primitive-green-450: #5a9a70;
-  --primitive-green-500: #5cb85c;
-  --primitive-green-550: #3d9e5c;
-  --primitive-green-600: #2e8f5a;
   --primitive-green-650: #4a7a5c;
   --primitive-green-700: #2f5d18;
 
@@ -104,11 +89,9 @@
   --primitive-blue-300: #7ab4ff;
   --primitive-blue-350: #9fa8da;
   --primitive-blue-400: #64b5f6;
-  --primitive-blue-450: #5a8fb0;
   --primitive-blue-500: #3d7acc;
   --primitive-blue-550: #6a6aa0;
   --primitive-blue-600: #1565c0;
-  --primitive-blue-650: #3d6b8a;
   --primitive-blue-700: #3949ab;
   --primitive-blue-750: #4a4a7a;
 
@@ -128,8 +111,6 @@
   --primitive-teal-700: #0b7a72;
   --primitive-teal-675: #0d7e75;
   --primitive-teal-250: #64c9bc;
-  --primitive-teal-100: #dcefeb;
-  --primitive-teal-850: #163d39;
 
   /* -- Brown (clip dialogue-2) ----------------------------------------- */
   --primitive-brown-500: #a07a60;
