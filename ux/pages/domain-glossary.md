@@ -58,6 +58,7 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 | **Applied edit** | Committed cut provenance | `editorial.edit_log` | Impact/history context, “why was this cut?” |
 | **Transcript word** | Timed text + confidence / suppress | `transcripts.per_track[].words[]` | Text mode, word inspector |
 | **Combined transcript** | Utterance stream for search/NL | `transcripts.combined` | Search / agent; export captions |
+| **Transcription vocabulary** | Names and terms used for Whisper; re-transcribe when the saved revision differs from the applied one | `transcript_context.yaml` revision + `transcripts.vocabulary_revision_applied` | Pipeline vocabulary editor |
 | **FX chain** | Per-track cleanup/EQ/etc. | `mix.processing_chains` | Track FX, audition FX vs Raw |
 | **Envelope** | Volume automation over time | `mix.automation_envelopes` | Levels overlay, selected-point inspector |
 | **Comment** | Time-anchored review note (+ replies, action items) | `review.comments[]` | Listen, Comments, ReviewApp |

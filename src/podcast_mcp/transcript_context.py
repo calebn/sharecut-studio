@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import os
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import yaml
+from filelock import FileLock
 
 from podcast_mcp.config import repo_root
 from podcast_mcp.engines.asr_timing import DEFAULT_MAX_WORD_DURATION_SEC
@@ -63,6 +67,7 @@ class TranscriptContext:
     languages: list[str] = field(default_factory=lambda: ["en"])
     terms: list[str] = field(default_factory=list)
     guest_names: list[str] = field(default_factory=list)
+    vocabulary_revision: str | None = None
     replacements: list[ReplacementRule] = field(default_factory=list)
     preserve_tokens: list[str] = field(default_factory=list)
     skip_spans: list[SkipSpan] = field(default_factory=list)
@@ -95,8 +100,24 @@ class TranscriptContext:
     def save(self, workspace: Path) -> Path:
         path = self.context_path(workspace)
         data = context_to_dict(self)
-        path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+        fd, name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                yaml.safe_dump(data, handle, sort_keys=False)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(name, path)
+        finally:
+            Path(name).unlink(missing_ok=True)
         return path
+
+
+def context_lock(workspace: Path) -> FileLock:
+    return FileLock(str(workspace / "transcript_context.yaml.lock"))
+
+
+def new_vocabulary_revision() -> str:
+    return uuid4().hex
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
@@ -202,6 +223,7 @@ def context_from_dict(data: dict[str, Any]) -> TranscriptContext:
         languages=list(data.get("languages") or ["en"]),
         terms=list(data.get("terms") or []),
         guest_names=list(data.get("guest_names") or []),
+        vocabulary_revision=data.get("vocabulary_revision"),
         replacements=_parse_replacements(data.get("replacements")),
         preserve_tokens=[str(t).lower() for t in (data.get("preserve_tokens") or [])],
         skip_spans=_parse_skip_spans(data.get("skip_spans")),
@@ -219,6 +241,7 @@ def context_to_dict(ctx: TranscriptContext) -> dict[str, Any]:
         "languages": ctx.languages,
         "terms": ctx.terms,
         "guest_names": ctx.guest_names,
+        "vocabulary_revision": ctx.vocabulary_revision,
         "replacements": [
             {
                 "match": r.match,

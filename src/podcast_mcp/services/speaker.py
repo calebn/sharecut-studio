@@ -16,7 +16,7 @@ from podcast_mcp.engines.speaker_id import (
     speaker_doctor,
 )
 from podcast_mcp.services.workspace import ProjectWorkspace
-from podcast_mcp.transcript_context import load_transcript_context
+from podcast_mcp.transcript_context import context_lock, load_transcript_context
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress, resolve_progress_task
 
 
@@ -40,13 +40,15 @@ class SpeakerService:
         *,
         source: str = "user",
     ) -> dict[str, Any]:
-        ctx = load_transcript_context(self.ws.project.workspace_path())
-        ctx.speaker_id = replace(
-            ctx.speaker_id,
-            expected_speaker_count=count,
-            speaker_count_source=source,
-        )
-        path = ctx.save(self.ws.project.workspace_path())
+        workspace = self.ws.project.workspace_path()
+        with context_lock(workspace):
+            ctx = load_transcript_context(workspace)
+            ctx.speaker_id = replace(
+                ctx.speaker_id,
+                expected_speaker_count=count,
+                speaker_count_source=source,
+            )
+            path = ctx.save(workspace)
         return {
             "expected_speaker_count": count,
             "speaker_count_source": source,

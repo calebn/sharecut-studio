@@ -9,6 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { PipelinePanel } from "./PipelinePanel";
+import { TranscriptVocabularyEditor } from "./TranscriptVocabularyEditor";
 
 const loadPipelineConfig = vi.fn();
 const putPipelineConfig = vi.fn();
@@ -193,6 +194,31 @@ function withTranscribeEnabled(overrides: Record<string, unknown> = {}) {
 }
 
 describe("PipelinePanel", () => {
+  it("keeps unsaved vocabulary when transcription refreshes", async () => {
+    const user = userEvent.setup();
+    const props = {
+      projectPath: "/tmp/ep.project.json",
+      busy: false,
+      onRetranscribe: vi.fn(),
+    };
+    const { rerender } = render(
+      <TranscriptVocabularyEditor {...props} refreshKey="" />,
+    );
+    await user.type(
+      await screen.findByLabelText("Terms"),
+      "Unpublished{Enter}",
+    );
+    loadTranscriptVocabulary.mockResolvedValue({
+      terms: ["Published"],
+      guest_names: [],
+      needs_retranscription: false,
+    });
+    rerender(<TranscriptVocabularyEditor {...props} refreshKey="job-1" />);
+    expect(await screen.findByText("Unpublished")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Save vocabulary" }),
+    ).toBeEnabled();
+  });
   it("saves a vocabulary term and offers re-transcription through the pipeline", async () => {
     const user = userEvent.setup();
     render(<PipelinePanel />);

@@ -16,14 +16,16 @@ def test_transcript_cache_keeps_short_file_hash(minimal_project, tmp_path):
 
     cache = TranscriptionEngine().cache_path(project, "host", audio)
 
-    assert cache.name == f"host_{hashlib.sha256(b'recording').hexdigest()[:16]}.json"
+    assert cache.name.startswith(f"host_{hashlib.sha256(b'recording').hexdigest()[:16]}_")
+    assert cache.name.endswith(".json")
+    assert TranscriptionEngine().cache_path(project, "host", audio, initial_prompt="New") != cache
 
 
 def test_transcript_cache_rejects_outward_symlink(minimal_project, tmp_path):
     project = load_project(minimal_project)
     audio = tmp_path / "recording.wav"
     audio.write_bytes(b"recording")
-    name = f"host_{hashlib.sha256(b'recording').hexdigest()[:16]}.json"
+    name = TranscriptionEngine().cache_path(project, "host", audio).name
     project.transcripts_dir().mkdir(parents=True, exist_ok=True)
     (project.transcripts_dir() / name).symlink_to(audio)
     with pytest.raises(ValueError, match="transcript cache escaped"):
@@ -59,6 +61,34 @@ def test_transcribe_track_uses_cache(minimal_project, sample_wav, tmp_workspace)
 
     result = engine.transcribe_track(proj, "host", use_cache=True)
     assert result.words[0].text == "cached"
+
+
+def test_transcribe_track_recomputes_after_prompt_change(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from unittest.mock import patch
+
+    from podcast_mcp.models import MediaAsset, Track, TrackRole, save_project
+
+    proj = load_project(minimal_project)
+    (tmp_workspace / "raw").mkdir(exist_ok=True)
+    dest = tmp_workspace / "raw" / "host.wav"
+    dest.write_bytes(sample_wav.read_bytes())
+    proj.tracks.append(
+        Track(
+            id="host", label="Host", role=TrackRole.DIALOGUE, media=MediaAsset(path="raw/host.wav")
+        )
+    )
+    save_project(proj, minimal_project)
+    proj = load_project(minimal_project)
+    engine = TranscriptionEngine()
+    fresh = Transcript(track_id="host", words=[TranscriptWord(text="fresh", start=0, end=0.5)])
+    with patch.object(engine, "transcribe_file", return_value=fresh) as transcribe:
+        assert engine.transcribe_track(proj, "host", initial_prompt="Old").words[0].text == "fresh"
+        assert engine.transcribe_track(proj, "host", initial_prompt="Old").words[0].text == "fresh"
+        assert transcribe.call_count == 1
+        engine.transcribe_track(proj, "host", initial_prompt="New")
+        assert transcribe.call_count == 2
 
 
 def test_transcribe_track_writes_cache_on_miss(minimal_project, sample_wav, tmp_workspace):

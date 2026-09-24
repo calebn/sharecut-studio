@@ -168,7 +168,8 @@
       "type": "object",
       "properties": {
         "per_track": { "type": "array", "items": { "$ref": "#/$defs/Transcript" } },
-        "combined": { "$ref": "#/$defs/CombinedTranscript" }
+        "combined": { "$ref": "#/$defs/CombinedTranscript" },
+        "vocabulary_revision_applied": { "type": ["string", "null"] }
       }
     },
     "Transcript": {

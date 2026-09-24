@@ -259,6 +259,25 @@ def test_transcript_service_transcribe_all_and_combined_get(minimal_project):
     assert "hi" in body
 
 
+def test_transcript_service_applies_saved_vocabulary(minimal_project):
+    from podcast_mcp.transcript_context import TranscriptContext
+
+    ws = ProjectWorkspace.open(minimal_project)
+    TranscriptContext(terms=["Kaczynski"], vocabulary_revision="revision-one").save(
+        ws.project.workspace_path()
+    )
+    with patch("podcast_mcp.services.transcript.TranscriptionEngine") as eng_cls:
+        eng_cls.return_value.transcribe_all_dialogue.return_value = [
+            Transcript(track_id="host", words=[])
+        ]
+        TranscriptService(ws).transcribe()
+        assert (
+            eng_cls.return_value.transcribe_all_dialogue.call_args.kwargs["initial_prompt"]
+            == "Kaczynski"
+        )
+    assert ws.project.transcript_data.vocabulary_revision_applied == "revision-one"
+
+
 def test_transcript_combined_get_does_not_change_unsaved_project(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     ws.project.transcripts = [

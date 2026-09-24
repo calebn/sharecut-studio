@@ -66,6 +66,8 @@ Word `start`/`end` (and combined utterance times) are **source-media seconds** o
 
 Files under `transcripts/*.json` are **caches only**; `ProjectStore.commit()` may refresh them from the project.
 
+`transcripts.vocabulary_revision_applied` records the vocabulary revision used for a successful transcription. The revision in `transcript_context.yaml` is compared with this project value to show when re-transcription is needed. A failed or empty transcription leaves the applied revision unchanged.
+
 ## Timebase invariant
 
 **All stored times (`TranscriptWord`, `EditDecision` remove/mute, `CombinedUtterance`) are source-media seconds; blade `EditDecision` with `type: split` and `timebase: timeline` stores the cut as timeline seconds (`start == end`); `timeline.clips` is the only bridge; anything that touches rendered audio (stems, premix, mastered, export) must map through `SessionTimeline`.**
