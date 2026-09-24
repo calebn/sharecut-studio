@@ -84,15 +84,12 @@ export function UploadStatus({
 }) {
   const canRecover = stopped && progress.recoverable;
   let status: ReactNode = null;
+  let showRecoveryActions = Boolean(progress.reclaimMismatch);
   if (progress.error) {
+    showRecoveryActions = true;
     status = (
       <div id={UPLOAD_STATUS_ID} className="record-warn">
         <p>{progress.error}</p>
-        <RecoveryActions
-          onResume={onResume}
-          actions={actions}
-          canRecover={canRecover}
-        />
       </div>
     );
   } else if (progress.landFailed) {
@@ -106,7 +103,7 @@ export function UploadStatus({
       <p id={UPLOAD_STATUS_ID} className="record-warn">
         {KEEPER_RECLAIM_FAILED_COPY}
       </p>
-    ) : (
+    ) : progress.reclaimMismatch ? null : (
       <p id={UPLOAD_STATUS_ID}>{UPLOAD_DONE_COPY}</p>
     );
   } else if (stopped && progress.fileAck && !progress.landed) {
@@ -116,16 +113,10 @@ export function UploadStatus({
     (progress.pending && progress.total > 0) ||
     (stopped && !progress.fileAck)
   ) {
+    showRecoveryActions = showRecoveryActions || stopped;
     status = (
       <div id={UPLOAD_STATUS_ID}>
         <p>{uploadProgressCopy(progress.acked, progress.total)}</p>
-        {stopped ? (
-          <RecoveryActions
-            onResume={onResume}
-            actions={actions}
-            canRecover={canRecover}
-          />
-        ) : null}
       </div>
     );
   }
@@ -135,12 +126,14 @@ export function UploadStatus({
       {progress.reclaimMismatch ? (
         <div className="record-warn" role="status">
           <p>{KEEPER_RECLAIM_MISMATCH_COPY}</p>
-          <RecoveryActions
-            onResume={onResume}
-            actions={actions}
-            canRecover={canRecover}
-          />
         </div>
+      ) : null}
+      {showRecoveryActions ? (
+        <RecoveryActions
+          onResume={onResume}
+          actions={actions}
+          canRecover={canRecover}
+        />
       ) : null}
       <ActionFeedback actions={actions} />
     </>

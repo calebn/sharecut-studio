@@ -324,7 +324,9 @@ alongside active upload and landing errors. An unchanged file version that
 failed local SHA verification is not rehashed on each poll. After three failed
 deletes, cleanup waits 30 seconds before rehashing and retrying the delete.
 A changed file version or host status is checked again immediately, and a
-cached hash match never authorizes deletion. The older marker still identifies
+cached hash match never authorizes deletion. OPFS read errors propagate, so a
+temporary storage failure cannot mark a local WAV as already reclaimed. The
+older marker still identifies
 a WAV that was already reclaimed. A pending `complete: false` marker, or
 metadata that does not parse as a keeper record (it may be a torn pending
 write), never allows a delete and never marks a missing WAV as reclaimed. Unlanded, failed, incomplete, or actively captured segments

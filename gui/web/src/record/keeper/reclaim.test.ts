@@ -108,6 +108,23 @@ describe("reclaimKeeperWav", () => {
     ).toBe("skipped");
   });
 
+  it("does not cache a transient file read failure as a reclaimed WAV", async () => {
+    const sink = new MemorySink();
+    await seed(sink);
+    const tracker = createKeeperReclaimTracker();
+    const readBlob = sink.readBlob.bind(sink);
+    vi.spyOn(sink, "readBlob")
+      .mockRejectedValueOnce(new DOMException("busy", "InvalidStateError"))
+      .mockImplementation(readBlob);
+    await expect(reclaimKeeperWav(sink, WAV, tracker, remote)).rejects.toThrow(
+      "busy",
+    );
+    expect(tracker.reclaimed.has(WAV)).toBe(false);
+    expect(await reclaimKeeperWav(sink, WAV, tracker, remote)).toBe(
+      "reclaimed",
+    );
+  });
+
   it("does not reread retained legacy WAV bytes on repeated polls", async () => {
     const sink = new MemorySink();
     await seed(sink, keeperMetaBytes(IDS, undefined));
