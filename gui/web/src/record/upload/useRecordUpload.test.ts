@@ -13,6 +13,7 @@ import {
   keeperWavPath,
   MemorySink,
   ORPHAN_KEEPER_RETENTION_MS,
+  pruneExpiredKeeperWavs,
 } from "../keeper/store";
 import { recoverLocalKeepers } from "./recovery";
 import { memoryUploadTransport, type RecordUploadTransport } from "./transport";
@@ -99,6 +100,74 @@ function sinkForTakes(): ByteSink {
 }
 
 describe("useRecordUpload", () => {
+  it("reports both an expired and a recoverable segment", async () => {
+    const sink = new MemorySink();
+    const ids = { sessionId: "room1", takeIndex: 0, participantId: "p_a" };
+    const old = keeperWavPath({ ...ids, segmentIndex: 0 });
+    const pending = keeperWavPath({ ...ids, segmentIndex: 1 });
+    await sink.write(old, wavWithPcm(8));
+    sink.modified.set(old, Date.now() - ORPHAN_KEEPER_RETENTION_MS - 1);
+    await pruneExpiredKeeperWavs(sink, "room1", "p_a", 0, () => true);
+    // Use the second slot for the recoverable segment.
+    await sink.write(pending, wavWithPcm(8));
+    await sink.write(keeperMetaPath(pending), pendingMeta(ids, 1));
+    const transport = memoryUploadTransport();
+    const { result, unmount } = renderHook(() =>
+      useRecordUpload({
+        enabled: true,
+        roomState: "stopped",
+        captureSettled: true,
+        sessionId: "room1",
+        takeIndex: 0,
+        participantId: "p_a",
+        transport,
+        sink,
+      }),
+    );
+    await waitFor(() =>
+      expect(result.current.error).toMatch(/expired after seven days/),
+    );
+    expect(result.current.error).toMatch(/Recover it before uploading/);
+    unmount();
+  });
+
+  it("rechecks expiry in a stopped room after the retention deadline passes", async () => {
+    vi.useFakeTimers();
+    const sink = new MemorySink();
+    const path = keeperWavPath({
+      sessionId: "room1",
+      takeIndex: 0,
+      participantId: "p_a",
+      segmentIndex: 0,
+    });
+    await sink.write(path, wavWithPcm(8));
+    const clock = Date.now();
+    const transport = memoryUploadTransport();
+    const { result, unmount } = renderHook(() =>
+      useRecordUpload({
+        enabled: true,
+        roomState: "stopped",
+        captureSettled: true,
+        sessionId: "room1",
+        takeIndex: 0,
+        participantId: "p_a",
+        transport,
+        sink,
+      }),
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    expect(result.current.pending).toBe(false);
+    expect(await sink.read(path)).not.toBeNull();
+    vi.setSystemTime(clock + ORPHAN_KEEPER_RETENTION_MS + 60 * 60_000);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_010);
+    });
+    expect(result.current.error).toMatch(/expired after seven days/);
+    expect(await sink.read(path)).toBeNull();
+    unmount();
+  });
   it("expires an old metadata-free WAV only after capture settles", async () => {
     const sink = new MemorySink();
     const path = keeperWavPath({

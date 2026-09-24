@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { keeperMetaBytes } from "../../test/keepers";
+import { holdKeeperReclaim } from "./reclaim";
 import {
   createOpfsSink,
   type KeeperMeta,
@@ -433,6 +434,28 @@ describe("MemorySink", () => {
     ).rejects.toThrow("locked");
     expect(await sink.read(wav)).not.toBeNull();
     expect(await sink.nextSegmentIndex("room", 0, "guest")).toBe(1);
+  });
+
+  it("keeps an expired WAV while a recovery download holds deletion", async () => {
+    const sink = new MemorySink();
+    const wav = keeperWavPath({
+      sessionId: "room",
+      takeIndex: 0,
+      participantId: "guest",
+      segmentIndex: 0,
+    });
+    await sink.write(wav, new Uint8Array([1]));
+    sink.modified.set(wav, 0);
+    const release = await holdKeeperReclaim(sink);
+    expect(
+      await pruneExpiredKeeperWavs(sink, "room", "guest", 0, () => true),
+    ).toBe(0);
+    expect(await sink.read(wav)).not.toBeNull();
+    release();
+    expect(
+      await pruneExpiredKeeperWavs(sink, "room", "guest", 0, () => true),
+    ).toBe(1);
+    expect(await sink.read(wav)).toBeNull();
   });
 });
 
