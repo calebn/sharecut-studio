@@ -5,16 +5,12 @@ type Props = {
   total?: string;
   /** Full `current / total` pair for the tooltip. */
   title?: string;
-  /** Reserve width for `hh:mm:ss` sessions. */
-  hours?: boolean;
   className?: string;
 };
 
 /** Tabular timecode readout: large current time, muted total. */
-export function Timecode({ current, total, title, hours, className }: Props) {
-  const classes = ["timecode", hours ? "timecode-hours" : "", className]
-    .filter(Boolean)
-    .join(" ");
+export function Timecode({ current, total, title, className }: Props) {
+  const classes = className ? `timecode ${className}` : "timecode";
   return (
     <span className={classes} title={title}>
       <span className="timecode-current">{current}</span>

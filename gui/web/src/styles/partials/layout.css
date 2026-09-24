@@ -408,60 +408,6 @@
   border: 0;
 }
 
-.pill--compact {
-  padding: var(--space-0) var(--space-2);
-  font-size: var(--font-size-micro);
-}
-
-.pill {
-  padding: var(--space-0) var(--space-3);
-  border-radius: var(--radius-md);
-  font-size: var(--font-size-caption);
-}
-
-.pill.warning {
-  background: var(--color-warning-subtle);
-  color: var(--warning);
-}
-
-button.pill {
-  border: none;
-  font: inherit;
-  font-family: inherit;
-  line-height: inherit;
-  cursor: default;
-}
-
-button.pill.pill--action {
-  cursor: pointer;
-}
-
-button.pill.pill--action:focus-visible {
-  outline: var(--focus-ring-width) solid var(--warning);
-  outline-offset: 1px;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  button.pill.pill--action:hover {
-    outline: var(--focus-ring-width) solid var(--warning);
-    outline-offset: 1px;
-  }
-}
-
-button.pill.pill--busy {
-  opacity: 0.75;
-  cursor: progress;
-}
-
-button.pill.pill--info {
-  cursor: help;
-}
-
-.pill.ok {
-  background: var(--color-success-subtle);
-  color: var(--success);
-}
-
 /* Outline-first: avoid wash behind small dim text (track-role fails 4.5:1). */
 .stale-highlight {
   outline: var(--focus-ring-width) solid var(--warning);
@@ -524,15 +470,6 @@ button.pill.pill--info {
       outline-color 120ms ease,
       box-shadow 120ms ease;
   }
-}
-
-.pill.audition {
-  background: var(--color-envelope-muted);
-  color: var(--envelope-line);
-  max-width: 13.75rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .audition-overlay {

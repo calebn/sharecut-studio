@@ -280,7 +280,6 @@ export function TransportBar({
           current={currentTimecode}
           total={collapsed ? undefined : totalTimecode}
           title={fullTimecode}
-          hours={duration >= 3600 && !collapsed}
         />
         {!collapsed ? auditionGroup() : null}
       </TransportZone>

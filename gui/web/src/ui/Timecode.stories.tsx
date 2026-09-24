@@ -26,7 +26,6 @@ export const Hours: Story = {
   args: {
     current: "01:02:03.450",
     total: "01:45:00.000",
-    hours: true,
     title: "01:02:03.450 / 01:45:00.000",
   },
 };
