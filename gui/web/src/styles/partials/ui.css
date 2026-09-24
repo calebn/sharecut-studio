@@ -45,6 +45,13 @@
   margin: 0;
 }
 
+.ui-empty-state {
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-sunken);
+}
+
 /* --- .ui-control: shared chrome interaction states --- */
 
 .ui-control {

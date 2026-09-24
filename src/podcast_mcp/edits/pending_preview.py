@@ -12,8 +12,8 @@ DEFAULT_PAD_SEC = 0.5
 DEFAULT_AB_GAP_SEC = 0.4
 
 SKIP_REASON_SPLIT = "A split does not change the mix until you delete a side."
-SKIP_REASON_TRACK = "Track punch keeps timeline length — hear Current around the hole."
-SKIP_REASON_MUTE = "Mute-in-place keeps timeline length — hear Current around the hole."
+SKIP_REASON_TRACK = "Track punch keeps timeline length. Hear Current around the hole."
+SKIP_REASON_MUTE = "Mute-in-place keeps timeline length. Hear Current around the hole."
 SKIP_REASON_UNMAPPED = "This cut is not on the current timeline."
 SKIP_REASON_TOO_SHORT = "This cut is too short for a Suggested skip."
 SKIP_REASON_SESSION_ONLY = "Suggested skip is only for session-wide removes."

@@ -374,7 +374,7 @@ export function ReviewApp({ token }: { token: string }) {
             />
           ))}
           {visibleComments.length === 0 && (
-            <li className="comments-empty">
+            <li className="comments-empty ui-empty-state">
               {openOnly ? "No open comments." : "No comments yet."}
             </li>
           )}

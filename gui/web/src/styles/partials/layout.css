@@ -735,8 +735,8 @@ button.pill.pill--info {
 .tool-mode-toggle
   .ui-control--quiet[aria-pressed="true"]:not(.comment-mode-btn),
 .tool-mode-toggle .ui-control--quiet.active:not(.comment-mode-btn) {
-  background: var(--color-accent-solid);
-  color: var(--color-accent-on-solid);
+  background: var(--color-bg-inverted);
+  color: var(--color-text-on-inverted);
   border-color: transparent;
   border-bottom-color: transparent;
 }

@@ -74,8 +74,8 @@ export function HelpDialog({ open, onClose }: Props) {
       <div className="share-dialog-body stack">
         <p className="host-mcp-lead">
           Create a sanitized diagnostics zip on this computer. Nothing is
-          uploaded. Attach the zip to your support request. Audio stays on your
-          device, transcripts, or project JSON.
+          uploaded. Attach the zip to your support request. The zip contains no
+          audio, transcripts, or project JSON.
         </p>
         <div className="share-dialog-actions">
           <Button

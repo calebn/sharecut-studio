@@ -16,7 +16,7 @@
   inline-size: 0.125rem;
   /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- user-approved: playhead half-width center offset */
   margin-inline-start: -0.0625rem;
-  background: var(--playhead);
+  background: var(--color-timeline-playhead);
   z-index: var(--z-playhead);
   pointer-events: none;
 }
@@ -434,7 +434,7 @@ html[data-shell="tablet"] {
   align-self: flex-start;
   background: transparent;
   border: none;
-  color: var(--accent);
+  color: var(--accent-fg);
   font-size: var(--font-size-ui);
   font-weight: 600;
   padding: var(--space-3) 0;

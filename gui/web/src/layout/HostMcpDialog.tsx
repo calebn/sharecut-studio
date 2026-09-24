@@ -97,7 +97,7 @@ export function HostMcpDialog({ open, onClose, hasProject }: Props) {
           episode.
         </p>
         {hasProject ? null : (
-          <p className="share-dialog-empty" role="status">
+          <p className="share-dialog-empty ui-empty-state" role="status">
             Open an episode first; tools error until a project is open.
           </p>
         )}

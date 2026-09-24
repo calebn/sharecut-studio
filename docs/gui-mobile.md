@@ -175,7 +175,7 @@ Keyboard: `1` default, `2` timeline, `3` text, `4` review (when timeline focused
 1. One job per phone screen (no timeline + full transcript + inspector).
 2. ≥44×44pt targets; fade/envelope hit areas ≥2× visual width.
 3. Sheets: Close + dismiss; never stack.
-4. Dialog overlays cap to `90dvh` with a single `.command-palette-body` scroller. Menus cap to `min(90dvh, var(--menu-available-height))`, where `--menu-available-height` is remaining space under the trigger (above phone `.mobile-nav` when present), and scroll internally so every item stays reachable on short viewports. The active phone navigation item uses the theme's inverted surface and on-color text; its state transition is disabled for reduced motion.
+4. Dialog overlays cap to `90dvh` with a single `.command-palette-body` scroller. Menus cap to `min(90dvh, var(--menu-available-height))`, where `--menu-available-height` is remaining space under the trigger (above phone `.mobile-nav` when present), and scroll internally so every item stays reachable on short viewports. The active phone navigation item uses the theme's inverted surface and on-color text; its state transition is disabled for reduced motion. The centered phone playhead uses `--color-timeline-playhead` so it remains visible in the dark timeline well.
 5. Snap only to on-screen anchors.
 6. Listen-first: every edit surface keeps Play around / seek footer.
 7. Progressive complexity via `shareMode` capabilities.

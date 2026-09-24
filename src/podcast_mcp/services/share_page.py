@@ -226,9 +226,9 @@ def render_record_spa_html(
 
         row, ws = open_share_workspace(token, kind=SHARE_KIND_RECORD)
         producer = str(row.get("role") or "") == "producer"
-        heading = "Producer — not recorded" if producer else "Join the recording"
+        heading = "Producer (not recorded)" if producer else "Join the recording"
         name = (ws.project.meta.name or "").strip()
-        title = f"{heading} — {name}" if name else heading
+        title = f"{heading} | {name}" if name else heading
         if producer:
             description = "Silent producer link. You are not recorded in this stub."
     except Exception:
