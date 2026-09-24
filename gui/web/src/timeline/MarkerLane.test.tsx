@@ -1,5 +1,10 @@
 import { render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  PRESENCE_ANCHOR_ATTR,
+  resolvePresenceAnchor,
+} from "../presence/anchors";
+import { presenceCursorFromPointer } from "../presence/usePresenceCursorSource";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import type {
@@ -68,6 +73,50 @@ describe("MarkerLane", () => {
     });
     expect(container.querySelector(".marker-lane.empty")).toBeTruthy();
     expect(container.querySelector(".marker-row")).toBeNull();
+  });
+
+  it("anchors each row so remote cursors land on it whatever layers are on", () => {
+    const all = renderLane({ chapters: true, social: true, comments: true });
+    const row = all.container.querySelector(
+      ".marker-row.comments",
+    ) as HTMLElement;
+    Object.defineProperty(row, "getBoundingClientRect", {
+      value: () => ({ left: 0, top: 48, width: 400, height: 24 }),
+    });
+    const pin = row.querySelector(".comment-marker") as HTMLElement;
+    // Viewer A (all rows) hovers the comments row…
+    const cursor = presenceCursorFromPointer(pin, 40, 60, null, 0, 10, 60);
+    expect(cursor).toEqual({ anchor: "markers:comments", x: 0.1, y: 0.5 });
+    expect(
+      all.container
+        .querySelector(".marker-lane")
+        ?.hasAttribute(PRESENCE_ANCHOR_ATTR),
+    ).toBe(false);
+    all.unmount();
+
+    // …viewer B (Markers off: comments is the only row) resolves that row.
+    const onlyComments = renderLane({
+      chapters: false,
+      social: false,
+      comments: true,
+    });
+    expect(
+      resolvePresenceAnchor(onlyComments.container, "markers:comments"),
+    ).toBe(onlyComments.container.querySelector(".marker-row.comments"));
+    expect(
+      resolvePresenceAnchor(onlyComments.container, "markers:chapters"),
+    ).toBeNull();
+  });
+
+  it("keeps a lane anchor on the quiet empty lane", () => {
+    const { container } = renderLane({
+      chapters: false,
+      social: false,
+      comments: false,
+    });
+    expect(resolvePresenceAnchor(container, "markers")).toBe(
+      container.querySelector(".marker-lane.empty"),
+    );
   });
 
   it("centers point markers with the row height constant", () => {

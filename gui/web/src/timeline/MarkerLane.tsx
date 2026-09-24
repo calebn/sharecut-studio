@@ -14,6 +14,14 @@ import type { MarkerRows } from "./timelineMetrics";
 /** Point markers are row-square; center them on their time. */
 const MARKER_HALF = MARKER_ROW_HEIGHT / 2;
 
+/**
+ * One presence anchor per row: rows collapse with each viewer's layer
+ * toggles, so a lane-wide Y fraction would put a remote cursor on another row.
+ */
+function rowAnchor(row: keyof MarkerRows): Record<string, string> {
+  return presenceAnchorProps(presenceAnchor("markers", row));
+}
+
 interface MarkerLaneProps {
   chapters: ChapterMarker[];
   socialClips: SocialClipView[];
@@ -67,14 +75,10 @@ export function MarkerLane({
   }
 
   return (
-    <div
-      className="marker-lane"
-      style={{ width }}
-      {...presenceAnchorProps(presenceAnchor("markers"))}
-    >
+    <div className="marker-lane" style={{ width }}>
       {rows.chapters && (
         <>
-          <div className="marker-row chapters">
+          <div className="marker-row chapters" {...rowAnchor("chapters")}>
             {chapters.map((ch) => (
               <button
                 key={`${ch.time}-${ch.title}`}
@@ -145,7 +149,7 @@ export function MarkerLane({
       )}
       {rows.social && (
         <>
-          <div className="marker-row social">
+          <div className="marker-row social" {...rowAnchor("social")}>
             {socialClips.map((clip) => {
               const left = clip.start * zoomPxPerSec;
               const w = Math.max(
@@ -253,7 +257,7 @@ export function MarkerLane({
         </>
       )}
       {rows.comments && (
-        <div className="marker-row comments">
+        <div className="marker-row comments" {...rowAnchor("comments")}>
           {comments.map((c) => {
             const left = c.timeline_start * zoomPxPerSec;
             const end = c.timeline_end ?? c.timeline_start;
