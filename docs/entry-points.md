@@ -28,7 +28,7 @@ Rules:
 
 1. Implement / extend the **service** (with tests).
 2. Add or update a row in `contracts/capabilities.manifest.json`.
-   - For a command surface, include its default `COMMANDS[id].when` predicate in `gates`. The command catalog controls keyboard execution; the manifest describes that gate in the published capability catalog. Keep the governance test free of per-command exceptions.
+   - For a command surface, include its default `COMMANDS[id].when` predicate in manifest `gates`. The catalog controls command execution; the manifest records its gate and any additional handler prerequisites. Keep the governance test free of per-command exceptions.
    - GUI chrome must set `surfaces.gui` **and** a non-empty `tooltip` (toggles also need `tooltip_pressed` + `"toggle": true`).
    - Copy is generated to `gui/web/src/capabilities/copy.ts` (`capabilityTooltip`) — do not hardcode toolbar/handle strings in React.
 3. Add only the declared adapters:

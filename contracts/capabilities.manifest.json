@@ -898,7 +898,8 @@
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
-        "timelineFocused"
+        "timelineFocused",
+        "hasProject"
       ],
       "surfaces": {
         "command": "view.zoomIn",
@@ -920,7 +921,8 @@
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
-        "timelineFocused"
+        "timelineFocused",
+        "hasProject"
       ],
       "surfaces": {
         "command": "view.zoomOut",
@@ -942,7 +944,8 @@
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
-        "timelineFocused"
+        "timelineFocused",
+        "hasProject"
       ],
       "surfaces": {
         "command": "view.fit",
@@ -1013,7 +1016,8 @@
       "service": "Sharecut Studio command bus",
       "industry_standard_key": true,
       "gates": [
-        "timelineFocused"
+        "timelineFocused",
+        "hasProject"
       ],
       "surfaces": {
         "command": "view.waveformZoomIn",
@@ -1035,7 +1039,8 @@
       "service": "Sharecut Studio command bus",
       "industry_standard_key": true,
       "gates": [
-        "timelineFocused"
+        "timelineFocused",
+        "hasProject"
       ],
       "surfaces": {
         "command": "view.waveformZoomOut",
