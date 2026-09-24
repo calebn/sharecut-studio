@@ -10,6 +10,7 @@ from podcast_mcp.project_io import (
     rewrite_workspace_dir,
 )
 from podcast_mcp.project_store import ProjectStore
+from podcast_mcp.services.workspace import ProjectWorkspace
 
 
 def test_resolve_project_path_dir(tmp_path):
@@ -37,6 +38,41 @@ def test_open_and_persist_roundtrip(minimal_project):
     ProjectStore(path).commit(proj)
     _, loaded = open_project(path)
     assert loaded.name == "renamed"
+
+
+def test_workspace_reload_skips_unchanged_file_and_reads_external_write(
+    minimal_project, monkeypatch
+):
+    ws = ProjectWorkspace.open(minimal_project)
+    original_load = ws._store.load
+    loads = 0
+
+    def counted_load():
+        nonlocal loads
+        loads += 1
+        return original_load()
+
+    monkeypatch.setattr(ws._store, "load", counted_load)
+    original = ws.project
+    assert ws.reload() is original
+    assert loads == 0
+
+    external = ProjectStore(minimal_project).load()
+    external.name = "external update"
+    ProjectStore(minimal_project).commit(external)
+    assert ws.reload().name == "external update"
+    assert loads == 1
+    assert ws.reload() is ws.project
+    assert loads == 1
+
+    ws.project.name = "workspace update"
+    ws.save()
+    assert ws.reload().name == "workspace update"
+    assert loads == 1
+
+    ws.mutate("before rename", "after rename", lambda project: setattr(project, "name", "mutated"))
+    assert ws.reload().name == "mutated"
+    assert loads == 1
 
 
 def test_require_episode_project_file_basename(tmp_path):
