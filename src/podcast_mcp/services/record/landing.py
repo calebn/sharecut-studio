@@ -881,7 +881,7 @@ def _log_superseded(session_id: str, item: dict[str, Any]) -> None:
 
 def _registered_source_file(project: EpisodeProject, source_id: str) -> tuple[Path, str] | None:
     """``(absolute path, rel)`` of ``sources[source_id]`` when that file exists on disk."""
-    existing = next((src for src in project.sources if src.id == source_id), None)
+    existing = project.source_by_id(source_id)
     if existing is None:
         return None
     dest = (Path(project.workspace_dir) / existing.path).resolve()
@@ -990,7 +990,7 @@ def _upsert_source(
     sample_rate: int,
     channels: int,
 ) -> SourceRecording:
-    existing = next((src for src in project.sources if src.id == source_id), None)
+    existing = project.source_by_id(source_id)
     if existing is not None:
         existing.path = rel
         existing.speaker = speaker

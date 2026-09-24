@@ -100,6 +100,16 @@ def test_track_add_and_probe(minimal_project, sample_wav):
     assert again.track_by_id("host") is not None
 
 
+def test_source_by_id(minimal_project):
+    from podcast_mcp.models import SourceRecording
+
+    proj = load_project(minimal_project)
+    proj.sources.append(SourceRecording(id="src-a", path="raw/a.wav"))
+    found = proj.source_by_id("src-a")
+    assert found is not None and found.path == "raw/a.wav"
+    assert proj.source_by_id("missing") is None
+
+
 def test_edit_segments():
     from podcast_mcp.engines.ffmpeg import FFmpegEngine
 

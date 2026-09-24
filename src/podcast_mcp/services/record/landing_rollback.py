@@ -39,7 +39,7 @@ def capture_prior(
 ) -> PriorRegistration:
     """Deep-copy the state landing is about to overwrite, before it does."""
     track = project.track_by_id(track_id)
-    source = next((src for src in project.sources if src.id == source_id), None)
+    source = project.source_by_id(source_id)
     clip: Clip | None = None
     if not room_tone:
         clip = next(
@@ -70,7 +70,7 @@ def _media_from_remaining_clip(project: EpisodeProject, track_id: str) -> MediaA
     for clip in remaining:
         if clip.source_id is None:
             continue
-        src = next((s for s in project.sources if s.id == clip.source_id), None)
+        src = project.source_by_id(clip.source_id)
         if src is not None:
             return MediaAsset(
                 path=src.path,

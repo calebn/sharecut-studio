@@ -608,6 +608,9 @@ class EpisodeProject(BaseModel):
     def track_by_id(self, track_id: str) -> Track | None:
         return next((t for t in self.timeline.tracks if t.id == track_id), None)
 
+    def source_by_id(self, source_id: str) -> SourceRecording | None:
+        return next((s for s in self.sources if s.id == source_id), None)
+
     def transcript_for_track(self, track_id: str) -> Transcript | None:
         return next(
             (t for t in self.transcript_data.per_track if t.track_id == track_id),
