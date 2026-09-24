@@ -106,7 +106,8 @@ def _sql_bundle(prefix: str) -> dict[str, str]:
         "insert_generated_command": bind(
             "INSERT INTO __COMMANDS__ (command_id, client_id, client_seq, role, type, "
             "payload, causation_id, ts_ns) VALUES (?, ?, "
-            "(SELECT COALESCE(MAX(client_seq), 0) + 1 FROM __COMMANDS__ WHERE client_id = ?), "
+            "(SELECT COALESCE(MIN(client_seq), 0) - 1 FROM __COMMANDS__ "
+            "WHERE client_id = ? AND client_seq < 0), "
             "?, ?, ?, ?, ?)"
         ),
         "commands_after": bind(
@@ -272,8 +273,11 @@ class SyncStore:
 
     def find_by_command_id(self, command_id: str) -> dict[str, Any] | None:
         with self._lock:
-            row = self._conn.execute(self._sql["find_command_id"], (command_id,)).fetchone()
-            return self._row_to_cmd(row) if row else None
+            return self._find_by_command_id_unlocked(command_id)
+
+    def _find_by_command_id_unlocked(self, command_id: str) -> dict[str, Any] | None:
+        row = self._conn.execute(self._sql["find_command_id"], (command_id,)).fetchone()
+        return self._row_to_cmd(row) if row else None
 
     def append_command(
         self,
@@ -312,10 +316,13 @@ class SyncStore:
         payload: dict[str, Any],
         causation_id: str | None,
     ) -> dict[str, Any]:
-        if client_seq is not None:
-            existing = self._find_by_client_seq_unlocked(client_id, client_seq)
-            if existing is not None:
-                return existing
+        existing = (
+            self._find_by_client_seq_unlocked(client_id, client_seq)
+            if client_seq is not None
+            else self._find_by_command_id_unlocked(command_id)
+        )
+        if existing is not None:
+            return existing
         now = time.time_ns()
         try:
             encoded = json.dumps(payload, separators=(",", ":"))
@@ -336,13 +343,13 @@ class SyncStore:
             again = (
                 self._find_by_client_seq_unlocked(client_id, client_seq)
                 if client_seq is not None
-                else None
+                else self._find_by_command_id_unlocked(command_id)
             )
             if again is None:
                 raise RuntimeError("failed to append or load command") from None
             return again
         if client_seq is None:
-            generated = self._conn.execute(self._sql["find_command_id"], (command_id,)).fetchone()
+            generated = self._find_by_command_id_unlocked(command_id)
             if generated is None:
                 raise RuntimeError("generated command missing after append")
             client_seq = int(generated["client_seq"])
@@ -377,27 +384,42 @@ class SyncStore:
         Returns ``(row, snapshot, idempotent)``.
         """
         with self._lock:
-            existing = (
-                self._find_by_client_seq_unlocked(client_id, client_seq)
-                if client_seq is not None
-                else None
-            )
-            if existing is not None:
+            # Record commands (prefixed tables) may write live comments through
+            # a second connection inside apply_fn, so only session commands
+            # can hold this connection's write transaction across apply_fn.
+            transactional = not self._p
+            if transactional:
+                self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                existing = (
+                    self._find_by_client_seq_unlocked(client_id, client_seq)
+                    if client_seq is not None
+                    else self._find_by_command_id_unlocked(command_id)
+                )
+                if existing is not None:
+                    snap = self._get_snapshot_unlocked() or empty_snap_fn()
+                    if transactional:
+                        self._conn.execute("COMMIT")
+                    return existing, snap, True
+                row = self._append_command_unlocked(
+                    command_id=command_id,
+                    client_id=client_id,
+                    client_seq=client_seq,
+                    role=role,
+                    type=type,
+                    payload=payload,
+                    causation_id=causation_id,
+                )
                 snap = self._get_snapshot_unlocked() or empty_snap_fn()
-                return existing, snap, True
-            row = self._append_command_unlocked(
-                command_id=command_id,
-                client_id=client_id,
-                client_seq=client_seq,
-                role=role,
-                type=type,
-                payload=payload,
-                causation_id=causation_id,
-            )
-            snap = self._get_snapshot_unlocked() or empty_snap_fn()
-            snap = apply_fn(snap, row)
-            self._put_snapshot_unlocked(int(row["server_seq"]), snap)
-            return row, snap, False
+                snap = apply_fn(snap, row)
+                self._put_snapshot_unlocked(int(row["server_seq"]), snap)
+                if transactional:
+                    self._conn.execute("COMMIT")
+                return row, snap, False
+            except BaseException:
+                if transactional:
+                    self._conn.execute("ROLLBACK")
+                raise
 
     def commands_after(self, server_seq: int) -> list[dict[str, Any]]:
         with self._lock:

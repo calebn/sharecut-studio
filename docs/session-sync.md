@@ -24,8 +24,8 @@ Client ──submit(command)──► SessionSyncService
 
 | Concept | Meaning |
 |---------|---------|
-| `client_id` | Stable id per tab / agent / CLI process |
-| `client_seq` | Per-client monotonic seq (idempotency key with `client_id`) |
+| `client_id` | Stable id per tab or agent/CLI control stream |
+| `client_seq` | Explicit positive per-client seq, or internal negative seq; idempotency key with `client_id` |
 | `server_seq` | Global order assigned on append |
 | `role` | `agent` \| `viewer` \| `cli` (metadata, not a separate code path) |
 | Typed commands | `SetPlayhead`, `SetRegion`, `PlayOsAudio`, `AuditionInViewer`, … |
@@ -34,9 +34,10 @@ Client ──submit(command)──► SessionSyncService
 **`AuditionInViewer`** (`dry_run=true`): region + browser transport.
 
 Agent/CLI convenience commands keep stable client IDs, and the session SQLite log
-allocates their next `client_seq` in the insert statement. Separate CLI processes
-therefore cannot restart the same dedupe key. Explicit client sequences from
-WebSocket/HTTP callers remain unchanged so retries are idempotent.
+allocates their next negative `client_seq` in the insert statement. Separate CLI
+processes therefore cannot restart the same dedupe key. Explicit client sequences
+from WebSocket/HTTP callers must be positive and remain unchanged for retries;
+the separate ranges prevent those callers from colliding with generated commands.
 
 ## Modules
 
