@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
+import { parseTimecodeSec } from "./phoneTimeline";
 
 test.describe("Arrange chrome", () => {
   test("empty-canvas ruler extends past session while End seeks session", async ({
@@ -22,9 +23,7 @@ test.describe("Arrange chrome", () => {
 
     const lastTick = page.locator(".ruler-tick").last();
     await expect(lastTick).toBeVisible();
-    const lastLabel = (await lastTick.innerText()).trim();
-    const [mins, secs] = lastLabel.split(":").map(Number);
-    const lastSec = (mins ?? 0) * 60 + (secs ?? 0);
+    const lastSec = parseTimecodeSec(await lastTick.innerText());
     expect(lastSec).toBeGreaterThan(sessionMax - 1);
 
     await page.keyboard.press("Home");
