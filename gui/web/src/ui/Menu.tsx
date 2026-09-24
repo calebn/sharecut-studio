@@ -180,8 +180,14 @@ export function Menu({
       cancelAnimationFrame(raf);
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("pointerdown", onPointerDown);
+      // Take focus back only when it left with the panel. When another menu's
+      // trigger took it (exclusive menus), stealing it back would make that
+      // menu record this trigger as the place Escape returns to.
+      const active = document.activeElement;
+      const focusLost =
+        !active || active === document.body || !active.isConnected;
       const restore = restoreRef.current;
-      if (restore?.isConnected) {
+      if (focusLost && restore?.isConnected) {
         restore.focus();
       }
     };

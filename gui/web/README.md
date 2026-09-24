@@ -133,7 +133,7 @@ Sharecut Studio chrome library — see [`docs/ui-library.md`](docs/ui-library.md
 | `Button` | `default` / `primary` / `danger` / `link` |
 | `ToggleButton` | Toolbars / mode strips (`aria-pressed` + `.active`) — not exclusive tab panels |
 | `CommandButton` / `useCommand` | Pointer → `execute(commandId)` (default `skipWhen`) |
-| `Menu` / `CommandMenuItem` | Popup menus (Escape, arrows, outside click) |
+| `Menu` / `CommandMenuItem` | Popup menus (Escape, arrows, outside click); closing returns focus to the opener unless focus already moved elsewhere (for example to a sibling menu's trigger) |
 | `Dialog` / `useDialogModal` | Modal scrim+panel; trap + inert chrome |
 | `BottomSheet` | Phone/tablet peek sheet (non-modal) |
 | `Field` / `FieldRow` | Labeled control + hint; horizontal nudge row |
