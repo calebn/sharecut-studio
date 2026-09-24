@@ -131,7 +131,7 @@ describe("Room", () => {
     );
     expect(retry).toHaveBeenCalledOnce();
     expect(screen.getByRole("status")).toHaveTextContent(
-      "REC — local capture failed",
+      "REC: local capture failed",
     );
     expect(document.querySelector(".record-rec-dot")).toBeNull();
   });
@@ -147,12 +147,12 @@ describe("Room", () => {
     expect(screen.getByRole("status")).toHaveTextContent("0:01");
     rerender(<Room {...props} micLost micPending />);
     expect(screen.getByRole("status")).toHaveTextContent(
-      "REC — waiting for microphone",
+      "REC: waiting for microphone",
     );
     expect(screen.getByRole("status")).toHaveTextContent("0:01");
     rerender(<Room {...props} micLost />);
     expect(screen.getByRole("status")).toHaveTextContent(
-      "REC — local capture failed",
+      "REC: local capture failed",
     );
     rerender(<Room {...props} />);
     expect(screen.getByRole("status")).toHaveTextContent("REC0:01");
@@ -186,7 +186,7 @@ describe("Room", () => {
     };
     const { rerender } = render(<Room {...props} micReady={false} />);
     expect(screen.getByRole("status")).toHaveTextContent(
-      "REC — local capture failed",
+      "REC: local capture failed",
     );
     expect(document.querySelector(".record-rec-dot")).toBeNull();
     expect(
@@ -194,7 +194,7 @@ describe("Room", () => {
     ).toBeInTheDocument();
     rerender(<Room {...props} micReady={false} micPending />);
     expect(screen.getByRole("status")).toHaveTextContent(
-      "REC — waiting for microphone",
+      "REC: waiting for microphone",
     );
     rerender(<Room {...props} micReady />);
     expect(screen.getByRole("status")).toHaveTextContent("REC");

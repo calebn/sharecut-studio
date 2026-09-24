@@ -83,7 +83,7 @@ describe("MobileShell", () => {
     );
     expect(container.querySelector("header.transport")).toBeNull();
     const chip = screen.getByRole("button", {
-      name: "Recording — open record panel",
+      name: "Recording. Open record panel",
     });
     expect(chip).toHaveTextContent("REC");
     expect(chip).toHaveAccessibleDescription("0:00");
