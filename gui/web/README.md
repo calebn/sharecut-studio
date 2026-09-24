@@ -135,6 +135,11 @@ Sharecut Studio chrome library — see [`docs/ui-library.md`](docs/ui-library.md
 | `FocusToggle` | Pane focus control |
 | `LevelMeter` | Peak input meter (dBFS zones, peak hold, latching clip LED); drive it with `record/useInputPeakDb` (DSP in `audio/metering.ts`, loop in `audio/usePeakMeter.ts`). Not wired into the record UI yet (#174) |
 
+The command palette's **Actions** tab renders unbound catalog commands only
+when `paletteRunnable` is not `false`. Mark commands that need arguments or a
+timeline/transcript target as non-runnable there; their owning UI still invokes
+them through the command bus.
+
 Mutations: prefer `hooks/useProjectMutation()` (`busy` / `error` / `run` / `refresh`) over local try/catch boilerplate.
 
 For caught values, use `utils/apiError.errorMessage(error, fallback)` when the caller has a specific fallback for non-`Error` values. Omit the fallback only when showing the string form of any thrown value is intentional.
