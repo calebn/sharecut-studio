@@ -53,6 +53,7 @@ from podcast_mcp.services.record.upload import (
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.progress import resolve_progress_task
+from podcast_mcp.util.project_state import project_state_lock
 
 log = logging.getLogger(__name__)
 
@@ -429,6 +430,7 @@ class RecordLandingService:
                         "channels": channels,
                         "rel": rel,
                         "source_id": source_id,
+                        "file_sha256": row.get("file_sha256"),
                         "label": names.get(pid) or pid,
                     }
                 )
@@ -453,6 +455,7 @@ class RecordLandingService:
                         "sample_rate": sample_rate,
                         "channels": channels,
                         "rel": rel,
+                        "file_sha256": row.get("file_sha256"),
                         "label": names.get(pid) or pid,
                     }
                 )
@@ -565,19 +568,12 @@ class RecordLandingService:
         )
         clips = list(landed["clips"])
         comments = list(landed["comments"])
-        for item in copied:
-            self._upload.mark_landed(
-                session_id=self.session_id,
-                take_index=int(item["take_index"]),
-                participant_id=str(item["participant_id"]),
-                segment_index=int(item["segment_index"]),
-            )
-        for item in room_tone_copied:
-            self._upload.mark_landed(
-                session_id=self.session_id,
-                take_index=int(item["take_index"]),
-                participant_id=str(item["participant_id"]),
-                segment_index=int(item["segment_index"]),
+        for item in copied + room_tone_copied:
+            self._mark_registered_landing(
+                str(item["participant_id"]),
+                int(item["take_index"]),
+                int(item["segment_index"]),
+                expected_sha256=item["file_sha256"],
             )
         self._comments.mark_landed(
             self.session_id,
@@ -663,30 +659,46 @@ class RecordLandingService:
         Room-tone source ids are per participant, so a re-recorded bed would otherwise
         match the previous bed's file; comparing ``file_sha256`` rejects that.
         """
-        source_id = self._landed_source_id(participant_id, take_index, segment_index)
-        registered = _registered_source_file(self.workspace.project, source_id)
-        present = False
-        if registered is not None and expected_sha256:
-            try:
-                present = sha256_file(registered[0]) == expected_sha256
-            except OSError:
-                present = False
-        if not present:
+        self._mark_registered_landing(
+            participant_id, take_index, segment_index, expected_sha256=expected_sha256
+        )
+
+    def _mark_registered_landing(
+        self,
+        participant_id: str,
+        take_index: int,
+        segment_index: int,
+        *,
+        expected_sha256: str | None,
+    ) -> None:
+        """Keep the source check and upload decision inside the project mutation lock."""
+        with project_state_lock(self.workspace.project):
+            source_id = self._landed_source_id(participant_id, take_index, segment_index)
+            registered = _registered_source_file(self.workspace.project, source_id)
+            present = False
+            if registered is not None and expected_sha256:
+                try:
+                    present = sha256_file(registered[0]) == expected_sha256
+                except OSError:
+                    present = False
+            if present and registered is not None:
+                checked_again = _registered_source_file(self.workspace.project, source_id)
+                present = checked_again is not None and checked_again[0] == registered[0]
+            if present:
+                self._upload.mark_landed(
+                    session_id=self.session_id,
+                    take_index=take_index,
+                    participant_id=participant_id,
+                    segment_index=segment_index,
+                )
+                return
             log.warning(
-                "record land missing acked keeper session=%s take=%s pid=%s seg=%s",
+                "record land source missing or mismatched session=%s take=%s pid=%s seg=%s",
                 self.session_id,
                 take_index,
                 participant_id,
                 segment_index,
             )
-        if present:
-            self._upload.mark_landed(
-                session_id=self.session_id,
-                take_index=take_index,
-                participant_id=participant_id,
-                segment_index=segment_index,
-            )
-        else:
             self._upload.mark_land_failed(
                 session_id=self.session_id,
                 take_index=take_index,

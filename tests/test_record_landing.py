@@ -969,6 +969,81 @@ def test_missing_acked_unreadable_source_marks_land_failed(
     assert row["land_failed"] is True
 
 
+def test_missing_acked_source_removed_during_hash_stays_failed(
+    minimal_project, sample_wav, monkeypatch
+):
+    from podcast_mcp.util.hashing import sha256_file
+
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=1_000)
+    uploader = RecordUploadService(ws.project)
+    _ack(uploader, session_id=room["session_id"], take=0, pid=guest, segment=0, join_offset_ms=0)
+    first = RecordLandingService(ws).land(align=lambda _p: None)
+    uploader.acked_wav(room["session_id"], 0, guest, 0).unlink()
+    uploader.mark_land_failed(
+        session_id=room["session_id"], take_index=0, participant_id=guest, segment_index=0
+    )
+
+    def remove_source_during_check(path: Path) -> str:
+        digest = sha256_file(path)
+        ws.mutate(
+            "before source removal",
+            "after source removal",
+            lambda project: setattr(project, "sources", []),
+        )
+        return digest
+
+    monkeypatch.setattr(
+        "podcast_mcp.services.record.landing.sha256_file", remove_source_during_check
+    )
+    assert RecordLandingService(ws).land(align=lambda _p: None)["clips"] == []
+    row = uploader.status(session_id=room["session_id"])["segments"][0]
+    assert row["landed"] is False
+    assert row["land_failed"] is True
+    assert (Path(ws.project.workspace_dir) / first["clips"][0]["raw_path"]).is_file()
+
+
+def test_reused_raw_source_removed_before_landed_mark_stays_failed(
+    minimal_project, sample_wav, monkeypatch
+):
+    import podcast_mcp.services.record.landing as landing_module
+
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=1_000)
+    uploader = RecordUploadService(ws.project)
+    _ack(uploader, session_id=room["session_id"], take=0, pid=guest, segment=0, join_offset_ms=0)
+    first = RecordLandingService(ws).land(align=lambda _p: None)
+    raw = Path(ws.project.workspace_dir) / first["clips"][0]["raw_path"]
+    uploader.mark_land_failed(
+        session_id=room["session_id"], take_index=0, participant_id=guest, segment_index=0
+    )
+    copy_into_raw = landing_module._copy_into_raw
+
+    def remove_reused_source(*args, **kwargs):
+        copied = copy_into_raw(*args, **kwargs)
+        raw.unlink()
+        ws.mutate(
+            "before source removal",
+            "after source removal",
+            lambda project: setattr(project, "sources", []),
+        )
+        return copied
+
+    monkeypatch.setattr(landing_module, "_copy_into_raw", remove_reused_source)
+    RecordLandingService(ws).land(align=lambda _p: None)
+    row = uploader.status(session_id=room["session_id"])["segments"][0]
+    assert row["landed"] is False
+    assert row["land_failed"] is True
+
+
 def test_land_notifies_document_plane(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     _isolate()
     ws = _seed(minimal_project, sample_wav)
