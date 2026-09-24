@@ -75,7 +75,38 @@ describe("Menu", () => {
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("menu")).toBeNull();
     expect(peekMenuOpen()).toBe(false);
+    expect(screen.getByRole("button", { name: "Open" })).toHaveFocus();
     await expectNoA11yViolations(container);
+  });
+
+  it("leaves focus where it moved when closed from outside", async () => {
+    const menu = (open: boolean) => (
+      <>
+        <Menu
+          open={open}
+          onOpenChange={() => undefined}
+          label="Test menu"
+          trigger={(t) => (
+            <button type="button" ref={t.ref} onClick={t.onClick}>
+              Open
+            </button>
+          )}
+        >
+          <MenuItem onSelect={() => undefined}>One</MenuItem>
+        </Menu>
+        <input aria-label="Elsewhere" />
+      </>
+    );
+    const { rerender } = render(menu(false));
+    screen.getByRole("button", { name: "Open" }).focus();
+    rerender(menu(true));
+    await waitFor(() => {
+      expect(screen.getByRole("menuitem", { name: "One" })).toHaveFocus();
+    });
+    // e.g. an exclusive sibling menu's trigger took focus, then closed us.
+    screen.getByRole("textbox", { name: "Elsewhere" }).focus();
+    rerender(menu(false));
+    expect(screen.getByRole("textbox", { name: "Elsewhere" })).toHaveFocus();
   });
 
   it("renders the panel as a viewport-capped scroller", async () => {

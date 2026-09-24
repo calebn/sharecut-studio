@@ -1,4 +1,4 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useRecordHostStore } from "../record/hostStore";
@@ -441,19 +441,44 @@ describe("TransportBar wide layout", () => {
         <TransportBar />
       </DawProvider>,
     );
+    // An open menu moves focus to its first item on the next frame; let it
+    // land first, as it does long before a person can reach another trigger.
+    const focusSettlesIn = (name: string) =>
+      waitFor(() =>
+        expect(
+          screen.getByRole("menu", { name }).contains(document.activeElement),
+        ).toBe(true),
+      );
     await userEvent.click(screen.getByRole("button", { name: "View" }));
-    expect(screen.getByRole("menu", { name: "View menu" })).toBeTruthy();
+    await focusSettlesIn("View menu");
 
     // Keyboard-only path (no outside pointerdown): Enter on the Menu trigger.
     act(() => screen.getByRole("button", { name: "Menu" }).focus());
     await userEvent.keyboard("{Enter}");
-    expect(screen.getByRole("menu", { name: "Transport menu" })).toBeTruthy();
     expect(screen.queryByRole("menu", { name: "View menu" })).toBeNull();
+    await focusSettlesIn("Transport menu");
+
+    // The menu closed by the switch must not pull focus back to its own
+    // trigger, so Escape returns to the trigger that opened this one.
+    await userEvent.keyboard("{Escape}");
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Menu" }),
+    );
 
     act(() => screen.getByRole("button", { name: "View" }).focus());
     await userEvent.keyboard("{Enter}");
-    expect(screen.getByRole("menu", { name: "View menu" })).toBeTruthy();
+    await focusSettlesIn("View menu");
+    act(() => screen.getByRole("button", { name: "Menu" }).focus());
+    await userEvent.keyboard("{Enter}");
+    await focusSettlesIn("Transport menu");
+    act(() => screen.getByRole("button", { name: "View" }).focus());
+    await userEvent.keyboard("{Enter}");
     expect(screen.queryByRole("menu", { name: "Transport menu" })).toBeNull();
+    await focusSettlesIn("View menu");
+    await userEvent.keyboard("{Escape}");
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "View" }),
+    );
   });
 
   it("does not reopen the View menu after the bar collapses and widens", async () => {
