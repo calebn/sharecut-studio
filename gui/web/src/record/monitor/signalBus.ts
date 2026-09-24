@@ -1,3 +1,5 @@
+import { RECORD_E2E_BUILD } from "./e2eHook";
+
 export type RecordSignalDescription = {
   type: RTCSdpType;
   sdp: string;
@@ -50,7 +52,7 @@ export function emitRecordSignal(msg: RecordSignal): void {
   if (!msg.from || !msg.to || !hasXorPayload(msg)) {
     return;
   }
-  if (recordE2eWindow()) {
+  if (RECORD_E2E_BUILD && recordE2eWindow()) {
     const w = window as unknown as { __recordSignalCount?: number };
     w.__recordSignalCount = (w.__recordSignalCount ?? 0) + 1;
   }
