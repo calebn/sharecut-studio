@@ -158,7 +158,9 @@ for (const viewport of [
         .getByRole("button", { name: "Timeline" })
         .click();
     }
-    await expect(page.locator(".lane-row").first()).toBeVisible();
+    // The loading skeleton also draws lanes (with the header column outside
+    // the scroller), so wait for the loaded arrange layout itself.
+    await expect(page.locator(".timeline-scroll .track-headers")).toBeVisible();
     const plane = await page.evaluate(() => {
       const headers = document.querySelector(".timeline-scroll .track-headers");
       const scroll = document.querySelector(".timeline-scroll");
