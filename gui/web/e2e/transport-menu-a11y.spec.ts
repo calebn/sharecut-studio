@@ -5,7 +5,7 @@ import { e2eProjectPath } from "./env";
 test.describe("compact transport menu accessibility", () => {
   test.use({ viewport: { width: 800, height: 844 } });
 
-  test("has accessible audition and layer controls with touch targets", async ({
+  test("has accessible audition, layer and action rows with touch targets", async ({
     page,
   }) => {
     await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
@@ -43,7 +43,11 @@ test.describe("compact transport menu accessibility", () => {
 
     const layers = menu.getByRole("menuitemcheckbox");
     await expect(layers).toHaveCount(4);
-    const controls = [...(await radios.all()), ...(await layers.all())];
+    const controls = [
+      ...(await menu.getByRole("menuitem").all()),
+      ...(await radios.all()),
+      ...(await layers.all()),
+    ];
     for (const control of controls) {
       const box = await control.boundingBox();
       expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);

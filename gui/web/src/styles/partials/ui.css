@@ -428,12 +428,25 @@
   border-radius: var(--radius-md);
   align-items: center;
   gap: var(--space-5);
-  min-block-size: var(--control-height);
   color: var(--color-text-primary);
   font-weight: 400;
   padding: 0 var(--space-3);
   cursor: pointer;
   text-align: left;
+}
+
+/* Row height stays at zero added specificity so the compact touch rule
+   below (44pt rows when the transport is narrow) always wins. */
+.ui-menu-panel :where(.ui-control--quiet, button[role="menuitem"]) {
+  min-block-size: var(--control-height);
+}
+
+/* Menu is nested in .transport (container: transport / inline-size). */
+@container transport (inline-size < 68.75rem) {
+  .ui-menu-panel
+    :is([role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]) {
+    min-block-size: var(--touch-min);
+  }
 }
 
 /* Checked menu radios / checkboxes: the selected chip plus a check mark, so
