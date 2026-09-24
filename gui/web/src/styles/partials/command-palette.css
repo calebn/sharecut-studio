@@ -12,20 +12,7 @@
   inset: 0;
   border: 0;
   background: var(--scrim);
-  /* Restrained blur on what sits behind the dialog (the panel is opaque). */
-  backdrop-filter: blur(0.125rem);
   cursor: pointer;
-}
-
-.dialog-close {
-  display: grid;
-  place-items: center;
-  inline-size: var(--control-height);
-  block-size: var(--control-height);
-  padding: 0;
-  border-color: transparent;
-  background: transparent;
-  color: var(--color-text-secondary);
 }
 
 .command-palette-panel {

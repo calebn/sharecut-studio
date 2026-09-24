@@ -1,6 +1,5 @@
 import { type ReactNode, useId, useRef } from "react";
-import { Button } from "./Button";
-import { Icon } from "./Icon";
+import { CloseButton } from "./CloseButton";
 import { useDialogModal } from "./useDialogModal";
 
 type Props = {
@@ -70,17 +69,11 @@ export function Dialog({
       >
         <div className="command-palette-header">
           <h2 id={titleId}>{title}</h2>
-          <Button
+          <CloseButton
             ref={closeRef}
-            className="dialog-close"
-            type="button"
-            aria-label="Close"
-            title="Close (Esc)"
             onClick={dismiss}
             disabled={closeDisabled}
-          >
-            <Icon name="close" />
-          </Button>
+          />
         </div>
         <div className="command-palette-body">{children}</div>
       </div>

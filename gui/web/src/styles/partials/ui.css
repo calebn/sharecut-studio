@@ -222,6 +222,19 @@ button.pill.pill--info {
   text-decoration: none;
 }
 
+/* CloseButton (Dialog, BottomSheet): borderless icon square. Two classes so
+   it beats .ui-control's box at equal order. */
+.ui-control.dialog-close {
+  display: grid;
+  place-items: center;
+  inline-size: var(--control-height);
+  block-size: var(--control-height);
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
 .ui-control.primary,
 .ui-control[data-variant="primary"] {
   background: var(--color-accent-solid);
