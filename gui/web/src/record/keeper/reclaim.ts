@@ -1,4 +1,4 @@
-import { sha256Hex } from "./fingerprint";
+import { keeperFileFingerprint } from "./fingerprint";
 import { type ByteSink, keeperMetaPath, parseKeeperMeta } from "./store";
 
 /** Host status fields the reclaim policy reads (a subset of the upload row). */
@@ -30,14 +30,26 @@ export function canReclaimKeeperSegment(args: {
 
 /** Consecutive delete failures before the UI is told reclaim is stuck. */
 export const KEEPER_RECLAIM_MAX_FAILURES = 3;
+/** A stuck delete is retried after a pause, with a fresh full verification. */
+export const KEEPER_RECLAIM_RETRY_MS = 30_000;
 
 export type KeeperReclaimTracker = {
   reclaimed: Set<string>;
   failures: Map<string, number>;
+  /** Only failed comparisons are memoized; never authorize deletion from cache. */
+  mismatches: Map<string, string>;
+  failedDeletes: Map<string, { identity: string; retryAt: number }>;
+  fileVersions: Map<string, string>;
 };
 
 export function createKeeperReclaimTracker(): KeeperReclaimTracker {
-  return { reclaimed: new Set(), failures: new Map() };
+  return {
+    reclaimed: new Set(),
+    failures: new Map(),
+    mismatches: new Map(),
+    failedDeletes: new Map(),
+    fileVersions: new Map(),
+  };
 }
 
 export function keeperReclaimStuck(tracker: KeeperReclaimTracker): boolean {
@@ -112,22 +124,74 @@ export async function reclaimKeeperWav(
   if (!meta || meta.complete === false) {
     return "skipped";
   }
-  const wav = await sink.read(wavPath);
   const expectedHash = remoteSeg.file_sha256;
   const expectedLength = remoteSeg.byte_length;
-  if (
-    !wav ||
-    !meta.fileSha256 ||
-    meta.byteLength == null ||
-    !expectedHash ||
-    expectedLength == null ||
-    wav.byteLength !== meta.byteLength ||
-    wav.byteLength !== expectedLength ||
-    (await sha256Hex(wav)) !== meta.fileSha256 ||
-    meta.fileSha256 !== expectedHash
-  ) {
+  const blob = await sink.readBlob?.(wavPath);
+  const missing = async () =>
+    sink.readBlob ? !blob : !(await sink.read(wavPath));
+  if (!meta.fileSha256 || meta.byteLength == null) {
+    if (await missing()) {
+      tracker.reclaimed.add(wavPath);
+      return "skipped";
+    }
     return "mismatch";
   }
+  if (
+    !expectedHash ||
+    expectedLength == null ||
+    meta.byteLength !== expectedLength ||
+    meta.fileSha256 !== expectedHash
+  ) {
+    if (await missing()) {
+      tracker.reclaimed.add(wavPath);
+      return "skipped";
+    }
+    return "mismatch";
+  }
+  // A complete marker outlives a successfully reclaimed WAV. A fresh tracker
+  // after reload must not report that marker as local/host disagreement.
+  // File.lastModified + size is the OPFS file version. If a custom sink lacks
+  // that version, it must hash again rather than trust a cached mismatch.
+  const lastModified = (blob as File | undefined)?.lastModified;
+  const identity =
+    blob &&
+    typeof lastModified === "number" &&
+    Number.isFinite(lastModified) &&
+    lastModified > 0
+      ? `${blob.size}:${lastModified}:${meta.fileSha256}:${meta.byteLength}:${expectedHash}:${expectedLength}`
+      : null;
+  if (identity && tracker.mismatches.get(wavPath) === identity) {
+    return "mismatch";
+  }
+  if (identity) {
+    const priorVersion = tracker.fileVersions.get(wavPath);
+    if (priorVersion && priorVersion !== identity) {
+      tracker.failures.delete(wavPath);
+      tracker.failedDeletes.delete(wavPath);
+    }
+    tracker.fileVersions.set(wavPath, identity);
+    const failed = tracker.failedDeletes.get(wavPath);
+    if (failed?.identity === identity && Date.now() < failed.retryAt) {
+      return "failed";
+    }
+  }
+  const fingerprint = await keeperFileFingerprint(
+    sink,
+    wavPath,
+    blob ?? undefined,
+  );
+  if (!fingerprint) {
+    tracker.reclaimed.add(wavPath);
+    return "skipped";
+  }
+  if (
+    fingerprint.byteLength !== expectedLength ||
+    fingerprint.fileSha256 !== expectedHash
+  ) {
+    if (identity) tracker.mismatches.set(wavPath, identity);
+    return "mismatch";
+  }
+  tracker.mismatches.delete(wavPath);
   // Re-check synchronously before registering the delete so a hold taken
   // during the metadata read either blocks it or waits for it.
   if (keeperReclaimHeld(sink)) {
@@ -144,9 +208,17 @@ export async function reclaimKeeperWav(
     await op;
     tracker.reclaimed.add(wavPath);
     tracker.failures.delete(wavPath);
+    tracker.failedDeletes.delete(wavPath);
     return "reclaimed";
   } catch {
-    tracker.failures.set(wavPath, (tracker.failures.get(wavPath) ?? 0) + 1);
+    const count = (tracker.failures.get(wavPath) ?? 0) + 1;
+    tracker.failures.set(wavPath, count);
+    if (identity && count >= KEEPER_RECLAIM_MAX_FAILURES) {
+      tracker.failedDeletes.set(wavPath, {
+        identity,
+        retryAt: Date.now() + KEEPER_RECLAIM_RETRY_MS,
+      });
+    }
     return "failed";
   } finally {
     ops.delete(op);

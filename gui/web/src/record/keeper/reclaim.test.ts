@@ -6,6 +6,7 @@ import {
   createKeeperReclaimTracker,
   holdKeeperReclaim,
   KEEPER_RECLAIM_MAX_FAILURES,
+  KEEPER_RECLAIM_RETRY_MS,
   keeperReclaimHeld,
   keeperReclaimStuck,
   reclaimKeeperWav,
@@ -96,6 +97,82 @@ describe("reclaimKeeperWav", () => {
     const remove = vi.spyOn(sink, "remove");
     expect(await reclaimKeeperWav(sink, WAV, tracker, remote)).toBe("skipped");
     expect(remove).not.toHaveBeenCalled();
+  });
+
+  it("recognizes an already reclaimed WAV with a new tracker", async () => {
+    const sink = new MemorySink();
+    await seed(sink);
+    await sink.remove(WAV);
+    expect(
+      await reclaimKeeperWav(sink, WAV, createKeeperReclaimTracker(), remote),
+    ).toBe("skipped");
+  });
+
+  it("does not reread retained legacy WAV bytes on repeated polls", async () => {
+    const sink = new MemorySink();
+    await seed(sink, keeperMetaBytes(IDS, undefined));
+    const read = vi.spyOn(sink, "read");
+    const tracker = createKeeperReclaimTracker();
+    expect(await reclaimKeeperWav(sink, WAV, tracker, remote)).toBe("mismatch");
+    expect(await reclaimKeeperWav(sink, WAV, tracker, remote)).toBe("mismatch");
+    expect(read).not.toHaveBeenCalledWith(WAV);
+  });
+
+  it("caches a corrupt WAV only while its file version and status stay unchanged", async () => {
+    const sink = new MemorySink();
+    await seed(sink);
+    const tracker = createKeeperReclaimTracker();
+    const versioned = (bytes: number[], modified: number) => {
+      const blob = new Blob([new Uint8Array(bytes)]);
+      Object.defineProperty(blob, "lastModified", { value: modified });
+      return blob;
+    };
+    let blob = versioned([1, 2, 4], 100);
+    sink.readBlob = async () => blob;
+    const firstSlice = vi.spyOn(blob, "slice");
+    expect(await reclaimKeeperWav(sink, WAV, tracker, remote)).toBe("mismatch");
+    expect(firstSlice).toHaveBeenCalled();
+    firstSlice.mockClear();
+    expect(await reclaimKeeperWav(sink, WAV, tracker, remote)).toBe("mismatch");
+    expect(firstSlice).not.toHaveBeenCalled();
+    blob = versioned([1, 2, 3], 101);
+    const changedSlice = vi.spyOn(blob, "slice");
+    expect(await reclaimKeeperWav(sink, WAV, tracker, remote)).toBe(
+      "reclaimed",
+    );
+    expect(changedSlice).toHaveBeenCalled();
+  });
+
+  it("pauses repeated failed deletes, then rehashes before retry", async () => {
+    const sink = new MemorySink();
+    await seed(sink);
+    const tracker = createKeeperReclaimTracker();
+    const blob = new Blob([new Uint8Array([1, 2, 3])]);
+    Object.defineProperty(blob, "lastModified", { value: 100 });
+    sink.readBlob = async () => blob;
+    const slice = vi.spyOn(blob, "slice");
+    const remove = vi
+      .spyOn(sink, "remove")
+      .mockRejectedValue(new Error("locked"));
+    for (let i = 0; i < KEEPER_RECLAIM_MAX_FAILURES; i += 1) {
+      expect(await reclaimKeeperWav(sink, WAV, tracker, remote)).toBe("failed");
+    }
+    slice.mockClear();
+    expect(await reclaimKeeperWav(sink, WAV, tracker, remote)).toBe("failed");
+    expect(slice).not.toHaveBeenCalled();
+    expect(remove).toHaveBeenCalledTimes(KEEPER_RECLAIM_MAX_FAILURES);
+    remove.mockRestore();
+    const now = vi
+      .spyOn(Date, "now")
+      .mockReturnValue(Date.now() + KEEPER_RECLAIM_RETRY_MS + 1);
+    try {
+      expect(await reclaimKeeperWav(sink, WAV, tracker, remote)).toBe(
+        "reclaimed",
+      );
+      expect(slice).toHaveBeenCalled();
+    } finally {
+      now.mockRestore();
+    }
   });
 
   it.each([
