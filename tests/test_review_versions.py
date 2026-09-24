@@ -301,6 +301,7 @@ def test_service_publish_cleanup_failure_preserves_commit_error(
 
     assert (art / "review" / "cleanup-fail" / "mix.wav").is_file()
     assert load_project(minimal_project).review.versions == []
+    assert ws.project.review.versions == []
 
 
 def test_publish_id_collision_preserves_existing_directory(
