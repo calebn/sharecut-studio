@@ -456,6 +456,33 @@ class RecordSessionService:
         capabilities: list[str] | None = None,
         client_seq: int | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
+        with self._authority_lock:
+            return self._join_locked(
+                token=token,
+                role=role,
+                display_name=display_name,
+                participant_id=participant_id,
+                lease=lease,
+                client_id=client_id,
+                connection_id=connection_id,
+                capabilities=capabilities,
+                client_seq=client_seq,
+            )
+
+    def _join_locked(
+        self,
+        *,
+        token: str,
+        role: RecordRole,
+        display_name: str,
+        participant_id: str | None,
+        lease: str | None,
+        client_id: str,
+        connection_id: str,
+        capabilities: list[str] | None,
+        client_seq: int | None,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Keep lease validation and Join atomic with host removal."""
         if role == "host":
             pid = HOST_PARTICIPANT_ID
             lease_out = ""
