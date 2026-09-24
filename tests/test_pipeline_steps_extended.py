@@ -137,11 +137,13 @@ def test_stem_uses_pre_mutation_snapshot_for_audio_and_hash(
             return out
 
     monkeypatch.setattr(steps, "ffmpeg", MutatingEngine)
-    steps.assemble_timeline(proj, {"performance": {"max_workers": 2}})
+    with pytest.raises(RuntimeError, match="project changed during stem rendering"):
+        steps.assemble_timeline(proj, {"performance": {"max_workers": 2}})
 
     assert rendered == [(1.0, before_hash)]
     assert read_stem_hash(proj, "host") == before_hash
     assert track_render_hash(proj, "host") != before_hash
+    assert not (proj.artifacts_dir() / "track_outputs.json").exists()
 
 
 def test_export_deliverables_with_chapters(minimal_project, sample_wav, tmp_workspace):

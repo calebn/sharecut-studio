@@ -392,11 +392,17 @@ def _render_track_stems(project: EpisodeProject, defaults: dict[str, Any]) -> St
             if to_render:
                 prog.advance(1, message=f"Stem {track_id} ({done}/{len(to_render)})")
 
-    meta = artifact(project, "track_outputs.json")
-    meta.write_text(
-        json.dumps({k: str(v) for k, v in rendered.items()}, indent=2),
-        encoding="utf-8",
-    )
+    with project_state_lock(project):
+        if any(
+            track_render_hash(project, track_id) != track_render_hash(render_project, track_id)
+            for track_id in rendered
+        ):
+            raise RuntimeError("project changed during stem rendering; retry the render")
+        meta = artifact(project, "track_outputs.json")
+        meta.write_text(
+            json.dumps({k: str(v) for k, v in rendered.items()}, indent=2),
+            encoding="utf-8",
+        )
     cached = len(rendered) - len(to_render)
     return f"{len(to_render)} rendered, {cached} cached ({len(rendered)} total)"
 
