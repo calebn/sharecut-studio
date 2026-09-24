@@ -156,15 +156,24 @@ class PresenceCursor(BaseModel):
         return self
 
 
+# Shortest viewport span a client may publish (mirrored in the GUI's
+# presence/followSync.ts).
+MIN_VIEWPORT_SPAN_SEC = 0.1
+
+
 class PresenceViewport(BaseModel):
+    """The time window a follower should show: a padded phone timeline
+    scrolled before 0 publishes ``[0, span]`` (the leader's span, so followers
+    keep its zoom), which can be wider than the range actually on screen."""
+
     model_config = ConfigDict(extra="ignore")
     start_sec: float = Field(ge=0, allow_inf_nan=False)
     end_sec: float = Field(ge=0, allow_inf_nan=False)
 
     @model_validator(mode="after")
     def _span(self) -> PresenceViewport:
-        if self.end_sec - self.start_sec < 0.1:
-            raise ValueError("viewport span must be >= 0.1s")
+        if self.end_sec - self.start_sec < MIN_VIEWPORT_SPAN_SEC:
+            raise ValueError(f"viewport span must be >= {MIN_VIEWPORT_SPAN_SEC}s")
         return self
 
 

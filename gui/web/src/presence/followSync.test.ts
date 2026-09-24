@@ -80,6 +80,13 @@ describe("followSync", () => {
     });
   });
 
+  it("never publishes a span under the server's minimum", () => {
+    // 20px at 200px/s is a 0.1 s span; 0.7 s + 0.1 s − 0.7 s < 0.1 in floats.
+    const v = zoomScrollToViewport(140, 200, 20);
+    expect(v.start_sec).toBeCloseTo(0.7, 12);
+    expect(v.end_sec - v.start_sec).toBeGreaterThanOrEqual(0.1);
+  });
+
   it("treats a following client as observing", () => {
     expect(isObservingClient({ meta: { following: "host" } })).toBe(true);
     expect(isObservingClient({ meta: { following: null } })).toBe(false);
