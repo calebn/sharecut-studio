@@ -316,6 +316,9 @@ metadata written only after close); a pending `complete: false` marker, or
 metadata that does not parse as a keeper record (it may be a torn pending
 write), never allows a delete and never marks a missing WAV as reclaimed. Unlanded, failed, incomplete, or actively captured segments
 remain available for recovery.
+This local completion check still wins if a host status row unexpectedly says
+`file_ack` and `landed` for a pending segment: that row cannot authorize
+deleting the local WAV.
 
 A WAV that is absent but has a complete marker is **reclaimed**, not lost
 (`missingKeeperWavState` in `keeper/store.ts`; recovery treats absent WAVs
