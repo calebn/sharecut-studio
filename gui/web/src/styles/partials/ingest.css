@@ -92,7 +92,7 @@
   border: 1px dashed var(--color-timeline-text);
   border-radius: var(--radius-lg);
   margin: var(--space-3);
-  color: var(--color-transport-text);
+  color: var(--color-text-primary);
   min-height: 12rem;
   background: var(--bg-empty-stage-card);
   cursor: pointer;
@@ -122,7 +122,7 @@
 
 .empty-session-drop:focus-visible {
   border-color: var(--color-accent);
-  color: var(--color-transport-text);
+  color: var(--color-text-primary);
   outline: var(--focus-ring-width) solid var(--color-accent);
   outline-offset: var(--focus-ring-offset);
 }
@@ -130,7 +130,7 @@
 @media (hover: hover) and (pointer: fine) {
   .empty-session-drop:hover {
     border-color: var(--color-accent);
-    color: var(--color-transport-text);
+    color: var(--color-text-primary);
     box-shadow: var(--shadow-empty-stage-hover);
   }
 }
