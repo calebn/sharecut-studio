@@ -203,7 +203,7 @@ def _list_audio_candidates(audio_dir: Path, root: Path) -> list[Path]:
 
 def _refuse_symlink_escape(entry: Path, root: Path) -> None:
     try:
-        resolve_within(root, str(entry), base=Path.cwd())
+        resolve_within(root, str(entry.absolute()))
     except OSError as exc:
         raise ValueError(f"cannot resolve path: {entry.name}") from exc
     except ValueError:
