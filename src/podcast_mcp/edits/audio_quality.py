@@ -62,7 +62,7 @@ def diagnostics_dir(project: EpisodeProject, track_id: str) -> Path:
         raise ValueError(f"unsafe track_id for diagnostics path: {track_id!r}")
     root = (project.artifacts_dir() / "diagnostics").resolve()
     try:
-        out = resolve_within(root, track_id)
+        out = resolve_within(root, str(root / track_id))
     except ValueError:
         raise ValueError(f"diagnostics path escaped artifacts: {track_id!r}") from None
     out.mkdir(parents=True, exist_ok=True)

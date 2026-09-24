@@ -1524,6 +1524,15 @@ def test_diagnostics_dir_rejects_outward_symlink(tmp_path: Path) -> None:
         diagnostics_dir(project, "host")
 
 
+def test_diagnostics_dir_accepts_literal_tilde_track_id(tmp_path: Path) -> None:
+    from podcast_mcp.edits.audio_quality import diagnostics_dir
+
+    project = EpisodeProject.create("ep", str(tmp_path / "workspace"))
+    project.ensure_dirs()
+    out = diagnostics_dir(project, "~nobody-local")
+    assert out == (project.artifacts_dir() / "diagnostics" / "~nobody-local").resolve()
+
+
 def test_audio_diagnostics_window_maps_offset_clip_to_source(tmp_path: Path) -> None:
     from podcast_mcp.edits.audio_quality import audio_diagnostics_report
     from podcast_mcp.edits.audition_eval import generate_tone, inject_hum_span

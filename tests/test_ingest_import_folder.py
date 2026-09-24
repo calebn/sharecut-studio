@@ -141,6 +141,14 @@ def test_scan_accepts_relative_recorder_folder(tmp_path: Path, monkeypatch) -> N
     assert result.files[0].filename == "host.wav"
 
 
+def test_scan_accepts_literal_tilde_recorder_folder(tmp_path: Path, monkeypatch) -> None:
+    audio = tmp_path / "~nobody-local"
+    _write_wav(audio / "host.wav")
+    monkeypatch.chdir(tmp_path)
+    result = scan_recorder_folder(Path("~nobody-local"))
+    assert result.files[0].filename == "host.wav"
+
+
 def test_scan_missing_dir(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="not a readable directory"):
         scan_recorder_folder(tmp_path / "missing")
