@@ -5,6 +5,7 @@ import {
   Button,
   Icon,
   Pill,
+  pillClassName,
   SegmentedControl,
   Timecode,
   ToggleButton,
@@ -88,7 +89,15 @@ function TransportTemplate({
           </TransportZone>
           <TransportZone position="end">
             {collapsed ? null : stale ? (
-              <Pill tone="warning">Stale render</Pill>
+              // Same action pill the live bar renders: a bare ui-control
+              // button (CommandButton bare) with the shared pill classes.
+              <button
+                type="button"
+                className={`ui-control ${pillClassName("warning", "pill--action")}`}
+                title="Stale stems: reference, guest. Click to refresh mix."
+              >
+                Stale render
+              </button>
             ) : (
               <Pill tone="ok">Fresh</Pill>
             )}

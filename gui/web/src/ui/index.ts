@@ -24,7 +24,7 @@ export {
 } from "./LevelMeter";
 export { LoadingScreen } from "./LoadingScreen";
 export { Menu, MenuItem, MenuSection } from "./Menu";
-export { Pill, type PillTone } from "./Pill";
+export { Pill, type PillTone, pillClassName } from "./Pill";
 export { SegmentedControl } from "./SegmentedControl";
 export { Timecode } from "./Timecode";
 export { ToggleButton } from "./ToggleButton";
