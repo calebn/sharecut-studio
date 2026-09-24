@@ -137,11 +137,14 @@ def publish_version(
     src, source = resolve_source_mix(project, prefer=prefer)
     vid = _new_id()
     rel = f"{REVIEW_ARTIFACTS_RELDIR}/{vid}/mix.wav"
-    dest = Path(project.workspace_dir) / rel
-    version_dir = dest.parent
+    review_root = review_artifacts_dir(project)
+    review_root.mkdir(parents=True, exist_ok=True)
+    resolved_root = review_root.resolve(strict=True)
+    version_dir = resolved_root / vid
     version_dir.mkdir(parents=True, exist_ok=False)
+    dest = version_dir / "mix.wav"
     mp3_rel = f"{REVIEW_ARTIFACTS_RELDIR}/{vid}/mix.mp3"
-    mp3_path = Path(project.workspace_dir) / mp3_rel
+    mp3_path = version_dir / "mix.mp3"
     try:
         shutil.copy2(src, dest)
         engine = eng or FFmpegEngine()
@@ -155,7 +158,9 @@ def publish_version(
             source=source,
             mp3_relpath=mp3_rel,
         )
-    except Exception:
+        if review_root.resolve(strict=True) != resolved_root:
+            raise RuntimeError("review artifacts directory changed during publication")
+    except BaseException:
         try:
             shutil.rmtree(version_dir)
         except OSError:

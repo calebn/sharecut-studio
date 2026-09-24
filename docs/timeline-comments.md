@@ -103,7 +103,9 @@ MCP: `publish_review_version_tool`, `list_review_versions_tool`, `set_active_rev
 Versions live under `artifacts/review/{id}/mix.wav` plus `mix.mp3` (guest ReviewApp)
 with metadata in `review.versions[]` (`mp3_relpath`, optional `object_store_key`).
 Publication creates a new version directory exclusively. If WAV copy or MP3 encoding fails,
-it removes that new directory and leaves existing versions and the source mix untouched.
+or publication is interrupted, it removes that new directory and leaves existing versions and
+the source mix untouched. The writer resolves a symlinked `artifacts/review/` root once so
+retargeting that symlink during a failed publication cannot redirect cleanup to another mix.
 While `active_version_id` is set, new comments stamp `review_version_id`. Host play via
 `GET /api/audio?kind=review&review_version_id=…` (or `kind=review:<id>`). Guest ReviewApp
 uses `GET /api/review/{token}/audio` (MP3; optional object storage 302 — see

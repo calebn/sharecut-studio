@@ -156,7 +156,9 @@ source, and the saved MP3 decodes fully with FFmpeg. Pass `capabilities=[]` to
 test the default capability fallback, or leave it unset for all capabilities.
 The same file fault-injects MP3 export failure to check that the new version directory is
 removed without changing existing review media or the source mix, and checks that a generated
-ID collision does not overwrite an existing directory.
+ID collision does not overwrite an existing directory. Additional fault injection covers
+interruption, retargeting a symlinked review root during failure cleanup, and the service's
+persisted-state contract.
 
 Tests that need object storage mock `load_object_store_config` / `ObjectStoreClient` explicitly (see `tests/test_review_media_object_store.py`).
 

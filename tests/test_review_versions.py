@@ -105,6 +105,80 @@ def test_failed_mp3_publish_removes_only_new_version(minimal_project, sample_wav
     assert proj.review.active_version_id is None
 
 
+def test_interrupted_publish_removes_new_version(minimal_project, sample_wav, monkeypatch):
+    proj = load_project(minimal_project)
+    art = Path(proj.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    monkeypatch.setattr(review_versions, "_new_id", lambda: "interrupted")
+
+    class InterruptedEngine:
+        def export_mp3(self, wav, mp3, *, bitrate_kbps):
+            mp3.write_bytes(b"partial mp3")
+            raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        publish_version(proj, label="new", eng=InterruptedEngine())
+
+    assert not (art / "review" / "interrupted").exists()
+    assert proj.review.versions == []
+
+
+def test_failed_publish_after_review_root_retarget_preserves_new_target(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    proj = load_project(minimal_project)
+    art = Path(proj.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    old_target = tmp_workspace.parent / "review-old"
+    new_target = tmp_workspace.parent / "review-new"
+    old_target.mkdir()
+    (new_target / "retargeted").mkdir(parents=True)
+    sentinel = new_target / "retargeted" / "mix.wav"
+    sentinel.write_bytes(b"unrelated review mix")
+    review_root = art / "review"
+    review_root.symlink_to(old_target, target_is_directory=True)
+    monkeypatch.setattr(review_versions, "_new_id", lambda: "retargeted")
+
+    class RetargetingEngine:
+        def export_mp3(self, wav, mp3, *, bitrate_kbps):
+            review_root.unlink()
+            review_root.symlink_to(new_target, target_is_directory=True)
+            mp3.write_bytes(b"partial mp3")
+            raise RuntimeError("encode failed")
+
+    with pytest.raises(RuntimeError, match="encode failed"):
+        publish_version(proj, label="new", eng=RetargetingEngine())
+
+    assert not (old_target / "retargeted").exists()
+    assert sentinel.read_bytes() == b"unrelated review mix"
+    assert proj.review.versions == []
+
+
+def test_service_publish_failure_keeps_persisted_versions_unchanged(
+    minimal_project, sample_wav, monkeypatch
+):
+    proj = load_project(minimal_project)
+    art = Path(proj.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    monkeypatch.setattr(review_versions, "_new_id", lambda: "service-fail")
+
+    def fail_export(self, wav, mp3, *, bitrate_kbps):
+        mp3.write_bytes(b"partial mp3")
+        raise RuntimeError("encode failed")
+
+    monkeypatch.setattr(review_versions.FFmpegEngine, "export_mp3", fail_export)
+    ws = ProjectWorkspace.open(minimal_project)
+    with pytest.raises(RuntimeError, match="encode failed"):
+        ReviewService(ws).publish(label="new")
+
+    assert not (art / "review" / "service-fail").exists()
+    assert load_project(minimal_project).review.versions == []
+    assert load_project(minimal_project).review.active_version_id is None
+
+
 def test_publish_id_collision_preserves_existing_directory(
     minimal_project, sample_wav, monkeypatch
 ):
