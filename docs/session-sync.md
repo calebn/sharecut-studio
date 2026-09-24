@@ -59,7 +59,7 @@ Client ──submit(command)──► SessionSyncService
 
 **Playhead while playing:** viewer HTTP heartbeats use `PresenceHeartbeat` (ephemeral `clients[]` playhead). Do **not** journal continuous `SetPlayhead` — that fans out Applied events, the DAW re-seeks `HTMLAudioElement`, and audio stutters. Durable `SetPlayhead` is for paused scrub only.
 
-The viewer publish adapter reads the authority once to compare durable fields, then returns the snapshot already produced by its last typed command. A steady playhead heartbeat therefore reads the materialized snapshot twice (comparison and presence), rather than reading it again only for the HTTP response. `SessionSyncService` already obtains its `SyncStore` from the per-project cache; constructing the short-lived service adapter does not open a new SQLite connection for each heartbeat.
+The viewer publish adapter reads the authority once to compare durable fields, then returns the snapshot already produced by its last typed command with a fresh response clock. A steady playhead heartbeat therefore reads the materialized snapshot twice (comparison and presence), rather than reading it again only for the HTTP response. It compares paused-scrub intent against the initial snapshot so a concurrent agent seek is not treated as a local scrub. `SessionSyncService` already obtains its `SyncStore` from the per-project cache; constructing the short-lived service adapter does not open a new SQLite connection for each heartbeat.
 
 **Transport authority (Figma-like):**
 
