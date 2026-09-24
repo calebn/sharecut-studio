@@ -24,6 +24,7 @@ from podcast_mcp.engines.play_audit import (
     track_render_hash,
     write_stem_hash,
 )
+from podcast_mcp.engines.render_invalidations import clear_invalidations_for_tracks
 from podcast_mcp.engines.timeline_render import render_track_segment
 from podcast_mcp.engines.timemap import TimelineMapError, timeline_range_to_source
 from podcast_mcp.engines.transcript_gated_play import (
@@ -38,7 +39,7 @@ from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.session_sync.viewer import publish_agent_play
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.process import run
-from podcast_mcp.util.project_state import snapshot_project
+from podcast_mcp.util.project_state import project_state_lock, snapshot_project
 from podcast_mcp.util.tracks import track_audio_path
 
 # Full-stem rebuild on --rerender is only worth it for long windows. Short
@@ -493,7 +494,12 @@ class PlayService:
         out = stem_path(render_project, track_id)
         out.parent.mkdir(parents=True, exist_ok=True)
         FFmpegEngine().render_dialogue_track(render_project, track, out, self._defaults)
-        write_stem_hash(render_project, track_id)
+        write_stem_hash(render_project, track_id, clear_invalidations=False)
+        with project_state_lock(self.project):
+            if track_render_hash(self.project, track_id) == track_render_hash(
+                render_project, track_id
+            ):
+                clear_invalidations_for_tracks(self.project, [track_id])
         return out
 
     def _segment_cache_path(

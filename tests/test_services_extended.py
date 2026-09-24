@@ -550,6 +550,28 @@ def test_play_segment_cache_key_and_render_use_same_snapshot(minimal_project, sa
     assert track_render_hash(ws.project, "host") != before_hash
 
 
+def test_ensure_stem_clears_live_invalidation_after_snapshot_render(
+    minimal_project, sample_wav
+) -> None:
+    ws = _dialogue_workspace(minimal_project, sample_wav)
+    ws.mutate(
+        "before cut",
+        "after cut",
+        lambda live: setattr(live.clips[0], "source_end", 1.0),
+    )
+    assert ws.project.render.invalidations
+
+    def render(_snapshot, _track, out, _defaults):
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(sample_wav.read_bytes())
+        return out
+
+    with patch("podcast_mcp.engines.ffmpeg.FFmpegEngine.render_dialogue_track", side_effect=render):
+        PlayService(ws).ensure_stem("host")
+
+    assert ws.project.render.invalidations == []
+
+
 def test_play_processed_rerender_invalidates_cache(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     stem = ws.project.artifacts_dir() / "tracks" / "host.wav"
