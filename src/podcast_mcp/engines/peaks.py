@@ -35,9 +35,11 @@ _PEAKS_JOBS_LOCK = Lock()
 # Pending (peaks_out, audio) jobs, and the file revision (util.project_state
 # file_revision) of the last failed source per peaks_out path, capped at
 # _PEAKS_FAILED_MAX entries (oldest evicted). Both guarded by _PEAKS_JOBS_LOCK.
+# Sized well above realistic per-process failure counts: the viewer polls
+# while generating is true, so an evicted failure would be re-decoded.
 _PEAKS_PENDING: set[tuple[Path, Path]] = set()
 _PEAKS_FAILED: OrderedDict[Path, FileRevision] = OrderedDict()
-_PEAKS_FAILED_MAX = 256
+_PEAKS_FAILED_MAX = 4096
 
 
 def _peaks_pool() -> ThreadPoolExecutor:

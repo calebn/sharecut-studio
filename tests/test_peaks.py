@@ -339,6 +339,12 @@ def test_failed_source_memory_is_capped(monkeypatch, tmp_path):
     assert list(peaks_engine._PEAKS_FAILED) == [tmp_path / "b.json", tmp_path / "c.json"]
 
 
+def test_peaks_failed_cap_is_large_enough_for_unbounded_client_polling():
+    from podcast_mcp.engines import peaks as peaks_engine
+
+    assert peaks_engine._PEAKS_FAILED_MAX >= 4096
+
+
 def test_lookup_track_peaks_reports_generating_while_stale_sidecar_regenerates(
     minimal_project, sample_wav
 ):
