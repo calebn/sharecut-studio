@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import logging
-import shutil
 from pathlib import Path
 from typing import Any
 
 from podcast_mcp.edits.review_versions import (
+    clean_created_version,
     get_version,
     list_versions,
     publish_version,
@@ -120,11 +120,8 @@ class ReviewService:
                     if entry.id not in old_ids:
                         snapshot = history_index_path.parent / "snapshots" / f"{entry.id}.json"
                         snapshot.unlink(missing_ok=True)
-            metadata = created_dir.stat(follow_symlinks=False)
-            if identity != (metadata.st_dev, metadata.st_ino):
-                log.warning("Review version directory changed; keeping %s", created_dir)
-                return
-            shutil.rmtree(created_dir)
+            if identity is not None:
+                clean_created_version(created_dir, identity)
             self.ws.project = persisted
         except BaseException:
             log.warning("Could not clean uncommitted review version %s", created_dir, exc_info=True)

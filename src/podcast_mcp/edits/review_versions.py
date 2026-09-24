@@ -31,6 +31,12 @@ _SAFE_STALE_CLEANUP_SUPPORTED = (
     and hasattr(os, "O_DIRECTORY")
     and hasattr(os, "O_NOFOLLOW")
 )
+_SAFE_FAILED_CLEANUP_SUPPORTED = (
+    _SAFE_STALE_CLEANUP_SUPPORTED
+    and os.rename in os.supports_dir_fd
+    and os.rmdir in os.supports_dir_fd
+    and shutil.rmtree.avoids_symlink_attacks
+)
 REVIEW_ARTIFACTS_RELDIR = "artifacts/review"
 
 
@@ -155,6 +161,48 @@ def _clean_stale_mp3_temps(version_dir: Path) -> None:
             os.close(directory_fd)
 
 
+def clean_created_version(version_dir: Path, identity: tuple[int, int]) -> None:
+    """Quarantine one exclusively created directory before removing its contents.
+
+    A mismatch leaves the directory in place. The quarantine is private so a
+    cooperating local writer cannot retarget the public version name into cleanup.
+    """
+    if not _SAFE_FAILED_CLEANUP_SUPPORTED:
+        log.warning(
+            "Skipping failed review cleanup without safe directory operations: %s", version_dir
+        )
+        return
+    root = version_dir.parent
+    root_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    quarantine: Path | None = None
+    try:
+        current = os.stat(version_dir.name, dir_fd=root_fd, follow_symlinks=False)
+        if (current.st_dev, current.st_ino) != identity or not stat.S_ISDIR(current.st_mode):
+            log.warning("Review version directory changed; keeping %s", version_dir)
+            return
+        quarantine = Path(tempfile.mkdtemp(prefix=".failed-review-", dir=root))
+        quarantine_fd = os.open(quarantine, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            os.rename(version_dir.name, "media", src_dir_fd=root_fd, dst_dir_fd=quarantine_fd)
+            moved = os.stat("media", dir_fd=quarantine_fd, follow_symlinks=False)
+            if (moved.st_dev, moved.st_ino) != identity or not stat.S_ISDIR(moved.st_mode):
+                log.warning(
+                    "Review version directory changed during quarantine; keeping %s", quarantine
+                )
+                return
+            shutil.rmtree("media", dir_fd=quarantine_fd)
+        finally:
+            os.close(quarantine_fd)
+    finally:
+        os.close(root_fd)
+        if quarantine is not None:
+            try:
+                quarantine.rmdir()
+            except OSError:
+                # A changed directory or failed removal stays available for inspection.
+                log.warning("Keeping failed review quarantine %s", quarantine)
+
+
 def encode_version_mp3(
     project: EpisodeProject,
     version_id: str,
@@ -220,6 +268,8 @@ def publish_version(
     resolved_root = review_root.resolve(strict=True)
     version_dir = resolved_root / vid
     version_dir.mkdir(parents=True, exist_ok=False)
+    metadata = version_dir.stat(follow_symlinks=False)
+    created_identity = (metadata.st_dev, metadata.st_ino)
     dest = version_dir / "mix.wav"
     mp3_rel = f"{REVIEW_ARTIFACTS_RELDIR}/{vid}/mix.mp3"
     mp3_path = version_dir / "mix.mp3"
@@ -242,7 +292,7 @@ def publish_version(
             raise RuntimeError("review artifacts directory changed during publication")
     except BaseException:
         try:
-            shutil.rmtree(version_dir)
+            clean_created_version(version_dir, created_identity)
         except OSError:
             log.warning(
                 "Could not remove failed review version directory %s", version_dir, exc_info=True
