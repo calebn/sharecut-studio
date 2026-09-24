@@ -22,6 +22,7 @@ import {
   snapMoveDeltaSec,
   trackIdFromPoint,
 } from "../edit/clipMove";
+import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
 import { presenceColorVar, rosterDisplayName } from "../presence/colors";
 import {
   isProgrammaticScroll,
@@ -37,7 +38,6 @@ import {
   MARKER_ROW_HEIGHT,
   RULER_HEIGHT,
 } from "../utils/layout";
-import { staleRenderBreakdown } from "../utils/staleRender";
 import { clientXToTimelineSec } from "../utils/timelinePointer";
 import {
   timelineCanvasSize,
@@ -165,7 +165,7 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
       };
     }),
   );
-  const staleBreakdown = staleRenderBreakdown(
+  const staleBreakdown = useStaleRenderBreakdown(
     project as import("../types/project").ProjectView | null,
   );
   const showStaleInv = highlightStaleRender;
