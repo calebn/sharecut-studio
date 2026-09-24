@@ -269,7 +269,7 @@ html[data-shell="tablet"] {
   z-index: var(--z-shell-chrome);
   display: flex;
   padding: var(--space-3) var(--space-4);
-  background: var(--bg-panel);
+  background: var(--color-bg-base);
 }
 
 .mobile-nav {
