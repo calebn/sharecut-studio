@@ -156,6 +156,8 @@ describe("useMicPermission", () => {
     await waitFor(() => {
       expect(result.current.status).toBe("denied");
     });
+    expect(result.current.stream).toBeNull();
+    expect(result.current.lost).toBe(false);
   });
 
   it("maps NotAllowedError to denied", async () => {
