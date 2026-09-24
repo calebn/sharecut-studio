@@ -56,17 +56,19 @@ def copy_file_atomic(src: Path, dest: Path) -> Path:
 
     Writes into a unique temp file next to *dest*, fsyncs it, then swaps it
     into place with ``os.replace`` so concurrent readers never see a partial
-    copy. On failure the previous *dest* (if any) is left untouched and no
-    temp file remains.
+    copy. Mode and mtime are applied to the temp file before the swap, so
+    the publish is atomic in bytes, mode, and mtime together. On failure the
+    previous *dest* (if any) is left untouched and no temp file remains.
     """
 
     def fill(handle: Any) -> None:
         with open(src, "rb") as source:
             shutil.copyfileobj(source, handle)
 
-    result = _replace_from_temp(dest, fill, mode=None, binary=True)
-    shutil.copystat(src, result)
-    return result
+    def copy_metadata(tmp: Path) -> None:
+        shutil.copystat(src, tmp)
+
+    return _replace_from_temp(dest, fill, mode=None, binary=True, before_replace=copy_metadata)
 
 
 def _replace_from_temp(
@@ -75,6 +77,7 @@ def _replace_from_temp(
     *,
     mode: int | None,
     binary: bool,
+    before_replace: Callable[[Path], None] | None = None,
 ) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
@@ -89,6 +92,8 @@ def _replace_from_temp(
             os.fsync(handle.fileno())
         if mode is not None:
             os.chmod(tmp, mode)
+        if before_replace is not None:
+            before_replace(tmp)
         os.replace(tmp, path)
         replaced = True
         if mode is not None:
