@@ -674,6 +674,77 @@ def test_post_session_command_http(minimal_project) -> None:
     assert bad.status_code == 400
 
 
+def test_http_command_without_id_retries_and_rejects_changed_payload(minimal_project) -> None:
+    pytest = __import__("pytest")
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    client = TestClient(create_app())
+    url = "/api/session/command"
+    params = {"path": str(minimal_project)}
+    command = {
+        "type": "SetPlayhead",
+        "payload": {"playhead_sec": 4.0},
+        "client_id": "http-retry",
+        "role": "viewer",
+        "client_seq": 1,
+    }
+    first = client.post(url, params=params, json=command)
+    retry = client.post(url, params=params, json=command)
+    assert first.status_code == retry.status_code == 200
+    assert retry.json()["idempotent"] is True
+    assert retry.json()["server_seq"] == first.json()["server_seq"]
+    assert retry.json()["command"]["command_id"] == first.json()["command"]["command_id"]
+
+    changed = client.post(url, params=params, json={**command, "payload": {"playhead_sec": 8.0}})
+    assert changed.status_code == 400
+    assert "different command_id" in changed.json()["detail"]
+
+
+def test_websocket_command_collision_keeps_connection_open(minimal_project) -> None:
+    pytest = __import__("pytest")
+    pytest.importorskip("fastapi")
+    from urllib.parse import quote
+
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    client = TestClient(create_app())
+    url = f"/api/session/ws?path={quote(str(minimal_project))}&client_id=ws-retry&role=viewer"
+
+    def receive_type(ws, kind: str) -> dict:
+        for _ in range(4):
+            frame = ws.receive_json()
+            if frame["type"] == kind:
+                return frame
+        raise AssertionError(f"no {kind} frame")
+
+    command = {
+        "type": "Command",
+        "command_type": "SetPlayhead",
+        "payload": {"playhead_sec": 4.0},
+        "client_seq": 1,
+    }
+    with client.websocket_connect(url) as ws:
+        assert ws.receive_json()["type"] == "Snapshot"
+        ws.send_json(command)
+        first = receive_type(ws, "Echo")
+        ws.send_json(command)
+        retry = receive_type(ws, "Echo")
+        assert retry["idempotent"] is True
+        assert retry["server_seq"] == first["server_seq"]
+
+        ws.send_json({**command, "payload": {"playhead_sec": 8.0}})
+        conflict = receive_type(ws, "Error")
+        assert conflict["code"] == "client_seq_conflict"
+        ws.send_json({**command, "client_seq": 2, "payload": {"playhead_sec": 8.0}})
+        recovered = receive_type(ws, "Echo")
+        assert recovered["snapshot"]["playhead_sec"] == 8.0
+
+
 def test_list_clients_expires_stale_presence(minimal_project) -> None:
     from podcast_mcp.services.session_sync.log import SyncStore
 
