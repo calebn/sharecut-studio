@@ -337,6 +337,25 @@ export function storyTitleViolation(text: string): string | null {
         target.name === metadataName
       );
     };
+    const bindsMetadata = (value: unknown): boolean => {
+      if (namesMetadata(value)) return true;
+      if (!isNode(value)) return false;
+      if (value.type === "RestElement" || value.type === "AssignmentPattern") {
+        return bindsMetadata(value.argument ?? value.left);
+      }
+      if (value.type === "ObjectPattern" && Array.isArray(value.properties)) {
+        return value.properties.some((property: unknown) =>
+          isNode(property) && property.type === "ObjectProperty"
+            ? bindsMetadata(property.value)
+            : bindsMetadata(property),
+        );
+      }
+      return (
+        value.type === "ArrayPattern" &&
+        Array.isArray(value.elements) &&
+        value.elements.some(bindsMetadata)
+      );
+    };
     const targetsMetadata = (value: unknown): boolean => {
       let target = unwrap(value);
       while (
@@ -358,7 +377,7 @@ export function storyTitleViolation(text: string): string | null {
           value.type === "ArrowFunctionExpression" ||
           value.type === "ObjectMethod") &&
         Array.isArray(value.params) &&
-        value.params.some(namesMetadata)
+        value.params.some(bindsMetadata)
       )
         return true;
       return (
@@ -371,7 +390,7 @@ export function storyTitleViolation(text: string): string | null {
             Array.isArray(statement.declarations) &&
             statement.declarations.some(
               (declaration: unknown) =>
-                isNode(declaration) && namesMetadata(declaration.id),
+                isNode(declaration) && bindsMetadata(declaration.id),
             ),
         )
       );
@@ -380,6 +399,20 @@ export function storyTitleViolation(text: string): string | null {
       if (Array.isArray(value))
         return value.some((entry) => mutatesMetadata(entry));
       if (!isNode(value)) return false;
+      if (value.type === "CatchClause" && bindsMetadata(value.param))
+        return false;
+      if (
+        (value.type === "ForOfStatement" || value.type === "ForInStatement") &&
+        isNode(value.left) &&
+        value.left.type === "VariableDeclaration" &&
+        Array.isArray(value.left.declarations) &&
+        value.left.declarations.some(
+          (declaration: unknown) =>
+            isNode(declaration) && bindsMetadata(declaration.id),
+        )
+      ) {
+        return mutatesMetadata(value.right);
+      }
       if (shadowsMetadata(value)) return false;
       if (
         (value.type === "VariableDeclarator" && namesMetadata(value.init)) ||

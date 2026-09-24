@@ -308,6 +308,33 @@ describe("Storybook title tiers", () => {
         "const meta = { title: 'Atoms/Button' }; function helper() { const meta = { title: 'Screens/Home' }; meta.title = 'Screens/Other'; } export default meta;",
       ),
     ).toBeNull();
+    for (const source of [
+      "try {} catch (meta) { meta.title = 'Screens/Home'; }",
+      "try {} catch ({ meta }) { meta.title = 'Screens/Home'; }",
+      "for (const meta of items) { meta.title = 'Screens/Home'; }",
+      "for (const meta in items) { void meta; }",
+      "for (const { meta } of items) { meta.title = 'Screens/Home'; }",
+    ]) {
+      expect(
+        storyTitleViolation(
+          `const meta = { title: 'Atoms/Button' }; ${source} export default meta;`,
+        ),
+      ).toBeNull();
+    }
+  });
+
+  it("still rejects writes to the exported metadata around shadow scopes", () => {
+    for (const source of [
+      "try {} catch (meta) { meta.title = 'Screens/Home'; } meta.title = 'Screens/Other';",
+      "for (const meta of Object.assign(meta, { title: 'Screens/Home' })) { meta.title = 'Other'; }",
+      "for (const meta of items) { meta.title = 'Other'; } meta.title = 'Screens/Home';",
+    ]) {
+      expect(
+        storyTitleViolation(
+          `const meta = { title: 'Atoms/Button' }; ${source} export default meta;`,
+        ),
+      ).toBe("default-exported metadata must not be mutated or aliased");
+    }
   });
 
   it("all checked-in stories have a sanctioned title", () => {
