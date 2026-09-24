@@ -214,6 +214,8 @@ export interface DawState {
   /**
    * Clamp zoom and keep time under clientX stable. Falls back to the last
    * noted timeline pointer X (`noteZoomPointerClientX`), then viewport center.
+   * On a fixed playhead (a lead is registered), command zoom with no clientX
+   * centers on the playhead instead, and every zoom stays within the session.
    */
   applyAnchoredZoom: (nextZoom: number, clientX?: number) => void;
   setWaveformAmpZoom: (amp: number) => void;

@@ -43,13 +43,16 @@ import { clientXToTimelineSec } from "../utils/timelinePointer";
 import {
   centerSecToScrollLeft,
   domToLogicalScrollLeft,
+  fixedPlayheadCanvasSize,
   fixedPlayheadLeadPx,
   fixedPlayheadLinePx,
   logicalToDomScrollLeft,
+  minLogicalScrollLeft,
   PLAYHEAD_MOVE_MIN_PX,
   SCROLL_SYNC_EPS_PX,
   scrollLeftToCenterSec,
   timelineCanvasSize,
+  timelineHeaderEl,
   timelineHeaderOffsetWidth,
   timelineTimeViewportWidth,
 } from "../utils/timelineViewport";
@@ -189,7 +192,9 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
   const areaRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const lanesRef = useRef<HTMLDivElement>(null);
-  const syncingScroll = useRef(false);
+  // Set while a pinch or wheel zoom applies its anchored scroll, so the
+  // scroll events it causes neither seek nor unfollow.
+  const anchoringZoom = useRef(false);
   const prevZoomForPlayheadRef = useRef(zoomPxPerSec);
   const applyZoomAtRef = useRef<(nextZoom: number, clientX: number) => void>(
     () => undefined,
@@ -208,8 +213,9 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
   useLayoutEffect(() => {
     registerTimelineLead(leadPx);
     const s = useDawStore.getState();
-    if (s.scrollLeft < -leadPx) {
-      s.setScrollLeft(-leadPx);
+    const floor = minLogicalScrollLeft(leadPx);
+    if (s.scrollLeft < floor) {
+      s.setScrollLeft(floor);
     }
   }, [leadPx, registerTimelineLead]);
   // Unmounting drops the pads, so the next (unpadded) view must not inherit a
@@ -218,8 +224,9 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
     () => () => {
       registerTimelineLead(0);
       const s = useDawStore.getState();
-      if (s.scrollLeft < 0) {
-        s.setScrollLeft(0);
+      const floor = minLogicalScrollLeft(0);
+      if (s.scrollLeft < floor) {
+        s.setScrollLeft(floor);
       }
     },
     [registerTimelineLead],
@@ -233,14 +240,11 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
       if (Math.abs(el.scrollLeft - dom) <= SCROLL_SYNC_EPS_PX) {
         return;
       }
-      syncingScroll.current = true;
+      // The flag covers this frame's scroll event; the marker a late one.
       withProgrammaticScroll(() => {
         el.scrollLeft = dom;
       });
       lastWrittenScrollRef.current = el.scrollLeft;
-      requestAnimationFrame(() => {
-        syncingScroll.current = false;
-      });
     },
     [],
   );
@@ -339,8 +343,7 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
       },
       // The whole scroller claims zoom, fixed-playhead lead pads included,
       // except the track headers (mute/solo, reorder).
-      el,
-      () => el.querySelector(".track-headers"),
+      { exclude: () => timelineHeaderEl(el) },
     );
   }, [project, setTimelineFocused]);
 
@@ -399,44 +402,45 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
   const moving = movePlacements != null;
   useEffect(() => (moving ? holdLayout() : undefined), [moving, holdLayout]);
 
-  // One observer on the scroller and its header column: the time viewport
-  // (scroller width minus headers) drives fit-to-window zoom, the lead pads
-  // and the fixed line; the height drives the lane fit. Layout effect so the
-  // first frame already has all of them.
+  // The last fit (time viewport, session length). An effect re-run for any
+  // other project change (comments, render status…) must not refit, which
+  // would abort waveform work and rewrite a fixed playhead's scroll.
+  const fittedRef = useRef<{ widthPx: number; sessionSec: number } | null>(
+    null,
+  );
+  // One observer on the scroller and its header column, used only as a
+  // trigger: every measurement reads the element (clientWidth), the same
+  // source as fit commands, zoom anchoring and presence. The time viewport
+  // drives the fit, the lead pads and the fixed line; the height the lanes.
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el || !project) {
       return;
     }
-    // Refit on a new width only: height-only resizes (iOS toolbars, the
-    // keyboard, the tabs splitter) must not reset a fixed playhead's scroll.
-    let fittedWidth: number | null = null;
-    const measure = (width: number, height: number) => {
-      const headerW = timelineHeaderOffsetWidth(el);
-      const timeWidth = Math.max(0, width - headerW);
-      setHeaderOffsetPx(headerW);
+    const sessionSec = project.timeline_duration_sec;
+    const measure = () => {
+      const timeWidth = timelineTimeViewportWidth(el);
+      setHeaderOffsetPx(timelineHeaderOffsetWidth(el));
       setTimeViewportPx(timeWidth);
-      stageHeightRef.current = height;
+      stageHeightRef.current = el.clientHeight;
       refitLanes();
       if (useDawStore.getState().followingClientId) {
         return;
       }
-      if (!userZoomed && timeWidth > 0 && timeWidth !== fittedWidth) {
-        fittedWidth = timeWidth;
+      const fitted = fittedRef.current;
+      if (
+        !userZoomed &&
+        timeWidth > 0 &&
+        (fitted?.widthPx !== timeWidth || fitted.sessionSec !== sessionSec)
+      ) {
+        fittedRef.current = { widthPx: timeWidth, sessionSec };
         fitToWindow(timeWidth);
       }
     };
-    measure(el.clientWidth, el.clientHeight);
-    const ro = new ResizeObserver((entries) => {
-      // The header column resizing changes the time viewport too.
-      const own = entries.find((entry) => entry.target === el);
-      measure(
-        own ? own.contentRect.width : el.clientWidth,
-        own ? own.contentRect.height : el.clientHeight,
-      );
-    });
+    measure();
+    const ro = new ResizeObserver(measure);
     ro.observe(el);
-    const header = el.querySelector(".track-headers");
+    const header = timelineHeaderEl(el);
     if (header) {
       ro.observe(header);
     }
@@ -463,14 +467,21 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
     const left = sessionRegion.start_sec * z;
     const right = sessionRegion.end_sec * z;
     const viewLeft = domToLogicalScrollLeft(el.scrollLeft, leadPx);
-    const viewWidth = timelineTimeViewportWidth(el);
+    const viewWidth = timeViewportPx;
     const viewRight = viewLeft + viewWidth;
     if (left < viewLeft || right > viewRight) {
       const target = Math.max(0, left - Math.max(40, viewWidth * 0.15));
       writeScroll(el, target, leadPx);
       setScrollLeft(target);
     }
-  }, [sessionRegion, setScrollLeft, fixedPlayhead, leadPx, writeScroll]);
+  }, [
+    sessionRegion,
+    setScrollLeft,
+    fixedPlayhead,
+    leadPx,
+    timeViewportPx,
+    writeScroll,
+  ]);
 
   // Fixed playhead: transport/seek recenters on the playhead. Pinch and
   // pointer zoom keep the time under the fingers still and move the playhead
@@ -579,11 +590,11 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
   }
 
   const sessionSec = project.timeline_duration_sec;
-  const { widthPx: width, durationSec: canvasSec } = timelineCanvasSize(
-    sessionSec,
-    zoomPxPerSec,
-    timeViewportPx,
-  );
+  // A fixed playhead's canvas is the session (the pads fill the viewport),
+  // so the scroll range itself ends with the session end under the line.
+  const { widthPx: width, durationSec: canvasSec } = fixedPlayhead
+    ? fixedPlayheadCanvasSize(sessionSec, zoomPxPerSec)
+    : timelineCanvasSize(sessionSec, zoomPxPerSec, timeViewportPx);
   const laneStackHeight =
     markerLaneHeightPx + project.tracks.length * laneHeight;
 
@@ -594,31 +605,31 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
     }
     const dom = el.scrollLeft;
     const logicalLeft = domToLogicalScrollLeft(dom, leadPx);
-    setScrollLeft(logicalLeft);
     // Only a person's scroll unfollows or seeks. Fit, recentering and follow
     // writes are flagged, and a late echo lands on the last written value.
+    // Decide and seek before storing the scroll: a store update can render
+    // at once, and the recenter effect must already see the new playhead.
     const echo =
       lastWrittenScrollRef.current !== null &&
       Math.abs(dom - lastWrittenScrollRef.current) <= SCROLL_SYNC_EPS_PX;
-    if (syncingScroll.current || isProgrammaticScroll() || echo) {
-      return;
-    }
-    lastWrittenScrollRef.current = null;
-    if (followingClientId) {
-      stopFollow("local");
-    }
-    if (fixedPlayhead) {
-      // Clamp to the session: below fit the canvas outlasts it.
-      const sec = scrollLeftToCenterSec(
-        logicalLeft,
-        zoomPxPerSec,
-        timeViewportPx,
-        sessionSec,
-      );
-      if (Math.abs(sec - playheadSec) * zoomPxPerSec > PLAYHEAD_MOVE_MIN_PX) {
-        setPlayheadSec(sec);
+    if (!anchoringZoom.current && !isProgrammaticScroll() && !echo) {
+      lastWrittenScrollRef.current = null;
+      if (followingClientId) {
+        stopFollow("local");
+      }
+      if (fixedPlayhead) {
+        const sec = scrollLeftToCenterSec(
+          logicalLeft,
+          zoomPxPerSec,
+          timeViewportPx,
+          canvasSec,
+        );
+        if (Math.abs(sec - playheadSec) * zoomPxPerSec > PLAYHEAD_MOVE_MIN_PX) {
+          setPlayheadSec(sec);
+        }
       }
     }
+    setScrollLeft(logicalLeft);
   };
 
   const seekAt = (clientX: number, target: HTMLElement) => {
@@ -657,11 +668,11 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
   };
 
   const applyZoomAt = (nextZoom: number, clientX: number) => {
-    syncingScroll.current = true;
+    anchoringZoom.current = true;
     noteZoomPointerClientX(clientX);
     applyAnchoredZoom(nextZoom, clientX);
     requestAnimationFrame(() => {
-      syncingScroll.current = false;
+      anchoringZoom.current = false;
     });
   };
   applyZoomAtRef.current = applyZoomAt;
@@ -695,10 +706,11 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
               "--marker-row-height": `${MARKER_ROW_HEIGHT}px`,
               "--lane-height": `${laneHeight}px`,
               "--marker-lane-height": `${markerLaneHeightPx}px`,
-              "--timeline-lead": `${leadPx}px`,
-              "--timeline-header-offset": `${headerOffsetPx}px`,
-              ...(timeViewportPx > 0
+              // Only fixed-playhead CSS reads these; keep them off other
+              // views so a resize there restyles nothing.
+              ...(fixedPlayhead
                 ? {
+                    "--timeline-lead": `${leadPx}px`,
                     "--timeline-fixed-line": `${fixedPlayheadLinePx(headerOffsetPx, timeViewportPx)}px`,
                   }
                 : {}),

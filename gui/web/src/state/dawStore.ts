@@ -19,6 +19,7 @@ import type {
 } from "../types/session";
 import {
   centerSecToScrollLeft,
+  minLogicalScrollLeft,
   timelineHeaderOffsetWidth,
   timelineTimeViewportWidth,
   viewportCenterOffsetPx,
@@ -479,11 +480,23 @@ export const useDawStore = create<DawStore>((set, get) => ({
       noteZoomPointerClientX(clientX);
     }
     const lead = get()._timelineLeadPx;
+    if (lead > 0 && clientX == null) {
+      // Command zoom (menu, keys) on a fixed playhead centers on the
+      // playhead's time, not the line's pixel: the line may trail the
+      // playhead by up to a pixel, and zooming in would grow that gap.
+      const endSec = get().project?.timeline_duration_sec ?? 0;
+      const scrollLeft = Math.min(
+        centerSecToScrollLeft(endSec, z, timeWidth),
+        Math.max(
+          minLogicalScrollLeft(lead),
+          centerSecToScrollLeft(get().playheadSec, z, timeWidth),
+        ),
+      );
+      set({ zoomPxPerSec: z, scrollLeft, userZoomed: true });
+      return;
+    }
     const center = rectLeft + viewportCenterOffsetPx(timeWidth);
-    // Command zoom (menu, keys) on a fixed playhead anchors at the line, so
-    // it keeps the playhead; elsewhere it anchors at the last pointer X.
-    const anchorX =
-      clientX ?? (lead > 0 ? center : (peekZoomPointerClientX() ?? center));
+    const anchorX = clientX ?? peekZoomPointerClientX() ?? center;
     // Use store scroll/zoom so rapid pinch ticks do not re-anchor from a stale
     // DOM scrollLeft before useLayoutEffect applies the pending value.
     const { zoom, scrollLeft } = anchoredZoomScroll({
@@ -492,7 +505,16 @@ export const useDawStore = create<DawStore>((set, get) => ({
       clientX: anchorX,
       rectLeft,
       scrollLeft: get().scrollLeft,
-      minScrollLeft: lead > 0 ? -lead : 0,
+      minScrollLeft: minLogicalScrollLeft(lead),
+      // A padded view's range ends with the session end under the line.
+      maxScrollLeft:
+        lead > 0
+          ? centerSecToScrollLeft(
+              get().project?.timeline_duration_sec ?? 0,
+              z,
+              timeWidth,
+            )
+          : undefined,
     });
     // Store first; TimelineView applies el.scrollLeft in useLayoutEffect after
     // the wider (duration * zoom) content commits — avoids browser clamp.

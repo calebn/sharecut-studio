@@ -3,14 +3,34 @@ import { ZOOM_STEP } from "../utils/zoom";
 import { noteZoomPointerClientX } from "../utils/zoomPointer";
 import { useDawStore } from "./dawStore";
 
-/** A 400px scroller with no headers whose left edge is at `left`. */
-function fakeTimelineEl(left = 0): HTMLElement {
-  return {
-    clientWidth: 400,
-    scrollLeft: 0,
+type FakeTimelineOptions = {
+  left?: number;
+  clientWidth?: number;
+  /** Sticky header width (`.track-headers` offsetWidth), if any. */
+  headerWidth?: number;
+  /** Replaces the plain `scrollLeft` field (e.g. a clamping accessor). */
+  scrollLeft?: PropertyDescriptor;
+};
+
+/** A scroller (400px, no headers, left edge at 0 unless overridden). */
+function fakeTimelineEl({
+  left = 0,
+  clientWidth = 400,
+  headerWidth,
+  scrollLeft = { value: 0, writable: true },
+}: FakeTimelineOptions = {}): HTMLElement {
+  const header =
+    headerWidth === undefined ? null : { offsetWidth: headerWidth };
+  const el = {
+    clientWidth,
     getBoundingClientRect: () => ({ left }),
-    querySelector: () => null,
-  } as unknown as HTMLElement;
+    querySelector: (sel: string) => (sel === ".track-headers" ? header : null),
+  };
+  Object.defineProperty(el, "scrollLeft", {
+    configurable: true,
+    ...scrollLeft,
+  });
+  return el as unknown as HTMLElement;
 }
 
 describe("applyAnchoredZoom", () => {
@@ -26,20 +46,17 @@ describe("applyAnchoredZoom", () => {
   it("updates store scroll without writing el.scrollLeft before layout", () => {
     const scrollLeftSetter = vi.fn();
     let domScroll = 0;
-    const el = {
-      clientWidth: 400,
-      get scrollLeft() {
-        return domScroll;
+    const el = fakeTimelineEl({
+      scrollLeft: {
+        get: () => domScroll,
+        set(v: number) {
+          // Simulate pre-zoom clamp: content still only 400px wide.
+          const maxScroll = 0;
+          domScroll = Math.min(Math.max(0, v), maxScroll);
+          scrollLeftSetter(v);
+        },
       },
-      set scrollLeft(v: number) {
-        // Simulate pre-zoom clamp: content still only 400px wide.
-        const maxScroll = 0;
-        domScroll = Math.min(Math.max(0, v), maxScroll);
-        scrollLeftSetter(v);
-      },
-      getBoundingClientRect: () => ({ left: 0 }),
-      querySelector: () => null,
-    } as unknown as HTMLElement;
+    });
 
     useDawStore.setState({
       project: { timeline_duration_sec: 60 } as never,
@@ -62,17 +79,14 @@ describe("applyAnchoredZoom", () => {
 
   it("keeps pointer anchor across rapid ticks while DOM scroll is stale", () => {
     const domScroll = 0;
-    const el = {
-      clientWidth: 400,
-      get scrollLeft() {
-        return domScroll; // never updated mid-burst
+    const el = fakeTimelineEl({
+      scrollLeft: {
+        get: () => domScroll, // never updated mid-burst
+        set() {
+          /* ignore — layout not applied yet */
+        },
       },
-      set scrollLeft(_v: number) {
-        /* ignore — layout not applied yet */
-      },
-      getBoundingClientRect: () => ({ left: 0 }),
-      querySelector: () => null,
-    } as unknown as HTMLElement;
+    });
 
     const startZoom = 10;
     const clientX = 200;
@@ -122,13 +136,14 @@ describe("applyAnchoredZoom", () => {
     expect(s.scrollLeft).toBe(0);
   });
 
-  it("anchors command zoom at the fixed line, keeping the playhead (#385)", () => {
-    // A stale touch X must not move a fixed playhead: menu and key zoom
-    // anchor at the line (the viewport's center) when the view is padded.
+  it("ignores a stale touch X for command zoom on a fixed playhead (#385)", () => {
+    // Menu and key zoom keep the playhead under the line, wherever the last
+    // pointer was.
     noteZoomPointerClientX(50);
     useDawStore.setState({
       project: { timeline_duration_sec: 60 } as never,
       zoomPxPerSec: 10,
+      playheadSec: 30,
       scrollLeft: 100, // 30 s at the center of a 400px viewport
       userZoomed: false,
       _timelineEl: fakeTimelineEl(),
@@ -137,6 +152,40 @@ describe("applyAnchoredZoom", () => {
     useDawStore.getState().applyAnchoredZoom(20);
     const s = useDawStore.getState();
     expect((s.scrollLeft + 200) / s.zoomPxPerSec).toBeCloseTo(30, 9);
+  });
+
+  it("centers command zoom on the playhead, not a trailing line (#388)", () => {
+    // The line trails the playhead by 0.9 px (under the recenter threshold);
+    // repeated zoom-ins must not grow that into a seek.
+    useDawStore.setState({
+      project: { timeline_duration_sec: 3600 } as never,
+      zoomPxPerSec: 1,
+      playheadSec: 105,
+      scrollLeft: 105 - 200 - 0.9,
+      _timelineEl: fakeTimelineEl(),
+      _timelineLeadPx: 200,
+    });
+    for (let i = 0; i < 4; i++) {
+      useDawStore
+        .getState()
+        .applyAnchoredZoom(useDawStore.getState().zoomPxPerSec * ZOOM_STEP);
+    }
+    const s = useDawStore.getState();
+    expect((s.scrollLeft + 200) / s.zoomPxPerSec).toBeCloseTo(105, 9);
+  });
+
+  it("keeps pinch zoom within the session on a padded view (#388)", () => {
+    // Pinching out near the end must not scroll past the session end.
+    useDawStore.setState({
+      project: { timeline_duration_sec: 60 } as never,
+      zoomPxPerSec: 10,
+      scrollLeft: 50 * 10 - 200,
+      _timelineEl: fakeTimelineEl(),
+      _timelineLeadPx: 200,
+    });
+    useDawStore.getState().applyAnchoredZoom(2.5, 100);
+    const s = useDawStore.getState();
+    expect((s.scrollLeft + 200) / s.zoomPxPerSec).toBeLessThanOrEqual(60);
   });
 
   it("keeps a fixed playhead centered through a fit (#385)", () => {
@@ -158,7 +207,7 @@ describe("applyAnchoredZoom", () => {
   });
 
   it("anchors keyboard zoom at last noted pointer X when set", () => {
-    const el = fakeTimelineEl(100);
+    const el = fakeTimelineEl({ left: 100 });
 
     noteZoomPointerClientX(250); // 150px into the viewport
     useDawStore.setState({
@@ -203,14 +252,7 @@ describe("applyAnchoredZoom", () => {
   });
 
   it("ignores sticky track-header width for fit measure and zoom origin", () => {
-    const header = { offsetWidth: 180 };
-    const el = {
-      clientWidth: 580,
-      scrollLeft: 0,
-      getBoundingClientRect: () => ({ left: 40 }),
-      querySelector: (sel: string) =>
-        sel === ".track-headers" ? header : null,
-    } as unknown as HTMLElement;
+    const el = fakeTimelineEl({ left: 40, clientWidth: 580, headerWidth: 180 });
 
     useDawStore.setState({
       project: { timeline_duration_sec: 60 } as never,

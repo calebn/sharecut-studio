@@ -1,17 +1,21 @@
 import { clientXToTimelineSec } from "./timelinePointer";
 
+/** The sticky track-header column inside `.timeline-scroll`, if any. */
+export function timelineHeaderEl(
+  scrollEl: Pick<HTMLElement, "querySelector"> | null | undefined,
+): HTMLElement | null {
+  return scrollEl?.querySelector<HTMLElement>(".track-headers") ?? null;
+}
+
 /** Sticky track-header width inside `.timeline-scroll` (0 when no headerSlot). */
 export function timelineHeaderOffsetWidth(
   scrollEl: Pick<HTMLElement, "querySelector"> | null | undefined,
 ): number {
-  if (!scrollEl) {
+  const header = timelineHeaderEl(scrollEl);
+  if (!header || typeof header.offsetWidth !== "number") {
     return 0;
   }
-  const header = scrollEl.querySelector(".track-headers");
-  if (!header || typeof (header as HTMLElement).offsetWidth !== "number") {
-    return 0;
-  }
-  return (header as HTMLElement).offsetWidth;
+  return header.offsetWidth;
 }
 
 /** Visible time-lane width for fit/zoom (scrollport minus sticky headers). */
@@ -66,6 +70,24 @@ export function viewportCenterOffsetPx(viewportWidthPx: number): number {
  */
 export function fixedPlayheadLeadPx(viewportWidthPx: number): number {
   return viewportCenterOffsetPx(viewportWidthPx);
+}
+
+/**
+ * A fixed-playhead canvas is exactly the session: the lead pads fill the
+ * viewport, so the scroll range ends with the session end under the line
+ * even below fit zoom, instead of stopping there by writing the scroll back.
+ */
+export function fixedPlayheadCanvasSize(
+  sessionSec: number,
+  zoomPxPerSec: number,
+): { widthPx: number; durationSec: number } {
+  const durationSec = Math.max(0, sessionSec);
+  return { widthPx: durationSec * Math.max(zoomPxPerSec, 0), durationSec };
+}
+
+/** Lowest logical scroll: −lead in a padded view, +0 otherwise. */
+export function minLogicalScrollLeft(leadPx: number): number {
+  return leadPx > 0 ? -leadPx : 0;
 }
 
 /** Where the fixed line sits in the scroller: past the headers, at center. */
