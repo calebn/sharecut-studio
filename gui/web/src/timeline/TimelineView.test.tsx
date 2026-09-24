@@ -6,7 +6,13 @@ import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject, sampleComment } from "../test/fixtures";
 import type { ClipRow, ProjectView } from "../types/project";
-import { FIT_GUTTER, MARKER_ROW_HEIGHT, RULER_HEIGHT } from "../utils/layout";
+import {
+  COMPACT_LANE_HEIGHT,
+  FIT_GUTTER,
+  LANE_HEIGHT,
+  MARKER_ROW_HEIGHT,
+  RULER_HEIGHT,
+} from "../utils/layout";
 import { TimelineView } from "./TimelineView";
 import { useTimelineMetrics } from "./timelineMetrics";
 
@@ -92,6 +98,22 @@ describe("TimelineView follow auto-fit", () => {
     expect(area.style.getPropertyValue("--marker-lane-height")).toBe(
       `${MARKER_ROW_HEIGHT}px`,
     );
+  });
+
+  it("flags compact lane density when lanes sit at the 72px floor", () => {
+    // jsdom measures a 0px stage, so lanes stay at LANE_HEIGHT (72px), below
+    // COMPACT_LANE_HEIGHT: headers switch to one row plus the gain strip.
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <TimelineView />
+      </DawProvider>,
+    );
+    const area = container.querySelector(".timeline-area") as HTMLElement;
+    expect(area.style.getPropertyValue("--lane-height")).toBe(
+      `${LANE_HEIGHT}px`,
+    );
+    expect(LANE_HEIGHT).toBeLessThan(COMPACT_LANE_HEIGHT);
+    expect(area.dataset.laneDensity).toBe("compact");
   });
 
   it("does not unfollow when store scroll is written to the DOM", () => {
