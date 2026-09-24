@@ -189,4 +189,34 @@ describe("TrackHeader", () => {
       screen.getByRole("button", { name: /Reorder track Guest/i }),
     ).toHaveAttribute("aria-roledescription", "drag handle");
   });
+
+  it("shows no stem dot for a new track with no audio, matching the status bar", () => {
+    const project = minimalProject({
+      tracks: [
+        {
+          id: "empty",
+          label: "Empty",
+          role: "dialogue",
+          speaker: null,
+          gain_db: 0,
+          muted: false,
+          duration_sec: 0,
+          fx_count: 0,
+          stem_is_fresh: false,
+        },
+      ],
+    });
+    useDawStore.getState().hydrate("/tmp/p.json", project);
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <TrackHeader
+          track={project.tracks[0]}
+          trackIndex={0}
+          selected={false}
+          onSelect={() => undefined}
+        />
+      </DawProvider>,
+    );
+    expect(container.querySelector(".stem-dot")).toBeNull();
+  });
 });
