@@ -209,6 +209,23 @@ function transcribeStepEnabled(cfg: PipelineConfigResponse): boolean {
   return cfg.enabled_steps.includes(TRANSCRIBE_STEP);
 }
 
+function pipelineRunOptions(
+  cfg: PipelineConfigResponse,
+  selection: { fromStep: string; onlyStep: string },
+  retranscribe: boolean,
+): NonNullable<Parameters<typeof startPipelineRun>[1]> {
+  return {
+    fromStep: retranscribe ? TRANSCRIBE_STEP : selection.fromStep || undefined,
+    onlyStep: retranscribe ? undefined : selection.onlyStep || undefined,
+    enabledSteps: retranscribe
+      ? [...new Set([...cfg.enabled_steps, TRANSCRIBE_STEP])]
+      : cfg.enabled_steps,
+    unattended: cfg.unattended,
+    config: cfg.config,
+    useWorkingSet: true,
+  };
+}
+
 export function PipelinePanel() {
   const {
     projectPath,
@@ -448,16 +465,10 @@ export function PipelinePanel() {
     setError(null);
     setStarting(true);
     try {
-      const job = await startPipelineRun(projectPath, {
-        fromStep: retranscribe ? TRANSCRIBE_STEP : fromStep || undefined,
-        onlyStep: retranscribe ? undefined : onlyStep || undefined,
-        enabledSteps: retranscribe
-          ? [...new Set([...cfg.enabled_steps, TRANSCRIBE_STEP])]
-          : cfg.enabled_steps,
-        unattended: cfg.unattended,
-        config: cfg.config,
-        useWorkingSet: true,
-      });
+      const job = await startPipelineRun(
+        projectPath,
+        pipelineRunOptions(cfg, { fromStep, onlyStep }, retranscribe),
+      );
       setPipelineJob(job);
       setActiveTab("pipeline");
     } catch (e) {
@@ -487,21 +498,14 @@ export function PipelinePanel() {
         setError(null);
         setStarting(true);
         try {
-          const job = await startPipelineRun(projectPath, {
-            fromStep:
-              reason === "retranscribe"
-                ? TRANSCRIBE_STEP
-                : fromStep || undefined,
-            onlyStep:
-              reason === "retranscribe" ? undefined : onlyStep || undefined,
-            enabledSteps:
-              reason === "retranscribe"
-                ? [...new Set([...next.enabled_steps, TRANSCRIBE_STEP])]
-                : next.enabled_steps,
-            unattended: next.unattended,
-            config: next.config,
-            useWorkingSet: true,
-          });
+          const job = await startPipelineRun(
+            projectPath,
+            pipelineRunOptions(
+              next,
+              { fromStep, onlyStep },
+              reason === "retranscribe",
+            ),
+          );
           setPipelineJob(job);
           setActiveTab("pipeline");
         } catch (e) {
@@ -617,7 +621,11 @@ export function PipelinePanel() {
         projectPath={projectPath}
         busy={running || starting}
         onRetranscribe={() => void onRun(true)}
-        refreshKey={pipelineJob?.status === "ok" ? pipelineJob.id : ""}
+        refreshKey={
+          pipelineJob && !isPipelineRunning(pipelineJob)
+            ? `${pipelineJob.id}:${pipelineJob.status}`
+            : ""
+        }
       />
 
       {foreignSlotBusy && slotJob ? (

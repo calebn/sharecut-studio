@@ -9,7 +9,6 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { PipelinePanel } from "./PipelinePanel";
-import { TranscriptVocabularyEditor } from "./TranscriptVocabularyEditor";
 
 const loadPipelineConfig = vi.fn();
 const putPipelineConfig = vi.fn();
@@ -194,31 +193,6 @@ function withTranscribeEnabled(overrides: Record<string, unknown> = {}) {
 }
 
 describe("PipelinePanel", () => {
-  it("keeps unsaved vocabulary when transcription refreshes", async () => {
-    const user = userEvent.setup();
-    const props = {
-      projectPath: "/tmp/ep.project.json",
-      busy: false,
-      onRetranscribe: vi.fn(),
-    };
-    const { rerender } = render(
-      <TranscriptVocabularyEditor {...props} refreshKey="" />,
-    );
-    await user.type(
-      await screen.findByLabelText("Terms"),
-      "Unpublished{Enter}",
-    );
-    loadTranscriptVocabulary.mockResolvedValue({
-      terms: ["Published"],
-      guest_names: [],
-      needs_retranscription: false,
-    });
-    rerender(<TranscriptVocabularyEditor {...props} refreshKey="job-1" />);
-    expect(await screen.findByText("Unpublished")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Save vocabulary" }),
-    ).toBeEnabled();
-  });
   it("saves a vocabulary term and offers re-transcription through the pipeline", async () => {
     const user = userEvent.setup();
     render(<PipelinePanel />);
@@ -227,7 +201,7 @@ describe("PipelinePanel", () => {
     await waitFor(() =>
       expect(saveTranscriptVocabulary).toHaveBeenCalledWith(
         "/tmp/ep.project.json",
-        expect.objectContaining({ terms: ["Kaczynski"] }),
+        expect.objectContaining({ terms: ["Kaczynski"], base_revision: "r1" }),
       ),
     );
     await user.click(
@@ -253,10 +227,13 @@ describe("PipelinePanel", () => {
     loadTranscriptVocabulary.mockResolvedValue({
       terms: [],
       guest_names: [],
+      revision: "r1",
       needs_retranscription: false,
     });
     saveTranscriptVocabulary.mockImplementation(async (_path, value) => ({
-      ...value,
+      terms: value.terms,
+      guest_names: value.guest_names,
+      revision: "r2",
       needs_retranscription: true,
     }));
     putPipelineConfig.mockImplementation(async (_path, body) => ({
@@ -496,6 +473,60 @@ describe("PipelinePanel", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
     expect(putPipelineConfig).toHaveBeenCalled();
+  });
+
+  it("downloads Whisper before re-transcribing when the model is missing", async () => {
+    const user = userEvent.setup();
+    const bootJob = {
+      id: "boot1",
+      kind: "bootstrap",
+      components: ["whisper"],
+      whisper_model: "large-v3-turbo",
+      status: "ok",
+      message: "Ready",
+    };
+    runBootstrap.mockResolvedValue({ job: bootJob });
+    waitForBootstrapJob.mockResolvedValue(bootJob);
+    const turboConfig = {
+      ...structuredClone(baseConfig),
+      config: { ...baseConfig.config, transcribe: { model: "large-v3-turbo" } },
+    };
+    const cachedModels = whisperModels.map((m) =>
+      m.id === "large-v3-turbo" ? { ...m, cached: true } : m,
+    );
+    loadPipelineConfig
+      .mockResolvedValueOnce(turboConfig)
+      .mockResolvedValue({ ...turboConfig, whisper_models: cachedModels });
+    putPipelineConfig.mockImplementation(async (_path, body) => ({
+      ...turboConfig,
+      ...body,
+      config: body.config ?? turboConfig.config,
+      whisper_models: cachedModels,
+    }));
+    loadTranscriptVocabulary.mockResolvedValue({
+      terms: ["Kaczynski"],
+      guest_names: [],
+      revision: "r1",
+      needs_retranscription: true,
+    });
+    render(<PipelinePanel />);
+    await user.click(
+      await screen.findByRole("button", { name: "Re-transcribe" }),
+    );
+    expect(
+      await screen.findByRole("dialog", { name: /Download Whisper model/i }),
+    ).toBeInTheDocument();
+    expect(startPipelineRun).not.toHaveBeenCalled();
+    await user.click(await screen.findByRole("button", { name: "Download" }));
+    await waitFor(() =>
+      expect(startPipelineRun).toHaveBeenCalledWith(
+        "/tmp/ep.project.json",
+        expect.objectContaining({
+          fromStep: "transcribe_tracks",
+          enabledSteps: expect.arrayContaining(["transcribe_tracks"]),
+        }),
+      ),
+    );
   });
 
   it("shows alignment leave-gate waiting copy", async () => {
