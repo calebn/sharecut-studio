@@ -100,6 +100,18 @@
     transparent
   );
   --color-transport-play-fg: var(--primitive-warm-975);
+  --color-transport-warning: var(--primitive-amber-350);
+  --color-transport-ok: var(--primitive-teal-250);
+  --color-transport-warning-bg: color-mix(
+    in srgb,
+    var(--color-transport-warning) 18%,
+    transparent
+  );
+  --color-transport-ok-bg: color-mix(
+    in srgb,
+    var(--color-transport-ok) 18%,
+    transparent
+  );
   --bg-transport: linear-gradient(
     to bottom,
     var(--color-transport-top),
@@ -147,9 +159,6 @@
   --shadow-playhead-playing:
     0 0 0.625rem var(--color-timeline-playhead),
     0 0 1.5rem var(--color-transport-play-glow);
-  --shadow-playhead-playing-peak:
-    0 0 1.125rem var(--color-timeline-playhead),
-    0 0 2.25rem var(--color-transport-play-glow);
   --bg-ruler-glow: radial-gradient(
     ellipse at center,
     var(--color-transport-play-glow),
@@ -169,11 +178,6 @@
   --shadow-empty-stage-hover:
     inset 0 0 4rem var(--color-timeline-vignette),
     0 0 1.5rem var(--color-transport-play-glow);
-  --color-track-hover: color-mix(
-    in srgb,
-    var(--track-identity-color) 11%,
-    var(--bg-panel)
-  );
 
   /* Legacy aliases → semantic (themes set the semantic names) */
   --bg-app: var(--color-bg-canvas);

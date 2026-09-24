@@ -6,7 +6,7 @@ test.describe("control state parity", () => {
     await page.emulateMedia({ reducedMotion: "reduce" });
   });
 
-  test("transcript Focus and Follow both use ui-control and matching hover", async ({
+  test("transcript Focus is quiet while Follow keeps an outline, with shared hover", async ({
     page,
   }) => {
     await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
@@ -51,7 +51,8 @@ test.describe("control state parity", () => {
 
     const focusRest = await borderTop(focus);
     const followRest = await borderTop(follow);
-    expect(followRest).toBe(focusRest);
+    expect(followRest).not.toBe(focusRest);
+    expect(focusRest).toBe("rgba(0, 0, 0, 0)");
 
     await focus.hover();
     const focusHover = await borderTop(focus);
@@ -62,6 +63,18 @@ test.describe("control state parity", () => {
     expect(focusHover).not.toBe(focusRest);
     expect(followHover).not.toBe(followRest);
     expect(followHover).toBe(focusHover);
+
+    await focus.click();
+    await expect(focus).toHaveAttribute("aria-pressed", "true");
+    const focusedPaint = await focus.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return {
+        background: style.backgroundColor,
+        border: style.borderTopColor,
+      };
+    });
+    expect(focusedPaint.background).not.toBe("rgba(0, 0, 0, 0)");
+    expect(focusedPaint.border).not.toBe("rgba(0, 0, 0, 0)");
   });
 
   test("active quiet tab hover keeps underline-only border", async ({
@@ -122,7 +135,11 @@ test.describe("control state parity", () => {
     const paint = (locator: ReturnType<typeof page.getByRole>) =>
       locator.evaluate((el) => {
         const cs = getComputedStyle(el);
-        return { bg: cs.backgroundColor, color: cs.color };
+        return {
+          bg: cs.backgroundColor,
+          image: cs.backgroundImage,
+          color: cs.color,
+        };
       });
 
     const comment = page.getByRole("button", { name: "Comment", exact: true });
@@ -154,16 +171,8 @@ test.describe("control state parity", () => {
     await mix.hover();
     const mixHover = await paint(mix);
     expect(mixHover.bg).toBe(mixRest.bg);
+    expect(mixHover.image).toBe(mixRest.image);
     expect(mixHover.color).toBe(mixRest.color);
-
-    const mixToken = await page.evaluate(() => {
-      const el = document.createElement("div");
-      el.style.background = "var(--color-bg-inverted)";
-      document.body.appendChild(el);
-      const bg = getComputedStyle(el).backgroundColor;
-      el.remove();
-      return bg;
-    });
-    expect(mixRest.bg).toBe(mixToken);
+    expect(mixRest.image).toContain("gradient");
   });
 });

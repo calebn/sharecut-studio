@@ -1,5 +1,5 @@
 /* Issue 20: shared transport, timeline, and interaction depth. */
-.transport-primary-actions > .ui-control:not(.comment-mode-btn),
+.transport-primary-actions > .ui-control,
 .transport .tool-mode-toggle .ui-control--quiet,
 .transport .transport-more-btn {
   color: var(--color-transport-muted);
@@ -17,6 +17,28 @@
   color: var(--color-transport-play-fg);
   border-color: transparent;
   background: var(--bg-transport-selected);
+  box-shadow: var(--shadow-transport-selected);
+}
+
+.transport .comment-mode-btn[aria-pressed="true"],
+.transport .comment-mode-btn.active {
+  color: var(--color-bg-canvas);
+  border-color: var(--comment-marker);
+  background: var(--comment-marker);
+}
+
+.transport .pill.warning {
+  color: var(--color-transport-warning);
+  background: var(--color-transport-warning-bg);
+}
+
+.transport .pill.ok {
+  color: var(--color-transport-ok);
+  background: var(--color-transport-ok-bg);
+}
+
+.transport button.pill.pill--action:focus-visible {
+  outline-color: var(--color-transport-warning);
 }
 
 .transport .play-btn:disabled,
@@ -28,6 +50,13 @@
 .transcript-toolbar .focus-pane-btn {
   border-color: transparent;
   background: transparent;
+}
+
+.transcript-toolbar .transcript-annotate-btn[aria-pressed="true"],
+.transcript-toolbar .focus-pane-btn[aria-pressed="true"] {
+  color: var(--color-text-on-inverted);
+  border-color: var(--color-bg-inverted);
+  background: var(--color-bg-inverted);
 }
 
 .transcript-toolbar .transcript-correct-btn:not(:disabled) {
@@ -77,6 +106,14 @@
   opacity: 1;
 }
 
+.track-header-row {
+  --color-track-hover: color-mix(
+    in srgb,
+    var(--track-identity-color) 11%,
+    var(--bg-panel)
+  );
+}
+
 @media (hover: hover) and (pointer: fine) {
   .transport-primary-actions
     > .ui-control:hover:not(:disabled, [aria-disabled="true"]),
@@ -84,6 +121,39 @@
   .transport .transport-more-btn:hover:not(:disabled) {
     color: var(--color-transport-text);
     border-color: var(--color-transport-muted);
+    background: var(--color-transport-control);
+  }
+
+  .transport .play-btn:hover:not(:disabled) {
+    color: var(--color-transport-play-fg);
+    border-color: var(--color-timeline-playhead);
+    background: var(--bg-transport-play);
+  }
+
+  .transport .stop-btn:hover:not(:disabled) {
+    color: var(--color-transport-text);
+    border-color: var(--color-transport-muted);
+    background: var(--color-transport-control);
+  }
+
+  .transport .comment-mode-btn[aria-pressed="true"]:hover:not(:disabled),
+  .transport .comment-mode-btn.active:hover:not(:disabled) {
+    color: var(--color-bg-canvas);
+    border-color: var(--comment-marker);
+    background: var(--comment-marker);
+  }
+
+  .transcript-toolbar
+    .transcript-annotate-btn[aria-pressed="true"]:hover:not(:disabled),
+  .transcript-toolbar
+    .focus-pane-btn[aria-pressed="true"]:hover:not(:disabled) {
+    color: var(--color-text-on-inverted);
+    border-color: var(--color-bg-inverted);
+    background: var(--color-bg-inverted);
+  }
+
+  .transport button.pill.pill--action:hover:not(:disabled) {
+    outline-color: var(--color-transport-warning);
   }
 
   .transport
@@ -91,6 +161,7 @@
     .ui-control--quiet[aria-pressed="true"]:hover:not(:disabled) {
     color: var(--color-transport-play-fg);
     border-color: transparent;
+    background: var(--bg-transport-selected);
   }
 
   .track-header-row:hover:not(.dragging) {
@@ -116,8 +187,8 @@
     animation: transport-playing-glow 2s ease-in-out infinite alternate;
   }
 
-  .timeline-area[data-playing="true"] .playhead {
-    animation: timeline-playing-glow 2s ease-in-out infinite alternate;
+  .timeline-area[data-playing="true"] .time-ruler .playhead::before {
+    animation: ruler-playing-glow 2s ease-in-out infinite alternate;
   }
 }
 
@@ -127,8 +198,8 @@
   }
 }
 
-@keyframes timeline-playing-glow {
+@keyframes ruler-playing-glow {
   to {
-    box-shadow: var(--shadow-playhead-playing-peak);
+    opacity: 0.55;
   }
 }
