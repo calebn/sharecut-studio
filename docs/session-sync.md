@@ -67,6 +67,8 @@ see [#333](https://github.com/calebn/sharecut-studio/issues/333) for migration.
 
 **Playhead while playing:** viewer HTTP heartbeats use `PresenceHeartbeat` (ephemeral `clients[]` playhead). Do **not** journal continuous `SetPlayhead` — that fans out Applied events, the DAW re-seeks `HTMLAudioElement`, and audio stutters. Durable `SetPlayhead` is for paused scrub only.
 
+The viewer's applied cursor advances only when an HTTP publish response has a newer server sequence than the current WebSocket cursor. A delayed publish response cannot replace a newer Applied event's sequence or command ID, so its later echo remains deduplicated.
+
 A viewer publish with `is_playing=false` and a changed playhead applies
 `SetPlaying` before `SetPlayhead`, so a pause-and-scrub updates the durable
 playhead. An unchanged rolling heartbeat remains presence-only.

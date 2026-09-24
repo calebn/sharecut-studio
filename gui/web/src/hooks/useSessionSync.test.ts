@@ -264,4 +264,73 @@ describe("useSessionSync presence", () => {
       vi.useRealTimers();
     }
   });
+
+  it("keeps a newer WebSocket cursor when an older HTTP publish finishes", async () => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+    });
+    try {
+      const { postSessionState } = await import("../api");
+      let finishPublish: ((state: SessionState) => void) | undefined;
+      vi.mocked(postSessionState).mockImplementationOnce(
+        () =>
+          new Promise<SessionState>((resolve) => {
+            finishPublish = resolve;
+          }),
+      );
+      const apply = vi.fn();
+      renderHook(() =>
+        useSessionSync(
+          "/tmp/ep.project.json",
+          apply,
+          () => ({ playhead_sec: 0, is_playing: false }),
+          false,
+          0,
+          null,
+          false,
+          "k",
+          true,
+        ),
+      );
+      await act(async () => {
+        await Promise.resolve();
+        await vi.advanceTimersByTimeAsync(60);
+      });
+      expect(finishPublish).toBeDefined();
+
+      const applied = (seq: number, commandId: string) => ({
+        type: "Applied",
+        command: { role: "agent", type: "SetPlayhead", client_id: "agent" },
+        snapshot: {
+          server_seq: seq,
+          last_command_id: commandId,
+          origin: "agent",
+          last_role: "agent",
+          playhead_sec: seq,
+        },
+      });
+      await act(async () => {
+        FakeWebSocket.instances[0].emit(applied(2, "cmd-2"));
+      });
+      expect(apply).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        finishPublish?.({
+          server_seq: 1,
+          last_command_id: "cmd-1",
+        } as SessionState);
+        await Promise.resolve();
+      });
+      await act(async () => {
+        FakeWebSocket.instances[0].emit(applied(2, "cmd-2"));
+      });
+      expect(apply).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        FakeWebSocket.instances[0].emit(applied(3, "cmd-3"));
+      });
+      expect(apply).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
