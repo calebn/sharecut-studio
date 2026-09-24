@@ -295,6 +295,32 @@
   background: var(--color-transport-ok-bg);
 }
 
+.transport .pill.audition {
+  color: var(--color-transport-audition);
+  background: var(--color-transport-audition-bg);
+}
+
+/* Record chip and the collaborator overflow count sit on the strip, so they
+   take transport inks instead of light-pane text roles. */
+.transport .record-rec-chip,
+.transport .avatar-stack-more {
+  color: var(--color-transport-muted);
+  border-color: var(--color-transport-control-border);
+  background: var(--color-transport-control);
+}
+
+.transport .record-rec-label[data-state="recording"] {
+  color: var(--color-transport-danger);
+}
+
+.transport .record-rec-label[data-state="paused"] {
+  color: var(--color-transport-text);
+}
+
+.transport .record-clock {
+  color: var(--color-transport-muted);
+}
+
 .transport button.pill.pill--action:focus-visible {
   outline-color: var(--color-transport-warning);
 }
@@ -420,6 +446,13 @@
     > .ui-control:hover:not(:disabled, [aria-disabled="true"]),
   .transport .tool-mode-toggle .ui-control--quiet:hover:not(:disabled),
   .transport .transport-more-btn:hover:not(:disabled) {
+    color: var(--color-transport-text);
+    border-color: var(--color-transport-muted);
+    background: var(--color-transport-control);
+  }
+
+  .transport .record-rec-chip:hover:not(:disabled),
+  .transport .avatar-stack-more:hover:not(:disabled) {
     color: var(--color-transport-text);
     border-color: var(--color-transport-muted);
     background: var(--color-transport-control);
