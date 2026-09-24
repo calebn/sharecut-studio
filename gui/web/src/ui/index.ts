@@ -29,7 +29,8 @@ export {
   MenuSection,
   type MenuTriggerProps,
 } from "./Menu";
-export { Pill, type PillTone, pillClassName } from "./Pill";
+export { Pill } from "./Pill";
+export { type PillTone, pillClassName } from "./pillClassName";
 export { SegmentedControl } from "./SegmentedControl";
 export { Timecode } from "./Timecode";
 export { ToggleButton } from "./ToggleButton";
