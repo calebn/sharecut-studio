@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import shutil
 import uuid
@@ -11,6 +10,7 @@ from pathlib import Path
 
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models import EpisodeProject, ReviewMixVersion
+from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.workspace_paths import resolve_within
 
 log = logging.getLogger(__name__)
@@ -25,14 +25,6 @@ def _now_iso() -> str:
 
 def _new_id() -> str:
     return uuid.uuid4().hex[:12]
-
-
-def _sha256(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as f:
-        for chunk in iter(lambda: f.read(1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()
 
 
 def resolve_source_mix(
@@ -157,7 +149,7 @@ def publish_version(
         label=text,
         created_at=_now_iso(),
         audio_relpath=rel,
-        sha256=_sha256(dest),
+        sha256=sha256_file(dest),
         source=source,
         mp3_relpath=mp3_rel,
     )

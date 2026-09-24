@@ -893,7 +893,8 @@ def test_concurrent_land_with_missing_acked_is_deterministic(
 def test_missing_acked_rerecorded_room_tone_does_not_reuse_old_bed(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    from podcast_mcp.services.record.upload import ROOM_TONE_TAKE_INDEX, sha256_file
+    from podcast_mcp.services.record.upload import ROOM_TONE_TAKE_INDEX
+    from podcast_mcp.util.hashing import sha256_file
 
     _isolate()
     ws = _seed(minimal_project, sample_wav)
