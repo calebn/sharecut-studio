@@ -1,36 +1,25 @@
-/** Reject Storybook modules or story paths in the shipped JavaScript. */
+/** Reject Storybook modules in the production app's resolved build graph. */
 
-import { readdirSync, readFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import type { Plugin } from "vite";
+import { STORY_SUPPORT_MODULES } from "../src/test/storyGovernance.ts";
 
-export function storyMarkers(source: string): string[] {
-  const markers: string[] = [];
-  if (/\.stories(?:\.[cm]?[jt]sx?)?(?![\w])/i.test(source)) {
-    markers.push("story file");
-  }
-  if (/@storybook\//i.test(source)) {
-    markers.push("@storybook package");
-  }
-  if (/(?:^|[^\w@])storybook\//i.test(source)) {
-    markers.push("storybook package");
-  }
-  return markers;
+export function forbiddenStoryModule(id: string): boolean {
+  const path = id.split("?", 1)[0].replaceAll("\\", "/");
+  const srcRelative = path.match(/(?:^|\/)src\/(.+)$/)?.[1];
+  return (
+    /\.stories\.[cm]?[jt]sx?$/.test(path) ||
+    /(?:^|\/)node_modules\/(?:@storybook|storybook)\//.test(path) ||
+    (srcRelative !== undefined && STORY_SUPPORT_MODULES.has(srcRelative))
+  );
 }
 
-export function bundleStoryLeaks(distDir: string): string[] {
-  const leaks: string[] = [];
-  const visit = (dir: string): void => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const path = join(dir, entry.name);
-      if (entry.isDirectory()) {
-        visit(path);
-      } else if (entry.isFile() && path.endsWith(".js")) {
-        for (const marker of storyMarkers(readFileSync(path, "utf8"))) {
-          leaks.push(`${relative(distDir, path)}: ${marker}`);
-        }
+export function forbidStoryModules(): Plugin {
+  return {
+    name: "sharecut-forbid-story-modules",
+    transform(_code, id) {
+      if (forbiddenStoryModule(id)) {
+        this.error(`Production bundle includes story module: ${id}`);
       }
-    }
+    },
   };
-  visit(distDir);
-  return leaks;
 }

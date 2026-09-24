@@ -156,9 +156,11 @@ both themes, in story mode and on its docs page, before merging.
   non-literal specifiers (variables, template or concatenated strings) and
   path aliases are not detected, so keep story-adjacent imports literal and
   relative.
-- The frontend CI job also runs `npm run check:bundle-no-stories` after the
-  app build. It scans emitted JavaScript chunks for story-file and Storybook
-  package markers, so the shipped output is checked as well as source imports.
+- `npm run build` inspects Vite's resolved module IDs as it builds the app
+  and rejects stories, Storybook packages, and story-support modules. This
+  checks the shipped build graph even when minification removes import text;
+  ordinary Storybook-related app copy is unaffected. Storybook's own build
+  does not use the production-app guard.
 - Stories render production code — never a copy. If a story needs a tweak to
   the component, the component changes, with its Vitest/axe tests.
 - a11y addon runs wcag2a/wcag2aa checks per story; the repo's axe posture

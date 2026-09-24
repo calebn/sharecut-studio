@@ -1,10 +1,11 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { build } from "vite";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  bundleStoryLeaks,
-  storyMarkers,
+  forbiddenStoryModule,
+  forbidStoryModules,
 } from "../../scripts/check-bundle-no-stories";
 
 const dirs: string[] = [];
@@ -13,36 +14,51 @@ afterEach(() => {
     rmSync(dir, { recursive: true, force: true });
 });
 
-describe("production bundle story check", () => {
+describe("production build story guard", () => {
   it.each([
-    ["ordinary app code", 'console.log("Sharecut Studio")', []],
-    [
-      "ordinary Storybook text",
-      'console.log("Read the Storybook catalog")',
-      [],
-    ],
-    ["story path", 'import("./Button.stories.tsx")', ["story file"]],
-    ["extensionless story path", 'import("./Button.stories")', ["story file"]],
-    [
-      "scoped package",
-      'import("@storybook/react-vite")',
-      ["@storybook package"],
-    ],
-    ["unscoped package", 'import("storybook/test")', ["storybook package"]],
-  ])("classifies %s", (_label, source, expected) => {
-    expect(storyMarkers(source)).toEqual(expected);
+    ["/app/src/ui/Button.stories.tsx", true],
+    ["/app/src/ui/Button.stories.tsx?used", true],
+    ["/app/node_modules/@storybook/react-vite/dist/index.js", true],
+    ["/app/node_modules/storybook/test/index.js", true],
+    ["/app/src/storybook/docsTheme.ts", true],
+    ["/app/src/record/recordStoryDecorator.tsx", true],
+    ["/app/src/ui/Button.tsx", false],
+    ["/app/src/ui/StorybookLink.tsx", false],
+  ])("classifies %s", (id, expected) => {
+    expect(forbiddenStoryModule(id)).toBe(expected);
   });
 
-  it("scans nested JavaScript chunks and ignores other assets", () => {
-    const dir = mkdtempSync(join(tmpdir(), "sharecut-bundle-check-"));
+  it.each([
+    ["clean copy", 'console.log("Visit https://storybook/docs")', false],
+    [
+      "bundled story",
+      'import { value } from "./Button.stories.js"; console.log(value)',
+      true,
+    ],
+  ])("checks a real Vite build: %s", async (_label, source, fails) => {
+    const dir = mkdtempSync(join(tmpdir(), "sharecut-story-build-"));
     dirs.push(dir);
-    mkdirSync(join(dir, "assets"));
-    writeFileSync(join(dir, "index.html"), "storybook/test");
-    writeFileSync(join(dir, "assets", "clean.js"), 'console.log("Storybook")');
     writeFileSync(
-      join(dir, "assets", "leak.js"),
-      'import("./Button.stories.tsx")',
+      join(dir, "index.html"),
+      '<script type="module" src="/main.js"></script>',
     );
-    expect(bundleStoryLeaks(dir)).toEqual(["assets/leak.js: story file"]);
+    writeFileSync(join(dir, "main.js"), source);
+    if (fails)
+      writeFileSync(join(dir, "Button.stories.js"), "export const value = 42;");
+
+    const run = build({
+      root: dir,
+      configFile: false,
+      logLevel: "silent",
+      plugins: [forbidStoryModules()],
+      build: { outDir: "dist" },
+    });
+    if (fails) {
+      await expect(run).rejects.toThrow(
+        "Production bundle includes story module",
+      );
+    } else {
+      await expect(run).resolves.toBeDefined();
+    }
   });
 });
