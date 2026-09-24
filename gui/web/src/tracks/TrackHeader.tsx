@@ -5,6 +5,7 @@ import { canIngestMedia } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import { laneColor } from "../timeline/laneColors";
 import type { TrackView } from "../types/project";
+import { trackHasSourceAudio } from "../utils/projectMedia";
 import {
   reasonChipLabel,
   staleRenderBreakdown,
@@ -69,14 +70,17 @@ export function TrackHeader({
   } = useDaw();
   const mayReorder =
     reorderEnabled && canIngestMedia(projectPath, guestMode, shareCapabilities);
-  const stemClass =
-    track.stem_is_fresh === true
-      ? "fresh"
-      : track.stem_is_fresh === false
-        ? "stale"
-        : "";
   const muted = Boolean(viewerMute[track.id]) || track.muted;
   const breakdown = staleRenderBreakdown(project);
+  // Same source as the status bar and transport: a track with no audio has
+  // nothing to render (no dot), and "stale" means the breakdown says so.
+  const stemClass = !trackHasSourceAudio(track)
+    ? ""
+    : breakdown.staleTrackIds.includes(track.id)
+      ? "stale"
+      : track.stem_is_fresh === true
+        ? "fresh"
+        : "";
   const wholeReasons = highlightStaleRender
     ? wholeTrackReasonsForTrack(breakdown, track.id)
     : [];
