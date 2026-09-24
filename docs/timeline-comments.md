@@ -109,8 +109,12 @@ versions and the source mix untouched. The directory's identity is recorded once
 service's persistence compensation use that recorded identity. Cleanup checks it, moves the
 directory into a private quarantine, and checks it again before removal. Linux and macOS pin the
 root and quarantine by descriptor; Windows runs the same quarantine on resolved paths.
-If another local writer replaces the public version name, cleanup keeps the replacement. A
-replacement moved into quarantine is kept there: it is not restored and not deleted.
+If another local writer replaces the public version name before cleanup's first identity check,
+cleanup leaves the replacement at its public path. A replacement that lands between that check
+and the quarantine rename is moved into the `.failed-review-*` quarantine under
+`artifacts/review/` and kept there: it is not restored to its public name and not deleted.
+Quarantines that are kept (identity mismatch or a failed removal) are not swept automatically
+yet; remove stale `.failed-review-*` directories by hand after inspection.
 The writer resolves a symlinked `artifacts/review/` root once
 so retargeting that symlink during a failed publication cannot redirect cleanup to another mix.
 If history or project persistence fails after media generation, the service checks the canonical
@@ -122,7 +126,10 @@ The cleanup boundary assumes other local writers do not modify the private quara
 with the same filesystem permissions can deliberately access and replace quarantine entries; the
 filesystem does not provide an atomic compare-and-remove directory operation against that actor.
 Directory creation and the identity read are separate operations, and atomic publication across
-non-cooperating writers is not yet provided.
+non-cooperating writers is not yet provided. Identity is `(st_dev, st_ino)`: if the created
+directory is deleted and a replacement reuses its inode number, the replacement matches. Change
+time cannot strengthen this because writing `mix.wav` updates the directory's ctime, and birth
+time is not portable.
 If a published version's MP3 is missing, retry encoding writes a temporary MP3 beside it and
 publishes `mix.mp3` only after encoding succeeds. Python-level failures and interruptions remove
 the temporary output, so guest audio lookup continues to use the frozen WAV. The retry pins the
