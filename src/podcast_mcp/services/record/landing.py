@@ -489,13 +489,19 @@ class RecordLandingService:
 
         def mutate(project: EpisodeProject) -> dict[str, Any]:
             landed_clips: list[dict[str, Any]] = []
+            accepted: list[dict[str, Any]] = []
             touched: set[str] = set()
             for item in copied:
-                if not self._confirm_copied_landing(project, item):
+                if not self._copied_raw_matches(project, item):
+                    self._mark_copied_failed(item)
                     continue
                 track_id = slug_track_id(str(item["participant_id"]))
                 source_id = str(item["source_id"])
                 rel = str(item["rel"])
+                previous_source = next(
+                    (src for src in project.sources if src.id == source_id), None
+                )
+                previous_rel = previous_source.path if previous_source is not None else None
                 _ensure_track(project, track_id, label=str(item["label"]))
                 _upsert_source(
                     project,
@@ -515,7 +521,7 @@ class RecordLandingService:
                 )
                 track = project.track_by_id(track_id)
                 if track is not None:
-                    if track.media is None:
+                    if track.media is None or track.media.path == previous_rel:
                         track.media = MediaAsset(
                             path=rel,
                             duration_sec=float(item["duration_s"]),
@@ -523,6 +529,7 @@ class RecordLandingService:
                             channels=int(item["channels"]),
                         )
                     touched.add(track_id)
+                accepted.append(item)
                 landed_clips.append(
                     {
                         "clip_id": clip.id,
@@ -537,7 +544,8 @@ class RecordLandingService:
                     }
                 )
             for item in room_tone_copied:
-                if not self._confirm_copied_landing(project, item):
+                if not self._copied_raw_matches(project, item):
+                    self._mark_copied_failed(item)
                     continue
                 pid = str(item["participant_id"])
                 track_id = slug_track_id(pid)
@@ -559,6 +567,7 @@ class RecordLandingService:
                     channels=int(item["channels"]),
                 )
                 touched.add(track_id)
+                accepted.append(item)
             if landed_clips:
                 refresh_timeline_duration(project)
                 if touched:
@@ -568,29 +577,37 @@ class RecordLandingService:
             elif touched:
                 record_invalidation(project, track_ids=sorted(touched), reason="other")
             landed_comments = _land_live_comments(project, pending_comments, offsets)
-            return {"clips": landed_clips, "comments": landed_comments}
+            return {"clips": landed_clips, "comments": landed_comments, "accepted": accepted}
 
-        try:
-            landed = self.workspace.mutate(
-                "before record land",
-                "after record land",
-                mutate,
-                operation="record_land",
-                params={"session_id": self.session_id},
-            )
-        except Exception:
-            # The project mutation rolls back; undo any ACK status written while
-            # confirming media inside that mutation, without touching a newer ACK.
-            for item in copied + room_tone_copied:
-                self._upload.mark_land_failed(
-                    session_id=self.session_id,
-                    take_index=int(item["take_index"]),
-                    participant_id=str(item["participant_id"]),
-                    segment_index=int(item["segment_index"]),
+        with project_state_lock(self.workspace.project):
+            try:
+                landed = self.workspace.mutate(
+                    "before record land",
+                    "after record land",
+                    mutate,
+                    operation="record_land",
+                    params={"session_id": self.session_id},
+                )
+            except Exception:
+                for item in copied + room_tone_copied:
+                    self._mark_copied_failed(item)
+                raise
+            confirmed = {
+                (str(item["participant_id"]), int(item["take_index"]), int(item["segment_index"]))
+                for item in landed["accepted"]
+                if self._mark_registered_landing(
+                    str(item["participant_id"]),
+                    int(item["take_index"]),
+                    int(item["segment_index"]),
                     expected_sha256=item["file_sha256"],
                 )
-            raise
-        clips = list(landed["clips"])
+            }
+        clips = [
+            item
+            for item in landed["clips"]
+            if (str(item["participant_id"]), int(item["take_index"]), int(item["segment_index"]))
+            in confirmed
+        ]
         comments = list(landed["comments"])
         self._comments.mark_landed(
             self.session_id,
@@ -725,30 +742,24 @@ class RecordLandingService:
             )
             return False
 
-    def _confirm_copied_landing(self, project: EpisodeProject, item: dict[str, Any]) -> bool:
-        """Confirm the copied bytes and ACK generation before registering project media."""
+    def _copied_raw_matches(self, project: EpisodeProject, item: dict[str, Any]) -> bool:
+        """Check copied bytes before registering project media."""
         expected = item.get("file_sha256")
         raw = Path(project.workspace_dir) / str(item["rel"])
         present = False
         if expected:
             with suppress(OSError):
                 present = sha256_file(raw) == expected
-        if present and self._upload.mark_landed(
-            session_id=self.session_id,
-            take_index=int(item["take_index"]),
-            participant_id=str(item["participant_id"]),
-            segment_index=int(item["segment_index"]),
-            expected_sha256=expected,
-        ):
-            return True
+        return present
+
+    def _mark_copied_failed(self, item: dict[str, Any]) -> None:
         self._upload.mark_land_failed(
             session_id=self.session_id,
             take_index=int(item["take_index"]),
             participant_id=str(item["participant_id"]),
             segment_index=int(item["segment_index"]),
-            expected_sha256=expected,
+            expected_sha256=item["file_sha256"],
         )
-        return False
 
     def _gate_acked(
         self,

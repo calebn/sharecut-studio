@@ -1095,8 +1095,55 @@ def test_retry_replaces_corrupt_registered_raw_source(minimal_project, sample_wa
     new_rel = retried["clips"][0]["raw_path"]
     assert new_rel != old_rel
     assert ws.project.sources[-1].path == new_rel
+    track = ws.project.track_by_id(retried["clips"][0]["track_id"])
+    assert track is not None and track.media is not None
+    assert track.media.path == new_rel
     assert len(ws.project.clips) == 1
     assert uploader.status(session_id=room["session_id"])["segments"][0]["landed"] is True
+
+
+def test_landed_status_waits_for_project_commit(minimal_project, sample_wav, monkeypatch):
+    from podcast_mcp.project_store import ProjectStore
+
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=1_000)
+    uploader = RecordUploadService(ws.project)
+    _ack(uploader, session_id=room["session_id"], take=0, pid=guest, segment=0, join_offset_ms=0)
+    at_commit = threading.Event()
+    release_commit = threading.Event()
+
+    def fail_commit(_self, _project):
+        at_commit.set()
+        assert release_commit.wait(timeout=5)
+        raise OSError("project commit failed")
+
+    monkeypatch.setattr(ProjectStore, "commit", fail_commit)
+    failures: list[Exception] = []
+
+    def land():
+        try:
+            RecordLandingService(ws).land(align=lambda _p: None)
+        except Exception as exc:
+            failures.append(exc)
+
+    worker = threading.Thread(target=land)
+    worker.start()
+    assert at_commit.wait(timeout=5)
+    try:
+        row = uploader.status(session_id=room["session_id"])["segments"][0]
+        assert row["landed"] is False
+    finally:
+        release_commit.set()
+        worker.join(timeout=5)
+    assert not worker.is_alive()
+    assert len(failures) == 1 and isinstance(failures[0], OSError)
+    row = uploader.status(session_id=room["session_id"])["segments"][0]
+    assert row["landed"] is False
+    assert row["land_failed"] is True
 
 
 def test_room_tone_reack_during_landed_mark_keeps_replacement_pending(
