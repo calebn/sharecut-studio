@@ -678,9 +678,9 @@ parts return `403 invalid lease`; removal also refuses every take and room tone
 (removal is permanent). A recorded participant who consented and then lost their
 connection before Start (without being removed) is still in the new take's
 roster. That way a brief network drop at Start does not cost them the take, and
-they still need a valid lease to upload. The guest route checks consent again
-after it reads the request body and before it writes the part, so a Decline that
-lands mid-upload stops that chunk.
+they still need a valid lease to upload. The guest route checks lease and
+consent again after it reads the request body and before it writes the part,
+so removal or a Decline that lands mid-upload stops that chunk.
 
 Host admit / waiting room is **not** in this PR (ROADMAP Follow-up).
 

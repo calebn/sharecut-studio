@@ -1121,6 +1121,37 @@ def test_removed_guest_fails_lease_check_if_revocation_is_interrupted(
     assert denied.json()["detail"] == "invalid lease"
 
 
+def test_remove_replay_revokes_only_persisted_target(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _ws, room, _client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    token = room["guest"]["token"]
+    svc = RecordSessionService(_ws.project, session_id=room["session_id"])
+    ava, ava_lease = _guest_join(svc, room, name="Ava", conn="a1")
+    bea, bea_lease = _guest_join(svc, room, name="Bea", conn="b1")
+
+    def host_command(ctype: str, target: str, seq: int) -> None:
+        svc.submit(
+            RecordCommand.parse(
+                command_type=ctype,
+                payload={"participant_id": target} if ctype == "RemoveParticipant" else {},
+                client_id="replay-host",
+                role="host",
+                participant_id="p_host",
+                client_seq=seq,
+            )
+        )
+
+    host_command("Heartbeat", ava, 10)
+    host_command("RemoveParticipant", bea, 10)
+    assert svc.verify_lease(bea, bea_lease, token=token)
+
+    host_command("RemoveParticipant", ava, 11)
+    host_command("RemoveParticipant", bea, 11)
+    assert not svc.verify_lease(ava, ava_lease, token=token)
+    assert svc.verify_lease(bea, bea_lease, token=token)
+
+
 def test_guest_keeper_upload_rechecks_consent_after_body_read(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -1148,6 +1179,39 @@ def test_guest_keeper_upload_rechecks_consent_after_body_read(
     res = _post_keeper(client, token, pid, lease, take=0)
     assert res.status_code == 403, res.text
     assert res.json()["detail"] == "consent required"
+    status = RecordUploadService(_ws.project).status(
+        session_id=room["session_id"], participant_id=pid
+    )
+    assert status["segments"] == []
+
+
+def test_guest_keeper_upload_rechecks_lease_after_body_read(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    token = room["guest"]["token"]
+    svc = RecordSessionService(_ws.project, session_id=room["session_id"])
+    svc.join(
+        token=token,
+        role="host",
+        display_name="Host",
+        client_id="host",
+        connection_id="h1",
+    )
+    pid, lease = _guest_join(svc, room, name="Ava", conn="a1")
+    _guest_consent(svc, pid, name="Ava", accepted=True, seq=2)
+    _host_cmd(svc, "Start", now=1000)
+    real_read = upload_http.read_body_capped
+
+    async def _read_then_remove(request, limit):
+        data = await real_read(request, limit)
+        _host_cmd(svc, "RemoveParticipant", now=1500, payload={"participant_id": pid})
+        return data
+
+    monkeypatch.setattr(upload_http, "read_body_capped", _read_then_remove)
+    res = _post_keeper(client, token, pid, lease, take=0)
+    assert res.status_code == 403, res.text
+    assert res.json()["detail"] == "invalid lease"
     status = RecordUploadService(_ws.project).status(
         session_id=room["session_id"], participant_id=pid
     )
