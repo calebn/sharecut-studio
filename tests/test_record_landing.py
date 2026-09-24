@@ -1038,10 +1038,111 @@ def test_reused_raw_source_removed_before_landed_mark_stays_failed(
         return copied
 
     monkeypatch.setattr(landing_module, "_copy_into_raw", remove_reused_source)
-    RecordLandingService(ws).land(align=lambda _p: None)
+    result = RecordLandingService(ws).land(align=lambda _p: None)
     row = uploader.status(session_id=room["session_id"])["segments"][0]
     assert row["landed"] is False
     assert row["land_failed"] is True
+    assert result["clips"] == []
+    assert {clip.id for clip in ws.project.clips} == {first["clips"][0]["clip_id"]}
+
+
+def test_new_raw_removed_before_registration_creates_no_clip(
+    minimal_project, sample_wav, monkeypatch
+):
+    import podcast_mcp.services.record.landing as landing_module
+
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=1_000)
+    uploader = RecordUploadService(ws.project)
+    _ack(uploader, session_id=room["session_id"], take=0, pid=guest, segment=0, join_offset_ms=0)
+    copy_into_raw = landing_module._copy_into_raw
+
+    def remove_new_raw(*args, **kwargs):
+        dest, rel = copy_into_raw(*args, **kwargs)
+        dest.unlink()
+        return dest, rel
+
+    monkeypatch.setattr(landing_module, "_copy_into_raw", remove_new_raw)
+    result = RecordLandingService(ws).land(align=lambda _p: None)
+    assert result["clips"] == []
+    assert ws.project.clips == []
+    assert ws.project.sources == []
+    assert uploader.status(session_id=room["session_id"])["segments"][0]["land_failed"] is True
+
+
+def test_retry_replaces_corrupt_registered_raw_source(minimal_project, sample_wav):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=1_000)
+    uploader = RecordUploadService(ws.project)
+    _ack(uploader, session_id=room["session_id"], take=0, pid=guest, segment=0, join_offset_ms=0)
+    first = RecordLandingService(ws).land(align=lambda _p: None)
+    old_rel = first["clips"][0]["raw_path"]
+    (Path(ws.project.workspace_dir) / old_rel).write_bytes(b"corrupt raw")
+    uploader.mark_land_failed(
+        session_id=room["session_id"], take_index=0, participant_id=guest, segment_index=0
+    )
+
+    retried = RecordLandingService(ws).land(align=lambda _p: None)
+    assert len(retried["clips"]) == 1
+    new_rel = retried["clips"][0]["raw_path"]
+    assert new_rel != old_rel
+    assert ws.project.sources[-1].path == new_rel
+    assert len(ws.project.clips) == 1
+    assert uploader.status(session_id=room["session_id"])["segments"][0]["landed"] is True
+
+
+def test_room_tone_reack_during_landed_mark_keeps_replacement_pending(
+    minimal_project, sample_wav, monkeypatch
+):
+    from podcast_mcp.services.record.upload import ROOM_TONE_TAKE_INDEX
+
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    _svc, guest = _consent_room(ws, room)
+    uploader = RecordUploadService(ws.project)
+    pcm, digest, file_hash = _pcm(480)
+    uploader.ingest_part(
+        session_id=room["session_id"],
+        take_index=0,
+        participant_id=guest,
+        segment_index=0,
+        part_seq=0,
+        data=pcm,
+        digest=digest,
+        file_sha256=file_hash,
+        final=True,
+        kind="room_tone",
+    )
+    replacement_hash = "f" * 64
+    # Landing creates its own service instance; patch the class method for this call.
+    original_service_mark = RecordUploadService.mark_landed
+
+    def race_mark(self, **kwargs):
+        uploader._store.mark_file(
+            session_id=room["session_id"],
+            take_index=ROOM_TONE_TAKE_INDEX,
+            participant_id=guest,
+            segment_index=0,
+            file_sha256=replacement_hash,
+            byte_length=480,
+        )
+        return original_service_mark(self, **kwargs)
+
+    monkeypatch.setattr(RecordUploadService, "mark_landed", race_mark)
+    RecordLandingService(ws).land(align=lambda _p: None)
+    row = uploader.room_tone_status(session_id=room["session_id"])[0]
+    assert row["file_sha256"] == replacement_hash
+    assert row["landed"] is False
+    assert row["land_failed"] is False
 
 
 def test_land_notifies_document_plane(minimal_project, sample_wav, tmp_workspace, monkeypatch):

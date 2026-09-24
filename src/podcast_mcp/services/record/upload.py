@@ -438,17 +438,27 @@ class RecordUploadStore:
         take_index: int,
         participant_id: str,
         segment_index: int,
-    ) -> None:
+        expected_sha256: str | None = None,
+    ) -> bool:
         now = time.time_ns()
         with self._lock:
-            self._conn.execute(
+            cursor = self._conn.execute(
                 """
                 UPDATE record_upload_files SET landed_ns = ?, land_failed_ns = NULL
                 WHERE session_id = ? AND take_index = ? AND participant_id = ?
-                  AND segment_index = ?
+                  AND segment_index = ? AND (? IS NULL OR file_sha256 = ?)
                 """,
-                (now, session_id, take_index, participant_id, segment_index),
+                (
+                    now,
+                    session_id,
+                    take_index,
+                    participant_id,
+                    segment_index,
+                    expected_sha256,
+                    expected_sha256,
+                ),
             )
+            return cursor.rowcount == 1
 
     def mark_land_failed(
         self,
@@ -457,17 +467,28 @@ class RecordUploadStore:
         take_index: int,
         participant_id: str,
         segment_index: int,
-    ) -> None:
+        expected_sha256: str | None = None,
+    ) -> bool:
         now = time.time_ns()
         with self._lock:
-            self._conn.execute(
+            cursor = self._conn.execute(
                 """
                 UPDATE record_upload_files SET land_failed_ns = ?, landed_ns = NULL
                 WHERE session_id = ? AND take_index = ? AND participant_id = ?
                   AND segment_index = ? AND acked_ns IS NOT NULL
+                  AND (? IS NULL OR file_sha256 = ?)
                 """,
-                (now, session_id, take_index, participant_id, segment_index),
+                (
+                    now,
+                    session_id,
+                    take_index,
+                    participant_id,
+                    segment_index,
+                    expected_sha256,
+                    expected_sha256,
+                ),
             )
+            return cursor.rowcount == 1
 
     def file_row(
         self,
@@ -1030,12 +1051,14 @@ class RecordUploadService:
         take_index: int,
         participant_id: str,
         segment_index: int,
-    ) -> None:
-        self._store.mark_landed(
+        expected_sha256: str | None = None,
+    ) -> bool:
+        return self._store.mark_landed(
             session_id=parse_session_id(session_id),
             take_index=parse_upload_index(take_index, name="take_index"),
             participant_id=parse_participant_id(participant_id),
             segment_index=parse_upload_index(segment_index, name="segment_index"),
+            expected_sha256=expected_sha256,
         )
 
     def mark_land_failed(
@@ -1045,12 +1068,14 @@ class RecordUploadService:
         take_index: int,
         participant_id: str,
         segment_index: int,
-    ) -> None:
-        self._store.mark_land_failed(
+        expected_sha256: str | None = None,
+    ) -> bool:
+        return self._store.mark_land_failed(
             session_id=parse_session_id(session_id),
             take_index=parse_upload_index(take_index, name="take_index"),
             participant_id=parse_participant_id(participant_id),
             segment_index=parse_upload_index(segment_index, name="segment_index"),
+            expected_sha256=expected_sha256,
         )
 
     def _acked_path(

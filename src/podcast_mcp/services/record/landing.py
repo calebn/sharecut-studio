@@ -7,6 +7,7 @@ import shutil
 import threading
 import wave
 from collections.abc import Callable, Mapping
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -316,6 +317,7 @@ class RecordLandingService:
                     take_index=int(row["take_index"]),
                     participant_id=str(row["participant_id"]),
                     segment_index=int(row["segment_index"]),
+                    expected_sha256=row.get("file_sha256"),
                 )
 
     def _land_locked(
@@ -406,7 +408,12 @@ class RecordLandingService:
                     join_ms = int(row.get("join_offset_ms") or 0)
                     take_offset = offsets.get(take, 0.0)
                     source_id = record_source_id(self.session_id, take, pid, segment)
-                    _dest, rel = _copy_into_raw(self.workspace.project, acked, source_id)
+                    _dest, rel = _copy_into_raw(
+                        self.workspace.project,
+                        acked,
+                        source_id,
+                        expected_sha256=row.get("file_sha256"),
+                    )
                 except (OSError, RecordLandingError) as exc:
                     log.warning(
                         "record land skipped keeper session=%s take=%s pid=%s seg=%s: %s",
@@ -484,6 +491,8 @@ class RecordLandingService:
             landed_clips: list[dict[str, Any]] = []
             touched: set[str] = set()
             for item in copied:
+                if not self._confirm_copied_landing(project, item):
+                    continue
                 track_id = slug_track_id(str(item["participant_id"]))
                 source_id = str(item["source_id"])
                 rel = str(item["rel"])
@@ -528,6 +537,8 @@ class RecordLandingService:
                     }
                 )
             for item in room_tone_copied:
+                if not self._confirm_copied_landing(project, item):
+                    continue
                 pid = str(item["participant_id"])
                 track_id = slug_track_id(pid)
                 track = _ensure_track(project, track_id, label=str(item["label"]))
@@ -548,38 +559,44 @@ class RecordLandingService:
                     channels=int(item["channels"]),
                 )
                 touched.add(track_id)
-            if copied:
+            if landed_clips:
                 refresh_timeline_duration(project)
                 if touched:
                     record_invalidation(project, track_ids=sorted(touched), reason="other")
                 if fallback and align is not None:
                     align(project)
-            elif room_tone_copied and touched:
+            elif touched:
                 record_invalidation(project, track_ids=sorted(touched), reason="other")
             landed_comments = _land_live_comments(project, pending_comments, offsets)
             return {"clips": landed_clips, "comments": landed_comments}
 
-        landed = self.workspace.mutate(
-            "before record land",
-            "after record land",
-            mutate,
-            operation="record_land",
-            params={"session_id": self.session_id},
-        )
+        try:
+            landed = self.workspace.mutate(
+                "before record land",
+                "after record land",
+                mutate,
+                operation="record_land",
+                params={"session_id": self.session_id},
+            )
+        except Exception:
+            # The project mutation rolls back; undo any ACK status written while
+            # confirming media inside that mutation, without touching a newer ACK.
+            for item in copied + room_tone_copied:
+                self._upload.mark_land_failed(
+                    session_id=self.session_id,
+                    take_index=int(item["take_index"]),
+                    participant_id=str(item["participant_id"]),
+                    segment_index=int(item["segment_index"]),
+                    expected_sha256=item["file_sha256"],
+                )
+            raise
         clips = list(landed["clips"])
         comments = list(landed["comments"])
-        for item in copied + room_tone_copied:
-            self._mark_registered_landing(
-                str(item["participant_id"]),
-                int(item["take_index"]),
-                int(item["segment_index"]),
-                expected_sha256=item["file_sha256"],
-            )
         self._comments.mark_landed(
             self.session_id,
             [str(row["id"]) for row in comments],
         )
-        for track_id in {slug_track_id(str(item["participant_id"])) for item in copied}:
+        for track_id in {str(item["track_id"]) for item in clips}:
             track = self.workspace.project.track_by_id(track_id)
             if track is not None and track.media is not None:
                 schedule_track_peaks(self.workspace.project, track)
@@ -670,7 +687,7 @@ class RecordLandingService:
         segment_index: int,
         *,
         expected_sha256: str | None,
-    ) -> None:
+    ) -> bool:
         """Keep the source check and upload decision inside the project mutation lock."""
         with project_state_lock(self.workspace.project):
             source_id = self._landed_source_id(participant_id, take_index, segment_index)
@@ -685,13 +702,13 @@ class RecordLandingService:
                 checked_again = _registered_source_file(self.workspace.project, source_id)
                 present = checked_again is not None and checked_again[0] == registered[0]
             if present:
-                self._upload.mark_landed(
+                return self._upload.mark_landed(
                     session_id=self.session_id,
                     take_index=take_index,
                     participant_id=participant_id,
                     segment_index=segment_index,
+                    expected_sha256=expected_sha256,
                 )
-                return
             log.warning(
                 "record land source missing or mismatched session=%s take=%s pid=%s seg=%s",
                 self.session_id,
@@ -704,7 +721,34 @@ class RecordLandingService:
                 take_index=take_index,
                 participant_id=participant_id,
                 segment_index=segment_index,
+                expected_sha256=expected_sha256,
             )
+            return False
+
+    def _confirm_copied_landing(self, project: EpisodeProject, item: dict[str, Any]) -> bool:
+        """Confirm the copied bytes and ACK generation before registering project media."""
+        expected = item.get("file_sha256")
+        raw = Path(project.workspace_dir) / str(item["rel"])
+        present = False
+        if expected:
+            with suppress(OSError):
+                present = sha256_file(raw) == expected
+        if present and self._upload.mark_landed(
+            session_id=self.session_id,
+            take_index=int(item["take_index"]),
+            participant_id=str(item["participant_id"]),
+            segment_index=int(item["segment_index"]),
+            expected_sha256=expected,
+        ):
+            return True
+        self._upload.mark_land_failed(
+            session_id=self.session_id,
+            take_index=int(item["take_index"]),
+            participant_id=str(item["participant_id"]),
+            segment_index=int(item["segment_index"]),
+            expected_sha256=expected,
+        )
+        return False
 
     def _gate_acked(
         self,
@@ -723,6 +767,7 @@ class RecordLandingService:
                     take_index=take,
                     participant_id=pid,
                     segment_index=segment,
+                    expected_sha256=row.get("file_sha256"),
                 )
             return None
         acked = self._upload.acked_wav(self.session_id, take, pid, segment)
@@ -748,6 +793,7 @@ def _copy_into_raw(
     source_id: str,
     *,
     dest: Path | None = None,
+    expected_sha256: str | None = None,
 ) -> tuple[Path, str]:
     """Copy *acked* into ``raw/`` and return ``(dest, workspace-relative path)``.
 
@@ -760,8 +806,12 @@ def _copy_into_raw(
     ws = Path(project.workspace_dir)
     if dest is None:
         registered = _registered_source_file(project, source_id)
-        if registered is not None:
-            return registered
+        if registered is not None and expected_sha256:
+            try:
+                if sha256_file(registered[0]) == expected_sha256:
+                    return registered
+            except OSError:
+                pass
         dest = unique_raw_path(ws, f"{source_id}.wav")
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(acked, dest)

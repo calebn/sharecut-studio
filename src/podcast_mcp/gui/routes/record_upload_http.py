@@ -115,13 +115,15 @@ async def ingest_record_upload_request(
                 ),
                 None,
             )
-            confirmed = bool(current and current.get("landed"))
-            if not confirmed:
+            current_generation = bool(current and current.get("file_sha256") == file_sha256)
+            confirmed = bool(current_generation and current and current.get("landed"))
+            if not confirmed and current_generation:
                 uploader.mark_land_failed(
                     session_id=session_id,
                     take_index=status_take,
                     participant_id=participant_id,
                     segment_index=status_segment,
+                    expected_sha256=file_sha256,
                 )
             result["landed"] = confirmed
             result["land_failed"] = not confirmed
@@ -136,6 +138,7 @@ async def ingest_record_upload_request(
                 take_index=status_take,
                 participant_id=participant_id,
                 segment_index=status_segment,
+                expected_sha256=file_sha256,
             )
             result["landed"] = False
             result["land_failed"] = True
@@ -146,6 +149,7 @@ async def ingest_record_upload_request(
                 take_index=status_take,
                 participant_id=participant_id,
                 segment_index=status_segment,
+                expected_sha256=file_sha256,
             )
             result["landed"] = False
             result["land_failed"] = True
