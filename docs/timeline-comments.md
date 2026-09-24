@@ -106,6 +106,9 @@ Publication creates a new version directory exclusively. If WAV copy or MP3 enco
 or publication is interrupted, it removes that new directory and leaves existing versions and
 the source mix untouched. The writer resolves a symlinked `artifacts/review/` root once so
 retargeting that symlink during a failed publication cannot redirect cleanup to another mix.
+If a published version's MP3 is missing, retry encoding writes a temporary MP3 beside it and
+publishes `mix.mp3` only after encoding succeeds. A failed or interrupted retry removes the
+temporary output, so guest audio lookup continues to use the frozen WAV.
 While `active_version_id` is set, new comments stamp `review_version_id`. Host play via
 `GET /api/audio?kind=review&review_version_id=…` (or `kind=review:<id>`). Guest ReviewApp
 uses `GET /api/review/{token}/audio` (MP3; optional object storage 302 — see

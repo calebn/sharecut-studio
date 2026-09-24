@@ -245,6 +245,77 @@ def test_version_paths_stay_under_review_root(minimal_project, sample_wav, tmp_w
     assert mp3.is_relative_to(root)
 
 
+@pytest.mark.parametrize("failure", [RuntimeError("encode failed"), KeyboardInterrupt()])
+def test_failed_mp3_retry_never_exposes_partial_file(
+    minimal_project, sample_wav, tmp_workspace, failure
+):
+    project, version_id = _publish(minimal_project, sample_wav)
+    version = get_version(project, version_id)
+    original_metadata = version.model_dump()
+    wav = version_audio_path(project, version_id)
+    wav_bytes = wav.read_bytes()
+    mp3 = version_mp3_path(project, version_id)
+    assert mp3 is not None
+    mp3.unlink()
+
+    class FailingEngine:
+        def export_mp3(self, source, output, *, bitrate_kbps):
+            assert source == wav
+            assert output.suffix == ".mp3"
+            assert output != mp3
+            output.write_bytes(b"partial mp3")
+            raise failure
+
+    with pytest.raises(type(failure)) as caught:
+        encode_version_mp3(project, version_id, eng=FailingEngine())
+
+    assert caught.value is failure
+    assert version_mp3_path(project, version_id) is None
+    assert review_guest_audio_path(project, version_id) == wav
+    assert not list(mp3.parent.glob(".mix-*.mp3"))
+    assert wav.read_bytes() == wav_bytes
+    assert version.model_dump() == original_metadata
+
+    class SuccessfulEngine:
+        def export_mp3(self, source, output, *, bitrate_kbps):
+            output.write_bytes(b"complete mp3")
+
+    result = encode_version_mp3(project, version_id, eng=SuccessfulEngine())
+    assert result == mp3
+    assert version_mp3_path(project, version_id) == mp3
+    assert mp3.read_bytes() == b"complete mp3"
+
+
+def test_mp3_retry_preserves_encode_error_if_temporary_cleanup_fails(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    project, version_id = _publish(minimal_project, sample_wav)
+    mp3 = version_mp3_path(project, version_id)
+    assert mp3 is not None
+    mp3.unlink()
+    failure = RuntimeError("encode failed")
+
+    class FailingEngine:
+        def export_mp3(self, source, output, *, bitrate_kbps):
+            output.write_bytes(b"partial mp3")
+            raise failure
+
+    original_unlink = Path.unlink
+
+    def fail_temporary_unlink(path, *args, **kwargs):
+        if path.name.startswith(".mix-"):
+            raise PermissionError("cleanup failed")
+        return original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", fail_temporary_unlink)
+    with pytest.raises(RuntimeError) as caught:
+        encode_version_mp3(project, version_id, eng=FailingEngine())
+
+    assert caught.value is failure
+    assert version_mp3_path(project, version_id) is None
+    assert review_guest_audio_path(project, version_id) == version_audio_path(project, version_id)
+
+
 def test_review_artifacts_dir_matches_writer_reldir(minimal_project, sample_wav, tmp_workspace):
     p, vid = _publish(minimal_project, sample_wav)
     assert review_artifacts_dir(p) == p.workspace_path() / REVIEW_ARTIFACTS_RELDIR
