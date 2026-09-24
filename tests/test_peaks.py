@@ -7,6 +7,8 @@ import time
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from podcast_mcp.engines.peaks import (
     PEAKS_FFMPEG_TIMEOUT_SEC,
     ensure_track_peaks,
@@ -299,3 +301,26 @@ def test_peaks_unavailable_body_shape():
         "track_id": "host",
         "generating": False,
     }
+
+
+def test_schedule_track_peaks_clears_pending_when_submit_fails(
+    minimal_project, sample_wav, monkeypatch
+):
+    ws = ProjectWorkspace.open(minimal_project)
+    raw = Path(ws.project.workspace_dir) / "raw"
+    raw.mkdir(exist_ok=True)
+    (raw / "import.wav").write_bytes(Path(sample_wav).read_bytes())
+    track = Track(
+        id="host",
+        label="Host",
+        media=MediaAsset(path="raw/import.wav", duration_sec=1.0),
+    )
+
+    class _ClosedPool:
+        def submit(self, *_a, **_k):
+            raise RuntimeError("cannot schedule new futures after interpreter shutdown")
+
+    monkeypatch.setattr("podcast_mcp.engines.peaks._peaks_pool", lambda: _ClosedPool())
+    with pytest.raises(RuntimeError, match="cannot schedule"):
+        schedule_track_peaks(ws.project, track)
+    assert peaks_generation_pending(ws.project, track) is False
