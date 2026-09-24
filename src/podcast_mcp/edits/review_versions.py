@@ -46,6 +46,7 @@ _QUARANTINE_ENTRY = "media"
 
 
 def _dir_identity(metadata: os.stat_result) -> DirectoryIdentity:
+    """``(st_dev, st_ino)``; valid only while the entry exists (inode numbers can be reused)."""
     return (metadata.st_dev, metadata.st_ino)
 
 
@@ -193,9 +194,11 @@ def _clean_stale_mp3_temps(version_dir: Path) -> None:
 def clean_created_version(version_dir: Path, identity: DirectoryIdentity) -> None:
     """Quarantine one exclusively created directory before removing its contents.
 
-    A mismatch leaves the directory in place. Where descriptor-relative operations
-    exist the root and quarantine are pinned by fd; otherwise the same
-    identity-checked quarantine runs on resolved paths.
+    A mismatch before the move leaves the public directory in place. A replacement
+    that lands between that check and the rename is moved into the quarantine and
+    kept there: it is not restored (that needs a no-replace rename) and not deleted.
+    Where descriptor-relative operations exist the root and quarantine are pinned by
+    fd; otherwise the same identity-checked quarantine runs on resolved paths.
     """
     pinned = _SAFE_FAILED_CLEANUP_SUPPORTED
     root = version_dir.parent
