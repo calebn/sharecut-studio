@@ -13,6 +13,9 @@ from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.models.project_format import SUPPORTED_PROJECT_VERSION, require_v2_document
 
 EPISODE_PROJECT_FILENAME = "episode.project.json"
+# Track volume fader range (dB), on top of the pipeline's staging gain_db.
+FADER_MIN_DB = -60.0
+FADER_MAX_DB = 12.0
 
 
 class TrackRole(StrEnum):
@@ -83,12 +86,21 @@ class Track(BaseModel):
     # projects). Filler pads prefer this over stolen stem air when
     # filler_pad_mode is room_tone.
     room_tone: MediaAsset | None = None
+    # Staging gain the pipeline's balance step writes (dialogue toward target LUFS).
     gain_db: float = 0.0
+    # The user's saved volume on top of the staging gain; balance never touches it.
+    fader_db: float = Field(default=0.0, ge=FADER_MIN_DB, le=FADER_MAX_DB)
+    # Saved mix mute: play, render, bounce and master leave the track out.
     muted: bool = False
     # When True, stems/segments mute outside non-suppressed word intervals
     # (acoustic bleed mute). Snapshotted in history so undo/play_ab work.
     transcript_gate: bool = False
     proxy: TrackProxy | None = None
+
+    @property
+    def output_gain_db(self) -> float:
+        """Gain the mix applies to this track: staging gain plus the fader."""
+        return self.gain_db + self.fader_db
 
 
 class Clip(BaseModel):

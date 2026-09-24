@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**95** capabilities · **79** Sharecut Studio commands · **49** keyed · **160** MCP tools · **16** skills on rows (+ **18** hub skills).
+**96** capabilities · **80** Sharecut Studio commands · **49** keyed · **162** MCP tools · **16** skills on rows (+ **18** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -67,8 +67,9 @@ Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Documen
 | Paste | `edit.paste` | `Mod+V` | — | — | — | — | — | — |
 | Select all tracks | `track.selectAll` | `Mod+A` | — | — | — | — | — | — |
 | Deselect all tracks | `track.deselectAll` | `Mod+Shift+A` | `trackHeadersWell` | — | — | — | — | none · none |
-| Toggle track mute | `track.muteToggle` | `M` | `trackHeader` | — | — | — | — | anchor · hear |
+| Toggle track mute | `track.muteToggle` | `M` | `trackHeader` | `track_set_mute_tool` | `podcast episode set-track-mute` | — | — | anchor · hear |
 | Toggle track solo | `track.soloToggle` | `S` | `trackHeader` | — | — | — | — | anchor · hear |
+| Set track volume | `track.setVolume` | — (slider: arrow keys step the focused fader) | `trackInspector` | `track_set_fader_tool` | `podcast episode set-track-volume` | — | — | none · hear |
 | Zoom in | `view.zoomIn` | `=` | `transport.menu` | — | — | — | — | none · look |
 | Zoom out | `view.zoomOut` | `-` | `transport.menu` | — | — | — | — | none · look |
 | Fit session in view | `view.fit` | `\` | `transport.fit` | — | — | — | — | none · look |

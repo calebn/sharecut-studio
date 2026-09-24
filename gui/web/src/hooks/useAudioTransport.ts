@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { audioUrl } from "../api";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
+import { trackOutputGainDb } from "../tracks/trackMix";
 import type { ProjectView } from "../types/project";
 import { errorMessage } from "../utils/apiError";
 import { anySolo, dbToLinear, trackIsAudible } from "../utils/audio";
@@ -110,9 +111,10 @@ function effectsFingerprint(project: ProjectView): string {
 
 /**
  * Browser transport: HTMLAudioElement + HTTP Range.
- * - mix (no mute/solo): premix.wav
- * - mix with mute/solo, or fx: processed stems
- * - raw: source media files (seek via clip timeline→source)
+ * - mix (no listen-only mute/solo, premix current): premix.wav
+ * - mix with listen-only mute/solo or a premix stale vs the saved mix
+ *   (volume, mute), or fx: processed stems at their output gain
+ * - raw: source media files at their output gain (seek via clip timeline→source)
  */
 export function useAudioTransport(enabled = true): void {
   const {
@@ -150,8 +152,12 @@ export function useAudioTransport(enabled = true): void {
   projectRef.current = project;
   auditionModeRef.current = auditionMode;
 
+  // A premix mixed before a volume or mute change would play the old mix;
+  // stems at their current output gain play the new one before a refresh.
+  const premixStaleVsMix = project?.render_status.premix.stale_vs_mix === true;
   const needsMultitrack =
     auditionMode !== "mix" ||
+    premixStaleVsMix ||
     anySolo(soloTracks) ||
     Object.values(viewerMute).some(Boolean);
 
@@ -288,23 +294,23 @@ export function useAudioTransport(enabled = true): void {
       premix.volume = 1;
       return;
     }
+    const audible = project.tracks.filter(
+      (track) =>
+        players.has(track.id) &&
+        trackIsAudible(track.id, track.muted, viewerMute, soloTracks),
+    );
+    // Media elements can't boost (volume <= 1), so play each track at its
+    // output gain (staging + fader) relative to the loudest audible one: the
+    // balance matches the mix, a little quieter overall.
+    const loudestDb = Math.max(...audible.map(trackOutputGainDb));
     for (const track of project.tracks) {
       const el = players.get(track.id);
       if (!el) {
         continue;
       }
-      const audible = trackIsAudible(
-        track.id,
-        track.muted,
-        viewerMute,
-        soloTracks,
-      );
-      if (!audible) {
-        el.volume = 0;
-        continue;
-      }
-      el.volume =
-        auditionMode === "raw" ? Math.min(1, dbToLinear(track.gain_db)) : 1;
+      el.volume = audible.includes(track)
+        ? Math.min(1, dbToLinear(trackOutputGainDb(track) - loudestDb))
+        : 0;
     }
   }, [project, viewerMute, soloTracks, auditionMode, modeKey, enabled]);
 

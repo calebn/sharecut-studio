@@ -226,14 +226,25 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "edit",
     label: "Toggle track mute",
     when: "hasProject",
-    notes: "M: viewer mute for selected track (Args: { trackId? })",
+    notes:
+      "M: saved mix mute (SetTrackMute) for the host and editors; listen-only mute for other guests (Args: { trackId? })",
+  },
+  "track.setVolume": {
+    id: "track.setVolume",
+    category: "edit",
+    label: "Set track volume",
+    when: "canEditMix",
+    paletteRunnable: false,
+    notes:
+      "Args: { trackId?, db }: SetTrackFader, the saved volume on top of staging gain (-60 to +12 dB)",
   },
   "track.soloToggle": {
     id: "track.soloToggle",
     category: "edit",
     label: "Toggle track solo",
     when: "hasProject",
-    notes: "S: viewer solo for selected track (Args: { trackId? })",
+    notes:
+      "S: listen-only solo for the selected track, never saved in the mix (Args: { trackId? })",
   },
   "view.zoomIn": {
     id: "view.zoomIn",

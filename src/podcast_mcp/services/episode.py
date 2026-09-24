@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 from podcast_mcp.edits.track_ids import slug_track_id
@@ -10,7 +11,7 @@ from podcast_mcp.edits.track_media import (
 )
 from podcast_mcp.engines.peaks import schedule_track_peaks
 from podcast_mcp.engines.render_invalidations import record_invalidation
-from podcast_mcp.models import Track, TrackRole
+from podcast_mcp.models import FADER_MAX_DB, FADER_MIN_DB, Track, TrackRole
 from podcast_mcp.services.workspace import ProjectWorkspace
 
 
@@ -159,6 +160,59 @@ class EpisodeService:
             "role": track.role.value if hasattr(track.role, "value") else str(track.role),
             "speaker": track.speaker,
         }
+
+    def set_track_fader(self, track_id: str, fader_db: float) -> dict:
+        """Set a track's saved volume: the mix plays it at ``gain_db + fader_db``."""
+        if self.ws.project.track_by_id(track_id) is None:
+            raise ValueError(f"unknown track: {track_id}")
+        value = float(fader_db)
+        if not math.isfinite(value) or not FADER_MIN_DB <= value <= FADER_MAX_DB:
+            raise ValueError(
+                f"fader_db must be between {FADER_MIN_DB:g} and {FADER_MAX_DB:g} dB, got {fader_db}"
+            )
+        value = round(value, 2)
+
+        def mutate(p) -> None:
+            track = p.track_by_id(track_id)
+            if track is None:
+                raise ValueError(f"unknown track: {track_id}")
+            track.fader_db = value
+
+        self.ws.mutate(
+            f"before set track volume {track_id}",
+            f"after set track volume {track_id}",
+            mutate,
+            operation="set_track_fader",
+            params={"track_id": track_id, "fader_db": value},
+        )
+        track = self.ws.project.track_by_id(track_id)
+        assert track is not None
+        return {
+            "track_id": track_id,
+            "fader_db": track.fader_db,
+            "output_gain_db": track.output_gain_db,
+        }
+
+    def set_track_mute(self, track_id: str, muted: bool) -> dict:
+        """Set a track's saved mix mute (play, render, bounce and master skip it)."""
+        if self.ws.project.track_by_id(track_id) is None:
+            raise ValueError(f"unknown track: {track_id}")
+
+        def mutate(p) -> None:
+            track = p.track_by_id(track_id)
+            if track is None:
+                raise ValueError(f"unknown track: {track_id}")
+            track.muted = bool(muted)
+
+        verb = "mute" if muted else "unmute"
+        self.ws.mutate(
+            f"before {verb} track {track_id}",
+            f"after {verb} track {track_id}",
+            mutate,
+            operation="set_track_mute",
+            params={"track_id": track_id, "muted": bool(muted)},
+        )
+        return {"track_id": track_id, "muted": bool(muted)}
 
     def remove_track(self, track_id: str) -> dict:
         if self.ws.project.track_by_id(track_id) is None:

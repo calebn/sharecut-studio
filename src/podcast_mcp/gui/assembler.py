@@ -104,6 +104,7 @@ def build_track_views(
                 role=track.role.value if hasattr(track.role, "value") else str(track.role),
                 speaker=track.speaker,
                 gain_db=track.gain_db,
+                fader_db=track.fader_db,
                 muted=track.muted,
                 duration_sec=track.media.duration_sec if track.media else None,
                 fx_count=len(fx_map.get(track.id, [])),
@@ -225,7 +226,8 @@ def dump_project_projection(
 
     Guest DETAIL is hydration flags only (no ``words[]`` or history).
     ``sanitize_guest_project_view`` only strips paths. CLIPS/FX/ENVELOPES include
-    ``tracks`` + ``render_status`` so stem freshness updates with the slice.
+    ``tracks`` + ``render_status`` so stem freshness updates with the slice; MIX
+    is just those two (a fader or mute change stales the premix).
     """
     proj = (
         projection
@@ -243,6 +245,8 @@ def dump_project_projection(
     if proj is ViewProjection.FX:
         edit = EditService(ws)
         return _freshness_patch(ws, {"effects_by_track": _effects_by_track(edit, ws)}, edit=edit)
+    if proj is ViewProjection.MIX:
+        return _freshness_patch(ws, {})
     if proj is ViewProjection.ENVELOPES:
         return _freshness_patch(
             ws,

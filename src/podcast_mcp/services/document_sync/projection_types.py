@@ -18,6 +18,8 @@ class ViewProjection(StrEnum):
     CLIPS = "clips"
     FX = "fx"
     ENVELOPES = "envelopes"
+    # Track mix state (fader, mute): tracks plus render_status freshness.
+    MIX = "mix"
 
 
 VIEW_PROJECTION_QUERY_DESCRIPTION = (

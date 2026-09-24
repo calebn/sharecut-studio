@@ -169,6 +169,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Toggle track solo",
     tooltip: "Toggle track solo",
   },
+  "daw.track.setVolume": {
+    label: "Set track volume",
+    tooltip: "Set track volume",
+  },
   "daw.view.zoomIn": {
     label: "Zoom in",
     tooltip: "Zoom in",
@@ -395,7 +399,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   timeline: "daw.edit.bladeCut",
   bladeConfirmSheet: "daw.edit.bladeCut.cancel",
   clipInspector: "daw.edit.rippleDelete",
-  trackInspector: "daw.track.remove",
+  trackInspector: "daw.track.setVolume",
   trackHeader: "daw.track.soloToggle",
   trackHeadersWell: "daw.track.deselectAll",
   "transport.fit": "daw.view.fit",

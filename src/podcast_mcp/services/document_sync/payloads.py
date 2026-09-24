@@ -12,7 +12,7 @@ from uuid import uuid4
 from pydantic import BaseModel, Field, TypeAdapter, field_validator, model_validator
 
 from podcast_mcp.edits.comments import COMMENT_BODY_MAX
-from podcast_mcp.models.episode import ClipJoinMode
+from podcast_mcp.models.episode import FADER_MAX_DB, FADER_MIN_DB, ClipJoinMode
 from podcast_mcp.services.document_sync.commands import ClientRole, DocumentCommand
 from podcast_mcp.util.text import has_meaningful_text
 
@@ -320,6 +320,16 @@ class SetTrackMetaPayload(BaseModel):
     speaker: str | None = None
 
 
+class SetTrackFaderPayload(BaseModel):
+    track_id: str
+    fader_db: float = Field(ge=FADER_MIN_DB, le=FADER_MAX_DB)
+
+
+class SetTrackMutePayload(BaseModel):
+    track_id: str
+    muted: bool
+
+
 class RemoveTrackPayload(BaseModel):
     track_id: str
 
@@ -551,6 +561,16 @@ class SetTrackMetaCommand(DocumentCommandEnvelope):
     payload: SetTrackMetaPayload
 
 
+class SetTrackFaderCommand(DocumentCommandEnvelope):
+    type: Literal["SetTrackFader"] = "SetTrackFader"
+    payload: SetTrackFaderPayload
+
+
+class SetTrackMuteCommand(DocumentCommandEnvelope):
+    type: Literal["SetTrackMute"] = "SetTrackMute"
+    payload: SetTrackMutePayload
+
+
 class RemoveTrackCommand(DocumentCommandEnvelope):
     type: Literal["RemoveTrack"] = "RemoveTrack"
     payload: RemoveTrackPayload
@@ -603,6 +623,8 @@ DocumentCommandBody = Annotated[
     | AddTrackCommand
     | SetTrackMediaCommand
     | SetTrackMetaCommand
+    | SetTrackFaderCommand
+    | SetTrackMuteCommand
     | RemoveTrackCommand
     | ReorderTrackCommand,
     Field(discriminator="type"),
@@ -705,6 +727,8 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "AddTrack": AddTrackPayload,
     "SetTrackMedia": SetTrackMediaPayload,
     "SetTrackMeta": SetTrackMetaPayload,
+    "SetTrackFader": SetTrackFaderPayload,
+    "SetTrackMute": SetTrackMutePayload,
     "RemoveTrack": RemoveTrackPayload,
     "ReorderTrack": ReorderTrackPayload,
 }

@@ -24,6 +24,7 @@ export type ContextPredicateId =
   | "canApplyPass12"
   | "canRefreshMix"
   | "canIngestMedia"
+  | "canEditMix"
   | "canManageProjects"
   | "hostProjectLoaded"
   | "trackInspectorSelected"

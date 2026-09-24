@@ -216,6 +216,48 @@ def stem_is_fresh(project: EpisodeProject, track_id: str) -> bool:
     return stem_duration_matches_timeline(project, track_id)
 
 
+def mix_render_hash(project: EpisodeProject) -> str:
+    """Fingerprint the mix settings ``premix.wav`` applies on top of its stems.
+
+    Stem audio is covered by each stem's own hash and the premix-vs-stem mtime
+    check. This adds what only the mix step reads: which tracks are in the mix
+    and at what output gain (staging ``gain_db`` plus the user's ``fader_db``).
+    So a fader or mute change stales the premix without staling any stem.
+    """
+    payload = [
+        {"id": t.id, "muted": t.muted, "gain_db": t.gain_db, "fader_db": t.fader_db}
+        for t in project.tracks
+    ]
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+
+def premix_hash_path(project: EpisodeProject) -> Path:
+    return project.artifacts_dir() / "premix.hash"
+
+
+def write_premix_hash(project: EpisodeProject) -> str:
+    h = mix_render_hash(project)
+    path = premix_hash_path(project)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(h + "\n", encoding="utf-8")
+    return h
+
+
+def premix_stale_vs_mix(project: EpisodeProject) -> bool:
+    """True when the saved mix settings changed since ``premix.wav`` was mixed.
+
+    A premix mixed before this hash existed predates faders, so it counts as
+    stale only once a fader moves off 0 dB.
+    """
+    if not (project.artifacts_dir() / "premix.wav").is_file():
+        return False
+    path = premix_hash_path(project)
+    if not path.is_file():
+        return any(t.fader_db for t in project.tracks)
+    return path.read_text(encoding="utf-8").strip() != mix_render_hash(project)
+
+
 def invalidate_stem_hashes(project: EpisodeProject) -> list[str]:
     """Delete stem hash sidecars so play falls back to segment render after history nav.
 

@@ -62,7 +62,7 @@ Example: Clip selected → Related shows Copy; More reports no additional action
 | Transport play/time/audition | Listen hero (`layout/ListenHero`, story `Templates/ListenHero`); compact header transport on Timeline, Text, and More (the project name moves to the Listen hero when the bar is under 30rem); audition/zoom in Menu |
 | Mode nav | Icon + label tabs; the active tab is tinted with an accent top indicator (no filled block) |
 | Comment / Fit | Header primary **icons** outside Listen; Fit is available on Timeline and in the non-Listen Menu |
-| Track headers M/S/FX | Lane gutter tap (the whole rail; the initials chip is the affordance) → track sheet (**M**/**S** toggles + gain readout; drag Levels for envelopes). Header mixer chrome hidden when the timeline pane is narrow; reorder via Menu → Move track up/down |
+| Track headers M/S/FX | Lane gutter tap (the whole rail; the initials chip is the affordance) → track sheet (**M**/**S** toggles and the saved **Volume** fader; drag Levels for envelopes). Header mixer chrome hidden when the timeline pane is narrow; reorder via Menu → Move track up/down |
 | Timeline overlays | Timeline mode + layer chips |
 | Inspector | Selection sheet |
 | Transcript tab | Text mode |
@@ -120,7 +120,7 @@ Two-finger Undo is active only while a project is loaded and the shared Undo com
 │         drag timeline to scrub    │
 ├─ Listen | Timeline | Text | More ─┤
 │ ┌ sheet: track / Pending cut ─ X ┐ │
-│ │ M · S · gain readout / Approve │ │
+│ │ M · S · Volume / Approve       │ │
 │ └───────────────────────────────┘ │
 ```
 

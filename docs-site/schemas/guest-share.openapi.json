@@ -3586,6 +3586,109 @@
         "title": "SetJoinModePayload",
         "type": "object"
       },
+      "SetTrackFaderCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/SetTrackFaderPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "SetTrackFader",
+            "default": "SetTrackFader",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "SetTrackFaderCommand",
+        "type": "object"
+      },
+      "SetTrackFaderPayload": {
+        "properties": {
+          "fader_db": {
+            "maximum": 12.0,
+            "minimum": -60.0,
+            "title": "Fader Db",
+            "type": "number"
+          },
+          "track_id": {
+            "title": "Track Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "fader_db"
+        ],
+        "title": "SetTrackFaderPayload",
+        "type": "object"
+      },
       "SetTrackMediaCommand": {
         "properties": {
           "causation_id": {
@@ -3814,6 +3917,107 @@
           "track_id"
         ],
         "title": "SetTrackMetaPayload",
+        "type": "object"
+      },
+      "SetTrackMuteCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "title": "Client Seq",
+            "type": "integer"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/SetTrackMutePayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "SetTrackMute",
+            "default": "SetTrackMute",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_seq",
+          "payload"
+        ],
+        "title": "SetTrackMuteCommand",
+        "type": "object"
+      },
+      "SetTrackMutePayload": {
+        "properties": {
+          "muted": {
+            "title": "Muted",
+            "type": "boolean"
+          },
+          "track_id": {
+            "title": "Track Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "muted"
+        ],
+        "title": "SetTrackMutePayload",
         "type": "object"
       },
       "SetTranscriptWordSuppressedCommand": {
@@ -5010,7 +5214,8 @@
           "comments",
           "clips",
           "fx",
-          "envelopes"
+          "envelopes",
+          "mix"
         ],
         "title": "ViewProjection",
         "type": "string"
@@ -5876,8 +6081,10 @@
                     "SetEffectBypass": "#/components/schemas/SetEffectBypassCommand",
                     "SetEnvelope": "#/components/schemas/SetEnvelopeCommand",
                     "SetJoinMode": "#/components/schemas/SetJoinModeCommand",
+                    "SetTrackFader": "#/components/schemas/SetTrackFaderCommand",
                     "SetTrackMedia": "#/components/schemas/SetTrackMediaCommand",
                     "SetTrackMeta": "#/components/schemas/SetTrackMetaCommand",
+                    "SetTrackMute": "#/components/schemas/SetTrackMuteCommand",
                     "SetTranscriptWordSuppressed": "#/components/schemas/SetTranscriptWordSuppressedCommand",
                     "SplitAtTime": "#/components/schemas/SplitAtTimeCommand",
                     "SuggestPendingEdit": "#/components/schemas/SuggestPendingEditCommand",
@@ -6013,6 +6220,12 @@
                   },
                   {
                     "$ref": "#/components/schemas/SetTrackMetaCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SetTrackFaderCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SetTrackMuteCommand"
                   },
                   {
                     "$ref": "#/components/schemas/RemoveTrackCommand"
@@ -6352,7 +6565,7 @@
             }
           },
           {
-            "description": "View projection: full, shell, detail, tracks, comments, clips, fx, envelopes (default shell)",
+            "description": "View projection: full, shell, detail, tracks, comments, clips, fx, envelopes, mix (default shell)",
             "in": "query",
             "name": "phase",
             "required": false,
@@ -6365,7 +6578,7 @@
                   "type": "null"
                 }
               ],
-              "description": "View projection: full, shell, detail, tracks, comments, clips, fx, envelopes (default shell)",
+              "description": "View projection: full, shell, detail, tracks, comments, clips, fx, envelopes, mix (default shell)",
               "title": "Phase"
             }
           }

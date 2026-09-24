@@ -57,6 +57,25 @@ def track_set_meta_tool(
     return EpisodeService(ws).set_track_meta(track_id, label=label, role=role, speaker=speaker)
 
 
+def track_set_fader_tool(project_path: str, track_id: str, fader_db: float) -> dict:
+    """Set a track's saved volume in dB (-60 to +12), on top of its staging gain.
+
+    The mix plays the track at ``gain_db + fader_db``; the pipeline's balance
+    step never changes the fader. Undoable; stales the premix until re-mixed.
+    """
+    ws = ProjectWorkspace.open(project_path)
+    return EpisodeService(ws).set_track_fader(track_id, fader_db)
+
+
+def track_set_mute_tool(project_path: str, track_id: str, muted: bool) -> dict:
+    """Mute or unmute a track in the saved mix (play, render, bounce, master).
+
+    Undoable. Solo is a per-listener control in the GUI, not saved mix state.
+    """
+    ws = ProjectWorkspace.open(project_path)
+    return EpisodeService(ws).set_track_mute(track_id, muted)
+
+
 def track_remove_tool(project_path: str, track_id: str) -> dict:
     """Remove a track from the project."""
     ws = ProjectWorkspace.open(project_path)
@@ -77,6 +96,8 @@ def register(mcp: MCPServer) -> None:
         track_add_empty_tool,
         track_set_media_tool,
         track_set_meta_tool,
+        track_set_fader_tool,
+        track_set_mute_tool,
         track_remove_tool,
         track_reorder_tool,
     }
@@ -85,6 +106,8 @@ def register(mcp: MCPServer) -> None:
         track_add_empty_tool,
         track_set_media_tool,
         track_set_meta_tool,
+        track_set_fader_tool,
+        track_set_mute_tool,
         track_remove_tool,
         track_reorder_tool,
     ):

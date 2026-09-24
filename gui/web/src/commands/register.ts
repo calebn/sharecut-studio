@@ -58,7 +58,9 @@ import { bladeTrackIds } from "../utils/bladeTracks";
 import { discreteZoomFactor } from "../utils/zoom";
 import { type CommandContext, evaluateWhen } from "./context";
 import { registerCommand } from "./execute";
+import { resolveTrackId } from "./targets";
 import { registerTightenCommands } from "./tighten";
+import { registerTrackMixCommands } from "./trackMix";
 import type { ExecuteResult } from "./types";
 
 const PROJECT_SWITCH_BLOCKED =
@@ -176,20 +178,6 @@ async function runSplitAt(
   await splitAtTime(s.projectPath, atTime, tids);
   s.setBladeConfirmSec(null);
   return { status: "ok" };
-}
-
-function resolveTrackId(args: Record<string, unknown>): string | null {
-  if (typeof args.trackId === "string" && args.trackId) {
-    return args.trackId;
-  }
-  const s = useDawStore.getState();
-  if (s.selection?.kind === "clip" || s.selection?.kind === "track") {
-    return s.selection.trackId;
-  }
-  if (s.selectedTrackIds[0]) {
-    return s.selectedTrackIds[0];
-  }
-  return null;
 }
 
 function resolveClipId(args: Record<string, unknown>): string | null {
@@ -470,15 +458,6 @@ export function registerDawCommands(): void {
     if (s.selection?.kind === "track") {
       s.setSelection(null);
     }
-    return { status: "ok" };
-  });
-
-  registerCommand("track.muteToggle", (args) => {
-    const trackId = resolveTrackId(args);
-    if (!trackId) {
-      return { status: "disabled", reason: "No track selected" };
-    }
-    useDawStore.getState().toggleViewerMute(trackId);
     return { status: "ok" };
   });
 
@@ -1216,4 +1195,5 @@ export function registerDawCommands(): void {
   registerCommand("view.focusCutAwayWord", () => ({ status: "ok" }));
 
   registerTightenCommands();
+  registerTrackMixCommands();
 }

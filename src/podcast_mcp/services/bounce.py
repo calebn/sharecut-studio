@@ -71,7 +71,7 @@ def _render_private_stems(
     def render_one(track: Track) -> tuple[str, Path, float]:
         out = stem_dir / f"{track.id}.wav"
         eng.render_dialogue_track(project, track, out, defaults)
-        return track.id, out, float(track.gain_db)
+        return track.id, out, float(track.output_gain_db)
 
     max_workers = defaults.get("performance", {}).get("max_workers")
     rendered: dict[str, tuple[Path, float]] = {}

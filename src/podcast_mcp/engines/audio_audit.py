@@ -353,7 +353,7 @@ def _rms_for_track_at_timeline(
                 rms = measure_window_rms_db(path, src0, src1)
             except Exception:
                 return None
-    gain = track.gain_db if track else 0.0
+    gain = track.output_gain_db if track else 0.0
     return _effective_rms_db(rms, gain)
 
 

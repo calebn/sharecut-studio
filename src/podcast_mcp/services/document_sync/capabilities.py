@@ -28,6 +28,8 @@ EDIT_COMMANDS: frozenset[str] = frozenset(
         "AddTrack",
         "SetTrackMedia",
         "SetTrackMeta",
+        "SetTrackFader",
+        "SetTrackMute",
         "RemoveTrack",
         "ReorderTrack",
         *STRUCTURAL_COMMANDS,

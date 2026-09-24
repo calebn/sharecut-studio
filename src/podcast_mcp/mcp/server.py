@@ -84,8 +84,10 @@ from podcast_mcp.mcp.tools.episode import (  # noqa: E402, F401
     track_add_empty_tool,
     track_remove_tool,
     track_reorder_tool,
+    track_set_fader_tool,
     track_set_media_tool,
     track_set_meta_tool,
+    track_set_mute_tool,
 )
 from podcast_mcp.mcp.tools.gui import open_gui_tool  # noqa: E402, F401
 from podcast_mcp.mcp.tools.history import (  # noqa: E402, F401

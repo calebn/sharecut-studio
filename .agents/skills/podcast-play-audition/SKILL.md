@@ -66,7 +66,7 @@ Do not skip this step when reviewing multitrack join quality or when the user re
 
 **`--follow-transcript`** — unmute each track only when that speaker has non-suppressed attributed words (uses processed stems). Default source `premix` → gated **mix** of all dialogue tracks. `processed:<id>` → single gated track. `--compare` → each gated track sequentially, then gated mix.
 
-**`play_compose_tool` / `podcast play compose`** — simultaneous mix of named `track_ids` (processed or raw) for a timeline window, written to `play_cache`. Use when `suggested_listen` has `track_ids`, or when diagnosing bleed/overlap without music or a third mic. Does **not** mutate mute/solo/FX.
+**`play_compose_tool` / `podcast play compose`** — simultaneous mix of named `track_ids` (processed or raw) for a timeline window, written to `play_cache`. Use when `suggested_listen` has `track_ids`, or when diagnosing bleed/overlap without music or a third mic. Does **not** mutate mute/solo/FX. Each track plays at its output gain (staging `gain_db` + saved `fader_db`, minus whatever a segment render already baked in).
 
 ## Default: simultaneous full mix
 

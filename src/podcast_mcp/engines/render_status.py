@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from podcast_mcp.engines.play_audit import (
     expected_stem_duration_sec,
+    premix_stale_vs_mix,
     probe_stem_duration_sec,
     read_stem_hash,
     stem_duration_matches_timeline,
@@ -43,6 +44,8 @@ def render_status_report(project: EpisodeProject) -> dict:
         "path": str(premix) if premix.is_file() else None,
         "exists": premix.is_file(),
         "stale_vs_stems": False,
+        # Fader, mute or staging gain changed since the premix was mixed.
+        "stale_vs_mix": premix_stale_vs_mix(project),
     }
     if premix.is_file():
         premix_info["mtime_sec"] = premix.stat().st_mtime
@@ -62,6 +65,9 @@ def render_status_report(project: EpisodeProject) -> dict:
         "reconciliation": reconciliation,
         "invalidations": invalidations_as_dicts(project),
         "needs_rerender": (
-            any_stale_stem or not premix.is_file() or bool(premix_info.get("stale_vs_stems"))
+            any_stale_stem
+            or not premix.is_file()
+            or bool(premix_info.get("stale_vs_stems"))
+            or bool(premix_info.get("stale_vs_mix"))
         ),
     }

@@ -296,4 +296,35 @@ describe("staleRenderBreakdown", () => {
     expect(b.invalidations).toHaveLength(1);
     expect(b.summary).toBe("Fresh");
   });
+
+  it("flags a premix mixed before a volume or mute change (#386)", () => {
+    const b = staleRenderBreakdown(
+      minimalProject({
+        tracks: [
+          {
+            id: "host",
+            label: "Host",
+            role: "dialogue",
+            speaker: null,
+            gain_db: 0,
+            fader_db: -3,
+            muted: false,
+            duration_sec: 60,
+            fx_count: 0,
+            stem_is_fresh: true,
+          },
+        ],
+        render_status: {
+          needs_rerender: true,
+          reconciliation: { stale: false },
+          premix: { exists: true, stale_vs_stems: false, stale_vs_mix: true },
+          invalidations: [],
+        },
+      }),
+    );
+    expect(b.stale).toBe(true);
+    expect(b.premixStaleVsMix).toBe(true);
+    expect(b.staleTrackIds).toEqual([]);
+    expect(b.summary).toBe("Volume or mute changed");
+  });
 });

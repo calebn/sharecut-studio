@@ -139,14 +139,8 @@ export function useProxyTransport(): boolean {
   }, [soloTracks, active]);
 
   useEffect(() => {
-    const engine = engineRef.current;
-    if (!engine || !active) {
-      return;
-    }
-    for (const t of project?.tracks ?? []) {
-      engine.setTrackState(t.id, t.gain_db, viewerMute[t.id] ?? t.muted);
-    }
-  }, [project, viewerMute, active]);
+    engineRef.current?.setListenMute(viewerMute);
+  }, [viewerMute, active]);
 
   useEffect(() => {
     const engine = engineRef.current;

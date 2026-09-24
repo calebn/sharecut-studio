@@ -13,6 +13,7 @@ import {
 } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
+import { TrackFader } from "../../tracks/TrackFader";
 import { TrackMuteSoloButtons } from "../../tracks/TrackMuteSoloButtons";
 import type { ProjectView, TrackView } from "../../types/project";
 import {
@@ -142,9 +143,9 @@ export function TrackInspector({
         <div className="track-transport-btns">
           <TrackMuteSoloButtons trackId={track.id} />
         </div>
+        <TrackFader track={track} />
         <p className="track-sheet-gain">
-          Gain {track.gain_db.toFixed(1)} dB. Drag Levels, then edit the
-          selected point in the inspector
+          Automate volume with Levels: drag a point, then edit it here.
         </p>
       </div>
       {mayIngest ? (

@@ -157,16 +157,20 @@ describe("TrackHeader", () => {
         />
       </DawProvider>,
     );
-    await user.click(screen.getByTitle("Mute"));
+    // The host's M is the saved mix mute.
+    const mute = screen.getByTitle("Mute in the mix");
+    expect(mute).toHaveAttribute("data-mute-state", "off");
+    await user.click(mute);
     expect(onSelect).not.toHaveBeenCalled();
     expect(execute).toHaveBeenCalledWith(
       "track.muteToggle",
       { trackId: "guest" },
       { skipWhen: true },
     );
-    expect(
-      screen.getByTitle("Mute").closest("[data-presence-anchor]"),
-    ).toHaveAttribute("data-presence-anchor", "track:guest:mute");
+    expect(mute.closest("[data-presence-anchor]")).toHaveAttribute(
+      "data-presence-anchor",
+      "track:guest:mute",
+    );
   });
 
   it("exposes the reorder grip as a drag handle, not a button", () => {

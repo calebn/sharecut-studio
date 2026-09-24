@@ -75,8 +75,21 @@
         "speaker": { "type": ["string", "null"] },
         "media": { "$ref": "#/$defs/MediaAsset" },
         "room_tone": { "anyOf": [{ "$ref": "#/$defs/MediaAsset" }, { "type": "null" }] },
-        "gain_db": { "type": "number" },
-        "muted": { "type": "boolean" },
+        "gain_db": {
+          "type": "number",
+          "description": "Staging gain the pipeline's balance step writes (dialogue toward target LUFS)."
+        },
+        "fader_db": {
+          "type": "number",
+          "minimum": -60,
+          "maximum": 12,
+          "default": 0,
+          "description": "The user's saved volume on top of gain_db; the mix applies gain_db + fader_db. Balance never changes it."
+        },
+        "muted": {
+          "type": "boolean",
+          "description": "Saved mix mute: play, render, bounce and master leave the track out."
+        },
         "transcript_gate": {
           "type": "boolean",
           "description": "When true, rendered stems/segments mute outside non-suppressed word intervals (bleed mute)."

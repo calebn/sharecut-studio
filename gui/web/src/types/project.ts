@@ -28,7 +28,11 @@ export interface TrackView {
   label: string;
   role: string;
   speaker: string | null;
+  /** Staging gain the pipeline's balance step writes. */
   gain_db: number;
+  /** The user's saved volume on top of gain_db (older servers omit it). */
+  fader_db?: number;
+  /** Saved mix mute (play, render, bounce, master). */
   muted: boolean;
   duration_sec: number | null;
   fx_count: number;
@@ -234,7 +238,12 @@ export interface ProjectView {
   render_status: {
     needs_rerender: boolean;
     reconciliation: { stale: boolean };
-    premix: { exists: boolean; stale_vs_stems?: boolean };
+    premix: {
+      exists: boolean;
+      stale_vs_stems?: boolean;
+      /** Volume, mute or staging gain changed since the premix was mixed. */
+      stale_vs_mix?: boolean;
+    };
     invalidations?: Array<{
       id: string;
       track_ids: string[];

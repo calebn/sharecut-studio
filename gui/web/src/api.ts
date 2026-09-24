@@ -103,7 +103,8 @@ async function loadProjectPhase(
     | "comments"
     | "clips"
     | "fx"
-    | "envelopes",
+    | "envelopes"
+    | "mix",
   signal?: AbortSignal,
 ): Promise<ProjectView | Partial<ProjectView>> {
   if (isShareProjectKey(projectPath)) {
@@ -1042,6 +1043,28 @@ export async function setTrackMetaCommand(
   return submitDocumentCommand(projectPath, "SetTrackMeta", {
     track_id: trackId,
     ...opts,
+  });
+}
+
+export async function setTrackFaderCommand(
+  projectPath: string,
+  trackId: string,
+  faderDb: number,
+): Promise<Record<string, unknown>> {
+  return submitDocumentCommand(projectPath, "SetTrackFader", {
+    track_id: trackId,
+    fader_db: faderDb,
+  });
+}
+
+export async function setTrackMuteCommand(
+  projectPath: string,
+  trackId: string,
+  muted: boolean,
+): Promise<Record<string, unknown>> {
+  return submitDocumentCommand(projectPath, "SetTrackMute", {
+    track_id: trackId,
+    muted,
   });
 }
 
