@@ -380,3 +380,85 @@ def test_studio_references_only_defined_custom_properties() -> None:
                 continue
             missing.append(f"{path.relative_to(ROOT)}: {name}")
     assert not missing, "undefined custom properties:\n" + "\n".join(missing)
+
+
+_MOTION_PROPS = re.compile(r"^(?:transition|animation)(?:-duration)?$")
+_RAW_DURATION = re.compile(r"(?<![\w.-])\d+(?:\.\d+)?m?s\b")
+_NO_PREFERENCE = re.compile(r"prefers-reduced-motion\s*:\s*no-preference")
+_REDUCE = re.compile(r"prefers-reduced-motion\s*:\s*reduce")
+
+
+def _motion_declarations(text: str) -> list[tuple[int, str, str, tuple[str, ...]]]:
+    """(line, property, value, enclosing preludes) for transition/animation
+    declarations, comments blanked (lines kept); preludes run outermost first."""
+    code = _CSS_COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), text)
+    found: list[tuple[int, str, str, tuple[str, ...]]] = []
+    stack: list[str] = []
+    start = 0
+    for index, char in enumerate(code):
+        if char not in "{};":
+            continue
+        segment = code[start:index]
+        if char == "{":
+            stack.append(" ".join(segment.split()))
+        elif stack and ":" in segment:
+            prop, _, value = segment.partition(":")
+            prop = prop.strip()
+            if _MOTION_PROPS.match(prop) and value.strip() not in ("none", "0s"):
+                line = code[: start + len(segment) - len(segment.lstrip())].count("\n") + 1
+                found.append((line, prop, " ".join(value.split()), tuple(stack)))
+        if char == "}" and stack:
+            stack.pop()
+        start = index + 1
+    return found
+
+
+def test_partial_motion_uses_motion_tokens() -> None:
+    """Chrome motion shares one vocabulary (docs/design-tokens.md § Motion):
+    transitions and one-shot animations time with --motion-*, never raw ms.
+    Looping status indicators (pulses, shimmer) keep their own period."""
+    hits: list[str] = []
+    for path in sorted(_PARTIALS_DIR.rglob("*.css")):
+        rel = path.relative_to(ROOT)
+        for line, prop, value, _ in _motion_declarations(path.read_text(encoding="utf-8")):
+            if "infinite" in value:
+                continue
+            if _RAW_DURATION.search(value):
+                hits.append(f"{rel}:{line}: {prop}: {value} (use var(--motion-*))")
+    assert not hits, "raw motion durations in partials:\n" + "\n".join(hits)
+
+
+def test_partial_motion_respects_reduced_motion() -> None:
+    """Animate only inside prefers-reduced-motion: no-preference; a loop
+    declared outside needs a reduce override in the same file."""
+    hits: list[str] = []
+    for path in sorted(_PARTIALS_DIR.rglob("*.css")):
+        rel = path.relative_to(ROOT)
+        text = path.read_text(encoding="utf-8")
+        has_reduce_override = bool(_REDUCE.search(text))
+        for line, prop, value, preludes in _motion_declarations(text):
+            if any(_NO_PREFERENCE.search(p) or _REDUCE.search(p) for p in preludes):
+                continue
+            if "infinite" in value and has_reduce_override:
+                continue
+            hits.append(f"{rel}:{line}: {prop}: {value} (wrap in no-preference)")
+    assert not hits, "motion outside prefers-reduced-motion guards:\n" + "\n".join(hits)
+
+
+def test_motion_declaration_scanner() -> None:
+    css = """
+    .a { transition: color 150ms ease; }
+    @media (prefers-reduced-motion: no-preference) {
+      .b { animation: x var(--motion-panel) var(--motion-ease-out); }
+    }
+    .c { animation: none; }
+    """
+    found = _motion_declarations(css)
+    assert [(prop, value) for _, prop, value, _ in found] == [
+        ("transition", "color 150ms ease"),
+        ("animation", "x var(--motion-panel) var(--motion-ease-out)"),
+    ]
+    assert found[0][3] == (".a",)
+    assert _NO_PREFERENCE.search(found[1][3][0])
+    assert _RAW_DURATION.search("color 150ms ease")
+    assert not _RAW_DURATION.search("color var(--motion-hover) ease")

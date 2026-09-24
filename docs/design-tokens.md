@@ -65,10 +65,26 @@ literals. Never force layout geometry (`width`, `min-height`) onto `--space-*`.
 
 **Elevation** — `--shadow-<role>`, `--z-<role>` (`--z-sheet`, `--z-playhead`).
 
-**Motion** — `--motion-hover` (150ms), `--motion-toggle` (200ms),
-`--motion-panel` (200ms), and `--motion-state` (250ms) with
-`--motion-ease-out`. Pro-tool chrome stays quick; nothing pulses. Animate only inside `prefers-reduced-motion: no-preference`;
-essential state changes remain immediate with reduced motion.
+**Motion** — `--motion-press` (80ms), `--motion-hover` (150ms),
+`--motion-toggle` (200ms), `--motion-panel` (200ms), and `--motion-state`
+(250ms) with `--motion-ease-out`. Pro-tool chrome stays quick; nothing pulses.
+Animate only inside `prefers-reduced-motion: no-preference`; essential state
+changes remain immediate with reduced motion.
+
+| Token | Used for |
+| --- | --- |
+| `--motion-press` | Press-in on every `.ui-control` (a 1px sink and 0.98 scale) and on Play (0.96). Release eases back on `--motion-toggle`. |
+| `--motion-hover` | Hover and color washes; menus dropping 0.25rem from their trigger; comment-card swipe; stale highlights; edit-boundary chips. |
+| `--motion-toggle` | Control and track-row transforms; phone nav tab color; the pipeline progress bar. |
+| `--motion-panel` | Dialog panels rising in and their scrim fading in; bottom sheets; undo toasts rising 0.5rem; focus-pull out. |
+| `--motion-state` | Play's playing glow; track-row and empty-stage shadows; the ruler glow; focus-pull in. |
+
+Menus and toasts animate transform only, so their text never renders
+half-faded (axe and pointer tests measure them as they open). Transitions
+and one-shot animations in partials must use these tokens, and must sit inside
+a `no-preference` block. `tests/test_css_policy.py` enforces both. Looping
+status indicators (pipeline pulse, loading shimmer, REC dot) keep their own
+period and need a `reduce` override.
 
 ## Surface ladder
 

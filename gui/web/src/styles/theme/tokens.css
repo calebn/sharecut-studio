@@ -38,6 +38,9 @@
   --motion-toggle: 200ms;
   --motion-panel: 200ms;
   --motion-state: 250ms;
+  /* Press-in: fast, so a control answers the finger; release eases back on
+     the toggle timing. */
+  --motion-press: 80ms;
   --motion-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
 
   /* Elevation recipes; --color-shadow is themed. */
