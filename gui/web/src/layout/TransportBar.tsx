@@ -29,6 +29,7 @@ import {
   Timecode,
   ToggleButton,
 } from "../ui";
+import { audioErrorLabel } from "../utils/audioErrorLabel";
 import { staleRenderBreakdown } from "../utils/staleRender";
 import { transportTimecode } from "../utils/time";
 import { AvatarStack } from "./AvatarStack";
@@ -322,8 +323,9 @@ export function TransportBar({
         ) : null}
         {!collapsed && !stale ? <Pill tone="ok">Fresh</Pill> : null}
         {audioError && (
-          <Pill tone="warning" title={audioError}>
-            Err
+          <Pill tone="warning" className="audio-error" title={audioError}>
+            <span aria-hidden="true">{audioErrorLabel(audioError)}</span>
+            <span className="sr-only">{audioError}</span>
           </Pill>
         )}
         {!collapsed && sessionRegion ? (
