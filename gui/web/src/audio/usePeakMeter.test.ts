@@ -127,4 +127,25 @@ describe("usePeakMeter", () => {
     second.unmount();
     expect(raf.pendingCount()).toBe(0);
   });
+
+  it("keeps a healthy meter running after another reader throws", () => {
+    const raf = stubRaf();
+    const diagnostic = vi.fn();
+    vi.stubGlobal("reportError", diagnostic);
+    const broken = renderHook(() =>
+      usePeakMeter(() => {
+        throw new Error("reader failed");
+      }),
+    );
+    const goodReader = constant(0.5);
+    const healthy = renderHook(() => usePeakMeter(goodReader));
+    act(() => raf.fire(1000));
+    expect(diagnostic).toHaveBeenCalledOnce();
+    expect(healthy.result.current.levelDb).toBeCloseTo(-6.02, 2);
+    expect(raf.pendingCount()).toBe(1);
+    act(() => raf.fire(1016));
+    expect(raf.pendingCount()).toBe(1);
+    broken.unmount();
+    healthy.unmount();
+  });
 });

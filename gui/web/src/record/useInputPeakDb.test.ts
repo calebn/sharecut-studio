@@ -18,12 +18,18 @@ function stubAudioGraph(
     state?: AudioContextState;
     modulePromise?: Promise<void>;
     throwOnSource?: boolean;
+    throwOnConnect?: boolean;
     global?: "AudioContext" | "webkitAudioContext";
     sampleRate?: number;
   } = {},
 ) {
   const listeners = new Set<() => void>();
   const source = { connect: vi.fn(), disconnect: vi.fn() };
+  if (options.throwOnConnect) {
+    source.connect.mockImplementation(() => {
+      throw new Error("graph connect failed");
+    });
+  }
   const silent = { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() };
   const nodes: Array<{
     port: {
@@ -147,8 +153,14 @@ describe("useInputPeakDb", () => {
     expect(second.result.current.clipped).toBe(true);
     first.unmount();
     expect(graph.ctx.close).not.toHaveBeenCalled();
+    expect(graph.nodes[0].port.postMessage).toHaveBeenCalledWith({
+      type: "stop",
+    });
     expect(raf.pendingCount()).toBe(1);
     second.unmount();
+    expect(graph.nodes[1].port.postMessage).toHaveBeenCalledWith({
+      type: "stop",
+    });
     expect(graph.ctx.close).toHaveBeenCalledTimes(1);
     expect(raf.pendingCount()).toBe(0);
   });
@@ -344,6 +356,19 @@ describe("useInputPeakDb", () => {
     await waitFor(() => expect(graph.ctx.close).toHaveBeenCalledTimes(1));
     expect(result.current.levelDb).toBe(Number.NEGATIVE_INFINITY);
     unmount();
+    expect(graph.ctx.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("retires a constructed processor when graph connection fails", async () => {
+    stubRaf();
+    const graph = stubAudioGraph({ throwOnConnect: true });
+    const meter = renderHook(() => useInputPeakDb(micA));
+    await waitFor(() => expect(graph.ctx.close).toHaveBeenCalledTimes(1));
+    expect(graph.nodes[0].port.postMessage).toHaveBeenCalledWith({
+      type: "stop",
+    });
+    expect(graph.nodes[0].disconnect).toHaveBeenCalled();
+    meter.unmount();
     expect(graph.ctx.close).toHaveBeenCalledTimes(1);
   });
 
