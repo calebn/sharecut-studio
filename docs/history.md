@@ -31,6 +31,10 @@ History publication is ordered: a new snapshot is written completely before
 `history/index.json` is updated. The index is published with an atomic replace,
 so concurrent readers observe either the previous complete index or the new
 complete index, never a truncated JSON file.
+Review mix publication compensates a failed project commit by restoring the
+prior history index and removing snapshots created for that failed publication
+before deleting its generated media. A version already present in the canonical
+project keeps its history and media.
 
 See [episode-format-v2.md](episode-format-v2.md) for the canonical project layout.
 

@@ -15,7 +15,9 @@ from podcast_mcp.edits.review_versions import (
     version_audio_path,
 )
 from podcast_mcp.models import load_project
+from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
 
 log = logging.getLogger(__name__)
 
@@ -45,6 +47,8 @@ class ReviewService:
         prefer: str = "premix",
         set_active: bool = True,
     ) -> dict[str, Any]:
+        history_index_path = self.ws.project.workspace_path() / "history" / "index.json"
+        history_before = load_json_object(history_index_path)
         created_dir: Path | None = None
         created_identity: tuple[int, int] | None = None
         version_id: str | None = None
@@ -75,24 +79,52 @@ class ReviewService:
             )
         except BaseException:
             if version_id is not None and created_dir is not None:
-                self._clean_uncommitted_media(version_id, created_dir, created_identity)
+                self._clean_uncommitted_media(
+                    version_id, created_dir, created_identity, history_index_path, history_before
+                )
             raise
 
     def _clean_uncommitted_media(
-        self, version_id: str, created_dir: Path, identity: tuple[int, int] | None
+        self,
+        version_id: str,
+        created_dir: Path,
+        identity: tuple[int, int] | None,
+        history_index_path: Path,
+        history_before: dict[str, Any] | None,
     ) -> None:
-        """Keep media if the canonical project commit succeeded before a later error."""
+        """Undo only this publication's sidecars if canonical commit did not land."""
         try:
             persisted = load_project(self.ws.path)
             if any(version.id == version_id for version in persisted.review.versions):
                 self.ws.project = persisted
                 return
-            self.ws.project = persisted
+            current_index = load_json_object(history_index_path)
+            expected_index = self.ws.project.history.model_dump(mode="json")
+            if current_index not in (history_before, expected_index):
+                log.warning(
+                    "Review history changed during failed publication; keeping %s", created_dir
+                )
+                return
+            if current_index != history_before:
+                if history_before is None:
+                    history_index_path.unlink()
+                else:
+                    write_json_atomic(history_index_path, history_before)
+                old_ids = (
+                    {entry.id for entry in ProjectHistory.model_validate(history_before).entries}
+                    if history_before is not None
+                    else set()
+                )
+                for entry in ProjectHistory.model_validate(current_index).entries:
+                    if entry.id not in old_ids:
+                        snapshot = history_index_path.parent / "snapshots" / f"{entry.id}.json"
+                        snapshot.unlink(missing_ok=True)
             metadata = created_dir.stat(follow_symlinks=False)
             if identity != (metadata.st_dev, metadata.st_ino):
                 log.warning("Review version directory changed; keeping %s", created_dir)
                 return
             shutil.rmtree(created_dir)
+            self.ws.project = persisted
         except BaseException:
             log.warning("Could not clean uncommitted review version %s", created_dir, exc_info=True)
 
