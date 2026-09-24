@@ -346,22 +346,20 @@ describe("useRecordUpload", () => {
         return;
       },
       async read(path) {
-        return path.endsWith("1.json")
+        return path.endsWith(".json")
           ? new TextEncoder().encode(
               JSON.stringify({
                 sessionId: "room1",
                 takeIndex: 0,
                 participantId: "p_a",
-                segmentIndex: 1,
+                segmentIndex: path.endsWith("1.json") ? 1 : 0,
                 sampleRate: 48_000,
                 joinOffsetMs: 0,
                 samplesWritten: 4,
                 complete: true,
               }),
             )
-          : path.endsWith(".json")
-            ? null
-            : wav;
+          : wav;
       },
       async open() {
         return {
@@ -529,6 +527,12 @@ describe("useRecordUpload", () => {
     expect(put).not.toHaveBeenCalled();
     expect(remove).not.toHaveBeenCalled();
     expect(await sink.read(wavPath)).not.toBeNull();
+    expect(result.current).toMatchObject({
+      fileAck: false,
+      landed: false,
+      recoverable: true,
+      error: expect.stringMatching(/Recover it before uploading/),
+    });
     unmount();
   });
 

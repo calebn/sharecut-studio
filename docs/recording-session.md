@@ -318,7 +318,7 @@ write), never allows a delete and never marks a missing WAV as reclaimed. Unland
 remain available for recovery.
 This local completion check still wins if a host status row unexpectedly says
 `file_ack` and `landed` for a pending segment: that row cannot authorize
-deleting the local WAV.
+deleting the local WAV or hide its recovery action from the stopped panel.
 
 A WAV that is absent but has a complete marker is **reclaimed**, not lost
 (`missingKeeperWavState` in `keeper/store.ts`; recovery treats absent WAVs
