@@ -246,16 +246,6 @@
   text-decoration: line-through;
 }
 
-.playhead {
-  position: absolute;
-  top: 0;
-  width: 0.125rem;
-  background: var(--color-timeline-playhead);
-  box-shadow: 0 0 0.5rem var(--color-timeline-playhead);
-  pointer-events: none;
-  z-index: 10;
-}
-
 .inspector h2 {
   font-size: var(--font-size-heading);
   margin: 0;
