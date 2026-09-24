@@ -44,6 +44,7 @@ export function keeperMetaBytes(
     segmentIndex?: number;
   },
   complete: boolean | undefined = true,
+  fingerprint?: { fileSha256: string; byteLength: number },
 ): Uint8Array {
   const meta = {
     segmentIndex: 0,
@@ -52,6 +53,7 @@ export function keeperMetaBytes(
     joinOffsetMs: 0,
     samplesWritten: 4,
     ...(complete === undefined ? {} : { complete }),
+    ...fingerprint,
   };
   return new TextEncoder().encode(JSON.stringify(meta));
 }

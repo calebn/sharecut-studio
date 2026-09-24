@@ -377,8 +377,8 @@ describe("keeper recovery", () => {
     const read = vi.spyOn(sink, "read");
     const plan = await inspectAndRecover(sink, path);
     expect(plan).toMatchObject({ pcmBytes: 8, trimmedBytes: 0 });
-    // Header-only probe and in-place header patch: the WAV is never read whole.
-    expect(read.mock.calls.map(([p]) => p)).not.toContain(path);
+    // Recovery reads the patched WAV to fingerprint the finalized bytes.
+    expect(read.mock.calls.map(([p]) => p)).toContain(path);
     const wav = await sink.read(path);
     expect(parseWavHeader(wav!.buffer).dataSize).toBe(pcm.length);
     expect(Array.from(wav!.subarray(44))).toEqual(pcm);

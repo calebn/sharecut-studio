@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseWavHeader, wavPcmToFloat32 } from "../../audio/wavHeader";
+import { sha256Hex } from "./fingerprint";
 import { KEEPER_SAMPLE_RATE, toKeeperPcm } from "./pcm";
 import type { KeeperGate } from "./segments";
 import {
@@ -726,6 +727,9 @@ describe("KeeperSession", () => {
     // The late pending write cannot overwrite the complete record.
     const meta = parseKeeperMeta(sink.files.get(keeperMetaPath(wavPath))!);
     expect(meta).toMatchObject({ complete: true, samplesWritten: 480 });
+    const finalizedWav = await sink.read(wavPath);
+    expect(meta?.byteLength).toBe(finalizedWav?.byteLength);
+    expect(meta?.fileSha256).toBe(await sha256Hex(finalizedWav!));
   });
 
   it("latches a failed pending metadata write without finalizing", async () => {

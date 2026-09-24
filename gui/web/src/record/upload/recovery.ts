@@ -6,6 +6,7 @@ import {
 } from "../../audio/wavHeader";
 import { errorMessage } from "../../utils/apiError";
 import { plural } from "../../utils/format";
+import { sha256Hex } from "../keeper/fingerprint";
 import {
   isKeeperPcmFormat,
   KEEPER_CHANNELS,
@@ -185,10 +186,16 @@ export async function recoverKeeperSegment(
     recovered.set(header, 0);
     await sink.write(wavPath, recovered);
   }
+  const finalized = await sink.read(wavPath);
+  if (!finalized || finalized.byteLength !== byteLength) {
+    throw new Error("The retained local keeper changed during recovery.");
+  }
   await writeKeeperMeta(sink, wavPath, {
     ...plan.meta,
     samplesWritten: plan.pcmBytes / KEEPER_FRAME_BYTES,
     complete: true,
+    fileSha256: await sha256Hex(finalized),
+    byteLength,
   });
 }
 

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { keeperMetaBytes } from "../../test/keepers";
+import { sha256Hex } from "./fingerprint";
 import {
   canReclaimKeeperSegment,
   createKeeperReclaimTracker,
@@ -13,12 +14,24 @@ import { keeperMetaPath, MemorySink } from "./store";
 
 const WAV = "Sharecut Recordings/room1/0/p_a/0.wav";
 const landed = { file_ack: true, landed: true };
+let remote: typeof landed & { file_sha256?: string; byte_length?: number } =
+  landed;
 
 const IDS = { sessionId: "room1", takeIndex: 0, participantId: "p_a" };
 
 async function seed(sink: MemorySink, meta: Uint8Array | null = null) {
-  await sink.write(WAV, new Uint8Array([1, 2, 3]));
-  await sink.write(keeperMetaPath(WAV), meta ?? keeperMetaBytes(IDS));
+  const wav = new Uint8Array([1, 2, 3]);
+  await sink.write(WAV, wav);
+  const hash = await sha256Hex(wav);
+  remote = { ...landed, file_sha256: hash, byte_length: wav.byteLength };
+  await sink.write(
+    keeperMetaPath(WAV),
+    meta ??
+      keeperMetaBytes(IDS, true, {
+        fileSha256: hash,
+        byteLength: wav.byteLength,
+      }),
+  );
 }
 
 describe("canReclaimKeeperSegment", () => {
@@ -41,15 +54,47 @@ describe("canReclaimKeeperSegment", () => {
 });
 
 describe("reclaimKeeperWav", () => {
+  it.each([
+    ["host SHA differs", { file_sha256: "0".repeat(64) }],
+    ["host length differs", { byte_length: 4 }],
+    ["host fingerprint is absent", { file_sha256: undefined }],
+  ])("retains the WAV when %s", async (_name, change) => {
+    const sink = new MemorySink();
+    await seed(sink);
+    expect(
+      await reclaimKeeperWav(sink, WAV, createKeeperReclaimTracker(), {
+        ...remote,
+        ...change,
+      }),
+    ).toBe("mismatch");
+    expect(await sink.read(WAV)).not.toBeNull();
+  });
+
+  it("retains a changed WAV and legacy metadata", async () => {
+    const sink = new MemorySink();
+    await seed(sink);
+    await sink.write(WAV, new Uint8Array([1, 2, 4]));
+    expect(
+      await reclaimKeeperWav(sink, WAV, createKeeperReclaimTracker(), remote),
+    ).toBe("mismatch");
+    await sink.write(keeperMetaPath(WAV), keeperMetaBytes(IDS, undefined));
+    expect(
+      await reclaimKeeperWav(sink, WAV, createKeeperReclaimTracker(), remote),
+    ).toBe("mismatch");
+    expect(await sink.read(WAV)).not.toBeNull();
+  });
+
   it("removes a completed WAV once and keeps its metadata marker", async () => {
     const sink = new MemorySink();
     await seed(sink);
     const tracker = createKeeperReclaimTracker();
-    expect(await reclaimKeeperWav(sink, WAV, tracker)).toBe("reclaimed");
+    expect(await reclaimKeeperWav(sink, WAV, tracker, remote)).toBe(
+      "reclaimed",
+    );
     expect(await sink.read(WAV)).toBeNull();
     expect(await sink.read(keeperMetaPath(WAV))).not.toBeNull();
     const remove = vi.spyOn(sink, "remove");
-    expect(await reclaimKeeperWav(sink, WAV, tracker)).toBe("skipped");
+    expect(await reclaimKeeperWav(sink, WAV, tracker, remote)).toBe("skipped");
     expect(remove).not.toHaveBeenCalled();
   });
 
@@ -62,7 +107,7 @@ describe("reclaimKeeperWav", () => {
     await sink.write(WAV, new Uint8Array([1, 2, 3]));
     if (meta) await sink.write(keeperMetaPath(WAV), meta);
     const tracker = createKeeperReclaimTracker();
-    expect(await reclaimKeeperWav(sink, WAV, tracker)).toBe("skipped");
+    expect(await reclaimKeeperWav(sink, WAV, tracker, remote)).toBe("skipped");
     expect(await sink.read(WAV)).not.toBeNull();
   });
 
@@ -76,13 +121,15 @@ describe("reclaimKeeperWav", () => {
         new DOMException("locked", "NoModificationAllowedError"),
       );
     for (let i = 1; i < KEEPER_RECLAIM_MAX_FAILURES; i += 1) {
-      expect(await reclaimKeeperWav(sink, WAV, tracker)).toBe("failed");
+      expect(await reclaimKeeperWav(sink, WAV, tracker, remote)).toBe("failed");
       expect(keeperReclaimStuck(tracker)).toBe(false);
     }
-    expect(await reclaimKeeperWav(sink, WAV, tracker)).toBe("failed");
+    expect(await reclaimKeeperWav(sink, WAV, tracker, remote)).toBe("failed");
     expect(keeperReclaimStuck(tracker)).toBe(true);
     remove.mockRestore();
-    expect(await reclaimKeeperWav(sink, WAV, tracker)).toBe("reclaimed");
+    expect(await reclaimKeeperWav(sink, WAV, tracker, remote)).toBe(
+      "reclaimed",
+    );
     expect(keeperReclaimStuck(tracker)).toBe(false);
   });
 
@@ -92,12 +139,14 @@ describe("reclaimKeeperWav", () => {
     const tracker = createKeeperReclaimTracker();
     const release = await holdKeeperReclaim(sink);
     expect(keeperReclaimHeld(sink)).toBe(true);
-    expect(await reclaimKeeperWav(sink, WAV, tracker)).toBe("held");
+    expect(await reclaimKeeperWav(sink, WAV, tracker, remote)).toBe("held");
     expect(await sink.read(WAV)).not.toBeNull();
     release();
     release();
     expect(keeperReclaimHeld(sink)).toBe(false);
-    expect(await reclaimKeeperWav(sink, WAV, tracker)).toBe("reclaimed");
+    expect(await reclaimKeeperWav(sink, WAV, tracker, remote)).toBe(
+      "reclaimed",
+    );
   });
 
   it("blocks a delete when the hold lands during the metadata read", async () => {
@@ -110,7 +159,7 @@ describe("reclaimKeeperWav", () => {
       release = await holdKeeperReclaim(sink);
       return read(path);
     });
-    expect(await reclaimKeeperWav(sink, WAV, tracker)).toBe("held");
+    expect(await reclaimKeeperWav(sink, WAV, tracker, remote)).toBe("held");
     release?.();
   });
 
@@ -126,7 +175,7 @@ describe("reclaimKeeperWav", () => {
           finish = () => void remove(path).then(resolve);
         }),
     );
-    const reclaiming = reclaimKeeperWav(sink, WAV, tracker);
+    const reclaiming = reclaimKeeperWav(sink, WAV, tracker, remote);
     await vi.waitFor(() => expect(finish).toBeDefined());
     let held = false;
     const holding = holdKeeperReclaim(sink).then((release) => {

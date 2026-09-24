@@ -10,6 +10,9 @@ export type KeeperMeta = {
   samplesWritten: number;
   /** True only after the WAV writable has closed successfully. */
   complete: boolean;
+  /** Fingerprint of the closed WAV, present on newly finalized segments. */
+  fileSha256?: string;
+  byteLength?: number;
 };
 
 /**
@@ -168,7 +171,11 @@ export function parseKeeperMeta(
     typeof raw.joinOffsetMs !== "number" ||
     !Number.isFinite(raw.joinOffsetMs) ||
     raw.joinOffsetMs < 0 ||
-    (raw.complete !== undefined && typeof raw.complete !== "boolean")
+    (raw.complete !== undefined && typeof raw.complete !== "boolean") ||
+    (raw.fileSha256 !== undefined &&
+      (typeof raw.fileSha256 !== "string" ||
+        !/^[0-9a-f]{64}$/.test(raw.fileSha256))) ||
+    (raw.byteLength !== undefined && !isIndex(raw.byteLength))
   ) {
     return null;
   }
@@ -181,6 +188,12 @@ export function parseKeeperMeta(
     joinOffsetMs: raw.joinOffsetMs,
     samplesWritten: raw.samplesWritten,
     ...(raw.complete === undefined ? {} : { complete: raw.complete }),
+    ...(raw.fileSha256 === undefined
+      ? {}
+      : { fileSha256: raw.fileSha256 as string }),
+    ...(raw.byteLength === undefined
+      ? {}
+      : { byteLength: raw.byteLength as number }),
   };
 }
 

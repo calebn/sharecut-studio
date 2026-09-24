@@ -1,4 +1,5 @@
 import { pcmWavHeader } from "../../audio/wavHeader";
+import { sha256Hex } from "./fingerprint";
 import { KEEPER_SAMPLE_RATE, toKeeperPcm } from "./pcm";
 import {
   emptyKeeperCursor,
@@ -361,7 +362,20 @@ export class KeeperSession {
       return;
     }
     try {
-      await this.writeMeta(wavPath, open, samplesWritten, true);
+      const wav = await this.bounded(this.sink.read(wavPath), "final WAV read");
+      if (
+        !wav ||
+        wav.byteLength !== WAV_HEADER_BYTES + samplesWritten * BYTES_PER_SAMPLE
+      ) {
+        throw new Error(
+          "The finalized keeper WAV changed before metadata was written.",
+        );
+      }
+      const fileSha256 = await this.bounded(sha256Hex(wav), "final WAV hash");
+      await this.writeMeta(wavPath, open, samplesWritten, true, {
+        fileSha256,
+        byteLength: wav.byteLength,
+      });
     } catch (error) {
       // The WAV is already closed and complete, so metadata that lands after
       // the deadline still forms a consistent pair that upload may pick up.
@@ -379,6 +393,7 @@ export class KeeperSession {
     open: OpenSegment,
     samplesWritten: number,
     complete: boolean,
+    fingerprint?: Pick<KeeperMeta, "fileSha256" | "byteLength">,
   ): Promise<void> {
     const meta: KeeperMeta = {
       sessionId: this.sessionId,
@@ -389,6 +404,7 @@ export class KeeperSession {
       joinOffsetMs: open.joinOffsetMs,
       samplesWritten,
       complete,
+      ...fingerprint,
     };
     await this.bounded(
       writeKeeperMeta(this.sink, wavPath, meta),

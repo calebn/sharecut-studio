@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { pcmWavHeader } from "../../audio/wavHeader";
 import { keeperMetaBytes, seedPendingKeeper } from "../../test/keepers";
+import { sha256Hex } from "../keeper/fingerprint";
 import {
   holdKeeperReclaim,
   KEEPER_RECLAIM_MAX_FAILURES,
@@ -41,6 +42,13 @@ function wavWithPcm(bytes: number): Uint8Array {
   wav.set(pcmWavHeader(bytes));
   wav.fill(7, 44);
   return wav;
+}
+
+const LANDED_WAV_LENGTH = 52;
+let landedHash = "";
+async function fingerprintForTestWav() {
+  landedHash = await sha256Hex(wavWithPcm(8));
+  return { fileSha256: landedHash, byteLength: LANDED_WAV_LENGTH };
 }
 
 function sinkForTakes(): ByteSink {
@@ -456,11 +464,15 @@ describe("useRecordUpload", () => {
     await sink.write(wavPath, wavWithPcm(8));
     await sink.write(
       keeperMetaPath(wavPath),
-      keeperMetaBytes({
-        sessionId: "room1",
-        takeIndex: 0,
-        participantId: "p_a",
-      }),
+      keeperMetaBytes(
+        {
+          sessionId: "room1",
+          takeIndex: 0,
+          participantId: "p_a",
+        },
+        true,
+        await fingerprintForTestWav(),
+      ),
     );
     const transport = memoryUploadTransport();
     const { result, unmount } = renderHook(() =>
@@ -479,6 +491,61 @@ describe("useRecordUpload", () => {
     await waitFor(async () => expect(await sink.read(wavPath)).toBeNull());
     expect(await sink.read(wavPath.replace(/\.wav$/, ".json"))).not.toBeNull();
     expect(await sink.nextSegmentIndex("room1", 0, "p_a")).toBe(1);
+    unmount();
+  });
+
+  it("retains a landed WAV and surfaces a mismatch when metadata is legacy", async () => {
+    const sink = new MemorySink();
+    const wavPath = keeperWavPath({
+      sessionId: "room1",
+      takeIndex: 0,
+      participantId: "p_a",
+      segmentIndex: 0,
+    });
+    await sink.write(wavPath, wavWithPcm(8));
+    await sink.write(
+      keeperMetaPath(wavPath),
+      keeperMetaBytes(
+        { sessionId: "room1", takeIndex: 0, participantId: "p_a" },
+        undefined,
+      ),
+    );
+    const transport: RecordUploadTransport = {
+      async status() {
+        return {
+          segments: [
+            {
+              take_index: 0,
+              segment_index: 0,
+              participant_id: "p_a",
+              acked_parts: [0],
+              file_ack: true,
+              landed: true,
+              file_sha256: await sha256Hex(wavWithPcm(8)),
+              byte_length: 52,
+            },
+          ],
+        };
+      },
+      async put() {
+        throw new Error("already landed");
+      },
+    };
+    const { result, unmount } = renderHook(() =>
+      useRecordUpload({
+        enabled: true,
+        roomState: "stopped",
+        captureSettled: true,
+        sessionId: "room1",
+        takeIndex: 0,
+        participantId: "p_a",
+        transport,
+        sink,
+      }),
+    );
+    await waitFor(() => expect(result.current.reclaimMismatch).toBe(true));
+    expect(result.current.landed).toBe(true);
+    expect(await sink.read(wavPath)).not.toBeNull();
     unmount();
   });
 
@@ -547,11 +614,15 @@ describe("useRecordUpload", () => {
     await sink.write(wavPath, wavWithPcm(8));
     await sink.write(
       keeperMetaPath(wavPath),
-      keeperMetaBytes({
-        sessionId: "room1",
-        takeIndex: 0,
-        participantId: "p_a",
-      }),
+      keeperMetaBytes(
+        {
+          sessionId: "room1",
+          takeIndex: 0,
+          participantId: "p_a",
+        },
+        true,
+        await fingerprintForTestWav(),
+      ),
     );
     const transport = memoryUploadTransport();
     const originalStatus = transport.status.bind(transport);
@@ -601,12 +672,16 @@ describe("useRecordUpload", () => {
       if (segment === 0) {
         await sink.write(
           keeperMetaPath(wavPath),
-          keeperMetaBytes({
-            sessionId: "room1",
-            takeIndex: take,
-            participantId: "p_a",
-            segmentIndex: segment,
-          }),
+          keeperMetaBytes(
+            {
+              sessionId: "room1",
+              takeIndex: take,
+              participantId: "p_a",
+              segmentIndex: segment,
+            },
+            true,
+            await fingerprintForTestWav(),
+          ),
         );
       }
     }
@@ -625,6 +700,8 @@ describe("useRecordUpload", () => {
             acked_parts: [0],
             file_ack: true,
             landed: true,
+            file_sha256: landedHash,
+            byte_length: LANDED_WAV_LENGTH,
           })),
         };
       },
@@ -677,11 +754,15 @@ describe("useRecordUpload", () => {
     await sink.write(wavPath, wavWithPcm(8));
     await sink.write(
       keeperMetaPath(wavPath),
-      keeperMetaBytes({
-        sessionId: "room1",
-        takeIndex: 0,
-        participantId: "p_a",
-      }),
+      keeperMetaBytes(
+        {
+          sessionId: "room1",
+          takeIndex: 0,
+          participantId: "p_a",
+        },
+        true,
+        await fingerprintForTestWav(),
+      ),
     );
     return wavPath;
   }
@@ -700,6 +781,8 @@ describe("useRecordUpload", () => {
                   acked_parts: [0],
                   file_ack: true,
                   landed: true,
+                  file_sha256: landedHash,
+                  byte_length: LANDED_WAV_LENGTH,
                 },
               ],
         };
