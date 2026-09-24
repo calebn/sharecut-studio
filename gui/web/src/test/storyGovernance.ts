@@ -413,7 +413,14 @@ export function storyTitleViolation(text: string): string | null {
       ) {
         return mutatesMetadata(value.right);
       }
-      if (shadowsMetadata(value)) return false;
+      if (shadowsMetadata(value)) {
+        // A computed method key runs before its parameter names shadow meta.
+        return (
+          value.type === "ObjectMethod" &&
+          value.computed === true &&
+          mutatesMetadata(value.key)
+        );
+      }
       if (
         (value.type === "VariableDeclarator" && namesMetadata(value.init)) ||
         (value.type === "AssignmentExpression" &&

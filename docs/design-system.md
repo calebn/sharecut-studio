@@ -138,6 +138,8 @@ both themes, in story mode and on its docs page, before merging.
   mutate or alias it after declaration. Local bindings named `meta` inside
   functions, catch clauses, and `for…in`/`for…of` loops are separate values;
   writes to the exported object before or after those scopes still fail.
+  Computed object-method keys run before method parameters are bound, so
+  direct metadata writes in those keys also fail.
 - Fixtures are static placeholders. The built Storybook is published, so never
   copy real project, share, or guest data (tokens, names) into a story.
 - App code never imports `*.stories.tsx` or globs them (`import.meta.glob`),
