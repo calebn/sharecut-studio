@@ -186,6 +186,30 @@ def _consent_room(ws, room):
     return svc, pid
 
 
+def _race_on_commit(monkeypatch, *, when, race):
+    """Run *race* once, right before the first ``ProjectStore.commit`` whose
+    project satisfies *when*.
+
+    ``run_mutation`` commits exactly once, after ``mutate`` runs, so by the
+    time this fires the project already reflects that mutation's in-memory
+    changes but the commit has not yet reached disk -- the window where a
+    concurrent re-ACK or revoke can change the upload row landing already
+    checked (#366).
+    """
+    from podcast_mcp.project_store import ProjectStore
+
+    original_commit = ProjectStore.commit
+    fired = {"done": False}
+
+    def patched(self, project):
+        if not fired["done"] and when(project):
+            fired["done"] = True
+            race()
+        return original_commit(self, project)
+
+    monkeypatch.setattr(ProjectStore, "commit", patched)
+
+
 def test_pad_math_late_join_and_later_segments() -> None:
     assert pad_samples(10_000) == 480_000
     assert abs(pad_samples(10_000) - 10_000 * KEEPER_SAMPLE_RATE / 1000) <= 1
@@ -1150,6 +1174,7 @@ def test_landed_status_waits_for_project_commit(minimal_project, sample_wav, mon
 def test_room_tone_reack_during_landed_mark_keeps_replacement_pending(
     minimal_project, sample_wav, monkeypatch
 ):
+    from podcast_mcp.edits.track_ids import slug_track_id
     from podcast_mcp.services.record.upload import ROOM_TONE_TAKE_INDEX
 
     _isolate()
@@ -1191,6 +1216,8 @@ def test_room_tone_reack_during_landed_mark_keeps_replacement_pending(
     assert row["file_sha256"] == replacement_hash
     assert row["landed"] is False
     assert row["land_failed"] is False
+    track = ws.project.track_by_id(slug_track_id(guest))
+    assert track is None or track.room_tone is None
 
 
 def test_land_notifies_document_plane(minimal_project, sample_wav, tmp_workspace, monkeypatch):
@@ -2401,3 +2428,314 @@ def test_later_session_room_tone_does_not_rewrite_landed_bed(
         / f"{HOST_PARTICIPANT_ID}.wav"
     )
     assert sha256_file(bed_a) == hash_a
+
+
+def test_segment_reack_during_project_commit_rolls_back_stale_clip(
+    minimal_project, sample_wav, monkeypatch
+):
+    from podcast_mcp.edits.track_ids import slug_track_id
+    from podcast_mcp.services.record.landing import record_source_id
+
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=1_000)
+    uploader = RecordUploadService(ws.project)
+    _ack(uploader, session_id=room["session_id"], take=0, pid=guest, segment=0, join_offset_ms=0)
+
+    replacement_hash = "f" * 64
+    source_id = record_source_id(room["session_id"], 0, guest, 0)
+    track_id = slug_track_id(guest)
+
+    def race():
+        uploader._store.mark_file(
+            session_id=room["session_id"],
+            take_index=0,
+            participant_id=guest,
+            segment_index=0,
+            file_sha256=replacement_hash,
+            byte_length=480,
+        )
+
+    _race_on_commit(
+        monkeypatch,
+        when=lambda project: any(src.id == source_id for src in project.sources),
+        race=race,
+    )
+
+    result = RecordLandingService(ws).land(align=lambda _p: None)
+    assert result["clips"] == []
+
+    assert not any(src.id == source_id for src in ws.project.sources)
+    assert not any(clip.source_id == source_id for clip in ws.project.clips)
+    assert ws.project.track_by_id(track_id) is None
+
+    on_disk = load_project(minimal_project)
+    assert not any(src.id == source_id for src in on_disk.sources)
+    assert not any(clip.source_id == source_id for clip in on_disk.clips)
+    assert on_disk.track_by_id(track_id) is None
+
+    row = uploader.status(session_id=room["session_id"])["segments"][0]
+    assert row["file_sha256"] == replacement_hash
+    assert row["landed"] is False
+    assert row["land_failed"] is False
+
+    staged = uploader.acked_wav(room["session_id"], 0, guest, 0)
+    assert staged.is_file()
+
+
+def test_segment_reack_during_commit_keeps_sibling_segment(
+    minimal_project, sample_wav, monkeypatch
+):
+    from podcast_mcp.edits.track_ids import slug_track_id
+    from podcast_mcp.services.record.landing import record_source_id
+
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=2_000)
+    uploader = RecordUploadService(ws.project)
+    _ack(uploader, session_id=room["session_id"], take=0, pid=guest, segment=0, join_offset_ms=0)
+    _ack(
+        uploader,
+        session_id=room["session_id"],
+        take=0,
+        pid=guest,
+        segment=1,
+        join_offset_ms=500,
+    )
+
+    replacement_hash = "f" * 64
+    stale_source_id = record_source_id(room["session_id"], 0, guest, 0)
+    kept_source_id = record_source_id(room["session_id"], 0, guest, 1)
+    track_id = slug_track_id(guest)
+
+    def race():
+        uploader._store.mark_file(
+            session_id=room["session_id"],
+            take_index=0,
+            participant_id=guest,
+            segment_index=0,
+            file_sha256=replacement_hash,
+            byte_length=480,
+        )
+
+    _race_on_commit(
+        monkeypatch,
+        when=lambda project: any(src.id == kept_source_id for src in project.sources),
+        race=race,
+    )
+
+    result = RecordLandingService(ws).land(align=lambda _p: None)
+    assert len(result["clips"]) == 1
+    assert result["clips"][0]["source_id"] == kept_source_id
+
+    assert not any(src.id == stale_source_id for src in ws.project.sources)
+    assert not any(clip.source_id == stale_source_id for clip in ws.project.clips)
+    track = ws.project.track_by_id(track_id)
+    assert track is not None
+    assert track.media is not None
+    kept_rel = next(s.path for s in ws.project.sources if s.id == kept_source_id)
+    assert track.media.path == kept_rel
+
+    kept_row = uploader.status(session_id=room["session_id"])["segments"][1]
+    assert kept_row["landed"] is True
+    stale_row = uploader.status(session_id=room["session_id"])["segments"][0]
+    assert stale_row["landed"] is False
+
+
+@pytest.mark.parametrize("mode", ["reack", "revoke"])
+def test_room_tone_race_during_project_commit_rolls_back_stale_bed(
+    minimal_project, sample_wav, monkeypatch, mode
+):
+    from podcast_mcp.edits.timeline_ops import room_tone_source_id
+    from podcast_mcp.edits.track_ids import slug_track_id
+    from podcast_mcp.services.record.upload import ROOM_TONE_TAKE_INDEX
+
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    _svc, guest = _consent_room(ws, room)
+    uploader = RecordUploadService(ws.project)
+    pcm, digest, file_hash = _pcm(480)
+    uploader.ingest_part(
+        session_id=room["session_id"],
+        take_index=0,
+        participant_id=guest,
+        segment_index=0,
+        part_seq=0,
+        data=pcm,
+        digest=digest,
+        file_sha256=file_hash,
+        final=True,
+        kind="room_tone",
+    )
+    track_id = slug_track_id(guest)
+    source_id = room_tone_source_id(track_id)
+    replacement_hash = "f" * 64
+
+    def race():
+        if mode == "reack":
+            uploader._store.mark_file(
+                session_id=room["session_id"],
+                take_index=ROOM_TONE_TAKE_INDEX,
+                participant_id=guest,
+                segment_index=0,
+                file_sha256=replacement_hash,
+                byte_length=480,
+            )
+        else:
+            uploader.revoke_room_tone(room["session_id"], guest)
+
+    _race_on_commit(
+        monkeypatch,
+        when=lambda project: any(src.id == source_id for src in project.sources),
+        race=race,
+    )
+
+    result = RecordLandingService(ws).land(align=lambda _p: None)
+    assert result["clips"] == []
+
+    assert not any(src.id == source_id for src in ws.project.sources)
+    track = ws.project.track_by_id(track_id)
+    assert track is None or track.room_tone is None
+
+    beds = uploader.room_tone_status(session_id=room["session_id"])
+    if mode == "reack":
+        assert beds and beds[0]["file_sha256"] == replacement_hash
+        assert beds[0]["landed"] is False
+    else:
+        assert beds == []
+
+
+def test_room_tone_rerecord_stale_during_commit_clears_overwritten_bed(
+    minimal_project, sample_wav, monkeypatch
+):
+    from podcast_mcp.edits.timeline_ops import room_tone_source_id
+    from podcast_mcp.edits.track_ids import slug_track_id
+    from podcast_mcp.services.record.upload import ROOM_TONE_TAKE_INDEX
+
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    _svc, guest = _consent_room(ws, room)
+    uploader = RecordUploadService(ws.project)
+    track_id = slug_track_id(guest)
+    source_id = room_tone_source_id(track_id)
+
+    pcm_a, digest_a, hash_a = _pcm(480)
+    uploader.ingest_part(
+        session_id=room["session_id"],
+        take_index=0,
+        participant_id=guest,
+        segment_index=0,
+        part_seq=0,
+        data=pcm_a,
+        digest=digest_a,
+        file_sha256=hash_a,
+        final=True,
+        kind="room_tone",
+    )
+    landed_a = RecordLandingService(ws).land(align=lambda _p: None)
+    assert landed_a["clips"] == []
+    track = ws.project.track_by_id(track_id)
+    assert track is not None and track.room_tone is not None
+    assert track.room_tone.path == f"raw/room-tone/{guest}.wav"
+
+    pcm_b, digest_b, hash_b = _pcm(96)
+    uploader.ingest_part(
+        session_id=room["session_id"],
+        take_index=0,
+        participant_id=guest,
+        segment_index=0,
+        part_seq=0,
+        data=pcm_b,
+        digest=digest_b,
+        file_sha256=hash_b,
+        final=True,
+        kind="room_tone",
+    )
+
+    _pcm_c, _digest_c, hash_c = _pcm(160)
+
+    def race():
+        uploader._store.mark_file(
+            session_id=room["session_id"],
+            take_index=ROOM_TONE_TAKE_INDEX,
+            participant_id=guest,
+            segment_index=0,
+            file_sha256=hash_c,
+            byte_length=160,
+        )
+
+    _race_on_commit(
+        monkeypatch,
+        when=lambda project: any(
+            s.id == source_id and s.path == f"raw/room-tone/{guest}.wav" for s in project.sources
+        ),
+        race=race,
+    )
+
+    result = RecordLandingService(ws).land(align=lambda _p: None)
+    assert result["clips"] == []
+
+    track = ws.project.track_by_id(track_id)
+    assert track is not None
+    assert track.room_tone is None
+    assert not any(src.id == source_id for src in ws.project.sources)
+
+    beds = uploader.room_tone_status(session_id=room["session_id"])
+    assert beds and beds[0]["file_sha256"] == hash_c
+    assert beds[0]["landed"] is False
+
+
+def test_ack_replaced_before_registration_skips_project_media(
+    minimal_project, sample_wav, monkeypatch
+):
+    import podcast_mcp.services.record.landing as landing_module
+    from podcast_mcp.services.record.landing import record_source_id
+
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=1_000)
+    uploader = RecordUploadService(ws.project)
+    _ack(uploader, session_id=room["session_id"], take=0, pid=guest, segment=0, join_offset_ms=0)
+
+    replacement_hash = "f" * 64
+    original_copy = landing_module._copy_into_raw
+
+    def race_after_copy(*args, **kwargs):
+        dest, rel = original_copy(*args, **kwargs)
+        uploader._store.mark_file(
+            session_id=room["session_id"],
+            take_index=0,
+            participant_id=guest,
+            segment_index=0,
+            file_sha256=replacement_hash,
+            byte_length=480,
+        )
+        return dest, rel
+
+    monkeypatch.setattr(landing_module, "_copy_into_raw", race_after_copy)
+
+    def fail_rollback(self, stale):
+        pytest.fail(f"unexpected stale rollback for {stale}")
+
+    monkeypatch.setattr(RecordLandingService, "_rollback_stale", fail_rollback)
+
+    source_id = record_source_id(room["session_id"], 0, guest, 0)
+    result = RecordLandingService(ws).land(align=lambda _p: None)
+    assert result["clips"] == []
+    assert not any(src.id == source_id for src in ws.project.sources)
+    assert not any(clip.source_id == source_id for clip in ws.project.clips)
+
+    row = uploader.status(session_id=room["session_id"])["segments"][0]
+    assert row["file_sha256"] == replacement_hash
+    assert row["landed"] is False

@@ -1000,6 +1000,99 @@ def test_room_tone_replace_supersedes_acked_bed(minimal_project, sample_wav):
     assert wav.read_bytes()[44:] == second
 
 
+def test_acked_file_sha256_tracks_ack_generation(minimal_project, sample_wav):
+    from podcast_mcp.services.record.upload import ROOM_TONE_TAKE_INDEX
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    svc = RecordUploadService(ws.project)
+
+    assert (
+        svc.acked_file_sha256(
+            session_id="room1",
+            take_index=ROOM_TONE_TAKE_INDEX,
+            participant_id="p_aa",
+            segment_index=0,
+        )
+        is None
+    )
+
+    first, digest, wav_hash = _pcm_part(48)
+    svc.ingest_part(
+        session_id="room1",
+        take_index=0,
+        participant_id="p_aa",
+        segment_index=0,
+        part_seq=0,
+        data=first,
+        digest=digest,
+        file_sha256=wav_hash,
+        final=True,
+        kind="room_tone",
+    )
+    assert (
+        svc.acked_file_sha256(
+            session_id="room1",
+            take_index=ROOM_TONE_TAKE_INDEX,
+            participant_id="p_aa",
+            segment_index=0,
+        )
+        == wav_hash
+    )
+
+    second, digest2, wav_hash2 = _pcm_part(96)
+    svc.ingest_part(
+        session_id="room1",
+        take_index=0,
+        participant_id="p_aa",
+        segment_index=0,
+        part_seq=0,
+        data=second,
+        digest=digest2,
+        file_sha256=wav_hash2,
+        final=True,
+        kind="room_tone",
+    )
+    assert (
+        svc.acked_file_sha256(
+            session_id="room1",
+            take_index=ROOM_TONE_TAKE_INDEX,
+            participant_id="p_aa",
+            segment_index=0,
+        )
+        == wav_hash2
+    )
+
+    svc.revoke_room_tone("room1", "p_aa")
+    assert (
+        svc.acked_file_sha256(
+            session_id="room1",
+            take_index=ROOM_TONE_TAKE_INDEX,
+            participant_id="p_aa",
+            segment_index=0,
+        )
+        is None
+    )
+
+    keeper, kdigest, keeper_hash = _pcm_part(64)
+    svc.ingest_part(
+        session_id="room1",
+        take_index=0,
+        participant_id="p_bb",
+        segment_index=0,
+        part_seq=0,
+        data=keeper,
+        digest=kdigest,
+        file_sha256=keeper_hash,
+        final=True,
+    )
+    assert (
+        svc.acked_file_sha256(
+            session_id="room1", take_index=0, participant_id="p_bb", segment_index=0
+        )
+        == keeper_hash
+    )
+
+
 def test_guest_keeper_upload_requires_take_consent(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):

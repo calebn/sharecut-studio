@@ -281,6 +281,8 @@ discard staged parts. Landing also compares
 sample-count vs recording-clock duration (`drift_ms`; unknown is `null`).
 `|drift| > 50 ms` or a missing `session_start` sets `align_fallback` as a
 post-transcribe `align_tracks` hint. Live comments and Markers land as ordinary timeline comments.
+A keeper or room-tone bed that gets re-uploaded or revoked while landing is registering it is
+never reported landed; its earlier project registration is rolled back instead.
 
 ---
 

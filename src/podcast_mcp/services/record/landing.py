@@ -30,6 +30,11 @@ from podcast_mcp.services.record.landing_math import (
     session_start_present,
     take_offsets_s,
 )
+from podcast_mcp.services.record.landing_rollback import (
+    PriorRegistration,
+    capture_prior,
+    revert_registration,
+)
 from podcast_mcp.services.record.live_comments import (
     LIVE_COMMENT_ID_PREFIX,
     live_comment_store_for,
@@ -495,13 +500,16 @@ class RecordLandingService:
                 if not self._copied_raw_matches(project, item):
                     self._mark_copied_failed(item)
                     continue
+                if not self._ack_generation_current(item):
+                    _log_superseded(self.session_id, item)
+                    continue
                 track_id = slug_track_id(str(item["participant_id"]))
                 source_id = str(item["source_id"])
                 rel = str(item["rel"])
-                previous_source = next(
-                    (src for src in project.sources if src.id == source_id), None
+                prior = capture_prior(
+                    project, track_id=track_id, source_id=source_id, rel=rel, room_tone=False
                 )
-                previous_rel = previous_source.path if previous_source is not None else None
+                previous_rel = prior.source.path if prior.source is not None else None
                 _ensure_track(project, track_id, label=str(item["label"]))
                 _upsert_source(
                     project,
@@ -529,7 +537,7 @@ class RecordLandingService:
                             channels=int(item["channels"]),
                         )
                     touched.add(track_id)
-                accepted.append(item)
+                accepted.append({**item, "prior": prior})
                 landed_clips.append(
                     {
                         "clip_id": clip.id,
@@ -547,10 +555,20 @@ class RecordLandingService:
                 if not self._copied_raw_matches(project, item):
                     self._mark_copied_failed(item)
                     continue
+                if not self._ack_generation_current(item):
+                    _log_superseded(self.session_id, item)
+                    continue
                 pid = str(item["participant_id"])
                 track_id = slug_track_id(pid)
-                track = _ensure_track(project, track_id, label=str(item["label"]))
                 rel = str(item["rel"])
+                prior = capture_prior(
+                    project,
+                    track_id=track_id,
+                    source_id=room_tone_source_id(track_id),
+                    rel=rel,
+                    room_tone=True,
+                )
+                track = _ensure_track(project, track_id, label=str(item["label"]))
                 track.room_tone = MediaAsset(
                     path=rel,
                     duration_sec=float(item["duration_s"]),
@@ -567,7 +585,7 @@ class RecordLandingService:
                     channels=int(item["channels"]),
                 )
                 touched.add(track_id)
-                accepted.append(item)
+                accepted.append({**item, "prior": prior})
             if landed_clips:
                 refresh_timeline_duration(project)
                 if touched:
@@ -592,16 +610,22 @@ class RecordLandingService:
                 for item in copied + room_tone_copied:
                     self._mark_copied_failed(item)
                 raise
-            confirmed = {
-                (str(item["participant_id"]), int(item["take_index"]), int(item["segment_index"]))
-                for item in landed["accepted"]
-                if self._mark_registered_landing(
+            confirmed: set[tuple[str, int, int]] = set()
+            stale: list[dict[str, Any]] = []
+            for item in landed["accepted"]:
+                key = (
                     str(item["participant_id"]),
                     int(item["take_index"]),
                     int(item["segment_index"]),
-                    expected_sha256=item["file_sha256"],
                 )
-            }
+                if self._mark_registered_landing(
+                    key[0], key[1], key[2], expected_sha256=item["file_sha256"]
+                ):
+                    confirmed.add(key)
+                elif not self._ack_generation_current(item):
+                    stale.append(item)
+            if stale:
+                self._rollback_stale(stale)
         clips = [
             item
             for item in landed["clips"]
@@ -761,6 +785,49 @@ class RecordLandingService:
             expected_sha256=item["file_sha256"],
         )
 
+    def _ack_generation_current(self, item: dict[str, Any]) -> bool:
+        """False when a re-ACK or revoke changed the upload row since we copied it."""
+        expected = item.get("file_sha256")
+        if not expected:
+            return False
+        current = self._upload.acked_file_sha256(
+            session_id=self.session_id,
+            take_index=int(item["take_index"]),
+            participant_id=str(item["participant_id"]),
+            segment_index=int(item["segment_index"]),
+        )
+        return current == expected
+
+    def _rollback_stale(self, stale: list[dict[str, Any]]) -> None:
+        """Revert project media landing registered for items whose ACK went stale."""
+        log.warning(
+            "record land rolling back stale ACK generation session=%s items=%s",
+            self.session_id,
+            [(item["participant_id"], item["take_index"], item["segment_index"]) for item in stale],
+        )
+        superseded = [
+            (str(item["participant_id"]), int(item["take_index"]), int(item["segment_index"]))
+            for item in stale
+        ]
+
+        def mutate(project: EpisodeProject) -> None:
+            touched: set[str] = set()
+            for item in reversed(stale):
+                prior: PriorRegistration = item["prior"]
+                if revert_registration(project, prior):
+                    touched.add(prior.track_id)
+            if touched:
+                refresh_timeline_duration(project)
+                record_invalidation(project, track_ids=sorted(touched), reason="other")
+
+        self.workspace.mutate(
+            "before record land stale ACK rollback",
+            "after record land stale ACK rollback",
+            mutate,
+            operation="record_land_rollback",
+            params={"session_id": self.session_id, "superseded": superseded},
+        )
+
     def _gate_acked(
         self,
         row: dict[str, Any],
@@ -787,6 +854,16 @@ class RecordLandingService:
                 self._mark_missing_acked(pid, take, segment, expected_sha256=row.get("file_sha256"))
             return None
         return acked
+
+
+def _log_superseded(session_id: str, item: dict[str, Any]) -> None:
+    log.info(
+        "record land skipped superseded ACK session=%s take=%s pid=%s seg=%s",
+        session_id,
+        item.get("take_index"),
+        item.get("participant_id"),
+        item.get("segment_index"),
+    )
 
 
 def _registered_source_file(project: EpisodeProject, source_id: str) -> tuple[Path, str] | None:
