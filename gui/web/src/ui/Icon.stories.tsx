@@ -1,24 +1,28 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Icon, type IconName } from "./index";
 
-const NAMES: IconName[] = [
-  "play",
-  "pause",
-  "stop",
-  "select",
-  "blade",
-  "comment",
-  "fit",
-  "menu",
-  "layers",
-  "close",
-  "cutAtPlayhead",
-  "agent",
-  "listen",
-  "timeline",
-  "text",
-  "more",
-];
+/** Every IconName, checked both ways by `satisfies` (a missing or extra name
+    fails the typecheck), so the gallery never drifts from the icon set. */
+const ICONS = {
+  play: true,
+  pause: true,
+  stop: true,
+  select: true,
+  blade: true,
+  comment: true,
+  fit: true,
+  menu: true,
+  layers: true,
+  close: true,
+  cutAtPlayhead: true,
+  agent: true,
+  listen: true,
+  timeline: true,
+  text: true,
+  more: true,
+} satisfies Record<IconName, true>;
+
+const NAMES = Object.keys(ICONS) as IconName[];
 
 const meta: Meta<typeof Icon> = {
   title: "Atoms/Icon",
