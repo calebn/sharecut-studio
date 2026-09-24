@@ -180,6 +180,25 @@ def test_extract_waveform_window_unlinks_tmp_on_failure(minimal_project, sample_
     assert leftovers == []
 
 
+def test_extract_waveform_window_rejects_outward_stem_symlink(
+    minimal_project, sample_wav, tmp_path
+):
+    from podcast_mcp.engines.peaks import wait_peaks_jobs
+    from podcast_mcp.services.episode import EpisodeService
+
+    ws = ProjectWorkspace.open(minimal_project)
+    EpisodeService(ws).add_track("host", str(sample_wav), speaker="Host")
+    wait_peaks_jobs()
+    stem = ws.project.artifacts_dir() / "tracks" / "host.wav"
+    stem.parent.mkdir(parents=True, exist_ok=True)
+    stem.unlink(missing_ok=True)
+    stem.symlink_to(tmp_path / "outside.wav")
+    with pytest.raises(ValueError, match="stem path escaped"):
+        PlayService(ws).extract_waveform_window(
+            kind="stem", track_id="host", start_sec=0.0, end_sec=0.2
+        )
+
+
 def test_api_audio_etag_and_window(minimal_project, sample_wav):
     pytest.importorskip("fastapi")
     from podcast_mcp.engines.peaks import wait_peaks_jobs

@@ -7,6 +7,7 @@ from pathlib import Path
 from podcast_mcp.edits.clips_ops import new_clip_id, set_track_clips
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, Track
+from podcast_mcp.util.workspace_paths import resolve_within
 
 
 def media_asset_from_path(audio_path: Path, *, store_path: str) -> MediaAsset:
@@ -82,9 +83,9 @@ def resolve_workspace_raw_audio(workspace_dir: Path, rel_path: str) -> Path:
     parts = candidate.parts
     if ".." in parts or parts[0] != "raw":
         raise ValueError("rel_path must be a relative path under raw/")
-    ws = workspace_dir.expanduser().resolve()
-    resolved = (ws / candidate).resolve()
-    raw_root = (ws / "raw").resolve()
-    if not resolved.is_relative_to(raw_root):
-        raise ValueError("rel_path must be a relative path under raw/")
-    return resolved
+    try:
+        ws = workspace_dir.expanduser().resolve()
+        raw_root = resolve_within(ws, "raw")
+        return resolve_within(raw_root, raw_rel, base=ws)
+    except ValueError:
+        raise ValueError("rel_path must be a relative path under raw/") from None

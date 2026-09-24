@@ -20,7 +20,7 @@ from podcast_mcp.util.timeline_zoom import (
     overview_decode_hz,
     overview_samples_per_pixel,
 )
-from podcast_mcp.util.workspace_paths import resolve_under_workspace
+from podcast_mcp.util.workspace_paths import resolve_under_workspace, resolve_within
 
 log = logging.getLogger(__name__)
 
@@ -206,8 +206,9 @@ def _peaks_out_path(project: EpisodeProject, track: Track) -> Path | None:
     if not path.is_file():
         return None
     peaks_dir = (project.artifacts_dir() / "peaks").resolve()
-    peaks_out = (peaks_dir / f"{track.id}.json").resolve()
-    if not peaks_out.is_relative_to(peaks_dir):
+    try:
+        peaks_out = resolve_within(peaks_dir, f"{track.id}.json")
+    except ValueError:
         log.debug("peaks path escaped artifacts/peaks for %s", track.id)
         return None
     return peaks_out

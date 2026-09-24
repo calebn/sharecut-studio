@@ -534,6 +534,28 @@ def test_apply_consolidated_tracks_absolute_paths(
     assert str(proj.timeline.tracks[0].media.path) == str(out_wav.relative_to(ws_path))
 
 
+@pytest.mark.parametrize("escape", ["absolute", "dotdot", "symlink"])
+def test_apply_consolidated_tracks_rejects_workspace_escape(
+    minimal_project: Path, sample_wav: Path, escape: str
+) -> None:
+    ws = ProjectWorkspace.open(minimal_project)
+    root = ws.project.workspace_path()
+    outside = root.parent / "outside.wav"
+    outside.write_bytes(sample_wav.read_bytes())
+    if escape == "absolute":
+        wav = outside
+    elif escape == "dotdot":
+        wav = root / ".." / "outside.wav"
+    else:
+        wav = root / "raw" / "linked.wav"
+        wav.symlink_to(outside)
+    result = ConsolidateResult(
+        speaker_tracks={"Host": wav}, alignments=[], cross_speaker_offsets={}
+    )
+    with pytest.raises(ValueError, match="consolidated track must be under workspace"):
+        IngestService(ws).apply_consolidated_tracks(result)
+
+
 def test_apply_consolidated_tracks_empty_speaker_tracks(
     minimal_project: Path,
 ) -> None:

@@ -35,6 +35,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.progress import resolve_progress_task
+from podcast_mcp.util.workspace_paths import resolve_within
 
 
 @dataclass
@@ -281,7 +282,7 @@ class IngestService:
                 refresh_timeline_duration,
             )
 
-            ws_path = Path(p.meta.workspace_dir)
+            ws_path = p.workspace_path().resolve()
             p.sources = []
             p.timeline.tracks = []
             p.timeline.clips = []
@@ -290,9 +291,10 @@ class IngestService:
             for alignment in result.alignments:
                 for i, ar in enumerate(alignment.sources):
                     src_path = ar.source
-                    if src_path.is_relative_to(ws_path):
-                        rel = str(src_path.relative_to(ws_path)).replace("\\", "/")
-                    else:
+                    try:
+                        rel = str(resolve_within(ws_path, str(src_path)).relative_to(ws_path))
+                        rel = rel.replace("\\", "/")
+                    except ValueError:
                         rel = src_path.name
                     sid = f"{_track_id(alignment.name)}_src{i}"
                     content = result.cross_speaker_offsets.get(alignment.name, 0.0)
@@ -316,8 +318,10 @@ class IngestService:
 
             for name, wav in result.speaker_tracks.items():
                 tid = _track_id(name)
-                if not wav.is_relative_to(ws_path):
-                    raise ValueError(f"consolidated track must be under workspace: {wav}")
+                try:
+                    wav = resolve_within(ws_path, str(wav))
+                except ValueError:
+                    raise ValueError(f"consolidated track must be under workspace: {wav}") from None
                 rel = str(wav.relative_to(ws_path)).replace("\\", "/")
                 track = Track(
                     id=tid,

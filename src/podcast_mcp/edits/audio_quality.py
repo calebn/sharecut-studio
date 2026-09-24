@@ -25,6 +25,7 @@ from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress
 from podcast_mcp.util.timebase import TimelineSec
+from podcast_mcp.util.workspace_paths import resolve_within
 
 _UNSAFE_TRACK_ID = re.compile(r"[/\\]|\.\.")
 
@@ -60,9 +61,10 @@ def diagnostics_dir(project: EpisodeProject, track_id: str) -> Path:
     if not track_id or _UNSAFE_TRACK_ID.search(track_id) or track_id in {".", ".."}:
         raise ValueError(f"unsafe track_id for diagnostics path: {track_id!r}")
     root = (project.artifacts_dir() / "diagnostics").resolve()
-    out = (root / track_id).resolve()
-    if out != root and root not in out.parents:
-        raise ValueError(f"diagnostics path escaped artifacts: {track_id!r}")
+    try:
+        out = resolve_within(root, track_id)
+    except ValueError:
+        raise ValueError(f"diagnostics path escaped artifacts: {track_id!r}") from None
     out.mkdir(parents=True, exist_ok=True)
     return out
 

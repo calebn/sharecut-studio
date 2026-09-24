@@ -1512,6 +1512,18 @@ def test_diagnostics_dir_rejects_traversal(tmp_path: Path) -> None:
         diagnostics_dir(project, "host/../../tmp")
 
 
+def test_diagnostics_dir_rejects_outward_symlink(tmp_path: Path) -> None:
+    from podcast_mcp.edits.audio_quality import diagnostics_dir
+
+    project = EpisodeProject.create("ep", str(tmp_path / "workspace"))
+    project.ensure_dirs()
+    root = project.artifacts_dir() / "diagnostics"
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "host").symlink_to(tmp_path, target_is_directory=True)
+    with pytest.raises(ValueError, match="diagnostics path escaped artifacts"):
+        diagnostics_dir(project, "host")
+
+
 def test_audio_diagnostics_window_maps_offset_clip_to_source(tmp_path: Path) -> None:
     from podcast_mcp.edits.audio_quality import audio_diagnostics_report
     from podcast_mcp.edits.audition_eval import generate_tone, inject_hum_span

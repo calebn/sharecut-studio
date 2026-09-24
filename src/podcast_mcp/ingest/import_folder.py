@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Literal
 
 from podcast_mcp.engines.ffmpeg import AudioProbe, FFmpegEngine
+from podcast_mcp.util.workspace_paths import resolve_within
 
 AUDIO_EXTENSIONS = frozenset({".wav", ".aif", ".aiff", ".flac", ".m4a", ".mp3", ".aac", ".ogg"})
 DEFAULT_MAX_FILES = 32
@@ -202,11 +203,11 @@ def _list_audio_candidates(audio_dir: Path, root: Path) -> list[Path]:
 
 def _refuse_symlink_escape(entry: Path, root: Path) -> None:
     try:
-        resolved = entry.resolve()
+        resolve_within(root, str(entry), base=Path.cwd())
     except OSError as exc:
         raise ValueError(f"cannot resolve path: {entry.name}") from exc
-    if not resolved.is_relative_to(root):
-        raise ValueError(f"symlink escapes recorder folder: {entry.name}")
+    except ValueError:
+        raise ValueError(f"symlink escapes recorder folder: {entry.name}") from None
 
 
 def _is_mix_name(name: str) -> bool:
