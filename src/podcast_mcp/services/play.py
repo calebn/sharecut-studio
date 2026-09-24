@@ -35,6 +35,7 @@ from podcast_mcp.engines.transcript_gated_play import (
     word_intervals,
 )
 from podcast_mcp.models import TrackRole
+from podcast_mcp.project_store import ProjectStore
 from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.session_sync.viewer import publish_agent_play
 from podcast_mcp.services.workspace import ProjectWorkspace
@@ -496,6 +497,12 @@ class PlayService:
         FFmpegEngine().render_dialogue_track(render_project, track, out, self._defaults)
         write_stem_hash(render_project, track_id, clear_invalidations=False)
         with project_state_lock(self.project):
+            store = ProjectStore(self.ws.path)
+            stored_project = store.load()
+            if track_render_hash(stored_project, track_id) == track_render_hash(
+                render_project, track_id
+            ) and clear_invalidations_for_tracks(stored_project, [track_id]):
+                store.commit(stored_project)
             if track_render_hash(self.project, track_id) == track_render_hash(
                 render_project, track_id
             ):
