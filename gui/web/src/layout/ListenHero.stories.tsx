@@ -70,7 +70,9 @@ export const Default: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "Play" }));
-    await expect(canvas.getByRole("button", { name: "Pause" })).toBeTruthy();
+    await expect(
+      await canvas.findByRole("button", { name: "Pause" }),
+    ).toBeTruthy();
     await expect(
       canvas.getByRole("heading", {
         level: 1,
