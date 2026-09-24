@@ -573,6 +573,26 @@ def test_ensure_stem_clears_live_invalidation_after_snapshot_render(
     assert ProjectWorkspace.open(minimal_project).project.render.invalidations == []
 
 
+def test_ensure_stem_persists_partial_shared_invalidation(minimal_project, sample_wav) -> None:
+    from podcast_mcp.engines.render_invalidations import record_invalidation
+
+    ws = _dialogue_workspace(minimal_project, sample_wav)
+    record_invalidation(ws.project, track_ids=["host", "guest"], reason="cut")
+    ws.save()
+
+    def render(_snapshot, _track, out, _defaults):
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(sample_wav.read_bytes())
+        return out
+
+    with patch("podcast_mcp.engines.ffmpeg.FFmpegEngine.render_dialogue_track", side_effect=render):
+        PlayService(ws).ensure_stem("host")
+
+    assert [inv.track_ids for inv in ws.project.render.invalidations] == [["guest"]]
+    reloaded = ProjectWorkspace.open(minimal_project).project
+    assert [inv.track_ids for inv in reloaded.render.invalidations] == [["guest"]]
+
+
 def test_play_processed_rerender_invalidates_cache(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     stem = ws.project.artifacts_dir() / "tracks" / "host.wav"
