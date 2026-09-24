@@ -147,6 +147,136 @@ describe("TimelineView follow auto-fit", () => {
   });
 });
 
+describe("TimelineView fixed playhead (#385)", () => {
+  // Earlier tests stub store actions; these need the real ones.
+  const { fitToWindow, stopFollow } = useDawStore.getState();
+
+  // 400px scroller, no header column: lead = 200px, 10px/s, 60 s session.
+  beforeEach(() => {
+    RecordingResizeObserver.all = [];
+    vi.stubGlobal("ResizeObserver", RecordingResizeObserver);
+    for (const [prop, value] of [
+      ["clientWidth", 400],
+      ["clientHeight", 600],
+    ] as const) {
+      Object.defineProperty(HTMLElement.prototype, prop, {
+        configurable: true,
+        get: () => value,
+      });
+    }
+    useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+    useDawStore.setState({
+      userZoomed: true,
+      zoomPxPerSec: 10,
+      playheadSec: 0,
+      followingClientId: null,
+      fitToWindow,
+      stopFollow,
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    Reflect.deleteProperty(HTMLElement.prototype, "clientWidth");
+    Reflect.deleteProperty(HTMLElement.prototype, "clientHeight");
+  });
+
+  /** Mount with a scroller whose scrollLeft is plain storage (jsdom's isn't). */
+  function mountFixed() {
+    const view = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <TimelineView fixedPlayhead />
+      </DawProvider>,
+    );
+    const scroller = view.container.querySelector(
+      ".timeline-scroll",
+    ) as HTMLElement;
+    let left = 0;
+    Object.defineProperty(scroller, "scrollLeft", {
+      configurable: true,
+      get: () => left,
+      set(v: number) {
+        left = v;
+      },
+    });
+    const userScrollTo = (dom: number) => {
+      left = dom;
+      act(() => {
+        scroller.dispatchEvent(new Event("scroll"));
+      });
+    };
+    const settle = () =>
+      act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      });
+    return { ...view, scroller, userScrollTo, settle };
+  }
+
+  it("pads the time column by half the viewport and registers the lead", () => {
+    const { container } = mountFixed();
+    const area = container.querySelector(".timeline-area") as HTMLElement;
+    expect(area.style.getPropertyValue("--timeline-lead")).toBe("200px");
+    expect(area.style.getPropertyValue("--timeline-fixed-line")).toBe("200px");
+  });
+
+  it("seeks on a person's scroll, not on a write or its late echo", async () => {
+    const { scroller, userScrollTo, settle } = mountFixed();
+    act(() => {
+      useDawStore.getState().setPlayheadSec(15);
+    });
+    // Recentered: 15 s × 10 px/s − 200 px center = −50 logical, 150 DOM.
+    expect(scroller.scrollLeft).toBe(150);
+    expect(useDawStore.getState().scrollLeft).toBe(-50);
+
+    // The write's scroll event can land after the programmatic flags clear.
+    await settle();
+    userScrollTo(150);
+    expect(useDawStore.getState().playheadSec).toBe(15);
+
+    userScrollTo(250); // 100 px further: 10 s later
+    expect(useDawStore.getState().playheadSec).toBeCloseTo(25, 9);
+
+    userScrollTo(250.5); // under a pixel: not a move
+    expect(useDawStore.getState().playheadSec).toBeCloseTo(25, 9);
+  });
+
+  it("clamps a person's scroll to the session end", async () => {
+    const { userScrollTo, settle } = mountFixed();
+    await settle();
+    userScrollTo(5000);
+    expect(useDawStore.getState().playheadSec).toBe(60);
+  });
+
+  it("keeps the playhead through a fit", () => {
+    const { scroller } = mountFixed();
+    act(() => {
+      useDawStore.getState().setPlayheadSec(15);
+    });
+    act(() => {
+      useDawStore.getState().fitToWindow(400);
+    });
+    const s = useDawStore.getState();
+    expect(s.userZoomed).toBe(false);
+    expect(s.playheadSec).toBe(15);
+    expect((scroller.scrollLeft - 200 + 200) / s.zoomPxPerSec).toBeCloseTo(
+      15,
+      9,
+    );
+  });
+
+  it("leaves no scroll before 0 or lead behind when unmounted", () => {
+    const { unmount } = mountFixed();
+    act(() => {
+      useDawStore.getState().setPlayheadSec(5);
+    });
+    expect(useDawStore.getState().scrollLeft).toBe(-150);
+    unmount();
+    expect(useDawStore.getState().scrollLeft).toBe(0);
+    useDawStore.getState().applyAnchoredZoom(20);
+    expect(useDawStore.getState().scrollLeft).toBeGreaterThanOrEqual(0);
+  });
+});
+
 /** ResizeObserver that records what it watches and fires on demand. */
 class RecordingResizeObserver {
   static all: RecordingResizeObserver[] = [];
@@ -165,7 +295,12 @@ class RecordingResizeObserver {
   }
   fire(width: number, height: number): void {
     this.cb(
-      [{ contentRect: { width, height } } as ResizeObserverEntry],
+      [
+        {
+          target: this.targets[0],
+          contentRect: { width, height },
+        } as unknown as ResizeObserverEntry,
+      ],
       this as unknown as ResizeObserver,
     );
   }

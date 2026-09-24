@@ -3,9 +3,20 @@ import { ZOOM_STEP } from "../utils/zoom";
 import { noteZoomPointerClientX } from "../utils/zoomPointer";
 import { useDawStore } from "./dawStore";
 
+/** A 400px scroller with no headers whose left edge is at `left`. */
+function fakeTimelineEl(left = 0): HTMLElement {
+  return {
+    clientWidth: 400,
+    scrollLeft: 0,
+    getBoundingClientRect: () => ({ left }),
+    querySelector: () => null,
+  } as unknown as HTMLElement;
+}
+
 describe("applyAnchoredZoom", () => {
   beforeEach(() => {
     noteZoomPointerClientX(null);
+    useDawStore.setState({ _timelineLeadPx: 0 });
   });
 
   afterEach(() => {
@@ -86,12 +97,7 @@ describe("applyAnchoredZoom", () => {
   });
 
   it("lets a padded fixed-playhead view zoom near 0 without clamping (#385)", () => {
-    const el = {
-      clientWidth: 400,
-      scrollLeft: 0,
-      getBoundingClientRect: () => ({ left: 0 }),
-      querySelector: () => null,
-    } as unknown as HTMLElement;
+    const el = fakeTimelineEl();
     const base = {
       project: { timeline_duration_sec: 60 } as never,
       zoomPxPerSec: 10,
@@ -99,7 +105,7 @@ describe("applyAnchoredZoom", () => {
       _timelineEl: el,
     };
     // 1 s sits under a pointer at x=210 when the view is scrolled to −200.
-    useDawStore.setState({ ...base, scrollLeft: -200, timelineLeadPx: 200 });
+    useDawStore.setState({ ...base, scrollLeft: -200, _timelineLeadPx: 200 });
     useDawStore.getState().applyAnchoredZoom(20, 210);
     let s = useDawStore.getState();
     expect((210 + s.scrollLeft) / s.zoomPxPerSec).toBeCloseTo(1, 9);
@@ -107,22 +113,52 @@ describe("applyAnchoredZoom", () => {
 
     // Zooming out there would want −5 px: padded views allow it, unpadded
     // views keep the 0 floor.
-    useDawStore.setState({ ...base, scrollLeft: 0, timelineLeadPx: 200 });
+    useDawStore.setState({ ...base, scrollLeft: 0, _timelineLeadPx: 200 });
     useDawStore.getState().applyAnchoredZoom(5, 10);
     expect(useDawStore.getState().scrollLeft).toBe(-5);
-    useDawStore.setState({ ...base, scrollLeft: 0, timelineLeadPx: 0 });
+    useDawStore.setState({ ...base, scrollLeft: 0, _timelineLeadPx: 0 });
     useDawStore.getState().applyAnchoredZoom(5, 10);
     s = useDawStore.getState();
     expect(s.scrollLeft).toBe(0);
   });
 
-  it("anchors keyboard zoom at last noted pointer X when set", () => {
-    const el = {
-      clientWidth: 400,
+  it("anchors command zoom at the fixed line, keeping the playhead (#385)", () => {
+    // A stale touch X must not move a fixed playhead: menu and key zoom
+    // anchor at the line (the viewport's center) when the view is padded.
+    noteZoomPointerClientX(50);
+    useDawStore.setState({
+      project: { timeline_duration_sec: 60 } as never,
+      zoomPxPerSec: 10,
+      scrollLeft: 100, // 30 s at the center of a 400px viewport
+      userZoomed: false,
+      _timelineEl: fakeTimelineEl(),
+      _timelineLeadPx: 200,
+    });
+    useDawStore.getState().applyAnchoredZoom(20);
+    const s = useDawStore.getState();
+    expect((s.scrollLeft + 200) / s.zoomPxPerSec).toBeCloseTo(30, 9);
+  });
+
+  it("keeps a fixed playhead centered through a fit (#385)", () => {
+    useDawStore.setState({
+      project: { timeline_duration_sec: 60 } as never,
+      playheadSec: 15,
+      zoomPxPerSec: 40,
       scrollLeft: 0,
-      getBoundingClientRect: () => ({ left: 100 }),
-      querySelector: () => null,
-    } as unknown as HTMLElement;
+      _timelineLeadPx: 0,
+    });
+    useDawStore.getState().fitToWindow(300);
+    expect(useDawStore.getState().scrollLeft).toBe(0);
+
+    useDawStore.setState({ _timelineLeadPx: 150 });
+    useDawStore.getState().fitToWindow(300);
+    const s = useDawStore.getState();
+    expect((s.scrollLeft + 150) / s.zoomPxPerSec).toBeCloseTo(15, 9);
+    expect(s.userZoomed).toBe(false);
+  });
+
+  it("anchors keyboard zoom at last noted pointer X when set", () => {
+    const el = fakeTimelineEl(100);
 
     noteZoomPointerClientX(250); // 150px into the viewport
     useDawStore.setState({
@@ -143,12 +179,7 @@ describe("applyAnchoredZoom", () => {
   });
 
   it("anchors off-center clientX rather than viewport middle", () => {
-    const el = {
-      clientWidth: 400,
-      scrollLeft: 0,
-      getBoundingClientRect: () => ({ left: 0 }),
-      querySelector: () => null,
-    } as unknown as HTMLElement;
+    const el = fakeTimelineEl();
 
     useDawStore.setState({
       project: { timeline_duration_sec: 60 } as never,

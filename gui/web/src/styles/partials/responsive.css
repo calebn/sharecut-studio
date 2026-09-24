@@ -6,9 +6,9 @@
 
 .timeline-area--fixed-playhead .playhead--fixed {
   position: absolute;
-  /* Centre of the time viewport, measured by TimelineView (header plus half
+  /* Center of the time viewport, measured by TimelineView (header plus half
      the viewport, scrollbar gutter excluded); before the first measure, the
-     centre of the area past the header. */
+     center of the area past the header. */
   inset-inline-start: var(
     --timeline-fixed-line,
     calc(
@@ -27,7 +27,7 @@
 }
 
 /* Half-viewport lead pads (TimelineView sets --timeline-lead) so the scroll
-   can put any time, 0 and the end included, under the centre line (#385). */
+   can put any time, 0 and the end included, under the center line (#385). */
 .timeline-area--fixed-playhead .timeline-time {
   margin-inline: var(--timeline-lead, 0);
 }
