@@ -312,6 +312,22 @@ def test_color_roles_live_in_theme_tier_files() -> None:
     assert not hits, "color roles belong in a theme tier file:\n" + "\n".join(hits)
 
 
+def test_fixed_tier_reads_only_primitives_and_its_own_roles() -> None:
+    """theme-fixed.css must look the same in both themes, so it may read only
+    primitives and roles it defines itself. A themed role (e.g. the overlay
+    whites, which turn dark in light mode) would leak the theme into the
+    fixed-dark transport."""
+    path = ROOT / "gui/web/src/styles/theme/theme-fixed.css"
+    text = _CSS_COMMENT.sub("", path.read_text(encoding="utf-8"))
+    defined = set(_CUSTOM_PROP_DEF.findall(text))
+    hits = [
+        f"{path.relative_to(ROOT)}: reads themed {name}"
+        for name in sorted(set(_CUSTOM_PROP_USE.findall(text)))
+        if not name.startswith("--primitive-") and name not in defined
+    ]
+    assert not hits, "fixed tier must not read themed roles:\n" + "\n".join(hits)
+
+
 def test_tier_regex_helpers() -> None:
     assert _CSS_VAR_REF.search("color: var(--primitive-neutral-900)")
     assert not _CSS_VAR_REF.search("color: #0f0e0c")
