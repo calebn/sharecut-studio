@@ -11,6 +11,7 @@ import { useDaw } from "../state/useDaw";
 import type { TimelineComment } from "../types/project";
 import {
   InlineError,
+  SegmentedControl,
   ToggleButton,
   UndoToast,
   type UndoToastState,
@@ -186,7 +187,7 @@ export function CommentsPanel({
             placeholder="your name"
           />
         </label>
-        <div className="comments-filters" role="group" aria-label="Filter">
+        <SegmentedControl className="comments-filters" label="Filter">
           {(
             [
               ["open", "Open"],
@@ -197,13 +198,14 @@ export function CommentsPanel({
           ).map(([id, label]) => (
             <ToggleButton
               key={id}
+              quiet
               pressed={filter === id}
               onClick={() => setFilter(id)}
             >
               {label}
             </ToggleButton>
           ))}
-        </div>
+        </SegmentedControl>
         <ToggleButton
           pressed={commentMode}
           onClick={() => setCommentMode(!commentMode)}

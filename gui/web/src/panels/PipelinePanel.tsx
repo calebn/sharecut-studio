@@ -14,7 +14,7 @@ import type {
   PipelineParamField,
   PipelineStepMeta,
 } from "../types/pipeline";
-import { Button, InlineError } from "../ui";
+import { Button, EmptyState, InlineError } from "../ui";
 import { errorMessage } from "../utils/apiError";
 import { formatElapsed } from "../utils/format";
 import {
@@ -638,6 +638,9 @@ export function PipelinePanel() {
 
       <div className="pipeline-master-detail">
         <div className="pipeline-step-list">
+          {grouped.size === 0 ? (
+            <EmptyState>Analyze to load the pipeline steps.</EmptyState>
+          ) : null}
           {[...grouped.entries()].map(([group, steps]) => (
             <div key={group} className="pipeline-step-group">
               <div className="pipeline-step-group-title">

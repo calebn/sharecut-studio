@@ -10,8 +10,11 @@ import { LANE_HEIGHT, MARKER_LANE_HEIGHT } from "../utils/layout";
 export const MARKER_ROW_HEIGHT = 24;
 /** Tallest a lane grows when few tracks fill the stage. */
 export const MAX_FIT_LANE_HEIGHT = 240;
-/** Keeps a horizontal scrollbar from forcing a vertical one. */
-export const FIT_GUTTER = 16;
+/**
+ * Room left under the lanes: the header column's "+ Track" row and a
+ * horizontal scrollbar, so fitting never forces a vertical scroll.
+ */
+export const FIT_GUTTER = 48;
 
 export type TimelineMetrics = {
   laneHeight: number;

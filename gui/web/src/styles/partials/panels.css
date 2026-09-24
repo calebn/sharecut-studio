@@ -52,12 +52,6 @@
   min-width: 8rem;
 }
 
-.comments-filters {
-  display: flex;
-  gap: var(--space-1);
-}
-
-.comments-filters button,
 .comments-toolbar > button,
 .comment-compose button,
 .comment-card-footer button {
