@@ -32,8 +32,13 @@ describe("RecIndicator", () => {
       <RecIndicator snapshot={{ ...base, state: "recording" }} />,
     );
     expect(screen.getByText("REC")).toBeInTheDocument();
+    expect(document.querySelector(".record-rec-dot")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
     rerender(<RecIndicator snapshot={{ ...base, state: "paused" }} />);
     expect(screen.getByText("PAUSED")).toBeInTheDocument();
+    expect(document.querySelector(".record-rec-dot")).toBeNull();
     rerender(<RecIndicator snapshot={{ ...base, state: "stopped" }} />);
     expect(screen.getByText("Stopped")).toBeInTheDocument();
   });
@@ -44,6 +49,7 @@ describe("RecIndicator", () => {
     );
     expect(screen.getByText("REC — local capture failed")).toBeInTheDocument();
     expect(screen.queryByText("REC")).not.toBeInTheDocument();
+    expect(document.querySelector(".record-rec-dot")).toBeNull();
   });
 
   it("distinguishes a pending microphone from healthy capture", () => {

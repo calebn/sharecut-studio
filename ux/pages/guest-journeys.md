@@ -188,6 +188,10 @@ flowchart TD
    transport chip show local capture as failed, or waiting while a retry is
    acquiring the microphone. A successful Retry restores the live capture
    state without discarding existing keeper segments.
+   During a healthy host take, the persistent transport control has a red dot,
+   REC, and a running clock on desktop and phone; reduced-motion settings keep
+   the dot still. The control opens the Record room panel. PAUSED and local
+   capture failure remain explicit states rather than a healthy REC dot.
    After Stop, microphone loss no longer locks the host dialog. A take with no
    host keeper warns that no local audio was captured, even if the mic never
    became available.

@@ -4,8 +4,7 @@ import { FEATURE_SHARE_UI_MENU } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
 import { useTheme } from "../hooks/useTheme";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
-import { useRecordHostStore } from "../record/hostStore";
-import { RecIndicator } from "../record/RecIndicator";
+import { RecordTransportChip } from "../record/RecordTransportChip";
 import {
   canIngestMedia,
   canManageProjects,
@@ -65,8 +64,6 @@ export function TransportBar({ compact = false, showFit = true }: Props) {
     renderPreviewBusy,
     ingestBusy,
   } = useDaw();
-  const recordSnap = useRecordHostStore((s) => s.snapshot);
-  const captureHealth = useRecordHostStore((s) => s.captureHealth);
   const { preference, cyclePreference } = useTheme();
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [narrow, setNarrow] = useState(false);
@@ -220,30 +217,7 @@ export function TransportBar({ compact = false, showFit = true }: Props) {
           ■
         </CommandButton>
       </div>
-      {recordSnap && recordSnap.state !== "lobby" ? (
-        <CommandButton
-          bare
-          commandId="record.openPanel"
-          className="record-rec-chip"
-          aria-label={
-            recordSnap.state === "recording"
-              ? captureHealth === "failed"
-                ? "Local capture failed — open record panel"
-                : captureHealth === "pending"
-                  ? "Waiting for microphone — open record panel"
-                  : "Recording — open record panel"
-              : recordSnap.state === "paused"
-                ? "Paused — open record panel"
-                : "Open record panel"
-          }
-        >
-          <RecIndicator
-            snapshot={recordSnap}
-            captureFailed={captureHealth === "failed"}
-            capturePending={captureHealth === "pending"}
-          />
-        </CommandButton>
-      ) : null}
+      <RecordTransportChip />
       <span
         className={
           duration >= 3600 && !collapsed
