@@ -68,7 +68,7 @@ it("is axe-clean", async () => {
 
 Full-page (Playwright): call `expectPageAxeClean(page)` from `e2e/axe.ts` after the dense DAW shell is visible. Reading surfaces (Home without `?project=`, static marketing HTML) use `expectReadingSurfaceAxeClean` so color-contrast and region stay on. Do not copy-paste `AxeBuilder` setup.
 
-Store helpers for inspector/footer tests: `src/test/fixtures.ts` + `useDawStore.getState().hydrate(...)`.
+Store helpers for inspector/footer tests: `src/test/fixtures.ts` + `useDawStore.getState().hydrate(...)`. Recording tests and stories use `recordParticipant({ ... })` and `recordSnapshot({ ... })` from that file, overriding only fields relevant to each scenario so new required record fields have one default source.
 
 ## Theme tokens
 

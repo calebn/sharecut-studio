@@ -1,17 +1,15 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { recordSnapshot } from "../test/fixtures";
 import { recordingClockMs } from "./clock";
 import { RecIndicator } from "./RecIndicator";
-import type { RecordSnapshot } from "./types";
 
-const base: RecordSnapshot = {
+const base = recordSnapshot({
   session_id: "room1",
   state: "lobby",
   take_index: -1,
   recording_ms: 0,
-  participants: [],
-  caps: { recorded: 4, producers: 2 },
-};
+});
 
 describe("RecIndicator", () => {
   it("computes paused clock without adding wall time", () => {

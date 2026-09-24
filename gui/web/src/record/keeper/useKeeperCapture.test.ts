@@ -1,5 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { recordSnapshot } from "../../test/fixtures";
 import type { RecordSnapshot } from "../types";
 import { KeeperSession } from "./session";
 import {
@@ -39,14 +40,10 @@ vi.mock("./store", async (importOriginal) => {
   };
 });
 
-const snap: RecordSnapshot = {
+const snap = recordSnapshot({
   session_id: "room1",
-  state: "recording",
-  take_index: 0,
   recording_ms: 0,
-  participants: [],
-  caps: { recorded: 4, producers: 2 },
-};
+});
 
 const args = {
   role: "guest" as const,

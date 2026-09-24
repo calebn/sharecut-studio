@@ -2,26 +2,18 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
+import { recordParticipant, recordSnapshot } from "../test/fixtures";
 import { LiveComments } from "./LiveComments";
-import type { RecordParticipant, RecordSnapshot } from "./types";
 
-const me: RecordParticipant = {
+const me = recordParticipant({
   participant_id: "p_g",
-  role: "guest",
   display_name: "Ava",
-  connected: true,
-  consented: true,
-  muted: false,
-  headphones_ack: true,
-};
+});
 
-const snapshot: RecordSnapshot = {
+const snapshot = recordSnapshot({
   session_id: "room1",
-  state: "recording",
-  take_index: 0,
   recording_ms: 1000,
   participants: [me],
-  caps: { recorded: 4, producers: 2 },
   comments: [
     {
       id: "c1",
@@ -32,7 +24,7 @@ const snapshot: RecordSnapshot = {
       body: "Marker",
     },
   ],
-};
+});
 
 describe("LiveComments", () => {
   it("posts a marker and a typed note", async () => {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { recordSnapshot } from "../test/fixtures";
 import {
   hostKeeperResetKey,
   hostReconnectPauseCopy,
@@ -8,13 +9,10 @@ import {
   shouldApplyRecordSnapshot,
 } from "./types";
 
-const base: RecordSnapshot = {
+const base = recordSnapshot({
   session_id: "room1",
   state: "paused",
-  take_index: 0,
-  participants: [],
-  caps: { recorded: 4, producers: 2 },
-};
+});
 
 describe("hostReconnectPauseCopy", () => {
   it("rounds the offline gap to whole seconds", () => {
@@ -24,7 +22,7 @@ describe("hostReconnectPauseCopy", () => {
   });
 
   it("reads pause_reason from takes[].pauses when snapshot omits it", () => {
-    const snap: RecordSnapshot = {
+    const snap = recordSnapshot({
       ...base,
       takes: [
         {
@@ -42,7 +40,7 @@ describe("hostReconnectPauseCopy", () => {
         },
       ],
       host_offline_gap_ms: 12_000,
-    };
+    });
     expect(hostReconnectPauseCopyFromSnapshot(snap)).toContain("12s");
   });
 

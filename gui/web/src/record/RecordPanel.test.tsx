@@ -4,7 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadHostRecordState } from "../api";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
-import { minimalProject } from "../test/fixtures";
+import {
+  minimalProject,
+  recordParticipant,
+  recordSnapshot,
+} from "../test/fixtures";
 import { seedPendingKeeper } from "../test/keepers";
 import { startBlockers } from "./blockers";
 import { useRecordHostStore } from "./hostStore";
@@ -21,12 +25,7 @@ import {
   MIC_RETRY_LABEL,
 } from "./micPermission";
 import { RecordPanel } from "./RecordPanel";
-import {
-  hostUploadLine,
-  type RecordSnapshot,
-  ROOM_TONE_PROMPT_COPY,
-  storageLowCopy,
-} from "./types";
+import { hostUploadLine, ROOM_TONE_PROMPT_COPY, storageLowCopy } from "./types";
 
 const { exec, roomTone } = vi.hoisted(() => ({
   exec: vi.fn(async () => ({ status: "ok" as const })),
@@ -95,15 +94,13 @@ vi.mock("../api", () => ({
   }),
 }));
 
-const lobby: RecordSnapshot = {
+const lobby = recordSnapshot({
   session_id: "room1",
   state: "lobby",
   take_index: -1,
   recording_ms: 0,
   start_blockers: ["No one has joined"],
-  participants: [],
-  caps: { recorded: 4, producers: 2 },
-};
+});
 
 describe("RecordPanel", () => {
   afterEach(() => {
@@ -191,15 +188,11 @@ describe("RecordPanel", () => {
       ...lobby,
       start_blockers: [],
       participants: [
-        {
+        recordParticipant({
           participant_id: "p_g",
           role: "guest",
           display_name: "Ava",
-          connected: true,
-          consented: true,
-          muted: false,
-          headphones_ack: true,
-        },
+        }),
       ],
     });
     render(<RecordPanel />);
@@ -229,15 +222,11 @@ describe("RecordPanel", () => {
       ...lobby,
       start_blockers: [],
       participants: [
-        {
+        recordParticipant({
           participant_id: "p_g",
           role: "guest",
           display_name: "Ava",
-          connected: true,
-          consented: true,
-          muted: false,
-          headphones_ack: true,
-        },
+        }),
       ],
     });
     render(<RecordPanel />);
@@ -257,15 +246,11 @@ describe("RecordPanel", () => {
       ...lobby,
       start_blockers: [],
       participants: [
-        {
+        recordParticipant({
           participant_id: "p_g",
           role: "guest",
           display_name: "Ava",
-          connected: true,
-          consented: true,
-          muted: false,
-          headphones_ack: true,
-        },
+        }),
       ],
     });
     render(<RecordPanel />);
@@ -281,15 +266,11 @@ describe("RecordPanel", () => {
       ...lobby,
       start_blockers: [],
       participants: [
-        {
+        recordParticipant({
           participant_id: "p_g",
           role: "guest",
           display_name: "Ava",
-          connected: true,
-          consented: true,
-          muted: false,
-          headphones_ack: true,
-        },
+        }),
       ],
     });
     render(<RecordPanel />);
@@ -310,15 +291,11 @@ describe("RecordPanel", () => {
       ...lobby,
       start_blockers: [],
       participants: [
-        {
+        recordParticipant({
           participant_id: "p_g",
           role: "guest",
           display_name: "Ava",
-          connected: true,
-          consented: true,
-          muted: false,
-          headphones_ack: true,
-        },
+        }),
       ],
     });
     const { container } = render(<RecordPanel />);
@@ -360,15 +337,11 @@ describe("RecordPanel", () => {
       ...lobby,
       start_blockers: [],
       participants: [
-        {
+        recordParticipant({
           participant_id: "p_g",
           role: "guest",
           display_name: "Ava",
-          connected: true,
-          consented: true,
-          muted: false,
-          headphones_ack: true,
-        },
+        }),
       ],
     });
     render(<RecordPanel />);
@@ -380,15 +353,11 @@ describe("RecordPanel", () => {
       ...lobby,
       start_blockers: [],
       participants: [
-        {
+        recordParticipant({
           participant_id: "p_host",
           role: "host",
           display_name: "Host",
-          connected: true,
-          consented: true,
-          muted: false,
-          headphones_ack: true,
-        },
+        }),
       ],
     });
     render(<RecordPanel />);
@@ -505,24 +474,16 @@ describe("RecordPanel", () => {
       take_index: 0,
       start_blockers: [],
       participants: [
-        {
+        recordParticipant({
           participant_id: "p_host",
           role: "host",
           display_name: "Host",
-          connected: true,
-          consented: true,
-          muted: false,
-          headphones_ack: true,
-        },
-        {
+        }),
+        recordParticipant({
           participant_id: "p_g",
           role: "guest",
           display_name: "Ava",
-          connected: true,
-          consented: true,
-          muted: false,
-          headphones_ack: true,
-        },
+        }),
       ],
     });
     render(<RecordPanel />);
@@ -540,12 +501,12 @@ describe("RecordPanel", () => {
   });
 
   describe("partial keeper recovery", () => {
-    const stopped: RecordSnapshot = {
+    const stopped = recordSnapshot({
       ...lobby,
       state: "stopped",
       take_index: 0,
       start_blockers: [],
-    };
+    });
 
     it("recovers the host keeper and resumes upload", async () => {
       const sink = new MemorySink();
@@ -624,15 +585,11 @@ describe("RecordPanel", () => {
       recording_ms: 1500,
       start_blockers: [],
       participants: [
-        {
+        recordParticipant({
           participant_id: "p_host",
           role: "host",
           display_name: "Host",
-          connected: true,
-          consented: true,
-          muted: false,
-          headphones_ack: true,
-        },
+        }),
       ],
     });
     render(<RecordPanel />);
@@ -712,15 +669,11 @@ describe("RecordPanel", () => {
       host_offline_gap_ms: 15_000,
       start_blockers: [],
       participants: [
-        {
+        recordParticipant({
           participant_id: "p_host",
           role: "host",
           display_name: "Host",
-          connected: true,
-          consented: true,
-          muted: false,
-          headphones_ack: true,
-        },
+        }),
       ],
     });
     const { container } = render(<RecordPanel />);
