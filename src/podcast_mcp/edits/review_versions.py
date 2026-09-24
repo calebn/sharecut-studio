@@ -50,8 +50,9 @@ def _is_created_dir(metadata: os.stat_result, identity: DirectoryIdentity) -> bo
     return stat.S_ISDIR(metadata.st_mode) and _dir_identity(metadata) == identity
 
 
-def _open_pinned_dir(path: Path) -> int:
-    return os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+def _open_pinned_dir(path: str | Path, *, dir_fd: int | None = None) -> int:
+    """Open *path* as a no-follow directory descriptor (callers check platform support)."""
+    return os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=dir_fd)
 
 
 def _created_dir_identity(version_dir: Path) -> DirectoryIdentity:
@@ -157,10 +158,9 @@ def _clean_stale_mp3_temps(version_dir: Path) -> None:
     inspected = 0
     directory_fd = -1
     try:
-        flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
-        directory_fd = os.open(version_dir.anchor, flags)
+        directory_fd = _open_pinned_dir(version_dir.anchor)
         for component in version_dir.parts[1:]:
-            child_fd = os.open(component, flags, dir_fd=directory_fd)
+            child_fd = _open_pinned_dir(component, dir_fd=directory_fd)
             os.close(directory_fd)
             directory_fd = child_fd
         with os.scandir(directory_fd) as entries:
@@ -175,7 +175,7 @@ def _clean_stale_mp3_temps(version_dir: Path) -> None:
                     if not stat.S_ISREG(metadata.st_mode) or metadata.st_mtime > cutoff:
                         continue
                     current = os.stat(entry.name, dir_fd=directory_fd, follow_symlinks=False)
-                    if (current.st_dev, current.st_ino) != (metadata.st_dev, metadata.st_ino):
+                    if _dir_identity(current) != _dir_identity(metadata):
                         continue
                     os.unlink(entry.name, dir_fd=directory_fd)
                 except OSError:
