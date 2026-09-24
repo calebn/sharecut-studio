@@ -1,9 +1,11 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { presenceCursorFromPointer } from "../presence/usePresenceCursorSource";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
 import { PresenceOverlay } from "./PresenceOverlay";
+import { TimelineMetricsProvider } from "./timelineMetrics";
 
 const hostTracks = [
   {
@@ -351,4 +353,67 @@ describe("PresenceOverlay", () => {
     );
     expect(container.querySelector(".presence-cursor")).toBeNull();
   });
+
+  it.each([
+    [150, 72],
+    [72, 240],
+  ])(
+    "round-trips lane_pos from %ipx lanes to %ipx lanes",
+    (senderLane, viewerLane) => {
+      // Sender: pointer 60% down the second lane of its own stack.
+      const lanes = document.createElement("div");
+      Object.defineProperty(lanes, "getBoundingClientRect", {
+        value: () => ({
+          left: 0,
+          top: 100,
+          width: 400,
+          height: 2 * senderLane,
+        }),
+      });
+      const row = document.createElement("div");
+      row.className = "lane-row";
+      row.dataset.trackId = "guest";
+      Object.defineProperty(row, "getBoundingClientRect", {
+        value: () => ({ height: senderLane }),
+      });
+      const cursor = presenceCursorFromPointer(
+        row,
+        40,
+        100 + 1.6 * senderLane,
+        lanes,
+        0,
+        10,
+        60,
+      );
+      expect(cursor?.lane_pos).toBeCloseTo(1.6, 3);
+
+      // Viewer: same spot in the same lane at its own lane height.
+      useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+      const project = minimalProject();
+      const { container } = render(
+        <TimelineMetricsProvider
+          value={{ laneHeight: viewerLane, markerLaneHeight: 24 }}
+        >
+          <PresenceOverlay
+            clients={[
+              { client_id: "me", role: "viewer" },
+              {
+                client_id: "them",
+                role: "viewer",
+                last_seen_ns: Date.now() * 1e6,
+                meta: { display_name: "Ada", cursor: cursor ?? undefined },
+              },
+            ]}
+            localClientId="me"
+            zoomPxPerSec={10}
+            height={2 * viewerLane}
+            tracks={hostTracks}
+            clipsByTrack={project.clips.tracks}
+          />
+        </TimelineMetricsProvider>,
+      );
+      const el = container.querySelector(".presence-cursor") as HTMLElement;
+      expect(parseFloat(el.style.top)).toBeCloseTo(1.6 * viewerLane, 1);
+    },
+  );
 });
