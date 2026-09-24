@@ -29,7 +29,7 @@ import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { ClipRow } from "../types/project";
 import { Avatar } from "../ui/Avatar";
-import { RULER_HEIGHT } from "../utils/layout";
+import { FIT_GUTTER, MARKER_ROW_HEIGHT, RULER_HEIGHT } from "../utils/layout";
 import { staleRenderBreakdown } from "../utils/staleRender";
 import { clientXToTimelineSec } from "../utils/timelinePointer";
 import {
@@ -47,7 +47,6 @@ import { PresenceOverlay } from "./PresenceOverlay";
 import { TimeRuler } from "./TimeRuler";
 import { TrackLane } from "./TrackLane";
 import {
-  FIT_GUTTER,
   fitLaneHeight,
   markerLaneHeight,
   markerRows,
@@ -470,15 +469,14 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
     zoomPxPerSec,
     timeViewportPx,
   );
-  const markerLaneHeightPx = markerLaneHeight(
-    markerRows({
-      chapters: project.chapters,
-      socialClips: project.social_clips ?? [],
-      comments: project.comments ?? [],
-      showMarkers: layers.showMarkers,
-      showComments: layers.showComments,
-    }),
-  );
+  const rows = markerRows({
+    chapters: project.chapters,
+    socialClips: project.social_clips ?? [],
+    comments: project.comments ?? [],
+    showMarkers: layers.showMarkers,
+    showComments: layers.showComments,
+  });
+  const markerLaneHeightPx = markerLaneHeight(rows);
   const laneHeight = fitLaneHeight(
     stageHeightPx - RULER_HEIGHT - markerLaneHeightPx - FIT_GUTTER,
     project.tracks.length,
@@ -573,6 +571,9 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
         data-playing={isPlaying}
         style={
           {
+            // Timeline px geometry from utils/layout.ts; timeline.css reads it.
+            "--ruler-height": `${RULER_HEIGHT}px`,
+            "--marker-row-height": `${MARKER_ROW_HEIGHT}px`,
             "--lane-height": `${laneHeight}px`,
             "--marker-lane-height": `${markerLaneHeightPx}px`,
             ...(followingClientId
@@ -653,8 +654,7 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
                   chapters={project.chapters}
                   socialClips={project.social_clips ?? []}
                   comments={project.comments ?? []}
-                  showMarkers={layers.showMarkers}
-                  showComments={layers.showComments}
+                  rows={rows}
                   selectedCommentId={
                     selection?.kind === "comment" ? selection.id : null
                   }

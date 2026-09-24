@@ -4,17 +4,12 @@ import type {
   SocialClipView,
   TimelineComment,
 } from "../types/project";
-import { LANE_HEIGHT, MARKER_LANE_HEIGHT } from "../utils/layout";
-
-/** One marker row (chapters, social clips, or comments), in CSS px. */
-export const MARKER_ROW_HEIGHT = 24;
-/** Tallest a lane grows when few tracks fill the stage. */
-export const MAX_FIT_LANE_HEIGHT = 240;
-/**
- * Room left under the lanes: the header column's "+ Track" row and a
- * horizontal scrollbar, so fitting never forces a vertical scroll.
- */
-export const FIT_GUTTER = 48;
+import {
+  LANE_HEIGHT,
+  MARKER_LANE_HEIGHT,
+  MARKER_ROW_HEIGHT,
+  MAX_FIT_LANE_HEIGHT,
+} from "../utils/layout";
 
 export type TimelineMetrics = {
   laneHeight: number;
