@@ -7,7 +7,7 @@ export default {
     // Motion times with --motion-* tokens (docs/design-tokens.md § Motion);
     // tests/test_css_policy.py also checks the no-preference guard.
     "declaration-property-unit-disallowed-list": {
-      "/^(-webkit-)?(transition|animation)/": ["ms", "s"],
+      "/^(-(webkit|moz)-)?(transition|animation)/i": ["ms", "s"],
     },
     "scale-unlimited/declaration-strict-value": [
       [

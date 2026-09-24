@@ -651,7 +651,7 @@ button.join-diamond {
 
 @media (prefers-reduced-motion: no-preference) {
   .timeline-skeleton-lane {
-    animation: timeline-shimmer var(--motion-loop-shimmer) linear infinite;
+    animation: timeline-shimmer var(--motion-loop-skeleton) linear infinite;
   }
 }
 

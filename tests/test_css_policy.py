@@ -8,6 +8,7 @@ are allowed only when a matching `stylelint-disable` includes
 from __future__ import annotations
 
 import re
+from bisect import bisect_right
 from pathlib import Path
 from typing import NamedTuple
 
@@ -58,22 +59,49 @@ _JS_STYLE_SPACE = re.compile(
 # raw color. brand-tokens.css is exempt — its copies ship to splash/relay
 # static contexts that never load primitives.css, so it stays self-contained.
 _PRIMITIVES_CSS = ROOT / "gui/web/src/styles/theme/primitives.css"
-_THEME_CSS = (
-    ROOT / "gui/web/src/styles/theme/theme-dark.css",
-    ROOT / "gui/web/src/styles/theme/theme-light.css",
-    ROOT / "gui/web/src/styles/theme/theme-fixed.css",
-)
+_THEME_DIR = ROOT / "gui/web/src/styles/theme"
+_THEME_FIXED_CSS = _THEME_DIR / "theme-fixed.css"
+_THEME_CSS = (_THEME_DIR / "theme-dark.css", _THEME_DIR / "theme-light.css", _THEME_FIXED_CSS)
+_TOKENS_CSS = _THEME_DIR / "tokens.css"
 _PARTIALS_DIR = ROOT / "gui/web/src/styles/partials"
 _PRIMITIVE_REF = re.compile(r"var\(\s*--primitive-")
 _CSS_VAR_REF = re.compile(r"var\(\s*--")
 _CSS_HEX = re.compile(r"#[0-9a-fA-F]{3,8}\b")
-_CSS_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
-_TOKENS_CSS = ROOT / "gui/web/src/styles/theme/tokens.css"
+# One left-to-right pass over comments, strings and url()s, whichever starts
+# first: a "/*" inside a string, or a quote inside a comment, is just text.
+_CSS_TOKEN = re.compile(
+    r"(?P<comment>/\*.*?\*/)"
+    r"|\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'"
+    r"|url\((?:\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|[^)\"'])*\)",
+    re.DOTALL | re.IGNORECASE,
+)
+
+
+def _lex(text: str) -> tuple[str, str]:
+    """(code, structure). Code blanks comments, keeping their newlines so lines
+    still match; structure also masks strings and url()s, whose braces and
+    semicolons are not CSS syntax."""
+    code: list[str] = []
+    structure: list[str] = []
+    pos = 0
+    for match in _CSS_TOKEN.finditer(text):
+        plain, token = text[pos : match.start()], match.group(0)
+        if match.group("comment"):
+            blank = "\n" * token.count("\n")
+            code += [plain, blank]
+            structure += [plain, blank]
+        else:
+            code += [plain, token]
+            structure += [plain, re.sub(r"[^\n]", "_", token)]
+        pos = match.end()
+    code.append(text[pos:])
+    structure.append(text[pos:])
+    return "".join(code), "".join(structure)
 
 
 def _blank_comments(text: str) -> str:
     """CSS with comments removed but their newlines kept, so lines still match."""
-    return _CSS_COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), text)
+    return _lex(text)[0]
 
 
 def _partial_files() -> list[Path]:
@@ -103,21 +131,18 @@ def _split_rules(raw: str | None) -> set[str]:
     return {part.strip() for part in raw.split(",") if part.strip()}
 
 
-def _code_without_comments(line: str) -> str:
-    return re.sub(r"/\*.*?\*/", "", line)
-
-
 def _scan_css(path: Path) -> list[str]:
     hits: list[str] = []
     rel = path.relative_to(ROOT)
     text = path.read_text(encoding="utf-8")
     lines = text.splitlines()
+    code_lines = _blank_comments(text).splitlines()
     block: set[str] = set()
     pending_next: set[str] = set()
     active_at: dict[int, set[str]] = {}
     for i, line in enumerate(lines, 1):
         loc = f"{rel}:{i}"
-        code = _code_without_comments(line)
+        code = code_lines[i - 1]
         active = set(block)
         if pending_next:
             active |= pending_next
@@ -308,12 +333,10 @@ def test_partials_never_read_primitives() -> None:
 def test_color_roles_live_in_theme_tier_files() -> None:
     """tokens.css holds scale, layout and composite tokens; every --color-*
     role that maps a primitive lives in theme-dark/light/fixed.css."""
-    tokens = _TOKENS_CSS
-    text = _blank_comments(tokens.read_text(encoding="utf-8"))
     hits = [
-        f"{tokens.relative_to(ROOT)}:{i}: {line.strip()[:60]}"
-        for i, line in enumerate(text.splitlines(), 1)
-        if re.match(r"\s*--color-[\w-]+\s*:", line) and _PRIMITIVE_REF.search(line)
+        f"{_TOKENS_CSS.relative_to(ROOT)}:{d.line}: {d.prop}: {d.value[:60]}"
+        for d in _file_declarations(_TOKENS_CSS)
+        if d.prop.startswith("--color-") and _PRIMITIVE_REF.search(d.value)
     ]
     assert not hits, "color roles belong in a theme tier file:\n" + "\n".join(hits)
 
@@ -323,7 +346,7 @@ def test_fixed_tier_reads_only_primitives_and_its_own_roles() -> None:
     primitives and roles it defines itself. A themed role (e.g. the overlay
     whites, which turn dark in light mode) would leak the theme into the
     fixed-dark transport."""
-    path = ROOT / "gui/web/src/styles/theme/theme-fixed.css"
+    path = _THEME_FIXED_CSS
     text = _blank_comments(path.read_text(encoding="utf-8"))
     defined = set(_CUSTOM_PROP_DEF.findall(text))
     hits = [
@@ -359,9 +382,8 @@ def test_studio_references_only_defined_custom_properties() -> None:
     edit ghosts and the undo toast size never rendered). Every custom property a
     Studio stylesheet or script reads must be defined by a stylesheet or set
     inline by a component."""
-    studio = ROOT / "gui/web/src"
-    css_files = sorted(studio.rglob("*.css"))
-    all_scripts = sorted([*studio.rglob("*.ts"), *studio.rglob("*.tsx")])
+    css_files = sorted(_JS_ROOT.rglob("*.css"))
+    all_scripts = _js_files()
     script_files = [
         path for path in all_scripts if ".test." not in path.name and ".stories." not in path.name
     ]
@@ -396,19 +418,11 @@ class _Declaration(NamedTuple):
     preludes: tuple[str, ...]
 
 
-# Strings and url()s: their braces and semicolons are not CSS structure.
-_STRING_OR_URL = re.compile(
-    r"\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'"
-    r"|url\((?:\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|[^)])*\)",
-    re.IGNORECASE,
-)
-
-
 def _declarations(text: str) -> list[_Declaration]:
     """Every declaration with its line and enclosing preludes. Comments are
     blanked (lines kept); strings and url()s never open or close a block."""
-    code = _blank_comments(text)
-    structure = _STRING_OR_URL.sub(lambda m: re.sub(r"[^\n]", "_", m.group(0)), code)
+    code, structure = _lex(text)
+    newlines = [index for index, char in enumerate(code) if char == "\n"]
     found: list[_Declaration] = []
     stack: list[str] = []
     start = 0
@@ -420,7 +434,7 @@ def _declarations(text: str) -> list[_Declaration]:
             stack.append(" ".join(segment.split()))
         elif ":" in structure[start:index] and not segment.lstrip().startswith("@"):
             prop, _, value = segment.partition(":")
-            line = code.count("\n", 0, start + len(segment) - len(segment.lstrip())) + 1
+            line = bisect_right(newlines, start + len(segment) - len(segment.lstrip()) - 1) + 1
             found.append(_Declaration(line, prop.strip(), " ".join(value.split()), tuple(stack)))
         if char == "}" and stack:
             stack.pop()
@@ -428,27 +442,31 @@ def _declarations(text: str) -> list[_Declaration]:
     return found
 
 
+def _file_declarations(path: Path) -> list[_Declaration]:
+    return _declarations(path.read_text(encoding="utf-8"))
+
+
 _MOTION_PROP = re.compile(
-    r"(?:-webkit-)?(?:transition|animation)(?:-duration|-delay)?", re.IGNORECASE
+    r"(?:-(?:webkit|moz)-)?(?:transition|animation)(?:-duration|-delay)?", re.IGNORECASE
 )
-_DURATION = re.compile(r"(?<![\w.-])(\d*\.?\d+)m?s\b", re.IGNORECASE)
-_VAR_NAME = re.compile(r"var\(\s*(--[\w-]+)")
+_DURATION = re.compile(r"(?<![\w.-])-?(\d*\.?\d+(?:e[+-]?\d+)?)m?s\b", re.IGNORECASE)
 # Exactly this query: no `not`, no list, so reduced motion never matches it.
 _NO_PREFERENCE = re.compile(r"@media \(prefers-reduced-motion: no-preference\)", re.IGNORECASE)
 
 
-def _motion_declarations(text: str) -> list[_Declaration]:
-    return [d for d in _declarations(text) if _MOTION_PROP.fullmatch(d.prop)]
+def _motion_declarations(path: Path) -> list[_Declaration]:
+    return [d for d in _file_declarations(path) if _MOTION_PROP.fullmatch(d.prop)]
 
 
 def _raw_durations(value: str) -> list[str]:
-    """Literal non-zero times; a zero time is no motion."""
-    return [m.group(0) for m in _DURATION.finditer(value) if float(m.group(1))]
+    """Literal times, zero included: Stylelint rejects any unit here too."""
+    return [m.group(0) for m in _DURATION.finditer(value)]
 
 
 def _moves(value: str) -> bool:
     """A motion value that animates: a timed token or a non-zero literal."""
-    return value.lower() != "none" and bool(_VAR_NAME.search(value) or _raw_durations(value))
+    timed = any(float(m.group(1)) for m in _DURATION.finditer(value))
+    return value.lower() != "none" and bool(_CUSTOM_PROP_USE.search(value) or timed)
 
 
 def test_partial_motion_uses_motion_tokens() -> None:
@@ -458,8 +476,10 @@ def test_partial_motion_uses_motion_tokens() -> None:
     hits: list[str] = []
     for path in _partial_files():
         rel = path.relative_to(ROOT)
-        for d in _motion_declarations(path.read_text(encoding="utf-8")):
-            foreign = [n for n in _VAR_NAME.findall(d.value) if not n.startswith("--motion-")]
+        for d in _motion_declarations(path):
+            foreign = [
+                n for n in _CUSTOM_PROP_USE.findall(d.value) if not n.startswith("--motion-")
+            ]
             if _raw_durations(d.value) or foreign:
                 hits.append(f"{rel}:{d.line}: {d.prop}: {d.value} (use var(--motion-*))")
     assert not hits, "motion not timed with --motion-* in partials:\n" + "\n".join(hits)
@@ -471,7 +491,7 @@ def test_partial_motion_respects_reduced_motion() -> None:
     hits: list[str] = []
     for path in _partial_files():
         rel = path.relative_to(ROOT)
-        for d in _motion_declarations(path.read_text(encoding="utf-8")):
+        for d in _motion_declarations(path):
             if _moves(d.value) and not any(_NO_PREFERENCE.fullmatch(p) for p in d.preludes):
                 hits.append(f"{rel}:{d.line}: {d.prop}: {d.value} (wrap in no-preference)")
     assert not hits, "motion outside prefers-reduced-motion guards:\n" + "\n".join(hits)
@@ -483,7 +503,7 @@ def test_declaration_scanner() -> None:
     /* a comment
        over two lines */
     @media (prefers-reduced-motion: no-preference) {
-      .b::before { content: "{"; animation: x var(--motion-panel); }
+      .b::before { content: "{ /*"; animation: x var(--motion-panel); }
       .c { background: url("data:image/svg+xml,<svg>}</svg>"); }
     }
     .d { transition: none }
@@ -491,19 +511,26 @@ def test_declaration_scanner() -> None:
     no_pref = "@media (prefers-reduced-motion: no-preference)"
     assert _declarations(css) == [
         (2, "transition", "color 150ms ease", (".a",)),
-        (6, "content", '"{"', (no_pref, ".b::before")),
+        (6, "content", '"{ /*"', (no_pref, ".b::before")),
         (6, "animation", "x var(--motion-panel)", (no_pref, ".b::before")),
         (7, "background", 'url("data:image/svg+xml,<svg>}</svg>")', (no_pref, ".c")),
         (9, "transition", "none", (".d",)),
     ]
-    assert [d.prop for d in _motion_declarations(css)] == ["transition", "animation", "transition"]
+    assert [d.prop for d in _declarations(css) if _MOTION_PROP.fullmatch(d.prop)] == [
+        "transition",
+        "animation",
+        "transition",
+    ]
 
 
 def test_motion_policy_helpers() -> None:
     assert _MOTION_PROP.fullmatch("-webkit-animation-delay")
     assert _MOTION_PROP.fullmatch("Transition-Duration")
+    assert _MOTION_PROP.fullmatch("-moz-transition")
     assert not _MOTION_PROP.fullmatch("transition-property")
-    assert _raw_durations("x .2s, y 200MS, z 0ms, w 0s, v 1.5s") == [".2s", "200MS", "1.5s"]
+    assert _raw_durations("x .2s, y 200MS, z 0ms, v 1.5s") == [".2s", "200MS", "0ms", "1.5s"]
+    assert _raw_durations("x -150ms, y 1e3ms") == ["-150ms", "1e3ms"]
+    assert _moves("x 1e3ms")
     assert _raw_durations("color var(--motion-hover) cubic-bezier(0.2, 0, 0, 1)") == []
     assert not _moves("none")
     assert not _moves("opacity 0s")
@@ -513,6 +540,8 @@ def test_motion_policy_helpers() -> None:
         "@media not all and (prefers-reduced-motion: no-preference)"
     )
     assert not _NO_PREFERENCE.fullmatch("@media (prefers-reduced-motion: no-preference), print")
+    # An unclosed url() followed by strings must not backtrack exponentially.
+    assert _declarations(".a { b: url(" + '"a"' * 40 + "; }")
 
 
 def test_timeline_edge_stays_under_the_clips() -> None:

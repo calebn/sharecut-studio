@@ -691,6 +691,12 @@ test.describe("record lobby", () => {
           .withRules(["color-contrast"])
           .analyze();
         expect(contrast.violations).toEqual([]);
+        // The REC dot loops only when motion is allowed.
+        await host.emulateMedia({ reducedMotion: "no-preference" });
+        await expect(recChip.locator(".record-rec-dot")).toHaveCSS(
+          "animation-name",
+          "record-rec-pulse",
+        );
         await host.emulateMedia({ reducedMotion: "reduce" });
         await expect(recChip.locator(".record-rec-dot")).toHaveCSS(
           "animation-name",
