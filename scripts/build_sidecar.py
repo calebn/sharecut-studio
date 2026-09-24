@@ -234,8 +234,8 @@ def assert_production_web_dist(dist: Path) -> None:
     """Reject test-instrumented assets before packaging or reusing a freeze."""
     if not (dist / "index.html").is_file():
         raise SystemExit(f"missing web dist index: {dist / 'index.html'}")
-    for asset in dist.rglob("*.js"):
-        if any(marker in asset.read_bytes() for marker in E2E_WEB_MARKERS):
+    for asset in dist.rglob("*"):
+        if asset.is_file() and any(marker in asset.read_bytes() for marker in E2E_WEB_MARKERS):
             raise SystemExit(
                 f"E2E test hook in {asset}; run an ordinary npm run build before packaging"
             )
