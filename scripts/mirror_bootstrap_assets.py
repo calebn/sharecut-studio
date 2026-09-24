@@ -20,7 +20,6 @@ Env:
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import sys
 from pathlib import Path
@@ -28,18 +27,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from podcast_mcp.util.asset_sources import download_first_ok
+from podcast_mcp.util.hashing import sha256_file
 
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
-
-
-def _sha256(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as f:
-        for chunk in iter(lambda: f.read(1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()
 
 
 def _download(url: str, dest: Path, *, timeout: float = 120.0) -> None:
@@ -79,7 +71,7 @@ def main() -> int:
                 continue
             print(f"fetch {name} → {dest}")
             _download(url, dest)
-            planned[-1]["sha256"] = _sha256(dest)
+            planned[-1]["sha256"] = sha256_file(dest)
         elif kind == "huggingface":
             planned.append(
                 {
