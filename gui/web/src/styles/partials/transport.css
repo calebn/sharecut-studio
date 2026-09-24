@@ -212,6 +212,22 @@
   position: relative;
 }
 
+/* Smallest phones (≤22.5rem, e.g. 320pt): Play, Stop, the timecode and
+   three tools must fit without overflow, so the strip tightens its padding
+   and gaps and steps the timecode down one size (targets keep 44pt).
+   The app container, because a container query cannot style its own
+   container (.transport). */
+@container app (inline-size < 22.5rem) {
+  .transport--collapsed {
+    padding-inline: var(--space-3);
+    gap: var(--space-1);
+  }
+
+  .transport--collapsed .timecode-current {
+    font-size: var(--font-size-ui);
+  }
+}
+
 /* Overflow menus hang off the strip. */
 .transport-overflow {
   margin-left: 0;
