@@ -78,8 +78,10 @@ class Track(BaseModel):
     role: TrackRole = TrackRole.DIALOGUE
     speaker: str | None = None
     media: MediaAsset | None = None
-    # Optional recorded quiet bed (raw/room-tone/{participant}.wav). Filler
-    # pads prefer this over stolen stem air when filler_pad_mode is room_tone.
+    # Optional recorded quiet bed (raw/room-tone/{session}/{participant}.wav;
+    # the older raw/room-tone/{participant}.wav path still works for existing
+    # projects). Filler pads prefer this over stolen stem air when
+    # filler_pad_mode is room_tone.
     room_tone: MediaAsset | None = None
     gain_db: float = 0.0
     muted: bool = False

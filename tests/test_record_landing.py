@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
@@ -920,7 +921,7 @@ def test_missing_acked_rerecorded_room_tone_does_not_reuse_old_bed(
 
     hash_a = _ingest_bed(480)
     RecordLandingService(ws).land(align=lambda _p: None)
-    bed = Path(ws.project.workspace_dir) / "raw" / "room-tone" / f"{guest}.wav"
+    bed = Path(ws.project.workspace_dir) / "raw" / "room-tone" / room["session_id"] / f"{guest}.wav"
     assert sha256_file(bed) == hash_a
 
     hash_b = _ingest_bed(960)
@@ -2145,7 +2146,7 @@ def test_land_sets_track_room_tone_under_lock(
     track = ws.project.track_by_id(tid)
     assert track is not None
     assert track.room_tone is not None
-    assert track.room_tone.path == f"raw/room-tone/{guest}.wav"
+    assert track.room_tone.path == f"raw/room-tone/{room['session_id']}/{guest}.wav"
     dest = Path(ws.project.workspace_dir) / track.room_tone.path
     assert dest.is_file()
     src = next(s for s in ws.project.sources if s.id == room_tone_source_id(tid))
@@ -2197,7 +2198,9 @@ def test_land_rejects_oversize_room_tone_before_copy(
     acked.write_bytes(b"RIFF" + b"\x00" * (ROOM_TONE_MAX_PCM_BYTES + 80))
     with pytest.raises(RecordLandingError, match="too large"):
         RecordLandingService(ws).land(align=lambda _p: None)
-    dest = Path(ws.project.workspace_dir) / "raw" / "room-tone" / f"{guest}.wav"
+    dest = (
+        Path(ws.project.workspace_dir) / "raw" / "room-tone" / room["session_id"] / f"{guest}.wav"
+    )
     assert not dest.is_file()
 
 
@@ -2227,7 +2230,7 @@ def test_missing_acked_room_tone_lands_only_with_registered_bed(
     )
     result = RecordLandingService(ws).land(align=lambda _p: None)
     assert result["clips"] == []
-    bed = Path(ws.project.workspace_dir) / "raw" / "room-tone" / f"{guest}.wav"
+    bed = Path(ws.project.workspace_dir) / "raw" / "room-tone" / room["session_id"] / f"{guest}.wav"
     assert bed.is_file()
     beds = uploader.room_tone_status(session_id=room["session_id"])
     assert beds and beds[0]["landed"] is True
@@ -2251,3 +2254,150 @@ def test_missing_acked_room_tone_lands_only_with_registered_bed(
     beds_final = uploader.room_tone_status(session_id=room["session_id"])
     assert beds_final[0]["landed"] is False
     assert beds_final[0]["land_failed"] is True
+
+
+def test_overlapping_sessions_room_tone_keep_own_verified_bytes(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    """Two sessions landing the same participant's room tone must not clobber
+    each other's raw bytes; each session's landed row keeps its own file."""
+    from podcast_mcp.edits.timeline_ops import room_tone_source_id
+    from podcast_mcp.edits.track_ids import slug_track_id
+    from podcast_mcp.services.record import landing
+    from podcast_mcp.util.hashing import sha256_file
+
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    uploader = RecordUploadService(ws.project)
+
+    def _ingest_bed(session_id: str, nbytes: int) -> str:
+        pcm, digest, file_hash = _pcm(nbytes)
+        uploader.ingest_part(
+            session_id=session_id,
+            take_index=0,
+            participant_id=HOST_PARTICIPANT_ID,
+            segment_index=0,
+            part_seq=0,
+            data=pcm,
+            digest=digest,
+            file_sha256=file_hash,
+            final=True,
+            kind="room_tone",
+        )
+        return file_hash
+
+    room_a = ShareService(ws).create_record_room()
+    _consent_room(ws, room_a)
+    hash_a = _ingest_bed(room_a["session_id"], 480)
+    land_a = RecordLandingService(ws)
+
+    copied_event = threading.Event()
+    resume_event = threading.Event()
+    real_copy_room_tone = landing._copy_room_tone
+
+    def _paced_copy_room_tone(project, acked, session_id, participant_id):
+        rel = real_copy_room_tone(project, acked, session_id, participant_id)
+        if session_id == room_a["session_id"]:
+            copied_event.set()
+            assert resume_event.wait(timeout=5), "test main thread never resumed session A"
+        return rel
+
+    monkeypatch.setattr(landing, "_copy_room_tone", _paced_copy_room_tone)
+
+    result_a: dict[str, Any] = {}
+
+    def _land_a() -> None:
+        result_a["out"] = land_a.land(align=lambda _p: None)
+
+    thread = threading.Thread(target=_land_a)
+    thread.start()
+    try:
+        assert copied_event.wait(timeout=5), "session A never reached its room-tone copy"
+
+        room_b = ShareService(ws).create_record_room()
+        _consent_room(ws, room_b)
+        hash_b = _ingest_bed(room_b["session_id"], 960)
+        land_b = RecordLandingService(ws)
+        land_b.land(align=lambda _p: None)
+    finally:
+        resume_event.set()
+        thread.join(timeout=5)
+    assert not thread.is_alive()
+    assert "out" in result_a
+
+    status_a = uploader.room_tone_status(session_id=room_a["session_id"])
+    status_b = uploader.room_tone_status(session_id=room_b["session_id"])
+    assert status_a[0]["landed"] is True
+    assert status_a[0]["land_failed"] is False
+    assert status_b[0]["landed"] is True
+    assert status_b[0]["land_failed"] is False
+
+    raw_room_tone = Path(ws.project.workspace_dir) / "raw" / "room-tone"
+    bed_a = raw_room_tone / room_a["session_id"] / f"{HOST_PARTICIPANT_ID}.wav"
+    bed_b = raw_room_tone / room_b["session_id"] / f"{HOST_PARTICIPANT_ID}.wav"
+    assert sha256_file(bed_a) == hash_a
+    assert sha256_file(bed_b) == hash_b
+    assert list(raw_room_tone.rglob("*.tmp")) == []
+
+    track_id = slug_track_id(HOST_PARTICIPANT_ID)
+    track = ws.project.track_by_id(track_id)
+    assert track is not None and track.room_tone is not None
+    assert track.room_tone.path == f"raw/room-tone/{room_a['session_id']}/{HOST_PARTICIPANT_ID}.wav"
+    src = next(s for s in ws.project.sources if s.id == room_tone_source_id(track_id))
+    assert src.path == track.room_tone.path
+
+
+def test_later_session_room_tone_does_not_rewrite_landed_bed(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    """A later session's room-tone landing must not touch an earlier session's
+    already-landed bed on disk, only the track/source that owns the last commit."""
+    from podcast_mcp.edits.track_ids import slug_track_id
+    from podcast_mcp.util.hashing import sha256_file
+
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    uploader = RecordUploadService(ws.project)
+
+    def _ingest_bed(session_id: str, nbytes: int) -> str:
+        pcm, digest, file_hash = _pcm(nbytes)
+        uploader.ingest_part(
+            session_id=session_id,
+            take_index=0,
+            participant_id=HOST_PARTICIPANT_ID,
+            segment_index=0,
+            part_seq=0,
+            data=pcm,
+            digest=digest,
+            file_sha256=file_hash,
+            final=True,
+            kind="room_tone",
+        )
+        return file_hash
+
+    room_a = ShareService(ws).create_record_room()
+    _consent_room(ws, room_a)
+    hash_a = _ingest_bed(room_a["session_id"], 480)
+    RecordLandingService(ws).land(align=lambda _p: None)
+
+    room_b = ShareService(ws).create_record_room()
+    _consent_room(ws, room_b)
+    _ingest_bed(room_b["session_id"], 960)
+    RecordLandingService(ws).land(align=lambda _p: None)
+
+    track = ws.project.track_by_id(slug_track_id(HOST_PARTICIPANT_ID))
+    assert track is not None and track.room_tone is not None
+    assert track.room_tone.path == f"raw/room-tone/{room_b['session_id']}/{HOST_PARTICIPANT_ID}.wav"
+
+    status_a = uploader.room_tone_status(session_id=room_a["session_id"])
+    assert status_a[0]["landed"] is True
+    assert status_a[0]["land_failed"] is False
+
+    bed_a = (
+        Path(ws.project.workspace_dir)
+        / "raw"
+        / "room-tone"
+        / room_a["session_id"]
+        / f"{HOST_PARTICIPANT_ID}.wav"
+    )
+    assert sha256_file(bed_a) == hash_a

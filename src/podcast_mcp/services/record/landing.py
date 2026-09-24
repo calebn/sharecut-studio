@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import shutil
 import threading
 import wave
 from collections.abc import Callable, Mapping
@@ -52,6 +51,7 @@ from podcast_mcp.services.record.upload import (
     parse_upload_index,
 )
 from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.util.atomic_json import copy_file_atomic
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.progress import resolve_progress_task
 from podcast_mcp.util.project_state import project_state_lock
@@ -452,7 +452,7 @@ class RecordLandingService:
                     progress.advance()
                     continue
                 sample_rate, channels, samples = wav_pcm_info(acked)
-                rel = _copy_room_tone(self.workspace.project, acked, pid)
+                rel = _copy_room_tone(self.workspace.project, acked, self.session_id, pid)
                 room_tone_copied.append(
                     {
                         "participant_id": pid,
@@ -798,43 +798,47 @@ def _registered_source_file(project: EpisodeProject, source_id: str) -> tuple[Pa
     return (dest, existing.path) if dest.is_file() else None
 
 
+def room_tone_raw_rel(session_id: str, participant_id: str) -> str:
+    """Return the session-qualified raw path for a room-tone bed."""
+    sid = parse_session_id(session_id)
+    pid = parse_participant_id(participant_id)
+    return f"raw/room-tone/{sid}/{pid}.wav"
+
+
 def _copy_into_raw(
     project: EpisodeProject,
     acked: Path,
     source_id: str,
     *,
-    dest: Path | None = None,
     expected_sha256: str | None = None,
 ) -> tuple[Path, str]:
     """Copy *acked* into ``raw/`` and return ``(dest, workspace-relative path)``.
 
-    *source_id* is used only when *dest* is None: to reuse an already registered
-    source file and to name a fresh ``unique_raw_path``. With an explicit *dest*
-    (room tone), *source_id* is ignored and *acked* is always copied to *dest*.
-    Landed-state checks use ``_registered_source_file`` with the row's SHA-256
-    in ``_mark_missing_acked``, not this helper.
+    *source_id* is used to reuse an already registered source file and to
+    name a fresh ``unique_raw_path``. Landed-state checks use
+    ``_registered_source_file`` with the row's SHA-256 in
+    ``_mark_missing_acked``, not this helper.
     """
     ws = Path(project.workspace_dir)
-    if dest is None:
-        registered = _registered_source_file(project, source_id)
-        if registered is not None and expected_sha256:
-            try:
-                if sha256_file(registered[0]) == expected_sha256:
-                    return registered
-            except OSError:
-                pass
-        dest = unique_raw_path(ws, f"{source_id}.wav")
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(acked, dest)
+    registered = _registered_source_file(project, source_id)
+    if registered is not None and expected_sha256:
+        try:
+            if sha256_file(registered[0]) == expected_sha256:
+                return registered
+        except OSError:
+            pass
+    dest = unique_raw_path(ws, f"{source_id}.wav")
+    copy_file_atomic(acked, dest)
     rel = str(dest.relative_to(ws)).replace("\\", "/")
     return dest, rel
 
 
-def _copy_room_tone(project: EpisodeProject, acked: Path, participant_id: str) -> str:
+def _copy_room_tone(
+    project: EpisodeProject, acked: Path, session_id: str, participant_id: str
+) -> str:
     ws = Path(project.workspace_dir)
-    pid = parse_participant_id(participant_id)
-    dest = ws / "raw" / "room-tone" / f"{pid}.wav"
-    _dest, rel = _copy_into_raw(project, acked, room_tone_source_id(slug_track_id(pid)), dest=dest)
+    rel = room_tone_raw_rel(session_id, participant_id)
+    copy_file_atomic(acked, ws / rel)
     return rel
 
 

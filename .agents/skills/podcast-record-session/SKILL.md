@@ -87,7 +87,9 @@ podcast record discard-take --project episode.project.json --take-index 0
    recording-clock `drift_ms` (`null` if unknown); `|drift| > 50 ms` or a
    missing `session_start` sets `align_fallback` so pipeline `align_tracks`
    can run after transcribe — land does not invoke it. Optional room-tone WAVs
-   land at `raw/room-tone/{participant}.wav` on `track.room_tone`. Reloading
+   land atomically at `raw/room-tone/{session}/{participant}.wav` on
+   `track.room_tone` (the older shared `raw/room-tone/{participant}.wav`
+   path still works for existing projects). Reloading
    the same `/rec/` link reuses
    the host-minted `participant_id` + lease (7-day recovery window). A second
    tab is rejected (`lease_in_use`).
