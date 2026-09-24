@@ -261,6 +261,11 @@ flowchart TD
    reads "Local recording stopped: this device's storage couldn't keep up."
    Retry places the new segment at the current recording clock. After Stop, an incomplete local WAV remains for
    recovery but does not hold Leave once complete segments have uploaded.
+   A metadata-free partial stays downloadable for seven days after its last
+   write. On a later settled upload poll it expires, the panel says the local
+   audio is no longer available, and its segment number remains reserved.
+   Pending metadata and finalized WAVs follow their separate recovery and
+   landed-file rules.
 
 **Success:** Guest consents, appears on the host roster, sees REC/PAUSED, hears
 the mix-minus, writes a local dry WAV, and uploads chunks until ACK. Timeline

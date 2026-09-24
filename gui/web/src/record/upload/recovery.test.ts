@@ -10,6 +10,8 @@ import {
   keeperMetaPath,
   keeperWavPath,
   MemorySink,
+  ORPHAN_KEEPER_RETENTION_MS,
+  pruneExpiredKeeperWavs,
 } from "../keeper/store";
 import { KEEPER_ALL_RECLAIMED_COPY } from "../types";
 import {
@@ -30,6 +32,31 @@ afterEach(() => {
 });
 
 describe("downloadLocalKeepers", () => {
+  it("excludes expired pruned segments while exporting a retained partial", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn(() => "blob:keeper"),
+      revokeObjectURL: vi.fn(),
+    });
+    const filenames: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      filenames.push(this.download);
+    });
+    const sink = new MemorySink();
+    const ids = { sessionId: "room1", takeIndex: 0, participantId: "p_guest" };
+    const old = keeperWavPath({ ...ids, segmentIndex: 0 });
+    const recent = keeperWavPath({ ...ids, segmentIndex: 1 });
+    await sink.write(old, new Uint8Array([1]));
+    await sink.write(recent, new Uint8Array([2]));
+    sink.modified.set(old, Date.now() - ORPHAN_KEEPER_RETENTION_MS - 1);
+    await pruneExpiredKeeperWavs(sink, "room1", "p_guest", 0, () => true);
+    expect(await inspectKeeperRecovery(sink, old)).toEqual({ kind: "pruned" });
+    await downloadLocalKeepers(sink, "room1", "p_guest", 0);
+    expect(filenames).toEqual(["keepers-p_guest.zip"]);
+    await vi.runAllTimersAsync();
+  });
   it.each(["p_host", "p_guest"])(
     "exports every retained take and segment for %s, labeling partials, without deleting OPFS",
     async (participantId) => {

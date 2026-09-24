@@ -6,7 +6,11 @@ import {
   keeperReclaimStuck,
   reclaimKeeperWav,
 } from "../keeper/reclaim";
-import { type ByteSink, keeperSegmentPaths } from "../keeper/store";
+import {
+  type ByteSink,
+  keeperSegmentPaths,
+  pruneExpiredKeeperWavs,
+} from "../keeper/store";
 import { UPLOAD_STALLED_COPY } from "../types";
 import { uploadKeeperWav } from "./pump";
 import { inspectKeeperRecovery } from "./recovery";
@@ -114,6 +118,7 @@ export function useRecordUpload(args: {
     let stalledTicks = 0;
     let lastAcked = -1;
     let lastTotal = -1;
+    let checkedExpired = false;
     const abort = new AbortController();
     setProgress((prev) => ({ ...prev, pending: true, error: null }));
     const tick = async () => {
@@ -130,6 +135,22 @@ export function useRecordUpload(args: {
         return;
       }
       try {
+        if (settled && !checkedExpired) {
+          checkedExpired = true;
+          // Expiry is maintenance: a failed delete must not block upload.
+          await pruneExpiredKeeperWavs(
+            sink,
+            sessionId,
+            participantId,
+            takeIndex,
+            () =>
+              !cancelled &&
+              argsRef.current.roomState === "stopped" &&
+              Boolean(argsRef.current.captureSettled),
+          ).catch(() => {
+            checkedExpired = false;
+          });
+        }
         const remote = await transport.status(abort.signal);
         let acked = 0;
         let total = 0;
@@ -140,6 +161,7 @@ export function useRecordUpload(args: {
         let awaitingAck = false;
         let finalizing = false;
         let abandoned = false;
+        let expired = false;
         let recoverable = false;
         let reclaimMismatch = false;
         const lossReasons = new Set<string>();
@@ -160,6 +182,12 @@ export function useRecordUpload(args: {
           const recovery = await inspectKeeperRecovery(sink, wavPath, {
             inspectPending: settled,
           });
+          if (recovery.kind === "pruned") {
+            expired = true;
+            allAcked = false;
+            allLanded = false;
+            continue;
+          }
           if (remoteSeg?.file_ack && recovery.kind === "complete") {
             const n = remoteSeg.expected_parts ?? remoteSeg.acked_parts.length;
             acked += n;
@@ -258,6 +286,9 @@ export function useRecordUpload(args: {
             recoverable,
             error:
               abandonedError ??
+              (expired
+                ? "An incomplete local keeper expired after seven days; that audio is no longer available here."
+                : null) ??
               (!saw && stopped && current.captureExpected !== false
                 ? "No local keeper was captured. Check the local copy before leaving."
                 : stalled

@@ -838,6 +838,14 @@ The client offers **Retry local recording** while the take is recording; during
 pause or after Stop, the host must resume or start a take first. Retry waits
 for the failed stream to close (bounded by the close deadline) and starts a
 new segment without overwriting the failed one.
+Metadata-free WAVs remain available for recovery download for seven days after
+their last write. Once capture has settled, upload polling removes older
+metadata-free WAVs. It writes a small `.json` pruned marker before deletion,
+so a later Retry or reload cannot reuse that segment index. A failed deletion
+keeps the WAV visible for download and is retried on a later settled poll.
+Pending or complete metadata protects its WAV from this age cleanup; normal
+landed-file reclaim still requires the host fingerprint check. Download the
+local keeper within seven days if recovery is needed.
 The retry segment uses the current recording clock so its landing offset follows
 the lost span. A stopped, incomplete local `.wav` remains in OPFS for recovery
 with only its pending `complete: false` `.json`; it is never given a file ACK,

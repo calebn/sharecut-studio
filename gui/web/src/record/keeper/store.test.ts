@@ -13,7 +13,10 @@ import {
   MemorySink,
   missingKeeperWavState,
   OpfsUnavailableError,
+  ORPHAN_KEEPER_RETENTION_MS,
   parseKeeperMeta,
+  prunedKeeperMarker,
+  pruneExpiredKeeperWavs,
   removeBestEffort,
   roomToneWavPath,
   writeKeeperMeta,
@@ -380,6 +383,56 @@ describe("MemorySink", () => {
       new Uint8Array([1]),
     );
     expect(await sink.nextSegmentIndex("cool-room", 0, "p_g")).toBe(4);
+  });
+
+  it("prunes only expired metadata-free WAVs after capture settles and reserves their indexes", async () => {
+    const sink = new MemorySink();
+    const ids = { sessionId: "room", takeIndex: 0, participantId: "guest" };
+    const old = keeperWavPath({ ...ids, segmentIndex: 0 });
+    const recent = keeperWavPath({ ...ids, segmentIndex: 1 });
+    const pending = keeperWavPath({ ...ids, segmentIndex: 2 });
+    await sink.write(old, new Uint8Array([1]));
+    await sink.write(recent, new Uint8Array([2]));
+    await sink.write(pending, new Uint8Array([3]));
+    await sink.write(keeperMetaPath(pending), keeperMetaBytes(ids, false));
+    const now = Date.now();
+    sink.modified.set(old, now - ORPHAN_KEEPER_RETENTION_MS - 1);
+    sink.modified.set(pending, now - ORPHAN_KEEPER_RETENTION_MS - 1);
+    expect(
+      await pruneExpiredKeeperWavs(sink, "room", "guest", 0, () => false, now),
+    ).toBe(0);
+    expect(
+      await pruneExpiredKeeperWavs(sink, "room", "guest", 0, () => true, now),
+    ).toBe(1);
+    expect(await sink.read(old)).toBeNull();
+    expect(await sink.read(recent)).not.toBeNull();
+    expect(await sink.read(pending)).not.toBeNull();
+    expect(prunedKeeperMarker(await sink.read(keeperMetaPath(old)), old)).toBe(
+      true,
+    );
+    expect(await missingKeeperWavState(sink, old)).toBe("pruned");
+    expect(await sink.nextSegmentIndex("room", 0, "guest")).toBe(3);
+    expect(
+      await pruneExpiredKeeperWavs(sink, "room", "guest", 0, () => true, now),
+    ).toBe(0);
+  });
+
+  it("keeps an expired WAV visible if deletion fails after reserving its index", async () => {
+    const sink = new MemorySink();
+    const wav = keeperWavPath({
+      sessionId: "room",
+      takeIndex: 0,
+      participantId: "guest",
+      segmentIndex: 0,
+    });
+    await sink.write(wav, new Uint8Array([1]));
+    sink.modified.set(wav, 0);
+    vi.spyOn(sink, "remove").mockRejectedValueOnce(new Error("locked"));
+    await expect(
+      pruneExpiredKeeperWavs(sink, "room", "guest", 0, () => true),
+    ).rejects.toThrow("locked");
+    expect(await sink.read(wav)).not.toBeNull();
+    expect(await sink.nextSegmentIndex("room", 0, "guest")).toBe(1);
   });
 });
 

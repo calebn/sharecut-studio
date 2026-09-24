@@ -12,6 +12,7 @@ import {
   keeperMetaPath,
   keeperWavPath,
   MemorySink,
+  ORPHAN_KEEPER_RETENTION_MS,
 } from "../keeper/store";
 import { recoverLocalKeepers } from "./recovery";
 import { memoryUploadTransport, type RecordUploadTransport } from "./transport";
@@ -98,6 +99,42 @@ function sinkForTakes(): ByteSink {
 }
 
 describe("useRecordUpload", () => {
+  it("expires an old metadata-free WAV only after capture settles", async () => {
+    const sink = new MemorySink();
+    const path = keeperWavPath({
+      sessionId: "room1",
+      takeIndex: 0,
+      participantId: "p_a",
+      segmentIndex: 0,
+    });
+    await sink.write(path, wavWithPcm(8));
+    sink.modified.set(path, Date.now() - ORPHAN_KEEPER_RETENTION_MS - 1);
+    const transport = memoryUploadTransport();
+    const { result, rerender, unmount } = renderHook(
+      ({ roomState, captureSettled }) =>
+        useRecordUpload({
+          enabled: true,
+          roomState,
+          captureSettled,
+          sessionId: "room1",
+          takeIndex: 0,
+          participantId: "p_a",
+          transport,
+          sink,
+        }),
+      { initialProps: { roomState: "recording", captureSettled: false } },
+    );
+    await waitFor(() => expect(result.current.pending).toBe(false));
+    expect(await sink.read(path)).not.toBeNull();
+    rerender({ roomState: "stopped", captureSettled: true });
+    await waitFor(() =>
+      expect(result.current.error).toMatch(/expired after seven days/),
+    );
+    expect(result.current.landed).toBe(false);
+    expect(await sink.read(path)).toBeNull();
+    expect(await sink.nextSegmentIndex("room1", 0, "p_a")).toBe(1);
+    unmount();
+  });
   it("reports a metadata-only crash without pretending the missing PCM can upload", async () => {
     const sink = new MemorySink();
     const path = keeperWavPath({
