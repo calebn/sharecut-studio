@@ -1,8 +1,18 @@
 import fs from "node:fs";
 import path from "node:path";
-import { expect, type Page, test } from "@playwright/test";
+import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
+import { setTheme } from "./theme";
+
+// Contexts opened from the worker-scoped browser (capture test); closed here
+// so a timeout never leaves a page connected to the shared e2e project.
+const openContexts: BrowserContext[] = [];
+test.afterEach(async () => {
+  await Promise.all(
+    openContexts.splice(0).map((context) => context.close().catch(() => {})),
+  );
+});
 
 function contrastRatio(foreground: string, background: string): number {
   const luminance = (color: string) => {
@@ -35,20 +45,13 @@ test("stage follows the theme and motion respects preference", async ({
   await expect(page.locator(".lane-row").first()).toBeVisible();
 
   for (const theme of ["light", "dark"] as const) {
-    await page.evaluate((value) => {
-      document.documentElement.dataset.theme = value;
-    }, theme);
+    await setTheme(page, theme);
     const colors = await page.evaluate(() => {
       const timeline = document.querySelector(".timeline-area");
       const transport = document.querySelector(".transport");
       if (!timeline || !transport) {
         throw new Error("Studio chrome did not mount");
       }
-      const playhead = document.createElement("div");
-      playhead.className = "playhead";
-      document.body.appendChild(playhead);
-      const playheadMotion = getComputedStyle(playhead).transitionDuration;
-      playhead.remove();
       const control = document.createElement("button");
       control.className = "ui-control";
       document.body.appendChild(control);
@@ -60,16 +63,17 @@ test("stage follows the theme and motion respects preference", async ({
       rulerPlayhead.className = "playhead";
       ruler.appendChild(rulerPlayhead);
       document.body.appendChild(ruler);
-      const rulerGlow = getComputedStyle(
-        rulerPlayhead,
-        "::before",
-      ).backgroundImage;
+      const glowStyle = getComputedStyle(rulerPlayhead, "::before");
+      const rulerGlow = glowStyle.backgroundImage;
+      // The ruler glow is the stage element that transitions; reduced
+      // motion must zero it.
+      const rulerMotion = glowStyle.transitionDuration;
       ruler.remove();
       return {
         timeline: getComputedStyle(timeline).backgroundColor,
         transport: getComputedStyle(transport).backgroundImage,
         transportHeight: Math.round(transport.getBoundingClientRect().height),
-        playheadMotion,
+        rulerMotion,
         controlMotion,
         rulerGlow,
       };
@@ -80,25 +84,34 @@ test("stage follows the theme and motion respects preference", async ({
     );
     expect(colors.transport).toContain("gradient");
     expect(colors.transportHeight).toBe(56);
-    expect(colors.playheadMotion).toBe("0s");
+    expect(colors.rulerMotion).toBe("0s");
     expect(colors.controlMotion).toBe("0s");
     expect(colors.rulerGlow).toContain("gradient");
+    await expectPageAxeClean(page);
   }
 
-  await expectPageAxeClean(page);
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await expect
     .poll(() =>
       page.evaluate(() => {
         const control = document.createElement("button");
         control.className = "ui-control";
-        document.body.appendChild(control);
-        const motion = getComputedStyle(control).transitionDuration;
+        const ruler = document.createElement("div");
+        ruler.className = "time-ruler";
+        const rulerPlayhead = document.createElement("div");
+        rulerPlayhead.className = "playhead";
+        ruler.appendChild(rulerPlayhead);
+        document.body.append(control, ruler);
+        const motion = [
+          getComputedStyle(control).transitionDuration,
+          getComputedStyle(rulerPlayhead, "::before").transitionDuration,
+        ];
         control.remove();
-        return motion;
+        ruler.remove();
+        return motion.includes("0s") ? "0s" : "moving";
       }),
     )
-    .not.toBe("0s");
+    .toBe("moving");
 });
 
 test("fixed phone playhead uses the stage playhead in each theme", async ({
@@ -118,9 +131,7 @@ test("fixed phone playhead uses the stage playhead in each theme", async ({
     ["light", "rgb(223, 75, 40)"],
     ["dark", "rgb(255, 109, 72)"],
   ] as const) {
-    await page.evaluate((value) => {
-      document.documentElement.dataset.theme = value;
-    }, theme);
+    await setTheme(page, theme);
     expect(
       await playhead.evaluate(
         (element) => getComputedStyle(element).backgroundColor,
@@ -171,9 +182,9 @@ test("light transport keeps legible status and stable control hover paint", asyn
   await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
   await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
   await expect(page.locator(".lane-row").first()).toBeVisible();
-  await page.evaluate(() => {
-    document.documentElement.dataset.theme = "light";
-  });
+  await setTheme(page, "light");
+  // Stale render (or the async audio-error pill) must be on screen first.
+  await expect(page.locator(".transport .pill.warning").first()).toBeVisible();
 
   const colors = await page.locator(".transport").evaluate((transport) => {
     const swatch = document.createElement("span");
@@ -186,9 +197,11 @@ test("light transport keeps legible status and stable control hover paint", asyn
     transport.appendChild(fresh);
     const ok = getComputedStyle(fresh).color;
     fresh.remove();
-    const warning = getComputedStyle(
-      transport.querySelector(".pill.warning")!,
-    ).color;
+    const pill = transport.querySelector(".pill.warning");
+    if (!pill) {
+      throw new Error("warning pill vanished");
+    }
+    const warning = getComputedStyle(pill).color;
     return { top, ok, warning };
   });
   expect(contrastRatio(colors.ok, colors.top)).toBeGreaterThanOrEqual(4.5);
@@ -198,7 +211,12 @@ test("light transport keeps legible status and stable control hover paint", asyn
   const playPaint = (element: typeof play) =>
     element.evaluate((node) => {
       const style = getComputedStyle(node);
-      return { image: style.backgroundImage, color: style.color };
+      return {
+        fill: style.backgroundColor,
+        image: style.backgroundImage,
+        shadow: style.boxShadow,
+        color: style.color,
+      };
     });
   const playRest = await playPaint(play);
   await play.hover();
@@ -239,15 +257,13 @@ test("compact light transport keeps Comment readable", async ({ page }) => {
     ".transport-primary-actions > .comment-mode-btn",
   );
   await expect(comment).toBeVisible();
+  // Measure against the button's own fill (the control paint), not the strip.
   const colors = await comment.evaluate((button) => {
-    const swatch = document.createElement("span");
-    swatch.style.color = "var(--color-transport-top)";
-    button.parentElement!.appendChild(swatch);
-    const top = getComputedStyle(swatch).color;
-    swatch.remove();
-    return { top, ink: getComputedStyle(button).color };
+    const style = getComputedStyle(button);
+    return { fill: style.backgroundColor, ink: style.color };
   });
-  expect(contrastRatio(colors.ink, colors.top)).toBeGreaterThanOrEqual(4.5);
+  expect(colors.fill).not.toBe("rgba(0, 0, 0, 0)");
+  expect(contrastRatio(colors.ink, colors.fill)).toBeGreaterThanOrEqual(4.5);
 });
 
 test("Share dialog floats on the overlay rung over a dark scrim", async ({
@@ -265,9 +281,7 @@ test("Share dialog floats on the overlay rung over a dark scrim", async ({
   await expect(dialog).toBeVisible();
 
   for (const theme of ["light", "dark"] as const) {
-    await page.evaluate((value) => {
-      document.documentElement.dataset.theme = value;
-    }, theme);
+    await setTheme(page, theme);
     const raised = await page
       .locator(".inspector")
       .evaluate((element) => getComputedStyle(element).backgroundColor);
@@ -421,14 +435,13 @@ test("capture issue 20 review views", async ({ browser }) => {
     const suffix = theme === "light" ? "" : "-dark";
     const shot = (name: string) =>
       path.join(directory!, `${name}${suffix}.png`);
-    const pinTheme = async (page: Page) =>
-      page.evaluate((value) => {
-        document.documentElement.dataset.theme = value;
-      }, theme);
+    const pinTheme = (page: Page) => setTheme(page, theme);
 
-    const desktop = await browser.newPage({
+    const desktopContext = await browser.newContext({
       viewport: { width: 1440, height: 900 },
     });
+    openContexts.push(desktopContext);
+    const desktop = await desktopContext.newPage();
     try {
       await desktop.emulateMedia({
         reducedMotion: "reduce",
@@ -490,12 +503,14 @@ test("capture issue 20 review views", async ({ browser }) => {
       ).toBeVisible();
       await desktop.screenshot({ path: shot("empty-state") });
     } finally {
-      await desktop.close();
+      await desktopContext.close();
     }
 
-    const phone = await browser.newPage({
+    const phoneContext = await browser.newContext({
       viewport: { width: 390, height: 844 },
     });
+    openContexts.push(phoneContext);
+    const phone = await phoneContext.newPage();
     try {
       await phone.emulateMedia({ reducedMotion: "reduce", colorScheme: theme });
       await phone.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
@@ -506,7 +521,7 @@ test("capture issue 20 review views", async ({ browser }) => {
       await expect(phone.locator(".listen-hero")).toBeVisible();
       await phone.screenshot({ path: shot("mobile-nav") });
     } finally {
-      await phone.close();
+      await phoneContext.close();
     }
   }
 });
@@ -522,9 +537,7 @@ test("capture empty timeline review view", async ({ page }) => {
   for (const theme of ["light", "dark"] as const) {
     await page.emulateMedia({ reducedMotion: "reduce", colorScheme: theme });
     await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-    await page.evaluate((value) => {
-      document.documentElement.dataset.theme = value;
-    }, theme);
+    await setTheme(page, theme);
     await expect(
       page.getByRole("button", { name: "Drop audio files or import" }),
     ).toBeVisible();

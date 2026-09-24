@@ -38,7 +38,9 @@ test.describe("Sharecut Studio smoke", () => {
     );
     const panels = page.getByLabel("Editor panels");
     await panels.getByRole("button", { name: "Tighten", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Tighten" })).toBeVisible();
+    // The panel heading is sr-only (a 1x1 box still counts as visible), so
+    // assert the visible Class filter the panel renders.
+    await expect(page.getByRole("group", { name: "Class" })).toBeVisible();
     await expect(page.getByText("No pending tighten decisions.")).toBeVisible();
     await expect(
       page.getByRole("button", { name: /Apply eligible/ }),
