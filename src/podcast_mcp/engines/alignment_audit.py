@@ -12,6 +12,7 @@ from podcast_mcp.engines.transcript_align import (
     offset_turn_taking_score,
     overlap_duration,
 )
+from podcast_mcp.util.dsp import bool_runs, bridge_short_dips
 from podcast_mcp.util.process import CalledProcessError
 
 
@@ -51,7 +52,7 @@ def vad_speech_intervals(
     if duration_sec <= 0:
         return []
     n_chunks = max(1, int(duration_sec / chunk_sec))
-    loud: list[tuple[float, float]] = []
+    loud: list[bool] = []
     for i in range(n_chunks):
         t = start_sec + i * chunk_sec
         try:
@@ -65,26 +66,18 @@ def vad_speech_intervals(
             # Past EOF on short files: retain prior speech and stop decoding. (#146)
             break
         if window.size == 0:
+            loud.append(False)
             continue
         rms = float(np.sqrt(np.mean(window**2)))
-        if rms >= rms_threshold:
-            loud.append((t, t + chunk_sec))
+        loud.append(rms >= rms_threshold)
 
-    if not loud:
-        return []
-
-    merged: list[tuple[float, float]] = []
-    cur_s, cur_e = loud[0]
-    for s, e in loud[1:]:
-        if s - cur_e <= chunk_sec * 1.5:
-            cur_e = max(cur_e, e)
-        else:
-            if cur_e - cur_s >= min_run_sec:
-                merged.append((cur_s, cur_e))
-            cur_s, cur_e = s, e
-    if cur_e - cur_s >= min_run_sec:
-        merged.append((cur_s, cur_e))
-    return merged
+    # The old merge joined loud chunks separated by exactly one quiet chunk.
+    active = bridge_short_dips(np.asarray(loud, dtype=bool), 1)
+    return [
+        (start_sec + start * chunk_sec, start_sec + end * chunk_sec)
+        for start, end in bool_runs(active)
+        if (end - start) * chunk_sec >= min_run_sec
+    ]
 
 
 def simultaneous_speech_sec(

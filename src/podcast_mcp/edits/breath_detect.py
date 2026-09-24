@@ -8,6 +8,7 @@ import numpy as np
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.engines.align import load_mono_window
+from podcast_mcp.util.dsp import bool_runs
 from podcast_mcp.util.tracks import track_audio_path
 
 
@@ -44,6 +45,24 @@ def _frame_rms(samples: np.ndarray, frame: int, frame_size: int) -> float:
     return float(np.sqrt(np.mean(chunk**2)))
 
 
+def _first_breath_span(
+    active: np.ndarray,
+    window_start: float,
+    frame_duration: float,
+    min_duration_sec: float,
+    max_duration_sec: float,
+) -> BreathSpan | None:
+    for start, end in bool_runs(active):
+        duration = (end - start) * frame_duration
+        if min_duration_sec <= duration <= max_duration_sec:
+            return BreathSpan(
+                start=window_start + start * frame_duration,
+                end=window_start + end * frame_duration,
+                side="detected",
+            )
+    return None
+
+
 def _find_breath_in_window(
     samples: np.ndarray,
     window_start: float,
@@ -67,33 +86,10 @@ def _find_breath_in_window(
     if hi <= lo:
         hi = lo * 4
 
-    active_frames: list[int] = []
-    for i, rms in enumerate(rms_values):
-        if lo <= rms <= hi:
-            active_frames.append(i)
-        elif active_frames:
-            dur = len(active_frames) * frame_size / sample_rate
-            if min_duration_sec <= dur <= max_duration_sec:
-                start_f = active_frames[0]
-                end_f = active_frames[-1] + 1
-                return BreathSpan(
-                    start=window_start + (start_f * frame_size) / sample_rate,
-                    end=window_start + (end_f * frame_size) / sample_rate,
-                    side="detected",
-                )
-            active_frames = []
-
-    if active_frames:
-        dur = len(active_frames) * frame_size / sample_rate
-        if min_duration_sec <= dur <= max_duration_sec:
-            start_f = active_frames[0]
-            end_f = active_frames[-1] + 1
-            return BreathSpan(
-                start=window_start + (start_f * frame_size) / sample_rate,
-                end=window_start + (end_f * frame_size) / sample_rate,
-                side="detected",
-            )
-    return None
+    active = np.asarray([lo <= rms <= hi for rms in rms_values], dtype=bool)
+    return _first_breath_span(
+        active, window_start, frame_size / sample_rate, min_duration_sec, max_duration_sec
+    )
 
 
 def _find_breath_in_window_silero(
@@ -121,29 +117,8 @@ def _find_breath_in_window_silero(
     window_dur = SileroVAD.WINDOW_SAMPLES / SileroVAD.SAMPLE_RATE
     lo, hi = 0.05, 0.5
 
-    def _span(active: list[int]) -> BreathSpan | None:
-        if not active:
-            return None
-        dur = len(active) * window_dur
-        if not (min_duration_sec <= dur <= max_duration_sec):
-            return None
-        start_f, end_f = active[0], active[-1] + 1
-        return BreathSpan(
-            start=window_start + start_f * window_dur,
-            end=window_start + end_f * window_dur,
-            side="detected",
-        )
-
-    active: list[int] = []
-    for i, p in enumerate(probs):
-        if lo <= p <= hi:
-            active.append(i)
-        else:
-            hit = _span(active)
-            if hit:
-                return hit
-            active = []
-    return _span(active)
+    active = (lo <= probs) & (probs <= hi)
+    return _first_breath_span(active, window_start, window_dur, min_duration_sec, max_duration_sec)
 
 
 def detect_adjacent_breath(
