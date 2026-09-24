@@ -1,3 +1,4 @@
+import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import {
   LANE_HEIGHT,
@@ -5,7 +6,57 @@ import {
   MARKER_ROW_HEIGHT,
   MAX_FIT_LANE_HEIGHT,
 } from "../utils/layout";
-import { fitLaneHeight, markerLaneHeight, markerRows } from "./timelineMetrics";
+import {
+  fitLaneHeight,
+  markerLaneHeight,
+  markerRows,
+  useGestureStable,
+} from "./timelineMetrics";
+
+describe("useGestureStable", () => {
+  function setup() {
+    return renderHook(({ live }) => useGestureStable(live), {
+      initialProps: { live: { laneHeight: 150 } },
+    });
+  }
+
+  it("follows live values when nothing holds", () => {
+    const { result, rerender } = setup();
+    rerender({ live: { laneHeight: 120 } });
+    expect(result.current.value).toEqual({ laneHeight: 120 });
+  });
+
+  it("freezes while held and catches up on release", () => {
+    const { result, rerender } = setup();
+    let release: (() => void) | undefined;
+    act(() => {
+      release = result.current.hold();
+    });
+    // A collaborator's update re-fits the lanes mid-drag.
+    rerender({ live: { laneHeight: 96 } });
+    expect(result.current.value).toEqual({ laneHeight: 150 });
+    act(() => release?.());
+    expect(result.current.value).toEqual({ laneHeight: 96 });
+  });
+
+  it("stays frozen until every hold is released, once each", () => {
+    const { result, rerender } = setup();
+    let first: (() => void) | undefined;
+    let second: (() => void) | undefined;
+    act(() => {
+      first = result.current.hold();
+      second = result.current.hold();
+    });
+    rerender({ live: { laneHeight: 96 } });
+    act(() => {
+      first?.();
+      first?.();
+    });
+    expect(result.current.value).toEqual({ laneHeight: 150 });
+    act(() => second?.());
+    expect(result.current.value).toEqual({ laneHeight: 96 });
+  });
+});
 
 describe("fitLaneHeight", () => {
   it("grows lanes to fill the stage when few tracks fit", () => {
