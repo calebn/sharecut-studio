@@ -995,10 +995,12 @@ button.history-row {
   background: var(--color-badge-bg);
 }
 
+/* Tiny bold caps: full-strength ink on an accent-tinted fill (the accent
+   ink fell to 3.7–4.4:1 on panes). */
 .pipeline-status.running,
 .pipeline-status.queued {
-  background: var(--color-accent-muted);
-  color: var(--accent-fg);
+  background: var(--color-accent-subtle);
+  color: var(--color-text-primary);
 }
 
 .pipeline-status.ok {
