@@ -29,28 +29,6 @@ const MANIFEST_CAPABILITIES: ManifestCapability[] = JSON.parse(
   ),
 ).capabilities;
 
-/**
- * Known manifest `gates` that do not list the catalog `when` yet (composite or
- * surface-specific gates). Shrink this list; do not grow it (#221).
- */
-const MANIFEST_GATE_DRIFT_ALLOWLIST = new Set([
-  "track.moveUp",
-  "track.moveDown",
-  "edit.copy",
-  "view.zoomIn",
-  "view.zoomOut",
-  "view.fit",
-  "view.waveformZoomIn",
-  "view.waveformZoomOut",
-  "transcript.correctIntent",
-  "transcript.selectIntent",
-  "edit.trimClipEdge",
-  "edit.rollClipJoin",
-  "edit.setClipFade",
-  "view.focusEditBoundary",
-  "view.focusCutAwayWord",
-]);
-
 /** Allowlisted non-bus keydown sites (component Escape / a11y widgets). */
 const KEYDOWN_LISTENER_ALLOWLIST = new Set([
   "keymap/listener.ts",
@@ -213,7 +191,7 @@ describe("command governance", () => {
     for (const cap of MANIFEST_CAPABILITIES) {
       const commandId = cap.surfaces?.command;
       const def = commandId ? COMMANDS[commandId] : undefined;
-      if (!def || MANIFEST_GATE_DRIFT_ALLOWLIST.has(def.id)) {
+      if (!def) {
         continue;
       }
       if (!(cap.gates ?? []).includes(def.when)) {
