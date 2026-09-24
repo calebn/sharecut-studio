@@ -25,7 +25,12 @@ describe("TransportPlayControls", () => {
         onStop={onStop}
       />,
     );
+    expect(screen.getByRole("button", { name: "Stop" })).toHaveAttribute(
+      "title",
+      "Stop (K)",
+    );
     const pause = screen.getByRole("button", { name: "Pause" });
+    expect(pause).toHaveAttribute("title", "Pause (Space)");
     expect(pause).toHaveAttribute("data-playing", "true");
     expect(pause).toHaveClass("ui-control", "play-btn");
   });
