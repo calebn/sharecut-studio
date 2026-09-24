@@ -94,6 +94,13 @@ vi.mock("../api", () => ({
   }),
 }));
 
+const avaGuest = () =>
+  recordParticipant({
+    participant_id: "p_g",
+    role: "guest",
+    display_name: "Ava",
+  });
+
 const lobby = recordSnapshot({
   session_id: "room1",
   state: "lobby",
@@ -187,13 +194,7 @@ describe("RecordPanel", () => {
     useRecordHostStore.getState().setSnapshot({
       ...lobby,
       start_blockers: [],
-      participants: [
-        recordParticipant({
-          participant_id: "p_g",
-          role: "guest",
-          display_name: "Ava",
-        }),
-      ],
+      participants: [avaGuest()],
     });
     render(<RecordPanel />);
     expect(
@@ -221,13 +222,7 @@ describe("RecordPanel", () => {
     useRecordHostStore.getState().setSnapshot({
       ...lobby,
       start_blockers: [],
-      participants: [
-        recordParticipant({
-          participant_id: "p_g",
-          role: "guest",
-          display_name: "Ava",
-        }),
-      ],
+      participants: [avaGuest()],
     });
     render(<RecordPanel />);
     expect(
@@ -245,13 +240,7 @@ describe("RecordPanel", () => {
     useRecordHostStore.getState().setSnapshot({
       ...lobby,
       start_blockers: [],
-      participants: [
-        recordParticipant({
-          participant_id: "p_g",
-          role: "guest",
-          display_name: "Ava",
-        }),
-      ],
+      participants: [avaGuest()],
     });
     render(<RecordPanel />);
     expect(
@@ -265,13 +254,7 @@ describe("RecordPanel", () => {
     useRecordHostStore.getState().setSnapshot({
       ...lobby,
       start_blockers: [],
-      participants: [
-        recordParticipant({
-          participant_id: "p_g",
-          role: "guest",
-          display_name: "Ava",
-        }),
-      ],
+      participants: [avaGuest()],
     });
     render(<RecordPanel />);
     expect(startBlockers(useRecordHostStore.getState().snapshot)).toEqual([]);
@@ -290,13 +273,7 @@ describe("RecordPanel", () => {
     useRecordHostStore.getState().setSnapshot({
       ...lobby,
       start_blockers: [],
-      participants: [
-        recordParticipant({
-          participant_id: "p_g",
-          role: "guest",
-          display_name: "Ava",
-        }),
-      ],
+      participants: [avaGuest()],
     });
     const { container } = render(<RecordPanel />);
     await waitFor(() =>
@@ -336,13 +313,7 @@ describe("RecordPanel", () => {
     useRecordHostStore.getState().setSnapshot({
       ...lobby,
       start_blockers: [],
-      participants: [
-        recordParticipant({
-          participant_id: "p_g",
-          role: "guest",
-          display_name: "Ava",
-        }),
-      ],
+      participants: [avaGuest()],
     });
     render(<RecordPanel />);
     expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
@@ -479,11 +450,7 @@ describe("RecordPanel", () => {
           role: "host",
           display_name: "Host",
         }),
-        recordParticipant({
-          participant_id: "p_g",
-          role: "guest",
-          display_name: "Ava",
-        }),
+        avaGuest(),
       ],
     });
     render(<RecordPanel />);
