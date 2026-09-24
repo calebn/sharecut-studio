@@ -27,6 +27,7 @@ SHARED_COLOR_ROLES: tuple[str, ...] = (
     "--color-text-primary",
     "--color-text-secondary",
     "--color-accent",
+    "--color-accent-text",
     "--color-accent-solid",
     "--color-accent-on-solid",
     "--color-shadow-soft",
@@ -454,3 +455,11 @@ def test_transport_inks_meet_contrast_on_the_strip() -> None:
     ):
         for fill in fills:
             assert _contrast_ratio(_resolve_hex(ink, fixed), fill) >= 4.5, (ink, fill)
+
+
+def test_brand_accent_text_reads_on_canvas_and_surface() -> None:
+    """Marketing, relay and splash links use --color-accent-text: the light
+    accent itself is 3.6:1 on canvas (#20 review)."""
+    for roles in (brand_light_data_roles(), brand_dark_roles()):
+        for surface in ("--color-bg-canvas", "--color-bg-surface", "--color-bg-elevated"):
+            assert _contrast_ratio(roles["--color-accent-text"], roles[surface]) >= 4.5, surface

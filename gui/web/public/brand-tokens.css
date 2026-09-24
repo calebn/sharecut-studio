@@ -36,6 +36,8 @@
   --color-text-primary: #f1efe8;
   --color-text-secondary: #b5aea6;
   --color-accent: #ff6d48;
+  /* Accent as body-size text (links): ≥4.5:1 on canvas and surface. */
+  --color-accent-text: #ff6d48;
   --color-accent-solid: #ff6d48;
   --color-accent-on-solid: #20100c;
   --color-shadow-soft: color-mix(in srgb, #000000 25%, transparent);
@@ -52,6 +54,8 @@
   --color-text-primary: #1c1a17;
   --color-text-secondary: #5c5750;
   --color-accent: #df4b28;
+  /* #df4b28 is 3.6:1 on canvas; links and body-size accent text use this. */
+  --color-accent-text: #b13a1e;
   /* Darker solid keeps small button text above 4.5:1. */
   --color-accent-solid: #c33b1f;
   --color-accent-on-solid: #fff9f5;
@@ -70,6 +74,7 @@
     --color-text-primary: #1c1a17;
     --color-text-secondary: #5c5750;
     --color-accent: #df4b28;
+    --color-accent-text: #b13a1e;
     --color-accent-solid: #c33b1f;
     --color-accent-on-solid: #fff9f5;
     --color-shadow-soft: color-mix(in srgb, #000000 16%, transparent);
