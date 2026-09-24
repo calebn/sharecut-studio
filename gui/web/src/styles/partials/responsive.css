@@ -6,11 +6,16 @@
 
 .timeline-area--fixed-playhead .playhead--fixed {
   position: absolute;
-  /* Header-aware center: measured sticky gutter, else 50% of the time column. */
-  inset-inline-start: calc(
-    var(--timeline-header-offset, 0) +
-    (100% - var(--timeline-header-offset, 0)) /
-    2
+  /* Centre of the time viewport, measured by TimelineView (header plus half
+     the viewport, scrollbar gutter excluded); before the first measure, the
+     centre of the area past the header. */
+  inset-inline-start: var(
+    --timeline-fixed-line,
+    calc(
+      var(--timeline-header-offset, 0) +
+      (100% - var(--timeline-header-offset, 0)) /
+      2
+    )
   );
   inset-block: 0;
   inline-size: 0.125rem;
@@ -25,6 +30,14 @@
    can put any time, 0 and the end included, under the centre line (#385). */
 .timeline-area--fixed-playhead .timeline-time {
   margin-inline: var(--timeline-lead, 0);
+}
+
+/* A reserved but empty scrollbar gutter (classic scrollbars, no vertical
+   overflow) shortens Chromium's scroll range by the gutter, which left the
+   end unreachable under the line. Only reserve it while a vertical scrollbar
+   shows: here width never changes the lane fit, so nothing flip-flops. */
+.timeline-area--fixed-playhead .timeline-scroll {
+  scrollbar-gutter: auto;
 }
 
 /* Desktop focus modes */

@@ -407,9 +407,14 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
       return;
     }
     const syncOffset = () => {
+      const headerPx = timelineHeaderOffsetWidth(el);
+      area.style.setProperty("--timeline-header-offset", `${headerPx}px`);
+      // The line's centre from the same geometry the scroll math uses: the
+      // time viewport excludes a classic scrollbar's gutter, which the area's
+      // 100% does not.
       area.style.setProperty(
-        "--timeline-header-offset",
-        `${timelineHeaderOffsetWidth(el)}px`,
+        "--timeline-fixed-line",
+        `${headerPx + timelineTimeViewportWidth(el) / 2}px`,
       );
     };
     syncOffset();
