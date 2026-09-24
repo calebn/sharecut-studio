@@ -2590,6 +2590,32 @@ def test_index_project_mismatch_requires_remote_token_and_preserves_it(
     assert "ignored=no" not in res.text
 
 
+def test_index_project_mismatch_refuses_relayed_request(
+    minimal_project, monkeypatch, tmp_path
+) -> None:
+    """Relay-tunneled traffic never gets the owner recovery page (#393)."""
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.services.session_sync.authz import HOST_ROLE_RELAYED_REASON
+
+    monkeypatch.delenv("PODCAST_SESSION_AUTHZ", raising=False)
+    other = minimal_project.parent / "other" / "episode.project.json"
+    client = TestClient(
+        create_app(static_dir=_recovery_static_root(tmp_path), served_project=minimal_project)
+    )
+    res = client.get(
+        "/",
+        params={"project": str(other)},
+        headers={"Accept": "text/html", "X-Sharecut-Relayed": "1"},
+    )
+    assert res.status_code == 403
+    assert res.json() == {"detail": HOST_ROLE_RELAYED_REASON}
+    assert str(minimal_project) not in res.text
+    assert str(minimal_project.parent) not in res.text
+
+
 def test_index_served_project_param_serves_app(minimal_project, tmp_path) -> None:
     """?project= matching served_project still boots the app."""
     pytest.importorskip("fastapi")

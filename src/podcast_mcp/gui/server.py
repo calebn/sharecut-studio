@@ -35,7 +35,7 @@ from podcast_mcp.gui.routes import (
     session,
     transcript,
 )
-from podcast_mcp.gui.routes.deps import peer_host, require_authz
+from podcast_mcp.gui.routes.deps import require_host
 from podcast_mcp.gui.routes.session import apply_ws_client_message
 from podcast_mcp.gui.static_assets import ImmutableAssetsStaticFiles, resolve_gui_static_root
 from podcast_mcp.gui.validation_errors import format_validation_errors
@@ -239,12 +239,7 @@ def create_app(
                         status_code=403,
                         detail="project path not allowed for this server instance",
                     )
-                require_authz(
-                    client_id="viewer",
-                    role="viewer",
-                    peer_host=peer_host(request),
-                    token=request.query_params.get("session_token"),
-                )
+                require_host(request, token=request.query_params.get("session_token"))
                 return _project_mismatch_page(request, Path(served))
             try:
                 from podcast_mcp.models import load_project
