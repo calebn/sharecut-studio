@@ -7,6 +7,7 @@ import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
 import { FIT_GUTTER, MARKER_ROW_HEIGHT, RULER_HEIGHT } from "../utils/layout";
 import { TimelineView } from "./TimelineView";
+import { useTimelineMetrics } from "./timelineMetrics";
 
 describe("TimelineView follow auto-fit", () => {
   beforeEach(() => {
@@ -190,6 +191,23 @@ describe("TimelineView lane fit", () => {
       ro.targets.includes(scroller as Element),
     );
     expect(watching).toHaveLength(1);
+  });
+
+  it("keeps the metrics context stable across playhead ticks", () => {
+    const headerRenders = vi.fn();
+    function HeaderProbe() {
+      headerRenders(useTimelineMetrics());
+      return <div className="track-headers" />;
+    }
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={twoTrackProject()}>
+        <TimelineView headerSlot={<HeaderProbe />} />
+      </DawProvider>,
+    );
+    headerRenders.mockClear();
+    act(() => useDawStore.getState().setPlayheadSec(5));
+    act(() => useDawStore.getState().setPlayheadSec(6));
+    expect(headerRenders).not.toHaveBeenCalled();
   });
 
   it("re-renders on a vertical resize only when the lane height changes", () => {
