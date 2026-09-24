@@ -53,7 +53,7 @@ state**, most significant first.
   (cf. Material's `on-primary`). Any new solid/filled token needs its `on-*`
   twin, with a documented contrast target (≥4.5:1, noted in a comment).
 
-**Space** — `--space-<step>` (`--space-0…--space-6`) on a 4px rhythm: 2, 4, 8, 12, 16, and 24px. The legacy names `--space-2`, `--space-05`, and `--space-45` are snapped onto that grid (8, 12, 16px); new code uses `--space-0/1/3/4/5/6`. Chrome geometry that
+**Space** — `--space-<step>` (`--space-0…--space-6`) on a 4px rhythm: 2, 4, 8, 12, 16, and 24px. The legacy `--space-2` / `--space-05` / `--space-45` names are gone (they duplicated space-3/4/5); use `--space-0/1/3/4/5/6`. Chrome geometry that
 repeats becomes a layout token (`--header-width`); one-off element sizes stay
 literals. Never force layout geometry (`width`, `min-height`) onto `--space-*`.
 

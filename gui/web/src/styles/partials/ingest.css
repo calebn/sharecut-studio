@@ -39,7 +39,7 @@
   color: var(--color-text-secondary);
   cursor: pointer;
   text-align: left;
-  padding: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-4);
 }
 
 .track-add-row:focus-visible {
@@ -63,7 +63,7 @@
   position: absolute;
   z-index: 5;
   left: var(--space-3);
-  top: var(--space-2);
+  top: var(--space-3);
   font-size: var(--font-size-caption);
   color: var(--color-accent-fg);
   pointer-events: none;

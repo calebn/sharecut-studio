@@ -41,7 +41,7 @@ export const Disabled: Story = {
 
 export const AllVariants: Story = {
   render: () => (
-    <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
+    <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
       <Button>Default</Button>
       <Button variant="primary">Primary</Button>
       <Button variant="danger">Danger</Button>

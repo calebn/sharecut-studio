@@ -71,7 +71,7 @@
   background: var(--color-bg-sunken);
   border: 1px solid var(--border);
   color: var(--text);
-  padding: var(--space-1) var(--space-05);
+  padding: var(--space-1) var(--space-4);
   cursor: pointer;
   border-radius: var(--radius-md);
   min-width: 2.25rem;
@@ -81,7 +81,7 @@
 /* Status bar: hide low-priority chips when the shell is narrow */
 @container app (inline-size < 56.25rem) {
   .status-bar {
-    gap: var(--space-05);
+    gap: var(--space-4);
   }
 
   .status-bar-secondary {
@@ -261,7 +261,7 @@ html[data-shell="tablet"] {
   top: 0;
   z-index: var(--z-shell-chrome);
   display: flex;
-  padding: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-4);
   background: var(--bg-panel);
 }
 
@@ -347,7 +347,7 @@ html[data-shell="tablet"] {
 
 .mobile-comment-row {
   display: flex;
-  gap: var(--space-05);
+  gap: var(--space-4);
   width: 100%;
   text-align: left;
   background: transparent;

@@ -17,7 +17,7 @@ export const Sizes: Story = {
     <div
       style={{
         display: "flex",
-        gap: "var(--space-2)",
+        gap: "var(--space-3)",
         alignItems: "center",
       }}
     >
