@@ -319,7 +319,7 @@
 }
 
 .utterance-turn {
-  padding: var(--space-2) 0;
+  padding: var(--space-1) 0;
   border-radius: var(--radius-md);
   line-height: 1.45;
   user-select: text;
@@ -338,14 +338,13 @@
 .utterance-seek {
   display: inline;
   margin: 0;
-  padding: var(--space-2) var(--space-0);
+  padding: 0 var(--space-0);
   border: 0;
   background: none;
   color: inherit;
   font: inherit;
   cursor: pointer;
   text-align: left;
-  min-height: 1.5rem;
 }
 
 .utterance-seek:hover {
@@ -376,11 +375,11 @@
 }
 
 .utterance-word {
+  /* Inline text targets (WCAG 2.5.8 inline exception): no forced box, so
+     short words keep natural word spacing. */
   display: inline-block;
   margin: 0;
-  padding: var(--space-1) var(--space-0);
-  min-height: 1.5rem;
-  min-width: 1.5rem;
+  padding: 0 var(--space-0);
   border: 0;
   border-radius: var(--radius-xs);
   background: none;
@@ -1178,13 +1177,21 @@ button.history-row {
 .tighten-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
+  gap: var(--space-3) var(--space-4);
   align-items: flex-end;
 }
 
-.tighten-filters {
-  display: flex;
-  gap: var(--space-1);
+/* Toolbar fields share the control height so every bottom edge lines up. */
+.tighten-toolbar .ui-field {
+  margin-bottom: 0;
+}
+
+.tighten-toolbar :where(input, select) {
+  min-block-size: var(--control-height);
+}
+
+.tighten-toolbar .tighten-check {
+  min-block-size: var(--control-height);
 }
 
 .tighten-check {
@@ -1207,8 +1214,7 @@ button.history-row {
 }
 
 .tighten-empty {
-  margin: var(--space-3) 0;
-  color: var(--text-dim);
+  margin: 0;
 }
 
 .tighten-table-wrap {

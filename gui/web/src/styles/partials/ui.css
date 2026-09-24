@@ -104,7 +104,7 @@
 }
 
 .ui-menu-panel .ui-segmented > .ui-control {
-  min-block-size: var(--control-height);
+  /* No row height here: menu item rules own it (44px touch rows when compact). */
   font-size: inherit;
 }
 

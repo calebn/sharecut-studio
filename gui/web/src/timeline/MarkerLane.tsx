@@ -8,6 +8,7 @@ import type {
   SocialClipView,
   TimelineComment,
 } from "../types/project";
+import { markerRows } from "./timelineMetrics";
 
 interface MarkerLaneProps {
   chapters: ChapterMarker[];
@@ -52,7 +53,15 @@ export function MarkerLane({
     originEnd: number;
   } | null>(null);
 
-  if (!showMarkers && !showComments) {
+  const rows = markerRows({
+    chapters,
+    socialClips,
+    comments,
+    showMarkers,
+    showComments,
+  });
+
+  if (!rows.chapters && !rows.social && !rows.comments) {
     return (
       <div
         className="marker-lane empty"
@@ -68,7 +77,7 @@ export function MarkerLane({
       style={{ width }}
       {...presenceAnchorProps(presenceAnchor("markers"))}
     >
-      {showMarkers && (
+      {rows.chapters && (
         <>
           <div className="marker-row chapters">
             {chapters.map((ch) => (
@@ -137,6 +146,10 @@ export function MarkerLane({
               />
             ))}
           </div>
+        </>
+      )}
+      {rows.social && (
+        <>
           <div className="marker-row social">
             {socialClips.map((clip) => {
               const left = clip.start * zoomPxPerSec;
@@ -241,7 +254,7 @@ export function MarkerLane({
           </div>
         </>
       )}
-      {showComments && (
+      {rows.comments && (
         <div className="marker-row comments">
           {comments.map((c) => {
             const left = c.timeline_start * zoomPxPerSec;

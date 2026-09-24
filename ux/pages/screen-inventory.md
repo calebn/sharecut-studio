@@ -127,16 +127,18 @@ Not the Share dialog. Guest share agents use `{base}/mcp/{token}/mcp`.
 |--|--|
 | **Purpose** | Guest-style review: scrub mix, scan comments, jump from chips |
 | **Primary actions** | Coarse scrub · ±15s · open comment · tap status chip → destination |
-| **Always visible** | One Listen body transport (Play/Stop + full playhead/duration) · scrubber · comment list · mode nav |
+| **Always visible** | Listen hero (the project name as the visible heading, large timecode, full-width scrubber, −15s · Play · Stop · +15s) · comment list · icon mode nav |
 | **Fit** | Not shown on Listen; use Timeline for timeline fit |
 | **Data shown** | Mix playhead · `review.comments[]` (time, body, resolved) · pending/stale chips |
 | **Empty** | “No comments yet”. While episode JSON is loading: disabled Listen body transport + “Loading episode…” well (not the ingest coach) |
 | **Out of scope** | Multitrack waveform editing |
 
 ```
-┌─ Play  Stop  12:34 / 58:39 ──────────┐
+┌─ Episode name ───────────────────────┐
+│ 12:34 / 58:39                        │
 │ ══════════●═══════════════════     │
-│ ±15s                               │
+│     −15s  (▶)  ■  +15s               │
+└──────────────────────────────────────┘
 │ Pending: 3 · Stale render          │
 │ ● 04:12  “level feels low”         │
 │ ○ 11:02  “cut cold open?”          │
@@ -250,9 +252,9 @@ flowchart TB
 
 | Region | Content schema |
 |--------|----------------|
-| **Track headers** | Track id/name · M/S · FX badge · role |
-| **Timeline** | Clips · body-drag move (Select tool) · fades/joins · layer overlays · moving playhead · pinch/ctrl-wheel zoom |
-| **Inspector** | Selection modifier (same shapes as sheet) |
+| **Track headers** | Identity bar in the lane color · track name · stem status dot (trailing) · M/S · FX badge · role · gain strip; content is top-aligned, selected = neutral chip |
+| **Timeline** | Clips · body-drag move (Select tool) · fades/joins · layer overlays · moving playhead · pinch/ctrl-wheel zoom. Lanes grow to fill the stage when every track fits (72–240px) and scroll beyond that; the marker lane shows only rows with content (chapters, social, comments) and collapses to one 24px row when empty |
+| **Inspector** | Selection modifier (same shapes as sheet): eyebrow badge, title, subtitle only when it differs, full-width fields, one section gap; the body scrolls with edge shadows |
 | **Comments** | List + thread · timeline seek · action items |
 | **History** | Groups · Undo/Redo · diff affordances; list updates from Applied snapshots (SHELL project, or DETAIL/TRACKS/CLIPS/FX/ENVELOPES/COMMENTS patches) |
 | **Impact** | Pending count · bulk approve/reject · removed duration |
