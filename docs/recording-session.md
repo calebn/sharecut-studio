@@ -345,7 +345,9 @@ if the host row later disappears (e.g. Discard take), and **Download local
 keeper** skips it instead of counting it as a missing segment. While a
 recovery download runs, and for a grace window after it is handed to the
 browser, reclaim is paused (`holdKeeperReclaim`) so the lazily read OPFS
-`File`s in the archive stay readable. `ByteSink.remove` rejects on real delete
+`File`s in the archive stay readable. OPFS downloads hold a shared origin-wide
+Web Lock; prune and reclaim require its exclusive lock, and leave WAVs in place
+when Web Locks are unavailable. `ByteSink.remove` rejects on real delete
 failures; room-tone cleanup uses `removeBestEffort`. Reclaim failures are
 non-fatal and leave the WAV in place; after three consecutive failures the
 upload panel warns that the local backup could not be cleared. Landing never

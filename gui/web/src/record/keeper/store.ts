@@ -36,6 +36,8 @@ export type ByteStream = {
 };
 
 export type ByteSink = {
+  /** Origin-wide Web Lock name for OPFS deletion versus recovery export. */
+  deletionLockName?: string;
   write(path: string, bytes: Uint8Array): Promise<void>;
   read(path: string): Promise<Uint8Array | null>;
   /** Return the native file when available so recovery need not copy large WAVs. */
@@ -477,6 +479,7 @@ export async function createOpfsSink(): Promise<ByteSink> {
   const root = await storage.getDirectory();
   await assertOpfsWritable(root);
   return {
+    deletionLockName: "sharecut-keeper-deletion",
     async write(path: string, bytes: Uint8Array) {
       const file = await fileHandle(root, path, true);
       const writable = await file.createWritable();
