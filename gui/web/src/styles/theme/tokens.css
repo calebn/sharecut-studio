@@ -34,14 +34,18 @@
   --radius-xl: 0.5rem;
 
   /* Shared motion vocabulary; consumers opt in under no-preference. */
+  /* Press-in: fast, so a control answers the finger; release eases back on
+     the toggle timing. */
+  --motion-press: 80ms;
   --motion-hover: 150ms;
   --motion-toggle: 200ms;
   --motion-panel: 200ms;
   --motion-state: 250ms;
-  /* Press-in: fast, so a control answers the finger; release eases back on
-     the toggle timing. */
-  --motion-press: 80ms;
   --motion-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* Looping status indicators keep their own, slower periods. */
+  --motion-loop-pulse: 1.2s;
+  --motion-loop-shimmer: 1.6s;
+  --motion-loop-rec: 1.8s;
 
   /* Elevation recipes; --color-shadow is themed. */
   --shadow-raised: 0 1px 0.25rem var(--color-shadow);

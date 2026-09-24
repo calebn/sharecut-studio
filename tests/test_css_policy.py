@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import NamedTuple
 
 ROOT = Path(__file__).resolve().parents[1]
 _CSS_ROOTS: tuple[Path, ...] = (
@@ -67,6 +68,16 @@ _PRIMITIVE_REF = re.compile(r"var\(\s*--primitive-")
 _CSS_VAR_REF = re.compile(r"var\(\s*--")
 _CSS_HEX = re.compile(r"#[0-9a-fA-F]{3,8}\b")
 _CSS_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
+_TOKENS_CSS = ROOT / "gui/web/src/styles/theme/tokens.css"
+
+
+def _blank_comments(text: str) -> str:
+    """CSS with comments removed but their newlines kept, so lines still match."""
+    return _CSS_COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), text)
+
+
+def _partial_files() -> list[Path]:
+    return sorted(_PARTIALS_DIR.rglob("*.css"))
 
 
 def _css_files() -> list[Path]:
@@ -252,13 +263,8 @@ def test_python_css_color_regex_catches_hex() -> None:
 
 
 def _declaration_values(text: str) -> list[tuple[int, str]]:
-    """(line_no, value) for each `--prop: value;` declaration, comments stripped."""
-    values: list[tuple[int, str]] = []
-    code = _CSS_COMMENT.sub("", text)
-    for m in re.finditer(r"--[\w-]+\s*:\s*([^;]+);", code):
-        line_no = code[: m.start()].count("\n") + 1
-        values.append((line_no, m.group(1)))
-    return values
+    """(line_no, value) for each `--prop: value;` declaration, comments blanked."""
+    return [(d.line, d.value) for d in _declarations(text) if d.prop.startswith("--")]
 
 
 def test_primitives_are_raw_values() -> None:
@@ -279,7 +285,7 @@ def test_theme_files_use_primitives_not_raw_hex() -> None:
     hits: list[str] = []
     for path in _THEME_CSS:
         rel = path.relative_to(ROOT)
-        text = _CSS_COMMENT.sub("", path.read_text(encoding="utf-8"))
+        text = _blank_comments(path.read_text(encoding="utf-8"))
         for i, line in enumerate(text.splitlines(), 1):
             for m in _CSS_HEX.finditer(line):
                 hits.append(f"{rel}:{i}: raw {m.group(0)} (use var(--primitive-*))")
@@ -290,9 +296,9 @@ def test_partials_never_read_primitives() -> None:
     """Component tier: partials consume semantic roles only. Reading
     --primitive-* from a partial skips the theme and fixed tiers."""
     hits: list[str] = []
-    for path in sorted(_PARTIALS_DIR.rglob("*.css")):
+    for path in _partial_files():
         rel = path.relative_to(ROOT)
-        text = _CSS_COMMENT.sub("", path.read_text(encoding="utf-8"))
+        text = _blank_comments(path.read_text(encoding="utf-8"))
         for i, line in enumerate(text.splitlines(), 1):
             if _PRIMITIVE_REF.search(line):
                 hits.append(f"{rel}:{i}: reads a primitive (map it in a theme file)")
@@ -302,8 +308,8 @@ def test_partials_never_read_primitives() -> None:
 def test_color_roles_live_in_theme_tier_files() -> None:
     """tokens.css holds scale, layout and composite tokens; every --color-*
     role that maps a primitive lives in theme-dark/light/fixed.css."""
-    tokens = ROOT / "gui/web/src/styles/theme/tokens.css"
-    text = _CSS_COMMENT.sub("", tokens.read_text(encoding="utf-8"))
+    tokens = _TOKENS_CSS
+    text = _blank_comments(tokens.read_text(encoding="utf-8"))
     hits = [
         f"{tokens.relative_to(ROOT)}:{i}: {line.strip()[:60]}"
         for i, line in enumerate(text.splitlines(), 1)
@@ -318,7 +324,7 @@ def test_fixed_tier_reads_only_primitives_and_its_own_roles() -> None:
     whites, which turn dark in light mode) would leak the theme into the
     fixed-dark transport."""
     path = ROOT / "gui/web/src/styles/theme/theme-fixed.css"
-    text = _CSS_COMMENT.sub("", path.read_text(encoding="utf-8"))
+    text = _blank_comments(path.read_text(encoding="utf-8"))
     defined = set(_CUSTOM_PROP_DEF.findall(text))
     hits = [
         f"{path.relative_to(ROOT)}: reads themed {name}"
@@ -364,7 +370,7 @@ def test_studio_references_only_defined_custom_properties() -> None:
     story_files = [path for path in all_scripts if ".stories." in path.name]
     defined: set[str] = set()
     for path in css_files:
-        defined.update(_CUSTOM_PROP_DEF.findall(_CSS_COMMENT.sub("", path.read_text())))
+        defined.update(_CUSTOM_PROP_DEF.findall(_blank_comments(path.read_text())))
     for path in script_files:
         for first, second in _TS_PROP_SET.findall(path.read_text()):
             defined.add(first or second)
@@ -372,7 +378,7 @@ def test_studio_references_only_defined_custom_properties() -> None:
     for path in [*css_files, *script_files, *story_files]:
         text = path.read_text()
         if path.suffix == ".css":
-            text = _CSS_COMMENT.sub("", text)
+            text = _blank_comments(text)
         used = {*_CUSTOM_PROP_USE.findall(text), *_TS_PROP_READ.findall(text)}
         for name in sorted(used - defined):
             # Template reads (`var(--color-bg-${rung})`) capture only a prefix.
@@ -382,83 +388,128 @@ def test_studio_references_only_defined_custom_properties() -> None:
     assert not missing, "undefined custom properties:\n" + "\n".join(missing)
 
 
-_MOTION_PROPS = re.compile(r"^(?:transition|animation)(?:-duration)?$")
-_RAW_DURATION = re.compile(r"(?<![\w.-])\d+(?:\.\d+)?m?s\b")
-_NO_PREFERENCE = re.compile(r"prefers-reduced-motion\s*:\s*no-preference")
-_REDUCE = re.compile(r"prefers-reduced-motion\s*:\s*reduce")
+class _Declaration(NamedTuple):
+    line: int
+    prop: str
+    value: str
+    # Enclosing rule and at-rule preludes, outermost first.
+    preludes: tuple[str, ...]
 
 
-def _motion_declarations(text: str) -> list[tuple[int, str, str, tuple[str, ...]]]:
-    """(line, property, value, enclosing preludes) for transition/animation
-    declarations, comments blanked (lines kept); preludes run outermost first."""
-    code = _CSS_COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), text)
-    found: list[tuple[int, str, str, tuple[str, ...]]] = []
+# Strings and url()s: their braces and semicolons are not CSS structure.
+_STRING_OR_URL = re.compile(
+    r"\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'"
+    r"|url\((?:\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|[^)])*\)",
+    re.IGNORECASE,
+)
+
+
+def _declarations(text: str) -> list[_Declaration]:
+    """Every declaration with its line and enclosing preludes. Comments are
+    blanked (lines kept); strings and url()s never open or close a block."""
+    code = _blank_comments(text)
+    structure = _STRING_OR_URL.sub(lambda m: re.sub(r"[^\n]", "_", m.group(0)), code)
+    found: list[_Declaration] = []
     stack: list[str] = []
     start = 0
-    for index, char in enumerate(code):
+    for index, char in enumerate(structure):
         if char not in "{};":
             continue
         segment = code[start:index]
         if char == "{":
             stack.append(" ".join(segment.split()))
-        elif stack and ":" in segment:
+        elif ":" in structure[start:index] and not segment.lstrip().startswith("@"):
             prop, _, value = segment.partition(":")
-            prop = prop.strip()
-            if _MOTION_PROPS.match(prop) and value.strip() not in ("none", "0s"):
-                line = code[: start + len(segment) - len(segment.lstrip())].count("\n") + 1
-                found.append((line, prop, " ".join(value.split()), tuple(stack)))
+            line = code.count("\n", 0, start + len(segment) - len(segment.lstrip())) + 1
+            found.append(_Declaration(line, prop.strip(), " ".join(value.split()), tuple(stack)))
         if char == "}" and stack:
             stack.pop()
         start = index + 1
     return found
 
 
+_MOTION_PROP = re.compile(
+    r"(?:-webkit-)?(?:transition|animation)(?:-duration|-delay)?", re.IGNORECASE
+)
+_DURATION = re.compile(r"(?<![\w.-])(\d*\.?\d+)m?s\b", re.IGNORECASE)
+_VAR_NAME = re.compile(r"var\(\s*(--[\w-]+)")
+# Exactly this query: no `not`, no list, so reduced motion never matches it.
+_NO_PREFERENCE = re.compile(r"@media \(prefers-reduced-motion: no-preference\)", re.IGNORECASE)
+
+
+def _motion_declarations(text: str) -> list[_Declaration]:
+    return [d for d in _declarations(text) if _MOTION_PROP.fullmatch(d.prop)]
+
+
+def _raw_durations(value: str) -> list[str]:
+    """Literal non-zero times; a zero time is no motion."""
+    return [m.group(0) for m in _DURATION.finditer(value) if float(m.group(1))]
+
+
+def _moves(value: str) -> bool:
+    """A motion value that animates: a timed token or a non-zero literal."""
+    return value.lower() != "none" and bool(_VAR_NAME.search(value) or _raw_durations(value))
+
+
 def test_partial_motion_uses_motion_tokens() -> None:
     """Chrome motion shares one vocabulary (docs/design-tokens.md § Motion):
-    transitions and one-shot animations time with --motion-*, never raw ms.
-    Looping status indicators (pulses, shimmer) keep their own period."""
+    every transition and animation, loops included, times with --motion-*.
+    Stylelint's declaration-property-unit-disallowed-list is the editor twin."""
     hits: list[str] = []
-    for path in sorted(_PARTIALS_DIR.rglob("*.css")):
+    for path in _partial_files():
         rel = path.relative_to(ROOT)
-        for line, prop, value, _ in _motion_declarations(path.read_text(encoding="utf-8")):
-            if "infinite" in value:
-                continue
-            if _RAW_DURATION.search(value):
-                hits.append(f"{rel}:{line}: {prop}: {value} (use var(--motion-*))")
-    assert not hits, "raw motion durations in partials:\n" + "\n".join(hits)
+        for d in _motion_declarations(path.read_text(encoding="utf-8")):
+            foreign = [n for n in _VAR_NAME.findall(d.value) if not n.startswith("--motion-")]
+            if _raw_durations(d.value) or foreign:
+                hits.append(f"{rel}:{d.line}: {d.prop}: {d.value} (use var(--motion-*))")
+    assert not hits, "motion not timed with --motion-* in partials:\n" + "\n".join(hits)
 
 
 def test_partial_motion_respects_reduced_motion() -> None:
-    """Animate only inside prefers-reduced-motion: no-preference; a loop
-    declared outside needs a reduce override in the same file."""
+    """Animate only inside `@media (prefers-reduced-motion: no-preference)`,
+    loops included. Anywhere else, `reduce` blocks too, motion may only stop."""
     hits: list[str] = []
-    for path in sorted(_PARTIALS_DIR.rglob("*.css")):
+    for path in _partial_files():
         rel = path.relative_to(ROOT)
-        text = path.read_text(encoding="utf-8")
-        has_reduce_override = bool(_REDUCE.search(text))
-        for line, prop, value, preludes in _motion_declarations(text):
-            if any(_NO_PREFERENCE.search(p) or _REDUCE.search(p) for p in preludes):
-                continue
-            if "infinite" in value and has_reduce_override:
-                continue
-            hits.append(f"{rel}:{line}: {prop}: {value} (wrap in no-preference)")
+        for d in _motion_declarations(path.read_text(encoding="utf-8")):
+            if _moves(d.value) and not any(_NO_PREFERENCE.fullmatch(p) for p in d.preludes):
+                hits.append(f"{rel}:{d.line}: {d.prop}: {d.value} (wrap in no-preference)")
     assert not hits, "motion outside prefers-reduced-motion guards:\n" + "\n".join(hits)
 
 
-def test_motion_declaration_scanner() -> None:
+def test_declaration_scanner() -> None:
     css = """
     .a { transition: color 150ms ease; }
+    /* a comment
+       over two lines */
     @media (prefers-reduced-motion: no-preference) {
-      .b { animation: x var(--motion-panel) var(--motion-ease-out); }
+      .b::before { content: "{"; animation: x var(--motion-panel); }
+      .c { background: url("data:image/svg+xml,<svg>}</svg>"); }
     }
-    .c { animation: none; }
+    .d { transition: none }
     """
-    found = _motion_declarations(css)
-    assert [(prop, value) for _, prop, value, _ in found] == [
-        ("transition", "color 150ms ease"),
-        ("animation", "x var(--motion-panel) var(--motion-ease-out)"),
+    no_pref = "@media (prefers-reduced-motion: no-preference)"
+    assert _declarations(css) == [
+        (2, "transition", "color 150ms ease", (".a",)),
+        (6, "content", '"{"', (no_pref, ".b::before")),
+        (6, "animation", "x var(--motion-panel)", (no_pref, ".b::before")),
+        (7, "background", 'url("data:image/svg+xml,<svg>}</svg>")', (no_pref, ".c")),
+        (9, "transition", "none", (".d",)),
     ]
-    assert found[0][3] == (".a",)
-    assert _NO_PREFERENCE.search(found[1][3][0])
-    assert _RAW_DURATION.search("color 150ms ease")
-    assert not _RAW_DURATION.search("color var(--motion-hover) ease")
+    assert [d.prop for d in _motion_declarations(css)] == ["transition", "animation", "transition"]
+
+
+def test_motion_policy_helpers() -> None:
+    assert _MOTION_PROP.fullmatch("-webkit-animation-delay")
+    assert _MOTION_PROP.fullmatch("Transition-Duration")
+    assert not _MOTION_PROP.fullmatch("transition-property")
+    assert _raw_durations("x .2s, y 200MS, z 0ms, w 0s, v 1.5s") == [".2s", "200MS", "1.5s"]
+    assert _raw_durations("color var(--motion-hover) cubic-bezier(0.2, 0, 0, 1)") == []
+    assert not _moves("none")
+    assert not _moves("opacity 0s")
+    assert _moves("x var(--motion-loop-rec) infinite")
+    assert _NO_PREFERENCE.fullmatch("@media (prefers-reduced-motion: no-preference)")
+    assert not _NO_PREFERENCE.fullmatch(
+        "@media not all and (prefers-reduced-motion: no-preference)"
+    )
+    assert not _NO_PREFERENCE.fullmatch("@media (prefers-reduced-motion: no-preference), print")

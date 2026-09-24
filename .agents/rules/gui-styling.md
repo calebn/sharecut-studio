@@ -2,7 +2,7 @@
 
 Sharecut Studio chrome and reading surfaces use **theme tokens**, **rem**, and **named `@container` queries**. The timeline mixer is **not** maximally intrinsic — keep a Reaper-style grid with sticky headers beside the time reel.
 
-Lint: Stylelint in `gui/web` (`meowtec/no-px`, `declaration-strict-value`, viewport-size `media-feature-name-disallowed-list`, `declaration-no-important`, `at-rule-disallowed-list: layer`, `font-size` 62.5% ban) plus `tests/test_css_policy.py`. Detail: [docs/contributing.md](../../docs/contributing.md) § Sharecut Studio frontend, [gui/web/README.md](../../gui/web/README.md) § Theme tokens, [ux/pages/brand.md](../../ux/pages/brand.md) § Units.
+Lint: Stylelint in `gui/web` (`meowtec/no-px`, `declaration-strict-value`, viewport-size `media-feature-name-disallowed-list`, `declaration-no-important`, `at-rule-disallowed-list: layer`, `font-size` 62.5% ban, `declaration-property-unit-disallowed-list` for raw motion durations) plus `tests/test_css_policy.py` (which also keeps every transition and animation inside `prefers-reduced-motion: no-preference`). Detail: [docs/contributing.md](../../docs/contributing.md) § Sharecut Studio frontend, [gui/web/README.md](../../gui/web/README.md) § Theme tokens, [ux/pages/brand.md](../../ux/pages/brand.md) § Units.
 
 ## Source of truth
 
@@ -30,6 +30,7 @@ Keep these in lockstep. Do not invent a third engine.
 | --------- | ---------------------------------------- | ----------------------------------- |
 | `1px` / `-1px` hairlines | `meowtec/no-px` `ignore: ["1px", "-1px"]` | `abs(float(px)) == 1` |
 | Other `px` | `stylelint-disable` + `-- user-approved:` including rule `meowtec/no-px` | same rule ID must be in the disable on that line |
+| Raw `ms` / `s` on `transition*` / `animation*` | none: `declaration-property-unit-disallowed-list`; add a `--motion-*` token instead | none: `test_partial_motion_uses_motion_tokens` (partials); the `no-preference` guard is pytest-only |
 
 Theme files are Stylelint-ignored; pytest is the only theme/deploy/ux/docs-site enforcer.
 
@@ -47,7 +48,7 @@ Other values lint should not swallow:
 | `font-weight` (`400`/`500`/`600`/`700`) | Small closed set; not a color/space theme |
 | `letter-spacing` in `em` | Relative to glyphs |
 | `opacity` | Often a one-off fade; tokenize only if a named mute recipe repeats |
-| `transition` / `duration` | Use `--motion-hover/toggle/panel/state` and `--motion-ease-out` for chrome; keep animation under `prefers-reduced-motion: no-preference` |
+| `transition` / `duration` | Tokens, not literals: `--motion-press/hover/toggle/panel/state` with `--motion-ease-out` for chrome, `--motion-loop-*` for status loops. Keep every transition and animation, loops included, inside `@media (prefers-reduced-motion: no-preference)` (Stylelint + `tests/test_css_policy.py`) |
 | `box-shadow` offsets | Shape, not inset; colors in the shadow still `var(--…)` |
 | `z-index` | Prefer `--z-*` when stacking with the mixer; raw `0`/`auto` OK |
 | Canvas `left` / `width` / `height` in TS | Time × zoom math, not chrome |

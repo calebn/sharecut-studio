@@ -47,6 +47,7 @@ alert roles on the caller's content so each screen retains its own semantics.
 | Static a11y | oxlint `jsx-a11y` | Interaction + media rules are **errors** — fix the markup; do not add lint suppressions |
 | TS hygiene | oxlint + `oxlint-tsgolint` (see `.oxlintrc.json`) | No explicit `any` / `@ts-*` escapes; `===`; `const`; no `var`; no `console` in `src/` (allowed in `scripts/`); type-aware promise + stringification hygiene (`options.typeAware`) |
 | Theme tokens | Stylelint + pytest | Color, padding, margin, gap, font-size, radius outside `src/styles/theme/` must use `var(--…)`; hex only in theme files. Chrome rem (`meowtec/no-px`); canvas `px` needs `-- user-approved:`. Inline JS styles and Python-authored CSS colors: `tests/test_css_policy.py` |
+| Motion | Stylelint + pytest | `transition*` / `animation*` time with `--motion-*` tokens, never raw `ms`/`s` (`declaration-property-unit-disallowed-list`); `tests/test_css_policy.py` also requires every one, loops included, inside `@media (prefers-reduced-motion: no-preference)` |
 | `!important` / `@layer` / viewport `@media` | Stylelint + pytest | Default-off; allowed only with `stylelint-disable` + `-- user-approved:`. `tests/test_css_policy.py` does **not** strip comments. `font-size: 62.5%` is a hard ban |
 | Format | Biome | `format:check` in CI; commit hook runs lint-staged (`biome check --write` on staged files; `make hooks`). Biome linter is off (oxlint + Stylelint own lint) |
 
@@ -100,9 +101,9 @@ The timeline consumes its own `--color-timeline-*` stage roles: a dark well in
 the dark theme and a light stage in the light theme (the transport strip stays
 dark in both, via `theme/theme-fixed.css`). Chrome uses the five-rung semantic
 surface ladder (`canvas`, `base`, `raised`, `overlay`, `sunken`, each with a
-`text-on-*` partner) and named shadow levels. Hover, toggle, panel, and state
-motion share `--motion-*` tokens and run only when reduced motion is not
-requested. Playwright's `e2e/design-polish.spec.ts` checks both themes and
+`text-on-*` partner) and named shadow levels. Press, hover, toggle, panel,
+and state motion, and the three status loops, share `--motion-*` tokens and
+run only when reduced motion is not requested. Playwright's `e2e/design-polish.spec.ts` checks both themes and
 the reduced-motion path.
 
 Root switching (same CSS contract as marketing):

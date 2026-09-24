@@ -43,18 +43,17 @@
   margin-inline-end: var(--space-3);
   border-radius: 50%;
   background: var(--color-danger);
-  animation: record-rec-pulse 1.8s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .record-rec-dot {
+    animation: record-rec-pulse var(--motion-loop-rec) ease-out infinite;
+  }
 }
 
 @keyframes record-rec-pulse {
   50% {
     box-shadow: 0 0 0 0.3125rem var(--color-danger-muted);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .record-rec-dot {
-    animation: none;
   }
 }
 

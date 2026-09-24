@@ -1120,7 +1120,7 @@ button.history-row {
 
 @media (prefers-reduced-motion: no-preference) {
   .pipeline-pulse {
-    animation: pipeline-pulse 1.2s ease-in-out infinite;
+    animation: pipeline-pulse var(--motion-loop-pulse) ease-in-out infinite;
   }
 }
 
