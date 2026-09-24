@@ -102,7 +102,10 @@ Two roles sit beside the ladder:
   state for toggles, segments, tabs, and selected rows: a neutral chip with
   full-strength text. Selection never uses the accent. `.ui-control`'s base
   pressed rule paints it (with a `--color-text-secondary` border), so
-  components never restate it; checked menu radios add a check mark.
+  components never restate it; checked menu radios add a check mark. One
+  documented exception: the phone tab bar (`.mobile-nav`) marks the current
+  location with an accent top indicator and accent label, following the iOS
+  and Android tab-bar convention; it is navigation, not a selected value.
 - `--color-hover` — the hover wash: a faint `--color-text-primary` tint that
   reads on every rung. Hover is a wash and selected is a chip, so a hovered
   control never looks selected.
