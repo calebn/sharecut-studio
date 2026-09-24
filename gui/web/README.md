@@ -116,7 +116,7 @@ Root switching (same CSS contract as marketing):
 2. **Sharecut Studio-only:** declare the name in `theme/tokens.css` (legacy alias only if migrating old `var(--…)` call sites). For a new **color**: add the raw value to `theme/primitives.css` (`--primitive-<family>-<step>`), then map it onto a `--color-*` semantic role in both `theme-dark.css` and `theme-light.css` using the same selectors as brand-tokens. Never put raw hex in the theme files; never consume `--primitive-*` directly from components. See [docs/design-tokens.md](../../docs/design-tokens.md).
 3. Use `var(--…)` in partials / components — **never** invent one-off hex/`rgb` outside `src/styles/theme/`. Stylelint enforces this in CI.
 
-Domain CSS is split into `@import` partials from `src/styles/daw.css` (`partials/layout.css`, `timeline.css`, `inspector.css`, `panels.css`, `review.css`, `bottom-sheet.css`, `responsive.css`).
+Domain CSS is split into `@import` partials from `src/styles/daw.css`, in cascade order: `partials/base.css`, `reading.css`, `layout.css` (shell grid, tabs, track headers), `timeline.css`, `inspector.css`, `panels.css`, `bottom-sheet.css`, `command-palette.css`, `ui.css` (library atoms), `transport.css` (the fixed-dark transport strip and the phone Listen card that shares its paint), `presence.css`, `ingest.css`, `record.css`, `responsive.css` (shells and breakpoints), and `stage.css` (timeline lighting and row interaction depth). `review-entry.css` and `record-entry.css` load subsets for the guest apps. Keep transport paint in `transport.css` only: it must import after `ui.css` and before `responsive.css`, so phone rules still override the strip.
 
 ## Responsive shells
 

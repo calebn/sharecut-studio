@@ -8,8 +8,9 @@
 @import "./partials/bottom-sheet.css";
 @import "./partials/command-palette.css";
 @import "./partials/ui.css";
+@import "./partials/transport.css";
 @import "./partials/presence.css";
 @import "./partials/ingest.css";
 @import "./partials/record.css";
 @import "./partials/responsive.css";
-@import "./partials/studio-polish.css";
+@import "./partials/stage.css";
