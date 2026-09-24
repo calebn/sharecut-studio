@@ -1,5 +1,7 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, render, renderHook } from "@testing-library/react";
+import { useEffect, useRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { stubMatchMedia } from "../test/matchMedia";
 import { stubRaf } from "../test/raf";
 import type { ClipRow } from "../types/project";
 import { useClipWaveform } from "./useClipWaveform";
@@ -124,5 +126,54 @@ describe("useClipWaveform paint", () => {
 
     expect(paintWaveform).toHaveBeenCalledTimes(1);
     expect(paintWaveform.mock.calls[0]?.[1]).toMatchObject({ sourceEnd: 6 });
+  });
+});
+
+/** Mirrors ClipBlock: paint on every render. */
+function Clip() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const wave = useWave();
+  useEffect(() => {
+    wave.paint(canvasRef.current);
+  });
+  return <canvas ref={canvasRef} />;
+}
+
+describe("useClipWaveform theme", () => {
+  let raf: ReturnType<typeof stubRaf>;
+
+  beforeEach(() => {
+    paintWaveform.mockClear();
+    raf = stubRaf();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete document.documentElement.dataset.theme;
+  });
+
+  it("repaints when the Theme menu flips html[data-theme]", async () => {
+    document.documentElement.dataset.theme = "dark";
+    render(<Clip />);
+    act(() => raf.fire(16));
+    expect(paintWaveform).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      document.documentElement.dataset.theme = "light";
+      await Promise.resolve();
+    });
+    act(() => raf.fire(32));
+    expect(paintWaveform).toHaveBeenCalledTimes(2);
+  });
+
+  it("repaints when the OS scheme flips under the system theme", async () => {
+    const media = stubMatchMedia(false);
+    render(<Clip />);
+    act(() => raf.fire(16));
+    expect(paintWaveform).toHaveBeenCalledTimes(1);
+
+    act(() => media.setMatches(true));
+    act(() => raf.fire(32));
+    expect(paintWaveform).toHaveBeenCalledTimes(2);
   });
 });
