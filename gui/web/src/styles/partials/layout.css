@@ -679,6 +679,16 @@
   box-shadow: inset 0.25rem 0 0 var(--track-identity-color);
 }
 
+/* Selecting a stale track keeps its warning: identity bar, then the stale
+   stripe just inside it. */
+.track-header-row.selected.stale-whole-track {
+  --track-row-edge:
+    inset 0.25rem 0 0 var(--track-identity-color),
+    inset 0.4375rem 0 0 var(--warning);
+
+  box-shadow: var(--track-row-edge);
+}
+
 .track-header-open {
   position: absolute;
   inset: 0;

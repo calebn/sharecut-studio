@@ -36,7 +36,7 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .track-header-row:hover:not(.dragging) {
+  .track-header-row:hover:not(.dragging, .selected) {
     background: var(--color-track-hover);
   }
 }
