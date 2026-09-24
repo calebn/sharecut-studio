@@ -1,5 +1,63 @@
-import type { ResolvedTheme } from "../hooks/useTheme";
+import { useSyncExternalStore } from "react";
+import {
+  PREFERS_LIGHT_QUERY,
+  type ResolvedTheme,
+  resolvedDocumentTheme,
+} from "../hooks/useTheme";
 import { clipWaveformFill } from "./drawWaveform";
+
+/*
+ * Waveform canvases bake theme colours into pixels, so they must repaint when
+ * the resolved theme flips: the Theme menu writes `html[data-theme]` from an
+ * effect, and "system" follows the OS `prefers-color-scheme`. Every visible
+ * clip subscribes, so they share one MutationObserver and one media listener.
+ */
+const themeListeners = new Set<() => void>();
+let stopWatchingTheme: (() => void) | null = null;
+
+function notifyTheme(): void {
+  for (const listener of themeListeners) {
+    listener();
+  }
+}
+
+function watchDocumentTheme(): () => void {
+  const observer = new MutationObserver(notifyTheme);
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["data-theme"],
+  });
+  const media =
+    typeof globalThis.matchMedia === "function"
+      ? globalThis.matchMedia(PREFERS_LIGHT_QUERY)
+      : null;
+  media?.addEventListener?.("change", notifyTheme);
+  return () => {
+    observer.disconnect();
+    media?.removeEventListener?.("change", notifyTheme);
+  };
+}
+
+export function subscribeResolvedTheme(onChange: () => void): () => void {
+  themeListeners.add(onChange);
+  stopWatchingTheme ??= watchDocumentTheme();
+  return () => {
+    themeListeners.delete(onChange);
+    if (themeListeners.size === 0 && stopWatchingTheme) {
+      stopWatchingTheme();
+      stopWatchingTheme = null;
+    }
+  };
+}
+
+/** Effective theme on `<html>`, kept live across Theme-menu and OS changes. */
+export function useResolvedTheme(): ResolvedTheme {
+  return useSyncExternalStore(
+    subscribeResolvedTheme,
+    resolvedDocumentTheme,
+    () => "dark",
+  );
+}
 
 /** Waveform colours for one (clip colour, theme) pair. */
 export type WaveformFill = {

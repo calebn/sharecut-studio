@@ -19,7 +19,10 @@ import {
 } from "../timeline/drawWaveform";
 import { type QuietBand, quietBandsFromPeaks } from "../timeline/quietWash";
 import { uniqueTicks } from "../timeline/snapOverlay";
-import { resolveWaveformFill } from "../timeline/waveformTheme";
+import {
+  resolveWaveformFill,
+  useResolvedTheme,
+} from "../timeline/waveformTheme";
 import type { ClipRow, PeaksData } from "../types/project";
 import {
   detailBinsPerSec,
@@ -27,7 +30,6 @@ import {
   editFocusBinsPerSec,
   OVERVIEW_BINS_PER_SEC,
 } from "../utils/timelineZoom.generated";
-import { resolvedDocumentTheme } from "./useTheme";
 
 export type WaveformPaintOverride = {
   sourceStart: number;
@@ -83,6 +85,8 @@ export function useClipWaveform(opts: {
     pointerTrackId,
     measureTimelineViewport,
   } = useDaw();
+  // A theme flip re-renders the clip so its paint effect repaints the tint.
+  const theme = useResolvedTheme();
   const [tiles, setTiles] = useState<WaveformTile[]>([]);
   const [tileRev, setTileRev] = useState(0);
   const [ticks, setTicks] = useState<number[]>([]);
@@ -103,6 +107,7 @@ export function useClipWaveform(opts: {
     ampZoom: waveformAmpZoom,
     devicePixelRatio: 1,
     color,
+    theme,
   });
 
   useEffect(
@@ -278,6 +283,7 @@ export function useClipWaveform(opts: {
     ampZoom,
     devicePixelRatio: dpr,
     color,
+    theme,
   };
 
   const flushPaint = () => {
@@ -290,10 +296,9 @@ export function useClipWaveform(opts: {
       pendingPaints.clear();
       const t0 = performance.now();
       const base = paintOptsRef.current;
-      const theme = resolvedDocumentTheme();
       for (const [canvas, override] of batch) {
         const opts = override ? { ...base, ...override } : base;
-        const fill = resolveWaveformFill(canvas, opts.color, theme);
+        const fill = resolveWaveformFill(canvas, opts.color, opts.theme);
         paintWaveform(canvas, {
           peaks: opts.peaks,
           tiles: opts.tiles,
