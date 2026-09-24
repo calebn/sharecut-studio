@@ -222,6 +222,9 @@ def test_ensure_recompiles_stale_script_launcher(
     py.parent.mkdir(parents=True)
     py.write_text("#!/bin/sh\n", encoding="utf-8")
     mod.write_freeze_complete(runtime)
+    web_dist = runtime / "web-dist"
+    web_dist.mkdir()
+    (web_dist / "index.html").write_text("<html></html>", encoding="utf-8")
     launcher = tmp_path / "sharecut-sidecar-aarch64-apple-darwin"
     launcher.write_text("#!/bin/sh\nexec python -m podcast_mcp.cli.main gui\n", encoding="utf-8")
     compiled: list[Path] = []
@@ -232,6 +235,45 @@ def test_ensure_recompiles_stale_script_launcher(
 
     assert mod.main(["--ensure", "--out", str(tmp_path), "--triple", "aarch64-apple-darwin"]) == 0
     assert compiled == [launcher]
+
+
+def test_existing_web_dist_rejects_e2e_hooks(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    mod = _load_build_sidecar()
+    monkeypatch.setattr(mod, "ROOT", tmp_path)
+    dist = tmp_path / "gui" / "web" / "dist"
+    assets = dist / "assets"
+    assets.mkdir(parents=True)
+    (dist / "index.html").write_text("<html></html>", encoding="utf-8")
+    (assets / "app.js").write_text("window.__SHARECUT_E2E = true", encoding="utf-8")
+
+    with pytest.raises(SystemExit, match="E2E test hook"):
+        mod.ensure_web_dist(rebuild=False)
+
+    (assets / "app.js").write_text("ordinary recording code", encoding="utf-8")
+    assert mod.ensure_web_dist(rebuild=False) == dist
+
+
+def test_ensure_rejects_cached_e2e_web_dist(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    mod = _load_build_sidecar()
+    runtime = tmp_path / "sharecut-runtime"
+    py = runtime / "venv" / "bin" / "python"
+    py.parent.mkdir(parents=True)
+    py.write_text("#!/bin/sh\n", encoding="utf-8")
+    web_dist = runtime / "web-dist"
+    assets = web_dist / "assets"
+    assets.mkdir(parents=True)
+    (web_dist / "index.html").write_text("<html></html>", encoding="utf-8")
+    (assets / "app.js").write_text("window.__recordSignalCount = 1", encoding="utf-8")
+    mod.write_freeze_complete(runtime)
+    monkeypatch.setattr(mod, "require_rustc", lambda: None)
+    monkeypatch.setattr(mod, "compile_rust_launcher", _fail)
+
+    with pytest.raises(SystemExit, match="E2E test hook"):
+        mod.main(["--ensure", "--out", str(tmp_path), "--triple", "aarch64-apple-darwin"])
 
 
 def test_extension_wheels_requires_exactly_one_top_level_wheel(tmp_path: Path) -> None:

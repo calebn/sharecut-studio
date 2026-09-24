@@ -83,9 +83,6 @@ export function detachE2eRemote(
   oscillators: Map<string, OscillatorNode>,
   peerId: string,
 ): void {
-  if (!RECORD_E2E_BUILD) {
-    return;
-  }
   const osc = oscillators.get(peerId);
   if (osc) {
     try {
