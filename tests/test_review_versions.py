@@ -289,11 +289,11 @@ def test_service_publish_cleanup_failure_preserves_commit_error(
     def fail_commit(self, project):
         raise RuntimeError("original commit error")
 
-    def fail_cleanup(path):
+    def fail_cleanup(path, identity):
         raise OSError("cleanup error")
 
     monkeypatch.setattr(ProjectStore, "commit", fail_commit)
-    monkeypatch.setattr("podcast_mcp.services.review.shutil.rmtree", fail_cleanup)
+    monkeypatch.setattr("podcast_mcp.services.review.clean_created_version", fail_cleanup)
     ws = ProjectWorkspace.open(minimal_project)
 
     with pytest.raises(RuntimeError, match="original commit error"):
@@ -302,6 +302,70 @@ def test_service_publish_cleanup_failure_preserves_commit_error(
     assert (art / "review" / "cleanup-fail" / "mix.wav").is_file()
     assert load_project(minimal_project).review.versions == []
     assert ws.project.review.versions == []
+
+
+@pytest.mark.skipif(
+    not review_versions._SAFE_FAILED_CLEANUP_SUPPORTED,
+    reason="descriptor-relative directory operations are unavailable",
+)
+@pytest.mark.parametrize("stage", ["generation", "persistence"])
+def test_failed_publish_does_not_delete_replacement_directory(
+    minimal_project, sample_wav, monkeypatch, stage
+):
+    project = load_project(minimal_project)
+    art = Path(project.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    review_root = art / "review"
+    version_dir = review_root / "race"
+    moved_original = review_root / "race-original"
+    existing = review_root / "existing"
+    existing.mkdir(parents=True)
+    existing_mix = existing / "mix.wav"
+    existing_mix.write_bytes(b"existing")
+    monkeypatch.setattr(review_versions, "_new_id", lambda: "race")
+    original_rename = os.rename
+    raced = False
+
+    def replace_before_quarantine(src, dst, *args, **kwargs):
+        nonlocal raced
+        if src == "race" and dst == "media" and not raced:
+            raced = True
+            original_rename(version_dir, moved_original)
+            version_dir.mkdir()
+            (version_dir / "mix.wav").write_bytes(b"replacement")
+        return original_rename(src, dst, *args, **kwargs)
+
+    monkeypatch.setattr(os, "rename", replace_before_quarantine)
+    if stage == "generation":
+
+        class FailingEngine:
+            def export_mp3(self, wav, mp3, *, bitrate_kbps):
+                raise RuntimeError("encode failed")
+
+        with pytest.raises(RuntimeError, match="encode failed"):
+            publish_version(project, label="new", eng=FailingEngine())
+    else:
+        monkeypatch.setattr(
+            review_versions.FFmpegEngine,
+            "export_mp3",
+            lambda self, wav, mp3, *, bitrate_kbps: mp3.write_bytes(b"encoded"),
+        )
+
+        def fail_commit(self, project):
+            raise RuntimeError("commit failed")
+
+        monkeypatch.setattr(ProjectStore, "commit", fail_commit)
+        with pytest.raises(RuntimeError, match="commit failed"):
+            ReviewService(ProjectWorkspace.open(minimal_project)).publish(label="new")
+
+    assert raced
+    assert (moved_original / "mix.wav").read_bytes() == sample_wav.read_bytes()
+    assert existing_mix.read_bytes() == b"existing"
+    quarantine = list(review_root.glob(".failed-review-*/media/mix.wav"))
+    assert len(quarantine) == 1
+    assert quarantine[0].read_bytes() == b"replacement"
+    assert load_project(minimal_project).review.versions == []
 
 
 def test_publish_id_collision_preserves_existing_directory(
