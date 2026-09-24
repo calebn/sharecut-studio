@@ -570,6 +570,7 @@ def test_ensure_stem_clears_live_invalidation_after_snapshot_render(
         PlayService(ws).ensure_stem("host")
 
     assert ws.project.render.invalidations == []
+    assert ProjectWorkspace.open(minimal_project).project.render.invalidations == []
 
 
 def test_play_processed_rerender_invalidates_cache(minimal_project, sample_wav) -> None:
