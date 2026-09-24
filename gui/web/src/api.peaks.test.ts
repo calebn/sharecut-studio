@@ -2,13 +2,21 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { loadPeaks } from "./api";
 import { shareProjectKey } from "./shareMode";
 
-function stubFetch(status: number, body: unknown | null, ok = status < 400) {
+function requestUrl(input: RequestInfo | URL): string {
+  return typeof input === "string"
+    ? input
+    : input instanceof URL
+      ? input.href
+      : input.url;
+}
+
+function stubFetch(status: number, body: unknown, ok = status < 400) {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => ({
       ok,
       status,
-      url: String(input),
+      url: requestUrl(input),
       json: async () => {
         if (body === null) {
           throw new Error("not json");
@@ -70,13 +78,13 @@ describe("loadPeaks", () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => ({
       ok: true,
       status: 200,
-      url: String(input),
+      url: requestUrl(input),
       json: async () => ({ peaks: [], samples_per_pixel: 1, sample_rate: 1 }),
     }));
     vi.stubGlobal("fetch", fetchMock);
     await loadPeaks(shareProjectKey("tok"), "host");
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const url = String(fetchMock.mock.calls[0][0]);
+    const url = requestUrl(fetchMock.mock.calls[0][0]);
     expect(url).toContain("/api/review/tok/daw/peaks/host");
   });
 });
