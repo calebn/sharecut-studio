@@ -113,7 +113,9 @@
 }
 
 .comment-card.selected {
-  border-color: var(--accent);
+  border-color: var(--color-text-secondary);
+  background: var(--color-chip-selected);
+  color: var(--color-chip-selected-fg);
 }
 
 .comment-card.resolved {
@@ -592,10 +594,17 @@ button.history-row {
   cursor: pointer;
 }
 
-.history-row.clickable:hover,
+/* Selected = the shared chip; hover = the wash (never the accent). */
 .history-row.selected {
-  color: var(--accent-fg);
-  background: var(--color-accent-subtle);
+  color: var(--color-chip-selected-fg);
+  background: var(--color-chip-selected);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .history-row.clickable:hover:not(.selected) {
+    color: var(--color-text-primary);
+    background: var(--color-hover);
+  }
 }
 
 .history-kind {
@@ -767,7 +776,8 @@ button.history-row {
 }
 
 .pipeline-step-row.selected {
-  background: var(--color-accent-subtle);
+  color: var(--color-chip-selected-fg);
+  background: var(--color-chip-selected);
 }
 
 .pipeline-step-select {

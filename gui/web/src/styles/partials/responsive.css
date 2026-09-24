@@ -292,6 +292,8 @@ html[data-shell="tablet"] {
 }
 
 /* Icon + label with a tinted active tab and a top indicator (no block fill). */
+/* Documented exception (design-tokens.md): the phone tab bar marks the
+   current location with the platform's accent indicator, not the chip. */
 .mobile-nav button.active {
   color: var(--color-accent-fg);
   background: transparent;
