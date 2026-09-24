@@ -61,6 +61,8 @@
   --z-handle: 4;
   --z-join: 5;
   --z-bubble: 6;
+  /* Well-edge vignette: over lanes and clips, under the playhead. */
+  --z-stage-vignette: 7;
   --z-playhead: 10;
   --z-track-header: 12;
   --z-sheet: 40;
@@ -96,6 +98,14 @@
     ellipse at center,
     color-mix(in srgb, var(--color-timeline-playhead) 35%, transparent),
     transparent 72%
+  );
+  /* Stage edge falloff: the well darkens toward its inline edges. */
+  --bg-well-vignette: linear-gradient(
+    to right,
+    var(--color-well-vignette),
+    transparent var(--space-6),
+    transparent calc(100% - var(--space-6)),
+    var(--color-well-vignette)
   );
   --bg-empty-stage-card: color-mix(
     in srgb,

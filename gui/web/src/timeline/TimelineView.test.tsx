@@ -430,6 +430,34 @@ describe("TimelineView lane fit", () => {
     expect(watching).toHaveLength(1);
   });
 
+  it("measures the header column for chrome drawn over the stage (#387)", () => {
+    Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
+      configurable: true,
+      get(this: HTMLElement) {
+        return this.classList.contains("track-headers") ? 180 : 0;
+      },
+    });
+    try {
+      const { container } = render(
+        <DawProvider
+          projectPath="/tmp/p.json"
+          initialProject={twoTrackProject()}
+        >
+          <TimelineView headerSlot={<div className="track-headers" />} />
+        </DawProvider>,
+      );
+      // The well-edge vignette starts after the headers in every mode, not
+      // only under the phone's fixed playhead.
+      expect(
+        (
+          container.querySelector(".timeline-area") as HTMLElement
+        ).style.getPropertyValue("--timeline-header-offset"),
+      ).toBe("180px");
+    } finally {
+      Reflect.deleteProperty(HTMLElement.prototype, "offsetWidth");
+    }
+  });
+
   it("keeps the metrics context stable across playhead ticks", () => {
     const headerRenders = vi.fn();
     function HeaderProbe() {
