@@ -252,6 +252,11 @@ def test_existing_web_dist_rejects_e2e_hooks(
         mod.ensure_web_dist(rebuild=False)
 
     (assets / "app.js").write_text("ordinary recording code", encoding="utf-8")
+    (dist / "index.html").write_text("<script>__SHARECUT_E2E</script>", encoding="utf-8")
+    with pytest.raises(SystemExit, match="E2E test hook"):
+        mod.ensure_web_dist(rebuild=False)
+
+    (dist / "index.html").write_text("<html></html>", encoding="utf-8")
     assert mod.ensure_web_dist(rebuild=False) == dist
 
 
