@@ -332,14 +332,16 @@ def compress_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
 
 
 def _render_track_stems(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
-    from podcast_mcp.engines.play_audit import stem_is_fresh, write_stem_hash
+    from podcast_mcp.engines.play_audit import stem_is_fresh, track_render_hash, write_stem_hash
+    from podcast_mcp.util.project_state import project_state_lock, snapshot_project
 
+    render_project = snapshot_project(project)
     eng = ffmpeg()
-    out_dir = project.artifacts_dir() / "tracks"
+    out_dir = render_project.artifacts_dir() / "tracks"
     out_dir.mkdir(parents=True, exist_ok=True)
     rendered: dict[str, Path] = {}
     to_render: list[Track] = []
-    for track in project.tracks:
+    for track in render_project.tracks:
         if track.role not in (
             TrackRole.DIALOGUE,
             TrackRole.MUSIC,
@@ -351,16 +353,16 @@ def _render_track_stems(project: EpisodeProject, defaults: dict[str, Any]) -> St
         if not track.media:
             continue
         out = out_dir / f"{track.id}.wav"
-        if stem_is_fresh(project, track.id):
+        if stem_is_fresh(render_project, track.id):
             rendered[track.id] = out
             continue
         to_render.append(track)
 
     def render_one(track: Track) -> tuple[str, Path]:
         out = out_dir / f"{track.id}.wav"
-        eng.render_dialogue_track(project, track, out, defaults)
+        eng.render_dialogue_track(render_project, track, out, defaults)
         # Hash on the worker; clear invalidations serially below.
-        write_stem_hash(project, track.id, clear_invalidations=False)
+        write_stem_hash(render_project, track.id, clear_invalidations=False)
         return track.id, out
 
     max_workers = defaults.get("performance", {}).get("max_workers")
@@ -381,7 +383,12 @@ def _render_track_stems(project: EpisodeProject, defaults: dict[str, Any]) -> St
             start=1,
         ):
             rendered[track_id] = out
-            clear_invalidations_for_tracks(project, [track_id])
+            # A mutation during rendering must keep its new cause journal.
+            with project_state_lock(project):
+                if track_render_hash(project, track_id) == track_render_hash(
+                    render_project, track_id
+                ):
+                    clear_invalidations_for_tracks(project, [track_id])
             if to_render:
                 prog.advance(1, message=f"Stem {track_id} ({done}/{len(to_render)})")
 

@@ -18,6 +18,7 @@ from podcast_mcp.history.manager import (
 )
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.project_store import ProjectStore
+from podcast_mcp.util.project_state import project_state_lock
 from podcast_mcp.util.tracks import dialogue_track_ids
 
 T = TypeVar("T")
@@ -32,6 +33,28 @@ def run_mutation(
     *,
     operation: str | None = None,
     params: dict | None = None,
+) -> T:
+    with project_state_lock(project):
+        return _run_mutation_locked(
+            path,
+            project,
+            label_before,
+            label_after,
+            mutate,
+            operation=operation,
+            params=params,
+        )
+
+
+def _run_mutation_locked(
+    path: Path,
+    project: EpisodeProject,
+    label_before: str,
+    label_after: str,
+    mutate: Callable[[EpisodeProject], T],
+    *,
+    operation: str | None,
+    params: dict | None,
 ) -> T:
     store = ProjectStore(path)
     mgr = HistoryManager(path)

@@ -38,6 +38,7 @@ from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.session_sync.viewer import publish_agent_play
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.process import run
+from podcast_mcp.util.project_state import snapshot_project
 from podcast_mcp.util.tracks import track_audio_path
 
 # Full-stem rebuild on --rerender is only worth it for long windows. Short
@@ -406,8 +407,9 @@ class PlayService:
         *,
         rerender: bool,
     ) -> tuple[Path, str, float, float]:
-        edit_hash = track_render_hash(self.project, track_id)
-        stem = stem_path(self.project, track_id)
+        render_project = snapshot_project(self.project)
+        edit_hash = track_render_hash(render_project, track_id)
+        stem = stem_path(render_project, track_id)
         window = max(0.0, timeline_end - timeline_start)
 
         if rerender:
@@ -420,7 +422,7 @@ class PlayService:
 
         # Freshness includes timeline-duration match; mismatched stems fall through
         # to segment render so timeline seconds are never treated as source offsets.
-        if stem_is_fresh(self.project, track_id):
+        if stem_is_fresh(render_project, track_id):
             out = self._cache_path(
                 f"stem_{track_id}_{edit_hash}",
                 timeline_start,
@@ -439,7 +441,7 @@ class PlayService:
             return cache, "segment_cache", timeline_start, timeline_end
 
         render_track_segment(
-            self.project,
+            render_project,
             track_id,
             timeline_start,
             timeline_end,
@@ -484,13 +486,14 @@ class PlayService:
         """Render full processed stem (assemble_timeline for one track)."""
         from podcast_mcp.engines.ffmpeg import FFmpegEngine
 
-        track = self.project.track_by_id(track_id)
+        render_project = snapshot_project(self.project)
+        track = render_project.track_by_id(track_id)
         if not track:
             raise ValueError(f"unknown track {track_id!r}")
-        out = stem_path(self.project, track_id)
+        out = stem_path(render_project, track_id)
         out.parent.mkdir(parents=True, exist_ok=True)
-        FFmpegEngine().render_dialogue_track(self.project, track, out, self._defaults)
-        write_stem_hash(self.project, track_id)
+        FFmpegEngine().render_dialogue_track(render_project, track, out, self._defaults)
+        write_stem_hash(render_project, track_id)
         return out
 
     def _segment_cache_path(

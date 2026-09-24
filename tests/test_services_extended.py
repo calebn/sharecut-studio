@@ -518,6 +518,38 @@ def test_play_processed_segment_cache_hit(minimal_project, sample_wav) -> None:
     assert result.wav_path == cache
 
 
+def test_play_segment_cache_key_and_render_use_same_snapshot(minimal_project, sample_wav) -> None:
+    from podcast_mcp.engines.play_audit import track_render_hash
+
+    ws = _dialogue_workspace(minimal_project, sample_wav)
+    before_hash = track_render_hash(ws.project, "host")
+    rendered = []
+
+    def change_live_project(_snapshot, _track_id):
+        ws.mutate(
+            "before cut",
+            "after cut",
+            lambda live: setattr(live.clips[0], "source_end", 1.0),
+        )
+        return False
+
+    def render(snapshot, _track_id, _start, _end, cache, _defaults):
+        rendered.append((snapshot.clips[0].source_end, track_render_hash(snapshot, "host")))
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.write_bytes(sample_wav.read_bytes())
+        return cache
+
+    with (
+        patch("podcast_mcp.services.play.stem_is_fresh", side_effect=change_live_project),
+        patch("podcast_mcp.services.play.render_track_segment", side_effect=render),
+    ):
+        result = PlayService(ws)._processed_audio("host", 0.0, 0.5, rerender=False)
+
+    assert rendered == [(2.0, before_hash)]
+    assert before_hash in result[0].name
+    assert track_render_hash(ws.project, "host") != before_hash
+
+
 def test_play_processed_rerender_invalidates_cache(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     stem = ws.project.artifacts_dir() / "tracks" / "host.wav"
