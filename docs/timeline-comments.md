@@ -110,13 +110,14 @@ If a published version's MP3 is missing, retry encoding writes a temporary MP3 b
 publishes `mix.mp3` only after encoding succeeds. Python-level failures and interruptions remove
 the temporary output, so guest audio lookup continues to use the frozen WAV. The retry pins the
 resolved review directory so a symlink retarget cannot redirect the output or cleanup.
-Before a retry creates its temporary file, it removes up to 32 regular `.mix-*.mp3` files older
-than 24 hours from that version's pinned directory. Fresh concurrent retries, symlinks, the
-published `mix.mp3`, and `mix.wav` are left alone. Cleanup is best effort: an unreadable or
-undeletable orphan does not block a new encode. The 32-file limit counts failed deletion attempts;
-later retries can clear remaining old files. Cleanup uses directory-relative operations to prevent
-a renamed version directory from redirecting deletion; on platforms without those operations it
-is skipped.
+Before a retry creates its temporary file, it inspects up to 32 matching `.mix-*.mp3` names in
+that version's directory and removes regular files older than 24 hours. The age threshold protects
+fresh concurrent retries; symlinks, the published `mix.mp3`, and `mix.wav` are excluded. Cleanup is
+best effort: missing or undeletable orphans do not block a new encode, and later retries can clear
+remaining old files. It opens each directory component without following symlinks and performs
+deletion relative to the pinned directory, so a renamed ancestor cannot redirect deletion. On
+platforms without descriptor-relative directory operations, cleanup is skipped. A concurrent
+same-name replacement between the last identity check and deletion is a narrow remaining race.
 While `active_version_id` is set, new comments stamp `review_version_id`. Host play via
 `GET /api/audio?kind=review&review_version_id=…` (or `kind=review:<id>`). Guest ReviewApp
 uses `GET /api/review/{token}/audio` (MP3; optional object storage 302 — see

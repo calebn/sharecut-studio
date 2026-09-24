@@ -24,6 +24,7 @@ _STALE_MP3_TEMP_AGE_SECONDS = 24 * 60 * 60
 _STALE_MP3_TEMP_CLEANUP_LIMIT = 32
 _SAFE_STALE_CLEANUP_SUPPORTED = (
     os.scandir in os.supports_fd
+    and os.open in os.supports_dir_fd
     and os.stat in os.supports_dir_fd
     and os.unlink in os.supports_dir_fd
     and hasattr(os, "O_DIRECTORY")
@@ -120,33 +121,37 @@ def _clean_stale_mp3_temps(version_dir: Path) -> None:
         log.debug("Skipping stale review MP3 cleanup without descriptor-relative file operations")
         return
     cutoff = time.time() - _STALE_MP3_TEMP_AGE_SECONDS
-    attempted = 0
+    inspected = 0
+    directory_fd = -1
     try:
-        directory_fd = os.open(version_dir, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-        try:
-            with os.scandir(directory_fd) as entries:
-                for entry in entries:
-                    if attempted >= _STALE_MP3_TEMP_CLEANUP_LIMIT:
-                        break
-                    if not (entry.name.startswith(".mix-") and entry.name.endswith(".mp3")):
-                        continue
-                    try:
-                        metadata = os.stat(entry.name, dir_fd=directory_fd, follow_symlinks=False)
-                        if not stat.S_ISREG(metadata.st_mode) or metadata.st_mtime > cutoff:
-                            continue
-                        attempted += 1
-                        current = os.stat(entry.name, dir_fd=directory_fd, follow_symlinks=False)
-                        if (current.st_dev, current.st_ino) != (metadata.st_dev, metadata.st_ino):
-                            continue
-                        os.unlink(entry.name, dir_fd=directory_fd)
-                    except OSError:
-                        log.warning(
-                            "Could not remove stale review MP3 %s", entry.name, exc_info=True
-                        )
-        finally:
+        flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        directory_fd = os.open(version_dir.anchor, flags)
+        for component in version_dir.parts[1:]:
+            child_fd = os.open(component, flags, dir_fd=directory_fd)
             os.close(directory_fd)
+            directory_fd = child_fd
+        with os.scandir(directory_fd) as entries:
+            for entry in entries:
+                if inspected >= _STALE_MP3_TEMP_CLEANUP_LIMIT:
+                    break
+                if not (entry.name.startswith(".mix-") and entry.name.endswith(".mp3")):
+                    continue
+                inspected += 1
+                try:
+                    metadata = os.stat(entry.name, dir_fd=directory_fd, follow_symlinks=False)
+                    if not stat.S_ISREG(metadata.st_mode) or metadata.st_mtime > cutoff:
+                        continue
+                    current = os.stat(entry.name, dir_fd=directory_fd, follow_symlinks=False)
+                    if (current.st_dev, current.st_ino) != (metadata.st_dev, metadata.st_ino):
+                        continue
+                    os.unlink(entry.name, dir_fd=directory_fd)
+                except OSError:
+                    log.warning("Could not remove stale review MP3 %s", entry.name, exc_info=True)
     except OSError:
         log.warning("Could not scan review MP3 retries in %s", version_dir, exc_info=True)
+    finally:
+        if directory_fd >= 0:
+            os.close(directory_fd)
 
 
 def encode_version_mp3(
