@@ -137,8 +137,10 @@ Sharecut Studio chrome library — see [`docs/ui-library.md`](docs/ui-library.md
 
 The command palette's **Actions** tab renders unbound catalog commands only
 when `paletteRunnable` is not `false`. Mark commands that need arguments or a
-timeline/transcript target as non-runnable there; their owning UI still invokes
-them through the command bus.
+timeline/transcript target as non-runnable there. This flag controls palette
+visibility, not command permissions. Contextual controls perform their actions
+through their own gesture or API paths; argument-taking commands can still run
+through the command bus with the required input.
 
 Mutations: prefer `hooks/useProjectMutation()` (`busy` / `error` / `run` / `refresh`) over local try/catch boilerplate.
 

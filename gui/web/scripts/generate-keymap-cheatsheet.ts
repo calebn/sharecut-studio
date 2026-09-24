@@ -139,7 +139,7 @@ function generatedBody(linkStyle: "docs" | "ux"): string {
     lines.push("## Commands without default keys");
     lines.push("");
     lines.push(
-      "Available via toolbar / `execute`; some also appear in the in-app palette. Commands that need caller-provided arguments, such as `comment.resolve`, or a timeline/transcript target are omitted from the palette's runnable Actions. They remain available from their owning UI controls or through `execute` with the needed context. Agents use session/document APIs — not these ids.",
+      "Available via toolbar / `execute`; some also appear in the in-app palette. Commands that need caller-provided arguments, such as `comment.resolve`, or a timeline/transcript target are omitted from the palette's runnable Actions. Argument-taking commands can run through `execute` with their input; contextual actions run from their owning controls, which may use gesture or API paths. The palette flag changes visibility, not permissions. Agents use session/document APIs — not these ids.",
     );
     lines.push("");
     lines.push("| Command | Id | When | Notes |");

@@ -69,6 +69,11 @@ describe("CommandPalette", () => {
     }
     expect(screen.getByText("Annotate transcript")).toBeInTheDocument();
     expect(screen.getByText("Commands without keys")).toBeInTheDocument();
+    expect(useDawStore.getState().transcriptAnnotate).toBe(false);
+    await userEvent.click(
+      screen.getByRole("button", { name: /Annotate transcript/ }),
+    );
+    expect(useDawStore.getState().transcriptAnnotate).toBe(true);
   });
 
   it("closes on Escape", async () => {
