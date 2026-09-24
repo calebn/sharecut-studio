@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import typer
+from filelock import Timeout
 
 from podcast_mcp.cli.context import get_progress
 from podcast_mcp.cli.timed import timed_command
@@ -133,17 +134,23 @@ def transcript_context_set_cmd(
 ) -> None:
     ws = ProjectWorkspace.open(project)
     svc = TranscriptPrecorrectService(ws)
-    if context_file:
-        import yaml
+    if not context_file and not (show_title or guest_name or term):
+        raise typer.BadParameter("Provide --file or at least one field flag")
+    try:
+        if context_file:
+            import yaml
 
-        data = yaml.safe_load(context_file.read_text(encoding="utf-8")) or {}
-        path = svc.update_context(values=data)
-    else:
-        if not (show_title or guest_name or term):
-            raise typer.BadParameter("Provide --file or at least one field flag")
-        path = svc.update_context(
-            values={"show_title": show_title} if show_title else None,
-            guest_names=guest_name,
-            terms=term,
-        )
+            data = yaml.safe_load(context_file.read_text(encoding="utf-8")) or {}
+            path = svc.update_context(values=data)
+        else:
+            path = svc.update_context(
+                values={"show_title": show_title} if show_title else None,
+                guest_names=guest_name,
+                terms=term,
+            )
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    except Timeout as exc:
+        typer.echo(f"Transcript context is busy; try again ({exc})", err=True)
+        raise typer.Exit(1) from exc
     typer.echo(f"Wrote {path}")

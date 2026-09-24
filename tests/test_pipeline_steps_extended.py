@@ -249,7 +249,7 @@ def test_transcribe_tracks_mock(minimal_project, sample_wav, tmp_workspace):
             == "Kaczynski"
         )
     assert proj.transcripts
-    assert proj.transcript_data.vocabulary_revision_applied == "revision-one"
+    assert mock_tr.vocabulary_revision == "revision-one"
     assert load_transcript_context(proj.workspace_path()).vocabulary_revision == "revision-one"
 
 
@@ -274,7 +274,7 @@ def test_transcribe_keeps_revision_stale_when_vocabulary_changes_during_run(
     ctx = load_transcript_context(proj.workspace_path())
     assert ctx.terms == ["New"]
     assert ctx.vocabulary_revision == "revision-two"
-    assert proj.transcript_data.vocabulary_revision_applied is None
+    assert all(t.vocabulary_revision is None for t in proj.transcripts)
 
 
 def test_transcribe_records_started_revision_when_vocabulary_changes_during_run(
@@ -296,7 +296,9 @@ def test_transcribe_records_started_revision_when_vocabulary_changes_during_run(
         eng_cls.return_value.transcribe_all_dialogue.side_effect = transcribe
         steps.transcribe_tracks(proj, load_defaults())
 
-    assert proj.transcript_data.vocabulary_revision_applied == "revision-one"
+    assert [t.vocabulary_revision for t in proj.transcripts if t.track_id == "host"] == [
+        "revision-one"
+    ]
     assert load_transcript_context(proj.workspace_path()).vocabulary_revision == "revision-two"
 
 
@@ -698,3 +700,21 @@ def test_ingest_tracks_resolves_relative_media_path(minimal_project, sample_wav,
     with patch("podcast_mcp.pipeline.steps.ensure_track_peaks"):
         steps.ingest_tracks(proj, load_defaults())
     assert host.media.duration_sec is not None
+
+
+def test_transcribe_tracks_keeps_old_revision_on_rows_not_rerun(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.models import Transcript
+    from podcast_mcp.transcript_context import TranscriptContext
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    proj.transcripts = [Transcript(track_id="guest", words=[], vocabulary_revision="revision-zero")]
+    TranscriptContext(terms=["New"], vocabulary_revision="revision-one").save(proj.workspace_path())
+    with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
+        eng_cls.return_value.transcribe_all_dialogue.return_value = [
+            Transcript(track_id="host", words=[])
+        ]
+        steps.transcribe_tracks(proj, load_defaults())
+    revisions = {t.track_id: t.vocabulary_revision for t in proj.transcripts}
+    assert revisions == {"guest": "revision-zero", "host": "revision-one"}

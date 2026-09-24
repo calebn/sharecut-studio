@@ -168,8 +168,7 @@
       "type": "object",
       "properties": {
         "per_track": { "type": "array", "items": { "$ref": "#/$defs/Transcript" } },
-        "combined": { "$ref": "#/$defs/CombinedTranscript" },
-        "vocabulary_revision_applied": { "type": ["string", "null"] }
+        "combined": { "$ref": "#/$defs/CombinedTranscript" }
       }
     },
     "Transcript": {
@@ -181,6 +180,10 @@
         "source_id": {
           "type": ["string", "null"],
           "description": "When set, words are source-media seconds for that sources[] row (multi-file speaker)."
+        },
+        "vocabulary_revision": {
+          "type": ["string", "null"],
+          "description": "transcript_context.yaml vocabulary revision whose Whisper prompt produced this transcript."
         },
         "words": { "type": "array", "items": { "$ref": "#/$defs/TranscriptWord" } }
       }

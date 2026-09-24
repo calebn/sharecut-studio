@@ -8,6 +8,7 @@ from podcast_mcp.services.document_sync.payloads import (
     COMMENT_BODY_MAX,
     DocumentCommandBody,
 )
+from podcast_mcp.services.transcript_precorrect import VOCABULARY_MAX_ENTRIES
 
 # Discriminated union — source of truth in document_sync.payloads.
 DocumentCommandRequest = DocumentCommandBody
@@ -52,8 +53,9 @@ class TranscriptRefineWaiveRequest(BaseModel):
 
 class TranscriptVocabularyPutRequest(BaseModel):
     path: str
-    terms: list[str]
-    guest_names: list[str]
+    terms: list[str] = Field(max_length=VOCABULARY_MAX_ENTRIES)
+    guest_names: list[str] = Field(max_length=VOCABULARY_MAX_ENTRIES)
+    base_revision: str | None
 
 
 class BootstrapRunRequest(BaseModel):

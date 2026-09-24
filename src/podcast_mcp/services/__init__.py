@@ -14,7 +14,10 @@ from podcast_mcp.services.session_control import SessionControlService
 from podcast_mcp.services.share import ShareService
 from podcast_mcp.services.speaker import SpeakerService
 from podcast_mcp.services.transcript import TranscriptService
-from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
+from podcast_mcp.services.transcript_precorrect import (
+    TranscriptPrecorrectService,
+    VocabularyConflictError,
+)
 from podcast_mcp.services.transcript_refine import TranscriptRefineService
 from podcast_mcp.services.workspace import ProjectWorkspace
 
@@ -39,5 +42,6 @@ __all__ = [
     "TranscriptPrecorrectService",
     "TranscriptRefineService",
     "TranscriptService",
+    "VocabularyConflictError",
     "ensure_viewer",
 ]

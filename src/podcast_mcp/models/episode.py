@@ -132,6 +132,8 @@ class Transcript(BaseModel):
     # When set, words are source-media seconds for that sources[] row (multi-file
     # speaker track). None = whole-track / primary media transcript.
     source_id: str | None = None
+    # transcript_context.yaml vocabulary_revision whose Whisper prompt produced these words.
+    vocabulary_revision: str | None = None
 
 
 class CombinedUtterance(BaseModel):
@@ -318,7 +320,6 @@ class EditorialSection(BaseModel):
 class TranscriptsSection(BaseModel):
     per_track: list[Transcript] = Field(default_factory=list)
     combined: CombinedTranscript | None = None
-    vocabulary_revision_applied: str | None = None
 
 
 class MixSection(BaseModel):

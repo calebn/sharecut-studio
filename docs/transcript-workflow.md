@@ -92,9 +92,13 @@ The Studio Pipeline tab edits per-project **Terms** and **Guest names** in
 initial prompt for both the Python and whisper.cpp backends. Saving a change
 marks the vocabulary as needing transcription;
 **Re-transcribe** runs the pipeline from `transcribe_tracks` through downstream
-steps. A vocabulary revision in `transcript_context.yaml` is compared with the
-revision committed alongside the project transcript; a failed save or concurrent
-edit remains stale. ASR caches include model, language, and prompt. The prompt
+steps. Each transcript stores the vocabulary revision it was produced with. Studio
+asks for re-transcription when any transcript differs from the revision in
+`transcript_context.yaml`: single-track runs update only that track, a concurrent
+edit stays stale, and a project without transcripts never asks. ASR caches
+include model, language, and prompt. Because the cache name changed, the first
+transcription after upgrading re-runs Whisper once per track; older
+`transcripts/{track}_{audio}.json` files are no longer read. The prompt
 has a 400-character limit by default, and Studio rejects terms that would be
 truncated. This changes future ASR output, not existing transcript words.
 

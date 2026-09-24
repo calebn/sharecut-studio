@@ -99,6 +99,8 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
     )
     ctx = load_transcript_context(project.workspace_path())
     prompt = ctx.initial_prompt_text()
+    # Prompt and vocabulary_revision must come from this one load: a concurrent
+    # edit mints a newer revision, so these transcripts stay stale in Studio.
     transcripts = engine.transcribe_all_dialogue(
         project,
         language=cfg.get("language", "en"),
@@ -113,8 +115,8 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
     for t in transcripts:
         by_id[_key(t)] = t
     project.transcripts = list(by_id.values())
-    if transcripts:
-        project.transcript_data.vocabulary_revision_applied = ctx.vocabulary_revision
+    for t in transcripts:
+        t.vocabulary_revision = ctx.vocabulary_revision
     words = sum(len(t.words) for t in transcripts)
     timing_flags = collect_anomalous_asr_duration_flags(
         project,

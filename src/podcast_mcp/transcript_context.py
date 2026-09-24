@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import os
-import tempfile
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -12,6 +11,7 @@ from filelock import FileLock
 
 from podcast_mcp.config import repo_root
 from podcast_mcp.engines.asr_timing import DEFAULT_MAX_WORD_DURATION_SEC
+from podcast_mcp.util.atomic_json import write_text_atomic
 
 _GLOBAL_DEFAULTS_PATH = repo_root() / ".agents" / "defaults" / "transcript_glossary.yaml"
 
@@ -77,19 +77,22 @@ class TranscriptContext:
     speaker_id: SpeakerIdConfig = field(default_factory=SpeakerIdConfig)
     garble_patterns: list[str] = field(default_factory=list)
 
+    def initial_prompt_enabled(self) -> bool:
+        return bool((self.transcribe or {}).get("initial_prompt", True))
+
+    def initial_prompt_limit(self, *, max_chars: int = 400) -> int:
+        return int((self.transcribe or {}).get("initial_prompt_max_chars", max_chars))
+
+    def full_prompt_text(self) -> str:
+        """Untruncated prompt: show title, terms, guest names; stripped, deduped, comma-joined."""
+        parts = [self.show_title or "", *self.terms, *self.guest_names]
+        return ", ".join(dict.fromkeys(p.strip() for p in parts if p.strip()))
+
     def initial_prompt_text(self, *, max_chars: int = 400) -> str | None:
-        cfg = self.transcribe or {}
-        if not cfg.get("initial_prompt", True):
+        if not self.initial_prompt_enabled():
             return None
-        limit = int(cfg.get("initial_prompt_max_chars", max_chars))
-        parts: list[str] = []
-        if self.show_title:
-            parts.append(self.show_title)
-        parts.extend(self.terms)
-        parts.extend(self.guest_names)
-        if not parts:
-            return None
-        text = ", ".join(dict.fromkeys(p.strip() for p in parts if p.strip()))
+        limit = self.initial_prompt_limit(max_chars=max_chars)
+        text = self.full_prompt_text()
         if len(text) > limit:
             text = text[: limit - 3].rsplit(",", 1)[0]
         return text or None
@@ -98,22 +101,34 @@ class TranscriptContext:
         return workspace / "transcript_context.yaml"
 
     def save(self, workspace: Path) -> Path:
+        """Atomically replace transcript_context.yaml under ``context_lock`` (re-entrant)."""
         path = self.context_path(workspace)
-        data = context_to_dict(self)
-        fd, name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as handle:
-                yaml.safe_dump(data, handle, sort_keys=False)
-                handle.flush()
-                os.fsync(handle.fileno())
-            os.replace(name, path)
-        finally:
-            Path(name).unlink(missing_ok=True)
+        text = yaml.safe_dump(context_to_dict(self), sort_keys=False)
+        with context_lock(workspace):
+            write_text_atomic(path, text)
         return path
 
 
+CONTEXT_LOCK_TIMEOUT_SEC = 10.0
+_CONTEXT_LOCKS: dict[Path, FileLock] = {}
+_CONTEXT_LOCKS_GUARD = threading.Lock()
+
+
 def context_lock(workspace: Path) -> FileLock:
-    return FileLock(str(workspace / "transcript_context.yaml.lock"))
+    """Writer lock for ``transcript_context.yaml`` at ``artifacts/transcript_context.yaml.lock``.
+
+    One FileLock instance per workspace, so ``TranscriptContext.save`` can re-enter
+    it while a service holds it across load-modify-save. Raises ``filelock.Timeout``
+    after ``CONTEXT_LOCK_TIMEOUT_SEC``.
+    """
+    lock_path = (workspace / "artifacts" / "transcript_context.yaml.lock").resolve()
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with _CONTEXT_LOCKS_GUARD:
+        lock = _CONTEXT_LOCKS.get(lock_path)
+        if lock is None:
+            lock = FileLock(str(lock_path), timeout=CONTEXT_LOCK_TIMEOUT_SEC)
+            _CONTEXT_LOCKS[lock_path] = lock
+        return lock
 
 
 def new_vocabulary_revision() -> str:

@@ -1661,7 +1661,12 @@ def test_api_transcript_vocabulary_roundtrip_and_validation(minimal_project) -> 
 
     response = client.put(
         "/api/transcript/vocabulary",
-        json={"path": path, "terms": [" Kaczynski ", "Kaczynski"], "guest_names": ["Alice"]},
+        json={
+            "path": path,
+            "terms": [" Kaczynski ", "Kaczynski"],
+            "guest_names": ["Alice"],
+            "base_revision": initial.json()["revision"],
+        },
     )
     assert response.status_code == 200
     assert response.json()["terms"] == ["Kaczynski"]
@@ -1671,9 +1676,36 @@ def test_api_transcript_vocabulary_roundtrip_and_validation(minimal_project) -> 
 
     bad = client.put(
         "/api/transcript/vocabulary",
-        json={"path": path, "terms": [" "], "guest_names": []},
+        json={
+            "path": path,
+            "terms": [" "],
+            "guest_names": [],
+            "base_revision": response.json()["revision"],
+        },
     )
     assert bad.status_code == 400
+    stale = client.put(
+        "/api/transcript/vocabulary",
+        json={
+            "path": path,
+            "terms": ["Other"],
+            "guest_names": [],
+            "base_revision": initial.json()["revision"],
+        },
+    )
+    assert stale.status_code == 409
+    current = client.get("/api/transcript/vocabulary", params={"path": path}).json()
+    assert current["terms"] == ["Kaczynski"]
+    too_many = client.put(
+        "/api/transcript/vocabulary",
+        json={
+            "path": path,
+            "terms": [f"t{i}" for i in range(101)],
+            "guest_names": [],
+            "base_revision": None,
+        },
+    )
+    assert too_many.status_code == 422
 
 
 def test_api_transcript_vocabulary_rejects_unauthorized_remote(
@@ -1690,7 +1722,12 @@ def test_api_transcript_vocabulary_rejects_unauthorized_remote(
     client = TestClient(create_app(bind_host="0.0.0.0"))
     response = client.put(
         "/api/transcript/vocabulary",
-        json={"path": str(minimal_project), "terms": ["Kaczynski"], "guest_names": []},
+        json={
+            "path": str(minimal_project),
+            "terms": ["Kaczynski"],
+            "guest_names": [],
+            "base_revision": None,
+        },
     )
     assert response.status_code == 403
 
@@ -2644,3 +2681,30 @@ def test_gui_package_create_app() -> None:
 
     app = create_app()
     assert app.title == "Podcast MCP Viewer"
+
+
+def test_api_transcript_vocabulary_busy_lock_returns_503(minimal_project, monkeypatch) -> None:
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+    from filelock import Timeout
+
+    from podcast_mcp.gui.server import create_app
+
+    def busy(self, **_kwargs):
+        raise Timeout("transcript_context.yaml.lock")
+
+    monkeypatch.setattr(
+        "podcast_mcp.services.transcript_precorrect.TranscriptPrecorrectService.set_vocabulary",
+        busy,
+    )
+    client = TestClient(create_app())
+    response = client.put(
+        "/api/transcript/vocabulary",
+        json={
+            "path": str(minimal_project),
+            "terms": ["A"],
+            "guest_names": [],
+            "base_revision": None,
+        },
+    )
+    assert response.status_code == 503

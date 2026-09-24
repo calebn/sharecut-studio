@@ -275,7 +275,24 @@ def test_transcript_service_applies_saved_vocabulary(minimal_project):
             eng_cls.return_value.transcribe_all_dialogue.call_args.kwargs["initial_prompt"]
             == "Kaczynski"
         )
-    assert ws.project.transcript_data.vocabulary_revision_applied == "revision-one"
+    assert ws.project.transcripts[0].vocabulary_revision == "revision-one"
+
+
+def test_transcript_service_single_track_stamps_vocabulary_revision(minimal_project):
+    from podcast_mcp.transcript_context import TranscriptContext
+
+    ws = ProjectWorkspace.open(minimal_project)
+    TranscriptContext(terms=["Kaczynski"], vocabulary_revision="revision-one").save(
+        ws.project.workspace_path()
+    )
+    with patch("podcast_mcp.services.transcript.TranscriptionEngine") as eng_cls:
+        eng_cls.return_value.transcribe_track.return_value = Transcript(track_id="host", words=[])
+        TranscriptService(ws).transcribe("host")
+        assert (
+            eng_cls.return_value.transcribe_track.call_args.kwargs["initial_prompt"] == "Kaczynski"
+        )
+    host = [t for t in ws.project.transcripts if t.track_id == "host"]
+    assert [t.vocabulary_revision for t in host] == ["revision-one"]
 
 
 def test_transcript_combined_get_does_not_change_unsaved_project(minimal_project):
