@@ -48,24 +48,12 @@
   color: var(--color-transport-text);
 }
 
-.timecode {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  font-family: var(--font-family-mono);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0;
-  white-space: nowrap;
-  flex: 0 0 auto;
-}
-
-.timecode-current {
+.transport .timecode-current {
   font-size: var(--font-size-transport-time);
-  font-weight: 500;
   color: var(--color-transport-text);
 }
 
-.timecode-total {
+.transport .timecode-total {
   font-size: var(--font-size-transport-total);
   color: var(--color-transport-muted);
 }
@@ -417,6 +405,12 @@
 
 .listen-hero .timecode-current {
   font-size: var(--font-size-transport-time);
+  color: var(--color-transport-text);
+}
+
+.listen-hero .timecode-total {
+  font-size: var(--font-size-transport-total);
+  color: var(--color-transport-muted);
 }
 
 .listen-scrub {

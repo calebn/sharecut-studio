@@ -108,6 +108,98 @@
   font-size: inherit;
 }
 
+/* --- Timecode: tabular readout (large current time, muted total). Neutral
+   inks here; the transport strip and Listen card restate them in
+   transport.css. --- */
+
+.timecode {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.timecode-current {
+  font-size: var(--font-size-emphasis);
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.timecode-total {
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
+}
+
+/* --- Pill: read-only status chip, or an action pill (button.pill). Kept
+   before .ui-control so a button pill still takes .ui-control's box. --- */
+
+.pill--compact {
+  padding: var(--space-0) var(--space-2);
+  font-size: var(--font-size-micro);
+}
+
+.pill {
+  padding: var(--space-0) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-caption);
+}
+
+.pill.warning {
+  background: var(--color-warning-subtle);
+  color: var(--warning);
+}
+
+button.pill {
+  border: none;
+  font: inherit;
+  font-family: inherit;
+  line-height: inherit;
+  cursor: default;
+}
+
+button.pill.pill--action {
+  cursor: pointer;
+}
+
+button.pill.pill--action:focus-visible {
+  outline: var(--focus-ring-width) solid var(--warning);
+  outline-offset: 1px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  button.pill.pill--action:hover {
+    outline: var(--focus-ring-width) solid var(--warning);
+    outline-offset: 1px;
+  }
+}
+
+button.pill.pill--busy {
+  opacity: 0.75;
+  cursor: progress;
+}
+
+button.pill.pill--info {
+  cursor: help;
+}
+
+.pill.ok {
+  background: var(--color-success-subtle);
+  color: var(--success);
+}
+
+.pill.audition {
+  background: var(--color-envelope-muted);
+  color: var(--envelope-line);
+  max-width: 13.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* --- .ui-control: shared chrome interaction states --- */
 
 .ui-control {
