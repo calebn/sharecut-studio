@@ -1,0 +1,70 @@
+/* Stage lighting and row interaction depth (timeline, transcript toolbar,
+   track rows). Transport paint lives in transport.css. */
+.transcript-toolbar .transcript-annotate-btn,
+.transcript-toolbar .focus-pane-btn {
+  border-color: transparent;
+  background: transparent;
+}
+
+.transcript-toolbar .transcript-annotate-btn[aria-pressed="true"],
+.transcript-toolbar .focus-pane-btn[aria-pressed="true"] {
+  color: var(--color-chip-selected-fg);
+  border-color: var(--color-border-strong);
+  background: var(--color-chip-selected);
+}
+
+.timeline-area[data-playing="true"] .playhead {
+  box-shadow: var(--shadow-playhead-playing);
+}
+
+.time-ruler .playhead::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inline-size: 3rem;
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-ruler-glow);
+  opacity: 0;
+}
+
+.timeline-area[data-playing="true"] .time-ruler .playhead::before {
+  opacity: 1;
+}
+
+.track-header-row {
+  --color-track-hover: color-mix(
+    in srgb,
+    var(--track-identity-color) 11%,
+    var(--color-bg-base)
+  );
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .transcript-toolbar
+    .transcript-annotate-btn[aria-pressed="true"]:hover:not(:disabled),
+  .transcript-toolbar
+    .focus-pane-btn[aria-pressed="true"]:hover:not(:disabled) {
+    color: var(--color-chip-selected-fg);
+    border-color: var(--color-border-strong);
+    background: var(--color-chip-selected);
+  }
+
+  .track-header-row:hover:not(.dragging) {
+    background: var(--color-track-hover);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .track-header-row,
+  .empty-session-drop {
+    transition:
+      transform var(--motion-toggle) var(--motion-ease-out),
+      box-shadow var(--motion-state) var(--motion-ease-out),
+      background-color var(--motion-hover) var(--motion-ease-out);
+  }
+
+  .time-ruler .playhead::before {
+    transition: opacity var(--motion-state) var(--motion-ease-out);
+  }
+}
