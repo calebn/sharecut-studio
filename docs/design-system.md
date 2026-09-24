@@ -162,7 +162,8 @@ both themes, in story mode and on its docs page, before merging.
   ordinary Storybook-related app copy is unaffected. Storybook's own build
   does not use the production-app guard. The app build also rejects JavaScript
   under `gui/web/public/`, which Vite would copy without module inspection;
-  add scripts to `src/` so the build can inspect them.
+  add scripts to `src/` so the build can inspect them. Symlinks in `public/`
+  are rejected because Vite follows their targets when copying assets.
 - Stories render production code — never a copy. If a story needs a tweak to
   the component, the component changes, with its Vitest/axe tests.
 - a11y addon runs wcag2a/wcag2aa checks per story; the repo's axe posture
