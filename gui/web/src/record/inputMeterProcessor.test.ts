@@ -6,7 +6,7 @@ type Processor = {
   port: {
     onmessage:
       | ((event: {
-          data: { type: string; epoch: number; clearFrame: number };
+          data: { type: string; epoch?: number; clearFrame?: number };
         }) => void)
       | null;
     postMessage: ReturnType<typeof vi.fn>;
@@ -50,6 +50,12 @@ function makeProcessor(clipThreshold = 0.8) {
 }
 
 describe("input meter worklet", () => {
+  it("stops processing when its owner retires it", () => {
+    const processor = makeProcessor();
+    processor.port.onmessage?.({ data: { type: "stop" } });
+    expect(processor.process([[new Float32Array([1])]])).toBe(false);
+    expect(processor.port.postMessage).not.toHaveBeenCalled();
+  });
   it("retains a short safe transient until the next batched report", () => {
     const processor = makeProcessor();
     processor.process([[new Float32Array([-0.7])]]);

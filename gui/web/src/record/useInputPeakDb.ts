@@ -34,6 +34,13 @@ function peakReportTimeoutMs(sampleRate: number): number {
   );
 }
 
+function retireNode(node: AudioWorkletNode | null): void {
+  if (!node) return;
+  node.port.onmessage = null;
+  node.port.postMessage({ type: "stop" });
+  node.disconnect();
+}
+
 /**
  * Drive a LevelMeter from a mic stream. The worklet inspects every render
  * block, including blocks processed while animation frames are throttled.
@@ -132,7 +139,7 @@ export function useInputPeakDb(
         setSuspended(false);
         setReader(null);
         source?.disconnect();
-        node?.disconnect();
+        retireNode(node);
         silent?.disconnect();
         if (ctx) {
           ctx.removeEventListener("statechange", onStateChange);
@@ -150,9 +157,8 @@ export function useInputPeakDb(
       ctxRef.current = null;
       if (!ctx) return;
       ctx.removeEventListener("statechange", onStateChange);
-      if (node) node.port.onmessage = null;
       source?.disconnect();
-      node?.disconnect();
+      retireNode(node);
       silent?.disconnect();
       release?.();
     };

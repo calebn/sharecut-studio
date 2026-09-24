@@ -7,7 +7,19 @@ let frame = 0;
 function tick(now: number): void {
   frame = 0;
   for (const listener of [...listeners]) {
-    if (listeners.has(listener)) listener(now);
+    if (!listeners.has(listener)) continue;
+    try {
+      listener(now);
+    } catch (error) {
+      listeners.delete(listener);
+      if (typeof globalThis.reportError === "function") {
+        globalThis.reportError(error);
+      } else {
+        setTimeout(() => {
+          throw error;
+        });
+      }
+    }
   }
   if (listeners.size > 0 && frame === 0) frame = requestAnimationFrame(tick);
 }

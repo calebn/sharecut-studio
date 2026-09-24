@@ -7,8 +7,13 @@ class SharecutInputMeterProcessor extends AudioWorkletProcessor {
     this.clipped = false;
     this.peak = 0;
     this.blocks = 0;
+    this.stopped = false;
     this.lastHotFrame = Number.NEGATIVE_INFINITY;
     this.port.onmessage = (event) => {
+      if (event.data?.type === "stop") {
+        this.stopped = true;
+        return;
+      }
       if (event.data?.type === "clear") {
         // Audio processed after the UI's audio-clock cutoff may precede this
         // command. Keep the latest hot frame across clears for that race.
@@ -26,6 +31,7 @@ class SharecutInputMeterProcessor extends AudioWorkletProcessor {
   }
 
   process(inputs) {
+    if (this.stopped) return false;
     let peak = 0;
     for (const channel of inputs[0] ?? []) {
       for (let i = 0; i < channel.length; i++) {
