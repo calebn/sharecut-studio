@@ -8,9 +8,18 @@
 .ui-menu-section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-2) 0;
-  border-top: 1px solid var(--color-overlay-white-12);
+  gap: 0;
+  padding: var(--space-1) 0;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.ui-menu-section-label {
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  font-size: var(--font-size-micro);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
 }
 
 .ui-menu-section:first-child {
@@ -351,11 +360,28 @@
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
+  align-items: center;
+  gap: var(--space-5);
+  min-block-size: var(--control-height);
   color: var(--color-text-primary);
-  font-weight: 500;
-  padding: var(--space-2) var(--space-3);
+  font-weight: 400;
+  padding: 0 var(--space-3);
   cursor: pointer;
   text-align: left;
+}
+
+.ui-menu-item-label {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.ui-menu-shortcut {
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-small);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
 }
 
 .ui-menu-panel .ui-control--quiet:focus,
@@ -374,8 +400,8 @@
 @media (hover: hover) and (pointer: fine) {
   .ui-menu-panel .ui-control--quiet:hover:not(:disabled),
   .ui-menu-panel button[role="menuitem"]:hover:not(:disabled) {
-    background: var(--color-accent-subtle);
-    color: var(--color-text-primary);
+    background: var(--color-chip-selected);
+    color: var(--color-chip-selected-fg);
     border-color: transparent;
   }
 }

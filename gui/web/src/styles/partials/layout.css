@@ -372,11 +372,12 @@
 .status-bar {
   display: flex;
   align-items: center;
-  gap: var(--space-5);
+  gap: var(--space-4);
   padding: 0 var(--space-4);
   font-size: var(--font-size-caption);
   color: var(--text-dim);
   background: var(--color-bg-canvas);
+  border-top: 1px solid var(--color-border-subtle);
   overflow-x: auto;
   scrollbar-width: thin;
   min-width: 0;
@@ -385,11 +386,13 @@
 }
 
 .transport {
-  display: flex;
+  /* Three zones: project | transport + timecode (centered) | status + tools. */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   block-size: 100%;
   box-sizing: border-box;
   align-items: center;
-  gap: var(--space-5);
+  column-gap: var(--space-6);
   padding: 0 var(--space-5);
   color: var(--color-transport-text);
   background: var(--bg-transport);
@@ -400,12 +403,27 @@
   container-name: transport;
 }
 
+.transport-zone {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-inline-size: 0;
+}
+
+.transport-zone--center {
+  gap: var(--space-5);
+}
+
+.transport-zone--end {
+  justify-content: flex-end;
+}
+
 .transport h1 {
   font-size: var(--font-size-emphasis);
   font-weight: 600;
   margin: 0;
   min-width: 0;
-  max-width: 18ch;
+  max-width: 24ch;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -436,7 +454,12 @@
 }
 
 .transport--collapsed {
+  display: flex;
   gap: var(--space-3);
+}
+
+.transport--collapsed .transport-zone {
+  display: contents;
 }
 
 .transport--collapsed .timecode-current {
@@ -448,15 +471,21 @@
 }
 
 .transport-primary-actions {
-  margin-left: auto;
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-3);
   flex: 0 0 auto;
 }
 
+.transport--collapsed .transport-primary-actions {
+  margin-inline-start: auto;
+  gap: var(--space-1);
+}
+
 .transport-icon-btn {
-  min-height: 2rem;
+  min-block-size: var(--control-height);
+  min-inline-size: var(--control-height);
+  justify-content: center;
   font-size: var(--font-size-small);
 }
 
@@ -500,6 +529,17 @@
   padding: var(--space-0) var(--space-3);
   border-radius: var(--radius-md);
   font-size: var(--font-size-caption);
+}
+
+.transport .pill {
+  display: inline-flex;
+  align-items: center;
+  block-size: var(--status-chip-height);
+  box-sizing: border-box;
+  padding: 0 var(--space-3);
+  font-size: var(--font-size-small);
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .pill.warning {
@@ -653,10 +693,10 @@ button.pill.pill--info {
 }
 
 .transport .play-btn {
-  inline-size: 2.875rem;
-  block-size: 2.875rem;
-  min-inline-size: 2.875rem;
-  min-block-size: 2.875rem;
+  inline-size: var(--touch-min);
+  block-size: var(--touch-min);
+  min-inline-size: var(--touch-min);
+  min-block-size: var(--touch-min);
   padding: 0;
   border: 1px solid var(--color-transport-play);
   border-radius: 50%;
@@ -671,8 +711,8 @@ button.pill.pill--info {
 }
 
 .transport .stop-btn {
-  inline-size: 2.25rem;
-  block-size: 2.25rem;
+  inline-size: var(--control-height);
+  block-size: var(--control-height);
   padding: 0;
   border-color: var(--color-transport-control-border);
   background: var(--color-transport-control);
@@ -681,7 +721,10 @@ button.pill.pill--info {
 
 .audition-modes {
   display: flex;
+  align-items: stretch;
   gap: var(--space-0);
+  block-size: var(--control-height);
+  box-sizing: border-box;
   padding: var(--space-0);
   border: 1px solid var(--color-transport-control-border);
   border-radius: var(--radius-xl);
@@ -691,19 +734,24 @@ button.pill.pill--info {
 
 .audition-modes button {
   /* Interaction paint from .ui-control--quiet */
-  font-size: var(--font-size-caption);
-  padding: var(--space-2) var(--space-05);
+  min-inline-size: 2.75rem;
+  font-size: var(--font-size-small);
+  padding: 0 var(--space-4);
   border-radius: var(--radius-md);
   color: var(--color-transport-muted);
 }
 
 .transport-controls {
   display: flex;
-  gap: var(--space-2);
+  gap: var(--space-1);
+}
+
+.transport-controls > * {
+  flex: 1 1 0;
 }
 
 .fit-btn {
-  min-height: 2rem;
+  min-block-size: var(--control-height);
 }
 
 .transport-overflow {

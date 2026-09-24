@@ -76,6 +76,7 @@ export function TransportBar({
   } = useDaw();
   const { preference, cyclePreference } = useTheme();
   const [overflowOpen, setOverflowOpen] = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
   const [narrow, setNarrow] = useState(false);
   const headerRef = useRef<HTMLElement>(null);
 
@@ -100,6 +101,7 @@ export function TransportBar({
 
   const collapsed = compact || narrow;
   const loading = project == null;
+  const emptyProject = (project?.tracks.length ?? 0) === 0;
   const breakdown = project ? staleRenderBreakdown(project) : null;
   const stale = breakdown?.stale ?? false;
   const mayRefresh = canRefreshMix(projectPath, guestMode, shareCapabilities);
@@ -192,6 +194,41 @@ export function TransportBar({
   );
   const closeMenu = () => setMenuOpen(false);
 
+  const viewSections = () => (
+    <>
+      <MenuSection label="Layers">
+        <OverlayLegend menu />
+      </MenuSection>
+      <MenuSection label="View">
+        <div className="transport-controls" role="none">
+          <CommandMenuItem commandId="view.zoomOut" showShortcut={false}>
+            Zoom −
+          </CommandMenuItem>
+          <CommandMenuItem commandId="view.zoomIn" showShortcut={false}>
+            Zoom +
+          </CommandMenuItem>
+        </div>
+        {!showFit ? (
+          <CommandMenuItem commandId="view.fit" onSelect={closeMenu}>
+            Fit to window
+          </CommandMenuItem>
+        ) : null}
+        <MenuItem
+          className="theme-toggle-btn"
+          title={themeLabel}
+          onSelect={() => cyclePreference()}
+        >
+          {themeLabel}
+        </MenuItem>
+        {!compact ? (
+          <CommandMenuItem commandId="focus.cycle">
+            {focusLabel}
+          </CommandMenuItem>
+        ) : null}
+      </MenuSection>
+    </>
+  );
+
   return (
     <header
       ref={headerRef}
@@ -204,310 +241,331 @@ export function TransportBar({
         .filter(Boolean)
         .join(" ")}
     >
-      <h1>{project?.meta.name ?? "Loading episode…"}</h1>
-      <div className="transport-play">
-        <CommandButton
-          bare
-          commandId="transport.togglePlay"
-          className="play-btn"
-          data-playing={isPlaying}
-          title={isPlaying ? "Pause (Space)" : "Play (Space)"}
-          aria-label={isPlaying ? "Pause" : "Play"}
-          disabled={!project}
-          {...presenceAnchorProps(presenceAnchor("transport", "play"))}
-        >
-          <Icon name={isPlaying ? "pause" : "play"} />
-        </CommandButton>
-        <CommandButton
-          bare
-          commandId="transport.stop"
-          className="stop-btn"
-          title="Stop to start"
-          aria-label="Stop"
-          disabled={!project}
-          {...presenceAnchorProps(presenceAnchor("transport", "stop"))}
-        >
-          <Icon name="stop" />
-        </CommandButton>
+      <div className="transport-zone transport-zone--start">
+        <h1>{project?.meta.name ?? "Loading episode…"}</h1>
       </div>
-      {showRecordingChip ? <RecordTransportChip /> : null}
-      <span
-        className={
-          duration >= 3600 && !collapsed
-            ? "timecode timecode-hours"
-            : "timecode"
-        }
-        title={fullTimecode}
-      >
-        <span className="timecode-current">{currentTimecode}</span>
-        {!collapsed ? (
-          <span className="timecode-total">{` / ${totalTimecode}`}</span>
-        ) : null}
-      </span>
-      {!collapsed ? auditionGroup() : null}
-      {ingestBusy ? (
-        <span className="pill warning" title="Importing audio…">
-          {collapsed ? "…" : "Importing…"}
-        </span>
-      ) : null}
-      {!collapsed && stale ? (
-        <CommandButton
-          bare
-          commandId="render.refreshMix"
-          className={[
-            "pill",
-            "warning",
-            mayRefresh ? "pill--action" : "pill--info",
-            renderPreviewBusy ? "pill--busy" : "",
-          ]
-            .filter(Boolean)
-            .join(" ")}
-          title={staleTitle}
-          aria-label={staleAria}
-          aria-busy={renderPreviewBusy || undefined}
-          aria-disabled={!mayRefresh || renderPreviewBusy || undefined}
-          onPointerEnter={() => setStaleHighlight(true)}
-          onPointerLeave={() => setStaleHighlight(false)}
-          onFocus={() => setStaleHighlight(true)}
-          onBlur={() => setStaleHighlight(false)}
-          onClick={(e) => {
-            if (!mayRefresh || renderPreviewBusy) {
-              e.preventDefault();
+      <div className="transport-zone transport-zone--center">
+        <div className="transport-play">
+          <CommandButton
+            bare
+            commandId="transport.togglePlay"
+            className="play-btn"
+            data-playing={isPlaying}
+            title={
+              emptyProject
+                ? "Import audio to play"
+                : isPlaying
+                  ? "Pause (Space)"
+                  : "Play (Space)"
             }
-          }}
-        >
-          {renderPreviewBusy ? "Refreshing…" : "Stale render"}
-        </CommandButton>
-      ) : null}
-      {!collapsed && !stale ? <span className="pill ok">Fresh</span> : null}
-      {audioError && (
-        <span className="pill warning" title={audioError}>
-          Err
-        </span>
-      )}
-      {!collapsed && sessionRegion ? (
-        <span
-          className="pill audition"
-          title={`${sessionRegion.start_sec.toFixed(1)}–${sessionRegion.end_sec.toFixed(1)}s`}
-        >
-          {lastAgentQuery
-            ? `Agent: “${lastAgentQuery}”`
-            : `Region ${sessionRegion.start_sec.toFixed(1)}–${sessionRegion.end_sec.toFixed(1)}s`}
-        </span>
-      ) : null}
-
-      <div className="transport-primary-actions">
-        {!collapsed ? (
-          <>
-            <ToolModeToggle />
-            {toolMode === "blade" && !commentMode ? (
-              <CommandButton
-                bare
-                commandId="edit.bladeCut"
-                args={{ atTime: playheadSec }}
-                className="ui-control--compact transport-icon-btn"
-                title="Split selected tracks at playhead"
-                aria-label="Cut at playhead"
-              >
-                <Icon name="cutAtPlayhead" />
-              </CommandButton>
-            ) : null}
-          </>
-        ) : (
-          <CommandButton
-            bare
-            commandId="review.toggleCommentMode"
-            className={`ui-control--compact transport-icon-btn comment-mode-btn${commentMode ? " active" : ""}`}
-            title="Comment mode: click/drag ruler to anchor feedback"
-            aria-label="Comment"
-            aria-pressed={commentMode}
+            aria-label={isPlaying ? "Pause" : "Play"}
+            disabled={!project || emptyProject}
+            {...presenceAnchorProps(presenceAnchor("transport", "play"))}
           >
-            <Icon name="comment" />
+            <Icon name={isPlaying ? "pause" : "play"} />
           </CommandButton>
-        )}
-        {showFit ? (
           <CommandButton
             bare
-            commandId="view.fit"
-            className="ui-control--compact transport-icon-btn fit-btn"
-            title="Fit session in view"
-            aria-label="Fit"
+            commandId="transport.stop"
+            className="stop-btn"
+            title="Stop to start"
+            aria-label="Stop"
+            disabled={!project}
+            {...presenceAnchorProps(presenceAnchor("transport", "stop"))}
           >
-            <Icon name="fit" />
+            <Icon name="stop" />
+          </CommandButton>
+        </div>
+        {showRecordingChip ? <RecordTransportChip /> : null}
+        <span
+          className={
+            duration >= 3600 && !collapsed
+              ? "timecode timecode-hours"
+              : "timecode"
+          }
+          title={fullTimecode}
+        >
+          <span className="timecode-current">{currentTimecode}</span>
+          {!collapsed ? (
+            <span className="timecode-total">{` / ${totalTimecode}`}</span>
+          ) : null}
+        </span>
+        {!collapsed ? auditionGroup() : null}
+      </div>
+      <div className="transport-zone transport-zone--end">
+        {ingestBusy ? (
+          <span className="pill warning" title="Importing audio…">
+            {collapsed ? "…" : "Importing…"}
+          </span>
+        ) : null}
+        {!collapsed && stale ? (
+          <CommandButton
+            bare
+            commandId="render.refreshMix"
+            className={[
+              "pill",
+              "warning",
+              mayRefresh ? "pill--action" : "pill--info",
+              renderPreviewBusy ? "pill--busy" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            title={staleTitle}
+            aria-label={staleAria}
+            aria-busy={renderPreviewBusy || undefined}
+            aria-disabled={!mayRefresh || renderPreviewBusy || undefined}
+            onPointerEnter={() => setStaleHighlight(true)}
+            onPointerLeave={() => setStaleHighlight(false)}
+            onFocus={() => setStaleHighlight(true)}
+            onBlur={() => setStaleHighlight(false)}
+            onClick={(e) => {
+              if (!mayRefresh || renderPreviewBusy) {
+                e.preventDefault();
+              }
+            }}
+          >
+            {renderPreviewBusy ? "Refreshing…" : "Stale render"}
           </CommandButton>
         ) : null}
-        {!collapsed ? <AvatarStack /> : null}
-        <Menu
-          open={overflowOpen}
-          onOpenChange={setMenuOpen}
-          label="Transport menu"
-          menuId="transport-overflow-menu"
-          className="transport-overflow ui-menu-root"
-          trigger={(t) => (
-            <button
-              type="button"
-              className="ui-control ui-control--compact transport-icon-btn transport-more-btn"
-              ref={t.ref}
-              aria-expanded={t["aria-expanded"]}
-              aria-haspopup={t["aria-haspopup"]}
-              aria-controls={t["aria-controls"]}
-              aria-label="Menu"
-              title="Layers, zoom, theme, and more"
-              onClick={t.onClick}
+        {!collapsed && !stale ? <span className="pill ok">Fresh</span> : null}
+        {audioError && (
+          <span className="pill warning" title={audioError}>
+            Err
+          </span>
+        )}
+        {!collapsed && sessionRegion ? (
+          <span
+            className="pill audition"
+            title={`${sessionRegion.start_sec.toFixed(1)}–${sessionRegion.end_sec.toFixed(1)}s`}
+          >
+            {lastAgentQuery
+              ? `Agent: “${lastAgentQuery}”`
+              : `Region ${sessionRegion.start_sec.toFixed(1)}–${sessionRegion.end_sec.toFixed(1)}s`}
+          </span>
+        ) : null}
+
+        <div className="transport-primary-actions">
+          {!collapsed ? (
+            <>
+              <ToolModeToggle />
+              {toolMode === "blade" && !commentMode ? (
+                <CommandButton
+                  bare
+                  commandId="edit.bladeCut"
+                  args={{ atTime: playheadSec }}
+                  className="ui-control--compact transport-icon-btn"
+                  title="Split selected tracks at playhead"
+                  aria-label="Cut at playhead"
+                >
+                  <Icon name="cutAtPlayhead" />
+                </CommandButton>
+              ) : null}
+            </>
+          ) : (
+            <CommandButton
+              bare
+              commandId="review.toggleCommentMode"
+              className={`ui-control--compact transport-icon-btn comment-mode-btn${commentMode ? " active" : ""}`}
+              title="Comment mode: click/drag ruler to anchor feedback"
+              aria-label="Comment"
+              aria-pressed={commentMode}
             >
-              <Icon name="menu" />
-            </button>
+              <Icon name="comment" />
+            </CommandButton>
           )}
-        >
-          {collapsed ? <AvatarStack variant="menu" /> : null}
-          {mayManage ? (
-            <MenuSection label="Project">
-              <CommandMenuItem commandId="project.new" onSelect={closeMenu}>
-                New project…
-              </CommandMenuItem>
-              <CommandMenuItem commandId="project.open" onSelect={closeMenu}>
-                Open project…
-              </CommandMenuItem>
-              <CommandMenuItem commandId="mcp.connect" onSelect={closeMenu}>
-                Connect agent…
-              </CommandMenuItem>
-              <CommandMenuItem
-                commandId="help.diagnosticsBundle"
-                onSelect={closeMenu}
-              >
-                Help…
-              </CommandMenuItem>
-              <CommandMenuItem
-                commandId="export.bounce"
-                respectWhen
-                onSelect={closeMenu}
-              >
-                Bounce…
-              </CommandMenuItem>
-              <Slot id={FEATURE_SHARE_UI_MENU}>
-                <CommandMenuItem
-                  commandId="share.manage"
-                  respectWhen
-                  onSelect={closeMenu}
+          {showFit ? (
+            <CommandButton
+              bare
+              commandId="view.fit"
+              className="ui-control--compact transport-icon-btn fit-btn"
+              title="Fit session in view"
+              aria-label="Fit"
+            >
+              <Icon name="fit" />
+            </CommandButton>
+          ) : null}
+          {!collapsed ? <AvatarStack /> : null}
+          {!collapsed ? (
+            <Menu
+              open={viewOpen}
+              onOpenChange={setViewOpen}
+              label="View menu"
+              menuId="transport-view-menu"
+              className="transport-overflow ui-menu-root"
+              trigger={(t) => (
+                <button
+                  type="button"
+                  className="ui-control ui-control--compact transport-icon-btn transport-more-btn"
+                  ref={t.ref}
+                  aria-expanded={t["aria-expanded"]}
+                  aria-haspopup={t["aria-haspopup"]}
+                  aria-controls={t["aria-controls"]}
+                  aria-label="View"
+                  title="Layers, zoom, theme, and focus"
+                  onClick={t.onClick}
                 >
-                  Share…
-                </CommandMenuItem>
-              </Slot>
-              <CommandMenuItem
-                commandId="record.openPanel"
-                respectWhen
-                onSelect={closeMenu}
-              >
-                Record room…
-              </CommandMenuItem>
-              <CommandMenuItem
-                commandId="export.deliverables"
-                respectWhen
-                onSelect={closeMenu}
-              >
-                Export deliverables
-              </CommandMenuItem>
-            </MenuSection>
-          ) : null}
-          {mayIngest ? (
-            <MenuSection label="Media">
-              <CommandMenuItem commandId="media.import" onSelect={closeMenu}>
-                Import audio…
-              </CommandMenuItem>
-              <CommandMenuItem commandId="track.add" onSelect={closeMenu}>
-                New track
-              </CommandMenuItem>
-              <CommandMenuItem
-                commandId="track.remove"
-                respectWhen
-                onSelect={closeMenu}
-              >
-                Remove track
-              </CommandMenuItem>
-              <CommandMenuItem
-                commandId="track.moveUp"
-                respectWhen
-                onSelect={closeMenu}
-              >
-                Move track up
-              </CommandMenuItem>
-              <CommandMenuItem
-                commandId="track.moveDown"
-                respectWhen
-                onSelect={closeMenu}
-              >
-                Move track down
-              </CommandMenuItem>
-            </MenuSection>
-          ) : null}
-          {collapsed ? (
-            <MenuSection label="Audition">{auditionGroup(true)}</MenuSection>
-          ) : null}
-          {!showFit ? (
-            <CommandMenuItem commandId="view.fit" onSelect={closeMenu}>
-              Fit to window
-            </CommandMenuItem>
-          ) : null}
-          {collapsed && sessionRegion ? (
-            <MenuSection label="Session">
-              <p className="transport-menu-note">
-                {lastAgentQuery
-                  ? `Agent: “${lastAgentQuery}”`
-                  : `Region ${sessionRegion.start_sec.toFixed(1)}–${sessionRegion.end_sec.toFixed(1)}s`}
-              </p>
-            </MenuSection>
-          ) : null}
-          {collapsed ? (
-            <MenuSection label="Render status">
-              {stale && mayRefresh ? (
-                <CommandMenuItem
-                  commandId="render.refreshMix"
-                  title={staleTitle}
-                  onSelect={closeMenu}
-                  respectWhen
-                  onPointerEnter={() => setStaleHighlight(true)}
-                  onPointerLeave={() => setStaleHighlight(false)}
-                  onFocus={() => setStaleHighlight(true)}
-                  onBlur={() => setStaleHighlight(false)}
-                >
-                  {renderPreviewBusy ? "Refreshing…" : "Refresh mix (stale)"}
-                </CommandMenuItem>
-              ) : (
-                <p className="transport-menu-note">
-                  Render: {stale ? "Stale" : "Fresh"}
-                </p>
+                  <Icon name="layers" />
+                </button>
               )}
-            </MenuSection>
+            >
+              {viewSections()}
+            </Menu>
           ) : null}
-          <MenuSection label="Layers">
-            <OverlayLegend menu />
-          </MenuSection>
-          <MenuSection label="View">
-            <div className="transport-controls" role="none">
-              <CommandMenuItem commandId="view.zoomOut">Zoom −</CommandMenuItem>
-              <CommandMenuItem commandId="view.zoomIn">Zoom +</CommandMenuItem>
-            </div>
-            <MenuItem
-              className="theme-toggle-btn"
-              title={themeLabel}
-              onSelect={() => cyclePreference()}
-            >
-              {themeLabel}
-            </MenuItem>
-            {!compact ? (
-              <CommandMenuItem commandId="focus.cycle">
-                {focusLabel}
-              </CommandMenuItem>
+          <Menu
+            open={overflowOpen}
+            onOpenChange={setMenuOpen}
+            label="Transport menu"
+            menuId="transport-overflow-menu"
+            className="transport-overflow ui-menu-root"
+            trigger={(t) => (
+              <button
+                type="button"
+                className="ui-control ui-control--compact transport-icon-btn transport-more-btn"
+                ref={t.ref}
+                aria-expanded={t["aria-expanded"]}
+                aria-haspopup={t["aria-haspopup"]}
+                aria-controls={t["aria-controls"]}
+                aria-label="Menu"
+                title={
+                  collapsed
+                    ? "Layers, zoom, theme, and more"
+                    : "Project, media, and help"
+                }
+                onClick={t.onClick}
+              >
+                <Icon name="menu" />
+              </button>
+            )}
+          >
+            {collapsed ? <AvatarStack variant="menu" /> : null}
+            {mayManage ? (
+              <MenuSection label="Project">
+                <CommandMenuItem commandId="project.new" onSelect={closeMenu}>
+                  New project…
+                </CommandMenuItem>
+                <CommandMenuItem commandId="project.open" onSelect={closeMenu}>
+                  Open project…
+                </CommandMenuItem>
+                <CommandMenuItem commandId="mcp.connect" onSelect={closeMenu}>
+                  Connect agent…
+                </CommandMenuItem>
+                <CommandMenuItem
+                  commandId="export.bounce"
+                  respectWhen
+                  onSelect={closeMenu}
+                >
+                  Bounce…
+                </CommandMenuItem>
+                <Slot id={FEATURE_SHARE_UI_MENU}>
+                  <CommandMenuItem
+                    commandId="share.manage"
+                    respectWhen
+                    onSelect={closeMenu}
+                  >
+                    Share…
+                  </CommandMenuItem>
+                </Slot>
+                <CommandMenuItem
+                  commandId="record.openPanel"
+                  respectWhen
+                  onSelect={closeMenu}
+                >
+                  Record room…
+                </CommandMenuItem>
+                <CommandMenuItem
+                  commandId="export.deliverables"
+                  respectWhen
+                  onSelect={closeMenu}
+                >
+                  Export deliverables
+                </CommandMenuItem>
+              </MenuSection>
             ) : null}
-            <CommandMenuItem
-              commandId="ui.toggleCommandPalette"
-              title="Keyboard shortcuts (?)"
-              onSelect={closeMenu}
-            >
-              Keyboard shortcuts (?)
-            </CommandMenuItem>
-          </MenuSection>
-        </Menu>
+            {mayIngest ? (
+              <MenuSection label="Media">
+                <CommandMenuItem commandId="media.import" onSelect={closeMenu}>
+                  Import audio…
+                </CommandMenuItem>
+                <CommandMenuItem commandId="track.add" onSelect={closeMenu}>
+                  New track
+                </CommandMenuItem>
+                <CommandMenuItem
+                  commandId="track.remove"
+                  respectWhen
+                  onSelect={closeMenu}
+                >
+                  Remove track
+                </CommandMenuItem>
+                <CommandMenuItem
+                  commandId="track.moveUp"
+                  respectWhen
+                  onSelect={closeMenu}
+                >
+                  Move track up
+                </CommandMenuItem>
+                <CommandMenuItem
+                  commandId="track.moveDown"
+                  respectWhen
+                  onSelect={closeMenu}
+                >
+                  Move track down
+                </CommandMenuItem>
+              </MenuSection>
+            ) : null}
+            {collapsed ? (
+              <MenuSection label="Audition">{auditionGroup(true)}</MenuSection>
+            ) : null}
+            {collapsed && sessionRegion ? (
+              <MenuSection label="Session">
+                <p className="transport-menu-note">
+                  {lastAgentQuery
+                    ? `Agent: “${lastAgentQuery}”`
+                    : `Region ${sessionRegion.start_sec.toFixed(1)}–${sessionRegion.end_sec.toFixed(1)}s`}
+                </p>
+              </MenuSection>
+            ) : null}
+            {collapsed ? (
+              <MenuSection label="Render status">
+                {stale && mayRefresh ? (
+                  <CommandMenuItem
+                    commandId="render.refreshMix"
+                    title={staleTitle}
+                    onSelect={closeMenu}
+                    respectWhen
+                    onPointerEnter={() => setStaleHighlight(true)}
+                    onPointerLeave={() => setStaleHighlight(false)}
+                    onFocus={() => setStaleHighlight(true)}
+                    onBlur={() => setStaleHighlight(false)}
+                  >
+                    {renderPreviewBusy ? "Refreshing…" : "Refresh mix (stale)"}
+                  </CommandMenuItem>
+                ) : (
+                  <p className="transport-menu-note">
+                    Render: {stale ? "Stale" : "Fresh"}
+                  </p>
+                )}
+              </MenuSection>
+            ) : null}
+            {collapsed ? viewSections() : null}
+            <MenuSection label="Help">
+              {mayManage ? (
+                <CommandMenuItem
+                  commandId="help.diagnosticsBundle"
+                  onSelect={closeMenu}
+                >
+                  Help…
+                </CommandMenuItem>
+              ) : null}
+              <CommandMenuItem
+                commandId="ui.toggleCommandPalette"
+                title="Keyboard shortcuts (?)"
+                onSelect={closeMenu}
+              >
+                Keyboard shortcuts
+              </CommandMenuItem>
+            </MenuSection>
+          </Menu>
+        </div>
       </div>
     </header>
   );

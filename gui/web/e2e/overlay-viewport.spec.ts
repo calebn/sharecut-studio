@@ -69,7 +69,7 @@ const DIALOG_CASES: DialogCase[] = [
   },
   {
     name: "Keyboard shortcuts",
-    menuItem: "Keyboard shortcuts (?)",
+    menuItem: "Keyboard shortcuts",
     targetName: "Commands without keys",
   },
 ];

@@ -214,6 +214,8 @@ type MenuItemProps = {
   className?: string;
   title?: string;
   disabled?: boolean;
+  /** Display-only shortcut, right-aligned; hidden from the accessible name. */
+  shortcut?: string;
   onPointerEnter?: () => void;
   onPointerLeave?: () => void;
   onFocus?: () => void;
@@ -230,6 +232,7 @@ export function MenuItem({
   onPointerLeave,
   onFocus,
   onBlur,
+  shortcut,
 }: MenuItemProps) {
   const classes = ["ui-control", "ui-control--quiet", className]
     .filter(Boolean)
@@ -251,7 +254,16 @@ export function MenuItem({
         }
       }}
     >
-      {children}
+      {shortcut ? (
+        <>
+          <span className="ui-menu-item-label">{children}</span>
+          <kbd className="ui-menu-shortcut" aria-hidden="true">
+            {shortcut}
+          </kbd>
+        </>
+      ) : (
+        children
+      )}
     </button>
   );
 }
@@ -267,6 +279,9 @@ type MenuSectionProps = {
 export function MenuSection({ label, children }: MenuSectionProps) {
   return (
     <div className="ui-menu-section" role="group" aria-label={label}>
+      <div className="ui-menu-section-label" aria-hidden="true">
+        {label}
+      </div>
       {children}
     </div>
   );

@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { displayShortcutKeys, keymapCommandById } from "../keymap/registry";
+import { isApplePlatform } from "../utils/platform";
 import { MenuItem } from "./Menu";
 import { useCommand } from "./useCommand";
 
@@ -20,6 +22,8 @@ type Props = {
   onPointerLeave?: () => void;
   onFocus?: () => void;
   onBlur?: () => void;
+  /** Show the command's keyboard shortcut (default true when one exists). */
+  showShortcut?: boolean;
 };
 
 /** Menu item that runs a catalog command then optional onSelect. */
@@ -35,9 +39,14 @@ export function CommandMenuItem({
   onPointerLeave,
   onFocus,
   onBlur,
+  showShortcut = true,
 }: Props) {
   const { run, enabled, label } = useCommand(commandId);
   const disabled = respectWhen && !enabled;
+  const binding = showShortcut ? keymapCommandById(commandId) : undefined;
+  const shortcut = binding
+    ? displayShortcutKeys(binding, isApplePlatform())
+    : undefined;
 
   return (
     <MenuItem
@@ -48,6 +57,7 @@ export function CommandMenuItem({
       onPointerLeave={onPointerLeave}
       onFocus={onFocus}
       onBlur={onBlur}
+      shortcut={shortcut}
       onSelect={() => {
         onSelect?.();
         void run(args, { skipWhen: !respectWhen });

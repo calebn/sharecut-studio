@@ -6,6 +6,68 @@ import { DawProvider } from "../state/store";
 import { minimalProject } from "../test/fixtures";
 import { StatusBar } from "./StatusBar";
 
+describe("StatusBar render state", () => {
+  afterEach(() => {
+    useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+  });
+
+  it("agrees with the transport for a new empty project", () => {
+    // needs_rerender is true for a project that has never had media; the
+    // transport treats that as fresh, and the status bar must match.
+    const project = minimalProject({
+      render_status: {
+        needs_rerender: true,
+        reconciliation: { stale: true },
+        premix: { exists: false },
+        invalidations: [],
+      },
+    });
+    useDawStore.getState().hydrate("/tmp/p.json", project, null);
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <StatusBar />
+      </DawProvider>,
+    );
+    expect(screen.getByRole("button", { name: "Render: fresh" })).toBeTruthy();
+    expect(screen.queryByText(/Rerender|Reconcile|Premix/)).toBeNull();
+    expect(screen.queryByText("Transcript: needs sync")).toBeNull();
+  });
+
+  it("reports a stale render and transcript sync once media exists", () => {
+    const project = minimalProject({
+      tracks: [
+        {
+          id: "host",
+          label: "Host",
+          role: "dialogue",
+          speaker: null,
+          gain_db: 0,
+          muted: false,
+          duration_sec: 60,
+          fx_count: 0,
+          stem_is_fresh: true,
+          media_path: "/tmp/host.wav",
+        },
+      ],
+      render_status: {
+        needs_rerender: false,
+        reconciliation: { stale: true },
+        premix: { exists: false },
+        invalidations: [],
+      },
+    });
+    useDawStore.getState().hydrate("/tmp/p.json", project, null);
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <StatusBar />
+      </DawProvider>,
+    );
+    const chip = screen.getByRole("button", { name: "Render: stale" });
+    expect(chip.getAttribute("title")).toContain("No mix preview");
+    expect(screen.getByText("Transcript: needs sync")).toBeTruthy();
+  });
+});
+
 describe("StatusBar live region", () => {
   beforeEach(() => {
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
