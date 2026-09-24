@@ -26,7 +26,11 @@
   --font-family-sans: "IBM Plex Sans", system-ui, sans-serif;
   --font-family-display:
     "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", serif;
-  --font-family-mono: "IBM Plex Mono", ui-monospace, monospace;
+  /* ui-monospace only resolves in Safari; relay/splash/marketing pages do
+     not bundle Plex, so name the common platform monos before the generic. */
+  --font-family-mono:
+    "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas,
+    "Liberation Mono", monospace;
 
   --color-bg-canvas: #181614;
   --color-bg-surface: #1e1c1a;
