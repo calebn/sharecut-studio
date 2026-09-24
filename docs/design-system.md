@@ -30,7 +30,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, Pill, Timecode, EmptyState, SurfaceLadder (token reference) |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, BottomSheet |
-| **Templates** | Assembled, context-specific domain screens built from the library, shown with static / representative content and locked domain copy — no live app state | ConsentGate, Declined, LiveComments, HostUploadRoster (record room), Transport |
+| **Templates** | Assembled, context-specific domain screens built from the library, shown with static / representative content and locked domain copy — no live app state | ConsentGate, Declined, LiveComments, HostUploadRoster (record room), Transport, ListenHero |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -215,8 +215,13 @@ both themes, in story mode and on its docs page, before merging.
   fixture.
 - 2026-09-23 — Added `Molecules/SegmentedControl`, `Atoms/Pill`,
   `Atoms/Timecode`, `Atoms/EmptyState`, the `Atoms/SurfaceLadder` token
-  reference, and `Templates/Transport` (presentational `TransportFrame`);
-  `Molecules/Menu` gained section labels and shortcut rows (#20).
+  reference, `Templates/Transport` (presentational `TransportFrame`) and
+  `Templates/ListenHero` (the phone Listen card); `Molecules/Menu` gained
+  section labels and shortcut rows (#20).
+- 2026-09-24 — Transport and Listen templates render the shipped
+  `TransportPlayControls` and pill markup instead of re-authored copies; the
+  `Menu` WithShortcuts story opens in `play`; `CloseButton` is the shared
+  Dialog / BottomSheet close (#20 review).
 - 2026-09-23 — Docs pages follow the theme toolbar (System on a dark OS no
   longer renders a white docs canvas): StudioDocsContainer builds the docs
   theme from Studio tokens; the toolbar decorator reuses useTheme's

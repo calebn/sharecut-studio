@@ -178,7 +178,7 @@ Keyboard: `1` default, `2` timeline, `3` text, `4` review (when timeline focused
 1. One job per phone screen (no timeline + full transcript + inspector).
 2. ≥44×44pt targets; fade/envelope hit areas ≥2× visual width.
 3. Sheets: Close + dismiss; never stack.
-4. Dialog overlays cap to `90dvh` with a single `.command-palette-body` scroller. Menus cap to `min(90dvh, var(--menu-available-height))`, where `--menu-available-height` is remaining space under the trigger (above phone `.mobile-nav` when present), and scroll internally so every item stays reachable on short viewports. The active phone navigation item uses the theme's inverted surface and on-color text; its state transition is disabled for reduced motion. The centered phone playhead uses `--color-timeline-playhead` so it remains visible in the dark timeline well.
+4. Dialog overlays cap to `90dvh` with a single `.command-palette-body` scroller. Menus cap to `min(90dvh, var(--menu-available-height))`, where `--menu-available-height` is remaining space under the trigger (above phone `.mobile-nav` when present), and scroll internally so every item stays reachable on short viewports. The active phone navigation item keeps a transparent tab with an accent label and accent top indicator (the platform tab-bar convention for the current location); its state transition is disabled for reduced motion. The centered phone playhead uses `--color-timeline-playhead` so it remains visible in the dark timeline well.
 5. Snap only to on-screen anchors.
 6. Listen-first: every edit surface keeps Play around / seek footer.
 7. Progressive complexity via `shareMode` capabilities.
@@ -206,11 +206,12 @@ Labeled audition/pills do not stay in the bar when collapsed — that was clippi
 
 Keep the Reaper grid. Shared polish:
 
-The desktop transport is a 4.5rem dark control strip with a large mono current
-timecode, a smaller duration, and an accent Play control. Tablet and phone
-headers retain a 3.25rem compact row and keep audition modes in Menu. The light
-theme timeline is a warm charcoal recessed well with a subtle grid and edge
-vignette; the empty project offers the same gridded stage as an import target.
+The desktop transport is a 3.5rem fixed-dark control strip in both themes, with
+a large mono current timecode, a smaller duration, and an accent Play control.
+Tablet and phone headers retain a 3.25rem compact row and keep audition modes
+in Menu. The light theme gets a light timeline stage (no lane grid; its
+vignette is transparent), the dark theme a dark well; the empty project
+offers a gridded drop stage as the import target.
 Track headers use their lane's clip color at the leading edge. Playback lighting
 only animates when reduced motion is not requested.
 

@@ -28,7 +28,7 @@ Import from [`src/ui/index.ts`](../src/ui/index.ts) (or `../ui`). Hooks used by 
 
 | Modifier | Use |
 |----------|-----|
-| (default) | Lane-fill chip with strong-enough border |
+| (default) | Transparent fill with a `--color-border-strong` contour; hover adds the `--color-hover` wash; pressed is the selected chip |
 | `.primary` | Copper solid fill (`--color-accent-solid`); one per context |
 | `.danger` | Destructive text/border |
 | `.ui-control--quiet` or `[data-ui-kind="tab"]` | Tabs / segmented tools — quieter rest, still hover + focus-visible + pressed |
