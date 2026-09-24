@@ -11,7 +11,7 @@ from starlette.websockets import WebSocketDisconnect
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services import ProjectWorkspace
-from podcast_mcp.services.record.commands import RecordCommand
+from podcast_mcp.services.record.commands import RecordAuthzError, RecordCommand
 from podcast_mcp.services.record.control import RecordControlService
 from podcast_mcp.services.record.reducer import RecordStateError
 from podcast_mcp.services.record.service import (
@@ -1034,8 +1034,6 @@ def test_record_service_helpers(minimal_project, sample_wav, tmp_workspace, monk
     )
     claim_connection("p_grace", "c2", hub_key=hub)
     release_connection("p_grace", "c2", hub_key=hub)
-    from podcast_mcp.services.record.commands import RecordAuthzError
-
     with pytest.raises(RecordAuthzError, match="invalid_lease"):
         svc.join(
             token=room["guest"]["token"],
@@ -1080,6 +1078,70 @@ def test_rejected_join_distinguishes_expired_lease_from_removed_participant(
         _join(removed, name="Ava", participant_id=echo["participant_id"], lease=echo["lease"])
         err = _drain_until(removed, lambda m: m.get("type") == "Error")
         assert err["code"] == "participant_removed"
+
+
+def test_join_lease_validation_and_removal_share_one_room_decision(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    ws, room, _client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    token = room["guest"]["token"]
+    echo, _snap = svc.join(
+        token=token,
+        role="guest",
+        display_name="Ava",
+        client_id="first",
+        connection_id="first-socket",
+        capabilities=["join", "monitor"],
+        client_seq=1,
+    )
+    svc.disconnect(echo["participant_id"], connection_id="first-socket")
+    entered = Event()
+    release = Event()
+    removal_started = Event()
+    real_verify = svc.verify_lease
+
+    def paused_verify(participant_id, lease, *, token):
+        entered.set()
+        assert release.wait(3)
+        return real_verify(participant_id, lease, token=token)
+
+    monkeypatch.setattr(svc, "verify_lease", paused_verify)
+
+    def rejoin():
+        return svc.join(
+            token=token,
+            role="guest",
+            display_name="Ava",
+            participant_id=echo["participant_id"],
+            lease=echo["lease"],
+            client_id="second",
+            connection_id="second-socket",
+            capabilities=["join", "monitor"],
+            client_seq=1,
+        )
+
+    def remove():
+        removal_started.set()
+        return RecordControlService(ws).submit_host(
+            "RemoveParticipant", payload={"participant_id": echo["participant_id"]}
+        )
+
+    with ThreadPoolExecutor(max_workers=2, thread_name_prefix="join-review") as pool:
+        join_future = pool.submit(rejoin)
+        assert entered.wait(3)
+        remove_future = pool.submit(remove)
+        assert removal_started.wait(3)
+        assert not remove_future.done()
+        release.set()
+        rejoined, _snap = join_future.result(timeout=3)
+        assert rejoined["participant_id"] == echo["participant_id"]
+        remove_future.result(timeout=3)
+    with pytest.raises(RecordAuthzError, match="participant_removed"):
+        rejoin()
 
 
 @pytest.mark.asyncio
