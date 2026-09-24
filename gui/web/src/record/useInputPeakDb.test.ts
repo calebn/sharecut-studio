@@ -1,216 +1,247 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { stubRaf } from "../test/raf";
-import { INPUT_METER_FFT_SIZE, useInputPeakDb } from "./useInputPeakDb";
-
-type StubOptions = {
-  state?: AudioContextState;
-  global?: "AudioContext" | "webkitAudioContext";
-  throwOnSource?: boolean;
-};
-
-function stubAudioContext(
-  peakValue: number,
-  {
-    state = "running",
-    global = "AudioContext",
-    throwOnSource,
-  }: StubOptions = {},
-) {
-  const analyser = {
-    fftSize: 2048,
-    getFloatTimeDomainData: (arr: Float32Array) => {
-      arr.fill(0);
-      arr[0] = peakValue;
-    },
-  };
-  const source = { connect: vi.fn(), disconnect: vi.fn() };
-  const listeners = new Set<() => void>();
-  const ctx = {
-    state,
-    createMediaStreamSource: vi.fn(() => {
-      if (throwOnSource)
-        throw new DOMException("no audio track", "InvalidStateError");
-      return source;
-    }),
-    createAnalyser: vi.fn(() => analyser),
-    resume: vi.fn(() => Promise.resolve()),
-    close: vi.fn(() => Promise.resolve()),
-    addEventListener: vi.fn((_: string, fn: () => void) => listeners.add(fn)),
-    removeEventListener: vi.fn((_: string, fn: () => void) =>
-      listeners.delete(fn),
-    ),
-    setState(next: AudioContextState) {
-      ctx.state = next;
-      for (const fn of listeners) fn();
-    },
-  };
-  // `function`, not an arrow: Vitest >= 4 requires a constructible mock for `new`.
-  const Ctor = vi.fn(function () {
-    return ctx;
-  });
-  vi.stubGlobal("AudioContext", global === "AudioContext" ? Ctor : undefined);
-  vi.stubGlobal(
-    "webkitAudioContext",
-    global === "webkitAudioContext" ? Ctor : undefined,
-  );
-  return { ctx, source, analyser, Ctor };
-}
+import { useInputPeakDb } from "./useInputPeakDb";
 
 const micA = {} as MediaStream;
 const micB = {} as MediaStream;
 
+type Message = { peak: number; clipped: boolean; epoch: number };
+
+function stubAudioGraph(
+  options: {
+    state?: AudioContextState;
+    modulePromise?: Promise<void>;
+    throwOnSource?: boolean;
+    global?: "AudioContext" | "webkitAudioContext";
+  } = {},
+) {
+  const listeners = new Set<() => void>();
+  const source = { connect: vi.fn(), disconnect: vi.fn() };
+  const silent = { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() };
+  const nodes: Array<{
+    port: {
+      onmessage: ((event: MessageEvent<Message>) => void) | null;
+      postMessage: ReturnType<typeof vi.fn>;
+    };
+    connect: ReturnType<typeof vi.fn>;
+    disconnect: ReturnType<typeof vi.fn>;
+    emit: (message: Message) => void;
+  }> = [];
+  const Node = vi.fn(function () {
+    const node = {
+      port: {
+        onmessage: null as ((event: MessageEvent<Message>) => void) | null,
+        postMessage: vi.fn(),
+      },
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      emit(message: Message) {
+        node.port.onmessage?.({ data: message } as MessageEvent<Message>);
+      },
+    };
+    nodes.push(node);
+    return node;
+  });
+  const ctx = {
+    state: options.state ?? "running",
+    destination: {},
+    audioWorklet: {
+      addModule: vi.fn(() => options.modulePromise ?? Promise.resolve()),
+    },
+    createMediaStreamSource: vi.fn(() => {
+      if (options.throwOnSource) throw new Error("no audio track");
+      return source;
+    }),
+    createGain: vi.fn(() => silent),
+    resume: vi.fn(() => Promise.resolve()),
+    close: vi.fn(() => Promise.resolve()),
+    addEventListener: vi.fn((_: string, listener: () => void) =>
+      listeners.add(listener),
+    ),
+    removeEventListener: vi.fn((_: string, listener: () => void) =>
+      listeners.delete(listener),
+    ),
+    setState(next: AudioContextState) {
+      ctx.state = next;
+      for (const listener of listeners) listener();
+    },
+  };
+  const Ctor = vi.fn(function () {
+    return ctx;
+  });
+  vi.stubGlobal(
+    "AudioContext",
+    options.global === "webkitAudioContext" ? undefined : Ctor,
+  );
+  vi.stubGlobal(
+    "webkitAudioContext",
+    options.global === "webkitAudioContext" ? Ctor : undefined,
+  );
+  vi.stubGlobal("AudioWorkletNode", Node);
+  return { ctx, source, silent, nodes, Node, Ctor };
+}
+
+async function ready(nodes: ReturnType<typeof stubAudioGraph>["nodes"]) {
+  await waitFor(() => expect(nodes).toHaveLength(1));
+  return nodes[0];
+}
+
 describe("useInputPeakDb", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
+  afterEach(() => vi.unstubAllGlobals());
 
-  it("reports silence as -Infinity with no clip latched", () => {
+  it("builds a silent worklet graph and reads peak blocks on rAF", async () => {
     const raf = stubRaf();
-    stubAudioContext(0);
+    const graph = stubAudioGraph();
     const { result } = renderHook(() => useInputPeakDb(micA));
-    act(() => raf.fire(1000));
+    const node = await ready(graph.nodes);
+    expect(graph.ctx.audioWorklet.addModule).toHaveBeenCalledWith(
+      expect.stringContaining("inputMeterProcessor"),
+    );
+    expect(graph.Node).toHaveBeenCalledWith(graph.ctx, "sharecut-input-meter", {
+      processorOptions: { clipThreshold: 10 ** (-1 / 20) },
+    });
+    expect(graph.source.connect).toHaveBeenCalledWith(node);
+    expect(node.connect).toHaveBeenCalledWith(graph.silent);
+    expect(graph.silent.gain.value).toBe(0);
+    expect(graph.silent.connect).toHaveBeenCalledWith(graph.ctx.destination);
+    act(() => {
+      node.emit({ peak: 0.3, clipped: false, epoch: 0 });
+      node.emit({ peak: 0.5, clipped: false, epoch: 0 });
+      raf.fire(1000);
+    });
+    expect(result.current.levelDb).toBeCloseTo(-6.02, 2);
+    expect(result.current.peakHoldDb).toBeCloseTo(-6.02, 2);
+    act(() => raf.fire(1050));
     expect(result.current.levelDb).toBe(Number.NEGATIVE_INFINITY);
-    expect(result.current.peakHoldDb).toBe(Number.NEGATIVE_INFINITY);
-    expect(result.current.clipped).toBe(false);
   });
 
-  it("measures the sample peak and latches clip at the -1 dBFS default", () => {
-    const raf = stubRaf();
-    const { analyser } = stubAudioContext(0.9); // ≈ -0.92 dBFS ≥ -1 → clips
+  it("latches a hidden-tab clip without an animation frame and survives quiet blocks", async () => {
+    stubRaf();
+    const graph = stubAudioGraph();
     const { result } = renderHook(() => useInputPeakDb(micA));
-    act(() => raf.fire(1000));
-    expect(analyser.fftSize).toBe(INPUT_METER_FFT_SIZE);
-    expect(result.current.levelDb).toBeCloseTo(-0.915, 2);
+    const node = await ready(graph.nodes);
+    act(() => node.emit({ peak: 0.95, clipped: true, epoch: 0 }));
     expect(result.current.clipped).toBe(true);
-    // Peak hold jumps straight to the new peak.
-    expect(result.current.peakHoldDb).toBeCloseTo(-0.915, 2);
+    act(() => node.emit({ peak: 0, clipped: true, epoch: 0 }));
+    expect(result.current.clipped).toBe(true);
   });
 
-  it("does not latch clip for a hot-but-safe peak", () => {
-    const raf = stubRaf();
-    stubAudioContext(0.7); // ≈ -3.1 dBFS: red zone, but not clipping
-    const { result } = renderHook(() => useInputPeakDb(micA));
-    act(() => raf.fire(1000));
-    expect(result.current.levelDb).toBeCloseTo(-3.098, 2);
-    expect(result.current.clipped).toBe(false);
-  });
-
-  it("honors a custom clipDb", () => {
-    const raf = stubRaf();
-    stubAudioContext(0.7); // ≈ -3.1 dBFS
+  it("clearClip ignores queued old messages and re-latches in a new epoch", async () => {
+    stubRaf();
+    const graph = stubAudioGraph();
     const { result } = renderHook(() => useInputPeakDb(micA, { clipDb: -6 }));
-    act(() => raf.fire(1000));
-    expect(result.current.clipped).toBe(true);
-  });
-
-  it("clearClip resets the latch and it re-latches on the next hot peak", () => {
-    const raf = stubRaf();
-    stubAudioContext(0.95);
-    const { result } = renderHook(() => useInputPeakDb(micA));
-    act(() => raf.fire(1000));
+    const node = await ready(graph.nodes);
+    expect(graph.Node).toHaveBeenCalledWith(graph.ctx, "sharecut-input-meter", {
+      processorOptions: { clipThreshold: 10 ** (-6 / 20) },
+    });
+    act(() => node.emit({ peak: 0.7, clipped: true, epoch: 0 }));
     expect(result.current.clipped).toBe(true);
     act(() => result.current.clearClip());
+    expect(node.port.postMessage).toHaveBeenCalledWith({
+      type: "clear",
+      epoch: 1,
+    });
     expect(result.current.clipped).toBe(false);
-    act(() => raf.fire(1016));
+    act(() => node.emit({ peak: 0.95, clipped: true, epoch: 0 }));
+    expect(result.current.clipped).toBe(false);
+    act(() => node.emit({ peak: 0.7, clipped: true, epoch: 1 }));
     expect(result.current.clipped).toBe(true);
   });
 
-  it("resets the meter when the stream switches or goes null", () => {
-    const raf = stubRaf();
-    const { ctx } = stubAudioContext(0.95);
+  it("resets on stream switch and disconnects the previous graph", async () => {
+    stubRaf();
+    const graph = stubAudioGraph();
     const { result, rerender } = renderHook(
       ({ stream }: { stream: MediaStream | null }) => useInputPeakDb(stream),
       { initialProps: { stream: micA as MediaStream | null } },
     );
-    act(() => raf.fire(1000));
-    expect(result.current.clipped).toBe(true);
-
+    const old = await ready(graph.nodes);
+    act(() => old.emit({ peak: 0.95, clipped: true, epoch: 0 }));
     rerender({ stream: micB });
     expect(result.current.clipped).toBe(false);
-    expect(result.current.peakHoldDb).toBe(Number.NEGATIVE_INFINITY);
-    expect(ctx.close).toHaveBeenCalledTimes(1);
-
+    expect(graph.ctx.close).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(graph.nodes).toHaveLength(2));
+    expect(old.port.onmessage).toBeNull();
+    expect(old.disconnect).toHaveBeenCalled();
+    expect(graph.source.disconnect).toHaveBeenCalled();
     rerender({ stream: null });
-    expect(result.current.levelDb).toBe(Number.NEGATIVE_INFINITY);
     expect(result.current.clipped).toBe(false);
-    expect(ctx.close).toHaveBeenCalledTimes(2);
+    expect(graph.ctx.close).toHaveBeenCalledTimes(2);
   });
 
-  it("tears down the audio graph on unmount", () => {
-    const raf = stubRaf();
-    const { ctx, source } = stubAudioContext(0.1);
-    const { unmount } = renderHook(() => useInputPeakDb(micA));
-    act(() => raf.fire(1000));
-    unmount();
-    expect(source.disconnect).toHaveBeenCalled();
-    expect(ctx.close).toHaveBeenCalled();
-    expect(ctx.removeEventListener).toHaveBeenCalled();
-  });
-
-  it("swallows a rejected close()", async () => {
+  it("closes a context if unmounted before addModule resolves", async () => {
     stubRaf();
-    const { ctx } = stubAudioContext(0.1);
-    ctx.close.mockImplementation(() => Promise.reject(new Error("closed")));
+    let resolveModule!: () => void;
+    const modulePromise = new Promise<void>((resolve) => {
+      resolveModule = resolve;
+    });
+    const graph = stubAudioGraph({ modulePromise });
     const { unmount } = renderHook(() => useInputPeakDb(micA));
     unmount();
-    await Promise.resolve();
-    expect(ctx.close).toHaveBeenCalled();
+    await act(async () => resolveModule());
+    expect(graph.nodes).toHaveLength(0);
+    expect(graph.ctx.close).toHaveBeenCalledTimes(1);
   });
 
-  it("stays inert and closes the context when graph construction throws", () => {
-    const raf = stubRaf();
-    const { ctx } = stubAudioContext(0.9, { throwOnSource: true });
+  it("does not attach the old stream after a switch during module load", async () => {
+    stubRaf();
+    let resolveModule!: () => void;
+    const modulePromise = new Promise<void>((resolve) => {
+      resolveModule = resolve;
+    });
+    const graph = stubAudioGraph({ modulePromise });
+    const { rerender } = renderHook(
+      ({ stream }: { stream: MediaStream }) => useInputPeakDb(stream),
+      { initialProps: { stream: micA } },
+    );
+    rerender({ stream: micB });
+    await act(async () => resolveModule());
+    expect(graph.ctx.createMediaStreamSource).toHaveBeenCalledTimes(1);
+    expect(graph.ctx.createMediaStreamSource).toHaveBeenCalledWith(micB);
+    expect(graph.nodes).toHaveLength(1);
+  });
+
+  it("handles construction failure and rejected close without leaking", async () => {
+    stubRaf();
+    const graph = stubAudioGraph({ throwOnSource: true });
+    graph.ctx.close.mockImplementation(() =>
+      Promise.reject(new Error("closed")),
+    );
     const { result, unmount } = renderHook(() => useInputPeakDb(micA));
-    act(() => raf.fire(1000));
+    await waitFor(() => expect(graph.ctx.close).toHaveBeenCalledTimes(1));
     expect(result.current.levelDb).toBe(Number.NEGATIVE_INFINITY);
-    expect(ctx.close).toHaveBeenCalledTimes(1);
     unmount();
-    expect(ctx.close).toHaveBeenCalledTimes(1);
+    expect(graph.ctx.close).toHaveBeenCalledTimes(1);
   });
 
-  it("stays inert without a stream", () => {
+  it("reports suspended state and resumes from a user gesture", async () => {
     stubRaf();
-    const { Ctor } = stubAudioContext(0.9);
-    const { result } = renderHook(() => useInputPeakDb(null));
-    expect(result.current.levelDb).toBe(Number.NEGATIVE_INFINITY);
-    expect(result.current.clipped).toBe(false);
-    expect(Ctor).not.toHaveBeenCalled();
-  });
-
-  it("stays inert without any AudioContext", () => {
-    const raf = stubRaf();
-    vi.stubGlobal("AudioContext", undefined);
-    vi.stubGlobal("webkitAudioContext", undefined);
+    const graph = stubAudioGraph({ state: "suspended" });
     const { result } = renderHook(() => useInputPeakDb(micA));
-    act(() => raf.fire(1000));
-    expect(result.current.levelDb).toBe(Number.NEGATIVE_INFINITY);
-    expect(result.current.suspended).toBe(false);
-    act(() => result.current.resume()); // no context: a no-op, not a throw
-  });
-
-  it("falls back to webkitAudioContext", () => {
-    const raf = stubRaf();
-    const { Ctor } = stubAudioContext(0.5, { global: "webkitAudioContext" });
-    const { result } = renderHook(() => useInputPeakDb(micA));
-    act(() => raf.fire(1000));
-    expect(Ctor).toHaveBeenCalled();
-    expect(result.current.levelDb).toBeCloseTo(-6.02, 2);
-  });
-
-  it("resumes a suspended context and exposes the suspended flag", () => {
-    stubRaf();
-    const { ctx } = stubAudioContext(0.5, { state: "suspended" });
-    const { result } = renderHook(() => useInputPeakDb(micA));
-    expect(ctx.resume).toHaveBeenCalledTimes(1);
+    await ready(graph.nodes);
     expect(result.current.suspended).toBe(true);
-
-    act(() => ctx.setState("running"));
+    act(() => graph.ctx.setState("running"));
     expect(result.current.suspended).toBe(false);
-
-    act(() => ctx.setState("interrupted" as AudioContextState));
+    act(() => graph.ctx.setState("interrupted" as AudioContextState));
     expect(result.current.suspended).toBe(true);
     act(() => result.current.resume());
-    expect(ctx.resume).toHaveBeenCalledTimes(2);
+    expect(graph.ctx.resume).toHaveBeenCalledTimes(2);
+  });
+
+  it("stays inert without a stream or AudioContext and supports webkitAudioContext", async () => {
+    stubRaf();
+    const graph = stubAudioGraph({ global: "webkitAudioContext" });
+    const noStream = renderHook(() => useInputPeakDb(null));
+    expect(graph.Ctor).not.toHaveBeenCalled();
+    noStream.unmount();
+    const withStream = renderHook(() => useInputPeakDb(micA));
+    await ready(graph.nodes);
+    expect(graph.Ctor).toHaveBeenCalled();
+    withStream.unmount();
+    vi.stubGlobal("webkitAudioContext", undefined);
+    const missing = renderHook(() => useInputPeakDb(micA));
+    expect(missing.result.current.suspended).toBe(false);
+    act(() => missing.result.current.resume());
   });
 });
