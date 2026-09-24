@@ -104,7 +104,7 @@
 }
 
 .ui-menu-panel .ui-segmented > .ui-control {
-  /* No row height here: menu item rules own it (44px touch rows when compact). */
+  /* No row height here: menu item rules own it (44pt touch rows when compact). */
   font-size: inherit;
 }
 
