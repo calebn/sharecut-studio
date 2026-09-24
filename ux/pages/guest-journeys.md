@@ -182,6 +182,8 @@ flowchart TD
    clock follows the shared take while REC says local capture failed and has no
    healthy dot. Reconnect changes the local label to waiting for microphone;
    failed retry returns to failed, and a live stream restores healthy REC.
+   Revoking browser mic permission also shows failed local capture and a
+   reconnect action, even if the stream hook clears its loss flag.
    Stop clears the mic-loss warning but retains incomplete keeper recovery.
    Reconnect opens a new segment at the current room clock; if a selected device was
    unplugged, recovery can use the default available input. In the lobby,

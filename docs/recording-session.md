@@ -467,7 +467,10 @@ REC indicator shows local capture waiting while retry acquisition is
 pending; a failed retry returns to local capture failed. The room clock keeps
 following the shared take throughout, and the healthy REC dot returns only
 after a live microphone stream is restored. After Stop the mic-loss warning
-clears, while incomplete keeper and upload recovery remain visible. Retry is
+clears, while incomplete keeper and upload recovery remain visible. Browser
+permission revocation follows the same failed/pending recovery path even when
+the hook resets its `lost` flag: a missing local stream cannot show healthy
+REC during an active take. Retry is
 explicit (there is no unbounded auto-retry); repeated clicks during acquisition
 are ignored. If a selected device has been removed, reconnect tries the
 default available input once after that exact device fails. A successful

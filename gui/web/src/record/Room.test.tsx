@@ -175,6 +175,46 @@ describe("Room", () => {
     expect(screen.getByText(/incomplete keeper/)).toBeInTheDocument();
   });
 
+  it("does not claim healthy REC when permission revocation clears the stream without a lost flag", () => {
+    const retry = vi.fn();
+    const props = {
+      snapshot,
+      me,
+      onMute: () => undefined,
+      onLeave: () => undefined,
+      onRetryMic: retry,
+    };
+    const { rerender } = render(<Room {...props} micReady={false} />);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "REC — local capture failed",
+    );
+    expect(document.querySelector(".record-rec-dot")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Reconnect microphone" }),
+    ).toBeInTheDocument();
+    rerender(<Room {...props} micReady={false} micPending />);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "REC — waiting for microphone",
+    );
+    rerender(<Room {...props} micReady />);
+    expect(screen.getByRole("status")).toHaveTextContent("REC");
+    expect(document.querySelector(".record-rec-dot")).not.toBeNull();
+  });
+
+  it("keeps a listening producer out of local microphone failure", () => {
+    render(
+      <Room
+        snapshot={snapshot}
+        me={{ ...me, role: "producer" }}
+        onMute={() => undefined}
+        onLeave={() => undefined}
+        micReady
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("REC");
+    expect(screen.queryByText(/Microphone disconnected/)).toBeNull();
+  });
+
   it("re-enables Leave after file ACK or upload error", () => {
     const { rerender } = render(
       <Room

@@ -309,6 +309,7 @@ export function RecordApp({ token }: { token: string }) {
               monitorError={monitor.error}
               upload={upload}
               micLost={mic.lost}
+              micReady={producer || mic.stream !== null}
               micPending={mic.pending}
               onRetryMic={mic.retry}
               onResumeUpload={() => setUploadRetryNonce((value) => value + 1)}
