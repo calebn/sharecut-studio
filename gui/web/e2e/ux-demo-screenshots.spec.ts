@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import { e2eProjectPath, repoRoot } from "./env";
+import { openPhoneTimeline } from "./phoneTimeline";
 
 const screensDir = path.join(repoRoot, "ux/assets/screens");
 const uxDemoPath = path.join(
@@ -51,9 +52,7 @@ test.describe("UX demo screenshots", () => {
       path: path.join(screensDir, "phone-listen.png"),
       fullPage: true,
     });
-    await phoneNav
-      .getByRole("button", { name: "Timeline", exact: true })
-      .click();
+    await openPhoneTimeline(phone);
     await expect(phone.locator(".timeline-area--fixed-playhead")).toBeVisible();
     await phone.screenshot({
       path: path.join(screensDir, "phone-timeline.png"),

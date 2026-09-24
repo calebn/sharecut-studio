@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseTimecodeSec } from "./phoneTimeline";
+import { parseTimecodeSec } from "./timecode";
 
 describe("parseTimecodeSec", () => {
   it("reads transport timecodes and ruler labels", () => {

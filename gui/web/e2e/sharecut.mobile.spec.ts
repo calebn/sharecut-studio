@@ -2,7 +2,8 @@ import { expect, type Page, test } from "@playwright/test";
 import { LONG_PRESS_MS } from "../src/hooks/touchGestureTiming";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
-import { openPhoneTimeline, parseTimecodeSec } from "./phoneTimeline";
+import { openPhoneTimeline } from "./phoneTimeline";
+import { parseTimecodeSec } from "./timecode";
 
 test.describe("Sharecut Studio mobile smoke", () => {
   test.use({ viewport: { width: 390, height: 844 } });
@@ -42,7 +43,7 @@ test.describe("Sharecut Studio mobile smoke", () => {
     expect(listenBodyBox).toBeTruthy();
     expect(listenBodyBox!.y).toBeLessThanOrEqual(shellBox!.y + 1);
 
-    await page.getByRole("button", { name: "Timeline" }).click();
+    await openPhoneTimeline(page);
     await expect(page.locator(".timeline-area--fixed-playhead")).toBeVisible();
     await expect(page.locator("header.transport")).toHaveCount(1);
     const timelineBodyBox = await listenBody.boundingBox();
