@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { LONG_PRESS_MS } from "../src/hooks/touchGestureTiming";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
@@ -112,6 +112,116 @@ test.describe("Sharecut Studio mobile smoke", () => {
     expect(edges.size, "each lane keeps its own identity color").toBe(
       lanes.length,
     );
+  });
+
+  test.describe("fixed playhead at fit zoom (#385)", () => {
+    test.use({ viewport: { width: 375, height: 812 } });
+
+    const parseClock = (text: string) => {
+      const [min, sec] = text.trim().split(":");
+      return Number(min) * 60 + Number(sec);
+    };
+
+    /** Transport time and the ruler time under the fixed centre line. */
+    const readTimes = (page: Page) =>
+      page.evaluate(() => {
+        const line = document.querySelector(".playhead--fixed");
+        const time = document.querySelector(".timeline-time");
+        const clock = document.querySelector(".transport .timecode");
+        const scroll = document.querySelector(".timeline-scroll");
+        const headers = document.querySelector(
+          ".timeline-scroll .track-headers",
+        );
+        if (!line || !time || !clock || !scroll || !headers) {
+          throw new Error("fixed playhead timeline did not mount");
+        }
+        const lineBox = line.getBoundingClientRect();
+        const timeBox = time.getBoundingClientRect();
+        const [current, total] = (clock.getAttribute("title") ?? "").split(
+          " / ",
+        );
+        return {
+          lineX: lineBox.left + lineBox.width / 2,
+          timeLeft: timeBox.left,
+          timeWidth: timeBox.width,
+          viewLeft: headers.getBoundingClientRect().right,
+          viewRight: scroll.getBoundingClientRect().right,
+          current,
+          total,
+        };
+      });
+
+    // Two CSS pixels of ruler at fit zoom.
+    const toleranceSec = (t: { total: string; timeWidth: number }) =>
+      Math.max(0.25, (2 * parseClock(t.total)) / t.timeWidth);
+
+    const expectLineOnTransport = async (page: Page, label: string) => {
+      await expect
+        .poll(async () => {
+          const t = await readTimes(page);
+          const totalSec = parseClock(t.total);
+          const lineSec = ((t.lineX - t.timeLeft) / t.timeWidth) * totalSec;
+          return Math.abs(lineSec - parseClock(t.current)) <= toleranceSec(t);
+        }, label)
+        .toBe(true);
+    };
+
+    test("the line sits on the transport time from start to end", async ({
+      page,
+    }) => {
+      await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+      const hero = page.locator(".listen-hero");
+      await expect(hero.getByRole("button", { name: "Play" })).toBeEnabled();
+      await hero.getByRole("button", { name: "+15s" }).click();
+      await page
+        .getByRole("navigation", { name: "Primary" })
+        .getByRole("button", { name: "Timeline" })
+        .click();
+      await expect(
+        page.locator(".timeline-scroll .track-headers"),
+      ).toBeVisible();
+
+      // Switching modes must not move the playhead (it once jumped to the end).
+      await expect(page.locator(".transport .timecode-current")).toHaveText(
+        "00:15.000",
+      );
+      await expectLineOnTransport(page, "after Listen → Timeline");
+
+      // Tap the visible ruler: its left edge walks back to 0 and its right
+      // edge out to the end, a viewport at a time. Each tap must seek to the
+      // tapped time and leave that time under the line.
+      const ruler = await page.locator(".time-ruler").boundingBox();
+      expect(ruler).toBeTruthy();
+      const reached: number[] = [];
+      for (const edge of ["start", "end", "end", "end"] as const) {
+        const t = await readTimes(page);
+        const totalSec = parseClock(t.total);
+        const x =
+          edge === "start"
+            ? Math.max(t.timeLeft, t.viewLeft) + 1
+            : Math.min(t.timeLeft + t.timeWidth, t.viewRight) - 1;
+        const tapped = Math.min(
+          totalSec,
+          Math.max(0, ((x - t.timeLeft) / t.timeWidth) * totalSec),
+        );
+        await page.mouse.click(x, ruler!.y + ruler!.height / 2);
+        await expect
+          .poll(async () => {
+            const now = await readTimes(page);
+            return Math.abs(parseClock(now.current) - tapped);
+          }, `seek toward the ${edge}`)
+          .toBeLessThanOrEqual(toleranceSec(t));
+        await expectLineOnTransport(page, `after a seek toward the ${edge}`);
+        reached.push(parseClock((await readTimes(page)).current));
+      }
+      const t = await readTimes(page);
+      expect(reached[0], "reaches the start").toBeLessThanOrEqual(
+        toleranceSec(t),
+      );
+      expect(reached.at(-1), "reaches the end").toBeGreaterThanOrEqual(
+        parseClock(t.total) - toleranceSec(t),
+      );
+    });
   });
 
   test("More opens a truthful, app-level gestures cheatsheet", async ({

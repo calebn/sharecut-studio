@@ -41,6 +41,9 @@ import {
 } from "../utils/layout";
 import { clientXToTimelineSec } from "../utils/timelinePointer";
 import {
+  fixedPlayheadLeadPx,
+  scrollLeftCenteringSec,
+  secAtViewportCenter,
   timelineCanvasSize,
   timelineHeaderOffsetWidth,
   timelineTimeViewportWidth,
@@ -81,6 +84,7 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
     zoomPxPerSec,
     scrollLeft,
     setScrollLeft,
+    setTimelineLeadPx,
     playheadSec,
     setPlayheadSec,
     selection,
@@ -115,6 +119,7 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
       zoomPxPerSec: s.zoomPxPerSec,
       scrollLeft: s.scrollLeft,
       setScrollLeft: s.setScrollLeft,
+      setTimelineLeadPx: s.setTimelineLeadPx,
       playheadSec: s.playheadSec,
       setPlayheadSec: s.setPlayheadSec,
       selection: s.selection,
@@ -187,6 +192,14 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
   );
   const [bladeHoverSec, setBladeHoverSec] = useState<number | null>(null);
   const [timeViewportPx, setTimeViewportPx] = useState(0);
+  // Fixed playhead: pad the time column by half the viewport on each side so
+  // every time, 0 and the end included, can sit under the centre line. Store
+  // scroll stays logical; the DOM scroll is logical + leadPx.
+  const leadPx = fixedPlayhead ? fixedPlayheadLeadPx(timeViewportPx) : 0;
+  useEffect(() => {
+    setTimelineLeadPx(leadPx);
+    return () => setTimelineLeadPx(0);
+  }, [leadPx, setTimelineLeadPx]);
   const [movePlacements, setMovePlacements] = useState<ClipMoveItem[] | null>(
     null,
   );
@@ -355,8 +368,9 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
       }
       if (!userZoomed && timeWidth > 0) {
         fitToWindow(timeWidth);
+        // Logical 0 (fitToWindow's scroll) past any fixed-playhead lead pad.
         withProgrammaticScroll(() => {
-          el.scrollLeft = 0;
+          el.scrollLeft = fixedPlayhead ? fixedPlayheadLeadPx(timeWidth) : 0;
         });
       }
     };
@@ -374,7 +388,14 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [project, userZoomed, fitToWindow, followingClientId, refitLanes]);
+  }, [
+    project,
+    userZoomed,
+    fitToWindow,
+    followingClientId,
+    refitLanes,
+    fixedPlayhead,
+  ]);
 
   useLayoutEffect(() => {
     if (!fixedPlayhead) {
@@ -408,17 +429,18 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
     if (!el) {
       return;
     }
-    if (Math.abs(el.scrollLeft - scrollLeft) <= 0.5) {
+    const domLeft = scrollLeft + leadPx;
+    if (Math.abs(el.scrollLeft - domLeft) <= 0.5) {
       return;
     }
     syncingScroll.current = true;
     withProgrammaticScroll(() => {
-      el.scrollLeft = scrollLeft;
+      el.scrollLeft = domLeft;
     });
     requestAnimationFrame(() => {
       syncingScroll.current = false;
     });
-  }, [scrollLeft, zoomPxPerSec]);
+  }, [scrollLeft, zoomPxPerSec, leadPx]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -441,8 +463,9 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
     }
   }, [sessionRegion, setScrollLeft, fixedPlayhead]);
 
-  // Fixed playhead: transport/seek recenters on the playhead. Zoom keeps the
-  // pointer/pinch time stable and moves the playhead to the new viewport center.
+  // Fixed playhead: transport/seek recenters on the playhead. Pointer and
+  // pinch zoom keep the time under the fingers stable and move the playhead to
+  // the new viewport center; fit and other unanchored zoom keep the playhead.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || !fixedPlayhead || !project) {
@@ -453,27 +476,29 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
     prevZoomForPlayheadRef.current = zoomPxPerSec;
     const viewWidth = timelineTimeViewportWidth(el);
 
-    if (zoomChanged) {
-      const centerSec =
-        (scrollLeft + viewWidth / 2) / Math.max(zoomPxPerSec, 1e-6);
+    if (zoomChanged && userZoomed) {
       const canvasSec = timelineCanvasSize(
         durationSec,
         zoomPxPerSec,
         viewWidth,
       ).durationSec;
-      const clamped = Math.max(0, Math.min(canvasSec, centerSec));
-      if (Math.abs(clamped - playheadSec) > 1e-3) {
-        setPlayheadSec(clamped);
+      const centerSec = secAtViewportCenter(
+        scrollLeft,
+        zoomPxPerSec,
+        viewWidth,
+        canvasSec,
+      );
+      if (Math.abs(centerSec - playheadSec) > 1e-3) {
+        setPlayheadSec(centerSec);
       }
       return;
     }
 
-    const center = viewWidth / 2;
-    const target = Math.max(0, playheadSec * zoomPxPerSec - center);
-    if (Math.abs(el.scrollLeft - target) > 1) {
+    const target = scrollLeftCenteringSec(playheadSec, zoomPxPerSec, viewWidth);
+    if (Math.abs(el.scrollLeft - leadPx - target) > 1) {
       syncingScroll.current = true;
       withProgrammaticScroll(() => {
-        el.scrollLeft = target;
+        el.scrollLeft = target + leadPx;
       });
       setScrollLeft(target);
       requestAnimationFrame(() => {
@@ -489,6 +514,8 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
     setScrollLeft,
     setPlayheadSec,
     isPlaying,
+    userZoomed,
+    leadPx,
   ]);
 
   useEffect(() => {
@@ -556,7 +583,8 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
     if (!el) {
       return;
     }
-    setScrollLeft(el.scrollLeft);
+    const logicalLeft = el.scrollLeft - leadPx;
+    setScrollLeft(logicalLeft);
     if (
       followingClientId &&
       !syncingScroll.current &&
@@ -564,11 +592,18 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
     ) {
       stopFollow("local");
     }
-    if (fixedPlayhead && !syncingScroll.current) {
-      const viewWidth = timelineTimeViewportWidth(el);
-      const centerX = el.scrollLeft + viewWidth / 2;
-      const sec = Math.max(0, Math.min(canvasSec, centerX / zoomPxPerSec));
-      setPlayheadSec(sec);
+    // Only a person's scroll seeks: fit, recentring and follow scrolls are
+    // programmatic, and sub-pixel clamps or rounding must not move the time.
+    if (fixedPlayhead && !syncingScroll.current && !isProgrammaticScroll()) {
+      const sec = secAtViewportCenter(
+        logicalLeft,
+        zoomPxPerSec,
+        timelineTimeViewportWidth(el),
+        canvasSec,
+      );
+      if (Math.abs(sec - playheadSec) * zoomPxPerSec > 1) {
+        setPlayheadSec(sec);
+      }
     }
   };
 
@@ -646,6 +681,7 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
               "--marker-row-height": `${MARKER_ROW_HEIGHT}px`,
               "--lane-height": `${laneHeight}px`,
               "--marker-lane-height": `${markerLaneHeightPx}px`,
+              "--timeline-lead": `${leadPx}px`,
               ...(followingClientId
                 ? {
                     "--presence-color": presenceColorVar(
@@ -714,7 +750,7 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
                     void execute("view.fit", {}, { skipWhen: true });
                     if (scrollRef.current) {
                       withProgrammaticScroll(() => {
-                        scrollRef.current!.scrollLeft = 0;
+                        scrollRef.current!.scrollLeft = leadPx;
                       });
                     }
                   }}

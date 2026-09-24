@@ -78,6 +78,8 @@ export interface DawState {
   waveformAmpZoom: number;
   pointerTrackId: string | null;
   scrollLeft: number;
+  /** Fixed-playhead lead pad (px); store scroll may go down to −lead. */
+  timelineLeadPx: number;
   selection: Selection;
   activeTab: DawTab;
   userZoomed: boolean;
@@ -171,6 +173,7 @@ export interface DawState {
   setPlayheadSec: (sec: number) => void;
   setZoomPxPerSec: (z: number) => void;
   setScrollLeft: (x: number) => void;
+  setTimelineLeadPx: (px: number) => void;
   setSelection: (sel: Selection) => void;
   selectClip: (
     clipId: string,

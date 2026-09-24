@@ -85,6 +85,37 @@ describe("applyAnchoredZoom", () => {
     expect(s.zoomPxPerSec).toBeCloseTo(startZoom * ZOOM_STEP ** 3);
   });
 
+  it("lets a padded fixed-playhead view zoom near 0 without clamping (#385)", () => {
+    const el = {
+      clientWidth: 400,
+      scrollLeft: 0,
+      getBoundingClientRect: () => ({ left: 0 }),
+      querySelector: () => null,
+    } as unknown as HTMLElement;
+    const base = {
+      project: { timeline_duration_sec: 60 } as never,
+      zoomPxPerSec: 10,
+      userZoomed: false,
+      _timelineEl: el,
+    };
+    // 1 s sits under a pointer at x=210 when the view is scrolled to −200.
+    useDawStore.setState({ ...base, scrollLeft: -200, timelineLeadPx: 200 });
+    useDawStore.getState().applyAnchoredZoom(20, 210);
+    let s = useDawStore.getState();
+    expect((210 + s.scrollLeft) / s.zoomPxPerSec).toBeCloseTo(1, 9);
+    expect(s.scrollLeft).toBe(-190);
+
+    // Zooming out there would want −5 px: padded views allow it, unpadded
+    // views keep the 0 floor.
+    useDawStore.setState({ ...base, scrollLeft: 0, timelineLeadPx: 200 });
+    useDawStore.getState().applyAnchoredZoom(5, 10);
+    expect(useDawStore.getState().scrollLeft).toBe(-5);
+    useDawStore.setState({ ...base, scrollLeft: 0, timelineLeadPx: 0 });
+    useDawStore.getState().applyAnchoredZoom(5, 10);
+    s = useDawStore.getState();
+    expect(s.scrollLeft).toBe(0);
+  });
+
   it("anchors keyboard zoom at last noted pointer X when set", () => {
     const el = {
       clientWidth: 400,
