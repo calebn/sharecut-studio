@@ -76,8 +76,9 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "review",
     label: "Resolve comment",
     when: "hostProjectLoaded",
+    paletteRunnable: false,
     notes:
-      "Args: { commentId: string, resolved: boolean, by: string } — host only",
+      "Args: { commentId: string, resolved: boolean, by: string } — host only; use a comment's Resolve/Reopen control",
   },
   "focus.default": {
     id: "focus.default",

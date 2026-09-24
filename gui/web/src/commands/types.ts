@@ -51,6 +51,8 @@ export type CommandDef = {
   /** Default when-clause when invoked via keyboard; buttons may bypass. */
   when: ContextPredicateId;
   notes?: string;
+  /** False for commands that require context-specific arguments from a caller. */
+  paletteRunnable?: false;
   /** Strong local navigation: stop following after a successful run. */
   breaksFollow?: true;
 };

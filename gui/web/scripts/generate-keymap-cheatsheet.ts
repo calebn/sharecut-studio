@@ -139,7 +139,7 @@ function generatedBody(linkStyle: "docs" | "ux"): string {
     lines.push("## Commands without default keys");
     lines.push("");
     lines.push(
-      "Available via toolbar / `execute` (and the in-app palette). Agents use session/document APIs — not these ids.",
+      "Available via toolbar / `execute`; some also appear in the in-app palette. Commands marked unavailable in the palette because they require caller-provided arguments, such as `comment.resolve`, run from their UI controls or through `execute` with arguments. Agents use session/document APIs — not these ids.",
     );
     lines.push("");
     lines.push("| Command | Id | When | Notes |");

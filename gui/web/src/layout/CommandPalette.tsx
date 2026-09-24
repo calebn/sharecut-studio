@@ -45,7 +45,9 @@ export function CommandPalette() {
 
   const byCat = keymapByCategory();
   const unbound = listCatalogIds().filter(
-    (id) => !KEYMAP_COMMANDS.some((k) => k.id === id),
+    (id) =>
+      COMMANDS[id]?.paletteRunnable !== false &&
+      !KEYMAP_COMMANDS.some((k) => k.id === id),
   );
 
   const visibleCategories =
