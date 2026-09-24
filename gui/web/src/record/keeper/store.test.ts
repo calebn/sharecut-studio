@@ -384,6 +384,43 @@ describe("MemorySink", () => {
 });
 
 describe("OPFS cleanup", () => {
+  it("returns null only for missing reads and propagates transient read errors", async () => {
+    const getFile = vi.fn<() => Promise<Blob>>();
+    const root = {
+      getDirectoryHandle: async () => root,
+      getFileHandle: async () => ({
+        createWritable: async () => ({
+          write: async () => undefined,
+          close: async () => undefined,
+        }),
+        getFile,
+      }),
+      removeEntry: async () => undefined,
+    };
+    vi.stubGlobal("navigator", {
+      storage: { getDirectory: async () => root },
+    });
+    try {
+      const sink = await createOpfsSink();
+      getFile.mockRejectedValueOnce(
+        new DOMException("busy", "InvalidStateError"),
+      );
+      await expect(sink.readBlob?.("a.wav")).rejects.toThrow("busy");
+      getFile.mockRejectedValueOnce(
+        new DOMException("missing", "NotFoundError"),
+      );
+      await expect(sink.readBlob?.("a.wav")).resolves.toBeNull();
+      getFile.mockRejectedValueOnce(
+        new DOMException("busy", "InvalidStateError"),
+      );
+      await expect(sink.read("a.wav")).rejects.toThrow("busy");
+      getFile.mockResolvedValueOnce(new Blob([new Uint8Array([1])]));
+      await expect(sink.read("a.wav")).resolves.toEqual(new Uint8Array([1]));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("ignores already-removed files but reports other deletion failures", async () => {
     const original = Object.getOwnPropertyDescriptor(navigator, "storage");
     const removeEntry = vi.fn<() => Promise<void>>();

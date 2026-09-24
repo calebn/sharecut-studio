@@ -40,11 +40,78 @@ describe("UploadStatus", () => {
       />,
     );
     expect(screen.getByText(KEEPER_RECLAIM_MISMATCH_COPY)).toBeInTheDocument();
+    expect(screen.queryByText(UPLOAD_DONE_COPY)).not.toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "Download local keeper" }),
     );
     expect(download).toHaveBeenCalledOnce();
     await expectNoA11yViolations(container);
+  });
+
+  it("renders recovery actions once when upload error and mismatch overlap", async () => {
+    const onResume = vi.fn();
+    const download = vi.fn();
+    const { container } = render(
+      <UploadStatus
+        stopped
+        onResume={onResume}
+        actions={keeperActions({ download })}
+        progress={{
+          acked: 1,
+          total: 2,
+          fileAck: false,
+          landed: false,
+          landFailed: false,
+          reclaimFailed: false,
+          reclaimMismatch: true,
+          uploading: false,
+          pending: false,
+          recoverable: false,
+          error: "Upload failed",
+        }}
+      />,
+    );
+    expect(screen.getByText("Upload failed")).toBeInTheDocument();
+    expect(screen.getByText(KEEPER_RECLAIM_MISMATCH_COPY)).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "Resume upload" }),
+    ).toHaveLength(1);
+    expect(
+      screen.getAllByRole("button", { name: "Download local keeper" }),
+    ).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Resume upload" }));
+    expect(onResume).toHaveBeenCalledOnce();
+    await expectNoA11yViolations(container);
+  });
+
+  it("renders one action set while upload progress and mismatch overlap", () => {
+    render(
+      <UploadStatus
+        stopped
+        onResume={vi.fn()}
+        actions={keeperActions({ download: vi.fn() })}
+        progress={{
+          acked: 1,
+          total: 2,
+          fileAck: false,
+          landed: false,
+          landFailed: false,
+          reclaimFailed: false,
+          reclaimMismatch: true,
+          uploading: true,
+          pending: false,
+          recoverable: false,
+          error: null,
+        }}
+      />,
+    );
+    expect(screen.getByText(uploadProgressCopy(1, 2))).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "Resume upload" }),
+    ).toHaveLength(1);
+    expect(
+      screen.getAllByRole("button", { name: "Download local keeper" }),
+    ).toHaveLength(1);
   });
 
   it("shows upload failure and retained keeper warning together", () => {

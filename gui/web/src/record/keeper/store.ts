@@ -417,16 +417,22 @@ export async function createOpfsSink(): Promise<ByteSink> {
         const file = await fileHandle(root, path, false);
         const blob = await file.getFile();
         return new Uint8Array(await blob.arrayBuffer());
-      } catch {
-        return null;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "NotFoundError") {
+          return null;
+        }
+        throw error;
       }
     },
     async readBlob(path: string) {
       try {
         const file = await fileHandle(root, path, false);
         return await file.getFile();
-      } catch {
-        return null;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "NotFoundError") {
+          return null;
+        }
+        throw error;
       }
     },
     async remove(path: string) {
