@@ -8,6 +8,9 @@ import {
 
 export type { PointerKind };
 
+const PRIMARY_FINE_QUERY = "(pointer: fine)";
+const ANY_COARSE_QUERY = "(any-pointer: coarse)";
+
 /**
  * Map a PointerEvent `pointerType` to a coarse/fine input kind.
  * mouse/pen -> "fine", touch -> "coarse". Returns null for empty or unknown
@@ -42,15 +45,15 @@ export function initialPointerKind(): PointerKind {
   ) {
     return "fine";
   }
-  if (window.matchMedia("(pointer: fine)").matches) {
+  if (window.matchMedia(PRIMARY_FINE_QUERY).matches) {
     return "fine";
   }
-  return window.matchMedia("(any-pointer: coarse)").matches ? "coarse" : "fine";
+  return window.matchMedia(ANY_COARSE_QUERY).matches ? "coarse" : "fine";
 }
 
 const subscribePointerCapabilities = mediaQuerySubscription([
-  "(pointer: fine)",
-  "(any-pointer: coarse)",
+  PRIMARY_FINE_QUERY,
+  ANY_COARSE_QUERY,
 ]);
 const serverPointerKind = (): PointerKind => "fine";
 
