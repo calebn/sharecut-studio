@@ -37,7 +37,9 @@ Agent/CLI convenience commands keep stable client IDs, and the session SQLite lo
 allocates their next negative `client_seq` in the insert statement. Separate CLI
 processes therefore cannot restart the same dedupe key. Explicit client sequences
 from WebSocket/HTTP callers must be positive and remain unchanged for retries;
-the separate ranges prevent those callers from colliding with generated commands.
+the separate ranges prevent collisions with newly generated commands. Older
+`sync.db` logs can retain positive generated rows under the same stable ID;
+see [#333](https://github.com/calebn/sharecut-studio/issues/333) for migration.
 
 ## Modules
 
