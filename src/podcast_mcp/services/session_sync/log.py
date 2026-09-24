@@ -279,6 +279,11 @@ class SyncStore:
         row = self._conn.execute(self._sql["find_command_id"], (command_id,)).fetchone()
         return self._row_to_cmd(row) if row else None
 
+    @staticmethod
+    def require_same_command_id(existing: dict[str, Any], command_id: str) -> None:
+        if existing["command_id"] != command_id:
+            raise ValueError("client_id and client_seq already belong to a different command_id")
+
     def append_command(
         self,
         *,
@@ -292,7 +297,7 @@ class SyncStore:
     ) -> dict[str, Any]:
         """Insert command; returns full row including server_seq.
 
-        Idempotent on (client_id, client_seq): returns existing row.
+        Idempotent on (client_id, client_seq) only for the same command_id.
         """
         with self._lock:
             return self._append_command_unlocked(
@@ -322,6 +327,7 @@ class SyncStore:
             else self._find_by_command_id_unlocked(command_id)
         )
         if existing is not None:
+            self.require_same_command_id(existing, command_id)
             return existing
         now = time.time_ns()
         try:
@@ -347,6 +353,7 @@ class SyncStore:
             )
             if again is None:
                 raise RuntimeError("failed to append or load command") from None
+            self.require_same_command_id(again, command_id)
             return again
         if client_seq is None:
             generated = self._find_by_command_id_unlocked(command_id)
@@ -397,6 +404,7 @@ class SyncStore:
                     else self._find_by_command_id_unlocked(command_id)
                 )
                 if existing is not None:
+                    self.require_same_command_id(existing, command_id)
                     snap = self._get_snapshot_unlocked() or empty_snap_fn()
                     if transactional:
                         self._conn.execute("COMMIT")

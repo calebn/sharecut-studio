@@ -73,6 +73,91 @@ def test_idempotent_client_seq(minimal_project) -> None:
     assert a["command"]["command_id"] == b["command"]["command_id"]
 
 
+def test_legacy_positive_generated_seq_rejects_distinct_command(minimal_project) -> None:
+    """An upgraded log must not replay an old generated row as a new client edit."""
+    import pytest
+
+    proj = load_project(minimal_project)
+    legacy_store = SyncStore(sync_db_path(proj))
+    legacy_store.append_and_apply(
+        command_id="legacy-generated",
+        client_id="agent-control",
+        client_seq=1,
+        role="agent",
+        type="SetPlayhead",
+        payload={"playhead_sec": 5.0},
+        causation_id=None,
+        apply_fn=apply_command,
+        empty_snap_fn=empty_snapshot,
+    )
+    legacy_store.close()
+
+    svc = SessionSyncService(proj)
+    retry = svc.submit(
+        SyncCommand(
+            type="SetPlayhead",
+            payload={"playhead_sec": 5.0},
+            client_id="agent-control",
+            role="agent",
+            client_seq=1,
+            command_id="legacy-generated",
+        )
+    )
+    assert retry["idempotent"] is True
+    assert retry["server_seq"] == 1
+
+    with pytest.raises(ValueError, match="different command_id"):
+        svc.submit(
+            SyncCommand(
+                type="SetPlayhead",
+                payload={"playhead_sec": 9.0},
+                client_id="agent-control",
+                role="agent",
+                client_seq=1,
+                command_id="new-explicit",
+            )
+        )
+    assert svc.snapshot()["server_seq"] == 1
+    assert svc.snapshot()["playhead_sec"] == 5.0
+
+    fresh = svc.submit(
+        SyncCommand(
+            type="SetPlayhead",
+            payload={"playhead_sec": 9.0},
+            client_id="agent-control",
+            role="agent",
+            client_seq=2,
+            command_id="new-explicit",
+        )
+    )
+    assert fresh["server_seq"] == 2
+    assert fresh["snapshot"]["playhead_sec"] == 9.0
+
+
+def test_store_rejects_distinct_command_id_on_existing_client_seq(tmp_path) -> None:
+    import pytest
+
+    path = tmp_path / "sync.db"
+    first = SyncStore(path)
+    second = SyncStore(path)
+    args = {
+        "client_id": "viewer-1",
+        "client_seq": 1,
+        "role": "viewer",
+        "type": "SetPlayhead",
+        "payload": {"playhead_sec": 1.0},
+        "causation_id": None,
+        "apply_fn": apply_command,
+        "empty_snap_fn": empty_snapshot,
+    }
+    first.append_and_apply(command_id="first", **args)
+    with pytest.raises(ValueError, match="different command_id"):
+        second.append_and_apply(command_id="second", **args)
+    assert second.get_snapshot()["server_seq"] == 1
+    first.close()
+    second.close()
+
+
 def test_generated_client_seq_survives_new_process_counter(minimal_project, monkeypatch) -> None:
     from podcast_mcp.services.session_sync import service
 

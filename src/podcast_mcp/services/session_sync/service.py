@@ -164,6 +164,7 @@ class SessionSyncService:
             else None
         )
         if existing is not None:
+            store.require_same_command_id(existing, command.command_id)
             api_snap = self.snapshot()
             return {
                 "ok": True,
