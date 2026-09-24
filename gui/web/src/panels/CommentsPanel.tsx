@@ -10,6 +10,7 @@ import { canComment, canReply, canSetAction } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import type { TimelineComment } from "../types/project";
 import {
+  EmptyState,
   InlineError,
   SegmentedControl,
   ToggleButton,
@@ -311,9 +312,7 @@ export function CommentsPanel({
           );
         })}
         {filtered.length === 0 && (
-          <li className="comments-empty ui-empty-state">
-            No comments in this filter.
-          </li>
+          <EmptyState as="li">No comments in this filter.</EmptyState>
         )}
       </ul>
       {guestShare ? null : (

@@ -186,7 +186,7 @@ export function TightenPanel() {
       </p>
 
       {filtered.length === 0 ? (
-        <EmptyState className="tighten-empty">
+        <EmptyState>
           {hits.length === 0
             ? "No pending tighten decisions."
             : "No hits match these filters."}

@@ -6,7 +6,7 @@ import { useGuestProgress } from "../hooks/useGuestProgress";
 import { PipelineStatusChip } from "../layout/PipelineStatusChip";
 import { hasShareCapability, shareProjectKey } from "../shareMode";
 import type { TimelineComment } from "../types/project";
-import { ErrorScreen, InlineError, LoadingScreen } from "../ui";
+import { EmptyState, ErrorScreen, InlineError, LoadingScreen } from "../ui";
 import { errorMessage, readApiError } from "../utils/apiError";
 import {
   loadCommentAuthor,
@@ -374,9 +374,9 @@ export function ReviewApp({ token }: { token: string }) {
             />
           ))}
           {visibleComments.length === 0 && (
-            <li className="comments-empty ui-empty-state">
+            <EmptyState as="li">
               {openOnly ? "No open comments." : "No comments yet."}
-            </li>
+            </EmptyState>
           )}
         </ul>
       </div>

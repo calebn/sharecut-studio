@@ -30,6 +30,7 @@ import type { PresenceTab } from "../types/session";
 import {
   BottomSheet,
   CommandButton,
+  EmptyState,
   Icon,
   type IconName,
   Timecode,
@@ -330,7 +331,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
           </button>
         </div>
         {comments.length === 0 ? (
-          <p className="mobile-empty">No comments yet</p>
+          <EmptyState>No comments yet.</EmptyState>
         ) : (
           <ul>
             {comments.slice(0, 40).map((c) => (

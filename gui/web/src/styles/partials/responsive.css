@@ -371,11 +371,6 @@ html[data-shell="tablet"] {
   min-width: 0;
 }
 
-.mobile-empty {
-  color: var(--text-dim);
-  font-size: var(--font-size-ui);
-}
-
 .mobile-timeline-mode {
   display: flex;
   flex-direction: column;

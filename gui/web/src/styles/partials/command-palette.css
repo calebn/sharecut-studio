@@ -282,11 +282,6 @@
   min-height: 0;
 }
 
-.share-dialog-empty {
-  margin: var(--space-3) 0 var(--space-4);
-  color: var(--text-muted);
-}
-
 .share-dialog-live {
   min-height: 1.25rem;
   margin-top: var(--space-3);

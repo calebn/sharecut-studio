@@ -82,4 +82,15 @@ describe("EmptyState", () => {
     expect(empty).toHaveClass("ui-empty-state");
     expect(empty.tagName).toBe("P");
   });
+
+  it("renders as a list item inside lists", () => {
+    render(
+      <ul>
+        <EmptyState as="li">No comments yet.</EmptyState>
+      </ul>,
+    );
+    const item = screen.getByRole("listitem");
+    expect(item).toHaveClass("ui-empty-state");
+    expect(item).toHaveTextContent("No comments yet.");
+  });
 });
