@@ -7,18 +7,18 @@ class SharecutInputMeterProcessor extends AudioWorkletProcessor {
     this.clipped = false;
     this.peak = 0;
     this.blocks = 0;
-    this.hotBlocks = 0;
+    this.lastHotFrame = Number.NEGATIVE_INFINITY;
     this.port.onmessage = (event) => {
       if (event.data?.type === "clear") {
-        // A hot block can run after the UI clears but before this message
-        // arrives. Report its sequence before resetting the sticky latch.
+        // Audio processed after the UI's audio-clock cutoff may precede this
+        // command. Keep the latest hot frame across clears for that race.
+        this.clipped = this.lastHotFrame >= event.data.clearFrame;
         this.port.postMessage({
           type: "clearAck",
           epoch: event.data.epoch,
-          hotBlocks: this.hotBlocks,
+          clipped: this.clipped,
         });
         this.epoch = event.data.epoch;
-        this.clipped = false;
         this.peak = 0;
         this.blocks = 0;
       }
@@ -29,11 +29,14 @@ class SharecutInputMeterProcessor extends AudioWorkletProcessor {
     let peak = 0;
     for (const channel of inputs[0] ?? []) {
       for (let i = 0; i < channel.length; i++) {
-        peak = Math.max(peak, Math.abs(channel[i]));
+        const sample = Math.abs(channel[i]);
+        peak = Math.max(peak, sample);
+        if (sample >= this.clipThreshold) {
+          this.lastHotFrame = Math.max(this.lastHotFrame, currentFrame + i);
+        }
       }
     }
     const firstClip = !this.clipped && peak >= this.clipThreshold;
-    if (peak >= this.clipThreshold) this.hotBlocks += 1;
     if (firstClip) this.clipped = true;
     this.peak = Math.max(this.peak, peak);
     this.blocks += 1;
@@ -43,7 +46,6 @@ class SharecutInputMeterProcessor extends AudioWorkletProcessor {
         peak: this.peak,
         clipped: this.clipped,
         epoch: this.epoch,
-        hotBlocks: this.hotBlocks,
       });
       this.peak = 0;
       this.blocks = 0;
