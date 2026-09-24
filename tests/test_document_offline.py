@@ -321,9 +321,13 @@ def test_open_share_auto_revokes_missing_version(
         share_mod.lookup_share(token)
 
 
-def test_share_daw_peaks_missing_file(minimal_project, sample_wav, tmp_workspace, monkeypatch):
+@pytest.mark.parametrize("generating", [False, True])
+def test_share_daw_peaks_missing_file(
+    generating, minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
     from pathlib import Path
 
+    from podcast_mcp.services.peaks import PeaksUnavailableError, TrackPeaksLookup
     from podcast_mcp.services.share import share_daw_peaks
 
     monkeypatch.setattr(
@@ -350,8 +354,9 @@ def test_share_daw_peaks_missing_file(minimal_project, sample_wav, tmp_workspace
         capabilities=["play", "view"],
     )
     monkeypatch.setattr(
-        "podcast_mcp.gui.peaks.resolve_peaks_path",
-        lambda *_a, **_k: None,
+        "podcast_mcp.services.peaks.lookup_track_peaks",
+        lambda *_a, **_k: TrackPeaksLookup(path=None, generating=generating),
     )
-    with pytest.raises(FileNotFoundError, match="peaks"):
+    with pytest.raises(PeaksUnavailableError) as excinfo:
         share_daw_peaks(share["token"], "host")
+    assert excinfo.value.generating is generating
