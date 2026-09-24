@@ -708,6 +708,23 @@ describe("MobileShell", () => {
     expect(screen.getAllByText("Loading episode…").length).toBeGreaterThan(0);
   });
 
+  it("disables Listen Play/Stop for a project with no tracks, like the strip", () => {
+    const project = minimalProject({ tracks: [] });
+    useDawStore.getState().hydrate("/tmp/p.json", project);
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <MobileShell />
+      </DawProvider>,
+    );
+    const hero = screen.getByRole("region", {
+      name: project.meta.name,
+    });
+    const play = within(hero).getByRole("button", { name: "Play" });
+    expect(play).toBeDisabled();
+    expect(play).toHaveAttribute("title", "Import audio to play");
+    expect(within(hero).getByRole("button", { name: "Stop" })).toBeDisabled();
+  });
+
   it("announces follow status in a live region", () => {
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>

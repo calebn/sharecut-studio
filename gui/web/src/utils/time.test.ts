@@ -4,6 +4,7 @@ import {
   formatTimecodeCompact,
   formatTimecodePair,
   rulerTickTimes,
+  transportTimecode,
 } from "./time";
 
 describe("formatTimecodePair", () => {
@@ -28,6 +29,21 @@ describe("formatTimecodeCompact", () => {
   it("shows playhead only and respects hour layout", () => {
     expect(formatTimecodeCompact(65, 3500)).toBe("01:05.000");
     expect(formatTimecodeCompact(65, 3772)).toBe("00:01:05.000");
+  });
+});
+
+describe("transportTimecode", () => {
+  it("returns the current, total and tooltip in one digit layout", () => {
+    expect(transportTimecode(12.48, 60)).toEqual({
+      current: "00:12.480",
+      total: "01:00.000",
+      title: "00:12.480 / 01:00.000",
+    });
+    expect(transportTimecode(5, 3600)).toEqual({
+      current: "00:00:05.000",
+      total: "01:00:00.000",
+      title: "00:00:05.000 / 01:00:00.000",
+    });
   });
 });
 

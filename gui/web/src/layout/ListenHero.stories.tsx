@@ -1,8 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, userEvent, within } from "storybook/test";
-import { Button, Icon, Timecode } from "../ui";
+import { Timecode } from "../ui";
+import { transportTimecode } from "../utils/time";
 import { ListenHero } from "./ListenHero";
+import { TransportPlayControls } from "./TransportPlayControls";
 
 /** The phone Listen screen's hero with static content. */
 const meta: Meta<typeof ListenHero> = {
@@ -23,31 +25,13 @@ function Hero({ initiallyPlaying = false }: { initiallyPlaying?: boolean }) {
         title="Episode 12: Field notes"
         playing={playing}
         controls={
-          <>
-            <Button
-              className="play-btn"
-              data-playing={playing}
-              aria-label={playing ? "Pause" : "Play"}
-              onClick={() => setPlaying((value) => !value)}
-            >
-              <Icon name={playing ? "pause" : "play"} />
-            </Button>
-            <Button
-              className="stop-btn"
-              aria-label="Stop"
-              onClick={() => setPlaying(false)}
-            >
-              <Icon name="stop" />
-            </Button>
-          </>
-        }
-        timecode={
-          <Timecode
-            current={`00:${position.toFixed(3).padStart(6, "0")}`}
-            total="01:00.000"
-            title="Playhead / duration"
+          <TransportPlayControls
+            playing={playing}
+            onTogglePlay={() => setPlaying((value) => !value)}
+            onStop={() => setPlaying(false)}
           />
         }
+        timecode={<Timecode {...transportTimecode(position, 60)} />}
         scrubber={
           <input
             type="range"

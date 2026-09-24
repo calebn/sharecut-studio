@@ -38,11 +38,7 @@ import {
 } from "../ui";
 import { isPipelineSlotBusy, pipelineChipOpensPanel } from "../utils/pipeline";
 import { staleRenderBreakdown } from "../utils/staleRender";
-import {
-  formatTime,
-  formatTimecodeCompact,
-  formatTimecodePair,
-} from "../utils/time";
+import { formatTimecodePair, transportTimecode } from "../utils/time";
 import { AvatarStack } from "./AvatarStack";
 import { EditingToolRail } from "./EditingToolRail";
 import { FollowBanner } from "./FollowBanner";
@@ -51,7 +47,9 @@ import { ListenHero } from "./ListenHero";
 import { OverlayLegend } from "./OverlayLegend";
 import { PipelineStatusChip } from "./PipelineStatusChip";
 import { TransportBar } from "./TransportBar";
+import { TransportPlayControls } from "./TransportPlayControls";
 import { TAB_LABELS } from "./tabLabels";
+import { transportPlayHandlers } from "./transportPlay";
 
 const MODES: { id: MobileMode; label: string; icon: IconName }[] = [
   { id: "listen", label: "Listen", icon: "listen" },
@@ -165,29 +163,13 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
         <ListenHero
           title="Loading episode…"
           controls={
-            <>
-              <CommandButton
-                bare
-                commandId="transport.togglePlay"
-                className="play-btn"
-                aria-label="Play"
-                disabled
-                {...presenceAnchorProps(presenceAnchor("transport", "play"))}
-              >
-                <Icon name="play" />
-              </CommandButton>
-              <CommandButton
-                bare
-                commandId="transport.stop"
-                className="stop-btn"
-                aria-label="Stop"
-                disabled
-              >
-                <Icon name="stop" />
-              </CommandButton>
-            </>
+            <TransportPlayControls
+              playing={false}
+              disabled
+              {...transportPlayHandlers}
+            />
           }
-          timecode={<Timecode current={formatTimecodeCompact(0, 0)} />}
+          timecode={<Timecode current={transportTimecode(0, 0).current} />}
           scrubber={null}
         />
       </div>
@@ -195,6 +177,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
   }
 
   const duration = project.timeline_duration_sec;
+  const emptyProject = project.tracks.length === 0;
   const comments = [...(project.comments ?? [])].sort(
     (a, b) => a.timeline_start - b.timeline_start,
   );
@@ -207,35 +190,14 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
         title={project.meta.name}
         playing={isPlaying}
         controls={
-          <>
-            <CommandButton
-              bare
-              commandId="transport.togglePlay"
-              className="play-btn"
-              data-playing={isPlaying}
-              aria-label={isPlaying ? "Pause" : "Play"}
-              {...presenceAnchorProps(presenceAnchor("transport", "play"))}
-            >
-              <Icon name={isPlaying ? "pause" : "play"} />
-            </CommandButton>
-            <CommandButton
-              bare
-              commandId="transport.stop"
-              className="stop-btn"
-              aria-label="Stop"
-              {...presenceAnchorProps(presenceAnchor("transport", "stop"))}
-            >
-              <Icon name="stop" />
-            </CommandButton>
-          </>
-        }
-        timecode={
-          <Timecode
-            current={formatTimecodeCompact(playheadSec, duration)}
-            total={formatTime(duration, { forceHours: duration >= 3600 })}
-            title={formatTimecodePair(playheadSec, duration)}
+          <TransportPlayControls
+            playing={isPlaying}
+            disabled={emptyProject}
+            disabledTitle="Import audio to play"
+            {...transportPlayHandlers}
           />
         }
+        timecode={<Timecode {...transportTimecode(playheadSec, duration)} />}
         scrubber={
           <input
             type="range"

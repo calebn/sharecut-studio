@@ -27,15 +27,13 @@ import {
   ToggleButton,
 } from "../ui";
 import { staleRenderBreakdown } from "../utils/staleRender";
-import {
-  formatTime,
-  formatTimecodeCompact,
-  formatTimecodePair,
-} from "../utils/time";
+import { transportTimecode } from "../utils/time";
 import { AvatarStack } from "./AvatarStack";
 import { OverlayLegend } from "./OverlayLegend";
 import { ToolModeToggle } from "./ToolModeToggle";
 import { TransportFrame, TransportZone } from "./TransportFrame";
+import { TransportPlayControls } from "./TransportPlayControls";
+import { transportPlayHandlers } from "./transportPlay";
 
 const MODES: { id: AuditionMode; label: string; title: string }[] = [
   { id: "mix", label: "Mix", title: "Full premix (all tracks)" },
@@ -113,11 +111,7 @@ export function TransportBar({
   const mayIngest = canIngestMedia(projectPath, guestMode, shareCapabilities);
   const mayManage = canManageProjects(projectPath);
   const duration = project?.timeline_duration_sec ?? 0;
-  const fullTimecode = formatTimecodePair(playheadSec, duration);
-  const currentTimecode = formatTimecodeCompact(playheadSec, duration);
-  const totalTimecode = formatTime(duration, {
-    forceHours: duration >= 3600,
-  });
+  const timecode = transportTimecode(playheadSec, duration);
 
   const themeLabel =
     preference === "system"
@@ -246,41 +240,18 @@ export function TransportBar({
       </TransportZone>
       <TransportZone position="center">
         <div className="transport-play">
-          <CommandButton
-            bare
-            commandId="transport.togglePlay"
-            className="play-btn"
-            data-playing={isPlaying}
-            title={
-              emptyProject
-                ? "Import audio to play"
-                : isPlaying
-                  ? "Pause (Space)"
-                  : "Play (Space)"
-            }
-            aria-label={isPlaying ? "Pause" : "Play"}
+          <TransportPlayControls
+            playing={isPlaying}
             disabled={!project || emptyProject}
-            {...presenceAnchorProps(presenceAnchor("transport", "play"))}
-          >
-            <Icon name={isPlaying ? "pause" : "play"} />
-          </CommandButton>
-          <CommandButton
-            bare
-            commandId="transport.stop"
-            className="stop-btn"
-            title="Stop to start"
-            aria-label="Stop"
-            disabled={!project}
-            {...presenceAnchorProps(presenceAnchor("transport", "stop"))}
-          >
-            <Icon name="stop" />
-          </CommandButton>
+            disabledTitle={emptyProject ? "Import audio to play" : undefined}
+            {...transportPlayHandlers}
+          />
         </div>
         {showRecordingChip ? <RecordTransportChip /> : null}
         <Timecode
-          current={currentTimecode}
-          total={collapsed ? undefined : totalTimecode}
-          title={fullTimecode}
+          current={timecode.current}
+          total={collapsed ? undefined : timecode.total}
+          title={timecode.title}
         />
         {!collapsed ? auditionGroup() : null}
       </TransportZone>
