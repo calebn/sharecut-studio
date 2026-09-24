@@ -25,4 +25,10 @@ describe("timeline styles", () => {
     expect(playhead).toMatch(/will-change:\s*transform/);
     expect(partial("inspector.css")).not.toMatch(/\.playhead\b/);
   });
+
+  it("reserves the scrollbar gutter so fit-to-window cannot oscillate", () => {
+    expect(rule(partial("layout.css"), ".timeline-scroll")).toMatch(
+      /scrollbar-gutter:\s*stable/,
+    );
+  });
 });
