@@ -78,8 +78,6 @@ export interface DawState {
   waveformAmpZoom: number;
   pointerTrackId: string | null;
   scrollLeft: number;
-  /** Fixed-playhead lead pad (px); store scroll may go down to −lead. */
-  timelineLeadPx: number;
   selection: Selection;
   activeTab: DawTab;
   userZoomed: boolean;
@@ -173,7 +171,6 @@ export interface DawState {
   setPlayheadSec: (sec: number) => void;
   setZoomPxPerSec: (z: number) => void;
   setScrollLeft: (x: number) => void;
-  setTimelineLeadPx: (px: number) => void;
   setSelection: (sel: Selection) => void;
   selectClip: (
     clipId: string,
@@ -232,6 +229,8 @@ export interface DawState {
   setBladeConfirmSec: (sec: number | null) => void;
   fitToWindow: (viewportWidth: number) => void;
   registerTimelineViewport: (el: HTMLElement | null) => void;
+  /** Fixed-playhead lead pad (px) of the mounted timeline; 0 when unpadded. */
+  registerTimelineLead: (px: number) => void;
   _lanesEl: HTMLElement | null;
   registerLanesEl: (el: HTMLElement | null) => void;
   measureTimelineViewport: () => number;

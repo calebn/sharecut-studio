@@ -18,8 +18,10 @@ import type {
   ViewerSessionSnapshot,
 } from "../types/session";
 import {
+  centerSecToScrollLeft,
   timelineHeaderOffsetWidth,
   timelineTimeViewportWidth,
+  viewportCenterOffsetPx,
 } from "../utils/timelineViewport";
 import {
   anchoredZoomScroll,
@@ -67,6 +69,8 @@ function clipTrackId(
 
 type DawStore = DawState & {
   _timelineEl: HTMLElement | null;
+  /** Fixed-playhead lead pad; logical scroll may go down to −lead. */
+  _timelineLeadPx: number;
   _lanesEl: HTMLElement | null;
   _suppressTimer: number | null;
   hydrate: (
@@ -321,8 +325,6 @@ export const useDawStore = create<DawStore>((set, get) => ({
   pointerTrackId: null as string | null,
   setPointerTrackId: (pointerTrackId) => set({ pointerTrackId }),
   scrollLeft: 0,
-  timelineLeadPx: 0,
-  setTimelineLeadPx: (timelineLeadPx) => set({ timelineLeadPx }),
   selection: null as Selection,
   activeTab: "transcript" as DawTab,
   userZoomed: false,
@@ -351,6 +353,7 @@ export const useDawStore = create<DawStore>((set, get) => ({
   focusMode: "default" as FocusMode,
   sheetExpanded: false,
   _timelineEl: null,
+  _timelineLeadPx: 0,
   _lanesEl: null,
   setZoomPxPerSec: (zoomPxPerSec) => {
     if (zoomPxPerSec !== get().zoomPxPerSec) {
@@ -475,8 +478,12 @@ export const useDawStore = create<DawStore>((set, get) => ({
     if (clientX != null) {
       noteZoomPointerClientX(clientX);
     }
+    const lead = get()._timelineLeadPx;
+    const center = rectLeft + viewportCenterOffsetPx(timeWidth);
+    // Command zoom (menu, keys) on a fixed playhead anchors at the line, so
+    // it keeps the playhead; elsewhere it anchors at the last pointer X.
     const anchorX =
-      clientX ?? peekZoomPointerClientX() ?? rectLeft + timeWidth / 2;
+      clientX ?? (lead > 0 ? center : (peekZoomPointerClientX() ?? center));
     // Use store scroll/zoom so rapid pinch ticks do not re-anchor from a stale
     // DOM scrollLeft before useLayoutEffect applies the pending value.
     const { zoom, scrollLeft } = anchoredZoomScroll({
@@ -485,8 +492,7 @@ export const useDawStore = create<DawStore>((set, get) => ({
       clientX: anchorX,
       rectLeft,
       scrollLeft: get().scrollLeft,
-      // `0 - lead`, not `-lead`: an unpadded view keeps a +0 floor.
-      minScrollLeft: 0 - get().timelineLeadPx,
+      minScrollLeft: lead > 0 ? -lead : 0,
     });
     // Store first; TimelineView applies el.scrollLeft in useLayoutEffect after
     // the wider (duration * zoom) content commits — avoids browser clamp.
@@ -633,14 +639,17 @@ export const useDawStore = create<DawStore>((set, get) => ({
     const duration = get().project?.timeline_duration_sec ?? 60;
     if (duration > 0 && viewportWidth > 0) {
       abortStaleWaveformWork();
-      set({
-        zoomPxPerSec: fitZoomPxPerSec(viewportWidth, duration),
-        scrollLeft: 0,
-        userZoomed: false,
-      });
+      const zoom = fitZoomPxPerSec(viewportWidth, duration);
+      // A fixed playhead stays on the line through a fit.
+      const scrollLeft =
+        get()._timelineLeadPx > 0
+          ? centerSecToScrollLeft(get().playheadSec, zoom, viewportWidth)
+          : 0;
+      set({ zoomPxPerSec: zoom, scrollLeft, userZoomed: false });
     }
   },
   registerTimelineViewport: (el) => set({ _timelineEl: el }),
+  registerTimelineLead: (px) => set({ _timelineLeadPx: px }),
   registerLanesEl: (el) => set({ _lanesEl: el }),
   measureTimelineViewport: () => {
     const el = get()._timelineEl;

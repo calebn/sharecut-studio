@@ -2,6 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { LONG_PRESS_MS } from "../src/hooks/touchGestureTiming";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
+import { openPhoneTimeline, parseTimecodeSec } from "./phoneTimeline";
 
 test.describe("Sharecut Studio mobile smoke", () => {
   test.use({ viewport: { width: 390, height: 844 } });
@@ -77,11 +78,7 @@ test.describe("Sharecut Studio mobile smoke", () => {
     // Identity first (#20 review): a lane-colored initials chip per lane, the
     // lane color on the rail edge, and the full name on the lane's clips.
     await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-    await page
-      .getByRole("navigation", { name: "Primary" })
-      .getByRole("button", { name: "Timeline" })
-      .click();
-    await expect(page.locator(".lane-row").first()).toBeVisible();
+    await openPhoneTimeline(page);
     const lanes = await page.evaluate(() =>
       [...document.querySelectorAll(".track-header-row")].map((row) => {
         const chip = row.querySelector(".track-chip");
@@ -117,12 +114,7 @@ test.describe("Sharecut Studio mobile smoke", () => {
   test.describe("fixed playhead at fit zoom (#385)", () => {
     test.use({ viewport: { width: 375, height: 812 } });
 
-    const parseClock = (text: string) => {
-      const [min, sec] = text.trim().split(":");
-      return Number(min) * 60 + Number(sec);
-    };
-
-    /** Transport time and the ruler time under the fixed centre line. */
+    /** Transport time and the ruler time under the fixed center line. */
     const readTimes = (page: Page) =>
       page.evaluate(() => {
         const line = document.querySelector(".playhead--fixed");
@@ -157,15 +149,17 @@ test.describe("Sharecut Studio mobile smoke", () => {
 
     // Two CSS pixels of ruler at fit zoom.
     const toleranceSec = (t: { total: string; timeWidth: number }) =>
-      Math.max(0.25, (2 * parseClock(t.total)) / t.timeWidth);
+      Math.max(0.25, (2 * parseTimecodeSec(t.total)) / t.timeWidth);
 
     const expectLineOnTransport = async (page: Page, label: string) => {
       await expect
         .poll(async () => {
           const t = await readTimes(page);
-          const totalSec = parseClock(t.total);
+          const totalSec = parseTimecodeSec(t.total);
           const lineSec = ((t.lineX - t.timeLeft) / t.timeWidth) * totalSec;
-          return Math.abs(lineSec - parseClock(t.current)) <= toleranceSec(t);
+          return (
+            Math.abs(lineSec - parseTimecodeSec(t.current)) <= toleranceSec(t)
+          );
         }, label)
         .toBe(true);
     };
@@ -175,22 +169,16 @@ test.describe("Sharecut Studio mobile smoke", () => {
     }) => {
       await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
       // Classic (space-taking) scrollbars on every platform, as on Linux and
-      // Windows: the scroller's stable gutter must not shift the line off the
-      // centre the scroll math uses.
+      // Windows, with the vertical one showing: the line must sit at the
+      // center of the time viewport, which excludes it, not of the area.
       await page.addStyleTag({
         content:
-          ".timeline-scroll::-webkit-scrollbar { width: 0.75rem; height: 0.75rem; }",
+          ".timeline-scroll { overflow-y: scroll; } .timeline-scroll::-webkit-scrollbar { width: 0.75rem; height: 0.75rem; }",
       });
       const hero = page.locator(".listen-hero");
       await expect(hero.getByRole("button", { name: "Play" })).toBeEnabled();
       await hero.getByRole("button", { name: "+15s" }).click();
-      await page
-        .getByRole("navigation", { name: "Primary" })
-        .getByRole("button", { name: "Timeline" })
-        .click();
-      await expect(
-        page.locator(".timeline-scroll .track-headers"),
-      ).toBeVisible();
+      await openPhoneTimeline(page);
 
       // Switching modes must not move the playhead (it once jumped to the end).
       await expect(page.locator(".transport .timecode-current")).toHaveText(
@@ -206,7 +194,7 @@ test.describe("Sharecut Studio mobile smoke", () => {
       const reached: number[] = [];
       for (const edge of ["start", "end", "end", "end"] as const) {
         const t = await readTimes(page);
-        const totalSec = parseClock(t.total);
+        const totalSec = parseTimecodeSec(t.total);
         const x =
           edge === "start"
             ? Math.max(t.timeLeft, t.viewLeft) + 1
@@ -219,18 +207,35 @@ test.describe("Sharecut Studio mobile smoke", () => {
         await expect
           .poll(async () => {
             const now = await readTimes(page);
-            return Math.abs(parseClock(now.current) - tapped);
+            return Math.abs(parseTimecodeSec(now.current) - tapped);
           }, `seek toward the ${edge}`)
           .toBeLessThanOrEqual(toleranceSec(t));
         await expectLineOnTransport(page, `after a seek toward the ${edge}`);
-        reached.push(parseClock((await readTimes(page)).current));
+        reached.push(parseTimecodeSec((await readTimes(page)).current));
       }
+      // A person's horizontal scroll (the scrub gesture) seeks too.
+      const view = await readTimes(page);
+      const lane = await page.locator(".lane-row").first().boundingBox();
+      expect(lane).toBeTruthy();
+      await page.mouse.move(
+        (view.viewLeft + view.viewRight) / 2,
+        lane!.y + lane!.height / 2,
+      );
+      await page.mouse.wheel(-120, 0);
+      await expect
+        .poll(
+          async () => parseTimecodeSec((await readTimes(page)).current),
+          "a wheel scrub seeks back",
+        )
+        .toBeLessThan(parseTimecodeSec(view.current) - 1);
+      await expectLineOnTransport(page, "after a wheel scrub");
+
       const t = await readTimes(page);
       expect(reached[0], "reaches the start").toBeLessThanOrEqual(
         toleranceSec(t),
       );
       expect(reached.at(-1), "reaches the end").toBeGreaterThanOrEqual(
-        parseClock(t.total) - toleranceSec(t),
+        parseTimecodeSec(t.total) - toleranceSec(t),
       );
     });
   });
