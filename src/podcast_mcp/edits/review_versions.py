@@ -9,6 +9,7 @@ import stat
 import tempfile
 import time
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -205,6 +206,7 @@ def publish_version(
     prefer: str = "premix",
     set_active: bool = True,
     eng: FFmpegEngine | None = None,
+    on_media_created: Callable[[Path], None] | None = None,
 ) -> ReviewMixVersion:
     """Copy current premix/mastered into artifacts/review/{id}/mix.wav (+ mix.mp3)."""
     text = (label or "").strip()
@@ -222,6 +224,8 @@ def publish_version(
     mp3_rel = f"{REVIEW_ARTIFACTS_RELDIR}/{vid}/mix.mp3"
     mp3_path = version_dir / "mix.mp3"
     try:
+        if on_media_created is not None:
+            on_media_created(version_dir)
         shutil.copy2(src, dest)
         engine = eng or FFmpegEngine()
         engine.export_mp3(dest, mp3_path, bitrate_kbps=_REVIEW_MP3_BITRATE_KBPS)

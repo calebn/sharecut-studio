@@ -21,7 +21,9 @@ from podcast_mcp.edits.review_versions import (
     version_audio_path,
     version_mp3_path,
 )
+from podcast_mcp.history import HistoryManager
 from podcast_mcp.models import load_project, save_project
+from podcast_mcp.project_store import ProjectStore
 from podcast_mcp.services import PlayService, ProjectWorkspace, ReviewService
 from podcast_mcp.services.review_media import review_guest_audio_path
 from podcast_mcp.util.binaries import resolve_ffmpeg
@@ -184,6 +186,82 @@ def test_service_publish_failure_keeps_persisted_versions_unchanged(
     assert not (art / "review" / "service-fail").exists()
     assert load_project(minimal_project).review.versions == []
     assert load_project(minimal_project).review.active_version_id is None
+
+
+@pytest.mark.parametrize("failure", ["history", "commit"])
+def test_service_publish_removes_media_after_persistence_failure(
+    minimal_project, sample_wav, monkeypatch, failure
+):
+    project = load_project(minimal_project)
+    art = Path(project.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    existing = art / "review" / "existing"
+    existing.mkdir(parents=True)
+    sentinel = existing / "mix.wav"
+    sentinel.write_bytes(b"existing review mix")
+    monkeypatch.setattr(review_versions, "_new_id", lambda: "new-version")
+
+    def export_mp3(self, wav, mp3, *, bitrate_kbps):
+        mp3.write_bytes(b"encoded")
+
+    monkeypatch.setattr(review_versions.FFmpegEngine, "export_mp3", export_mp3)
+    if failure == "history":
+        original_record = HistoryManager.record
+
+        def fail_after_history(self, project, label, **kwargs):
+            if label == "after publish review version":
+                raise RuntimeError("history failed")
+            return original_record(self, project, label, **kwargs)
+
+        monkeypatch.setattr(HistoryManager, "record", fail_after_history)
+    else:
+
+        def fail_commit(self, project):
+            raise RuntimeError("commit failed")
+
+        monkeypatch.setattr(ProjectStore, "commit", fail_commit)
+
+    ws = ProjectWorkspace.open(minimal_project)
+    with pytest.raises(RuntimeError, match=f"{failure} failed"):
+        ReviewService(ws).publish(label="new")
+
+    assert not (art / "review" / "new-version").exists()
+    assert sentinel.read_bytes() == b"existing review mix"
+    assert load_project(minimal_project).review.versions == []
+    assert ws.project.review.versions == []
+
+
+def test_service_publish_preserves_media_if_commit_landed_before_error(
+    minimal_project, sample_wav, monkeypatch
+):
+    project = load_project(minimal_project)
+    art = Path(project.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    monkeypatch.setattr(review_versions, "_new_id", lambda: "committed")
+
+    def export_mp3(self, wav, mp3, *, bitrate_kbps):
+        mp3.write_bytes(b"encoded")
+
+    monkeypatch.setattr(review_versions.FFmpegEngine, "export_mp3", export_mp3)
+    original_commit = ProjectStore.commit
+
+    def fail_after_commit(self, project):
+        original_commit(self, project)
+        raise RuntimeError("late commit error")
+
+    monkeypatch.setattr(ProjectStore, "commit", fail_after_commit)
+    ws = ProjectWorkspace.open(minimal_project)
+    with pytest.raises(RuntimeError, match="late commit error"):
+        ReviewService(ws).publish(label="new")
+
+    assert (art / "review" / "committed" / "mix.wav").is_file()
+    assert (art / "review" / "committed" / "mix.mp3").is_file()
+    assert [version.id for version in load_project(minimal_project).review.versions] == [
+        "committed"
+    ]
+    assert [version.id for version in ws.project.review.versions] == ["committed"]
 
 
 def test_publish_id_collision_preserves_existing_directory(
