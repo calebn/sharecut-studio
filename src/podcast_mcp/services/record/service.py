@@ -528,9 +528,9 @@ class RecordSessionService:
             apply_fn=apply_fn,
             empty_snap_fn=self._empty,
         )
-        if cmd.type == "RemoveParticipant":
+        if _row["type"] == "RemoveParticipant":
             self._participants.revoke(
-                str(cmd.payload["participant_id"]), session_id=self.session_id
+                str(_row["payload"]["participant_id"]), session_id=self.session_id
             )
         if cmd.type == "Comment" and idempotent:
             self._upsert_comment(cmd)

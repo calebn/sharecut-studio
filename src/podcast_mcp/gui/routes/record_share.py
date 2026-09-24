@@ -380,6 +380,11 @@ async def post_record_upload(
     rate_limit_share(token, "mutate")
     pid = _require_guest_lease(session, token, x_record_participant, x_record_lease)
     _require_guest_upload_consent(session, pid, kind, take_index)
+
+    def before_ingest() -> None:
+        _require_guest_lease(session, token, x_record_participant, x_record_lease)
+        _require_guest_upload_consent(session, pid, kind, take_index)
+
     return await ingest_record_upload_request(
         request,
         uploader,
@@ -396,7 +401,7 @@ async def post_record_upload(
         workspace=ws,
         clip_scope=pid,
         kind=kind,
-        before_ingest=lambda: _require_guest_upload_consent(session, pid, kind, take_index),
+        before_ingest=before_ingest,
     )
 
 
