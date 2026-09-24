@@ -3,6 +3,7 @@ import path from "node:path";
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
+import { openPhoneTimeline } from "./phoneTimeline";
 import { setTheme } from "./theme";
 
 // Contexts opened from the worker-scoped browser (capture test); closed here
@@ -119,10 +120,7 @@ test("fixed phone playhead uses the stage playhead in each theme", async ({
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-  await page
-    .getByRole("navigation", { name: "Primary" })
-    .getByRole("button", { name: "Timeline" })
-    .click();
+  await openPhoneTimeline(page);
   const playhead = page.locator(
     ".timeline-area--fixed-playhead .playhead--fixed",
   );
@@ -153,10 +151,7 @@ for (const viewport of [
     await page.setViewportSize(viewport);
     await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
     if (viewport.width < 768) {
-      await page
-        .getByRole("navigation", { name: "Primary" })
-        .getByRole("button", { name: "Timeline" })
-        .click();
+      await openPhoneTimeline(page);
     }
     // The loading skeleton also draws lanes (with the header column outside
     // the scroller), so wait for the loaded arrange layout itself.
