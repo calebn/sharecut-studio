@@ -342,10 +342,11 @@ button.pill.pill--info {
   }
 
   /* Press physics: sink in fast, release on the toggle timing. Menu rows
-     and segments stay put: scaling a row that wide moves its hit edge, so a
-     press near the edge would release outside it and lose the click. */
+     (in a panel or not), segments and phone nav tabs stay put: a row that
+     wide, or controls sharing an edge, would move their hit edge, so a press
+     near it would release outside and lose the click. */
   .ui-control:active:not(:disabled, [aria-disabled="true"]):where(
-    :not(.ui-menu-panel *, .ui-segmented > *)
+    :not(.ui-menu-panel *, [role^="menuitem"], .ui-segmented > *, .mobile-nav *)
   ) {
     transform: translateY(0.0625rem) scale(0.98);
     transition-duration: var(--motion-press);
@@ -657,8 +658,11 @@ button.pill.pill--info {
     visibility: hidden;
   }
 
+  /* Not clickable until it has faded in: a tap can't hit a control it can't
+     see yet. */
   .focus-pull-enter {
     visibility: visible;
+    pointer-events: none;
     animation: focus-pull-in var(--motion-state) var(--motion-ease-out) forwards;
   }
 }

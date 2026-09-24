@@ -40,15 +40,18 @@ export function FocusPull({ viewKey, children, className }: Props) {
     }
 
     setTransition({ outgoing: displayedChildren.current, entering: false });
+    let finish: number | undefined;
     const enter = window.setTimeout(() => {
       setTransition((current) =>
         current ? { ...current, entering: true } : current,
       );
+      // Timed from the enter phase, so a stalled main thread still gives
+      // the incoming view its full fade.
+      finish = window.setTimeout(() => {
+        displayedKey.current = viewKey;
+        setTransition(null);
+      }, FOCUS_PULL_ENTER_MS);
     }, FOCUS_PULL_EXIT_MS);
-    const finish = window.setTimeout(() => {
-      displayedKey.current = viewKey;
-      setTransition(null);
-    }, FOCUS_PULL_EXIT_MS + FOCUS_PULL_ENTER_MS);
 
     return () => {
       window.clearTimeout(enter);
@@ -67,7 +70,10 @@ export function FocusPull({ viewKey, children, className }: Props) {
   if (transition) {
     return (
       <div className={rootClassName}>
-        <div className="focus-pull-exit">{transition.outgoing}</div>
+        {/* Inert while it fades: a quick second tap can't land on it. */}
+        <div className="focus-pull-exit" inert>
+          {transition.outgoing}
+        </div>
         <div
           className={
             transition.entering ? "focus-pull-enter" : "focus-pull-pending"
