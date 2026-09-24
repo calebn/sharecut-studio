@@ -44,6 +44,30 @@ describe("presenceCursorFromPointer", () => {
     expect(cursor?.anchor).toBeUndefined();
   });
 
+  it("measures lane_pos in lanes of the sender's own height", () => {
+    const lanes = document.createElement("div");
+    Object.defineProperty(lanes, "getBoundingClientRect", {
+      value: () => fakeRect(0, 100, 400, 300),
+    });
+    const row = document.createElement("div");
+    row.className = "lane-row";
+    row.dataset.trackId = "b";
+    // Fit-to-window lanes: 150px each, not the 72px default.
+    Object.defineProperty(row, "getBoundingClientRect", {
+      value: () => fakeRect(0, 250, 400, 150),
+    });
+    const cursor = presenceCursorFromPointer(
+      row,
+      40,
+      100 + 1.4 * 150,
+      lanes,
+      0,
+      10,
+      60,
+    );
+    expect(cursor?.lane_pos).toBeCloseTo(1.4, 3);
+  });
+
   it("returns null below the last lane with no anchor", () => {
     const lanes = document.createElement("div");
     Object.defineProperty(lanes, "getBoundingClientRect", {

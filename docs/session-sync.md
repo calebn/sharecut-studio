@@ -128,6 +128,8 @@ Live roster, ghost cursors, selection, playhead, and viewport are **ephemeral**.
 }
 ```
 
+A timeline cursor's `lane_pos` is in **lane units**, not px: the pointer's offset from the top of the lane stack divided by the sender's lane height (so `1.4` is 40% down the second lane). Lane height differs per viewer (lanes grow to fill each stage, 72–240px), so each receiver multiplies by its own lane height; clients that still draw fixed 72px lanes stay compatible.
+
 Chrome cursors (headers, Mix/FX/Raw, tabs, transcript words) use an anchor plus fractions instead of time:
 
 ```json
@@ -152,7 +154,7 @@ Every GUI surface is classified once as **Look**, **Hear**, or **Do** (`presence
 | **Hear** | Yes if the follower can; otherwise the banner says what the leader hears | Audition Mix/FX/Raw, viewer mute, solo. Guests stay Mix. Host-only tabs (History, Impact, Pipeline) stay on the follower’s last available tab with a banner like “· in Pipeline (host-only)” |
 | **Do** | Never | Tool mode, comment mode, drafts, menus/dialogs/palette, focus mode, sheet, layer toggles, ingest, theme |
 
-**Cursor** is independent of follow: drawn over any surface with a resolvable `data-presence-anchor` (or a timeline `t_sec` + `lane_pos`). If the anchor is not in this DOM, draw nothing. Never guess a Y position (unknown `track_id` without `lane_pos` used to snap to lane 0).
+**Cursor** is independent of follow: drawn over any surface with a resolvable `data-presence-anchor` (or a timeline `t_sec` + `lane_pos`, in lane units, so it lands at the same spot in the same lane whatever each viewer's lane height). If the anchor is not in this DOM, draw nothing. Never guess a Y position (unknown `track_id` without `lane_pos` used to snap to lane 0).
 
 **Break follow** (Live Share style): only strong navigation — seek/play/stop, zoom/scroll, tab or phone-mode switch, manual transcript scroll. Mute/solo/audition/selection do not unfollow.
 
