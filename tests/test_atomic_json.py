@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -44,6 +45,7 @@ def test_copy_file_atomic_replaces_whole_file(tmp_path: Path) -> None:
     src = tmp_path / "src.wav"
     src.write_bytes(b"new-bytes")
     src.chmod(0o640)
+    os.utime(src, (1_000_000_000, 1_000_000_000))
     dest = tmp_path / "nested" / "dest.wav"
     dest.parent.mkdir()
     dest.write_bytes(b"old-bytes-that-are-longer")
@@ -54,6 +56,7 @@ def test_copy_file_atomic_replaces_whole_file(tmp_path: Path) -> None:
     assert dest.read_bytes() == b"new-bytes"
     assert list(dest.parent.glob(".dest.wav.*.tmp")) == []
     assert (dest.stat().st_mode & 0o777) == 0o640
+    assert int(dest.stat().st_mtime) == 1_000_000_000
 
 
 def test_copy_file_atomic_keeps_previous_on_failure(tmp_path: Path) -> None:
@@ -68,6 +71,22 @@ def test_copy_file_atomic_keeps_previous_on_failure(tmp_path: Path) -> None:
 
     with (
         patch.object(atomic_json.shutil, "copyfileobj", side_effect=partial_copy),
+        pytest.raises(OSError),
+    ):
+        copy_file_atomic(src, dest)
+
+    assert dest.read_bytes() == b"old-bytes"
+    assert list(tmp_path.glob(".dest.wav.*.tmp")) == []
+
+
+def test_copy_file_atomic_keeps_previous_when_copystat_fails(tmp_path: Path) -> None:
+    src = tmp_path / "src.wav"
+    src.write_bytes(b"new-bytes")
+    dest = tmp_path / "dest.wav"
+    dest.write_bytes(b"old-bytes")
+
+    with (
+        patch.object(atomic_json.shutil, "copystat", side_effect=OSError("EPERM")),
         pytest.raises(OSError),
     ):
         copy_file_atomic(src, dest)
