@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from threading import get_ident
 
 from podcast_mcp.models import load_project
 from podcast_mcp.services.session_control import SessionControlService
@@ -910,30 +911,59 @@ def test_viewer_snapshot_merge(minimal_project) -> None:
 
 
 def test_viewer_heartbeat_reuses_command_snapshot(minimal_project, monkeypatch) -> None:
+    from podcast_mcp.services.session_sync import presence_fanout
+
+    presence_fanout.reset()
     proj = load_project(minimal_project)
     svc = SessionSyncService(proj)
     svc.submit_control("SetPlaying", {"is_playing": True})
     store = svc.store
     original_snapshot = SessionSyncService.snapshot
     reads = 0
+    request_thread = get_ident()
 
     def counted_snapshot(self: SessionSyncService):
         nonlocal reads
-        reads += 1
+        if get_ident() == request_thread:
+            reads += 1
         return original_snapshot(self)
 
     monkeypatch.setattr(SessionSyncService, "snapshot", counted_snapshot)
-    for n in range(16):
-        out = publish_viewer_snapshot(
-            proj,
-            {"client_id": f"viewer-{n % 8}", "is_playing": True, "playhead_sec": float(n)},
-        )
-        assert out["clients"]
-        assert out["is_playing"] is True
-    # One authority read for comparison and one from PresenceHeartbeat; the
-    # returned command snapshot replaces a redundant final read.
-    assert reads == 32
-    assert SessionSyncService(proj).store is store
+    try:
+        for n in range(16):
+            out = publish_viewer_snapshot(
+                proj,
+                {"client_id": f"viewer-{n % 8}", "is_playing": True, "playhead_sec": float(n)},
+            )
+            assert out["clients"]
+            assert out["is_playing"] is True
+        # One authority read for comparison and one from PresenceHeartbeat;
+        # coalesced fanout reads may occur on another thread.
+        assert reads == 32
+        assert SessionSyncService(proj).store is store
+    finally:
+        presence_fanout.reset()
+
+
+def test_viewer_heartbeat_does_not_undo_concurrent_agent_seek(minimal_project, monkeypatch) -> None:
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+    original_snapshot = SessionSyncService.snapshot
+    injected = False
+
+    def seek_after_baseline(self: SessionSyncService):
+        nonlocal injected
+        baseline = original_snapshot(self)
+        if not injected:
+            injected = True
+            svc.submit_control("SetPlayhead", {"playhead_sec": 5.0})
+        return baseline
+
+    monkeypatch.setattr(SessionSyncService, "snapshot", seek_after_baseline)
+    out = publish_viewer_snapshot(proj, {"client_id": "viewer", "playhead_sec": 0.0})
+    assert injected
+    assert out["playhead_sec"] == 5.0
+    assert original_snapshot(svc)["playhead_sec"] == 5.0
 
 
 def test_session_meta_missing_and_present(minimal_project) -> None:
@@ -1171,3 +1201,4 @@ def test_viewer_snapshot_field_commands(minimal_project) -> None:
     assert out["playhead_sec"] == 1.25
     assert out["is_playing"] is False
     assert out["region"] is None
+    assert out["server_time_ns"] > 0

@@ -7,6 +7,7 @@ or more typed :class:`SyncCommand` submissions against that authority.
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import Any
 
@@ -140,7 +141,7 @@ def publish_viewer_snapshot(
         "playhead_sec" in snapshot
         and not playing_now
         and not bool(latest.get("is_playing"))
-        and float(snapshot["playhead_sec"]) != float(latest.get("playhead_sec") or 0.0)
+        and float(snapshot["playhead_sec"]) != float(current.get("playhead_sec") or 0.0)
     ):
         latest = svc.submit_control(
             "SetPlayhead",
@@ -153,4 +154,6 @@ def publish_viewer_snapshot(
             "ClearRegion", {"stop": False}, client_id=client_id, role="viewer"
         )["snapshot"]
 
+    # Durable submit results do not carry the response clock that snapshot() adds.
+    latest["server_time_ns"] = time.time_ns()
     return latest
