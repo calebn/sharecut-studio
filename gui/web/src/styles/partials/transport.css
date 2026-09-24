@@ -238,7 +238,6 @@
 
 /* Fixed-dark paint: controls, segments, pills and the playing state. */
 .transport-primary-actions > .ui-control,
-.transport .tool-mode-toggle .ui-control--quiet,
 .transport .transport-more-btn {
   color: var(--color-transport-muted);
   border-color: var(--color-transport-control-border);
@@ -262,24 +261,22 @@
    text. Orange stays on Play. */
 .transport
   .ui-segmented[role="group"]
-  > .ui-control--quiet[aria-pressed="true"],
-.transport .ui-segmented[role="group"] > .ui-control--quiet.active,
-.transport
-  .tool-mode-toggle
-  .ui-control--quiet[aria-pressed="true"]:not(.comment-mode-btn),
-.transport .tool-mode-toggle .ui-control--quiet.active:not(.comment-mode-btn) {
+  > .ui-control--quiet:is([aria-pressed="true"], .active):not(
+    .comment-mode-btn
+  ) {
   color: var(--color-transport-text);
   border-color: transparent;
   background: var(--color-transport-chip);
   box-shadow: var(--shadow-transport-chip);
 }
 
-.transport .tool-mode-toggle {
-  border-color: var(--color-transport-control-border);
-}
-
+/* Comment sits inside the strip's tool segment in the wide bar and alone in
+   the collapsed bar; its marker fill beats the transparent segment paint. */
 .transport .comment-mode-btn[aria-pressed="true"],
-.transport .comment-mode-btn.active {
+.transport .comment-mode-btn.active,
+.transport
+  .ui-segmented[role="group"]
+  > .comment-mode-btn:is([aria-pressed="true"], .active) {
   color: var(--color-bg-canvas);
   border-color: var(--comment-marker);
   background: var(--comment-marker);
@@ -444,7 +441,6 @@
 @media (hover: hover) and (pointer: fine) {
   .transport-primary-actions
     > .ui-control:hover:not(:disabled, [aria-disabled="true"]),
-  .transport .tool-mode-toggle .ui-control--quiet:hover:not(:disabled),
   .transport .transport-more-btn:hover:not(:disabled) {
     color: var(--color-transport-text);
     border-color: var(--color-transport-muted);
@@ -499,7 +495,12 @@
   }
 
   .transport .comment-mode-btn[aria-pressed="true"]:hover:not(:disabled),
-  .transport .comment-mode-btn.active:hover:not(:disabled) {
+  .transport .comment-mode-btn.active:hover:not(:disabled),
+  .transport
+    .ui-segmented[role="group"]
+    > .comment-mode-btn:is([aria-pressed="true"], .active):hover:not(
+      :disabled
+    ) {
     color: var(--color-bg-canvas);
     border-color: var(--comment-marker);
     background: var(--comment-marker);
@@ -511,10 +512,7 @@
 
   .transport
     .ui-segmented[role="group"]
-    > .ui-control--quiet[aria-pressed="true"]:hover:not(:disabled),
-  .transport
-    .tool-mode-toggle
-    .ui-control--quiet[aria-pressed="true"]:hover:not(
+    > .ui-control--quiet:is([aria-pressed="true"], .active):hover:not(
       :disabled,
       .comment-mode-btn
     ) {

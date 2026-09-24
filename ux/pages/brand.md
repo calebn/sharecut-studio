@@ -102,10 +102,10 @@ Sharecut Studio chrome uses one paint primitive: **`.ui-control`** (see [`gui/we
 | State | When it must show | How |
 |-------|-------------------|-----|
 | Rest | Always | Fill + border that already reads as a control (WCAG **1.4.11** non-text contrast ≥ **3:1** vs adjacent) |
-| Hover | Fine pointer only | Lighten ink / strengthen border. `@media (hover: hover) and (pointer: fine)` so touch does not stick hover. **Never** the only cue that something is clickable |
+| Hover | Fine pointer only | A faint ink wash (`--color-hover`) plus full-strength text / a stronger border. `@media (hover: hover) and (pointer: fine)` so touch does not stick hover. **Never** the only cue that something is clickable, and never the selected chip, so a hovered control does not look selected |
 | Focus-visible | Keyboard (and programmatic) focus | **2.4.7** Focus Visible. 2px `outline` in `--color-accent`, offset 2px. Use `:focus-visible`, not `:focus` |
 | Active (while down) | Pointer down / Space on a button | Brief darker/stronger press. Works on touch |
-| Pressed / selected / current | Sticky mode (Focus, Follow, Annotate, tab, Mix/FX/Raw, M/S) | Visible without hover: neutral border or inverted fill. Use `aria-pressed` / `aria-current` / `aria-expanded`, not color alone |
+| Pressed / selected / current | Sticky mode (Focus, Follow, Annotate, tab, Mix/FX/Raw, Select/Blade, M/S) | Visible without hover: the neutral selected chip (`--color-chip-selected`) with a secondary-ink border; checked menu radios add a check mark. Never the accent. Use `aria-pressed` / `aria-checked` / `aria-current` / `aria-expanded`, not color alone |
 | Disabled | Cannot run | `cursor: not-allowed`; reduced opacity is an allowed WCAG exception. Prefer remaining enabled and explaining *why* when the user might try |
 | Busy | In-flight | `aria-busy` + label change (Creating… / Downloading…). Keep the control focusable |
 | Open | Menus, More, sheets | `aria-expanded`; panel is the confirmation |

@@ -21,6 +21,17 @@ describe("ToolModeToggle", () => {
     expect(screen.getByRole("button", { name: "Comment" })).toBeTruthy();
   });
 
+  it("renders the shared segmented track so pressed paint comes from one place", () => {
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <ToolModeToggle />
+      </DawProvider>,
+    );
+    const group = screen.getByRole("group", { name: "Timeline tool" });
+    expect(group.classList.contains("ui-segmented")).toBe(true);
+    expect(group.classList.contains("tool-mode-toggle")).toBe(true);
+  });
+
   it("omits Comment when compact so collapsed transport owns it", () => {
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
