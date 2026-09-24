@@ -226,6 +226,9 @@ flowchart TD
    indicator). A shorter blip stays REC and does not remount the host keeper. A
    sidecar crash that never sent Leave still pauses on the next host Join.
    Reminting a new room while REC/PAUSED is refused until the take is Stopped.
+   If the host removes a guest, that guest's live room connection closes and
+   stops receiving room events or sending signal, heartbeat, and comments;
+   other guests remain in the room.
 9. In the native desktop app, a host or recorded guest who closes the window
    during REC, PAUSED, or finalizing sees a role-specific confirmation. The
    host warning says closing stops the session for everyone; the guest warning

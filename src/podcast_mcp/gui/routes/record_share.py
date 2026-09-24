@@ -125,9 +125,14 @@ async def record_ws(
     recheck_task: asyncio.Task[None] | None = None
     guard: GuestWsGuard | None = None
 
+    def _connection_valid() -> bool:
+        return _record_still_valid(token) and (
+            participant_id is None or svc.participant_active(participant_id)
+        )
+
     try:
         await websocket.accept()
-        guard = GuestWsGuard(websocket, lambda: _record_still_valid(token))
+        guard = GuestWsGuard(websocket, _connection_valid)
         loop = asyncio.get_running_loop()
         q = hub.subscribe(hub_key, loop)
 
@@ -136,6 +141,9 @@ async def record_ws(
             try:
                 while True:
                     event = await q.get()
+                    if not _connection_valid():
+                        await guard.close(4403, "participant removed or share revoked")
+                        return
                     filtered = filter_record_event_for_guest(
                         event,
                         participant_id=participant_id or "",
@@ -160,8 +168,8 @@ async def record_ws(
                 text = await websocket.receive_text()
             except WebSocketDisconnect:
                 break
-            if not guard.share_ok_on_frame():
-                await guard.close(4403, "share revoked or expired")
+            if not guard.share_ok_on_frame() or not _connection_valid():
+                await guard.close(4403, "participant removed or share revoked")
                 break
             if len(text) > GUEST_FRAME_MAX_BYTES:
                 if guard.note_malformed():

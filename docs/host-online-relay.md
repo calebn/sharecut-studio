@@ -631,4 +631,9 @@ Guests with `view` connect to `WS /api/review/{token}/daw/ws` on the host (and t
 | `ws_data` | both | `id`, `text` (JSON text frame) |
 | `ws_close` | both | `id`, `code`, `reason` |
 
+The host rechecks an existing record socket against participant removal on
+each inbound command, outbound room event, and while idle. A removed guest's
+socket closes with 4403 without disconnecting other room participants; the
+relay forwards the host's close.
+
 Old tunnel clients ignore unknown frame types (guest socket stays silent; HTTP poll still works). See [session-sync.md](session-sync.md) § Guest dual-plane WebSocket. Record rate buckets: host `guest_ws_record` / `guest_ws_record_token` for room commands, plus `guest_ws_record_signal` / `guest_ws_record_signal_token` for WebRTC `Signal` ICE/SDP (Heartbeat and HeadphonesAck stay exempt).

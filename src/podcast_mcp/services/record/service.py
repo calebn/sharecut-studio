@@ -367,6 +367,11 @@ class RecordSessionService:
             session_id=self.session_id,
         )
 
+    def participant_active(self, participant_id: str) -> bool:
+        """Whether a joined participant still belongs to this room."""
+        person = find_participant(self._model(), participant_id)
+        return person is not None and not person.removed
+
     def upload_consented(self, participant_id: str, *, take_index: int | None) -> bool:
         return guest_upload_consented(self._model(), participant_id, take_index=take_index)
 
@@ -633,6 +638,8 @@ def route_record_ws_message(
     if command_type == "Signal":
         if not participant_id:
             raise ValueError("join_first")
+        if not svc.participant_active(participant_id):
+            raise RecordStateError("participant removed")
         if connection_id is not None:
             if not connection_holds(svc._hub_key, participant_id, connection_id):
                 raise RecordStateError("stale_connection")
