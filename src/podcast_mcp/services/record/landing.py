@@ -49,9 +49,9 @@ from podcast_mcp.services.record.upload import (
     parse_participant_id,
     parse_session_id,
     parse_upload_index,
-    sha256_file,
 )
 from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.progress import resolve_progress_task
 
 log = logging.getLogger(__name__)

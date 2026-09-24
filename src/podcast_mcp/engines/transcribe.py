@@ -20,6 +20,7 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
+from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress_task
 from podcast_mcp.util.workspace_paths import resolve_under_workspace
 from podcast_mcp.whisper_models import (
@@ -27,14 +28,6 @@ from podcast_mcp.whisper_models import (
     ensure_whisper_model_cached,
     validate_whisper_model,
 )
-
-
-def _file_hash(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as f:
-        for chunk in iter(lambda: f.read(1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()[:16]
 
 
 def _cache_id_part(raw: str) -> str:
@@ -119,7 +112,7 @@ class TranscriptionEngine:
         return self._model
 
     def cache_path(self, project: EpisodeProject, track_id: str, audio_path: Path) -> Path:
-        key = _file_hash(audio_path)
+        key = sha256_file(audio_path)[:16]
         name = f"{_cache_id_part(track_id)}_{key}.json"
         cache = (project.transcripts_dir() / name).resolve()
         root = project.transcripts_dir().resolve()

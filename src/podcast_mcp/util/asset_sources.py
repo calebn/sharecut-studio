@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import copy
-import hashlib
 import ipaddress
 import json
 import logging
@@ -17,6 +16,8 @@ from functools import lru_cache
 from os import environ
 from pathlib import Path
 from typing import Any
+
+from podcast_mcp.util.hashing import sha256_file
 
 logger = logging.getLogger(__name__)
 
@@ -170,14 +171,6 @@ def ordered_http_urls(asset_id: str, *, relative_path: str) -> list[str]:
     return urls
 
 
-def _file_sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def _copy_bounded(src: Any, dest: Any, *, max_bytes: int) -> None:
     remaining = max_bytes
     while True:
@@ -220,7 +213,7 @@ def _download_url(
         ):
             _copy_bounded(resp, handle, max_bytes=max_bytes)
         if expected_sha256:
-            got = _file_sha256(tmp)
+            got = sha256_file(tmp)
             if got != expected_sha256.lower():
                 raise AssetSourceError(
                     f"sha256 mismatch for {dest.name}: expected {expected_sha256}, got {got}"
@@ -245,7 +238,7 @@ def download_first_ok(
         try:
             _download_url(url, dest, timeout=timeout, expected_sha256=expected_sha256)
             if expected_sha256 and dest.is_file():
-                got = _file_sha256(dest)
+                got = sha256_file(dest)
                 if got != expected_sha256.lower():
                     dest.unlink(missing_ok=True)
                     raise AssetSourceError(
