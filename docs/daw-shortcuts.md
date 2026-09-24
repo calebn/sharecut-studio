@@ -145,7 +145,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Trim clip edge | `edit.trimClipEdge` | Host or shared edit mode | Pointer trim handles on clip blocks (start / end) |
 | Roll clip join | `edit.rollClipJoin` | Host or shared edit mode | Join diamond + transcript boundary roll both edges |
 | Set clip fade | `edit.setClipFade` | Host or shared edit mode | Pointer fade handles on clip blocks |
-| Move clips | `edit.moveClips` | Host or shared edit mode | Pointer body drag on clip blocks (one clip or a multi-selection; not MoveSegment) |
+| Move clips | `edit.moveClips` | Host or shared edit mode | Args: { clips: non-empty list } — pointer body drag on clip blocks (one clip or a multi-selection; not MoveSegment) |
 | Focus edit boundary | `view.focusEditBoundary` | Project loaded |  |
 | Focus cut-away word | `view.focusCutAwayWord` | Project loaded |  |
 | Switch editor tab | `view.setTab` | Project loaded | Args: { tab: DawTab } |

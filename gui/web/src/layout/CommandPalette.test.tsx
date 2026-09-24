@@ -48,9 +48,19 @@ describe("CommandPalette", () => {
       </DawProvider>,
     );
     await userEvent.click(screen.getByRole("tab", { name: "Actions" }));
-    expect(
-      screen.queryByRole("button", { name: "Resolve comment" }),
-    ).toBeNull();
+    for (const label of [
+      "Seek playhead",
+      "Audition Mix / FX / Raw",
+      "Follow",
+      "Resolve comment",
+      "Reorder track",
+      "Move clips",
+      "Switch editor tab",
+      "Switch phone mode",
+    ]) {
+      expect(screen.queryByText(label)).toBeNull();
+    }
+    expect(screen.getByText("Annotate transcript")).toBeInTheDocument();
     expect(screen.getByText("Commands without keys")).toBeInTheDocument();
   });
 
