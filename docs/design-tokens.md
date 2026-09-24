@@ -174,16 +174,12 @@ ramps — which is what this is.
    still the certifiable gate; APCA as design compass). The CSS-policy test
    should compute these ratios, not just assert the comments exist.
 
-**What we have today (migration):** the pre-ladder names
-`--color-bg-canvas`, `--color-bg-surface`, `--color-bg-lane`,
-`--color-bg-lane-muted`, `--color-bg-elevated` (plus `--bg-app`/`--bg-panel`/
-`--bg-elevated` aliases) are grandfathered per the clause below. When a
-component is touched, remap: canvas → canvas, surface → base, elevated →
-raised, and give floating UI the overlay rung it was missing (most dialogs
-currently sit on raised/base with only a shadow). Domain-specific lanes
-(`--color-bg-lane`, `--color-bg-lane-muted`) become `--color-bg-raised` /
-`--color-bg-sunken` unless they're genuinely domain values, in which case
-they get a `clip-*`/`lane-*` domain family name.
+**Migration status (#135): done.** Components read the five rungs directly.
+The shared brand names `--color-bg-canvas` / `--color-bg-surface` /
+`--color-bg-elevated` stay in `brand-tokens.css` (marketing, relay and splash
+use them) and the Studio ladder maps onto them; the `--bg-app` / `--bg-panel`
+/ `--bg-elevated` / `--bg-lane` aliases and `--color-bg-lane*` are gone, and
+lanes use the timeline stage roles (`--color-timeline-*`).
 
 **Not this:** user-created themes remain future work (parked 2026-09-21).
 The ladder needs no new theme machinery — another `[data-theme="…"]` block

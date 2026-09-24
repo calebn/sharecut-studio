@@ -96,9 +96,11 @@ Semantic CSS variables live under `src/styles/theme/`:
 Naming system (tiers, patterns, state modifiers, minting rules):
 [docs/design-tokens.md](../../docs/design-tokens.md).
 
-The timeline consumes its own dark `--color-timeline-*` roles in both app
-themes. Chrome uses the semantic surface ladder (`base`, `raised`, `overlay`,
-`sunken`, `inverted`) and named shadow levels. Hover, toggle, panel, and state
+The timeline consumes its own `--color-timeline-*` stage roles: a dark well in
+the dark theme and a light stage in the light theme (the transport strip stays
+dark in both, via `theme/theme-fixed.css`). Chrome uses the five-rung semantic
+surface ladder (`canvas`, `base`, `raised`, `overlay`, `sunken`, each with a
+`text-on-*` partner) and named shadow levels. Hover, toggle, panel, and state
 motion share `--motion-*` tokens and run only when reduced motion is not
 requested. Playwright's `e2e/design-polish.spec.ts` checks both themes and
 the reduced-motion path.
@@ -157,4 +159,4 @@ Comments: shared `src/comments/` (`CommentCard`, `CommentCompose`, `useCommentAc
 
 ## Layout constants
 
-`utils/layout.ts` holds the default layout dims (`--ruler-height`, `--marker-lane-height`, lane height). At runtime `TimelineView` measures the stage and provides the live lane and marker-lane heights through `timeline/timelineMetrics.tsx` (`useTimelineMetrics`), and sets `--lane-height` / `--marker-lane-height` on `.timeline-area`; overlays and headers read the context, never the constants. Presence `lane_pos` stays in lane units so viewers with different lane heights agree.
+`utils/layout.ts` holds the default layout dims (`--ruler-height`, `--marker-lane-height`, lane height). At runtime `TimelineView` measures the stage and provides the live lane and marker-lane heights through `timeline/timelineMetrics.ts` (`useTimelineMetrics`), and sets `--lane-height` / `--marker-lane-height` on `.timeline-area`; overlays and headers read the context, never the constants. Presence `lane_pos` stays in lane units so viewers with different lane heights agree.
