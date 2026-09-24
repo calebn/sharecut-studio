@@ -14,8 +14,10 @@ import { canApplyPass12, canSuggestStructural } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import {
   paintWaveform,
+  samePaintInputs,
   visibleClipWindow,
   WAVEFORM_OVERSCAN_PX,
+  type WaveformPaintInputs,
 } from "../timeline/drawWaveform";
 import { type QuietBand, quietBandsFromPeaks } from "../timeline/quietWash";
 import { uniqueTicks } from "../timeline/snapOverlay";
@@ -51,6 +53,8 @@ export function useClipWaveform(opts: {
   selected: boolean;
   /** Clip fill (a lane colour var); keys the cached waveform tint. */
   color: string;
+  /** Live lane height: the canvas fills the clip, so it is in the paint key. */
+  laneHeight: number;
 }): {
   window: ReturnType<typeof visibleClipWindow>;
   quiet: QuietBand[];
@@ -73,6 +77,7 @@ export function useClipWaveform(opts: {
     bladeHoverSec,
     selected,
     color,
+    laneHeight,
   } = opts;
   const {
     projectPath,
@@ -98,7 +103,13 @@ export function useClipWaveform(opts: {
   const [pendingPaints] = useState(
     () => new Map<HTMLCanvasElement, WaveformPaintOverride | undefined>(),
   );
-  const paintOptsRef = useRef({
+  // What each canvas was last painted from. Clips re-render every playhead
+  // tick, so a paint whose inputs match is skipped instead of reallocating
+  // and redrawing the canvas every frame.
+  const [paintedWith] = useState(
+    () => new WeakMap<HTMLCanvasElement, WaveformPaintInputs>(),
+  );
+  const paintOptsRef = useRef<WaveformPaintInputs>({
     peaks,
     tiles,
     sourceStart,
@@ -106,6 +117,7 @@ export function useClipWaveform(opts: {
     cssWidth: 0,
     ampZoom: waveformAmpZoom,
     devicePixelRatio: 1,
+    laneHeight,
     color,
     theme,
   });
@@ -282,9 +294,13 @@ export function useClipWaveform(opts: {
     cssWidth: win.cssWidth,
     ampZoom,
     devicePixelRatio: dpr,
+    laneHeight,
     color,
     theme,
   };
+
+  const inputsFor = (override?: WaveformPaintOverride): WaveformPaintInputs =>
+    override ? { ...paintOptsRef.current, ...override } : paintOptsRef.current;
 
   const flushPaint = () => {
     rafRef.current = requestAnimationFrame(() => {
@@ -295,9 +311,11 @@ export function useClipWaveform(opts: {
       const batch = [...pendingPaints];
       pendingPaints.clear();
       const t0 = performance.now();
-      const base = paintOptsRef.current;
       for (const [canvas, override] of batch) {
-        const opts = override ? { ...base, ...override } : base;
+        const opts = inputsFor(override);
+        if (samePaintInputs(paintedWith.get(canvas), opts)) {
+          continue;
+        }
         const fill = resolveWaveformFill(canvas, opts.color, opts.theme);
         paintWaveform(canvas, {
           peaks: opts.peaks,
@@ -311,6 +329,7 @@ export function useClipWaveform(opts: {
           peakFillCore: fill.core,
           peakFillEdge: fill.edge,
         });
+        paintedWith.set(canvas, opts);
       }
       skipRef.current = performance.now() - t0 > 12;
       if (skipRef.current) {
@@ -341,6 +360,11 @@ export function useClipWaveform(opts: {
     override?: WaveformPaintOverride,
   ) => {
     if (!canvas || (win.offscreen && !override)) {
+      return;
+    }
+    if (samePaintInputs(paintedWith.get(canvas), inputsFor(override))) {
+      // Already showing these pixels; drop any stale request for it.
+      pendingPaints.delete(canvas);
       return;
     }
     pendingPaints.set(canvas, override);

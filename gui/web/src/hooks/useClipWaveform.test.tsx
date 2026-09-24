@@ -49,7 +49,7 @@ const clip: ClipRow = {
   source_id: null,
 };
 
-function useWave() {
+function useWave(laneHeight = 72) {
   return useClipWaveform({
     clip,
     trackId: "host",
@@ -63,6 +63,7 @@ function useWave() {
     bladeHoverSec: null,
     selected: false,
     color: "var(--clip-dialogue-0)",
+    laneHeight,
   });
 }
 
@@ -130,14 +131,54 @@ describe("useClipWaveform paint", () => {
 });
 
 /** Mirrors ClipBlock: paint on every render. */
-function Clip() {
+function Clip({
+  laneHeight = 72,
+  tick = 0,
+}: {
+  laneHeight?: number;
+  tick?: number;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const wave = useWave();
+  const wave = useWave(laneHeight);
   useEffect(() => {
     wave.paint(canvasRef.current);
   });
-  return <canvas ref={canvasRef} />;
+  return <canvas ref={canvasRef} data-tick={tick} />;
 }
+
+describe("useClipWaveform paint key", () => {
+  let raf: ReturnType<typeof stubRaf>;
+
+  beforeEach(() => {
+    paintWaveform.mockClear();
+    raf = stubRaf();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("skips repaint when a re-render leaves the inputs unchanged", () => {
+    const { rerender } = render(<Clip tick={0} />);
+    act(() => raf.fire(16));
+    expect(paintWaveform).toHaveBeenCalledTimes(1);
+
+    // A playhead tick re-renders every clip with the same paint inputs.
+    for (let tick = 1; tick <= 5; tick++) {
+      rerender(<Clip tick={tick} />);
+      act(() => raf.fire(16 + tick * 16));
+    }
+    expect(paintWaveform).toHaveBeenCalledTimes(1);
+  });
+
+  it("repaints when the lane height changes", () => {
+    const { rerender } = render(<Clip laneHeight={72} />);
+    act(() => raf.fire(16));
+    rerender(<Clip laneHeight={150} />);
+    act(() => raf.fire(32));
+    expect(paintWaveform).toHaveBeenCalledTimes(2);
+  });
+});
 
 describe("useClipWaveform theme", () => {
   let raf: ReturnType<typeof stubRaf>;

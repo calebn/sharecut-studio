@@ -1,4 +1,5 @@
 import type { WaveformTile } from "../audio/waveformTiles";
+import type { ResolvedTheme } from "../hooks/useTheme";
 import type { PeaksData } from "../types/project";
 import { peakAmp, peakIndexRange, WAVEFORM_OVERSCAN_PX } from "../utils/peaks";
 import { paintDpr } from "../utils/timelineZoom.generated";
@@ -84,6 +85,47 @@ export type PaintWaveformOpts = {
   /** Tint at the canvas edges, reached only by loud peaks. */
   peakFillEdge?: string;
 };
+
+/** Everything that decides a waveform canvas's pixels (its paint key). */
+export type WaveformPaintInputs = {
+  peaks: PeaksData | null;
+  tiles: WaveformTile[];
+  sourceStart: number;
+  sourceEnd: number;
+  cssWidth: number;
+  ampZoom: number;
+  devicePixelRatio: number;
+  /** The canvas fills the clip, whose height follows the lane. */
+  laneHeight: number;
+  /** Lane colour and resolved theme pick the tint. */
+  color: string;
+  theme: ResolvedTheme;
+};
+
+/**
+ * True when a canvas painted with `prev` would get the same pixels from
+ * `next`, so the paint can be skipped. Tiles compare by identity (the tile
+ * LRU hands back the same objects); peaks by reference.
+ */
+export function samePaintInputs(
+  prev: WaveformPaintInputs | undefined,
+  next: WaveformPaintInputs,
+): boolean {
+  return (
+    prev != null &&
+    prev.peaks === next.peaks &&
+    prev.sourceStart === next.sourceStart &&
+    prev.sourceEnd === next.sourceEnd &&
+    prev.cssWidth === next.cssWidth &&
+    prev.ampZoom === next.ampZoom &&
+    prev.devicePixelRatio === next.devicePixelRatio &&
+    prev.laneHeight === next.laneHeight &&
+    prev.color === next.color &&
+    prev.theme === next.theme &&
+    prev.tiles.length === next.tiles.length &&
+    prev.tiles.every((tile, i) => tile === next.tiles[i])
+  );
+}
 
 const WAVEFORM_CORE_LIGHTEN = 0.45;
 const WAVEFORM_EDGE_LIGHTEN = 0.72;
@@ -173,8 +215,15 @@ export function paintWaveform(
   if (drawW <= 0 || h <= 0) {
     return;
   }
-  canvas.width = Math.floor(drawW * dpr);
-  canvas.height = Math.floor(h * dpr);
+  // Reassigning width/height reallocates the backing store even when equal.
+  const backingW = Math.floor(drawW * dpr);
+  const backingH = Math.floor(h * dpr);
+  if (canvas.width !== backingW) {
+    canvas.width = backingW;
+  }
+  if (canvas.height !== backingH) {
+    canvas.height = backingH;
+  }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, drawW, h);
   if (opts.peakFillCore && opts.peakFillEdge) {

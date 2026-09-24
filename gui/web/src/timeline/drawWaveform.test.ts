@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { WaveformTile } from "../audio/waveformTiles";
 import type { PeaksData } from "../types/project";
 import {
   WAVEFORM_OVERSCAN_PX as overscan,
@@ -8,8 +9,10 @@ import {
   clipWaveformFill,
   paintWaveform,
   rangeMaxColumn,
+  samePaintInputs,
   visibleClipWindow,
   WAVEFORM_OVERSCAN_PX,
+  type WaveformPaintInputs,
 } from "./drawWaveform";
 import { quietBandsFromPeaks } from "./quietWash";
 import { magnetSec, uniqueTicks } from "./snapOverlay";
@@ -118,6 +121,88 @@ describe("range-max paint", () => {
     expect(addColorStop).toHaveBeenNthCalledWith(2, 0.5, "rgb(1, 2, 3)");
     expect(addColorStop).toHaveBeenNthCalledWith(3, 1, "rgb(4, 5, 6)");
     expect(ctx.fillStyle).toBe(gradient);
+  });
+});
+
+describe("paint key", () => {
+  const tile = {} as WaveformTile;
+  const base: WaveformPaintInputs = {
+    peaks: null,
+    tiles: [tile],
+    sourceStart: 0,
+    sourceEnd: 2,
+    cssWidth: 100,
+    ampZoom: 1,
+    devicePixelRatio: 2,
+    laneHeight: 72,
+    color: "var(--clip-dialogue-0)",
+    theme: "dark",
+  };
+
+  it("matches when every pixel input is the same", () => {
+    expect(samePaintInputs(base, { ...base, tiles: [tile] })).toBe(true);
+    expect(samePaintInputs(undefined, base)).toBe(false);
+  });
+
+  it("differs on any input that changes the pixels", () => {
+    const changes: Partial<WaveformPaintInputs>[] = [
+      { sourceStart: 0.5 },
+      { sourceEnd: 3 },
+      { cssWidth: 101 },
+      { ampZoom: 2 },
+      { devicePixelRatio: 1 },
+      { laneHeight: 150 },
+      { color: "var(--clip-music)" },
+      { theme: "light" },
+      { tiles: [] },
+      { tiles: [{} as WaveformTile] },
+      {
+        peaks: {
+          peaks: new Uint8Array([1]),
+          sample_rate: 8000,
+          samples_per_pixel: 500,
+          encoding: "uint8",
+        },
+      },
+    ];
+    for (const change of changes) {
+      expect(samePaintInputs(base, { ...base, ...change })).toBe(false);
+    }
+  });
+});
+
+describe("paintWaveform canvas sizing", () => {
+  it("does not reallocate the backing store when its size is unchanged", () => {
+    const canvas = document.createElement("canvas");
+    canvas.getContext = vi.fn(() => ({
+      setTransform: vi.fn(),
+      clearRect: vi.fn(),
+      fillRect: vi.fn(),
+      fillStyle: "",
+    })) as unknown as typeof canvas.getContext;
+    Object.defineProperty(canvas, "offsetHeight", { value: 40 });
+    let width = 0;
+    const widthSets = vi.fn((v: number) => {
+      width = v;
+    });
+    Object.defineProperty(canvas, "width", {
+      get: () => width,
+      set: widthSets,
+    });
+    const opts = {
+      peaks: null,
+      tiles: [],
+      sourceStart: 0,
+      sourceEnd: 1,
+      cssWidth: 50,
+      ampZoom: 1,
+      devicePixelRatio: 1,
+    };
+    paintWaveform(canvas, opts);
+    paintWaveform(canvas, opts);
+    expect(widthSets).toHaveBeenCalledTimes(1);
+    paintWaveform(canvas, { ...opts, cssWidth: 60 });
+    expect(widthSets).toHaveBeenCalledTimes(2);
   });
 });
 
