@@ -110,6 +110,22 @@ test.describe("Sharecut Studio mobile smoke", () => {
     page,
     context,
   }) => {
+    // Verify dispatch without undoing another test's changes to the shared
+    // disposable project. The following gesture tests need its transcript.
+    await page.route("**/api/document/command?*", async (route) => {
+      const command = route.request().postDataJSON() as {
+        type?: string;
+      } | null;
+      if (command?.type !== "UndoHistory") {
+        await route.continue();
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: "{}",
+      });
+    });
     await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
     const shell = page.locator(".daw-shell--phone");
     await expect(shell).toBeVisible();
