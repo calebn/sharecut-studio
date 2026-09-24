@@ -21,7 +21,7 @@
   --color-text-on-sunken: var(--color-text-primary);
   --color-border-subtle: var(--color-border);
   /* Form fields: white and bordered on every pane. */
-  --color-field: var(--primitive-neutral-15);
+  --color-field: var(--primitive-white);
   /* Selected toggles, segments, and tabs: a neutral chip, never the accent.
      Chip text ≥4.5:1: primary 13.3:1, secondary 5.5:1. */
   --color-chip-selected: var(--primitive-neutral-150);
@@ -337,7 +337,7 @@
     --color-text-on-sunken: var(--color-text-primary);
     --color-border-subtle: var(--color-border);
     /* Form fields: white and bordered on every pane. */
-    --color-field: var(--primitive-neutral-15);
+    --color-field: var(--primitive-white);
     /* Selected toggles, segments, and tabs: a neutral chip, never the accent.
        Chip text ≥4.5:1: primary 13.3:1, secondary 5.5:1. */
     --color-chip-selected: var(--primitive-neutral-150);
