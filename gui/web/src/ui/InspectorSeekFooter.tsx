@@ -6,6 +6,7 @@ import {
   playTimelineRange,
 } from "../utils/playRange";
 import { Button } from "./Button";
+import { SegmentedControl } from "./SegmentedControl";
 import { ToggleButton } from "./ToggleButton";
 
 type Props = {
@@ -86,13 +87,13 @@ export function InspectorSeekFooter({
           {playLabel}
         </Button>
       ) : null}
+      {onPreviewModeChange && suggestDisabled && suggestDisabledReason ? (
+        <span id="preview-mode-skip-reason" className="sr-only">
+          {suggestDisabledReason}
+        </span>
+      ) : null}
       {onPreviewModeChange ? (
-        <div className="audition-modes" role="group" aria-label="Preview mode">
-          {suggestDisabled && suggestDisabledReason ? (
-            <span id="preview-mode-skip-reason" className="sr-only">
-              {suggestDisabledReason}
-            </span>
-          ) : null}
+        <SegmentedControl label="Preview mode" className="preview-modes">
           {PREVIEW_MODES.map((m) => {
             const blocked = m.id !== "current" && suggestDisabled;
             return (
@@ -115,7 +116,7 @@ export function InspectorSeekFooter({
               </ToggleButton>
             );
           })}
-        </div>
+        </SegmentedControl>
       ) : null}
     </div>
   );
