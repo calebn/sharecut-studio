@@ -127,7 +127,7 @@ Not the Share dialog. Guest share agents use `{base}/mcp/{token}/mcp`.
 |--|--|
 | **Purpose** | Guest-style review: scrub mix, scan comments, jump from chips |
 | **Primary actions** | Coarse scrub · ±15s · open comment · tap status chip → destination |
-| **Always visible** | Listen hero (the project name as the visible heading, large timecode, full-width scrubber, −15s · Play · Stop · +15s) · comment list · icon mode nav |
+| **Always visible** | Listen hero (the project name as the visible heading, large timecode, full-width scrubber (slim transport-ink track, orange thumb, 44pt tall), −15s · Play · Stop · +15s) · comment list · icon mode nav |
 | **Fit** | Not shown on Listen; use Timeline for timeline fit |
 | **Data shown** | Mix playhead · `review.comments[]` (time, body, resolved) · pending/stale chips |
 | **Empty** | “No comments yet.” (the shared quiet empty state). With no tracks yet, Play and Stop are disabled (“Import audio to play”), like the desktop strip. While episode JSON is loading: disabled Listen body transport + “Loading episode…” well (not the ingest coach) |
