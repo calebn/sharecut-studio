@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from podcast_mcp.edits import review_versions
 from podcast_mcp.edits.comments import add_comment
 from podcast_mcp.edits.review_versions import (
     REVIEW_ARTIFACTS_RELDIR,
@@ -72,6 +73,56 @@ def test_publish_requires_mix(minimal_project):
     proj = load_project(minimal_project)
     with pytest.raises(FileNotFoundError):
         publish_version(proj, label="x")
+
+
+def test_failed_mp3_publish_removes_only_new_version(minimal_project, sample_wav, monkeypatch):
+    proj = load_project(minimal_project)
+    art = Path(proj.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    source = art / "premix.wav"
+    source.write_bytes(sample_wav.read_bytes())
+    review_root = art / "review"
+    previous = review_root / "previous"
+    previous.mkdir(parents=True)
+    sentinel = previous / "mix.wav"
+    sentinel.write_bytes(b"existing review mix")
+    monkeypatch.setattr(review_versions, "_new_id", lambda: "failed-pub")
+
+    class FailingEngine:
+        def export_mp3(self, wav, mp3, *, bitrate_kbps):
+            assert wav == review_root / "failed-pub" / "mix.wav"
+            assert wav.read_bytes() == source.read_bytes()
+            mp3.write_bytes(b"partial mp3")
+            raise RuntimeError("encode failed")
+
+    with pytest.raises(RuntimeError, match="encode failed"):
+        publish_version(proj, label="new", eng=FailingEngine())
+
+    assert not (review_root / "failed-pub").exists()
+    assert sentinel.read_bytes() == b"existing review mix"
+    assert source.read_bytes() == sample_wav.read_bytes()
+    assert proj.review.versions == []
+    assert proj.review.active_version_id is None
+
+
+def test_publish_id_collision_preserves_existing_directory(
+    minimal_project, sample_wav, monkeypatch
+):
+    proj = load_project(minimal_project)
+    art = Path(proj.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    existing = art / "review" / "same-id"
+    existing.mkdir(parents=True)
+    sentinel = existing / "mix.wav"
+    sentinel.write_bytes(b"existing review mix")
+    monkeypatch.setattr(review_versions, "_new_id", lambda: "same-id")
+
+    with pytest.raises(FileExistsError):
+        publish_version(proj, label="new")
+
+    assert sentinel.read_bytes() == b"existing review mix"
+    assert proj.review.versions == []
 
 
 def test_list_and_set_active(minimal_project, sample_wav, tmp_workspace):
