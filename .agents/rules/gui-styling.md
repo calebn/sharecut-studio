@@ -30,9 +30,10 @@ Keep these in lockstep. Do not invent a third engine.
 | --------- | ---------------------------------------- | ----------------------------------- |
 | `1px` / `-1px` hairlines | `meowtec/no-px` `ignore: ["1px", "-1px"]` | `abs(float(px)) == 1` |
 | Other `px` | `stylelint-disable` + `-- user-approved:` including rule `meowtec/no-px` | same rule ID must be in the disable on that line |
-| Raw `ms` / `s` on `transition*` / `animation*` | none: `declaration-property-unit-disallowed-list`; add a `--motion-*` token instead | none: `test_partial_motion_uses_motion_tokens` (partials); the `no-preference` guard is pytest-only |
 
 Theme files are Stylelint-ignored; pytest is the only theme/deploy/ux/docs-site enforcer.
+
+**Motion has no exceptions.** In partials, every `transition*` and `animation*` times with a token (`--motion-press/hover/toggle/panel/state` and `--motion-ease-out` for chrome, `--motion-loop-*` for status loops), never a literal time, `0s` included. Stylelint's `declaration-property-unit-disallowed-list` (any case, `-webkit-`/`-moz-` too) and `tests/test_css_policy.py::test_partial_motion_uses_motion_tokens` both enforce it; to stop motion, write `none`. Only pytest checks that each one sits inside exactly `@media (prefers-reduced-motion: no-preference)`, loops included. Detail: [docs/design-tokens.md](../../docs/design-tokens.md) § Motion.
 
 ## Token vs layout geometry
 
@@ -48,7 +49,6 @@ Other values lint should not swallow:
 | `font-weight` (`400`/`500`/`600`/`700`) | Small closed set; not a color/space theme |
 | `letter-spacing` in `em` | Relative to glyphs |
 | `opacity` | Often a one-off fade; tokenize only if a named mute recipe repeats |
-| `transition` / `duration` | Tokens, not literals: `--motion-press/hover/toggle/panel/state` with `--motion-ease-out` for chrome, `--motion-loop-*` for status loops. Keep every transition and animation, loops included, inside `@media (prefers-reduced-motion: no-preference)` (Stylelint + `tests/test_css_policy.py`) |
 | `box-shadow` offsets | Shape, not inset; colors in the shadow still `var(--…)` |
 | `z-index` | Prefer `--z-*` when stacking with the mixer; raw `0`/`auto` OK |
 | Canvas `left` / `width` / `height` in TS | Time × zoom math, not chrome |

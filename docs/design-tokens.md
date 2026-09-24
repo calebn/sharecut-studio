@@ -68,11 +68,10 @@ literals. Never force layout geometry (`width`, `min-height`) onto `--space-*`.
 **Motion** — `--motion-press` (80ms), `--motion-hover` (150ms),
 `--motion-toggle` (200ms), `--motion-panel` (200ms), and `--motion-state`
 (250ms) with `--motion-ease-out`. Pro-tool chrome stays quick. Only three
-status indicators loop, each on its own slower period: `--motion-loop-pulse`
-(1.2s, a running pipeline), `--motion-loop-shimmer` (1.6s, loading lanes), and
-`--motion-loop-rec` (1.8s, the REC dot). Animate only inside
-`prefers-reduced-motion: no-preference`; essential state changes remain
-immediate with reduced motion.
+status indicators loop, each on its own slower period: `--motion-loop-pipeline`
+(1.2s, a running pipeline), `--motion-loop-skeleton` (1.6s, loading lanes),
+and `--motion-loop-rec` (1.8s, the REC dot). With reduced motion nothing
+loops, and essential state changes are immediate.
 
 | Token | Used for |
 | --- | --- |
@@ -89,8 +88,8 @@ transform only, so their text never renders half-faded (axe and pointer tests
 measure them as they open). Every transition and animation in a partial,
 loops included, times with a `--motion-*` token and sits inside exactly
 `@media (prefers-reduced-motion: no-preference)`; anywhere else, `reduce`
-blocks included, motion may only stop (`none`). Stylelint rejects raw
-durations on `transition*` and `animation*`
+blocks included, motion may only stop (`none`, not `0s`). Stylelint rejects
+any literal time on `transition*` and `animation*`, vendor-prefixed or not
 (`declaration-property-unit-disallowed-list`), and `tests/test_css_policy.py`
 checks both rules. FocusPull's timers (`FOCUS_PULL_EXIT_MS`,
 `FOCUS_PULL_ENTER_MS`) mirror `--motion-panel` and `--motion-state`, and a

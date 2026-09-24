@@ -313,6 +313,7 @@ def test_daw_functional_accent_follows_brand_var() -> None:
 
 def _rgb(value: str) -> tuple[int, int, int]:
     """#rrggbb as its red, green and blue bytes."""
+    assert len(value) == 7, f"{value} is not #rrggbb"
     red, green, blue = (int(value[index : index + 2], 16) for index in (1, 3, 5))
     return red, green, blue
 
