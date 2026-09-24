@@ -702,7 +702,7 @@ button.pill.pill--info {
   border-radius: var(--radius-md);
   background: var(--color-bg-overlay);
   color: var(--text);
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--shadow-floating);
 }
 
 .undo-toast-message {
