@@ -245,12 +245,14 @@
   background: var(--color-transport-control);
 }
 
-.transport .ui-segmented {
+/* Strip segments only: the compact Menu renders the same group as
+   role="none" menu radios inside .transport, and those keep menu paint. */
+.transport .ui-segmented[role="group"] {
   border-color: var(--color-transport-control-border);
   background: var(--color-transport-segment);
 }
 
-.transport .ui-segmented > .ui-control--quiet {
+.transport .ui-segmented[role="group"] > .ui-control--quiet {
   border-color: transparent;
   background: transparent;
   color: var(--color-transport-muted);
@@ -258,8 +260,10 @@
 
 /* One selected language in the transport: a lifted neutral chip with full
    text. Orange stays on Play. */
-.transport .audition-modes .ui-control--quiet[aria-pressed="true"],
-.transport .audition-modes .ui-control--quiet.active,
+.transport
+  .ui-segmented[role="group"]
+  > .ui-control--quiet[aria-pressed="true"],
+.transport .ui-segmented[role="group"] > .ui-control--quiet.active,
 .transport
   .tool-mode-toggle
   .ui-control--quiet[aria-pressed="true"]:not(.comment-mode-btn),
@@ -445,8 +449,8 @@
   }
 
   .transport
-    .audition-modes
-    .ui-control--quiet[aria-pressed="true"]:hover:not(:disabled),
+    .ui-segmented[role="group"]
+    > .ui-control--quiet[aria-pressed="true"]:hover:not(:disabled),
   .transport
     .tool-mode-toggle
     .ui-control--quiet[aria-pressed="true"]:hover:not(

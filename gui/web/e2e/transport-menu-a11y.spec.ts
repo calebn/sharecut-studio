@@ -29,6 +29,18 @@ test.describe("compact transport menu accessibility", () => {
     await page.keyboard.press("ArrowUp");
     await expect(radios.nth(0)).toBeFocused();
 
+    // Menu radios keep menu paint (not the fixed-dark transport segment) and
+    // the checked, focused radio still shows the inset focus ring.
+    const paint = await radios.nth(0).evaluate((el) => {
+      const group = el.closest(".ui-segmented");
+      return {
+        groupBg: group ? getComputedStyle(group).backgroundColor : "",
+        ring: getComputedStyle(el).boxShadow,
+      };
+    });
+    expect(paint.groupBg).toBe("rgba(0, 0, 0, 0)");
+    expect(paint.ring).toContain("inset");
+
     const layers = menu.getByRole("menuitemcheckbox");
     await expect(layers).toHaveCount(4);
     const controls = [...(await radios.all()), ...(await layers.all())];
