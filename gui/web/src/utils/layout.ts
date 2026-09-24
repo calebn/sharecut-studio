@@ -19,3 +19,9 @@ export const MAX_FIT_LANE_HEIGHT = 240;
  * horizontal scrollbar, so fitting never forces a vertical scroll.
  */
 export const FIT_GUTTER = 48;
+/**
+ * Below this lane height a desktop track header has no room for the name,
+ * mute/solo and gain stacked; it switches to one row (name + M/S) with the
+ * gain strip under it (`data-lane-density="compact"` on `.timeline-area`).
+ */
+export const COMPACT_LANE_HEIGHT = 104;

@@ -33,6 +33,7 @@ import { useDawStore } from "../state/dawStore";
 import type { ClipRow } from "../types/project";
 import { Avatar } from "../ui/Avatar";
 import {
+  COMPACT_LANE_HEIGHT,
   FIT_GUTTER,
   LANE_HEIGHT,
   MARKER_ROW_HEIGHT,
@@ -635,6 +636,9 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
           className={`timeline-area${fixedPlayhead ? " timeline-area--fixed-playhead" : ""}`}
           data-following={followingClientId ? "" : undefined}
           data-playing={isPlaying}
+          data-lane-density={
+            laneHeight < COMPACT_LANE_HEIGHT ? "compact" : undefined
+          }
           style={
             {
               // Timeline px geometry from utils/layout.ts; timeline.css reads it.

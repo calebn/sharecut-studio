@@ -949,6 +949,36 @@
   z-index: 1;
 }
 
+/* Short lanes (many tracks, or a short stage): name and M/S share one row
+   and the gain strip sits under them, so nothing is clipped at 72px. */
+.timeline-area[data-lane-density="compact"] .track-header-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "title meta"
+    "gain gain";
+  align-content: start;
+  column-gap: var(--space-3);
+  row-gap: var(--space-1);
+  padding-block: var(--space-1);
+}
+
+.timeline-area[data-lane-density="compact"] .track-title {
+  grid-area: title;
+}
+
+.timeline-area[data-lane-density="compact"] .track-meta {
+  grid-area: meta;
+}
+
+.timeline-area[data-lane-density="compact"] .track-role {
+  display: none;
+}
+
+.timeline-area[data-lane-density="compact"] .gain-strip {
+  grid-area: gain;
+}
+
 /* After .track-meta / .gain-strip so display:none wins the cascade. */
 @container timeline (inline-size < 30rem) {
   .track-meta,
