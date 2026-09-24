@@ -625,7 +625,15 @@ class RecordLandingService:
                 elif not self._ack_generation_current(item):
                     stale.append(item)
             if stale:
-                self._rollback_stale(stale)
+                try:
+                    self._rollback_stale(stale)
+                except Exception:
+                    # Confirmed items already committed and were marked landed;
+                    # the stale rows stay pending, so the next land() replaces
+                    # their registration. Don't fail a successful land.
+                    log.exception(
+                        "record land stale ACK rollback failed session=%s", self.session_id
+                    )
         clips = [
             item
             for item in landed["clips"]
