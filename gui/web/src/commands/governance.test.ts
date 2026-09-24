@@ -85,6 +85,49 @@ describe("command bus", () => {
     expect(useDawStore.getState().toolMode).toBe("select");
   });
 
+  it("rejects guest comment resolution even when a caller skips the UI gate", async () => {
+    useDawStore.setState({ guestMode: "edit" });
+    expect(
+      await execute(
+        "comment.resolve",
+        { commentId: "c1", resolved: true, by: "Host" },
+        { skipWhen: true },
+      ),
+    ).toEqual({ status: "disabled", reason: "Comment resolve is host-only" });
+  });
+
+  it("requires a known comment and explicit resolution arguments", async () => {
+    expect(await execute("comment.resolve", { commentId: "c1" })).toEqual({
+      status: "disabled",
+      reason: "Invalid comment resolve arguments",
+    });
+    expect(
+      await execute("comment.resolve", {
+        commentId: "missing",
+        resolved: true,
+        by: "Host",
+      }),
+    ).toEqual({ status: "disabled", reason: "Unknown comment" });
+  });
+
+  it("rejects an already resolved comment before issuing a mutation", async () => {
+    useDawStore.setState({
+      project: {
+        meta: { name: "t" },
+        timeline_duration_sec: 100,
+        tracks: [],
+        comments: [{ id: "c1", resolved: true }],
+      } as never,
+    });
+    expect(
+      await execute("comment.resolve", {
+        commentId: "c1",
+        resolved: true,
+        by: "Host",
+      }),
+    ).toEqual({ status: "disabled", reason: "Comment is already resolved" });
+  });
+
   it("registers phase-1 and phase-2 command handlers", () => {
     const ids = listRegisteredIds();
     for (const id of [
@@ -113,6 +156,7 @@ describe("command bus", () => {
       "view.waveformZoomIn",
       "view.waveformZoomOut",
       "review.toggleCommentMode",
+      "comment.resolve",
       "history.undo",
       "history.redo",
       "ui.toggleCommandPalette",

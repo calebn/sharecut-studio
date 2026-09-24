@@ -124,6 +124,7 @@ Available via toolbar / `execute` (and the in-app palette). Agents use session/d
 | Seek playhead | `transport.seek` | Always (when not typing in an input) | Args: { sec: number } |
 | Audition Mix / FX / Raw | `transport.audition` | Project loaded | Args: { mode: mix \| fx \| raw } |
 | Follow | `presence.follow` | Always (when not typing in an input) | Args: { clientId: string } |
+| Resolve comment | `comment.resolve` | Loaded host project | Args: { commentId: string, resolved: boolean, by: string } — host only |
 | Cycle focus mode | `focus.cycle` | Always (when not typing in an input) |  |
 | Confirm blade cut | `edit.bladeCut.confirm` | Structural edits allowed |  |
 | Cancel blade cut | `edit.bladeCut.cancel` | Always (when not typing in an input) |  |

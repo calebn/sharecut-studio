@@ -35,5 +35,11 @@ describe("MOBILE_GESTURES", () => {
     expect(doubleTap && gestureLabel(doubleTap)).toBe(
       COMMANDS["transcript.correctIntent"].label,
     );
+    const swipe = MOBILE_GESTURES.find(
+      (gesture) => gesture.gesture === "Swipe left on comment",
+    );
+    expect(swipe && gestureLabel(swipe)).toBe(
+      COMMANDS["comment.resolve"].label,
+    );
   });
 });

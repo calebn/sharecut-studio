@@ -50,6 +50,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Toggle comment mode",
     tooltip: "Toggle comment mode",
   },
+  "daw.review.resolveComment": {
+    label: "Resolve comment",
+    tooltip: "Resolve this comment",
+  },
   "daw.tighten.applyHit": {
     label: "Apply tighten hit",
     tooltip: "Apply the selected tighten cut",
@@ -383,6 +387,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "presence.followBanner": "daw.presence.unfollow",
   toolModeToggle: "daw.tool.blade",
   "transport.comment": "daw.review.toggleCommentMode",
+  "mobileShell.gesture.swipeLeftComment": "daw.review.resolveComment",
   tightenPanel: "daw.tighten.goToHit",
   focusToggle: "daw.focus.review",
   "transport.menu": "daw.media.import",

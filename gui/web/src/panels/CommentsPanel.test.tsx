@@ -1,6 +1,13 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { registerDawCommands } from "../commands/register";
 import { commentTimeLabel } from "../comments";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
@@ -21,6 +28,7 @@ vi.mock("../api", () => ({
 
 describe("CommentsPanel", () => {
   beforeEach(() => {
+    registerDawCommands();
     patchComment.mockReset().mockResolvedValue(null);
     createComment.mockReset();
     addCommentReply.mockReset();
@@ -61,6 +69,23 @@ describe("CommentsPanel", () => {
     await user.click(screen.getByRole("button", { name: "Resolve" }));
     await screen.findByText("boom");
     expect(screen.queryByText(/Resolved comment at/)).not.toBeInTheDocument();
+  });
+
+  it("routes swipe resolve through the command and retains the Undo toast", async () => {
+    render(<CommentsPanel />);
+    const card = screen.getByText("Needs a tighter open").closest("li");
+    expect(card).not.toBeNull();
+    fireEvent.pointerDown(card!, {
+      pointerType: "touch",
+      pointerId: 1,
+      isPrimary: true,
+      clientX: 100,
+      clientY: 20,
+    });
+    fireEvent.pointerMove(card!, { pointerId: 1, clientX: 40, clientY: 20 });
+    fireEvent.pointerUp(card!, { pointerId: 1, clientX: 40, clientY: 20 });
+    await waitFor(() => expect(patchComment).toHaveBeenCalledTimes(1));
+    await screen.findByText(/Resolved comment at/);
   });
 
   it("Dismiss hides the toast", async () => {

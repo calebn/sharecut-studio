@@ -4,7 +4,8 @@ import { errorMessage } from "../utils/apiError";
  */
 
 import { useCallback, useState } from "react";
-import { addCommentReply, patchComment, setCommentActionDone } from "../api";
+import { addCommentReply, setCommentActionDone } from "../api";
+import { execute } from "../commands/execute";
 import { useDaw } from "../state/useDaw";
 import type { TimelineComment } from "../types/project";
 import { resolveCommentActor, saveCommentAuthor } from "../utils/commentAuthor";
@@ -59,10 +60,21 @@ export function useCommentActions(opts?: {
     async (c: TimelineComment, resolved: boolean) => {
       const by = actor();
       return wrap(async () => {
-        await patchComment(projectPath, c.id, { resolved, by });
+        const result = await execute("comment.resolve", {
+          commentId: c.id,
+          resolved,
+          by,
+        });
+        if (result.status !== "ok") {
+          throw new Error(
+            result.status === "disabled"
+              ? result.reason
+              : "Resolve unavailable",
+          );
+        }
       });
     },
-    [actor, projectPath, wrap],
+    [actor, wrap],
   );
 
   const reply = useCallback(
