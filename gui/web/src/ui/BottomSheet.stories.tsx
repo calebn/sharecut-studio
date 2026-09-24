@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
+import { userEvent, within } from "storybook/test";
 import { BottomSheet, Button } from "./index";
 
 const meta: Meta<typeof BottomSheet> = {
@@ -35,6 +36,13 @@ function DemoSheet({ title }: { title?: string }) {
   );
 }
 
-export const Default: Story = { render: () => <DemoSheet title="Inspector" /> };
+export const Default: Story = {
+  render: () => <DemoSheet title="Inspector" />,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole("button", { name: "Open sheet" }),
+    );
+  },
+};
 
 export const Untitled: Story = { render: () => <DemoSheet /> };

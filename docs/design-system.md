@@ -120,7 +120,8 @@ both themes, in story mode and on its docs page, before merging.
 8. Give fixture element ids a story-unique value — autodocs renders every
    story on one page.
 9. Give stories that claim behavior a `play` function. The generic
-   `src/test/allStories.test.tsx` suite discovers every colocated story, runs
+   `src/test/allStories.test.tsx` suite discovers every colocated `.stories.ts`
+   and `.stories.tsx` module, runs
    its `play` function, and checks the rendered DOM with axe in CI. Keep
    colocated component tests for behavior that needs specific assertions.
 10. Run `npm run build-storybook` before pushing; the Pages workflow rebuilds
