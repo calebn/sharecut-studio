@@ -73,6 +73,47 @@ test.describe("Sharecut Studio mobile smoke", () => {
     await expectPageAxeClean(page);
   });
 
+  test("phone lanes show who each track is", async ({ page }) => {
+    // Identity first (#20 review): a lane-colored initials chip per lane, the
+    // lane color on the rail edge, and the full name on the lane's clips.
+    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await page
+      .getByRole("navigation", { name: "Primary" })
+      .getByRole("button", { name: "Timeline" })
+      .click();
+    await expect(page.locator(".lane-row").first()).toBeVisible();
+    const lanes = await page.evaluate(() =>
+      [...document.querySelectorAll(".track-header-row")].map((row) => {
+        const chip = row.querySelector(".track-chip");
+        const box = chip?.getBoundingClientRect();
+        const name =
+          row
+            .querySelector(".track-header-open")
+            ?.getAttribute("aria-label")
+            ?.replace("Open track details, ", "") ?? "";
+        return {
+          name,
+          chip: chip?.textContent ?? "",
+          size: box ? [Math.round(box.width), Math.round(box.height)] : [0, 0],
+          edge: getComputedStyle(row).borderInlineStartColor,
+        };
+      }),
+    );
+    expect(lanes.length).toBeGreaterThan(1);
+    for (const lane of lanes) {
+      expect(lane.chip, lane.name).toMatch(/^[A-Z?]{1,2}$/);
+      expect(lane.size[0], lane.name).toBeGreaterThanOrEqual(44);
+      expect(lane.size[1], lane.name).toBeGreaterThanOrEqual(44);
+      await expect(
+        page.locator(".clip-label-track", { hasText: lane.name }).first(),
+      ).toBeVisible();
+    }
+    const edges = new Set(lanes.map((lane) => lane.edge));
+    expect(edges.size, "each lane keeps its own identity color").toBe(
+      lanes.length,
+    );
+  });
+
   test("More opens a truthful, app-level gestures cheatsheet", async ({
     page,
   }) => {

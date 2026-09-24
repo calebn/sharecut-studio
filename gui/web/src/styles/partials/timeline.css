@@ -154,6 +154,21 @@
   text-shadow: var(--shadow-clip-label);
 }
 
+/* Track name on the clip label: phone only (the rail shows initials). */
+.clip-label-track {
+  display: none;
+}
+
+.clip-label-track::after {
+  content: " · " / "";
+}
+
+@container timeline (inline-size < 30rem) {
+  .clip-label-track {
+    display: inline;
+  }
+}
+
 .clip-block.selected {
   outline: var(--focus-ring-width) solid var(--selection);
   z-index: 3;

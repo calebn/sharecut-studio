@@ -155,7 +155,7 @@ Audition Mix / FX / Raw remains available in the compact transport Menu on Timel
 |--|--|
 | **Purpose** | Spatial seek/edit with **fixed-center playhead**; drag timeline to scrub |
 | **Primary actions** | Scrub · Fit · layer chips · select clip/edit → sheet · drag clip (Select tool) · tap lane gutter → track sheet |
-| **Always visible** | Transport (Comment + Fit) · layer chips · sticky lane gutter + waveforms · Select/Blade rail · mode nav |
+| **Always visible** | Transport (Comment + Fit) · layer chips · sticky lane gutter (44pt lane-colored initials chip per lane, lane-colored edge) + waveforms whose clip labels carry the full track name · Select/Blade rail · mode nav |
 | **Data shown** | `timeline.tracks` · `timeline.clips` rectangles · overlay layers (edits/levels/markers/comments) |
 | **Empty** | Loading episode: skeleton lanes in the same header/gutter grid. No tracks after load → ghost drop lane + dismissible coach (“one file per speaker”); tracks with no clips → empty lane until Import/Replace |
 | **Out of scope** | Desktop moving-playhead metaphor; dense mixer strip on narrow panes; disconnected chip strip above lanes; full-page upload card |

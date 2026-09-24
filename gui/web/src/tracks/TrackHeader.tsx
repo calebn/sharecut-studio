@@ -2,6 +2,7 @@ import type { CSSProperties, DragEvent, MouseEvent } from "react";
 import { useLongPress } from "../hooks/useLongPress";
 import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
+import { initials } from "../presence/colors";
 import { canIngestMedia } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import { laneColor } from "../timeline/laneColors";
@@ -176,6 +177,11 @@ export function TrackHeader({
         />
       ) : null}
       <span className="track-title">
+        {/* Phone rail identity: initials in the lane color (the full name is
+            on the lane's clip labels and in the open button's name). */}
+        <span className="track-chip" aria-hidden="true">
+          {initials(label)}
+        </span>
         <span className="track-title-text">{label}</span>
         {stemClass && (
           <span
