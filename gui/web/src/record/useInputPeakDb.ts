@@ -15,7 +15,15 @@ type Options = {
   clipDb?: number;
 };
 
-type MeterMessage = { peak: number; clipped: boolean; epoch: number };
+type MeterMessage = {
+  type?: "clearAck";
+  peak?: number;
+  clipped?: boolean;
+  epoch: number;
+  hotBlocks: number;
+};
+
+const PEAK_REPORT_TIMEOUT_MS = 100;
 
 function closeQuietly(ctx: AudioContext): void {
   void ctx.close().catch(() => undefined);
@@ -37,6 +45,10 @@ export function useInputPeakDb(
   const portRef = useRef<MessagePort | null>(null);
   const epochRef = useRef(0);
   const pendingPeakRef = useRef(0);
+  const latestPeakRef = useRef(0);
+  const peakReceivedAtRef = useRef(Number.NEGATIVE_INFINITY);
+  const hotBlocksRef = useRef(0);
+  const clearHotBlocksRef = useRef(0);
   const frameRef = useRef(new Float32Array(1));
   const levels = usePeakMeter(reader, { clipDb });
   const latchClip = levels.latchClip;
@@ -47,6 +59,10 @@ export function useInputPeakDb(
     setSuspended(false);
     epochRef.current = 0;
     pendingPeakRef.current = 0;
+    latestPeakRef.current = 0;
+    peakReceivedAtRef.current = Number.NEGATIVE_INFINITY;
+    hotBlocksRef.current = 0;
+    clearHotBlocksRef.current = 0;
     if (!stream) return;
     const AC = audioContextCtor();
     if (!AC) return;
@@ -80,7 +96,20 @@ export function useInputPeakDb(
         node.port.onmessage = (event: MessageEvent<MeterMessage>) => {
           const data = event.data;
           if (!active || data.epoch !== epochRef.current) return;
-          pendingPeakRef.current = Math.max(pendingPeakRef.current, data.peak);
+          if (data.type === "clearAck") {
+            // Preserve an overload processed after the user's clear action
+            // while the clear command was still in flight to the worklet.
+            if (data.hotBlocks > clearHotBlocksRef.current) latchClip();
+            hotBlocksRef.current = data.hotBlocks;
+            return;
+          }
+          hotBlocksRef.current = data.hotBlocks;
+          latestPeakRef.current = data.peak ?? 0;
+          pendingPeakRef.current = Math.max(
+            pendingPeakRef.current,
+            latestPeakRef.current,
+          );
+          peakReceivedAtRef.current = performance.now();
           if (data.clipped) latchClip();
         };
         portRef.current = node.port;
@@ -88,7 +117,12 @@ export function useInputPeakDb(
         node.connect(silent);
         silent.connect(ctx.destination);
         setReader(() => () => {
-          frameRef.current[0] = pendingPeakRef.current;
+          const freshPeak =
+            performance.now() - peakReceivedAtRef.current <=
+            PEAK_REPORT_TIMEOUT_MS
+              ? latestPeakRef.current
+              : 0;
+          frameRef.current[0] = Math.max(pendingPeakRef.current, freshPeak);
           pendingPeakRef.current = 0;
           return frameRef.current;
         });
@@ -133,6 +167,9 @@ export function useInputPeakDb(
   const clearClip = useCallback(() => {
     epochRef.current += 1;
     pendingPeakRef.current = 0;
+    latestPeakRef.current = 0;
+    peakReceivedAtRef.current = Number.NEGATIVE_INFINITY;
+    clearHotBlocksRef.current = hotBlocksRef.current;
     portRef.current?.postMessage({ type: "clear", epoch: epochRef.current });
     clearMeterClip();
   }, [clearMeterClip]);
