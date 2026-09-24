@@ -106,11 +106,9 @@
   opacity: 0.4;
   border-block: 1px solid var(--color-timeline-text);
   background: var(--bg-empty-stage-ghost);
-  mask-image: radial-gradient(
-    ellipse at center,
-    var(--primitive-black),
-    transparent 70%
-  );
+  /* The mask only reads alpha, so any opaque color works; currentcolor keeps
+     primitives out of partials. */
+  mask-image: radial-gradient(ellipse at center, currentcolor, transparent 70%);
 }
 
 .empty-session-drop-label {
