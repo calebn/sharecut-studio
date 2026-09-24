@@ -138,21 +138,31 @@ def publish_version(
     vid = _new_id()
     rel = f"{REVIEW_ARTIFACTS_RELDIR}/{vid}/mix.wav"
     dest = Path(project.workspace_dir) / rel
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(src, dest)
+    version_dir = dest.parent
+    version_dir.mkdir(parents=True, exist_ok=False)
     mp3_rel = f"{REVIEW_ARTIFACTS_RELDIR}/{vid}/mix.mp3"
     mp3_path = Path(project.workspace_dir) / mp3_rel
-    engine = eng or FFmpegEngine()
-    engine.export_mp3(dest, mp3_path, bitrate_kbps=_REVIEW_MP3_BITRATE_KBPS)
-    ver = ReviewMixVersion(
-        id=vid,
-        label=text,
-        created_at=_now_iso(),
-        audio_relpath=rel,
-        sha256=sha256_file(dest),
-        source=source,
-        mp3_relpath=mp3_rel,
-    )
+    try:
+        shutil.copy2(src, dest)
+        engine = eng or FFmpegEngine()
+        engine.export_mp3(dest, mp3_path, bitrate_kbps=_REVIEW_MP3_BITRATE_KBPS)
+        ver = ReviewMixVersion(
+            id=vid,
+            label=text,
+            created_at=_now_iso(),
+            audio_relpath=rel,
+            sha256=sha256_file(dest),
+            source=source,
+            mp3_relpath=mp3_rel,
+        )
+    except Exception:
+        try:
+            shutil.rmtree(version_dir)
+        except OSError:
+            log.warning(
+                "Could not remove failed review version directory %s", version_dir, exc_info=True
+            )
+        raise
     project.review.versions.append(ver)
     if set_active:
         project.review.active_version_id = vid
