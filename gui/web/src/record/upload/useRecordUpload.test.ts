@@ -484,6 +484,54 @@ describe("useRecordUpload", () => {
     unmount();
   });
 
+  it("keeps a pending WAV even when the host reports it landed", async () => {
+    const sink = new MemorySink();
+    const ids = {
+      sessionId: "room1",
+      takeIndex: 0,
+      participantId: "p_a",
+    };
+    const wavPath = keeperWavPath({ ...ids, segmentIndex: 0 });
+    await sink.write(wavPath, wavWithPcm(8));
+    await sink.write(keeperMetaPath(wavPath), pendingMeta(ids, 0));
+    const remove = vi.spyOn(sink, "remove");
+    const status = vi.fn(async () => ({
+      segments: [
+        {
+          take_index: 0,
+          participant_id: "p_a",
+          segment_index: 0,
+          acked_parts: [0],
+          file_ack: true,
+          landed: true,
+        },
+      ],
+    }));
+    const put = vi.fn(async () => {
+      throw new Error("already landed");
+    });
+    const transport: RecordUploadTransport = {
+      status,
+      put,
+    };
+    const { result, unmount } = renderHook(() =>
+      useRecordUpload({
+        enabled: true,
+        roomState: "stopped",
+        captureSettled: true,
+        ...ids,
+        transport,
+        sink,
+      }),
+    );
+    await waitFor(() => expect(result.current.pending).toBe(false));
+    expect(status).toHaveBeenCalled();
+    expect(put).not.toHaveBeenCalled();
+    expect(remove).not.toHaveBeenCalled();
+    expect(await sink.read(wavPath)).not.toBeNull();
+    unmount();
+  });
+
   it("retains a finalized WAV when landing is not confirmed", async () => {
     const sink = new MemorySink();
     const wavPath = keeperWavPath({
