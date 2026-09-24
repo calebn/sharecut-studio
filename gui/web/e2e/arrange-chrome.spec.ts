@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
-import { parseTimecodeSec } from "./phoneTimeline";
+import { parseTimecodeSec } from "./timecode";
 
 test.describe("Arrange chrome", () => {
   test("empty-canvas ruler extends past session while End seeks session", async ({

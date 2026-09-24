@@ -153,9 +153,10 @@ for (const viewport of [
     if (viewport.width < 768) {
       await openPhoneTimeline(page);
     }
-    // The loading skeleton also draws lanes (with the header column outside
-    // the scroller), so wait for the loaded arrange layout itself.
-    await expect(page.locator(".timeline-scroll .track-headers")).toBeVisible();
+    // The loading skeleton draws busy header rows; wait for the loaded ones.
+    await expect(
+      page.locator('.timeline-scroll .track-headers:not([aria-busy="true"])'),
+    ).toBeVisible();
     const plane = await page.evaluate(() => {
       const headers = document.querySelector(".timeline-scroll .track-headers");
       const scroll = document.querySelector(".timeline-scroll");
