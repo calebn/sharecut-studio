@@ -38,6 +38,7 @@ function retireNode(node: AudioWorkletNode | null): void {
   if (!node) return;
   node.port.onmessage = null;
   node.port.postMessage({ type: "stop" });
+  node.port.close();
   node.disconnect();
 }
 

@@ -35,6 +35,7 @@ function stubAudioGraph(
     port: {
       onmessage: ((event: MessageEvent<Message>) => void) | null;
       postMessage: ReturnType<typeof vi.fn>;
+      close: ReturnType<typeof vi.fn>;
     };
     connect: ReturnType<typeof vi.fn>;
     disconnect: ReturnType<typeof vi.fn>;
@@ -45,6 +46,7 @@ function stubAudioGraph(
       port: {
         onmessage: null as ((event: MessageEvent<Message>) => void) | null,
         postMessage: vi.fn(),
+        close: vi.fn(),
       },
       connect: vi.fn(),
       disconnect: vi.fn(),
@@ -156,11 +158,13 @@ describe("useInputPeakDb", () => {
     expect(graph.nodes[0].port.postMessage).toHaveBeenCalledWith({
       type: "stop",
     });
+    expect(graph.nodes[0].port.close).toHaveBeenCalledOnce();
     expect(raf.pendingCount()).toBe(1);
     second.unmount();
     expect(graph.nodes[1].port.postMessage).toHaveBeenCalledWith({
       type: "stop",
     });
+    expect(graph.nodes[1].port.close).toHaveBeenCalledOnce();
     expect(graph.ctx.close).toHaveBeenCalledTimes(1);
     expect(raf.pendingCount()).toBe(0);
   });
@@ -367,6 +371,7 @@ describe("useInputPeakDb", () => {
     expect(graph.nodes[0].port.postMessage).toHaveBeenCalledWith({
       type: "stop",
     });
+    expect(graph.nodes[0].port.close).toHaveBeenCalledOnce();
     expect(graph.nodes[0].disconnect).toHaveBeenCalled();
     meter.unmount();
     expect(graph.ctx.close).toHaveBeenCalledTimes(1);
