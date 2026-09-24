@@ -195,7 +195,7 @@ export function hostUploadLine(
   landFailed = false,
 ): string {
   if (landFailed) {
-    return `${name}: landing failed: host must retry.`;
+    return `${name}: landing failed. The host must retry.`;
   }
   if (landed) {
     return `${name}: landed.`;

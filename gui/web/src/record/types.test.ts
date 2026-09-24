@@ -154,7 +154,7 @@ describe("hostUploadLine", () => {
     );
     expect(hostUploadLine("Bo", true, 1, 1, true)).toBe("Bo: landed.");
     expect(hostUploadLine("Bo", true, 1, 1, true, true)).toBe(
-      "Bo: landing failed: host must retry.",
+      "Bo: landing failed. The host must retry.",
     );
   });
 });
