@@ -239,9 +239,8 @@ export function ClipBlock({
       ? Math.abs(ghostSourceEnd - ghostSourceStart) * zoomPxPerSec
       : 0;
 
-  // Subscribe to lane metrics: a fit-to-window height change re-renders the
-  // clip, and the paint effect below redraws the canvas at its new height.
-  useTimelineMetrics();
+  // The canvas fills the clip, so the lane height is part of the paint key.
+  const { laneHeight } = useTimelineMetrics();
 
   const wave = useClipWaveform({
     clip,
@@ -256,8 +255,10 @@ export function ClipBlock({
     bladeHoverSec,
     selected,
     color,
+    laneHeight,
   });
 
+  // Runs every render; the hook skips the paint unless its inputs changed.
   useEffect(() => {
     wave.paint(canvasRef.current);
   });
