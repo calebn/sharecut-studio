@@ -477,6 +477,10 @@ the microphone during acquisition) until a live stream is restored; the
 transport chip uses the same capture state. Retry reacquires the mic without
 deleting any keeper segment. A stopped take clears the capture warning. An
 empty, zero-sample WAV cannot be acknowledged as an uploaded take.
+If the host joined the take but never captured a keeper, Stop shows an explicit
+"No local keeper was captured" warning even when no mic stream was ever
+available; zero upload parts are not presented as a completed host recording.
+After Stop, a prior microphone-loss notice no longer holds the panel open.
 
 ```mermaid
 sequenceDiagram

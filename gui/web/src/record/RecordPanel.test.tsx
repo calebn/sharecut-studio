@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadHostRecordState } from "../api";
@@ -134,8 +134,9 @@ describe("RecordPanel", () => {
     vi.mocked(createOpfsSink).mockReset();
     vi.mocked(createOpfsSink).mockResolvedValue(new MemorySink());
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
-    useDawStore.setState({ recordPanelOpen: true });
+    useDawStore.setState({ recordPanelOpen: true, shareDialogOpen: false });
     useRecordHostStore.getState().setSnapshot(null);
+    useRecordHostStore.getState().setCaptureHealth(null);
     useRecordHostStore.getState().setKeeperStorage(null, null);
     useRecordHostStore.getState().setConnected(false);
   });
@@ -171,6 +172,7 @@ describe("RecordPanel", () => {
       .getState()
       .setSnapshot({ ...lobby, state: "recording", take_index: 0 });
     useDawStore.setState({ recordPanelOpen: false });
+    useRecordHostStore.getState().setCaptureHealth("failed");
     const { rerender } = render(
       <RecordPanel
         micStatus="denied"
@@ -183,10 +185,55 @@ describe("RecordPanel", () => {
     expect(screen.getByText(MIC_DENIED_COPY)).toBeVisible();
     expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
 
+    act(() => useRecordHostStore.getState().setCaptureHealth(null));
     rerender(<RecordPanel micStatus="granted" stream={{} as MediaStream} />);
     expect(dialog).toHaveTextContent("REC");
     expect(dialog).not.toHaveTextContent("REC — local capture failed");
     expect(screen.getByRole("button", { name: "Close" })).toBeEnabled();
+  });
+
+  it("lets Copy links replace the held record panel and reopens it afterward", async () => {
+    useRecordHostStore
+      .getState()
+      .setSnapshot({ ...lobby, state: "recording", take_index: 0 });
+    useRecordHostStore.getState().setCaptureHealth("failed");
+    render(<RecordPanel micStatus="denied" />);
+    await userEvent.click(screen.getByRole("button", { name: "Copy links…" }));
+    expect(useDawStore.getState().shareDialogOpen).toBe(true);
+    expect(screen.queryByRole("dialog", { name: "Record room" })).toBeNull();
+    act(() => useDawStore.getState().setShareDialogOpen(false));
+    expect(screen.getByRole("dialog", { name: "Record room" })).toBeVisible();
+  });
+
+  it("releases the mic-loss hold after Stop", () => {
+    useRecordHostStore
+      .getState()
+      .setSnapshot({ ...lobby, state: "recording", take_index: 0 });
+    const { rerender } = render(<RecordPanel micLost />);
+    expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+    act(() =>
+      useRecordHostStore
+        .getState()
+        .setSnapshot({ ...lobby, state: "stopped", take_index: 0 }),
+    );
+    rerender(<RecordPanel micLost />);
+    expect(screen.getByRole("button", { name: "Close" })).toBeEnabled();
+    expect(screen.queryByText(/Microphone disconnected/)).toBeNull();
+  });
+
+  it("warns when a stopped host take captured no keeper at all", async () => {
+    useRecordHostStore.getState().setSnapshot({
+      ...lobby,
+      state: "stopped",
+      take_index: 0,
+      participants: [
+        recordParticipant({ participant_id: "p_host", role: "host" }),
+      ],
+    });
+    render(<RecordPanel micStatus="denied" />);
+    expect(
+      await screen.findByText(/No local keeper was captured/),
+    ).toBeVisible();
   });
 
   it("shows operating-system recovery in the macOS desktop host panel", async () => {
@@ -405,6 +452,9 @@ describe("RecordPanel", () => {
 
   it("shows denial guidance after a lost microphone fails to reconnect", async () => {
     const retry = vi.fn();
+    useRecordHostStore
+      .getState()
+      .setSnapshot({ ...lobby, state: "recording", take_index: 0 });
     const { container } = render(
       <RecordPanel
         micLost

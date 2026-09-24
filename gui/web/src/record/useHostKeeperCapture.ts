@@ -102,7 +102,7 @@ export function useHostKeeperCapture(enabled = true): {
       micStatus = mic.errorName
         ? (statusFromGumError(mic.errorName) ?? "error")
         : "error";
-    } else if (!mic.lost && (mic.pending || !mic.stream)) {
+    } else if (mic.pending || (!mic.lost && !mic.stream)) {
       micStatus = "prompting";
     } else if (mic.stream) {
       micStatus = "granted";
@@ -113,7 +113,7 @@ export function useHostKeeperCapture(enabled = true): {
     const health =
       roomState !== "recording" || !hostOn
         ? null
-        : keeper.error || (micStatus !== "prompting" && !mic.stream)
+        : keeper.error || (!mic.pending && !mic.stream)
           ? "failed"
           : !mic.stream
             ? "pending"
@@ -123,8 +123,8 @@ export function useHostKeeperCapture(enabled = true): {
   }, [
     hostOn,
     keeper.error,
+    mic.pending,
     mic.stream,
-    micStatus,
     roomState,
     setCaptureHealth,
   ]);
