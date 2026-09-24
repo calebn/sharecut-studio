@@ -141,9 +141,9 @@ internally, via a shared thread-pool helper (`util/parallel.py`):
 
 Stem workers read one deep project snapshot captured before dispatch. Each
 worker renders and writes its cache hash from that snapshot. If an edit changes
-the live render hash while FFmpeg runs, the step retains the new invalidation
-marker and fails before publishing `track_outputs.json`; retry the render for
-the new state. On-demand processed playback uses the same snapshot rule for
+the live render hash, renderable track set, or committed project-file
+revision while FFmpeg runs, the step retains new invalidations and fails before
+publishing `track_outputs.json`; retry the render for the new state. On-demand processed playback uses the same snapshot rule for
 full stems and segment cache keys.
 
 Configure via `performance.max_workers` in `pipeline.yaml`:

@@ -333,22 +333,27 @@ def compress_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
 
 def _render_track_stems(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.engines.play_audit import stem_is_fresh, track_render_hash, write_stem_hash
-    from podcast_mcp.util.project_state import project_state_lock, snapshot_project
+    from podcast_mcp.util.project_state import (
+        project_file_revision,
+        project_state_lock,
+        snapshot_project_with_revision,
+    )
 
-    render_project = snapshot_project(project)
+    render_project, initial_revision = snapshot_project_with_revision(project)
+    render_roles = {
+        TrackRole.DIALOGUE,
+        TrackRole.MUSIC,
+        TrackRole.INTRO,
+        TrackRole.OUTRO,
+        TrackRole.SFX,
+    }
     eng = ffmpeg()
     out_dir = render_project.artifacts_dir() / "tracks"
     out_dir.mkdir(parents=True, exist_ok=True)
     rendered: dict[str, Path] = {}
     to_render: list[Track] = []
     for track in render_project.tracks:
-        if track.role not in (
-            TrackRole.DIALOGUE,
-            TrackRole.MUSIC,
-            TrackRole.INTRO,
-            TrackRole.OUTRO,
-            TrackRole.SFX,
-        ):
+        if track.role not in render_roles:
             continue
         if not track.media:
             continue
@@ -393,9 +398,16 @@ def _render_track_stems(project: EpisodeProject, defaults: dict[str, Any]) -> St
                 prog.advance(1, message=f"Stem {track_id} ({done}/{len(to_render)})")
 
     with project_state_lock(project):
-        if any(
-            track_render_hash(project, track_id) != track_render_hash(render_project, track_id)
-            for track_id in rendered
+        live_tracks = {
+            track.id for track in project.tracks if track.role in render_roles and track.media
+        }
+        if (
+            project_file_revision(project) != initial_revision
+            or live_tracks != rendered.keys()
+            or any(
+                track_render_hash(project, track_id) != track_render_hash(render_project, track_id)
+                for track_id in rendered
+            )
         ):
             raise RuntimeError("project changed during stem rendering; retry the render")
         meta = artifact(project, "track_outputs.json")

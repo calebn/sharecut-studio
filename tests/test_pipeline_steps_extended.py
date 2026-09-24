@@ -146,6 +146,66 @@ def test_stem_uses_pre_mutation_snapshot_for_audio_and_hash(
     assert not (proj.artifacts_dir() / "track_outputs.json").exists()
 
 
+def test_stem_rejects_other_workspace_commit_during_render(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    proj.tracks = proj.tracks[:1]
+    proj.clips = [
+        Clip(
+            id="host-clip",
+            track_id="host",
+            source_start=0.0,
+            source_end=1.0,
+            timeline_start=0.0,
+        )
+    ]
+    save_project(proj, minimal_project)
+    other = ProjectWorkspace.open(minimal_project)
+
+    class MutatingEngine:
+        def render_dialogue_track(self, _snapshot, _track, out, _defaults):
+            other.mutate(
+                "before cut",
+                "after cut",
+                lambda live: setattr(live.clips[0], "source_end", 0.5),
+            )
+            out.write_bytes(b"old audio")
+            return out
+
+    monkeypatch.setattr(steps, "ffmpeg", MutatingEngine)
+    with pytest.raises(RuntimeError, match="project changed during stem rendering"):
+        steps.assemble_timeline(proj, {"performance": {"max_workers": 2}})
+    assert proj.clips[0].source_end == 1.0
+    assert not (proj.artifacts_dir() / "track_outputs.json").exists()
+
+
+def test_stem_rejects_track_added_during_render(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    proj.tracks = proj.tracks[:1]
+
+    class MutatingEngine:
+        def render_dialogue_track(self, _snapshot, _track, out, _defaults):
+            # Pipeline steps can change their in-memory project before commit.
+            proj.tracks.append(
+                Track(
+                    id="late",
+                    label="Late",
+                    role=TrackRole.DIALOGUE,
+                    media=MediaAsset(path="raw/host.wav"),
+                )
+            )
+            out.write_bytes(b"old track set")
+            return out
+
+    monkeypatch.setattr(steps, "ffmpeg", MutatingEngine)
+    with pytest.raises(RuntimeError, match="project changed during stem rendering"):
+        steps.assemble_timeline(proj, {"performance": {"max_workers": 2}})
+    assert not (proj.artifacts_dir() / "track_outputs.json").exists()
+
+
 def test_export_deliverables_with_chapters(minimal_project, sample_wav, tmp_workspace):
     eng = FFmpegEngine()
     if not eng.check_available()[0]:
