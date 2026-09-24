@@ -138,8 +138,8 @@ def test_store_rejects_distinct_command_id_on_existing_client_seq(tmp_path) -> N
     import pytest
 
     path = tmp_path / "sync.db"
-    first = SyncStore(path)
-    second = SyncStore(path)
+    first = SyncStore(path, enforce_command_ids=True)
+    second = SyncStore(path, enforce_command_ids=True)
     args = {
         "client_id": "viewer-1",
         "client_seq": 1,

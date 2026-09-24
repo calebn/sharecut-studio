@@ -151,13 +151,19 @@ def sync_store_cache_key(path: Path, table_prefix: str = "") -> str:
     return f"{path.resolve()}|{table_prefix}"
 
 
-def cached_sync_store(path: Path, *, table_prefix: str = "") -> SyncStore:
+def cached_sync_store(
+    path: Path, *, table_prefix: str = "", enforce_command_ids: bool = False
+) -> SyncStore:
     key = sync_store_cache_key(path, table_prefix)
     with _STORE_LOCK:
         store = _STORE_CACHE.get(key)
         if store is None:
-            store = SyncStore(path, table_prefix=table_prefix)
+            store = SyncStore(
+                path, table_prefix=table_prefix, enforce_command_ids=enforce_command_ids
+            )
             _STORE_CACHE[key] = store
+        elif store.enforce_command_ids != enforce_command_ids:
+            raise ValueError("conflicting command ID policy for cached sync store")
         return store
 
 
@@ -176,8 +182,11 @@ def drop_cached_sync_stores(*, table_prefix: str | None = None) -> list[SyncStor
 class SyncStore:
     """Per-project sqlite authority store."""
 
-    def __init__(self, db_path: Path, *, table_prefix: str = "") -> None:
+    def __init__(
+        self, db_path: Path, *, table_prefix: str = "", enforce_command_ids: bool = False
+    ) -> None:
         self.db_path = db_path
+        self.enforce_command_ids = enforce_command_ids
         self._p = _validate_table_prefix(table_prefix)
         self._sql = _sql_bundle(self._p)
         self._lock = threading.RLock()
@@ -333,7 +342,8 @@ class SyncStore:
             else self._find_by_command_id_unlocked(command_id)
         )
         if existing is not None:
-            self.require_same_command_id(existing, command_id)
+            if self.enforce_command_ids:
+                self.require_same_command_id(existing, command_id)
             return existing
         now = time.time_ns()
         try:
@@ -359,7 +369,8 @@ class SyncStore:
             )
             if again is None:
                 raise RuntimeError("failed to append or load command") from None
-            self.require_same_command_id(again, command_id)
+            if self.enforce_command_ids:
+                self.require_same_command_id(again, command_id)
             return again
         if client_seq is None:
             generated = self._find_by_command_id_unlocked(command_id)
@@ -410,7 +421,8 @@ class SyncStore:
                     else self._find_by_command_id_unlocked(command_id)
                 )
                 if existing is not None:
-                    self.require_same_command_id(existing, command_id)
+                    if self.enforce_command_ids:
+                        self.require_same_command_id(existing, command_id)
                     snap = self._get_snapshot_unlocked() or empty_snap_fn()
                     if transactional:
                         self._conn.execute("COMMIT")
