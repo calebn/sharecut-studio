@@ -1,5 +1,6 @@
+import { trackOutputGainDb } from "../tracks/trackMix";
 import type { ClipRow } from "../types/project";
-import { dbToLinear } from "../utils/audio";
+import { dbToLinear, trackIsAudible } from "../utils/audio";
 import {
   buildSchedule,
   type ProxyManifest,
@@ -9,6 +10,7 @@ import {
 export interface TrackInfo {
   id: string;
   gain_db: number;
+  fader_db?: number;
   muted: boolean;
 }
 
@@ -37,7 +39,8 @@ export class ProxyEngine {
   private playing = false;
   private originCtxTime = 0;
   private originTimelineSec = 0;
-  private solo: Set<string> = new Set();
+  private solo: Record<string, boolean> = {};
+  private listenMute: Record<string, boolean> = {};
 
   constructor(ctx: AudioContext, fetchChunk: FetchChunk) {
     this.ctx = ctx;
@@ -62,8 +65,8 @@ export class ProxyEngine {
         g.connect(this.master);
         this.trackGains.set(t.id, g);
       }
-      this.setTrackState(t.id, t.gain_db, t.muted);
     }
+    this.applyGains();
     if (this.playing) {
       const now = this.currentTimeSec();
       this.stopSources();
@@ -71,25 +74,28 @@ export class ProxyEngine {
     }
   }
 
+  /** Listen-only solo: this listener hears only the soloed tracks. */
   setSolo(soloTracks: Record<string, boolean>): void {
-    this.solo = new Set(
-      Object.entries(soloTracks)
-        .filter(([, on]) => on)
-        .map(([id]) => id),
-    );
-    for (const t of this.tracks) {
-      this.setTrackState(t.id, t.gain_db, t.muted);
-    }
+    this.solo = { ...soloTracks };
+    this.applyGains();
   }
 
-  setTrackState(trackId: string, gainDb: number, muted: boolean): void {
-    const g = this.trackGains.get(trackId);
-    if (!g) {
-      return;
+  /** Listen-only mutes (guests without edit); the saved mute rides on tracks. */
+  setListenMute(listenMute: Record<string, boolean>): void {
+    this.listenMute = { ...listenMute };
+    this.applyGains();
+  }
+
+  /** Every track at its output gain (staging + fader) unless silenced. */
+  private applyGains(): void {
+    for (const t of this.tracks) {
+      const g = this.trackGains.get(t.id);
+      if (!g) {
+        continue;
+      }
+      const audible = trackIsAudible(t.id, t.muted, this.listenMute, this.solo);
+      g.gain.value = audible ? dbToLinear(trackOutputGainDb(t)) : 0;
     }
-    const soloActive = this.solo.size > 0;
-    const audible = !muted && (!soloActive || this.solo.has(trackId));
-    g.gain.value = audible ? dbToLinear(gainDb) : 0;
   }
 
   play(fromTimelineSec: number): void {

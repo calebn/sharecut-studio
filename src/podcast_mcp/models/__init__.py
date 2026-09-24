@@ -1,5 +1,7 @@
 from podcast_mcp.models.episode import (
     EPISODE_PROJECT_FILENAME,
+    FADER_MAX_DB,
+    FADER_MIN_DB,
     AppliedEditRecord,
     AutomationEnvelope,
     AutomationPoint,
@@ -50,6 +52,8 @@ from podcast_mcp.models.history import (
 
 __all__ = [
     "EPISODE_PROJECT_FILENAME",
+    "FADER_MAX_DB",
+    "FADER_MIN_DB",
     "AppliedEditRecord",
     "AutomationEnvelope",
     "AutomationPoint",

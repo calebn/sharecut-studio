@@ -513,6 +513,20 @@
   border-color: var(--danger);
 }
 
+/* Solid = saved in the mix; dashed = only this listener hears it that way:
+   a guest's listen-only mute, or a track their own solo silences. */
+.trk-btn.mute-listen.active {
+  background: transparent;
+  border-style: dashed;
+}
+
+.trk-btn.mute-implied {
+  color: var(--danger);
+  border-color: var(--danger);
+  border-style: dashed;
+  background: transparent;
+}
+
 .trk-btn.active.solo,
 .trk-btn.solo.active {
   background: var(--color-warning-strong);

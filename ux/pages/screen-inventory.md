@@ -168,11 +168,11 @@ Audition Mix / FX / Raw remains available in the compact transport Menu on Timel
 │ [Select] [Blade] [Cut at playhead]  │  ← editing rail (Comment is on transport)
 ├─ Listen │ Timeline │ Text │ More ──┤
 │ ┌ sheet: track / Pending cut ── X ┐ │
-│ │ M/S/gain or Approve / Reject   │ │
+│ │ M/S/Volume or Approve / Reject │ │
 │ └────────────────────────────────┘ │
 ```
 
-Lane identity is a slim sticky gutter in the same scroller as the waveforms. Tap the gutter row (› disclosure) → track sheet with **M**/**S** (gain readout; envelopes on Levels). Pane density uses `@container timeline` (gutter vs mid/full rail) — not viewport width alone.
+Lane identity is a slim sticky gutter in the same scroller as the waveforms. Tap the gutter row (› disclosure) → track sheet with **M**/**S** and the **Volume** fader (saved; host and editors; envelopes on Levels). Solid M = muted in the mix; dashed = only you hear it that way (a guest's listen-only mute, or a track your solo silences). Pane density uses `@container timeline` (gutter vs mid/full rail) — not viewport width alone.
 
 ---
 
@@ -252,9 +252,9 @@ flowchart TB
 
 | Region | Content schema |
 |--------|----------------|
-| **Track headers** | Identity bar in the lane color · track name · stem status dot (trailing) · M/S · FX badge · role · gain strip; content is top-aligned, selected = neutral chip |
+| **Track headers** | Identity bar in the lane color · track name · stem status dot (trailing) · M/S (M solid = saved mix mute, dashed = only you; S listen-only) · FX badge · role · gain strip (output gain: staging + volume); content is top-aligned, selected = neutral chip |
 | **Timeline** | Clips · body-drag move (Select tool) · fades/joins · layer overlays · moving playhead · pinch/ctrl-wheel zoom. Lanes grow to fill the stage when every track fits (72–240px) and scroll beyond that; the marker lane shows only rows with content (chapters, social, comments) and collapses to one 24px row when empty |
-| **Inspector** | Selection modifier (same shapes as sheet): eyebrow badge, title, subtitle only when it differs, full-width fields, one section gap; the body scrolls with edge shadows |
+| **Inspector** | Track selection adds the mixer group: M/S and the saved **Volume** fader (−60 to +12 dB, double-click resets; read-only without edit). Selection modifier (same shapes as sheet): eyebrow badge, title, subtitle only when it differs, full-width fields, one section gap; the body scrolls with edge shadows |
 | **Comments** | Filter segmented control (Open · Open actions · Resolved · All) · list + thread · timeline seek · action items |
 | **History** | Groups · Undo/Redo · step count (“No edits yet” when empty) · diff affordances; list updates from Applied snapshots (SHELL project, or DETAIL/TRACKS/CLIPS/FX/ENVELOPES/COMMENTS patches) |
 | **Impact** | Pending count · bulk approve/reject · removed duration |

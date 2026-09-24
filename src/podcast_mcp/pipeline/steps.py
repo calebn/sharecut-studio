@@ -434,6 +434,8 @@ def assemble_timeline(project: EpisodeProject, defaults: dict[str, Any]) -> Step
 
 
 def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
+    from podcast_mcp.engines.play_audit import write_premix_hash
+
     mix_cfg = defaults.get("mix", {})
     meta_path = artifact(project, "track_outputs.json")
     if not meta_path.is_file():
@@ -481,11 +483,12 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
         for track in project.tracks:
             if track.muted or track.id not in rendered:
                 continue
-            mix_inputs.append((Path(rendered[track.id]), track.gain_db))
+            mix_inputs.append((Path(rendered[track.id]), track.output_gain_db))
 
         prog.set_phase("mix", f"Mixing {len(mix_inputs)} tracks…")
         premix = artifact(project, "premix.wav")
         eng.mix_tracks(mix_inputs, premix)
+        write_premix_hash(project)
         prog.message(f"{len(mix_inputs)} tracks mixed")
     return f"{len(mix_inputs)} tracks mixed, {music_envelopes} music envelopes"
 

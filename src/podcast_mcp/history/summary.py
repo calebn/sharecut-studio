@@ -77,6 +77,10 @@ def format_history_group_title(
         bits.append(f"fade {params['fade_ms']}ms")
     if params.get("gain_db") is not None:
         bits.append(f"{params['gain_db']:+.1f} dB")
+    if params.get("fader_db") is not None:
+        bits.append(f"volume {params['fader_db']:+.1f} dB")
+    if params.get("muted") is not None:
+        bits.append("muted" if params["muted"] else "unmuted")
 
     title = " · ".join(bits)
     if kind == "snapshot" and label and label.startswith("after "):

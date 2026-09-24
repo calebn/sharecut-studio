@@ -56,6 +56,14 @@ def set_track_meta(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def set_track_fader(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    return EpisodeService(ws).set_track_fader(str(p["track_id"]), float(p["fader_db"]))
+
+
+def set_track_mute(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    return EpisodeService(ws).set_track_mute(str(p["track_id"]), bool(p["muted"]))
+
+
 def remove_track(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     return EpisodeService(ws).remove_track(str(p["track_id"]))
 

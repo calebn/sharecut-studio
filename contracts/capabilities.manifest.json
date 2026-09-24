@@ -883,7 +883,11 @@
         "gui": [
           "trackHeader"
         ],
-        "keyboard": "M"
+        "keyboard": "M",
+        "mcp": [
+          "track_set_mute_tool"
+        ],
+        "cli": "podcast episode set-track-mute"
       },
       "omit": {},
       "tooltip": "Toggle track mute",
@@ -914,6 +918,33 @@
         "cursor": "anchor",
         "follow": "hear",
         "anchor": "track:<id>:solo"
+      }
+    },
+    {
+      "id": "daw.track.setVolume",
+      "label": "Set track volume",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "canEditMix"
+      ],
+      "surfaces": {
+        "command": "track.setVolume",
+        "gui": [
+          "trackInspector"
+        ],
+        "mcp": [
+          "track_set_fader_tool"
+        ],
+        "cli": "podcast episode set-track-volume"
+      },
+      "omit": {
+        "keyboard_reason": "slider: arrow keys step the focused fader"
+      },
+      "tooltip": "Set track volume",
+      "presence": {
+        "cursor": "none",
+        "follow": "hear"
       }
     },
     {

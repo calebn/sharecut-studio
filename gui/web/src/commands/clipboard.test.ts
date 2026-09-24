@@ -35,6 +35,7 @@ vi.mock("../api", () => ({
     }),
   ),
   duplicateSegment: vi.fn(async () => undefined),
+  setTrackMuteCommand: vi.fn(async () => ({})),
   undoHistory: vi.fn(),
   redoHistory: vi.fn(),
   splitAtTime: vi.fn(),
@@ -146,15 +147,28 @@ describe("phase-2 P0 edit/view/track commands", () => {
     expect(api.rippleDeleteClips).toHaveBeenCalledWith("/tmp/ep", ["c1"]);
   });
 
-  it("toggles mute/solo for the selected track", async () => {
+  it("saves the host's mute and keeps solo listen-only", async () => {
+    vi.mocked(api.setTrackMuteCommand).mockClear();
     expect((await execute("track.muteToggle")).status).toBe("ok");
-    expect(useDawStore.getState().viewerMute.host).toBe(true);
+    expect(api.setTrackMuteCommand).toHaveBeenCalledWith(
+      "/tmp/ep",
+      "host",
+      true,
+    );
+    const host = useDawStore
+      .getState()
+      .project?.tracks.find((t) => t.id === "host");
+    expect(host?.muted).toBe(true);
+    expect(useDawStore.getState().viewerMute.host).toBeUndefined();
     expect((await execute("track.soloToggle")).status).toBe("ok");
     expect(useDawStore.getState().soloTracks.host).toBe(true);
   });
 
-  it("prefers clip selection track over selectedTrackIds for mute", async () => {
+  it("gives a view-only guest a listen-only mute", async () => {
+    vi.mocked(api.setTrackMuteCommand).mockClear();
     useDawStore.setState({
+      projectPath: "share:tok",
+      shareCapabilities: ["view"],
       selectedTrackIds: ["host"],
       selection: { kind: "clip", id: "c2", trackId: "guest" },
       viewerMute: {},
@@ -162,6 +176,7 @@ describe("phase-2 P0 edit/view/track commands", () => {
     expect((await execute("track.muteToggle")).status).toBe("ok");
     expect(useDawStore.getState().viewerMute.guest).toBe(true);
     expect(useDawStore.getState().viewerMute.host).toBeUndefined();
+    expect(api.setTrackMuteCommand).not.toHaveBeenCalled();
   });
 
   it("zooms in/out and fits", async () => {

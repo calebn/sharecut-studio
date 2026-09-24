@@ -34,7 +34,7 @@ from podcast_mcp.engines.transcript_gated_play import (
     transcript_gate_fingerprint,
     word_intervals,
 )
-from podcast_mcp.models import TrackRole
+from podcast_mcp.models import Track, TrackRole
 from podcast_mcp.project_store import ProjectStore
 from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.session_sync.viewer import publish_agent_play
@@ -109,6 +109,23 @@ class TransportPath:
     source: str
     tier: str
     stem_is_fresh: bool | None = None
+
+
+# Tiers whose audio already carries the track's staging gain_db.
+_GAIN_BAKED_TIERS = frozenset({"segment_render", "segment_cache"})
+
+
+def _compose_gain_db(track: Track | None, tier: str) -> float:
+    """Gain to mix a composed track at: its output gain, minus any baked part.
+
+    Segment renders bake the staging ``gain_db``; stems and raw audio do not.
+    The fader is a mix control, so it's never baked and always applies here.
+    """
+    if track is None:
+        return 0.0
+    if tier in _GAIN_BAKED_TIERS:
+        return float(track.fader_db)
+    return float(track.output_gain_db)
 
 
 class PlayService:
@@ -909,12 +926,11 @@ class PlayService:
         segments: list[tuple[Path, float]] = []
         for tid in ids:
             source = f"track:{tid}" if kind == "raw" else f"processed:{tid}"
-            wav, _tier, _, _ = self._resolve_audio(source, start_sec, end_sec, rerender=rerender)
+            wav, tier_used, _, _ = self._resolve_audio(
+                source, start_sec, end_sec, rerender=rerender
+            )
             track = self.project.track_by_id(tid)
-            gain = 0.0
-            if kind == "raw" and track is not None:
-                gain = float(track.gain_db)
-            segments.append((wav, gain))
+            segments.append((wav, _compose_gain_db(track, tier_used)))
 
         extra = ":".join(
             f"{path}:{path.stat().st_mtime_ns if path.is_file() else 0}:{gain}"

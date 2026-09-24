@@ -50,6 +50,8 @@ DocumentCommandType = Literal[
     "AddTrack",
     "SetTrackMedia",
     "SetTrackMeta",
+    "SetTrackFader",
+    "SetTrackMute",
     "RemoveTrack",
     "ReorderTrack",
 ]

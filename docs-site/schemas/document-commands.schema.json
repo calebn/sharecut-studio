@@ -3719,6 +3719,113 @@
       "title": "SetJoinModePayload",
       "type": "object"
     },
+    "SetTrackFaderCommand": {
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "client_id": {
+          "title": "Client Id",
+          "type": "string"
+        },
+        "client_seq": {
+          "title": "Client Seq",
+          "type": "integer"
+        },
+        "command_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command Id"
+        },
+        "payload": {
+          "$ref": "#/$defs/SetTrackFaderPayload"
+        },
+        "role": {
+          "default": "viewer",
+          "enum": [
+            "agent",
+            "viewer",
+            "cli",
+            "guest"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "structural_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structural Mode"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        },
+        "type": {
+          "const": "SetTrackFader",
+          "default": "SetTrackFader",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "client_id",
+        "client_seq",
+        "payload"
+      ],
+      "title": "SetTrackFaderCommand",
+      "type": "object"
+    },
+    "SetTrackFaderPayload": {
+      "properties": {
+        "fader_db": {
+          "maximum": 12.0,
+          "minimum": -60.0,
+          "title": "Fader Db",
+          "type": "number"
+        },
+        "track_id": {
+          "title": "Track Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "track_id",
+        "fader_db"
+      ],
+      "title": "SetTrackFaderPayload",
+      "type": "object"
+    },
     "SetTrackMediaCommand": {
       "properties": {
         "causation_id": {
@@ -3958,6 +4065,111 @@
         "track_id"
       ],
       "title": "SetTrackMetaPayload",
+      "type": "object"
+    },
+    "SetTrackMuteCommand": {
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "client_id": {
+          "title": "Client Id",
+          "type": "string"
+        },
+        "client_seq": {
+          "title": "Client Seq",
+          "type": "integer"
+        },
+        "command_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command Id"
+        },
+        "payload": {
+          "$ref": "#/$defs/SetTrackMutePayload"
+        },
+        "role": {
+          "default": "viewer",
+          "enum": [
+            "agent",
+            "viewer",
+            "cli",
+            "guest"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "structural_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structural Mode"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        },
+        "type": {
+          "const": "SetTrackMute",
+          "default": "SetTrackMute",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "client_id",
+        "client_seq",
+        "payload"
+      ],
+      "title": "SetTrackMuteCommand",
+      "type": "object"
+    },
+    "SetTrackMutePayload": {
+      "properties": {
+        "muted": {
+          "title": "Muted",
+          "type": "boolean"
+        },
+        "track_id": {
+          "title": "Track Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "track_id",
+        "muted"
+      ],
+      "title": "SetTrackMutePayload",
       "type": "object"
     },
     "SetTranscriptWordSuppressedCommand": {
@@ -5090,8 +5302,10 @@
       "SetEffectBypass": "#/$defs/SetEffectBypassCommand",
       "SetEnvelope": "#/$defs/SetEnvelopeCommand",
       "SetJoinMode": "#/$defs/SetJoinModeCommand",
+      "SetTrackFader": "#/$defs/SetTrackFaderCommand",
       "SetTrackMedia": "#/$defs/SetTrackMediaCommand",
       "SetTrackMeta": "#/$defs/SetTrackMetaCommand",
+      "SetTrackMute": "#/$defs/SetTrackMuteCommand",
       "SetTranscriptWordSuppressed": "#/$defs/SetTranscriptWordSuppressedCommand",
       "SplitAtTime": "#/$defs/SplitAtTimeCommand",
       "SuggestPendingEdit": "#/$defs/SuggestPendingEditCommand",
@@ -5227,6 +5441,12 @@
     },
     {
       "$ref": "#/$defs/SetTrackMetaCommand"
+    },
+    {
+      "$ref": "#/$defs/SetTrackFaderCommand"
+    },
+    {
+      "$ref": "#/$defs/SetTrackMuteCommand"
     },
     {
       "$ref": "#/$defs/RemoveTrackCommand"

@@ -292,28 +292,41 @@ export function patchTracksOrder(
 export type { ClipMoveItem } from "../edit/clipMove";
 export { patchClipsMove } from "../edit/clipMove";
 
+function patchTrack<K extends keyof TrackView>(
+  project: ProjectView,
+  trackId: string,
+  fields: Partial<Pick<TrackView, K>>,
+): ProjectView {
+  let changed = false;
+  const keys = Object.keys(fields) as K[];
+  const tracks = project.tracks.map((t) => {
+    if (t.id !== trackId) {
+      return t;
+    }
+    if (keys.every((key) => fields[key] === t[key])) {
+      return t;
+    }
+    changed = true;
+    return { ...t, ...fields };
+  });
+  return changed ? { ...project, tracks } : project;
+}
+
 export function patchTrackMeta(
   project: ProjectView,
   trackId: string,
   fields: Partial<Pick<TrackView, "label" | "role" | "speaker">>,
 ): ProjectView {
-  let changed = false;
-  const tracks = project.tracks.map((t) => {
-    if (t.id !== trackId) {
-      return t;
-    }
-    const next = { ...t, ...fields };
-    if (
-      next.label === t.label &&
-      next.role === t.role &&
-      next.speaker === t.speaker
-    ) {
-      return t;
-    }
-    changed = true;
-    return next;
-  });
-  return changed ? { ...project, tracks } : project;
+  return patchTrack(project, trackId, fields);
+}
+
+/** Optimistic splice for SetTrackFader / SetTrackMute. */
+export function patchTrackMix(
+  project: ProjectView,
+  trackId: string,
+  fields: Partial<Pick<TrackView, "fader_db" | "muted">>,
+): ProjectView {
+  return patchTrack(project, trackId, fields);
 }
 
 export function snapshotFromResult(

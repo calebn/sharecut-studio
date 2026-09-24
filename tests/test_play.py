@@ -717,7 +717,7 @@ def test_play_compose_cli_dry_run(minimal_project, sample_wav, tmp_workspace) ->
     assert "compose" in cli.output
 
 
-def test_play_compose_processed_skips_gain_and_writes_atomic(
+def test_play_compose_adds_unbaked_gain_and_writes_atomic(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ) -> None:
     from podcast_mcp.engines.ffmpeg import FFmpegEngine
@@ -750,8 +750,11 @@ def test_play_compose_processed_skips_gain_and_writes_atomic(
     wav = tmp_workspace / "seg.wav"
     wav.write_bytes(sample_wav.read_bytes())
 
+    # Stems don't bake the staging gain; segment renders do (#386).
+    tier = {"value": "stem"}
+
     def fake_resolve(self, source, start, end, *, rerender=False):
-        return wav, "stem", start, end
+        return wav, tier["value"], start, end
 
     mix_dests: list[str] = []
     gains: list[float] = []
@@ -768,14 +771,22 @@ def test_play_compose_processed_skips_gain_and_writes_atomic(
     result = PlayService(ws).play_compose(
         ["host"], 0.0, 1.0, tier="processed", dry_run=True, publish_audition=False
     )
-    assert gains == [0.0]
+    assert gains == [6.0]
     assert mix_dests and "partial" in mix_dests[0]
     assert "partial" not in result.wav_path.name
     assert result.wav_path.is_file()
     assert result.wav_path.name.startswith("compose_")
 
     gains.clear()
+    tier["value"] = "segment_render"
+    PlayService(ws).play_compose(
+        ["host"], 0.0, 1.0, tier="processed", dry_run=True, publish_audition=False, rerender=True
+    )
+    assert gains == [0.0]
+
+    gains.clear()
     mix_dests.clear()
+    tier["value"] = "raw"
     PlayService(ws).play_compose(
         ["host"], 0.0, 1.0, tier="raw", dry_run=True, publish_audition=False, rerender=True
     )

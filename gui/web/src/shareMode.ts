@@ -130,6 +130,15 @@ export function canRefreshMix(
   return canApplyPass12(projectPath, guestMode, capabilities);
 }
 
+/** Host or guest ``edit`` may change the saved mix (track volume, mute). */
+export function canEditMix(
+  projectPath: string,
+  guestMode: string | null,
+  capabilities?: string[] | null,
+): boolean {
+  return canApplyPass12(projectPath, guestMode, capabilities);
+}
+
 /** Host or guest ``edit`` may add tracks / import audio. */
 export function canIngestMedia(
   projectPath: string,

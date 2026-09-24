@@ -145,6 +145,7 @@ Host and share **`edit`** guests may add tracks, attach/replace audio, edit trac
 | `POST /api/media/upload` | Host — stream audio into `raw/` (allowlisted extensions; size via `PODCAST_GUI_MEDIA_*`) |
 | `POST /api/review/{token}/daw/media/upload` | Guest **`edit`** — chunked upload (relay JSON body cap); same assembler |
 | Document commands `AddTrack` / `SetTrackMedia` / `SetTrackMeta` / `RemoveTrack` | JSON mutations via existing document command routes (never file bytes) |
+| Document commands `SetTrackFader` / `SetTrackMute` | Saved mix (#386): a track's volume (`fader_db`, −60 to +12 dB on top of the staging `gain_db`) and mix mute; host and `edit` guests only (`canEditMix`). Applied as the `mix` projection (`tracks` + `render_status`) |
 
 Sharecut Studio arrange is the import surface: drop on a lane (replace that track’s media), drop below tracks / empty session (new tracks), **Menu → Import Audio…** / **New Track**, inspector Import/Replace. One frontend path: `gui/web/src/ingest/ingestFiles.ts` → upload then `submitDocumentCommand`. Permissions: `canIngestMedia` / `canManageProjects` in `shareMode.ts`. Details: [daw-editing.md](daw-editing.md) § Pass 8.
 
@@ -204,10 +205,13 @@ When the timeline / transport / track headers **or the Transcript tab** are focu
 |---------|----------|
 | **Space** | Play / pause from the playhead (timeline clock) |
 | **← / →** | Nudge playhead ±1s (Shift = ±5s) |
-| **Mix** | Stream `artifacts/premix.wav` (full mix). Mute/solo switches to stem mix. |
+| **Mix** | Stream `artifacts/premix.wav` (full mix). A listen-only mute or solo, or a premix mixed before a volume/mute change (`render_status.premix.stale_vs_mix`), switches to the stem mix so the change is heard before a refresh. |
 | **FX** | Stream processed stems (`artifacts/tracks/{id}.wav`) — edits + effects |
-| **Raw** | Stream source media (`raw/…`) — no FX; gain in the browser. Playhead stays on the **timeline** clock; each track’s `HTMLAudioElement` seeks via clip `timeline→source` (same dual-clock math as `SessionTimeline` / `clip_timeline_point_to_source`). Mix/FX keep media and playhead aligned (timeline-length stems/premix). |
-| **M / S** | Viewer-local mute/solo (does not write `track.muted` to the project) |
+| **Per-track levels** | Stem and raw players play each track at its output gain (`gain_db + fader_db`) relative to the loudest audible track: media elements can't boost past volume 1, so the balance matches the mix, a little quieter overall. |
+| **Raw** | Stream source media (`raw/…`) — no FX; output gain in the browser. Playhead stays on the **timeline** clock; each track’s `HTMLAudioElement` seeks via clip `timeline→source` (same dual-clock math as `SessionTimeline` / `clip_timeline_point_to_source`). Mix/FX keep media and playhead aligned (timeline-length stems/premix). |
+| **M** | Saved mix mute (`SetTrackMute` writes `track.muted`) for the host and `edit` guests: solid chip, affects play, render, bounce and master for everyone. For other guests M is a listen-only mute (dashed chip, `viewerMute`); a saved mute shows to them read-only. |
+| **S** | Listen-only solo for everyone (AFL-style; never saved, never exported). Tracks your solo silences show a dashed "implied mute" on M. Solid = saved in the mix; dashed = only you hear it that way. |
+| **Volume** | Track inspector fader: saved `fader_db` (`track.setVolume` → `SetTrackFader`), −60 to +12 dB on top of the staging gain the pipeline's balance step writes (balance never touches it). Commits on release or per arrow-key step; double-click resets to 0 dB; read-only without `edit`. The header gain strip shows the output gain. |
 
 Audio is served by `GET /api/audio?path=&kind=premix|stem|raw&track_id=` with HTTP Range support and an `ETag` (mtime+size) so Range revalidation can hit the browser cache. Optional `start_sec`/`end_sec` (capped at 8s) returns a short PCM extract via `PlayService.extract_waveform_window` for compressed raw media. Resolution of full files goes through **`PlayService.resolve_transport_path`**. Optional `rerender=true` matches CLI `--rerender`. The Sharecut Studio FX transport passes `rerender=true` (plus a cache-bust `v=`) when a track’s stem is stale — e.g. after Track inspector **Bypass** toggles — so A/B audition hears the new chain.
 

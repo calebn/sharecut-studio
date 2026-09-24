@@ -25,6 +25,8 @@ export type StaleRenderBreakdown = {
   staleTrackIds: string[];
   premixMissing: boolean;
   premixStaleVsStems: boolean;
+  /** Track volume, mute or staging gain changed since the premix was mixed. */
+  premixStaleVsMix: boolean;
   reconcileStale: boolean;
   invalidations: RenderInvalidationView[];
   /** Tracks with a whole-track (non-regional) invalidation. */
@@ -82,6 +84,7 @@ function freshBreakdown(): StaleRenderBreakdown {
     staleTrackIds: [],
     premixMissing: false,
     premixStaleVsStems: false,
+    premixStaleVsMix: false,
     reconcileStale: false,
     invalidations: [],
     wholeTrackIds: [],
@@ -118,6 +121,7 @@ export function staleRenderBreakdown(
   const premix = rs.premix as {
     exists?: boolean;
     stale_vs_stems?: boolean;
+    stale_vs_mix?: boolean;
   };
 
   const staleTrackIds: string[] = [];
@@ -151,6 +155,7 @@ export function staleRenderBreakdown(
 
   const premixMissing = premix?.exists === false;
   const premixStaleVsStems = premix?.stale_vs_stems === true;
+  const premixStaleVsMix = premix?.stale_vs_mix === true;
   const reconcileStale = Boolean(rs.reconciliation?.stale);
   // Freshness flags (needs_rerender / stem hashes / premix) are authoritative.
   // Invalidations are diagnostic only — do not mark stale from the journal alone.
@@ -159,7 +164,8 @@ export function staleRenderBreakdown(
     reconcileStale ||
     staleTrackIds.length > 0 ||
     premixMissing ||
-    premixStaleVsStems;
+    premixStaleVsStems ||
+    premixStaleVsMix;
 
   const allStaleAreWholeTrack =
     staleTrackIds.length > 0 &&
@@ -189,6 +195,9 @@ export function staleRenderBreakdown(
   } else if (premixStaleVsStems) {
     parts.push("Mix preview behind stems");
   }
+  if (!premixMissing && premixStaleVsMix) {
+    parts.push("Volume or mute changed");
+  }
   if (reconcileStale) {
     parts.push("Transcript out of date");
   }
@@ -198,6 +207,7 @@ export function staleRenderBreakdown(
     staleTrackIds,
     premixMissing,
     premixStaleVsStems,
+    premixStaleVsMix,
     reconcileStale,
     invalidations,
     wholeTrackIds: [...wholeTrackIds],

@@ -46,6 +46,26 @@ def track_reorder(
     typer.echo(json.dumps(out))
 
 
+@episode_app.command("set-track-volume")
+def track_set_volume(
+    project: Path = typer.Option(..., "--project", help="episode.project.json"),
+    id: str = typer.Option(..., "--id", help="Track id"),
+    db: float = typer.Option(..., "--db", help="Fader in dB (-60 to +12), on top of staging gain"),
+) -> None:
+    ws = ProjectWorkspace.open(project)
+    typer.echo(json.dumps(EpisodeService(ws).set_track_fader(id, db)))
+
+
+@episode_app.command("set-track-mute")
+def track_set_mute(
+    project: Path = typer.Option(..., "--project", help="episode.project.json"),
+    id: str = typer.Option(..., "--id", help="Track id"),
+    muted: bool = typer.Option(True, "--muted/--unmuted", help="Saved mix mute"),
+) -> None:
+    ws = ProjectWorkspace.open(project)
+    typer.echo(json.dumps(EpisodeService(ws).set_track_mute(id, muted)))
+
+
 @timed_command("transcribe")
 def transcribe_cmd(
     project: Path = typer.Option(..., "--project"),

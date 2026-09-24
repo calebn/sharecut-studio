@@ -29,6 +29,8 @@ FX_SLICE_COMMANDS: frozenset[str] = frozenset({"SetEffectBypass"})
 
 ENVELOPE_SLICE_COMMANDS: frozenset[str] = frozenset({"SetEnvelope"})
 
+MIX_SLICE_COMMANDS: frozenset[str] = frozenset({"SetTrackFader", "SetTrackMute"})
+
 
 def projection_for_command(command_type: str) -> ViewProjection:
     """Return the Applied snapshot projection for a document command type.
@@ -47,4 +49,6 @@ def projection_for_command(command_type: str) -> ViewProjection:
         return ViewProjection.FX
     if command_type in ENVELOPE_SLICE_COMMANDS:
         return ViewProjection.ENVELOPES
+    if command_type in MIX_SLICE_COMMANDS:
+        return ViewProjection.MIX
     return ViewProjection.SHELL

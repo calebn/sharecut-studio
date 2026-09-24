@@ -1,5 +1,6 @@
 import {
   canApplyPass12,
+  canEditMix,
   canIngestMedia,
   canManageProjects,
   canRefreshMix,
@@ -17,6 +18,8 @@ export type CommandContext = {
   canApplyPass12: boolean;
   canRefreshMix: boolean;
   canIngestMedia: boolean;
+  /** Host or edit guest: may change the saved mix (volume, mute). */
+  canEditMix: boolean;
   canManageProjects: boolean;
   hasProject: boolean;
   shellBreakpoint: string;
@@ -73,6 +76,7 @@ export function buildCommandContext(): CommandContext {
       s.guestMode,
       s.shareCapabilities,
     ),
+    canEditMix: canEditMix(s.projectPath, s.guestMode, s.shareCapabilities),
     canManageProjects: canManageProjects(s.projectPath),
     hasProject: s.project != null,
     shellBreakpoint: s.shellBreakpoint,
@@ -169,6 +173,13 @@ export function evaluateWhen(
       return ctx.canIngestMedia
         ? { ok: true }
         : { ok: false, reason: "Media ingest not allowed" };
+    case "canEditMix":
+      if (!ctx.hasProject) {
+        return { ok: false, reason: "No project loaded" };
+      }
+      return ctx.canEditMix
+        ? { ok: true }
+        : { ok: false, reason: "Only the host and editors can change the mix" };
     case "canManageProjects":
       return ctx.canManageProjects
         ? { ok: true }

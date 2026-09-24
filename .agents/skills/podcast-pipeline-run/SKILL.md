@@ -66,7 +66,9 @@ podcast pipeline run --project episode.project.json --only transcribe_tracks
 1. Listen to `artifacts/premix.wav` or `export/{name}.wav` (where `{name}` is a
    safe export stem; for example `My Episode: Part 1/2` becomes
    `My_Episode_Part_1_2.wav`)
-2. Tweak `edit_decisions`, `gain_db`, or `automation_envelopes` in project JSON
+2. Tweak `edit_decisions` or `automation_envelopes` in project JSON; change a
+   track's level with `track_set_fader_tool` and mute it with
+   `track_set_mute_tool` (saved mix, undoable; only re-mixes on refresh)
 3. Re-run from the affected step
 
 ## MCP

@@ -58,8 +58,10 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `SetEffectBypass` | `bypass` (boolean), `effect_index` (integer), `track_id` (string) | — |
 | `SetEnvelope` | `expected_points` (array[object]), `track_id` (string) | `points` (array[object]) |
 | `SetJoinMode` | `clip_id` (string), `join_in_mode` (fade \| crossfade \| cut) | — |
+| `SetTrackFader` | `fader_db` (number), `track_id` (string) | — |
 | `SetTrackMedia` | `rel_path` (string), `track_id` (string) | — |
 | `SetTrackMeta` | `track_id` (string) | `label` (string \| null), `role` (string \| null), `speaker` (string \| null) |
+| `SetTrackMute` | `muted` (boolean), `track_id` (string) | — |
 | `SetTranscriptWordSuppressed` | `suppressed` (boolean), `track_id` (string), `word_index` (integer) | — |
 | `SplitAtTime` | `at_time` (number) | `reason` (string \| null), `track_ids` (array \| null) |
 | `SuggestPendingEdit` | `end` (number), `start` (number), `track_id` (string) | `edit_type` (remove \| mute), `reason` (string \| null) |
@@ -70,7 +72,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdatePendingEdit` | `end` (number), `id` (string), `start` (number) | `snap` (boolean), `track_ids` (array \| null) |
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
 
-_Generated 43 command types._
+_Generated 45 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make schema-check`

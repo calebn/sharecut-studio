@@ -21,7 +21,11 @@ From `.agents/defaults/pipeline.yaml`:
 podcast pipeline run --project episode.project.json --only balance_tracks
 ```
 
-This sets per-track `gain_db` from FFmpeg ebur128 measurement vs target.
+This sets per-track staging `gain_db` from FFmpeg ebur128 measurement vs target.
+It never touches `fader_db`, the user's saved volume on top of it: the mix plays
+`gain_db + fader_db`. For a deliberate level change on one track, use
+`track_set_fader_tool` (or `podcast episode set-track-volume`) so re-running
+balance keeps it.
 
 ## Agent notes
 

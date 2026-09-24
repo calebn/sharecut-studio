@@ -13,6 +13,7 @@ import {
   wholeTrackReasonsForTrack,
 } from "../utils/staleRender";
 import { TrackMuteSoloButtons } from "./TrackMuteSoloButtons";
+import { formatDb, trackOutputGainDb } from "./trackMix";
 import { setTrackReorderData } from "./trackReorder";
 
 interface TrackHeaderProps {
@@ -100,6 +101,7 @@ export function TrackHeader({
       breakdown.staleTrackIds.includes(track.id));
   const dropHighlight = ingestDropTrackId === track.id;
   const label = track.label || track.id;
+  const outputDb = trackOutputGainDb(track);
   const identityStyle = {
     "--track-identity-color": laneColor(track.role, trackIndex),
   } as CSSProperties;
@@ -219,12 +221,15 @@ export function TrackHeader({
           )}
         </div>
       </div>
-      <div className="gain-strip" title={`Gain ${track.gain_db.toFixed(1)} dB`}>
+      <div
+        className="gain-strip"
+        title={`Plays at ${formatDb(outputDb)}: staging ${formatDb(track.gain_db)}, volume ${formatDb(track.fader_db ?? 0)}`}
+      >
         <div
           className="gain-fill"
-          style={{ width: `${gainFillPercent(track.gain_db)}%` }}
+          style={{ width: `${gainFillPercent(outputDb)}%` }}
         />
-        <span className="gain-label">{track.gain_db.toFixed(1)} dB</span>
+        <span className="gain-label">{outputDb.toFixed(1)} dB</span>
       </div>
     </div>
   );
