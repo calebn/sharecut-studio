@@ -39,7 +39,7 @@ test("new project stays fresh without an audio error on desktop and phone", asyn
     await expect(page.getByText("Err", { exact: true })).toHaveCount(0);
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await expect(page.locator(".mobile-listen-transport")).toBeVisible();
+    await expect(page.locator(".listen-hero")).toBeVisible();
     await expect(page.getByText("Stale render")).toHaveCount(0);
     await expect(page.getByText("Err", { exact: true })).toHaveCount(0);
   } finally {

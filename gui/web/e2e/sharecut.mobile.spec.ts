@@ -22,8 +22,16 @@ test.describe("Sharecut Studio mobile smoke", () => {
       }),
     ).toBeVisible();
     await expect(page.locator("header.transport")).toHaveCount(0);
-    await expect(page.locator(".mobile-listen-transport")).toHaveCount(1);
-    await expect(page.getByRole("heading", { level: 1 })).toBeAttached();
+    await expect(page.locator(".listen-hero")).toHaveCount(1);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    // Hero controls meet the 44pt touch floor.
+    for (const name of ["Play", "Stop", "−15s", "+15s"]) {
+      const box = await page
+        .locator(".listen-hero")
+        .getByRole("button", { name })
+        .boundingBox();
+      expect(box?.height ?? 0, name).toBeGreaterThanOrEqual(44);
+    }
 
     const shell = page.locator(".daw-shell--phone");
     const listenBody = page.locator(".mobile-mode-body");
