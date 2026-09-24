@@ -25,7 +25,7 @@ import { useDaw } from "../state/useDaw";
 import type { ClipRow, PeaksData } from "../types/project";
 import { formatDurationCompact } from "../utils/time";
 import { magnetSec } from "./snapOverlay";
-import { useTimelineMetrics } from "./timelineMetrics";
+import { useHoldTimelineMetrics, useTimelineMetrics } from "./timelineMetrics";
 
 interface ClipBlockProps {
   clip: ClipRow;
@@ -241,6 +241,10 @@ export function ClipBlock({
 
   // The canvas fills the clip, so the lane height is part of the paint key.
   const { laneHeight } = useTimelineMetrics();
+  // Keep lanes still under a trim, fade or roll drag.
+  useHoldTimelineMetrics(
+    fadePreview != null || trimPreview != null || rollActive,
+  );
 
   const wave = useClipWaveform({
     clip,

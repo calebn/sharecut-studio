@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import { EnvelopeOverlay } from "./EnvelopeOverlay";
+import { TimelineGestureProvider } from "./timelineMetrics";
 
 const setEnvelope = vi.fn();
 
@@ -212,4 +213,28 @@ describe("EnvelopeOverlay", () => {
       );
     },
   );
+
+  it("holds the lane geometry still for the length of a drag", async () => {
+    const release = vi.fn();
+    const hold = vi.fn(() => release);
+    const { container } = render(
+      <TimelineGestureProvider value={hold}>
+        <EnvelopeOverlay
+          envelopes={useDawStore.getState().project?.envelopes ?? []}
+          trackId="host"
+          zoomPxPerSec={10}
+          width={200}
+          onSelectTrack={vi.fn()}
+        />
+      </TimelineGestureProvider>,
+    );
+    const circle = container.querySelectorAll("circle")[1]!;
+    fireEvent.pointerDown(circle);
+    expect(hold).toHaveBeenCalledTimes(1);
+    fireEvent.pointerMove(circle, { clientX: 80, clientY: 8 });
+    expect(release).not.toHaveBeenCalled();
+    fireEvent.pointerUp(circle);
+    await vi.waitFor(() => expect(release).toHaveBeenCalledTimes(1));
+    expect(hold).toHaveBeenCalledTimes(1);
+  });
 });

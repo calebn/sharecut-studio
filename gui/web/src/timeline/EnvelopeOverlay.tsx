@@ -15,7 +15,7 @@ import {
   sortedVolumePoints,
 } from "../utils/envelopes";
 import { formatTime } from "../utils/time";
-import { useTimelineMetrics } from "./timelineMetrics";
+import { useHoldTimelineMetrics, useTimelineMetrics } from "./timelineMetrics";
 
 interface EnvelopeOverlayProps {
   envelopes: AutomationEnvelope[];
@@ -64,6 +64,8 @@ export function EnvelopeOverlay({
   } | null>(null);
   const priorSel = useRef<Selection>(null);
   const commitLock = useRef(false);
+  // yToValue uses the lane height and SVG rect: keep both still mid-drag.
+  useHoldTimelineMetrics(draft != null);
 
   const base = sortedVolumePoints(envelopes, trackId);
   if (base.length < 1) {

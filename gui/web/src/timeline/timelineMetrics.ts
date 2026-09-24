@@ -1,4 +1,12 @@
-import { createContext, useContext } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import type {
   ChapterMarker,
   SocialClipView,
@@ -26,6 +34,63 @@ export const TimelineMetricsProvider = TimelineMetricsContext.Provider;
 /** Lane and marker-lane heights for the timeline being rendered. */
 export function useTimelineMetrics(): TimelineMetrics {
   return useContext(TimelineMetricsContext);
+}
+
+/** Starts a hold on the lane geometry; call the result to release it. */
+export type HoldTimelineMetrics = () => () => void;
+
+const TimelineGestureContext = createContext<HoldTimelineMetrics | null>(null);
+
+export const TimelineGestureProvider = TimelineGestureContext.Provider;
+
+/**
+ * Hold the lane geometry still while `active` (a clip move, trim, fade, roll
+ * or envelope drag). Lane and marker heights follow live data, so without
+ * this a collaborator's update (a first comment adds a marker row, a new
+ * track re-fits the lanes) could move lanes under the pointer mid-drag.
+ */
+export function useHoldTimelineMetrics(active: boolean): void {
+  const hold = useContext(TimelineGestureContext);
+  useEffect(() => {
+    if (!active || !hold) {
+      return;
+    }
+    return hold();
+  }, [active, hold]);
+}
+
+/**
+ * `live`, or the value it had when the first hold began, until every hold is
+ * released; then the latest live value applies.
+ */
+export function useGestureStable<T>(live: T): {
+  value: T;
+  hold: HoldTimelineMetrics;
+} {
+  const [frozen, setFrozen] = useState<{ value: T } | null>(null);
+  const liveRef = useRef(live);
+  const holdsRef = useRef(0);
+  useLayoutEffect(() => {
+    liveRef.current = live;
+  });
+  const hold = useCallback(() => {
+    holdsRef.current += 1;
+    if (holdsRef.current === 1) {
+      setFrozen({ value: liveRef.current });
+    }
+    let released = false;
+    return () => {
+      if (released) {
+        return;
+      }
+      released = true;
+      holdsRef.current -= 1;
+      if (holdsRef.current === 0) {
+        setFrozen(null);
+      }
+    };
+  }, []);
+  return { value: frozen ? frozen.value : live, hold };
 }
 
 /**

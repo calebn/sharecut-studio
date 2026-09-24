@@ -1,13 +1,32 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { Profiler } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
-import { minimalProject } from "../test/fixtures";
+import { minimalProject, sampleComment } from "../test/fixtures";
+import type { ClipRow, ProjectView } from "../types/project";
 import { FIT_GUTTER, MARKER_ROW_HEIGHT, RULER_HEIGHT } from "../utils/layout";
 import { TimelineView } from "./TimelineView";
 import { useTimelineMetrics } from "./timelineMetrics";
+
+const execute = vi.hoisted(() => vi.fn());
+vi.mock("../commands/execute", () => ({ execute }));
+// Clips here exercise geometry and gestures, not waveform fetching.
+vi.mock("../hooks/useClipWaveform", () => ({
+  useClipWaveform: () => ({
+    window: {
+      cssWidth: 0,
+      canvasLeft: 0,
+      sourceStart: 0,
+      sourceEnd: 0,
+      offscreen: true,
+    },
+    quiet: [],
+    ticks: [],
+    paint: () => undefined,
+  }),
+}));
 
 describe("TimelineView follow auto-fit", () => {
   beforeEach(() => {
@@ -130,7 +149,20 @@ class RecordingResizeObserver {
   }
 }
 
-function twoTrackProject() {
+const hostClip: ClipRow = {
+  id: "c1",
+  track_id: "host",
+  source_start: 0,
+  source_end: 2,
+  timeline_start: 0,
+  timeline_end: 2,
+  fade_in_ms: 0,
+  fade_out_ms: 0,
+  join_in_mode: "fade",
+  source_id: null,
+};
+
+function twoTrackProject(overrides: Partial<ProjectView> = {}) {
   const track = (id: string) => ({
     id,
     label: id,
@@ -145,6 +177,7 @@ function twoTrackProject() {
   return minimalProject({
     tracks: [track("host"), track("guest")],
     clips: { tracks: { host: [], guest: [] }, clip_count: 0 },
+    ...overrides,
   });
 }
 
@@ -232,5 +265,66 @@ describe("TimelineView lane fit", () => {
     act(() => ro.fire(800, chrome + 2 * 180));
     expect(onRender).toHaveBeenCalled();
     expect(laneHeightVar(container)).toBe("180px");
+  });
+
+  describe("during a clip move", () => {
+    beforeEach(() => {
+      execute.mockClear();
+      HTMLElement.prototype.setPointerCapture = vi.fn();
+    });
+
+    afterEach(() => {
+      // Tests assign an own property; drop it to restore jsdom's.
+      Reflect.deleteProperty(document, "elementFromPoint");
+    });
+
+    it("holds lanes still and drops on the lane the ghost showed", () => {
+      const withClip = twoTrackProject({
+        clips: { tracks: { host: [hostClip], guest: [] }, clip_count: 1 },
+      });
+      useDawStore.getState().hydrate("/tmp/p.json", withClip);
+      const { container, getByRole } = render(
+        <DawProvider projectPath="/tmp/p.json" initialProject={withClip}>
+          <TimelineView />
+        </DawProvider>,
+      );
+      const lane = (id: string) =>
+        container.querySelector(`.lane-row[data-track-id="${id}"]`) as Element;
+      const hit = getByRole("button", { name: "Select clip c1" });
+
+      document.elementFromPoint = () => lane("guest");
+      fireEvent.pointerDown(hit, { pointerId: 1, clientX: 100, clientY: 10 });
+      fireEvent.pointerMove(hit, { pointerId: 1, clientX: 140, clientY: 90 });
+      expect(lane("guest").querySelector(".clip-move-ghost")).toBeTruthy();
+
+      // A collaborator adds a chapter and a comment: two marker rows would
+      // re-fit the lanes (and move them) under the still pointer.
+      act(() => {
+        useDawStore.setState({
+          project: {
+            ...withClip,
+            chapters: [{ time: 1, title: "Intro" }],
+            comments: [sampleComment()],
+          },
+        });
+      });
+      expect(laneHeightVar(container)).toBe("150px");
+      document.elementFromPoint = () => lane("host");
+
+      fireEvent.pointerUp(hit, { pointerId: 1, clientX: 140, clientY: 90 });
+      expect(execute).toHaveBeenCalledWith(
+        "edit.moveClips",
+        {
+          clips: [
+            expect.objectContaining({ clip_id: "c1", track_id: "guest" }),
+          ],
+        },
+        { skipWhen: true },
+      );
+      // Released: the lanes catch up with the new marker rows.
+      expect(laneHeightVar(container)).toBe(
+        `${(2 * 150 - MARKER_ROW_HEIGHT) / 2}px`,
+      );
+    });
   });
 });
