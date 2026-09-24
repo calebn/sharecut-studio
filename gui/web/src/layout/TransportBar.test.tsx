@@ -70,6 +70,22 @@ describe("TransportBar collapsed", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("keeps a semantic play control and a compact current timecode", () => {
+    render(
+      <DawProvider
+        projectPath="/tmp/p.json"
+        initialProject={minimalProject({ timeline_duration_sec: 4000 })}
+      >
+        <TransportBar compact />
+      </DawProvider>,
+    );
+    const play = screen.getByRole("button", { name: "Play" });
+    expect(play).toHaveAttribute("data-playing", "false");
+    expect(play.querySelector("svg")).toBeTruthy();
+    expect(document.querySelector(".timecode-current")).toBeTruthy();
+    expect(document.querySelector(".timecode-total")).toBeNull();
+  });
+
   it("keeps Comment and Fit as primary controls when compact", async () => {
     render(
       <DawProvider

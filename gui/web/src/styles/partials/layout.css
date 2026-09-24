@@ -378,10 +378,15 @@
 
 .transport {
   display: flex;
+  block-size: 100%;
+  box-sizing: border-box;
   align-items: center;
   gap: var(--space-5);
-  padding: 0 var(--space-4);
-  background: var(--bg-panel);
+  padding: 0 var(--space-5);
+  color: var(--color-transport-text);
+  background: var(--bg-transport);
+  border-bottom: 1px solid var(--color-transport-border);
+  box-shadow: var(--shadow-transport);
   min-width: 0;
   container-type: inline-size;
   container-name: transport;
@@ -397,37 +402,38 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 0 1 auto;
+  color: var(--color-transport-text);
 }
 
 .timecode {
-  display: inline-block;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
   font-family: var(--font-family-mono);
   font-variant-numeric: tabular-nums;
-  font-size: var(--font-size-small);
   letter-spacing: 0;
   white-space: nowrap;
-  /* mm:ss.mmm / mm:ss.mmm — wide layout only */
-  min-width: 23ch;
-  width: 23ch;
-  flex: 0 0 23ch;
+  flex: 0 0 auto;
+  text-shadow: var(--shadow-transport-timecode);
 }
 
-.timecode-hours {
-  /* hh:mm:ss.mmm / hh:mm:ss.mmm */
-  min-width: 29ch;
-  width: 29ch;
-  flex: 0 0 29ch;
+.timecode-current {
+  font-size: var(--font-size-transport-time);
+  font-weight: 500;
+  color: var(--color-transport-text);
+}
+
+.timecode-total {
+  font-size: var(--font-size-transport-total);
+  color: var(--color-transport-muted);
 }
 
 .transport--collapsed {
   gap: var(--space-3);
 }
 
-.transport--collapsed .timecode,
-.transport--collapsed .timecode-hours {
-  min-width: 0;
-  width: auto;
-  flex: 0 0 auto;
+.transport--collapsed .timecode-current {
+  font-size: var(--font-size-emphasis);
 }
 
 .transport--collapsed h1 {
@@ -455,9 +461,9 @@
 
 .transport--collapsed .play-btn,
 .transport--collapsed .stop-btn {
-  min-width: 2.5rem;
-  min-height: 2.5rem;
-  padding: var(--space-1) var(--space-3);
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: var(--space-1);
 }
 
 .transport-menu-note {
@@ -635,28 +641,53 @@ button.pill.pill--info {
 
 .transport-play {
   display: flex;
-  gap: var(--space-1);
+  align-items: center;
+  gap: var(--space-3);
 }
 
-.play-btn,
-.stop-btn {
-  min-height: 2rem;
-  font-weight: 600;
-  padding: var(--space-1) var(--space-4);
+.transport .play-btn {
+  inline-size: 2.875rem;
+  block-size: 2.875rem;
+  min-inline-size: 2.875rem;
+  min-block-size: 2.875rem;
+  padding: 0;
+  border: 1px solid var(--color-timeline-playhead);
+  border-radius: 50%;
+  color: var(--color-transport-play-fg);
+  background: var(--bg-transport-play);
+  box-shadow: var(--shadow-transport-play);
+}
+
+.transport .play-btn .ui-icon {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+}
+
+.transport .stop-btn {
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  padding: 0;
+  border-color: var(--color-transport-control-border);
+  background: var(--color-transport-control);
+  color: var(--color-transport-muted);
 }
 
 .audition-modes {
   display: flex;
   gap: var(--space-0);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  padding: var(--space-0);
+  border: 1px solid var(--color-transport-control-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-transport-segment);
   overflow: hidden;
 }
 
 .audition-modes button {
   /* Interaction paint from .ui-control--quiet */
   font-size: var(--font-size-caption);
-  padding: var(--space-1) var(--space-05);
+  padding: var(--space-2) var(--space-05);
+  border-radius: var(--radius-md);
+  color: var(--color-transport-muted);
 }
 
 .transport-controls {
@@ -739,6 +770,13 @@ button.pill.pill--info {
   color: var(--color-text-on-inverted);
   border-color: transparent;
   border-bottom-color: transparent;
+}
+
+.audition-modes .ui-control--quiet[aria-pressed="true"],
+.audition-modes .ui-control--quiet.active {
+  background: var(--bg-transport-selected);
+  color: var(--color-transport-play-fg);
+  box-shadow: var(--shadow-transport-selected);
 }
 
 .blade-cut-guide {
@@ -859,6 +897,11 @@ button.pill.pill--info {
   cursor: pointer;
   box-sizing: border-box;
   overflow: hidden;
+  border-inline-start: 0.1875rem solid var(--track-identity-color);
+}
+
+.track-header-row.selected {
+  box-shadow: inset 0.1875rem 0 0 var(--track-identity-color);
 }
 
 .track-header-open {
@@ -995,6 +1038,7 @@ button.pill.pill--info {
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
+  padding-inline-start: var(--space-1);
 }
 
 .track-title-text {

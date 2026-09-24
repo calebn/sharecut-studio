@@ -21,11 +21,21 @@
   --color-text-on-sunken: var(--color-text-primary);
   --color-text-on-inverted: var(--primitive-neutral-50);
   --color-border-subtle: var(--color-border);
-  --color-timeline-well: var(--primitive-neutral-875);
-  --color-timeline-lane: var(--primitive-neutral-850);
-  --color-timeline-lane-muted: var(--primitive-neutral-900);
-  --color-timeline-border: var(--primitive-neutral-550);
-  --color-timeline-text: var(--primitive-neutral-300);
+  --color-timeline-well: var(--primitive-warm-850);
+  --color-timeline-lane: var(--primitive-warm-800);
+  --color-timeline-lane-muted: var(--primitive-warm-900);
+  --color-timeline-border: var(--primitive-warm-700);
+  --color-timeline-text: var(--primitive-warm-300);
+  --color-timeline-grid: color-mix(
+    in srgb,
+    var(--primitive-warm-300) 12%,
+    transparent
+  );
+  --color-timeline-vignette: color-mix(
+    in srgb,
+    var(--primitive-black) 36%,
+    transparent
+  );
   --color-timeline-waveform-top: var(--primitive-teal-250);
   --color-timeline-waveform-bottom: var(--primitive-teal-600);
   --color-timeline-playhead: var(--primitive-orange-250);
@@ -329,11 +339,21 @@
     --color-text-on-sunken: var(--color-text-primary);
     --color-text-on-inverted: var(--primitive-neutral-50);
     --color-border-subtle: var(--color-border);
-    --color-timeline-well: var(--primitive-neutral-875);
-    --color-timeline-lane: var(--primitive-neutral-850);
-    --color-timeline-lane-muted: var(--primitive-neutral-900);
-    --color-timeline-border: var(--primitive-neutral-550);
-    --color-timeline-text: var(--primitive-neutral-300);
+    --color-timeline-well: var(--primitive-warm-850);
+    --color-timeline-lane: var(--primitive-warm-800);
+    --color-timeline-lane-muted: var(--primitive-warm-900);
+    --color-timeline-border: var(--primitive-warm-700);
+    --color-timeline-text: var(--primitive-warm-300);
+    --color-timeline-grid: color-mix(
+      in srgb,
+      var(--primitive-warm-300) 12%,
+      transparent
+    );
+    --color-timeline-vignette: color-mix(
+      in srgb,
+      var(--primitive-black) 36%,
+      transparent
+    );
     --color-timeline-waveform-top: var(--primitive-teal-250);
     --color-timeline-waveform-bottom: var(--primitive-teal-600);
     --color-timeline-playhead: var(--primitive-orange-250);

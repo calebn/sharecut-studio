@@ -19,12 +19,12 @@ Sharecut Studio tokens: [`gui/web/src/styles/theme/`](https://github.com/calebn/
 
 ## Planes (information hierarchy)
 
-Paint and markup share one stack. **Chrome panes** (transport, headers, bottom tabs, inspector, status) sit on surface. The timeline uses a dark `--color-timeline-*` well in either app theme, with light chrome surrounding it when light mode is selected. Raised and overlay surfaces have distinct tones as well as named shadows: overlays are warm tinted in light mode and lifted graphite in dark mode. Timeline `--z-*` is paint order on the mixer, not chrome elevation.
+Paint and markup share one stack. **Chrome panes** (headers, bottom tabs, inspector, status) sit on surface; transport is a fixed dark focal strip in either theme. The timeline uses a dark `--color-timeline-*` well in either app theme, with a warm charcoal well and light chrome in light mode. Raised and overlay surfaces have distinct tones as well as named shadows: overlays are warm tinted in light mode and lifted graphite in dark mode. Timeline `--z-*` is paint order on the mixer, not chrome elevation.
 
 | Plane | Meaning | Markup | Token |
 |-------|---------|--------|-------|
 | Canvas | Place — the floor | `.cover`, `body` | `--color-bg-canvas` |
-| Surface | Chrome panes / durable cards | `.box`, transport, tabs, inspector | `--color-bg-surface` |
+| Surface | Chrome panes / durable cards | `.box`, tabs, inspector | `--color-bg-surface` |
 | Elevated | Temporary object (form, coach, compose) | `.box.elevated` | `--color-bg-elevated` |
 | Lane | Recessed dark work well (ruler → lanes / empty drop) | `.time-ruler`, `.marker-lane`, `.lane-row`, `.timeline-scroll` | `--color-timeline-*` |
 | Accent | Act — do this | `.primary`, links, focus | `--color-accent*` |
@@ -111,7 +111,7 @@ Sharecut Studio chrome uses one paint primitive: **`.ui-control`** (see [`gui/we
 | Open | Menus, More, sheets | `aria-expanded`; panel is the confirmation |
 | Error | Failed act | `role="alert"` + danger ink |
 
-Accent identifies actions and focus; small links and running-status text use the darker `--accent-fg` role for contrast. Function colors stay mute/solo/stale/danger. Selected modes use the inverted surface consistently at rest and on hover. Shared empty panels use `.ui-empty-state`. Motion uses `--motion-*` timing under `prefers-reduced-motion: no-preference`; reduced-motion views change state immediately. The playhead position follows the audio clock without a CSS transition, and the centered phone playhead uses `--color-timeline-playhead` against the dark well.
+Accent identifies actions and focus; small links and running-status text use the darker `--accent-fg` role for contrast. Function colors stay mute/solo/stale/danger. Primary controls use solid accent fill, default controls have transparent fill and a contour, and quiet toggles use text treatment. The transport Play control and selected audition mode use the orange accent; transcript Correct carries an accent outline until active. Track identity bars reuse lane clip colors. Shared empty panels use `.ui-empty-state`; the empty timeline is a gridded drop stage. Motion uses `--motion-*` timing under `prefers-reduced-motion: no-preference`; reduced-motion views change state immediately. The playhead position follows the audio clock without a CSS transition, and the centered phone playhead uses `--color-timeline-playhead` against the dark well.
 
 ## Units
 

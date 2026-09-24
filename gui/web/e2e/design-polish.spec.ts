@@ -31,17 +31,34 @@ test("timeline stays recessed across themes and motion respects preference", asy
       document.body.appendChild(control);
       const controlMotion = getComputedStyle(control).transitionDuration;
       control.remove();
+      const ruler = document.createElement("div");
+      ruler.className = "time-ruler";
+      const rulerPlayhead = document.createElement("div");
+      rulerPlayhead.className = "playhead";
+      ruler.appendChild(rulerPlayhead);
+      document.body.appendChild(ruler);
+      const rulerGlow = getComputedStyle(
+        rulerPlayhead,
+        "::before",
+      ).backgroundImage;
+      ruler.remove();
       return {
         timeline: getComputedStyle(timeline).backgroundColor,
-        transport: getComputedStyle(transport).backgroundColor,
+        transport: getComputedStyle(transport).backgroundImage,
+        transportHeight: Math.round(transport.getBoundingClientRect().height),
         playheadMotion,
         controlMotion,
+        rulerGlow,
       };
     });
-    expect(colors.timeline).toBe("rgb(12, 14, 14)");
-    expect(colors.timeline).not.toBe(colors.transport);
+    expect(colors.timeline).toBe(
+      theme === "light" ? "rgb(43, 37, 33)" : "rgb(12, 14, 14)",
+    );
+    expect(colors.transport).toContain("gradient");
+    expect(colors.transportHeight).toBe(72);
     expect(colors.playheadMotion).toBe("0s");
     expect(colors.controlMotion).toBe("0s");
+    expect(colors.rulerGlow).toContain("gradient");
   }
 
   await expectPageAxeClean(page);
@@ -194,4 +211,21 @@ test("capture issue 20 review views", async ({ browser }) => {
   } finally {
     await phone.close();
   }
+});
+
+test("capture empty timeline review view", async ({ page }) => {
+  const directory = process.env.EMPTY_STAGE_SCREENSHOT_DIR;
+  test.skip(
+    !directory,
+    "Set EMPTY_STAGE_SCREENSHOT_DIR with an empty E2E project",
+  );
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await expect(
+    page.getByRole("button", { name: "Drop audio files or import" }),
+  ).toBeVisible();
+  await expectPageAxeClean(page);
+  fs.mkdirSync(directory!, { recursive: true });
+  await page.screenshot({ path: path.join(directory!, "empty-timeline.png") });
 });

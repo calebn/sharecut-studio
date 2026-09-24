@@ -203,6 +203,14 @@ Labeled audition/pills do not stay in the bar when collapsed — that was clippi
 
 Keep the Reaper grid. Shared polish:
 
+The desktop transport is a 4.5rem dark control strip with a large mono current
+timecode, a smaller duration, and an accent Play control. Tablet and phone
+headers retain a 3.25rem compact row and keep audition modes in Menu. The light
+theme timeline is a warm charcoal recessed well with a subtle grid and edge
+vignette; the empty project offers the same gridded stage as an import target.
+Track headers use their lane's clip color at the leading edge. Playback lighting
+only animates when reduced motion is not requested.
+
 - Transport overflow (theme, layers, zoom, + Chapter secondary)
 - Focus modes (above)
 - Wider invisible hit targets for fades/envelopes
