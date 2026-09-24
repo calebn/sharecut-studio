@@ -193,6 +193,9 @@ flowchart TD
    transport chip show local capture as failed, or waiting while a retry is
    acquiring the microphone. A successful Retry restores the live capture
    state without discarding existing keeper segments.
+   On rejoin, a transient local segment scan error halts capture and exposes
+   local backup failure; it never resets the cursor to segment zero and
+   overwrites a retained keeper.
    During a healthy host take, the persistent transport control has a red dot,
    REC, and a running clock on desktop; phone keeps the same control in a row
    above every mode body. Reduced-motion settings keep
