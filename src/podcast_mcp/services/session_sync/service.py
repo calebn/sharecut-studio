@@ -124,6 +124,8 @@ class SessionSyncService:
 
     def submit(self, command: SyncCommand) -> dict[str, Any]:
         """Append command, materialize snapshot, fanout. Idempotent on client_seq."""
+        if command.client_seq is not None and command.client_seq <= 0:
+            raise ValueError("explicit client_seq must be positive")
         store = self.store
         if command.type == "Ack":
             ack_seq = int(command.payload.get("acked_server_seq") or 0)

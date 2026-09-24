@@ -4,18 +4,23 @@ import json
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
-from threading import get_ident
+from threading import Event, get_ident
 
 from podcast_mcp.models import load_project
 from podcast_mcp.services.session_control import SessionControlService
 from podcast_mcp.services.session_sync.commands import SyncCommand
+from podcast_mcp.services.session_sync.log import SyncStore
 from podcast_mcp.services.session_sync.service import (
     SessionSyncService,
     next_client_seq,
     read_session_state,
     sync_db_path,
 )
-from podcast_mcp.services.session_sync.snapshot import flatten_for_api
+from podcast_mcp.services.session_sync.snapshot import (
+    apply_command,
+    empty_snapshot,
+    flatten_for_api,
+)
 from podcast_mcp.services.session_sync.viewer import (
     publish_agent_play,
     publish_viewer_snapshot,
@@ -79,7 +84,7 @@ def test_generated_client_seq_survives_new_process_counter(minimal_project, monk
     second = SessionSyncService(proj).submit_control("SetPlayhead", {"playhead_sec": 40.0})
     assert not second.get("idempotent", False)
     assert second["server_seq"] > first["server_seq"]
-    assert second["command"]["client_seq"] == first["command"]["client_seq"] + 1
+    assert second["command"]["client_seq"] == first["command"]["client_seq"] - 1
     assert second["snapshot"]["playhead_sec"] == 40.0
 
 
@@ -121,7 +126,115 @@ def test_generated_seq_follows_explicit_client_seq(minimal_project) -> None:
         )
     )
     generated = svc.submit_control("SetPlayhead", {"playhead_sec": 6.0})
-    assert generated["command"]["client_seq"] == 20
+    assert generated["command"]["client_seq"] == -1
+    explicit = svc.submit(
+        SyncCommand(
+            type="SetPlayhead",
+            payload={"playhead_sec": 7.0},
+            client_id="agent-control",
+            role="agent",
+            client_seq=20,
+        )
+    )
+    assert not explicit.get("idempotent", False)
+    assert explicit["snapshot"]["playhead_sec"] == 7.0
+
+
+def test_generated_command_id_retry_is_idempotent(minimal_project) -> None:
+    svc = SessionSyncService(load_project(minimal_project))
+    command = SyncCommand(
+        type="SetPlayhead",
+        payload={"playhead_sec": 8.0},
+        client_id="agent-control",
+        role="agent",
+        client_seq=None,
+    )
+    first = svc.submit(command)
+    retry = svc.submit(command)
+    assert retry["idempotent"] is True
+    assert retry["server_seq"] == first["server_seq"]
+    assert retry["command"]["command_id"] == command.command_id
+
+
+def test_explicit_client_seq_cannot_enter_generated_range(minimal_project) -> None:
+    import pytest
+
+    svc = SessionSyncService(load_project(minimal_project))
+    with pytest.raises(ValueError, match="positive"):
+        svc.submit(
+            SyncCommand(
+                type="SetPlayhead",
+                payload={"playhead_sec": 8.0},
+                client_id="agent-control",
+                role="agent",
+                client_seq=-1,
+            )
+        )
+
+
+def test_independent_store_connections_materialize_in_order(tmp_path) -> None:
+    db_path = tmp_path / "sync.db"
+    first_store = SyncStore(db_path)
+    second_store = SyncStore(db_path)
+    first_entered = Event()
+    second_done = Event()
+
+    def slow_first_apply(snapshot, row):
+        first_entered.set()
+        second_done.wait(timeout=1.0)
+        return apply_command(snapshot, row)
+
+    def submit(store, command_id, seconds, apply_fn):
+        return store.append_and_apply(
+            command_id=command_id,
+            client_id="agent-control",
+            client_seq=None,
+            role="agent",
+            type="SetPlayhead",
+            payload={"playhead_sec": seconds},
+            causation_id=None,
+            apply_fn=apply_fn,
+            empty_snap_fn=empty_snapshot,
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(submit, first_store, "first", 1.0, slow_first_apply)
+        assert first_entered.wait(timeout=5.0)
+        second = pool.submit(submit, second_store, "second", 2.0, apply_command)
+        second.add_done_callback(lambda _: second_done.set())
+        assert first.result()[0]["server_seq"] == 1
+        assert second.result()[0]["server_seq"] == 2
+    snapshot = first_store.get_snapshot()
+    assert snapshot is not None
+    assert snapshot["server_seq"] == 2
+    assert snapshot["playhead_sec"] == 2.0
+    first_store.close()
+    second_store.close()
+
+
+def test_failed_session_apply_rolls_back_generated_command(tmp_path) -> None:
+    import pytest
+
+    store = SyncStore(tmp_path / "sync.db")
+
+    def fail_apply(snapshot, row):
+        raise ValueError("bad command")
+
+    with pytest.raises(ValueError, match="bad command"):
+        store.append_and_apply(
+            command_id="failed",
+            client_id="agent-control",
+            client_seq=None,
+            role="agent",
+            type="SetPlayhead",
+            payload={"playhead_sec": 1.0},
+            causation_id=None,
+            apply_fn=fail_apply,
+            empty_snap_fn=empty_snapshot,
+        )
+    assert store.commands_after(0) == []
+    assert store.get_snapshot() is None
+    store.close()
 
 
 def test_paused_viewer_scrub_persists_playhead(minimal_project) -> None:

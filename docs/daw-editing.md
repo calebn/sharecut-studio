@@ -211,7 +211,7 @@ Shipped:
 - Clip inspector Delete / Ripple delete under the same policy
 - MCP `split_clip_tool` accepts optional `track_ids_json`
 
-**Residual holes:** remaps are localStorage-only (cheatsheet UI) — leave the stub until preferences-backed remaps are available; paused seek durability; other host MCP mutators may still use `EditService` + ExternalMutate.
+**Residual holes:** remaps are localStorage-only (cheatsheet UI) — leave the stub until preferences-backed remaps are available; other host MCP mutators may still use `EditService` + ExternalMutate.
 
 **Done when:** host can blade-cut selected tracks at a click or the playhead, suggest guests create pending splits, and two blades + delete isolates a region.
 
