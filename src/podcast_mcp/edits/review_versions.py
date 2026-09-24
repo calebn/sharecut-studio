@@ -22,6 +22,13 @@ log = logging.getLogger(__name__)
 _REVIEW_MP3_BITRATE_KBPS = 128
 _STALE_MP3_TEMP_AGE_SECONDS = 24 * 60 * 60
 _STALE_MP3_TEMP_CLEANUP_LIMIT = 32
+_SAFE_STALE_CLEANUP_SUPPORTED = (
+    os.scandir in os.supports_fd
+    and os.stat in os.supports_dir_fd
+    and os.unlink in os.supports_dir_fd
+    and hasattr(os, "O_DIRECTORY")
+    and hasattr(os, "O_NOFOLLOW")
+)
 REVIEW_ARTIFACTS_RELDIR = "artifacts/review"
 
 
@@ -109,23 +116,35 @@ def version_mp3_path(project: EpisodeProject, version_id: str) -> Path | None:
 
 def _clean_stale_mp3_temps(version_dir: Path) -> None:
     """Bound best-effort cleanup to old regular retry files in one pinned version dir."""
+    if not _SAFE_STALE_CLEANUP_SUPPORTED:
+        log.debug("Skipping stale review MP3 cleanup without descriptor-relative file operations")
+        return
     cutoff = time.time() - _STALE_MP3_TEMP_AGE_SECONDS
-    removed = 0
+    attempted = 0
     try:
-        with os.scandir(version_dir) as entries:
-            for entry in entries:
-                if removed >= _STALE_MP3_TEMP_CLEANUP_LIMIT:
-                    break
-                if not (entry.name.startswith(".mix-") and entry.name.endswith(".mp3")):
-                    continue
-                try:
-                    metadata = entry.stat(follow_symlinks=False)
-                    if not stat.S_ISREG(metadata.st_mode) or metadata.st_mtime > cutoff:
+        directory_fd = os.open(version_dir, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            with os.scandir(directory_fd) as entries:
+                for entry in entries:
+                    if attempted >= _STALE_MP3_TEMP_CLEANUP_LIMIT:
+                        break
+                    if not (entry.name.startswith(".mix-") and entry.name.endswith(".mp3")):
                         continue
-                    Path(entry.path).unlink()
-                    removed += 1
-                except OSError:
-                    log.warning("Could not remove stale review MP3 %s", entry.path, exc_info=True)
+                    try:
+                        metadata = os.stat(entry.name, dir_fd=directory_fd, follow_symlinks=False)
+                        if not stat.S_ISREG(metadata.st_mode) or metadata.st_mtime > cutoff:
+                            continue
+                        attempted += 1
+                        current = os.stat(entry.name, dir_fd=directory_fd, follow_symlinks=False)
+                        if (current.st_dev, current.st_ino) != (metadata.st_dev, metadata.st_ino):
+                            continue
+                        os.unlink(entry.name, dir_fd=directory_fd)
+                    except OSError:
+                        log.warning(
+                            "Could not remove stale review MP3 %s", entry.name, exc_info=True
+                        )
+        finally:
+            os.close(directory_fd)
     except OSError:
         log.warning("Could not scan review MP3 retries in %s", version_dir, exc_info=True)
 
