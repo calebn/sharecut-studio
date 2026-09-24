@@ -2,6 +2,10 @@ import { expect, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
 
 test.describe("control state parity", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+  });
+
   test("transcript Focus and Follow both use ui-control and matching hover", async ({
     page,
   }) => {
@@ -154,7 +158,7 @@ test.describe("control state parity", () => {
 
     const mixToken = await page.evaluate(() => {
       const el = document.createElement("div");
-      el.style.background = "var(--color-accent-solid)";
+      el.style.background = "var(--color-bg-inverted)";
       document.body.appendChild(el);
       const bg = getComputedStyle(el).backgroundColor;
       el.remove();

@@ -289,7 +289,7 @@ def test_render_record_spa_html_no_audio_tags(
         index_html="<html><head></head><body></body></html>",
         public_origin="https://share.example",
     )
-    assert "Join the recording — test_episode" in html
+    assert "Join the recording | test_episode" in html
     assert "og:audio" not in html
     assert 'property="og:type"' in html
     assert "website" in html
@@ -300,7 +300,7 @@ def test_render_record_spa_html_no_audio_tags(
         index_html="<html><head></head><body></body></html>",
         public_origin="https://share.example",
     )
-    assert "Producer — not recorded — test_episode" in producer_html
+    assert "Producer (not recorded) | test_episode" in producer_html
 
 
 def test_share_public_origin_empty_relay(monkeypatch):

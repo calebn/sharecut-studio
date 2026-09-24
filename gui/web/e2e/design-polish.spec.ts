@@ -24,17 +24,24 @@ test("timeline stays recessed across themes and motion respects preference", asy
       const playhead = document.createElement("div");
       playhead.className = "playhead";
       document.body.appendChild(playhead);
-      const motion = getComputedStyle(playhead).transitionDuration;
+      const playheadMotion = getComputedStyle(playhead).transitionDuration;
       playhead.remove();
+      const control = document.createElement("button");
+      control.className = "ui-control";
+      document.body.appendChild(control);
+      const controlMotion = getComputedStyle(control).transitionDuration;
+      control.remove();
       return {
         timeline: getComputedStyle(timeline).backgroundColor,
         transport: getComputedStyle(transport).backgroundColor,
-        playhead: motion,
+        playheadMotion,
+        controlMotion,
       };
     });
     expect(colors.timeline).toBe("rgb(12, 14, 14)");
     expect(colors.timeline).not.toBe(colors.transport);
-    expect(colors.playhead).toBe("0s");
+    expect(colors.playheadMotion).toBe("0s");
+    expect(colors.controlMotion).toBe("0s");
   }
 
   await expectPageAxeClean(page);
@@ -42,15 +49,35 @@ test("timeline stays recessed across themes and motion respects preference", asy
   await expect
     .poll(() =>
       page.evaluate(() => {
-        const playhead = document.createElement("div");
-        playhead.className = "playhead";
-        document.body.appendChild(playhead);
-        const motion = getComputedStyle(playhead).transitionDuration;
-        playhead.remove();
+        const control = document.createElement("button");
+        control.className = "ui-control";
+        document.body.appendChild(control);
+        const motion = getComputedStyle(control).transitionDuration;
+        control.remove();
         return motion;
       }),
     )
     .not.toBe("0s");
+});
+
+test("fixed phone playhead stays visible on the dark timeline", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await page
+    .getByRole("navigation", { name: "Primary" })
+    .getByRole("button", { name: "Timeline" })
+    .click();
+  const playhead = page.locator(
+    ".timeline-area--fixed-playhead .playhead--fixed",
+  );
+  await expect(playhead).toBeVisible();
+  expect(
+    await playhead.evaluate(
+      (element) => getComputedStyle(element).backgroundColor,
+    ),
+  ).toBe("rgb(255, 109, 72)");
 });
 
 test("capture issue 20 review views", async ({ browser }) => {
@@ -62,60 +89,70 @@ test("capture issue 20 review views", async ({ browser }) => {
   const desktop = await browser.newPage({
     viewport: { width: 1440, height: 900 },
   });
-  await desktop.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-  await expect(desktop.locator(".lane-row").first()).toBeVisible();
-  await expect
-    .poll(async () =>
-      desktop
-        .locator("canvas.clip-waveform")
-        .first()
-        .evaluate((canvas) => {
-          const surface = canvas as HTMLCanvasElement;
-          if (!surface.width || !surface.height) return false;
-          const pixels = surface
-            .getContext("2d")
-            ?.getImageData(0, 0, surface.width, surface.height).data;
-          return pixels
-            ? pixels.some((value, index) => index % 4 === 3 && value > 0)
-            : false;
-        }),
-    )
-    .toBe(true);
-  await desktop.screenshot({ path: path.join(directory!, "timeline.png") });
+  try {
+    await desktop.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await expect(desktop.locator(".lane-row").first()).toBeVisible();
+    await expect
+      .poll(async () =>
+        desktop
+          .locator("canvas.clip-waveform")
+          .first()
+          .evaluate((canvas) => {
+            const surface = canvas as HTMLCanvasElement;
+            if (!surface.width || !surface.height) return false;
+            const pixels = surface
+              .getContext("2d")
+              ?.getImageData(0, 0, surface.width, surface.height).data;
+            return pixels
+              ? pixels.some((value, index) => index % 4 === 3 && value > 0)
+              : false;
+          }),
+      )
+      .toBe(true);
+    await desktop.screenshot({ path: path.join(directory!, "timeline.png") });
 
-  await desktop
-    .getByRole("button", { name: "Open track details, reference" })
-    .focus();
-  await desktop.keyboard.press("Enter");
-  await expect(desktop.locator(".inspector")).toBeVisible();
-  await desktop.screenshot({ path: path.join(directory!, "inspector.png") });
+    await desktop
+      .getByRole("button", { name: "Open track details, reference" })
+      .focus();
+    await desktop.keyboard.press("Enter");
+    await expect(desktop.locator(".inspector")).toBeVisible();
+    await desktop.screenshot({ path: path.join(directory!, "inspector.png") });
 
-  await desktop.getByRole("button", { name: "Menu", exact: true }).click();
-  await desktop.getByRole("menuitem", { name: /Share/ }).click();
-  await expect(desktop.getByRole("dialog", { name: "Share" })).toBeVisible();
-  await desktop.screenshot({ path: path.join(directory!, "share-dialog.png") });
-  await desktop
-    .getByRole("dialog", { name: "Share" })
-    .getByRole("button", { name: "Close", exact: true })
-    .click();
+    await desktop.getByRole("button", { name: "Menu", exact: true }).click();
+    await desktop.getByRole("menuitem", { name: /Share/ }).click();
+    await expect(desktop.getByRole("dialog", { name: "Share" })).toBeVisible();
+    await desktop.screenshot({
+      path: path.join(directory!, "share-dialog.png"),
+    });
+    await desktop
+      .getByRole("dialog", { name: "Share" })
+      .getByRole("button", { name: "Close", exact: true })
+      .click();
 
-  await desktop
-    .getByLabel("Editor panels")
-    .getByRole("button", { name: "Tighten", exact: true })
-    .click();
-  await expect(
-    desktop.getByText("No pending tighten decisions."),
-  ).toBeVisible();
-  await desktop.screenshot({ path: path.join(directory!, "empty-state.png") });
-  await desktop.close();
+    await desktop
+      .getByLabel("Editor panels")
+      .getByRole("button", { name: "Tighten", exact: true })
+      .click();
+    await expect(
+      desktop.getByText("No pending tighten decisions."),
+    ).toBeVisible();
+    await desktop.screenshot({
+      path: path.join(directory!, "empty-state.png"),
+    });
+  } finally {
+    await desktop.close();
+  }
 
   const phone = await browser.newPage({
     viewport: { width: 390, height: 844 },
   });
-  await phone.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-  await expect(
-    phone.getByRole("navigation", { name: "Primary" }),
-  ).toBeVisible();
-  await phone.screenshot({ path: path.join(directory!, "mobile-nav.png") });
-  await phone.close();
+  try {
+    await phone.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await expect(
+      phone.getByRole("navigation", { name: "Primary" }),
+    ).toBeVisible();
+    await phone.screenshot({ path: path.join(directory!, "mobile-nav.png") });
+  } finally {
+    await phone.close();
+  }
 });

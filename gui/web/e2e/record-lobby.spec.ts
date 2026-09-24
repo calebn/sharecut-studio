@@ -405,7 +405,7 @@ test.describe("record lobby", () => {
           });
           await openRecordLink(producer, room.producer.token);
           await expect(
-            producer.getByRole("heading", { name: "Producer — not recorded" }),
+            producer.getByRole("heading", { name: "Producer (not recorded)" }),
           ).toBeVisible();
           await expect(
             producer.getByRole("heading", {

@@ -102,6 +102,12 @@ locally; timecodes and numeric inspector values use the mono family and
 tabular numerals. The existing display serif remains limited to prominent
 titles.
 
+Use `--accent-fg` for small accent text, including links and status labels;
+`--accent` remains available for non-text decoration and focus rings. Shared
+empty-state chrome lives in `.ui-empty-state`. The live playhead position comes
+from the transport animation frame and changes immediately for seeks; CSS
+motion applies to controls and panels, not that time coordinate.
+
 Research basis (surface conventions only): Material Design 3's tonal surface
 scale (`surface-dim` → containers → `surface-bright`, elevation as tone
 shifts, not shadows); Radix's `*-aN` alpha steps that composite over any

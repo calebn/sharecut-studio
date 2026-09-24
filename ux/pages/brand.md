@@ -111,7 +111,7 @@ Sharecut Studio chrome uses one paint primitive: **`.ui-control`** (see [`gui/we
 | Open | Menus, More, sheets | `aria-expanded`; panel is the confirmation |
 | Error | Failed act | `role="alert"` + danger ink |
 
-Accent identifies actions and focus. Function colors stay mute/solo/stale/danger. Motion uses `--motion-*` timing under `prefers-reduced-motion: no-preference`; reduced-motion views change state immediately.
+Accent identifies actions and focus; small links and running-status text use the darker `--accent-fg` role for contrast. Function colors stay mute/solo/stale/danger. Selected modes use the inverted surface consistently at rest and on hover. Shared empty panels use `.ui-empty-state`. Motion uses `--motion-*` timing under `prefers-reduced-motion: no-preference`; reduced-motion views change state immediately. The playhead position follows the audio clock without a CSS transition, and the centered phone playhead uses `--color-timeline-playhead` against the dark well.
 
 ## Units
 

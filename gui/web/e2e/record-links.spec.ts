@@ -44,7 +44,7 @@ test.describe("record links", () => {
 
           await pageB.goto(`/rec/${producer}`);
           await expect(
-            pageB.getByRole("heading", { name: "Producer — not recorded" }),
+            pageB.getByRole("heading", { name: "Producer (not recorded)" }),
           ).toBeVisible();
           await expect(
             pageB.getByRole("heading", { name: "Not recorded", exact: true }),

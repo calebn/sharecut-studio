@@ -386,7 +386,9 @@ export function ShareDialog() {
           </h3>
           <div className="share-dialog-scroller">
             {reviewLive.length === 0 ? (
-              <p className="share-dialog-empty">No live review links.</p>
+              <p className="share-dialog-empty ui-empty-state">
+                No live review links.
+              </p>
             ) : (
               <ul className="share-dialog-list">
                 {reviewLive.map((row) => (
@@ -455,7 +457,9 @@ export function ShareDialog() {
           </h3>
           <div className="share-dialog-scroller-rooms">
             {recordRooms.length === 0 ? (
-              <p className="share-dialog-empty">No live record rooms.</p>
+              <p className="share-dialog-empty ui-empty-state">
+                No live record rooms.
+              </p>
             ) : (
               <ul className="share-dialog-list">
                 {recordRooms.map((room) => (

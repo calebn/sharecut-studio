@@ -632,10 +632,6 @@ button.join-diamond {
   .timeline-skeleton-lane {
     animation: timeline-shimmer 1.6s linear infinite;
   }
-
-  .playhead {
-    transition: left var(--motion-hover) linear;
-  }
 }
 
 @keyframes timeline-shimmer {

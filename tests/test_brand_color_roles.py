@@ -317,6 +317,11 @@ def test_design_palette_preserves_text_and_action_contrast() -> None:
     assert light["--color-accent"] == "#df4b28"
     assert dark["--color-bg-canvas"] == "#111313"
     assert dark["--color-accent"] == "#ff6d48"
+    accent_text = _custom_property_value(
+        PRIMITIVES_CSS.read_text(encoding="utf-8"), "--primitive-orange-750"
+    )
+    for surface in ("--color-bg-canvas", "--color-bg-surface", "--color-bg-elevated"):
+        assert _contrast_ratio(accent_text, light[surface]) >= 4.5
     for roles in (light, dark):
         assert _contrast_ratio(roles["--color-text-primary"], roles["--color-bg-surface"]) >= 4.5
         assert (

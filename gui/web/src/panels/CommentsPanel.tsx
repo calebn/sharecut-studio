@@ -309,7 +309,9 @@ export function CommentsPanel({
           );
         })}
         {filtered.length === 0 && (
-          <li className="comments-empty">No comments in this filter.</li>
+          <li className="comments-empty ui-empty-state">
+            No comments in this filter.
+          </li>
         )}
       </ul>
       {guestShare ? null : (
