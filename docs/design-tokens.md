@@ -89,7 +89,9 @@ names. The timeline has separate `--color-timeline-*` roles: its dark well,
 lane, border, text, waveform gradient, and playhead stay dark in both app
 themes, while the surrounding chrome follows the selected theme. Raised,
 floating, and modal objects use `--shadow-raised`, `--shadow-floating`, and
-`--shadow-modal`; the modal panel also uses restrained backdrop blur.
+`--shadow-modal`; the modal panel also uses restrained backdrop blur. Overlay
+has a distinct tone from raised: a warm tint over white in light mode and a
+lifted graphite tone in dark mode.
 
 The palette follows the DAW UX briefing: warm paper canvas and near-white
 surfaces in light mode; graphite layers in dark mode; orange for actions and

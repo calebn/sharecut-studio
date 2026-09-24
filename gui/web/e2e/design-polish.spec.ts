@@ -80,6 +80,36 @@ test("fixed phone playhead stays visible on the dark timeline", async ({
   ).toBe("rgb(255, 109, 72)");
 });
 
+test("Share dialog floats on a distinct tone from the raised inspector", async ({
+  page,
+}) => {
+  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await page
+    .getByRole("button", { name: "Open track details, reference" })
+    .focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".inspector")).toBeVisible();
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  await page.getByRole("menuitem", { name: /Share/ }).click();
+  const dialog = page.getByRole("dialog", { name: "Share" });
+  await expect(dialog).toBeVisible();
+
+  for (const theme of ["light", "dark"] as const) {
+    await page.evaluate((value) => {
+      document.documentElement.dataset.theme = value;
+    }, theme);
+    const raised = await page
+      .locator(".inspector")
+      .evaluate((element) => getComputedStyle(element).backgroundColor);
+    const overlay = await dialog.evaluate(
+      (element) => getComputedStyle(element).backgroundColor,
+    );
+    expect(overlay, `${theme} overlay should differ from raised`).not.toBe(
+      raised,
+    );
+  }
+});
+
 test("capture issue 20 review views", async ({ browser }) => {
   test.setTimeout(30_000);
   const directory = process.env.DESIGN_POLISH_SCREENSHOT_DIR;

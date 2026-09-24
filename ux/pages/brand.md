@@ -19,7 +19,7 @@ Sharecut Studio tokens: [`gui/web/src/styles/theme/`](https://github.com/calebn/
 
 ## Planes (information hierarchy)
 
-Paint and markup share one stack. **Chrome panes** (transport, headers, bottom tabs, inspector, status) sit on surface. The timeline uses a dark `--color-timeline-*` well in either app theme, with light chrome surrounding it when light mode is selected. Raised and overlay surfaces use named shadows. Timeline `--z-*` is paint order on the mixer, not chrome elevation.
+Paint and markup share one stack. **Chrome panes** (transport, headers, bottom tabs, inspector, status) sit on surface. The timeline uses a dark `--color-timeline-*` well in either app theme, with light chrome surrounding it when light mode is selected. Raised and overlay surfaces have distinct tones as well as named shadows: overlays are warm tinted in light mode and lifted graphite in dark mode. Timeline `--z-*` is paint order on the mixer, not chrome elevation.
 
 | Plane | Meaning | Markup | Token |
 |-------|---------|--------|-------|

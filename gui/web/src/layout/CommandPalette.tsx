@@ -63,7 +63,7 @@ export function CommandPalette() {
     >
       <p className="command-palette-hint">
         Press <kbd>?</kbd> anytime. Character keys only apply when the timeline
-        (or transcript) is focused, except while typing in a field.
+        or transcript has focus.
       </p>
       <button
         type="button"

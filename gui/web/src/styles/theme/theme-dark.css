@@ -8,7 +8,11 @@
   /* Named surface ladder; legacy shared brand names remain aliases. */
   --color-bg-base: var(--color-bg-surface);
   --color-bg-raised: var(--color-bg-elevated);
-  --color-bg-overlay: var(--color-bg-elevated);
+  --color-bg-overlay: color-mix(
+    in srgb,
+    var(--color-bg-elevated) 88%,
+    var(--primitive-neutral-50)
+  );
   --color-bg-sunken: var(--primitive-neutral-875);
   --color-bg-inverted: var(--primitive-neutral-50);
   --color-text-on-canvas: var(--color-text-primary);

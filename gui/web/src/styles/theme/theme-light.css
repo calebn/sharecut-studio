@@ -7,7 +7,11 @@
 
   --color-bg-base: var(--color-bg-surface);
   --color-bg-raised: var(--color-bg-elevated);
-  --color-bg-overlay: var(--color-bg-elevated);
+  --color-bg-overlay: color-mix(
+    in srgb,
+    var(--color-bg-elevated) 60%,
+    var(--primitive-neutral-75)
+  );
   --color-bg-sunken: var(--primitive-neutral-100);
   --color-bg-inverted: var(--primitive-neutral-775);
   --color-text-on-canvas: var(--color-text-primary);
@@ -311,7 +315,11 @@
 
     --color-bg-base: var(--color-bg-surface);
     --color-bg-raised: var(--color-bg-elevated);
-    --color-bg-overlay: var(--color-bg-elevated);
+    --color-bg-overlay: color-mix(
+      in srgb,
+      var(--color-bg-elevated) 60%,
+      var(--primitive-neutral-75)
+    );
     --color-bg-sunken: var(--primitive-neutral-100);
     --color-bg-inverted: var(--primitive-neutral-775);
     --color-text-on-canvas: var(--color-text-primary);
