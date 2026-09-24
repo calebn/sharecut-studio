@@ -5,11 +5,12 @@ import { join } from "node:path";
 import type { Plugin } from "vite";
 import { STORY_SUPPORT_MODULES } from "../src/test/storyGovernance.ts";
 
-function publicScripts(dir: string): string[] {
+function uninspectedPublicAssets(dir: string): string[] {
   if (!existsSync(dir)) return [];
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const path = join(dir, entry.name);
-    if (entry.isDirectory()) return publicScripts(path);
+    if (entry.isSymbolicLink()) return [path];
+    if (entry.isDirectory()) return uninspectedPublicAssets(path);
     return entry.isFile() && /\.[cm]?js$/i.test(entry.name) ? [path] : [];
   });
 }
@@ -32,9 +33,9 @@ export function forbidStoryModules(): Plugin {
       publicDir = config.publicDir;
     },
     buildStart() {
-      for (const path of publicScripts(publicDir)) {
+      for (const path of uninspectedPublicAssets(publicDir)) {
         this.error(
-          `Uninspected public JavaScript can ship story code: ${path}`,
+          `Uninspected public JavaScript or symlink can ship story code: ${path}`,
         );
       }
     },

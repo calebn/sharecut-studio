@@ -1,4 +1,10 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { build } from "vite";
@@ -84,6 +90,36 @@ describe("production build story guard", () => {
         plugins: [forbidStoryModules()],
         build: { outDir: "dist" },
       }),
-    ).rejects.toThrow("Uninspected public JavaScript can ship story code");
+    ).rejects.toThrow(
+      "Uninspected public JavaScript or symlink can ship story code",
+    );
+  });
+
+  it("rejects a symlinked public script that Vite would copy", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "sharecut-public-link-"));
+    dirs.push(dir);
+    mkdirSync(join(dir, "public"));
+    writeFileSync(
+      join(dir, "index.html"),
+      '<script type="module" src="/main.js"></script>',
+    );
+    writeFileSync(join(dir, "main.js"), "console.log(42)");
+    writeFileSync(
+      join(dir, "story-leak.js"),
+      'import "@storybook/react-vite";',
+    );
+    symlinkSync(join(dir, "story-leak.js"), join(dir, "public", "leak.js"));
+
+    await expect(
+      build({
+        root: dir,
+        configFile: false,
+        logLevel: "silent",
+        plugins: [forbidStoryModules()],
+        build: { outDir: "dist" },
+      }),
+    ).rejects.toThrow(
+      "Uninspected public JavaScript or symlink can ship story code",
+    );
   });
 });
