@@ -150,7 +150,12 @@ Dark mode keeps the stage darkest with lanes one step up. The playhead is the
 accent in each theme. Waveforms take their tints from each clip's own fill
 (`clipWaveformFill`), mirrored around the midline. The empty-session stage
 keeps a decorative grid; lanes do not, because a grid that ignores the ruler
-reads as false time divisions.
+reads as false time divisions. The well falls off toward its inline edges
+(`--bg-well-vignette` from `--color-well-vignette`, `--z-stage-vignette`):
+the falloff is `--space-6` wide, starts below the ruler, lies over lanes and
+clips, and stays under the playhead and track headers. It is a black wash
+capped at 24% (dark) and 8% (light), so white clip labels only gain contrast
+(`tests/test_brand_color_roles.py`).
 
 **Transport.** The transport is fixed dark in both themes (`--color-transport-*`,
 `--bg-transport`, `--shadow-transport-*`). Play is the only orange control and

@@ -706,6 +706,8 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
               "--marker-row-height": `${MARKER_ROW_HEIGHT}px`,
               "--lane-height": `${laneHeight}px`,
               "--marker-lane-height": `${markerLaneHeightPx}px`,
+              // The well-edge vignette starts past the header column.
+              "--timeline-header-offset": `${headerOffsetPx}px`,
               // Only fixed-playhead CSS reads these; keep them off other
               // views so a resize there restyles nothing.
               ...(fixedPlayhead

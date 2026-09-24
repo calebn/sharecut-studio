@@ -472,3 +472,38 @@ def test_brand_accent_text_reads_on_canvas_and_surface() -> None:
     for roles in (brand_light_data_roles(), brand_dark_roles()):
         for surface in ("--color-bg-canvas", "--color-bg-surface", "--color-bg-elevated"):
             assert _contrast_ratio(roles["--color-accent-text"], roles[surface]) >= 4.5, surface
+
+
+_BLACK_WASH_RE = re.compile(
+    r"color-mix\(in srgb, var\(--primitive-black\) (\d+(?:\.\d+)?)%, transparent\)"
+)
+CLIP_FILL_ROLES = (
+    "--color-clip-dialogue-0",
+    "--color-clip-dialogue-1",
+    "--color-clip-dialogue-2",
+    "--color-clip-music",
+    "--color-clip-sfx",
+)
+
+
+def _under_black(color: str, alpha: float) -> str:
+    return "#" + "".join(f"{round(int(color[i : i + 2], 16) * (1 - alpha)):02x}" for i in (1, 3, 5))
+
+
+@pytest.mark.parametrize(("theme", "cap"), [("dark", 0.25), ("light", 0.08)])
+def test_well_vignette_is_a_faint_black_wash(theme: str, cap: float) -> None:
+    """The well-edge vignette (#387) darkens toward the stage edges. As a
+    black wash it can only raise the white clip labels' contrast, and the cap
+    keeps waveform tints readable at its darkest point."""
+    roles = _studio_roles(theme)
+    wash = _BLACK_WASH_RE.fullmatch(roles["--color-well-vignette"])
+    assert wash, f"{theme} --color-well-vignette must be a black color-mix"
+    alpha = float(wash.group(1)) / 100
+    assert 0 < alpha <= cap, (theme, alpha)
+    label = _resolve_hex("--color-clip-label", roles)
+    for role in CLIP_FILL_ROLES:
+        fill = _resolve_hex(role, roles)
+        assert _contrast_ratio(label, _under_black(fill, alpha)) >= _contrast_ratio(label, fill), (
+            theme,
+            role,
+        )

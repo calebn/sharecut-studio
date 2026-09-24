@@ -27,6 +27,19 @@
   opacity: 1;
 }
 
+/* Well-edge falloff (#387): the stage darkens faintly toward its inline edges,
+   below the ruler, over lanes and clips, under the playhead and headers.
+   TimelineView measures the header column into --timeline-header-offset. */
+.timeline-area:not([aria-busy="true"])::after {
+  content: "";
+  position: absolute;
+  inset-block: var(--ruler-height) 0;
+  inset-inline: var(--timeline-header-offset, 0) 0;
+  z-index: var(--z-stage-vignette);
+  background: var(--bg-well-vignette);
+  pointer-events: none;
+}
+
 .track-header-row {
   --color-track-hover: color-mix(
     in srgb,

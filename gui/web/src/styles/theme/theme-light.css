@@ -33,6 +33,12 @@
      clips carry the color and each track row reads as one row (#20). */
   --color-timeline-well: var(--primitive-neutral-140);
   --color-timeline-lane: var(--primitive-neutral-55);
+  /* Edge falloff on the stage: a faint black wash (#387). */
+  --color-well-vignette: color-mix(
+    in srgb,
+    var(--primitive-black) 6%,
+    transparent
+  );
   --color-timeline-lane-muted: var(--primitive-neutral-125);
   --color-timeline-border: var(--primitive-neutral-250);
   --color-timeline-text: var(--primitive-neutral-650);
@@ -353,6 +359,12 @@
        clips carry the color and each track row reads as one row (#20). */
     --color-timeline-well: var(--primitive-neutral-140);
     --color-timeline-lane: var(--primitive-neutral-55);
+    /* Edge falloff on the stage: a faint black wash (#387). */
+    --color-well-vignette: color-mix(
+      in srgb,
+      var(--primitive-black) 6%,
+      transparent
+    );
     --color-timeline-lane-muted: var(--primitive-neutral-125);
     --color-timeline-border: var(--primitive-neutral-250);
     --color-timeline-text: var(--primitive-neutral-650);
