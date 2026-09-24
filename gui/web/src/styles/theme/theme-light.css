@@ -26,6 +26,9 @@
      Chip text ≥4.5:1: primary 13.3:1, secondary 5.5:1. */
   --color-chip-selected: var(--primitive-neutral-150);
   --color-chip-selected-fg: var(--color-text-primary);
+  /* Hover wash: a faint ink tint that reads on every ladder rung and stays
+     distinct from the selected chip (hover = wash, selected = chip). */
+  --color-hover: color-mix(in srgb, var(--color-text-primary) 6%, transparent);
   /* Light stage: one recessed step below the panes with lanes near paper, so
      clips carry the color and each track row reads as one row (#20). */
   --color-timeline-well: var(--primitive-neutral-140);
@@ -340,6 +343,13 @@
        Chip text ≥4.5:1: primary 13.3:1, secondary 5.5:1. */
     --color-chip-selected: var(--primitive-neutral-150);
     --color-chip-selected-fg: var(--color-text-primary);
+    /* Hover wash: a faint ink tint that reads on every ladder rung and stays
+       distinct from the selected chip (hover = wash, selected = chip). */
+    --color-hover: color-mix(
+      in srgb,
+      var(--color-text-primary) 6%,
+      transparent
+    );
     /* Light stage: one recessed step below the panes with lanes near paper, so
        clips carry the color and each track row reads as one row (#20). */
     --color-timeline-well: var(--primitive-neutral-140);

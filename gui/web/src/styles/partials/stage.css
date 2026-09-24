@@ -1,16 +1,11 @@
 /* Stage lighting and row interaction depth (timeline, transcript toolbar,
    track rows). Transport paint lives in transport.css. */
-.transcript-toolbar .transcript-annotate-btn,
-.transcript-toolbar .focus-pane-btn {
+
+/* Quiet at rest; pressed falls through to the shared .ui-control chip. */
+.transcript-toolbar .transcript-annotate-btn:not([aria-pressed="true"], :hover),
+.transcript-toolbar .focus-pane-btn:not([aria-pressed="true"], :hover) {
   border-color: transparent;
   background: transparent;
-}
-
-.transcript-toolbar .transcript-annotate-btn[aria-pressed="true"],
-.transcript-toolbar .focus-pane-btn[aria-pressed="true"] {
-  color: var(--color-chip-selected-fg);
-  border-color: var(--color-border-strong);
-  background: var(--color-chip-selected);
 }
 
 .timeline-area[data-playing="true"] .playhead {
@@ -41,15 +36,6 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .transcript-toolbar
-    .transcript-annotate-btn[aria-pressed="true"]:hover:not(:disabled),
-  .transcript-toolbar
-    .focus-pane-btn[aria-pressed="true"]:hover:not(:disabled) {
-    color: var(--color-chip-selected-fg);
-    border-color: var(--color-border-strong);
-    background: var(--color-chip-selected);
-  }
-
   .track-header-row:hover:not(.dragging) {
     background: var(--color-track-hover);
   }

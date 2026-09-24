@@ -587,23 +587,19 @@ button.pill.pill--info {
   border-color: var(--warning);
 }
 
-.tool-mode-toggle {
-  display: inline-flex;
-  gap: var(--space-0);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-}
-
-.tool-mode-toggle button {
-  /* Interaction paint from .ui-control--quiet */
+/* Icon tools inside the shared .ui-segmented track (paint comes from there). */
+.tool-mode-toggle > .ui-control {
   padding: var(--space-1) var(--space-2);
   font-size: var(--font-size-small);
   min-width: 2rem;
   min-height: 2rem;
 }
 
-.tool-mode-toggle--compact button {
+.tool-mode-toggle--compact {
+  block-size: auto;
+}
+
+.tool-mode-toggle--compact > .ui-control {
   padding: var(--space-1);
   font-size: var(--font-size-caption);
   min-width: 2.25rem;
@@ -613,15 +609,6 @@ button.pill.pill--info {
 .ui-icon {
   display: block;
   flex: 0 0 auto;
-}
-
-.tool-mode-toggle
-  .ui-control--quiet[aria-pressed="true"]:not(.comment-mode-btn),
-.tool-mode-toggle .ui-control--quiet.active:not(.comment-mode-btn) {
-  background: var(--color-chip-selected);
-  color: var(--color-chip-selected-fg);
-  border-color: transparent;
-  border-bottom-color: transparent;
 }
 
 .blade-cut-guide {

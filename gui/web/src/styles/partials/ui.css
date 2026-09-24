@@ -86,8 +86,8 @@
   font-size: var(--font-size-small);
 }
 
-.ui-segmented > .ui-control[aria-pressed="true"],
-.ui-segmented > .ui-control.active {
+.ui-segmented
+  > .ui-control:is([aria-pressed="true"], .active):not(.comment-mode-btn) {
   border-color: transparent;
   background: var(--color-chip-selected);
   color: var(--color-chip-selected-fg);
@@ -172,11 +172,13 @@
   font-size: var(--font-size-small);
 }
 
+/* Pressed / selected is the shared chip everywhere (tabs and quiet
+   segments restate it below); hover is a wash, so the two never look alike. */
 .ui-control[aria-pressed="true"],
 .ui-control.active {
-  color: var(--color-text-primary);
-  border-color: var(--color-border-strong);
-  background: var(--color-bg-sunken);
+  color: var(--color-chip-selected-fg);
+  border-color: var(--color-text-secondary);
+  background: var(--color-chip-selected);
 }
 
 /* Comment mode must keep marker fill over generic pressed paint. */
@@ -263,7 +265,7 @@
   ) {
     color: var(--color-text-primary);
     border-color: var(--color-text-secondary);
-    background: var(--color-bg-sunken);
+    background: var(--color-hover);
   }
 
   .ui-control.primary:hover:not(:disabled, [aria-disabled="true"]),
@@ -310,7 +312,7 @@
   .ui-control[data-ui-kind="tab"]:hover:not(:disabled, [aria-disabled="true"]) {
     color: var(--color-text-primary);
     border-color: transparent;
-    background: var(--color-bg-sunken);
+    background: var(--color-hover);
   }
 
   .ui-control[aria-pressed="true"]:hover:not(
@@ -339,8 +341,9 @@
       .comment-mode-btn
     )
   ) {
-    color: var(--color-text-primary);
-    border-color: var(--color-border-strong);
+    color: var(--color-chip-selected-fg);
+    border-color: var(--color-text-secondary);
+    background: var(--color-chip-selected);
   }
 
   /* Quiet pressed wash — exclude solid segment groups (layout.css owns fill). */
@@ -367,24 +370,11 @@
     border-right-color: transparent;
     border-left-color: transparent;
     border-bottom-color: var(--color-border-strong);
-    background: var(--color-bg-sunken);
+    background: var(--color-hover);
   }
 
   .ui-segmented
-    .ui-control--quiet[aria-pressed="true"]:hover:not(
-      :disabled,
-      [aria-disabled="true"]
-    ),
-  .ui-segmented
-    .ui-control--quiet.active:hover:not(:disabled, [aria-disabled="true"]),
-  .tool-mode-toggle
-    .ui-control--quiet[aria-pressed="true"]:hover:not(
-      :disabled,
-      [aria-disabled="true"],
-      .comment-mode-btn
-    ),
-  .tool-mode-toggle
-    .ui-control--quiet.active:hover:not(
+    > .ui-control--quiet:is([aria-pressed="true"], .active):hover:not(
       :disabled,
       [aria-disabled="true"],
       .comment-mode-btn
@@ -491,10 +481,10 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .ui-menu-panel .ui-control--quiet:hover:not(:disabled),
+  .ui-menu-panel .ui-control--quiet:hover:not(:disabled, [aria-checked="true"]),
   .ui-menu-panel button[role="menuitem"]:hover:not(:disabled) {
-    background: var(--color-chip-selected);
-    color: var(--color-chip-selected-fg);
+    background: var(--color-hover);
+    color: var(--color-text-primary);
     border-color: transparent;
   }
 }

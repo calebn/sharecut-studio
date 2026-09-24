@@ -26,6 +26,9 @@
      Chip text ≥4.5:1: primary 9.6:1, secondary 5.0:1. */
   --color-chip-selected: var(--primitive-neutral-725);
   --color-chip-selected-fg: var(--color-text-primary);
+  /* Hover wash: a faint ink tint that reads on every ladder rung and stays
+     distinct from the selected chip (hover = wash, selected = chip). */
+  --color-hover: color-mix(in srgb, var(--color-text-primary) 8%, transparent);
   /* Dark stage: darkest region, lanes one step up, content carries color. */
   --color-timeline-well: var(--primitive-neutral-975);
   --color-timeline-lane: var(--primitive-neutral-900);

@@ -1,7 +1,7 @@
 import { formatShortcutKeys, keymapCommandById } from "../keymap/registry";
 import { canSuggestStructuralOnProject } from "../shareMode";
 import { useDaw } from "../state/useDaw";
-import { CommandButton, Icon } from "../ui";
+import { CommandButton, Icon, SegmentedControl } from "../ui";
 
 function toolTitle(commandId: string, fallback: string): string {
   const cmd = keymapCommandById(commandId);
@@ -31,10 +31,9 @@ export function ToolModeToggle({ compact = false }: { compact?: boolean }) {
   const bladeActive = toolMode === "blade" && !commentMode;
 
   return (
-    <div
+    <SegmentedControl
+      label="Timeline tool"
       className={`tool-mode-toggle${compact ? " tool-mode-toggle--compact" : ""}`}
-      role="group"
-      aria-label="Timeline tool"
     >
       {allowed ? (
         <>
@@ -72,6 +71,6 @@ export function ToolModeToggle({ compact = false }: { compact?: boolean }) {
           <Icon name="comment" />
         </CommandButton>
       ) : null}
-    </div>
+    </SegmentedControl>
   );
 }
