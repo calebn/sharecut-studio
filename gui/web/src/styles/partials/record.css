@@ -101,6 +101,10 @@
   background: var(--color-danger-muted);
 }
 
+.record-rec-chip[data-state="recording"] .record-rec-label {
+  color: var(--color-text-primary);
+}
+
 .record-rec-chip .record-indicator {
   gap: var(--space-2);
 }

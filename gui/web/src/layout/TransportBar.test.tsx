@@ -62,6 +62,7 @@ describe("TransportBar collapsed", () => {
     });
     expect(control).toHaveTextContent("REC");
     expect(control).toHaveTextContent("0:12");
+    expect(control).toHaveAccessibleDescription("0:12");
     expect(control.querySelector(".record-rec-dot")).toHaveAttribute(
       "aria-hidden",
       "true",

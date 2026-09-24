@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import AxeBuilder from "@axe-core/playwright";
 import {
   type Browser,
   expect,
@@ -685,6 +686,11 @@ test.describe("record lobby", () => {
         });
         await expect(recChip).toBeVisible();
         await expect(recChip.locator(".record-rec-dot")).toBeVisible();
+        const contrast = await new AxeBuilder({ page: host })
+          .include(".record-rec-chip")
+          .withRules(["color-contrast"])
+          .analyze();
+        expect(contrast.violations).toEqual([]);
         await host.emulateMedia({ reducedMotion: "reduce" });
         await expect(recChip.locator(".record-rec-dot")).toHaveCSS(
           "animation-name",
@@ -693,6 +699,23 @@ test.describe("record lobby", () => {
         await host.setViewportSize({ width: 390, height: 844 });
         await expect(recChip).toBeVisible();
         await expect(recChip).toContainText(/REC.*\d+:\d\d/);
+        await host.getByRole("button", { name: "Timeline" }).click();
+        for (const width of [390, 320]) {
+          await host.setViewportSize({ width, height: 844 });
+          const controls = host.locator("header.transport button");
+          for (const control of await controls.all()) {
+            const bounds = await control.boundingBox();
+            expect(
+              bounds,
+              (await control.getAttribute("aria-label")) ?? "transport control",
+            ).not.toBeNull();
+            expect(bounds!.x).toBeGreaterThanOrEqual(0);
+            expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+          }
+          const chipBounds = await recChip.boundingBox();
+          expect(chipBounds).not.toBeNull();
+          expect(chipBounds!.x + chipBounds!.width).toBeLessThanOrEqual(width);
+        }
 
         await host.evaluate(() => {
           (window as unknown as { __denyHostRetry?: boolean }).__denyHostRetry =

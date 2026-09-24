@@ -42,9 +42,15 @@ type Props = {
   compact?: boolean;
   /** Show Fit as a primary icon; false on phone Listen mode. */
   showFit?: boolean;
+  /** Phone shell places recording status above the mode body. */
+  showRecordingChip?: boolean;
 };
 
-export function TransportBar({ compact = false, showFit = true }: Props) {
+export function TransportBar({
+  compact = false,
+  showFit = true,
+  showRecordingChip = true,
+}: Props) {
   const {
     project,
     playheadSec,
@@ -217,7 +223,7 @@ export function TransportBar({ compact = false, showFit = true }: Props) {
           ■
         </CommandButton>
       </div>
-      <RecordTransportChip />
+      {showRecordingChip ? <RecordTransportChip /> : null}
       <span
         className={
           duration >= 3600 && !collapsed

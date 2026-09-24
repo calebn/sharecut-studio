@@ -13,10 +13,12 @@ export function RecIndicator({
   snapshot,
   captureFailed = false,
   capturePending = false,
+  clockId,
 }: {
   snapshot: RecordSnapshot;
   captureFailed?: boolean;
   capturePending?: boolean;
+  clockId?: string;
 }) {
   const [now, setNow] = useState(() => Date.now());
   const [markedAt, setMarkedAt] = useState(() => Date.now());
@@ -56,7 +58,7 @@ export function RecIndicator({
         ) : null}
         {label}
       </span>
-      <span className="record-clock" aria-live="off">
+      <span id={clockId} className="record-clock" aria-live="off">
         {formatClock(clock)}
       </span>
     </div>
