@@ -1,4 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
+import { createElement } from "react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cssViewportWidth,
@@ -109,6 +112,61 @@ describe("useViewportClass", () => {
       changeHandler?.();
     });
     expect(result.current).toBe("tablet");
+  });
+
+  it("tracks visualViewport resize and releases extra listeners on unmount", () => {
+    const resizeListeners = new Set<() => void>();
+    const visualViewport = {
+      addEventListener: vi.fn((_event: string, listener: () => void) => {
+        resizeListeners.add(listener);
+      }),
+      removeEventListener: vi.fn((_event: string, listener: () => void) => {
+        resizeListeners.delete(listener);
+      }),
+    };
+    vi.stubGlobal("visualViewport", visualViewport);
+    const { result, unmount } = renderHook(() => useViewportClass());
+    expect(result.current).toBe("phone");
+
+    phoneMq.matches = false;
+    tabletMq.matches = false;
+    act(() => {
+      for (const listener of resizeListeners) listener();
+    });
+    expect(result.current).toBe("desktop");
+
+    unmount();
+    expect(visualViewport.removeEventListener).toHaveBeenCalledWith(
+      "resize",
+      expect.any(Function),
+    );
+    expect(resizeListeners.size).toBe(0);
+    expect(phoneMq.removeEventListener).toHaveBeenCalledWith(
+      "change",
+      expect.any(Function),
+    );
+    expect(tabletMq.removeEventListener).toHaveBeenCalledWith(
+      "change",
+      expect.any(Function),
+    );
+  });
+
+  it("hydrates from the server shell and then reads the client breakpoint", () => {
+    function ShellLabel() {
+      return createElement("span", null, useViewportClass());
+    }
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(createElement(ShellLabel));
+    expect(container.textContent).toBe("desktop");
+    document.body.append(container);
+
+    let root: ReturnType<typeof hydrateRoot> | undefined;
+    act(() => {
+      root = hydrateRoot(container, createElement(ShellLabel));
+    });
+    expect(container.textContent).toBe("phone");
+    act(() => root?.unmount());
+    container.remove();
   });
 });
 
