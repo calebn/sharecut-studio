@@ -5,7 +5,6 @@ import contextlib
 import secrets
 import time
 from typing import Any
-from uuid import uuid4
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
@@ -26,8 +25,9 @@ from podcast_mcp.services.record.service import (
 )
 from podcast_mcp.services.record.state import HOST_PARTICIPANT_ID
 from podcast_mcp.services.session_sync.authz import authorize_client
-from podcast_mcp.services.session_sync.commands import SyncCommand
+from podcast_mcp.services.session_sync.commands import SyncCommand, retry_command_id
 from podcast_mcp.services.session_sync.hub import get_hub
+from podcast_mcp.services.session_sync.log import ClientSequenceConflictError
 from podcast_mcp.services.session_sync.service import SessionSyncService, read_session_state
 from podcast_mcp.services.session_sync.viewer import publish_viewer_snapshot
 
@@ -64,15 +64,34 @@ def apply_ws_client_message(
     if mtype == "Record":
         return None, seq
     if mtype == "Command":
+        client_seq = int(msg["client_seq"])
+        payload = msg.get("payload") or {}
+        command_type = msg["command_type"]
+        command_id = msg.get("command_id") or retry_command_id(
+            client_id=client_id,
+            client_seq=client_seq,
+            role=role,
+            type=command_type,
+            payload=payload,
+        )
         cmd = SyncCommand(
-            type=msg["command_type"],
-            payload=msg.get("payload") or {},
+            type=command_type,
+            payload=payload,
             client_id=client_id,
             role=role,  # type: ignore[arg-type]
-            client_seq=int(msg["client_seq"]),
-            command_id=msg.get("command_id") or uuid4().hex,
+            client_seq=client_seq,
+            command_id=command_id,
         )
-        result = svc.submit(cmd)
+        try:
+            result = svc.submit(cmd)
+        except ClientSequenceConflictError as exc:
+            return {
+                "type": "Error",
+                "code": "client_seq_conflict",
+                "client_seq": client_seq,
+                "command_id": command_id,
+                "detail": str(exc),
+            }, seq
         return {**result, "type": "Echo"}, seq
     if mtype == "Ack":
         svc.submit(
@@ -161,7 +180,15 @@ def post_session_command(
         client_id=body.client_id,
         role=body.role,  # type: ignore[arg-type]
         client_seq=body.client_seq,
-        command_id=body.command_id or uuid4().hex,
+        command_id=body.command_id
+        or retry_command_id(
+            client_id=body.client_id,
+            client_seq=body.client_seq,
+            role=body.role,
+            type=body.type,
+            payload=body.payload,
+            causation_id=body.causation_id,
+        ),
         causation_id=body.causation_id,
     )
     try:

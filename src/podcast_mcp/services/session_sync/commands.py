@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 import unicodedata
 from dataclasses import dataclass, field
@@ -18,6 +20,25 @@ from pydantic import (
 )
 
 ClientRole = Literal["agent", "viewer", "cli"]
+
+
+def retry_command_id(
+    *,
+    client_id: str,
+    client_seq: int,
+    role: str,
+    type: str,
+    payload: dict[str, Any],
+    causation_id: str | None = None,
+) -> str:
+    """Stable identity for explicit commands whose transport omitted an ID."""
+    encoded = json.dumps(
+        [client_id, client_seq, role, type, payload, causation_id],
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return "derived-" + hashlib.sha256(encoded.encode()).hexdigest()
+
 
 CommandType = Literal[
     "SetPlayhead",

@@ -40,11 +40,16 @@ from WebSocket/HTTP callers must be positive and remain unchanged for retries;
 the separate ranges prevent collisions with newly generated commands. Older
 `sync.db` logs can retain positive generated rows under the same stable ID.
 For these upgraded logs, a repeated `(client_id, client_seq)` is a replay only
-when `command_id` also matches. A different command ID is rejected before it
+when `command_id` also matches. Session HTTP and WebSocket command adapters
+derive a stable ID from the client, sequence, role, type, and payload when the
+caller omits one, so identical requests remain retryable. A different command
+ID (or different payload with an omitted ID) is rejected before it
 can silently replay the historical command; the caller must use a fresh
 positive sequence. This compatibility rule preserves existing command rows and
 server sequence order. Old positive generated rows remain in their original
 range, so clients that reuse those keys must handle this explicit collision.
+The session WebSocket reports such collisions as `Error` frames with
+`code=client_seq_conflict` and stays open for a corrected command.
 
 ## Modules
 

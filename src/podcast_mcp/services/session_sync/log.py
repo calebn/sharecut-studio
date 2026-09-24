@@ -17,6 +17,10 @@ from podcast_mcp.services.session_sync.sqlite import connect_session_db
 _TABLE_PREFIX_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
+class ClientSequenceConflictError(ValueError):
+    """An explicit sequence names a different persisted command."""
+
+
 def _validate_table_prefix(prefix: str) -> str:
     if prefix == "":
         return prefix
@@ -282,7 +286,9 @@ class SyncStore:
     @staticmethod
     def require_same_command_id(existing: dict[str, Any], command_id: str) -> None:
         if existing["command_id"] != command_id:
-            raise ValueError("client_id and client_seq already belong to a different command_id")
+            raise ClientSequenceConflictError(
+                "client_id and client_seq already belong to a different command_id"
+            )
 
     def append_command(
         self,
