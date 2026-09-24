@@ -160,15 +160,18 @@ test.describe("Sharecut Studio mobile smoke", () => {
   }) => {
     await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
     await page.getByRole("button", { name: "Text" }).click();
-    const word = page.locator("[data-transcript-word]").first();
+    // The first transcript chip can be a temporary turn-level placeholder.
+    const word = page
+      .locator('[data-transcript-word][data-word-index="0"]')
+      .first();
     await expect(word).toBeVisible();
-    const box = await word.boundingBox();
-    expect(box).toBeTruthy();
     const cdp = await context.newCDPSession(page);
     await cdp.send("Emulation.setTouchEmulationEnabled", {
       enabled: true,
       maxTouchPoints: 1,
     });
+    const box = await word.boundingBox();
+    expect(box).toBeTruthy();
     const point = {
       x: box!.x + box!.width / 2,
       y: box!.y + box!.height / 2,
@@ -192,15 +195,18 @@ test.describe("Sharecut Studio mobile smoke", () => {
   test("touch double-tap opens word correction", async ({ page, context }) => {
     await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
     await page.getByRole("button", { name: "Text" }).click();
-    const word = page.locator("[data-transcript-word]").first();
+    // Wait for a word-level chip before capturing coordinates for both taps.
+    const word = page
+      .locator('[data-transcript-word][data-word-index="0"]')
+      .first();
     await expect(word).toBeVisible();
-    const box = await word.boundingBox();
-    expect(box).toBeTruthy();
     const cdp = await context.newCDPSession(page);
     await cdp.send("Emulation.setTouchEmulationEnabled", {
       enabled: true,
       maxTouchPoints: 1,
     });
+    const box = await word.boundingBox();
+    expect(box).toBeTruthy();
     const point = {
       x: box!.x + box!.width / 2,
       y: box!.y + box!.height / 2,

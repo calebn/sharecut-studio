@@ -50,6 +50,11 @@ alert roles on the caller's content so each screen retains its own semantics.
 | `!important` / `@layer` / viewport `@media` | Stylelint + pytest | Default-off; allowed only with `stylelint-disable` + `-- user-approved:`. `tests/test_css_policy.py` does **not** strip comments. `font-size: 62.5%` is a hard ban |
 | Format | Biome | `format:check` in CI; commit hook runs lint-staged (`biome check --write` on staged files; `make hooks`). Biome linter is off (oxlint + Stylelint own lint) |
 
+Mobile transcript touch E2E should wait for an indexed word chip
+(`data-transcript-word` with `data-word-index`) before measuring its box for
+CDP touch events. The first unindexed chip can be a temporary turn-level
+placeholder while the transcript hydrates.
+
 Vitest uses `jsdom` ([`vitest.config.ts`](vitest.config.ts)); setup lives in [`src/test/setup.ts`](src/test/setup.ts).
 
 ### Lint suppressions
