@@ -12,6 +12,7 @@ import {
   resolveFollowTarget,
   viewportToZoomScroll,
   withProgrammaticScroll,
+  zoomScrollToViewport,
 } from "./followSync";
 
 describe("followSync", () => {
@@ -55,6 +56,28 @@ describe("followSync", () => {
     );
     expect(zoomPxPerSec).toBe(20);
     expect(scrollLeft).toBe(200);
+  });
+
+  it("round-trips a viewport through zoom and scroll", () => {
+    const viewport = zoomScrollToViewport(200, 20, 200);
+    expect(viewport).toEqual({ start_sec: 10, end_sec: 20 });
+    expect(viewportToZoomScroll(viewport, 200)).toEqual({
+      zoomPxPerSec: 20,
+      scrollLeft: 200,
+    });
+  });
+
+  it("shifts a padded viewport to 0 instead of shrinking it (#385)", () => {
+    // 150px before 0 at 10px/s in a 400px view: still a 40 s window.
+    expect(zoomScrollToViewport(-150, 10, 400)).toEqual({
+      start_sec: 0,
+      end_sec: 40,
+    });
+    // Unmeasured (no timeline element) and far before 0: never negative.
+    expect(zoomScrollToViewport(-7800, 10, 0)).toEqual({
+      start_sec: 0,
+      end_sec: 60,
+    });
   });
 
   it("treats a following client as observing", () => {

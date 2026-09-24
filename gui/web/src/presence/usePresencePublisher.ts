@@ -3,7 +3,11 @@ import { selectionToWire } from "../session/wire";
 import { useDawStore } from "../state/dawStore";
 import type { PresenceCursor } from "../types/session";
 import { timelineTimeViewportWidth } from "../utils/timelineViewport";
-import { mobileModeForTab, setPresenceCursorSink } from "./followSync";
+import {
+  mobileModeForTab,
+  setPresenceCursorSink,
+  zoomScrollToViewport,
+} from "./followSync";
 import { createPresenceThrottle, type PresenceSend } from "./publisher";
 
 const KEEPALIVE_MS = 10_000;
@@ -122,16 +126,12 @@ export function usePresencePublisher(
       return;
     }
     const el = useDawStore.getState()._timelineEl;
-    const width = timelineTimeViewportWidth(el);
-    const zoom = zoomPxPerSec > 0 ? zoomPxPerSec : 1;
-    // A padded fixed-playhead view can scroll before 0; publish from 0.
-    const left = scrollLeft / zoom;
-    const span = width > 0 ? width / zoom : 60;
     throttleRef.current.push({
-      viewport: {
-        start_sec: Math.max(0, left),
-        end_sec: left + Math.max(span, 0.1),
-      },
+      viewport: zoomScrollToViewport(
+        scrollLeft,
+        zoomPxPerSec,
+        timelineTimeViewportWidth(el),
+      ),
     });
   }, [send, scrollLeft, zoomPxPerSec, followingClientId]);
 
