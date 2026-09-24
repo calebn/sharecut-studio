@@ -1133,6 +1133,40 @@ export async function loadPipelineStatus(init?: {
   return res.json() as Promise<PipelineStatusResponse>;
 }
 
+export type TranscriptVocabulary = {
+  terms: string[];
+  guest_names: string[];
+  needs_retranscription: boolean;
+};
+
+export async function loadTranscriptVocabulary(
+  projectPath: string,
+): Promise<TranscriptVocabulary> {
+  if (isShareProjectKey(projectPath)) {
+    throw new Error("Vocabulary is not available for shared guests");
+  }
+  const params = new URLSearchParams({ path: projectPath });
+  const res = await hostFetch(`/api/transcript/vocabulary?${params}`);
+  if (!res.ok) throw new Error(await readApiError(res));
+  return res.json() as Promise<TranscriptVocabulary>;
+}
+
+export async function saveTranscriptVocabulary(
+  projectPath: string,
+  vocabulary: Pick<TranscriptVocabulary, "terms" | "guest_names">,
+): Promise<TranscriptVocabulary> {
+  if (isShareProjectKey(projectPath)) {
+    throw new Error("Vocabulary is not available for shared guests");
+  }
+  const res = await hostFetch("/api/transcript/vocabulary", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path: projectPath, ...vocabulary }),
+  });
+  if (!res.ok) throw new Error(await readApiError(res));
+  return res.json() as Promise<TranscriptVocabulary>;
+}
+
 export async function startPipelineRun(
   projectPath: string,
   opts?: {

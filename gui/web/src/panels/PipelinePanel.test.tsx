@@ -17,6 +17,8 @@ const startPipelineRun = vi.fn();
 const cancelPipelineRun = vi.fn();
 const runBootstrap = vi.fn();
 const waitForBootstrapJob = vi.fn();
+const loadTranscriptVocabulary = vi.fn();
+const saveTranscriptVocabulary = vi.fn();
 
 vi.mock("../api", () => ({
   loadPipelineConfig: (...args: unknown[]) => loadPipelineConfig(...args),
@@ -26,6 +28,10 @@ vi.mock("../api", () => ({
   cancelPipelineRun: (...args: unknown[]) => cancelPipelineRun(...args),
   runBootstrap: (...args: unknown[]) => runBootstrap(...args),
   waitForBootstrapJob: (...args: unknown[]) => waitForBootstrapJob(...args),
+  loadTranscriptVocabulary: (...args: unknown[]) =>
+    loadTranscriptVocabulary(...args),
+  saveTranscriptVocabulary: (...args: unknown[]) =>
+    saveTranscriptVocabulary(...args),
 }));
 
 const setPipelineJob = vi.fn();
@@ -187,6 +193,28 @@ function withTranscribeEnabled(overrides: Record<string, unknown> = {}) {
 }
 
 describe("PipelinePanel", () => {
+  it("saves a vocabulary term and offers re-transcription through the pipeline", async () => {
+    const user = userEvent.setup();
+    render(<PipelinePanel />);
+    await user.type(await screen.findByLabelText("Terms"), "Kaczynski{Enter}");
+    await user.click(screen.getByRole("button", { name: "Save vocabulary" }));
+    await waitFor(() =>
+      expect(saveTranscriptVocabulary).toHaveBeenCalledWith(
+        "/tmp/ep.project.json",
+        expect.objectContaining({ terms: ["Kaczynski"] }),
+      ),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Re-transcribe" }),
+    );
+    expect(startPipelineRun).toHaveBeenCalledWith(
+      "/tmp/ep.project.json",
+      expect.objectContaining({
+        fromStep: "transcribe_tracks",
+        enabledSteps: expect.arrayContaining(["transcribe_tracks"]),
+      }),
+    );
+  });
   afterEach(() => {
     vi.useRealTimers();
   });
@@ -196,6 +224,15 @@ describe("PipelinePanel", () => {
     dawState.pipelineJob = null;
     dawState.activityJob = null;
     loadPipelineConfig.mockResolvedValue(structuredClone(baseConfig));
+    loadTranscriptVocabulary.mockResolvedValue({
+      terms: [],
+      guest_names: [],
+      needs_retranscription: false,
+    });
+    saveTranscriptVocabulary.mockImplementation(async (_path, value) => ({
+      ...value,
+      needs_retranscription: true,
+    }));
     putPipelineConfig.mockImplementation(async (_path, body) => ({
       ...structuredClone(baseConfig),
       ...body,

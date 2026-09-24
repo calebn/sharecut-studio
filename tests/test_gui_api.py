@@ -1647,6 +1647,54 @@ def test_api_pipeline_config_and_analyze(minimal_project, monkeypatch) -> None:
     assert preview.json()["applied"] is False
 
 
+def test_api_transcript_vocabulary_roundtrip_and_validation(minimal_project) -> None:
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    client = TestClient(create_app())
+    path = str(minimal_project)
+    initial = client.get("/api/transcript/vocabulary", params={"path": path})
+    assert initial.status_code == 200
+    assert initial.json()["terms"] == []
+
+    response = client.put(
+        "/api/transcript/vocabulary",
+        json={"path": path, "terms": [" Kaczynski ", "Kaczynski"], "guest_names": ["Alice"]},
+    )
+    assert response.status_code == 200
+    assert response.json()["terms"] == ["Kaczynski"]
+    assert response.json()["guest_names"] == ["Alice"]
+    assert client.get("/api/transcript/vocabulary", params={"path": path}).json() == response.json()
+    assert (minimal_project.parent / "transcript_context.yaml").is_file()
+
+    bad = client.put(
+        "/api/transcript/vocabulary",
+        json={"path": path, "terms": [" "], "guest_names": []},
+    )
+    assert bad.status_code == 400
+
+
+def test_api_transcript_vocabulary_rejects_unauthorized_remote(
+    minimal_project, monkeypatch
+) -> None:
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    monkeypatch.setenv("PODCAST_SESSION_AUTHZ", "strict")
+    monkeypatch.setenv("PODCAST_SESSION_TOKEN", "session-token")
+    monkeypatch.setattr("podcast_mcp.gui.routes.transcript.peer_host", lambda _request: "10.0.0.5")
+    client = TestClient(create_app(bind_host="0.0.0.0"))
+    response = client.put(
+        "/api/transcript/vocabulary",
+        json={"path": str(minimal_project), "terms": ["Kaczynski"], "guest_names": []},
+    )
+    assert response.status_code == 403
+
+
 def test_api_transcript_refine_waive_records_user_source(minimal_project, monkeypatch) -> None:
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient

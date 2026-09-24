@@ -27,6 +27,26 @@ class TranscriptPrecorrectService:
         path = ctx.save(self.ws.project.workspace_path())
         return str(path)
 
+    def get_vocabulary(self) -> dict[str, Any]:
+        ctx = self.load_context()
+        return {
+            "terms": ctx.terms,
+            "guest_names": ctx.guest_names,
+            "needs_retranscription": bool(ctx.transcribe.get("vocabulary_stale", False)),
+        }
+
+    def set_vocabulary(self, *, terms: list[str], guest_names: list[str]) -> dict[str, Any]:
+        ctx = self.load_context()
+        cleaned_terms = _clean_vocabulary(terms)
+        cleaned_names = _clean_vocabulary(guest_names)
+        if ctx.terms != cleaned_terms or ctx.guest_names != cleaned_names:
+            ctx.terms = cleaned_terms
+            ctx.guest_names = cleaned_names
+            if self.ws.project.transcripts:
+                ctx.transcribe["vocabulary_stale"] = True
+            self.set_context(ctx)
+        return self.get_vocabulary()
+
     def precorrect(
         self,
         *,
@@ -62,3 +82,10 @@ class TranscriptPrecorrectService:
             "after transcript precorrect",
             mutate,
         )
+
+
+def _clean_vocabulary(values: list[str]) -> list[str]:
+    cleaned = [value.strip() for value in values]
+    if len(cleaned) > 100 or any(not value or len(value) > 100 for value in cleaned):
+        raise ValueError("Vocabulary allows up to 100 non-empty entries of 100 characters each")
+    return list(dict.fromkeys(cleaned))

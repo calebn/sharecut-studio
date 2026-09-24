@@ -234,13 +234,47 @@ def test_ingest_peaks_failure_tolerated(minimal_project, sample_wav, tmp_workspa
 
 def test_transcribe_tracks_mock(minimal_project, sample_wav, tmp_workspace):
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    from podcast_mcp.transcript_context import TranscriptContext, load_transcript_context
+
+    ctx = TranscriptContext(terms=["Kaczynski"], transcribe={"vocabulary_stale": True})
+    ctx.save(proj.workspace_path())
     mock_tr = MagicMock()
     mock_tr.track_id = "host"
     mock_tr.words = []
     with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
         eng_cls.return_value.transcribe_all_dialogue.return_value = [mock_tr]
         steps.transcribe_tracks(proj, load_defaults())
+        assert (
+            eng_cls.return_value.transcribe_all_dialogue.call_args.kwargs["initial_prompt"]
+            == "Kaczynski"
+        )
     assert proj.transcripts
+    assert load_transcript_context(proj.workspace_path()).transcribe.get("vocabulary_stale") is None
+
+
+def test_transcribe_keeps_stale_flag_when_vocabulary_changes_during_run(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.transcript_context import TranscriptContext, load_transcript_context
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    TranscriptContext(terms=["Old"], transcribe={"vocabulary_stale": True}).save(
+        proj.workspace_path()
+    )
+
+    def transcribe(*_args, **_kwargs):
+        TranscriptContext(terms=["New"], transcribe={"vocabulary_stale": True}).save(
+            proj.workspace_path()
+        )
+        return []
+
+    with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
+        eng_cls.return_value.transcribe_all_dialogue.side_effect = transcribe
+        steps.transcribe_tracks(proj, load_defaults())
+
+    ctx = load_transcript_context(proj.workspace_path())
+    assert ctx.terms == ["New"]
+    assert ctx.transcribe["vocabulary_stale"] is True
 
 
 def test_transcribe_tracks_writes_timing_report(minimal_project, sample_wav, tmp_workspace):

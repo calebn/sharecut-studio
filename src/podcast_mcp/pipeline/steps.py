@@ -133,6 +133,14 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
     summary = f"{len(transcripts)} tracks, {words} words"
     if timing_flags:
         summary += f", {len(timing_flags)} timing flags"
+    # A vocabulary edit made during transcription still needs another pass.
+    current_ctx = load_transcript_context(project.workspace_path())
+    if (
+        current_ctx.terms == ctx.terms
+        and current_ctx.guest_names == ctx.guest_names
+        and current_ctx.transcribe.pop("vocabulary_stale", None)
+    ):
+        current_ctx.save(project.workspace_path())
     return summary
 
 
