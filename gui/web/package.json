@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "check:bundle-no-stories": "vite-node scripts/check-bundle-no-stories.cli.ts",
     "lint": "oxlint && npm run lint:css",
     "lint:css": "stylelint \"{src,public}/**/*.css\"",
     "typecheck": "tsc -b --pretty false",
