@@ -7,7 +7,7 @@ import random
 
 import pytest
 
-from podcast_mcp.services.tunnel import _map_local_path
+from podcast_mcp.services.tunnel import _PATH_PREFIXES, _map_local_path
 from podcast_mcp.util.proxy_paths import (
     UnsafeProxyPath,
     assert_allowed_local_gui_path,
@@ -16,8 +16,27 @@ from podcast_mcp.util.proxy_paths import (
     proxy_path_is_safe,
 )
 
-_RELAY_PREFIXES = ("r/", "rec/", "api/review/", "api/rec/", "mcp/")
 _HOST_ONLY_APIS = ("/api/export", "/api/pipeline", "/api/diagnostics")
+
+
+def _is_guest_route(path: str, token: str) -> bool:
+    """Independent expected route roots, separate from the production validator."""
+    roots = (
+        "/assets",
+        "/favicon.svg",
+        "/favicon.ico",
+        f"/r/{token}",
+        f"/rec/{token}",
+        f"/api/review/{token}",
+        f"/api/rec/{token}",
+        f"/mcp/{token}",
+    )
+    return any(path == root or path.startswith(root + "/") for root in roots)
+
+
+@pytest.mark.parametrize("host_path", ["/api/project", "/api/session", "/api/shares"])
+def test_guest_route_oracle_rejects_other_host_apis(host_path: str):
+    assert not _is_guest_route(host_path, "test-token")
 
 
 def _relay_suffixes() -> list[str]:
@@ -42,8 +61,9 @@ def _relay_suffixes() -> list[str]:
         "api/diagnostics",
         "../api/export",
     )
-    suffixes = [prefix + part for prefix in _RELAY_PREFIXES for part in parts]
-    for prefix in _RELAY_PREFIXES:
+    relay_prefixes = [prefix for prefix, _ in _PATH_PREFIXES]
+    suffixes = [prefix + part for prefix in relay_prefixes for part in parts]
+    for prefix in relay_prefixes:
         for _ in range(100):
             suffixes.append(prefix + "/".join(rng.choices(parts, k=rng.randint(1, 4))))
     return suffixes
@@ -60,6 +80,7 @@ def test_relay_mapping_preserves_guest_path_allowlist(suffix: str):
 
     assert is_allowed_local_gui_path(mapped, token), (suffix, mapped)
     normalized = posixpath.normpath(mapped.split("?", 1)[0])
+    assert _is_guest_route(normalized, token), (suffix, mapped)
     assert all(
         normalized != host_api and not normalized.startswith(host_api + "/")
         for host_api in _HOST_ONLY_APIS
