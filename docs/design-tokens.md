@@ -160,15 +160,19 @@ accent in each theme. Waveforms take their tints from each clip's own fill
 (`clipWaveformFill`), mirrored around the midline. The empty-session stage
 keeps a decorative grid; lanes do not, because a grid that ignores the ruler
 reads as false time divisions. The lane floor falls off toward the well's
-inline edges (#387): two strips `--timeline-edge-width` (1.5rem) wide
+inline edges (#387): two 1.5rem `.timeline-edge` strips
 (`--bg-timeline-edge-start` and `-end`, from `--color-timeline-edge`), from
 below the ruler and inside the header column and the classic scrollbars,
 which TimelineView measures. The wash is black, 24% in the dark theme and 6%
-in the light (`tests/test_brand_color_roles.py` caps it at 24% and 8%). It
-sits at `--z-timeline-edge`, under every other stage layer, so clips and
-their labels paint above it and keep their contrast
-(`tests/test_css_policy.py`); forced colors hide it. It is not
-`--color-timeline-vignette`, the empty stage's inset hover shadow
+in the light (`tests/test_brand_color_roles.py` caps it at 24% and 8%). The
+strips sit at `--z-timeline-edge` (0), the lane floor's own level, where tree
+order decides what paints on top, so TimelineView renders them after the
+scroller: they darken the lane rows and the marker lane, and clips and
+markers (`--z-clip`) paint over them and keep their contrast. Non-text lane
+outlines, such as a drop target or a blade target, dim faintly at the edges.
+`tests/test_css_policy.py`, the TimelineView tests, and an e2e pixel check
+in `design-polish.spec.ts` hold this. Forced colors hide the strips. They are
+not `--color-timeline-vignette`, the empty stage's inset hover shadow
 (transparent in the light theme).
 
 **Transport.** The transport is fixed dark in both themes (`--color-transport-*`,

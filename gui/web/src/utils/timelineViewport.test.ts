@@ -62,8 +62,8 @@ describe("timelineViewport", () => {
       querySelector: () => header,
     };
     expect(measureTimelineColumns(el)).toEqual({
-      headerPx: 180,
-      timePx: 605,
+      headerOffsetPx: 180,
+      timeViewportPx: 605,
       scrollbarInlinePx: 15,
       scrollbarBlockPx: 12,
     });
@@ -78,8 +78,8 @@ describe("timelineViewport", () => {
       querySelector: () => null,
     };
     expect(measureTimelineColumns(el)).toEqual({
-      headerPx: 0,
-      timePx: 400,
+      headerOffsetPx: 0,
+      timeViewportPx: 400,
       scrollbarInlinePx: 0,
       scrollbarBlockPx: 0,
     });

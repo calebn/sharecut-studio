@@ -456,6 +456,76 @@ test("every text on the fixed-dark transport reads in both themes", async ({
   }
 });
 
+test("stage edges dim the lane floor at both ends, never a clip (#387)", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
+  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await expect(page.locator(".lane-row .clip-block").first()).toBeVisible();
+  const boxes = await page.evaluate(() => {
+    const box = (selector: string) => {
+      const r = (
+        document.querySelector(selector) as Element
+      ).getBoundingClientRect();
+      return { x: r.x, y: r.y, width: r.width, height: r.height };
+    };
+    return {
+      start: box(".timeline-edge--start"),
+      end: box(".timeline-edge--end"),
+      lane: box(".lane-row"),
+      clip: box(".lane-row .clip-block"),
+    };
+  });
+  // Clips sit inset in their lane, so its top strip is bare floor.
+  const floorAt = (edge: { x: number }) => ({
+    x: edge.x + 4,
+    y: boxes.lane.y + 2,
+    width: 8,
+    height: 4,
+  });
+  const onClip = {
+    x: Math.max(boxes.start.x, boxes.clip.x) + 4,
+    y: boxes.clip.y + boxes.clip.height / 2,
+    width: 8,
+    height: 4,
+  };
+  expect(onClip.x + onClip.width).toBeLessThan(
+    boxes.start.x + boxes.start.width,
+  );
+  const regions = [floorAt(boxes.start), floorAt(boxes.end), onClip];
+  // Mean channel level of a screenshot region, decoded in the page.
+  const level = (png: Buffer) =>
+    page.evaluate(async (base64) => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${base64}`;
+      await image.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const context = canvas.getContext("2d") as CanvasRenderingContext2D;
+      context.drawImage(image, 0, 0);
+      const { data } = context.getImageData(0, 0, image.width, image.height);
+      let sum = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        sum += data[i] + data[i + 1] + data[i + 2];
+      }
+      return sum / ((data.length / 4) * 3);
+    }, png.toString("base64"));
+  const levels = () =>
+    Promise.all(
+      regions.map(async (clip) => level(await page.screenshot({ clip }))),
+    );
+  const withEdges = await levels();
+  await page.addStyleTag({ content: ".timeline-edge { display: none; }" });
+  const withoutEdges = await levels();
+  // Both edges darken the lane floor (tree order puts them after the lane
+  // rows); the clip paints over them, so it only differs by raster noise.
+  expect(withoutEdges[0] - withEdges[0]).toBeGreaterThan(2);
+  expect(withoutEdges[1] - withEdges[1]).toBeGreaterThan(1);
+  expect(Math.abs(withoutEdges[2] - withEdges[2])).toBeLessThan(0.5);
+});
+
 test("capture issue 20 review views", async ({ browser }) => {
   test.setTimeout(90_000);
   const directory = process.env.DESIGN_POLISH_SCREENSHOT_DIR;

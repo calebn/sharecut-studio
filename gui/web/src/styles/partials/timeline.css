@@ -491,6 +491,7 @@ button.join-diamond {
 .comment-marker {
   position: absolute;
   top: 0;
+  z-index: var(--z-clip);
   height: var(--marker-row-height);
   margin: 0;
   padding: 0;
@@ -557,6 +558,7 @@ button.join-diamond {
 .chapter-marker {
   position: absolute;
   top: 0;
+  z-index: var(--z-clip);
   width: var(--marker-row-height);
   height: var(--marker-row-height);
   margin: 0;
@@ -582,6 +584,7 @@ button.join-diamond {
 .social-marker {
   position: absolute;
   top: 0;
+  z-index: var(--z-clip);
   height: var(--marker-row-height);
   margin: 0;
   padding: 0;

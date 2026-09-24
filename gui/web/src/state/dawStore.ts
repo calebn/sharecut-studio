@@ -19,8 +19,8 @@ import type {
 } from "../types/session";
 import {
   centerSecToScrollLeft,
+  measureTimelineColumns,
   minLogicalScrollLeft,
-  timelineHeaderOffsetWidth,
   timelineTimeViewportWidth,
   viewportCenterOffsetPx,
 } from "../utils/timelineViewport";
@@ -472,10 +472,10 @@ export const useDawStore = create<DawStore>((set, get) => ({
       return;
     }
     const rect = el.getBoundingClientRect();
-    const headerW = timelineHeaderOffsetWidth(el);
+    const { headerOffsetPx: headerW, timeViewportPx: timeWidth } =
+      measureTimelineColumns(el);
     // Sticky headers sit in the scrollport; time origin is to their right.
     const rectLeft = rect.left + headerW;
-    const timeWidth = timelineTimeViewportWidth(el);
     if (clientX != null) {
       noteZoomPointerClientX(clientX);
     }

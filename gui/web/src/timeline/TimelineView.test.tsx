@@ -430,6 +430,26 @@ describe("TimelineView lane fit", () => {
     expect(watching).toHaveLength(1);
   });
 
+  it("renders the stage edges after the scroller, over the lane floor (#387)", () => {
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={twoTrackProject()}>
+        <TimelineView headerSlot={<div className="track-headers" />} />
+      </DawProvider>,
+    );
+    // At the lane floor's z, tree order decides: edges before the scroller
+    // would paint under the lane rows.
+    const area = container.querySelector(".timeline-area") as HTMLElement;
+    const children = [...area.children].map((el) => el.className);
+    const scroller = children.indexOf("timeline-scroll");
+    expect(children.slice(scroller + 1)).toEqual([
+      "timeline-edge timeline-edge--start",
+      "timeline-edge timeline-edge--end",
+    ]);
+    for (const edge of area.querySelectorAll(".timeline-edge")) {
+      expect(edge.getAttribute("aria-hidden")).toBe("true");
+    }
+  });
+
   it("insets the stage edges by the header column and scrollbars (#387)", () => {
     let headerPx = 180;
     // Classic scrollbars: 15px beside the scrollport, 12px below it.
