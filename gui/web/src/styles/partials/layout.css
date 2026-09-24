@@ -950,7 +950,7 @@
 }
 
 /* Short lanes (many tracks, or a short stage): name and M/S share one row
-   and the gain strip sits under them, so nothing is clipped at 72px. */
+   and the gain strip sits under them, so nothing is clipped at the lane floor. */
 .timeline-area[data-lane-density="compact"] .track-header-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
