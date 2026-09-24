@@ -507,6 +507,7 @@ def test_declaration_scanner() -> None:
       .c { background: url("data:image/svg+xml,<svg>}</svg>"); }
     }
     .d { transition: none }
+    /* a later comment: a "/*" lexed inside the string above would reach this */
     """
     no_pref = "@media (prefers-reduced-motion: no-preference)"
     assert _declarations(css) == [
