@@ -32,16 +32,16 @@ test("new project stays fresh without an audio error on desktop and phone", asyn
 
     await expect(page.getByRole("heading", { name: "Fresh QA" })).toBeVisible();
     await expect(page.getByText("Fresh", { exact: true })).toBeVisible();
-    await expect(page.getByText("Err", { exact: true })).toHaveCount(0);
+    await expect(page.locator(".pill.audio-error")).toHaveCount(0);
 
     await page.getByRole("button", { name: "+ Track" }).click();
     await expect(page.getByText("Fresh", { exact: true })).toBeVisible();
-    await expect(page.getByText("Err", { exact: true })).toHaveCount(0);
+    await expect(page.locator(".pill.audio-error")).toHaveCount(0);
 
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.locator(".listen-hero")).toBeVisible();
     await expect(page.getByText("Stale render")).toHaveCount(0);
-    await expect(page.getByText("Err", { exact: true })).toHaveCount(0);
+    await expect(page.locator(".pill.audio-error")).toHaveCount(0);
   } finally {
     try {
       await page.close();

@@ -27,7 +27,7 @@ export const AllTones: Story = {
     <div style={{ display: "flex", gap: "var(--space-3)" }}>
       <Pill>Neutral</Pill>
       <Pill tone="ok">Fresh</Pill>
-      <Pill tone="warning">Err</Pill>
+      <Pill tone="warning">No preview</Pill>
       <Pill tone="audition">Region 12.0–18.5s</Pill>
     </div>
   ),
