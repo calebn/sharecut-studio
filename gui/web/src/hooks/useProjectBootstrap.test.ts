@@ -86,16 +86,25 @@ describe("useProjectBootstrap", () => {
     expect(useDawStore.getState().project).toBeNull();
   });
 
-  it("skips a stale detail merge when document seq advanced", async () => {
+  it("retries detail after a document snapshot races the first fetch", async () => {
     const shell = minimalProject();
     let resolveDetail: (value: unknown) => void = () => undefined;
     loadProject.mockResolvedValue(shell);
-    loadProjectDetail.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveDetail = resolve;
-        }),
-    );
+    loadProjectDetail
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveDetail = resolve;
+          }),
+      )
+      .mockResolvedValue({
+        transcript: { utterances: [] },
+        meta: {
+          name: "after-applied",
+          workspace_dir: "/tmp/test",
+          hydration: { transcript_words: true, history_groups: true },
+        },
+      });
     renderHook(() => useProjectBootstrap("/tmp/p.json"));
     await waitFor(() => {
       expect(useDawStore.getState().project).toBe(shell);
@@ -119,8 +128,12 @@ describe("useProjectBootstrap", () => {
         hydration: { transcript_words: true, history_groups: true },
       },
     });
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(useDawStore.getState().project?.meta.name).toBe("after-applied");
+    await waitFor(() => expect(loadProjectDetail).toHaveBeenCalledTimes(2));
+    await waitFor(() => {
+      expect(useDawStore.getState().project?.meta.name).toBe("after-applied");
+      expect(
+        useDawStore.getState().project?.meta.hydration?.transcript_words,
+      ).toBe(true);
+    });
   });
 });
