@@ -519,6 +519,25 @@ describe("MixMinusGraph MM1–MM9", () => {
     expect(last).toBeLessThanOrEqual(first + 1e-9);
   });
 
+  it("disconnects only graph-owned local links before a microphone retry", () => {
+    const ctx = new FakeCtx();
+    const graph = new MixMinusGraph(asCtx(ctx), {
+      localId: "A",
+      sidetone: true,
+    });
+    const first = ctx.createGain();
+    const next = ctx.createGain();
+    graph.connectLocal(asNode(first));
+    expect(first.outs).toHaveLength(2);
+    graph.disconnectLocal();
+    expect(first.outs).toHaveLength(0);
+    graph.disconnectLocal();
+    graph.connectLocal(asNode(next));
+    expect(next.outs).toHaveLength(2);
+    graph.dispose();
+    expect(next.outs).toHaveLength(0);
+  });
+
   it("MM7: attaching a silent encoder tap does not duck the monitor", () => {
     const ctx = new FakeCtx();
     const seats: Seat[] = [

@@ -770,6 +770,124 @@ test.describe("record lobby", () => {
     });
   });
 
+  test("guest REC reflects mic loss, retry, recovery, and Stop", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    await withShareableProject(async (projectPath) => {
+      await withBrowserPages(browser, [{}, {}], async ([host, guest]) => {
+        await markSharecutE2e(host);
+        await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
+        await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
+        const room = await createRecordRoom(host, projectPath);
+        await host.getByRole("button", { name: "Menu" }).click();
+        await host.getByRole("menuitem", { name: "Record room…" }).click();
+        const roomDlg = host.getByRole("dialog", { name: "Record room" });
+
+        await markSharecutE2e(guest);
+        await guest.addInitScript(() => {
+          const original = navigator.mediaDevices.getUserMedia.bind(
+            navigator.mediaDevices,
+          );
+          navigator.mediaDevices.getUserMedia = async (constraints) => {
+            const state = window as unknown as {
+              __denyGuestRetry?: boolean;
+              __releaseGuestRetry?: () => void;
+              __testGuestMicTrack?: MediaStreamTrack;
+            };
+            if (state.__denyGuestRetry) {
+              state.__denyGuestRetry = false;
+              return new Promise<MediaStream>((_resolve, reject) => {
+                state.__releaseGuestRetry = () =>
+                  reject(
+                    new DOMException("Permission denied", "NotAllowedError"),
+                  );
+              });
+            }
+            const stream = await original(constraints);
+            state.__testGuestMicTrack = stream.getAudioTracks()[0];
+            return stream;
+          };
+        });
+        await openRecordLink(guest, room.guest.token);
+        await guest.getByLabel("Display name").fill("Ava");
+        await guest.getByLabel("I am wearing headphones").check();
+        await guest.getByRole("button", { name: "Allow microphone" }).click();
+        await expect(guest.getByLabel("Level")).toBeVisible();
+        await guest.getByRole("button", { name: "Skip" }).click();
+        await guest.getByRole("button", { name: "Accept" }).click();
+        await expect(
+          roomDlg.getByRole("button", { name: "Start", exact: true }),
+        ).toBeEnabled();
+        await clickHostTransport(
+          host,
+          roomDlg.getByRole("button", { name: "Start", exact: true }),
+          projectPath,
+          "Start",
+          "recording",
+        );
+        const indicator = guest.locator(".record-indicator");
+        await expect(indicator).toContainText("REC");
+        await expect(indicator.locator(".record-rec-dot")).toHaveCount(1);
+
+        await guest.evaluate(() => {
+          const state = window as unknown as {
+            __denyGuestRetry?: boolean;
+            __testGuestMicTrack?: MediaStreamTrack;
+          };
+          state.__denyGuestRetry = true;
+          const track = state.__testGuestMicTrack;
+          if (!track) {
+            throw new Error("guest microphone track was not captured");
+          }
+          track.stop();
+          track.dispatchEvent(new Event("ended"));
+        });
+        await expect(indicator).toContainText("REC — local capture failed");
+        await expect(indicator.locator(".record-rec-dot")).toHaveCount(0);
+        await guest
+          .getByRole("button", { name: "Reconnect microphone" })
+          .click();
+        await expect(indicator).toContainText("REC — waiting for microphone");
+        await guest.evaluate(() => {
+          const release = (
+            window as unknown as { __releaseGuestRetry?: () => void }
+          ).__releaseGuestRetry;
+          if (!release) {
+            throw new Error("guest retry did not request the microphone");
+          }
+          release();
+        });
+        await expect(indicator).toContainText("REC — local capture failed");
+        await guest
+          .getByRole("button", { name: "Reconnect microphone" })
+          .click();
+        await expect(
+          guest.getByText(
+            "Microphone disconnected. Local recording is paused.",
+          ),
+        ).toHaveCount(0);
+        await expect(indicator).toContainText("REC", { timeout: 5_000 });
+        await expect(indicator.locator(".record-rec-dot")).toHaveCount(1);
+        await expect(
+          guest.getByText(
+            "Microphone disconnected. Local recording is paused.",
+          ),
+        ).toHaveCount(0);
+
+        await clickHostTransport(
+          host,
+          roomDlg.getByRole("button", { name: "Stop", exact: true }),
+          projectPath,
+          "Stop",
+          "stopped",
+        );
+        await expect(indicator).toContainText("Stopped");
+      });
+    });
+  });
+
   test("guest Retry recovers from a denied microphone", async ({
     browser,
   }: {

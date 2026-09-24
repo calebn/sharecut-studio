@@ -462,7 +462,12 @@ that participant's track at `join_offset_ms`. No trailing pad.
 An involuntary microphone loss is distinct from an intentional track stop: the
 browser `ended` event freezes the current keeper segment and clears the live
 stream. The host and guest show a persistent "Microphone disconnected. Local
-recording is paused." warning with a Reconnect microphone action. Retry is
+recording is paused." warning with a Reconnect microphone action. The guest
+REC indicator shows local capture waiting while retry acquisition is
+pending; a failed retry returns to local capture failed. The room clock keeps
+following the shared take throughout, and the healthy REC dot returns only
+after a live microphone stream is restored. After Stop the mic-loss warning
+clears, while incomplete keeper and upload recovery remain visible. Retry is
 explicit (there is no unbounded auto-retry); repeated clicks during acquisition
 are ignored. If a selected device has been removed, reconnect tries the
 default available input once after that exact device fails. A successful

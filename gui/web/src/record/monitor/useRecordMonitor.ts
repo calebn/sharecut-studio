@@ -70,7 +70,6 @@ export function useRecordMonitor({
   const oscillatorsRef = useRef(new Map<string, OscillatorNode>());
   const ctxRef = useRef<AudioContext | null>(null);
   const meshRef = useRef<RecordMesh | null>(null);
-  const localSrcRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const goneTimers = useRef(new Map<string, number>());
   const sourceGens = useRef(new Map<string, number>());
   const syncRosterRef = useRef<() => void>(() => undefined);
@@ -128,7 +127,6 @@ export function useRecordMonitor({
       meshRef.current = null;
       graphRef.current?.dispose();
       graphRef.current = null;
-      localSrcRef.current = null;
       for (const timer of goneTimers.current.values()) {
         window.clearTimeout(timer);
       }
@@ -220,7 +218,6 @@ export function useRecordMonitor({
       meshRef.current = null;
       graph.dispose();
       graphRef.current = null;
-      localSrcRef.current = null;
       for (const timer of gone.values()) {
         window.clearTimeout(timer);
       }
@@ -241,13 +238,9 @@ export function useRecordMonitor({
     if (!graph || !ctx) {
       return;
     }
-    if (localSrcRef.current) {
-      localSrcRef.current.disconnect();
-      localSrcRef.current = null;
-    }
+    graph.disconnectLocal();
     if (localStream && role !== "producer") {
       const source = ctx.createMediaStreamSource(localStream);
-      localSrcRef.current = source;
       graph.connectLocal(source);
     }
   }, [localStream, role]);

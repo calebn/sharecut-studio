@@ -15,6 +15,7 @@ export type MicPermissionState = {
   error: string | null;
   settingsWarning: string | null;
   lost: boolean;
+  pending: boolean;
 };
 
 type PermissionStatusHandle = {
@@ -160,5 +161,6 @@ export function useMicPermission(
     error: mic.error,
     settingsWarning: mic.settingsWarning,
     lost: mic.lost,
+    pending: mic.pending,
   };
 }

@@ -52,6 +52,7 @@ describe("useMicPermission", () => {
 
   it("reports a lost grant and keeps it lost after a failed retry", async () => {
     let ended: (() => void) | undefined;
+    let rejectRetry: ((error: Error) => void) | undefined;
     const makeTrack = () => ({
       stop: vi.fn(),
       addEventListener: vi.fn((_type: string, listener: () => void) => {
@@ -71,7 +72,12 @@ describe("useMicPermission", () => {
         getTracks: () => [first],
         getAudioTracks: () => [first],
       })
-      .mockRejectedValueOnce(new Error("device unavailable"));
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectRetry = reject;
+          }),
+      );
     vi.stubGlobal("navigator", {
       mediaDevices: {
         getUserMedia: gum,
@@ -84,8 +90,12 @@ describe("useMicPermission", () => {
     ended?.();
     await waitFor(() => expect(result.current.status).toBe("lost"));
     result.current.retry();
+    await waitFor(() => expect(result.current.pending).toBe(true));
+    expect(result.current.lost).toBe(true);
+    rejectRetry?.(new Error("device unavailable"));
     await waitFor(() => expect(result.current.error).toMatch(/unavailable/));
     expect(result.current.status).toBe("lost");
+    expect(result.current.pending).toBe(false);
   });
 
   it("does not call getUserMedia when disabled", () => {
