@@ -28,10 +28,56 @@ export function timelineTimeViewportWidth(
   if (!scrollEl) {
     return 0;
   }
-  return Math.max(
-    0,
-    scrollEl.clientWidth - timelineHeaderOffsetWidth(scrollEl),
+  return timeColumnPx(
+    scrollEl.clientWidth,
+    timelineHeaderOffsetWidth(scrollEl),
   );
+}
+
+function timeColumnPx(scrollportPx: number, headerPx: number): number {
+  return Math.max(0, scrollportPx - headerPx);
+}
+
+/** The scroller's column geometry (px), from one pass of reads. */
+export type TimelineColumns = {
+  /** The sticky track-header column. */
+  headerPx: number;
+  /** The visible time column: the scrollport minus the header column. */
+  timePx: number;
+  /** Classic scrollbars (0 when they overlay): the vertical one's width. */
+  scrollbarInlinePx: number;
+  /** …and the horizontal one's height. */
+  scrollbarBlockPx: number;
+};
+
+export const NO_TIMELINE_COLUMNS: TimelineColumns = {
+  headerPx: 0,
+  timePx: 0,
+  scrollbarInlinePx: 0,
+  scrollbarBlockPx: 0,
+};
+
+/** Measure the header, time column and scrollbars of `.timeline-scroll`. */
+export function measureTimelineColumns(
+  scrollEl: Pick<
+    HTMLElement,
+    | "clientWidth"
+    | "clientHeight"
+    | "offsetWidth"
+    | "offsetHeight"
+    | "querySelector"
+  >,
+): TimelineColumns {
+  const headerPx = timelineHeaderOffsetWidth(scrollEl);
+  return {
+    headerPx,
+    timePx: timeColumnPx(scrollEl.clientWidth, headerPx),
+    scrollbarInlinePx: Math.max(0, scrollEl.offsetWidth - scrollEl.clientWidth),
+    scrollbarBlockPx: Math.max(
+      0,
+      scrollEl.offsetHeight - scrollEl.clientHeight,
+    ),
+  };
 }
 
 export const MIN_TIMELINE_WIDTH_PX = 200;

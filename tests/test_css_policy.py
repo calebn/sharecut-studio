@@ -513,3 +513,30 @@ def test_motion_policy_helpers() -> None:
         "@media not all and (prefers-reduced-motion: no-preference)"
     )
     assert not _NO_PREFERENCE.fullmatch("@media (prefers-reduced-motion: no-preference), print")
+
+
+def test_timeline_edge_stays_under_the_clips() -> None:
+    """The stage edge falloff (#387) darkens only the lane floor: it sits
+    under every other stage layer, clips and their labels included, so it can
+    never lower their contrast, and it never takes a pointer."""
+    z = {
+        d.prop: int(d.value)
+        for d in _declarations(_TOKENS_CSS.read_text(encoding="utf-8"))
+        if d.prop.startswith("--z-")
+    }
+    edge = z.pop("--z-timeline-edge")
+    assert edge < min(z.values())
+    timeline = _declarations((_PARTIALS_DIR / "timeline.css").read_text(encoding="utf-8"))
+    assert ("z-index", "var(--z-clip)") in {
+        (d.prop, d.value) for d in timeline if d.preludes == (".lane-inner",)
+    }
+    stage = _declarations((_PARTIALS_DIR / "stage.css").read_text(encoding="utf-8"))
+    rules = {
+        d.preludes for d in stage if (d.prop, d.value) == ("z-index", "var(--z-timeline-edge)")
+    }
+    assert len(rules) == 1
+    (preludes,) = rules
+    assert "::before" in preludes[-1] and "::after" in preludes[-1]
+    assert ("pointer-events", "none") in {
+        (d.prop, d.value) for d in stage if d.preludes == preludes
+    }

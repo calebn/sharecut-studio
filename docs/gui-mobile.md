@@ -217,8 +217,9 @@ Keep the Reaper grid. Shared polish:
 The desktop transport is a 3.5rem fixed-dark control strip in both themes, with
 a large mono current timecode, a smaller duration, and an accent Play control.
 Tablet and phone headers retain a 3.25rem compact row and keep audition modes
-in Menu. The light theme gets a light timeline stage (no lane grid; its
-vignette is transparent), the dark theme a dark well; the empty project
+in Menu. The light theme gets a light timeline stage (no lane grid; the
+empty stage's inset vignette is transparent, and the lane floor's edge falloff
+is a 6% wash), the dark theme a dark well; the empty project
 offers a gridded drop stage as the import target.
 Track headers use their lane's clip color at the leading edge. Playback lighting
 only animates when reduced motion is not requested.

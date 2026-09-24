@@ -33,12 +33,6 @@
      clips carry the color and each track row reads as one row (#20). */
   --color-timeline-well: var(--primitive-neutral-140);
   --color-timeline-lane: var(--primitive-neutral-55);
-  /* Edge falloff on the stage: a faint black wash (#387). */
-  --color-well-vignette: color-mix(
-    in srgb,
-    var(--primitive-black) 6%,
-    transparent
-  );
   --color-timeline-lane-muted: var(--primitive-neutral-125);
   --color-timeline-border: var(--primitive-neutral-250);
   --color-timeline-text: var(--primitive-neutral-650);
@@ -48,6 +42,14 @@
     transparent
   );
   --color-timeline-vignette: transparent;
+  /* Stage edge falloff (#387): a faint black wash on the lane floor at
+     the well's inline edges, under the clips. The vignette above is the
+     empty stage's inset hover shadow. */
+  --color-timeline-edge: color-mix(
+    in srgb,
+    var(--primitive-black) 6%,
+    transparent
+  );
   /* 3.2:1 on the stage well (non-text ≥3:1). */
   --color-timeline-playhead: var(--primitive-orange-450);
   --color-signal: var(--primitive-teal-675);
@@ -359,12 +361,6 @@
        clips carry the color and each track row reads as one row (#20). */
     --color-timeline-well: var(--primitive-neutral-140);
     --color-timeline-lane: var(--primitive-neutral-55);
-    /* Edge falloff on the stage: a faint black wash (#387). */
-    --color-well-vignette: color-mix(
-      in srgb,
-      var(--primitive-black) 6%,
-      transparent
-    );
     --color-timeline-lane-muted: var(--primitive-neutral-125);
     --color-timeline-border: var(--primitive-neutral-250);
     --color-timeline-text: var(--primitive-neutral-650);
@@ -374,6 +370,14 @@
       transparent
     );
     --color-timeline-vignette: transparent;
+    /* Stage edge falloff (#387): a faint black wash on the lane floor at
+       the well's inline edges, under the clips. The vignette above is the
+       empty stage's inset hover shadow. */
+    --color-timeline-edge: color-mix(
+      in srgb,
+      var(--primitive-black) 6%,
+      transparent
+    );
     /* 3.2:1 on the stage well (non-text ≥3:1). */
     --color-timeline-playhead: var(--primitive-orange-450);
     --color-signal: var(--primitive-teal-675);
