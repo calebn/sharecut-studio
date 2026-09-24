@@ -501,8 +501,16 @@ class PlayService:
             stored_project = store.load()
             if track_render_hash(stored_project, track_id) == track_render_hash(
                 render_project, track_id
-            ) and clear_invalidations_for_tracks(stored_project, [track_id]):
-                store.commit(stored_project)
+            ):
+                before = [
+                    (inv.id, tuple(inv.track_ids)) for inv in stored_project.render.invalidations
+                ]
+                clear_invalidations_for_tracks(stored_project, [track_id])
+                after = [
+                    (inv.id, tuple(inv.track_ids)) for inv in stored_project.render.invalidations
+                ]
+                if after != before:
+                    store.commit(stored_project)
             if track_render_hash(self.project, track_id) == track_render_hash(
                 render_project, track_id
             ):
