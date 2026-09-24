@@ -6,6 +6,7 @@ import {
   test,
 } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
+import { clickHTMLElement } from "./domClick";
 import { waitForFollowBanner } from "./followBanner";
 import { withShareableProject } from "./shareableProject";
 import { openGuestShare, openHostShare } from "./shareNavigation";
@@ -123,7 +124,7 @@ async function followUntilBannerVisible(
     if (i > 0) {
       await openMenu();
     }
-    await people.nth(i).evaluate((el) => el.click());
+    await clickHTMLElement(people.nth(i));
     if (await waitForFollowBanner(follower)) {
       return;
     }
@@ -146,7 +147,7 @@ async function followMenuPeerUntilPlayheadMoves(
     if (i > 0) {
       await openMenu();
     }
-    await people.nth(i).evaluate((el) => el.click());
+    await clickHTMLElement(people.nth(i));
     if (!(await waitForFollowBanner(follower))) {
       continue;
     }
@@ -380,9 +381,9 @@ test.describe("presence follow tablet", () => {
       await expect(pageB.locator(".follow-banner")).toBeVisible();
       await expect(pageB.locator(".presence-overlay")).toBeAttached();
 
-      await pageB
-        .getByRole("button", { name: "Stop following", exact: true })
-        .evaluate((el) => el.click());
+      await clickHTMLElement(
+        pageB.getByRole("button", { name: "Stop following", exact: true }),
+      );
       await expect(pageB.locator(".follow-banner")).toHaveCount(0);
     });
   });
@@ -418,7 +419,7 @@ test.describe("presence follow phone", () => {
     await withTwoStudioPages(
       browser,
       DESKTOP,
-      async (pageA, pageB) => {
+      async (_pageA, pageB) => {
         await expect(pageB.locator(".daw-shell--phone")).toBeVisible();
         await followUntilBannerVisible(pageB, async () => {
           await pageB

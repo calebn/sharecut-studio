@@ -19,10 +19,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": [
-    "playwright*.config.ts",
-    "e2e-compat",
-    "e2e/recordRoom*.ts",
-    "e2e/syntheticMicrophone*.ts"
-  ]
+  "include": ["playwright*.config.ts", "e2e", "e2e-compat"]
 }

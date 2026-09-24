@@ -10,7 +10,7 @@ npm run dev         # Vite on :5173 (proxy /api → :8765)
 npm run build
 npm run storybook  # component catalog on :6006
 npm run build-storybook  # static catalog under storybook-static/
-npm run typecheck   # tsc -b (strict)
+npm run typecheck   # tsc -b (strict; includes all e2e/ and e2e-compat/ files)
 npm test            # vitest run (unit + component a11y)
 npm run test:watch  # vitest watch mode
 npm run test:e2e    # Playwright smoke (needs built dist + `podcast gui` / uv; isolated port and post-server fixture cleanup)
