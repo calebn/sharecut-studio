@@ -122,7 +122,10 @@ export function StudioShell({ guestShare = false }: { guestShare?: boolean }) {
     selection != null &&
     focusMode !== "text" &&
     focusMode !== "review";
-  const arranging = !loadingSession && !emptySession;
+  // Only the ingest drop target keeps headers outside the timeline; any drawn
+  // timeline hosts them so both read one TimelineMetricsProvider and align.
+  const showIngestTarget = emptySession && mayIngest;
+  const arranging = !loadingSession && !showIngestTarget;
 
   const trackHeaders = (
     <TrackHeadersColumn
@@ -179,68 +182,61 @@ export function StudioShell({ guestShare = false }: { guestShare?: boolean }) {
             {trackHeaders}
             <TimelineView />
           </>
-        ) : emptySession ? (
+        ) : showIngestTarget ? (
           <>
             {trackHeaders}
-            {mayIngest ? (
-              <div className="empty-session-wrap">
-                <button
-                  type="button"
-                  className={`empty-session-drop${addDropOver ? " lane-drop-target" : ""}`}
-                  aria-label="Drop audio files or import"
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = "copy";
-                    setAddFileCount(
-                      Math.max(1, fileCountFromDataTransfer(e.dataTransfer)),
-                    );
-                    setAddDropOver(true);
-                  }}
-                  onDragLeave={() => setAddDropOver(false)}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    setAddDropOver(false);
-                    const files = audioFilesFromDrop(e.dataTransfer.files);
-                    if (files.length) {
-                      void ingestFiles(files, { kind: "new" });
-                    }
-                  }}
-                  onClick={() => {
-                    void execute("media.import", {}, { skipWhen: true });
-                  }}
-                >
-                  <span className="empty-session-ghost" aria-hidden="true" />
-                  <span className="empty-session-drop-label">
-                    {addDropOver
-                      ? newTracksDropLabel(addFileCount)
-                      : `Drop audio files here, or Import Audio (${importShortcut})`}
-                  </span>
-                </button>
-                {coachOpen ? (
-                  <div
-                    className="box elevated empty-session-coach"
-                    role="status"
+            <div className="empty-session-wrap">
+              <button
+                type="button"
+                className={`empty-session-drop${addDropOver ? " lane-drop-target" : ""}`}
+                aria-label="Drop audio files or import"
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "copy";
+                  setAddFileCount(
+                    Math.max(1, fileCountFromDataTransfer(e.dataTransfer)),
+                  );
+                  setAddDropOver(true);
+                }}
+                onDragLeave={() => setAddDropOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setAddDropOver(false);
+                  const files = audioFilesFromDrop(e.dataTransfer.files);
+                  if (files.length) {
+                    void ingestFiles(files, { kind: "new" });
+                  }
+                }}
+                onClick={() => {
+                  void execute("media.import", {}, { skipWhen: true });
+                }}
+              >
+                <span className="empty-session-ghost" aria-hidden="true" />
+                <span className="empty-session-drop-label">
+                  {addDropOver
+                    ? newTracksDropLabel(addFileCount)
+                    : `Drop audio files here, or Import Audio (${importShortcut})`}
+                </span>
+              </button>
+              {coachOpen ? (
+                <div className="box elevated empty-session-coach" role="status">
+                  <p>
+                    Drop stems here. Use one file per speaker. Import is also
+                    under Menu ({importShortcut}).
+                  </p>
+                  <button
+                    type="button"
+                    className="empty-session-coach-dismiss"
+                    onClick={() => {
+                      dismissIngestCoach();
+                      setCoachOpen(false);
+                    }}
                   >
-                    <p>
-                      Drop stems here. Use one file per speaker. Import is also
-                      under Menu ({importShortcut}).
-                    </p>
-                    <button
-                      type="button"
-                      className="empty-session-coach-dismiss"
-                      onClick={() => {
-                        dismissIngestCoach();
-                        setCoachOpen(false);
-                      }}
-                    >
-                      Got it
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <TimelineView />
-            )}
+                    Got it
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </>
         ) : (
           <TimelineView headerSlot={trackHeaders} />
