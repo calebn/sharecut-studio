@@ -103,6 +103,12 @@ def _sql_bundle(prefix: str) -> dict[str, str]:
             "INSERT INTO __COMMANDS__ (command_id, client_id, client_seq, role, type, "
             "payload, causation_id, ts_ns) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         ),
+        "insert_generated_command": bind(
+            "INSERT INTO __COMMANDS__ (command_id, client_id, client_seq, role, type, "
+            "payload, causation_id, ts_ns) VALUES (?, ?, "
+            "(SELECT COALESCE(MAX(client_seq), 0) + 1 FROM __COMMANDS__ WHERE client_id = ?), "
+            "?, ?, ?, ?, ?)"
+        ),
         "commands_after": bind(
             "SELECT server_seq, command_id, client_id, client_seq, role, "
             "type, payload, causation_id, ts_ns FROM __COMMANDS__ "
@@ -274,7 +280,7 @@ class SyncStore:
         *,
         command_id: str,
         client_id: str,
-        client_seq: int,
+        client_seq: int | None,
         role: str,
         type: str,
         payload: dict[str, Any],
@@ -300,38 +306,46 @@ class SyncStore:
         *,
         command_id: str,
         client_id: str,
-        client_seq: int,
+        client_seq: int | None,
         role: str,
         type: str,
         payload: dict[str, Any],
         causation_id: str | None,
     ) -> dict[str, Any]:
-        existing = self._find_by_client_seq_unlocked(client_id, client_seq)
-        if existing is not None:
-            return existing
+        if client_seq is not None:
+            existing = self._find_by_client_seq_unlocked(client_id, client_seq)
+            if existing is not None:
+                return existing
         now = time.time_ns()
         try:
-            cur = self._conn.execute(
-                self._sql["insert_command"],
-                (
-                    command_id,
-                    client_id,
-                    client_seq,
-                    role,
-                    type,
-                    json.dumps(payload, separators=(",", ":")),
-                    causation_id,
-                    now,
-                ),
-            )
+            encoded = json.dumps(payload, separators=(",", ":"))
+            if client_seq is None:
+                cur = self._conn.execute(
+                    self._sql["insert_generated_command"],
+                    (command_id, client_id, client_id, role, type, encoded, causation_id, now),
+                )
+            else:
+                cur = self._conn.execute(
+                    self._sql["insert_command"],
+                    (command_id, client_id, client_seq, role, type, encoded, causation_id, now),
+                )
             if cur.lastrowid is None:
                 raise RuntimeError("sqlite insert returned no lastrowid")
             server_seq = int(cur.lastrowid)
         except sqlite3.IntegrityError:  # pragma: no cover - rare multi-writer race
-            again = self._find_by_client_seq_unlocked(client_id, client_seq)
+            again = (
+                self._find_by_client_seq_unlocked(client_id, client_seq)
+                if client_seq is not None
+                else None
+            )
             if again is None:
                 raise RuntimeError("failed to append or load command") from None
             return again
+        if client_seq is None:
+            generated = self._conn.execute(self._sql["find_command_id"], (command_id,)).fetchone()
+            if generated is None:
+                raise RuntimeError("generated command missing after append")
+            client_seq = int(generated["client_seq"])
         return {
             "server_seq": server_seq,
             "command_id": command_id,
@@ -349,7 +363,7 @@ class SyncStore:
         *,
         command_id: str,
         client_id: str,
-        client_seq: int,
+        client_seq: int | None,
         role: str,
         type: str,
         payload: dict[str, Any],
@@ -363,7 +377,11 @@ class SyncStore:
         Returns ``(row, snapshot, idempotent)``.
         """
         with self._lock:
-            existing = self._find_by_client_seq_unlocked(client_id, client_seq)
+            existing = (
+                self._find_by_client_seq_unlocked(client_id, client_seq)
+                if client_seq is not None
+                else None
+            )
             if existing is not None:
                 snap = self._get_snapshot_unlocked() or empty_snap_fn()
                 return existing, snap, True

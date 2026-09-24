@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import subprocess
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from threading import get_ident
 
@@ -63,6 +66,88 @@ def test_idempotent_client_seq(minimal_project) -> None:
     b = svc.submit(cmd)
     assert a["server_seq"] == b["server_seq"]
     assert a["command"]["command_id"] == b["command"]["command_id"]
+
+
+def test_generated_client_seq_survives_new_process_counter(minimal_project, monkeypatch) -> None:
+    from podcast_mcp.services.session_sync import service
+
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+    first = svc.submit_control("SetPlayhead", {"playhead_sec": 30.0})
+    # A fresh CLI process starts the old module counter at 1 again.
+    monkeypatch.setattr(service, "next_client_seq", lambda: 1)
+    second = SessionSyncService(proj).submit_control("SetPlayhead", {"playhead_sec": 40.0})
+    assert not second.get("idempotent", False)
+    assert second["server_seq"] > first["server_seq"]
+    assert second["command"]["client_seq"] == first["command"]["client_seq"] + 1
+    assert second["snapshot"]["playhead_sec"] == 40.0
+
+
+def test_cli_seeks_from_separate_processes_are_not_deduped(minimal_project) -> None:
+    script = (
+        "import json, sys; "
+        "from podcast_mcp.services.session_control import SessionControlService; "
+        "from podcast_mcp.services.workspace import ProjectWorkspace; "
+        "state = SessionControlService(ProjectWorkspace.open(sys.argv[1])).seek(float(sys.argv[2])); "
+        "print(json.dumps({'server_seq': state['server_seq'], "
+        "'playhead_sec': state['playhead_sec']}))"
+    )
+
+    def seek(seconds: float) -> dict[str, float]:
+        completed = subprocess.run(
+            [sys.executable, "-c", script, str(minimal_project), str(seconds)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return json.loads(completed.stdout)
+
+    first = seek(30.0)
+    second = seek(40.0)
+    assert second["server_seq"] > first["server_seq"]
+    assert second["playhead_sec"] == 40.0
+
+
+def test_generated_seq_follows_explicit_client_seq(minimal_project) -> None:
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+    svc.submit(
+        SyncCommand(
+            type="SetPlayhead",
+            payload={"playhead_sec": 5.0},
+            client_id="agent-control",
+            role="agent",
+            client_seq=19,
+        )
+    )
+    generated = svc.submit_control("SetPlayhead", {"playhead_sec": 6.0})
+    assert generated["command"]["client_seq"] == 20
+
+
+def test_paused_viewer_scrub_persists_playhead(minimal_project) -> None:
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+    svc.submit_control("SetPlayhead", {"playhead_sec": 10.0})
+    out = publish_viewer_snapshot(
+        proj,
+        {"client_id": "viewer-paused", "is_playing": False, "playhead_sec": 12.5},
+    )
+    assert out["playhead_sec"] == 12.5
+    assert svc.snapshot()["playhead_sec"] == 12.5
+    assert out["last_client_id"] == "viewer-paused"
+
+
+def test_viewer_pause_then_scrub_updates_durable_playhead(minimal_project) -> None:
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+    svc.submit_control("SetPlaying", {"is_playing": True})
+    out = publish_viewer_snapshot(
+        proj,
+        {"client_id": "viewer-paused", "is_playing": False, "playhead_sec": 14.0},
+    )
+    assert out["is_playing"] is False
+    assert out["playhead_sec"] == 14.0
+    assert svc.snapshot()["playhead_sec"] == 14.0
 
 
 def test_concurrent_writers_converge(minimal_project) -> None:
