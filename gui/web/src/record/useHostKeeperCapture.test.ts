@@ -1,11 +1,14 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
-import { minimalProject } from "../test/fixtures";
+import {
+  minimalProject,
+  recordParticipant,
+  recordSnapshot,
+} from "../test/fixtures";
 import { useRecordHostStore } from "./hostStore";
 import { bindRecordHostSend } from "./hostWire";
 import { MemorySink } from "./keeper/store";
-import type { RecordSnapshot } from "./types";
 import { useHostKeeperCapture } from "./useHostKeeperCapture";
 
 const mic = vi.hoisted(() =>
@@ -45,23 +48,16 @@ vi.mock("./keeper/useKeeperCapture", () => ({
     keeper(args),
 }));
 
-const recording: RecordSnapshot = {
+const recording = recordSnapshot({
   session_id: "room1",
-  state: "recording",
-  take_index: 0,
   participants: [
-    {
+    recordParticipant({
       participant_id: "p_host",
       role: "host",
       display_name: "Host",
-      connected: true,
-      consented: true,
-      muted: false,
-      headphones_ack: true,
-    },
+    }),
   ],
-  caps: { recorded: 4, producers: 2 },
-};
+});
 
 describe("useHostKeeperCapture", () => {
   afterEach(() => {

@@ -1,32 +1,25 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { recordParticipant, recordSnapshot } from "../test/fixtures";
 import {
   enqueueComment,
   loadCommentQueue,
   MARKER_BODY,
 } from "./liveCommentQueue";
-import type { RecordParticipant, RecordSnapshot } from "./types";
+import type { RecordSnapshot } from "./types";
 import { useRecordLiveComments } from "./useRecordLiveComments";
 
-const me: RecordParticipant = {
+const me = recordParticipant({
   participant_id: "p_g",
-  role: "guest",
   display_name: "Ava",
-  connected: true,
-  consented: true,
-  muted: false,
-  headphones_ack: true,
-};
+});
 
-const recording: RecordSnapshot = {
+const recording = recordSnapshot({
   session_id: "room1",
-  state: "recording",
-  take_index: 0,
   recording_ms: 1500,
   participants: [me],
-  caps: { recorded: 4, producers: 2 },
   comments: [],
-};
+});
 
 describe("useRecordLiveComments", () => {
   afterEach(() => {

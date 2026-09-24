@@ -1,37 +1,27 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
+import { recordParticipant } from "../test/fixtures";
 import { Roster } from "./Roster";
-import type { RecordParticipant } from "./types";
 
-const people: RecordParticipant[] = [
-  {
+const people = [
+  recordParticipant({
     participant_id: "p_host",
     role: "host",
     display_name: "Host",
-    connected: true,
-    consented: true,
-    muted: false,
-    headphones_ack: true,
-  },
-  {
+  }),
+  recordParticipant({
     participant_id: "p_g",
-    role: "guest",
     display_name: "Ava",
-    connected: true,
-    consented: true,
     muted: true,
-    headphones_ack: true,
-  },
-  {
+  }),
+  recordParticipant({
     participant_id: "p_p",
     role: "producer",
     display_name: "Pat",
-    connected: true,
     consented: null,
-    muted: false,
     headphones_ack: false,
-  },
+  }),
 ];
 
 describe("Roster", () => {
