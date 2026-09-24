@@ -71,13 +71,37 @@ export function planCorrection(
   return { action: "none" };
 }
 
+/** Shortest viewport span the server accepts (`PresenceViewport`). */
+export const MIN_VIEWPORT_SPAN_SEC = 0.1;
+/** Span published before the timeline has been measured. */
+const UNMEASURED_VIEWPORT_SPAN_SEC = 60;
+
 export function viewportToZoomScroll(
   v: PresenceViewport,
   viewportWidthPx: number,
 ): { zoomPxPerSec: number; scrollLeft: number } {
-  const span = Math.max(0.1, v.end_sec - v.start_sec);
+  const span = Math.max(MIN_VIEWPORT_SPAN_SEC, v.end_sec - v.start_sec);
   const zoom = Math.max(1e-6, viewportWidthPx / span);
   return { zoomPxPerSec: zoom, scrollLeft: Math.max(0, v.start_sec * zoom) };
+}
+
+/**
+ * The time window a logical scroll and zoom show. A padded fixed-playhead
+ * view can scroll before 0: the window shifts to 0 instead of shrinking, so
+ * followers keep one zoom and the server never sees a negative end.
+ */
+export function zoomScrollToViewport(
+  scrollLeft: number,
+  zoomPxPerSec: number,
+  viewportWidthPx: number,
+): PresenceViewport {
+  const zoom = zoomPxPerSec > 0 ? zoomPxPerSec : 1;
+  const span = Math.max(
+    MIN_VIEWPORT_SPAN_SEC,
+    viewportWidthPx > 0 ? viewportWidthPx / zoom : UNMEASURED_VIEWPORT_SPAN_SEC,
+  );
+  const start = Math.max(0, scrollLeft / zoom);
+  return { start_sec: start, end_sec: start + span };
 }
 
 export function isObservingClient(client: {

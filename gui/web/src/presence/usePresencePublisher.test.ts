@@ -62,7 +62,8 @@ describe("usePresencePublisher", () => {
       .map((f) => (f.meta as { viewport?: unknown }).viewport)
       .filter(Boolean) as { start_sec: number; end_sec: number }[];
     expect(viewports.length).toBeGreaterThan(0);
-    expect(viewports.at(-1)).toEqual({ start_sec: 0, end_sec: 45 });
+    // Shifted to 0, not shrunk: followers keep the same zoom.
+    expect(viewports.at(-1)).toEqual({ start_sec: 0, end_sec: 60 });
   });
 
   it("still publishes ui while following", () => {
