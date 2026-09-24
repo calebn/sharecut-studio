@@ -410,3 +410,32 @@ def test_selected_chip_and_fields_keep_text_contrast(theme: str) -> None:
     for text in ("--color-text-primary", "--color-text-secondary"):
         assert _contrast_ratio(_resolve_hex(text, roles), chip) >= 4.5, (theme, text, "chip")
         assert _contrast_ratio(_resolve_hex(text, roles), field) >= 4.5, (theme, text, "field")
+
+
+THEME_FIXED = ROOT / "gui/web/src/styles/theme/theme-fixed.css"
+
+
+def test_transport_inks_meet_contrast_on_the_strip() -> None:
+    """The transport is dark in both themes (#20 review): every ink drawn on
+    the strip or its controls stays ≥4.5:1 against the strip's darkest and
+    lightest fills, so light-theme text roles never leak onto it."""
+    primitives = dict(_PRIMITIVE_HEX_RE.findall(PRIMITIVES_CSS.read_text(encoding="utf-8")))
+    fixed = {**primitives, **_color_props(THEME_FIXED.read_text(encoding="utf-8"))}
+    fills = [
+        _resolve_hex(name, fixed)
+        for name in (
+            "--color-transport-top",
+            "--color-transport-bottom",
+            "--color-transport-control",
+        )
+    ]
+    for ink in (
+        "--color-transport-text",
+        "--color-transport-muted",
+        "--color-transport-warning",
+        "--color-transport-ok",
+        "--color-transport-danger",
+        "--color-transport-audition",
+    ):
+        for fill in fills:
+            assert _contrast_ratio(_resolve_hex(ink, fixed), fill) >= 4.5, (ink, fill)
