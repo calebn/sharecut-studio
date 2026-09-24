@@ -17,6 +17,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "transport",
     label: "Seek playhead",
     when: "always",
+    paletteRunnable: false,
     notes: "Args: { sec: number }",
     breaksFollow: true,
   },
@@ -25,6 +26,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "transport",
     label: "Audition Mix / FX / Raw",
     when: "hasProject",
+    paletteRunnable: false,
     notes: "Args: { mode: mix | fx | raw }",
   },
   "transport.stop": {
@@ -39,6 +41,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "presence",
     label: "Follow",
     when: "always",
+    paletteRunnable: false,
     notes: "Args: { clientId: string }",
   },
   "presence.unfollow": {
@@ -409,6 +412,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "edit",
     label: "Reorder track",
     when: "canIngestMedia",
+    paletteRunnable: false,
     notes:
       "Args: { trackId?, index } — ReorderTrack; drag headers use skipWhen",
   },
@@ -483,8 +487,9 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "edit",
     label: "Move clips",
     when: "canApplyPass12",
+    paletteRunnable: false,
     notes:
-      "Pointer body drag on clip blocks (one clip or a multi-selection; not MoveSegment)",
+      "Args: { clips: non-empty list } — pointer body drag on clip blocks (one clip or a multi-selection; not MoveSegment)",
   },
   "view.focusEditBoundary": {
     id: "view.focusEditBoundary",
@@ -503,6 +508,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "view",
     label: "Switch editor tab",
     when: "hasProject",
+    paletteRunnable: false,
     notes: "Args: { tab: DawTab }",
     breaksFollow: true,
   },
@@ -511,6 +517,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "view",
     label: "Switch phone mode",
     when: "hasProject",
+    paletteRunnable: false,
     notes: "Args: { mode: MobileMode, destination?: MoreDestination }",
     breaksFollow: true,
   },
