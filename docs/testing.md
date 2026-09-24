@@ -52,6 +52,16 @@ make typecheck        # mypy (strict on timebase modules)
 
 Do not silence findings with `# noqa` / `# nosec` without explicit approval — fix code or tighten tool config.
 
+### Relay proxy path invariant
+
+`tests/test_proxy_paths.py` runs a seeded, reproducible set of relay suffixes
+through the tunnel mapper. It mixes guest prefixes with encoded traversal,
+double encoding, query and semicolon characters, and repeated slashes. Every
+mapped result must remain on the guest path allowlist and outside host-only
+API routes after normalization; unsafe suffixes may raise `UnsafeProxyPath`.
+Run the focused check with
+`.venv/bin/python -m pytest -q --no-cov tests/test_proxy_paths.py`.
+
 ### Credential history scanning
 
 `.github/workflows/secret-scan.yml` runs Gitleaks with complete checkout history on every
