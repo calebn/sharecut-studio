@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
+import { expect, userEvent, within } from "storybook/test";
 import { Button, Menu, MenuItem, MenuSection } from "./index";
 
 const meta: Meta<typeof Menu> = {
@@ -45,7 +46,9 @@ export const Open: Story = {
 };
 
 function ShortcutMenu() {
-  const [open, setOpen] = useState(true);
+  // Starts closed: an open Menu listens on window and would take over the
+  // autodocs page's keys and scroll. The play function opens it.
+  const [open, setOpen] = useState(false);
   return (
     <Menu
       open={open}
@@ -86,11 +89,9 @@ export const WithShortcuts: Story = {
     </div>
   ),
   play: async ({ canvasElement }) => {
-    const item = [
-      ...canvasElement.ownerDocument.querySelectorAll("[role=menuitem]"),
-    ].find((el) => el.textContent?.includes("New project"));
-    if (!item?.querySelector("kbd[aria-hidden='true']")) {
-      throw new Error("shortcut should render as aria-hidden kbd");
-    }
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Menu" }));
+    const item = await canvas.findByRole("menuitem", { name: /New project/ });
+    await expect(item.querySelector("kbd[aria-hidden='true']")).toBeTruthy();
   },
 };
