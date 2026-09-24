@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -284,6 +286,72 @@ def test_failed_mp3_retry_never_exposes_partial_file(
     assert result == mp3
     assert version_mp3_path(project, version_id) == mp3
     assert mp3.read_bytes() == b"complete mp3"
+
+
+def test_mp3_retry_cleans_only_bounded_stale_regular_files(
+    minimal_project, sample_wav, tmp_workspace
+):
+    project, version_id = _publish(minimal_project, sample_wav)
+    mp3 = version_mp3_path(project, version_id)
+    assert mp3 is not None
+    mp3.unlink()
+    version_dir = mp3.parent
+    old_time = time.time() - review_versions._STALE_MP3_TEMP_AGE_SECONDS - 60
+    stale = [version_dir / f".mix-old-{index}.mp3" for index in range(33)]
+    for path in stale:
+        path.write_bytes(b"orphan")
+        os.utime(path, (old_time, old_time))
+    fresh = version_dir / ".mix-live.mp3"
+    fresh.write_bytes(b"live retry")
+    unrelated = version_dir / "unrelated.mp3"
+    unrelated.write_bytes(b"keep")
+    outside = tmp_workspace.parent / "outside-review-mp3"
+    outside.write_bytes(b"outside")
+    symlink = version_dir / ".mix-link.mp3"
+    symlink.symlink_to(outside)
+
+    class SuccessfulEngine:
+        def export_mp3(self, source, output, *, bitrate_kbps):
+            assert fresh.read_bytes() == b"live retry"
+            output.write_bytes(b"complete")
+
+    assert encode_version_mp3(project, version_id, eng=SuccessfulEngine()) == mp3
+    assert sum(path.exists() for path in stale) == 1
+    assert fresh.read_bytes() == b"live retry"
+    assert unrelated.read_bytes() == b"keep"
+    assert symlink.is_symlink()
+    assert outside.read_bytes() == b"outside"
+    assert version_audio_path(project, version_id).is_file()
+    assert mp3.read_bytes() == b"complete"
+
+
+def test_mp3_retry_continues_when_stale_cleanup_fails(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    project, version_id = _publish(minimal_project, sample_wav)
+    mp3 = version_mp3_path(project, version_id)
+    assert mp3 is not None
+    mp3.unlink()
+    stale = mp3.parent / ".mix-orphan.mp3"
+    stale.write_bytes(b"orphan")
+    old_time = time.time() - review_versions._STALE_MP3_TEMP_AGE_SECONDS - 60
+    os.utime(stale, (old_time, old_time))
+    original_unlink = Path.unlink
+
+    def refuse_stale_unlink(path, *args, **kwargs):
+        if path == stale:
+            raise PermissionError("cannot remove stale file")
+        return original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", refuse_stale_unlink)
+
+    class SuccessfulEngine:
+        def export_mp3(self, source, output, *, bitrate_kbps):
+            output.write_bytes(b"complete")
+
+    assert encode_version_mp3(project, version_id, eng=SuccessfulEngine()) == mp3
+    assert stale.read_bytes() == b"orphan"
+    assert mp3.read_bytes() == b"complete"
 
 
 def test_mp3_retry_preserves_encode_error_if_temporary_cleanup_fails(

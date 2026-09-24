@@ -5,7 +5,9 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import stat
 import tempfile
+import time
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -18,6 +20,8 @@ from podcast_mcp.util.workspace_paths import resolve_within
 log = logging.getLogger(__name__)
 
 _REVIEW_MP3_BITRATE_KBPS = 128
+_STALE_MP3_TEMP_AGE_SECONDS = 24 * 60 * 60
+_STALE_MP3_TEMP_CLEANUP_LIMIT = 32
 REVIEW_ARTIFACTS_RELDIR = "artifacts/review"
 
 
@@ -103,6 +107,29 @@ def version_mp3_path(project: EpisodeProject, version_id: str) -> Path | None:
     return path
 
 
+def _clean_stale_mp3_temps(version_dir: Path) -> None:
+    """Bound best-effort cleanup to old regular retry files in one pinned version dir."""
+    cutoff = time.time() - _STALE_MP3_TEMP_AGE_SECONDS
+    removed = 0
+    try:
+        with os.scandir(version_dir) as entries:
+            for entry in entries:
+                if removed >= _STALE_MP3_TEMP_CLEANUP_LIMIT:
+                    break
+                if not (entry.name.startswith(".mix-") and entry.name.endswith(".mp3")):
+                    continue
+                try:
+                    metadata = entry.stat(follow_symlinks=False)
+                    if not stat.S_ISREG(metadata.st_mode) or metadata.st_mtime > cutoff:
+                        continue
+                    Path(entry.path).unlink()
+                    removed += 1
+                except OSError:
+                    log.warning("Could not remove stale review MP3 %s", entry.path, exc_info=True)
+    except OSError:
+        log.warning("Could not scan review MP3 retries in %s", version_dir, exc_info=True)
+
+
 def encode_version_mp3(
     project: EpisodeProject,
     version_id: str,
@@ -126,6 +153,7 @@ def encode_version_mp3(
     version_dir.mkdir(parents=True, exist_ok=True)
     mp3_path = version_dir / "mix.mp3"
     engine = eng or FFmpegEngine()
+    _clean_stale_mp3_temps(version_dir)
     with tempfile.NamedTemporaryFile(
         prefix=".mix-", suffix=".mp3", dir=version_dir, delete=False
     ) as temporary:
