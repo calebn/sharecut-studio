@@ -295,6 +295,29 @@ describe("TransportBar guest Mix lock", () => {
     expectMixLocked(screen.getByRole("menu"), true);
   });
 
+  it("never offers Help or project actions to a share guest", async () => {
+    // Help… (diagnostics bundle) and the Project group are host-only; the
+    // inline mayManage check is their only client-side gate.
+    const project = minimalProject({ tracks: TRACKS });
+    useDawStore.getState().hydrate("share:tok", project, "view", ["play"]);
+    render(
+      <DawProvider
+        projectPath="share:tok"
+        initialProject={project}
+        guestMode="view"
+      >
+        <TransportBar />
+      </DawProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Menu" }));
+    const menu = screen.getByRole("menu", { name: "Transport menu" });
+    expect(within(menu).queryByRole("menuitem", { name: /^Help/ })).toBeNull();
+    expect(within(menu).queryByRole("group", { name: "Project" })).toBeNull();
+    expect(
+      within(menu).queryByRole("menuitem", { name: /New project/ }),
+    ).toBeNull();
+  });
+
   it("disables FX and Raw inline for an editor guest", () => {
     Object.defineProperty(HTMLElement.prototype, "clientWidth", {
       configurable: true,
