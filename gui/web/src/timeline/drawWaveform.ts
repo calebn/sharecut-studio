@@ -88,14 +88,47 @@ export type PaintWaveformOpts = {
 const WAVEFORM_CORE_LIGHTEN = 0.45;
 const WAVEFORM_EDGE_LIGHTEN = 0.72;
 
-function parseRgb(color: string): [number, number, number] | null {
-  const match = color
-    .trim()
-    .match(/^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i);
+const NUM = String.raw`(-?[\d.]+(?:e[-+]?\d+)?)`;
+const ALPHA = String.raw`(?:\s*[,/]\s*([\d.]+%?))?`;
+const RGB_RE = new RegExp(
+  String.raw`^rgba?\(\s*${NUM}[\s,]+${NUM}[\s,]+${NUM}${ALPHA}\s*\)$`,
+  "i",
+);
+/** What `getComputedStyle` returns for `color-mix()` / `oklch()` fills. */
+const SRGB_RE = new RegExp(
+  String.raw`^color\(\s*srgb\s+${NUM}\s+${NUM}\s+${NUM}${ALPHA}\s*\)$`,
+  "i",
+);
+
+function parseAlpha(raw: string | undefined): number {
+  if (raw == null) {
+    return 1;
+  }
+  const n = raw.endsWith("%") ? Number(raw.slice(0, -1)) / 100 : Number(raw);
+  return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 1;
+}
+
+/**
+ * Channels (0–255) and alpha (0–1) of a computed colour: `rgb()` / `rgba()`,
+ * or `color(srgb r g b / a)` with 0–1 channels.
+ */
+function parseRgb(
+  color: string,
+): { rgb: [number, number, number]; alpha: number } | null {
+  const text = color.trim();
+  const rgb = text.match(RGB_RE);
+  const srgb = rgb ? null : text.match(SRGB_RE);
+  const match = rgb ?? srgb;
   if (!match) {
     return null;
   }
-  return [Number(match[1]), Number(match[2]), Number(match[3])];
+  const scale = srgb ? 255 : 1;
+  const channel = (raw: string | undefined) =>
+    Math.min(255, Math.max(0, Number(raw) * scale));
+  return {
+    rgb: [channel(match[1]), channel(match[2]), channel(match[3])],
+    alpha: parseAlpha(match[4]),
+  };
 }
 
 function towardWhite(
@@ -109,18 +142,20 @@ function towardWhite(
 
 /**
  * Waveform tints derived from the clip's own fill, so every track keeps its
- * identity color. Returns null when the fill is not a plain rgb() value.
+ * identity color. Returns null when the fill is unparseable or fully
+ * transparent, so the themed peak color applies; partial alpha keeps the
+ * channels (clip fills are opaque today).
  */
 export function clipWaveformFill(
   clipBackground: string,
 ): { core: string; edge: string } | null {
-  const rgb = parseRgb(clipBackground);
-  if (!rgb) {
+  const parsed = parseRgb(clipBackground);
+  if (!parsed || parsed.alpha === 0) {
     return null;
   }
   return {
-    core: towardWhite(rgb, WAVEFORM_CORE_LIGHTEN),
-    edge: towardWhite(rgb, WAVEFORM_EDGE_LIGHTEN),
+    core: towardWhite(parsed.rgb, WAVEFORM_CORE_LIGHTEN),
+    edge: towardWhite(parsed.rgb, WAVEFORM_EDGE_LIGHTEN),
   };
 }
 
