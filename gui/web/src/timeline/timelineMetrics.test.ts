@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { LANE_HEIGHT } from "../utils/layout";
 import {
-  fitLaneHeight,
+  LANE_HEIGHT,
+  MARKER_LANE_HEIGHT,
   MARKER_ROW_HEIGHT,
   MAX_FIT_LANE_HEIGHT,
-  markerLaneHeight,
-  markerRows,
-} from "./timelineMetrics";
+} from "../utils/layout";
+import { fitLaneHeight, markerLaneHeight, markerRows } from "./timelineMetrics";
 
 describe("fitLaneHeight", () => {
   it("grows lanes to fill the stage when few tracks fit", () => {
@@ -49,5 +48,11 @@ describe("marker rows", () => {
     expect(
       markerRows({ ...base, chapters, comments, showComments: false }),
     ).toEqual({ chapters: true, social: false, comments: false });
+  });
+
+  it("fills the full marker lane with all three rows", () => {
+    expect(
+      markerLaneHeight({ chapters: true, social: true, comments: true }),
+    ).toBe(MARKER_LANE_HEIGHT);
   });
 });

@@ -8,14 +8,18 @@ import type {
   SocialClipView,
   TimelineComment,
 } from "../types/project";
-import { markerRows } from "./timelineMetrics";
+import { MARKER_ROW_HEIGHT } from "../utils/layout";
+import type { MarkerRows } from "./timelineMetrics";
+
+/** Point markers are row-square; center them on their time. */
+const MARKER_HALF = MARKER_ROW_HEIGHT / 2;
 
 interface MarkerLaneProps {
   chapters: ChapterMarker[];
   socialClips: SocialClipView[];
   comments: TimelineComment[];
-  showMarkers: boolean;
-  showComments: boolean;
+  /** Rows to draw, from `markerRows` (TimelineView sizes the lane from them). */
+  rows: MarkerRows;
   selectedCommentId?: string | null;
   zoomPxPerSec: number;
   width: number;
@@ -28,8 +32,7 @@ export function MarkerLane({
   chapters,
   socialClips,
   comments,
-  showMarkers,
-  showComments,
+  rows,
   selectedCommentId = null,
   zoomPxPerSec,
   width,
@@ -52,14 +55,6 @@ export function MarkerLane({
     originStart: number;
     originEnd: number;
   } | null>(null);
-
-  const rows = markerRows({
-    chapters,
-    socialClips,
-    comments,
-    showMarkers,
-    showComments,
-  });
 
   if (!rows.chapters && !rows.social && !rows.comments) {
     return (
@@ -86,7 +81,7 @@ export function MarkerLane({
                 type="button"
                 className="chapter-marker"
                 style={{
-                  left: ch.time * zoomPxPerSec - 12,
+                  left: ch.time * zoomPxPerSec - MARKER_HALF,
                   cursor: editable ? "ew-resize" : "pointer",
                 }}
                 aria-label={`Chapter ${ch.title}`}
@@ -115,7 +110,7 @@ export function MarkerLane({
                     chapterDrag.current.originTime + dx / zoomPxPerSec,
                   );
                   (e.currentTarget as HTMLElement).style.left =
-                    `${nextTime * zoomPxPerSec - 12}px`;
+                    `${nextTime * zoomPxPerSec - MARKER_HALF}px`;
                 }}
                 onPointerUp={(e) => {
                   if (!chapterDrag.current) {
@@ -153,7 +148,10 @@ export function MarkerLane({
           <div className="marker-row social">
             {socialClips.map((clip) => {
               const left = clip.start * zoomPxPerSec;
-              const w = Math.max(24, (clip.end - clip.start) * zoomPxPerSec);
+              const w = Math.max(
+                MARKER_ROW_HEIGHT,
+                (clip.end - clip.start) * zoomPxPerSec,
+              );
               return (
                 <button
                   key={clip.id}
@@ -216,7 +214,7 @@ export function MarkerLane({
                     }
                     const el = e.currentTarget as HTMLElement;
                     el.style.left = `${start * zoomPxPerSec}px`;
-                    el.style.width = `${Math.max(24, (end - start) * zoomPxPerSec)}px`;
+                    el.style.width = `${Math.max(MARKER_ROW_HEIGHT, (end - start) * zoomPxPerSec)}px`;
                   }}
                   onPointerUp={(e) => {
                     if (
@@ -262,8 +260,11 @@ export function MarkerLane({
             const isSpan =
               c.timeline_end != null && c.timeline_end > c.timeline_start;
             const w = isSpan
-              ? Math.max(24, (end - c.timeline_start) * zoomPxPerSec)
-              : 24;
+              ? Math.max(
+                  MARKER_ROW_HEIGHT,
+                  (end - c.timeline_start) * zoomPxPerSec,
+                )
+              : MARKER_ROW_HEIGHT;
             const openActions = c.action_items.filter((a) => !a.done).length;
             const title = [
               c.author,
@@ -280,7 +281,7 @@ export function MarkerLane({
                 className={`comment-marker${isSpan ? " span" : " pin"}${
                   c.resolved ? " resolved" : ""
                 }${selectedCommentId === c.id ? " selected" : ""}`}
-                style={{ left: isSpan ? left : left - 12, width: w }}
+                style={{ left: isSpan ? left : left - MARKER_HALF, width: w }}
                 aria-label={`Comment by ${c.author}`}
                 aria-pressed={selectedCommentId === c.id}
                 title={title}

@@ -26,6 +26,22 @@ describe("timeline styles", () => {
     expect(partial("inspector.css")).not.toMatch(/\.playhead\b/);
   });
 
+  it("sizes the ruler and marker rows from the px vars TimelineView sets", () => {
+    const css = partial("timeline.css");
+    expect(rule(css, ".time-ruler")).toMatch(/height:\s*var\(--ruler-height\)/);
+    const row = rule(css, ".marker-row");
+    expect(row).toMatch(/flex:\s*0 0 var\(--marker-row-height\)/);
+    expect(row).toMatch(/height:\s*var\(--marker-row-height\)/);
+    for (const marker of [
+      ".chapter-marker",
+      ".social-marker",
+      ".comment-marker",
+    ]) {
+      expect(rule(css, marker)).toMatch(/height:\s*var\(--marker-row-height\)/);
+      expect(rule(css, marker)).not.toMatch(/1\.5rem/);
+    }
+  });
+
   it("reserves the scrollbar gutter so fit-to-window cannot oscillate", () => {
     expect(rule(partial("layout.css"), ".timeline-scroll")).toMatch(
       /scrollbar-gutter:\s*stable/,

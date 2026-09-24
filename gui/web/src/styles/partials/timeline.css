@@ -464,24 +464,26 @@ button.join-diamond {
   background: var(--color-timeline-well);
 }
 
-/* Rows stack in flow; only rows with content render (timelineMetrics). */
+/* Rows stack in flow; only rows with content render (timelineMetrics).
+   --marker-row-height is px from utils/layout.ts, set by TimelineView, so rows
+   match the lane height the code computes at any root font size. */
 .marker-row {
   position: relative;
-  flex: 0 0 1.5rem;
-  height: 1.5rem;
+  flex: 0 0 var(--marker-row-height);
+  height: var(--marker-row-height);
 }
 
 .comment-marker {
   position: absolute;
   top: 0;
-  height: 1.5rem;
+  height: var(--marker-row-height);
   margin: 0;
   padding: 0;
   border: 0;
   background: transparent;
   border-radius: var(--radius-xs);
   cursor: pointer;
-  min-width: 1.5rem;
+  min-width: var(--marker-row-height);
   box-sizing: border-box;
 }
 
@@ -498,8 +500,8 @@ button.join-diamond {
 }
 
 .comment-marker.pin {
-  width: 1.5rem;
-  min-width: 1.5rem;
+  width: var(--marker-row-height);
+  min-width: var(--marker-row-height);
 }
 
 .comment-marker.pin::before {
@@ -540,8 +542,8 @@ button.join-diamond {
 .chapter-marker {
   position: absolute;
   top: 0;
-  width: 1.5rem;
-  height: 1.5rem;
+  width: var(--marker-row-height);
+  height: var(--marker-row-height);
   margin: 0;
   padding: 0;
   border: 0;
@@ -565,14 +567,14 @@ button.join-diamond {
 .social-marker {
   position: absolute;
   top: 0;
-  height: 1.5rem;
+  height: var(--marker-row-height);
   margin: 0;
   padding: 0;
   border: 0;
   background: transparent;
   border-radius: var(--radius-xs);
   cursor: pointer;
-  min-width: 1.5rem;
+  min-width: var(--marker-row-height);
   box-sizing: border-box;
 }
 
@@ -607,7 +609,8 @@ button.join-diamond {
 
 .time-ruler {
   position: relative;
-  height: 1.5rem;
+  /* px from utils/layout.ts (RULER_HEIGHT), matching the header chrome. */
+  height: var(--ruler-height);
   /* Same recessed well as lanes — avoids a surface strip + dark fit-gutter edge. */
   background: var(--color-timeline-well);
   border-bottom: 1px solid var(--color-timeline-border);

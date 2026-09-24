@@ -4,6 +4,7 @@ import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
+import { MARKER_ROW_HEIGHT, RULER_HEIGHT } from "../utils/layout";
 import { TimelineView } from "./TimelineView";
 
 describe("TimelineView follow auto-fit", () => {
@@ -51,6 +52,25 @@ describe("TimelineView follow auto-fit", () => {
     expect(fitToWindow).not.toHaveBeenCalled();
     expect(stopFollow).not.toHaveBeenCalled();
     expect(useDawStore.getState().followingClientId).toBe("leader");
+  });
+
+  it("sets ruler and marker-row px vars from the layout constants", () => {
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <TimelineView />
+      </DawProvider>,
+    );
+    const area = container.querySelector(".timeline-area") as HTMLElement;
+    expect(area.style.getPropertyValue("--ruler-height")).toBe(
+      `${RULER_HEIGHT}px`,
+    );
+    expect(area.style.getPropertyValue("--marker-row-height")).toBe(
+      `${MARKER_ROW_HEIGHT}px`,
+    );
+    // Empty project: one quiet marker row.
+    expect(area.style.getPropertyValue("--marker-lane-height")).toBe(
+      `${MARKER_ROW_HEIGHT}px`,
+    );
   });
 
   it("does not unfollow when store scroll is written to the DOM", () => {
