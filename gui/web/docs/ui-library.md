@@ -94,7 +94,7 @@ Every interactive library component has Vitest coverage including `expectNoA11yV
 | `SegmentedControl` | Track of quiet `ToggleButton`s (audition Mix/FX/Raw); themed on panes, dark in the transport, radio rows in a `Menu` |
 | `Pill` | Read-only status chip (`neutral` / `ok` / `warning` / `audition`) |
 | `Timecode` | Tabular playhead readout: large current time, muted total |
-| `EmptyState` | Quiet empty list or panel text (no fill or border, so it never reads as a disabled field) |
+| `EmptyState` | Quiet empty list or panel text (no fill or border, so it never reads as a disabled field). `as="li"` inside lists, `as="div"` in other blocks; do not add per-panel empty classes. Not for hints or notes (use the surface's note text) |
 | `FocusPull` | View-keyed lobby/room transition: 200ms outgoing blur/fade, then 250ms incoming fade/sharpen; initial mount stays static and reduced motion visually cuts instantly |
 | `LevelMeter` | Presentational peak meter (`role="meter"`, clamped `aria-valuenow`, polite clip announcement). Display helpers in `ui/metering.ts` (`dbToFraction`, `zoneForDb`, `formatDb`, `ariaValueNow`); DSP (`peakDbFromSamples`, `decayPeakHold`, `stepMeter`) in `audio/metering.ts`; `audio/usePeakMeter` owns the rAF loop and `record/useInputPeakDb` adapts a mic stream. Exists but not yet wired into DeviceCheck / the record room (#174) |
 | `DefinitionList`, screens, `FocusToggle`, `InspectorSeekFooter` | Existing chrome |

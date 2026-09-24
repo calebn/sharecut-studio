@@ -1,6 +1,6 @@
 import { commandById } from "../commands/catalog";
 import type { Selection } from "../types/project";
-import { CommandButton } from "../ui";
+import { CommandButton, EmptyState } from "../ui";
 import {
   moreCommandsFor,
   relatedCommandsFor,
@@ -51,9 +51,7 @@ export function RelatedCommands({ selection }: Props) {
       <div className="related-commands-zone" aria-label="More actions">
         <h3 className="related-commands-heading">More</h3>
         {more.length === 0 ? (
-          <p className="related-commands-empty">
-            No additional actions for this selection.
-          </p>
+          <EmptyState>No additional actions for this selection.</EmptyState>
         ) : (
           <div className="related-commands-list">
             {more.map((descriptor) => {

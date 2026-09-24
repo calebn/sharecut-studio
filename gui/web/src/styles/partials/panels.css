@@ -302,10 +302,6 @@
   max-width: 12.5rem;
 }
 
-.comments-empty {
-  color: var(--text-dim);
-}
-
 .loading-screen {
   color: var(--color-text-secondary);
 }
@@ -1215,10 +1211,6 @@ button.history-row {
 .tighten-status {
   margin: 0;
   color: var(--text-dim);
-}
-
-.tighten-empty {
-  margin: 0;
 }
 
 .tighten-table-wrap {
