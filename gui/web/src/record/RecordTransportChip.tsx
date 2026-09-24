@@ -14,12 +14,12 @@ export function RecordTransportChip() {
   const label =
     snapshot.state === "recording"
       ? captureHealth === "failed"
-        ? "Local capture failed — open record panel"
+        ? "Local capture failed. Open record panel"
         : captureHealth === "pending"
-          ? "Waiting for microphone — open record panel"
-          : "Recording — open record panel"
+          ? "Waiting for microphone. Open record panel"
+          : "Recording. Open record panel"
       : snapshot.state === "paused"
-        ? "Paused — open record panel"
+        ? "Paused. Open record panel"
         : "Open record panel";
 
   return (

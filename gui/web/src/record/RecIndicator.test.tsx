@@ -59,9 +59,7 @@ describe("RecIndicator", () => {
         capturePending
       />,
     );
-    expect(
-      screen.getByText("REC — waiting for microphone"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("REC: waiting for microphone")).toBeInTheDocument();
     expect(screen.queryByText("REC")).not.toBeInTheDocument();
   });
 });

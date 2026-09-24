@@ -682,7 +682,7 @@ test.describe("record lobby", () => {
           .click();
         await expect(roomDlg).toBeHidden();
         const recChip = host.getByRole("button", {
-          name: "Recording — open record panel",
+          name: "Recording. Open record panel",
         });
         await expect(recChip).toBeVisible();
         await expect(recChip.locator(".record-rec-dot")).toBeVisible();
@@ -732,9 +732,9 @@ test.describe("record lobby", () => {
         await expect(roomDlg).toBeVisible();
         await expect(
           host.getByRole("button", {
-            name: "Local capture failed — open record panel",
+            name: "Local capture failed. Open record panel",
           }),
-        ).toContainText("REC — local capture failed");
+        ).toContainText("REC: local capture failed");
         await expect(
           host.locator(".record-rec-chip .record-rec-dot"),
         ).toHaveCount(0);
@@ -844,12 +844,12 @@ test.describe("record lobby", () => {
           track.stop();
           track.dispatchEvent(new Event("ended"));
         });
-        await expect(indicator).toContainText("REC — local capture failed");
+        await expect(indicator).toContainText("REC: local capture failed");
         await expect(indicator.locator(".record-rec-dot")).toHaveCount(0);
         await guest
           .getByRole("button", { name: "Reconnect microphone" })
           .click();
-        await expect(indicator).toContainText("REC — waiting for microphone");
+        await expect(indicator).toContainText("REC: waiting for microphone");
         await guest.evaluate(() => {
           const release = (
             window as unknown as { __releaseGuestRetry?: () => void }
@@ -859,7 +859,7 @@ test.describe("record lobby", () => {
           }
           release();
         });
-        await expect(indicator).toContainText("REC — local capture failed");
+        await expect(indicator).toContainText("REC: local capture failed");
         await guest
           .getByRole("button", { name: "Reconnect microphone" })
           .click();

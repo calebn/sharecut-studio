@@ -41,9 +41,9 @@ describe("TransportBar collapsed", () => {
     );
     expect(
       screen.getByRole("button", {
-        name: "Local capture failed — open record panel",
+        name: "Local capture failed. Open record panel",
       }),
-    ).toHaveTextContent("REC — local capture failed");
+    ).toHaveTextContent("REC: local capture failed");
   });
 
   it("keeps the recording control visible and accessible in a compact transport", async () => {
@@ -58,7 +58,7 @@ describe("TransportBar collapsed", () => {
       </DawProvider>,
     );
     const control = screen.getByRole("button", {
-      name: "Recording — open record panel",
+      name: "Recording. Open record panel",
     });
     expect(control).toHaveTextContent("REC");
     expect(control).toHaveTextContent("0:12");

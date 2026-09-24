@@ -181,14 +181,14 @@ describe("RecordPanel", () => {
       />,
     );
     const dialog = await screen.findByRole("dialog", { name: "Record room" });
-    expect(dialog).toHaveTextContent("REC — local capture failed");
+    expect(dialog).toHaveTextContent("REC: local capture failed");
     expect(screen.getByText(MIC_DENIED_COPY)).toBeVisible();
     expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
 
     act(() => useRecordHostStore.getState().setCaptureHealth(null));
     rerender(<RecordPanel micStatus="granted" stream={{} as MediaStream} />);
     expect(dialog).toHaveTextContent("REC");
-    expect(dialog).not.toHaveTextContent("REC — local capture failed");
+    expect(dialog).not.toHaveTextContent("REC: local capture failed");
     expect(screen.getByRole("button", { name: "Close" })).toBeEnabled();
   });
 
