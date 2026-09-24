@@ -1,5 +1,5 @@
 import { pcmWavHeader } from "../../audio/wavHeader";
-import { sha256Hex } from "./fingerprint";
+import { keeperFileFingerprint } from "./fingerprint";
 import { KEEPER_SAMPLE_RATE, toKeeperPcm } from "./pcm";
 import {
   emptyKeeperCursor,
@@ -362,20 +362,21 @@ export class KeeperSession {
       return;
     }
     try {
-      const wav = await this.bounded(this.sink.read(wavPath), "final WAV read");
+      const fingerprint = await this.bounded(
+        keeperFileFingerprint(this.sink, wavPath),
+        "final WAV hash",
+        this.hashTimeoutMs(samplesWritten),
+      );
       if (
-        !wav ||
-        wav.byteLength !== WAV_HEADER_BYTES + samplesWritten * BYTES_PER_SAMPLE
+        !fingerprint ||
+        fingerprint.byteLength !==
+          WAV_HEADER_BYTES + samplesWritten * BYTES_PER_SAMPLE
       ) {
         throw new Error(
           "The finalized keeper WAV changed before metadata was written.",
         );
       }
-      const fileSha256 = await this.bounded(sha256Hex(wav), "final WAV hash");
-      await this.writeMeta(wavPath, open, samplesWritten, true, {
-        fileSha256,
-        byteLength: wav.byteLength,
-      });
+      await this.writeMeta(wavPath, open, samplesWritten, true, fingerprint);
     } catch (error) {
       // The WAV is already closed and complete, so metadata that lands after
       // the deadline still forms a consistent pair that upload may pick up.
@@ -434,6 +435,14 @@ export class KeeperSession {
   private closeTimeoutMs(samples: number): number {
     return (
       this.operationTimeoutMs +
+      Math.ceil((samples * BYTES_PER_SAMPLE) / this.closeBytesPerMs)
+    );
+  }
+
+  /** Hashing streams the closed file and gets time proportional to its size. */
+  private hashTimeoutMs(samples: number): number {
+    return (
+      Math.max(1_000, this.operationTimeoutMs) +
       Math.ceil((samples * BYTES_PER_SAMPLE) / this.closeBytesPerMs)
     );
   }

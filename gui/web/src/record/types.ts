@@ -138,7 +138,7 @@ export function shouldApplyRecordSnapshot(
 
 export const LOCAL_KEEPER_COPY = "Recording locally on this device.";
 export const KEEPER_RECLAIM_MISMATCH_COPY =
-  "The landed file does not match this local keeper copy, so the local WAV was retained. Download the local keeper before leaving.";
+  "This local keeper could not be verified against the landed file, so its WAV was retained. Download the local keeper before leaving.";
 export const RECONNECT_MIC_COPY = "Reconnect microphone";
 
 export const HEARING_COPY = "Hearing the room.";

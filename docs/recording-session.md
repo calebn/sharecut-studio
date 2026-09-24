@@ -314,9 +314,18 @@ identity marker, so later takes never reuse the segment number. Reclaim
 requires that marker to be complete (`complete: true`, or absent on legacy
 metadata written only after close), and that its SHA-256 and byte length match
 both the local WAV and the landed host status. New finalized and recovered
-segments record this fingerprint after their WAV closes. A mismatch or older
-marker without a fingerprint retains the WAV and displays a download warning;
-the older marker still identifies a WAV that was already reclaimed. A pending `complete: false` marker, or
+segments record this fingerprint after their WAV closes, hashing the closed
+file in bounded chunks with a size-aware deadline. Reclaim compares the small
+metadata and host fingerprints before reading WAV content. A mismatch or older
+marker without a fingerprint retains the WAV and displays a download warning.
+Older markers are reported as unverified rather than corrupt, and their retained
+WAV bytes are not reread at each status poll. The warning remains visible
+alongside active upload and landing errors. An unchanged file version that
+failed local SHA verification is not rehashed on each poll. After three failed
+deletes, cleanup waits 30 seconds before rehashing and retrying the delete.
+A changed file version or host status is checked again immediately, and a
+cached hash match never authorizes deletion. The older marker still identifies
+a WAV that was already reclaimed. A pending `complete: false` marker, or
 metadata that does not parse as a keeper record (it may be a torn pending
 write), never allows a delete and never marks a missing WAV as reclaimed. Unlanded, failed, incomplete, or actively captured segments
 remain available for recovery.

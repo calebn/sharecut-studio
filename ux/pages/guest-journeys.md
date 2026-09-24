@@ -210,7 +210,8 @@ flowchart TD
    OPFS (`Sharecut Recordings/`) until a fresh host status confirms **Landed**.
    The finalized WAV is then reclaimed only when its SHA-256 and byte length
    match both local completion metadata and the landed host status. A mismatch
-   or older marker keeps the WAV and shows a download warning. Its small completion
+   or older marker keeps the WAV and shows a download warning alongside upload
+   progress or landing errors. Its small completion
    marker remains to preserve segment numbering; recovery downloads skip
    reclaimed segments rather than reporting them missing. If landing fails, the guest sees
    **Uploaded but not landed on the host** and keeps the backup while the host

@@ -26,6 +26,7 @@
     "test:e2e:install": "playwright install chromium webkit"
   },
   "dependencies": {
+    "@noble/hashes": "^2.3.0",
     "@tanstack/react-virtual": "^3.14.13",
     "@tauri-apps/api": "^2.11.1",
     "react": "^19.3.0",

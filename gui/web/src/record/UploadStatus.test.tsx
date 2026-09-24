@@ -47,6 +47,29 @@ describe("UploadStatus", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("shows upload failure and retained keeper warning together", () => {
+    render(
+      <UploadStatus
+        stopped
+        progress={{
+          acked: 1,
+          total: 2,
+          fileAck: false,
+          landed: false,
+          landFailed: true,
+          reclaimFailed: false,
+          reclaimMismatch: true,
+          uploading: false,
+          pending: false,
+          recoverable: false,
+          error: null,
+        }}
+      />,
+    );
+    expect(screen.getByText(/not landed on the host/)).toBeInTheDocument();
+    expect(screen.getByText(KEEPER_RECLAIM_MISMATCH_COPY)).toBeInTheDocument();
+  });
+
   it("shows chunk progress until file ACK, then landed copy", () => {
     const { rerender } = render(
       <UploadStatus

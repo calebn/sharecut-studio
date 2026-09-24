@@ -95,17 +95,6 @@ export function UploadStatus({
         />
       </div>
     );
-  } else if (progress.reclaimMismatch) {
-    status = (
-      <div id={UPLOAD_STATUS_ID} className="record-warn">
-        <p>{KEEPER_RECLAIM_MISMATCH_COPY}</p>
-        <RecoveryActions
-          onResume={onResume}
-          actions={actions}
-          canRecover={canRecover}
-        />
-      </div>
-    );
   } else if (progress.landFailed) {
     status = (
       <p id={UPLOAD_STATUS_ID} className="record-warn">
@@ -143,6 +132,16 @@ export function UploadStatus({
   return (
     <>
       {status}
+      {progress.reclaimMismatch ? (
+        <div className="record-warn" role="status">
+          <p>{KEEPER_RECLAIM_MISMATCH_COPY}</p>
+          <RecoveryActions
+            onResume={onResume}
+            actions={actions}
+            canRecover={canRecover}
+          />
+        </div>
+      ) : null}
       <ActionFeedback actions={actions} />
     </>
   );
