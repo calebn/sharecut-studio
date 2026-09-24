@@ -2548,6 +2548,68 @@ def test_segment_reack_during_commit_keeps_sibling_segment(
     assert stale_row["landed"] is False
 
 
+def test_rollback_failure_keeps_confirmed_land(minimal_project, sample_wav, monkeypatch, caplog):
+    import logging
+
+    from podcast_mcp.edits.track_ids import slug_track_id
+    from podcast_mcp.services.record.landing import record_source_id
+
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=2_000)
+    uploader = RecordUploadService(ws.project)
+    _ack(uploader, session_id=room["session_id"], take=0, pid=guest, segment=0, join_offset_ms=0)
+    _ack(
+        uploader,
+        session_id=room["session_id"],
+        take=0,
+        pid=guest,
+        segment=1,
+        join_offset_ms=500,
+    )
+
+    replacement_hash = "f" * 64
+    kept_source_id = record_source_id(room["session_id"], 0, guest, 1)
+    track_id = slug_track_id(guest)
+
+    def race():
+        uploader._store.mark_file(
+            session_id=room["session_id"],
+            take_index=0,
+            participant_id=guest,
+            segment_index=0,
+            file_sha256=replacement_hash,
+            byte_length=480,
+        )
+
+    _race_on_commit(
+        monkeypatch,
+        when=lambda project: any(src.id == kept_source_id for src in project.sources),
+        race=race,
+    )
+
+    def boom(self, stale):
+        raise RuntimeError("rollback write failed")
+
+    monkeypatch.setattr(RecordLandingService, "_rollback_stale", boom)
+
+    with caplog.at_level(logging.ERROR, logger="podcast_mcp.services.record.landing"):
+        result = RecordLandingService(ws).land(align=lambda _p: None)
+
+    assert len(result["clips"]) == 1
+    assert result["clips"][0]["source_id"] == kept_source_id
+    track = ws.project.track_by_id(track_id)
+    assert track is not None
+
+    segments = uploader.status(session_id=room["session_id"])["segments"]
+    assert segments[1]["landed"] is True
+    assert segments[0]["landed"] is False
+    assert "stale ACK rollback failed" in caplog.text
+
+
 @pytest.mark.parametrize("mode", ["reack", "revoke"])
 def test_room_tone_race_during_project_commit_rolls_back_stale_bed(
     minimal_project, sample_wav, monkeypatch, mode
