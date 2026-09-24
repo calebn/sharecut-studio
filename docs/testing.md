@@ -161,7 +161,9 @@ interruption, retargeting a symlinked review root during failure cleanup, direct
 during both generation and persistence failure cleanup (pinned and path-based), replacement before
 the service callback records its identity, failure of the identity read, and the service's
 persisted-state contract. Direct `clean_created_version` tests cover replacement before the first
-identity check, quarantine creation and open failures, and `rmtree` failing mid-cleanup (the
+identity check, a version directory that is already gone (a silent no-op), quarantine creation
+and open failures, a failing descriptor `close` (the other descriptor is still closed and the
+empty quarantine removed), and `rmtree` failing mid-cleanup (the
 quarantine is kept and the original publish error still surfaces, including when cleanup raises
 a non-`OSError`).
 

@@ -199,6 +199,7 @@ def clean_created_version(version_dir: Path, identity: DirectoryIdentity) -> Non
     kept there: it is not restored (that needs a no-replace rename) and not deleted.
     Where descriptor-relative operations exist the root and quarantine are pinned by
     fd; otherwise the same identity-checked quarantine runs on resolved paths.
+    A version directory that is already gone counts as nothing to clean.
     """
     pinned = _SAFE_FAILED_CLEANUP_SUPPORTED
     root = version_dir.parent
@@ -209,7 +210,11 @@ def clean_created_version(version_dir: Path, identity: DirectoryIdentity) -> Non
         if pinned:
             root_fd = _open_pinned_dir(root)
         public: str | Path = version_dir.name if pinned else version_dir
-        current = os.stat(public, dir_fd=root_fd, follow_symlinks=False)
+        try:
+            current = os.stat(public, dir_fd=root_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            log.debug("Review version directory already removed: %s", version_dir)
+            return
         if not _is_created_dir(current, identity):
             log.warning("Review version directory changed; keeping %s", version_dir)
             return
@@ -228,7 +233,10 @@ def clean_created_version(version_dir: Path, identity: DirectoryIdentity) -> Non
     finally:
         for fd in (quarantine_fd, root_fd):
             if fd is not None:
-                os.close(fd)
+                try:
+                    os.close(fd)
+                except OSError:
+                    log.warning("Could not close review cleanup descriptor %d", fd, exc_info=True)
         if quarantine is not None:
             try:
                 quarantine.rmdir()

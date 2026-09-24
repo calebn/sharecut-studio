@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -564,6 +566,52 @@ def test_clean_created_version_quarantine_open_failure_keeps_directory(tmp_path,
     with pytest.raises(OSError, match="quarantine open failed"):
         review_versions.clean_created_version(version_dir, identity)
     assert (version_dir / "mix.wav").read_bytes() == b"partial"
+    assert not list(version_dir.parent.glob(".failed-review-*"))
+
+
+@pytest.mark.parametrize("pinned", [pytest.param(True, marks=requires_safe_failed_cleanup), False])
+def test_clean_created_version_missing_directory_is_noop(tmp_path, monkeypatch, caplog, pinned):
+    monkeypatch.setattr(review_versions, "_SAFE_FAILED_CLEANUP_SUPPORTED", pinned)
+    version_dir, identity = _created_version_dir(tmp_path)
+    shutil.rmtree(version_dir)
+
+    with caplog.at_level(logging.DEBUG, logger="podcast_mcp.edits.review_versions"):
+        review_versions.clean_created_version(version_dir, identity)
+
+    assert not os.path.lexists(version_dir)
+    assert not list(version_dir.parent.glob(".failed-review-*"))
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+
+
+@requires_safe_failed_cleanup
+def test_clean_created_version_close_failure_still_releases_everything(tmp_path, monkeypatch):
+    monkeypatch.setattr(review_versions, "_SAFE_FAILED_CLEANUP_SUPPORTED", True)
+    version_dir, identity = _created_version_dir(tmp_path)
+    real_open = review_versions._open_pinned_dir
+    pinned_fds = []
+
+    def tracking_open(path, *args, **kwargs):
+        fd = real_open(path, *args, **kwargs)
+        pinned_fds.append(fd)
+        return fd
+
+    real_close = os.close
+    closed = []
+
+    def flaky_close(fd):
+        real_close(fd)
+        if fd in pinned_fds:
+            closed.append(fd)
+            if len(closed) == 1:
+                raise OSError("close failed")
+
+    monkeypatch.setattr(review_versions, "_open_pinned_dir", tracking_open)
+    monkeypatch.setattr(review_versions.os, "close", flaky_close)
+    review_versions.clean_created_version(version_dir, identity)
+
+    assert len(pinned_fds) == 2
+    assert sorted(closed) == sorted(pinned_fds)
+    assert not os.path.lexists(version_dir)
     assert not list(version_dir.parent.glob(".failed-review-*"))
 
 
