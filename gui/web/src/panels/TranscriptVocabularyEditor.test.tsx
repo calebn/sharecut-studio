@@ -183,6 +183,36 @@ describe("TranscriptVocabularyEditor", () => {
     ).toBeInTheDocument();
     expect(await savedTerms().findByText("FromOtherTab")).toBeInTheDocument();
     expect(savedTerms().queryByText("Mine")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Added Mine. Save vocabulary to keep it."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps a later draft when the conflict reload fails", async () => {
+    const user = userEvent.setup();
+    loadTranscriptVocabulary
+      .mockResolvedValueOnce(vocabulary({ terms: ["Alpha"] }))
+      .mockRejectedValueOnce(new Error("Host unavailable"))
+      .mockResolvedValueOnce(vocabulary({ terms: ["Alpha"] }));
+    saveTranscriptVocabulary.mockRejectedValueOnce(
+      new ApiError(
+        "Vocabulary changed in another window; reload it before saving",
+        null,
+        409,
+      ),
+    );
+    const { props, rerender } = renderEditor();
+    await user.type(await termsInput(), "Mine{Enter}");
+    await user.click(screen.getByRole("button", { name: "Save vocabulary" }));
+    expect(await screen.findByText("Host unavailable")).toBeInTheDocument();
+    await user.type(await termsInput(), "Later{Enter}");
+    rerender(<TranscriptVocabularyEditor {...props} refreshKey="job-1:ok" />);
+    await waitFor(() =>
+      expect(loadTranscriptVocabulary).toHaveBeenCalledTimes(3),
+    );
+    await act(async () => {});
+    expect(savedTerms().getByText("Later")).toBeInTheDocument();
+    expect(savedTerms().getByText("Mine")).toBeInTheDocument();
   });
 
   it("ignores a refresh that started while a save was pending", async () => {
