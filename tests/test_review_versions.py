@@ -26,6 +26,7 @@ from podcast_mcp.models import load_project, save_project
 from podcast_mcp.project_store import ProjectStore
 from podcast_mcp.services import PlayService, ProjectWorkspace, ReviewService
 from podcast_mcp.services.review_media import review_guest_audio_path
+from podcast_mcp.util.atomic_json import load_json_object
 from podcast_mcp.util.binaries import resolve_ffmpeg
 
 requires_safe_cleanup = pytest.mark.skipif(
@@ -201,6 +202,10 @@ def test_service_publish_removes_media_after_persistence_failure(
     sentinel = existing / "mix.wav"
     sentinel.write_bytes(b"existing review mix")
     monkeypatch.setattr(review_versions, "_new_id", lambda: "new-version")
+    history_index = Path(project.workspace_dir) / "history" / "index.json"
+    history_before = load_json_object(history_index)
+    snapshots_dir = history_index.parent / "snapshots"
+    snapshots_before = set(snapshots_dir.glob("*.json"))
 
     def export_mp3(self, wav, mp3, *, bitrate_kbps):
         mp3.write_bytes(b"encoded")
@@ -230,6 +235,9 @@ def test_service_publish_removes_media_after_persistence_failure(
     assert sentinel.read_bytes() == b"existing review mix"
     assert load_project(minimal_project).review.versions == []
     assert ws.project.review.versions == []
+    assert load_json_object(history_index) == history_before
+    assert set(snapshots_dir.glob("*.json")) == snapshots_before
+    assert ProjectWorkspace.open(minimal_project).project.review.versions == []
 
 
 def test_service_publish_preserves_media_if_commit_landed_before_error(
@@ -262,6 +270,37 @@ def test_service_publish_preserves_media_if_commit_landed_before_error(
         "committed"
     ]
     assert [version.id for version in ws.project.review.versions] == ["committed"]
+
+
+def test_service_publish_cleanup_failure_preserves_commit_error(
+    minimal_project, sample_wav, monkeypatch
+):
+    project = load_project(minimal_project)
+    art = Path(project.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    monkeypatch.setattr(review_versions, "_new_id", lambda: "cleanup-fail")
+    monkeypatch.setattr(
+        review_versions.FFmpegEngine,
+        "export_mp3",
+        lambda self, wav, mp3, *, bitrate_kbps: mp3.write_bytes(b"encoded"),
+    )
+
+    def fail_commit(self, project):
+        raise RuntimeError("original commit error")
+
+    def fail_cleanup(path):
+        raise OSError("cleanup error")
+
+    monkeypatch.setattr(ProjectStore, "commit", fail_commit)
+    monkeypatch.setattr("podcast_mcp.services.review.shutil.rmtree", fail_cleanup)
+    ws = ProjectWorkspace.open(minimal_project)
+
+    with pytest.raises(RuntimeError, match="original commit error"):
+        ReviewService(ws).publish(label="new")
+
+    assert (art / "review" / "cleanup-fail" / "mix.wav").is_file()
+    assert load_project(minimal_project).review.versions == []
 
 
 def test_publish_id_collision_preserves_existing_directory(

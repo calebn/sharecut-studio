@@ -80,3 +80,6 @@ History snapshots follow the same durable-publication rule: write the unique
 snapshot first, then atomically replace `history/index.json`. Readers therefore
 see a complete prior or complete current generation while an index update is in
 flight.
+`ReviewService.publish` checks the canonical project after a late persistence
+error: an uncommitted version has its new history entries and media removed,
+while a version already saved in the project retains both.
