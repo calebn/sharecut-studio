@@ -37,9 +37,8 @@ class TranscriptService:
         if format == "timestamps":
             return format_transcript_timestamps(p)
         if combined:
-            if not p.combined_transcript:
-                p.combined_transcript = self._engine.merge_transcripts(p)
-            return p.combined_transcript.model_dump_json(indent=2)
+            transcript = p.combined_transcript or self._engine.merge_transcripts(p)
+            return transcript.model_dump_json(indent=2)
         import json
 
         return json.dumps([t.model_dump() for t in p.transcripts], indent=2)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 from typing import Any
 from uuid import uuid4
 
@@ -27,6 +28,28 @@ from podcast_mcp.services.session_sync.authz import authorize_client
 from podcast_mcp.services.session_sync.hub import get_hub
 
 router = APIRouter()
+
+
+def _submit_ws_command(
+    svc: DocumentSyncService,
+    msg: dict[str, Any],
+    *,
+    client_id: str,
+    role: str,
+    seq: int,
+) -> dict[str, Any]:
+    cmd = parse_document_command(
+        {
+            "type": msg["command_type"],
+            "payload": msg.get("payload") or {},
+            "client_id": client_id,
+            "role": role,
+            "client_seq": int(msg.get("client_seq") or seq - 1),
+            "command_id": msg.get("command_id") or uuid4().hex,
+            "structural_mode": msg.get("structural_mode"),
+        }
+    )
+    return svc.submit(cmd, structural_mode=msg.get("structural_mode"))
 
 
 @router.get("/api/document/comments")
@@ -110,8 +133,13 @@ async def document_ws(
     if not decision.allowed:
         await websocket.close(code=4403, reason=decision.reason[:120])
         return
-    ws_proj = ProjectWorkspace.open(project_path)
-    svc = DocumentSyncService(ws_proj)
+
+    def open_document() -> tuple[ProjectWorkspace, DocumentSyncService, dict[str, Any]]:
+        ws_proj = ProjectWorkspace.open(project_path)
+        svc = DocumentSyncService(ws_proj)
+        return ws_proj, svc, svc.document_snapshot(projection="shell")
+
+    ws_proj, svc, initial_snapshot = await run_in_threadpool(open_document)
     await websocket.accept()
     hub = get_hub()
     key = document_hub_key(ws_proj.project)
@@ -121,7 +149,7 @@ async def document_ws(
         {
             "type": "Snapshot",
             "plane": "document",
-            "snapshot": svc.document_snapshot(projection="shell"),
+            "snapshot": initial_snapshot,
         }
     )
 
@@ -135,9 +163,10 @@ async def document_ws(
     try:
         while True:
             try:
-                msg = await websocket.receive_json()
+                raw_msg = await websocket.receive_text()
             except WebSocketDisconnect:
                 break
+            msg = await run_in_threadpool(json.loads, raw_msg)
             if msg.get("type") != "Command":
                 continue
             again = authorize_client(
@@ -153,19 +182,8 @@ async def document_ws(
                 break
             seq += 1
             try:
-                cmd = parse_document_command(
-                    {
-                        "type": msg["command_type"],
-                        "payload": msg.get("payload") or {},
-                        "client_id": client_id,
-                        "role": role,
-                        "client_seq": int(msg.get("client_seq") or seq - 1),
-                        "command_id": msg.get("command_id") or uuid4().hex,
-                        "structural_mode": msg.get("structural_mode"),
-                    }
-                )
                 result = await run_in_threadpool(
-                    svc.submit, cmd, structural_mode=msg.get("structural_mode")
+                    _submit_ws_command, svc, msg, client_id=client_id, role=role, seq=seq
                 )
                 await websocket.send_json({**result, "type": "Echo"})
             except ValidationError as exc:

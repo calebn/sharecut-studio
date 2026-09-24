@@ -112,16 +112,28 @@ def test_document_ws_submit_runs_off_event_loop(minimal_project, monkeypatch):
     thread_ids: dict[str, int] = {}
     original_parse = document_route.parse_document_command
     original_submit = DocumentSyncService.submit
+    original_auth = document_route.authorize_client
+    original_snapshot = DocumentSyncService.document_snapshot
 
-    def parse_on_loop(*args, **kwargs):
+    def authorize_on_loop(*args, **kwargs):
         thread_ids["loop"] = threading.get_ident()
+        return original_auth(*args, **kwargs)
+
+    def parse_in_worker(*args, **kwargs):
+        thread_ids["parse"] = threading.get_ident()
         return original_parse(*args, **kwargs)
+
+    def snapshot_in_worker(self, *args, **kwargs):
+        thread_ids.setdefault("snapshot", threading.get_ident())
+        return original_snapshot(self, *args, **kwargs)
 
     def submit_in_worker(self, *args, **kwargs):
         thread_ids["submit"] = threading.get_ident()
         return original_submit(self, *args, **kwargs)
 
-    monkeypatch.setattr(document_route, "parse_document_command", parse_on_loop)
+    monkeypatch.setattr(document_route, "authorize_client", authorize_on_loop)
+    monkeypatch.setattr(document_route, "parse_document_command", parse_in_worker)
+    monkeypatch.setattr(DocumentSyncService, "document_snapshot", snapshot_in_worker)
     monkeypatch.setattr(DocumentSyncService, "submit", submit_in_worker)
     client = TestClient(create_app())
     url = f"/api/document/ws?path={quote(str(minimal_project))}&client_id=ws-worker&role=viewer"
@@ -137,6 +149,8 @@ def test_document_ws_submit_runs_off_event_loop(minimal_project, monkeypatch):
         )
         assert _recv_until(ws, "Echo")["ok"] is True
     assert thread_ids["submit"] != thread_ids["loop"]
+    assert thread_ids["parse"] == thread_ids["submit"]
+    assert thread_ids["snapshot"] != thread_ids["loop"]
 
 
 def test_document_ws_guest_denied(minimal_project):

@@ -8,6 +8,7 @@ from podcast_mcp.history import HistoryManager, run_mutation
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.project_io import open_project, resolve_project_path
 from podcast_mcp.project_store import ProjectStore
+from podcast_mcp.util.project_state import FileRevision, file_revision, project_state_lock
 
 T = TypeVar("T")
 
@@ -17,34 +18,36 @@ class ProjectWorkspace:
         self.path = path
         self.project = project
         self._store = ProjectStore(path)
-        self._loaded_file_signature: tuple[int, int, int] | None = None
-
-    def _file_signature(self) -> tuple[int, int, int]:
-        stat = self.path.stat()
-        return stat.st_mtime_ns, stat.st_size, stat.st_ino
+        self._loaded_file_signature: FileRevision | None = None
 
     @classmethod
     def open(cls, project_path: Path | str) -> ProjectWorkspace:
         path = resolve_project_path(project_path)
-        before = path.stat()
+        before = file_revision(path)
         _, project = open_project(path)
         ws = cls(path, project)
-        signature = ws._file_signature()
-        if signature == (before.st_mtime_ns, before.st_size, before.st_ino):
+        signature = file_revision(path)
+        if signature == before:
             ws._loaded_file_signature = signature
         return ws
 
     def reload(self) -> EpisodeProject:
-        signature = self._file_signature()
-        if signature == self._loaded_file_signature:
+        with project_state_lock(self.project):
+            signature = file_revision(self.path)
+            if signature == self._loaded_file_signature:
+                return self.project
+            self.project = self._store.load()
+            self._loaded_file_signature = (
+                signature if file_revision(self.path) == signature else None
+            )
             return self.project
-        self.project = self._store.load()
-        self._loaded_file_signature = signature if self._file_signature() == signature else None
-        return self.project
 
     def save(self) -> None:
-        self._store.commit(self.project)
-        self._loaded_file_signature = self._file_signature()
+        with project_state_lock(self.project):
+            self._store.commit(self.project)
+            # A separate process may replace the file as this commit finishes.
+            # Re-read once before trusting a revision for this in-memory model.
+            self._loaded_file_signature = None
 
     def mutate(
         self,
@@ -55,17 +58,18 @@ class ProjectWorkspace:
         operation: str | None = None,
         params: dict | None = None,
     ) -> T:
-        result = run_mutation(
-            self.path,
-            self.project,
-            label_before,
-            label_after,
-            fn,
-            operation=operation,
-            params=params,
-        )
-        self._loaded_file_signature = self._file_signature()
-        return result
+        with project_state_lock(self.project):
+            result = run_mutation(
+                self.path,
+                self.project,
+                label_before,
+                label_after,
+                fn,
+                operation=operation,
+                params=params,
+            )
+            self._loaded_file_signature = None
+            return result
 
     def record_snapshot(self, label: str, *, force: bool = False) -> str:
         entry = HistoryManager(self.path).record(self.project, label, force=force)

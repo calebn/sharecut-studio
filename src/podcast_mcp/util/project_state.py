@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from threading import Lock, RLock
 
 from podcast_mcp.models import EpisodeProject, project_file_path
 
 _registry_lock = Lock()
 _locks: dict[str, RLock] = {}
+
+FileRevision = tuple[int, int, int, int]
 
 
 def project_state_lock(project: EpisodeProject) -> RLock:
@@ -27,14 +30,18 @@ def snapshot_project(project: EpisodeProject) -> EpisodeProject:
         return project.model_copy(deep=True)
 
 
-def project_file_revision(project: EpisodeProject) -> tuple[int, int, int, int] | None:
+def file_revision(path: Path) -> FileRevision:
+    """Identity of a file that may be atomically replaced."""
+    stat = path.stat()
+    return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns
+
+
+def project_file_revision(project: EpisodeProject) -> FileRevision | None:
     """Identity of the atomically replaced project JSON, if it exists."""
-    path = project_file_path(project.workspace_path())
     try:
-        stat = path.stat()
+        return file_revision(project_file_path(project.workspace_path()))
     except FileNotFoundError:
         return None
-    return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns
 
 
 def snapshot_project_with_revision(

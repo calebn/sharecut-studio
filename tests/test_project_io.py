@@ -68,11 +68,29 @@ def test_workspace_reload_skips_unchanged_file_and_reads_external_write(
     ws.project.name = "workspace update"
     ws.save()
     assert ws.reload().name == "workspace update"
-    assert loads == 1
+    assert loads == 2
 
     ws.mutate("before rename", "after rename", lambda project: setattr(project, "name", "mutated"))
     assert ws.reload().name == "mutated"
-    assert loads == 1
+    assert loads == 3
+
+
+def test_workspace_mutation_does_not_cache_another_writers_revision(minimal_project, monkeypatch):
+    from podcast_mcp.services import workspace as workspace_module
+
+    ws = ProjectWorkspace.open(minimal_project)
+    original_mutation = workspace_module.run_mutation
+
+    def interleaved_mutation(*args, **kwargs):
+        result = original_mutation(*args, **kwargs)
+        external = ProjectStore(minimal_project).load()
+        external.name = "later writer"
+        ProjectStore(minimal_project).commit(external)
+        return result
+
+    monkeypatch.setattr(workspace_module, "run_mutation", interleaved_mutation)
+    ws.mutate("before rename", "after rename", lambda project: setattr(project, "name", "first"))
+    assert ws.reload().name == "later writer"
 
 
 def test_require_episode_project_file_basename(tmp_path):
