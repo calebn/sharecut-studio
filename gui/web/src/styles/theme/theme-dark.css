@@ -216,7 +216,6 @@
     var(--color-envelope-line) 45%,
     transparent
   );
-  --color-playhead: var(--primitive-neutral-60);
   --color-marker: var(--primitive-amber-300);
   --color-social-marker: color-mix(
     in srgb,
