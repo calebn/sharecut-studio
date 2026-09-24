@@ -15,12 +15,17 @@ export function formatTime(
   return `${String(m).padStart(2, "0")}:${String(whole).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
 }
 
+/** Episodes an hour or longer lay every transport time out as hh:mm:ss. */
+function hoursLayout(durationSec: number): boolean {
+  return durationSec >= 3600;
+}
+
 /** Stable transport label: same digit layout for playhead and duration. */
 export function formatTimecodePair(
   playheadSec: number,
   durationSec: number,
 ): string {
-  const forceHours = durationSec >= 3600;
+  const forceHours = hoursLayout(durationSec);
   return `${formatTime(playheadSec, { forceHours })} / ${formatTime(durationSec, { forceHours })}`;
 }
 
@@ -32,7 +37,28 @@ export function formatTimecodeCompact(
   playheadSec: number,
   durationSec = playheadSec,
 ): string {
-  return formatTime(playheadSec, { forceHours: durationSec >= 3600 });
+  return formatTime(playheadSec, { forceHours: hoursLayout(durationSec) });
+}
+
+export type TransportTimecode = {
+  /** Playhead, in the episode's digit layout. */
+  current: string;
+  /** Episode duration, same layout. */
+  total: string;
+  /** `current / total` for tooltips. */
+  title: string;
+};
+
+/** Everything a transport Timecode needs, from one playhead and duration. */
+export function transportTimecode(
+  playheadSec: number,
+  durationSec: number,
+): TransportTimecode {
+  return {
+    current: formatTimecodeCompact(playheadSec, durationSec),
+    total: formatTime(durationSec, { forceHours: hoursLayout(durationSec) }),
+    title: formatTimecodePair(playheadSec, durationSec),
+  };
 }
 
 export function formatTimeShort(sec: number): string {

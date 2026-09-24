@@ -10,7 +10,11 @@ import {
   Timecode,
   ToggleButton,
 } from "../ui";
+import { transportTimecode } from "../utils/time";
 import { TransportFrame, TransportZone } from "./TransportFrame";
+import { TransportPlayControls } from "./TransportPlayControls";
+
+const TIMECODE = transportTimecode(12.48, 60);
 
 /**
  * The fixed dark transport assembled from its presentational pieces with
@@ -48,26 +52,16 @@ function TransportTemplate({
           </TransportZone>
           <TransportZone position="center">
             <div className="transport-play">
-              <Button
-                className="play-btn"
-                data-playing={playing}
-                aria-label={playing ? "Pause" : "Play"}
-                onClick={() => setPlaying((value) => !value)}
-              >
-                <Icon name={playing ? "pause" : "play"} />
-              </Button>
-              <Button
-                className="stop-btn"
-                aria-label="Stop"
-                onClick={() => setPlaying(false)}
-              >
-                <Icon name="stop" />
-              </Button>
+              <TransportPlayControls
+                playing={playing}
+                onTogglePlay={() => setPlaying((value) => !value)}
+                onStop={() => setPlaying(false)}
+              />
             </div>
             <Timecode
-              current="00:12.480"
-              total={collapsed ? undefined : "01:00.000"}
-              title="00:12.480 / 01:00.000"
+              current={TIMECODE.current}
+              total={collapsed ? undefined : TIMECODE.total}
+              title={TIMECODE.title}
             />
             {collapsed ? null : (
               <SegmentedControl

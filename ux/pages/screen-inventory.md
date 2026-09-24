@@ -130,7 +130,7 @@ Not the Share dialog. Guest share agents use `{base}/mcp/{token}/mcp`.
 | **Always visible** | Listen hero (the project name as the visible heading, large timecode, full-width scrubber, −15s · Play · Stop · +15s) · comment list · icon mode nav |
 | **Fit** | Not shown on Listen; use Timeline for timeline fit |
 | **Data shown** | Mix playhead · `review.comments[]` (time, body, resolved) · pending/stale chips |
-| **Empty** | “No comments yet.” (the shared quiet empty state). While episode JSON is loading: disabled Listen body transport + “Loading episode…” well (not the ingest coach) |
+| **Empty** | “No comments yet.” (the shared quiet empty state). With no tracks yet, Play and Stop are disabled (“Import audio to play”), like the desktop strip. While episode JSON is loading: disabled Listen body transport + “Loading episode…” well (not the ingest coach) |
 | **Out of scope** | Multitrack waveform editing |
 
 ```
