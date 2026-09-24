@@ -704,7 +704,7 @@
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
-        "trackInspectorSelected"
+        "canMoveSelectedTrackUp"
       ],
       "surfaces": {
         "command": "track.moveUp",
@@ -726,7 +726,7 @@
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
-        "trackInspectorSelected"
+        "canMoveSelectedTrackDown"
       ],
       "surfaces": {
         "command": "track.moveDown",
@@ -773,7 +773,7 @@
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
-        "canApplyPass12"
+        "hasProject"
       ],
       "surfaces": {
         "command": "edit.copy",
@@ -898,7 +898,7 @@
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
-        "hasProject"
+        "timelineFocused"
       ],
       "surfaces": {
         "command": "view.zoomIn",
@@ -920,7 +920,7 @@
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
-        "hasProject"
+        "timelineFocused"
       ],
       "surfaces": {
         "command": "view.zoomOut",
@@ -942,7 +942,7 @@
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
-        "hasProject"
+        "timelineFocused"
       ],
       "surfaces": {
         "command": "view.fit",
@@ -1013,7 +1013,7 @@
       "service": "Sharecut Studio command bus",
       "industry_standard_key": true,
       "gates": [
-        "hasProject"
+        "timelineFocused"
       ],
       "surfaces": {
         "command": "view.waveformZoomIn",
@@ -1035,7 +1035,7 @@
       "service": "Sharecut Studio command bus",
       "industry_standard_key": true,
       "gates": [
-        "hasProject"
+        "timelineFocused"
       ],
       "surfaces": {
         "command": "view.waveformZoomOut",
@@ -2077,7 +2077,7 @@
       "service": "Sharecut Studio UI",
       "industry_standard_key": false,
       "gates": [
-        "always"
+        "hasProject"
       ],
       "surfaces": {
         "command": "transcript.correctIntent",
@@ -2104,7 +2104,7 @@
       "service": "Sharecut Studio UI",
       "industry_standard_key": false,
       "gates": [
-        "always"
+        "hasProject"
       ],
       "surfaces": {
         "command": "transcript.selectIntent",
@@ -2153,7 +2153,7 @@
       "service": "Sharecut Studio \u2192 TrimClipEdge document command",
       "industry_standard_key": false,
       "gates": [
-        "hasProject"
+        "canApplyPass12"
       ],
       "surfaces": {
         "command": "edit.trimClipEdge",
@@ -2203,7 +2203,7 @@
       "service": "Sharecut Studio \u2192 RollClipJoin document command",
       "industry_standard_key": false,
       "gates": [
-        "hasProject"
+        "canApplyPass12"
       ],
       "surfaces": {
         "command": "edit.rollClipJoin",
@@ -2227,7 +2227,7 @@
       "service": "Sharecut Studio \u2192 SetClipFade document command",
       "industry_standard_key": false,
       "gates": [
-        "hasProject"
+        "canApplyPass12"
       ],
       "surfaces": {
         "command": "edit.setClipFade",
@@ -2250,7 +2250,7 @@
       "service": "Sharecut Studio UI over edit_boundaries",
       "industry_standard_key": false,
       "gates": [
-        "always"
+        "hasProject"
       ],
       "surfaces": {
         "command": "view.focusEditBoundary"
@@ -2266,7 +2266,7 @@
       "service": "Sharecut Studio UI over edit_boundaries",
       "industry_standard_key": false,
       "gates": [
-        "always"
+        "hasProject"
       ],
       "surfaces": {
         "command": "view.focusCutAwayWord",
