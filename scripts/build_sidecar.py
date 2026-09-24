@@ -25,6 +25,7 @@ GUI_EXTRAS = "gui,bootstrap"
 PYTHON_VERSION = "3.12"
 FREEZE_COMPLETE = ".freeze-complete"
 PYTHON_HOME_MARKER = ".python-home"
+E2E_WEB_MARKERS = (b"__SHARECUT_E2E", b"__recordSignalCount")
 
 # --dry-run placeholders only (GUI mode, no ``--cli``). Packaged builds always
 # ship the compiled ``sidecar_launcher.rs``; do not extend these templates.
@@ -229,10 +230,22 @@ def compile_rust_launcher(dest: Path) -> None:
     print(f"compiled launcher: {dest}")
 
 
+def assert_production_web_dist(dist: Path) -> None:
+    """Reject test-instrumented assets before packaging or reusing a freeze."""
+    if not (dist / "index.html").is_file():
+        raise SystemExit(f"missing web dist index: {dist / 'index.html'}")
+    for asset in dist.rglob("*.js"):
+        if any(marker in asset.read_bytes() for marker in E2E_WEB_MARKERS):
+            raise SystemExit(
+                f"E2E test hook in {asset}; run an ordinary npm run build before packaging"
+            )
+
+
 def ensure_web_dist(*, rebuild: bool) -> Path:
     dist = ROOT / "gui" / "web" / "dist"
     index = dist / "index.html"
     if index.is_file() and not rebuild:
+        assert_production_web_dist(dist)
         return dist
     web = ROOT / "gui" / "web"
     npm = shutil.which("npm")
@@ -243,6 +256,7 @@ def ensure_web_dist(*, rebuild: bool) -> Path:
     subprocess.check_call([npm, "run", "build"], cwd=web)
     if not index.is_file():
         raise SystemExit(f"gui/web build did not produce {index}")
+    assert_production_web_dist(dist)
     return dist
 
 
@@ -667,6 +681,7 @@ def main(argv: list[str] | None = None) -> int:
 
     require_rustc()
     if args.ensure and runtime_is_complete(runtime, windows=windows):
+        assert_production_web_dist(runtime / "web-dist")
         # Always rebuild the launcher: a cached one may predate `--cli` or be a
         # --dry-run shell script. Cheap next to the freeze, which is reused.
         compile_rust_launcher(launcher)

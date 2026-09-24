@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { e2eRoomTonePcm, recordE2eEnabled } from "./e2eHook";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { detachE2eRemote, e2eRoomTonePcm, recordE2eEnabled } from "./e2eHook";
 
 const e2eWindow = window as Window & {
   __SHARECUT_E2E?: boolean;
@@ -9,6 +9,17 @@ const e2eWindow = window as Window & {
 afterEach(() => {
   e2eWindow.__SHARECUT_E2E = undefined;
   e2eWindow.__SHARECUT_E2E_ROOM_TONE_PCM = undefined;
+});
+
+it("disconnects real remote sources even without a test oscillator", () => {
+  const disconnect = vi.fn();
+  const source = { disconnect } as unknown as AudioNode;
+  const sources = new Map([["peer", source]]);
+
+  detachE2eRemote(sources, new Map(), "peer");
+
+  expect(disconnect).toHaveBeenCalledOnce();
+  expect(sources.has("peer")).toBe(false);
 });
 
 describe("recordE2eEnabled", () => {
