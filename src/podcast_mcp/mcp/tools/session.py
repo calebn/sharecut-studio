@@ -36,7 +36,12 @@ def get_session_state_tool(project_path: str) -> str:
 
 
 def get_session_presence_tool(project_path: str) -> str:
-    """Who is in the Sharecut Studio session: display names, cursor, selection, viewport, transport, follow relationships."""
+    """Who is in the Sharecut Studio session: display names, cursor, selection, viewport, transport, follow relationships.
+
+    `viewport` is the time window a follower should show. Near the start of a
+    phone's fixed-playhead timeline it begins at 0 and can be wider than what
+    is on that screen.
+    """
     ws = ProjectWorkspace.open(project_path)
     roster = SessionControlService(ws).presence()
     if not roster:
