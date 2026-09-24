@@ -22,7 +22,8 @@ flowchart TD
 1. Guest lands on **ReviewApp** (not the full DAW).
 2. Header shows episode name, review mix label, and `mode …`. When the guest (or their remote MCP agent on this token) starts long work, an **Activity** chip appears; status/message are announced in a visually-hidden live region (no elapsed ticks). Same chrome as Sharecut Studio, no host paths.
 3. Guest plays audio, scrubs, types a note, posts.
-4. If the host laptop sleeps / tunnel drops → offline page (not a broken blank app).
+4. After the host resolves feedback in Sharecut Studio, the guest sees its resolved state. **Open comments only** hides addressed threads; clearing it shows the full conversation. The host can reopen a thread. Anonymous guests cannot resolve threads from the share link.
+5. If the host laptop sleeps / tunnel drops → offline page (not a broken blank app).
 
 **Success:** First useful comment in under five minutes without explaining “Sharecut Studio.”
 

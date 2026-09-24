@@ -91,6 +91,73 @@ describe("ReviewApp", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("filters resolved threads while keeping them readable in the full review", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (urlOf(input).includes("/project")) {
+          return new Response(
+            JSON.stringify({
+              ...reviewProject,
+              comments: [
+                sampleComment({
+                  id: "open",
+                  body: "Needs a cut",
+                  resolved: false,
+                }),
+                sampleComment({
+                  id: "done",
+                  body: "Cut addressed",
+                  resolved: true,
+                }),
+              ],
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+
+    render(<ReviewApp token="tok" />);
+    expect(await screen.findByText("Cut addressed")).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("checkbox", { name: "Open comments only" }),
+    );
+    expect(screen.getByText("Needs a cut")).toBeInTheDocument();
+    expect(screen.queryByText("Cut addressed")).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("checkbox", { name: "Open comments only" }),
+    );
+    expect(screen.getByText("Cut addressed")).toBeInTheDocument();
+  });
+
+  it("explains when the open-only view has no threads", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (urlOf(input).includes("/project")) {
+          return new Response(
+            JSON.stringify({
+              ...reviewProject,
+              comments: [sampleComment({ resolved: true })],
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+
+    render(<ReviewApp token="tok" />);
+    await user.click(
+      await screen.findByRole("checkbox", { name: "Open comments only" }),
+    );
+    expect(screen.getByText("No open comments.")).toBeInTheDocument();
+  });
+
   it("shows action items as read-only without the action capability", async () => {
     vi.stubGlobal(
       "fetch",

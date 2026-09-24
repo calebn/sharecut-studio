@@ -47,6 +47,7 @@ export function ReviewApp({ token }: { token: string }) {
   const [body, setBody] = useState("");
   const [startSec, setStartSec] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [openOnly, setOpenOnly] = useState(false);
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const inflightRef = useRef(false);
@@ -169,6 +170,9 @@ export function ReviewApp({ token }: { token: string }) {
   const canReply = hasShareCapability(caps, "reply");
   const canAction = hasShareCapability(caps, "action");
   const modeLabel = project.guest_mode ?? "comment";
+  const visibleComments = openOnly
+    ? project.comments.filter((comment) => !comment.resolved)
+    : project.comments;
 
   const onReply = async (commentId: string, text: string) => {
     const who = resolveCommentActor(author);
@@ -287,8 +291,16 @@ export function ReviewApp({ token }: { token: string }) {
           </>
         )}
         <InlineError message={error} />
+        <label className="review-comment-filter">
+          <input
+            type="checkbox"
+            checked={openOnly}
+            onChange={(event) => setOpenOnly(event.target.checked)}
+          />
+          Open comments only
+        </label>
         <ul className="comments-list review-comments">
-          {project.comments.map((c) => (
+          {visibleComments.map((c) => (
             <CommentCard
               key={c.id}
               comment={c}
@@ -315,8 +327,10 @@ export function ReviewApp({ token }: { token: string }) {
               }
             />
           ))}
-          {project.comments.length === 0 && (
-            <li className="comments-empty">No comments yet.</li>
+          {visibleComments.length === 0 && (
+            <li className="comments-empty">
+              {openOnly ? "No open comments." : "No comments yet."}
+            </li>
           )}
         </ul>
       </div>
