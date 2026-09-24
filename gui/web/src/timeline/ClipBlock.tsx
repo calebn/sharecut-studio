@@ -255,6 +255,7 @@ export function ClipBlock({
     trimActive: trimPreview != null,
     bladeHoverSec,
     selected,
+    color,
   });
 
   useEffect(() => {

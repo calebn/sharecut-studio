@@ -60,6 +60,7 @@ function useWave() {
     trimActive: false,
     bladeHoverSec: null,
     selected: false,
+    color: "var(--clip-dialogue-0)",
   });
 }
 

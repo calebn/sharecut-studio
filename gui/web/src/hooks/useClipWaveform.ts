@@ -13,13 +13,13 @@ import { snapBinsPerSec } from "../audio/waveformTiles";
 import { canApplyPass12, canSuggestStructural } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import {
-  clipWaveformFill,
   paintWaveform,
   visibleClipWindow,
   WAVEFORM_OVERSCAN_PX,
 } from "../timeline/drawWaveform";
 import { type QuietBand, quietBandsFromPeaks } from "../timeline/quietWash";
 import { uniqueTicks } from "../timeline/snapOverlay";
+import { resolveWaveformFill } from "../timeline/waveformTheme";
 import type { ClipRow, PeaksData } from "../types/project";
 import {
   detailBinsPerSec,
@@ -27,6 +27,7 @@ import {
   editFocusBinsPerSec,
   OVERVIEW_BINS_PER_SEC,
 } from "../utils/timelineZoom.generated";
+import { resolvedDocumentTheme } from "./useTheme";
 
 export type WaveformPaintOverride = {
   sourceStart: number;
@@ -46,6 +47,8 @@ export function useClipWaveform(opts: {
   trimActive: boolean;
   bladeHoverSec: number | null;
   selected: boolean;
+  /** Clip fill (a lane colour var); keys the cached waveform tint. */
+  color: string;
 }): {
   window: ReturnType<typeof visibleClipWindow>;
   quiet: QuietBand[];
@@ -67,6 +70,7 @@ export function useClipWaveform(opts: {
     trimActive,
     bladeHoverSec,
     selected,
+    color,
   } = opts;
   const {
     projectPath,
@@ -98,6 +102,7 @@ export function useClipWaveform(opts: {
     cssWidth: 0,
     ampZoom: waveformAmpZoom,
     devicePixelRatio: 1,
+    color,
   });
 
   useEffect(
@@ -272,6 +277,7 @@ export function useClipWaveform(opts: {
     cssWidth: win.cssWidth,
     ampZoom,
     devicePixelRatio: dpr,
+    color,
   };
 
   const flushPaint = () => {
@@ -284,14 +290,10 @@ export function useClipWaveform(opts: {
       pendingPaints.clear();
       const t0 = performance.now();
       const base = paintOptsRef.current;
-      const theme = getComputedStyle(document.documentElement);
-      const peakFill = theme.getPropertyValue("--color-waveform-peak").trim();
+      const theme = resolvedDocumentTheme();
       for (const [canvas, override] of batch) {
         const opts = override ? { ...base, ...override } : base;
-        const clip = canvas.closest(".clip-block");
-        const fill = clip
-          ? clipWaveformFill(getComputedStyle(clip).backgroundColor)
-          : null;
+        const fill = resolveWaveformFill(canvas, opts.color, theme);
         paintWaveform(canvas, {
           peaks: opts.peaks,
           tiles: opts.tiles,
@@ -300,9 +302,9 @@ export function useClipWaveform(opts: {
           cssWidth: opts.cssWidth,
           ampZoom: opts.ampZoom,
           devicePixelRatio: opts.devicePixelRatio,
-          peakFill,
-          peakFillCore: fill?.core,
-          peakFillEdge: fill?.edge,
+          peakFill: fill.peak,
+          peakFillCore: fill.core,
+          peakFillEdge: fill.edge,
         });
       }
       skipRef.current = performance.now() - t0 > 12;
