@@ -139,6 +139,12 @@ internally, via a shared thread-pool helper (`util/parallel.py`):
 | `assemble_timeline` / `render_dialogue_stems` | Each track's stem is rendered concurrently (`_render_track_stems`) |
 | `export_deliverables` | Each configured output format is encoded concurrently |
 
+Stem workers read one deep project snapshot captured before dispatch. Each
+worker renders and writes its cache hash from that snapshot, so an edit made
+while FFmpeg runs leaves the old stem stale against the live project. A newer
+edit's invalidation marker is retained. On-demand processed playback uses the
+same snapshot rule for full stems and segment cache keys.
+
 Configure via `performance.max_workers` in `pipeline.yaml`:
 
 ```yaml

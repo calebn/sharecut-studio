@@ -10,6 +10,7 @@ from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models import (
     ChapterMarker,
+    Clip,
     CombinedTranscript,
     CombinedUtterance,
     MediaAsset,
@@ -19,6 +20,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.pipeline import steps
+from podcast_mcp.services.workspace import ProjectWorkspace
 
 
 def _dialogue_project(minimal_project: Path, sample_wav: Path, tmp_workspace: Path):
@@ -100,6 +102,46 @@ def test_mix_with_music_builds_premix(minimal_project, sample_wav, tmp_workspace
     steps.assemble_timeline(proj, defaults)
     steps.mix_with_music(proj, defaults)
     assert (proj.artifacts_dir() / "premix.wav").is_file()
+
+
+def test_stem_uses_pre_mutation_snapshot_for_audio_and_hash(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.engines.play_audit import read_stem_hash, track_render_hash
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    proj.tracks = proj.tracks[:1]
+    proj.clips = [
+        Clip(
+            id="host-clip",
+            track_id="host",
+            source_start=0.0,
+            source_end=1.0,
+            timeline_start=0.0,
+        )
+    ]
+    before_hash = track_render_hash(proj, "host")
+    rendered: list[tuple[float, str]] = []
+
+    class MutatingEngine:
+        def render_dialogue_track(self, render_project, track, out, defaults):
+            rendered.append(
+                (render_project.clips[0].source_end, track_render_hash(render_project, track.id))
+            )
+            ProjectWorkspace(minimal_project, proj).mutate(
+                "before cut",
+                "after cut",
+                lambda live: setattr(live.clips[0], "source_end", 0.5),
+            )
+            out.write_bytes(b"rendered from the snapshot")
+            return out
+
+    monkeypatch.setattr(steps, "ffmpeg", MutatingEngine)
+    steps.assemble_timeline(proj, {"performance": {"max_workers": 2}})
+
+    assert rendered == [(1.0, before_hash)]
+    assert read_stem_hash(proj, "host") == before_hash
+    assert track_render_hash(proj, "host") != before_hash
 
 
 def test_export_deliverables_with_chapters(minimal_project, sample_wav, tmp_workspace):
