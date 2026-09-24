@@ -55,7 +55,9 @@ describe("InspectorSeekFooter", () => {
         onPreviewModeChange={onMode}
       />,
     );
-    expect(screen.getByRole("group", { name: "Preview mode" })).toBeTruthy();
+    const previewGroup = screen.getByRole("group", { name: "Preview mode" });
+    // Shared segmented track (the old bare .audition-modes div lost its CSS).
+    expect(previewGroup.classList.contains("ui-segmented")).toBe(true);
     await user.click(screen.getByRole("button", { name: "Play around" }));
     const s = useDawStore.getState();
     expect(s.playheadSec).toBe(9.5);
