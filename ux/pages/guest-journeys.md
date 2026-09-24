@@ -227,7 +227,7 @@ flowchart TD
    zero-byte or malformed files explain that uncommitted PCM cannot be
    reconstructed and remain available for export.
 9. If the host laptop drops during REC: reconnect the same link (lease reuse);
-   the keeper keeps growing ("Host offline — still recording locally.") and
+   the keeper keeps growing ("Host offline: still recording locally.") and
    segments that already closed retry their upload; the open segment uploads
    once it closes. If the host is gone for **10 s or more**, the take is forced
    **PAUSED** when they return (host must Resume; guests see the usual PAUSED
