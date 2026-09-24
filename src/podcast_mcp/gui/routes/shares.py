@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request
 
-from podcast_mcp.gui.routes.deps import peer_host, require_authz, resolve_project
+from podcast_mcp.gui.routes.deps import require_host, resolve_project
 from podcast_mcp.gui.schemas import (
     RecordRoomCreateRequest,
     RecordRoomRevokeRequest,
@@ -20,20 +20,6 @@ from podcast_mcp.services.share_page import share_public_origin
 router = APIRouter()
 
 
-def _auth(
-    request: Request,
-    *,
-    token: str | None = None,
-    x_podcast_token: str | None = None,
-) -> None:
-    require_authz(
-        client_id="viewer",
-        role="viewer",
-        peer_host=peer_host(request),
-        token=token or x_podcast_token,
-    )
-
-
 def _origin(request: Request) -> str:
     return share_public_origin(str(request.base_url))
 
@@ -45,7 +31,7 @@ def list_host_shares(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     ws = ProjectWorkspace.open(project_path)
     origin = _origin(request)
@@ -62,7 +48,7 @@ def create_host_share(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(body.path, request)
     ws = ProjectWorkspace.open(project_path)
     origin = _origin(request)
@@ -90,7 +76,7 @@ def revoke_host_share(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(body.path, request)
     ws = ProjectWorkspace.open(project_path)
     try:
@@ -106,7 +92,7 @@ def create_host_record_room(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(body.path, request)
     ws = ProjectWorkspace.open(project_path)
     origin = _origin(request)
@@ -130,7 +116,7 @@ def revoke_host_record_room(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(body.path, request)
     ws = ProjectWorkspace.open(project_path)
     try:

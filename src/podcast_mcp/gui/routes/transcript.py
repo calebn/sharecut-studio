@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Header, HTTPException, Query, Request
 from filelock import Timeout
 
-from podcast_mcp.gui.routes.deps import peer_host, require_authz, resolve_project
+from podcast_mcp.gui.routes.deps import require_host, resolve_project
 from podcast_mcp.gui.schemas import TranscriptRefineWaiveRequest, TranscriptVocabularyPutRequest
 from podcast_mcp.services import (
     ProjectWorkspace,
@@ -24,12 +24,7 @@ def transcript_vocabulary_get(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_authz(
-        client_id="viewer",
-        role="viewer",
-        peer_host=peer_host(request),
-        token=token or x_podcast_token,
-    )
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     return TranscriptPrecorrectService(ProjectWorkspace.open(project_path)).get_vocabulary()
 
@@ -41,12 +36,7 @@ def transcript_vocabulary_put(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_authz(
-        client_id="viewer",
-        role="viewer",
-        peer_host=peer_host(request),
-        token=token or x_podcast_token,
-    )
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(req.path, request)
     try:
         return TranscriptPrecorrectService(ProjectWorkspace.open(project_path)).set_vocabulary(
@@ -72,12 +62,7 @@ def transcript_refine_waive(
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
     """Record an intentional host waiver for the transcript-refine gate."""
-    require_authz(
-        client_id="viewer",
-        role="viewer",
-        peer_host=peer_host(request),
-        token=token or x_podcast_token,
-    )
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(req.path, request)
     try:
         return TranscriptRefineService(ProjectWorkspace.open(project_path)).waive(

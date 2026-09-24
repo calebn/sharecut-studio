@@ -3,11 +3,26 @@
 from __future__ import annotations
 
 import posixpath
+from collections.abc import Mapping
 from urllib.parse import unquote
 
 
 class UnsafeProxyPath(ValueError):
     """Raised when a proxied path is unsafe or not allowlisted."""
+
+
+# Stamped by the host tunnel (services/tunnel.py) on every relay-proxied HTTP request and
+# WS dial into the local GUI. Owner routes (host role) refuse any request that carries it.
+RELAYED_REQUEST_HEADER = "x-sharecut-relayed"
+
+
+def is_relayed_request(headers: Mapping[str, str]) -> bool:
+    """True when the request came through the relay tunnel (share guest traffic).
+
+    Presence-based: any value, including a guest-forged one, counts as relayed.
+    Starlette ``Headers`` look up keys case-insensitively. Plain dicts must use the lowercase name.
+    """
+    return headers.get(RELAYED_REQUEST_HEADER) is not None
 
 
 def proxy_path_is_safe(path_suffix: str) -> bool:

@@ -13,10 +13,17 @@ from podcast_mcp.gui.routes.deps import (
     ensure_non_loopback_session_auth,
     is_bind_loopback,
     require_authz,
+    require_host,
 )
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.services.gui_launch import viewer_url
+from podcast_mcp.services.session_sync.authz import (
+    HOST_ROLE_RELAYED_REASON,
+    authorize_client,
+    authorize_host,
+)
 from podcast_mcp.util.body_limits import BodyTooLarge, read_body_capped
+from podcast_mcp.util.proxy_paths import is_relayed_request
 
 
 def test_concat_list_entry_escapes_quotes(tmp_path: Path):
@@ -72,9 +79,7 @@ def test_export_routes_reject_share_token_guest(
 
     monkeypatch.setenv("PODCAST_SESSION_AUTHZ", "strict")
     monkeypatch.setenv("PODCAST_SESSION_TOKEN", "session-token")
-    monkeypatch.setattr(
-        "podcast_mcp.gui.routes.export_routes.peer_host", lambda _request: "10.0.0.5"
-    )
+    monkeypatch.setattr("podcast_mcp.gui.routes.deps.peer_host", lambda _request: "10.0.0.5")
     app = create_app(bind_host="0.0.0.0")
     client = TestClient(app)
     res = client.post(
@@ -308,6 +313,165 @@ def test_require_authz_raises(monkeypatch):
             token=None,
         )
     assert exc.value.status_code == 403
+
+
+def test_is_relayed_request():
+    from starlette.datastructures import Headers
+
+    assert is_relayed_request(Headers({"X-Sharecut-Relayed": "1"})) is True
+    assert is_relayed_request(Headers({})) is False
+    assert is_relayed_request(Headers({"x-sharecut-relayed": ""})) is True
+
+
+def test_authorize_host_rules(monkeypatch):
+    monkeypatch.delenv("PODCAST_SESSION_AUTHZ", raising=False)
+    monkeypatch.delenv("PODCAST_SESSION_TOKEN", raising=False)
+
+    denied = authorize_host(peer_host="127.0.0.1", relayed=True)
+    assert denied.allowed is False
+    assert denied.reason == HOST_ROLE_RELAYED_REASON
+
+    allowed = authorize_host(peer_host="127.0.0.1", relayed=False)
+    assert allowed.allowed is True
+
+    assert authorize_host(client_id="", peer_host="127.0.0.1").allowed is False
+
+    monkeypatch.setenv("PODCAST_SESSION_AUTHZ", "strict")
+    monkeypatch.setenv("PODCAST_SESSION_TOKEN", "sekrit")
+
+    remote_no_token = authorize_host(peer_host="10.0.0.5")
+    assert remote_no_token.allowed is False
+
+    remote_with_token = authorize_host(peer_host="10.0.0.5", token="sekrit")
+    assert remote_with_token.allowed is True
+
+    remote_with_token_relayed = authorize_host(peer_host="10.0.0.5", token="sekrit", relayed=True)
+    assert remote_with_token_relayed.allowed is False
+    assert remote_with_token_relayed.reason == HOST_ROLE_RELAYED_REASON
+
+
+def test_authorize_client_denies_relayed():
+    decision = authorize_client(client_id="a", role="viewer", peer_host="127.0.0.1", relayed=True)
+    assert decision.allowed is False
+
+
+def test_require_host_raises_for_relayed():
+    from fastapi import HTTPException
+    from starlette.requests import Request
+
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "path": "/",
+        "raw_path": b"/",
+        "query_string": b"",
+        "headers": [(b"x-sharecut-relayed", b"1")],
+        "client": ("127.0.0.1", 1),
+        "server": ("127.0.0.1", 80),
+    }
+
+    async def receive():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    req = Request(scope, receive)
+    with pytest.raises(HTTPException) as exc:
+        require_host(req)
+    assert exc.value.status_code == 403
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "path_in_query", "json_body"),
+    [
+        ("get", "/api/project", True, None),
+        ("post", "/api/project/close", False, None),
+        (
+            "put",
+            "/api/transcript/vocabulary",
+            False,
+            {"terms": ["x"], "guest_names": [], "base_revision": None},
+        ),
+        ("post", "/api/transcript/refine/waive", False, {"reason": "x"}),
+        ("post", "/api/pipeline/cancel", False, {}),
+        ("post", "/api/export/bounce", False, {}),
+        ("post", "/api/diagnostics/bundle", False, {}),
+        ("post", "/api/bootstrap/cancel", False, {}),
+        ("post", "/api/record/land", True, None),
+        ("post", "/api/shares", False, {}),
+        (
+            "post",
+            "/api/comments",
+            False,
+            {"body": "x", "author": "a", "timeline_start": 0.0},
+        ),
+        ("post", "/api/session/state", True, {}),
+        (
+            "post",
+            "/api/document/command",
+            True,
+            {
+                "type": "CorrectTranscriptWord",
+                "payload": {"track_id": "host", "word_index": 0, "text": "x"},
+                "client_id": "viewer",
+                "client_seq": 1,
+                "role": "viewer",
+            },
+        ),
+    ],
+)
+def test_owner_routes_reject_relayed_requests(
+    method: str,
+    path: str,
+    path_in_query: bool,
+    json_body: dict | None,
+    minimal_project,
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("PODCAST_SESSION_AUTHZ", raising=False)
+    P = str(minimal_project)
+    client = TestClient(create_app())
+    before = minimal_project.read_bytes()
+
+    kwargs: dict = {"headers": {"X-Sharecut-Relayed": "1"}}
+    if path_in_query:
+        kwargs["params"] = {"path": P}
+    elif json_body is not None:
+        json_body = {**json_body, "path": P}
+    if json_body is not None:
+        kwargs["json"] = json_body
+
+    caller = getattr(client, method)
+    response = caller(path, **kwargs)
+    assert response.status_code == 403
+    assert response.json() == {"detail": HOST_ROLE_RELAYED_REASON}
+    assert minimal_project.read_bytes() == before
+
+
+@pytest.mark.parametrize("path", ["/api/document/ws", "/api/session/ws"])
+def test_owner_ws_rejects_relayed(path: str, minimal_project, monkeypatch) -> None:
+    from starlette.websockets import WebSocketDisconnect
+
+    monkeypatch.delenv("PODCAST_SESSION_AUTHZ", raising=False)
+    client = TestClient(create_app())
+    url = f"{path}?path={minimal_project}&client_id=c1&role=viewer"
+    with pytest.raises(WebSocketDisconnect) as exc:
+        with client.websocket_connect(url, headers={"X-Sharecut-Relayed": "1"}):
+            pass
+    assert exc.value.code == 4403
+
+
+def test_guest_review_route_accepts_relayed(published_share, monkeypatch) -> None:
+    monkeypatch.setenv("PODCAST_RATE_LIMIT", "0")
+    _, _, share = published_share(label="guest")
+    token = share["token"]
+    client = TestClient(create_app())
+    response = client.get(
+        f"/api/review/{token}/daw/meta",
+        headers={"X-Sharecut-Relayed": "1"},
+    )
+    assert response.status_code == 200
 
 
 def test_viewer_url_with_session_token(tmp_path: Path):

@@ -8,7 +8,12 @@ from pathlib import Path
 
 from fastapi import HTTPException, Request
 
-from podcast_mcp.services.session_sync.authz import authorize_client, is_loopback_host
+from podcast_mcp.services.session_sync.authz import (
+    authorize_client,
+    authorize_host,
+    is_loopback_host,
+)
+from podcast_mcp.util.proxy_paths import is_relayed_request
 
 
 def peer_host(request: Request) -> str | None:
@@ -23,12 +28,32 @@ def require_authz(
     role: str,
     peer_host: str | None,
     token: str | None,
+    relayed: bool = False,
 ) -> None:
     decision = authorize_client(
         client_id=client_id or "anonymous",
         role=role or "viewer",
         peer_host=peer_host,
         token=token,
+        relayed=relayed,
+    )
+    if not decision.allowed:
+        raise HTTPException(status_code=403, detail=decision.reason)
+
+
+def require_host(
+    request: Request,
+    *,
+    token: str | None = None,
+    x_podcast_token: str | None = None,
+    client_id: str = "host",
+) -> None:
+    """Host-role gate for owner GUI routes (#393); raises 403 when denied."""
+    decision = authorize_host(
+        client_id=client_id,
+        peer_host=peer_host(request),
+        token=token or x_podcast_token,
+        relayed=is_relayed_request(request.headers),
     )
     if not decision.allowed:
         raise HTTPException(status_code=403, detail=decision.reason)

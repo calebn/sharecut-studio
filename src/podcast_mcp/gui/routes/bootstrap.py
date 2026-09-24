@@ -11,7 +11,7 @@ from fastapi import APIRouter, Header, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
 from podcast_mcp.gui.bootstrap_jobs import BootstrapJobManager, shared_bootstrap_job_manager
-from podcast_mcp.gui.routes.deps import peer_host, require_authz
+from podcast_mcp.gui.routes.deps import require_host
 from podcast_mcp.gui.schemas import BootstrapCancelRequest, BootstrapRunRequest
 from podcast_mcp.services.bootstrap import component_status
 from podcast_mcp.whisper_models import resolve_whisper_model
@@ -27,20 +27,6 @@ def _jobs(request: Request) -> BootstrapJobManager:
     return mgr
 
 
-def _auth(
-    request: Request,
-    *,
-    token: str | None = None,
-    x_podcast_token: str | None = None,
-) -> None:
-    require_authz(
-        client_id="viewer",
-        role="viewer",
-        peer_host=peer_host(request),
-        token=token or x_podcast_token,
-    )
-
-
 @router.get("/api/bootstrap/status")
 def bootstrap_status(
     request: Request,
@@ -48,7 +34,7 @@ def bootstrap_status(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     try:
         return component_status(whisper_model=whisper_model)
     except ValueError as exc:
@@ -62,7 +48,7 @@ def bootstrap_run(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     mgr = _jobs(request)
     try:
         model = resolve_whisper_model(requested=req.whisper_model)
@@ -85,7 +71,7 @@ def bootstrap_cancel(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     job = _jobs(request).cancel(req.job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="No bootstrap job")
@@ -99,7 +85,7 @@ def bootstrap_job_status(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     job = _jobs(request).get_job(job_id)
     if job is None:
         return {"job": None}
@@ -113,7 +99,7 @@ def bootstrap_events(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> StreamingResponse:
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     job = _jobs(request).get_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="No bootstrap job")

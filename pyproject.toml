@@ -60,7 +60,7 @@ gui = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
     "httpx>=0.27.0",
-    "websockets>=12.0",
+    "websockets>=14.0",
     "boto3>=1.34.0",
     "botocore>=1.34.0",
     "starlette>=0.37.0",
@@ -72,7 +72,7 @@ object-store = [
 relay = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
-    "websockets>=12.0",
+    "websockets>=14.0",
     "starlette>=0.37.0",
 ]
 # Runtime extras only (not `dev` tooling). Install tooling via `--extra dev`.
@@ -85,7 +85,7 @@ all = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
     "httpx>=0.27.0",
-    "websockets>=12.0",
+    "websockets>=14.0",
     "boto3>=1.34.0",
     "botocore>=1.34.0",
     "starlette>=0.37.0",

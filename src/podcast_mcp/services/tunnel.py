@@ -16,6 +16,7 @@ from podcast_mcp.models import load_project
 from podcast_mcp.runtime_config import RelayConfig, load_relay_config
 from podcast_mcp.util.body_limits import relay_ws_max_size
 from podcast_mcp.util.proxy_paths import (
+    RELAYED_REQUEST_HEADER,
     UnsafeProxyPath,
     assert_allowed_local_gui_path,
     assert_safe_proxy_path,
@@ -103,6 +104,8 @@ _HOP_BY_HOP = frozenset(
         "x-forwarded-port",
         "x-forwarded-server",
         "x-real-ip",
+        # guest-supplied copies are dropped; _proxy_http stamps its own
+        RELAYED_REQUEST_HEADER,
     }
 )
 
@@ -186,6 +189,7 @@ class TunnelClient:
             for k, v in dict(request_data.get("headers") or {}).items()
             if k.lower() not in _HOP_BY_HOP
         }
+        headers[RELAYED_REQUEST_HEADER] = "1"
         share_token = str(request_data.get("share_token") or "")
         body_b64 = str(request_data.get("body_b64") or "")
         body = base64.b64decode(body_b64) if body_b64 else None
@@ -343,6 +347,7 @@ class TunnelClient:
                 open_timeout=30.0,
                 ping_interval=20.0,
                 ping_timeout=120.0,
+                additional_headers={RELAYED_REQUEST_HEADER: "1"},
             ) as local_ws:
 
                 async def _to_relay() -> None:

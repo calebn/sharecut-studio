@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request
 
-from podcast_mcp.gui.routes.deps import resolve_project
+from podcast_mcp.gui.routes.deps import require_host, resolve_project
 from podcast_mcp.gui.schemas import (
     CommentActionDoneRequest,
     CommentCreateRequest,
@@ -13,26 +13,8 @@ from podcast_mcp.gui.schemas import (
 )
 from podcast_mcp.services import CommentService, ProjectWorkspace
 from podcast_mcp.services.document_sync.service import notify_comments_changed
-from podcast_mcp.services.session_sync.authz import authorize_client
 
 router = APIRouter()
-
-
-def _require_mutate_authz(
-    request: Request,
-    *,
-    client_id: str | None = None,
-    token: str | None = None,
-) -> None:
-    peer = request.client.host if request.client else None
-    decision = authorize_client(
-        client_id=client_id or "viewer",
-        role="viewer",
-        peer_host=peer,
-        token=token,
-    )
-    if not decision.allowed:
-        raise HTTPException(status_code=403, detail=decision.reason)
 
 
 @router.post("/api/comments")
@@ -42,7 +24,7 @@ def create_comment(
     client_id: str = Query("viewer"),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _require_mutate_authz(request, client_id=client_id, token=x_podcast_token)
+    require_host(request, client_id=client_id, x_podcast_token=x_podcast_token)
     path = resolve_project(req.path, request)
     ws = ProjectWorkspace.open(path)
     try:
@@ -69,7 +51,7 @@ def patch_comment(
     client_id: str = Query("viewer"),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _require_mutate_authz(request, client_id=client_id, token=x_podcast_token)
+    require_host(request, client_id=client_id, x_podcast_token=x_podcast_token)
     path = resolve_project(req.path, request)
     ws = ProjectWorkspace.open(path)
     svc = CommentService(ws)
@@ -110,7 +92,7 @@ def action_done(
     client_id: str = Query("viewer"),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _require_mutate_authz(request, client_id=client_id, token=x_podcast_token)
+    require_host(request, client_id=client_id, x_podcast_token=x_podcast_token)
     path = resolve_project(req.path, request)
     ws = ProjectWorkspace.open(path)
     try:
@@ -131,7 +113,7 @@ def create_reply(
     client_id: str = Query("viewer"),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _require_mutate_authz(request, client_id=client_id, token=x_podcast_token)
+    require_host(request, client_id=client_id, x_podcast_token=x_podcast_token)
     path = resolve_project(req.path, request)
     ws = ProjectWorkspace.open(path)
     try:
@@ -152,7 +134,7 @@ def remove_comment(
     client_id: str = Query("viewer"),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _require_mutate_authz(request, client_id=client_id, token=x_podcast_token)
+    require_host(request, client_id=client_id, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     ws = ProjectWorkspace.open(project_path)
     try:

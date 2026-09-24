@@ -21,7 +21,7 @@ from podcast_mcp.gui.audio import (
 from podcast_mcp.gui.host_file_dialog import pick_episode_project_path
 from podcast_mcp.gui.jobs import project_meta
 from podcast_mcp.gui.peaks import resolve_peaks_path
-from podcast_mcp.gui.routes.deps import peer_host, require_authz, resolve_project
+from podcast_mcp.gui.routes.deps import peer_host, require_host, resolve_project
 from podcast_mcp.project_io import require_episode_project_file
 from podcast_mcp.services import HistoryService, ProjectWorkspace
 from podcast_mcp.services.session_sync.authz import is_loopback_host
@@ -38,20 +38,6 @@ class CreateProjectBody(BaseModel):
 
 class OpenProjectBody(BaseModel):
     path: str
-
-
-def _auth(
-    request: Request,
-    *,
-    token: str | None,
-    x_podcast_token: str | None,
-) -> None:
-    require_authz(
-        client_id="viewer",
-        role="viewer",
-        peer_host=peer_host(request),
-        token=token or x_podcast_token,
-    )
 
 
 def _peer_may_switch_project(request: Request) -> bool:
@@ -101,7 +87,7 @@ def create_project(
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
     """Create a new episode workspace (host / loopback only)."""
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     if not _peer_may_switch_project(request):
         raise HTTPException(status_code=403, detail="project create not allowed from this client")
     try:
@@ -119,7 +105,7 @@ def pick_project_path(
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
     """Show a host OS file dialog; return a path without pinning served_project."""
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     if not _peer_may_switch_project(request):
         raise HTTPException(status_code=403, detail="project pick not allowed from this client")
     if not _PICK_LOCK.acquire(blocking=False):
@@ -153,7 +139,7 @@ def open_project_path(
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
     """Validate an existing project and retarget served_project on loopback."""
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     if not _peer_may_switch_project(request):
         raise HTTPException(
             status_code=403, detail="project open/switch not allowed from this client"
@@ -170,7 +156,7 @@ def close_project_path(
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
     """Unpin served_project on loopback (host home / New project)."""
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     if not _peer_may_switch_project(request):
         raise HTTPException(status_code=403, detail="project close not allowed from this client")
     _unpin_served_if_allowed(request)
@@ -197,7 +183,7 @@ def get_project(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     _pin_served_if_allowed(request, project_path)
     try:
@@ -215,7 +201,7 @@ def get_project_meta(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     return project_meta(project_path)
 
@@ -228,7 +214,7 @@ def get_peaks(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     ws = ProjectWorkspace.open(project_path)
     peaks_path = resolve_peaks_path(ws.project, track_id)
@@ -253,7 +239,7 @@ def get_waveform_snap(
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
     """Windowed inaudible-cut preview + silence-island ticks for the snap overlay."""
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     ws = ProjectWorkspace.open(project_path)
     from podcast_mcp.services.edit import EditService
@@ -302,7 +288,7 @@ def get_audio(
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
     """Stream a WAV for browser transport via PlayService (supports HTTP Range)."""
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     ws = ProjectWorkspace.open(project_path)
     transport_kind = kind
@@ -354,7 +340,7 @@ def history_diff(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     ws = ProjectWorkspace.open(project_path)
     try:

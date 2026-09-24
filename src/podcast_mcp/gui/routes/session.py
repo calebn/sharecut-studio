@@ -30,6 +30,7 @@ from podcast_mcp.services.session_sync.hub import get_hub
 from podcast_mcp.services.session_sync.log import ClientSequenceConflictError
 from podcast_mcp.services.session_sync.service import SessionSyncService, read_session_state
 from podcast_mcp.services.session_sync.viewer import publish_viewer_snapshot
+from podcast_mcp.util.proxy_paths import is_relayed_request
 
 router = APIRouter()
 
@@ -47,6 +48,7 @@ def _auth(
         role=role,
         peer_host=peer_host(request),
         token=token or x_podcast_token,
+        relayed=is_relayed_request(request.headers),
     )
 
 
@@ -234,8 +236,9 @@ async def session_ws(
         peer_host=peer,
         token=token,
         display_name=label,
+        relayed=is_relayed_request(websocket.headers),
     )
-    if not decision.allowed:  # pragma: no cover - strict authz opt-in
+    if not decision.allowed:
         await websocket.close(code=4403, reason=decision.reason[:120])
         return
     ws_proj = ProjectWorkspace.open(project_path)

@@ -26,6 +26,7 @@ from podcast_mcp.services.document_sync.payloads import (
 from podcast_mcp.services.document_sync.service import document_hub_key
 from podcast_mcp.services.session_sync.authz import authorize_client
 from podcast_mcp.services.session_sync.hub import get_hub
+from podcast_mcp.util.proxy_paths import is_relayed_request
 
 router = APIRouter()
 
@@ -66,6 +67,7 @@ def get_document_comments(
         role=role,
         peer_host=peer_host(request),
         token=token or x_podcast_token,
+        relayed=is_relayed_request(request.headers),
     )
     project_path = resolve_project(path, request)
     svc = DocumentSyncService.open(project_path)
@@ -85,6 +87,7 @@ def post_document_command(
         role=body.role,
         peer_host=peer_host(request),
         token=token or x_podcast_token or body.token,
+        relayed=is_relayed_request(request.headers),
     )
     project_path = resolve_project(path, request)
     svc = DocumentSyncService.open(project_path)
@@ -123,12 +126,14 @@ async def document_ws(
         return
     project_path = resolve_project(path, websocket)  # type: ignore[arg-type]
     peer = websocket.client.host if websocket.client else None
+    relayed = is_relayed_request(websocket.headers)
     decision = authorize_client(
         client_id=client_id,
         role=role,
         peer_host=peer,
         token=token,
         display_name=label,
+        relayed=relayed,
     )
     if not decision.allowed:
         await websocket.close(code=4403, reason=decision.reason[:120])
@@ -177,6 +182,7 @@ async def document_ws(
                 peer_host=peer,
                 token=token,
                 display_name=label,
+                relayed=relayed,
             )
             if not again.allowed:
                 await websocket.send_json({"type": "Error", "detail": again.reason or "forbidden"})

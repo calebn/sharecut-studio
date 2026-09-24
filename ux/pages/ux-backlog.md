@@ -124,6 +124,7 @@ Audio candidates exist; video ingest, 9:16 export, captions, active-speaker — 
 | 2026-08-26 | Share agent = share user: HTTP-first façade (same caps as the human; `play` = both can hear). Named MCP only for agent-shaped ops; peaks/proxy/WS stay HTTP. Host capabilities.manifest remains the host catalog, not share ACL. | Eng | [host-online-relay](https://github.com/calebn/sharecut-studio/blob/main/docs/host-online-relay.md) |
 | 2026-09-05 | Zoom-matched waveforms: shared uint8 overview + per-tab detail tiles; amplitude zoom Shift+ArrowUp/Down; snap ticks for suggest/edit guests | Eng | [gui-integration](https://github.com/calebn/sharecut-studio/blob/main/docs/gui-integration.md), [Shortcuts](#/shortcuts) |
 | 2026-09-05 | ROADMAP grooming: Passes 0–8 marked shipped; guest-account / MCP-connect / SaaS rows owned by podcast_online; markers + Pass 8 docs aligned | Eng | [ROADMAP](../../ROADMAP.md), [gui-integration](../../docs/gui-integration.md), [session-sync](../../docs/session-sync.md) |
+| 2026-09-24 | Owner GUI routes require the host role; relay tunnel marks guest traffic (x-sharecut-relayed) and owner routes refuse it | Eng | [host-online-relay](https://github.com/calebn/sharecut-studio/blob/main/docs/host-online-relay.md), [gui-integration](https://github.com/calebn/sharecut-studio/blob/main/docs/gui-integration.md) |
 | | | | |
 
 ---

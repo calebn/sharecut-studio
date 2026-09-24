@@ -509,7 +509,45 @@ async def test_proxy_http_strips_forwarded_headers():
         },
         send=_send,
     )
-    assert client.stream.call_args[1]["headers"] == {"accept": "text/html"}
+    assert client.stream.call_args[1]["headers"] == {
+        "accept": "text/html",
+        "x-sharecut-relayed": "1",
+    }
+    assert sent
+
+
+@pytest.mark.asyncio
+async def test_proxy_http_replaces_guest_relayed_header():
+    """A guest-forged marker is stripped and replaced with the tunnel's own stamp."""
+    cfg = RelayConfig(local_gui_url="http://gui.test")
+    tc = TunnelClient(cfg)
+    sent: list[dict] = []
+
+    async def _send(payload: dict) -> None:
+        sent.append(payload)
+
+    client = _stream_client(200, b"ok", {"content-type": "text/plain"})
+
+    await tc._proxy_http(
+        client,
+        {
+            "id": "req4b",
+            "method": "GET",
+            "path": "r/",
+            "query": "",
+            "headers": {
+                "accept": "*/*",
+                "X-Sharecut-Relayed": "0",
+            },
+            "share_token": "tok",
+            "body_b64": "",
+        },
+        send=_send,
+    )
+    assert client.stream.call_args[1]["headers"] == {
+        "accept": "*/*",
+        "x-sharecut-relayed": "1",
+    }
     assert sent
 
 
@@ -735,6 +773,43 @@ async def test_proxy_ws_forwards_local_close_code():
         "code": 4403,
         "reason": "participant removed",
     }
+
+
+@pytest.mark.asyncio
+async def test_proxy_ws_stamps_relayed_header():
+    import websockets
+
+    client = TunnelClient(RelayConfig(local_gui_url="http://127.0.0.1:8765"))
+    sent: list[dict] = []
+
+    async def send(payload: dict) -> None:
+        sent.append(payload)
+
+    class _FakeLocal:
+        close_code = 1000
+        close_reason = ""
+
+        def __aiter__(self):
+            return self._frames()
+
+        async def _frames(self):
+            if False:
+                yield ""
+
+    class _Ctx:
+        async def __aenter__(self):
+            return _FakeLocal()
+
+        async def __aexit__(self, *args):
+            return False
+
+    with patch.object(websockets, "connect", return_value=_Ctx()) as connect:
+        await client._proxy_ws(
+            {"id": "sid-stamp", "path": "api/rec/ws", "share_token": "tok"},
+            send=send,
+            streams={},
+        )
+    assert connect.call_args.kwargs["additional_headers"] == {"x-sharecut-relayed": "1"}
 
 
 @pytest.mark.asyncio

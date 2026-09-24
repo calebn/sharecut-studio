@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Header, HTTPException, Query, Request
 
 from podcast_mcp.gui.jobs import PipelineJobManager
-from podcast_mcp.gui.routes.deps import peer_host, require_authz, resolve_project
+from podcast_mcp.gui.routes.deps import require_host, resolve_project
 from podcast_mcp.gui.schemas import BounceRequestBody, ExportDeliverablesRequest
 
 router = APIRouter()
@@ -17,31 +17,10 @@ def _jobs(request: Request) -> PipelineJobManager:
     return request.app.state.jobs
 
 
-def _auth(
-    request: Request,
-    *,
-    token: str | None = None,
-    x_podcast_token: str | None = None,
-) -> None:
-    """Host-only gate for export jobs (bounce + deliverables).
-
-    Under strict authz (``PODCAST_SESSION_AUTHZ=strict``, auto-enabled on a
-    non-loopback bind by ``ensure_non_loopback_session_auth`` when the env var
-    is unset), share tokens never satisfy this check: remote peers must present
-    ``PODCAST_SESSION_TOKEN``. In non-strict mode ``authorize_client`` allows
-    every caller, which is safe only on a loopback bind, because the relay
-    tunnel never maps ``/api/export/*`` (``util/proxy_paths.py``). An explicit
-    non-strict value (e.g. ``PODCAST_SESSION_AUTHZ=off``) on a non-loopback
-    bind is not overridden and removes this gate: any LAN peer, including a
-    share-token holder, can start export jobs. See issue #219 and
-    docs/host-online-relay.md § Security notes.
-    """
-    require_authz(
-        client_id="viewer",
-        role="viewer",
-        peer_host=peer_host(request),
-        token=token or x_podcast_token,
-    )
+# Host-only gate for export jobs (bounce + deliverables): `require_host` refuses
+# relay-tunneled requests even on loopback, and (under strict authz) requires
+# PODCAST_SESSION_TOKEN for remote peers. See issue #219, #393 and
+# docs/host-online-relay.md § Security notes.
 
 
 @router.post("/api/export/bounce")
@@ -51,7 +30,7 @@ def export_bounce(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(body.path, request)
     try:
         job = _jobs(request).start_bounce(
@@ -77,7 +56,7 @@ def export_deliverables(
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
     """Same PipelineService.export_audio path used by MCP/CLI master export."""
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(body.path, request)
     try:
         job = _jobs(request).start_export(project_path, formats=body.formats)

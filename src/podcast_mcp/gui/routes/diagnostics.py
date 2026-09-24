@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from podcast_mcp.distribution import runtime_distribution_metadata
 from podcast_mcp.gui.jobs import PipelineJobManager
-from podcast_mcp.gui.routes.deps import peer_host, require_authz, resolve_project
+from podcast_mcp.gui.routes.deps import require_host, resolve_project
 from podcast_mcp.services.diagnostics import (
     MAX_BUNDLE_BYTES,
     DiagnosticsService,
@@ -31,20 +31,6 @@ _BUNDLES_LOCK = threading.Lock()
 class DiagnosticsBundleRequest(BaseModel):
     out_dir: str | None = Field(default=None)
     path: str | None = Field(default=None, description="Optional episode.project.json")
-
-
-def _auth(
-    request: Request,
-    *,
-    token: str | None = None,
-    x_podcast_token: str | None = None,
-) -> None:
-    require_authz(
-        client_id="viewer",
-        role="viewer",
-        peer_host=peer_host(request),
-        token=token or x_podcast_token,
-    )
 
 
 def _jobs(request: Request) -> PipelineJobManager | None:
@@ -93,7 +79,7 @@ def diagnostics_meta(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, str | None]:
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     metadata = runtime_distribution_metadata()
     return {
         "support_url": metadata.support_url,
@@ -110,7 +96,7 @@ def create_diagnostics_bundle(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     out_dir = default_bundle_dir()
     project = _load_project(request, body.path)
     try:
@@ -140,7 +126,7 @@ def download_diagnostics_bundle(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> FileResponse:
-    _auth(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
     if not is_allowed_bundle_name(name):
         raise HTTPException(status_code=400, detail="invalid bundle filename")
     registered = _bundle_registry(request).get(name)
