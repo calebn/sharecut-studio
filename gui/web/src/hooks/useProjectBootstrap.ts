@@ -49,16 +49,25 @@ export function useProjectBootstrap(
         if (isShareProjectKey(projectPath)) {
           return;
         }
-        const seqAtStart = currentDocumentSeq();
-        const detail = await loadProjectDetail(projectPath, {
-          signal: ac.signal,
-        });
-        if (cancelled || currentDocumentSeq() !== seqAtStart) {
+        while (!cancelled) {
+          const seqAtStart = currentDocumentSeq();
+          const detail = await loadProjectDetail(projectPath, {
+            signal: ac.signal,
+          });
+          if (cancelled) {
+            return;
+          }
+          if (currentDocumentSeq() !== seqAtStart) {
+            // A WS snapshot or edit landed during DETAIL. Retry against the
+            // current document instead of leaving its transcript unhydrated.
+            await new Promise((resolve) => window.setTimeout(resolve, 150));
+            continue;
+          }
+          const prev = useDawStore.getState().project;
+          if (prev) {
+            useDawStore.getState().setProject(mergeProjectPatch(prev, detail));
+          }
           return;
-        }
-        const prev = useDawStore.getState().project;
-        if (prev) {
-          useDawStore.getState().setProject(mergeProjectPatch(prev, detail));
         }
       } catch (e: unknown) {
         if (!cancelled && !isAbortError(e)) {
