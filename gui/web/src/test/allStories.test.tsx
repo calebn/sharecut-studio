@@ -1,8 +1,16 @@
-import { composeStories } from "@storybook/react-vite";
+import { composeStories, setProjectAnnotations } from "@storybook/react-vite";
 import { describe, expect, it } from "vitest";
+import preview from "../../.storybook/preview";
 import { expectNoA11yViolations } from "./a11y";
 
-const modules = import.meta.glob("../**/*.stories.tsx", { eager: true });
+setProjectAnnotations(preview);
+
+const modules = import.meta.glob(
+  ["../**/*.stories.ts", "../**/*.stories.tsx"],
+  {
+    eager: true,
+  },
+);
 const stories = Object.entries(modules).flatMap(([path, module]) =>
   Object.entries(
     composeStories(module as Parameters<typeof composeStories>[0]),
@@ -28,7 +36,11 @@ describe("all Storybook stories", () => {
       );
       try {
         await Story.run({ canvasElement });
-        await expectNoA11yViolations(canvasElement);
+        if (!canvasElement.querySelector("main")) {
+          canvasElement.setAttribute("role", "main");
+        }
+        // Some stories render overlays into document.body via React portals.
+        await expectNoA11yViolations(document.body);
       } finally {
         canvasElement.remove();
       }
