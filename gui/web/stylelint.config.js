@@ -4,6 +4,11 @@ export default {
   plugins: ["stylelint-declaration-strict-value", "stylelint-no-px"],
   ignoreFiles: ["src/styles/theme/**", "public/brand-tokens.css"],
   rules: {
+    // Motion times with --motion-* tokens (docs/design-tokens.md § Motion);
+    // tests/test_css_policy.py also checks the no-preference guard.
+    "declaration-property-unit-disallowed-list": {
+      "/^(-webkit-)?(transition|animation)/": ["ms", "s"],
+    },
     "scale-unlimited/declaration-strict-value": [
       [
         "/color$/",
