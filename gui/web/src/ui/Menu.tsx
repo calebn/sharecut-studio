@@ -220,6 +220,8 @@ type MenuItemProps = {
   onPointerLeave?: () => void;
   onFocus?: () => void;
   onBlur?: () => void;
+  /** `aria-keyshortcuts` for the shortcut (the visible kbd is aria-hidden). */
+  keyShortcuts?: string;
 };
 
 export function MenuItem({
@@ -233,6 +235,7 @@ export function MenuItem({
   onFocus,
   onBlur,
   shortcut,
+  keyShortcuts,
 }: MenuItemProps) {
   const classes = ["ui-control", "ui-control--quiet", className]
     .filter(Boolean)
@@ -243,6 +246,7 @@ export function MenuItem({
       role="menuitem"
       className={classes}
       title={title}
+      aria-keyshortcuts={keyShortcuts}
       disabled={disabled}
       onPointerEnter={onPointerEnter}
       onPointerLeave={onPointerLeave}

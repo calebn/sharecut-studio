@@ -29,13 +29,29 @@ function writeStorage(next: KeymapOverrides): void {
   writeLocal(STORAGE_KEY, JSON.stringify(next));
 }
 
+/**
+ * A remap replaces the command's key only; its Mod/Shift requirements stay
+ * (the matcher applies them). Typed combos like "Mod+Shift+X" keep their last
+ * segment, so display and matching agree.
+ */
+export function normalizeRemapKey(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed === "+" || !trimmed.includes("+")) {
+    return trimmed;
+  }
+  return trimmed.split("+").pop()?.trim() ?? "";
+}
+
 export function getKeymapOverride(commandId: string): string[] | undefined {
-  const v = readStorage()[commandId];
-  return v?.length ? v : undefined;
+  const keys = (readStorage()[commandId] ?? [])
+    .map(normalizeRemapKey)
+    .filter(Boolean);
+  return keys.length ? keys : undefined;
 }
 
 export function setKeymapOverride(commandId: string, keys: string[]): void {
-  const next = { ...readStorage(), [commandId]: keys };
+  const normalized = keys.map(normalizeRemapKey).filter(Boolean);
+  const next = { ...readStorage(), [commandId]: normalized };
   writeStorage(next);
 }
 

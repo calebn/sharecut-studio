@@ -169,4 +169,15 @@ describe("Menu", () => {
     expect(screen.getByRole("dialog", { name: "Inspector" })).toBeTruthy();
     expect(screen.queryByTestId("sheet-closed")).toBeNull();
   });
+
+  it("exposes a shortcut to assistive tech while the kbd stays visual", () => {
+    render(
+      <MenuItem shortcut="⌘⇧B" keyShortcuts="Meta+Shift+B">
+        Bounce…
+      </MenuItem>,
+    );
+    const item = screen.getByRole("menuitem", { name: "Bounce…" });
+    expect(item).toHaveAttribute("aria-keyshortcuts", "Meta+Shift+B");
+    expect(item.querySelector("kbd")).toHaveAttribute("aria-hidden", "true");
+  });
 });
