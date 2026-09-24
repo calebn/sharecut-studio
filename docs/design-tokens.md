@@ -22,6 +22,7 @@ pipeline notes in these sources don't apply to us):
 | ---- | --------------- | -------- | ---- |
 | **1 · Primitive** | `--primitive-amber-400` | `gui/web/src/styles/theme/primitives.css` | Raw literals only. Never `var()`. Never consumed directly by components — only by tier 2. |
 | **2 · Semantic** | `--color-text-primary` | `theme-dark.css` / `theme-light.css` (same names, per-theme values) | Roles, not appearances. This is where theming lives: the token name never contains the theme (`--color-warning`, not `--color-warning-dark`). |
+| **2 · Semantic (fixed)** | `--color-transport-text` | `theme-fixed.css` | Roles that stay the same in both themes (the fixed-dark transport strip and the phone Listen card). Same rules as tier 2; its warning, ok and text inks restate dark-theme values on purpose, so retune both together. |
 | **3 · Component** | `--timeline-playhead-width` | Component CSS, sparingly | Only when a value is truly component-local *and* themeable. Prefer tier 2. |
 
 Shared brand colors are the exception: `deploy/brand/brand-tokens.css` is both
