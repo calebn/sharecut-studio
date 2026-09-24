@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { shallow } from "zustand/shallow";
 import { execute } from "../commands/execute";
 import {
   allClipsFromTracks,
@@ -47,14 +48,14 @@ import {
   fixedPlayheadLeadPx,
   fixedPlayheadLinePx,
   logicalToDomScrollLeft,
+  measureTimelineColumns,
   minLogicalScrollLeft,
+  NO_TIMELINE_COLUMNS,
   PLAYHEAD_MOVE_MIN_PX,
   SCROLL_SYNC_EPS_PX,
   scrollLeftToCenterSec,
   timelineCanvasSize,
   timelineHeaderEl,
-  timelineHeaderOffsetWidth,
-  timelineTimeViewportWidth,
 } from "../utils/timelineViewport";
 import { noteZoomPointerClientX } from "../utils/zoomPointer";
 import { AuditionOverlay } from "./AuditionOverlay";
@@ -201,9 +202,9 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
   );
   const [bladeHoverSec, setBladeHoverSec] = useState<number | null>(null);
   // One measurement of the scroller drives the fit, the lead pads, the fixed
-  // line and the center math, so they cannot disagree.
-  const [timeViewportPx, setTimeViewportPx] = useState(0);
-  const [headerOffsetPx, setHeaderOffsetPx] = useState(0);
+  // line, the center math and the stage edges, so they cannot disagree.
+  const [columns, setColumns] = useState(NO_TIMELINE_COLUMNS);
+  const { timePx: timeViewportPx, headerPx: headerOffsetPx } = columns;
   // Fixed playhead: pad the time column by the viewport's center offset on
   // each side so every time, 0 and the end included, can sit under the
   // center line. Store scroll stays logical; the DOM scroll is logical + lead.
@@ -419,9 +420,9 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
     }
     const sessionSec = project.timeline_duration_sec;
     const measure = () => {
-      const timeWidth = timelineTimeViewportWidth(el);
-      setHeaderOffsetPx(timelineHeaderOffsetWidth(el));
-      setTimeViewportPx(timeWidth);
+      const next = measureTimelineColumns(el);
+      setColumns((prev) => (shallow(prev, next) ? prev : next));
+      const timeWidth = next.timePx;
       stageHeightRef.current = el.clientHeight;
       refitLanes();
       if (useDawStore.getState().followingClientId) {
@@ -706,8 +707,10 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
               "--marker-row-height": `${MARKER_ROW_HEIGHT}px`,
               "--lane-height": `${laneHeight}px`,
               "--marker-lane-height": `${markerLaneHeightPx}px`,
-              // The well-edge vignette starts past the header column.
+              // The stage edges sit inside the header column and scrollbars.
               "--timeline-header-offset": `${headerOffsetPx}px`,
+              "--timeline-scrollbar-inline": `${columns.scrollbarInlinePx}px`,
+              "--timeline-scrollbar-block": `${columns.scrollbarBlockPx}px`,
               // Only fixed-playhead CSS reads these; keep them off other
               // views so a resize there restyles nothing.
               ...(fixedPlayhead

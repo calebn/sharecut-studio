@@ -8,6 +8,7 @@ import {
   fixedPlayheadLinePx,
   logicalToDomScrollLeft,
   MIN_TIMELINE_WIDTH_PX,
+  measureTimelineColumns,
   minLogicalScrollLeft,
   scrollLeftToCenterSec,
   timelineCanvasSize,
@@ -49,6 +50,39 @@ describe("timelineViewport", () => {
   it("handles a null scroll element", () => {
     expect(timelineHeaderOffsetWidth(null)).toBe(0);
     expect(timelineTimeViewportWidth(null)).toBe(0);
+  });
+
+  it("measures the header, time column and classic scrollbars together", () => {
+    const header = { offsetWidth: 180 };
+    const el = {
+      clientWidth: 785,
+      clientHeight: 588,
+      offsetWidth: 800,
+      offsetHeight: 600,
+      querySelector: () => header,
+    };
+    expect(measureTimelineColumns(el)).toEqual({
+      headerPx: 180,
+      timePx: 605,
+      scrollbarInlinePx: 15,
+      scrollbarBlockPx: 12,
+    });
+  });
+
+  it("reports no scrollbars when they overlay the content", () => {
+    const el = {
+      clientWidth: 400,
+      clientHeight: 300,
+      offsetWidth: 400,
+      offsetHeight: 300,
+      querySelector: () => null,
+    };
+    expect(measureTimelineColumns(el)).toEqual({
+      headerPx: 0,
+      timePx: 400,
+      scrollbarInlinePx: 0,
+      scrollbarBlockPx: 0,
+    });
   });
 });
 

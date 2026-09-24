@@ -157,12 +157,17 @@ Dark mode keeps the stage darkest with lanes one step up. The playhead is the
 accent in each theme. Waveforms take their tints from each clip's own fill
 (`clipWaveformFill`), mirrored around the midline. The empty-session stage
 keeps a decorative grid; lanes do not, because a grid that ignores the ruler
-reads as false time divisions. The well falls off toward its inline edges
-(`--bg-well-vignette` from `--color-well-vignette`, `--z-stage-vignette`):
-the falloff is `--space-6` wide, starts below the ruler, lies over lanes and
-clips, and stays under the playhead and track headers. It is a black wash
-capped at 24% (dark) and 8% (light), so white clip labels only gain contrast
-(`tests/test_brand_color_roles.py`).
+reads as false time divisions. The lane floor falls off toward the well's
+inline edges (#387): two strips `--timeline-edge-width` (1.5rem) wide
+(`--bg-timeline-edge-start` and `-end`, from `--color-timeline-edge`), from
+below the ruler and inside the header column and the classic scrollbars,
+which TimelineView measures. The wash is black, 24% in the dark theme and 6%
+in the light (`tests/test_brand_color_roles.py` caps it at 24% and 8%). It
+sits at `--z-timeline-edge`, under every other stage layer, so clips and
+their labels paint above it and keep their contrast
+(`tests/test_css_policy.py`); forced colors hide it. It is not
+`--color-timeline-vignette`, the empty stage's inset hover shadow
+(transparent in the light theme).
 
 **Transport.** The transport is fixed dark in both themes (`--color-transport-*`,
 `--bg-transport`, `--shadow-transport-*`). Play is the only orange control and

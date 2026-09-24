@@ -430,13 +430,26 @@ describe("TimelineView lane fit", () => {
     expect(watching).toHaveLength(1);
   });
 
-  it("measures the header column for chrome drawn over the stage (#387)", () => {
-    Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
-      configurable: true,
-      get(this: HTMLElement) {
-        return this.classList.contains("track-headers") ? 180 : 0;
-      },
-    });
+  it("insets the stage edges by the header column and scrollbars (#387)", () => {
+    let headerPx = 180;
+    // Classic scrollbars: 15px beside the scrollport, 12px below it.
+    const sides = {
+      offsetWidth: { size: "width", scrollbar: 15, header: () => headerPx },
+      offsetHeight: { size: "height", scrollbar: 12, header: () => 0 },
+    } as const;
+    const spies = (["offsetWidth", "offsetHeight"] as const).map((prop) =>
+      vi.spyOn(HTMLElement.prototype, prop, "get").mockImplementation(function (
+        this: HTMLElement,
+      ) {
+        const side = sides[prop];
+        if (this.classList.contains("track-headers")) {
+          return side.header();
+        }
+        return this.classList.contains("timeline-scroll")
+          ? stubbedSize[side.size] + side.scrollbar
+          : 0;
+      }),
+    );
     try {
       const { container } = render(
         <DawProvider
@@ -446,15 +459,25 @@ describe("TimelineView lane fit", () => {
           <TimelineView headerSlot={<div className="track-headers" />} />
         </DawProvider>,
       );
-      // The well-edge vignette starts after the headers in every mode, not
-      // only under the phone's fixed playhead.
-      expect(
-        (
-          container.querySelector(".timeline-area") as HTMLElement
-        ).style.getPropertyValue("--timeline-header-offset"),
-      ).toBe("180px");
+      const area = container.querySelector(".timeline-area") as HTMLElement;
+      const edge = (name: string) => area.style.getPropertyValue(name);
+      // In every mode, not only under the phone's fixed playhead.
+      expect(edge("--timeline-header-offset")).toBe("180px");
+      expect(edge("--timeline-scrollbar-inline")).toBe("15px");
+      expect(edge("--timeline-scrollbar-block")).toBe("12px");
+
+      // A header-only resize (a density switch) reaches the edge too.
+      const header = container.querySelector(".track-headers") as Element;
+      const ro = RecordingResizeObserver.all.find((o) =>
+        o.targets.includes(header),
+      );
+      headerPx = 140;
+      act(() => ro?.fire(stubbedSize.width, stubbedSize.height, header));
+      expect(edge("--timeline-header-offset")).toBe("140px");
     } finally {
-      Reflect.deleteProperty(HTMLElement.prototype, "offsetWidth");
+      for (const spy of spies) {
+        spy.mockRestore();
+      }
     }
   });
 

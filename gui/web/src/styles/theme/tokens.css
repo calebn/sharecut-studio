@@ -59,14 +59,14 @@
   --focus-ring-offset: 0.125rem;
 
   /* Z-index scale */
+  /* Stage edge falloff: over the lane floor, under the clips (--z-clip). */
+  --z-timeline-edge: 0;
   --z-clip: 1;
   --z-fade: 2;
   --z-overlay: 3;
   --z-handle: 4;
   --z-join: 5;
   --z-bubble: 6;
-  /* Well-edge vignette: over lanes and clips, under the playhead. */
-  --z-stage-vignette: 7;
   --z-playhead: 10;
   --z-track-header: 12;
   --z-sheet: 40;
@@ -84,6 +84,8 @@
   /* stylelint-disable-next-line meowtec/no-px -- user-approved: canvas marker lane height */
   --marker-lane-height: 72px;
   --header-width: 11.25rem;
+  /* Stage edge falloff width: a geometry, not a spacing step. */
+  --timeline-edge-width: 1.5rem;
   --inspector-width: 17.5rem;
   --transport-height: 3.5rem;
   /* Control heights: one per role so rows line up. */
@@ -103,13 +105,16 @@
     color-mix(in srgb, var(--color-timeline-playhead) 35%, transparent),
     transparent 72%
   );
-  /* Stage edge falloff: the well darkens toward its inline edges. */
-  --bg-well-vignette: linear-gradient(
+  /* Stage edge falloff (#387), one strip per inline edge. */
+  --bg-timeline-edge-start: linear-gradient(
     to right,
-    var(--color-well-vignette),
-    transparent var(--space-6),
-    transparent calc(100% - var(--space-6)),
-    var(--color-well-vignette)
+    var(--color-timeline-edge),
+    transparent
+  );
+  --bg-timeline-edge-end: linear-gradient(
+    to left,
+    var(--color-timeline-edge),
+    transparent
   );
   --bg-empty-stage-card: color-mix(
     in srgb,

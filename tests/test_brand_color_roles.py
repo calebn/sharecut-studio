@@ -311,9 +311,23 @@ def test_daw_functional_accent_follows_brand_var() -> None:
         assert light["--color-badge-fg"] == "var(--color-text-secondary)"
 
 
+def _rgb(value: str) -> tuple[int, int, int]:
+    """#rrggbb as its red, green and blue bytes."""
+    red, green, blue = (int(value[index : index + 2], 16) for index in (1, 3, 5))
+    return red, green, blue
+
+
+def _mix(top: str, bottom: str, alpha: float) -> str:
+    """`top` at `alpha` composited over opaque `bottom` (sRGB source-over)."""
+    return "#" + "".join(
+        f"{round(upper * alpha + lower * (1 - alpha)):02x}"
+        for upper, lower in zip(_rgb(top), _rgb(bottom), strict=True)
+    )
+
+
 def _contrast_ratio(first: str, second: str) -> float:
     def luminance(value: str) -> float:
-        channels = [int(value[index : index + 2], 16) / 255 for index in (1, 3, 5)]
+        channels = [channel / 255 for channel in _rgb(value)]
         linear = [
             channel / 12.92 if channel <= 0.04045 else ((channel + 0.055) / 1.055) ** 2.4
             for channel in channels
@@ -378,7 +392,7 @@ def _resolve_hex(name: str, roles: dict[str, str]) -> str:
 
 def _hue_distance(first: str, second: str) -> float:
     def hue(value: str) -> float:
-        red, green, blue = (int(value[index : index + 2], 16) / 255 for index in (1, 3, 5))
+        red, green, blue = (channel / 255 for channel in _rgb(value))
         return colorsys.rgb_to_hls(red, green, blue)[0] * 360
 
     distance = abs(hue(first) - hue(second)) % 360
@@ -448,10 +462,7 @@ def test_transport_inks_meet_contrast_on_the_strip() -> None:
     # The live REC chip: transport text on the danger tint over the strip.
     danger = _resolve_hex("--color-transport-danger", fixed)
     for fill in fills:
-        tinted = "#" + "".join(
-            f"{round(int(danger[i : i + 2], 16) * 0.18 + int(fill[i : i + 2], 16) * 0.82):02x}"
-            for i in (1, 3, 5)
-        )
+        tinted = _mix(danger, fill, 0.18)
         text = _resolve_hex("--color-transport-text", fixed)
         assert _contrast_ratio(text, tinted) >= 4.5, ("REC chip", fill)
     for ink in (
@@ -477,33 +488,16 @@ def test_brand_accent_text_reads_on_canvas_and_surface() -> None:
 _BLACK_WASH_RE = re.compile(
     r"color-mix\(in srgb, var\(--primitive-black\) (\d+(?:\.\d+)?)%, transparent\)"
 )
-CLIP_FILL_ROLES = (
-    "--color-clip-dialogue-0",
-    "--color-clip-dialogue-1",
-    "--color-clip-dialogue-2",
-    "--color-clip-music",
-    "--color-clip-sfx",
-)
 
 
-def _under_black(color: str, alpha: float) -> str:
-    return "#" + "".join(f"{round(int(color[i : i + 2], 16) * (1 - alpha)):02x}" for i in (1, 3, 5))
-
-
-@pytest.mark.parametrize(("theme", "cap"), [("dark", 0.25), ("light", 0.08)])
-def test_well_vignette_is_a_faint_black_wash(theme: str, cap: float) -> None:
-    """The well-edge vignette (#387) darkens toward the stage edges. As a
-    black wash it can only raise the white clip labels' contrast, and the cap
-    keeps waveform tints readable at its darkest point."""
+@pytest.mark.parametrize(("theme", "cap"), [("dark", 0.24), ("light", 0.08)])
+def test_timeline_edge_is_a_faint_black_wash(theme: str, cap: float) -> None:
+    """The stage edge falloff (#387) is a capped black wash, so the lane floor
+    only dims toward the well's edges. Clips and their labels sit above it
+    (test_css_policy.py::test_timeline_edge_stays_under_the_clips), so it never
+    touches their contrast. The prefers-light block matches data-theme light
+    (test_theme_light_prefers_matches_data_theme)."""
     roles = _studio_roles(theme)
-    wash = _BLACK_WASH_RE.fullmatch(roles["--color-well-vignette"])
-    assert wash, f"{theme} --color-well-vignette must be a black color-mix"
-    alpha = float(wash.group(1)) / 100
-    assert 0 < alpha <= cap, (theme, alpha)
-    label = _resolve_hex("--color-clip-label", roles)
-    for role in CLIP_FILL_ROLES:
-        fill = _resolve_hex(role, roles)
-        assert _contrast_ratio(label, _under_black(fill, alpha)) >= _contrast_ratio(label, fill), (
-            theme,
-            role,
-        )
+    wash = _BLACK_WASH_RE.fullmatch(roles["--color-timeline-edge"])
+    assert wash, f"{theme} --color-timeline-edge must be a black color-mix"
+    assert 0 < float(wash.group(1)) / 100 <= cap, theme

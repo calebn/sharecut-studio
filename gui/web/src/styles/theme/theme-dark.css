@@ -32,12 +32,6 @@
   /* Dark stage: darkest region, lanes one step up, content carries color. */
   --color-timeline-well: var(--primitive-neutral-975);
   --color-timeline-lane: var(--primitive-neutral-900);
-  /* Edge falloff on the stage: a faint black wash (#387). */
-  --color-well-vignette: color-mix(
-    in srgb,
-    var(--primitive-black) 24%,
-    transparent
-  );
   --color-timeline-lane-muted: var(--primitive-neutral-950);
   --color-timeline-border: var(--primitive-neutral-800);
   --color-timeline-text: var(--primitive-neutral-425);
@@ -49,6 +43,14 @@
   --color-timeline-vignette: color-mix(
     in srgb,
     var(--primitive-black) 30%,
+    transparent
+  );
+  /* Stage edge falloff (#387): a faint black wash on the lane floor at
+     the well's inline edges, under the clips. The vignette above is the
+     empty stage's inset hover shadow. */
+  --color-timeline-edge: color-mix(
+    in srgb,
+    var(--primitive-black) 24%,
     transparent
   );
   --color-timeline-playhead: var(--primitive-orange-250);
