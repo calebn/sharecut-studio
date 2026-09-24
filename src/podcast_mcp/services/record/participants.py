@@ -113,6 +113,15 @@ class RecordParticipantStore:
                 (now, participant_id),
             )
 
+    def revoke(self, participant_id: str, *, session_id: str) -> None:
+        """Expire one participant's lease without changing the room roster."""
+        with self._lock:
+            self._conn.execute(
+                """UPDATE record_participants SET lease_expires_ns = 0
+                WHERE participant_id = ? AND session_id = ?""",
+                (participant_id, session_id),
+            )
+
     def clear_all(self) -> None:
         with self._lock:
             self._conn.execute("DELETE FROM record_participants")

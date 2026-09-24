@@ -1091,9 +1091,34 @@ def test_guest_keeper_upload_rejected_after_host_removal(
     ok = _post_keeper(client, token, pid, lease, take=0)
     assert ok.status_code == 200, ok.text
     _host_cmd(svc, "RemoveParticipant", now=1500, payload={"participant_id": pid})
+    assert not svc.verify_lease(pid, lease, token=token)
+    status = client.get(
+        f"/api/rec/{token}/upload",
+        headers={"X-Record-Participant": pid, "X-Record-Lease": lease},
+    )
+    assert status.status_code == 403, status.text
+    assert status.json()["detail"] == "invalid lease"
     denied = _post_keeper(client, token, pid, lease, take=0, segment=1)
     assert denied.status_code == 403, denied.text
-    assert denied.json()["detail"] == "consent required"
+    assert denied.json()["detail"] == "invalid lease"
+
+
+def test_removed_guest_fails_lease_check_if_revocation_is_interrupted(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    token = room["guest"]["token"]
+    svc = RecordSessionService(_ws.project, session_id=room["session_id"])
+    pid, lease = _guest_join(svc, room, name="Ava", conn="a1")
+    monkeypatch.setattr(svc._participants, "revoke", lambda *args, **kwargs: None)
+    _host_cmd(svc, "RemoveParticipant", now=1500, payload={"participant_id": pid})
+    assert svc._participants.verify(pid, lease, token=token, session_id=room["session_id"])
+    denied = client.get(
+        f"/api/rec/{token}/upload",
+        headers={"X-Record-Participant": pid, "X-Record-Lease": lease},
+    )
+    assert denied.status_code == 403
+    assert denied.json()["detail"] == "invalid lease"
 
 
 def test_guest_keeper_upload_rechecks_consent_after_body_read(

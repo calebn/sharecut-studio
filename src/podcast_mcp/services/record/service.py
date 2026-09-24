@@ -37,6 +37,7 @@ from podcast_mcp.services.record.state import (
     RecordRole,
     RecordSnapshot,
     empty_record_snapshot,
+    find_participant,
     guest_upload_consented,
     recording_ms,
     recording_ms_at,
@@ -356,6 +357,9 @@ class RecordSessionService:
     def verify_lease(self, participant_id: str, lease: str, *, token: str) -> bool:
         if participant_id == HOST_PARTICIPANT_ID:
             return False
+        person = find_participant(self._model(), participant_id)
+        if person is None or person.removed:
+            return False
         return self._participants.verify(
             participant_id,
             lease,
@@ -403,12 +407,7 @@ class RecordSessionService:
             pid = HOST_PARTICIPANT_ID
             lease_out = ""
         elif participant_id and lease:
-            if not self._participants.verify(
-                participant_id,
-                lease,
-                token=token,
-                session_id=self.session_id,
-            ):
+            if not self.verify_lease(participant_id, lease, token=token):
                 raise RecordAuthzError("invalid lease")
             pid = participant_id
             lease_out = lease
@@ -529,6 +528,10 @@ class RecordSessionService:
             apply_fn=apply_fn,
             empty_snap_fn=self._empty,
         )
+        if cmd.type == "RemoveParticipant":
+            self._participants.revoke(
+                str(cmd.payload["participant_id"]), session_id=self.session_id
+            )
         if cmd.type == "Comment" and idempotent:
             self._upsert_comment(cmd)
         api = self.snapshot()
