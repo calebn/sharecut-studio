@@ -323,7 +323,9 @@ export function TransportBar({
           </CommandButton>
         ) : null}
         {!collapsed && !stale ? <Pill tone="ok">Fresh</Pill> : null}
-        {audioError && (
+        {/* Like the stale pill, status moves into the Menu when collapsed
+            (Render status), where touch users can read the full message. */}
+        {!collapsed && audioError && (
           <Pill tone="warning" className="audio-error" title={audioError}>
             <span aria-hidden="true">{audioErrorLabel(audioError)}</span>
             <span className="sr-only">{audioError}</span>
@@ -500,6 +502,11 @@ export function TransportBar({
             ) : null}
             {collapsed ? (
               <MenuSection label="Render status">
+                {audioError ? (
+                  <p className="transport-menu-note audio-error-note">
+                    {audioErrorLabel(audioError)}: {audioError}
+                  </p>
+                ) : null}
                 {stale && mayRefresh ? (
                   <CommandMenuItem
                     commandId="render.refreshMix"
