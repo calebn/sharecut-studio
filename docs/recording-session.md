@@ -672,8 +672,10 @@ participant's live consent flag. Takes stored before this change have
 back to "participant exists and has not declined" (`consented is not False`).
 
 A host **RemoveParticipant** drops the target from the current take's roster,
-and a removed participant is refused for every take and for room tone (removal
-is permanent). A recorded participant who consented and then lost their
+expires that participant's record lease, and refuses the removed participant's
+lease even if the expiration write was interrupted. Upload status and keeper
+parts return `403 invalid lease`; removal also refuses every take and room tone
+(removal is permanent). A recorded participant who consented and then lost their
 connection before Start (without being removed) is still in the new take's
 roster. That way a brief network drop at Start does not cost them the take, and
 they still need a valid lease to upload. The guest route checks consent again

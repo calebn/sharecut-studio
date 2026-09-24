@@ -47,3 +47,17 @@ def test_verify_rejects_expired_lease(tmp_path: Path) -> None:
         )
     assert not store.verify(pid, lease, token="cool-token", session_id="sess")
     store.close()
+
+
+def test_revoke_is_scoped_to_session_and_persists(tmp_path: Path) -> None:
+    path = tmp_path / "sync.db"
+    store = RecordParticipantStore(path)
+    pid, lease = store.mint(session_id="sess", token="cool-token", role="guest", display_name="Ava")
+    store.revoke(pid, session_id="other-sess")
+    assert store.verify(pid, lease, token="cool-token", session_id="sess")
+    store.revoke(pid, session_id="sess")
+    assert not store.verify(pid, lease, token="cool-token", session_id="sess")
+    store.close()
+    reopened = RecordParticipantStore(path)
+    assert not reopened.verify(pid, lease, token="cool-token", session_id="sess")
+    reopened.close()
