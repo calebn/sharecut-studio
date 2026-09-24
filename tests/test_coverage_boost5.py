@@ -153,6 +153,38 @@ def test_document_ws_submit_runs_off_event_loop(minimal_project, monkeypatch):
     assert thread_ids["snapshot"] != thread_ids["loop"]
 
 
+def test_document_ws_subscribes_before_initial_snapshot(minimal_project, monkeypatch):
+    from podcast_mcp.services.document_sync import DocumentSyncService
+    from podcast_mcp.services.document_sync.service import document_hub_key
+    from podcast_mcp.services.session_sync.hub import get_hub
+
+    original_snapshot = DocumentSyncService.document_snapshot
+    published = False
+
+    def snapshot_with_concurrent_event(self, *args, **kwargs):
+        nonlocal published
+        snapshot = original_snapshot(self, *args, **kwargs)
+        if not published:
+            published = True
+            get_hub().publish(
+                document_hub_key(self.project),
+                {
+                    "type": "Applied",
+                    "plane": "document",
+                    "server_seq": 999,
+                    "snapshot": {"server_seq": 999},
+                },
+            )
+        return snapshot
+
+    monkeypatch.setattr(DocumentSyncService, "document_snapshot", snapshot_with_concurrent_event)
+    client = TestClient(create_app())
+    url = f"/api/document/ws?path={quote(str(minimal_project))}&client_id=ws-race&role=viewer"
+    with client.websocket_connect(url) as ws:
+        assert ws.receive_json()["type"] == "Snapshot"
+        assert ws.receive_json()["server_seq"] == 999
+
+
 def test_document_ws_guest_denied(minimal_project):
     client = TestClient(create_app())
     url = f"/api/document/ws?path={quote(str(minimal_project))}&client_id=g1&role=guest"

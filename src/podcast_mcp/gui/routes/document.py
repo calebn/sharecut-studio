@@ -134,33 +134,35 @@ async def document_ws(
         await websocket.close(code=4403, reason=decision.reason[:120])
         return
 
-    def open_document() -> tuple[ProjectWorkspace, DocumentSyncService, dict[str, Any]]:
+    def open_document() -> tuple[ProjectWorkspace, DocumentSyncService]:
         ws_proj = ProjectWorkspace.open(project_path)
         svc = DocumentSyncService(ws_proj)
-        return ws_proj, svc, svc.document_snapshot(projection="shell")
+        return ws_proj, svc
 
-    ws_proj, svc, initial_snapshot = await run_in_threadpool(open_document)
+    ws_proj, svc = await run_in_threadpool(open_document)
     await websocket.accept()
     hub = get_hub()
     key = document_hub_key(ws_proj.project)
     loop = asyncio.get_running_loop()
     queue = hub.subscribe(key, loop)
-    await websocket.send_json(
-        {
-            "type": "Snapshot",
-            "plane": "document",
-            "snapshot": initial_snapshot,
-        }
-    )
-
-    async def _pump_hub() -> None:
-        while True:
-            event = await queue.get()
-            await websocket.send_json(event)
-
-    hub_task = asyncio.create_task(_pump_hub())
-    seq = 1
+    hub_task: asyncio.Task[None] | None = None
     try:
+        initial_snapshot = await run_in_threadpool(svc.document_snapshot, projection="shell")
+        await websocket.send_json(
+            {
+                "type": "Snapshot",
+                "plane": "document",
+                "snapshot": initial_snapshot,
+            }
+        )
+
+        async def _pump_hub() -> None:
+            while True:
+                event = await queue.get()
+                await websocket.send_json(event)
+
+        hub_task = asyncio.create_task(_pump_hub())
+        seq = 1
         while True:
             try:
                 raw_msg = await websocket.receive_text()
@@ -192,6 +194,7 @@ async def document_ws(
                 await websocket.send_json({"type": "Error", "detail": str(exc)})
     finally:
         hub.unsubscribe(key, queue)
-        hub_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError, Exception):
-            await hub_task
+        if hub_task is not None:
+            hub_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await hub_task
