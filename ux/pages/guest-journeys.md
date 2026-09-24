@@ -179,8 +179,11 @@ flowchart TD
    not show this native prompt.
 7. If the microphone ends involuntarily, the local keeper closes its current
    segment and a persistent warning offers **Reconnect microphone**. The room
-   clock can still show REC, but the local recording copy is paused. Reconnect
-   opens a new segment at the current room clock; if a selected device was
+   clock follows the shared take while REC says local capture failed and has no
+   healthy dot. Reconnect changes the local label to waiting for microphone;
+   failed retry returns to failed, and a live stream restores healthy REC.
+   Stop clears the mic-loss warning but retains incomplete keeper recovery.
+   Reconnect opens a new segment at the current room clock; if a selected device was
    unplugged, recovery can use the default available input. In the lobby,
    microphone loss disables Accept until recovery.
    If the host microphone is denied or missing during REC, the Record room

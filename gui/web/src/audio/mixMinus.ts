@@ -85,13 +85,7 @@ export class MixMinusGraph {
   }
 
   connectLocal(source: AudioNode): void {
-    if (this.local) {
-      this.local.disconnect(this.tap);
-      if (this.sidetone) {
-        this.local.disconnect(this.sidetone);
-      }
-      this.forgetFrom(this.localId);
-    }
+    this.disconnectLocal();
     this.local = source;
     source.connect(this.tap);
     this.recorded.push({ from: this.localId, to: "tap" });
@@ -104,6 +98,18 @@ export class MixMinusGraph {
         gainDb: this.sidetoneGainDb,
       });
     }
+  }
+
+  disconnectLocal(): void {
+    if (!this.local) {
+      return;
+    }
+    this.local.disconnect(this.tap);
+    if (this.sidetone) {
+      this.local.disconnect(this.sidetone);
+    }
+    this.local = null;
+    this.forgetFrom(this.localId);
   }
 
   addRemote(id: string, source: AudioNode, atTime?: number): void {
@@ -163,16 +169,10 @@ export class MixMinusGraph {
     for (const id of [...this.remotes.keys()]) {
       this.detachRemote(id);
     }
-    if (this.local) {
-      this.local.disconnect(this.tap);
-      if (this.sidetone) {
-        this.local.disconnect(this.sidetone);
-      }
-    }
+    this.disconnectLocal();
     this.sidetone?.disconnect();
     this.tap.disconnect();
     this.speaker.disconnect();
-    this.local = null;
     this.recorded.length = 0;
   }
 

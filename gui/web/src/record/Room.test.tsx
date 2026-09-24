@@ -130,6 +130,49 @@ describe("Room", () => {
       screen.getByRole("button", { name: "Reconnect microphone" }),
     );
     expect(retry).toHaveBeenCalledOnce();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "REC — local capture failed",
+    );
+    expect(document.querySelector(".record-rec-dot")).toBeNull();
+  });
+
+  it("shows retry acquisition and recovery without changing the room clock", () => {
+    const props = {
+      snapshot,
+      me,
+      onMute: () => undefined,
+      onLeave: () => undefined,
+    };
+    const { rerender } = render(<Room {...props} micLost />);
+    expect(screen.getByRole("status")).toHaveTextContent("0:01");
+    rerender(<Room {...props} micLost micPending />);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "REC — waiting for microphone",
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("0:01");
+    rerender(<Room {...props} micLost />);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "REC — local capture failed",
+    );
+    rerender(<Room {...props} />);
+    expect(screen.getByRole("status")).toHaveTextContent("REC0:01");
+    expect(document.querySelector(".record-rec-dot")).not.toBeNull();
+  });
+
+  it("clears mic loss after Stop but preserves keeper recovery", () => {
+    render(
+      <Room
+        snapshot={{ ...snapshot, state: "stopped" }}
+        me={me}
+        onMute={() => undefined}
+        onLeave={() => undefined}
+        micLost
+        keeperError="incomplete keeper"
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Stopped");
+    expect(screen.queryByText(/Microphone disconnected/)).toBeNull();
+    expect(screen.getByText(/incomplete keeper/)).toBeInTheDocument();
   });
 
   it("re-enables Leave after file ACK or upload error", () => {

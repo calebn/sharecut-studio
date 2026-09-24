@@ -36,6 +36,7 @@ type Props = {
   monitorError?: string | null;
   upload?: RecordUploadProgress;
   micLost?: boolean;
+  micPending?: boolean;
   onRetryMic?: () => void;
   onResumeUpload?: () => void;
   keeperActions?: KeeperRecoveryActions;
@@ -59,6 +60,7 @@ export function Room({
   monitorError = null,
   upload,
   micLost = false,
+  micPending = false,
   onRetryMic,
   onResumeUpload,
   keeperActions,
@@ -67,15 +69,21 @@ export function Room({
     !connected &&
     (snapshot.state === "recording" || snapshot.state === "paused");
   const leaveHeld = leaveBlocked(snapshot.state, upload);
+  const micLossDuringTake =
+    micLost && (snapshot.state === "recording" || snapshot.state === "paused");
   return (
     <div className="stack">
-      <RecIndicator snapshot={snapshot} captureFailed={!!keeperError} />
+      <RecIndicator
+        snapshot={snapshot}
+        captureFailed={!!keeperError || (micLossDuringTake && !micPending)}
+        capturePending={micLossDuringTake && micPending && !keeperError}
+      />
       <div aria-live="polite">
         {hostOffline ? (
           <p className="record-warn">{HOST_OFFLINE_COPY}</p>
         ) : null}
         {recordingLocally && !keeperError ? <p>{LOCAL_KEEPER_COPY}</p> : null}
-        {micLost ? <MicLossNotice onRetry={onRetryMic} /> : null}
+        {micLossDuringTake ? <MicLossNotice onRetry={onRetryMic} /> : null}
         {hearing && !hostOffline ? <p>{HEARING_COPY}</p> : null}
         {keeperError ? (
           <>
