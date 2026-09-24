@@ -27,24 +27,36 @@ import { useDaw } from "../state/useDaw";
 import { TimelineView } from "../timeline/TimelineView";
 import { TrackHeadersColumn } from "../tracks/TrackHeadersColumn";
 import type { PresenceTab } from "../types/session";
-import { BottomSheet, CommandButton, Icon, ToggleButton } from "../ui";
+import {
+  BottomSheet,
+  CommandButton,
+  Icon,
+  type IconName,
+  Timecode,
+  ToggleButton,
+} from "../ui";
 import { isPipelineSlotBusy, pipelineChipOpensPanel } from "../utils/pipeline";
 import { staleRenderBreakdown } from "../utils/staleRender";
-import { formatTimecodePair } from "../utils/time";
+import {
+  formatTime,
+  formatTimecodeCompact,
+  formatTimecodePair,
+} from "../utils/time";
 import { AvatarStack } from "./AvatarStack";
 import { EditingToolRail } from "./EditingToolRail";
 import { FollowBanner } from "./FollowBanner";
 import { GuestAttentionBanner } from "./GuestAttentionBanner";
+import { ListenHero } from "./ListenHero";
 import { OverlayLegend } from "./OverlayLegend";
 import { PipelineStatusChip } from "./PipelineStatusChip";
 import { TransportBar } from "./TransportBar";
 import { TAB_LABELS } from "./tabLabels";
 
-const MODES: { id: MobileMode; label: string }[] = [
-  { id: "listen", label: "Listen" },
-  { id: "timeline", label: "Timeline" },
-  { id: "text", label: "Text" },
-  { id: "more", label: "More" },
+const MODES: { id: MobileMode; label: string; icon: IconName }[] = [
+  { id: "listen", label: "Listen", icon: "listen" },
+  { id: "timeline", label: "Timeline", icon: "timeline" },
+  { id: "text", label: "Text", icon: "text" },
+  { id: "more", label: "More", icon: "more" },
 ];
 
 function MoreHub({ guestShare }: { guestShare: boolean }) {
@@ -149,30 +161,34 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
   if (!project) {
     return (
       <div className="mobile-listen" aria-busy="true">
-        <h1 className="sr-only">Loading episode</h1>
-        <div className="mobile-listen-transport">
-          <CommandButton
-            bare
-            commandId="transport.togglePlay"
-            className="play-btn mobile-play-lg"
-            aria-label="Play"
-            disabled
-            {...presenceAnchorProps(presenceAnchor("transport", "play"))}
-          >
-            Play
-          </CommandButton>
-          <CommandButton
-            bare
-            commandId="transport.stop"
-            className="stop-btn"
-            aria-label="Stop"
-            disabled
-          >
-            <Icon name="stop" />
-          </CommandButton>
-          <span className="timecode">{formatTimecodePair(0, 0)}</span>
-        </div>
-        <p>Loading episode…</p>
+        <ListenHero
+          title="Loading episode…"
+          controls={
+            <>
+              <CommandButton
+                bare
+                commandId="transport.togglePlay"
+                className="play-btn"
+                aria-label="Play"
+                disabled
+                {...presenceAnchorProps(presenceAnchor("transport", "play"))}
+              >
+                <Icon name="play" />
+              </CommandButton>
+              <CommandButton
+                bare
+                commandId="transport.stop"
+                className="stop-btn"
+                aria-label="Stop"
+                disabled
+              >
+                <Icon name="stop" />
+              </CommandButton>
+            </>
+          }
+          timecode={<Timecode current={formatTimecodeCompact(0, 0)} />}
+          scrubber={null}
+        />
       </div>
     );
   }
@@ -186,53 +202,68 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
 
   return (
     <div className="mobile-listen">
-      <h1 className="sr-only">{project.meta.name}</h1>
-      <div className="mobile-listen-transport">
-        <CommandButton
-          bare
-          commandId="transport.togglePlay"
-          className="play-btn mobile-play-lg"
-          {...presenceAnchorProps(presenceAnchor("transport", "play"))}
-        >
-          {isPlaying ? "Pause" : "Play"}
-        </CommandButton>
-        <CommandButton
-          bare
-          commandId="transport.stop"
-          className="stop-btn"
-          aria-label="Stop"
-          {...presenceAnchorProps(presenceAnchor("transport", "stop"))}
-        >
-          <Icon name="stop" />
-        </CommandButton>
-        <span className="timecode">
-          {formatTimecodePair(playheadSec, duration)}
-        </span>
-      </div>
-      <input
-        type="range"
-        className="mobile-scrub"
-        min={0}
-        max={Math.max(duration, 0.01)}
-        step={0.01}
-        value={Math.min(playheadSec, duration)}
-        aria-label="Scrub timeline"
-        onChange={(e) => seekListen(Number(e.target.value))}
+      <ListenHero
+        title={project.meta.name}
+        playing={isPlaying}
+        controls={
+          <>
+            <CommandButton
+              bare
+              commandId="transport.togglePlay"
+              className="play-btn"
+              data-playing={isPlaying}
+              aria-label={isPlaying ? "Pause" : "Play"}
+              {...presenceAnchorProps(presenceAnchor("transport", "play"))}
+            >
+              <Icon name={isPlaying ? "pause" : "play"} />
+            </CommandButton>
+            <CommandButton
+              bare
+              commandId="transport.stop"
+              className="stop-btn"
+              aria-label="Stop"
+              {...presenceAnchorProps(presenceAnchor("transport", "stop"))}
+            >
+              <Icon name="stop" />
+            </CommandButton>
+          </>
+        }
+        timecode={
+          <Timecode
+            current={formatTimecodeCompact(playheadSec, duration)}
+            total={formatTime(duration, { forceHours: duration >= 3600 })}
+            title={formatTimecodePair(playheadSec, duration)}
+          />
+        }
+        scrubber={
+          <input
+            type="range"
+            className="listen-scrub mobile-scrub"
+            min={0}
+            max={Math.max(duration, 0.01)}
+            step={0.01}
+            value={Math.min(playheadSec, duration)}
+            aria-label="Scrub timeline"
+            onChange={(e) => seekListen(Number(e.target.value))}
+          />
+        }
+        skipBack={
+          <button
+            type="button"
+            onClick={() => seekListen(Math.max(0, playheadSec - 15))}
+          >
+            −15s
+          </button>
+        }
+        skipForward={
+          <button
+            type="button"
+            onClick={() => seekListen(Math.min(duration, playheadSec + 15))}
+          >
+            +15s
+          </button>
+        }
       />
-      <div className="mobile-nudge">
-        <button
-          type="button"
-          onClick={() => seekListen(Math.max(0, playheadSec - 15))}
-        >
-          −15s
-        </button>
-        <button
-          type="button"
-          onClick={() => seekListen(Math.min(duration, playheadSec + 15))}
-        >
-          +15s
-        </button>
-      </div>
       <div className="mobile-status-chips">
         {pending > 0 ? (
           <button
@@ -493,7 +524,7 @@ export function MobileShell({ guestShare = false }: { guestShare?: boolean }) {
         )}
       </main>
       <nav className="mobile-nav" aria-label="Primary">
-        {MODES.map(({ id, label }) => (
+        {MODES.map(({ id, label, icon }) => (
           <ToggleButton
             key={id}
             pressed={mobileMode === id}
@@ -506,7 +537,8 @@ export function MobileShell({ guestShare = false }: { guestShare?: boolean }) {
               )
             }
           >
-            {label}
+            <Icon name={icon} size={20} />
+            <span>{label}</span>
           </ToggleButton>
         ))}
       </nav>

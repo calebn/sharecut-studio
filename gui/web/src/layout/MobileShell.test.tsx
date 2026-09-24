@@ -61,10 +61,14 @@ describe("MobileShell", () => {
     const shell = container.querySelector(".daw-shell--phone");
     expect(shell).toHaveClass("daw-shell--listen");
     expect(container.querySelector("header.transport")).toBeNull();
-    expect(container.querySelectorAll(".mobile-listen-transport")).toHaveLength(
-      1,
-    );
-    expect(screen.getByRole("heading", { level: 1 })).toHaveClass("sr-only");
+    // Listen owns the transport as a hero card with the visible project name.
+    expect(container.querySelectorAll(".listen-hero")).toHaveLength(1);
+    const heading = screen.getByRole("heading", { level: 1 });
+    expect(heading).toHaveClass("listen-hero-title");
+    expect(heading).not.toHaveClass("sr-only");
+    expect(
+      screen.getByRole("region", { name: heading.textContent ?? "" }),
+    ).toHaveClass("listen-hero");
     await expectNoA11yViolations(nav);
   });
 
@@ -167,8 +171,9 @@ describe("MobileShell", () => {
     );
 
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    // Listen shows the project name as the hero's visible heading.
     expect(screen.getByRole("heading", { name: "Test Episode" })).toHaveClass(
-      "sr-only",
+      "listen-hero-title",
     );
 
     for (const mode of ["Timeline", "Text", "More"]) {
@@ -180,7 +185,7 @@ describe("MobileShell", () => {
     }
   });
 
-  it("gives Listen loading state a single screen-reader heading", () => {
+  it("gives Listen loading state a single heading", () => {
     useDawStore.getState().hydrate("/tmp/p.json", null);
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={null}>
@@ -189,8 +194,8 @@ describe("MobileShell", () => {
     );
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(
-      screen.getByRole("heading", { name: "Loading episode" }),
-    ).toHaveClass("sr-only");
+      screen.getByRole("heading", { name: "Loading episode…" }),
+    ).toHaveClass("listen-hero-title");
   });
 
   it("opens Gestures from More in an app-level modal and restores focus", async () => {
@@ -696,7 +701,7 @@ describe("MobileShell", () => {
         .getAllByRole("button", { name: "Stop" })
         .every((el) => el.hasAttribute("disabled")),
     ).toBe(true);
-    expect(document.querySelector(".mobile-play-lg")).toHaveAttribute(
+    expect(document.querySelector(".listen-hero .play-btn")).toHaveAttribute(
       "aria-label",
       "Play",
     );
