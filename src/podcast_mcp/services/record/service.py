@@ -55,6 +55,7 @@ _SID_TTL_S = 0.5
 _SEQ = itertools.count(1)
 _PART_CACHE: dict[str, RecordParticipantStore] = {}
 _STORE_LOCK = threading.Lock()
+_AUTHORITIES: dict[str, tuple[threading.RLock, set[tuple[str, str]]]] = {}
 _SID_CACHE: dict[str, tuple[float, str | None]] = {}
 
 
@@ -88,6 +89,7 @@ def reset_record_runtime_for_tests() -> None:
     with _STORE_LOCK:
         parts = list(_PART_CACHE.values())
         _PART_CACHE.clear()
+        _AUTHORITIES.clear()
     for store in stores:
         store.close()
     for upload_store in upload_stores:
@@ -112,6 +114,12 @@ def _guest_key(hub_key: str, participant_id: str) -> str:
 
 def _workspace_cache_key(project: EpisodeProject) -> str:
     return str(project.workspace_path())
+
+
+def _authority_for(project: EpisodeProject) -> tuple[threading.RLock, set[tuple[str, str]]]:
+    key = _workspace_cache_key(project)
+    with _STORE_LOCK:
+        return _AUTHORITIES.setdefault(key, (threading.RLock(), set()))
 
 
 def invalidate_record_session_cache(project: EpisodeProject) -> None:
@@ -329,6 +337,7 @@ class RecordSessionService:
         self._participants = _participants_for(project)
         self._comments = live_comment_store_for(project)
         self._hub_key = record_hub_key(project)
+        self._authority_lock, self._removed_ids = _authority_for(project)
 
     @staticmethod
     def active_session_id(project: EpisodeProject) -> str | None:
@@ -369,8 +378,47 @@ class RecordSessionService:
 
     def participant_active(self, participant_id: str) -> bool:
         """Whether a joined participant still belongs to this room."""
-        person = find_participant(self._model(), participant_id)
-        return person is not None and not person.removed
+        with self._authority_lock:
+            if (self.session_id, participant_id) in self._removed_ids:
+                return False
+            person = find_participant(self._model(), participant_id)
+            return person is not None and not person.removed
+
+    def participant_not_removed_in_runtime(self, participant_id: str) -> bool:
+        """Cheap same-process removal check for hot WebSocket frames."""
+        with self._authority_lock:
+            return (self.session_id, participant_id) not in self._removed_ids
+
+    def signal(
+        self,
+        *,
+        participant_id: str,
+        connection_id: str | None,
+        payload: dict[str, Any],
+        role: RecordRole,
+        capabilities: list[str] | None,
+    ) -> dict[str, Any]:
+        """Authorize and fan out a Signal against one room membership decision."""
+        with self._authority_lock:
+            snap = self._model()
+            person = find_participant(snap, participant_id)
+            if person is None or person.removed:
+                raise RecordStateError("participant removed")
+            if connection_id is not None:
+                if not connection_holds(self._hub_key, participant_id, connection_id):
+                    raise RecordStateError("stale_connection")
+                touch_connection(participant_id, connection_id, hub_key=self._hub_key)
+            roster_ids = {
+                target.participant_id for target in snap.participants if not target.removed
+            }
+            return fanout_record_signal(
+                self._hub_key,
+                from_id=participant_id,
+                payload=payload,
+                role=role,
+                capabilities=capabilities,
+                roster_ids=roster_ids,
+            )
 
     def upload_consented(self, participant_id: str, *, take_index: int | None) -> bool:
         return guest_upload_consented(self._model(), participant_id, take_index=take_index)
@@ -472,6 +520,25 @@ class RecordSessionService:
         connection_id: str | None = None,
         host_offline_since: int | None = None,
     ) -> dict[str, Any]:
+        with self._authority_lock:
+            return self._submit_locked(
+                cmd,
+                now_wall_ms=now_wall_ms,
+                capabilities=capabilities,
+                connection_id=connection_id,
+                host_offline_since=host_offline_since,
+            )
+
+    def _submit_locked(
+        self,
+        cmd: RecordCommand,
+        *,
+        now_wall_ms: int | None,
+        capabilities: list[str] | None,
+        connection_id: str | None,
+        host_offline_since: int | None,
+    ) -> dict[str, Any]:
+        """Keep authorization, append, side effects, and removal in one room decision."""
         caps = list(capabilities or [])
         if cmd.role == "host" and not caps:
             caps = ["join", "monitor"]
@@ -480,6 +547,12 @@ class RecordSessionService:
             capabilities=caps,
             command_type=cmd.type,
         )
+        if (
+            cmd.role != "host"
+            and cmd.type != "Join"
+            and (not cmd.participant_id or not self.participant_active(cmd.participant_id))
+        ):
+            raise RecordStateError("participant removed")
         wall = time.time_ns() // 1_000_000 if now_wall_ms is None else now_wall_ms
         if cmd.type == "Comment":
             self._rewrite_comment(cmd, now_wall_ms=wall)
@@ -534,6 +607,7 @@ class RecordSessionService:
             empty_snap_fn=self._empty,
         )
         if _row["type"] == "RemoveParticipant":
+            self._removed_ids.add((self.session_id, str(_row["payload"]["participant_id"])))
             self._participants.revoke(
                 str(_row["payload"]["participant_id"]), session_id=self.session_id
             )
@@ -638,26 +712,14 @@ def route_record_ws_message(
     if command_type == "Signal":
         if not participant_id:
             raise ValueError("join_first")
-        if not svc.participant_active(participant_id):
-            raise RecordStateError("participant removed")
-        if connection_id is not None:
-            if not connection_holds(svc._hub_key, participant_id, connection_id):
-                raise RecordStateError("stale_connection")
-            touch_connection(participant_id, connection_id, hub_key=svc._hub_key)
         raw_payload = msg.get("payload")
         payload: dict[str, Any] = raw_payload if isinstance(raw_payload, dict) else {}
-        roster_ids = {
-            str(person.get("participant_id"))
-            for person in svc.snapshot().get("participants") or []
-            if person.get("participant_id")
-        }
-        echo = fanout_record_signal(
-            svc._hub_key,
-            from_id=participant_id,
+        echo = svc.signal(
+            participant_id=participant_id,
+            connection_id=connection_id,
             payload=payload,
             role=role,
             capabilities=capabilities,
-            roster_ids=roster_ids,
         )
         return echo, client_seq + 1
     return apply_record_ws_message(

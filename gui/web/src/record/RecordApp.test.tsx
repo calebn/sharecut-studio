@@ -93,7 +93,7 @@ class FakeSocket {
   readyState = FakeSocket.OPEN;
   onopen: (() => void) | null = null;
   onmessage: ((ev: { data: string }) => void) | null = null;
-  onclose: (() => void) | null = null;
+  onclose: ((ev: { code: number }) => void) | null = null;
   sent: string[] = [];
   reply: "join" | "full" | "declined" = "join";
 
@@ -692,6 +692,27 @@ describe("RecordApp", () => {
         screen.getByText("This recording link is invalid or has ended."),
       ).toBeInTheDocument();
     });
+  });
+
+  it("shows ended access after the room closes with 4403", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (urlOf(input).includes("/bootstrap")) {
+          return new Response(JSON.stringify(guestBootstrap), { status: 200 });
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+    const { container } = render(<RecordApp token="guest-tok" />);
+    await waitFor(() => expect(sockets).toHaveLength(1));
+    sockets[0].onclose?.({ code: 4403 });
+    await waitFor(() => {
+      expect(
+        screen.getByText("Your access to this recording room has ended."),
+      ).toBeInTheDocument();
+    });
+    await expectNoA11yViolations(container);
   });
 
   it("routes room_full to the full-room page without a mic prompt", async () => {

@@ -133,6 +133,7 @@ class GuestWsStream:
 
     queue: asyncio.Queue[str | None] = field(default_factory=asyncio.Queue)
     close_code: int = 1000
+    close_reason: str = ""
 
 
 @dataclass
@@ -447,6 +448,19 @@ def create_relay_app() -> FastAPI:
                     elif mtype == "ws_close":
                         stream = session.ws_streams.pop(str(data.get("id") or ""), None)
                         if stream is not None:
+                            code = data.get("code")
+                            if (
+                                isinstance(code, int)
+                                and 1000 <= code <= 4999
+                                and code
+                                not in (
+                                    1005,
+                                    1006,
+                                    1015,
+                                )
+                            ):
+                                stream.close_code = code
+                            stream.close_reason = str(data.get("reason") or "")[:120]
                             with contextlib.suppress(Exception):
                                 stream.queue.put_nowait(None)
                     elif mtype == "ping":
@@ -780,7 +794,7 @@ def create_relay_app() -> FastAPI:
             with contextlib.suppress(Exception):
                 await session.enqueue_to_host(msg("ws_close", id=stream_id, code=1000, reason=""))
             with contextlib.suppress(Exception):
-                await websocket.close(code=1000)
+                await websocket.close(code=stream.close_code, reason=stream.close_reason)
             if gate_held:
                 get_relay_limiters().ws_concurrent.exit(token)
 

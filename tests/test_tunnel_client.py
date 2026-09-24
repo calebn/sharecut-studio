@@ -696,6 +696,48 @@ async def test_proxy_ws_successful_bridge():
 
 
 @pytest.mark.asyncio
+async def test_proxy_ws_forwards_local_close_code():
+    import websockets
+
+    client = TunnelClient(RelayConfig(local_gui_url="http://127.0.0.1:8765"))
+    sent: list[dict] = []
+
+    async def send(payload: dict) -> None:
+        sent.append(payload)
+
+    class _FakeLocal:
+        close_code = 4403
+        close_reason = "participant removed"
+
+        def __aiter__(self):
+            return self._frames()
+
+        async def _frames(self):
+            if False:
+                yield ""
+
+    class _Ctx:
+        async def __aenter__(self):
+            return _FakeLocal()
+
+        async def __aexit__(self, *args):
+            return False
+
+    with patch.object(websockets, "connect", return_value=_Ctx()):
+        await client._proxy_ws(
+            {"id": "sid-removed", "path": "api/rec/ws", "share_token": "tok"},
+            send=send,
+            streams={},
+        )
+    assert sent[-1] == {
+        "type": "ws_close",
+        "id": "sid-removed",
+        "code": 4403,
+        "reason": "participant removed",
+    }
+
+
+@pytest.mark.asyncio
 async def test_proxy_ws_non_http_base_url():
     client = TunnelClient(RelayConfig(local_gui_url="ws://127.0.0.1:1"))
     sent: list[dict] = []
