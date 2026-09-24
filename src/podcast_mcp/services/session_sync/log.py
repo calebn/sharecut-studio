@@ -312,7 +312,8 @@ class SyncStore:
     ) -> dict[str, Any]:
         """Insert command; returns full row including server_seq.
 
-        Idempotent on (client_id, client_seq) only for the same command_id.
+        Idempotent on (client_id, client_seq). When enforce_command_ids is set,
+        a retry must also have the same command_id.
         """
         with self._lock:
             return self._append_command_unlocked(
