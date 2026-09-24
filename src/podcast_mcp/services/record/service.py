@@ -460,8 +460,11 @@ class RecordSessionService:
             pid = HOST_PARTICIPANT_ID
             lease_out = ""
         elif participant_id and lease:
+            person = find_participant(self._model(), participant_id)
+            if person is not None and person.removed:
+                raise RecordAuthzError("participant_removed")
             if not self.verify_lease(participant_id, lease, token=token):
-                raise RecordAuthzError("invalid lease")
+                raise RecordAuthzError("invalid_lease")
             pid = participant_id
             lease_out = lease
             self._participants.touch(pid)

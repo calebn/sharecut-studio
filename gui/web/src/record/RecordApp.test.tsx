@@ -715,6 +715,48 @@ describe("RecordApp", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("stops a live local capture and offers its keeper after removal", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (urlOf(input).includes("/bootstrap")) {
+          return new Response(JSON.stringify(guestBootstrap), { status: 200 });
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+    const { container } = render(<RecordApp token="guest-tok" />);
+    await screen.findByRole("button", { name: MIC_ALLOW_LABEL });
+    await userEvent.click(
+      screen.getByRole("button", { name: MIC_ALLOW_LABEL }),
+    );
+    await screen.findByRole("button", { name: "Accept" });
+    await userEvent.click(screen.getByLabelText(/I am wearing headphones/));
+    await userEvent.click(screen.getByRole("button", { name: "Accept" }));
+    await screen.findByText("Waiting for host");
+    sockets[0].onmessage?.({
+      data: JSON.stringify({
+        plane: "record",
+        type: "Snapshot",
+        snapshot: {
+          ...guestSnap,
+          state: "recording",
+          take_index: 0,
+          participants: [{ ...guestSnap.participants[0], consented: true }],
+        },
+      }),
+    });
+    sockets[0].onclose?.({ code: 4403 });
+    await screen.findByText("Your access to this recording room has ended.");
+    await waitFor(() => {
+      expect(getUserMedia.mock.results[0].value).toBeDefined();
+    });
+    const stream = await getUserMedia.mock.results[0].value;
+    await waitFor(() => expect(stream.getTracks()[0].stop).toHaveBeenCalled());
+    await screen.findByRole("button", { name: "Download local recording" });
+    await expectNoA11yViolations(container);
+  });
+
   it("routes room_full to the full-room page without a mic prompt", async () => {
     vi.stubGlobal(
       "fetch",

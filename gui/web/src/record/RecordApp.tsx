@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ErrorScreen, FocusPull, LoadingScreen } from "../ui";
+import { CoverScreen, ErrorScreen, FocusPull, LoadingScreen } from "../ui";
 import { errorMessage } from "../utils/apiError";
 import "../styles/partials/record-entry.css";
 import { useDesktopCloseGuard } from "../desktop/useDesktopCloseGuard";
@@ -106,6 +106,7 @@ export function RecordApp({ token }: { token: string }) {
     syncName,
     !!bootstrap && (!producer || producerJoined),
   );
+  const accessEnded = error === "access_removed";
   const liveComments = useRecordLiveComments({
     token,
     snapshot,
@@ -116,7 +117,11 @@ export function RecordApp({ token }: { token: string }) {
   });
 
   const micEnabled =
-    !producer && !!me && error !== "room_full" && me.consented !== false;
+    !producer &&
+    !!me &&
+    !accessEnded &&
+    error !== "room_full" &&
+    me.consented !== false;
   const mic = useMicPermission(micEnabled, deviceId);
   const [sink, setSink] = useState<ByteSink | null>(null);
   const [sinkError, setSinkError] = useState<string | null>(null);
@@ -154,7 +159,10 @@ export function RecordApp({ token }: { token: string }) {
     };
   }, [storageRequired, producer, storageAttempt]);
   const captureEnabled =
-    !!bootstrap?.build.capture && !producer && me?.consented === true;
+    !!bootstrap?.build.capture &&
+    !producer &&
+    !accessEnded &&
+    me?.consented === true;
   const keeper = useKeeperCapture({
     enabled: captureEnabled && sink !== null,
     role: "guest",
@@ -174,7 +182,7 @@ export function RecordApp({ token }: { token: string }) {
     snapshot !== null,
   );
   const monitor = useRecordMonitor({
-    enabled: !!bootstrap?.build.monitor && !!me && connected,
+    enabled: !!bootstrap?.build.monitor && !!me && connected && !accessEnded,
     localId: me?.participant_id ?? null,
     role: producer ? "producer" : "guest",
     snapshot,
@@ -183,17 +191,31 @@ export function RecordApp({ token }: { token: string }) {
     send: (payload) => send("Signal", payload),
   });
   const uploadTransport = useMemo(() => {
-    if (!bootstrap?.build.upload || producer || !me?.participant_id || !lease) {
+    if (
+      !bootstrap?.build.upload ||
+      producer ||
+      accessEnded ||
+      !me?.participant_id ||
+      !lease
+    ) {
       return null;
     }
     return guestRecordUploadTransport(token, me.participant_id, lease);
-  }, [bootstrap?.build.upload, producer, me?.participant_id, lease, token]);
+  }, [
+    bootstrap?.build.upload,
+    producer,
+    accessEnded,
+    me?.participant_id,
+    lease,
+    token,
+  ]);
   const [uploadRetryNonce, setUploadRetryNonce] = useState(0);
   const captureSettled = keeperCaptureSettled(keeper);
   const upload = useRecordUpload({
     enabled:
       !!bootstrap?.build.upload &&
       !producer &&
+      !accessEnded &&
       (me?.consented === true || snapshot?.state === "stopped"),
     roomState: snapshot?.state,
     captureSettled,
@@ -210,16 +232,18 @@ export function RecordApp({ token }: { token: string }) {
     sessionId: snapshot?.session_id ?? null,
     participantId: me?.participant_id ?? null,
     takeIndex: snapshot?.take_index ?? null,
-    recoverAllowed: snapshot?.state === "stopped" && captureSettled,
+    recoverAllowed:
+      (snapshot?.state === "stopped" || accessEnded) && captureSettled,
     onRecovered: () => setUploadRetryNonce((value) => value + 1),
   });
   const roomTone = useRoomToneCapture({
     enabled:
       !!bootstrap?.build.upload &&
       !producer &&
+      !accessEnded &&
       !!me?.participant_id &&
       me.consented !== false,
-    canUpload: me?.consented === true,
+    canUpload: !accessEnded && me?.consented === true,
     stream: mic.stream,
     sessionId: snapshot?.session_id ?? null,
     participantId: me?.participant_id ?? null,
@@ -264,9 +288,39 @@ export function RecordApp({ token }: { token: string }) {
       : bootError;
     return <ErrorScreen message={message} />;
   }
-  if (error === "access_removed") {
+  if (accessEnded) {
     return (
-      <ErrorScreen message="Your access to this recording room has ended." />
+      <CoverScreen
+        heading="Recording access ended"
+        shellClassName="error-screen"
+      >
+        <p className="home-screen-error" role="alert">
+          Your access to this recording room has ended.
+        </p>
+        {!captureSettled ? <p>Finishing your local recording…</p> : null}
+        {captureSettled && keeperActions.recover ? (
+          <button
+            type="button"
+            onClick={keeperActions.recover}
+            disabled={keeperActions.busy}
+          >
+            Recover local recording
+          </button>
+        ) : null}
+        {captureSettled && keeperActions.download ? (
+          <button
+            type="button"
+            onClick={keeperActions.download}
+            disabled={keeperActions.busy}
+          >
+            Download local recording
+          </button>
+        ) : null}
+        {keeperActions.error ? <p role="alert">{keeperActions.error}</p> : null}
+        {keeperActions.notice ? (
+          <p role="status">{keeperActions.notice}</p>
+        ) : null}
+      </CoverScreen>
     );
   }
   if (!bootstrap) {
