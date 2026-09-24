@@ -186,7 +186,7 @@ export function reclaimObservedPortLease(
 export function createPortLease(
   port: number,
   lockDir = os.tmpdir(),
-  token = crypto.randomUUID(),
+  token: string = crypto.randomUUID(),
   beforePublish?: () => void,
 ): E2ePortLease | undefined {
   const lease = leasePath(port, lockDir);

@@ -17,6 +17,7 @@ describe("runE2e", () => {
     expect(exitCode(null, "SIGINT")).toBe(130);
     expect(exitCode(null, "SIGTERM")).toBe(143);
     expect(exitCode(null, "SIGKILL")).toBe(137);
+    expect(exitCode(null, "SIGHUP")).toBe(1);
   });
 
   it("forwards arguments, preserves exit code, and cleans after exit", async () => {

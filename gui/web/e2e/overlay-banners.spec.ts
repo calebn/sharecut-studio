@@ -1,4 +1,5 @@
 import { type Browser, expect, type Page, test } from "@playwright/test";
+import { clickHTMLElement } from "./domClick";
 import { e2eProjectPath } from "./env";
 import { waitForFollowBanner } from "./followBanner";
 import {
@@ -44,7 +45,7 @@ async function followUntilBannerVisible(
       if (i > 0) {
         await openMenu();
       }
-      await menuItems.nth(i).evaluate((el) => el.click());
+      await clickHTMLElement(menuItems.nth(i));
       if (await waitForFollowBanner(follower)) {
         return;
       }

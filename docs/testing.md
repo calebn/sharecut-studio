@@ -414,7 +414,9 @@ The compat config pins `workers: 1` / `fullyParallel: false` (one shared web
 server and live project fixture) and writes to `test-results/compat` so the
 main run's traces survive. `playwright.config.ts`, `playwright.compat.config.ts`,
 `e2e-compat/`, and the shared recording helpers are type-checked through
-`gui/web/tsconfig.e2e.json` as part of `npm run typecheck`.
+`gui/web/tsconfig.e2e.json` as part of `npm run typecheck`. The E2E
+TypeScript project includes every `e2e/` helper and spec as well as
+`e2e-compat/`, so new Playwright files receive the same strict check.
 
 Run it locally (or use `make test-web-e2e`, which runs both suites):
 

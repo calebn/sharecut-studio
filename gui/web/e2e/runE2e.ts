@@ -44,7 +44,16 @@ export function exitCode(
   signal: NodeJS.Signals | null,
 ): number {
   if (signal) {
-    return { SIGINT: 130, SIGTERM: 143, SIGKILL: 137 }[signal] ?? 1;
+    switch (signal) {
+      case "SIGINT":
+        return 130;
+      case "SIGTERM":
+        return 143;
+      case "SIGKILL":
+        return 137;
+      default:
+        return 1;
+    }
   }
   return code ?? 1;
 }
