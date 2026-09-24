@@ -83,17 +83,20 @@ Word times stay in **source-media seconds** at every layer — reconcile, precor
 |------|---------|
 | `{workspace}/show_glossary.yaml` | Show title, recurring terms, replacements |
 | `{workspace}/transcript_context.yaml` | Guest names, skip spans, episode overrides |
+| `artifacts/transcript_timing.json` | Stretched ASR word flags from transcribe (no time rewrite) |
+| `artifacts/transcript_precorrect_report.json` | Glossary/cross-track fixes, `deferred_queue`, `garble_hits` |
+| `artifacts/transcript_refine_status.json` | Gate: `pending` / `done` / `waived` + precorrect fingerprint; successful unattended runs that execute the gate refresh only its stale waivers |
 
 The Studio Pipeline tab edits per-project **Terms** and **Guest names** in
 `transcript_context.yaml`. These values join the show title in Whisper's
 initial prompt for both the Python and whisper.cpp backends. Saving a change
-after a transcript exists marks the vocabulary as needing re-transcription;
+marks the vocabulary as needing transcription;
 **Re-transcribe** runs the pipeline from `transcribe_tracks` through downstream
-steps. The flag clears only after transcription succeeds with the same
-vocabulary. This changes future ASR output, not existing transcript words.
-| `artifacts/transcript_timing.json` | Stretched ASR word flags from transcribe (no time rewrite) |
-| `artifacts/transcript_precorrect_report.json` | Glossary/cross-track fixes, `deferred_queue`, `garble_hits` |
-| `artifacts/transcript_refine_status.json` | Gate: `pending` / `done` / `waived` + precorrect fingerprint; successful unattended runs that execute the gate refresh only its stale waivers |
+steps. A vocabulary revision in `transcript_context.yaml` is compared with the
+revision committed alongside the project transcript; a failed save or concurrent
+edit remains stale. ASR caches include model, language, and prompt. The prompt
+has a 400-character limit by default, and Studio rejects terms that would be
+truncated. This changes future ASR output, not existing transcript words.
 
 Set context before transcribe when possible:
 

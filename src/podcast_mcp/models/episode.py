@@ -318,6 +318,7 @@ class EditorialSection(BaseModel):
 class TranscriptsSection(BaseModel):
     per_track: list[Transcript] = Field(default_factory=list)
     combined: CombinedTranscript | None = None
+    vocabulary_revision_applied: str | None = None
 
 
 class MixSection(BaseModel):

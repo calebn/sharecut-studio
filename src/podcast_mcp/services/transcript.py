@@ -6,6 +6,7 @@ from podcast_mcp.edits.transcript_cuts import format_transcript_timestamps
 from podcast_mcp.engines import TranscriptionEngine
 from podcast_mcp.export.transcript import write_combined_transcript_markdown
 from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.transcript_context import load_transcript_context
 from podcast_mcp.whisper_models import resolve_whisper_model
 
 
@@ -15,14 +16,19 @@ class TranscriptService:
         self._engine = TranscriptionEngine(resolve_whisper_model(requested=model))
 
     def transcribe(self, track_id: str | None = None) -> list[str]:
+        ctx = load_transcript_context(self.ws.project.workspace_path())
+        prompt = ctx.initial_prompt_text()
+
         def mutate(p) -> list[str]:
             if track_id:
-                t = self._engine.transcribe_track(p, track_id)
+                t = self._engine.transcribe_track(p, track_id, initial_prompt=prompt)
                 p.transcripts = [x for x in p.transcripts if x.track_id != track_id]
                 p.transcripts.append(t)
                 return [t.track_id]
             else:
-                p.transcripts = self._engine.transcribe_all_dialogue(p)
+                p.transcripts = self._engine.transcribe_all_dialogue(p, initial_prompt=prompt)
+                if p.transcripts:
+                    p.transcript_data.vocabulary_revision_applied = ctx.vocabulary_revision
             return [t.track_id for t in p.transcripts]
 
         return self.ws.mutate("before transcribe", "after transcribe", mutate)

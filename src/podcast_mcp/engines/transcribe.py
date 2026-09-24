@@ -111,9 +111,22 @@ class TranscriptionEngine:
             )
         return self._model
 
-    def cache_path(self, project: EpisodeProject, track_id: str, audio_path: Path) -> Path:
-        key = sha256_file(audio_path)[:16]
-        name = f"{_cache_id_part(track_id)}_{key}.json"
+    def cache_path(
+        self,
+        project: EpisodeProject,
+        track_id: str,
+        audio_path: Path,
+        *,
+        language: str | None = None,
+        initial_prompt: str | None = None,
+    ) -> Path:
+        audio_key = sha256_file(audio_path)[:16]
+        inputs = json.dumps(
+            {"model": self.model_size, "language": language, "initial_prompt": initial_prompt},
+            sort_keys=True,
+        )
+        inputs_key = hashlib.sha256(inputs.encode()).hexdigest()[:16]
+        name = f"{_cache_id_part(track_id)}_{audio_key}_{inputs_key}.json"
         try:
             return resolve_within(project.transcripts_dir(), name)
         except ValueError:
@@ -174,7 +187,9 @@ class TranscriptionEngine:
         if not track or not track.media:
             raise ValueError(f"track {track_id} not found or has no media")
         audio = resolve_under_workspace(project, track.media.path)
-        cache = self.cache_path(project, track_id, audio)
+        cache = self.cache_path(
+            project, track_id, audio, language=language, initial_prompt=initial_prompt
+        )
         if use_cache and cache.is_file():
             data = json.loads(cache.read_text(encoding="utf-8"))
             t = Transcript.model_validate(data)
@@ -253,7 +268,13 @@ class TranscriptionEngine:
 
             for track_id, source_id, audio in extra_jobs:
                 task.set_phase("source", f"Track {track_id} source {source_id}")
-                cache = self.cache_path(project, f"{track_id}__{source_id}", audio)
+                cache = self.cache_path(
+                    project,
+                    f"{track_id}__{source_id}",
+                    audio,
+                    language=language,
+                    initial_prompt=initial_prompt,
+                )
                 if cache.is_file():
                     data = json.loads(cache.read_text(encoding="utf-8"))
                     t = Transcript.model_validate(data)

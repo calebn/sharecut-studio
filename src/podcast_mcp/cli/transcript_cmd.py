@@ -14,7 +14,6 @@ from podcast_mcp.services import (
     TranscriptRefineService,
     TranscriptService,
 )
-from podcast_mcp.transcript_context import context_from_dict
 
 transcript_app = typer.Typer(help="Transcript correction and export.")
 context_app = typer.Typer(help="Episode transcript context and glossary.")
@@ -134,24 +133,17 @@ def transcript_context_set_cmd(
 ) -> None:
     ws = ProjectWorkspace.open(project)
     svc = TranscriptPrecorrectService(ws)
-    ctx = svc.load_context()
     if context_file:
         import yaml
 
         data = yaml.safe_load(context_file.read_text(encoding="utf-8")) or {}
-        ctx = context_from_dict({**svc.get_context(), **data})
+        path = svc.update_context(values=data)
     else:
-        updates: dict = {}
-        if show_title:
-            updates["show_title"] = show_title
-        if guest_name:
-            updates["guest_names"] = list(ctx.guest_names) + list(guest_name)
-        if term:
-            updates["terms"] = list(ctx.terms) + list(term)
-        if updates:
-            merged = {**svc.get_context(), **updates}
-            ctx = context_from_dict(merged)
-        else:
+        if not (show_title or guest_name or term):
             raise typer.BadParameter("Provide --file or at least one field flag")
-    path = svc.set_context(ctx)
+        path = svc.update_context(
+            values={"show_title": show_title} if show_title else None,
+            guest_names=guest_name,
+            terms=term,
+        )
     typer.echo(f"Wrote {path}")

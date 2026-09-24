@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   loadTranscriptVocabulary,
   saveTranscriptVocabulary,
@@ -8,6 +8,16 @@ import { Button, InlineError } from "../ui";
 import { errorMessage } from "../utils/apiError";
 
 type Field = "terms" | "guest_names";
+
+function vocabularyChanged(
+  left: TranscriptVocabulary,
+  right: TranscriptVocabulary,
+): boolean {
+  return (
+    JSON.stringify(left.terms) !== JSON.stringify(right.terms) ||
+    JSON.stringify(left.guest_names) !== JSON.stringify(right.guest_names)
+  );
+}
 
 export function TranscriptVocabularyEditor({
   projectPath,
@@ -22,6 +32,8 @@ export function TranscriptVocabularyEditor({
 }) {
   const [saved, setSaved] = useState<TranscriptVocabulary | null>(null);
   const [draft, setDraft] = useState<TranscriptVocabulary | null>(null);
+  const savedRef = useRef<TranscriptVocabulary | null>(null);
+  const requestSeq = useRef(0);
   const [input, setInput] = useState<Record<Field, string>>({
     terms: "",
     guest_names: "",
@@ -31,15 +43,23 @@ export function TranscriptVocabularyEditor({
 
   useEffect(() => {
     let active = true;
+    const seq = ++requestSeq.current;
     void loadTranscriptVocabulary(projectPath)
       .then((value) => {
-        if (active) {
+        if (active && seq === requestSeq.current) {
+          const previous = savedRef.current;
+          setDraft((current) =>
+            current && previous && vocabularyChanged(current, previous)
+              ? current
+              : value,
+          );
+          savedRef.current = value;
           setSaved(value);
-          setDraft(value);
         }
       })
       .catch((reason) => {
-        if (active) setError(errorMessage(reason));
+        if (active && seq === requestSeq.current)
+          setError(errorMessage(reason));
       });
     return () => {
       active = false;
@@ -59,17 +79,16 @@ export function TranscriptVocabularyEditor({
   };
 
   const changed =
-    saved != null &&
-    draft != null &&
-    (JSON.stringify(saved.terms) !== JSON.stringify(draft.terms) ||
-      JSON.stringify(saved.guest_names) !== JSON.stringify(draft.guest_names));
+    saved != null && draft != null && vocabularyChanged(saved, draft);
 
   const save = async () => {
     if (!draft) return;
+    ++requestSeq.current;
     setSaving(true);
     setError(null);
     try {
       const next = await saveTranscriptVocabulary(projectPath, draft);
+      savedRef.current = next;
       setSaved(next);
       setDraft(next);
     } catch (reason) {
@@ -93,7 +112,12 @@ export function TranscriptVocabularyEditor({
           <label htmlFor={`vocabulary-${field}`}>
             {field === "terms" ? "Terms" : "Guest names"}
           </label>
-          <div>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              add(field);
+            }}
+          >
             <input
               id={`vocabulary-${field}`}
               value={input[field]}
@@ -105,20 +129,14 @@ export function TranscriptVocabularyEditor({
                   [field]: event.target.value,
                 }))
               }
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  add(field);
-                }
-              }}
             />
             <Button
+              type="submit"
               disabled={!draft || saving || !input[field].trim()}
-              onClick={() => add(field)}
             >
               Add {field === "terms" ? "term" : "guest name"}
             </Button>
-          </div>
+          </form>
           <ul
             aria-label={field === "terms" ? "Saved terms" : "Saved guest names"}
           >

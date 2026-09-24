@@ -236,7 +236,7 @@ def test_transcribe_tracks_mock(minimal_project, sample_wav, tmp_workspace):
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     from podcast_mcp.transcript_context import TranscriptContext, load_transcript_context
 
-    ctx = TranscriptContext(terms=["Kaczynski"], transcribe={"vocabulary_stale": True})
+    ctx = TranscriptContext(terms=["Kaczynski"], vocabulary_revision="revision-one")
     ctx.save(proj.workspace_path())
     mock_tr = MagicMock()
     mock_tr.track_id = "host"
@@ -249,21 +249,20 @@ def test_transcribe_tracks_mock(minimal_project, sample_wav, tmp_workspace):
             == "Kaczynski"
         )
     assert proj.transcripts
-    assert load_transcript_context(proj.workspace_path()).transcribe.get("vocabulary_stale") is None
+    assert proj.transcript_data.vocabulary_revision_applied == "revision-one"
+    assert load_transcript_context(proj.workspace_path()).vocabulary_revision == "revision-one"
 
 
-def test_transcribe_keeps_stale_flag_when_vocabulary_changes_during_run(
+def test_transcribe_keeps_revision_stale_when_vocabulary_changes_during_run(
     minimal_project, sample_wav, tmp_workspace
 ):
     from podcast_mcp.transcript_context import TranscriptContext, load_transcript_context
 
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
-    TranscriptContext(terms=["Old"], transcribe={"vocabulary_stale": True}).save(
-        proj.workspace_path()
-    )
+    TranscriptContext(terms=["Old"], vocabulary_revision="revision-one").save(proj.workspace_path())
 
     def transcribe(*_args, **_kwargs):
-        TranscriptContext(terms=["New"], transcribe={"vocabulary_stale": True}).save(
+        TranscriptContext(terms=["New"], vocabulary_revision="revision-two").save(
             proj.workspace_path()
         )
         return []
@@ -274,7 +273,31 @@ def test_transcribe_keeps_stale_flag_when_vocabulary_changes_during_run(
 
     ctx = load_transcript_context(proj.workspace_path())
     assert ctx.terms == ["New"]
-    assert ctx.transcribe["vocabulary_stale"] is True
+    assert ctx.vocabulary_revision == "revision-two"
+    assert proj.transcript_data.vocabulary_revision_applied is None
+
+
+def test_transcribe_records_started_revision_when_vocabulary_changes_during_run(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.models import Transcript
+    from podcast_mcp.transcript_context import TranscriptContext, load_transcript_context
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    TranscriptContext(terms=["Old"], vocabulary_revision="revision-one").save(proj.workspace_path())
+
+    def transcribe(*_args, **_kwargs):
+        TranscriptContext(terms=["New"], vocabulary_revision="revision-two").save(
+            proj.workspace_path()
+        )
+        return [Transcript(track_id="host", words=[])]
+
+    with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
+        eng_cls.return_value.transcribe_all_dialogue.side_effect = transcribe
+        steps.transcribe_tracks(proj, load_defaults())
+
+    assert proj.transcript_data.vocabulary_revision_applied == "revision-one"
+    assert load_transcript_context(proj.workspace_path()).vocabulary_revision == "revision-two"
 
 
 def test_transcribe_tracks_writes_timing_report(minimal_project, sample_wav, tmp_workspace):

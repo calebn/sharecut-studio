@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import yaml
 
 from podcast_mcp.transcript_context import (
@@ -23,6 +24,27 @@ def test_vocabulary_edit_marks_existing_transcript_stale(minimal_project: Path) 
     assert result["needs_retranscription"] is True
     assert "Kaczynski" in svc.load_context().initial_prompt_text()
     assert svc.set_vocabulary(terms=["Kaczynski"], guest_names=["Alice"]) == result
+
+
+def test_vocabulary_rejects_terms_outside_whisper_prompt(minimal_project: Path) -> None:
+    from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
+    from podcast_mcp.services.workspace import ProjectWorkspace
+
+    svc = TranscriptPrecorrectService(ProjectWorkspace.open(minimal_project))
+    with pytest.raises(ValueError, match="prompt limit"):
+        svc.set_vocabulary(terms=[str(index) + "a" * 99 for index in range(5)], guest_names=[])
+    assert svc.get_vocabulary()["terms"] == []
+
+
+def test_context_update_merges_latest_vocabulary(minimal_project: Path) -> None:
+    from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
+    from podcast_mcp.services.workspace import ProjectWorkspace
+
+    first = TranscriptPrecorrectService(ProjectWorkspace.open(minimal_project))
+    second = TranscriptPrecorrectService(ProjectWorkspace.open(minimal_project))
+    first.set_vocabulary(terms=["A"], guest_names=[])
+    second.update_context(values={"show_title": "Episode"}, terms=["B"])
+    assert first.get_vocabulary()["terms"] == ["A", "B"]
 
 
 def test_context_from_dict_initial_prompt() -> None:
