@@ -436,6 +436,20 @@
   text-align: left;
 }
 
+/* Checked menu radios / checkboxes: the selected chip plus a check mark, so
+   state never rests on fill alone and the inset focus ring stays visible. */
+.ui-menu-panel [role="menuitemradio"][aria-checked="true"] {
+  background: var(--color-chip-selected);
+  color: var(--color-chip-selected-fg);
+}
+
+.ui-menu-panel [role="menuitemradio"][aria-checked="true"]::after {
+  /* Empty alt text: aria-checked already carries the state. */
+  content: "\2713" / "";
+  margin-inline-start: auto;
+  padding-inline-start: var(--space-3);
+}
+
 .ui-menu-item-label {
   flex: 1 1 auto;
   min-inline-size: 0;
