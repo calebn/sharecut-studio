@@ -654,6 +654,13 @@ sequenceDiagram
 `feat/recording-keeper-capture` (dry WAV). Device permission is an **explicit
 grant step** before the meter: recorded clients click **Allow microphone**,
 which is the only `getUserMedia` call (`useMicPermission` → `useMicStream`).
+The reusable peak meter hook shares one metering `AudioContext`, one worklet
+module load, and one animation-frame scheduler across concurrent mic meters.
+Each mic keeps its own worklet node, peak hold, and clip latch; the context
+closes when the last meter leaves. The keeper capture graph remains separate
+because it owns its sample rate and recording lifetime. The current lobby
+still uses its existing RMS display; wiring the peak meter into record
+surfaces is tracked in #174.
 Safari has no `permissions.query({name:"microphone"})`; Chromium can
 pre-detect `denied`. After the mic is granted, recorded clients see an optional
 **Record 3 seconds of room tone** step (skip allowed) that uses keeper

@@ -110,4 +110,21 @@ describe("usePeakMeter", () => {
     expect(result.current.levelDb).toBe(Number.NEGATIVE_INFINITY);
     expect(raf.cancel).toHaveBeenCalled();
   });
+
+  it("shares one frame across meters and stops after the last reader leaves", () => {
+    const raf = stubRaf();
+    const loud = constant(0.5);
+    const quiet = constant(0.1);
+    const first = renderHook(() => usePeakMeter(loud));
+    const second = renderHook(() => usePeakMeter(quiet));
+    expect(raf.pendingCount()).toBe(1);
+    act(() => raf.fire(1000));
+    expect(first.result.current.levelDb).toBeCloseTo(-6.02, 2);
+    expect(second.result.current.levelDb).toBeCloseTo(-20, 2);
+    expect(raf.pendingCount()).toBe(1);
+    first.unmount();
+    expect(raf.pendingCount()).toBe(1);
+    second.unmount();
+    expect(raf.pendingCount()).toBe(0);
+  });
 });

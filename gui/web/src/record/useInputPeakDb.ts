@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DEFAULT_CLIP_DB } from "../audio/metering";
 import { type FrameReader, usePeakMeter } from "../audio/usePeakMeter";
-import { audioContextCtor, dbToLinear } from "../utils/audio";
-import inputMeterProcessorUrl from "./inputMeterProcessor.js?url";
+import { dbToLinear } from "../utils/audio";
+import { acquireMeterContext } from "./sharedMeterContext";
 
 export type InputPeakLevels = ReturnType<typeof usePeakMeter> & {
   /** The AudioContext is not running; call resume() from a user gesture. */
@@ -32,10 +32,6 @@ function peakReportTimeoutMs(sampleRate: number): number {
     MIN_PEAK_REPORT_TIMEOUT_MS,
     (2 * REPORT_BLOCKS * RENDER_QUANTUM_FRAMES * 1000) / sampleRate,
   );
-}
-
-function closeQuietly(ctx: AudioContext): void {
-  void ctx.close().catch(() => undefined);
 }
 
 /**
@@ -69,11 +65,9 @@ export function useInputPeakDb(
     latestPeakRef.current = 0;
     peakReceivedAtRef.current = Number.NEGATIVE_INFINITY;
     if (!stream) return;
-    const AC = audioContextCtor();
-    if (!AC) return;
-
     let active = true;
     let ctx: AudioContext | null = null;
+    let release: (() => void) | null = null;
     let source: MediaStreamAudioSourceNode | null = null;
     let node: AudioWorkletNode | null = null;
     let silent: GainNode | null = null;
@@ -83,14 +77,17 @@ export function useInputPeakDb(
 
     const open = async () => {
       try {
-        ctx = new AC();
+        const acquired = acquireMeterContext();
+        if (!acquired) return;
+        ctx = acquired.ctx;
+        release = acquired.release;
         const reportTimeoutMs = peakReportTimeoutMs(ctx.sampleRate);
         ctxRef.current = ctx;
         ctx.addEventListener("statechange", onStateChange);
         onStateChange();
         // Autoplay policy may suspend this until a user invokes resume().
         void ctx.resume().catch(() => undefined);
-        await ctx.audioWorklet.addModule(inputMeterProcessorUrl);
+        await acquired.ready;
         if (!active) return;
         source = ctx.createMediaStreamSource(stream);
         node = new AudioWorkletNode(ctx, "sharecut-input-meter", {
@@ -139,7 +136,8 @@ export function useInputPeakDb(
         silent?.disconnect();
         if (ctx) {
           ctx.removeEventListener("statechange", onStateChange);
-          closeQuietly(ctx);
+          release?.();
+          release = null;
           ctx = null;
         }
       }
@@ -156,7 +154,7 @@ export function useInputPeakDb(
       source?.disconnect();
       node?.disconnect();
       silent?.disconnect();
-      closeQuietly(ctx);
+      release?.();
     };
   }, [stream, clipDb, latchClip]);
 
