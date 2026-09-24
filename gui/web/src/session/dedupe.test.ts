@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { SessionState } from "../types/session";
 import {
+  advanceCursorIfNewer,
   baselineFromSnapshot,
   shouldApplyRemote,
   shouldHandleWsMessage,
@@ -57,7 +58,48 @@ describe("baselineFromSnapshot", () => {
   });
 });
 
+describe("advanceCursorIfNewer", () => {
+  it("keeps the sequence and command ID from the newer state", () => {
+    const cursor = { serverSeq: 2, commandId: "cmd-2" };
+    expect(
+      advanceCursorIfNewer(
+        cursor,
+        snap({ server_seq: 1, last_command_id: "cmd-1" }),
+      ),
+    ).toBe(cursor);
+    expect(
+      advanceCursorIfNewer(
+        cursor,
+        snap({ server_seq: 3, last_command_id: "cmd-3" }),
+      ),
+    ).toEqual({ serverSeq: 3, commandId: "cmd-3" });
+  });
+});
+
 describe("shouldApplyRemote", () => {
+  it("ignores a stale agent poll after a newer Applied event", () => {
+    const newer = snap({
+      server_seq: 2,
+      last_command_id: "cmd-2",
+      origin: "agent",
+      playhead_sec: 20,
+    });
+    const applied = shouldApplyRemote(newer, {
+      serverSeq: 1,
+      commandId: "cmd-1",
+    });
+    expect(applied.apply).toBe(true);
+
+    const olderPoll = snap({
+      server_seq: 1,
+      last_command_id: "cmd-1",
+      origin: "agent",
+      playhead_sec: 10,
+    });
+    const result = shouldApplyRemote(olderPoll, applied.next);
+    expect(result).toEqual({ apply: false, next: applied.next });
+  });
+
   it("dedupes same command_id", () => {
     const { apply } = shouldApplyRemote(
       snap({ server_seq: 6, last_command_id: "same", origin: "agent" }),

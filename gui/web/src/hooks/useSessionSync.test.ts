@@ -279,18 +279,26 @@ describe("useSessionSync presence", () => {
           }),
       );
       const apply = vi.fn();
-      renderHook(() =>
-        useSessionSync(
-          "/tmp/ep.project.json",
-          apply,
-          () => ({ playhead_sec: 0, is_playing: false }),
-          false,
-          0,
-          null,
-          false,
-          "k",
-          true,
-        ),
+      const { rerender } = renderHook(
+        ({
+          revision,
+          commandId,
+        }: {
+          revision: number;
+          commandId: string | null;
+        }) =>
+          useSessionSync(
+            "/tmp/ep.project.json",
+            apply,
+            () => ({ playhead_sec: 0, is_playing: false }),
+            false,
+            revision,
+            commandId,
+            false,
+            "k",
+            true,
+          ),
+        { initialProps: { revision: 0, commandId: null as string | null } },
       );
       await act(async () => {
         await Promise.resolve();
@@ -313,6 +321,7 @@ describe("useSessionSync presence", () => {
         FakeWebSocket.instances[0].emit(applied(2, "cmd-2"));
       });
       expect(apply).toHaveBeenCalledTimes(1);
+      rerender({ revision: 2, commandId: "cmd-2" });
 
       await act(async () => {
         finishPublish?.({

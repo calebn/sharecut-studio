@@ -30,6 +30,21 @@ export function sessionClientId(state: SessionState): string | null {
   return id ?? null;
 }
 
+/** Keep the command ID paired with the newest observed server sequence. */
+export function advanceCursorIfNewer(
+  cursor: AppliedCursor,
+  state: SessionState,
+): AppliedCursor {
+  const serverSeq = sessionSeq(state);
+  if (serverSeq <= cursor.serverSeq) {
+    return cursor;
+  }
+  return {
+    serverSeq,
+    commandId: state.last_command_id ?? cursor.commandId,
+  };
+}
+
 /**
  * First WebSocket Snapshot: apply agent transport before marking command_id
  * applied (otherwise dedupe would no-op the in-flight agent play).
@@ -77,6 +92,9 @@ export function shouldApplyRemote(
 ): { apply: boolean; next: AppliedCursor } {
   const seq = sessionSeq(state);
   const cmd = state.last_command_id;
+  if (seq && seq < cursor.serverSeq) {
+    return { apply: false, next: cursor };
+  }
   if (cmd && cmd === cursor.commandId) {
     return { apply: false, next: cursor };
   }
