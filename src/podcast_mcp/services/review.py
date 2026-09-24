@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp.edits.review_versions import (
+    DirectoryIdentity,
     clean_created_version,
     get_version,
     list_versions,
@@ -49,15 +50,12 @@ class ReviewService:
     ) -> dict[str, Any]:
         history_index_path = self.ws.project.workspace_path() / "history" / "index.json"
         history_before = load_json_object(history_index_path)
-        created_dir: Path | None = None
-        created_identity: tuple[int, int] | None = None
+        created: tuple[Path, DirectoryIdentity] | None = None
         version_id: str | None = None
 
-        def remember_media(path: Path) -> None:
-            nonlocal created_dir, created_identity
-            metadata = path.stat(follow_symlinks=False)
-            created_dir = path
-            created_identity = (metadata.st_dev, metadata.st_ino)
+        def remember_media(path: Path, identity: DirectoryIdentity) -> None:
+            nonlocal created
+            created = (path, identity)
 
         def mutate(p) -> dict[str, Any]:
             nonlocal version_id
@@ -78,9 +76,10 @@ class ReviewService:
                 mutate,
             )
         except BaseException:
-            if version_id is not None and created_dir is not None:
+            recorded = created
+            if version_id is not None and recorded is not None:
                 self._clean_uncommitted_media(
-                    version_id, created_dir, created_identity, history_index_path, history_before
+                    version_id, recorded[0], recorded[1], history_index_path, history_before
                 )
             raise
 
@@ -88,7 +87,7 @@ class ReviewService:
         self,
         version_id: str,
         created_dir: Path,
-        identity: tuple[int, int] | None,
+        identity: DirectoryIdentity,
         history_index_path: Path,
         history_before: dict[str, Any] | None,
     ) -> None:
@@ -120,8 +119,7 @@ class ReviewService:
                     if entry.id not in old_ids:
                         snapshot = history_index_path.parent / "snapshots" / f"{entry.id}.json"
                         snapshot.unlink(missing_ok=True)
-            if identity is not None:
-                clean_created_version(created_dir, identity)
+            clean_created_version(created_dir, identity)
             self.ws.project = persisted
         except BaseException:
             log.warning("Could not clean uncommitted review version %s", created_dir, exc_info=True)

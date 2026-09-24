@@ -304,14 +304,43 @@ def test_service_publish_cleanup_failure_preserves_commit_error(
     assert ws.project.review.versions == []
 
 
-@pytest.mark.skipif(
+requires_safe_failed_cleanup = pytest.mark.skipif(
     not review_versions._SAFE_FAILED_CLEANUP_SUPPORTED,
     reason="descriptor-relative directory operations are unavailable",
 )
+
+
+def _fail_publication(stage, project, project_path, monkeypatch):
+    """Run a publication that fails at *stage* ("generation" or "persistence")."""
+    if stage == "generation":
+
+        class FailingEngine:
+            def export_mp3(self, wav, mp3, *, bitrate_kbps):
+                raise RuntimeError("encode failed")
+
+        with pytest.raises(RuntimeError, match="encode failed"):
+            publish_version(project, label="new", eng=FailingEngine())
+        return
+    monkeypatch.setattr(
+        review_versions.FFmpegEngine,
+        "export_mp3",
+        lambda self, wav, mp3, *, bitrate_kbps: mp3.write_bytes(b"encoded"),
+    )
+
+    def fail_commit(self, project):
+        raise RuntimeError("commit failed")
+
+    monkeypatch.setattr(ProjectStore, "commit", fail_commit)
+    with pytest.raises(RuntimeError, match="commit failed"):
+        ReviewService(ProjectWorkspace.open(project_path)).publish(label="new")
+
+
 @pytest.mark.parametrize("stage", ["generation", "persistence"])
+@pytest.mark.parametrize("pinned", [pytest.param(True, marks=requires_safe_failed_cleanup), False])
 def test_failed_publish_does_not_delete_replacement_directory(
-    minimal_project, sample_wav, monkeypatch, stage
+    minimal_project, sample_wav, monkeypatch, stage, pinned
 ):
+    monkeypatch.setattr(review_versions, "_SAFE_FAILED_CLEANUP_SUPPORTED", pinned)
     project = load_project(minimal_project)
     art = Path(project.workspace_dir) / "artifacts"
     art.mkdir(parents=True, exist_ok=True)
@@ -329,7 +358,8 @@ def test_failed_publish_does_not_delete_replacement_directory(
 
     def replace_before_quarantine(src, dst, *args, **kwargs):
         nonlocal raced
-        if src == "race" and dst == "media" and not raced:
+        is_target = Path(os.fspath(src)).name == "race" and Path(os.fspath(dst)).name == "media"
+        if is_target and not raced:
             raced = True
             original_rename(version_dir, moved_original)
             version_dir.mkdir()
@@ -337,27 +367,7 @@ def test_failed_publish_does_not_delete_replacement_directory(
         return original_rename(src, dst, *args, **kwargs)
 
     monkeypatch.setattr(os, "rename", replace_before_quarantine)
-    if stage == "generation":
-
-        class FailingEngine:
-            def export_mp3(self, wav, mp3, *, bitrate_kbps):
-                raise RuntimeError("encode failed")
-
-        with pytest.raises(RuntimeError, match="encode failed"):
-            publish_version(project, label="new", eng=FailingEngine())
-    else:
-        monkeypatch.setattr(
-            review_versions.FFmpegEngine,
-            "export_mp3",
-            lambda self, wav, mp3, *, bitrate_kbps: mp3.write_bytes(b"encoded"),
-        )
-
-        def fail_commit(self, project):
-            raise RuntimeError("commit failed")
-
-        monkeypatch.setattr(ProjectStore, "commit", fail_commit)
-        with pytest.raises(RuntimeError, match="commit failed"):
-            ReviewService(ProjectWorkspace.open(minimal_project)).publish(label="new")
+    _fail_publication(stage, project, minimal_project, monkeypatch)
 
     assert raced
     assert (moved_original / "mix.wav").read_bytes() == sample_wav.read_bytes()
@@ -365,6 +375,93 @@ def test_failed_publish_does_not_delete_replacement_directory(
     quarantine = list(review_root.glob(".failed-review-*/media/mix.wav"))
     assert len(quarantine) == 1
     assert quarantine[0].read_bytes() == b"replacement"
+    assert load_project(minimal_project).review.versions == []
+
+
+@pytest.mark.parametrize("stage", ["generation", "persistence"])
+def test_failed_publish_cleans_up_without_descriptor_relative_ops(
+    minimal_project, sample_wav, monkeypatch, stage
+):
+    monkeypatch.setattr(review_versions, "_SAFE_FAILED_CLEANUP_SUPPORTED", False)
+    project = load_project(minimal_project)
+    art = Path(project.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    review_root = art / "review"
+    existing = review_root / "existing"
+    existing.mkdir(parents=True)
+    (existing / "mix.wav").write_bytes(b"existing")
+    monkeypatch.setattr(review_versions, "_new_id", lambda: "fallback")
+    _fail_publication(stage, project, minimal_project, monkeypatch)
+
+    assert not (review_root / "fallback").exists()
+    assert not list(review_root.glob(".failed-review-*"))
+    assert (existing / "mix.wav").read_bytes() == b"existing"
+    assert load_project(minimal_project).review.versions == []
+
+
+def test_service_cleanup_uses_identity_recorded_at_creation(
+    minimal_project, sample_wav, monkeypatch
+):
+    from podcast_mcp.services import review as review_service
+
+    project = load_project(minimal_project)
+    art = Path(project.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    review_root = art / "review"
+    monkeypatch.setattr(review_versions, "_new_id", lambda: "swap")
+    real_publish = review_service.publish_version
+
+    def swapping_publish(p, *, on_media_created=None, **kwargs):
+        def swap_then_notify(path, identity):
+            path.rename(review_root / "swapped-original")
+            path.mkdir()
+            (path / "replacement.txt").write_bytes(b"replacement")
+            if on_media_created is not None:
+                on_media_created(path, identity)
+
+        return real_publish(p, on_media_created=swap_then_notify, **kwargs)
+
+    monkeypatch.setattr(review_service, "publish_version", swapping_publish)
+    monkeypatch.setattr(
+        review_versions.FFmpegEngine,
+        "export_mp3",
+        lambda self, wav, mp3, *, bitrate_kbps: mp3.write_bytes(b"encoded"),
+    )
+
+    def fail_commit(self, project):
+        raise RuntimeError("commit failed")
+
+    monkeypatch.setattr(ProjectStore, "commit", fail_commit)
+    with pytest.raises(RuntimeError, match="commit failed"):
+        ReviewService(ProjectWorkspace.open(minimal_project)).publish(label="new")
+
+    assert (review_root / "swap" / "replacement.txt").read_bytes() == b"replacement"
+    assert (review_root / "swapped-original").is_dir()
+    assert not list(review_root.glob(".failed-review-*"))
+    assert load_project(minimal_project).review.versions == []
+
+
+def test_publish_identity_failure_removes_empty_version_dir(
+    minimal_project, sample_wav, monkeypatch
+):
+    project = load_project(minimal_project)
+    art = Path(project.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    monkeypatch.setattr(review_versions, "_new_id", lambda: "stat-fail")
+    original_stat = Path.stat
+
+    def failing_stat(self, *args, **kwargs):
+        if self.name == "stat-fail":
+            raise OSError("stat failed")
+        return original_stat(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", failing_stat)
+    with pytest.raises(OSError, match="stat failed"):
+        publish_version(project, label="new")
+    assert not os.path.lexists(art / "review" / "stat-fail")
     assert load_project(minimal_project).review.versions == []
 
 

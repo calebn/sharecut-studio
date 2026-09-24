@@ -104,10 +104,14 @@ Versions live under `artifacts/review/{id}/mix.wav` plus `mix.mp3` (guest Review
 with metadata in `review.versions[]` (`mp3_relpath`, optional `object_store_key`).
 Publication creates a new version directory exclusively. If WAV copy or MP3 encoding fails,
 or publication is interrupted, it quarantines and removes that new directory and leaves existing
-versions and the source mix untouched. Cleanup checks the exclusively created directory's identity,
-moves it into a private quarantine, and checks its identity again before descriptor-relative removal.
-If another local writer replaces the public version name during that move, cleanup keeps the
-unexpected directory for inspection. The writer resolves a symlinked `artifacts/review/` root once
+versions and the source mix untouched. The directory's identity is recorded once at creation
+(the empty directory is removed if that read fails), and both generation cleanup and the
+service's persistence compensation use that recorded identity. Cleanup checks it, moves the
+directory into a private quarantine, and checks it again before removal. Linux and macOS pin the
+root and quarantine by descriptor; Windows runs the same quarantine on resolved paths.
+If another local writer replaces the public version name, cleanup keeps the replacement. A
+replacement moved into quarantine is kept there: it is not restored and not deleted.
+The writer resolves a symlinked `artifacts/review/` root once
 so retargeting that symlink during a failed publication cannot redirect cleanup to another mix.
 If history or project persistence fails after media generation, the service checks the canonical
 project file, restores its prior history index and snapshots, then removes only the new,
@@ -117,6 +121,8 @@ without masking the original persistence error.
 The cleanup boundary assumes other local writers do not modify the private quarantine. A process
 with the same filesystem permissions can deliberately access and replace quarantine entries; the
 filesystem does not provide an atomic compare-and-remove directory operation against that actor.
+Directory creation and the identity read are separate operations, and atomic publication across
+non-cooperating writers is not yet provided.
 If a published version's MP3 is missing, retry encoding writes a temporary MP3 beside it and
 publishes `mix.mp3` only after encoding succeeds. Python-level failures and interruptions remove
 the temporary output, so guest audio lookup continues to use the frozen WAV. The retry pins the
