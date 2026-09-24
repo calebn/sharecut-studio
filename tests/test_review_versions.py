@@ -336,22 +336,98 @@ def test_mp3_retry_continues_when_stale_cleanup_fails(
     stale.write_bytes(b"orphan")
     old_time = time.time() - review_versions._STALE_MP3_TEMP_AGE_SECONDS - 60
     os.utime(stale, (old_time, old_time))
-    original_unlink = Path.unlink
+    original_unlink = os.unlink
+    attempts = 0
 
     def refuse_stale_unlink(path, *args, **kwargs):
-        if path == stale:
+        nonlocal attempts
+        if path == stale.name and kwargs.get("dir_fd") is not None:
+            attempts += 1
             raise PermissionError("cannot remove stale file")
         return original_unlink(path, *args, **kwargs)
 
-    monkeypatch.setattr(Path, "unlink", refuse_stale_unlink)
+    monkeypatch.setattr(os, "unlink", refuse_stale_unlink)
 
     class SuccessfulEngine:
         def export_mp3(self, source, output, *, bitrate_kbps):
             output.write_bytes(b"complete")
 
     assert encode_version_mp3(project, version_id, eng=SuccessfulEngine()) == mp3
+    assert attempts == 1
     assert stale.read_bytes() == b"orphan"
     assert mp3.read_bytes() == b"complete"
+
+
+def test_mp3_retry_caps_failed_stale_deletion_attempts(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    project, version_id = _publish(minimal_project, sample_wav)
+    mp3 = version_mp3_path(project, version_id)
+    assert mp3 is not None
+    mp3.unlink()
+    old_time = time.time() - review_versions._STALE_MP3_TEMP_AGE_SECONDS - 60
+    stale = [mp3.parent / f".mix-unremovable-{index}.mp3" for index in range(33)]
+    for path in stale:
+        path.write_bytes(b"orphan")
+        os.utime(path, (old_time, old_time))
+    original_unlink = os.unlink
+    attempted: list[str] = []
+
+    def refuse_stale_unlink(path, *args, **kwargs):
+        if isinstance(path, str) and path.startswith(".mix-unremovable-"):
+            attempted.append(path)
+            raise PermissionError("cannot remove stale file")
+        return original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "unlink", refuse_stale_unlink)
+
+    class SuccessfulEngine:
+        def export_mp3(self, source, output, *, bitrate_kbps):
+            output.write_bytes(b"complete")
+
+    assert encode_version_mp3(project, version_id, eng=SuccessfulEngine()) == mp3
+    assert len(attempted) == review_versions._STALE_MP3_TEMP_CLEANUP_LIMIT
+    assert all(path.read_bytes() == b"orphan" for path in stale)
+    assert mp3.read_bytes() == b"complete"
+
+
+@pytest.mark.skipif(
+    not (os.scandir in os.supports_fd and os.unlink in os.supports_dir_fd),
+    reason="descriptor-relative directory operations are unavailable",
+)
+def test_stale_cleanup_pins_version_directory_during_retarget(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    project, version_id = _publish(minimal_project, sample_wav)
+    version_dir = review_artifacts_dir(project) / version_id
+    stale = version_dir / ".mix-orphan.mp3"
+    stale.write_bytes(b"old orphan")
+    old_time = time.time() - review_versions._STALE_MP3_TEMP_AGE_SECONDS - 60
+    os.utime(stale, (old_time, old_time))
+    other_dir = tmp_workspace.parent / "other-review-version"
+    other_dir.mkdir()
+    other_file = other_dir / stale.name
+    other_file.write_bytes(b"other orphan")
+    os.utime(other_file, (old_time, old_time))
+    moved_dir = version_dir.with_name(f"{version_id}-moved")
+    original_stat = os.stat
+    retargeted = False
+
+    def retarget_after_stat(path, *args, **kwargs):
+        nonlocal retargeted
+        metadata = original_stat(path, *args, **kwargs)
+        if path == stale.name and kwargs.get("dir_fd") is not None and not retargeted:
+            retargeted = True
+            version_dir.rename(moved_dir)
+            version_dir.symlink_to(other_dir, target_is_directory=True)
+        return metadata
+
+    monkeypatch.setattr(os, "stat", retarget_after_stat)
+    review_versions._clean_stale_mp3_temps(version_dir)
+
+    assert retargeted
+    assert not (moved_dir / stale.name).exists()
+    assert other_file.read_bytes() == b"other orphan"
 
 
 def test_mp3_retry_preserves_encode_error_if_temporary_cleanup_fails(

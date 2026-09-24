@@ -113,7 +113,10 @@ resolved review directory so a symlink retarget cannot redirect the output or cl
 Before a retry creates its temporary file, it removes up to 32 regular `.mix-*.mp3` files older
 than 24 hours from that version's pinned directory. Fresh concurrent retries, symlinks, the
 published `mix.mp3`, and `mix.wav` are left alone. Cleanup is best effort: an unreadable or
-undeletable orphan does not block a new encode, and later retries can clear remaining old files.
+undeletable orphan does not block a new encode. The 32-file limit counts failed deletion attempts;
+later retries can clear remaining old files. Cleanup uses directory-relative operations to prevent
+a renamed version directory from redirecting deletion; on platforms without those operations it
+is skipped.
 While `active_version_id` is set, new comments stamp `review_version_id`. Host play via
 `GET /api/audio?kind=review&review_version_id=…` (or `kind=review:<id>`). Guest ReviewApp
 uses `GET /api/review/{token}/audio` (MP3; optional object storage 302 — see
