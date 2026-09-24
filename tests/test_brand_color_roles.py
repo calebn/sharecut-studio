@@ -75,6 +75,9 @@ COMPANY_ACCENT_ROLES: frozenset[str] = frozenset(
 
 def _normalize_value(raw: str) -> str:
     value = " ".join(raw.split()).strip()
+    # Formatter line breaks inside functions: "color-mix( in srgb, … )".
+    value = re.sub(r"\(\s+", "(", value)
+    value = re.sub(r"\s+\)", ")", value)
     if re.fullmatch(r"#[0-9a-fA-F]{3,8}", value):
         return value.lower()
     return value
@@ -257,11 +260,23 @@ def test_docs_theme_roles_are_valid_hex_in_each_brand_theme() -> None:
             assert CSS_HEX_RE.fullmatch(value), f"{theme_name} {role} is not CSS hex: {value}"
 
 
+_ANY_PROP_RE = re.compile(r"(--[a-z0-9-]+)\s*:\s*([^;]+);", re.IGNORECASE | re.DOTALL)
+
+
+def _all_custom_props(block: str) -> dict[str, str]:
+    found: dict[str, str] = {}
+    for name, raw in _ANY_PROP_RE.findall(block):
+        found.setdefault(name, _normalize_value(raw))
+    return found
+
+
 def test_theme_light_prefers_matches_data_theme() -> None:
+    """The explicit and system-preference light blocks stay identical for
+    every custom property (colors, shadows, gradients), not just --color-*."""
     css = THEME_LIGHT.read_text(encoding="utf-8")
-    primary = _color_props(_first_rule_body(css, LIGHT_DATA_SELECTOR))
-    other = _color_props(_prefers_light_root_body(css, missing="theme-light"))
-    assert primary, "theme-light data-theme block has no --color-* props"
+    primary = _all_custom_props(_first_rule_body(css, LIGHT_DATA_SELECTOR))
+    other = _all_custom_props(_prefers_light_root_body(css, missing="theme-light"))
+    assert primary, "theme-light data-theme block has no custom properties"
     missing_p = sorted(set(other) - set(primary))
     missing_o = sorted(set(primary) - set(other))
     assert not missing_p, f"data-theme light missing {missing_p}"
