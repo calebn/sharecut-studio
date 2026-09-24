@@ -5,7 +5,9 @@ import source from "./inputMeterProcessor.js?raw";
 type Processor = {
   port: {
     onmessage:
-      | ((event: { data: { type: string; epoch: number } }) => void)
+      | ((event: {
+          data: { type: string; epoch: number; clearFrame: number };
+        }) => void)
       | null;
     postMessage: ReturnType<typeof vi.fn>;
   };
@@ -13,6 +15,7 @@ type Processor = {
 };
 
 function makeProcessor(clipThreshold = 0.8) {
+  let frame = 0;
   let ProcessorClass: new (options: {
     processorOptions: { clipThreshold: number };
   }) => Processor;
@@ -21,12 +24,29 @@ function makeProcessor(clipThreshold = 0.8) {
   }
   runInNewContext(source, {
     AudioWorkletProcessor,
+    get currentFrame() {
+      return frame;
+    },
     registerProcessor: (name: string, ctor: typeof ProcessorClass) => {
       expect(name).toBe("sharecut-input-meter");
       ProcessorClass = ctor;
     },
   });
-  return new ProcessorClass!({ processorOptions: { clipThreshold } });
+  const processor = new ProcessorClass!({
+    processorOptions: { clipThreshold },
+  });
+  return {
+    ...processor,
+    port: processor.port,
+    process(inputs: Float32Array[][]) {
+      const processed = processor.process(inputs);
+      frame += Math.max(
+        0,
+        ...(inputs[0] ?? []).map((channel) => channel.length),
+      );
+      return processed;
+    },
+  };
 }
 
 describe("input meter worklet", () => {
@@ -40,7 +60,6 @@ describe("input meter worklet", () => {
       peak: expect.closeTo(0.7),
       clipped: false,
       epoch: 0,
-      hotBlocks: 0,
     });
   });
 
@@ -55,47 +74,84 @@ describe("input meter worklet", () => {
       peak: expect.closeTo(0.9),
       clipped: true,
       epoch: 0,
-      hotBlocks: 1,
     });
     for (let i = 0; i < 8; i++) processor.process([[new Float32Array([0.01])]]);
     expect(processor.port.postMessage).toHaveBeenLastCalledWith({
       peak: expect.closeTo(0.01),
       clipped: true,
       epoch: 0,
-      hotBlocks: 1,
     });
   });
 
   it("clears the sticky clip on a new epoch and sees later hot blocks", () => {
     const processor = makeProcessor();
     processor.process([[new Float32Array([1])]]);
-    processor.port.onmessage?.({ data: { type: "clear", epoch: 2 } });
+    processor.port.onmessage?.({
+      data: { type: "clear", epoch: 2, clearFrame: 1 },
+    });
     for (let i = 0; i < 8; i++) processor.process([[new Float32Array([0.1])]]);
     expect(processor.port.postMessage).toHaveBeenLastCalledWith({
       peak: expect.closeTo(0.1),
       clipped: false,
       epoch: 2,
-      hotBlocks: 1,
     });
     processor.process([[new Float32Array([-0.81])]]);
     expect(processor.port.postMessage).toHaveBeenLastCalledWith({
       peak: expect.closeTo(0.81),
       clipped: true,
       epoch: 2,
-      hotBlocks: 2,
     });
   });
 
-  it("acknowledges a hot block processed before the clear command arrives", () => {
+  it("does not re-latch for a hot sample before the audio-clock cutoff", () => {
     const processor = makeProcessor();
     processor.process([[new Float32Array([0.9])]]);
-    processor.port.onmessage?.({ data: { type: "clear", epoch: 1 } });
+    processor.port.onmessage?.({
+      data: { type: "clear", epoch: 1, clearFrame: 1 },
+    });
     expect(processor.port.postMessage).toHaveBeenLastCalledWith({
       type: "clearAck",
       epoch: 1,
-      hotBlocks: 1,
+      clipped: false,
     });
     processor.process([[new Float32Array([0.1])]]);
     expect(processor.port.postMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it("re-latches for a hot sample after the cutoff but before clear arrives", () => {
+    const processor = makeProcessor();
+    processor.process([[new Float32Array([0.1])]]);
+    processor.process([[new Float32Array([0.9])]]);
+    processor.port.onmessage?.({
+      data: { type: "clear", epoch: 1, clearFrame: 1 },
+    });
+    expect(processor.port.postMessage).toHaveBeenLastCalledWith({
+      type: "clearAck",
+      epoch: 1,
+      clipped: true,
+    });
+  });
+
+  it("uses the latest hot sample frame across channels and clears", () => {
+    const processor = makeProcessor();
+    processor.process([
+      [new Float32Array([0.9, 0]), new Float32Array([0, 0.9])],
+    ]);
+    processor.port.onmessage?.({
+      data: { type: "clear", epoch: 1, clearFrame: 1 },
+    });
+    expect(processor.port.postMessage).toHaveBeenLastCalledWith({
+      type: "clearAck",
+      epoch: 1,
+      clipped: true,
+    });
+    processor.port.onmessage?.({
+      data: { type: "clear", epoch: 2, clearFrame: 2 },
+    });
+    expect(processor.port.postMessage).toHaveBeenLastCalledWith({
+      type: "clearAck",
+      epoch: 2,
+      clipped: false,
+    });
   });
 });

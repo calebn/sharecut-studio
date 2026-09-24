@@ -11,7 +11,6 @@ type Message = {
   peak?: number;
   clipped?: boolean;
   epoch: number;
-  hotBlocks: number;
 };
 
 function stubAudioGraph(
@@ -20,6 +19,7 @@ function stubAudioGraph(
     modulePromise?: Promise<void>;
     throwOnSource?: boolean;
     global?: "AudioContext" | "webkitAudioContext";
+    sampleRate?: number;
   } = {},
 ) {
   const listeners = new Set<() => void>();
@@ -51,6 +51,8 @@ function stubAudioGraph(
   });
   const ctx = {
     state: options.state ?? "running",
+    currentTime: 0,
+    sampleRate: options.sampleRate ?? 48000,
     destination: {},
     audioWorklet: {
       addModule: vi.fn(() => options.modulePromise ?? Promise.resolve()),
@@ -116,8 +118,8 @@ describe("useInputPeakDb", () => {
     expect(graph.silent.gain.value).toBe(0);
     expect(graph.silent.connect).toHaveBeenCalledWith(graph.ctx.destination);
     act(() => {
-      node.emit({ peak: 0.3, clipped: false, epoch: 0, hotBlocks: 0 });
-      node.emit({ peak: 0.5, clipped: false, epoch: 0, hotBlocks: 0 });
+      node.emit({ peak: 0.3, clipped: false, epoch: 0 });
+      node.emit({ peak: 0.5, clipped: false, epoch: 0 });
       raf.fire(1000);
     });
     expect(result.current.levelDb).toBeCloseTo(-6.02, 2);
@@ -133,18 +135,34 @@ describe("useInputPeakDb", () => {
     const graph = stubAudioGraph();
     const { result } = renderHook(() => useInputPeakDb(micA));
     const node = await ready(graph.nodes);
-    act(() => node.emit({ peak: 0.5, clipped: false, epoch: 0, hotBlocks: 0 }));
+    act(() => node.emit({ peak: 0.5, clipped: false, epoch: 0 }));
     act(() => raf.fire(1000));
     clock.mockReturnValue(1017);
     act(() => raf.fire(1017));
     expect(result.current.levelDb).toBeCloseTo(-6.02, 2);
     clock.mockReturnValue(1021);
-    act(() => node.emit({ peak: 0.5, clipped: false, epoch: 0, hotBlocks: 0 }));
+    act(() => node.emit({ peak: 0.5, clipped: false, epoch: 0 }));
     clock.mockReturnValue(1034);
     act(() => raf.fire(1034));
     expect(result.current.levelDb).toBeCloseTo(-6.02, 2);
     clock.mockReturnValue(1130);
     act(() => raf.fire(1130));
+    expect(result.current.levelDb).toBe(Number.NEGATIVE_INFINITY);
+  });
+
+  it("keeps steady input visible across the 8 kHz report cadence", async () => {
+    const raf = stubRaf();
+    const clock = vi.spyOn(performance, "now").mockReturnValue(1000);
+    const graph = stubAudioGraph({ sampleRate: 8000 });
+    const { result } = renderHook(() => useInputPeakDb(micA));
+    const node = await ready(graph.nodes);
+    act(() => node.emit({ peak: 0.5, clipped: false, epoch: 0 }));
+    act(() => raf.fire(1000));
+    clock.mockReturnValue(1150);
+    act(() => raf.fire(1150));
+    expect(result.current.levelDb).toBeCloseTo(-6.02, 2);
+    clock.mockReturnValue(1260);
+    act(() => raf.fire(1260));
     expect(result.current.levelDb).toBe(Number.NEGATIVE_INFINITY);
   });
 
@@ -155,8 +173,8 @@ describe("useInputPeakDb", () => {
     const { result } = renderHook(() => useInputPeakDb(micA));
     const node = await ready(graph.nodes);
     act(() => {
-      node.emit({ peak: 0.8, clipped: false, epoch: 0, hotBlocks: 0 });
-      node.emit({ peak: 0.1, clipped: false, epoch: 0, hotBlocks: 0 });
+      node.emit({ peak: 0.8, clipped: false, epoch: 0 });
+      node.emit({ peak: 0.1, clipped: false, epoch: 0 });
       raf.fire(1000);
     });
     expect(result.current.levelDb).toBeCloseTo(-1.94, 2);
@@ -170,9 +188,9 @@ describe("useInputPeakDb", () => {
     const graph = stubAudioGraph();
     const { result } = renderHook(() => useInputPeakDb(micA));
     const node = await ready(graph.nodes);
-    act(() => node.emit({ peak: 0.95, clipped: true, epoch: 0, hotBlocks: 1 }));
+    act(() => node.emit({ peak: 0.95, clipped: true, epoch: 0 }));
     expect(result.current.clipped).toBe(true);
-    act(() => node.emit({ peak: 0, clipped: true, epoch: 0, hotBlocks: 1 }));
+    act(() => node.emit({ peak: 0, clipped: true, epoch: 0 }));
     expect(result.current.clipped).toBe(true);
   });
 
@@ -181,22 +199,24 @@ describe("useInputPeakDb", () => {
     const graph = stubAudioGraph();
     const { result } = renderHook(() => useInputPeakDb(micA, { clipDb: -6 }));
     const node = await ready(graph.nodes);
+    graph.ctx.currentTime = 0.5;
     expect(graph.Node).toHaveBeenCalledWith(graph.ctx, "sharecut-input-meter", {
       processorOptions: { clipThreshold: 10 ** (-6 / 20) },
     });
-    act(() => node.emit({ peak: 0.7, clipped: true, epoch: 0, hotBlocks: 1 }));
+    act(() => node.emit({ peak: 0.7, clipped: true, epoch: 0 }));
     expect(result.current.clipped).toBe(true);
     act(() => result.current.clearClip());
     expect(node.port.postMessage).toHaveBeenCalledWith({
       type: "clear",
       epoch: 1,
+      clearFrame: 24000,
     });
     expect(result.current.clipped).toBe(false);
-    act(() => node.emit({ peak: 0.95, clipped: true, epoch: 0, hotBlocks: 1 }));
+    act(() => node.emit({ peak: 0.95, clipped: true, epoch: 0 }));
     expect(result.current.clipped).toBe(false);
-    act(() => node.emit({ type: "clearAck", epoch: 1, hotBlocks: 1 }));
+    act(() => node.emit({ type: "clearAck", epoch: 1, clipped: false }));
     expect(result.current.clipped).toBe(false);
-    act(() => node.emit({ peak: 0.7, clipped: true, epoch: 1, hotBlocks: 2 }));
+    act(() => node.emit({ peak: 0.7, clipped: true, epoch: 1 }));
     expect(result.current.clipped).toBe(true);
   });
 
@@ -206,9 +226,34 @@ describe("useInputPeakDb", () => {
     const { result } = renderHook(() => useInputPeakDb(micA));
     const node = await ready(graph.nodes);
     act(() => result.current.clearClip());
-    act(() => node.emit({ peak: 0.95, clipped: true, epoch: 0, hotBlocks: 1 }));
+    act(() => node.emit({ peak: 0.95, clipped: true, epoch: 0 }));
     expect(result.current.clipped).toBe(false);
-    act(() => node.emit({ type: "clearAck", epoch: 1, hotBlocks: 1 }));
+    act(() => node.emit({ type: "clearAck", epoch: 1, clipped: true }));
+    expect(result.current.clipped).toBe(true);
+  });
+
+  it("ignores a stale ACK after rapid clears", async () => {
+    stubRaf();
+    const graph = stubAudioGraph();
+    const { result } = renderHook(() => useInputPeakDb(micA));
+    const node = await ready(graph.nodes);
+    graph.ctx.currentTime = 0.25;
+    act(() => result.current.clearClip());
+    graph.ctx.currentTime = 0.5;
+    act(() => result.current.clearClip());
+    expect(node.port.postMessage).toHaveBeenNthCalledWith(1, {
+      type: "clear",
+      epoch: 1,
+      clearFrame: 12000,
+    });
+    expect(node.port.postMessage).toHaveBeenNthCalledWith(2, {
+      type: "clear",
+      epoch: 2,
+      clearFrame: 24000,
+    });
+    act(() => node.emit({ type: "clearAck", epoch: 1, clipped: true }));
+    expect(result.current.clipped).toBe(false);
+    act(() => node.emit({ type: "clearAck", epoch: 2, clipped: true }));
     expect(result.current.clipped).toBe(true);
   });
 
@@ -220,7 +265,7 @@ describe("useInputPeakDb", () => {
       { initialProps: { stream: micA as MediaStream | null } },
     );
     const old = await ready(graph.nodes);
-    act(() => old.emit({ peak: 0.95, clipped: true, epoch: 0, hotBlocks: 1 }));
+    act(() => old.emit({ peak: 0.95, clipped: true, epoch: 0 }));
     rerender({ stream: micB });
     expect(result.current.clipped).toBe(false);
     expect(graph.ctx.close).toHaveBeenCalledTimes(1);

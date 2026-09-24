@@ -20,10 +20,19 @@ type MeterMessage = {
   peak?: number;
   clipped?: boolean;
   epoch: number;
-  hotBlocks: number;
 };
 
-const PEAK_REPORT_TIMEOUT_MS = 100;
+const MIN_PEAK_REPORT_TIMEOUT_MS = 100;
+const REPORT_BLOCKS = 8;
+const RENDER_QUANTUM_FRAMES = 128;
+
+function peakReportTimeoutMs(sampleRate: number): number {
+  // Keep a report visible across at least two batches at low sample rates.
+  return Math.max(
+    MIN_PEAK_REPORT_TIMEOUT_MS,
+    (2 * REPORT_BLOCKS * RENDER_QUANTUM_FRAMES * 1000) / sampleRate,
+  );
+}
 
 function closeQuietly(ctx: AudioContext): void {
   void ctx.close().catch(() => undefined);
@@ -47,8 +56,6 @@ export function useInputPeakDb(
   const pendingPeakRef = useRef(0);
   const latestPeakRef = useRef(0);
   const peakReceivedAtRef = useRef(Number.NEGATIVE_INFINITY);
-  const hotBlocksRef = useRef(0);
-  const clearHotBlocksRef = useRef(0);
   const frameRef = useRef(new Float32Array(1));
   const levels = usePeakMeter(reader, { clipDb });
   const latchClip = levels.latchClip;
@@ -61,8 +68,6 @@ export function useInputPeakDb(
     pendingPeakRef.current = 0;
     latestPeakRef.current = 0;
     peakReceivedAtRef.current = Number.NEGATIVE_INFINITY;
-    hotBlocksRef.current = 0;
-    clearHotBlocksRef.current = 0;
     if (!stream) return;
     const AC = audioContextCtor();
     if (!AC) return;
@@ -79,6 +84,7 @@ export function useInputPeakDb(
     const open = async () => {
       try {
         ctx = new AC();
+        const reportTimeoutMs = peakReportTimeoutMs(ctx.sampleRate);
         ctxRef.current = ctx;
         ctx.addEventListener("statechange", onStateChange);
         onStateChange();
@@ -97,13 +103,9 @@ export function useInputPeakDb(
           const data = event.data;
           if (!active || data.epoch !== epochRef.current) return;
           if (data.type === "clearAck") {
-            // Preserve an overload processed after the user's clear action
-            // while the clear command was still in flight to the worklet.
-            if (data.hotBlocks > clearHotBlocksRef.current) latchClip();
-            hotBlocksRef.current = data.hotBlocks;
+            if (data.clipped) latchClip();
             return;
           }
-          hotBlocksRef.current = data.hotBlocks;
           latestPeakRef.current = data.peak ?? 0;
           pendingPeakRef.current = Math.max(
             pendingPeakRef.current,
@@ -118,8 +120,7 @@ export function useInputPeakDb(
         silent.connect(ctx.destination);
         setReader(() => () => {
           const freshPeak =
-            performance.now() - peakReceivedAtRef.current <=
-            PEAK_REPORT_TIMEOUT_MS
+            performance.now() - peakReceivedAtRef.current <= reportTimeoutMs
               ? latestPeakRef.current
               : 0;
           frameRef.current[0] = Math.max(pendingPeakRef.current, freshPeak);
@@ -165,12 +166,17 @@ export function useInputPeakDb(
   }, []);
 
   const clearClip = useCallback(() => {
+    const ctx = ctxRef.current;
+    const clearFrame = ctx ? Math.round(ctx.currentTime * ctx.sampleRate) : 0;
     epochRef.current += 1;
     pendingPeakRef.current = 0;
     latestPeakRef.current = 0;
     peakReceivedAtRef.current = Number.NEGATIVE_INFINITY;
-    clearHotBlocksRef.current = hotBlocksRef.current;
-    portRef.current?.postMessage({ type: "clear", epoch: epochRef.current });
+    portRef.current?.postMessage({
+      type: "clear",
+      epoch: epochRef.current,
+      clearFrame,
+    });
     clearMeterClip();
   }, [clearMeterClip]);
 
