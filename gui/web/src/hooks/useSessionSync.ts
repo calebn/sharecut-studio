@@ -14,8 +14,8 @@ import { emitRecordSignal, isRecordSignal } from "../record/monitor/signalBus";
 import { newClientId } from "../session/clientId";
 import {
   type AppliedCursor,
+  advanceCursorIfNewer,
   baselineFromSnapshot,
-  sessionSeq,
   shouldApplyRemote,
   shouldHandleWsMessage,
 } from "../session/dedupe";
@@ -198,14 +198,7 @@ export function useSessionSync(
                 msg.command?.client_id ?? snap.last_client_id,
               );
             } else {
-              const seq = sessionSeq(snap);
-              if (seq > cursorRef.current.serverSeq) {
-                cursorRef.current = {
-                  serverSeq: seq,
-                  commandId:
-                    snap.last_command_id ?? cursorRef.current.commandId,
-                };
-              }
+              cursorRef.current = advanceCursorIfNewer(cursorRef.current, snap);
             }
           }
         } catch {
@@ -273,13 +266,7 @@ export function useSessionSync(
     if (meta.exists) {
       mtimeRef.current = meta.mtime_ns;
     }
-    const writtenSeq = sessionSeq(written);
-    if (writtenSeq > cursorRef.current.serverSeq) {
-      cursorRef.current = {
-        serverSeq: writtenSeq,
-        commandId: written.last_command_id ?? cursorRef.current.commandId,
-      };
-    }
+    cursorRef.current = advanceCursorIfNewer(cursorRef.current, written);
   });
 
   useEffect(() => {
