@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { errorMessage } from "../utils/apiError";
 import {
   KEEPER_SETTINGS_WARNING,
   keeperAudioConstraints,
@@ -161,7 +162,7 @@ export function useMicStream(
           setStream(null);
           setSettingsWarning(null);
           setErrorName(err instanceof Error ? err.name : null);
-          setError(err instanceof Error ? err.message : String(err));
+          setError(errorMessage(err));
           setPending(false);
           setSettledAttempt(resetKey);
         }

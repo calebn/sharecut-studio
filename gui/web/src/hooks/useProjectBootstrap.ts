@@ -4,6 +4,7 @@ import { currentDocumentSeq, resetDocumentSeq } from "../document/cursor";
 import { mergeProjectPatch } from "../document/projectPatch";
 import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { errorMessage } from "../utils/apiError";
 
 function isAbortError(e: unknown): boolean {
   return (
@@ -61,7 +62,7 @@ export function useProjectBootstrap(
         }
       } catch (e: unknown) {
         if (!cancelled && !isAbortError(e)) {
-          setError(e instanceof Error ? e.message : String(e));
+          setError(errorMessage(e));
         }
       }
     })();

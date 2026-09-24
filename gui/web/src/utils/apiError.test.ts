@@ -8,8 +8,16 @@ import {
 } from "./apiError";
 
 describe("errorMessage", () => {
-  it("uses an Error's message and stringifies anything else", () => {
+  it("uses an Error's message even when a fallback is supplied", () => {
     expect(errorMessage(new Error("disk full"))).toBe("disk full");
+    expect(errorMessage(new Error("disk full"), "save failed")).toBe(
+      "disk full",
+    );
+  });
+
+  it("uses a caller fallback for non-Errors and keeps one-argument stringification", () => {
+    expect(errorMessage("plain", "save failed")).toBe("save failed");
+    expect(errorMessage(null, "save failed")).toBe("save failed");
     expect(errorMessage("plain")).toBe("plain");
     expect(errorMessage(42)).toBe("42");
   });

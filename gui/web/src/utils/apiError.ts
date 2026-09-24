@@ -16,9 +16,9 @@ export class ApiError extends Error {
   }
 }
 
-/** User-facing message for any thrown value. */
-export function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+/** User-facing message for any thrown value, with an optional non-Error fallback. */
+export function errorMessage(error: unknown, fallback?: string): string {
+  return error instanceof Error ? error.message : (fallback ?? String(error));
 }
 
 /** True for a 4xx the server answered: retrying the same request cannot succeed. */

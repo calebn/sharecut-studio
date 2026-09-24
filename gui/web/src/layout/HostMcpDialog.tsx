@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Button, Dialog, Field, InlineError } from "../ui";
+import { errorMessage } from "../utils/apiError";
 import { localHostMcpUrl, mcpClientSnippet } from "./hostMcp";
 
 const COPIED_MS = 2000;
@@ -76,7 +77,7 @@ export function HostMcpDialog({ open, onClose, hasProject }: Props) {
         if (gen !== generation.current) {
           return;
         }
-        setError(err instanceof Error ? err.message : String(err));
+        setError(errorMessage(err));
       }
     },
     [markCopied],

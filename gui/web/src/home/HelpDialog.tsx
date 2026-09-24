@@ -5,6 +5,7 @@ import {
   fetchDiagnosticsMeta,
 } from "../api";
 import { Button, Dialog, InlineError } from "../ui";
+import { errorMessage } from "../utils/apiError";
 
 type Props = {
   open: boolean;
@@ -53,7 +54,7 @@ export function HelpDialog({ open, onClose }: Props) {
       if (!open) {
         return;
       }
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err));
     } finally {
       if (open) {
         setBusy(false);

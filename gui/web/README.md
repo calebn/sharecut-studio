@@ -132,6 +132,8 @@ Sharecut Studio chrome library — see [`docs/ui-library.md`](docs/ui-library.md
 
 Mutations: prefer `hooks/useProjectMutation()` (`busy` / `error` / `run` / `refresh`) over local try/catch boilerplate.
 
+For caught values, use `utils/apiError.errorMessage(error, fallback)` when the caller has a specific fallback for non-`Error` values. Omit the fallback only when showing the string form of any thrown value is intentional.
+
 Comments: shared `src/comments/` (`CommentCard`, `CommentCompose`, `useCommentActions`).
 
 ## Layout constants

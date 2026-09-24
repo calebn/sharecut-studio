@@ -3,6 +3,7 @@ import { audioUrl } from "../api";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import type { ProjectView } from "../types/project";
+import { errorMessage } from "../utils/apiError";
 import { anySolo, dbToLinear, trackIsAudible } from "../utils/audio";
 import {
   projectHasSourceAudio,
@@ -410,7 +411,7 @@ export function useAudioTransport(enabled = true): void {
         );
       } catch (e) {
         if (!cancelled) {
-          const msg = e instanceof Error ? e.message : String(e);
+          const msg = errorMessage(e);
           const blocked =
             e instanceof DOMException && e.name === "NotAllowedError";
           setAudioError(
@@ -518,7 +519,7 @@ export function useAudioTransport(enabled = true): void {
                     if (cancelled || auditionEpochRef.current !== gen) {
                       return;
                     }
-                    const msg = e instanceof Error ? e.message : String(e);
+                    const msg = errorMessage(e);
                     const blocked =
                       e instanceof DOMException && e.name === "NotAllowedError";
                     setAudioError(

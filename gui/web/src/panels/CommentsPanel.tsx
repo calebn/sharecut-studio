@@ -15,6 +15,7 @@ import {
   UndoToast,
   type UndoToastState,
 } from "../ui";
+import { errorMessage } from "../utils/apiError";
 import { loadCommentAuthor, saveCommentAuthor } from "../utils/commentAuthor";
 import { formatTimeShort } from "../utils/time";
 
@@ -154,7 +155,7 @@ export function CommentsPanel({
       }
       setActiveTab("comments");
     } catch (e) {
-      setCreateError(e instanceof Error ? e.message : String(e));
+      setCreateError(errorMessage(e));
     } finally {
       setCreateBusy(false);
     }

@@ -2,6 +2,7 @@ import { approveEdits, rejectEdits } from "../api";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { PendingEditView } from "../types/project";
+import { errorMessage } from "../utils/apiError";
 import {
   canSuggestSkip,
   playSuggestedRange,
@@ -77,7 +78,7 @@ async function runApprove(ids: string[]): Promise<ExecuteResult> {
     );
     return { status: "ok" };
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = errorMessage(e);
     useDawStore.getState().announceStatus(`Apply failed: ${msg}`);
     return { status: "disabled", reason: msg };
   } finally {
@@ -104,7 +105,7 @@ async function runReject(id: string): Promise<ExecuteResult> {
     next.announceStatus("Skipped tighten hit");
     return { status: "ok" };
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = errorMessage(e);
     useDawStore.getState().announceStatus(`Skip failed: ${msg}`);
     return { status: "disabled", reason: msg };
   } finally {

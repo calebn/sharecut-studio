@@ -1,7 +1,10 @@
 import { useId, useState } from "react";
 import { waiveTranscriptRefine } from "../api";
 import { Button, Field } from "../ui";
-import { TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
+import {
+  errorMessage,
+  TRANSCRIPT_REFINE_REQUIRED_CODE,
+} from "../utils/apiError";
 
 export const REFINE_GATE_GUI_MESSAGE =
   "Transcript refinement is required before approval. Review the transcript or waive with a reason below.";
@@ -49,7 +52,7 @@ export function TranscriptRefineRecovery({
       setRecovered(true);
       onRecovered();
     } catch (cause) {
-      setFormError(cause instanceof Error ? cause.message : String(cause));
+      setFormError(errorMessage(cause));
     } finally {
       setBusy(false);
     }

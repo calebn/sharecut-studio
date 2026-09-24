@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { errorMessage } from "../../utils/apiError";
 import { recordingClockMs } from "../clock";
 import type { RecordRole, RecordSnapshot } from "../types";
 import { attachKeeperTap } from "./graph";
@@ -190,7 +191,7 @@ export function useKeeperCapture({
           disposalFailed.current = true;
           finalizationFailed.current = true;
           if (mountedRef.current) {
-            setError(err instanceof Error ? err.message : String(err));
+            setError(errorMessage(err));
             setFinalizing(true);
           }
         })
@@ -256,7 +257,7 @@ export function useKeeperCapture({
       } catch (err) {
         if (!cancelled) {
           setWriting(false);
-          setError(err instanceof Error ? err.message : String(err));
+          setError(errorMessage(err));
         }
       }
     };
@@ -311,7 +312,7 @@ export function useKeeperCapture({
         if (!cancelled) {
           tapFailedRef.current = true;
           setWriting(false);
-          setError(err instanceof Error ? err.message : String(err));
+          setError(errorMessage(err));
         }
       }
     };
@@ -346,7 +347,7 @@ export function useKeeperCapture({
         // Keep native close protection armed even after writing turns false.
         finalizationFailed.current = true;
         setFinalizing(true);
-        setError(err instanceof Error ? err.message : String(err));
+        setError(errorMessage(err));
         setWriting(false);
       });
   }, [
@@ -411,7 +412,7 @@ export function useKeeperCapture({
           return;
         }
         setWriting(false);
-        setError(err instanceof Error ? err.message : String(err));
+        setError(errorMessage(err));
       });
   };
 

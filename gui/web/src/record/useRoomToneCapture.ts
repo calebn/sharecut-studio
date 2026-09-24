@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { errorMessage } from "../utils/apiError";
 import { encodeRoomToneWav } from "./encodeRoomTone";
 import type { ByteSink } from "./keeper/store";
 import { removeBestEffort, roomToneWavPath } from "./keeper/store";
@@ -125,7 +126,7 @@ export function useRoomToneCapture(args: {
           return;
         }
         setStatus("error");
-        setError(err instanceof Error ? err.message : String(err));
+        setError(errorMessage(err));
       } finally {
         if (abortRef.current === controller) {
           inflight.current = false;
@@ -195,7 +196,7 @@ export function useRoomToneCapture(args: {
           return;
         }
         setStatus("error");
-        setError(err instanceof Error ? err.message : String(err));
+        setError(errorMessage(err));
       } finally {
         if (abortRef.current === controller) {
           inflight.current = false;

@@ -8,6 +8,7 @@ import {
 import { desktopCloseGuardArmed } from "../desktop/useDesktopCloseGuard";
 import { HostMcpDialog } from "../layout/HostMcpDialog";
 import { Button, Field } from "../ui";
+import { errorMessage } from "../utils/apiError";
 import { readLocal, writeLocal } from "../utils/storage";
 import { BootstrapWizard } from "./BootstrapWizard";
 import { HelpDialog } from "./HelpDialog";
@@ -77,7 +78,7 @@ export function HomeScreen() {
       );
       navigateToProject(out.project_path);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
       setBusyAction(null);
     }
   };
@@ -90,7 +91,7 @@ export function HomeScreen() {
       const out = await openEpisodeProject(path.trim());
       navigateToProject(out.project_path);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
       setBusyAction(null);
     }
   };
@@ -124,7 +125,7 @@ export function HomeScreen() {
       const out = await openEpisodeProject(picked.project_path);
       navigateToProject(out.project_path);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
       setBusyAction(null);
     }
   };

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { errorMessage } from "../../utils/apiError";
 import {
   canReclaimKeeperSegment,
   createKeeperReclaimTracker,
@@ -257,7 +258,7 @@ export function useRecordUpload(args: {
             ...prev,
             uploading: false,
             pending: false,
-            error: err instanceof Error ? err.message : String(err),
+            error: errorMessage(err),
           }));
         }
       } finally {

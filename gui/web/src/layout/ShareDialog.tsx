@@ -10,6 +10,7 @@ import { execute } from "../commands/execute";
 import { useDaw } from "../state/useDaw";
 import type { HostShareRow, ShareRole } from "../types/shares";
 import { Button, Dialog, Field, InlineError } from "../ui";
+import { errorMessage } from "../utils/apiError";
 
 const ROLES: { id: ShareRole; label: string }[] = [
   { id: "viewer", label: "Viewer" },
@@ -152,7 +153,7 @@ export function ShareDialog() {
     clearCopiedTimer();
     setCopiedKey(null);
     void load().catch((err: unknown) => {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err));
     });
   }, [shareDialogOpen, load, clearCopiedTimer]);
 
@@ -184,14 +185,14 @@ export function ShareDialog() {
           announce("Share link created and copied");
         } catch (err) {
           announce("Share link created");
-          setError(err instanceof Error ? err.message : String(err));
+          setError(errorMessage(err));
         }
       } else {
         announce("Share link created");
       }
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err));
     } finally {
       if (busyOp.current === op) {
         busyOp.current = null;
@@ -222,7 +223,7 @@ export function ShareDialog() {
           announce("Record links created and guest link copied");
         } catch (err) {
           announce("Record links created");
-          setError(err instanceof Error ? err.message : String(err));
+          setError(errorMessage(err));
         }
       } else {
         announce("Record links created");
@@ -232,7 +233,7 @@ export function ShareDialog() {
       if (gen !== dialogGen.current) {
         return;
       }
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err));
     } finally {
       if (busyOp.current === op && gen === dialogGen.current) {
         busyOp.current = null;
@@ -256,7 +257,7 @@ export function ShareDialog() {
       markCopied(copyKey(kind, token));
       announce(`${label} copied`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err));
     }
   }
 
@@ -274,7 +275,7 @@ export function ShareDialog() {
       announce("Share link stopped");
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err));
     } finally {
       if (busyOp.current === op) {
         busyOp.current = null;
@@ -304,7 +305,7 @@ export function ShareDialog() {
       announce("Record room ended");
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err));
     } finally {
       if (busyOp.current === op) {
         busyOp.current = null;

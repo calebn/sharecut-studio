@@ -5,6 +5,7 @@ import {
   waitForBootstrapJob,
 } from "../api";
 import { Button, Dialog, InlineError } from "../ui";
+import { errorMessage } from "../utils/apiError";
 
 export type WhisperDownloadReason = "select" | "run";
 
@@ -168,7 +169,7 @@ export function WhisperDownloadDialog({
       });
       onDownloaded(pending.modelId);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
       setBusy(false);
     } finally {
       inFlightRef.current = false;

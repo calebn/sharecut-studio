@@ -1,3 +1,4 @@
+import { errorMessage } from "../utils/apiError";
 import { extractPeaksFromPcm, extractPeaksIdle } from "./waveformExtract";
 
 export type WorkerExtractMsg = {
@@ -149,7 +150,7 @@ export function handleWorkerMessage(
     return {
       type: "error",
       id: msg.id,
-      message: err instanceof Error ? err.message : String(err),
+      message: errorMessage(err),
     };
   }
 }

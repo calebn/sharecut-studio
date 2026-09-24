@@ -7,6 +7,7 @@ import {
   waitForBootstrapJob,
 } from "../api";
 import { Button, Field } from "../ui";
+import { errorMessage } from "../utils/apiError";
 
 export type BootstrapWizardProps = {
   onReady: () => void;
@@ -58,7 +59,7 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
         if (gen !== fetchGen.current) {
           return;
         }
-        setError(e instanceof Error ? e.message : String(e));
+        setError(errorMessage(e));
       } finally {
         if (gen === fetchGen.current) {
           setLoading(false);
@@ -98,7 +99,7 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
       void refresh(whisperModel);
     } catch (e: unknown) {
       setBusy(false);
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
     }
   };
 

@@ -7,7 +7,7 @@ import { PipelineStatusChip } from "../layout/PipelineStatusChip";
 import { hasShareCapability, shareProjectKey } from "../shareMode";
 import type { TimelineComment } from "../types/project";
 import { ErrorScreen, InlineError, LoadingScreen } from "../ui";
-import { readApiError } from "../utils/apiError";
+import { errorMessage, readApiError } from "../utils/apiError";
 import {
   loadCommentAuthor,
   resolveCommentActor,
@@ -79,9 +79,7 @@ export function ReviewApp({ token }: { token: string }) {
   useEffect(() => {
     loadReview(token)
       .then(setProject)
-      .catch((e: unknown) =>
-        setError(e instanceof Error ? e.message : String(e)),
-      );
+      .catch((e: unknown) => setError(errorMessage(e)));
   }, [token]);
 
   useEffect(() => {
@@ -152,7 +150,7 @@ export function ReviewApp({ token }: { token: string }) {
       setBody("");
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
     } finally {
       endInflight();
     }
@@ -191,7 +189,7 @@ export function ReviewApp({ token }: { token: string }) {
       setReplyDrafts((prev) => ({ ...prev, [commentId]: "" }));
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
     } finally {
       endInflight();
     }
@@ -215,7 +213,7 @@ export function ReviewApp({ token }: { token: string }) {
       });
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
     } finally {
       endInflight();
     }
