@@ -324,3 +324,16 @@ def test_schedule_track_peaks_clears_pending_when_submit_fails(
     with pytest.raises(RuntimeError, match="cannot schedule"):
         schedule_track_peaks(ws.project, track)
     assert peaks_generation_pending(ws.project, track) is False
+
+
+def test_failed_source_memory_is_capped(monkeypatch, tmp_path):
+    from collections import OrderedDict
+
+    from podcast_mcp.engines import peaks as peaks_engine
+
+    monkeypatch.setattr(peaks_engine, "_PEAKS_FAILED", OrderedDict())
+    monkeypatch.setattr(peaks_engine, "_PEAKS_FAILED_MAX", 2)
+    revision = (0, 0, 0, 0)
+    for name in ("a", "b", "c"):
+        peaks_engine._remember_failed_source(tmp_path / f"{name}.json", revision)
+    assert list(peaks_engine._PEAKS_FAILED) == [tmp_path / "b.json", tmp_path / "c.json"]
