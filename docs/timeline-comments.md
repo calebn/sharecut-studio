@@ -121,7 +121,8 @@ If history or project persistence fails after media generation, the service chec
 project file, restores its prior history index and snapshots, then removes only the new,
 uncommitted version directory. A version already saved in
 the project keeps its media even when a later write reports an error. Cleanup failures are logged
-without masking the original persistence error.
+without masking the original persistence error. A version directory that is already gone when
+cleanup runs counts as nothing to clean and is not reported as a failure.
 The cleanup boundary assumes other local writers do not modify the private quarantine. A process
 with the same filesystem permissions can deliberately access and replace quarantine entries; the
 filesystem does not provide an atomic compare-and-remove directory operation against that actor.
