@@ -302,19 +302,26 @@ html[data-shell="tablet"] {
 
 .mobile-nav button {
   flex: 1;
-  min-height: 2.75rem;
+  min-height: var(--touch-min);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-0);
   background: transparent;
   border: none;
+  border-radius: 0;
   color: var(--text-dim);
-  font-size: var(--font-size-small);
+  font-size: var(--font-size-caption);
   font-weight: 600;
   cursor: pointer;
 }
 
+/* Icon + label with a tinted active tab and a top indicator (no block fill). */
 .mobile-nav button.active {
-  color: var(--color-chip-selected-fg);
-  background: var(--color-chip-selected);
-  box-shadow: inset 0 -0.125rem 0 var(--color-border-strong);
+  color: var(--color-accent-fg);
+  background: transparent;
+  box-shadow: inset 0 0.125rem 0 var(--color-accent);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -332,35 +339,104 @@ html[data-shell="tablet"] {
   gap: var(--space-4);
 }
 
-.mobile-listen-transport {
+.listen-hero {
+  /* The transport strip as a card: same fixed-dark tokens in both themes. */
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border-radius: var(--radius-xl);
+  background: var(--bg-transport);
+  color: var(--color-transport-text);
+  box-shadow: var(--shadow-floating);
+}
+
+.listen-hero-title {
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--font-size-emphasis);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.listen-hero-time {
+  min-inline-size: 0;
+}
+
+.listen-hero-controls {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.listen-hero-transport {
   display: flex;
   align-items: center;
   gap: var(--space-3);
 }
 
-.mobile-play-lg {
-  min-width: 4.5rem;
-  min-height: 2.75rem;
-  font-size: var(--font-size-emphasis);
+.listen-hero-skip:first-child {
+  justify-self: end;
 }
 
-.mobile-scrub {
-  width: 100%;
-  min-height: 2rem;
+.listen-hero-skip:last-child {
+  justify-self: start;
 }
 
-.mobile-nudge {
-  display: flex;
-  gap: var(--space-3);
+.listen-hero .play-btn {
+  display: grid;
+  place-items: center;
+  inline-size: 3.5rem;
+  block-size: 3.5rem;
+  padding: 0;
+  border: 1px solid var(--color-transport-play);
+  border-radius: 50%;
+  background: var(--color-transport-play);
+  color: var(--color-transport-play-fg);
+  box-shadow: var(--shadow-transport-play);
 }
 
-.mobile-nudge button {
-  min-height: 2.5rem;
-  min-width: 4rem;
-  background: var(--color-bg-sunken);
-  border: 1px solid var(--border);
-  color: var(--text);
+.listen-hero .play-btn[data-playing="true"] {
+  box-shadow: var(--shadow-transport-playing);
+}
+
+.listen-hero .play-btn .ui-icon {
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+}
+
+.listen-hero .stop-btn {
+  display: grid;
+  place-items: center;
+  inline-size: var(--touch-min);
+  block-size: var(--touch-min);
+  padding: 0;
+  border: 1px solid var(--color-transport-control-border);
+  background: var(--color-transport-control);
+  color: var(--color-transport-muted);
+}
+
+.listen-hero .timecode-current {
+  font-size: var(--font-size-transport-time);
+}
+
+.listen-scrub {
+  inline-size: 100%;
+  min-block-size: var(--touch-min);
+  margin: 0;
+  accent-color: var(--color-transport-play);
+}
+
+.listen-hero-skip button {
+  min-inline-size: 4rem;
+  min-block-size: var(--touch-min);
+  border: 1px solid var(--color-transport-control-border);
   border-radius: var(--radius-md);
+  background: var(--color-transport-control);
+  color: var(--color-transport-text);
+  font-size: var(--font-size-ui);
+  font-weight: 600;
   cursor: pointer;
 }
 
@@ -467,23 +543,65 @@ html[data-shell="tablet"] {
 }
 
 .mobile-more-item {
-  display: block;
+  /* Settings-style list rows: one surface, hairline dividers, no slabs. */
+  display: flex;
+  align-items: center;
   width: 100%;
+  min-block-size: var(--touch-min);
   text-align: left;
   background: var(--color-bg-raised);
-  border: 1px solid var(--border);
+  border: 0;
+  border-bottom: 1px solid var(--color-border-subtle);
   color: var(--text);
-  border-radius: var(--radius-md);
-  padding: var(--space-45) var(--space-4);
-  margin-bottom: var(--space-3);
-  font-size: var(--font-size-emphasis);
-  font-weight: 600;
+  border-radius: 0;
+  padding: var(--space-3) var(--space-4);
+  margin: 0;
+  font-size: var(--font-size-body);
+  font-weight: 500;
   cursor: pointer;
-  min-height: 3rem;
+}
+
+.mobile-more-list {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  list-style: none;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+}
+
+.mobile-more-list li:last-child .mobile-more-item {
+  border-bottom: 0;
+}
+
+.mobile-more-settings .mobile-more-item {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
 }
 
 .mobile-more-settings {
   margin-top: var(--space-5);
   padding-top: var(--space-4);
   border-top: 1px solid var(--border);
+}
+
+/* Phone: the project name moves to the Listen hero; the compact bar is too
+   narrow for it (it truncated to three letters). */
+@container transport (inline-size < 30rem) {
+  .transport--collapsed h1 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+}
+
+/* Phone toolbars: 44pt targets (--touch-min). */
+.daw-shell--phone .transcript-toolbar .ui-control,
+.daw-shell--phone .editing-tool-rail .ui-control,
+.daw-shell--phone .mobile-more-settings .ui-control {
+  min-block-size: var(--touch-min);
 }
