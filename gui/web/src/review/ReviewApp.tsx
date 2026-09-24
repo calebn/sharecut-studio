@@ -31,8 +31,13 @@ interface ReviewProject {
   capabilities: string[];
 }
 
-async function loadReview(token: string): Promise<ReviewProject> {
-  const res = await fetch(`/api/review/${encodeURIComponent(token)}/project`);
+async function loadReview(
+  token: string,
+  signal: AbortSignal,
+): Promise<ReviewProject> {
+  const res = await fetch(`/api/review/${encodeURIComponent(token)}/project`, {
+    signal,
+  });
   if (!res.ok) {
     throw new Error(await readApiError(res));
   }
@@ -42,6 +47,7 @@ async function loadReview(token: string): Promise<ReviewProject> {
 export function ReviewApp({ token }: { token: string }) {
   const progressJob = useGuestProgress(token);
   const [project, setProject] = useState<ReviewProject | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [author, setAuthor] = useState(loadCommentAuthor);
   const [body, setBody] = useState("");
@@ -51,7 +57,7 @@ export function ReviewApp({ token }: { token: string }) {
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const inflightRef = useRef(false);
-  const refreshSeqRef = useRef(0);
+  const activeRefreshRef = useRef<AbortController | null>(null);
   const projectKey = shareProjectKey(token);
 
   const audioUrl = useMemo(
@@ -80,23 +86,41 @@ export function ReviewApp({ token }: { token: string }) {
     setBusy(false);
   };
 
-  const refresh = useCallback(async () => {
-    const seq = ++refreshSeqRef.current;
-    const next = await loadReview(token);
-    if (seq === refreshSeqRef.current) setProject(next);
-  }, [token]);
+  const refresh = useCallback(
+    async (skipIfPending = false) => {
+      if (skipIfPending && activeRefreshRef.current) return;
+      activeRefreshRef.current?.abort();
+      const controller = new AbortController();
+      activeRefreshRef.current = controller;
+      try {
+        const next = await loadReview(token, controller.signal);
+        if (!controller.signal.aborted) {
+          setProject(next);
+          setLoadError(null);
+        }
+      } catch (cause) {
+        if (!controller.signal.aborted) throw cause;
+      } finally {
+        if (activeRefreshRef.current === controller) {
+          activeRefreshRef.current = null;
+        }
+      }
+    },
+    [token],
+  );
 
   useEffect(() => {
-    void refresh().catch((e: unknown) => setError(errorMessage(e)));
+    void refresh().catch((e: unknown) => setLoadError(errorMessage(e)));
     return () => {
-      refreshSeqRef.current += 1;
+      activeRefreshRef.current?.abort();
+      activeRefreshRef.current = null;
     };
   }, [refresh]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
       if (document.visibilityState !== "hidden") {
-        void refresh().catch(() => {
+        void refresh(true).catch(() => {
           // Keep the last loaded review visible; the next poll can recover.
         });
       }
@@ -115,11 +139,15 @@ export function ReviewApp({ token }: { token: string }) {
     };
   }, [project?.meta?.name]);
 
+  const projectReady = Boolean(project);
+  const mcpCanComment = hasShareCapability(
+    project?.capabilities ?? [],
+    "comment",
+  );
   useEffect(() => {
-    if (!project) {
+    if (!projectReady) {
       return;
     }
-    const caps = project.capabilities ?? [];
     return registerReviewWebMcpTools({
       playPause: () => {
         const el = audioRef.current;
@@ -138,7 +166,7 @@ export function ReviewApp({ token }: { token: string }) {
           setStartSec(audioRef.current.currentTime);
         }
       },
-      canComment: hasShareCapability(caps, "comment"),
+      canComment: mcpCanComment,
       addComment: async (bodyText) => {
         const who = resolveCommentActor(loadCommentAuthor());
         await createComment(projectKey, {
@@ -149,7 +177,7 @@ export function ReviewApp({ token }: { token: string }) {
         await refresh();
       },
     });
-  }, [project, projectKey, refresh]);
+  }, [projectReady, mcpCanComment, projectKey, refresh]);
 
   const onPost = async () => {
     const who = resolveCommentActor(author);
@@ -178,8 +206,8 @@ export function ReviewApp({ token }: { token: string }) {
     }
   };
 
-  if (error && !project) {
-    return <ErrorScreen message={error} />;
+  if (loadError && !project) {
+    return <ErrorScreen message={loadError} />;
   }
   if (!project) {
     return <LoadingScreen label="Loading review…" />;
@@ -308,7 +336,7 @@ export function ReviewApp({ token }: { token: string }) {
             />
           </>
         )}
-        <InlineError message={error} />
+        <InlineError message={error ?? loadError} />
         <label className="review-comment-filter">
           <input
             type="checkbox"

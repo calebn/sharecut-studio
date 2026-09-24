@@ -66,6 +66,7 @@ describe("ReviewApp", () => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    Reflect.deleteProperty(navigator, "modelContext");
   });
 
   it("exposes a main landmark and is axe-clean", async () => {
@@ -163,6 +164,11 @@ describe("ReviewApp", () => {
     const user = userEvent.setup();
     let resolved = false;
     const intervalSpy = vi.spyOn(window, "setInterval");
+    const registerTool = vi.fn();
+    Object.defineProperty(navigator, "modelContext", {
+      configurable: true,
+      value: { registerTool },
+    });
     vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
     vi.stubGlobal(
       "fetch",
@@ -182,6 +188,7 @@ describe("ReviewApp", () => {
 
     render(<ReviewApp token="tok" />);
     expect(await screen.findByText("Host update")).toBeInTheDocument();
+    expect(registerTool).toHaveBeenCalledTimes(3);
     await user.click(
       screen.getByRole("checkbox", { name: "Open comments only" }),
     );
@@ -194,6 +201,70 @@ describe("ReviewApp", () => {
       refreshTick?.();
     });
     expect(screen.getByText("No open comments.")).toBeInTheDocument();
+    expect(registerTool).toHaveBeenCalledTimes(3);
+  });
+
+  it("skips overlapping polls and aborts an outstanding read on cleanup", async () => {
+    const intervalSpy = vi.spyOn(window, "setInterval");
+    let finishRead: ((response: Response) => void) | undefined;
+    const fetchMock = vi.fn(
+      (_input: RequestInfo | URL, _init?: RequestInit) =>
+        new Promise<Response>((resolve) => {
+          finishRead = resolve;
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+
+    const { unmount } = render(<ReviewApp token="tok" />);
+    const refreshTick = intervalSpy.mock.calls.find(
+      ([, delay]) => delay === 15_000,
+    )?.[0] as (() => void) | undefined;
+    expect(refreshTick).toBeDefined();
+    refreshTick?.();
+    refreshTick?.();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      finishRead?.(
+        new Response(JSON.stringify(reviewProject), { status: 200 }),
+      );
+    });
+    expect(
+      screen.getByRole("heading", { name: reviewProject.meta.name }),
+    ).toBeInTheDocument();
+    refreshTick?.();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const pendingSignal = fetchMock.mock.calls[1]?.[1]?.signal;
+    unmount();
+    expect(pendingSignal?.aborted).toBe(true);
+  });
+
+  it("clears an initial load error after a successful poll", async () => {
+    const intervalSpy = vi.spyOn(window, "setInterval");
+    let fail = true;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        if (fail) return new Response("offline", { status: 503 });
+        return new Response(JSON.stringify(reviewProject), { status: 200 });
+      }),
+    );
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+
+    render(<ReviewApp token="tok" />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("offline");
+    fail = false;
+    const refreshTick = intervalSpy.mock.calls.find(
+      ([, delay]) => delay === 15_000,
+    )?.[0] as (() => void) | undefined;
+    await act(async () => {
+      refreshTick?.();
+    });
+    expect(
+      screen.getByRole("heading", { name: reviewProject.meta.name }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("shows action items as read-only without the action capability", async () => {
