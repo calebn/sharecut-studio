@@ -41,7 +41,7 @@ describe("CommandPalette", () => {
     expect(screen.queryByText("Play / pause")).toBeNull();
   });
 
-  it("omits commands that need caller-provided arguments from runnable actions", async () => {
+  it("omits argument-only and context-only commands from runnable actions", async () => {
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
         <CommandPalette />
@@ -57,6 +57,13 @@ describe("CommandPalette", () => {
       "Move clips",
       "Switch editor tab",
       "Switch phone mode",
+      "Correct transcript",
+      "Select transcript range",
+      "Trim clip edge",
+      "Roll clip join",
+      "Set clip fade",
+      "Focus edit boundary",
+      "Focus cut-away word",
     ]) {
       expect(screen.queryByText(label)).toBeNull();
     }

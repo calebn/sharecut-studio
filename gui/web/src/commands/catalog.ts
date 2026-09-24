@@ -448,12 +448,14 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "edit",
     label: "Correct transcript",
     when: "hasProject",
+    paletteRunnable: false,
   },
   "transcript.selectIntent": {
     id: "transcript.selectIntent",
     category: "edit",
     label: "Select transcript range",
     when: "hasProject",
+    paletteRunnable: false,
   },
   "view.showCutAway": {
     id: "view.showCutAway",
@@ -466,6 +468,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "edit",
     label: "Trim clip edge",
     when: "canApplyPass12",
+    paletteRunnable: false,
     notes: "Pointer trim handles on clip blocks (start / end)",
   },
   "edit.rollClipJoin": {
@@ -473,6 +476,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "edit",
     label: "Roll clip join",
     when: "canApplyPass12",
+    paletteRunnable: false,
     notes: "Join diamond + transcript boundary roll both edges",
   },
   "edit.setClipFade": {
@@ -480,6 +484,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "edit",
     label: "Set clip fade",
     when: "canApplyPass12",
+    paletteRunnable: false,
     notes: "Pointer fade handles on clip blocks",
   },
   "edit.moveClips": {
@@ -496,12 +501,14 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "view",
     label: "Focus edit boundary",
     when: "hasProject",
+    paletteRunnable: false,
   },
   "view.focusCutAwayWord": {
     id: "view.focusCutAwayWord",
     category: "view",
     label: "Focus cut-away word",
     when: "hasProject",
+    paletteRunnable: false,
   },
   "view.setTab": {
     id: "view.setTab",
