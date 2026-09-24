@@ -18,7 +18,9 @@ describe("App styles", () => {
     );
     expect(src).not.toMatch(/@media\s*\(/);
     expect(src).toMatch(/@container app \(inline-size < 68\.75rem\)/);
-    expect(src).toMatch(/@container transport \(inline-size < 68\.75rem\)/);
+    // Compact menu touch rows live with the menu rules in ui.css.
+    const ui = readFileSync(join(here, "styles/partials/ui.css"), "utf8");
+    expect(ui).toMatch(/@container transport \(inline-size < 68\.75rem\)/);
     const px = [...src.matchAll(/(?<![\d.])(\d+)px\b/g)].map((m) =>
       Number(m[1]),
     );
