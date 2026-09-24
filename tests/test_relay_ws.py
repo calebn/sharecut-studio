@@ -16,6 +16,7 @@ import pytest
 import uvicorn
 from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
+from websockets.exceptions import ConnectionClosed
 from websockets.sync.client import connect as ws_connect
 
 from podcast_relay.app import (
@@ -554,6 +555,14 @@ def test_record_ws_bridged(monkeypatch):
                 assert data_msg["type"] == "ws_data"
                 assert data_msg["id"] == stream_id
                 assert "Join" in data_msg["text"]
+                _ws_send(
+                    tunnel,
+                    {"type": "ws_close", "id": stream_id, "code": 4403, "reason": "removed"},
+                )
+                with pytest.raises(ConnectionClosed) as closed:
+                    guest.recv(timeout=5)
+                assert closed.value.rcvd is not None
+                assert closed.value.rcvd.code == 4403
         finally:
             tunnel.close()
 

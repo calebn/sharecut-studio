@@ -228,7 +228,9 @@ flowchart TD
    Reminting a new room while REC/PAUSED is refused until the take is Stopped.
    If the host removes a guest, that guest's live room connection closes and
    stops receiving room events or sending signal, heartbeat, and comments;
-   other guests remain in the room.
+   other guests remain in the room. The browser does not auto-rejoin after a
+   removal close, and a reload retains the revoked identity. A shared link
+   alone cannot permanently identify a removed person (follow-up #370).
 9. In the native desktop app, a host or recorded guest who closes the window
    during REC, PAUSED, or finalizing sees a role-specific confirmation. The
    host warning says closing stops the session for everyone; the guest warning

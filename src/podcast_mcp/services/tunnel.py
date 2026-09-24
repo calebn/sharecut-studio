@@ -334,6 +334,8 @@ class TunnelClient:
 
         queue: asyncio.Queue[str | None] = asyncio.Queue(maxsize=256)
         streams[stream_id] = queue
+        close_code = 1000
+        close_reason = ""
         try:
             async with websockets.connect(
                 url,
@@ -373,12 +375,17 @@ class TunnelClient:
                 for t in done | pending:
                     with contextlib.suppress(asyncio.CancelledError, Exception):
                         await t
+                if up in done:
+                    close_code = int(getattr(local_ws, "close_code", None) or 1000)
+                    close_reason = str(getattr(local_ws, "close_reason", None) or "")
         except Exception as exc:
             log.warning("Guest WS proxy error for %s: %s", url, exc)
         finally:
             streams.pop(stream_id, None)
             with contextlib.suppress(Exception):  # pragma: no cover
-                await send(msg("ws_close", id=stream_id, code=1000, reason=""))
+                await send(
+                    msg("ws_close", id=stream_id, code=close_code, reason=close_reason[:120])
+                )
 
     async def _run_once(self) -> None:
         """Single connect → hello → register → proxy until disconnect."""

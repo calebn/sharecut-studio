@@ -282,6 +282,118 @@ def test_removed_guest_signal_dispatch_rejected(
             capabilities=["join", "monitor"],
             connection_id="ava-socket",
         )
+    before = svc._store.commands_after(0)
+    for command_type in ("Heartbeat", "Comment"):
+        with pytest.raises(RecordStateError, match="participant removed"):
+            apply_record_ws_message(
+                svc,
+                {
+                    "type": "Record",
+                    "command_type": command_type,
+                    "payload": {"id": "live-rejected", "body": "should not land"}
+                    if command_type == "Comment"
+                    else {},
+                    "client_seq": 2,
+                },
+                client_id="rec-ava",
+                role="guest",
+                participant_id=echo["participant_id"],
+                seq=2,
+                capabilities=["join", "monitor", "comment"],
+                connection_id="ava-socket",
+            )
+    assert svc._store.commands_after(0) == before
+    assert svc.snapshot()["comments"] == []
+
+
+def test_signal_and_removal_share_one_room_decision(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event, Thread, current_thread
+
+    from podcast_mcp.services.record import service as service_mod
+
+    ws, room, _client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    token = room["guest"]["token"]
+    ava, _ = svc.join(
+        token=token,
+        role="guest",
+        display_name="Ava",
+        client_id="ava",
+        connection_id="ava-socket",
+        capabilities=["join", "monitor"],
+        client_seq=1,
+    )
+    bea, _ = svc.join(
+        token=token,
+        role="guest",
+        display_name="Bea",
+        client_id="bea",
+        connection_id="bea-socket",
+        capabilities=["join", "monitor"],
+        client_seq=1,
+    )
+    entered = Event()
+    release = Event()
+    remove_started = Event()
+    signal_thread: Thread | None = None
+    real_model = svc._model
+
+    def paused_model():
+        if current_thread() is signal_thread:
+            entered.set()
+            assert release.wait(3)
+        return real_model()
+
+    monkeypatch.setattr(svc, "_model", paused_model)
+    sent: list[str] = []
+    real_fanout = service_mod.fanout_record_signal
+
+    def fanout(*args, **kwargs):
+        sent.append(kwargs["from_id"])
+        return real_fanout(*args, **kwargs)
+
+    monkeypatch.setattr(service_mod, "fanout_record_signal", fanout)
+
+    def signal():
+        nonlocal signal_thread
+        signal_thread = current_thread()
+        return svc.signal(
+            participant_id=ava["participant_id"],
+            connection_id="ava-socket",
+            payload={"to": bea["participant_id"], "candidate": {"candidate": "candidate"}},
+            role="guest",
+            capabilities=["monitor"],
+        )
+
+    def remove():
+        remove_started.set()
+        return RecordControlService(ws).submit_host(
+            "RemoveParticipant", payload={"participant_id": ava["participant_id"]}
+        )
+
+    with ThreadPoolExecutor(max_workers=2, thread_name_prefix="signal-review") as pool:
+        signal_future = pool.submit(signal)
+        assert entered.wait(3)
+        remove_future = pool.submit(remove)
+        assert remove_started.wait(3)
+        assert not remove_future.done()
+        release.set()
+        assert signal_future.result(timeout=3)["type"] == "Echo"
+        remove_future.result(timeout=3)
+    with pytest.raises(RecordStateError, match="participant removed"):
+        signal()
+    assert sent == [ava["participant_id"]]
+    with pytest.raises(ValueError, match="unknown_peer"):
+        svc.signal(
+            participant_id=bea["participant_id"],
+            connection_id="bea-socket",
+            payload={"to": ava["participant_id"], "candidate": {"candidate": "candidate"}},
+            role="guest",
+            capabilities=["monitor"],
+        )
 
 
 def test_removed_guest_ws_closes_on_room_event_without_inbound_frame(
@@ -315,6 +427,54 @@ def test_removed_guest_ws_closes_on_room_event_without_inbound_frame(
                     and m.get("command", {}).get("type") == "RemoveParticipant"
                 ),
             )
+
+
+def test_removed_guest_ws_closes_when_idle_without_room_event(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    import asyncio
+
+    from podcast_mcp.gui.routes import record_share
+    from podcast_mcp.gui.routes.guest_ws_common import GuestWsGuard
+
+    class QuietHub:
+        def subscribe(self, _key, _loop):
+            return asyncio.Queue()
+
+        def unsubscribe(self, _key, _queue):
+            return None
+
+    class FastGuard(GuestWsGuard):
+        def __init__(self, websocket, still_valid, *, send_gate):
+            super().__init__(websocket, still_valid, interval=0.01, send_gate=send_gate)
+
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    monkeypatch.setattr(record_share, "get_hub", lambda: QuietHub())
+    monkeypatch.setattr(record_share, "GuestWsGuard", FastGuard)
+    token = room["guest"]["token"]
+    with client.websocket_connect(f"/api/rec/{token}/ws") as removed:
+        _join(removed, name="Ava")
+        echo = _drain_until(removed, lambda m: m.get("type") == "Echo")
+        _drain_until(removed, lambda m: m.get("type") == "Snapshot")
+        with client.websocket_connect(f"/api/rec/{token}/ws") as other:
+            _join(other, name="Bea")
+            _drain_until(other, lambda m: m.get("type") == "Snapshot")
+            response = client.post(
+                "/api/record/command",
+                json={
+                    "path": str(ws.path),
+                    "command_type": "RemoveParticipant",
+                    "payload": {"participant_id": echo["participant_id"]},
+                },
+            )
+            assert response.status_code == 200, response.text
+            with pytest.raises(WebSocketDisconnect) as closed:
+                removed.receive_json()
+            assert closed.value.code == 4403
+            other.send_json(
+                {"type": "Record", "command_type": "Heartbeat", "payload": {}, "client_seq": 2}
+            )
+            _drain_until(other, lambda m: m.get("command_type") == "Heartbeat")
 
 
 def test_review_token_on_record_ws_rejected(
@@ -917,10 +1077,20 @@ async def test_guest_ws_guard_recheck_and_malformed():
     await guard.send_json({"ok": True})
     await guard.recheck_loop()
     assert any(code == 4403 for code, _reason in ws.closed)
+    assert guard.closed is True
     await guard.close(4403, "already closed")
     await guard.send_json({"ignored": True})
     assert len(ws.closed) == 2
     assert ws.sent == [{"ok": True}]
+
+    allowed = True
+    gated = GuestWsGuard(ws, lambda: True, send_gate=lambda: allowed)
+    await gated.send_json({"before": True})
+    allowed = False
+    await gated.send_json({"after": True})
+    assert gated.closed is True
+    assert ws.sent == [{"ok": True}, {"before": True}]
+    assert ws.closed[-1][0] == 4403
 
 
 def test_host_refcount_touch_stale_connection_and_sid_cache(

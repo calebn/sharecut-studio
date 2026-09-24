@@ -695,6 +695,11 @@ so removal or a Decline that lands mid-upload stops that chunk.
 An already joined removed participant's record WebSocket closes with 4403:
 inbound commands (including Signal, Heartbeat, and Comment), outbound room
 events, and idle connections recheck membership. Other guests stay connected.
+The browser treats a 4403 close or rejected saved lease as terminal and keeps
+that identity on reload; it does not automatically join as a new participant.
+The shared record link remains a bearer link, so someone who deliberately drops
+the saved identity can join anew. Durable person-level exclusion needs separate
+invite credentials or host admission ([#370](https://github.com/calebn/sharecut-studio/issues/370)).
 
 Host admit / waiting room is **not** in this PR (ROADMAP Follow-up).
 

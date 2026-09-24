@@ -264,6 +264,11 @@ export function RecordApp({ token }: { token: string }) {
       : bootError;
     return <ErrorScreen message={message} />;
   }
+  if (error === "access_removed") {
+    return (
+      <ErrorScreen message="Your access to this recording room has ended." />
+    );
+  }
   if (!bootstrap) {
     return <LoadingScreen label="Loading studio…" />;
   }

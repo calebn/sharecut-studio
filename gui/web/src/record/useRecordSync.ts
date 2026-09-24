@@ -3,7 +3,6 @@ import { applyServerClock } from "../presence/clock";
 import { newClientId } from "../session/clientId";
 import { bindWsSender } from "../session/wsSend";
 import {
-  clearRecordParticipant,
   loadRecordParticipant,
   saveRecordParticipant,
 } from "../state/offlineStore";
@@ -60,7 +59,6 @@ export function useRecordSync(
   const clientIdRef = useRef(newClientId());
   const nameRef = useRef(displayName);
   const retryMsRef = useRef(1000);
-  const skipLeaseRef = useRef(false);
   nameRef.current = displayName;
 
   const send = useCallback(
@@ -96,14 +94,18 @@ export function useRecordSync(
     let retry: number | null = null;
     let heartbeat: number | null = null;
     let socket: WebSocket | null = null;
+    let joined = false;
+    let accessEnded = false;
 
     const connect = async () => {
       if (cancelled) {
         return;
       }
-      const cached = skipLeaseRef.current
-        ? undefined
-        : await loadRecordParticipant(token);
+      const cached = await loadRecordParticipant(token);
+      if (cancelled || accessEnded) {
+        return;
+      }
+      joined = false;
       socket = new WebSocket(
         recordWsUrl(token, clientIdRef.current, nameRef.current),
       );
@@ -152,17 +154,20 @@ export function useRecordSync(
               return;
             }
             if (msg.code === "forbidden") {
-              skipLeaseRef.current = true;
-              retryMsRef.current = 250;
-              void clearRecordParticipant(token);
-              thisSocket.close();
+              if (!joined) {
+                accessEnded = true;
+                setError("access_removed");
+                thisSocket.close();
+              } else {
+                setError("forbidden");
+              }
               return;
             }
             setError(msg.code || msg.detail || "error");
             return;
           }
           if (msg.type === "Echo" && msg.participant_id && msg.lease) {
-            skipLeaseRef.current = false;
+            joined = true;
             setMeId(msg.participant_id);
             setLease(msg.lease);
             void saveRecordParticipant(token, {
@@ -177,14 +182,18 @@ export function useRecordSync(
           setError("malformed");
         }
       };
-      socket.onclose = () => {
+      socket.onclose = (event) => {
         setConnected(false);
         sendRef.current = null;
         if (heartbeat !== null) {
           window.clearInterval(heartbeat);
           heartbeat = null;
         }
-        if (!cancelled) {
+        if (event.code === 4403) {
+          accessEnded = true;
+          setError("access_removed");
+        }
+        if (!cancelled && !accessEnded) {
           const delay = retryMsRef.current;
           retryMsRef.current = 1000;
           retry = window.setTimeout(() => void connect(), delay);

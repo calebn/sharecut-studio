@@ -20,7 +20,7 @@ class FakeWebSocket {
   readyState = FakeWebSocket.OPEN;
   onopen: (() => void) | null = null;
   onmessage: ((ev: { data: string }) => void) | null = null;
-  onclose: (() => void) | null = null;
+  onclose: ((ev: { code: number }) => void) | null = null;
   url: string;
   sent: string[] = [];
 
@@ -34,8 +34,8 @@ class FakeWebSocket {
     this.sent.push(data);
   }
 
-  close() {
-    this.onclose?.();
+  close(code = 1000) {
+    this.onclose?.({ code });
   }
 
   emit(msg: unknown) {
@@ -141,14 +141,14 @@ describe("useRecordSync", () => {
     }
   });
 
-  it("clears a forbidden lease and rejoins without it", async () => {
+  it("keeps a forbidden cached identity and stops reconnecting", async () => {
     vi.useFakeTimers();
     loadRecordParticipant.mockResolvedValue({
       participant_id: "p_g",
       lease: "stale",
     });
     try {
-      renderHook(() => useRecordSync("tok", "Ava"));
+      const { unmount, result } = renderHook(() => useRecordSync("tok", "Ava"));
       await act(async () => {
         await Promise.resolve();
         await Promise.resolve();
@@ -160,15 +160,45 @@ describe("useRecordSync", () => {
       await act(async () => {
         first.emit({ type: "Error", code: "forbidden" });
       });
-      expect(clearRecordParticipant).toHaveBeenCalledWith("tok");
+      expect(result.current.error).toBe("access_removed");
+      expect(clearRecordParticipant).not.toHaveBeenCalled();
       await act(async () => {
         await vi.advanceTimersByTimeAsync(300);
+      });
+      expect(FakeWebSocket.instances).toHaveLength(1);
+      unmount();
+      renderHook(() => useRecordSync("tok", "Ava"));
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
       });
       const second = FakeWebSocket.instances[1];
       const payload = JSON.parse(second.sent[0] || "{}").payload as {
         lease?: string;
       };
-      expect(payload.lease).toBeUndefined();
+      expect(payload.lease).toBe("stale");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("treats removal close 4403 as terminal", async () => {
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() => useRecordSync("tok", "Ava"));
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      await act(async () => {
+        FakeWebSocket.instances[0].close(4403);
+      });
+      expect(result.current.error).toBe("access_removed");
+      expect(result.current.connected).toBe(false);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      expect(FakeWebSocket.instances).toHaveLength(1);
     } finally {
       vi.useRealTimers();
     }

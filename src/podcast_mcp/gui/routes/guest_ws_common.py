@@ -31,9 +31,11 @@ class GuestWsGuard:
         interval: float = GUEST_SHARE_RECHECK_S,
         on_frame: float = GUEST_SHARE_RECHECK_ON_FRAME_S,
         malformed_limit: int = GUEST_MALFORMED_LIMIT,
+        send_gate: Callable[[], bool] | None = None,
     ) -> None:
         self.websocket = websocket
         self._still_valid = still_valid
+        self._send_gate = send_gate
         self.interval = interval
         self.on_frame = on_frame
         self.malformed_limit = malformed_limit
@@ -42,10 +44,19 @@ class GuestWsGuard:
         self.write_lock = asyncio.Lock()
         self._closed = False
 
+    @property
+    def closed(self) -> bool:
+        return self._closed
+
     async def send_json(self, payload: dict[str, Any]) -> None:
         async with self.write_lock:
-            if not self._closed:
-                await self.websocket.send_json(payload)
+            if self._closed:
+                return
+            if self._send_gate is not None and not self._send_gate():
+                self._closed = True
+                await self.websocket.close(code=4403, reason="participant removed")
+                return
+            await self.websocket.send_json(payload)
 
     async def close(self, code: int, reason: str) -> None:
         async with self.write_lock:
