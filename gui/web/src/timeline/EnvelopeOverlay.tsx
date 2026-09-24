@@ -14,8 +14,8 @@ import {
   sameEnvelopePoint,
   sortedVolumePoints,
 } from "../utils/envelopes";
-import { LANE_HEIGHT } from "../utils/layout";
 import { formatTime } from "../utils/time";
+import { useTimelineMetrics } from "./timelineMetrics";
 
 interface EnvelopeOverlayProps {
   envelopes: AutomationEnvelope[];
@@ -54,6 +54,7 @@ export function EnvelopeOverlay({
   onSelectTrack,
 }: EnvelopeOverlayProps) {
   const { projectPath, selection, setSelection, announceStatus } = useDaw();
+  const { laneHeight } = useTimelineMetrics();
   const editable = !isShareProjectKey(projectPath);
   const [draft, setDraft] = useState<AutomationPoint[] | null>(null);
   const dragRef = useRef<{
@@ -69,7 +70,7 @@ export function EnvelopeOverlay({
     return null;
   }
 
-  const height = LANE_HEIGHT;
+  const height = laneHeight;
   const sorted = draft ?? base;
   const points = sorted
     .map((p) => `${p.time * zoomPxPerSec},${valueToY(p.value, height)}`)

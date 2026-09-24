@@ -453,6 +453,8 @@ button.join-diamond {
 
 .marker-lane {
   position: relative;
+  display: flex;
+  flex-direction: column;
   height: var(--marker-lane-height);
   background: var(--color-timeline-lane);
   border-bottom: 1px solid var(--color-timeline-border);
@@ -462,23 +464,11 @@ button.join-diamond {
   background: var(--color-timeline-well);
 }
 
+/* Rows stack in flow; only rows with content render (timelineMetrics). */
 .marker-row {
-  position: absolute;
-  left: 0;
-  right: 0;
+  position: relative;
+  flex: 0 0 1.5rem;
   height: 1.5rem;
-}
-
-.marker-row.chapters {
-  top: 0;
-}
-
-.marker-row.social {
-  top: 1.5rem;
-}
-
-.marker-row.comments {
-  top: 3rem;
 }
 
 .comment-marker {

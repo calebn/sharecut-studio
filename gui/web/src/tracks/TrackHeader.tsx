@@ -172,8 +172,15 @@ export function TrackHeader({
         />
       ) : null}
       <span className="track-title">
-        {stemClass && <span className={`stem-dot ${stemClass}`} />}
         <span className="track-title-text">{label}</span>
+        {stemClass && (
+          <span
+            className={`stem-dot ${stemClass}`}
+            title={
+              stemClass === "stale" ? "Stem out of date" : "Stem up to date"
+            }
+          />
+        )}
         {wholeReasons.map((r) => (
           <span key={r} className="stale-reason-chip" title={`Stale: ${r}`}>
             {reasonChipLabel(r)}

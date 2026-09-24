@@ -63,7 +63,7 @@ Other values lint should not swallow:
 
 - Type and chrome space: `rem` via tokens. Never `html { font-size: 62.5% }`.
 - `1px` / `-1px` hairlines may stay `px`.
-- Timeline canvas math stays CSS `px` (`--lane-height` and clip/overlay insets vs that token). Align with `gui/web/src/utils/layout.ts`. Inline `left` / `width` / `height` on canvas overlays may stay computed px — do not oxlint those.
+- Timeline canvas math stays CSS `px` (`--lane-height` and clip/overlay insets vs that token). Lane and marker-lane heights are live values from `useTimelineMetrics()` (defaults in `gui/web/src/utils/layout.ts`); `.timeline-area` sets the CSS vars. Inline `left` / `width` / `height` on canvas overlays may stay computed px — do not oxlint those.
 - Box-shadow offsets may stay numeric; colors in shadows still use `var(--…)`.
 
 ## Consent-gated exceptions

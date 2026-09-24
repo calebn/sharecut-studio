@@ -21,7 +21,9 @@ export function presenceCursorFromPointer(
       : null;
   if (lane && lanesEl) {
     const rect = lanesEl.getBoundingClientRect();
-    const lanePos = Math.max(0, (clientY - rect.top) / LANE_HEIGHT);
+    // Lane units (not px): lanes grow to fill the stage per viewer.
+    const laneHeight = lane.getBoundingClientRect().height || LANE_HEIGHT;
+    const lanePos = Math.max(0, (clientY - rect.top) / laneHeight);
     return {
       t_sec: clientXToTimelineSec(
         clientX,

@@ -3,7 +3,14 @@ import { execute } from "../commands/execute";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
-import { Button, CommandButton, EmptyState, Field, ToggleButton } from "../ui";
+import {
+  Button,
+  CommandButton,
+  EmptyState,
+  Field,
+  SegmentedControl,
+  ToggleButton,
+} from "../ui";
 import {
   applyAllSummary,
   eligibleApplyAllIds,
@@ -95,7 +102,7 @@ export function TightenPanel() {
   return (
     <section className="tighten-panel" aria-labelledby={headingId}>
       <header className="tighten-toolbar">
-        <h2 id={headingId} className="tighten-heading">
+        <h2 id={headingId} className="tighten-heading sr-only">
           Tighten
         </h2>
         <Field label="Search hits" htmlFor={searchId}>
@@ -107,7 +114,7 @@ export function TightenPanel() {
             placeholder="Reason, snippet, track…"
           />
         </Field>
-        <div className="tighten-filters" role="group" aria-label="Class">
+        <SegmentedControl className="tighten-filters" label="Class">
           {CLASS_FILTERS.map((f) => (
             <ToggleButton
               key={f.id}
@@ -118,7 +125,7 @@ export function TightenPanel() {
               {f.label}
             </ToggleButton>
           ))}
-        </div>
+        </SegmentedControl>
         <Field label="Track" htmlFor={trackId}>
           <select
             id={trackId}

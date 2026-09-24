@@ -10,8 +10,9 @@ import {
 import { ingestFiles } from "../ingest/ingestFiles";
 import { canIngestMedia } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { useTimelineMetrics } from "../timeline/timelineMetrics";
 import { FocusToggle } from "../ui";
-import { MARKER_LANE_HEIGHT, RULER_HEIGHT } from "../utils/layout";
+import { RULER_HEIGHT } from "../utils/layout";
 import { TrackHeader } from "./TrackHeader";
 import { reorderInsertIndex } from "./trackReorder";
 
@@ -36,6 +37,7 @@ export function TrackHeadersColumn({
   addFileCount = 1,
   onAddDropOverChange,
 }: Props): ReactNode {
+  const { markerLaneHeight } = useTimelineMetrics();
   const {
     tracks,
     selection,
@@ -79,7 +81,7 @@ export function TrackHeadersColumn({
         <div
           className="track-headers-chrome"
           style={{
-            height: RULER_HEIGHT + MARKER_LANE_HEIGHT,
+            height: RULER_HEIGHT + markerLaneHeight,
             borderBottom: "1px solid var(--border)",
           }}
         />
@@ -132,7 +134,7 @@ export function TrackHeadersColumn({
       <div
         className="track-headers-chrome"
         style={{
-          height: RULER_HEIGHT + MARKER_LANE_HEIGHT,
+          height: RULER_HEIGHT + markerLaneHeight,
           borderBottom: "1px solid var(--border)",
         }}
       >

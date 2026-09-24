@@ -15,7 +15,7 @@ import type {
   SessionSelection,
 } from "../types/session";
 import { Avatar } from "../ui/Avatar";
-import { LANE_HEIGHT } from "../utils/layout";
+import { useTimelineMetrics } from "./timelineMetrics";
 
 type Props = {
   clients: SessionClient[];
@@ -30,14 +30,16 @@ type Props = {
 function laneCursorTop(
   cursor: PresenceCursor,
   tracks: TrackView[],
+  laneHeight: number,
 ): number | null {
+  // lane_pos is in lane units, so viewers with different lane heights agree.
   if (cursor.lane_pos != null && Number.isFinite(cursor.lane_pos)) {
     const maxPos = Math.max(0, tracks.length);
-    return Math.min(cursor.lane_pos, maxPos) * LANE_HEIGHT;
+    return Math.min(cursor.lane_pos, maxPos) * laneHeight;
   }
   if (cursor.track_id) {
     const idx = tracks.findIndex((t) => t.id === cursor.track_id);
-    return idx < 0 ? null : idx * LANE_HEIGHT + LANE_HEIGHT / 2;
+    return idx < 0 ? null : idx * laneHeight + laneHeight / 2;
   }
   return null;
 }
@@ -54,6 +56,7 @@ function clipBox(
   clipsByTrack: Record<string, ClipRow[]>,
   tracks: TrackView[],
   id: string,
+  laneHeight: number,
 ): { left: number; width: number; top: number } | null {
   for (const [trackId, clips] of Object.entries(clipsByTrack)) {
     const clip = clips.find((c) => c.id === id);
@@ -64,7 +67,7 @@ function clipBox(
     return {
       left: clip.timeline_start,
       width: Math.max(0, clip.timeline_end - clip.timeline_start),
-      top: (idx < 0 ? 0 : idx) * LANE_HEIGHT,
+      top: (idx < 0 ? 0 : idx) * laneHeight,
     };
   }
   return null;
@@ -74,6 +77,7 @@ function transcriptWordBox(
   project: ProjectView | null,
   tracks: TrackView[],
   sel: SessionSelection,
+  laneHeight: number,
 ): { left: number; width: number; top: number } | null {
   if (
     (sel.kind !== "transcriptWord" && sel.kind !== "transcriptRange") ||
@@ -115,7 +119,7 @@ function transcriptWordBox(
   return {
     left: t0,
     width: Math.max(0.05, t1 - t0),
-    top: (idx < 0 ? 0 : idx) * LANE_HEIGHT,
+    top: (idx < 0 ? 0 : idx) * laneHeight,
   };
 }
 
@@ -128,12 +132,13 @@ function selectionBox(
       ? S
       : never
     : never,
+  laneHeight: number,
 ): { left: number; width: number; top: number } | null {
   if (!sel) {
     return null;
   }
   if (sel.kind === "clip" && sel.id) {
-    return clipBox(clipsByTrack, tracks, sel.id);
+    return clipBox(clipsByTrack, tracks, sel.id, laneHeight);
   }
   if (
     (sel.kind === "pending" || sel.kind === "applied") &&
@@ -144,16 +149,16 @@ function selectionBox(
     if (idx < 0) {
       return null;
     }
-    return { left: sel.time, width: 0.05, top: idx * LANE_HEIGHT };
+    return { left: sel.time, width: 0.05, top: idx * laneHeight };
   }
   if (sel.kind === "envelopePoint" && sel.track_id && sel.time != null) {
     const idx = tracks.findIndex((t) => t.id === sel.track_id);
     if (idx < 0) {
       return null;
     }
-    return { left: sel.time, width: 0.12, top: idx * LANE_HEIGHT };
+    return { left: sel.time, width: 0.12, top: idx * laneHeight };
   }
-  return transcriptWordBox(project, tracks, sel);
+  return transcriptWordBox(project, tracks, sel, laneHeight);
 }
 
 function usePresenceAnnouncer(
@@ -211,6 +216,9 @@ export function PresenceOverlay({
   zoomRef.current = zoomPxPerSec;
   const tracksRef = useRef(tracks);
   tracksRef.current = tracks;
+  const { laneHeight } = useTimelineMetrics();
+  const laneHeightRef = useRef(laneHeight);
+  laneHeightRef.current = laneHeight;
 
   const hasRemoteCursor = others.some((c) => isLaneCursor(c.meta?.cursor));
 
@@ -226,7 +234,11 @@ export function PresenceOverlay({
         if (!isLaneCursor(cursor)) {
           continue;
         }
-        const targetTop = laneCursorTop(cursor, tracksRef.current);
+        const targetTop = laneCursorTop(
+          cursor,
+          tracksRef.current,
+          laneHeightRef.current,
+        );
         if (targetTop == null) {
           continue;
         }
@@ -260,9 +272,10 @@ export function PresenceOverlay({
           tracks,
           project,
           c.meta?.selection ?? null,
+          laneHeight,
         );
         const lane = isLaneCursor(c.meta?.cursor)
-          ? laneCursorTop(c.meta.cursor, tracks)
+          ? laneCursorTop(c.meta.cursor, tracks, laneHeight)
           : null;
         return (
           <div key={c.client_id}>
@@ -318,7 +331,7 @@ export function PresenceOverlay({
                     left: box.left * zoomPxPerSec,
                     width: box.width * zoomPxPerSec,
                     top: box.top,
-                    height: LANE_HEIGHT,
+                    height: laneHeight,
                     "--presence-color": color,
                   } as CSSProperties
                 }

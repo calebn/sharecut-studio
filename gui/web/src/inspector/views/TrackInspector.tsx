@@ -120,7 +120,7 @@ export function TrackInspector({
     <ModifierInspector
       badge="Track"
       title={track.label || track.id}
-      subtitle={track.id}
+      subtitle={track.label && track.label !== track.id ? track.id : undefined}
       error={error}
       footer={
         <div className="modifier-footer-actions">

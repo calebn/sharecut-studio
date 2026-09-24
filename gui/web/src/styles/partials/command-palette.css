@@ -12,7 +12,20 @@
   inset: 0;
   border: 0;
   background: var(--scrim);
+  /* Restrained blur on what sits behind the dialog (the panel is opaque). */
+  backdrop-filter: blur(0.125rem);
   cursor: pointer;
+}
+
+.dialog-close {
+  display: grid;
+  place-items: center;
+  inline-size: var(--control-height);
+  block-size: var(--control-height);
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
 }
 
 .command-palette-panel {
@@ -27,10 +40,11 @@
   padding: var(--space-5) var(--space-5) var(--space-6);
   border-radius: var(--radius-xl);
   background: var(--color-bg-overlay);
-  color: var(--text);
+  color: var(--color-text-on-overlay);
+  /* Dialog copy reads at body size, not the 16px page base. */
+  font-size: var(--font-size-body);
   border: 1px solid var(--color-border-subtle);
   box-shadow: var(--shadow-modal);
-  backdrop-filter: blur(0.5rem);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -253,9 +267,14 @@
 }
 
 .share-dialog-heading {
-  margin: var(--space-4) 0 var(--space-2);
-  font-size: var(--font-size-ui);
+  margin: var(--space-5) 0 var(--space-2);
+  font-size: var(--font-size-body);
   font-weight: 600;
+}
+
+.share-dialog-note {
+  margin: 0;
+  color: var(--color-text-secondary);
 }
 
 .share-dialog-scroller,

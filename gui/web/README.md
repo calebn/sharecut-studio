@@ -157,4 +157,4 @@ Comments: shared `src/comments/` (`CommentCard`, `CommentCompose`, `useCommentAc
 
 ## Layout constants
 
-`utils/layout.ts` mirrors CSS layout dims (`--ruler-height`, `--marker-lane-height`, lane height). Keep them in sync when changing chrome geometry.
+`utils/layout.ts` holds the default layout dims (`--ruler-height`, `--marker-lane-height`, lane height). At runtime `TimelineView` measures the stage and provides the live lane and marker-lane heights through `timeline/timelineMetrics.tsx` (`useTimelineMetrics`), and sets `--lane-height` / `--marker-lane-height` on `.timeline-area`; overlays and headers read the context, never the constants. Presence `lane_pos` stays in lane units so viewers with different lane heights agree.
