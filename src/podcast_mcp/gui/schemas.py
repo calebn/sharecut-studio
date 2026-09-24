@@ -50,6 +50,12 @@ class TranscriptRefineWaiveRequest(BaseModel):
     reason: str = Field(min_length=1)
 
 
+class TranscriptVocabularyPutRequest(BaseModel):
+    path: str
+    terms: list[str]
+    guest_names: list[str]
+
+
 class BootstrapRunRequest(BaseModel):
     """First-run asset download (ffmpeg / whisper / optional rnnoise)."""
 

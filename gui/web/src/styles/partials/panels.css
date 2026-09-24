@@ -709,6 +709,55 @@ button.history-row {
   color: var(--text-dim);
 }
 
+.pipeline-vocabulary {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.pipeline-vocabulary h3,
+.pipeline-vocabulary p {
+  margin: 0;
+}
+
+.pipeline-vocabulary-field {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.pipeline-vocabulary-field > div,
+.pipeline-vocabulary-field ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.pipeline-vocabulary-field input {
+  min-width: 0;
+  flex: 1;
+  color: var(--text);
+  background: var(--color-field);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+}
+
+.pipeline-vocabulary-field ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pipeline-vocabulary-field li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
 .pipeline-components,
 .pipeline-reasons ul {
   margin: 0;

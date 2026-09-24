@@ -287,6 +287,8 @@ Configurable production spine — **visible params are the source of truth for R
 | `POST /api/pipeline/analyze` | Body `{ path, apply? }` — heuristic proposals (`reasons`, `patches`); `apply` writes working set |
 | `GET /api/pipeline/status` | Current / last job snapshot, scoped to the served project |
 | `POST /api/pipeline/run` | Body `{ path, from_step?, only_step?, skip_steps?, enabled_steps?, unattended?, config?, use_working_set? }` — 409 if busy |
+| `GET /api/transcript/vocabulary?path=` | Host project terms, guest names, and whether saved changes need re-transcription |
+| `PUT /api/transcript/vocabulary` | Body `{ path, terms, guest_names }` — save per-project vocabulary; Pipeline offers a run from `transcribe_tracks` when an existing transcript needs it |
 | `POST /api/pipeline/cancel` | Body `{ job_id? }` — cancel between steps |
 | `POST /api/pipeline/render-preview` | Body `{ path }` — background `PipelineService.render_preview` (same job queue; 409 if busy) |
 | `POST /api/export/bounce` | Body `{ path, track_ids?, start_s?, end_s?, formats? }` — starts a `kind=bounce` job (`BounceService` → `export/bounces/`); returns `{ job_id, job }` immediately (400 on validation; 409 if a pipeline-slot job is running). Paths are on the terminal snapshot `result.paths`. Host GUI seeds Activity chrome from `job` then polls (viewer already owns SSE). Cancel between bounce phases is cooperative; a cancel that lands after files are written keeps `result.paths` on the cancelled snapshot. |

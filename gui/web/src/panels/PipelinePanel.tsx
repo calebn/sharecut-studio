@@ -30,6 +30,7 @@ import {
   pipelineUnitsLabel,
   showIndeterminatePulse,
 } from "../utils/pipelineProgress";
+import { TranscriptVocabularyEditor } from "./TranscriptVocabularyEditor";
 import {
   WhisperDownloadDialog,
   type WhisperDownloadRequest,
@@ -430,14 +431,17 @@ export function PipelinePanel() {
     }
   };
 
-  const onRun = async () => {
+  const onRun = async (retranscribe = false) => {
     if (!cfg) {
       return;
     }
-    if (transcribeStepEnabled(cfg)) {
+    if (transcribeStepEnabled(cfg) || retranscribe) {
       const modelId = whisperModelId(cfg);
       if (!whisperModelCached(cfg, modelId)) {
-        setWhisperPending({ modelId, reason: "run" });
+        setWhisperPending({
+          modelId,
+          reason: retranscribe ? "retranscribe" : "run",
+        });
         return;
       }
     }
@@ -445,9 +449,11 @@ export function PipelinePanel() {
     setStarting(true);
     try {
       const job = await startPipelineRun(projectPath, {
-        fromStep: fromStep || undefined,
-        onlyStep: onlyStep || undefined,
-        enabledSteps: cfg.enabled_steps,
+        fromStep: retranscribe ? TRANSCRIBE_STEP : fromStep || undefined,
+        onlyStep: retranscribe ? undefined : onlyStep || undefined,
+        enabledSteps: retranscribe
+          ? [...new Set([...cfg.enabled_steps, TRANSCRIBE_STEP])]
+          : cfg.enabled_steps,
         unattended: cfg.unattended,
         config: cfg.config,
         useWorkingSet: true,
@@ -473,15 +479,25 @@ export function PipelinePanel() {
     try {
       await onParamChange(TRANSCRIBE_MODEL_PATH, modelId);
       const next = await refreshConfig();
-      if (reason === "run" && whisperModelCached(next, modelId)) {
+      if (
+        (reason === "run" || reason === "retranscribe") &&
+        whisperModelCached(next, modelId)
+      ) {
         setCfg(next);
         setError(null);
         setStarting(true);
         try {
           const job = await startPipelineRun(projectPath, {
-            fromStep: fromStep || undefined,
-            onlyStep: onlyStep || undefined,
-            enabledSteps: next.enabled_steps,
+            fromStep:
+              reason === "retranscribe"
+                ? TRANSCRIBE_STEP
+                : fromStep || undefined,
+            onlyStep:
+              reason === "retranscribe" ? undefined : onlyStep || undefined,
+            enabledSteps:
+              reason === "retranscribe"
+                ? [...new Set([...next.enabled_steps, TRANSCRIBE_STEP])]
+                : next.enabled_steps,
             unattended: next.unattended,
             config: next.config,
             useWorkingSet: true,
@@ -595,6 +611,14 @@ export function PipelinePanel() {
           Agent recently active in this session (optional).
         </p>
       )}
+
+      <TranscriptVocabularyEditor
+        key={projectPath}
+        projectPath={projectPath}
+        busy={running || starting}
+        onRetranscribe={() => void onRun(true)}
+        refreshKey={pipelineJob?.status === "ok" ? pipelineJob.id : ""}
+      />
 
       {foreignSlotBusy && slotJob ? (
         <p className="pipeline-ambient" role="status">

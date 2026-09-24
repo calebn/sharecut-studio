@@ -11,6 +11,20 @@ from podcast_mcp.transcript_context import (
 )
 
 
+def test_vocabulary_edit_marks_existing_transcript_stale(minimal_project: Path) -> None:
+    from podcast_mcp.models import Transcript
+    from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
+    from podcast_mcp.services.workspace import ProjectWorkspace
+
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.project.transcripts = [Transcript(track_id="host", words=[])]
+    svc = TranscriptPrecorrectService(ws)
+    result = svc.set_vocabulary(terms=["Kaczynski"], guest_names=["Alice"])
+    assert result["needs_retranscription"] is True
+    assert "Kaczynski" in svc.load_context().initial_prompt_text()
+    assert svc.set_vocabulary(terms=["Kaczynski"], guest_names=["Alice"]) == result
+
+
 def test_context_from_dict_initial_prompt() -> None:
     ctx = context_from_dict(
         {

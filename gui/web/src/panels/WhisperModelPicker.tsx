@@ -7,7 +7,7 @@ import {
 import { Button, Dialog, InlineError } from "../ui";
 import { errorMessage } from "../utils/apiError";
 
-export type WhisperDownloadReason = "select" | "run";
+export type WhisperDownloadReason = "select" | "run" | "retranscribe";
 
 export type WhisperDownloadRequest = {
   modelId: string;

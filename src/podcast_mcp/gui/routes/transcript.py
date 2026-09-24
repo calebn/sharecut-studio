@@ -2,13 +2,54 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, Header, HTTPException, Query, Request
 
 from podcast_mcp.gui.routes.deps import peer_host, require_authz, resolve_project
-from podcast_mcp.gui.schemas import TranscriptRefineWaiveRequest
+from podcast_mcp.gui.schemas import TranscriptRefineWaiveRequest, TranscriptVocabularyPutRequest
 from podcast_mcp.services import ProjectWorkspace, TranscriptRefineService
+from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
 
 router = APIRouter()
+
+
+@router.get("/api/transcript/vocabulary")
+def transcript_vocabulary_get(
+    request: Request,
+    path: str = Query(...),
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, Any]:
+    require_authz(
+        client_id="viewer",
+        role="viewer",
+        peer_host=peer_host(request),
+        token=token or x_podcast_token,
+    )
+    project_path = resolve_project(path, request)
+    return TranscriptPrecorrectService(ProjectWorkspace.open(project_path)).get_vocabulary()
+
+
+@router.put("/api/transcript/vocabulary")
+def transcript_vocabulary_put(
+    req: TranscriptVocabularyPutRequest,
+    request: Request,
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, Any]:
+    require_authz(
+        client_id="viewer",
+        role="viewer",
+        peer_host=peer_host(request),
+        token=token or x_podcast_token,
+    )
+    project_path = resolve_project(req.path, request)
+    try:
+        return TranscriptPrecorrectService(ProjectWorkspace.open(project_path)).set_vocabulary(
+            terms=req.terms,
+            guest_names=req.guest_names,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/api/transcript/refine/waive")
