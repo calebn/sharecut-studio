@@ -101,9 +101,9 @@ test("Share dialog floats on a distinct tone from the raised inspector", async (
     const raised = await page
       .locator(".inspector")
       .evaluate((element) => getComputedStyle(element).backgroundColor);
-    const overlay = await dialog.evaluate(
-      (element) => getComputedStyle(element).backgroundColor,
-    );
+    const overlay = await dialog
+      .locator(".command-palette-panel")
+      .evaluate((element) => getComputedStyle(element).backgroundColor);
     expect(overlay, `${theme} overlay should differ from raised`).not.toBe(
       raised,
     );
