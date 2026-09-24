@@ -410,6 +410,28 @@ describe("TransportBar wide layout", () => {
     await expectNoA11yViolations(main);
   });
 
+  it("shows the audio error on the wide bar and in the collapsed Menu", async () => {
+    const project = minimalProject({ tracks: TRACKS });
+    const tree = (compact: boolean) => (
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <TransportBar compact={compact} />
+      </DawProvider>
+    );
+    const { rerender } = render(tree(false));
+    act(() => {
+      useDawStore
+        .getState()
+        .setAudioError("No premix. Run Pipeline or render-preview");
+    });
+    expect(screen.getByText("No preview")).toBeTruthy();
+    rerender(tree(true));
+    expect(screen.queryByText("No preview")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Menu" }));
+    expect(
+      screen.getByText(/No preview: No premix\. Run Pipeline/),
+    ).toBeTruthy();
+  });
+
   it("keeps the View menu and the main Menu exclusive from the keyboard", async () => {
     render(
       <DawProvider
