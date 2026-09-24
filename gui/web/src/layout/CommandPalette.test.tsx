@@ -41,6 +41,19 @@ describe("CommandPalette", () => {
     expect(screen.queryByText("Play / pause")).toBeNull();
   });
 
+  it("omits commands that need caller-provided arguments from runnable actions", async () => {
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <CommandPalette />
+      </DawProvider>,
+    );
+    await userEvent.click(screen.getByRole("tab", { name: "Actions" }));
+    expect(
+      screen.queryByRole("button", { name: "Resolve comment" }),
+    ).toBeNull();
+    expect(screen.getByText("Commands without keys")).toBeInTheDocument();
+  });
+
   it("closes on Escape", async () => {
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>

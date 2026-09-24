@@ -119,14 +119,14 @@ Open the in-app cheatsheet with **?** while Sharecut Studio is focused.
 
 ## Commands without default keys
 
-Available via toolbar / `execute` (and the in-app palette). Agents use session/document APIs — not these ids.
+Available via toolbar / `execute`; some also appear in the in-app palette. Commands marked unavailable in the palette because they require caller-provided arguments, such as `comment.resolve`, run from their UI controls or through `execute` with arguments. Agents use session/document APIs — not these ids.
 
 | Command | Id | When | Notes |
 |---------|----|------|-------|
 | Seek playhead | `transport.seek` | Always (when not typing in an input) | Args: { sec: number } |
 | Audition Mix / FX / Raw | `transport.audition` | Project loaded | Args: { mode: mix \| fx \| raw } |
 | Follow | `presence.follow` | Always (when not typing in an input) | Args: { clientId: string } |
-| Resolve comment | `comment.resolve` | Loaded host project | Args: { commentId: string, resolved: boolean, by: string } — host only |
+| Resolve comment | `comment.resolve` | Loaded host project | Args: { commentId: string, resolved: boolean, by: string } — host only; use a comment's Resolve/Reopen control |
 | Cycle focus mode | `focus.cycle` | Always (when not typing in an input) |  |
 | Confirm blade cut | `edit.bladeCut.confirm` | Structural edits allowed |  |
 | Cancel blade cut | `edit.bladeCut.cancel` | Always (when not typing in an input) |  |

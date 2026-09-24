@@ -1,6 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { registerDawCommands } from "../../commands/register";
 import { shareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
@@ -13,12 +14,14 @@ import {
 import { PendingEditInspector } from "./PendingEditInspector";
 
 const createComment = vi.fn();
+const patchComment = vi.fn();
 const refreshProject = vi.fn();
 const approveEdits = vi.fn();
 const waiveTranscriptRefine = vi.fn();
 
 vi.mock("../../api", () => ({
   createComment: (...args: unknown[]) => createComment(...args),
+  patchComment: (...args: unknown[]) => patchComment(...args),
   refreshProject: (...args: unknown[]) => refreshProject(...args),
   approveEdits: (...args: unknown[]) => approveEdits(...args),
   waiveTranscriptRefine: (...args: unknown[]) => waiveTranscriptRefine(...args),
@@ -48,7 +51,9 @@ const sessionCut: PendingEditView = {
 
 describe("PendingEditInspector", () => {
   beforeEach(() => {
+    registerDawCommands();
     createComment.mockReset();
+    patchComment.mockReset().mockResolvedValue(null);
     refreshProject.mockReset();
     approveEdits.mockReset();
     waiveTranscriptRefine.mockReset();
@@ -114,6 +119,42 @@ describe("PendingEditInspector", () => {
         editDecisionId: "ed1",
         timelineStart: 10,
         timelineEnd: 12,
+      }),
+    );
+  });
+
+  it("resolves and reopens a linked Ask thread through the command", async () => {
+    const user = userEvent.setup();
+    const comment = sampleComment({ edit_decision_id: "ed1" });
+    useDawStore
+      .getState()
+      .hydrate(
+        "/tmp/p.json",
+        minimalProject({ pending_edits: [sessionCut], comments: [comment] }),
+      );
+    render(<PendingEditInspector edit={sessionCut} />);
+
+    await user.click(screen.getByRole("button", { name: "Resolve" }));
+    await waitFor(() =>
+      expect(patchComment).toHaveBeenCalledWith("/tmp/p.json", "c1", {
+        resolved: true,
+        by: expect.any(String),
+      }),
+    );
+
+    act(() => {
+      useDawStore.setState({
+        project: minimalProject({
+          pending_edits: [sessionCut],
+          comments: [{ ...comment, resolved: true, resolved_by: "Host" }],
+        }),
+      });
+    });
+    await user.click(screen.getByRole("button", { name: /Reopen/ }));
+    await waitFor(() =>
+      expect(patchComment).toHaveBeenLastCalledWith("/tmp/p.json", "c1", {
+        resolved: false,
+        by: expect.any(String),
       }),
     );
   });
