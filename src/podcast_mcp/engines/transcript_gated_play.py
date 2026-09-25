@@ -205,6 +205,13 @@ def _normalize_peak(samples: np.ndarray, peak: float = 0.95) -> np.ndarray:
     return samples * (peak / max_val)
 
 
+def _limit_to_full_scale(samples: np.ndarray) -> np.ndarray:
+    """Pull ``samples`` back under full scale (``_normalize_peak``) only when they would clip."""
+    if samples.size and float(np.max(np.abs(samples))) > 1.0:
+        return _normalize_peak(samples)
+    return samples
+
+
 def _apply_gain_db(samples: np.ndarray, gain_db: float) -> np.ndarray:
     """Scale ``samples`` by ``gain_db``; 0 dB returns them unchanged."""
     if not gain_db:
@@ -221,11 +228,15 @@ def render_gated_track(
     timeline_end: float,
     gain_db: float = 0.0,
 ) -> Path:
-    """Gate one stem and play it at ``gain_db`` (the track's output gain; no normalisation)."""
+    """Gate one stem and play it at ``gain_db`` (the track's output gain).
+
+    The take is not normalised. If the gain would push it past full scale,
+    it is pulled back to just under full scale instead of hard-clipping.
+    """
     duration = timeline_end - timeline_start
     seg = _load_segment(stem_path, timeline_start, duration)
     gated = _apply_gate(seg, intervals, timeline_start=timeline_start)
-    _write_wav(_apply_gain_db(gated, gain_db), output_path)
+    _write_wav(_limit_to_full_scale(_apply_gain_db(gated, gain_db)), output_path)
     return output_path
 
 

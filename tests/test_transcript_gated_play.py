@@ -8,6 +8,7 @@ import pytest
 
 from podcast_mcp.engines.transcript_gated_play import (
     _apply_gate,
+    _limit_to_full_scale,
     _load_segment,
     _normalize_peak,
     _write_wav,
@@ -462,3 +463,38 @@ def test_render_gated_track_plays_at_its_gain(tmp_path, monkeypatch) -> None:
     )
     assert float(written[0][2400]) == pytest.approx(0.5, rel=1e-4)
     assert float(written[1][2400] / written[0][2400]) == pytest.approx(10 ** (-6 / 20), rel=1e-4)
+
+
+def test_limit_to_full_scale_only_touches_clipping_samples() -> None:
+    quiet = np.array([0.5, -0.9], dtype=np.float32)
+    assert np.array_equal(_limit_to_full_scale(quiet), quiet)
+    empty = np.array([], dtype=np.float32)
+    assert _limit_to_full_scale(empty).size == 0
+    loud = np.array([0.5, -1.6], dtype=np.float32)
+    limited = _limit_to_full_scale(loud)
+    assert float(np.max(np.abs(limited))) == pytest.approx(0.95, rel=1e-4)
+    assert float(limited[0] / limited[1]) == pytest.approx(0.5 / -1.6, rel=1e-4)
+
+
+def test_render_gated_track_does_not_clip_on_positive_gain(tmp_path, monkeypatch) -> None:
+    from podcast_mcp.engines import transcript_gated_play as tgp
+
+    monkeypatch.setattr(
+        tgp, "_load_segment", lambda *_a, **_k: np.full(4800, 0.8, dtype=np.float32)
+    )
+    written: list[np.ndarray] = []
+
+    def _write(samples, path):
+        written.append(samples)
+        return path
+
+    monkeypatch.setattr(tgp, "_write_wav", _write)
+    tgp.render_gated_track(
+        tmp_path / "s.wav",
+        [(0.0, 0.1)],
+        tmp_path / "g.wav",
+        timeline_start=0.0,
+        timeline_end=0.1,
+        gain_db=6.0,
+    )
+    assert float(np.max(np.abs(written[0]))) == pytest.approx(0.95, rel=1e-4)
