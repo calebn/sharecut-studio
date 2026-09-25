@@ -50,11 +50,10 @@ describe("timeline styles", () => {
 
   it("puts the waveform layer and its overlays on the clip's border box", () => {
     const css = partial("timeline.css");
-    for (const selector of [".clip-waveform", ".clip-waveform-overlays"]) {
-      const body = rule(css, selector);
-      expect(body).toMatch(/left:\s*-1px/);
-      expect(body).toMatch(/right:\s*-1px/);
-    }
+    const shared = rule(css, ".clip-waveform,\n.clip-waveform-overlays");
+    expect(shared).toMatch(/left:\s*-1px/);
+    expect(shared).toMatch(/right:\s*-1px/);
+    expect(rule(css, ".clip-waveform")).toMatch(/overflow:\s*hidden/);
     expect(rule(css, ".clip-mute-region")).toMatch(/margin-left:\s*-1px/);
   });
 });

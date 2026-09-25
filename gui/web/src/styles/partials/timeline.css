@@ -101,26 +101,11 @@
   opacity: 0.92;
 }
 
-/* The waveform layer and its overlays (snap ticks, mute regions) sit on the
-   clip's border box (1px past its padding box each side), so waveform x
-   matches ruler x. */
-.clip-waveform {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -1px;
-  right: -1px;
-  z-index: 1;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.clip-waveform-tile {
-  position: absolute;
-  top: 0;
-  height: 100%;
-}
-
+/* The waveform layer and its overlays (snap ticks) sit on the clip's border
+   box (1px past its padding box each side), so waveform x matches ruler x.
+   The 1px is the .clip-block border; .clip-mute-region and ClipBlock's trim
+   ghost (`committedWidth - 1`) offset by the same 1px. */
+.clip-waveform,
 .clip-waveform-overlays {
   position: absolute;
   top: 0;
@@ -129,6 +114,16 @@
   right: -1px;
   z-index: 1;
   pointer-events: none;
+}
+
+.clip-waveform {
+  overflow: hidden;
+}
+
+.clip-waveform-tile {
+  position: absolute;
+  top: 0;
+  height: 100%;
 }
 
 .clip-waveform-quiet {
@@ -142,7 +137,7 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  margin-left: -1px;
+  margin-left: -1px; /* the clip border, as .clip-waveform */
   z-index: 2;
   pointer-events: none;
   background: var(--pending-mute);
