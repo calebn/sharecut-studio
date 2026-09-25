@@ -607,10 +607,10 @@ export const useDawStore = create<DawStore>((set, get) => ({
     set({ bladeConfirmSec }),
   setShellBreakpoint: (shellBreakpoint) => {
     set({ shellBreakpoint });
-    // Before the timeline measures, follow the new shell's estimate.
-    if (!get()._timelineEl) {
-      get().resetTimelineViewportWidth();
-    }
+    // Re-derive from the live timeline: a registered scrollport that measures
+    // 0 (a remount mid shell switch) and no timeline at all both store the
+    // new shell's estimate, never the previous shell's.
+    get().setTimelineViewportWidth(get().measureTimelineViewport());
   },
   setPointerKind: (pointerKind) =>
     set((s) => (s.pointerKind === pointerKind ? s : { pointerKind })),

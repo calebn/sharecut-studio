@@ -43,12 +43,25 @@ describe("dawStore timeline viewport width", () => {
 
   it("keeps a measured width across a shell breakpoint change", () => {
     vi.stubGlobal("visualViewport", { width: 390 });
-    useDawStore.setState({
-      _timelineEl: document.createElement("div"),
-      timelineViewportWidth: 777,
-    });
+    const el = document.createElement("div");
+    Object.defineProperty(el, "clientWidth", { value: 777 });
+    useDawStore.setState({ _timelineEl: el, timelineViewportWidth: 777 });
     useDawStore.getState().setShellBreakpoint("phone");
     expect(useDawStore.getState().timelineViewportWidth).toBe(777);
+  });
+
+  it("stores the new shell's estimate when a registered timeline measures 0", () => {
+    vi.stubGlobal("visualViewport", { width: 390 });
+    // A remounted timeline that measured 0 under the old (desktop) shell.
+    const el = document.createElement("div");
+    Object.defineProperty(el, "clientWidth", { value: 0 });
+    useDawStore.setState({
+      shellBreakpoint: "desktop",
+      _timelineEl: el,
+      timelineViewportWidth: estimateTimelineViewportWidth("desktop"),
+    });
+    useDawStore.getState().setShellBreakpoint("phone");
+    expect(useDawStore.getState().timelineViewportWidth).toBe(390);
   });
 
   it("stores the shell estimate for a zero-width measure", () => {
