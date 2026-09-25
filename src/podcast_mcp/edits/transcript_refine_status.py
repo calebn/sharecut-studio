@@ -13,6 +13,7 @@ from filelock import FileLock
 from podcast_mcp.edits.pipeline_unattended import is_unattended
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
+from podcast_mcp.util.file_locks import shared_file_lock
 from podcast_mcp.util.workspace_paths import workspace_relpath
 
 STATUS_FILENAME = "transcript_refine_status.json"
@@ -73,9 +74,7 @@ def _write_status(project: EpisodeProject, payload: dict[str, Any]) -> Path:
 
 
 def _status_lock(project: EpisodeProject) -> FileLock:
-    path = status_path(project)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    return FileLock(f"{path}.lock")
+    return shared_file_lock(Path(f"{status_path(project)}.lock"), timeout=-1)
 
 
 def _write_status_unlocked(

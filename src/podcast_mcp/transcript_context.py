@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -12,6 +11,7 @@ from filelock import FileLock
 from podcast_mcp.config import repo_root
 from podcast_mcp.engines.asr_timing import DEFAULT_MAX_WORD_DURATION_SEC
 from podcast_mcp.util.atomic_json import write_text_atomic
+from podcast_mcp.util.file_locks import shared_file_lock
 
 _GLOBAL_DEFAULTS_PATH = repo_root() / ".agents" / "defaults" / "transcript_glossary.yaml"
 
@@ -110,25 +110,19 @@ class TranscriptContext:
 
 
 CONTEXT_LOCK_TIMEOUT_SEC = 10.0
-_CONTEXT_LOCKS: dict[Path, FileLock] = {}
-_CONTEXT_LOCKS_GUARD = threading.Lock()
 
 
 def context_lock(workspace: Path) -> FileLock:
     """Writer lock for ``transcript_context.yaml`` at ``artifacts/transcript_context.yaml.lock``.
 
-    One FileLock instance per workspace, so ``TranscriptContext.save`` can re-enter
-    it while a service holds it across load-modify-save. Raises ``filelock.Timeout``
-    after ``CONTEXT_LOCK_TIMEOUT_SEC``.
+    One FileLock instance per workspace (``util.file_locks.shared_file_lock``), so
+    ``TranscriptContext.save`` can re-enter it while a service holds it across
+    load-modify-save. Raises ``filelock.Timeout`` after ``CONTEXT_LOCK_TIMEOUT_SEC``.
     """
-    lock_path = (workspace / "artifacts" / "transcript_context.yaml.lock").resolve()
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    with _CONTEXT_LOCKS_GUARD:
-        lock = _CONTEXT_LOCKS.get(lock_path)
-        if lock is None:
-            lock = FileLock(str(lock_path), timeout=CONTEXT_LOCK_TIMEOUT_SEC)
-            _CONTEXT_LOCKS[lock_path] = lock
-        return lock
+    return shared_file_lock(
+        workspace / "artifacts" / "transcript_context.yaml.lock",
+        timeout=CONTEXT_LOCK_TIMEOUT_SEC,
+    )
 
 
 def new_vocabulary_revision() -> str:

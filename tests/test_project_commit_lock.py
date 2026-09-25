@@ -83,14 +83,12 @@ def test_commit_waits_for_lock_held_by_another_process(minimal_project, monkeypa
     proc.start()
     assert ready.wait(30)
     monkeypatch.setattr(project_state, "PROJECT_COMMIT_LOCK_TIMEOUT_SEC", 0.3)
-    project_state._file_locks.clear()
     try:
         with pytest.raises(Timeout):
             ProjectStore(minimal_project).commit(project)
     finally:
         release.set()
         proc.join(30)
-        project_state._file_locks.clear()
     ProjectStore(minimal_project).commit(project)
 
 
@@ -108,7 +106,6 @@ def test_publication_encodes_while_another_process_holds_lock(
     proc.start()
     assert ready.wait(30)
     monkeypatch.setattr(project_state, "PROJECT_COMMIT_LOCK_TIMEOUT_SEC", 0.3)
-    project_state._file_locks.clear()
     encoded: list[str] = []
 
     def spy(self, wav, mp3, *, bitrate_kbps):
@@ -122,8 +119,10 @@ def test_publication_encodes_while_another_process_holds_lock(
     finally:
         release.set()
         proc.join(30)
-        project_state._file_locks.clear()
     assert encoded == ["mix.mp3"]
+    review_root = art / "review"
+    assert not review_root.exists() or not any(review_root.iterdir())
+    assert load_project(minimal_project).review.versions == []
 
 
 def test_failed_publication_cleanup_is_not_raced_by_history_goto(minimal_project, sample_wav):
