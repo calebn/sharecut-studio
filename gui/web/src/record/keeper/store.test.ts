@@ -711,6 +711,10 @@ describe("OPFS cleanup", () => {
       await expect(sink.remove("a/../b.wav")).rejects.toThrow(
         /invalid keeper path part/,
       );
+      await expect(sink.remove("a/..")).rejects.toThrow(
+        /invalid keeper path part/,
+      );
+      await expect(sink.remove("")).rejects.toThrow(/invalid keeper path/);
     } finally {
       if (original) {
         Object.defineProperty(navigator, "storage", original);

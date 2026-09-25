@@ -1,5 +1,10 @@
 import { removeKeeperUnlessHeld } from "./deletionGuard";
-import { assertSafePart, opfsDirHandle, opfsFileHandle } from "./opfsPath";
+import {
+  assertSafePart,
+  opfsDirHandle,
+  opfsFileHandle,
+  splitOpfsPath,
+} from "./opfsPath";
 import { KEEPER_SAMPLE_RATE } from "./pcm";
 import {
   type SyncWriterClient,
@@ -551,13 +556,9 @@ export async function createOpfsSink(
       }
     },
     async remove(path: string) {
-      const parts = path.split("/").filter(Boolean);
-      const fileName = parts.pop();
-      if (!fileName) {
-        return;
-      }
+      const { dirParts, fileName } = splitOpfsPath(path);
       try {
-        const dir = await opfsDirHandle(root, parts, false);
+        const dir = await opfsDirHandle(root, dirParts, false);
         await dir.removeEntry(fileName);
       } catch (error) {
         if (error instanceof DOMException && error.name === "NotFoundError") {

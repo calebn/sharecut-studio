@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { assertSafePart, opfsDirHandle, opfsFileHandle } from "./opfsPath";
+import {
+  assertSafePart,
+  opfsDirHandle,
+  opfsFileHandle,
+  splitOpfsPath,
+} from "./opfsPath";
 
 function fakeDir() {
   const dir = {
@@ -63,5 +68,23 @@ describe("opfsFileHandle", () => {
     await expect(opfsFileHandle(asRoot(dir), "", true)).rejects.toThrow(
       /invalid keeper path/,
     );
+  });
+});
+
+describe("splitOpfsPath", () => {
+  it("splits directories from the file name", () => {
+    expect(splitOpfsPath("a/b/0.wav")).toEqual({
+      dirParts: ["a", "b"],
+      fileName: "0.wav",
+    });
+    expect(splitOpfsPath("/a//0.wav")).toEqual({
+      dirParts: ["a"],
+      fileName: "0.wav",
+    });
+  });
+
+  it("rejects an empty path or an unsafe file name", () => {
+    expect(() => splitOpfsPath("")).toThrow(/invalid keeper path/);
+    expect(() => splitOpfsPath("a/..")).toThrow(/invalid keeper path part/);
   });
 });
