@@ -162,7 +162,72 @@ describe("createSyncWriterClient", () => {
     expect(worker.terminate).toHaveBeenCalled();
   });
 
-  it("times out a hung open and terminates the worker", async () => {
+  it("latches after repeated open timeouts", async () => {
+    vi.useFakeTimers();
+    const spawn = vi.fn(() => fakeWorker());
+    const workers: ReturnType<typeof fakeWorker>[] = [];
+    const client = createSyncWriterClient(
+      () => {
+        const f = spawn();
+        workers.push(f);
+        return f.worker;
+      },
+      { openTimeoutMs: 50 },
+    );
+    for (const name of ["a", "b"]) {
+      const p = client.open(name);
+      workers[workers.length - 1].worker.emit({
+        type: "ready",
+        supported: true,
+      });
+      await tick();
+      const assertion = expect(p).rejects.toBeInstanceOf(
+        SyncWriterUnavailableError,
+      );
+      await vi.advanceTimersByTimeAsync(50);
+      await assertion;
+    }
+    await expect(client.open("c")).rejects.toBeInstanceOf(
+      SyncWriterUnavailableError,
+    );
+    expect(spawn).toHaveBeenCalledTimes(2);
+  });
+
+  it("a successful open resets the start-failure count", async () => {
+    vi.useFakeTimers();
+    const spawn = vi.fn(() => fakeWorker());
+    const workers: ReturnType<typeof fakeWorker>[] = [];
+    const client = createSyncWriterClient(
+      () => {
+        const f = spawn();
+        workers.push(f);
+        return f.worker;
+      },
+      { openTimeoutMs: 50 },
+    );
+    const last = () => workers[workers.length - 1].worker;
+    const hang = async (name: string) => {
+      const p = client.open(name);
+      last().emit({ type: "ready", supported: true });
+      await tick();
+      const assertion = expect(p).rejects.toBeInstanceOf(
+        SyncWriterUnavailableError,
+      );
+      await vi.advanceTimersByTimeAsync(50);
+      await assertion;
+    };
+    await hang("a");
+    const ok = client.open("b");
+    last().emit({ type: "ready", supported: true });
+    await tick();
+    last().emit({ type: "result", id: 1 });
+    await ok;
+    await hang("c");
+    void client.open("d").catch(() => undefined);
+    expect(spawn).toHaveBeenCalledTimes(4);
+  });
+
+  it("falls back when an open hangs and terminates the worker", async () => {
     vi.useFakeTimers();
     const f = fakeWorker();
     const client = createSyncWriterClient(() => f.worker, {
@@ -171,7 +236,11 @@ describe("createSyncWriterClient", () => {
     const p = client.open("a");
     f.worker.emit({ type: "ready", supported: true });
     await tick();
-    const assertion = expect(p).rejects.toThrow("open timed out after 50ms");
+    const assertion = expect(p).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof SyncWriterUnavailableError &&
+        /open timed out after 50ms/.test(String((e.cause as Error).message)),
+    );
     await vi.advanceTimersByTimeAsync(50);
     await assertion;
     expect(f.worker.terminate).toHaveBeenCalled();
