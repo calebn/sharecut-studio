@@ -5,7 +5,6 @@ from collections.abc import Callable
 from pathlib import Path
 
 from podcast_mcp.config import load_defaults
-from podcast_mcp.history import HistoryManager
 from podcast_mcp.models import AutomationEnvelope, AutomationPoint
 from podcast_mcp.pipeline import PipelineRunner
 from podcast_mcp.pipeline import steps as pipeline_steps
@@ -42,22 +41,21 @@ class PipelineService:
             skip_steps=skip_steps,
         )
         self.ws.checkpoint()
-        mgr = HistoryManager(self.ws.path)
-        mgr.record(self.ws.project, "before pipeline run")
+        # Commit the "before" entry now so the index never holds an entry the file lacks.
+        self.ws.save_merged(history_label="before pipeline run")
         defaults = merge_pipeline_config(config) if config is not None else None
-        runner = PipelineRunner(defaults=defaults, history=mgr)
+        runner = PipelineRunner(defaults=defaults)
         runner.run(
             self.ws.project,
             from_step=from_step,
             only_step=only_step,
             skip_steps=skip_steps,
-            on_step_complete=self.ws.save_merged,
+            on_step_complete=lambda step: self.ws.save_merged(history_label=f"after {step}"),
             progress=progress,
             unattended=unattended,
             cancel_check=cancel_check,
         )
-        mgr.record(self.ws.project, "after pipeline run")
-        self.ws.save_merged()
+        self.ws.save_merged(history_label="after pipeline run")
         return self.ws.project.last_completed_step or ""
 
     def set_envelope(self, track_id: str, points: list[dict]) -> int:

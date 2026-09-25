@@ -82,7 +82,7 @@ Defaults: `.agents/defaults/pipeline.yaml` (tighten, mix, export, and other step
 
 ## Edits during a run
 
-Each step's save merges onto the saved project (`ProjectWorkspace.checkpoint()` / `save_merged()`), so a volume, mute, comment or cut saved while the run is going survives and later steps see it. A volume or mute saved during the stems step does not stop it. A merged save replaces whole project sections (tracks, pipeline runs, render state) in place, so steps and the runner re-fetch objects from the project after each save rather than keep earlier references; the runner re-resolves its run each step. If another request and the run changed the same value, that step fails with a "re-run it" message and saves nothing. This covers one process only (#213).
+Each step's save merges onto the saved project (`ProjectWorkspace.checkpoint()` / `save_merged()`), so a volume, mute, comment or cut saved while the run is going survives and later steps see it. A volume or mute saved during the stems step does not stop it. A merged save replaces whole project sections (tracks, pipeline runs, render state) in place, so steps and the runner re-fetch objects from the project after each save rather than keep earlier references; the runner re-resolves its run each step. If another request and the run changed the same value, that step fails with a "re-run it" message and saves nothing. An undo or redo during a run does the same, and the history index stays as the saved project has it. This covers one process only (#213).
 
 ## Tighten params
 

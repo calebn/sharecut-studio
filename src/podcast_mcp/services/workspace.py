@@ -8,10 +8,17 @@ from pydantic import ValidationError
 
 from podcast_mcp.history import HistoryManager, run_mutation
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.models.history import HistoryEntry
 from podcast_mcp.project_io import open_project, resolve_project_path
 from podcast_mcp.project_merge import ProjectMergeConflict, merge_project_data, project_merge_data
-from podcast_mcp.project_store import ProjectStore
-from podcast_mcp.util.project_state import FileRevision, file_revision, project_state_lock
+from podcast_mcp.project_store import ProjectStore, history_index_path, restore_history_index
+from podcast_mcp.util.atomic_json import load_json_object
+from podcast_mcp.util.project_state import (
+    FileRevision,
+    file_revision,
+    project_commit_lock,
+    project_state_lock,
+)
 
 T = TypeVar("T")
 
@@ -79,12 +86,21 @@ class ProjectWorkspace:
             self._merge_base = project_merge_data(saved)
             return self.project
 
-    def save_merged(self) -> None:
+    def save_merged(self, history_label: str | None = None) -> None:
         """Commit this workspace's changes since ``checkpoint`` on top of the saved file.
 
-        Another writer's change since then is merged in, adopted in place (later
-        steps see it) and recorded as its own history entry. Raises
-        ``ProjectMergeConflict``, saving nothing, when both changed one value.
+        ``history_label`` first records this job's state as an undo entry (a pipeline
+        step's ``after <step>``) in the same locked commit. Another writer's change since
+        checkpoint is merged in, recorded as ``after merging concurrent edits`` and adopted
+        in place (later steps see it). Raises ``ProjectMergeConflict``, saving nothing,
+        when both changed one value, or when one side undid/redid past the checkpoint
+        state while the other recorded history.
+
+        Nothing is adopted until the commit lands: on a conflict or a failed commit,
+        ``history/index.json`` and ``self.project.history`` are put back and snapshots
+        recorded by this call are removed, so ``self.project`` keeps only the job's own
+        unsaved changes. If the project file was written but a later cache write failed,
+        the saved state is adopted before the error propagates.
 
         The merge replaces whole sections (``tracks``, ``pipeline_runs``, ``render``, ...)
         on ``self.project`` in place: re-fetch sub-objects after this call instead of
@@ -93,20 +109,69 @@ class ProjectWorkspace:
         with project_state_lock(self.project):
             if self._merge_base is None:
                 raise RuntimeError("save_merged() needs checkpoint() first")
-            saved = project_merge_data(self._store.load())
-            if saved != self._merge_base:
-                merged = merge_project_data(
-                    self._merge_base, project_merge_data(self.project), saved
-                )
+            with project_commit_lock(self.project):
+                revision = file_revision(self.path)
+                saved = project_merge_data(self._store.load())
+                index_path = history_index_path(self.project)
+                index_before = load_json_object(index_path)
+                history_before = self.project.history.model_copy(deep=True)
+                created: list[HistoryEntry] = []
+                to_save: EpisodeProject | None = None
                 try:
-                    adopted = EpisodeProject.model_validate(merged)
-                except ValidationError as exc:
-                    raise ProjectMergeConflict(["(merged project is invalid)"]) from exc
-                _adopt_project_state(self.project, adopted)
-                HistoryManager(self.path).record(self.project, MERGED_HISTORY_LABEL)
-            self._store.commit(self.project)
-            self._merge_base = project_merge_data(self.project)
-            self._loaded_file_signature = None
+                    to_save = self._merged_with(saved, history_label, created)
+                    self._store.commit(to_save)
+                except BaseException:
+                    if to_save is not None and file_revision(self.path) != revision:
+                        # The project file was replaced; only a later write failed.
+                        self._adopt_saved(to_save)
+                    else:
+                        self.project.history = history_before
+                        restore_history_index(index_path, index_before)
+                        for entry in created:
+                            (self.project.workspace_path() / entry.snapshot_file).unlink(
+                                missing_ok=True
+                            )
+                    raise
+                finally:
+                    self._loaded_file_signature = None
+                self._adopt_saved(to_save)
+
+    def _merged_with(
+        self,
+        saved: dict[str, Any],
+        history_label: str | None,
+        created: list[HistoryEntry],
+    ) -> EpisodeProject:
+        """The project to commit: ``self.project`` or, when the file moved, a merged copy.
+
+        Records history on it (appending new entries to ``created``) but never adopts
+        a merge into ``self.project``; ``save_merged`` does that after the commit.
+        """
+        assert self._merge_base is not None
+        mgr = HistoryManager(self.path)
+
+        def record(project: EpisodeProject, label: str) -> None:
+            known = {e.id for e in project.history.entries}
+            entry = mgr.record(project, label)
+            if entry.id not in known:
+                created.append(entry)
+
+        if history_label is not None:
+            record(self.project, history_label)
+        if saved == self._merge_base:
+            return self.project
+        merged = merge_project_data(self._merge_base, project_merge_data(self.project), saved)
+        try:
+            adopted = EpisodeProject.model_validate(merged)
+        except ValidationError as exc:
+            raise ProjectMergeConflict(["(merged project is invalid)"]) from exc
+        record(adopted, MERGED_HISTORY_LABEL)
+        return adopted
+
+    def _adopt_saved(self, project: EpisodeProject) -> None:
+        if project is not self.project:
+            _adopt_project_state(self.project, project)
+        self._merge_base = project_merge_data(self.project)
 
     def mutate(
         self,

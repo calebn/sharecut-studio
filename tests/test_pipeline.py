@@ -63,7 +63,7 @@ def test_runner_keeps_logging_after_a_save_swaps_the_render_section(minimal_proj
     run = PipelineRunner(defaults={}).run(
         proj,
         from_step="master_loudness",
-        on_step_complete=lambda: setattr(proj, "render", proj.render.model_copy(deep=True)),
+        on_step_complete=lambda _step: setattr(proj, "render", proj.render.model_copy(deep=True)),
     )
     logs = proj.pipeline_runs[-1].steps
     assert logs[0].step == "master_loudness"

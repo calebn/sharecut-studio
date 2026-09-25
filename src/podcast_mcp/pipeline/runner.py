@@ -16,7 +16,6 @@ from podcast_mcp.edits.transcript_refine_status import (
     transcript_text_fingerprint,
 )
 from podcast_mcp.engines.reconciliation_state import mark_reconciliation_stale
-from podcast_mcp.history import HistoryManager
 from podcast_mcp.models import (
     EpisodeProject,
     PipelineRun,
@@ -132,13 +131,8 @@ def select_pipeline_steps(
 
 
 class PipelineRunner:
-    def __init__(
-        self,
-        defaults: dict | None = None,
-        history: HistoryManager | None = None,
-    ) -> None:
+    def __init__(self, defaults: dict | None = None) -> None:
         self.defaults = defaults if defaults is not None else load_defaults()
-        self.history = history
 
     def run(
         self,
@@ -147,7 +141,7 @@ class PipelineRunner:
         from_step: str | None = None,
         only_step: str | None = None,
         skip_steps: list[str] | None = None,
-        on_step_complete: Callable[[], None] | None = None,
+        on_step_complete: Callable[[str], None] | None = None,
         progress: ProgressReporter | None = None,
         unattended: bool = False,
         cancel_check: Callable[[], bool] | None = None,
@@ -232,10 +226,9 @@ class PipelineRunner:
                         if name in AUDIO_AFFECTING_STEPS:
                             mark_reconciliation_stale(project)
                         project.last_completed_step = name
-                        if self.history is not None:
-                            self.history.record(project, f"after {name}")
                         if on_step_complete is not None:
-                            on_step_complete()
+                            # The callback saves (and records ``after <name>``) in one commit.
+                            on_step_complete(name)
                         done_msg = f"Completed {name}"
                         if summary:
                             done_msg = f"{done_msg}: {summary}"

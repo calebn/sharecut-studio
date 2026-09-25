@@ -9,12 +9,15 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from podcast_mcp.engines.play_audit import premix_is_stale, write_stem_hash
+from podcast_mcp.history import HistoryManager
 from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project, save_project
 from podcast_mcp.pipeline import runner as runner_mod
 from podcast_mcp.pipeline import steps
 from podcast_mcp.project_merge import ProjectMergeConflict
+from podcast_mcp.project_store import history_index_path
 from podcast_mcp.services import EpisodeService, PipelineService, ProjectWorkspace
 from podcast_mcp.services.workspace import MERGED_HISTORY_LABEL
+from podcast_mcp.util.atomic_json import load_json_object
 
 
 def _two_tracks(minimal_project: Path) -> ProjectWorkspace:
@@ -132,6 +135,9 @@ def test_pipeline_step_keeps_a_volume_saved_mid_step(minimal_project, monkeypatc
     log = saved.pipeline_runs[-1].steps[0]
     assert log.status == "ok"
     assert log.finished_at
+    labels = [e.label for e in saved.history.entries]
+    assert {"before pipeline run", "after merge_transcript", MERGED_HISTORY_LABEL} <= set(labels)
+    assert load_json_object(history_index_path(saved)) == saved.history.model_dump(mode="json")
 
 
 def test_pipeline_mix_keeps_a_mid_mix_volume_and_reports_the_premix_stale(minimal_project):
@@ -216,3 +222,88 @@ def test_export_audio_keeps_an_edit_saved_during_export(minimal_project, tmp_pat
     ):
         PipelineService(ws).export_audio([{"ext": "mp3"}])
     assert load_project(minimal_project).track_by_id("host").fader_db == -6.0
+
+
+def _index_matches_file(minimal_project: Path) -> None:
+    saved = load_project(minimal_project)
+    assert load_json_object(history_index_path(saved)) == saved.history.model_dump(mode="json")
+
+
+def test_pipeline_step_conflict_leaves_history_index_matching_the_file(
+    minimal_project, monkeypatch
+):
+    ws = _two_tracks(minimal_project)
+
+    def step(project, _defaults):
+        project.track_by_id("host").gain_db = 2.0
+        other = ProjectWorkspace.open(minimal_project)
+        other.mutate("b", "a", lambda p: setattr(p.track_by_id("host"), "gain_db", 5.0))
+        return "done"
+
+    monkeypatch.setitem(runner_mod._STEP_MAP, "merge_transcript", step)
+    with pytest.raises(ProjectMergeConflict):
+        PipelineService(ws).run(only_step="merge_transcript")
+    _index_matches_file(minimal_project)
+    saved = load_project(minimal_project)
+    assert "after merge_transcript" not in [e.label for e in saved.history.entries]
+    assert "after merge_transcript" not in [e.label for e in ws.project.history.entries]
+
+
+def _snapshots(ws: ProjectWorkspace) -> set[str]:
+    snap_dir = ws.project.workspace_path() / "history" / "snapshots"
+    return {p.name for p in snap_dir.glob("*")} if snap_dir.exists() else set()
+
+
+def test_save_merged_commit_failure_adopts_nothing(minimal_project, monkeypatch):
+    ws = _two_tracks(minimal_project)
+    ws.checkpoint()
+    _other_sets_volume(minimal_project)
+    ws.project.track_by_id("host").gain_db = 2.0
+    index_path = history_index_path(ws.project)
+    index_before = load_json_object(index_path)
+    history_before = ws.project.history.model_copy(deep=True)
+    snaps_before = _snapshots(ws)
+
+    def boom(*_a, **_k):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(ws._store, "commit", boom)
+    with pytest.raises(OSError):
+        ws.save_merged(history_label="after step")
+    assert load_json_object(index_path) == index_before
+    assert ws.project.history == history_before
+    assert _snapshots(ws) == snaps_before
+    assert ws.project.track_by_id("host").fader_db == 0.0
+    monkeypatch.undo()
+    ws.save_merged()
+    saved = load_project(minimal_project)
+    assert saved.track_by_id("host").fader_db == -6.0
+    assert saved.track_by_id("host").gain_db == 2.0
+
+
+def test_save_merged_adopts_the_file_when_only_the_cache_write_failed(minimal_project, monkeypatch):
+    ws = _two_tracks(minimal_project)
+    ws.checkpoint()
+    _other_sets_volume(minimal_project)
+    ws.project.track_by_id("host").gain_db = 2.0
+
+    def boom(*_a, **_k):
+        raise OSError("cache")
+
+    monkeypatch.setattr(ws._store, "_mirror_transcript_cache", boom)
+    with pytest.raises(OSError):
+        ws.save_merged()
+    assert ws.project.track_by_id("host").fader_db == -6.0
+    _index_matches_file(minimal_project)
+
+
+def test_save_merged_conflicts_when_another_writer_undid_during_the_job(minimal_project):
+    ws = _two_tracks(minimal_project)
+    _other_sets_volume(minimal_project)
+    ws.checkpoint()
+    other = ProjectWorkspace.open(minimal_project)
+    HistoryManager(other.path).undo(other.project)
+    ws.project.track_by_id("guest").gain_db = 1.0
+    with pytest.raises(ProjectMergeConflict, match=r"history\.cursor"):
+        ws.save_merged(history_label="after step")
+    _index_matches_file(minimal_project)

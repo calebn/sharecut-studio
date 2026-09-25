@@ -136,14 +136,36 @@ def _cursor_id(history: dict[str, Any]) -> str | None:
     return entries[cursor]["id"] if 0 <= cursor < len(entries) else None
 
 
+def _descends_from_base(base: dict[str, Any], side: dict[str, Any]) -> bool:
+    """True when ``side``'s current state still builds on base's: base's cursor entry
+    is kept and sits at or before ``side``'s cursor (no undo past it, no truncation)."""
+    base_id = _cursor_id(base)
+    if base_id is None:
+        return True
+    ids = [e["id"] for e in side.get("entries") or []]
+    return base_id in ids and ids.index(base_id) <= side.get("cursor", -1)
+
+
 def _merge_history(base, ours, theirs, conflicts) -> dict[str, Any]:
     """Union both sides' undo entries; new ones go after the shared ones, oldest first.
 
     The cursor lands on the newest entry when either side added one (the caller
     records the merged state right after); otherwise it follows whichever side
     moved it.
+
+    Conflicts (``history.cursor``) when one side added entries while the other undid
+    past, or truncated, the base cursor entry.
     """
     base_entries = base.get("entries") or []
+    base_ids = {e["id"] for e in base_entries}
+    ours_added = any(e["id"] not in base_ids for e in ours.get("entries") or [])
+    theirs_added = any(e["id"] not in base_ids for e in theirs.get("entries") or [])
+    if (ours_added and not _descends_from_base(base, theirs)) or (
+        theirs_added and not _descends_from_base(base, ours)
+    ):
+        # One side undid/redid back past the base state while the other recorded on
+        # top of it: interleaving the entries would put undone edits back in the lineage.
+        conflicts.append("history.cursor")
     entries = _merge(
         base_entries,
         ours.get("entries") or [],
@@ -151,7 +173,6 @@ def _merge_history(base, ours, theirs, conflicts) -> dict[str, Any]:
         "history.entries",
         conflicts,
     )
-    base_ids = {e["id"] for e in base_entries}
     kept = [e for e in entries if e["id"] in base_ids]
     new = sorted(
         (e for e in entries if e["id"] not in base_ids), key=lambda e: e.get("created_at") or ""

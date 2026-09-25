@@ -19,8 +19,9 @@ from podcast_mcp.edits.review_versions import (
 )
 from podcast_mcp.models import load_project
 from podcast_mcp.models.history import ProjectHistory
+from podcast_mcp.project_store import restore_history_index
 from podcast_mcp.services.workspace import ProjectWorkspace
-from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
+from podcast_mcp.util.atomic_json import load_json_object
 from podcast_mcp.util.project_state import project_commit_lock, project_state_lock
 
 log = logging.getLogger(__name__)
@@ -123,10 +124,7 @@ class ReviewService:
                 )
                 return
             if current_index != history_before:
-                if history_before is None:
-                    history_index_path.unlink()
-                else:
-                    write_json_atomic(history_index_path, history_before)
+                restore_history_index(history_index_path, history_before)
                 old_ids = (
                     {entry.id for entry in ProjectHistory.model_validate(history_before).entries}
                     if history_before is not None
