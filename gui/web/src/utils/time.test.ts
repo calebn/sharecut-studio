@@ -88,4 +88,17 @@ describe("formatRulerTime", () => {
   ])("formats %s s at a %s s step as %s", (sec, step, label) => {
     expect(formatRulerTime(sec, step)).toBe(label);
   });
+
+  it.each([
+    [59.68, 1, "0:59"],
+    [12.7, 1, "0:12"],
+    [59.68, 0.5, "0:59.6"],
+    [0.3, 0.1, "0:00.3"],
+    [3725.99, 60, "1:02:05"],
+  ])(
+    "floors %s s at a %s s step to %s for a position readout",
+    (sec, step, label) => {
+      expect(formatRulerTime(sec, step, "floor")).toBe(label);
+    },
+  );
 });
