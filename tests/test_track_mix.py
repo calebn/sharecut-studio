@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -23,14 +24,20 @@ from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.timeline_ops import ripple_delete
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet, _rms_for_track_at_timeline
 from podcast_mcp.engines.play_audit import (
+    mastered_is_fresh,
+    mastered_path,
     mix_gains,
     mix_render_hash,
     premix_hash_path,
+    premix_is_stale,
     premix_path,
     premix_stale_vs_mix,
+    premix_stale_vs_stems,
+    read_mastered_hash,
     read_premix_hash,
     track_render_hash,
     write_premix_hash,
+    write_stem_hash,
 )
 from podcast_mcp.engines.reconciliation_state import audio_state_fingerprint
 from podcast_mcp.engines.render_status import render_status_report
@@ -39,7 +46,7 @@ from podcast_mcp.mcp.server import track_set_mute_tool, track_set_volume_tool
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, load_project, save_project
 from podcast_mcp.models.episode import FADER_MAX_DB, FADER_MIN_DB
 from podcast_mcp.pipeline import steps
-from podcast_mcp.services import EpisodeService, ProjectWorkspace
+from podcast_mcp.services import EpisodeService, PipelineService, ProjectWorkspace
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.capabilities import authorize_document_command
 from podcast_mcp.services.document_sync.commands import DocumentCommand
@@ -92,6 +99,123 @@ def _mixing_engine() -> MagicMock:
     eng = MagicMock()
     eng.mix_tracks.side_effect = lambda inputs, out: out.write_bytes(b"RIFFMIX") or out
     return eng
+
+
+def _fresh_stems(project) -> dict[str, str]:
+    """Rendered stems whose hashes match the project."""
+    rendered = _fake_rendered_stems(project)
+    for track_id, path in rendered.items():
+        Path(path).write_bytes(b"RIFF")
+        write_stem_hash(project, track_id)
+    return rendered
+
+
+def _mastering_engine() -> MagicMock:
+    """Mix writes the track ids it mixed; master copies the premix; loudness unmeasured."""
+    eng = MagicMock()
+    eng.mix_tracks.side_effect = lambda inputs, out: out.write_text(
+        json.dumps(sorted(Path(p).stem for p, _gain in inputs))
+    )
+    eng.master_loudnorm.side_effect = lambda src, dst, **_kw: shutil.copyfile(src, dst)
+    eng.measure_loudness_full.return_value = None
+    return eng
+
+
+def _export(ws: ProjectWorkspace, eng: MagicMock) -> MagicMock:
+    with (
+        patch.object(steps, "ffmpeg", return_value=eng),
+        patch("podcast_mcp.services.pipeline.ffmpeg", return_value=eng),
+        patch("podcast_mcp.export.audio.export_episode_audio", return_value=[]) as export,
+    ):
+        PipelineService(ws).export_audio([{"ext": "mp3"}])
+    return export
+
+
+def _shipped(export: MagicMock) -> list[str]:
+    return json.loads(Path(export.call_args.args[2]).read_text())
+
+
+def test_export_after_mute_and_refresh_ships_the_new_mix(minimal_project: Path) -> None:
+    ws = _two_tracks(minimal_project)
+    _fresh_stems(ws.project)
+    eng = _mastering_engine()
+    defaults = load_defaults()
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        steps.mix_with_music(ws.project, defaults)
+        steps.master_loudness(ws.project, defaults)
+        assert json.loads(mastered_path(ws.project).read_text()) == ["guest", "host"]
+        EpisodeService(ws).set_track_mute("guest", True)
+        steps.mix_with_music(ws.project, defaults)
+    export = _export(ws, eng)
+    assert _shipped(export) == ["host"]
+    assert mastered_is_fresh(ws.project)
+
+
+def test_export_after_a_mute_without_refresh_remixes_first(minimal_project: Path) -> None:
+    ws = _two_tracks(minimal_project)
+    _fresh_stems(ws.project)
+    eng = _mastering_engine()
+    defaults = load_defaults()
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        steps.mix_with_music(ws.project, defaults)
+        steps.master_loudness(ws.project, defaults)
+    EpisodeService(ws).set_track_mute("guest", True)
+    with patch.object(steps, "assemble_timeline") as assemble:
+        export = _export(ws, eng)
+    assert assemble.called
+    assert _shipped(export) == ["host"]
+
+
+def test_an_unchanged_project_reuses_the_master(minimal_project: Path) -> None:
+    ws = _two_tracks(minimal_project)
+    _fresh_stems(ws.project)
+    eng = _mastering_engine()
+    defaults = load_defaults()
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        steps.mix_with_music(ws.project, defaults)
+        steps.master_loudness(ws.project, defaults)
+    _export(ws, eng)
+    _export(ws, eng)
+    assert eng.master_loudnorm.call_count == 1
+
+
+def test_a_stem_behind_its_edits_stales_the_premix(minimal_project: Path) -> None:
+    ws = _two_tracks(minimal_project)
+    rendered = _fresh_stems(ws.project)
+    eng = _mastering_engine()
+    defaults = load_defaults()
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        steps.mix_with_music(ws.project, defaults)
+        assert premix_is_stale(ws.project) is False
+        ws.project.track_by_id("guest").gain_db = 4.0
+        assert premix_is_stale(ws.project) is True
+        ws.project.track_by_id("guest").muted = True
+        steps.mix_with_music(ws.project, defaults)
+        ws.project.track_by_id("guest").gain_db = 5.0
+        assert premix_is_stale(ws.project) is False
+        ws.project.track_by_id("guest").muted = False
+        ws.project.track_by_id("guest").gain_db = 0.0
+        steps.mix_with_music(ws.project, defaults)
+        Path(rendered["guest"]).unlink()
+        assert premix_is_stale(ws.project) is False
+
+
+def test_a_master_without_a_matching_hash_is_stale(minimal_project: Path) -> None:
+    ws = _two_tracks(minimal_project)
+    _fresh_stems(ws.project)
+    eng = _mastering_engine()
+    defaults = load_defaults()
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        steps.mix_with_music(ws.project, defaults)
+        mastered_path(ws.project).write_bytes(b"RIFF")
+        assert mastered_is_fresh(ws.project) is False
+        steps.master_loudness(ws.project, defaults)
+        assert mastered_is_fresh(ws.project) is True
+        eng.master_loudnorm.side_effect = RuntimeError("ffmpeg died")
+        with pytest.raises(RuntimeError):
+            steps.master_loudness(ws.project, defaults)
+    assert read_mastered_hash(ws.project) is None
+    assert mastered_is_fresh(ws.project) is False
 
 
 def test_output_gain_adds_the_fader_to_the_staging_gain() -> None:
@@ -262,8 +386,10 @@ def test_a_muted_stem_newer_than_the_premix_doesnt_stale_it(minimal_project: Pat
     later = premix_path(ws.project).stat().st_mtime + 10
     os.utime(rendered["guest"], (later, later))
     assert render_status_report(ws.project)["premix"]["stale_vs_stems"] is True
+    assert premix_stale_vs_stems(ws.project) is True
     ws.project.track_by_id("guest").muted = True
     assert render_status_report(ws.project)["premix"]["stale_vs_stems"] is False
+    assert premix_stale_vs_stems(ws.project) is False
 
 
 def test_the_mix_hash_covers_only_what_the_mix_plays(minimal_project: Path) -> None:

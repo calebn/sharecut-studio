@@ -593,6 +593,7 @@ def test_pipeline_service_export_audio_emits_progress(minimal_project):
     mastered.write_bytes(b"RIFF")
     rec = RecordingProgress()
     with (
+        patch("podcast_mcp.services.pipeline.pipeline_steps.master_loudness"),
         patch(
             "podcast_mcp.export.audio.export_episode_audio",
             return_value=[ws.project.export_dir() / "demo.wav"],

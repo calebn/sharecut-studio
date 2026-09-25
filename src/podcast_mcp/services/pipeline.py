@@ -9,7 +9,7 @@ from podcast_mcp.history import HistoryManager
 from podcast_mcp.models import AutomationEnvelope, AutomationPoint
 from podcast_mcp.pipeline import PipelineRunner
 from podcast_mcp.pipeline import steps as pipeline_steps
-from podcast_mcp.pipeline.helpers import artifact, ffmpeg
+from podcast_mcp.pipeline.helpers import ffmpeg
 from podcast_mcp.render import render_preview_result, rerender_preview
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.progress import ProgressReporter
@@ -122,7 +122,6 @@ class PipelineService:
         export_cfg = dict(defaults.get("export", {}))
         if formats is not None:
             export_cfg["formats"] = formats
-        mastered = artifact(self.ws.project, "mastered.wav")
         from podcast_mcp.export.audio import export_episode_audio
         from podcast_mcp.util.progress import CancelledProgress, resolve_progress_task
 
@@ -138,8 +137,7 @@ class PipelineService:
         ) as prog:
             raise_if_cancelled()
             prog.set_phase("master", "Preparing mastered WAV…")
-            if not mastered.is_file():
-                pipeline_steps.master_loudness(self.ws.project, defaults)
+            mastered = pipeline_steps.ensure_current_master(self.ws.project, defaults)
             prog.advance(1, message="Mastered WAV ready")
             raise_if_cancelled()
             prog.set_phase("encode", "Writing deliverables…")

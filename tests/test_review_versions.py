@@ -23,8 +23,9 @@ from podcast_mcp.edits.review_versions import (
     version_audio_path,
     version_mp3_path,
 )
+from podcast_mcp.engines.play_audit import write_mastered_hash
 from podcast_mcp.history import HistoryManager
-from podcast_mcp.models import load_project, save_project
+from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project, save_project
 from podcast_mcp.project_store import ProjectStore
 from podcast_mcp.services import PlayService, ProjectWorkspace, ReviewService
 from podcast_mcp.services.review_media import review_guest_audio_path
@@ -1115,3 +1116,43 @@ def test_version_paths_reject_symlink_escape(minimal_project, sample_wav, tmp_wo
             version_audio_path(p, vid)
         else:
             version_mp3_path(p, vid)
+
+
+def test_publish_refuses_a_stale_premix(minimal_project, sample_wav):
+    proj = load_project(minimal_project)
+    proj.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav"),
+            fader_db=-3.0,
+        )
+    ]
+    art = Path(proj.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    save_project(proj, minimal_project)
+
+    ws = ProjectWorkspace.open(minimal_project)
+    with pytest.raises(ValueError, match="Refresh"):
+        ReviewService(ws).publish(label="x")
+    assert load_project(minimal_project).review.versions == []
+    root = review_artifacts_dir(ws.project)
+    assert not root.exists() or not any(root.iterdir())
+
+
+def test_publish_mastered_refuses_a_master_older_than_the_premix(minimal_project, sample_wav):
+    proj = load_project(minimal_project)
+    art = Path(proj.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    for name in ("premix", "mastered"):
+        (art / f"{name}.wav").write_bytes(sample_wav.read_bytes())
+    save_project(proj, minimal_project)
+
+    ws = ProjectWorkspace.open(minimal_project)
+    with pytest.raises(ValueError, match=r"mastered\.wav is older"):
+        ReviewService(ws).publish(label="m", prefer="mastered")
+    write_mastered_hash(ws.project)
+    ver = ReviewService(ws).publish(label="m", prefer="mastered")
+    assert ver["source"] == "mastered"

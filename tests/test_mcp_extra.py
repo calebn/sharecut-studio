@@ -224,9 +224,7 @@ def test_mcp_pipeline_export_audio(tmp_path, sample_wav):
             "podcast_mcp.export.audio.export_episode_audio",
             return_value=[ws / "export" / "demo.mp3"],
         ),
-        patch("podcast_mcp.services.pipeline.artifact") as mock_artifact,
     ):
-        mock_artifact.return_value = ws / "artifacts" / "mastered.wav"
         (ws / "artifacts").mkdir(parents=True, exist_ok=True)
         (ws / "artifacts" / "mastered.wav").write_bytes(b"wav")
         out = json.loads(mcp_pipeline.export_audio_tool(path, formats_json='[{"ext":"mp3"}]'))

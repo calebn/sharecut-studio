@@ -90,7 +90,7 @@ Listen-first review keeps the conversation on the pending inspector (current tim
 
 ## Review mix versions
 
-Freeze the current premix (or mastered) so guest feedback pins to a known mix:
+Freeze the current premix (or mastered) so guest feedback pins to a known mix. Publishing refuses a premix that's stale vs the project (Refresh first) and a master older than the current premix:
 
 ```bash
 podcast review publish-version --project episode.project.json --label "Guest pass 1"

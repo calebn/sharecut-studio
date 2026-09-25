@@ -282,6 +282,93 @@ def premix_stale_vs_mix(project: EpisodeProject) -> bool:
     return stored != mix_render_hash(mix_gains(project))
 
 
+def premix_stale_vs_stems(project: EpisodeProject) -> bool:
+    """True when a stem the mix plays was rendered after ``premix.wav``."""
+    from podcast_mcp.util.tracks import mixed_dialogue_track_ids
+
+    premix = premix_path(project)
+    if not premix.is_file():
+        return False
+    stems = (stem_path(project, tid) for tid in mixed_dialogue_track_ids(project))
+    mtimes = [stem.stat().st_mtime for stem in stems if stem.is_file()]
+    return bool(mtimes) and premix.stat().st_mtime < max(mtimes)
+
+
+def premix_is_stale(project: EpisodeProject) -> bool:
+    """True when ``premix.wav`` no longer matches what the mix would play now.
+
+    Covers the saved mix (volume, mute), a stem rendered after the premix, and a
+    rendered stem the mix plays that's behind its edits, clips or FX. A missing
+    stem is unknown rather than stale, and no premix is not stale: callers
+    check that it exists.
+    """
+    from podcast_mcp.util.tracks import mixed_dialogue_track_ids
+
+    if not premix_path(project).is_file():
+        return False
+    if premix_stale_vs_mix(project) or premix_stale_vs_stems(project):
+        return True
+    return any(
+        stem_path(project, tid).is_file() and not stem_is_fresh(project, tid)
+        for tid in mixed_dialogue_track_ids(project)
+    )
+
+
+MASTERED_NAME = "mastered.wav"
+MASTERED_HASH_NAME = "mastered.hash"
+
+
+def mastered_path(project: EpisodeProject) -> Path:
+    return project.artifacts_dir() / MASTERED_NAME
+
+
+def mastered_hash_path(project: EpisodeProject) -> Path:
+    return project.artifacts_dir() / MASTERED_HASH_NAME
+
+
+def master_source_hash(project: EpisodeProject) -> str | None:
+    """Fingerprint the premix a master is built from, or None with no premix.
+
+    Every mix swaps ``premix.wav`` in whole, so its size and mtime move with
+    each one; the mix hash adds which tracks it played and at what gain.
+    """
+    try:
+        st = premix_path(project).stat()
+    except FileNotFoundError:
+        return None
+    payload = {"mix": read_premix_hash(project), "size": st.st_size, "mtime_ns": st.st_mtime_ns}
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+
+def read_mastered_hash(project: EpisodeProject) -> str | None:
+    return _read_hash(mastered_hash_path(project))
+
+
+def clear_mastered_hash(project: EpisodeProject) -> None:
+    mastered_hash_path(project).unlink(missing_ok=True)
+
+
+def write_mastered_hash(project: EpisodeProject) -> str | None:
+    """Record the premix ``mastered.wav`` was just mastered from."""
+    h = master_source_hash(project)
+    if h is None:
+        clear_mastered_hash(project)
+        return None
+    return _write_hash(mastered_hash_path(project), h)
+
+
+def mastered_is_fresh(project: EpisodeProject) -> bool:
+    """True when ``mastered.wav`` was mastered from the current ``premix.wav``.
+
+    A master from before this hash counts as stale and is re-mastered once.
+    """
+    if not mastered_path(project).is_file():
+        return False
+    stored = read_mastered_hash(project)
+    return stored is not None and stored == master_source_hash(project)
+
+
 def invalidate_stem_hashes(project: EpisodeProject) -> list[str]:
     """Delete stem hash sidecars so play falls back to segment render after history nav.
 

@@ -150,7 +150,7 @@ To debug a single test without xdist overhead (so `-s` and `pdb` behave), invoke
 The `published_share` factory fixture builds a premix-backed review version and
 share from `minimal_project`. It reloads the project after publishing before
 minting the share. `test_review_versions.py` directly checks persisted version
-metadata and active selection after publishing and switching versions. It also
+metadata and active selection after publishing and switching versions, and that publishing refuses a stale premix or an out-of-date master. It also
 checks both premix and mastered sources: frozen WAV bytes and SHA-256 match the
 source, and the saved MP3 decodes fully with FFmpeg. Pass `capabilities=[]` to
 test the default capability fallback, or leave it unset for all capabilities.
