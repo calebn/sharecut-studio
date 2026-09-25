@@ -268,6 +268,14 @@ describe("patchClipsMove / laneMovePreview", () => {
     // 50 µs: 0.002 px at 40 px/s (no move), 2.4 px at 48,000 px/s (a move).
     expect(movesDifferFromClips(clips, nudge, 40)).toBe(false);
     expect(movesDifferFromClips(clips, nudge, 48000)).toBe(true);
+    // At 0.05 px/s, 0.5 px is 10 s: a snapped 3 s move must still commit.
+    const snapped = [{ clip_id: "c1", timeline_start: 5, track_id: "host" }];
+    expect(movesDifferFromClips(clips, snapped, 0.05)).toBe(true);
+    // Sub-0.1 ms noise is still no move at any zoom that coarse.
+    const noise = [
+      { clip_id: "c1", timeline_start: 2.00001, track_id: "host" },
+    ];
+    expect(movesDifferFromClips(clips, noise, 0.05)).toBe(false);
   });
 
   it("converts waveform ticks into timeline seconds", () => {
