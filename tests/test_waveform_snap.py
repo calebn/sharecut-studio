@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+from podcast_mcp.edits.silence_islands import SilenceIsland
 from podcast_mcp.engines.waveform_pyramid import wait_pyramid_jobs
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import save_project
@@ -63,9 +64,35 @@ def test_waveform_snap_window_returns_ticks(minimal_project, sample_wav):
     assert apart["ticks"] == [1.01, 1.01002]
 
 
-def test_waveform_snap_window_swaps_tiny_span_and_skips_errors(minimal_project, sample_wav):
-    from types import SimpleNamespace
+def test_waveform_snap_window_island_ticks_keep_microseconds(minimal_project, sample_wav):
+    from podcast_mcp.services.episode import EpisodeService
 
+    ws = ProjectWorkspace.open(minimal_project)
+    EpisodeService(ws).add_track("host", str(sample_wav), speaker="Host")
+    wait_pyramid_jobs()
+    # Midpoint 1.050007: to_dict() serializes 1.05, but the tick keeps 1 µs.
+    island = SilenceIsland(start=1.000002, end=1.100012)
+    with (
+        patch.object(
+            EditService,
+            "preview_inaudible_cut",
+            return_value={"start": 1.2, "end": 1.25, "mode": "word"},
+        ),
+        patch("podcast_mcp.services.edit.timeline_rms_hops", return_value=[]),
+        patch(
+            "podcast_mcp.services.edit.silence_islands_from_hops",
+            return_value=[island],
+        ),
+    ):
+        out = EditService(ws).waveform_snap_window(
+            track_id="host", start=1.0, end=1.3, timeline=True
+        )
+    assert out["islands"][0]["midpoint"] == 1.05
+    assert 1.05 not in out["ticks"]
+    assert any(t == pytest.approx(1.050007, abs=1e-9) for t in out["ticks"])
+
+
+def test_waveform_snap_window_swaps_tiny_span_and_skips_errors(minimal_project, sample_wav):
     from podcast_mcp.services.episode import EpisodeService
 
     ws = ProjectWorkspace.open(minimal_project)
@@ -95,7 +122,7 @@ def test_waveform_snap_window_swaps_tiny_span_and_skips_errors(minimal_project, 
             timeline=False,
         )
     assert skipped["preview"] is None
-    island = SimpleNamespace(to_dict=lambda: {"midpoint": 1.1, "start": 1.0, "end": 1.2})
+    island = SilenceIsland(start=1.0, end=1.2)
     with (
         patch.object(
             EditService,
@@ -114,7 +141,7 @@ def test_waveform_snap_window_swaps_tiny_span_and_skips_errors(minimal_project, 
             end=1.3,
             timeline=True,
         )
-    assert timed["islands"] == [{"midpoint": 1.1, "start": 1.0, "end": 1.2}]
+    assert timed["islands"] == [{"start": 1.0, "end": 1.2, "duration": 0.2, "midpoint": 1.1}]
     assert 1.1 in timed["ticks"]
     with patch(
         "podcast_mcp.services.edit.timeline_rms_hops",
