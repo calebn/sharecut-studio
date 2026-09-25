@@ -12,7 +12,8 @@ export const HOUR_SEC = 3600;
 export const DEEP_ZOOM_TOLERANCE_PX = 1;
 
 export type StretchedProject = {
-  clipId: string;
+  /** Track whose lane holds the moved clip and the added envelope. */
+  trackId: string;
   clipStartSec: number;
   /** Volume-envelope point the spec expects on screen at the session end. */
   endPointSec: number;
@@ -39,10 +40,11 @@ type ProjectJson = {
 };
 
 /**
- * Rewrite a disposable project copy so it spans `sessionSec`. Move the clip
- * on `trackId` so it ends at `sessionSec`, set `timeline.duration_sec`, and
- * add a two-point volume envelope on that track (the second point 0.1 s
- * before the end).
+ * Rewrite a disposable project copy so it spans `sessionSec`. Move the only
+ * clip on `trackId` so it ends at `sessionSec`, set `timeline.duration_sec`,
+ * and add a two-point volume envelope on that track (the second point 0.1 s
+ * before the end). Throws when the track has no clip or several, or already
+ * has a volume envelope, so lane-scoped checks measure exactly this clip.
  */
 export function stretchProjectToSession(
   projectPath: string,
@@ -50,13 +52,27 @@ export function stretchProjectToSession(
   trackId = "guest",
 ): StretchedProject {
   const data = JSON.parse(fs.readFileSync(projectPath, "utf8")) as ProjectJson;
-  const clip = data.timeline.clips.find((c) => c.track_id === trackId);
-  if (!clip) throw new Error(`No clip on track "${trackId}" in ${projectPath}`);
+  const clips = data.timeline.clips.filter((c) => c.track_id === trackId);
+  const [clip] = clips;
+  if (clips.length !== 1 || !clip) {
+    throw new Error(
+      `Expected one clip on track "${trackId}" in ${projectPath}, found ${clips.length}`,
+    );
+  }
+  data.mix ??= {};
+  data.mix.automation_envelopes ??= [];
+  if (
+    data.mix.automation_envelopes.some(
+      (e) => e.track_id === trackId && e.parameter === "volume",
+    )
+  ) {
+    throw new Error(
+      `Track "${trackId}" already has a volume envelope in ${projectPath}`,
+    );
+  }
   clip.timeline_start = sessionSec - (clip.source_end - clip.source_start);
   data.timeline.duration_sec = sessionSec;
   const endPointSec = sessionSec - 0.1;
-  data.mix ??= {};
-  data.mix.automation_envelopes ??= [];
   data.mix.automation_envelopes.push({
     track_id: trackId,
     parameter: "volume",
@@ -66,7 +82,7 @@ export function stretchProjectToSession(
     ],
   });
   fs.writeFileSync(projectPath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
-  return { clipId: clip.id, clipStartSec: clip.timeline_start, endPointSec };
+  return { trackId, clipStartSec: clip.timeline_start, endPointSec };
 }
 
 /** Seconds for a ruler label (`m:ss[.f…]` or `h:mm:ss[.f…]`, see formatRulerTime). */
@@ -102,9 +118,9 @@ export function offGridPx(offsetPx: number, gridPx: number): number {
   return Math.min(r, gridPx - r);
 }
 
-/** Ruler content width (CSS px, integer layout width). */
+/** Ruler content width (CSS px, fractional `getBoundingClientRect` width, the same measure as the lane geometry). */
 export function rulerWidthPx(page: Page): Promise<number> {
   return page
     .locator(".time-ruler")
-    .evaluate((el) => (el as HTMLElement).offsetWidth);
+    .evaluate((el) => el.getBoundingClientRect().width);
 }
