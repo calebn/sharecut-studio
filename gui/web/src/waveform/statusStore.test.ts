@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { WaveformFetchError } from "../api";
 import type { WaveformStatus } from "./types";
 
 const loads = vi.hoisted(
@@ -69,6 +70,21 @@ describe("statusStore", () => {
   afterEach(() => {
     resetWaveformStatus();
     vi.useRealTimers();
+  });
+
+  it("stops polling on a permanent error until asked again", async () => {
+    const off = subscribeWaveformStatus(P, "raw", () => {});
+    loads.shift()!.reject(new WaveformFetchError(403, null));
+    await flush();
+    vi.advanceTimersByTime(10_000);
+    expect(loads).toHaveLength(0);
+    refreshWaveformStatus(P, "raw");
+    expect(loads).toHaveLength(1);
+    loads.shift()!.reject(new WaveformFetchError(503, null));
+    await flush();
+    vi.advanceTimersByTime(1000);
+    expect(loads).toHaveLength(1);
+    off();
   });
 
   it("polls with 1, 2, 4 s back-off while generating and stops when ready", async () => {

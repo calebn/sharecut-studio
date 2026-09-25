@@ -1,5 +1,5 @@
 import { useCallback, useSyncExternalStore } from "react";
-import { loadWaveformStatus } from "../api";
+import { loadWaveformStatus, WaveformFetchError } from "../api";
 import {
   type ReadyEntry,
   refKind,
@@ -117,6 +117,18 @@ function schedule(poller: Poller): void {
   poller.backoffMs = Math.min(poller.backoffMs * 2, MAX_BACKOFF_MS);
 }
 
+/** A 4xx other than 408 / 429 (revoked share, deleted project): polling again will not help. */
+function permanentFailure(err: unknown): boolean {
+  return (
+    err instanceof WaveformFetchError &&
+    err.status != null &&
+    err.status >= 400 &&
+    err.status < 500 &&
+    err.status !== 408 &&
+    err.status !== 429
+  );
+}
+
 function poll(poller: Poller): void {
   if (poller.inflight) {
     poller.again = true;
@@ -150,11 +162,16 @@ function poll(poller: Poller): void {
         poller.backoffMs = FIRST_BACKOFF_MS;
       }
     })
-    .catch(() => {
+    .catch((err: unknown) => {
       if (controller.signal.aborted) {
         return;
       }
       poller.inflight = null;
+      if (permanentFailure(err)) {
+        // Stop until a refresh or a new subscriber asks again.
+        poller.backoffMs = FIRST_BACKOFF_MS;
+        return;
+      }
       // Offline or a transient failure: try again, backing off.
       schedule(poller);
     });
