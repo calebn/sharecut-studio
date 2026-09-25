@@ -435,6 +435,41 @@ describe("RecordPanel", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("reopens on silent capture and offers Check mic", async () => {
+    const check = vi.fn();
+    useRecordHostStore
+      .getState()
+      .setSnapshot({ ...lobby, state: "recording", take_index: 0 });
+    useDawStore.setState({ recordPanelOpen: false });
+    useRecordHostStore.getState().setCaptureHealth("silent");
+    const { container, rerender } = render(
+      <RecordPanel
+        micStatus="granted"
+        stream={{} as MediaStream}
+        recordingLocally
+        onCheckMic={check}
+      />,
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Record room" });
+    expect(dialog).toHaveTextContent("REC: no audio");
+    expect(dialog).toHaveTextContent("No audio is reaching the recorder.");
+    expect(dialog).not.toHaveTextContent("Recording locally on this device.");
+    expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Check mic" }));
+    expect(check).toHaveBeenCalledOnce();
+    rerender(
+      <RecordPanel
+        micStatus="granted"
+        stream={{} as MediaStream}
+        recordingLocally
+        onCheckMic={check}
+        micCheckFailed
+      />,
+    );
+    expect(dialog).toHaveTextContent("Still no audio");
+    await expectNoA11yViolations(container);
+  });
+
   it("offers microphone reconnect while host capture is lost", async () => {
     const retry = vi.fn();
     useRecordHostStore.getState().setSnapshot({

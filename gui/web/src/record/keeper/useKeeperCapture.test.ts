@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { recordSnapshot } from "../../test/fixtures";
 import type { RecordSnapshot } from "../types";
 import { KeeperSession } from "./session";
@@ -14,7 +14,13 @@ import {
 import { useKeeperCapture } from "./useKeeperCapture";
 
 const graphActivity = vi.hoisted(() => vi.fn());
-const graphAttach = vi.hoisted(() =>
+const graphEmit = vi.hoisted(() => ({
+  fn: (_pcm: Float32Array) => {},
+}));
+const tapResume = vi.hoisted(() =>
+  vi.fn(async (): Promise<string> => "running"),
+);
+const graphOpen = vi.hoisted(() =>
   vi.fn(
     async (
       _stream: MediaStream,
@@ -23,13 +29,14 @@ const graphAttach = vi.hoisted(() =>
       graphActivity.mockImplementation(() =>
         onPcm(new Float32Array(128), 48_000),
       );
-      return () => undefined;
+      graphEmit.fn = (pcm) => onPcm(pcm, 48_000);
+      return { stop: () => undefined, resume: tapResume };
     },
   ),
 );
 
 vi.mock("./graph", () => ({
-  attachKeeperTap: graphAttach,
+  openKeeperTap: graphOpen,
 }));
 
 vi.mock("./store", async (importOriginal) => {
@@ -292,9 +299,9 @@ describe("useKeeperCapture", () => {
   });
 
   it("reattaches a failed audio tap when retrying", async () => {
-    const { attachKeeperTap } = await import("./graph");
-    vi.mocked(attachKeeperTap).mockClear();
-    vi.mocked(attachKeeperTap).mockRejectedValueOnce(
+    const { openKeeperTap } = await import("./graph");
+    vi.mocked(openKeeperTap).mockClear();
+    vi.mocked(openKeeperTap).mockRejectedValueOnce(
       new Error("audio worklet unavailable"),
     );
     const stream = { getTracks: () => [] } as unknown as MediaStream;
@@ -310,13 +317,13 @@ describe("useKeeperCapture", () => {
     await waitFor(() => {
       expect(result.current.error).toBeNull();
       expect(result.current.recordingLocally).toBe(true);
-      expect(attachKeeperTap).toHaveBeenCalledTimes(2);
+      expect(openKeeperTap).toHaveBeenCalledTimes(2);
     });
   });
 
   it("reattaches the audio tap after retrying a failed initial header", async () => {
     const { createOpfsSink } = await import("./store");
-    const { attachKeeperTap } = await import("./graph");
+    const { openKeeperTap } = await import("./graph");
     const sink = new MemorySink();
     const open = sink.open.bind(sink);
     let failHeader = true;
@@ -334,7 +341,7 @@ describe("useKeeperCapture", () => {
       };
     };
     vi.mocked(createOpfsSink).mockResolvedValueOnce(sink);
-    vi.mocked(attachKeeperTap).mockClear();
+    vi.mocked(openKeeperTap).mockClear();
     const stream = { getTracks: () => [] } as unknown as MediaStream;
     const { result } = renderHook(() =>
       useKeeperCapture({ ...args, enabled: true, stream }),
@@ -343,16 +350,13 @@ describe("useKeeperCapture", () => {
       expect(result.current.error).toMatch(/header unavailable/),
     );
     expect(result.current.recordingLocally).toBe(false);
-    expect(attachKeeperTap).not.toHaveBeenCalled();
+    expect(openKeeperTap).not.toHaveBeenCalled();
 
     act(() => result.current.retry());
     await waitFor(() => {
       expect(result.current.error).toBeNull();
       expect(result.current.recordingLocally).toBe(true);
-      expect(attachKeeperTap).toHaveBeenCalledWith(
-        stream,
-        expect.any(Function),
-      );
+      expect(openKeeperTap).toHaveBeenCalledWith(stream, expect.any(Function));
     });
   });
 
@@ -794,5 +798,147 @@ describe("useKeeperCapture", () => {
     rerender({ snapshot: { ...nextTake, state: "stopped" } });
     await waitFor(() => expect(result.current.recordingLocally).toBe(false));
     expect(result.current.finalizing).toBe(false);
+  });
+});
+
+describe("useKeeperCapture silent PCM watchdog", () => {
+  const track = {
+    readyState: "live",
+    enabled: true,
+    muted: false,
+  };
+  const stream = {
+    getTracks: () => [],
+    getAudioTracks: () => [track],
+  } as unknown as MediaStream;
+  const zeros = new Float32Array(128);
+  const quiet = new Float32Array(128).fill(1e-5);
+
+  beforeEach(() => {
+    vi.useFakeTimers({
+      toFake: [
+        "setTimeout",
+        "clearTimeout",
+        "setInterval",
+        "clearInterval",
+        "Date",
+        "performance",
+      ],
+    });
+    track.readyState = "live";
+    track.muted = false;
+    tapResume.mockReset();
+    tapResume.mockResolvedValue("running");
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  async function advance(ms: number, pcm?: Float32Array) {
+    for (let t = 0; t < ms; t += 500) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500);
+      });
+      if (pcm) {
+        act(() => graphEmit.fn(pcm));
+      }
+    }
+  }
+
+  async function setup() {
+    const hook = renderHook(
+      (props: { snapshot: RecordSnapshot; muted: boolean }) =>
+        useKeeperCapture({
+          ...args,
+          ...props,
+          enabled: true,
+          stream,
+        }),
+      { initialProps: { snapshot: snap, muted: false } },
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(hook.result.current.recordingLocally).toBe(true);
+    return hook;
+  }
+
+  it("alarms on sustained zero PCM while recording locally", async () => {
+    const { result } = await setup();
+    await advance(6000, zeros);
+    expect(result.current.noAudio).toBe(true);
+    expect(result.current.recordingLocally).toBe(true);
+  });
+
+  it("alarms when no PCM arrives", async () => {
+    const { result } = await setup();
+    await advance(6000);
+    expect(result.current.noAudio).toBe(true);
+  });
+
+  it("does not alarm on genuine quiet input", async () => {
+    const { result } = await setup();
+    await advance(10000, quiet);
+    expect(result.current.noAudio).toBe(false);
+  });
+
+  it("clears when real signal returns", async () => {
+    const { result } = await setup();
+    await advance(6000, zeros);
+    expect(result.current.noAudio).toBe(true);
+    act(() => graphEmit.fn(quiet));
+    expect(result.current.noAudio).toBe(false);
+  });
+
+  it("does not alarm while muted", async () => {
+    const { result, rerender } = await setup();
+    rerender({ snapshot: snap, muted: true });
+    await advance(8000, zeros);
+    expect(result.current.noAudio).toBe(false);
+  });
+
+  it("does not alarm when paused and pause clears the alarm", async () => {
+    const { result, rerender } = await setup();
+    await advance(6000, zeros);
+    expect(result.current.noAudio).toBe(true);
+    rerender({ snapshot: { ...snap, state: "paused" }, muted: false });
+    await advance(8000, zeros);
+    expect(result.current.noAudio).toBe(false);
+  });
+
+  it("Check mic success clears and zeros re-alarm", async () => {
+    const { result } = await setup();
+    await advance(6000, zeros);
+    expect(result.current.noAudio).toBe(true);
+    await act(async () => {
+      result.current.checkMic();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.noAudio).toBe(false);
+    await advance(6000, zeros);
+    expect(result.current.noAudio).toBe(true);
+  });
+
+  it("Check mic failure keeps the alarm until signal returns", async () => {
+    const { result } = await setup();
+    await advance(6000, zeros);
+    tapResume.mockResolvedValue("suspended");
+    await act(async () => {
+      result.current.checkMic();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.micCheckFailed).toBe(true);
+    expect(result.current.noAudio).toBe(true);
+    tapResume.mockResolvedValue("running");
+    track.muted = true;
+    await act(async () => {
+      result.current.checkMic();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.micCheckFailed).toBe(true);
+    act(() => graphEmit.fn(quiet));
+    expect(result.current.noAudio).toBe(false);
+    expect(result.current.micCheckFailed).toBe(false);
   });
 });

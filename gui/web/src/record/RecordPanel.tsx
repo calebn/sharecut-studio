@@ -21,6 +21,7 @@ import {
   type MicPermissionStatus,
   micGrantFailed,
 } from "./micPermission";
+import { NoAudioNotice } from "./NoAudioNotice";
 import { RecIndicator } from "./RecIndicator";
 import { RoomToneCapture } from "./RoomToneCapture";
 import { Roster } from "./Roster";
@@ -56,6 +57,8 @@ type Props = {
   stream?: MediaStream | null;
   micLost?: boolean;
   onRetryMic?: () => void;
+  onCheckMic?: () => void;
+  micCheckFailed?: boolean;
 };
 
 export function RecordPanel({
@@ -71,6 +74,8 @@ export function RecordPanel({
   stream = null,
   micLost = false,
   onRetryMic,
+  onCheckMic,
+  micCheckFailed = false,
 }: Props) {
   const micHintId = useId();
   const {
@@ -95,6 +100,11 @@ export function RecordPanel({
   const paused = state === "paused";
   const captureUnavailable = recording && captureHealth !== null;
   const micLossNeedsAttention = (recording || paused) && micLost;
+  const noAudioNeedsAttention =
+    recording &&
+    captureHealth === "silent" &&
+    !keeperError &&
+    !micLossNeedsAttention;
   useEffect(() => {
     if (
       (micLossNeedsAttention || captureUnavailable) &&
@@ -242,6 +252,7 @@ export function RecordPanel({
             snapshot={snapshot}
             captureFailed={!!keeperError || captureHealth === "failed"}
             capturePending={captureHealth === "pending"}
+            noAudio={captureHealth === "silent"}
           />
         ) : null}
         <StorageHeadroomWarning
@@ -264,9 +275,14 @@ export function RecordPanel({
           {reconnectCopy ? (
             <p className="record-warn">{reconnectCopy}</p>
           ) : null}
-          {recordingLocally && !keeperError ? <p>{LOCAL_KEEPER_COPY}</p> : null}
+          {recordingLocally && !keeperError && !noAudioNeedsAttention ? (
+            <p>{LOCAL_KEEPER_COPY}</p>
+          ) : null}
           {micLossNeedsAttention ? (
             <MicLossNotice onRetry={onRetryMic} />
+          ) : null}
+          {noAudioNeedsAttention ? (
+            <NoAudioNotice onCheck={onCheckMic} checkFailed={micCheckFailed} />
           ) : null}
           {hearing ? <p>{HEARING_COPY}</p> : null}
           {micCopy ? (

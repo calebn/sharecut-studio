@@ -43,6 +43,24 @@ describe("RecIndicator", () => {
     expect(screen.getByText("Stopped")).toBeInTheDocument();
   });
 
+  it("shows REC: no audio without the live dot", () => {
+    const { rerender } = render(
+      <RecIndicator snapshot={{ ...base, state: "recording" }} noAudio />,
+    );
+    expect(screen.getByText("REC: no audio")).toBeInTheDocument();
+    expect(document.querySelector(".record-rec-dot")).toBeNull();
+    rerender(
+      <RecIndicator
+        snapshot={{ ...base, state: "recording" }}
+        noAudio
+        captureFailed
+      />,
+    );
+    expect(screen.getByText("REC: local capture failed")).toBeInTheDocument();
+    rerender(<RecIndicator snapshot={{ ...base, state: "paused" }} noAudio />);
+    expect(screen.getByText("PAUSED")).toBeInTheDocument();
+  });
+
   it("does not show a healthy REC label after local capture fails", () => {
     render(
       <RecIndicator snapshot={{ ...base, state: "recording" }} captureFailed />,

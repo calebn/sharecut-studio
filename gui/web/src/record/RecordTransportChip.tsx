@@ -17,7 +17,9 @@ export function RecordTransportChip() {
         ? "Local capture failed. Open record panel"
         : captureHealth === "pending"
           ? "Waiting for microphone. Open record panel"
-          : "Recording. Open record panel"
+          : captureHealth === "silent"
+            ? "No audio reaching the recorder. Open record panel"
+            : "Recording. Open record panel"
       : snapshot.state === "paused"
         ? "Paused. Open record panel"
         : "Open record panel";
@@ -35,6 +37,7 @@ export function RecordTransportChip() {
         snapshot={snapshot}
         captureFailed={captureHealth === "failed"}
         capturePending={captureHealth === "pending"}
+        noAudio={captureHealth === "silent"}
         clockId={clockId}
       />
     </CommandButton>

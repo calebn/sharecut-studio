@@ -8,8 +8,9 @@ import {
 import { errorMessage } from "../../utils/apiError";
 import { recordingClockMs } from "../clock";
 import type { RecordRole, RecordSnapshot } from "../types";
-import { attachKeeperTap } from "./graph";
+import { type KeeperTap, openKeeperTap } from "./graph";
 import { KeeperSession } from "./session";
+import { SILENT_PCM_TICK_MS, SilentPcmWatchdog } from "./silenceWatchdog";
 import { type ByteSink, createOpfsSink } from "./store";
 
 type Args = {
@@ -51,6 +52,9 @@ export function useKeeperCapture({
   recordingLocally: boolean;
   retry: () => void;
   finalizing: boolean;
+  noAudio: boolean;
+  micCheckFailed: boolean;
+  checkMic: () => void;
 } {
   const [error, setError] = useState<string | null>(null);
   const [writing, setWriting] = useState(false);
@@ -67,7 +71,10 @@ export function useKeeperCapture({
   const [initializationAttempt, setInitializationAttempt] = useState(0);
   const [tapAttempt, setTapAttempt] = useState(0);
   const sessionRef = useRef<KeeperSession | null>(null);
-  const detachRef = useRef<(() => void) | undefined>(undefined);
+  const tapRef = useRef<KeeperTap | null>(null);
+  const [noAudio, setNoAudio] = useState(false);
+  const [micCheckFailed, setMicCheckFailed] = useState(false);
+  const watchdogRef = useRef(new SilentPcmWatchdog());
   const tapFailedRef = useRef(false);
   const applyChain = useRef(Promise.resolve());
   const sessionId = snapshot?.session_id ?? null;
@@ -291,18 +298,22 @@ export function useKeeperCapture({
     let cancelled = false;
     const start = async () => {
       try {
-        const detach = await attachKeeperTap(stream, (pcm, rate) => {
+        const tap = await openKeeperTap(stream, (pcm, rate) => {
           const activeSession = sessionRef.current;
           activeSession?.push(pcm, rate);
           if (activeSession?.isWriting && !tapFailedRef.current) {
             onActivity?.();
           }
+          if (watchdogRef.current.observe(pcm, performance.now())) {
+            setNoAudio(false);
+            setMicCheckFailed(false);
+          }
         });
         if (cancelled) {
-          detach();
+          tap.stop();
           return;
         }
-        detachRef.current = detach;
+        tapRef.current = tap;
         tapFailedRef.current = false;
         if (sessionRef.current === session && session.error === null) {
           setError(null);
@@ -319,8 +330,8 @@ export function useKeeperCapture({
     void start();
     return () => {
       cancelled = true;
-      detachRef.current?.();
-      detachRef.current = undefined;
+      tapRef.current?.stop();
+      tapRef.current = null;
     };
   }, [stream, epoch, tapAttempt, onActivity]);
 
@@ -417,6 +428,52 @@ export function useKeeperCapture({
   };
 
   const recordingLocally = writing && stream !== null;
+  const watchdogActive =
+    recordingLocally && !muted && snapshot?.state === "recording";
+  useEffect(() => {
+    setNoAudio(false);
+    setMicCheckFailed(false);
+    const watchdog = watchdogRef.current;
+    if (!watchdogActive) {
+      watchdog.disarm();
+      return;
+    }
+    watchdog.arm(performance.now());
+    const id = setInterval(() => {
+      if (watchdog.tick(performance.now())) {
+        setNoAudio(true);
+      }
+    }, SILENT_PCM_TICK_MS);
+    return () => {
+      clearInterval(id);
+      watchdog.disarm();
+    };
+  }, [watchdogActive, stream]);
+  const checkMic = useCallback(() => {
+    const tap = tapRef.current;
+    if (!tap) {
+      setTapAttempt((n) => n + 1);
+      return;
+    }
+    void tap.resume().then((state) => {
+      if (!mountedRef.current || tapRef.current !== tap) {
+        return;
+      }
+      const track = stream?.getAudioTracks?.()[0];
+      const healthy =
+        state === "running" &&
+        track?.readyState === "live" &&
+        track.enabled !== false &&
+        track.muted !== true;
+      if (healthy && watchdogRef.current.isArmed) {
+        watchdogRef.current.arm(performance.now());
+        setNoAudio(false);
+        setMicCheckFailed(false);
+      } else {
+        setMicCheckFailed(true);
+      }
+    });
+  }, [stream]);
   const closeFinalizing =
     finalizing || (unfinalizedCapture && snapshot?.state === "stopped");
   useLayoutEffect(() => {
@@ -431,5 +488,13 @@ export function useKeeperCapture({
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [recordingLocally, closeFinalizing]);
 
-  return { error, recordingLocally, retry, finalizing: closeFinalizing };
+  return {
+    error,
+    recordingLocally,
+    retry,
+    finalizing: closeFinalizing,
+    noAudio,
+    micCheckFailed,
+    checkMic,
+  };
 }

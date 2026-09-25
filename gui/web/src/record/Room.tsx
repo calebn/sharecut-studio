@@ -1,6 +1,7 @@
 import { Button } from "../ui";
 import { LiveComments } from "./LiveComments";
 import { MicLossNotice } from "./MicLossNotice";
+import { NoAudioNotice } from "./NoAudioNotice";
 import { RecIndicator } from "./RecIndicator";
 import { Roster } from "./Roster";
 import {
@@ -30,6 +31,9 @@ type Props = {
   connected?: boolean;
   recordingLocally?: boolean;
   keeperError?: string | null;
+  noAudio?: boolean;
+  micCheckFailed?: boolean;
+  onCheckMic?: () => void;
   uploadSinkError?: string | null;
   onRetryKeeper?: () => void;
   hearing?: boolean;
@@ -55,6 +59,9 @@ export function Room({
   connected = true,
   recordingLocally = false,
   keeperError = null,
+  noAudio = false,
+  micCheckFailed = false,
+  onCheckMic,
   uploadSinkError = null,
   onRetryKeeper,
   hearing = false,
@@ -74,10 +81,16 @@ export function Room({
   const micNeedsAttention =
     (snapshot.state === "recording" || snapshot.state === "paused") &&
     (micLost || !micReady);
+  const noAudioNeedsAttention =
+    snapshot.state === "recording" &&
+    noAudio &&
+    !micNeedsAttention &&
+    !keeperError;
   return (
     <div className="stack">
       <RecIndicator
         snapshot={snapshot}
+        noAudio={noAudioNeedsAttention}
         captureFailed={!!keeperError || (micNeedsAttention && !micPending)}
         capturePending={micNeedsAttention && micPending && !keeperError}
       />
@@ -85,8 +98,13 @@ export function Room({
         {hostOffline ? (
           <p className="record-warn">{HOST_OFFLINE_COPY}</p>
         ) : null}
-        {recordingLocally && !keeperError ? <p>{LOCAL_KEEPER_COPY}</p> : null}
+        {recordingLocally && !keeperError && !noAudioNeedsAttention ? (
+          <p>{LOCAL_KEEPER_COPY}</p>
+        ) : null}
         {micNeedsAttention ? <MicLossNotice onRetry={onRetryMic} /> : null}
+        {noAudioNeedsAttention ? (
+          <NoAudioNotice onCheck={onCheckMic} checkFailed={micCheckFailed} />
+        ) : null}
         {hearing && !hostOffline ? <p>{HEARING_COPY}</p> : null}
         {keeperError ? (
           <>

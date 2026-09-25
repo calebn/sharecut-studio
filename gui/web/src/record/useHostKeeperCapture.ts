@@ -23,6 +23,9 @@ export function useHostKeeperCapture(enabled = true): {
   snapshot: RecordSnapshot | null;
   micLost: boolean;
   retryMic: () => void;
+  noAudio: boolean;
+  micCheckFailed: boolean;
+  checkMic: () => void;
 } {
   const { projectPath } = useDaw((s) => ({ projectPath: s.projectPath }));
   const snapshot = useRecordHostStore((s) => s.snapshot);
@@ -117,12 +120,15 @@ export function useHostKeeperCapture(enabled = true): {
           ? "failed"
           : !mic.stream
             ? "pending"
-            : null;
+            : keeper.noAudio
+              ? "silent"
+              : null;
     setCaptureHealth(health);
     return () => setCaptureHealth(null);
   }, [
     hostOn,
     keeper.error,
+    keeper.noAudio,
     mic.pending,
     mic.stream,
     roomState,
@@ -143,5 +149,8 @@ export function useHostKeeperCapture(enabled = true): {
     snapshot,
     micLost: mic.lost,
     retryMic: mic.retry,
+    noAudio: keeper.noAudio,
+    micCheckFailed: keeper.micCheckFailed,
+    checkMic: keeper.checkMic,
   };
 }

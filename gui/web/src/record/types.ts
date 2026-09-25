@@ -140,6 +140,10 @@ export const LOCAL_KEEPER_COPY = "Recording locally on this device.";
 export const KEEPER_RECLAIM_MISMATCH_COPY =
   "This local keeper could not be verified against the landed file, so its WAV was retained. Download the local keeper before leaving.";
 export const RECONNECT_MIC_COPY = "Reconnect microphone";
+export const NO_AUDIO_COPY = "No audio is reaching the recorder.";
+export const CHECK_MIC_COPY = "Check mic";
+export const MIC_CHECK_FAILED_COPY =
+  "Still no audio: unmute or reconnect your microphone, then Check mic again.";
 
 export const HEARING_COPY = "Hearing the room.";
 

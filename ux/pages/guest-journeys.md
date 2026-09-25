@@ -136,6 +136,9 @@ flowchart TD
   rec --> lost[Mic disconnected: local capture paused]
   lost --> reconnect[Reconnect microphone]
   reconnect --> rec
+  rec --> silent[No audio reaching the recorder]
+  silent --> check[Check mic]
+  check --> rec
   rec --> stop[Host Stop]
   stop --> upload[Upload panel with N/M or stalled state]
   upload --> recovery[Resume upload or Download local keeper]
@@ -186,6 +189,11 @@ flowchart TD
    Revoking browser mic permission also shows failed local capture and a
    reconnect action, even if the stream hook clears its loss flag.
    Stop clears the mic-loss warning but retains incomplete keeper recovery.
+   If the microphone stays connected but about 5 seconds of silence or no
+   audio reach the recorder while recording (not paused or muted), a persistent
+   "No audio is reaching the recorder." alert with **Check mic** appears and REC
+   reads "REC: no audio". Real audio, or a Check mic that finds a running,
+   unmuted microphone, clears it.
    Reconnect opens a new segment at the current room clock; if a selected device was
    unplugged, recovery can use the default available input. In the lobby,
    microphone loss disables Accept until recovery.
