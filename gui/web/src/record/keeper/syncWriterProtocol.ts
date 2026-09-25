@@ -71,13 +71,18 @@ export function createSyncWriterHandler(
       }
       return { type: "result", id: msg.id };
     } catch (error) {
-      return {
-        type: "error",
-        id: msg.id,
-        name: errorField(error, "name") ?? "Error",
-        message: errorField(error, "message") ?? String(error),
-      };
+      return errorReply(msg.id, error);
     }
+  };
+}
+
+/** Serialize any thrown value as an error reply for request `id`. */
+export function errorReply(id: number, error: unknown): SyncWriterOutMsg {
+  return {
+    type: "error",
+    id,
+    name: errorField(error, "name") ?? "Error",
+    message: errorField(error, "message") ?? String(error),
   };
 }
 
