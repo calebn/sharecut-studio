@@ -20,6 +20,8 @@ import {
 
 const FIRST_BACKOFF_MS = 1000;
 const MAX_BACKOFF_MS = 4000;
+/** After a permanent failure, a new subscriber restarts polling only this long after it. */
+const STOPPED_RETRY_MS = 5000;
 
 type Poller = {
   projectPath: string;
@@ -33,8 +35,11 @@ type Poller = {
   again: boolean;
   /** Keys whose tile 404 already triggered a refetch (until a poll drops them). */
   missing: Set<string>;
-  /** A permanent failure stopped polling: the next subscriber restarts it. */
-  stopped: boolean;
+  /**
+   * When (Date.now) a permanent failure stopped polling, else null. A
+   * subscriber arriving STOPPED_RETRY_MS later restarts it.
+   */
+  stoppedAt: number | null;
 };
 
 type ReadyListener = (
@@ -64,7 +69,7 @@ function pollerFor(projectPath: string, kind: WaveformKind): Poller {
       inflight: null,
       again: false,
       missing: new Set(),
-      stopped: false,
+      stoppedAt: null,
     };
     pollers.set(key, poller);
   }
@@ -151,7 +156,7 @@ function poll(poller: Poller): void {
         return;
       }
       poller.inflight = null;
-      poller.stopped = false;
+      poller.stoppedAt = null;
       if (applyStatus(poller, status)) {
         for (const fn of [...poller.listeners]) {
           fn();
@@ -180,8 +185,9 @@ function poll(poller: Poller): void {
       // permanent error would repeat, and a transient one schedules a retry below.
       poller.again = false;
       if (permanentFailure(err)) {
-        // Stop until a refresh, a tile 404 or a new subscriber asks again.
-        poller.stopped = true;
+        // Stop until a refresh, a tile 404, or a subscriber STOPPED_RETRY_MS
+        // later asks again (not every mount: the error would repeat).
+        poller.stoppedAt = Date.now();
         poller.backoffMs = FIRST_BACKOFF_MS;
         return;
       }
@@ -198,7 +204,10 @@ export function subscribeWaveformStatus(
 ): () => void {
   const poller = pollerFor(projectPath, kind);
   poller.listeners.add(listener);
-  if ((poller.listeners.size === 1 || poller.stopped) && !poller.inflight) {
+  const retryStopped =
+    poller.stoppedAt != null &&
+    Date.now() - poller.stoppedAt >= STOPPED_RETRY_MS;
+  if ((poller.listeners.size === 1 || retryStopped) && !poller.inflight) {
     poll(poller);
   }
   return () => {
