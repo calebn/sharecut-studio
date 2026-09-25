@@ -5,6 +5,7 @@ import os
 import platform
 import re
 import shutil
+import uuid
 import wave
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -557,13 +558,16 @@ class PlayService:
         return dest
 
     def _temp_beside(self, dest: Path) -> Path:
-        return dest.with_name(f"{dest.stem}.{os.getpid()}.partial{dest.suffix}")
+        """A temp path beside ``dest`` that is unique per call (pid + uuid), across threads too."""
+        return dest.with_name(f"{dest.stem}.{os.getpid()}.{uuid.uuid4().hex}.partial{dest.suffix}")
 
     def _render_atomic(self, dest: Path, render: Callable[[Path], object]) -> Path:
         """Render into a temp file beside ``dest``, then swap it in.
 
-        Concurrent plays of the same cache key never see a partially written
-        WAV, and a failed render leaves neither ``dest`` nor the temp file.
+        Each call renders into its own temp name, so concurrent plays of the
+        same cache key (other processes or other threads in this one) never
+        share a temp file or see a partially written WAV. A failed render
+        leaves neither ``dest`` nor the temp file.
         """
         dest.parent.mkdir(parents=True, exist_ok=True)
         tmp = self._temp_beside(dest)

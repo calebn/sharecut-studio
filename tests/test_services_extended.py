@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -745,6 +746,37 @@ def test_follow_transcript_track_publishes_atomically(minimal_project, sample_wa
     assert ".partial" in targets[0].name
     assert result.wav_path.is_file()
     assert not targets[0].exists()
+
+
+def test_render_atomic_gives_each_thread_its_own_temp(minimal_project, sample_wav) -> None:
+    ws = _dialogue_workspace(minimal_project, sample_wav)
+    svc = PlayService(ws)
+    dest = ws.project.artifacts_dir() / "play_cache" / "same_key.wav"
+    barrier = threading.Barrier(2, timeout=5)
+    temps: list[Path] = []
+    errors: list[BaseException] = []
+
+    def _render(tmp: Path) -> None:
+        temps.append(tmp)
+        tmp.write_bytes(b"RIFF" + tmp.name.encode())
+        barrier.wait()
+
+    def _run() -> None:
+        try:
+            svc._render_atomic(dest, _render)
+        except BaseException as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=_run) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=10)
+    assert errors == []
+    assert len(set(temps)) == 2
+    assert dest.read_bytes() in {b"RIFF" + t.name.encode() for t in temps}
+    assert not any(t.exists() for t in temps)
+    assert not list(dest.parent.glob("*.partial*"))
 
 
 def test_play_follow_transcript_compare(minimal_project, sample_wav) -> None:
