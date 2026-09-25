@@ -26,20 +26,24 @@ export async function scrollToEnd(
       const size = horizontal ? element.scrollWidth : element.scrollHeight;
       const client = horizontal ? element.clientWidth : element.clientHeight;
       const at = element[key];
-      // A classic (non-overlay) scrollbar on the cross axis, as on Linux CI, can leave its width unreachable.
-      const scrollbar = horizontal
-        ? element.offsetHeight - element.clientHeight - 2 * element.clientTop
-        : element.offsetWidth - element.clientWidth - 2 * element.clientLeft;
+      // Width the scrollbar takes from the scrolled axis's client box. On a
+      // classic-scrollbar platform (Linux CI), `scrollbar-gutter: stable` reserves
+      // the vertical scrollbar's width in clientWidth even when nothing scrolls
+      // vertically, yet Chromium's maximum horizontal offset ignores it, so that
+      // width stays unreachable however far the content extends.
+      const reserved = horizontal
+        ? element.offsetWidth - element.clientWidth - 2 * element.clientLeft
+        : element.offsetHeight - element.clientHeight - 2 * element.clientTop;
       return {
         gap: size - (at + client),
         size,
         client,
         at,
-        scrollbar: Math.max(0, scrollbar),
+        reserved: Math.max(0, reserved),
       };
     }, axis);
     expect(measured.gap, JSON.stringify(measured)).toBeLessThanOrEqual(
-      END_SLACK_PX + measured.scrollbar,
+      END_SLACK_PX + measured.reserved,
     );
   }).toPass({ timeout });
 }
