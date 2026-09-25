@@ -367,8 +367,9 @@ def _saved_stem_inputs_changed(
 
     try:
         saved = ProjectStore(project.workspace_path()).load()
-    except (OSError, ValueError):
+    except (OSError, ValueError) as exc:
         # Gone, unreadable or half-written (pydantic and JSON errors are ValueErrors).
+        log.warning("saved project unreadable after stem render; treating stems as stale: %s", exc)
         return True
     return _stem_inputs_changed(saved, render_project, rendered, render_roles)
 
