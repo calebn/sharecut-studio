@@ -190,6 +190,7 @@ Keyboard: `1` default, `2` timeline, `3` text, `4` review (when timeline focused
 5. Snap only to on-screen anchors.
 6. Listen-first: every edit surface keeps Play around / seek footer.
 7. Progressive complexity via `shareMode` capabilities.
+8. Waveforms paint at a DPR capped at 2 (`paintDpr`, on a 1/8 grid). The phone shell uses smaller waveform caches: 48 MB of bitmaps and 32 MB of data tiles, against 128 MB and 64 MB on desktop ([waveform.md § Renderer](waveform.md#renderer)). Guests on phones draw from pyramid tiles only, never raw PCM.
 
 ## Transport chrome (narrow)
 

@@ -1,91 +1,90 @@
-import type { WaveformTile } from "../audio/waveformTiles";
-import type { PeaksData } from "../types/project";
-import { peakAmp, peakIndexRange } from "../utils/peaks";
+import {
+  QUIET_AMP,
+  QUIET_MIN_DURATION_SEC,
+} from "../utils/timelineZoom.generated";
+import { reduceEnvelope } from "../waveform/pyramidMath";
+import { getBins } from "../waveform/pyramidStore";
+import { drawLevel } from "../waveform/renderTiles";
+import type { PyramidMeta } from "../waveform/types";
 
+/** A quiet stretch of media, in media seconds. */
 export type QuietBand = {
   startSec: number;
   endSec: number;
 };
 
-const QUIET_AMP = 0.04;
-const MIN_DURATION_SEC = 0.12;
-
-function bandsFromAmps(
-  samples: Array<{ t: number; amp: number }>,
+/**
+ * Quiet bands from per-column peaks (0..1; NaN where no data is loaded):
+ * runs at or under `quiet_amp` that last `quiet_min_duration_sec`. Column
+ * `i` starts at `startSec + i·secPerCol`. Missing data ends a run.
+ */
+export function quietBandsFromPeaks(
+  peaks: Float32Array,
+  startSec: number,
+  secPerCol: number,
 ): QuietBand[] {
-  if (samples.length === 0) {
-    return [];
-  }
   const bands: QuietBand[] = [];
-  let inQuiet = false;
-  let start = 0;
-  let lastT = samples[0]?.t ?? 0;
-  for (const s of samples) {
-    const quiet = s.amp <= QUIET_AMP;
-    if (quiet && !inQuiet) {
-      inQuiet = true;
-      start = s.t;
-    } else if (!quiet && inQuiet) {
-      if (lastT - start >= MIN_DURATION_SEC) {
-        bands.push({ startSec: start, endSec: lastT });
-      }
-      inQuiet = false;
+  let runStart = -1;
+  const close = (end: number) => {
+    const s = startSec + runStart * secPerCol;
+    const e = startSec + end * secPerCol;
+    if (e - s >= QUIET_MIN_DURATION_SEC) {
+      bands.push({ startSec: s, endSec: e });
     }
-    lastT = s.t;
+    runStart = -1;
+  };
+  for (let i = 0; i < peaks.length; i++) {
+    const quiet = peaks[i]! <= QUIET_AMP;
+    if (quiet && runStart < 0) {
+      runStart = i;
+    } else if (!quiet && runStart >= 0) {
+      close(i);
+    }
   }
-  if (inQuiet) {
-    const end = samples[samples.length - 1]?.t ?? lastT;
-    if (end - start >= MIN_DURATION_SEC) {
-      bands.push({ startSec: start, endSec: end });
-    }
+  if (runStart >= 0) {
+    close(peaks.length);
   }
   return bands;
 }
 
-/** Viewport quiet wash (amp heuristic); snap ticks come from EditService.waveform_snap_window. */
-export function quietBandsFromPeaks(
-  peaks: PeaksData | null,
-  tiles: WaveformTile[],
-  sourceStart: number,
-  sourceEnd: number,
-  cssWidth = 0,
-): QuietBand[] {
-  const samples: Array<{ t: number; amp: number }> = [];
-  if (tiles.length > 0) {
-    for (const tile of tiles) {
-      const lo = Math.max(sourceStart, tile.startSec);
-      const hi = Math.min(sourceEnd, tile.endSec);
-      if (hi <= lo || tile.peaks.length === 0) {
-        continue;
-      }
-      const span = tile.endSec - tile.startSec;
-      const i0 = Math.floor(((lo - tile.startSec) / span) * tile.peaks.length);
-      const i1 = Math.ceil(((hi - tile.startSec) / span) * tile.peaks.length);
-      for (let i = i0; i < i1; i++) {
-        const t = tile.startSec + (i / tile.peaks.length) * span;
-        samples.push({ t, amp: peakAmp(tile.peaks[i] ?? 0) });
-      }
-    }
-  } else if (peaks) {
-    const [a, b] = peakIndexRange(peaks, sourceStart, sourceEnd);
-    const n = Math.max(1, b - a);
-    for (let i = a; i < b; i++) {
-      const t = sourceStart + ((i - a) / n) * (sourceEnd - sourceStart);
-      samples.push({ t, amp: peakAmp(peaks.peaks[i] ?? 0) });
+/**
+ * Max-pooled column peaks, `max(|min|, |max|)`, of `cols` columns of
+ * `framesPerCol` media frames from `frameStart`, from whatever pyramid data
+ * is loaded (NaN where none is).
+ */
+export function pyramidColumnPeaks(
+  meta: PyramidMeta,
+  frameStart: number,
+  framesPerCol: number,
+  cols: number,
+): Float32Array {
+  const out = new Float32Array(Math.max(0, cols)).fill(Number.NaN);
+  const level = drawLevel(meta, framesPerCol);
+  const spp = meta.levels[level]?.spp;
+  if (!spp || cols <= 0) {
+    return out;
+  }
+  const binStart = Math.max(0, Math.floor(frameStart / spp));
+  const binEnd = Math.min(
+    meta.levels[level]!.bins,
+    Math.ceil((frameStart + framesPerCol * cols) / spp),
+  );
+  if (binEnd <= binStart) {
+    return out;
+  }
+  const bins = getBins(meta, level, binStart, binEnd - binStart);
+  const env = reduceEnvelope(
+    bins,
+    binStart,
+    spp,
+    frameStart,
+    framesPerCol,
+    cols,
+  );
+  for (let c = 0; c < cols; c++) {
+    if (env.has[c]) {
+      out[c] = Math.max(Math.abs(env.min[c]!), Math.abs(env.max[c]!));
     }
   }
-  samples.sort((x, y) => x.t - y.t);
-  const maxSamples = Math.max(8, Math.ceil(cssWidth));
-  if (cssWidth > 0 && samples.length > maxSamples) {
-    const step = samples.length / maxSamples;
-    const subsampled: Array<{ t: number; amp: number }> = [];
-    for (let i = 0; i < maxSamples; i++) {
-      const s = samples[Math.min(samples.length - 1, Math.floor(i * step))];
-      if (s) {
-        subsampled.push(s);
-      }
-    }
-    return bandsFromAmps(subsampled);
-  }
-  return bandsFromAmps(samples);
+  return out;
 }

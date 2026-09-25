@@ -11,6 +11,10 @@ import {
   syntheticMicrophoneRequested,
 } from "../e2e/syntheticMicrophone";
 import { withBrowserPages } from "../e2e/twoBrowserPages";
+import {
+  expectPaintedWaveformTile,
+  waveformBackend,
+} from "../e2e/waveformHook";
 
 // `defaultBrowserType` would force a new worker per describe; each project
 // already pins its engine, so borrow only the phone viewport/touch traits.
@@ -25,6 +29,13 @@ test.describe("browser compatibility matrix", () => {
   }) => {
     await openHostProject(page);
     await expect(page.getByRole("button", { name: "Play" })).toBeEnabled();
+  });
+
+  test("rasterizes waveform tiles on every engine", async ({ page }) => {
+    await openHostProject(page);
+    // WebGL2 where the engine offers it in a worker, the CPU worker otherwise.
+    expect(["webgl2", "cpu-worker"]).toContain(await waveformBackend(page));
+    await expectPaintedWaveformTile(page);
   });
 
   test.describe("phone", () => {

@@ -389,6 +389,17 @@ changes. Loopback ownership (exclusive bind, ephemeral port, boot-token health,
 socket-to-process verification, and WebView allowlisting) is required before
 sharing installers.
 
+## Waveforms in the WebView
+
+Clip waveforms rasterize in a module worker, using WebGL2 on an
+`OffscreenCanvas` ([waveform.md § Renderer](waveform.md#renderer)). WebView2
+(Windows) and current WKWebView (macOS 13+) provide that. Where a webview lacks it (macOS 12 WKWebView,
+many WebKitGTK builds on Linux, no GPU), or a GPU context is lost, the worker
+falls back to its CPU rasterizer, which draws the same pixels. The main
+thread only blits bitmaps either way. `.timeline-area[data-waveform-backend]`
+shows which backend ran (`webgl2`, `cpu-worker`, or `none` without
+`Worker`).
+
 ## Record microphone (WebView)
 
 Recording in the packaged WebView is the same Worklet path as the browser

@@ -68,6 +68,11 @@ export class BitmapCache {
     return this.lru.peek(entry.provisional ? key + PROVISIONAL : key) === entry;
   }
 
+  /** True while a provisional stand-in for `key` is cached. */
+  hasProvisional(key: string): boolean {
+    return this.lru.has(key + PROVISIONAL);
+  }
+
   set(key: string, entry: BitmapEntry): void {
     const slot = entry.provisional ? key + PROVISIONAL : key;
     if (!entry.provisional) {

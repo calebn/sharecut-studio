@@ -82,7 +82,7 @@ Audio candidates exist; video ingest, 9:16 export, captions, active-speaker — 
 |------|------|
 | Always-on hosted projects (SaaS) | Collaboration without laptop host; owned by the independently maintained `podcast_online` provider extension. |
 | Recording session (beta) | Recording links + full-session audio from browser/desktop — [ROADMAP § Recording session](../../ROADMAP.md#recording-session). Design locked: [docs/recording-session.md](../../docs/recording-session.md). Audio MVP shipped. Follow-up leftover (producer `talk`/`control`, room chat, Tauri cpal, restricted record shares): [ROADMAP § Follow-up](../../ROADMAP.md#follow-up). |
-| Waveform pyramids (#429) | Pyramid status/tile routes are live for host and guests (no visible change yet; the timeline still paints the legacy overview). When the renderer lands, review the two-tone Peak + RMS look, the "Generating waveform…" hint, and guest waveforms at deep zoom (guests stop at pyramid resolution). |
+| Waveform pyramids (#429) | The timeline now draws clip waveforms from pyramid tiles, in the two-tone Peak + RMS look. To review: the look in both themes, the "Generating waveform…" hint, guest waveforms at deep zoom (guests stop at pyramid resolution), and stand-in tiles during zoom. |
 | Full design system | Only if polish/scale demands it; Sharecut Studio uses CSS tokens today |
 | Marketing site | Separate from this UX pack |
 | Annotated FigJam wireframes | Optional; until then use [Screens](#/screens) ASCII + [Guest journeys](#/journeys). Add a FigJam link here when one exists. |
@@ -126,6 +126,7 @@ Audio candidates exist; video ingest, 9:16 export, captions, active-speaker — 
 | 2026-09-05 | Zoom-matched waveforms: shared uint8 overview + per-tab detail tiles; amplitude zoom Shift+ArrowUp/Down; snap ticks for suggest/edit guests | Eng | [gui-integration](https://github.com/calebn/sharecut-studio/blob/main/docs/gui-integration.md), [Shortcuts](#/shortcuts) |
 | 2026-09-05 | ROADMAP grooming: Passes 0–8 marked shipped; guest-account / MCP-connect / SaaS rows owned by podcast_online; markers + Pass 8 docs aligned | Eng | [ROADMAP](../../ROADMAP.md), [gui-integration](../../docs/gui-integration.md), [session-sync](../../docs/session-sync.md) |
 | 2026-09-24 | Owner GUI routes require the host role; relay tunnel marks guest traffic (x-sharecut-relayed) and owner routes refuse it | Eng | [host-online-relay](https://github.com/calebn/sharecut-studio/blob/main/docs/host-online-relay.md), [gui-integration](https://github.com/calebn/sharecut-studio/blob/main/docs/gui-integration.md) |
+| 2026-09-25 | Clip waveforms render from peak-pyramid tiles: a two-tone look (RMS body in the lane's core tint, peak envelope in its edge tint), a nearby tile standing in while a zoom loads, and a "Generating waveform…" lane hint from pyramid status | Eng | [waveform](https://github.com/calebn/sharecut-studio/blob/main/docs/waveform.md), [gui-integration](https://github.com/calebn/sharecut-studio/blob/main/docs/gui-integration.md) |
 | | | | |
 
 ---

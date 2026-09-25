@@ -1,23 +1,26 @@
 import { fireEvent, render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ClipRow, PeaksData } from "../types/project";
+import type { ClipRow } from "../types/project";
 import { ClipBlock } from "./ClipBlock";
 
-const paint = vi.hoisted(() => vi.fn());
+type LayerProps = {
+  mediaRef: string;
+  kind: string;
+  mediaStartSec: number;
+  clipLeftCss: number;
+  clipWidthCss: number;
+  zoom: number;
+  colorVar: string;
+};
 
-vi.mock("../hooks/useClipWaveform", () => ({
-  useClipWaveform: () => ({
-    window: {
-      cssWidth: 100,
-      canvasLeft: 0,
-      sourceStart: 0,
-      sourceEnd: 2,
-      offscreen: false,
-    },
-    quiet: [],
-    ticks: [],
-    paint,
-  }),
+const layers = vi.hoisted(() => [] as LayerProps[][]);
+
+// The layer is tested in WaveformLayer.test.tsx; here, what the clip gives it.
+vi.mock("./WaveformLayer", () => ({
+  WaveformLayer: (p: LayerProps) => {
+    layers.at(-1)?.push(p);
+    return <div className="clip-waveform" data-media-ref={p.mediaRef} />;
+  },
 }));
 
 const clip: ClipRow = {
@@ -33,15 +36,9 @@ const clip: ClipRow = {
   source_id: null,
 };
 
-const peaks: PeaksData = {
-  peaks: [0.2, 0.8, 0.4, 0.9, 0.3],
-  samples_per_pixel: 512,
-  sample_rate: 8000,
-};
-
 describe("ClipBlock waveform", () => {
   beforeEach(() => {
-    paint.mockClear();
+    layers.push([]);
     HTMLElement.prototype.setPointerCapture = vi.fn();
     HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
       setTransform: vi.fn(),
@@ -58,7 +55,7 @@ describe("ClipBlock waveform", () => {
     zoomPxPerSec: 50,
     color: "var(--clip-dialogue-0)",
     selected: false,
-    peaks: null,
+    mediaRef: "track:host",
     prevClip: null,
     nextClip: null,
     neighborSourceLo: 0,
@@ -75,37 +72,62 @@ describe("ClipBlock waveform", () => {
     onMoveCancel: vi.fn(),
   } as const;
 
-  it("renders clip-waveform canvas for visible clips", () => {
+  it("draws its media from the clip's left edge in timeline px", () => {
     const { container } = render(
       <ClipBlock
         {...base}
-        peaks={peaks}
+        clip={{
+          ...clip,
+          source_start: 3,
+          source_end: 5,
+          timeline_start: 1,
+          timeline_end: 3,
+        }}
         onRollPreview={vi.fn()}
         onSelect={vi.fn()}
         onHit={vi.fn()}
       />,
     );
-    expect(container.querySelector("canvas.clip-waveform")).toBeTruthy();
+    expect(container.querySelector(".clip-waveform")).toBeTruthy();
+    expect(layers.at(-1)!.at(-1)).toEqual({
+      mediaRef: "track:host",
+      kind: "raw",
+      mediaStartSec: 3,
+      clipLeftCss: 50,
+      clipWidthCss: 100,
+      zoom: 50,
+      colorVar: "var(--clip-dialogue-0)",
+    });
   });
 
-  it("still renders a waveform canvas when overview peaks are missing", () => {
-    const { container } = render(
+  it("puts stem media on the timeline clock", () => {
+    render(
       <ClipBlock
         {...base}
-        peaks={null}
+        mediaRef="stem:host"
+        clip={{
+          ...clip,
+          source_start: 3,
+          source_end: 5,
+          timeline_start: 1,
+          timeline_end: 3,
+        }}
         onRollPreview={vi.fn()}
         onSelect={vi.fn()}
         onHit={vi.fn()}
       />,
     );
-    expect(container.querySelector("canvas.clip-waveform")).toBeTruthy();
+    expect(layers.at(-1)!.at(-1)).toMatchObject({
+      mediaRef: "stem:host",
+      kind: "stem",
+      mediaStartSec: 1,
+    });
   });
 
-  it("paints the trim ghost with the ghost source range", () => {
+  it("gives the trim ghost its own layer over the ghost source range", () => {
     const { container } = render(
       <ClipBlock
         {...base}
-        peaks={peaks}
         onRollPreview={vi.fn()}
         onSelect={vi.fn()}
         onHit={vi.fn()}
@@ -115,18 +137,21 @@ describe("ClipBlock waveform", () => {
     expect(handle).toBeTruthy();
     fireEvent.pointerDown(handle as Element, { clientX: 100, pointerId: 1 });
     fireEvent.pointerMove(handle as Element, { clientX: 150, pointerId: 1 });
-    const ghostCalls = paint.mock.calls.filter(
-      (args) => args[1] != null && typeof args[1] === "object",
-    );
-    expect(ghostCalls.length).toBeGreaterThan(0);
-    const override = ghostCalls[ghostCalls.length - 1]?.[1] as {
-      sourceStart: number;
-      sourceEnd: number;
-      cssWidth: number;
-    };
-    expect(override.sourceStart).toBe(clip.source_end);
-    expect(override.sourceEnd).toBeGreaterThan(clip.source_end);
-    expect(override.cssWidth).toBeGreaterThan(0);
+    // The clip sits at x 0; its ghost follows the committed width.
+    const rendered = layers.at(-1)!;
+    const ghost = rendered.findLast((p) => p.clipLeftCss > 0);
+    const main = rendered.findLast((p) => p.clipLeftCss === 0);
+    // The ghost follows the committed clip (2 s at 50 px/s) and starts at
+    // its source end.
+    expect(
+      container.querySelector(".clip-trim-ghost .clip-waveform"),
+    ).toBeTruthy();
+    expect(ghost).toMatchObject({
+      mediaStartSec: clip.source_end,
+      clipLeftCss: 100,
+    });
+    expect(ghost!.clipWidthCss).toBeGreaterThan(0);
+    expect(main!.mediaStartSec).toBe(clip.source_start);
   });
 
   it("selects on body pointerdown without moving when under the drag threshold", () => {
@@ -316,7 +341,6 @@ describe("ClipBlock waveform", () => {
       <ClipBlock
         {...base}
         canMove
-        peaks={peaks}
         onMovePreview={onMovePreview}
         onRollPreview={vi.fn()}
         onSelect={vi.fn()}

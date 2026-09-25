@@ -3,7 +3,6 @@ import { loadProxyManifest } from "../api";
 import { cachedFetchArrayBuffer } from "../audio/chunkCache";
 import { ProxyEngine } from "../audio/proxyEngine";
 import type { ProxyManifest } from "../audio/proxyMath";
-import { setActiveProxyEngine } from "../audio/proxyPeek";
 import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
 import {
   loadOfflineSnapshot,
@@ -122,7 +121,6 @@ export function useProxyTransport(): boolean {
           return;
         }
         engineRef.current = engine;
-        setActiveProxyEngine(engine);
         const token = shareTokenFromKey(projectPath);
         if (token) {
           void mergeOfflineSnapshot(token, { manifest });
@@ -136,7 +134,6 @@ export function useProxyTransport(): boolean {
     })();
     return () => {
       cancelled = true;
-      setActiveProxyEngine(null);
       engineRef.current?.dispose();
       engineRef.current = null;
       setActive(false);

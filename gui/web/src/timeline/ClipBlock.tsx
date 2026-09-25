@@ -1,7 +1,6 @@
 import {
   memo,
   type PointerEvent as ReactPointerEvent,
-  useEffect,
   useRef,
   useState,
 } from "react";
@@ -20,13 +19,16 @@ import {
   MOVE_THRESHOLD_PX,
   waveformTicksToTimeline,
 } from "../edit/clipMove";
-import { useClipWaveform } from "../hooks/useClipWaveform";
+import { useSnapTicks } from "../hooks/useSnapTicks";
 import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
-import type { ClipRow, PeaksData } from "../types/project";
+import type { ClipRow } from "../types/project";
 import { formatDurationCompact } from "../utils/time";
+import { clipMediaStartSec } from "../waveform/mediaRef";
+import { type MediaRef, refKind } from "../waveform/types";
 import { magnetSec } from "./snapOverlay";
-import { useHoldTimelineMetrics, useTimelineMetrics } from "./timelineMetrics";
+import { useHoldTimelineMetrics } from "./timelineMetrics";
+import { WaveformLayer } from "./WaveformLayer";
 
 interface ClipBlockProps {
   clip: ClipRow;
@@ -38,9 +40,8 @@ interface ClipBlockProps {
   zoomPxPerSec: number;
   color: string;
   selected: boolean;
-  peaks: PeaksData | null;
-  mediaPath?: string | null;
-  mediaVersion?: string;
+  /** Media the clip draws (`waveform/mediaRef.clipMediaRef`). */
+  mediaRef: MediaRef;
   /** Previous clip on this track (for roll join); null if first. */
   prevClip: ClipRow | null;
   /** Next clip on this track (roll clamp); null if last. */
@@ -155,9 +156,7 @@ export function ClipBlockView({
   zoomPxPerSec,
   color,
   selected,
-  peaks,
-  mediaPath = null,
-  mediaVersion = "",
+  mediaRef,
   prevClip,
   nextClip,
   neighborSourceLo,
@@ -181,8 +180,6 @@ export function ClipBlockView({
 }: ClipBlockProps) {
   // Commit handlers read the project path at call time (getState()).
   const editable = useDawStore((s) => !isShareProjectKey(s.projectPath));
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const ghostCanvasRef = useRef<HTMLCanvasElement>(null);
   const dragRef = useRef<FadeDrag | TrimDrag | RollDrag | null>(null);
   const bodyRef = useRef<BodyDrag | null>(null);
   const bodyMovedRef = useRef(false);
@@ -246,43 +243,25 @@ export function ClipBlockView({
       ? Math.abs(ghostSourceEnd - ghostSourceStart) * zoomPxPerSec
       : 0;
 
-  // The canvas fills the clip, so the lane height is part of the paint key.
-  const { laneHeight } = useTimelineMetrics();
   // Keep lanes still under a trim, fade or roll drag.
   useHoldTimelineMetrics(
     fadePreview != null || trimPreview != null || rollActive,
   );
 
-  const wave = useClipWaveform({
+  const ticks = useSnapTicks({
     clip,
     trackId,
-    mediaPath,
-    mediaVersion,
-    zoomPxPerSec,
     sourceStart,
     sourceEnd,
-    peaks,
-    trimActive: trimPreview != null,
-    selected,
-    color,
-    laneHeight,
+    trimFocusSourceSec:
+      trimPreview == null
+        ? null
+        : trimPreview.edge === "in"
+          ? trimPreview.sourceStart
+          : trimPreview.sourceEnd,
+    enabled: interactive,
   });
-
-  // Runs every render; the hook skips the paint unless its inputs changed.
-  useEffect(() => {
-    wave.paint(canvasRef.current);
-  });
-
-  useEffect(() => {
-    if (ghostExtraPx <= 0 || !trimPreview) {
-      return;
-    }
-    wave.paint(ghostCanvasRef.current, {
-      sourceStart: ghostSourceStart,
-      sourceEnd: ghostSourceEnd,
-      cssWidth: ghostExtraPx,
-    });
-  });
+  const waveKind = refKind(mediaRef);
 
   const commitFade = async (state: FadeDrag, clientX: number) => {
     const dxMs = ((clientX - state.originX) / zoomPxPerSec) * 1000;
@@ -310,7 +289,7 @@ export function ClipBlockView({
     const dxSec = (clientX - state.originX) / zoomPxPerSec;
     const proposed = magnetSec(
       sourceSecFromTimelineDelta(state.edge, state.baseSourceSec, dxSec),
-      wave.ticks,
+      ticks,
       zoomPxPerSec,
     );
     const sourceSec = clampTrimSourceSec(
@@ -482,7 +461,7 @@ export function ClipBlockView({
     const dxSec = (e.clientX - d.originX) / zoomPxPerSec;
     const proposed = magnetSec(
       sourceSecFromTimelineDelta(d.edge, d.baseSourceSec, dxSec),
-      wave.ticks,
+      ticks,
       zoomPxPerSec,
     );
     const sourceSec = clampTrimSourceSec(
@@ -524,7 +503,7 @@ export function ClipBlockView({
     void commitTrim(d, e.clientX);
   };
 
-  const extraTicks = () => waveformTicksToTimeline(clip, wave.ticks);
+  const extraTicks = () => waveformTicksToTimeline(clip, ticks);
 
   const onBodyDown = (e: ReactPointerEvent) => {
     if (bladeMode || !interactive) {
@@ -682,7 +661,15 @@ export function ClipBlockView({
           style={{ width: ghostExtraPx, left: committedWidth }}
           aria-hidden
         >
-          <canvas ref={ghostCanvasRef} className="clip-trim-ghost-canvas" />
+          <WaveformLayer
+            mediaRef={mediaRef}
+            kind={waveKind}
+            mediaStartSec={clipMediaStartSec(clip, ghostSourceStart, mediaRef)}
+            clipLeftCss={left + committedWidth}
+            clipWidthCss={ghostExtraPx}
+            zoom={zoomPxPerSec}
+            colorVar={color}
+          />
         </span>
       ) : null}
       {fadeInW > 0 && (
@@ -762,41 +749,25 @@ export function ClipBlockView({
           />
         </>
       )}
-      {!wave.window.offscreen ? (
-        <>
-          <canvas
-            ref={canvasRef}
-            className="clip-waveform"
-            aria-hidden
-            style={{
-              left: wave.window.canvasLeft,
-              width: Math.max(1, wave.window.cssWidth),
-              height: "100%",
-            }}
-          />
-          <span className="clip-waveform-overlays" aria-hidden>
-            {wave.quiet.map((band) => (
-              <span
-                key={`q-${band.startSec}-${band.endSec}`}
-                className="clip-waveform-quiet"
-                style={{
-                  left: (band.startSec - sourceStart) * zoomPxPerSec,
-                  width: Math.max(
-                    1,
-                    (band.endSec - band.startSec) * zoomPxPerSec,
-                  ),
-                }}
-              />
-            ))}
-            {wave.ticks.map((t) => (
-              <span
-                key={`s-${t}`}
-                className="clip-waveform-snap"
-                style={{ left: (t - sourceStart) * zoomPxPerSec }}
-              />
-            ))}
-          </span>
-        </>
+      <WaveformLayer
+        mediaRef={mediaRef}
+        kind={waveKind}
+        mediaStartSec={clipMediaStartSec(clip, sourceStart, mediaRef)}
+        clipLeftCss={left}
+        clipWidthCss={width}
+        zoom={zoomPxPerSec}
+        colorVar={color}
+      />
+      {ticks.length > 0 ? (
+        <span className="clip-waveform-overlays" aria-hidden>
+          {ticks.map((t) => (
+            <span
+              key={`s-${t}`}
+              className="clip-waveform-snap"
+              style={{ left: (t - sourceStart) * zoomPxPerSec }}
+            />
+          ))}
+        </span>
       ) : null}
       {(clip.mute_regions ?? []).map((region, i) => {
         const start = Math.max(region.start_s, sourceStart);

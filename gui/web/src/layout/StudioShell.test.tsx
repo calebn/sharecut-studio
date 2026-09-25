@@ -26,8 +26,11 @@ vi.mock("../hooks/useViewportClass", () => ({
 }));
 
 // Full-shell render; not exercising waveform fetching.
-vi.mock("../hooks/usePeaks", () => ({
-  usePeaks: () => ({ peaks: null, status: "idle" }),
+// No waveform status polls: shell tests do not fetch.
+vi.mock("../waveform/statusStore", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../waveform/statusStore")>()),
+  useWaveformStatus: () => null,
+  useLaneWaveformStatus: () => "idle",
 }));
 
 // The real timeline, memoized as in production, counting its renders.

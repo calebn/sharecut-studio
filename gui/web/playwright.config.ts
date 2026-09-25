@@ -1,7 +1,7 @@
 import path from "node:path";
 import { defineConfig, devices } from "@playwright/test";
 import { e2eBaseURL, e2ePort, repoRoot } from "./e2e/env";
-import { prepareLiveE2eProject } from "./e2e/liveProject";
+import { copyUxDemoProject, prepareLiveE2eProject } from "./e2e/liveProject";
 import { e2eRuntimeEnv } from "./e2e/runtimeEnv";
 
 const uxDemoPath = path.join(
@@ -13,7 +13,7 @@ const guiProject =
   capturingUxScreens && process.env.UX_DEMO_PROJECT
     ? process.env.UX_DEMO_PROJECT
     : capturingUxScreens
-      ? uxDemoPath
+      ? copyUxDemoProject(uxDemoPath)
       : prepareLiveE2eProject();
 if (!capturingUxScreens) {
   process.env.DAW_E2E_PROJECT = guiProject;

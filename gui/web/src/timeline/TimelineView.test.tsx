@@ -53,22 +53,12 @@ vi.mock("./ClipBlock", async (importOriginal) => {
   };
 });
 // Clips here exercise geometry and gestures, not waveform fetching.
-vi.mock("../hooks/usePeaks", () => ({
-  usePeaks: () => ({ peaks: null, status: "idle" }),
-}));
-vi.mock("../hooks/useClipWaveform", () => ({
-  useClipWaveform: () => ({
-    window: {
-      cssWidth: 0,
-      canvasLeft: 0,
-      sourceStart: 0,
-      sourceEnd: 0,
-      offscreen: true,
-    },
-    quiet: [],
-    ticks: [],
-    paint: () => undefined,
-  }),
+// Lanes render the real WaveformLayer; status never polls in tests.
+const waveStatus = vi.hoisted(() => ({ entry: null as unknown }));
+vi.mock("../waveform/statusStore", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../waveform/statusStore")>()),
+  useWaveformStatus: () => waveStatus.entry,
+  useLaneWaveformStatus: () => "idle",
 }));
 
 describe("TimelineView follow auto-fit", () => {
@@ -671,6 +661,18 @@ describe("TimelineView render isolation", () => {
     RecordingResizeObserver.all = [];
     vi.stubGlobal("ResizeObserver", RecordingResizeObserver);
     stubElementSize(800, 600);
+    // Every clip's layer holds a ready pyramid, as in a loaded session.
+    waveStatus.entry = {
+      status: "ready",
+      key: "c3".repeat(10),
+      sample_rate: 48000,
+      channels: 1,
+      total_frames: 48000 * 60,
+      base_spp: 64,
+      level_factor: 4,
+      bins_per_tile: 4096,
+      levels: [{ spp: 64, bins: 45000 }],
+    };
     useDawStore.getState().hydrate("/tmp/p.json", project());
     useDawStore.setState({
       userZoomed: true,
@@ -683,6 +685,7 @@ describe("TimelineView render isolation", () => {
   });
 
   afterEach(() => {
+    waveStatus.entry = null;
     useDawStore.setState({ isPlaying: false, sessionClients: [] });
     vi.unstubAllGlobals();
     Reflect.deleteProperty(HTMLElement.prototype, "clientWidth");

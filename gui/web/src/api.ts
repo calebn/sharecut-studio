@@ -27,8 +27,6 @@ import type {
 import type {
   AutomationPoint,
   HistoryDiff,
-  PeaksData,
-  PeaksFetchResult,
   ProjectView,
   TimelineComment,
 } from "./types/project";
@@ -162,38 +160,6 @@ export async function loadProjectMeta(
     throw new Error(await res.text());
   }
   return res.json() as Promise<ProjectMeta>;
-}
-
-async function peaksFetchResult(res: Response): Promise<PeaksFetchResult> {
-  if (res.ok) {
-    const peaks = (await res.json()) as PeaksData;
-    return { status: "ready", peaks };
-  }
-  try {
-    const body = (await res.json()) as { generating?: unknown };
-    return body.generating === true
-      ? { status: "generating" }
-      : { status: "unavailable" };
-  } catch {
-    return { status: "unavailable" };
-  }
-}
-
-export async function loadPeaks(
-  projectPath: string,
-  trackId: string,
-): Promise<PeaksFetchResult> {
-  if (isShareProjectKey(projectPath)) {
-    const token = shareTokenFromKey(projectPath)!;
-    const res = await fetch(
-      `${reviewApiBase(token)}/daw/peaks/${encodeURIComponent(trackId)}`,
-    );
-    return peaksFetchResult(res);
-  }
-  const res = await hostFetch(
-    `/api/peaks/${encodeURIComponent(trackId)}?path=${encodeURIComponent(projectPath)}`,
-  );
-  return peaksFetchResult(res);
 }
 
 /** A failed waveform request, with the server's `Retry-After` (seconds). */

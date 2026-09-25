@@ -102,10 +102,12 @@ describe("BitmapCache", () => {
     const prov = entry({ zoom: 10, tile: 0, provisional: true });
     cache.set("k", prov);
     expect(cache.get("k")).toBeUndefined();
+    expect(cache.hasProvisional("k")).toBe(true);
     expect(cache.placeholder("g", 10, 0)?.entry).toBe(prov);
     const exact = entry({ zoom: 10, tile: 0 });
     cache.set("k", exact);
     expect(cache.get("k")).toBe(exact);
+    expect(cache.hasProvisional("k")).toBe(false);
     expect(closeOf(prov)).toHaveBeenCalledOnce();
   });
 

@@ -213,10 +213,9 @@ export function patchClipsMove<
 }
 
 export type MoveGhost = {
+  /** The moved clip on its destination lane; it keeps `origin_track_id`. */
   clip: ClipRow;
   originTrackId: string;
-  mediaPath: string | null;
-  mediaVersion: string;
   trackIndex: number;
 };
 
@@ -246,15 +245,6 @@ export function laneMovePreview(opts: {
   const ghosts: MoveGhost[] = [];
   const clipById = new Map(opts.allClips.map((c) => [c.id, c]));
   const trackIndex = new Map(opts.tracks.map((t, i) => [t.id, i]));
-  const mediaByTrack = new Map(
-    opts.tracks.map((t) => [
-      t.id,
-      {
-        mediaPath: t.media_path ?? null,
-        mediaVersion: `${t.media_path ?? ""}|${t.stem_is_fresh ?? ""}|${t.duration_sec ?? ""}`,
-      },
-    ]),
-  );
   for (const p of opts.placements) {
     const origin = clipById.get(p.clip_id);
     if (!origin) {
@@ -269,17 +259,15 @@ export function laneMovePreview(opts: {
     if (p.track_id === opts.trackId && origin.track_id !== opts.trackId) {
       const dur = clipDurationSec(origin);
       const originId = originTrackId(origin);
-      const media = mediaByTrack.get(originId);
       ghosts.push({
         clip: {
           ...origin,
           track_id: p.track_id,
           timeline_start: p.timeline_start,
           timeline_end: p.timeline_start + dur,
+          origin_track_id: originId,
         },
         originTrackId: originId,
-        mediaPath: media?.mediaPath ?? null,
-        mediaVersion: media?.mediaVersion ?? "",
         trackIndex: trackIndex.get(originId) ?? 0,
       });
     }

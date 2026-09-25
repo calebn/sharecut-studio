@@ -1,8 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, test } from "@playwright/test";
-import { e2eProjectPath, repoRoot } from "./env";
+import { expect, type Page, test } from "@playwright/test";
+import { e2eProjectPath } from "./env";
+import { withShareableProject } from "./shareableProject";
+import { openGuestShare, openHostShare } from "./shareNavigation";
+import {
+  expectPaintedWaveformTile,
+  rasterParity,
+  waveformBackend,
+} from "./waveformHook";
 
 const thresholds = JSON.parse(
   fs.readFileSync(
@@ -13,117 +20,132 @@ const thresholds = JSON.parse(
     "utf8",
   ),
 ) as {
-  max_overview_bytes: number;
+  max_tile_response_bytes: number;
+  tile_count_slop: number;
   max_full_audio_bytes: number;
-  canvas_overscan_slop_px: number;
 };
 
-const guestTokensPath = path.join(
-  repoRoot,
-  "ux/assets/screens/.guest-tokens.json",
-);
-
-interface GuestTokens {
-  daw_guest: { token: string };
-}
-
-function loadGuestTokens(): GuestTokens | null {
-  if (!fs.existsSync(guestTokensPath)) {
-    return null;
-  }
-  return JSON.parse(fs.readFileSync(guestTokensPath, "utf8")) as GuestTokens;
-}
-
-test.describe("Zoom-matched waveforms", () => {
-  test("host overview payload stays small; canvas is viewport-sized at max zoom", async ({
-    page,
-  }) => {
-    const rangeAudio = { count: 0, fullFile: 0 };
-    page.on("response", (res) => {
-      const url = res.url();
-      if (url.includes("/api/audio") && !url.includes("start_sec")) {
-        const range = res.request().headers()["range"];
-        if (range) {
-          rangeAudio.count += 1;
-        }
-        const len = Number(res.headers()["content-length"] || 0);
-        if (!range && len > thresholds.max_full_audio_bytes) {
-          rangeAudio.fullFile += 1;
-        }
+/** Record waveform and audio traffic for one page. */
+function watchWaveformTraffic(page: Page) {
+  const seen = {
+    tiles: [] as { url: string; bytes: number }[],
+    pcm: 0,
+    audioWindows: 0,
+    fullAudio: 0,
+  };
+  page.on("response", async (res) => {
+    const url = res.url();
+    if (url.includes("/waveform/tiles/")) {
+      const body = await res.body().catch(() => Buffer.alloc(0));
+      seen.tiles.push({ url, bytes: body.byteLength });
+    }
+    if (url.includes("/waveform/pcm/")) {
+      seen.pcm += 1;
+    }
+    if (/\/api\/audio.*start_sec/.test(url)) {
+      seen.audioWindows += 1;
+    }
+    if (url.includes("/api/audio") && !res.request().headers()["range"]) {
+      const len = Number(res.headers()["content-length"] || 0);
+      if (len > thresholds.max_full_audio_bytes) {
+        seen.fullAudio += 1;
       }
-    });
+    }
+  });
+  return seen;
+}
 
+test.describe("pyramid waveforms", () => {
+  test("host draws tiles from the pyramid, never audio windows", async ({
+    page,
+    browserName,
+  }) => {
+    const seen = watchWaveformTraffic(page);
     await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
     await expect(page.locator(".daw-shell")).toBeVisible();
     await page.locator(".timeline-scroll").waitFor({ state: "visible" });
-    const peaksRes = await page.request.get(
-      `/api/peaks/reference?path=${encodeURIComponent(e2eProjectPath)}`,
-    );
-    expect(peaksRes.ok()).toBe(true);
-    const peakBody = await peaksRes.body();
-    expect(peakBody.byteLength).toBeGreaterThan(0);
-    expect(peakBody.byteLength).toBeLessThanOrEqual(
-      thresholds.max_overview_bytes,
-    );
-    await expect(page.locator("canvas.clip-waveform").first()).toBeVisible();
 
+    const backend = await waveformBackend(page);
+    if (browserName === "chromium") {
+      expect(backend).toBe("webgl2");
+      const parity = await rasterParity(page);
+      expect(parity).not.toBeNull();
+      expect(parity!).toBeLessThanOrEqual(2 / 255);
+    } else {
+      expect(["webgl2", "cpu-worker"]).toContain(backend);
+    }
+    await expectPaintedWaveformTile(page);
+
+    // Deep zoom: tiles stay tile-sized and only the view (plus overscan) mounts.
     await page.locator(".timeline-scroll").click();
     for (let i = 0; i < 16; i++) {
       await page.keyboard.press("=");
     }
-    await page.waitForTimeout(400);
+    await expectPaintedWaveformTile(page);
+    const layout = await page.evaluate(() => {
+      const view =
+        (document.querySelector(".timeline-scroll") as HTMLElement | null)
+          ?.clientWidth ?? 0;
+      const layers = [...document.querySelectorAll(".clip-waveform")].map(
+        (layer) =>
+          [...layer.querySelectorAll("canvas.clip-waveform-tile")].map(
+            (c) => c.getBoundingClientRect().width,
+          ),
+      );
+      return { view, layers };
+    });
+    const maxTiles =
+      Math.ceil((layout.view + 2 * 512) / 512) + thresholds.tile_count_slop;
+    for (const widths of layout.layers) {
+      expect(widths.length).toBeLessThanOrEqual(maxTiles);
+      for (const w of widths) {
+        expect(w).toBeLessThanOrEqual(512 + 1);
+      }
+    }
 
-    const canvasW = await page.evaluate(() => {
-      const c = document.querySelector(
-        "canvas.clip-waveform",
-      ) as HTMLCanvasElement | null;
-      return c?.getBoundingClientRect().width ?? 0;
-    });
-    const viewW = await page.evaluate(() => {
-      const el = document.querySelector(
-        ".timeline-scroll",
-      ) as HTMLElement | null;
-      return el?.clientWidth ?? 0;
-    });
-    expect(canvasW).toBeGreaterThan(0);
-    expect(viewW).toBeGreaterThan(0);
-    expect(canvasW).toBeLessThanOrEqual(
-      viewW + thresholds.canvas_overscan_slop_px,
-    );
-    expect(rangeAudio.fullFile).toBe(0);
+    expect(seen.tiles.length).toBeGreaterThan(0);
+    for (const { bytes } of seen.tiles) {
+      expect(bytes).toBeLessThanOrEqual(thresholds.max_tile_response_bytes);
+    }
+    expect(seen.audioWindows).toBe(0);
+    expect(seen.fullAudio).toBe(0);
   });
 
-  test("guest share overview stays overview-sized (no finest JSON)", async ({
-    page,
+  test("guest share draws tiles through the share route, with no PCM", async ({
+    browser,
   }) => {
-    const tokens = loadGuestTokens();
-    test.skip(
-      !tokens,
-      "Guest tokens from scripts/ux_demo_prepare_shares.py; pytest covers guest HTTP",
-    );
+    await withShareableProject(async (projectPath) => {
+      const hostContext = await browser.newContext();
+      const guestContext = await browser.newContext();
+      try {
+        const host = await hostContext.newPage();
+        await openHostShare(host, projectPath);
+        const created = await host.request.post("/api/shares", {
+          data: { path: projectPath, role: "viewer" },
+        });
+        expect(created.ok(), await created.text()).toBeTruthy();
+        const { share } = (await created.json()) as {
+          share: { token: string };
+        };
 
-    let hostWavRange = 0;
-    page.on("response", (res) => {
-      if (
-        res.url().includes("/api/audio") &&
-        !res.url().includes("/api/review/")
-      ) {
-        hostWavRange += 1;
+        const guest = await guestContext.newPage();
+        const seen = watchWaveformTraffic(guest);
+        await openGuestShare(guest, share.token);
+        await expectPaintedWaveformTile(guest);
+        expect(
+          seen.tiles.some((t) =>
+            t.url.includes(`/api/review/${share.token}/daw/waveform/tiles/`),
+          ),
+        ).toBe(true);
+        expect(seen.tiles.every((t) => t.url.includes("/api/review/"))).toBe(
+          true,
+        );
+        expect(seen.pcm).toBe(0);
+        expect(seen.audioWindows).toBe(0);
+      } finally {
+        await guestContext.close();
+        await hostContext.close();
       }
     });
-    await page.goto(`/r/${tokens!.daw_guest.token}`);
-    await expect(page.locator(".daw-shell-guest")).toBeVisible({
-      timeout: 30_000,
-    });
-    const peaksRes = await page.request.get(
-      `/api/review/${tokens!.daw_guest.token}/daw/peaks/reference`,
-    );
-    expect(peaksRes.ok()).toBe(true);
-    const peakBody = await peaksRes.body();
-    expect(peakBody.byteLength).toBeGreaterThan(0);
-    expect(peakBody.byteLength).toBeLessThanOrEqual(
-      thresholds.max_overview_bytes,
-    );
-    expect(hostWavRange).toBe(0);
   });
 });

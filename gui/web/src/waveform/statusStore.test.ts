@@ -28,6 +28,8 @@ vi.mock("../api", async (importOriginal) => ({
 
 const {
   getWaveformStatusEntry,
+  laneWaveformStatus,
+  useLaneWaveformStatus,
   noteWaveformTileMissing,
   onWaveformReady,
   refreshWaveformStatus,
@@ -222,5 +224,42 @@ describe("statusStore", () => {
     const none = renderHook(() => useWaveformStatus("", "raw", null));
     expect(none.result.current).toBeNull();
     expect(loads).toHaveLength(0);
+  });
+
+  it("lane status follows every ref a lane draws", async () => {
+    const { result } = renderHook(() =>
+      useLaneWaveformStatus(P, "stem:a\ntrack:b"),
+    );
+    expect(result.current).toBe("idle");
+    // One poll per kind.
+    expect(loads.map((l) => l.kind).sort()).toEqual(["raw", "stem"]);
+    await act(async () => {
+      for (const l of loads.splice(0)) {
+        l.resolve(
+          status(
+            l.kind === "stem"
+              ? { "stem:a": { status: "generating" } }
+              : { "track:b": { status: "unavailable", reason: "no-media" } },
+          ),
+        );
+      }
+      await flush();
+    });
+    expect(result.current).toBe("generating");
+    expect(renderHook(() => useLaneWaveformStatus(P, "")).result.current).toBe(
+      "idle",
+    );
+  });
+});
+
+describe("laneWaveformStatus", () => {
+  const gen = { status: "generating" as const };
+  const gone = { status: "unavailable" as const };
+  it("is generating, ready, idle or unavailable", () => {
+    expect(laneWaveformStatus([])).toBe("idle");
+    expect(laneWaveformStatus([ready("a".repeat(20)), gen])).toBe("generating");
+    expect(laneWaveformStatus([ready("a".repeat(20)), gone])).toBe("ready");
+    expect(laneWaveformStatus([gone, null])).toBe("idle");
+    expect(laneWaveformStatus([gone, gone])).toBe("unavailable");
   });
 });

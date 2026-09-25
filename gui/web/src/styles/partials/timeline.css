@@ -101,13 +101,23 @@
   opacity: 0.92;
 }
 
+/* The waveform layer covers the clip's border box (1px past its padding box
+   each side), so waveform x matches ruler x. */
 .clip-waveform {
   position: absolute;
   top: 0;
+  bottom: 0;
+  left: -1px;
+  right: -1px;
   z-index: 1;
-  height: 100%;
+  overflow: hidden;
   pointer-events: none;
-  opacity: 1;
+}
+
+.clip-waveform-tile {
+  position: absolute;
+  top: 0;
+  height: 100%;
 }
 
 .clip-waveform-overlays {
@@ -277,13 +287,6 @@
   background: var(--color-overlay-white-10);
   border-left: 1px dashed var(--color-timeline-text);
   z-index: 2;
-}
-
-.clip-trim-ghost-canvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
 }
 
 .join-diamond {
@@ -686,7 +689,7 @@ button.join-diamond {
   min-width: 2rem;
 }
 
-.lane-peaks-status {
+.lane-waveform-status {
   position: absolute;
   z-index: 5;
   left: var(--space-3);

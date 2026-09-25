@@ -1,10 +1,4 @@
 import { create } from "zustand";
-import {
-  abortStaleWaveformWork,
-  getWaveformTileLru,
-  noteWaveformScrollDir,
-} from "../audio/waveformScheduler";
-import { clearWavHeaderCache } from "../audio/waveformSource";
 import { cssViewportWidth } from "../hooks/useViewportClass";
 import { selectionFromWire, selectionToWire } from "../session/wire";
 import { guestHearsMixOnly } from "../shareMode";
@@ -389,12 +383,7 @@ export const useDawStore = create<DawStore>((set, get) => ({
   _timelineEl: null,
   _timelineLeadPx: 0,
   _lanesEl: null,
-  setZoomPxPerSec: (zoomPxPerSec) => {
-    if (zoomPxPerSec !== get().zoomPxPerSec) {
-      abortStaleWaveformWork();
-    }
-    set({ zoomPxPerSec });
-  },
+  setZoomPxPerSec: (zoomPxPerSec) => set({ zoomPxPerSec }),
   setWaveformAmpZoom: (waveformAmpZoom) =>
     set({ waveformAmpZoom: clampWaveformAmp(waveformAmpZoom) }),
   nudgeWaveformAmp: (direction) => {
@@ -409,15 +398,7 @@ export const useDawStore = create<DawStore>((set, get) => ({
       ),
     });
   },
-  setScrollLeft: (scrollLeft) => {
-    const prev = get().scrollLeft;
-    if (scrollLeft > prev + 1) {
-      noteWaveformScrollDir(1);
-    } else if (scrollLeft < prev - 1) {
-      noteWaveformScrollDir(-1);
-    }
-    set({ scrollLeft });
-  },
+  setScrollLeft: (scrollLeft) => set({ scrollLeft }),
   setSelection: (selection) =>
     set((s) => {
       if (selection == null || selection.kind !== "clip") {
@@ -497,9 +478,6 @@ export const useDawStore = create<DawStore>((set, get) => ({
     const el = get()._timelineEl;
     const currentZoom = get().zoomPxPerSec;
     const z = clampZoomPxPerSec(nextZoom);
-    if (z !== currentZoom) {
-      abortStaleWaveformWork();
-    }
     if (!el) {
       set({ zoomPxPerSec: z, userZoomed: true });
       return;
@@ -699,7 +677,6 @@ export const useDawStore = create<DawStore>((set, get) => ({
   fitToWindow: (viewportWidth) => {
     const duration = get().project?.timeline_duration_sec ?? 60;
     if (duration > 0 && viewportWidth > 0) {
-      abortStaleWaveformWork();
       const zoom = fitZoomPxPerSec(viewportWidth, duration);
       // A fixed playhead stays on the line through a fit.
       const scrollLeft =
@@ -725,9 +702,6 @@ export const useDawStore = create<DawStore>((set, get) => ({
     guestMode = null,
     shareCapabilities = null,
   ) => {
-    abortStaleWaveformWork();
-    getWaveformTileLru().clear();
-    clearWavHeaderCache();
     const samePath = get().projectPath === projectPath;
     set({
       projectPath,

@@ -12,6 +12,7 @@ import { e2eProjectPath } from "./env";
 import { settleAnimations } from "./motion";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { setTheme } from "./theme";
+import { waitForWaveformsSettled } from "./waveformHook";
 
 // Contexts opened from the worker-scoped browser (capture test); closed here
 // so a timeout never leaves a page connected to the shared e2e project.
@@ -470,6 +471,9 @@ test("stage edges dim the lane floor at both ends, never a clip (#387)", async (
   await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
   await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
   await expect(page.locator(".lane-row .clip-block").first()).toBeVisible();
+  // The on-clip sample sits on the waveform: let every tile land first, so
+  // the two screenshots differ only by the edges.
+  await waitForWaveformsSettled(page);
   const boxes = await page.evaluate(() => {
     const box = (selector: string) => {
       const r = (
@@ -605,7 +609,7 @@ test("capture issue 20 review views", async ({ browser }) => {
       await expect
         .poll(async () =>
           desktop
-            .locator("canvas.clip-waveform")
+            .locator("canvas.clip-waveform-tile")
             .first()
             .evaluate((canvas) => {
               const surface = canvas as HTMLCanvasElement;
