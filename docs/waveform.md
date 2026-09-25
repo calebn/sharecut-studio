@@ -259,12 +259,13 @@ file through `source_id` gets its own `source:` ref, whose key matches the
   pyramids whose ref slug is no longer listed and that are older than 7 days
   (per-ref pruning never reaches deleted refs), plus legacy
   `artifacts/peaks/*.json` overview files older than 7 days (an older app build
-  may still write them, and a guest status poll can trigger the pass). A failed pass is retried on a
-  later status call and never fails the status request.
-- **Social clip energy:** `ClipService.propose` first builds any missing `track:<id>`
-  pyramids inline with `ensure_project_waveforms(project, sources=False)` (clip-source refs are not built here), so the ranking does not depend
-  on background builds. `clips/social.py` then reads each track's pyramid once
-  per call through `engines/waveform_media.track_pyramid` and
+  may still write them, and a guest status poll can trigger the pass). A failed
+  pass is retried on a later status call and never fails the status request.
+- **Social clip energy:** `ClipService.propose` first builds any missing
+  `track:<id>` pyramids inline with
+  `ensure_project_waveforms(project, sources=False)` (clip-source refs are not
+  built here), so the ranking does not depend on background builds.
+  `clips/social.py` then reads each track's pyramid once per call through `engines/waveform_media.track_pyramid` and
   `engines/waveform_pyramid.pyramid_peak`, at the coarsest level with
   `spp ≤ sample_rate / 16`. It never builds itself and falls back to 0.5 when
   no pyramid is readable.
