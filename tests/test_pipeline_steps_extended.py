@@ -546,10 +546,14 @@ def test_balance_tracks_skips_when_loudness_missing(minimal_project, sample_wav,
 def test_render_stems_skips_track_without_media(minimal_project, sample_wav, tmp_workspace):
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     proj.track_by_id("bed").media = None
-    with patch("podcast_mcp.pipeline.steps.ffmpeg") as ff:
+    with (
+        patch("podcast_mcp.pipeline.steps.ffmpeg") as ff,
+        patch("podcast_mcp.pipeline.steps.schedule_stem_waveforms") as waveforms,
+    ):
         ff.return_value.render_dialogue_track = MagicMock()
         steps.assemble_timeline(proj, load_defaults())
     assert ff.return_value.render_dialogue_track.call_count == 1
+    assert waveforms.call_args.args[1] == ["host"]
 
 
 def test_mix_with_music_skips_music_without_media(minimal_project, sample_wav, tmp_workspace):

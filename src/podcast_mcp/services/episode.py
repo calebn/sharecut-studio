@@ -12,6 +12,7 @@ from podcast_mcp.edits.track_media import (
 from podcast_mcp.engines.peaks import schedule_track_peaks
 from podcast_mcp.engines.render_invalidations import record_invalidation
 from podcast_mcp.models import FADER_MAX_DB, FADER_MIN_DB, Track, TrackRole
+from podcast_mcp.services.waveform import schedule_track_waveforms
 from podcast_mcp.services.workspace import ProjectWorkspace
 
 
@@ -56,6 +57,7 @@ class EpisodeService:
         track = self.ws.project.track_by_id(track_id)
         if track is not None:
             schedule_track_peaks(self.ws.project, track)
+            schedule_track_waveforms(self.ws.project, track)
         return f"Added track {track_id}"
 
     def add_empty_track(
@@ -115,6 +117,7 @@ class EpisodeService:
         track = self.ws.project.track_by_id(track_id)
         assert track is not None and track.media is not None
         schedule_track_peaks(self.ws.project, track)
+        schedule_track_waveforms(self.ws.project, track)
         return {
             "track_id": track_id,
             "media_path": track.media.path,

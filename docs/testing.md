@@ -338,6 +338,12 @@ DAW_E2E_PROJECT="$tmp_dir/project/episode.project.json" \
   npm --prefix gui/web run test:e2e -- large-project.spec.ts
 ```
 
+`--tracks N` (default 2) adds dialogue tracks `t2…` (media and clips, no
+transcripts; `--clips` must divide evenly). `--waveform synthetic|silent`
+(default `synthetic`) writes each track's `.wfpk` pyramid under the key the
+viewer asks for, without decoding: a speech-like envelope, or all zeros. The
+sparse WAVs are silent either way.
+
 Keep the `large-project.spec.ts` file filter: `DAW_E2E_PROJECT` applies to the
 whole Playwright run, so every other spec would otherwise run against the
 benchmark project and fail. The spec skips unless `DAW_BENCHMARK_PROJECT` is

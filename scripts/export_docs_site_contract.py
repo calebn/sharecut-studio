@@ -41,6 +41,14 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
     ("GET", "/api/review/{token}/daw/project"): ("view", "Sanitized ProjectView (no host paths)"),
     ("GET", "/api/review/{token}/daw/meta"): ("view", "mtime/size for poll reload"),
     ("GET", "/api/review/{token}/daw/peaks/{track_id}"): ("view", "Uint8 overview waveform"),
+    ("GET", "/api/review/{token}/daw/waveform/status"): (
+        "view",
+        "Waveform pyramid status (raw media)",
+    ),
+    ("GET", "/api/review/{token}/daw/waveform/tiles/{key}"): (
+        "view",
+        "Binary min/max/RMS pyramid tiles",
+    ),
     ("GET", "/api/review/{token}/daw/waveform-snap"): (
         "suggest or edit",
         "Windowed snap ticks; view-only gets wash only",
@@ -128,6 +136,12 @@ _ROUTE_AGENT: dict[tuple[str, str], str] = {
     ("GET", "/api/review/{token}/daw/meta"): "http-only: poll mtime for Sharecut Studio reload",
     ("GET", "/api/review/{token}/daw/peaks/{track_id}"): (
         "http-only: Sharecut Studio peaks; agents use guest_audition_context"
+    ),
+    ("GET", "/api/review/{token}/daw/waveform/status"): (
+        "http-only: Sharecut Studio waveform; agents use guest_audition_context"
+    ),
+    ("GET", "/api/review/{token}/daw/waveform/tiles/{key}"): (
+        "http-only: Sharecut Studio waveform; agents use guest_audition_context"
     ),
     ("GET", "/api/review/{token}/daw/waveform-snap"): (
         "http-only: Sharecut Studio snap ticks; not a named MCP tool"

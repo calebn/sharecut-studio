@@ -51,6 +51,8 @@ using MCP/WS; REST `/comments*` remains for ReviewApp-style clients.
 | `GET` | `…/daw/proxy/{track_id}/{proxy_hash}/{chunk_idx}` | `play` | Content-addressed proxy media |
 | `POST` | `…/daw/render-preview` | `edit` | Rebuild stems/premix (opt-in PODCAST_GUEST_RENDER) |
 | `GET` | `…/daw/waveform-snap` | `suggest or edit` | Windowed snap ticks; view-only gets wash only |
+| `GET` | `…/daw/waveform/status` | `view` | Waveform pyramid status (raw media) |
+| `GET` | `…/daw/waveform/tiles/{key}` | `view` | Binary min/max/RMS pyramid tiles |
 | `WEBSOCKET` | `…/daw/ws` | `view` | Receive-only session+document fanout (progress plane too) |
 | `GET` | `…/features` | `view` | Extension / feature manifest |
 | `WEBSOCKET` | `…/progress/ws` | `token` | Guest-initiated progress plane for ReviewApp (no view cap, no host paths) |

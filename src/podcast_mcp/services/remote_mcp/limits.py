@@ -180,7 +180,12 @@ def classify_review_request(http_method: str, path: str) -> str:
     p = path
     if method == "POST":
         return "mutate"
-    if "/audio" in p or "/pending-preview" in p or "/audition-context" in p:
+    if (
+        "/audio" in p
+        or "/pending-preview" in p
+        or "/audition-context" in p
+        or "/daw/waveform/tiles/" in p
+    ):
         return "audio"
     return "read"
 

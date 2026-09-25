@@ -323,11 +323,15 @@ def test_play_follow_transcript_mix(minimal_project, sample_wav) -> None:
 
 def test_play_ensure_stem(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
-    with patch("podcast_mcp.engines.ffmpeg.FFmpegEngine") as eng_cls:
+    with (
+        patch("podcast_mcp.engines.ffmpeg.FFmpegEngine") as eng_cls,
+        patch("podcast_mcp.services.play.schedule_stem_waveforms") as waveforms,
+    ):
         eng_cls.return_value.render_dialogue_track = MagicMock()
         stem = PlayService(ws).ensure_stem("host")
     assert stem.suffix == ".wav"
     eng_cls.return_value.render_dialogue_track.assert_called_once()
+    assert waveforms.call_args.args[1] == ["host"]
 
 
 def test_play_player_command_override(minimal_project, sample_wav) -> None:

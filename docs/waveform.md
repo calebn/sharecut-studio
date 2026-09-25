@@ -7,14 +7,12 @@ The engine lives in
 and its knobs live in the `waveform` block of
 [`contracts/timeline-zoom.json`](../contracts/timeline-zoom.json).
 
-> **Status:** the engine (format, build, decode, I/O and job pool) is in place,
-> but nothing calls it yet. The viewer still paints from the legacy overview JSON
+> **Status:** the engine (format, build, decode, I/O and job pool) and the
+> HTTP API (status, tiles, PCM windows; host and guest) are in place. The
+> viewer still paints from the legacy overview JSON
 > (`artifacts/peaks/{track}.json`, [gui-integration.md § Waveforms](gui-integration.md))
-> until the pyramid is served and rendered. The rest of #429 lands in stacked PRs:
+> until the pyramid renderer lands (#429). The rest of #429 lands in stacked PRs:
 >
-> - #440 (part 2) serves pyramids from `services/waveform.py`. It adds the
->   `.wfpk` store to [persistence.md](persistence.md) and the HTTP routes to
->   [gui-integration.md § Waveforms](gui-integration.md).
 > - #444 (part 6) moves `gui/web/src/timeline/quietWash.ts` off its local
 >   `QUIET_AMP` / `MIN_DURATION_SEC` onto the generated `QUIET_*` constants.
 > - #446 (part 8) wires `effectiveMaxZoomPxPerSec` / `MAX_CONTENT_PX` into
@@ -202,3 +200,76 @@ because ffmpeg counts it in decoder packets, not samples.
     at `atexit`.
   - `build_pyramid(...)` is the synchronous build. It runs inside
     `progress_task("waveform.build", …)`.
+
+## Media refs and status
+
+A **media ref** names one media file the viewer draws
+([`engines/waveform_media.py`](../src/podcast_mcp/engines/waveform_media.py)):
+
+| Ref | Source | Listed when | Kind |
+| --- | --- | --- | --- |
+| `track:<id>` | `track.media` | The track has media | `raw` |
+| `source:<id>` | `project.sources[]`, resolved like `engines/timeline_render.resolve_clip_audio_path` | At least one clip references it | `raw` |
+| `stem:<id>` | `artifacts/tracks/<id>.wav` | `stem_is_fresh(project, id)`; ids must match `SAFE_TRACK_ID` | `stem` |
+
+Paths stay under the workspace (`resolve_under_workspace` / `resolve_within`);
+a ref whose path escapes is skipped. A cross-lane clip that pins another lane's
+file through `source_id` gets its own `source:` ref, whose key matches the
+`track:` ref of the same file, so its pyramid is hard-linked instead of rebuilt.
+
+[`services/waveform.py`](../src/podcast_mcp/services/waveform.py) adds:
+
+- **`media_index(project_path)`:** the refs of one project, cached in an LRU
+  of 16 keyed by the project JSON's `file_revision` and the mtime of
+  `artifacts/tracks` (stem renders do not touch the project JSON). A parse is
+  cached only when the revision is the same before and after it. Keys are
+  recomputed with `stat()` on every call, so media edits that do not touch the
+  project JSON still change the key.
+- **`waveform_status(project_path, kind)`:** `{"format_version": 1, "media": {ref: entry}}`.
+
+  | State | Entry |
+  | --- | --- |
+  | Ready | `{"status": "ready", "key", "sample_rate", "channels", "total_frames", "base_spp", "level_factor", "bins_per_tile", "levels": [{"spp", "bins"}]}` |
+  | Building | `{"status": "generating"}` (a missing pyramid that is not pending is queued) |
+  | Failed | `{"status": "unavailable", "reason": "no-media" \| "decode-failed" \| "unsafe-id"}` |
+
+  A pending build is checked before the file (#421). A pyramid that fails
+  `read_meta` is deleted and rebuilt. `read_meta` results are cached per key.
+- **Hooks** (engine functions, re-exported by the service):
+  `schedule_track_waveforms(project, track)` queues the track ref plus the
+  source refs of that track's clips; `ensure_track_waveforms(project, track)`
+  builds them inline and returns how many are on disk;
+  `schedule_stem_waveforms(project, track_ids)` queues just-rendered stems.
+  They run after `add_track`, `set_track_media`, ingest consolidate, record
+  landing, stem renders (`_render_track_stems`) and `PlayService.ensure_stem`.
+- **`gc_pyramids(project_path)`:** once per process per project, deletes
+  pyramids whose ref slug is no longer listed and that are older than 7 days
+  (per-ref pruning never reaches deleted refs).
+
+## API
+
+Host routes ([`gui/routes/waveform.py`](../src/podcast_mcp/gui/routes/waveform.py))
+need the host role (`require_host`) and a project path (`resolve_project`);
+`/api/waveform` is a host-binding protected prefix.
+
+| Route | Response | Rules |
+| --- | --- | --- |
+| `GET /api/waveform/status?path=&kind=raw\|stem` | JSON | `Cache-Control: no-store` |
+| `GET /api/waveform/tiles/{key}?path=&ref=&level=&start=&count=` | octet-stream: the concatenated bins of data tiles `[start, start+count)`, clipped at the end of the level | Validates the ref grammar, `key` (`^[0-9a-f]{20}$`), that the file exists, the level, `start`, and `1 ≤ count ≤ max_tiles_per_request`. No index and no project parse. `Cache-Control: private, max-age=31536000, immutable`, `ETag: "{key}-{level}-{start}-{count}"` |
+| `GET /api/waveform/pcm/{key}?path=&ref=&block=` | octet-stream: int16 `(min, max)` pairs for frames `[block·B, min((block+1)·B, total))`, `B = pcm_block_frames` | **409** when `key` is not the ref's current key. Immutable, `ETag: "{key}-pcm-{block}"` |
+
+Errors map bad input to 400, missing refs or pyramids to 404 and stale keys to
+409, and always send `Cache-Control: no-store`. Tile bytes are
+`i16 min, i16 max, i16 rms` per bin, as in the file.
+
+Guest routes (`gui/routes/review_share.py`, services
+`share_daw_waveform_status` / `share_daw_waveform_tiles` in
+`services/share.py`) need the `view` capability and only cover `kind=raw`:
+
+- `GET /api/review/{token}/daw/waveform/status`: read rate class.
+- `GET /api/review/{token}/daw/waveform/tiles/{key}?ref=&level=&start=&count=`:
+  only `track:` / `source:` refs, and only the ref's live key (404 otherwise).
+  Audio rate class on the relay and the host (no RPM; the response holds an
+  audio concurrency slot).
+
+There is **never** a guest PCM route: raw samples never go to guests.

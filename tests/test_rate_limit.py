@@ -97,6 +97,8 @@ def test_classify_mcp_and_review():
     assert classify_review_request("GET", "/api/review/t/daw/pending-preview") == "audio"
     assert classify_review_request("GET", "/api/review/t/daw/audition-context") == "audio"
     assert classify_review_request("GET", "/api/review/t/daw/audition-context-image") == "audio"
+    assert classify_review_request("GET", "/api/review/t/daw/waveform/tiles/abc") == "audio"
+    assert classify_review_request("GET", "/api/review/t/daw/waveform/status") == "read"
 
 
 def test_is_audio_path():
@@ -106,6 +108,8 @@ def test_is_audio_path():
     assert is_audio_path("api/review/tok/daw/pending-preview-image")
     assert is_audio_path("api/review/tok/daw/audition-context")
     assert is_audio_path("api/review/tok/daw/audition-context-image")
+    assert is_audio_path("api/review/tok/daw/waveform/tiles/0123456789abcdef0123?ref=track:a")
+    assert not is_audio_path("api/review/tok/daw/waveform/status")
     assert not is_audio_path("api/review/tok/daw/meta")
     assert not is_audio_path("mcp/tok/mcp")
 

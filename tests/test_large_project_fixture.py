@@ -125,6 +125,9 @@ def test_large_project_fixture_default_two_hour_shape(tmp_path):
         ({"duration": 50_000}, "too long"),
         ({"duration": 1, "clip_count": 2_000}, "too many clips"),
         ({"duration": 10, "utterance_count": 100_000}, "too many utterances"),
+        ({"track_count": 1}, "at least 2"),
+        ({"waveform": "loud"}, "waveform must be"),
+        ({"clip_count": 4, "track_count": 3}, "divisible"),
     ],
 )
 def test_large_project_fixture_rejects_invalid_arguments(tmp_path, kwargs, match):
@@ -156,3 +159,48 @@ def test_large_project_fixture_removes_staging_on_failure(tmp_path, monkeypatch)
     with pytest.raises(OSError, match="disk full"):
         builder.build_project(tmp_path / "partial", duration=10, clip_count=2, utterance_count=2)
     assert list(tmp_path.iterdir()) == []
+
+
+def _pyramids(workspace: Path) -> dict[str, Path]:
+    return {
+        path.name.split(".")[0]: path for path in (workspace / "artifacts" / "peaks").glob("*.wfpk")
+    }
+
+
+def test_large_project_fixture_extra_tracks_and_synthetic_waveforms(tmp_path):
+    from podcast_mcp.engines.waveform_pyramid import read_bins, read_meta
+    from podcast_mcp.services.waveform import media_index, waveform_status
+
+    project_path = _load_fixture_builder().build_project(
+        tmp_path / "wide", duration=30, clip_count=30, utterance_count=10, track_count=3
+    )
+    project = load_project(project_path)
+    assert [t.id for t in project.timeline.tracks] == ["reference", "guest", "t2"]
+    t2 = project.track_by_id("t2")
+    assert t2 is not None and t2.media is not None and t2.media.duration_sec == 30
+    assert sum(1 for clip in project.timeline.clips if clip.track_id == "t2") == 10
+    assert {t.track_id for t in project.transcript_data.per_track} == {"reference", "guest"}
+
+    pyramids = _pyramids(project_path.parent)
+    assert set(pyramids) == {"track-reference", "track-guest", "track-t2"}
+    for path in pyramids.values():
+        meta = read_meta(path)
+        assert meta.total_frames == 30 * 48_000
+        assert any(read_bins(path, meta, 0, 0, meta.levels[0].bins))
+    # The pyramids sit under the keys the viewer asks for, so status is ready at once.
+    index = media_index(project_path)
+    status = waveform_status(project_path, "raw")["media"]
+    for ref in ("track:reference", "track:guest", "track:t2"):
+        assert ref in index.refs
+        assert status[ref]["status"] == "ready"
+
+
+def test_large_project_fixture_silent_waveforms(tmp_path):
+    from podcast_mcp.engines.waveform_pyramid import read_bins, read_meta
+
+    project_path = _load_fixture_builder().build_project(
+        tmp_path / "quiet", duration=10, clip_count=2, utterance_count=2, waveform="silent"
+    )
+    for path in _pyramids(project_path.parent).values():
+        meta = read_meta(path)
+        assert not any(read_bins(path, meta, 0, 0, meta.levels[0].bins))

@@ -227,6 +227,16 @@ Zoom knobs live in [`contracts/timeline-zoom.json`](../contracts/timeline-zoom.j
 | **Paint** | Viewport + overscan canvases, range-max downsample, rAF, skip late frames / offscreen clips; one pending paint per canvas (main + trim ghost). Clips re-render on every playhead tick, so a canvas repaints only when its paint key changes (source window and width, peaks / tile identity, amp zoom, DPR, lane height, lane colour, theme), and its backing store is reallocated only when its pixel size changes. Peaks take a gradient tinted from the clip's lane colour, resolved once per (lane colour, theme) in `timeline/waveformTheme.ts`; a theme flip (Theme menu or OS scheme under System) repaints. **Shift+ArrowUp/Down** amplitude-zoom at paint (`view.waveformZoomIn` / `Out`). |
 | **Snap overlay** | Quiet wash from visible uint8 tiles; ticks from `GET /api/waveform-snap` (`EditService.waveform_snap_window` → `preview_inaudible_cut` + windowed islands). Magnet for blade/trim. View-only guests get wash only. Theme: `--color-waveform-quiet`, `--color-waveform-snap`. |
 
+**Waveform pyramids (served; renderer pending, #429).** Alongside the overview JSON above, the host builds a `.wfpk` min/max/RMS peak pyramid per media file ([waveform.md](waveform.md)) when tracks are added, re-pointed, ingested, landed, or stems render. The viewer does not paint from it yet; these routes are live for the upcoming renderer:
+
+| Route | Response | Notes |
+|-------|----------|-------|
+| `GET /api/waveform/status?path=&kind=raw\|stem` | JSON `{format_version, media: {ref: entry}}` | `ready` (key, sample rate, channels, frames, level table) / `generating` / `unavailable` (`no-media`, `decode-failed`, `unsafe-id`); missing pyramids are queued. `no-store` |
+| `GET /api/waveform/tiles/{key}?path=&ref=&level=&start=&count=` | octet-stream | Concatenated bins of data tiles `[start, start+count)` (1–16), clipped at the level end; no project parse. Immutable + `ETag` |
+| `GET /api/waveform/pcm/{key}?path=&ref=&block=` | octet-stream | Host only: int16 `(min, max)` per frame for one 65,536-frame block; **409** when `key` is not the ref's current key. Immutable |
+
+Errors send `Cache-Control: no-store`. Guests get raw-media status and tiles under `/api/review/{token}/daw/waveform/…` ([host-online-relay.md § Guest Sharecut Studio APIs](host-online-relay.md#guest-sharecut-studio-apis-token-scoped)).
+
 Waveforms never block play, seek, edit, scroll, or `add_track`. The viewer polls `usePeaks`/`GET /api/peaks` (capped backoff: 1 s doubling to a 10 s ceiling, for as long as the server answers `generating: true`; only `generating: false` settles on unavailable) rather than a push channel; `TrackLane` shows a "Generating waveform…"/"Waveform unavailable" hint (`.lane-peaks-status`, `data-peaks-status`) while it waits. Full job/SSE fan-in for peaks stays on the ROADMAP.
 
 **Budgets (CI):** Vitest 2–3 hour synthetic clip geometry (`drawWaveform.test.ts`); pytest `add_track` returns before peaks (`test_episode_service_add_track_returns_before_peaks`); Playwright `e2e/waveform.spec.ts` (overview byte size, no full-file WAV, canvas ≈ viewport). Guest overview payload is the same uint8 file (`share_daw_peaks` / `test_guest_peaks_are_overview_not_coarsened`); view-only guests cannot fetch snap ticks.
