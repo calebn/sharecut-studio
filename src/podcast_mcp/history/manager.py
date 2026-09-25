@@ -10,6 +10,7 @@ from podcast_mcp.models.history import HistoryEntry, ProjectHistory, ProjectStat
 from podcast_mcp.models.project_format import apply_editable_snapshot, snapshot_editable_state
 from podcast_mcp.project_store import ProjectStore
 from podcast_mcp.util.atomic_json import write_json_atomic
+from podcast_mcp.util.project_state import project_commit_lock
 
 EDITABLE_FIELDS: tuple[str, ...] = tuple(ProjectStateSnapshot.model_fields.keys())
 
@@ -85,6 +86,32 @@ class HistoryManager:
         operation: str | None = None,
         params: dict | None = None,
     ) -> HistoryEntry:
+        with project_commit_lock(project):
+            return self._record_locked(
+                project, label, force=force, operation=operation, params=params
+            )
+
+    def undo(self, project: EpisodeProject) -> HistoryStatus:
+        with project_commit_lock(project):
+            return self._undo_locked(project)
+
+    def redo(self, project: EpisodeProject) -> HistoryStatus:
+        with project_commit_lock(project):
+            return self._redo_locked(project)
+
+    def goto(self, project: EpisodeProject, index: int) -> HistoryStatus:
+        with project_commit_lock(project):
+            return self._goto_locked(project, index)
+
+    def _record_locked(
+        self,
+        project: EpisodeProject,
+        label: str,
+        *,
+        force: bool = False,
+        operation: str | None = None,
+        params: dict | None = None,
+    ) -> HistoryEntry:
         history = self._load_index(project)
         snap = snapshot_from_project(project)
 
@@ -112,7 +139,7 @@ class HistoryManager:
         self._save_index(project)
         return entry
 
-    def undo(self, project: EpisodeProject) -> HistoryStatus:
+    def _undo_locked(self, project: EpisodeProject) -> HistoryStatus:
         history = self._load_index(project)
         if not history.can_undo():
             raise ValueError("Nothing to undo")
@@ -124,7 +151,7 @@ class HistoryManager:
         self._store.commit(project)
         return self.status(project)
 
-    def redo(self, project: EpisodeProject) -> HistoryStatus:
+    def _redo_locked(self, project: EpisodeProject) -> HistoryStatus:
         history = self._load_index(project)
         if not history.can_redo():
             raise ValueError("Nothing to redo")
@@ -136,7 +163,7 @@ class HistoryManager:
         self._store.commit(project)
         return self.status(project)
 
-    def goto(self, project: EpisodeProject, index: int) -> HistoryStatus:
+    def _goto_locked(self, project: EpisodeProject, index: int) -> HistoryStatus:
         history = self._load_index(project)
         if index < 0 or index >= len(history.entries):
             raise ValueError(f"History index out of range: {index}")
@@ -174,6 +201,7 @@ def record_if_changed(
     store = ProjectStore(project_path)
     project = store.load()
     mgr = HistoryManager(project_path)
-    entry = mgr.record(project, label, force=force)
-    store.commit(project)
+    with project_commit_lock(project):
+        entry = mgr.record(project, label, force=force)
+        store.commit(project)
     return entry

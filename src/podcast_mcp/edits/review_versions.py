@@ -323,16 +323,17 @@ def encode_version_mp3(
     return mp3_path.resolve()
 
 
-def publish_version(
+def stage_version(
     project: EpisodeProject,
     *,
     label: str,
     prefer: str = "premix",
-    set_active: bool = True,
     eng: FFmpegEngine | None = None,
     on_media_created: Callable[[Path, DirectoryIdentity], None] | None = None,
 ) -> ReviewMixVersion:
     """Copy current premix/mastered into artifacts/review/{id}/mix.wav (+ mix.mp3).
+
+    Creates media only; ``project.review`` is untouched until ``attach_version``.
 
     ``on_media_created(version_dir, identity)`` receives the identity recorded once
     at creation so callers clean up the same directory this call made.
@@ -378,10 +379,33 @@ def publish_version(
                 "Could not remove failed review version directory %s", version_dir, exc_info=True
             )
         raise
+    return ver
+
+
+def attach_version(
+    project: EpisodeProject, ver: ReviewMixVersion, *, set_active: bool = True
+) -> ReviewMixVersion:
+    """Record a staged version on the project (and optionally make it active)."""
     project.review.versions.append(ver)
     if set_active:
-        project.review.active_version_id = vid
+        project.review.active_version_id = ver.id
     return ver
+
+
+def publish_version(
+    project: EpisodeProject,
+    *,
+    label: str,
+    prefer: str = "premix",
+    set_active: bool = True,
+    eng: FFmpegEngine | None = None,
+    on_media_created: Callable[[Path, DirectoryIdentity], None] | None = None,
+) -> ReviewMixVersion:
+    """Stage media, then attach it to the project."""
+    ver = stage_version(
+        project, label=label, prefer=prefer, eng=eng, on_media_created=on_media_created
+    )
+    return attach_version(project, ver, set_active=set_active)
 
 
 def set_active_version(

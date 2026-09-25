@@ -16,11 +16,13 @@ from podcast_mcp.edits import review_versions
 from podcast_mcp.edits.comments import add_comment
 from podcast_mcp.edits.review_versions import (
     REVIEW_ARTIFACTS_RELDIR,
+    attach_version,
     encode_version_mp3,
     get_version,
     publish_version,
     resolve_source_mix,
     review_artifacts_dir,
+    stage_version,
     version_audio_path,
     version_mp3_path,
 )
@@ -440,7 +442,7 @@ def test_service_cleanup_uses_identity_recorded_at_creation(
     (art / "premix.wav").write_bytes(sample_wav.read_bytes())
     review_root = art / "review"
     monkeypatch.setattr(review_versions, "_new_id", lambda: "swap")
-    real_publish = review_service.publish_version
+    real_publish = review_service.stage_version
 
     def swapping_publish(p, *, on_media_created=None, **kwargs):
         def swap_then_notify(path, identity):
@@ -452,7 +454,7 @@ def test_service_cleanup_uses_identity_recorded_at_creation(
 
         return real_publish(p, on_media_created=swap_then_notify, **kwargs)
 
-    monkeypatch.setattr(review_service, "publish_version", swapping_publish)
+    monkeypatch.setattr(review_service, "stage_version", swapping_publish)
     monkeypatch.setattr(
         review_versions.FFmpegEngine,
         "export_mp3",
@@ -1219,3 +1221,37 @@ def test_publish_mastered_refuses_a_stale_premix_even_with_a_fresh_master(
     with pytest.raises(ValueError, match="any master built from it"):
         ReviewService(ws).publish(label="m", prefer="mastered")
     assert load_project(minimal_project).review.versions == []
+
+
+def _premix_project(minimal_project, sample_wav, monkeypatch):
+    project = load_project(minimal_project)
+    art = Path(project.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    monkeypatch.setattr(
+        review_versions.FFmpegEngine,
+        "export_mp3",
+        lambda self, wav, mp3, *, bitrate_kbps: mp3.write_bytes(b"encoded"),
+    )
+    return project, art
+
+
+def test_stage_version_creates_media_without_touching_project(
+    minimal_project, sample_wav, monkeypatch
+):
+    project, art = _premix_project(minimal_project, sample_wav, monkeypatch)
+    ver = stage_version(project, label="staged")
+    assert (art / "review" / ver.id / "mix.wav").is_file()
+    assert project.review.versions == []
+    assert project.review.active_version_id is None
+
+
+def test_attach_version_appends_and_optionally_activates(minimal_project, sample_wav, monkeypatch):
+    project, _ = _premix_project(minimal_project, sample_wav, monkeypatch)
+    first = stage_version(project, label="a")
+    attach_version(project, first, set_active=False)
+    assert [v.id for v in project.review.versions] == [first.id]
+    assert project.review.active_version_id is None
+    second = stage_version(project, label="b")
+    attach_version(project, second)
+    assert project.review.active_version_id == second.id
