@@ -17,6 +17,7 @@ from podcast_mcp.edits.comments import add_comment
 from podcast_mcp.edits.review_versions import (
     REVIEW_ARTIFACTS_RELDIR,
     attach_version,
+    discard_created_version,
     encode_version_mp3,
     get_version,
     publish_version,
@@ -1273,3 +1274,51 @@ def test_publish_removes_staged_media_when_history_read_fails(
     review_root = art / "review"
     assert not review_root.exists() or not any(review_root.iterdir())
     assert load_project(minimal_project).review.versions == []
+
+
+def test_discard_created_version_logs_and_never_raises(tmp_path, monkeypatch, caplog):
+    def broken(version_dir, identity):
+        raise OSError("cleanup error")
+
+    monkeypatch.setattr(review_versions, "clean_created_version", broken)
+    version_dir, identity = _created_version_dir(tmp_path)
+    with caplog.at_level(logging.WARNING, logger=review_versions.__name__):
+        discard_created_version(version_dir, identity)
+    assert "Could not remove review version directory" in caplog.text
+
+
+def test_attach_version_leaves_audio_fingerprint_unchanged(
+    minimal_project, sample_wav, monkeypatch
+):
+    from podcast_mcp.engines.reconciliation_state import audio_state_fingerprint
+
+    project, _ = _premix_project(minimal_project, sample_wav, monkeypatch)
+    before = audio_state_fingerprint(project)
+    attach_version(project, stage_version(project, label="a"))
+    assert audio_state_fingerprint(project) == before
+
+
+def test_publish_keeps_committed_media_when_lock_release_fails(
+    minimal_project, sample_wav, monkeypatch
+):
+    from contextlib import contextmanager
+
+    from podcast_mcp.services import review as review_service
+
+    _, art = _premix_project(minimal_project, sample_wav, monkeypatch)
+    monkeypatch.setattr(review_versions, "_new_id", lambda: "committed")
+    real_lock = review_service.project_commit_lock
+
+    @contextmanager
+    def release_fails(project):
+        with real_lock(project):
+            yield
+        raise OSError("lock release failed")
+
+    monkeypatch.setattr(review_service, "project_commit_lock", release_fails)
+    ws = ProjectWorkspace.open(minimal_project)
+    with pytest.raises(OSError, match="lock release failed"):
+        ReviewService(ws).publish(label="new")
+    assert (art / "review" / "committed" / "mix.wav").is_file()
+    assert (art / "review" / "committed" / "mix.mp3").is_file()
+    assert [v.id for v in load_project(minimal_project).review.versions] == ["committed"]

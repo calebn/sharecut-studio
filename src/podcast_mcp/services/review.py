@@ -10,6 +10,7 @@ from podcast_mcp.edits.review_versions import (
     DirectoryIdentity,
     attach_version,
     clean_created_version,
+    discard_created_version,
     get_version,
     list_versions,
     set_active_version,
@@ -72,6 +73,9 @@ class ReviewService:
                 with project_commit_lock(project):
                     history_before = load_json_object(history_index_path)
 
+                    # attach_version only touches project.review, so the audio fingerprint
+                    # is unchanged and run_mutation never auto-reconciles here; the commit
+                    # lock hold stays short.
                     def mutate(p) -> dict[str, Any]:
                         attach_version(p, ver, set_active=set_active)
                         return ver.model_dump()
@@ -93,16 +97,8 @@ class ReviewService:
                 # Lock timeout, lock-file I/O, or an unreadable history index: nothing
                 # references the staged version yet, so remove its media here.
                 if not mutation_started and recorded is not None:
-                    self._clean_staged_media(recorded[0], recorded[1])
+                    discard_created_version(recorded[0], recorded[1])
                 raise
-
-    @staticmethod
-    def _clean_staged_media(created_dir: Path, identity: DirectoryIdentity) -> None:
-        """Remove media staged before the commit lock was held; never mask the original error."""
-        try:
-            clean_created_version(created_dir, identity)
-        except BaseException:
-            log.warning("Could not clean staged review version %s", created_dir, exc_info=True)
 
     def _clean_uncommitted_media(
         self,
