@@ -90,7 +90,7 @@ Listen-first review keeps the conversation on the pending inspector (current tim
 
 ## Review mix versions
 
-Freeze the current premix (or mastered) so guest feedback pins to a known mix. Publishing refuses a premix that's stale vs the project (Refresh first) and a master that wasn't mastered from the current premix (export first, or publish the premix). A master with no `artifacts/mastered.hash` (mastered before #425), or one whose premix was copied or restored without its mtime, is refused once, until the next export re-masters it:
+Freeze the current premix (or mastered) so guest feedback pins to a known mix. Publishing refuses a premix that's stale vs the project (Refresh first) and a master that wasn't mastered from the current premix (export first, or publish the premix). While `artifacts/premix.wav` exists, a master with no `artifacts/mastered.hash` (mastered before #425), or one whose premix was copied or restored without its mtime, is refused once, until the next export re-masters it; an imported or legacy episode with only `mastered.wav` (no premix) publishes that master as-is (export, by contrast, rebuilds it):
 
 ```bash
 podcast review publish-version --project episode.project.json --label "Guest pass 1"

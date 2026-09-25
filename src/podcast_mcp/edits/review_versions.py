@@ -95,9 +95,11 @@ def resolve_source_mix(
 
     Refuses a premix that's behind the project (a volume, mute or edit since the
     last Refresh) and a master that wasn't mastered from the current premix, so a
-    review version never freezes an outdated mix. A master with no
-    ``mastered.hash`` (mastered before it existed) or whose premix was re-mixed,
-    copied or restored since is refused until export re-masters it.
+    review version never freezes an outdated mix. While ``premix.wav`` exists, a
+    master with no ``mastered.hash`` (mastered before it existed) or whose premix
+    was re-mixed, copied or restored since is refused until export re-masters it.
+    With no premix (an imported or legacy episode that only has ``mastered.wav``)
+    there is nothing to compare against, so that master publishes as-is.
     """
     if premix_is_stale(project):
         raise ValueError(
