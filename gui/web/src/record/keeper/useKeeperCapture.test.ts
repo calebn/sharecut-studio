@@ -298,6 +298,30 @@ describe("useKeeperCapture", () => {
     });
   });
 
+  it("Check mic without an open tap reports failure and reopens it", async () => {
+    const { openKeeperTap } = await import("./graph");
+    vi.mocked(openKeeperTap).mockClear();
+    vi.mocked(openKeeperTap)
+      .mockRejectedValueOnce(new Error("audio worklet unavailable"))
+      .mockRejectedValueOnce(new Error("audio worklet unavailable"));
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    const { result } = renderHook(() =>
+      useKeeperCapture({ ...args, enabled: true, stream }),
+    );
+    await waitFor(() => expect(result.current.error).toMatch(/worklet/));
+    act(() => result.current.checkMic());
+    expect(result.current.micCheckFailed).toBe(true);
+    await waitFor(() => expect(openKeeperTap).toHaveBeenCalledTimes(2));
+    expect(result.current.micCheckFailed).toBe(true);
+    expect(result.current.error).toMatch(/worklet/);
+    act(() => result.current.checkMic());
+    await waitFor(() => {
+      expect(openKeeperTap).toHaveBeenCalledTimes(3);
+      expect(result.current.recordingLocally).toBe(true);
+      expect(result.current.micCheckFailed).toBe(false);
+    });
+  });
+
   it("reattaches a failed audio tap when retrying", async () => {
     const { openKeeperTap } = await import("./graph");
     vi.mocked(openKeeperTap).mockClear();
@@ -869,6 +893,32 @@ describe("useKeeperCapture silent PCM watchdog", () => {
     await advance(6000, zeros);
     expect(result.current.noAudio).toBe(true);
     expect(result.current.recordingLocally).toBe(true);
+  });
+
+  it("Check mic reports failure when inspecting the track throws", async () => {
+    const { result } = await setup();
+    await advance(6000, zeros);
+    vi.spyOn(stream, "getAudioTracks").mockImplementation(() => {
+      throw new Error("boom");
+    });
+    await act(async () => {
+      result.current.checkMic();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.micCheckFailed).toBe(true);
+    expect(result.current.noAudio).toBe(true);
+  });
+
+  it("treats a Safari interrupted context as a failed Check mic", async () => {
+    const { result } = await setup();
+    await advance(6000, zeros);
+    tapResume.mockResolvedValue("interrupted");
+    await act(async () => {
+      result.current.checkMic();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.micCheckFailed).toBe(true);
+    expect(result.current.noAudio).toBe(true);
   });
 
   it("alarms when no PCM arrives", async () => {

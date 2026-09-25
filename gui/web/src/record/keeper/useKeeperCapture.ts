@@ -460,27 +460,37 @@ export function useKeeperCapture({
   const checkMic = useCallback(() => {
     const tap = tapRef.current;
     if (!tap) {
+      // No tap means no audio yet. A successful reopen re-arms the watchdog
+      // and clears this; a failed one surfaces the keeper error.
+      setMicCheckFailed(true);
       setTapAttempt((n) => n + 1);
       return;
     }
-    void tap.resume().then((state) => {
-      if (!mountedRef.current || tapRef.current !== tap) {
-        return;
-      }
-      const track = stream?.getAudioTracks?.()[0];
-      const healthy =
-        state === "running" &&
-        track?.readyState === "live" &&
-        track.enabled !== false &&
-        track.muted !== true;
-      if (healthy && watchdogRef.current.isArmed) {
-        watchdogRef.current.arm(performance.now());
-        setNoAudio(false);
-        setMicCheckFailed(false);
-      } else {
-        setMicCheckFailed(true);
-      }
-    });
+    void tap
+      .resume()
+      .then((state) => {
+        if (!mountedRef.current || tapRef.current !== tap) {
+          return;
+        }
+        const track = stream?.getAudioTracks?.()[0];
+        const healthy =
+          state === "running" &&
+          track?.readyState === "live" &&
+          track.enabled !== false &&
+          track.muted !== true;
+        if (healthy && watchdogRef.current.isArmed) {
+          watchdogRef.current.arm(performance.now());
+          setNoAudio(false);
+          setMicCheckFailed(false);
+        } else {
+          setMicCheckFailed(true);
+        }
+      })
+      .catch(() => {
+        if (mountedRef.current && tapRef.current === tap) {
+          setMicCheckFailed(true);
+        }
+      });
   }, [stream]);
   const closeFinalizing =
     finalizing || (unfinalizedCapture && snapshot?.state === "stopped");
