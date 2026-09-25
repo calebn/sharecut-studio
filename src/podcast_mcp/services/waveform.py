@@ -362,7 +362,9 @@ def gc_pyramids(project_path: Path, index: MediaIndex | None = None) -> int:
 
     Per-ref pruning never reaches refs that were deleted, so orphans are swept
     here. ``artifacts/peaks/*.json`` is the pre-pyramid overview format; nothing
-    reads it any more. The project counts as done only after a pass succeeds.
+    here reads it, but an older app build may still write it. Both sweeps keep
+    the ``GC_MIN_AGE_SEC`` guard because a guest status poll can trigger this
+    pass. The project counts as done only after a pass succeeds.
     """
     marker = str(project_path.resolve())
     with _GC_LOCK:
@@ -384,8 +386,9 @@ def gc_pyramids(project_path: Path, index: MediaIndex | None = None) -> int:
                     removed += 1
         for legacy in (index.artifacts_dir / "peaks").glob("*.json"):
             with contextlib.suppress(OSError):
-                legacy.unlink()
-                removed += 1
+                if legacy.stat().st_mtime < cutoff:
+                    legacy.unlink()
+                    removed += 1
     except BaseException:
         with _GC_LOCK:
             _GC_DONE.discard(marker)

@@ -12,7 +12,7 @@ and its knobs live in the `waveform` block of
 > layer, the raster worker and the timeline renderer (§ Client) are in place.
 > Pyramids are the only waveform format: the uint8 overview JSON
 > (`artifacts/peaks/{track}.json` and its HTTP route) is gone, and `gc_pyramids`
-> deletes any leftover `artifacts/peaks/*.json`.
+> deletes leftover `artifacts/peaks/*.json` once it is 7 days old.
 >
 > #446 (part 8) wires `effectiveMaxZoomPxPerSec` / `MAX_CONTENT_PX` into
 > `clampZoomPxPerSec`. Until then, zoom still clamps to the flat
@@ -254,8 +254,9 @@ file through `source_id` gets its own `source:` ref, whose key matches the
   `ensure_track_waveforms` (its summary reports "N waveforms").
 - **`gc_pyramids(project_path)`:** once per process per project, deletes
   pyramids whose ref slug is no longer listed and that are older than 7 days
-  (per-ref pruning never reaches deleted refs), plus any legacy
-  `artifacts/peaks/*.json` overview files. A failed pass is retried on a
+  (per-ref pruning never reaches deleted refs), plus legacy
+  `artifacts/peaks/*.json` overview files older than 7 days (an older app build
+  may still write them, and a guest status poll can trigger the pass). A failed pass is retried on a
   later status call and never fails the status request.
 - **Social clip energy:** `ClipService.propose` first builds any missing track
   pyramids inline with `ensure_track_waveforms`, so the ranking does not depend
