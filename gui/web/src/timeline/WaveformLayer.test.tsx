@@ -12,7 +12,12 @@ const state = vi.hoisted(() => ({
   loaded: new Set<number>(),
   pcm: false,
   rasters: [] as unknown[],
-  tileRequests: [] as { level: number; tiles: number[]; priority: number }[],
+  tileRequests: [] as {
+    ref: string;
+    level: number;
+    tiles: number[];
+    priority: number;
+  }[],
   pcmRequests: [] as number[][],
   listeners: new Set<() => void>(),
 }));
@@ -44,11 +49,12 @@ vi.mock("../waveform/pyramidStore", () => ({
   PRIORITY_VISIBLE: 0,
   PRIORITY_OVERSCAN: 1,
   requestTiles: (
-    _s: unknown,
+    s: { ref: string },
     level: number,
     tiles: number[],
     priority: number,
-  ) => state.tileRequests.push({ level, tiles: [...tiles], priority }),
+  ) =>
+    state.tileRequests.push({ ref: s.ref, level, tiles: [...tiles], priority }),
   hasBins: (_m: unknown, level: number) => state.loaded.has(level),
   getBins: (_m: unknown, _l: number, _b: number, count: number) =>
     new Int16Array(count * 3).fill(1000),
@@ -66,7 +72,24 @@ vi.mock("../waveform/pcmStore", () => ({
 vi.mock("../waveform/rasterClient", () => ({
   requestRaster: (req: unknown) => state.rasters.push(req),
   subscribeRasterDone: () => () => {},
+  hasRaster: (key: string, provisional: boolean) =>
+    (state.rasters as { key: string; provisional: boolean }[]).some(
+      (r) => r.key === key && r.provisional === provisional,
+    ),
 }));
+const quiet = vi.hoisted(() => ({ calls: 0 }));
+vi.mock("./quietWash", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("./quietWash")>();
+  return {
+    ...mod,
+    pyramidColumnPeaks: (
+      ...args: Parameters<typeof mod.pyramidColumnPeaks>
+    ) => {
+      quiet.calls += 1;
+      return mod.pyramidColumnPeaks(...args);
+    },
+  };
+});
 
 const { WaveformLayer } = await import("./WaveformLayer");
 
@@ -302,5 +325,39 @@ describe("WaveformLayer", () => {
     expect(
       coarse.container.querySelectorAll(".clip-waveform-quiet"),
     ).toHaveLength(0);
+  });
+
+  it("does not rebuild a tile's job while its render is queued or in flight", () => {
+    mount();
+    const sent = rasters().length;
+    const asked = state.tileRequests.length;
+    // Same key, new object: the layer re-renders and its layout effect runs.
+    setEntry("track:host", ready());
+    expect(rasters()).toHaveLength(sent);
+    expect(state.tileRequests).toHaveLength(asked);
+  });
+
+  it("asks for a held pyramid under its own ref, and drops it on a project change", () => {
+    const view = mount();
+    setEntry("source:s1", { status: "generating" } satisfies StatusEntry);
+    state.rasters = [];
+    state.tileRequests = [];
+    view.update({ mediaRef: "source:s1" });
+    expect(view.tiles()).toHaveLength(3);
+    expect(state.tileRequests.length).toBeGreaterThan(0);
+    expect(new Set(state.tileRequests.map((r) => r.ref))).toEqual(
+      new Set(["track:host"]),
+    );
+    act(() => useDawStore.setState({ projectPath: "/tmp/q.json" }));
+    expect(view.tiles()).toHaveLength(0);
+  });
+
+  it("reuses the quiet wash when a render changes no pyramid data", () => {
+    const { onRender } = mount({ zoom: 100 });
+    const before = quiet.calls;
+    onRender.mockClear();
+    act(() => useDawStore.setState({ waveformAmpZoom: 2 }));
+    expect(onRender).toHaveBeenCalled();
+    expect(quiet.calls).toBe(before);
   });
 });
