@@ -100,7 +100,10 @@ If QC shows integrated LUFS still low while true peak sits on the `TP` ceiling, 
 limiter—not the two-pass math—is the constraint. High-crest premixes (very loud peaks
 relative to integrated loudness) cannot take the gain needed for `-16` LUFS without
 violating TP. `master_loudness` then retries once after `master.crest_tame_af`
-(default `dynaudnorm=f=150:g=15`) and records that filter on `master_qc.json`. Set
+(default `dynaudnorm=f=150:g=15`) and records that filter on `master_qc.json`. The crest-tamed intermediate
+(`artifacts/premix_premaster.wav`) is deleted after every master, successful or not, so
+`crest_tame_af` on `master_qc.json` is the only record that the retry ran; re-run the
+filter by hand on `premix.wav` to inspect it. Set
 `crest_tame_af: ""` to disable. Loosen `master.true_peak_db` (e.g. `-1.0`) only when
 you intentionally accept hotter peaks.
 

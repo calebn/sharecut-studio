@@ -19,6 +19,7 @@ from podcast_mcp.edits.review_versions import (
     encode_version_mp3,
     get_version,
     publish_version,
+    resolve_source_mix,
     review_artifacts_dir,
     version_audio_path,
     version_mp3_path,
@@ -90,6 +91,20 @@ def test_publish_requires_mix(minimal_project):
     proj = load_project(minimal_project)
     with pytest.raises(FileNotFoundError):
         publish_version(proj, label="x")
+
+
+def test_resolve_source_mix_ships_hashless_master_without_premix(minimal_project, sample_wav):
+    """An episode with only mastered.wav (no premix to compare) publishes it as-is."""
+    proj = load_project(minimal_project)
+    art = Path(proj.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "mastered.wav").write_bytes(sample_wav.read_bytes())
+
+    path, source = resolve_source_mix(proj, prefer="mastered")
+
+    assert source == "mastered"
+    assert path == (art / "mastered.wav").resolve()
+    assert not (art / "mastered.hash").exists()
 
 
 def test_failed_mp3_publish_removes_only_new_version(minimal_project, sample_wav, monkeypatch):
