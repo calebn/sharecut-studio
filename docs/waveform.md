@@ -120,6 +120,9 @@ hits EOF.
 - **WAV fast path:** stdlib `wave` reads uncompressed integer PCM of 8, 16, 24
   or 32 bits. Samples are scaled by `2^(bits−1)`; 8-bit samples are unsigned
   (`(v−128)/128`), and 24-bit samples are unpacked by hand.
+  The header's data size must fit the file; a WAV that declares 0, `0xFFFFFFFF`
+  or more bytes than it holds (streamed or truncated) goes to the ffmpeg path
+  instead.
 - **ffmpeg fallback:** anything `wave` rejects (float or `WAVE_FORMAT_EXTENSIBLE`
   WAVs on Python 3.11, compressed media) streams through
   `FFmpegEngine.stream_pcm_f32`. That method probes with

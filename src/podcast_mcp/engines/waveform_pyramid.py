@@ -399,17 +399,30 @@ class _WavInfo:
 
 
 def _wav_info(path: Path) -> _WavInfo | None:
-    """Integer-PCM WAV params for the stdlib fast path, else ``None`` (use ffmpeg)."""
+    """Integer-PCM WAV params for the stdlib fast path, else ``None`` (use ffmpeg).
+
+    The header's ``data`` size must fit the file: a streamed or truncated WAV
+    that declares 0, ``0xFFFFFFFF`` or more bytes than it holds goes to ffmpeg,
+    which decodes what is actually there.
+    """
     try:
-        with wave.open(str(path), "rb") as wf:
+        with path.open("rb") as fh, wave.open(fh, "rb") as wf:
+            data_offset = fh.tell()  # ``wave`` stops right after the data chunk header
             info = _WavInfo(
                 wf.getframerate(), wf.getnchannels(), wf.getsampwidth(), wf.getnframes()
             )
             comptype = wf.getcomptype()
+            size = os.fstat(fh.fileno()).st_size
     except (wave.Error, EOFError):
         return None
     if comptype != "NONE" or info.width not in (1, 2, 3, 4) or info.sample_rate < 1:
         return None
+    frame_bytes = info.width * info.channels
+    available = size - data_offset
+    if info.frames * frame_bytes > available:
+        return None  # overstated or 0xFFFFFFFF data size
+    if info.frames == 0 and available >= frame_bytes:
+        return None  # 0-size header in front of real samples
     return info
 
 
