@@ -21,9 +21,12 @@ export function waveformBudget(): WaveformBudget {
 
 const shellTrimmed = new Set<{ trim(): void }>();
 
-/** Re-apply `cache`'s budget whenever the shell breakpoint changes (desktop ↔ phone). */
-export function trimOnShellChange(cache: { trim(): void }): void {
+/** Re-apply `cache`'s budget whenever the shell breakpoint changes (desktop ↔ phone); returns an unregister. */
+export function trimOnShellChange(cache: { trim(): void }): () => void {
   shellTrimmed.add(cache);
+  return () => {
+    shellTrimmed.delete(cache);
+  };
 }
 
 useDawStore.subscribe((state, prev) => {
