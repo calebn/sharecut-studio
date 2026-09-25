@@ -449,6 +449,8 @@ re-clamps the zoom, keeping the time at the view centre, and is merged into
 the same store update as the new project, so no frame shows an over-ceiling
 zoom.
 
+The ceiling was chosen under every engine's layout limit (Chromium/WebKit LayoutUnit about 33.5 M px, Firefox about 17.9 M px). Chromium and WebKit check it in `gui/web/e2e-compat/deep-zoom.spec.ts` (ruler ticks, tiles, envelope and scroll range within 1 px at 15 M px).
+
 - **Modes.** While a device column spans at least a level-0 bin
   (`base_samples_per_bin`, 64 frames) the layer draws the pyramid. Below
   that, the host draws `(min, max)` PCM blocks from `/api/waveform/pcm/`,
