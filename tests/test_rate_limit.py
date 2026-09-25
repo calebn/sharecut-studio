@@ -100,6 +100,7 @@ def test_classify_mcp_and_review():
     assert classify_review_request("GET", "/api/review/t/daw/audition-context") == "audio"
     assert classify_review_request("GET", "/api/review/t/daw/audition-context-image") == "audio"
     assert classify_review_request("GET", "/api/review/t/daw/waveform/tiles/abc") == "audio"
+    assert classify_review_request("GET", "/api/review/t/DAW/Waveform/Tiles/abc") == "audio"
     assert classify_review_request("GET", "/api/review/t/daw/waveform/status") == "read"
 
 
@@ -115,6 +116,9 @@ def test_host_and_relay_audio_classifiers_agree_on_guest_routes():
         concrete = re.sub(r"\{[^}]+\}", "x", path)
         host_audio = classify_review_request("GET", concrete) == "audio"
         assert is_audio_path(concrete.lstrip("/")) == host_audio, concrete
+        upper = concrete.upper()
+        assert (classify_review_request("GET", upper) == "audio") == host_audio, upper
+        assert is_audio_path(upper.lstrip("/")) == host_audio, upper
         checked += 1
     assert checked >= 10
 
