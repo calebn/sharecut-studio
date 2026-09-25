@@ -250,6 +250,42 @@ describe("statusStore", () => {
       "idle",
     );
   });
+
+  it("refetches after a later 404 once a poll stopped listing the key", async () => {
+    subscribeWaveformStatus(P, "raw", () => {});
+    const key = "a".repeat(20);
+    loads.shift()!.resolve(status({ "track:a": ready(key) }));
+    await flush();
+    noteWaveformTileMissing(P, "track:a", key);
+    expect(loads).toHaveLength(1);
+    loads.shift()!.resolve(status({ "track:a": { status: "generating" } }));
+    await flush();
+    vi.advanceTimersByTime(1000);
+    loads.shift()!.resolve(status({ "track:a": ready(key) }));
+    await flush();
+    noteWaveformTileMissing(P, "track:a", key);
+    expect(loads).toHaveLength(1);
+  });
+
+  it("ignores a tile 404 for a project it does not watch", () => {
+    noteWaveformTileMissing("/tmp/none.json", "track:a", "a".repeat(20));
+    expect(loads).toHaveLength(0);
+  });
+
+  it("restarts a poller stopped by a permanent error for the next subscriber", async () => {
+    const off1 = subscribeWaveformStatus(P, "raw", () => {});
+    loads.shift()!.reject(new WaveformFetchError(403, null));
+    await flush();
+    const off2 = subscribeWaveformStatus(P, "raw", () => {});
+    expect(loads).toHaveLength(1);
+    loads.shift()!.resolve(status({}));
+    await flush();
+    const off3 = subscribeWaveformStatus(P, "raw", () => {});
+    expect(loads).toHaveLength(0);
+    off1();
+    off2();
+    off3();
+  });
 });
 
 describe("laneWaveformStatus", () => {
