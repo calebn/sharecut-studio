@@ -1,7 +1,13 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { subscribeRecordSignal } from "./monitor/signalBus";
-import { isRecordAccessEnded, useRecordSync } from "./useRecordSync";
+import {
+  isRecordAccessEnded,
+  RECORD_ACCESS_ENDED_REASONS,
+  RECORD_ACCESS_REMOVED,
+  RECORD_INVITE_CLOSED,
+  useRecordSync,
+} from "./useRecordSync";
 
 const loadRecordParticipant = vi.fn();
 const saveRecordParticipant = vi.fn();
@@ -222,6 +228,15 @@ describe("useRecordSync", () => {
     expect(isRecordAccessEnded("invite_closed")).toBe(true);
     expect(isRecordAccessEnded("forbidden")).toBe(false);
     expect(isRecordAccessEnded(null)).toBe(false);
+  });
+
+  it("pins the access-ended reason wire strings", () => {
+    expect(RECORD_INVITE_CLOSED).toBe("invite_closed");
+    expect(RECORD_ACCESS_REMOVED).toBe("access_removed");
+    expect([...RECORD_ACCESS_ENDED_REASONS]).toEqual([
+      "access_removed",
+      "invite_closed",
+    ]);
   });
 
   it("keeps the invite_closed screen when the server then closes with 4403", async () => {
