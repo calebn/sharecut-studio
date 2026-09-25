@@ -4,8 +4,9 @@ Media refs and build hooks live in ``engines/waveform_media`` (so the pipeline
 never imports services) and are re-exported here. This module adds:
 
 - ``media_index`` — a small LRU of each project's refs, keyed by the project
-  JSON revision and checked against a stat signature of the media and stem files, parsed with a before/after revision
-  check so a racing save is never cached;
+  JSON revision and checked against a stat signature of the media and stem
+  files, parsed with a before/after revision check so a racing save is never
+  cached;
 - ``waveform_status`` — per-ref ``ready`` / ``generating`` / ``unavailable``,
   scheduling missing pyramids;
 - ``tile_bytes`` — raw data-tile bins, with no project parse;
@@ -42,6 +43,7 @@ from podcast_mcp.engines.waveform_media import (
     schedule_track_waveforms,
 )
 from podcast_mcp.engines.waveform_pyramid import (
+    BIN_BYTES,
     PyramidMeta,
     pyramid_build_failed,
     pyramid_build_pending,
@@ -202,6 +204,14 @@ def _meta(path: Path, key: str) -> PyramidMeta:
     return meta
 
 
+def _drop_pyramid(path: Path, key: str) -> None:
+    """Delete a corrupt pyramid and its cached header so the next status call rebuilds it."""
+    with _META_LOCK:
+        _META.pop((str(path), key), None)
+    with contextlib.suppress(OSError):
+        path.unlink()
+
+
 def _served_meta(path: Path, key: str) -> PyramidMeta:
     """``_meta`` for request paths: an unreadable pyramid is ``WaveformDecodeError`` (404).
 
@@ -210,8 +220,7 @@ def _served_meta(path: Path, key: str) -> PyramidMeta:
     try:
         return _meta(path, key)
     except ValueError as exc:
-        with contextlib.suppress(OSError):
-            path.unlink()
+        _drop_pyramid(path, key)
         raise WaveformDecodeError("waveform pyramid could not be read") from exc
     except OSError as exc:
         raise WaveformDecodeError("waveform pyramid could not be read") from exc
@@ -251,8 +260,7 @@ def _ref_status(artifacts_dir: Path, ref: str, entry: MediaEntry) -> dict[str, A
         try:
             return _ready_entry(target.key, _meta(target.out, target.key))
         except (OSError, ValueError):
-            with contextlib.suppress(OSError):
-                target.out.unlink()
+            _drop_pyramid(target.out, target.key)
     if pyramid_build_failed(target.key):
         return _unavailable(REASON_DECODE_FAILED)
     if schedule_pyramid_build(ref, target.key, entry.abs_path, target.out):
@@ -295,7 +303,9 @@ def tile_bytes(project_path: Path, ref: str, key: str, level: int, start: int, c
     """Concatenated bins of data tiles ``[start, start+count)``, clipped at the level end.
 
     Does not parse the project: the file name is derived from *ref* and *key*.
-    ``ValueError`` for bad input, ``LookupError`` when the pyramid is missing or corrupt (a corrupt file is deleted).
+    ``ValueError`` for bad input, ``LookupError`` when the pyramid is missing or
+    corrupt, including a short read under a cached header (the file and its
+    cached header are dropped).
     """
     path = _pyramid_file(project_path, ref, key)
     meta = _served_meta(path, key)
@@ -306,7 +316,12 @@ def tile_bytes(project_path: Path, ref: str, key: str, level: int, start: int, c
     first_bin = start * meta.bins_per_tile
     if start < 0 or first_bin >= meta.levels[level].bins:
         raise ValueError("start out of range")
-    return read_bins(path, meta, level, first_bin, count * meta.bins_per_tile)
+    data = read_bins(path, meta, level, first_bin, count * meta.bins_per_tile)
+    want = min(count * meta.bins_per_tile, meta.levels[level].bins - first_bin) * BIN_BYTES
+    if len(data) != want:  # the file changed under a cached header: never serve it as immutable
+        _drop_pyramid(path, key)
+        raise WaveformDecodeError("waveform pyramid could not be read")
+    return data
 
 
 def pcm_block(project_path: Path, ref: str, key: str, block: int) -> bytes:

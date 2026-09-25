@@ -240,6 +240,36 @@ def test_tile_and_pcm_treat_a_corrupt_pyramid_as_missing(tmp_path):
         assert not out.exists()
 
 
+def test_drop_pyramid_unlinks_and_evicts_the_cached_header(tmp_path):
+    project_path = waveform_project(tmp_path)
+    waveform_status(project_path, "raw")
+    wait_pyramid_jobs()
+    key = waveform_status(project_path, "raw")["media"]["track:host"]["key"]
+    out = pyramid_path(project_path.parent.resolve() / "artifacts" / "peaks", "track-host", key)
+    assert (str(out), key) in svc._META
+    svc._drop_pyramid(out, key)
+    assert not out.exists()
+    assert (str(out), key) not in svc._META
+    svc._drop_pyramid(out, key)  # already gone: no error
+
+
+def test_tile_bytes_short_read_under_a_cached_header_is_corrupt(tmp_path):
+    project_path = waveform_project(tmp_path)
+    waveform_status(project_path, "raw")
+    wait_pyramid_jobs()
+    key = waveform_status(project_path, "raw")["media"]["track:host"]["key"]
+    out = pyramid_path(project_path.parent.resolve() / "artifacts" / "peaks", "track-host", key)
+    assert (str(out), key) in svc._META  # status cached the header
+    out.write_bytes(b"garbage")
+    with pytest.raises(svc.WaveformDecodeError):
+        tile_bytes(project_path, "track:host", key, 0, 0, 1)
+    assert not out.exists()
+    assert (str(out), key) not in svc._META
+    assert waveform_status(project_path, "raw")["media"]["track:host"] == {"status": "generating"}
+    wait_pyramid_jobs()
+    assert out.exists()
+
+
 def test_status_schedule_refused_and_vanished_media(tmp_path):
     project_path = waveform_project(tmp_path)
     with patch.object(svc, "schedule_pyramid_build", return_value=False):

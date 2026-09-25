@@ -188,6 +188,21 @@ def test_tiles_route_corrupt_pyramid_is_404_no_store(tmp_path):
     assert not out.exists()
 
 
+def test_tiles_route_short_read_under_a_cached_header_is_404_no_store(tmp_path):
+    project_path = waveform_project(tmp_path)
+    client = TestClient(create_app())
+    key = _ready_key(client, project_path)  # the status calls cache the header
+    out = pyramid_path(project_path.parent.resolve() / "artifacts" / "peaks", "track-host", key)
+    out.write_bytes(b"garbage")
+    res = client.get(
+        f"/api/waveform/tiles/{key}",
+        params={"path": str(project_path), "ref": "track:host", "level": 0, "start": 0},
+    )
+    assert res.status_code == 404
+    assert res.headers["cache-control"] == "no-store"
+    assert not out.exists()
+
+
 @pytest.mark.parametrize(
     ("exc", "status"),
     [(FileNotFoundError("gone"), 404), (ValueError("bad json"), 400), (RuntimeError("x"), 500)],
