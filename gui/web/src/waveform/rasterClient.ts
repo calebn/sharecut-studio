@@ -44,6 +44,7 @@ const sent = new Map<number, Sent>();
 const parityWaiters = new Map<number, (value: number | null) => void>();
 const backendListeners = new Set<() => void>();
 const doneListeners = new Set<(key: string, entry: BitmapEntry) => void>();
+const droppedListeners = new Set<(key: string) => void>();
 
 function supported(): boolean {
   return (
@@ -156,11 +157,13 @@ function pump(): void {
   if (!w) {
     return;
   }
+  const dropped: string[] = [];
   while (sent.size < RASTER_JOBS_OUTSTANDING && queue.size > 0) {
     let best: RasterRequest | null = null;
     for (const [key, req] of queue) {
       if (!req.wanted()) {
         queue.delete(key);
+        dropped.push(key);
         continue;
       }
       if (!best || req.priority < best.priority) {
@@ -168,7 +171,7 @@ function pump(): void {
       }
     }
     if (!best) {
-      return;
+      break;
     }
     queue.delete(best.key);
     const id = nextId++;
@@ -178,6 +181,13 @@ function pump(): void {
     } catch {
       // e.g. a DataCloneError on a detached buffer: drop the job, free its slot.
       sent.delete(id);
+    }
+  }
+  // Another layer may have skipped these keys (`hasRaster`) while they were
+  // queued: tell it, so it asks again under its own `wanted`.
+  for (const key of dropped) {
+    for (const fn of [...droppedListeners]) {
+      fn(key);
     }
   }
 }
@@ -205,6 +215,8 @@ export function requestRaster(req: RasterRequest): void {
  * True when `requestRaster` would drop a request for `key`: a job with the
  * same `provisional` flag is outstanding, or one is queued, still wanted and
  * at least as urgent as `priority`. Lets callers skip building the job.
+ * If that queued job is later dropped as unwanted, `subscribeRasterDropped`
+ * reports its key, so a caller that skipped can ask again.
  */
 export function hasRaster(
   key: string,
@@ -231,6 +243,14 @@ export function subscribeRasterDone(
 ): () => void {
   doneListeners.add(listener);
   return () => doneListeners.delete(listener);
+}
+
+/** Called with the key of each queued job dropped because nobody wanted it. */
+export function subscribeRasterDropped(
+  listener: (key: string) => void,
+): () => void {
+  droppedListeners.add(listener);
+  return () => droppedListeners.delete(listener);
 }
 
 /** `none` without Worker / createImageBitmap; `starting` until the worker reports. */

@@ -31,6 +31,7 @@ import {
   hasRaster,
   requestRaster,
   subscribeRasterDone,
+  subscribeRasterDropped,
 } from "../waveform/rasterClient";
 import {
   drawLevel,
@@ -231,6 +232,7 @@ function WaveformLayerView({
       [origin, clipLeftCss, clipWidthCss],
     ),
   );
+  const wanted = useRef(new Set<string>());
   const [, bumpData] = useReducer((n: number) => n + 1, 0);
   // Bumps when this media's pyramid tiles land: the only data the quiet wash
   // reads (PCM and raster-done events re-render the layer but reuse it).
@@ -246,6 +248,12 @@ function WaveformLayerView({
       subscribePcm(mediaKey, bumpData),
       subscribeRasterDone((key) => {
         if (key.startsWith(prefix)) {
+          bumpData();
+        }
+      }),
+      // A queued job this layer skipped (another layer's) was dropped: ask again.
+      subscribeRasterDropped((key) => {
+        if (wanted.current.has(key)) {
           bumpData();
         }
       }),
@@ -286,7 +294,6 @@ function WaveformLayerView({
 
   const canvases = useRef(new Map<number, HTMLCanvasElement>());
   const drawn = useRef(new WeakMap<HTMLCanvasElement, string>());
-  const wanted = useRef(new Set<string>());
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -368,7 +375,11 @@ function WaveformLayerView({
           ? PRIORITY_VISIBLE
           : PRIORITY_OVERSCAN;
       // Its exact render is already queued or in flight: don't rebuild (and
-      // copy) the job on every data event.
+      // copy) the job on every data event. This is safe because the tile key
+      // fixes the job's data. It holds the media key (bins and PCM are
+      // content-addressed by it), zoom, d, height, style and amp zoom, and an
+      // exact job is built only from complete bins or PCM. Keep any new job
+      // input in `tileKey`.
       if (hasRaster(key, false, priority)) {
         continue;
       }
