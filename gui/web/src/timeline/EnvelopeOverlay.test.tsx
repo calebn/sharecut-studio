@@ -324,4 +324,48 @@ describe("EnvelopeOverlay", () => {
     expect(early.isConnected).toBe(true);
     useDawStore.setState({ scrollLeft: 0, timelineViewportWidth: 0 });
   });
+
+  it("keeps the focused point mounted by id after the points re-sort", () => {
+    useDawStore.setState({ scrollLeft: 0, timelineViewportWidth: 1000 });
+    const props = {
+      trackId: "host",
+      zoomPxPerSec: 10,
+      width: 100000,
+      onSelectTrack: vi.fn(),
+    };
+    const { container, rerender } = render(
+      <EnvelopeOverlay
+        envelopes={useDawStore.getState().project?.envelopes ?? []}
+        {...props}
+      />,
+    );
+    const early = container.querySelectorAll("circle")[0]!;
+    fireEvent.focus(early);
+    // A collaborator moves "early" after "late": it is now index 1.
+    rerender(
+      <EnvelopeOverlay
+        envelopes={[
+          {
+            track_id: "host",
+            parameter: "volume",
+            points: [
+              { id: "early", time: 10, value: 1 },
+              { id: "late", time: 5, value: 0.5 },
+            ],
+          },
+        ]}
+        {...props}
+      />,
+    );
+    expect(container.querySelectorAll("circle")[1]).toBe(early);
+    // Scroll both points out of the chunk range: only the focused one stays.
+    act(() => {
+      useDawStore.setState({ scrollLeft: 50000 });
+    });
+    expect(early.isConnected).toBe(true);
+    expect(container.querySelectorAll("circle")).toHaveLength(1);
+    fireEvent.blur(early);
+    expect(container.querySelectorAll("circle")).toHaveLength(0);
+    useDawStore.setState({ scrollLeft: 0, timelineViewportWidth: 0 });
+  });
 });

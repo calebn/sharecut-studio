@@ -82,7 +82,8 @@ export function EnvelopeOverlay({
   // Kept mounted outside the chunk range: unmounting would drop pointer
   // capture mid-drag or keyboard focus.
   const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
+  // By id, not index: a re-sort or delete keeps the focused circle (same key).
+  const [focusedId, setFocusedId] = useState<string | null>(null);
   const dragRef = useRef<{
     index: number;
     origin: AutomationPoint[];
@@ -189,7 +190,7 @@ export function EnvelopeOverlay({
           />
           {sorted.map((p, i) => {
             const pinned =
-              i === dragIndex || i === selectedIndex || i === focusedIndex;
+              i === dragIndex || i === selectedIndex || p.id === focusedId;
             if (!pinned && (xOf(p) < x0 || xOf(p) > x1)) {
               return null;
             }
@@ -208,9 +209,9 @@ export function EnvelopeOverlay({
                 tabIndex={0}
                 aria-label={label}
                 aria-pressed={selected}
-                onFocus={() => setFocusedIndex(i)}
+                onFocus={() => setFocusedId(p.id)}
                 onBlur={() =>
-                  setFocusedIndex((cur) => (cur === i ? null : cur))
+                  setFocusedId((cur) => (cur === p.id ? null : cur))
                 }
                 onKeyDown={(e) => {
                   if (e.key !== "Enter" && e.key !== " ") {
