@@ -10,6 +10,7 @@ import {
   waveformBudget,
   waveformFetchGate,
 } from "./budgets";
+import { keyedListeners } from "./keyedListeners";
 import { refreshWaveformStatus } from "./statusStore";
 import { refKind } from "./types";
 
@@ -37,25 +38,14 @@ const retries = new Set<{
 }>();
 /** Block ids held back after a failed fetch (a 429 until Retry-After, otherwise FAILED_FETCH_BACKOFF_MS). */
 const cooling = new Set<string>();
-const listeners = new Map<string, Set<() => void>>();
+const listeners = keyedListeners();
 
 function blockId(key: string, block: number): string {
   return `${key}|${block}`;
 }
 
 export function subscribePcm(key: string, listener: () => void): () => void {
-  let set = listeners.get(key);
-  if (!set) {
-    set = new Set();
-    listeners.set(key, set);
-  }
-  set.add(listener);
-  return () => {
-    set.delete(listener);
-    if (set.size === 0) {
-      listeners.delete(key);
-    }
-  };
+  return listeners.subscribe(key, listener);
 }
 
 /** Queue PCM blocks `[b0, b1]` of a ref (host projects only). */
@@ -117,9 +107,7 @@ function dispatch(id: string, block: Block): void {
         buf.slice(0, buf.byteLength - (buf.byteLength % 4)),
       );
       data.set(id, pcm, pcm.byteLength);
-      for (const fn of [...(listeners.get(block.key) ?? [])]) {
-        fn();
-      }
+      listeners.notify(block.key);
     })
     .catch((err: unknown) => {
       if (request.controller.signal.aborted) {

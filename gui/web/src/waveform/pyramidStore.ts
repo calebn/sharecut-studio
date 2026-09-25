@@ -9,6 +9,7 @@ import {
   waveformBudget,
   waveformFetchGate,
 } from "./budgets";
+import { keyedListeners } from "./keyedListeners";
 import { BIN_VALUES, levelTileCount, tileBinCount } from "./pyramidMath";
 import { noteWaveformTileMissing, onWaveformReady } from "./statusStore";
 import type { PyramidMeta } from "./types";
@@ -52,16 +53,10 @@ const retries = new Set<{
 const cooling = new Set<string>();
 /** Tile ids that 404'd or came back short under their key; skipped until the key is ready again. */
 const missing = new Set<string>();
-const listeners = new Map<string, Set<() => void>>();
+const listeners = keyedListeners();
 
 function tileId(key: string, level: number, tile: number): string {
   return `${key}|${level}|${tile}`;
-}
-
-function notify(key: string): void {
-  for (const fn of [...(listeners.get(key) ?? [])]) {
-    fn();
-  }
 }
 
 /** Called when tiles of pyramid `key` arrive. */
@@ -69,18 +64,7 @@ export function subscribePyramid(
   key: string,
   listener: () => void,
 ): () => void {
-  let set = listeners.get(key);
-  if (!set) {
-    set = new Set();
-    listeners.set(key, set);
-  }
-  set.add(listener);
-  return () => {
-    set.delete(listener);
-    if (set.size === 0) {
-      listeners.delete(key);
-    }
-  };
+  return listeners.subscribe(key, listener);
 }
 
 export function hasTile(key: string, level: number, tile: number): boolean {
@@ -185,7 +169,7 @@ function store(run: Pending[], buf: ArrayBuffer): void {
     offset += n;
     data.set(id, bins, bins.byteLength);
   }
-  notify(head.meta.key);
+  listeners.notify(head.meta.key);
   if (short) {
     noteWaveformTileMissing(head.projectPath, head.ref, head.meta.key);
   }

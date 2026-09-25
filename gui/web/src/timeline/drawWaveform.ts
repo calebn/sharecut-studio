@@ -5,7 +5,7 @@ import { peakAmp, peakIndexRange, WAVEFORM_OVERSCAN_PX } from "../utils/peaks";
 import { paintDpr } from "../utils/timelineZoom.generated";
 
 export { WAVEFORM_OVERSCAN_PX } from "../utils/peaks";
-// Clip tints moved to waveformTheme.ts; re-exported until the old painter goes.
+// Clip tints moved to waveformTheme.ts; re-exported until part 6 (#444) deletes this painter and drawWaveform.test.ts.
 export { clipWaveformFill, parseRgb } from "./waveformTheme";
 
 export type VisibleClipWindow = {
