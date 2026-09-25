@@ -56,12 +56,20 @@ export class SilentPcmWatchdog {
     return cleared;
   }
 
-  /** Returns true on the transition into the alarmed state. */
+  /**
+   * Returns true on the transition into the alarmed state. A late tick
+   * (throttled or background tab, sleep) restarts the silence window rather
+   * than counting the gap as silence.
+   */
   tick(now: number): boolean {
     if (!this.armed) return false;
     const late = now - this.lastTickAt > this.tickMs * 2;
     this.lastTickAt = now;
-    if (late || this.alarmed || now - this.lastSignalAt < this.alarmMs) {
+    if (late) {
+      this.lastSignalAt = now;
+      return false;
+    }
+    if (this.alarmed || now - this.lastSignalAt < this.alarmMs) {
       return false;
     }
     this.alarmed = true;
