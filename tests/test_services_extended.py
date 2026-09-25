@@ -676,6 +676,77 @@ def test_play_ensure_stem_unknown_track(minimal_project, sample_wav) -> None:
         PlayService(ws).ensure_stem("missing")
 
 
+def _follow_patches(seg_out, *, mix=None, track=None):
+    return (
+        patch("podcast_mcp.services.play.render_track_segment", return_value=seg_out),
+        patch("podcast_mcp.services.play.render_gated_track", side_effect=track),
+        patch("podcast_mcp.services.play.render_gated_mix", side_effect=mix),
+        patch("podcast_mcp.services.play.word_intervals", return_value=[(0.0, 0.4)]),
+        patch("podcast_mcp.services.play.dialogue_tracks_for_play", return_value=["host"]),
+    )
+
+
+def _play_follow(ws, source, patches):
+    with patches[0], patches[1], patches[2], patches[3], patches[4]:
+        return PlayService(ws).play(
+            PlayRequest(source=source, start_sec=0.0, end_sec=1.0, follow_transcript=True),
+            dry_run=True,
+            publish_audition=False,
+        )
+
+
+def test_follow_transcript_mix_publishes_atomically(minimal_project, sample_wav) -> None:
+    ws = _dialogue_workspace(minimal_project, sample_wav)
+    seg_out = ws.project.artifacts_dir() / "seg.wav"
+    seg_out.touch()
+    targets: list[Path] = []
+
+    def _render(_segs, _iv, out, **_kw):
+        targets.append(out)
+        out.write_bytes(b"RIFF")
+        return out
+
+    result = _play_follow(ws, "premix", _follow_patches(seg_out, mix=_render))
+    assert ".partial" in targets[0].name
+    assert result.wav_path.is_file()
+    assert not targets[0].exists()
+    assert result.wav_path != targets[0]
+
+
+def test_follow_transcript_mix_failed_render_leaves_no_cache_file(
+    minimal_project, sample_wav
+) -> None:
+    ws = _dialogue_workspace(minimal_project, sample_wav)
+    seg_out = ws.project.artifacts_dir() / "seg.wav"
+    seg_out.touch()
+
+    def _render(_segs, _iv, out, **_kw):
+        out.write_bytes(b"RI")
+        raise RuntimeError("boom")
+
+    with pytest.raises(RuntimeError, match="boom"):
+        _play_follow(ws, "premix", _follow_patches(seg_out, mix=_render))
+    cache = ws.project.artifacts_dir() / "play_cache"
+    assert not list(cache.glob("follow_mix_*"))
+
+
+def test_follow_transcript_track_publishes_atomically(minimal_project, sample_wav) -> None:
+    ws = _dialogue_workspace(minimal_project, sample_wav)
+    seg_out = ws.project.artifacts_dir() / "seg.wav"
+    seg_out.touch()
+    targets: list[Path] = []
+
+    def _render(_seg, _iv, out, **_kw):
+        targets.append(out)
+        out.write_bytes(b"RIFF")
+        return out
+
+    result = _play_follow(ws, "processed:host", _follow_patches(seg_out, track=_render))
+    assert ".partial" in targets[0].name
+    assert result.wav_path.is_file()
+    assert not targets[0].exists()
+
+
 def test_play_follow_transcript_compare(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     seg_out = ws.project.artifacts_dir() / "seg.wav"
