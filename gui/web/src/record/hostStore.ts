@@ -1,8 +1,6 @@
 import { create } from "zustand";
 import type { ByteSink } from "./keeper/store";
-import type { RecordSnapshot } from "./types";
-
-export type CaptureHealth = "pending" | "failed" | "silent" | null;
+import type { CaptureHealth, RecordSnapshot } from "./types";
 
 type RecordHostState = {
   snapshot: RecordSnapshot | null;

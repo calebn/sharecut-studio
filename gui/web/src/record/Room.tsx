@@ -10,6 +10,7 @@ import {
   LOCAL_KEEPER_COPY,
   type RecordParticipant,
   type RecordSnapshot,
+  resolveCaptureHealth,
   UPLOAD_STATUS_ID,
 } from "./types";
 import { UploadStatus } from "./UploadStatus";
@@ -81,19 +82,16 @@ export function Room({
   const micNeedsAttention =
     (snapshot.state === "recording" || snapshot.state === "paused") &&
     (micLost || !micReady);
+  const capture = resolveCaptureHealth(
+    !!keeperError,
+    micNeedsAttention ? (micPending ? "pending" : "failed") : null,
+    noAudio,
+  );
   const noAudioNeedsAttention =
-    snapshot.state === "recording" &&
-    noAudio &&
-    !micNeedsAttention &&
-    !keeperError;
+    snapshot.state === "recording" && capture === "silent";
   return (
     <div className="stack">
-      <RecIndicator
-        snapshot={snapshot}
-        noAudio={noAudioNeedsAttention}
-        captureFailed={!!keeperError || (micNeedsAttention && !micPending)}
-        capturePending={micNeedsAttention && micPending && !keeperError}
-      />
+      <RecIndicator snapshot={snapshot} capture={capture} />
       <div aria-live="polite">
         {hostOffline ? (
           <p className="record-warn">{HOST_OFFLINE_COPY}</p>

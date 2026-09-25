@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { recordingClockMs } from "./clock";
-import type { RecordSnapshot } from "./types";
+import type { CaptureHealth, RecordSnapshot } from "./types";
+
+const REC_CAPTURE_LABEL = {
+  failed: "REC: local capture failed",
+  pending: "REC: waiting for microphone",
+  silent: "REC: no audio",
+} as const satisfies Record<NonNullable<CaptureHealth>, string>;
 
 function formatClock(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
@@ -11,15 +17,11 @@ function formatClock(ms: number): string {
 
 export function RecIndicator({
   snapshot,
-  captureFailed = false,
-  capturePending = false,
-  noAudio = false,
+  capture = null,
   clockId,
 }: {
   snapshot: RecordSnapshot;
-  captureFailed?: boolean;
-  capturePending?: boolean;
-  noAudio?: boolean;
+  capture?: CaptureHealth;
   clockId?: string;
 }) {
   const [now, setNow] = useState(() => Date.now());
@@ -38,13 +40,7 @@ export function RecIndicator({
 
   let label = "Waiting for host";
   if (snapshot.state === "recording") {
-    label = captureFailed
-      ? "REC: local capture failed"
-      : capturePending
-        ? "REC: waiting for microphone"
-        : noAudio
-          ? "REC: no audio"
-          : "REC";
+    label = capture ? REC_CAPTURE_LABEL[capture] : "REC";
   } else if (snapshot.state === "paused") {
     label = "PAUSED";
   } else if (snapshot.state === "stopped") {
@@ -57,10 +53,7 @@ export function RecIndicator({
   return (
     <div className="cluster record-indicator" role="status">
       <span className="record-rec-label" data-state={snapshot.state}>
-        {snapshot.state === "recording" &&
-        !captureFailed &&
-        !capturePending &&
-        !noAudio ? (
+        {snapshot.state === "recording" && !capture ? (
           <span className="record-rec-dot" aria-hidden="true" />
         ) : null}
         {label}
