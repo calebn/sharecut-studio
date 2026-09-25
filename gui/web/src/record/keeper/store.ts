@@ -1,5 +1,11 @@
 import { removeKeeperUnlessHeld } from "./deletionGuard";
+import { assertSafePart, opfsFileHandle } from "./opfsPath";
 import { KEEPER_SAMPLE_RATE } from "./pcm";
+import {
+  type SyncWriterClient,
+  sharedKeeperSyncWriter,
+} from "./syncWriterClient";
+import { SyncWriterUnavailableError } from "./syncWriterProtocol";
 
 export type KeeperMeta = {
   sessionId: string;
@@ -60,6 +66,11 @@ export type ByteSink = {
    * best-effort cleanup use {@link removeBestEffort}.
    */
   remove(path: string): Promise<void>;
+  /**
+   * Prefer a stream whose writes are durable as they land (in-place OPFS sync
+   * access handle) so a hard tab kill keeps committed PCM; `createWritable()`
+   * is the fallback.
+   */
   open(path: string): Promise<ByteStream>;
   nextSegmentIndex(
     sessionId: string,
@@ -75,19 +86,6 @@ export class OpfsUnavailableError extends Error {
     );
     this.name = "OpfsUnavailableError";
   }
-}
-
-function assertSafePart(part: string): string {
-  if (
-    !part ||
-    part.includes("/") ||
-    part.includes("\\") ||
-    part === ".." ||
-    part === "."
-  ) {
-    throw new Error("invalid keeper path part");
-  }
-  return part;
 }
 
 function assertIndex(n: number): string {
@@ -471,7 +469,13 @@ export class MemorySink implements ByteSink {
   }
 }
 
-export async function createOpfsSink(): Promise<ByteSink> {
+export async function createOpfsSink(
+  options: { syncWriter?: SyncWriterClient | null } = {},
+): Promise<ByteSink> {
+  const syncWriter =
+    options.syncWriter === undefined
+      ? sharedKeeperSyncWriter()
+      : options.syncWriter;
   const storage = navigator.storage;
   if (!storage?.getDirectory) {
     throw new OpfsUnavailableError();
@@ -481,7 +485,7 @@ export async function createOpfsSink(): Promise<ByteSink> {
   return {
     deletionLockName: "sharecut-keeper-deletion",
     async write(path: string, bytes: Uint8Array) {
-      const file = await fileHandle(root, path, true);
+      const file = await opfsFileHandle(root, path, true);
       const writable = await file.createWritable();
       try {
         await writable.write(copyBuffer(bytes));
@@ -494,7 +498,7 @@ export async function createOpfsSink(): Promise<ByteSink> {
       await writable.close();
     },
     async rewriteHeader(path: string, header: Uint8Array, byteLength: number) {
-      const file = await fileHandle(root, path, false);
+      const file = await opfsFileHandle(root, path, false);
       const writable = await file.createWritable({ keepExistingData: true });
       try {
         await writable.truncate(byteLength);
@@ -508,7 +512,7 @@ export async function createOpfsSink(): Promise<ByteSink> {
     },
     async read(path: string) {
       try {
-        const file = await fileHandle(root, path, false);
+        const file = await opfsFileHandle(root, path, false);
         const blob = await file.getFile();
         return new Uint8Array(await blob.arrayBuffer());
       } catch (error) {
@@ -520,7 +524,7 @@ export async function createOpfsSink(): Promise<ByteSink> {
     },
     async readBlob(path: string) {
       try {
-        const file = await fileHandle(root, path, false);
+        const file = await opfsFileHandle(root, path, false);
         return await file.getFile();
       } catch (error) {
         if (error instanceof DOMException && error.name === "NotFoundError") {
@@ -531,7 +535,7 @@ export async function createOpfsSink(): Promise<ByteSink> {
     },
     async modifiedAt(path: string) {
       try {
-        const file = await fileHandle(root, path, false);
+        const file = await opfsFileHandle(root, path, false);
         return (await file.getFile()).lastModified;
       } catch (error) {
         if (error instanceof DOMException && error.name === "NotFoundError") {
@@ -560,7 +564,16 @@ export async function createOpfsSink(): Promise<ByteSink> {
       }
     },
     async open(path: string) {
-      const file = await fileHandle(root, path, true);
+      if (syncWriter) {
+        try {
+          return await syncWriter.open(path);
+        } catch (error) {
+          if (!(error instanceof SyncWriterUnavailableError)) throw error;
+        }
+      }
+      // Fallback: createWritable() stages writes in a swap file committed only
+      // on close, so a hard kill loses the open segment (#242).
+      const file = await opfsFileHandle(root, path, true);
       const writable = await file.createWritable();
       return {
         async write(bytes: Uint8Array, offset?: number) {
@@ -642,25 +655,4 @@ async function assertOpfsWritable(
       // A cleanup failure must not hide a readiness failure.
     }
   }
-}
-
-async function fileHandle(
-  root: FileSystemDirectoryHandle,
-  path: string,
-  create: boolean,
-): Promise<FileSystemFileHandle> {
-  const parts = path.split("/").filter(Boolean);
-  const fileName = parts.pop();
-  if (!fileName) {
-    throw new Error("invalid keeper path");
-  }
-  let dir = root;
-  for (const part of parts) {
-    assertSafePart(part);
-    dir = await dir.getDirectoryHandle(part, { create });
-  }
-  assertSafePart(
-    fileName.replace(/\.wav$/i, "").replace(/\.json$/i, "") || fileName,
-  );
-  return dir.getFileHandle(fileName, { create });
 }

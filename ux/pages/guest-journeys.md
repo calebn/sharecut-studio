@@ -180,7 +180,10 @@ flowchart TD
    or navigation asks for the browser's native leave confirmation; dismissing
    it keeps the guest in the live take. Browsers require prior page activation
    before they may show that prompt, and they control its wording. PAUSED does
-   not show this native prompt.
+   not show this native prompt. If the tab is closed or crashes during REC,
+   audio already written stays in the local keeper (at most the last couple of
+   seconds are lost); after Stop, reopen the room link and use **Recover
+   partial take**.
 7. If the microphone ends involuntarily, the local keeper closes its current
    segment and a persistent warning offers **Reconnect microphone**. The room
    clock follows the shared take while REC says local capture failed and has no

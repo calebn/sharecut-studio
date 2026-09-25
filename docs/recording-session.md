@@ -833,8 +833,8 @@ healthy OPFS while a write that truly hangs still fails local capture instead
 of retaining unbounded memory or silently dropping audio. Each OPFS open,
 write, metadata commit, and the resume segment scan has a five-second
 wall-clock limit; close gets five seconds plus an allowance of 1 ms per
-10 KB of segment audio, because `createWritable()` commits its swap file on
-close and that cost grows with segment size. A close that still lands after
+10 KB of segment audio; the allowance covers the `createWritable()` fallback,
+which commits its swap file on close, a cost that grows with segment size. A close that still lands after
 its deadline leaves a complete WAV whose metadata still says `complete: false`,
 which is treated like any other partial after Stop (and can be recovered).
 The pending `complete: false` metadata write at segment open is bounded the
@@ -850,13 +850,23 @@ segment path and never reopens the stuck one. The guest sees plain wording
 ("this device's storage couldn't keep up") for stalls; the technical detail
 stays on the error's `cause`. The REC indicator is no longer a claim that a
 durable local copy is being made. Already finalized segments remain available,
-while the failed open segment is not advertised as durable because
-`FileSystemFileHandle.createWritable()` commits changes on close; **Download
+while the failed open segment is not advertised as complete; **Download
 local keeper** still exports it, named `keeper-<take>-<segment>-partial.wav`.
 The client offers **Retry local recording** while the take is recording; during
 pause or after Stop, the host must resume or start a take first. Retry waits
 for the failed stream to close (bounded by the close deadline) and starts a
 new segment without overwriting the failed one.
+**Crash durability (#242).** Open segments are written in place by a
+per-segment dedicated worker (`keeper/syncWriter.worker.ts`) through
+`FileSystemSyncAccessHandle`, flushed every 2 s (`KEEPER_FLUSH_INTERVAL_MS`).
+A killed tab, a crash or a browser quit therefore keeps everything already
+written; an OS crash loses at most about the last 2 s. After Stop, reopening
+the room link offers **Recover partial take**. Browsers without sync access
+handles fall back to `createWritable()` and still lose the open segment on a
+hard kill. Closing and reopening with `keepExistingData` every N seconds was
+rejected: Chrome copies the whole file into each swap file, which is O(n^2)
+over a long take.
+
 Metadata-free WAVs are eligible for cleanup seven days after their last write.
 While the same room is open and capture has settled, upload polling checks
 hourly and removes older metadata-free WAVs in the background. It writes a
@@ -1089,6 +1099,13 @@ presence-follow. Lobby e2e uses the same hook so "Hearing the
 room." does not depend on ICE completing under the shared GUI server, and also
 asserts inbound `Signal` frames (`window.__recordSignalCount`).
 
+### Hard tab kill (manual, real Chrome)
+
+1. Join, Accept, Start.
+2. After about 20 s, DevTools -> Application -> Storage shows `0.wav` growing and no `.crswap`.
+3. Kill the tab (Task Manager -> End process), host Stop, reopen the link.
+4. **Recover partial take** appears, and the recovered WAV is about 20 s minus the last 2 s or less.
+
 ### Acoustic / golden-ear (not CI)
 
 Headphones on; 2 then 3 people; "do I hear myself delayed?" must be **no**;
@@ -1112,6 +1129,7 @@ it; after sleep/wake or a backgrounded tab, no alarm on a healthy mic.
 | Late-join pad | Joiner at T+10 s → clip at `join_offset_ms` = 10 s ± 1 frame (default, no in-file pad). Optional origin encoding of **segment 0 only**: leading zeros 10 s ± 1 frame at 48 kHz. Later segments never padded in-file. |
 | Progressive upload | Fake transport + HTTP resume; keys `(session_id, take, participant, segment, part_seq)`; chunk hashes; current clients declare `expected_parts` and older open tabs infer it at finalization; kill mid-session; resume on same token completes; incomplete/stalled and zero-sample keepers expose a ZIP of retained local segments and upload retry; host GET lists all participants with `N/M` where every segment total is known; only `complete: true` (or verified legacy) segments upload, pending WAVs are never read during REC, Leave is held while Stop finalizes a lone segment, and **Recover partial take** (host + guest) patches the header once, re-polls upload, and reports failures outside the storage error channel. |
 | Host offline | Monitor tracks end; if the segment is still open, local WAV length **keeps growing**; copy string asserted. Intentional leave / lost mic finalizes the segment. |
+| Hard tab kill | `keeper/syncWriterProtocol.test.ts`, `syncWriterClient.test.ts`, `syncWriter.worker.test.ts` (in-place write, 2 s flush, fallback); `keeper/session.test.ts` recoverable-after-kill case; Playwright closed-tab test in `e2e/record-lobby.spec.ts` offers **Recover partial take**. |
 | Silent PCM | `keeper/silenceWatchdog.test.ts`, `keeper/useKeeperCapture.test.ts`: ~5 s of zero or missing PCM while recording locally raises the no-audio alert (host and guest); quiet input, pause, and mute do not; real PCM or a successful Check mic clears it, a failed check does not; arms only once the tap is attached and re-arms when the tap reopens; a late tick restarts the window; a re-alarm after a healthy check keeps the Still no audio guidance; a suspended tap context is reported, not thrown (`keeper/graph.test.ts`). |
 | Microphone loss | Test-only ended track reference: stale ended events are ignored, listeners are cleaned up, devicechange refreshes devices without declaring loss by itself, retry reacquires explicitly; the open keeper segment finalizes and the next segment resumes at the current recording-clock offset. A browser test ends the guest track before consent, blocks Accept, and verifies retry; no warning appears after an intentional stop. |
 | Host reconnect | Last host conn drop during REC/PAUSED persists `host_offline_since_wall_ms` (Leave or last-socket pop). Join after ≥ 10 s while REC → `paused` + one `PauseEntry.pause_reason == "host_reconnect"`; Join below 10 s stays recording; already paused → no second entry; sidecar crash without Leave (empty `_HOST_CONNS`, same sqlite) still pauses; Resume clears live `pause_reason`; remint while REC/PAUSED is 409 / CLI non-zero / MCP error; landing after that pause places clips abutting. Host keeper `resetKey` follows the open host-reconnect pause seq (Vitest), not WS `connected`. |

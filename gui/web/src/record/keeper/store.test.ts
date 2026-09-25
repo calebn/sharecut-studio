@@ -22,6 +22,7 @@ import {
   roomToneWavPath,
   writeKeeperMeta,
 } from "./store";
+import { SyncWriterUnavailableError } from "./syncWriterProtocol";
 
 type FakeWritable = {
   write: ReturnType<typeof vi.fn>;
@@ -46,7 +47,10 @@ function fakeWritable(failWrite = false): FakeWritable {
   };
 }
 
-async function opfsSinkWith(writable: FakeWritable) {
+async function opfsSinkWith(
+  writable: FakeWritable,
+  options: Parameters<typeof createOpfsSink>[0] = {},
+) {
   const createWritable = vi.fn(async () => writable);
   const root = {
     getDirectoryHandle: vi.fn(async () => root),
@@ -56,10 +60,80 @@ async function opfsSinkWith(writable: FakeWritable) {
   vi.stubGlobal("navigator", {
     storage: { getDirectory: async () => root },
   });
-  const sink = await createOpfsSink();
+  const sink = await createOpfsSink(options);
   writable.close.mockClear();
   return { sink, createWritable };
 }
+
+describe("createOpfsSink open", () => {
+  const stream = { write: vi.fn(), close: vi.fn() };
+  const path = "Sharecut Recordings/a/0/p/0.wav";
+
+  it("prefers the in-place sync writer", async () => {
+    const writable = fakeWritable();
+    try {
+      const syncWriter = { open: vi.fn(async () => stream) };
+      const { sink, createWritable } = await opfsSinkWith(writable, {
+        syncWriter,
+      });
+      const probeCalls = createWritable.mock.calls.length;
+      expect(await sink.open(path)).toBe(stream);
+      expect(createWritable).toHaveBeenCalledTimes(probeCalls);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("falls back to createWritable when unavailable", async () => {
+    const writable = fakeWritable();
+    try {
+      const syncWriter = {
+        open: vi.fn(async () => {
+          throw new SyncWriterUnavailableError();
+        }),
+      };
+      const { sink, createWritable } = await opfsSinkWith(writable, {
+        syncWriter,
+      });
+      await sink.open(path);
+      expect(createWritable).toHaveBeenLastCalledWith();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("rethrows a real writer error without falling back", async () => {
+    const writable = fakeWritable();
+    try {
+      const syncWriter = {
+        open: vi.fn(async () => {
+          throw new Error("locked");
+        }),
+      };
+      const { sink, createWritable } = await opfsSinkWith(writable, {
+        syncWriter,
+      });
+      const probeCalls = createWritable.mock.calls.length;
+      await expect(sink.open(path)).rejects.toThrow("locked");
+      expect(createWritable).toHaveBeenCalledTimes(probeCalls);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("uses createWritable directly when the sync writer is disabled", async () => {
+    const writable = fakeWritable();
+    try {
+      const { sink, createWritable } = await opfsSinkWith(writable, {
+        syncWriter: null,
+      });
+      await sink.open(path);
+      expect(createWritable).toHaveBeenLastCalledWith();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
 
 describe("createOpfsSink", () => {
   it("identifies an environment without OPFS before recording", async () => {
