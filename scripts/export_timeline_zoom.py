@@ -44,7 +44,8 @@ def generate() -> str:
     decode_hz = peaks["overview_decode_hz"]
     overview_bins = peaks["overview_bins_per_sec"]
     dpr_headroom = peaks["dpr_headroom"]
-    # One PAINT_DPR_CAP, from the waveform block (the legacy peaks copy is equal).
+    # One PAINT_DPR_CAP, from the waveform block; Python's paint_dpr_cap() reads the
+    # same key, and tests/test_timeline_zoom.py asserts the legacy peaks copy is equal.
     paint_dpr_cap = waveform["paint_dpr_cap"]
     tile_sec = peaks["tile_sec"]
     edit_focus_sec = peaks["edit_focus_sec"]

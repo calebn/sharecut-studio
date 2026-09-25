@@ -9,6 +9,7 @@ feed the ``.wfpk`` peak pyramid (``engines/waveform_pyramid.py``).
 from __future__ import annotations
 
 import json
+import math
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -75,7 +76,8 @@ def dpr_headroom() -> float:
 
 
 def paint_dpr_cap() -> float:
-    return float(_peaks()["paint_dpr_cap"])
+    """Same key the generated TS ``PAINT_DPR_CAP`` reads (``waveform.paint_dpr_cap``)."""
+    return float(_waveform()["paint_dpr_cap"])
 
 
 def tile_sec() -> float:
@@ -104,9 +106,16 @@ def overview_samples_per_pixel() -> int:
     return max(1, spp)
 
 
+def paint_dpr(device_pixel_ratio: float) -> float:
+    """Paint DPR on a 1/8 grid in ``[1, paint_dpr_cap()]`` (mirrors the GUI's ``paintDpr``)."""
+    ok = math.isfinite(device_pixel_ratio) and device_pixel_ratio > 0
+    dpr = device_pixel_ratio if ok else 1.0
+    # floor(x + 0.5) matches JS Math.round for x > 0; Python's round() is banker's.
+    return min(max(math.floor(dpr * 8 + 0.5) / 8, 1.0), paint_dpr_cap())
+
+
 def detail_bins_per_sec(zoom_px_per_sec: float, device_pixel_ratio: float) -> float:
-    paint_dpr = min(max(device_pixel_ratio, 1.0), paint_dpr_cap())
-    raw = zoom_px_per_sec * paint_dpr
+    raw = zoom_px_per_sec * paint_dpr(device_pixel_ratio)
     return min(raw, finest_bins_per_sec())
 
 
@@ -115,7 +124,9 @@ def edit_focus_bins_per_sec(zoom_px_per_sec: float, device_pixel_ratio: float) -
     return min(detail * edit_focus_multiplier(), float(overview_decode_hz()))
 
 
-# --- Waveform pyramid (.wfpk) knobs: only the keys Python reads. -------------
+# --- Waveform pyramid (.wfpk) knobs Python reads. ------------------------------
+# max_tiles_per_request() is read by the tile route that lands in a later part
+# of #429 (services/waveform.py); the renderer-only keys stay TS-only.
 
 
 def waveform_format_version() -> int:
