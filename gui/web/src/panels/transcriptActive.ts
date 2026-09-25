@@ -1,12 +1,10 @@
 import type { CombinedUtterance, TranscriptWordView } from "../types/project";
 import {
+  INSTANT_WORD_SEC,
   isUtteranceActive,
   isWordActive,
   wordsForUtterance,
 } from "../utils/transcript";
-
-/** How far from its start `isWordActive` still counts a zero-length word. */
-const INSTANT_WORD_SEC = 0.05;
 
 type IndexedUtterance = {
   utterance: CombinedUtterance;
