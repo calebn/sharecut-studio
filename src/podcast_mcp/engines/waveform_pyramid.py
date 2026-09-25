@@ -42,7 +42,7 @@ from typing import IO
 import numpy as np
 
 from podcast_mcp.edits.track_ids import SAFE_TRACK_ID
-from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.ffmpeg import PCM_STREAM_CHUNK_FRAMES, FFmpegEngine
 from podcast_mcp.util.progress import progress_task
 from podcast_mcp.util.timeline_zoom import (
     base_samples_per_bin,
@@ -58,7 +58,6 @@ MAGIC = b"WFPK"
 HEADER_BYTES = 64
 LEVEL_ENTRY_BYTES = 16
 BIN_BYTES = 6
-DECODE_CHUNK_FRAMES = 1_048_576
 INT16_FULL_SCALE = 32767
 TMP_MAX_AGE_SEC = 86_400.0
 
@@ -481,9 +480,9 @@ def decode_media(
     """
     info = _wav_info(path)
     if info is not None:
-        return info.sample_rate, info.channels, _iter_wav(path, info, DECODE_CHUNK_FRAMES)
+        return info.sample_rate, info.channels, _iter_wav(path, info, PCM_STREAM_CHUNK_FRAMES)
     eng = engine or FFmpegEngine()
-    return eng.stream_pcm_f32(path, chunk_frames=DECODE_CHUNK_FRAMES)
+    return eng.stream_pcm_f32(path)
 
 
 def _minmax_int16(data: np.ndarray) -> np.ndarray:
