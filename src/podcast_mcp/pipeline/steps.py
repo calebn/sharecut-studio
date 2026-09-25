@@ -501,13 +501,35 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
     return f"{len(mixed)} tracks mixed, {music_envelopes} music envelopes"
 
 
+def ensure_current_premix(project: EpisodeProject, defaults: dict[str, Any]) -> None:
+    """Re-render stems and re-mix when ``premix.wav`` is missing or behind the project."""
+    from podcast_mcp.engines.play_audit import premix_is_stale, premix_path
+
+    if premix_path(project).is_file() and not premix_is_stale(project):
+        return
+    assemble_timeline(project, defaults)
+    mix_with_music(project, defaults)
+
+
+def ensure_current_master(project: EpisodeProject, defaults: dict[str, Any]) -> Path:
+    """Master again unless ``mastered.wav`` came from the current, fresh premix."""
+    from podcast_mcp.engines.play_audit import mastered_is_fresh, mastered_path, premix_is_stale
+
+    if premix_is_stale(project) or not mastered_is_fresh(project):
+        master_loudness(project, defaults)
+    return mastered_path(project)
+
+
 def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
+    from podcast_mcp.engines.play_audit import clear_mastered_hash, write_mastered_hash
+
     master_cfg = defaults.get("master", {})
     premix = artifact(project, "premix.wav")
-    if not premix.is_file():
-        mix_with_music(project, defaults)
+    ensure_current_premix(project, defaults)
     eng = ffmpeg()
     mastered = artifact(project, "mastered.wav")
+    # A failed or cancelled master must not leave a hash vouching for a half-written file.
+    clear_mastered_hash(project)
     target_lufs = float(master_cfg.get("integrated_lufs", -16))
     target_tp = float(master_cfg.get("true_peak_db", -1.5))
     target_lra = float(master_cfg.get("lra", 11.0))
@@ -584,6 +606,7 @@ def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
         prog.set_phase("qc", "Writing master QC…")
         qc_path = artifact(project, "master_qc.json")
         qc_path.write_text(json.dumps(qc, indent=2), encoding="utf-8")
+        write_mastered_hash(project)
 
     if measured and measured.get("integrated_lufs") is not None:
         lufs = measured["integrated_lufs"]
@@ -594,9 +617,7 @@ def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
 
 
 def export_deliverables(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
-    mastered = artifact(project, "mastered.wav")
-    if not mastered.is_file():
-        master_loudness(project, defaults)
+    mastered = ensure_current_master(project, defaults)
     eng = ffmpeg()
     export_cfg = defaults.get("export", {})
     from podcast_mcp.export.audio import export_episode_audio

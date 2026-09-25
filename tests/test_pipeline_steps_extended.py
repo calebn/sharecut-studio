@@ -8,6 +8,11 @@ import pytest
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.play_audit import (
+    mastered_is_fresh,
+    premix_stale_vs_mix,
+    read_mastered_hash,
+)
 from podcast_mcp.models import (
     ChapterMarker,
     Clip,
@@ -585,6 +590,25 @@ def test_export_deliverables_creates_master_when_missing(
         mastered.unlink()
     steps.export_deliverables(proj, defaults)
     assert mastered.is_file()
+
+
+def test_export_deliverables_remasters_after_a_remix(minimal_project, sample_wav, tmp_workspace):
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    defaults = load_defaults()
+    steps.ingest_tracks(proj, defaults)
+    steps.assemble_timeline(proj, defaults)
+    steps.mix_with_music(proj, defaults)
+    steps.master_loudness(proj, defaults)
+    before = read_mastered_hash(proj)
+    assert before is not None
+    proj.track_by_id("host").fader_db = -6.0
+    steps.export_deliverables(proj, defaults)
+    assert premix_stale_vs_mix(proj) is False
+    assert mastered_is_fresh(proj)
+    assert read_mastered_hash(proj) != before
 
 
 def test_export_deliverables_writes_qc_stale_warning(minimal_project, sample_wav, tmp_workspace):

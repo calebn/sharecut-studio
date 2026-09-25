@@ -70,6 +70,8 @@ doesn't raise, so an agent decides whether to re-run steps or ship as-is.
 
 ## Workflow
 
+Export re-mixes a stale premix and re-masters when `artifacts/mastered.hash` doesn't match, so no manual Refresh is needed before Export. A `master.*` config change still needs `--only master_loudness` (the hash covers the premix, not the config).
+
 Same `PipelineService.export_audio` / `render_final` path as Sharecut Studio **⋯ → Export deliverables** / `Mod+Shift+E` and the Pipeline tab’s `export_deliverables` step.
 
 ```bash

@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.play_audit import mastered_is_fresh, premix_is_stale, premix_path
 from podcast_mcp.models import EpisodeProject, ReviewMixVersion
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.workspace_paths import resolve_within
@@ -84,7 +85,17 @@ def resolve_source_mix(
     *,
     prefer: str = "premix",
 ) -> tuple[Path, str]:
-    """Return (absolute wav path, source label). Prefer premix, else mastered."""
+    """Return (absolute wav path, source label). Prefer premix, else mastered.
+
+    Refuses a premix that's behind the project (a volume, mute or edit since the
+    last Refresh) and a master older than the current premix, so a review
+    version never freezes an outdated mix.
+    """
+    if premix_is_stale(project):
+        raise ValueError(
+            "premix.wav is out of date (edits, volume or mute changed since the last "
+            "Refresh); Refresh (render-preview) before publishing a review version"
+        )
     art = project.artifacts_dir()
     order = [prefer, "mastered", "premix"] if prefer == "mastered" else ["premix", "mastered"]
     seen: set[str] = set()
@@ -93,8 +104,14 @@ def resolve_source_mix(
             continue
         seen.add(name)
         path = art / f"{name}.wav"
-        if path.is_file():
-            return path.resolve(), name
+        if not path.is_file():
+            continue
+        if name == "mastered" and premix_path(project).is_file() and not mastered_is_fresh(project):
+            raise ValueError(
+                "mastered.wav is older than the current premix; export (or re-run "
+                "master_loudness) first, or publish the premix"
+            )
+        return path.resolve(), name
     raise FileNotFoundError("no premix.wav or mastered.wav; run render-preview / pipeline first")
 
 

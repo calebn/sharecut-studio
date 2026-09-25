@@ -21,8 +21,8 @@ Default step order (see [transcript-workflow.md](transcript-workflow.md) for tra
 17. `assemble_timeline` — Final stems after edits + FX
 18. `reconcile_transcript` — Pass 2: post-FX audibility refresh
 19. `mix_with_music` — Intro/outro/bed + ducking envelopes
-20. `master_loudness` — two-pass loudnorm to podcast target; writes `artifacts/master_qc.json` verification report
-21. `export_deliverables` — audio (WAV + configured FFmpeg formats), SRT, MD; writes `artifacts/export_qc.json` (reconciliation staleness + mastering QC rollup — check `ok` before shipping)
+20. `master_loudness` — two-pass loudnorm to podcast target; rebuilds a missing or stale premix first; writes `artifacts/master_qc.json` verification report and `artifacts/mastered.hash`
+21. `export_deliverables` — re-masters when `mastered.hash` doesn't match the current premix; audio (WAV + configured FFmpeg formats), SRT, MD; writes `artifacts/export_qc.json` (reconciliation staleness + mastering QC rollup — check `ok` before shipping)
 
 Transcript quality runs **before** focus/tighten so search and narrative edits use reconciled, precorrected, refined text.
 

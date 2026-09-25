@@ -4,6 +4,7 @@ from podcast_mcp.engines.play_audit import (
     expected_stem_duration_sec,
     premix_path,
     premix_stale_vs_mix,
+    premix_stale_vs_stems,
     probe_stem_duration_sec,
     read_stem_hash,
     stem_duration_matches_timeline,
@@ -18,7 +19,6 @@ from podcast_mcp.util.tracks import dialogue_track_ids
 
 def render_status_report(project: EpisodeProject) -> dict:
     tracks: dict[str, dict] = {}
-    stem_mtimes: list[float] = []
     # Muted tracks too: the pipeline renders their stems, and an unmute plays them.
     for tid in dialogue_track_ids(project):
         stem = stem_path(project, tid)
@@ -38,24 +38,18 @@ def render_status_report(project: EpisodeProject) -> dict:
             "duration_mismatch": exists and not duration_ok,
         }
         tracks[tid] = entry
-        track = project.track_by_id(tid)
-        # Only stems the mix plays can leave the premix behind.
-        if exists and track is not None and not track.muted:
-            stem_mtimes.append(stem.stat().st_mtime)
 
     premix = premix_path(project)
     premix_info: dict = {
         "path": str(premix) if premix.is_file() else None,
         "exists": premix.is_file(),
-        "stale_vs_stems": False,
+        "stale_vs_stems": premix_stale_vs_stems(project),
         # Fader, mute or staging gain changed since the premix was mixed.
         "stale_vs_mix": premix_stale_vs_mix(project),
     }
     if premix.is_file():
         premix_info["mtime_sec"] = premix.stat().st_mtime
         premix_info["size_bytes"] = premix.stat().st_size
-        if stem_mtimes and premix.stat().st_mtime < max(stem_mtimes):
-            premix_info["stale_vs_stems"] = True
 
     reconciliation = reconciliation_status(project)
     any_stale_stem = any(
