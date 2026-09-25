@@ -39,9 +39,10 @@ CI's `frontend` job runs it with `--check`).
 `max_content_px` (15,000,000) at the top level caps timeline content width. The
 generated TS exports `effectiveMaxZoomPxPerSec(sessionSec) =
 min(MAX_ZOOM_PX_PER_SEC, MAX_CONTENT_PX / max(sessionSec, 1))` and
-`paintDpr(dpr) = clamp(round(dpr·8)/8, 1, PAINT_DPR_CAP)` (Python mirrors it as
-`util/timeline_zoom.paint_dpr()`, and `detail_bins_per_sec` uses it), so `512·paintDpr`
-is always an integer. Python reads only the keys it needs, through
+`paintDpr(dpr) = clamp(round(dpr·8)/8, 1, PAINT_DPR_CAP)` , so `512·paintDpr` is
+always an integer. `paintDpr` is client-only: `paint_dpr_cap` has no Python getter
+and reaches TS as `PAINT_DPR_CAP` via `scripts/export_timeline_zoom.py`. Python
+reads only the keys it needs, through
 `util/timeline_zoom.py` getters (`waveform_format_version()`,
 `base_samples_per_bin()`, `level_factor()`, `bins_per_data_tile()`,
 `max_tiles_per_request()`, `pcm_block_frames()`). `max_tiles_per_request()` is
@@ -247,19 +248,21 @@ file through `source_id` gets its own `source:` ref, whose key matches the
   `schedule_track_waveforms(project, track)` queues the track ref plus the
   source refs of that track's clips; `ensure_track_waveforms(project, track)`
   builds them inline and returns how many are on disk;
+  `ensure_project_waveforms(project, *, sources=True)` runs it for every track with
+  media (`sources=False` builds only the `track:<id>` refs);
   `schedule_stem_waveforms(project, track_ids)` queues just-rendered stems.
   They run after `add_track`, `set_track_media`, ingest consolidate, record
   landing, stem renders (`_render_track_stems`) and `PlayService.ensure_stem`;
   the pipeline's `ingest_tracks` step builds inline with
-  `ensure_track_waveforms` (its summary reports "N waveforms").
+  `ensure_project_waveforms` (its summary reports "N waveforms").
 - **`gc_pyramids(project_path)`:** once per process per project, deletes
   pyramids whose ref slug is no longer listed and that are older than 7 days
   (per-ref pruning never reaches deleted refs), plus legacy
   `artifacts/peaks/*.json` overview files older than 7 days (an older app build
   may still write them, and a guest status poll can trigger the pass). A failed pass is retried on a
   later status call and never fails the status request.
-- **Social clip energy:** `ClipService.propose` first builds any missing track
-  pyramids inline with `ensure_track_waveforms`, so the ranking does not depend
+- **Social clip energy:** `ClipService.propose` first builds any missing `track:<id>`
+  pyramids inline with `ensure_project_waveforms(project, sources=False)` (clip-source refs are not built here), so the ranking does not depend
   on background builds. `clips/social.py` then reads each track's pyramid once
   per call through `engines/waveform_media.track_pyramid` and
   `engines/waveform_pyramid.pyramid_peak`, at the coarsest level with
