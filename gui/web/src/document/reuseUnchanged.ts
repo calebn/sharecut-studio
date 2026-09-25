@@ -35,6 +35,14 @@ function sameShallow<T extends object>(a: T, b: T): boolean {
   });
 }
 
+/** Same `clips` fields other than the lanes (count, duration, any later key). */
+function sameClipsMeta(
+  a: ProjectView["clips"],
+  b: ProjectView["clips"],
+): boolean {
+  return sameShallow({ ...a, tracks: null }, { ...b, tracks: null });
+}
+
 /**
  * `next` items replaced by the equal `prev` item with the same id; the
  * whole `prev` array when every item was reused in the same order.
@@ -90,9 +98,7 @@ export function reuseUnchanged(
     lanes = allLanesReused ? prevLanes : reused;
   }
   const clips =
-    lanes === prevLanes &&
-    next.clips.clip_count === prev.clips.clip_count &&
-    next.clips.timeline_duration_sec === prev.clips.timeline_duration_sec
+    lanes === prevLanes && sameClipsMeta(prev.clips, next.clips)
       ? prev.clips
       : lanes === nextLanes
         ? next.clips
