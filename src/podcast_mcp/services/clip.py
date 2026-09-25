@@ -14,7 +14,7 @@ from podcast_mcp.clips import (
     update_social_clip_times,
 )
 from podcast_mcp.config import load_defaults
-from podcast_mcp.engines.waveform_media import ensure_track_waveforms
+from podcast_mcp.engines.waveform_media import ensure_project_waveforms
 from podcast_mcp.models import SocialClipCandidate
 from podcast_mcp.services.workspace import ProjectWorkspace
 
@@ -30,13 +30,10 @@ class ClipService:
         platform: str | None = None,
         max_clips: int | None = None,
     ) -> list[SocialClipCandidate]:
-        # Energy scoring reads each track's waveform pyramid. Build missing ones
-        # inline (a no-op when ready) so the ranking never depends on whether a
-        # background build has finished. Built outside the mutation lock.
-        project = self.ws.project
-        for track in project.tracks:
-            if track.media:
-                ensure_track_waveforms(project, track)
+        # Energy scoring reads only each track's own ``track:<id>`` pyramid. Build
+        # missing ones inline (a no-op when ready) so the ranking never depends on
+        # whether a background build has finished. Built outside the mutation lock.
+        ensure_project_waveforms(self.ws.project, sources=False)
 
         def mutate(p) -> list[SocialClipCandidate]:
             return propose_social_clips(p, self._defaults, platform=platform, max_clips=max_clips)

@@ -74,6 +74,13 @@ def test_clip_service_propose(minimal_project):
     assert len(clips) >= 1
 
 
+def test_clip_service_propose_builds_track_refs_only(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    with patch("podcast_mcp.services.clip.ensure_project_waveforms", return_value=0) as ensure:
+        ClipService(ws).propose(max_clips=3)
+    ensure.assert_called_once_with(ws.project, sources=False)
+
+
 def test_clip_service_propose_builds_missing_track_pyramids(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     ws.project.timeline.tracks = [

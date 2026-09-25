@@ -233,11 +233,19 @@ def schedule_stem_waveforms(project: EpisodeProject, track_ids: list[str]) -> in
     return sum(schedule_media_ref(artifacts, ref, entry) for ref, entry in refs.items())
 
 
-def ensure_track_waveforms(project: EpisodeProject, track: Track) -> int:
-    """Build *track*'s pyramids inline (pipeline); returns how many are on disk after."""
+def ensure_track_waveforms(project: EpisodeProject, track: Track, *, sources: bool = True) -> int:
+    """Build *track*'s pyramids inline; returns how many are on disk after.
+
+    ``sources=False`` builds only the ``track:<id>`` ref (what social-clip energy
+    reads) and skips the source refs of the clips on the lane.
+    """
+    if sources:
+        refs = track_media_refs(project, track).refs
+    else:
+        refs = _resolve(project, [_track_candidate(project, track)], fresh_only=False).refs
     ready = 0
     artifacts = project.artifacts_dir()
-    for ref, entry in track_media_refs(project, track).refs.items():
+    for ref, entry in refs.items():
         try:
             target = pyramid_target(artifacts, ref, entry)
             if not target.out.is_file():
@@ -247,6 +255,13 @@ def ensure_track_waveforms(project: EpisodeProject, track: Track) -> int:
             continue
         ready += 1
     return ready
+
+
+def ensure_project_waveforms(project: EpisodeProject, *, sources: bool = True) -> int:
+    """``ensure_track_waveforms`` for every track with media; returns the total on disk."""
+    return sum(
+        ensure_track_waveforms(project, t, sources=sources) for t in project.tracks if t.media
+    )
 
 
 def track_pyramid(project: EpisodeProject, track_id: str) -> tuple[Path, PyramidMeta] | None:

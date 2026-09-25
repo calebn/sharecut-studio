@@ -225,7 +225,7 @@ def test_export_deliverables_with_chapters(minimal_project, sample_wav, tmp_work
 def test_ingest_waveform_failure_tolerated(minimal_project, sample_wav, tmp_workspace):
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     with patch(
-        "podcast_mcp.pipeline.steps.ensure_track_waveforms",
+        "podcast_mcp.pipeline.steps.ensure_project_waveforms",
         return_value=0,
     ):
         summary = steps.ingest_tracks(proj, load_defaults())
@@ -702,7 +702,7 @@ def test_ingest_tracks_resolves_relative_media_path(minimal_project, sample_wav,
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     host = proj.track_by_id("host")
     host.media.path = str((proj.workspace_path() / "raw" / "host.wav").resolve())
-    with patch("podcast_mcp.pipeline.steps.ensure_track_waveforms", return_value=0):
+    with patch("podcast_mcp.pipeline.steps.ensure_project_waveforms", return_value=0):
         steps.ingest_tracks(proj, load_defaults())
     assert host.media.duration_sec is not None
 

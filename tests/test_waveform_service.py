@@ -25,6 +25,7 @@ from podcast_mcp.services.waveform import (
     MediaEntry,
     StaleWaveformKeyError,
     current_key,
+    ensure_project_waveforms,
     ensure_track_waveforms,
     gc_pyramids,
     media_index,
@@ -410,6 +411,19 @@ def test_ensure_track_waveforms_builds_inline(tmp_path):
     with patch.object(wm, "build_pyramid", side_effect=RuntimeError("boom")):
         assert ensure_track_waveforms(project, guest) == 0  # both guest-lane builds fail
     assert not list((project.artifacts_dir() / "peaks").glob("track-guest.*.wfpk"))
+
+
+def test_ensure_project_waveforms_track_refs_only_then_all(tmp_path):
+    project = load_project(waveform_project(tmp_path))
+    peaks = project.artifacts_dir() / "peaks"
+    # host + guest track refs; gone/escape have no drawable media
+    assert ensure_project_waveforms(project, sources=False) == 2
+    assert list(peaks.glob("track-host.*.wfpk"))
+    assert list(peaks.glob("track-guest.*.wfpk"))
+    assert not list(peaks.glob("source-*.wfpk"))
+    # default also builds the guest lane's clip source (s_host)
+    assert ensure_project_waveforms(project) == 3
+    assert list(peaks.glob("source-s_host.*.wfpk"))
 
 
 # --- GC -------------------------------------------------------------------------------

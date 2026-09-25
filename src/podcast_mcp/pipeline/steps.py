@@ -8,7 +8,7 @@ from typing import Any
 
 from podcast_mcp.edits import apply_tighten_decisions, propose_tighten_edits
 from podcast_mcp.engines import TranscriptionEngine
-from podcast_mcp.engines.waveform_media import ensure_track_waveforms, schedule_stem_waveforms
+from podcast_mcp.engines.waveform_media import ensure_project_waveforms, schedule_stem_waveforms
 from podcast_mcp.models import (
     AutomationEnvelope,
     AutomationPoint,
@@ -82,7 +82,7 @@ def ingest_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSumm
         probed += 1
     ensure_dialogue_clips(project)
     # After clips exist, so each track's clip sources get their pyramids too.
-    waveforms = sum(ensure_track_waveforms(project, t) for t in project.tracks if t.media)
+    waveforms = ensure_project_waveforms(project)
     dialogue = sum(1 for t in project.tracks if t.role == TrackRole.DIALOGUE)
     return f"{probed} tracks probed, {waveforms} waveforms, {dialogue} dialogue"
 
