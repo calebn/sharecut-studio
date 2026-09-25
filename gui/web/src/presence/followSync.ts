@@ -77,6 +77,13 @@ export function planCorrection(
 const UNMEASURED_VIEWPORT_SPAN_SEC = 60;
 
 /**
+ * Relative headroom over `MIN_VIEWPORT_SPAN_SEC` for a clamped span, so float
+ * error can never land it under the server's `end - start < min` check
+ * (`services/session_sync/commands.py`), which would drop the presence frame.
+ */
+const VIEWPORT_SPAN_FLOAT_MARGIN = 1e-6;
+
+/**
  * The zoom and scroll that show a leader's viewport here. The leader may zoom
  * past this session's ceiling (another viewport width), so the zoom is clamped
  * to `sessionSec` and the scroll lands on their start at that zoom.
@@ -114,7 +121,7 @@ export function zoomScrollToViewport(
     start_sec: start,
     end_sec:
       end - start < MIN_VIEWPORT_SPAN_SEC
-        ? start + MIN_VIEWPORT_SPAN_SEC * (1 + 1e-6)
+        ? start + MIN_VIEWPORT_SPAN_SEC * (1 + VIEWPORT_SPAN_FLOAT_MARGIN)
         : end,
   };
 }
