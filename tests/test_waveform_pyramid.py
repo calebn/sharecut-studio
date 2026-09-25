@@ -804,6 +804,29 @@ def test_stream_watchdog_that_fires_after_the_read_is_ignored(tmp_path, code):
     proc.kill.assert_not_called()
 
 
+def test_stream_stale_watchdog_after_the_next_arm_is_ignored(tmp_path):
+    proc = _FakeProc(np.ones(250, dtype="<f4").tobytes())
+    _ImmediateTimer.instances.clear()
+
+    class _StaleTimer(_ImmediateTimer):
+        """Arming a chunk first runs the previous chunk's late callback."""
+
+        def start(self):
+            if len(_ImmediateTimer.instances) > 1:
+                _ImmediateTimer.instances[-2].fn()
+
+    eng = FFmpegEngine(ffmpeg="ffmpeg", ffprobe="ffprobe")
+    with (
+        patch.object(FFmpegEngine, "probe", side_effect=_probe),
+        patch("podcast_mcp.engines.ffmpeg.popen", return_value=proc),
+        patch("podcast_mcp.engines.ffmpeg.threading.Timer", _StaleTimer),
+    ):
+        _, _, chunks = eng.stream_pcm_f32(tmp_path / "a.wav", chunk_frames=100)
+        assert [len(c) for c in chunks] == [100, 100, 50]
+    assert len(_ImmediateTimer.instances) == 3
+    proc.kill.assert_not_called()
+
+
 def test_stream_failure_reports_the_stderr_tail(tmp_path):
     def _popen(argv, *, stdout, stderr):
         stderr.write(b"x" * 5000 + b"\nmoov atom not found\n")
