@@ -725,6 +725,16 @@ export function matchKeymapCommand(
   return matchKeymapCommands(e)[0] ?? null;
 }
 
+/** Toggles a held key must not flip back and forth (M saves the mix mute). */
+const NO_KEY_REPEAT = new Set(["track.muteToggle", "track.soloToggle"]);
+
+export function ignoresKeyRepeat(
+  e: Pick<KeyboardEvent, "repeat">,
+  commandId: string,
+): boolean {
+  return e.repeat && NO_KEY_REPEAT.has(commandId);
+}
+
 export function argsFromKeyEvent(
   e: Pick<KeyboardEvent, "shiftKey">,
   commandId: string,

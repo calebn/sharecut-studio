@@ -4,6 +4,7 @@ import {
   displayShortcutFor,
   displayShortcutKeys,
   formatShortcutKeys,
+  ignoresKeyRepeat,
   KEYMAP_COMMANDS,
   keymapByCategory,
   keymapCommandById,
@@ -294,5 +295,16 @@ describe("shortcut helpers by command id", () => {
     expect(ariaKeyShortcutsFor("export.bounce", true)).toBe("Meta+Shift+B");
     expect(ariaKeyShortcutsFor("export.bounce", false)).toBe("Control+Shift+B");
     expect(ariaKeyShortcutsFor("transport.togglePlay", true)).toBe("Space");
+  });
+});
+
+describe("held keys", () => {
+  it("don't auto-repeat the M and S toggles", () => {
+    expect(ignoresKeyRepeat({ repeat: true }, "track.muteToggle")).toBe(true);
+    expect(ignoresKeyRepeat({ repeat: true }, "track.soloToggle")).toBe(true);
+    expect(ignoresKeyRepeat({ repeat: false }, "track.muteToggle")).toBe(false);
+    expect(
+      ignoresKeyRepeat({ repeat: true }, "navigation.nudgePlayheadForward"),
+    ).toBe(false);
   });
 });

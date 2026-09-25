@@ -240,6 +240,8 @@ export interface ProjectView {
     reconciliation: { stale: boolean };
     premix: {
       exists: boolean;
+      /** When the premix file was last written (host; guests may lack it). */
+      mtime_sec?: number;
       stale_vs_stems?: boolean;
       /** Volume, mute or staging gain changed since the premix was mixed. */
       stale_vs_mix?: boolean;

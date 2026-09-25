@@ -1,29 +1,18 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { execute } from "../commands/execute";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
-import { minimalProject } from "../test/fixtures";
-import type { TrackView } from "../types/project";
+import { minimalProject, sampleTrack } from "../test/fixtures";
 import { TrackFader } from "./TrackFader";
 
 vi.mock("../commands/execute", () => ({
   execute: vi.fn(async () => ({ status: "ok" })),
 }));
 
-const host: TrackView = {
-  id: "host",
-  label: "Host",
-  role: "dialogue",
-  speaker: null,
-  gain_db: -2,
-  fader_db: -3,
-  muted: false,
-  duration_sec: 60,
-  fx_count: 0,
-  stem_is_fresh: true,
-};
+const host = sampleTrack({ gain_db: -2, fader_db: -3 });
 
 function renderFader(
   opts: { projectPath?: string; shareCapabilities?: string[] | null } = {},
@@ -85,6 +74,41 @@ describe("TrackFader (#386)", () => {
     expect(slider).toHaveValue("0");
   });
 
+  it("resets to 0 dB with the Reset button", async () => {
+    const { slider } = renderFader();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Reset volume to 0 dB" }),
+    );
+    expect(execute).toHaveBeenCalledWith(
+      "track.setVolume",
+      { trackId: "host", db: 0 },
+      { skipWhen: true },
+    );
+    expect(slider).toHaveValue("0");
+    expect(
+      screen.getByRole("button", { name: "Reset volume to 0 dB" }),
+    ).toBeDisabled();
+  });
+
+  it("follows the saved value again after a drag released where it began", () => {
+    const { slider } = renderFader();
+    fireEvent.input(slider, { target: { value: "-6" } });
+    fireEvent.input(slider, { target: { value: "-3" } });
+    // No change event: the value ended where it started.
+    fireEvent.pointerUp(slider);
+    act(() => {
+      const project = useDawStore.getState().project;
+      if (project) {
+        useDawStore.getState().setProject({
+          ...project,
+          tracks: [{ ...host, fader_db: 1.5 }],
+        });
+      }
+    });
+    expect(slider).toHaveValue("1.5");
+    expect(execute).not.toHaveBeenCalled();
+  });
+
   it("follows the saved value (undo, a collaborator)", () => {
     const { slider } = renderFader();
     act(() => {
@@ -105,8 +129,8 @@ describe("TrackFader (#386)", () => {
       shareCapabilities: ["view", "suggest"],
     });
     expect(slider).toBeDisabled();
-    expect(slider).toHaveAttribute(
-      "title",
+    expect(screen.queryByRole("button", { name: /Reset/ })).toBeNull();
+    expect(slider).toHaveAccessibleDescription(
       "Only the host and editors can change the volume",
     );
   });

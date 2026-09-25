@@ -7,13 +7,13 @@ import { canIngestMedia } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import { laneColor } from "../timeline/laneColors";
 import type { TrackView } from "../types/project";
+import { formatGainDb, trackOutputGainDb } from "../utils/audio";
 import { trackHasSourceAudio } from "../utils/projectMedia";
 import {
   reasonChipLabel,
   wholeTrackReasonsForTrack,
 } from "../utils/staleRender";
 import { TrackMuteSoloButtons } from "./TrackMuteSoloButtons";
-import { formatDb, trackOutputGainDb } from "./trackMix";
 import { setTrackReorderData } from "./trackReorder";
 
 interface TrackHeaderProps {
@@ -223,13 +223,13 @@ export function TrackHeader({
       </div>
       <div
         className="gain-strip"
-        title={`Plays at ${formatDb(outputDb)}: staging ${formatDb(track.gain_db)}, volume ${formatDb(track.fader_db ?? 0)}`}
+        title={`Plays at ${formatGainDb(outputDb)}: staging ${formatGainDb(track.gain_db)}, volume ${formatGainDb(track.fader_db ?? 0)}`}
       >
         <div
           className="gain-fill"
           style={{ width: `${gainFillPercent(outputDb)}%` }}
         />
-        <span className="gain-label">{outputDb.toFixed(1)} dB</span>
+        <span className="gain-label">{formatGainDb(outputDb)}</span>
       </div>
     </div>
   );

@@ -130,7 +130,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Cycle focus mode | `focus.cycle` | Always (when not typing in an input) |  |
 | Confirm blade cut | `edit.bladeCut.confirm` | Structural edits allowed |  |
 | Cancel blade cut | `edit.bladeCut.cancel` | Always (when not typing in an input) |  |
-| Set track volume | `track.setVolume` | canEditMix | Args: { trackId?, db }: SetTrackFader, the saved volume on top of staging gain (-60 to +12 dB) |
+| Set track volume | `track.setVolume` | Host or shared edit mode | Args: { trackId?, db }: SetTrackFader, the saved volume on top of staging gain (-60 to +12 dB) |
 | Share… | `share.manage` | Loaded host project | Open host share dialog: live links, create, revoke |
 | Start recording | `record.start` | Host project management |  |
 | Pause recording | `record.pause` | Host project management |  |

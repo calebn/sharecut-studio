@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
-import { minimalProject } from "../test/fixtures";
+import { minimalProject, sampleTrack } from "../test/fixtures";
 import { TransportBar } from "./TransportBar";
 
 vi.mock("../commands/execute", () => ({
@@ -156,6 +156,29 @@ describe("TransportBar stale refresh", () => {
     expect(useDawStore.getState().highlightStaleRender).toBe(true);
     await userEvent.keyboard("{Escape}");
     expect(useDawStore.getState().highlightStaleRender).toBe(false);
+  });
+
+  it("lights Mix when a volume or mute change left the premix behind", async () => {
+    const project = minimalProject({
+      tracks: [sampleTrack({ fader_db: -3 })],
+      render_status: {
+        needs_rerender: true,
+        reconciliation: { stale: false },
+        premix: { exists: true, stale_vs_mix: true },
+      },
+    });
+    useDawStore.getState().hydrate("/tmp/p.json", project);
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <TransportBar />
+      </DawProvider>,
+    );
+    const mix = screen.getByRole("button", { name: "Mix" });
+    expect(mix).not.toHaveClass("stale-highlight");
+    await userEvent.hover(
+      screen.getByRole("button", { name: /Stale render/i }),
+    );
+    expect(mix).toHaveClass("stale-highlight");
   });
 
   it("clears stale highlight when collapsed refresh fails", async () => {

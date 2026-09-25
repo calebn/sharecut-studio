@@ -1,19 +1,18 @@
 import { execute } from "../commands/execute";
+import { SAVED_MUTE_READ_ONLY } from "../commands/trackMix";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { canEditMix } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import { ToggleButton } from "../ui";
-import { anySolo } from "../utils/audio";
-
-type MuteState = "saved" | "listen" | "implied" | "off";
+import { type MuteState, trackMuteState } from "../utils/audio";
 
 /**
  * Mute/Solo toggles shared by the track gutter and the inspector sheet mixer.
  *
  * M is the saved mix mute for the host and editors (solid) and a listen-only
  * mute for other guests (dashed). S is always listen-only. A track your solo
- * silences shows a dim "implied mute", as in Pro Tools. Solid means everyone
- * and every export; dashed means only you hear it that way.
+ * silences shows a dashed "implied mute", as in Pro Tools. Solid means
+ * everyone and every export; dashed means only you hear it that way.
  */
 export function TrackMuteSoloButtons({ trackId }: { trackId: string }) {
   const {
@@ -27,17 +26,16 @@ export function TrackMuteSoloButtons({ trackId }: { trackId: string }) {
   const track = project?.tracks.find((t) => t.id === trackId);
   const editsMix = canEditMix(projectPath, guestMode, shareCapabilities);
   const solo = Boolean(soloTracks[trackId]);
-  const state: MuteState = track?.muted
-    ? "saved"
-    : viewerMute[trackId]
-      ? "listen"
-      : anySolo(soloTracks) && !solo
-        ? "implied"
-        : "off";
+  const state = trackMuteState(
+    trackId,
+    Boolean(track?.muted),
+    viewerMute,
+    soloTracks,
+  );
   const muteTitle: Record<MuteState, string> = {
     saved: editsMix
       ? "Muted in the mix, for everyone and every export"
-      : "Muted in the mix. Only the host and editors can unmute it",
+      : SAVED_MUTE_READ_ONLY,
     listen: "Muted for you only",
     implied: "Silenced by your solo",
     off: editsMix ? "Mute in the mix" : "Mute for you only",

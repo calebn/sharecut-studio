@@ -2,10 +2,14 @@ import { useEffect, useRef } from "react";
 import { audioUrl } from "../api";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
-import { trackOutputGainDb } from "../tracks/trackMix";
 import type { ProjectView } from "../types/project";
 import { errorMessage } from "../utils/apiError";
-import { anySolo, dbToLinear, trackIsAudible } from "../utils/audio";
+import {
+  anySolo,
+  dbToLinear,
+  trackIsAudible,
+  trackOutputGainDb,
+} from "../utils/audio";
 import {
   projectHasSourceAudio,
   trackHasAudioContent,
@@ -110,6 +114,20 @@ function effectsFingerprint(project: ProjectView): string {
 }
 
 /**
+ * What the players load. They're rebuilt only when this changes: a saved
+ * volume or mute change patches the project too, and rebuilding the players
+ * would stop playback. The volume effect applies gains and mutes.
+ */
+function playerSourcesKey(project: ProjectView): string {
+  const premix = project.render_status.premix;
+  const tracks = project.tracks.map(
+    (track) =>
+      `${track.id}:${trackHasAudioContent(track, project) ? 1 : 0}:${track.media_path ?? ""}`,
+  );
+  return `${premix.exists ? (premix.mtime_sec ?? 1) : 0}|${tracks.join(",")}`;
+}
+
+/**
  * Browser transport: HTMLAudioElement + HTTP Range.
  * - mix (no listen-only mute/solo, premix current): premix.wav
  * - mix with listen-only mute/solo or a premix stale vs the saved mix
@@ -162,7 +180,8 @@ export function useAudioTransport(enabled = true): void {
     Object.values(viewerMute).some(Boolean);
 
   const fxKey = project ? effectsFingerprint(project) : "";
-  const modeKey = `${auditionMode}:${needsMultitrack ? "mt" : "premix"}:${fxKey}`;
+  const sourcesKey = project ? playerSourcesKey(project) : "";
+  const modeKey = `${auditionMode}:${needsMultitrack ? "mt" : "premix"}:${fxKey}:${sourcesKey}`;
 
   useEffect(() => {
     if (!enabled) {
@@ -179,6 +198,7 @@ export function useAudioTransport(enabled = true): void {
       }
       return;
     }
+    const project = projectRef.current;
     if (!project) {
       return;
     }
@@ -274,7 +294,6 @@ export function useAudioTransport(enabled = true): void {
     };
   }, [
     enabled,
-    project,
     projectPath,
     projectEpoch,
     modeKey,
@@ -294,22 +313,18 @@ export function useAudioTransport(enabled = true): void {
       premix.volume = 1;
       return;
     }
-    const audible = project.tracks.filter(
-      (track) =>
-        players.has(track.id) &&
-        trackIsAudible(track.id, track.muted, viewerMute, soloTracks),
-    );
-    // Media elements can't boost (volume <= 1), so play each track at its
-    // output gain (staging + fader) relative to the loudest audible one: the
-    // balance matches the mix, a little quieter overall.
-    const loudestDb = Math.max(...audible.map(trackOutputGainDb));
-    for (const track of project.tracks) {
+    // Media elements can't boost (volume <= 1). Play each track at its output
+    // gain (staging + volume); when one is boosted above 0 dB, lower every
+    // track by that boost, so the balance still matches the mix.
+    const playing = project.tracks.filter((track) => players.has(track.id));
+    const headroomDb = Math.max(0, ...playing.map(trackOutputGainDb));
+    for (const track of playing) {
       const el = players.get(track.id);
       if (!el) {
         continue;
       }
-      el.volume = audible.includes(track)
-        ? Math.min(1, dbToLinear(trackOutputGainDb(track) - loudestDb))
+      el.volume = trackIsAudible(track.id, track.muted, viewerMute, soloTracks)
+        ? Math.min(1, dbToLinear(trackOutputGainDb(track) - headroomDb))
         : 0;
     }
   }, [project, viewerMute, soloTracks, auditionMode, modeKey, enabled]);

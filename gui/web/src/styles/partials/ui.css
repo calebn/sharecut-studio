@@ -392,6 +392,7 @@ button.pill.pill--info {
       .status-chip,
       .status-pipeline,
       .trk-btn.mute,
+      .trk-btn.mute-implied,
       .trk-btn.solo,
       .comment-mode-btn
     )

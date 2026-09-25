@@ -3,28 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
-import { minimalProject } from "../test/fixtures";
-import type { TrackView } from "../types/project";
+import { minimalProject, sampleTrack } from "../test/fixtures";
 import { TrackMuteSoloButtons } from "./TrackMuteSoloButtons";
 
 vi.mock("../commands/execute", () => ({
   execute: vi.fn(async () => ({ status: "ok" })),
 }));
-
-function track(id: string, muted = false): TrackView {
-  return {
-    id,
-    label: id,
-    role: "dialogue",
-    speaker: null,
-    gain_db: 0,
-    fader_db: 0,
-    muted,
-    duration_sec: 60,
-    fx_count: 0,
-    stem_is_fresh: true,
-  };
-}
 
 function renderButtons({
   muted = false,
@@ -34,7 +18,7 @@ function renderButtons({
   soloTracks = {} as Record<string, boolean>,
 } = {}) {
   const project = minimalProject({
-    tracks: [track("host", muted), track("guest")],
+    tracks: [sampleTrack({ id: "host", muted }), sampleTrack({ id: "guest" })],
   });
   const view = render(
     <DawProvider
@@ -96,8 +80,14 @@ describe("TrackMuteSoloButtons (#386)", () => {
     const { mute, solo } = renderButtons({ soloTracks: { guest: true } });
     expect(mute).toHaveAttribute("data-mute-state", "implied");
     expect(mute).toHaveAttribute("aria-pressed", "false");
-    expect(mute).toHaveAttribute("title", "Silenced by your solo");
+    expect(mute).toHaveAccessibleDescription("Silenced by your solo");
     expect(solo).toHaveAttribute("title", "Solo for you only");
+  });
+
+  it("keeps a saved mute saved while you solo that track", () => {
+    const { mute } = renderButtons({ muted: true, soloTracks: { host: true } });
+    expect(mute).toHaveAttribute("data-mute-state", "saved");
+    expect(mute).toHaveAttribute("aria-pressed", "true");
   });
 
   it("marks solo as listen-only", () => {
