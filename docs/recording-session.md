@@ -1095,6 +1095,14 @@ Headphones on; 2 then 3 people; "do I hear myself delayed?" must be **no**;
 mute/unmute; host Start does not change monitor timbre; open-speaker lobby
 warning appears; sidetone level sane.
 
+Silent PCM watchdog (hardware): during a take, hardware-mute the interface or
+select a silent virtual device → "No audio is reaching the recorder." within
+~5 s (host and guest); a suspended `AudioContext` (block autoplay, no gesture)
+also alarms and Check mic recovers it; a dithered, very quiet but live mic
+never alarms over 60 s; on Safari, take a phone call or let another app grab
+audio mid-take and confirm the `interrupted` state alarms and Check mic reports
+it; after sleep/wake or a backgrounded tab, no alarm on a healthy mic.
+
 ### Rest of the contract (CI when those PRs land)
 
 | Area | How |
