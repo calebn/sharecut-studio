@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import secrets
 import shutil
@@ -905,6 +906,29 @@ def test_failed_key_memory_is_bounded(monkeypatch):
     assert [pyramid_build_failed(k) for k in keys] == [False, False, True, True, True]
     for key in keys:
         wp._FAILED.pop(key, None)
+
+
+def test_failed_key_is_logged_and_retried_after_the_window(tmp_path, caplog):
+    audio = _wav_media(tmp_path)
+    key = _key()
+    out = pyramid_path(tmp_path / "peaks", "track-host", key)
+    with (
+        caplog.at_level(logging.WARNING, logger="podcast_mcp.engines.waveform_pyramid"),
+        patch("podcast_mcp.engines.waveform_pyramid.decode_media", side_effect=OSError("ENOSPC")),
+    ):
+        assert schedule_pyramid_build("track:host", key, audio, out) is True
+        wait_pyramid_jobs()
+    assert "waveform pyramid build failed for track:host" in caplog.text
+    assert "ENOSPC" in caplog.text
+    assert pyramid_build_failed(key) is True
+    assert wp._FAILED[key] > 0
+    wp._FAILED[key] = 0.0  # retry window elapsed
+    assert pyramid_build_failed(key) is False
+    assert key not in wp._FAILED
+    assert schedule_pyramid_build("track:host", key, audio, out) is True
+    wait_pyramid_jobs()
+    assert out.exists()
+    assert pyramid_build_failed(key) is False
 
 
 def test_schedule_submit_failure_clears_pending(tmp_path):
