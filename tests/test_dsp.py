@@ -9,6 +9,7 @@ from podcast_mcp.util.dsp import (
     autocorr_peak,
     bool_runs,
     bridge_short_dips,
+    db_to_amplitude,
     frame_rms_db,
     rms_db,
 )
@@ -53,3 +54,10 @@ def test_bool_runs_and_dip_bridging() -> None:
     assert bridge_short_dips(mask, 1).tolist() == [1, 1, 1, 1, 0, 0, 0, 1, 0]
     assert bridge_short_dips(mask, 3).tolist() == [1, 1, 1, 1, 1, 1, 1, 1, 0]
     assert bridge_short_dips(mask, 0).tolist() == mask.tolist()
+
+
+def test_db_to_amplitude() -> None:
+    assert db_to_amplitude(0.0) == 1.0
+    assert db_to_amplitude(-20.0) == pytest.approx(0.1)
+    assert db_to_amplitude(6.0) == pytest.approx(1.9953, rel=1e-4)
+    assert db_to_amplitude(-6.0) * db_to_amplitude(6.0) == pytest.approx(1.0)

@@ -8,7 +8,7 @@ import numpy as np
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.engines.align import load_mono_window
-from podcast_mcp.util.dsp import bool_runs
+from podcast_mcp.util.dsp import bool_runs, db_to_amplitude
 from podcast_mcp.util.tracks import track_audio_path
 
 
@@ -137,7 +137,7 @@ def detect_adjacent_breath(
 
     heuristics = (defaults or load_defaults()).get("analysis", {}).get("heuristics", {})
     audibility_db = float(heuristics.get("audibility_rms_db", -42.0))
-    noise_floor = 10 ** (audibility_db / 20.0)
+    noise_floor = db_to_amplitude(audibility_db)
     speech_rms = noise_floor * 8.0
 
     min_dur = cfg["min_duration_ms"] / 1000.0

@@ -24,6 +24,11 @@ def rms_db(samples: np.ndarray, *, floor_db: float = -80.0) -> float:
     return 20.0 * math.log10(rms)
 
 
+def db_to_amplitude(db: float) -> float:
+    """Linear amplitude factor for a level in dB (0 dB -> 1.0, -6 dB -> ~0.501)."""
+    return float(10.0 ** (db / 20.0))
+
+
 def frame_rms_db(
     samples: np.ndarray,
     frame: int,
