@@ -449,7 +449,7 @@ re-clamps the zoom, keeping the time at the view centre, and is merged into
 the same store update as the new project, so no frame shows an over-ceiling
 zoom.
 
-The ceiling was chosen under every engine's layout limit (Chromium/WebKit LayoutUnit about 33.5 M px, Firefox about 17.9 M px). Chromium and WebKit check it in `gui/web/e2e-compat/deep-zoom.spec.ts` (ruler ticks, tiles, envelope and scroll range within 1 px at 15 M px).
+The ceiling was chosen under every engine's layout limit. Blink and WebKit store layout coordinates as `LayoutUnit`, a 32-bit fixed-point value in 1/64 px, so they saturate at 2³¹ / 64 ≈ 33.5 M px (Blink `platform/geometry/layout_unit.h`, WebKit `platform/LayoutUnit.h`). Gecko stores `nscoord` in app units, 60 per CSS px, capped at `nscoord_MAX` = 2³⁰, so about 17.9 M px (`gfx/src/nsCoord.h`). These figures come from the engine sources, and no test here measures them. `gui/web/e2e-compat/deep-zoom.spec.ts` checks the 15 M px ceiling itself on Chromium and WebKit (ruler ticks, tiles, envelope and scroll range within 1 px).
 
 - **Modes.** While a device column spans at least a level-0 bin
   (`base_samples_per_bin`, 64 frames) the layer draws the pyramid. Below
