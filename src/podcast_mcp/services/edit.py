@@ -59,6 +59,7 @@ from podcast_mcp.edits.join_labels import record_label
 from podcast_mcp.edits.join_modes import crossfade_joins, fade_joins, set_clip_join_mode
 from podcast_mcp.edits.loudness import check_loudness
 from podcast_mcp.edits.silence_islands import (
+    SilenceIsland,
     silence_islands_from_hops,
     timeline_rms_hops,
 )
@@ -500,18 +501,19 @@ class EditService:
             )
         except Exception as exc:
             log.debug("waveform snap preview skipped: %s", exc)
-        islands: list[dict[str, float]] = []
+        found: list[SilenceIsland] = []
         if timeline:
             try:
                 hops = timeline_rms_hops(self.ws.project, tid, lo, hi)
-                islands = [i.to_dict() for i in silence_islands_from_hops(hops)]
+                found = silence_islands_from_hops(hops)
             except Exception as exc:
                 log.debug("waveform snap islands skipped: %s", exc)
+        islands = [i.to_dict() for i in found]
         ticks: list[float] = []
         if preview is not None:
             ticks.extend([float(preview["start"]), float(preview["end"])])
-        for island in islands:
-            ticks.append(float(island["midpoint"]))
+        # Unrounded midpoints: to_dict() rounds to 0.1 ms, too coarse at deep zoom.
+        ticks.extend(float(island.midpoint) for island in found)
         # 1 µs: ticks stay distinct at near-sample zoom (48,000 px/s).
         uniq = sorted({round(t, 6) for t in ticks})
         return {
