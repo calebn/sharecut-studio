@@ -38,7 +38,7 @@ linked PR. A claim is stale after six hours without a heartbeat and no open
 PR; a bare `in-progress` label is live for six hours after it was added.
 Report stale claims in a dry run; release them with the rule's comment and
 label updates only in a build run. Rank from issue text before reading code;
-prefer an actionable, unblocked S/M issue. Explicit issue numbers still
+prefer an actionable, unblocked issue of any size (smaller first among equal priorities). Explicit issue numbers still
 require an author and claim check. Do not quietly expand the requested issue
 set. Ask for a product decision only when the issue is genuinely blocked.
 
