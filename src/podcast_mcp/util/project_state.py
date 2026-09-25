@@ -7,14 +7,11 @@ from contextlib import contextmanager
 from pathlib import Path
 from threading import Lock, RLock
 
-from filelock import FileLock
-
 from podcast_mcp.models import EpisodeProject, project_file_path
+from podcast_mcp.util.file_locks import shared_file_lock
 
 _registry_lock = Lock()
 _locks: dict[str, RLock] = {}
-
-_file_locks: dict[str, FileLock] = {}
 
 FileRevision = tuple[int, int, int, int]
 
@@ -73,16 +70,13 @@ def snapshot_project_with_revision(
 def project_commit_lock(project: EpisodeProject) -> Iterator[None]:
     """Serialize history-index + project-JSON commits across threads and processes.
 
-    Takes the in-process state lock first, then a re-entrant per-workspace file lock.
+    Lock order: the in-process ``project_state_lock`` RLock first, then the shared
+    per-workspace file lock (re-entrant per thread). Never take the file lock without
+    the state lock. Raises ``filelock.Timeout`` after ``PROJECT_COMMIT_LOCK_TIMEOUT_SEC``.
     """
-    key = _workspace_key(project)
     with project_state_lock(project):
-        with _registry_lock:
-            file_lock = _file_locks.get(key)
-            if file_lock is None:
-                path = project_commit_lock_path(project)
-                path.parent.mkdir(parents=True, exist_ok=True)
-                file_lock = FileLock(str(path), timeout=PROJECT_COMMIT_LOCK_TIMEOUT_SEC)
-                _file_locks[key] = file_lock
-        with file_lock:
+        file_lock = shared_file_lock(
+            project_commit_lock_path(project), timeout=PROJECT_COMMIT_LOCK_TIMEOUT_SEC
+        )
+        with file_lock.acquire(timeout=PROJECT_COMMIT_LOCK_TIMEOUT_SEC):
             yield
