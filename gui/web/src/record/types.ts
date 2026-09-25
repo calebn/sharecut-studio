@@ -219,6 +219,20 @@ export function hostUploadLine(
 /** The capture problem a REC surface shows while recording. */
 export type CaptureHealth = "pending" | "failed" | "silent" | null;
 
+/** REC indicator label per capture problem. */
+export const REC_CAPTURE_LABEL = {
+  failed: "REC: local capture failed",
+  pending: "REC: waiting for microphone",
+  silent: "REC: no audio",
+} as const satisfies Record<NonNullable<CaptureHealth>, string>;
+
+/** Transport chip aria-label per capture problem while recording. */
+export const REC_CHIP_CAPTURE_LABEL = {
+  failed: "Local capture failed. Open record panel",
+  pending: "Waiting for microphone. Open record panel",
+  silent: "No audio reaching the recorder. Open record panel",
+} as const satisfies Record<NonNullable<CaptureHealth>, string>;
+
 /**
  * Resolves the capture problem a REC surface shows while recording. A keeper
  * error outranks everything and mic trouble outranks no audio, so the REC

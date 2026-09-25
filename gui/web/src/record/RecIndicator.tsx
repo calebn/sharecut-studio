@@ -1,12 +1,10 @@
 import { useEffect, useState } from "react";
 import { recordingClockMs } from "./clock";
-import type { CaptureHealth, RecordSnapshot } from "./types";
-
-const REC_CAPTURE_LABEL = {
-  failed: "REC: local capture failed",
-  pending: "REC: waiting for microphone",
-  silent: "REC: no audio",
-} as const satisfies Record<NonNullable<CaptureHealth>, string>;
+import {
+  type CaptureHealth,
+  REC_CAPTURE_LABEL,
+  type RecordSnapshot,
+} from "./types";
 
 function formatClock(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
