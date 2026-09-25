@@ -46,6 +46,16 @@ function fresh(p: ProjectView): ProjectView {
 }
 
 describe("reuseUnchanged", () => {
+  it("takes a changed clips field other than the lanes", () => {
+    const prev = project();
+    const next = fresh(prev);
+    (next.clips as unknown as Record<string, unknown>).gap_sec = 2;
+    const out = reuseUnchanged(prev, next);
+    expect(out.clips).not.toBe(prev.clips);
+    expect((out.clips as unknown as Record<string, unknown>).gap_sec).toBe(2);
+    expect(out.clips.tracks).toBe(prev.clips.tracks);
+  });
+
   it("returns next when there is no previous projection", () => {
     const next = project();
     expect(reuseUnchanged(null, next)).toBe(next);
