@@ -27,7 +27,7 @@ import {
 } from "./upload/useRecordUpload";
 import { useMicPermission } from "./useMicPermission";
 import { useRecordLiveComments } from "./useRecordLiveComments";
-import { useRecordSync } from "./useRecordSync";
+import { isRecordAccessEnded, useRecordSync } from "./useRecordSync";
 import { useRoomToneCapture } from "./useRoomToneCapture";
 
 function isNotFound(error: string): boolean {
@@ -106,8 +106,8 @@ export function RecordApp({ token }: { token: string }) {
     syncName,
     !!bootstrap && (!producer || producerJoined),
   );
+  const accessEnded = isRecordAccessEnded(error);
   const inviteClosed = error === "invite_closed";
-  const accessEnded = error === "access_removed" || inviteClosed;
   const liveComments = useRecordLiveComments({
     token,
     snapshot,

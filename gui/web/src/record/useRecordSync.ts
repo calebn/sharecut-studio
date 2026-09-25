@@ -44,6 +44,22 @@ type RecordMsg = {
   snapshot?: RecordSnapshot;
 };
 
+/** Record errors after which the hook stops reconnecting and RecordApp shows an ended screen. */
+export const RECORD_ACCESS_ENDED_REASONS = [
+  "access_removed",
+  "invite_closed",
+] as const;
+export type RecordAccessEndedReason =
+  (typeof RECORD_ACCESS_ENDED_REASONS)[number];
+
+export function isRecordAccessEnded(
+  error: string | null,
+): error is RecordAccessEndedReason {
+  return (RECORD_ACCESS_ENDED_REASONS as readonly string[]).includes(
+    error ?? "",
+  );
+}
+
 export function useRecordSync(
   token: string,
   displayName: string,
@@ -98,6 +114,11 @@ export function useRecordSync(
     let socket: WebSocket | null = null;
     let joined = false;
     let accessEnded = false;
+    const endAccess = (reason: RecordAccessEndedReason, sock?: WebSocket) => {
+      accessEnded = true;
+      setError(reason);
+      sock?.close();
+    };
 
     const connect = async () => {
       if (cancelled) {
@@ -167,9 +188,7 @@ export function useRecordSync(
               return;
             }
             if (msg.code === "invite_closed") {
-              accessEnded = true;
-              setError("invite_closed");
-              thisSocket.close();
+              endAccess("invite_closed", thisSocket);
               return;
             }
             if (
@@ -177,9 +196,7 @@ export function useRecordSync(
               msg.code === "forbidden"
             ) {
               if (!joined) {
-                accessEnded = true;
-                setError("access_removed");
-                thisSocket.close();
+                endAccess("access_removed", thisSocket);
               } else {
                 setError("forbidden");
               }
@@ -212,9 +229,8 @@ export function useRecordSync(
           window.clearInterval(heartbeat);
           heartbeat = null;
         }
-        if (event.code === 4403) {
-          accessEnded = true;
-          setError("access_removed");
+        if (event.code === 4403 && !accessEnded) {
+          endAccess("access_removed");
         }
         if (!cancelled && !accessEnded) {
           const delay = retryMsRef.current;

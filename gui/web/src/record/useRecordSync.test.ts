@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { subscribeRecordSignal } from "./monitor/signalBus";
-import { useRecordSync } from "./useRecordSync";
+import { isRecordAccessEnded, useRecordSync } from "./useRecordSync";
 
 const loadRecordParticipant = vi.fn();
 const saveRecordParticipant = vi.fn();
@@ -217,7 +217,39 @@ describe("useRecordSync", () => {
     }
   });
 
-  it("treats invite_closed as terminal and keeps the cached identity", async () => {
+  it("lists the terminal access reasons", () => {
+    expect(isRecordAccessEnded("access_removed")).toBe(true);
+    expect(isRecordAccessEnded("invite_closed")).toBe(true);
+    expect(isRecordAccessEnded("forbidden")).toBe(false);
+    expect(isRecordAccessEnded(null)).toBe(false);
+  });
+
+  it("keeps the invite_closed screen when the server then closes with 4403", async () => {
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() => useRecordSync("tok", "Ava"));
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      await act(async () => {
+        FakeWebSocket.instances[0].emit({
+          type: "Error",
+          code: "invite_closed",
+        });
+        FakeWebSocket.instances[0].close(4403);
+      });
+      expect(result.current.error).toBe("invite_closed");
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      expect(FakeWebSocket.instances).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("never clears a cached identity on invite_closed", async () => {
     vi.useFakeTimers();
     loadRecordParticipant.mockResolvedValue({
       participant_id: "p_g",
@@ -241,6 +273,51 @@ describe("useRecordSync", () => {
         await vi.advanceTimersByTimeAsync(2000);
       });
       expect(FakeWebSocket.instances).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("ends on invite_closed after an expired lease rejoins without it", async () => {
+    vi.useFakeTimers();
+    loadRecordParticipant.mockResolvedValue({
+      participant_id: "p_g",
+      lease: "expired",
+    });
+    try {
+      const { result } = renderHook(() => useRecordSync("tok", "Ava"));
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      await act(async () => {
+        FakeWebSocket.instances[0].emit({
+          type: "Error",
+          code: "invalid_lease",
+        });
+        await Promise.resolve();
+      });
+      expect(clearRecordParticipant).toHaveBeenCalledWith("tok");
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      expect(FakeWebSocket.instances).toHaveLength(2);
+      const retry = JSON.parse(FakeWebSocket.instances[1].sent[0] || "{}") as {
+        payload: { participant_id?: string; lease?: string };
+      };
+      expect(retry.payload.participant_id).toBeUndefined();
+      expect(retry.payload.lease).toBeUndefined();
+      await act(async () => {
+        FakeWebSocket.instances[1].emit({
+          type: "Error",
+          code: "invite_closed",
+        });
+      });
+      expect(result.current.error).toBe("invite_closed");
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      expect(FakeWebSocket.instances).toHaveLength(2);
     } finally {
       vi.useRealTimers();
     }
