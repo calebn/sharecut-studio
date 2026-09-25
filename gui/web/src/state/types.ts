@@ -228,10 +228,7 @@ export interface DawState {
   setBladeHoverSec: (sec: number | null) => void;
   /** Stores a measured width; 0 or less stores the shell estimate instead. */
   setTimelineViewportWidth: (px: number) => void;
-  /**
-   * Back to the current shell's estimate (the timeline unmounted, or the
-   * shell changed before it measured).
-   */
+  /** Back to the current shell's estimate (the timeline unmounted). */
   resetTimelineViewportWidth: () => void;
   setLayerVisible: (key: keyof LayerVisibility, visible: boolean) => void;
   setCommentMode: (on: boolean) => void;
@@ -248,6 +245,7 @@ export interface DawState {
   _lanesEl: HTMLElement | null;
   registerLanesEl: (el: HTMLElement | null) => void;
   measureTimelineViewport: () => number;
+  /** Also re-stores `timelineViewportWidth` from the live timeline or the new shell's estimate. */
   setShellBreakpoint: (bp: ShellBreakpoint) => void;
   setPointerKind: (kind: PointerKind) => void;
   setMobileMode: (mode: MobileMode) => void;
