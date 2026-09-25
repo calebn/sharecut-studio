@@ -148,6 +148,9 @@ function pump(): void {
   }
 }
 
+// Tiles and PCM share the gate: a slot either store frees wakes both.
+waveformFetchGate.onRelease(pump);
+
 function store(run: Pending[], buf: ArrayBuffer): void {
   const head = run[0]!;
   const all = new Int16Array(buf, 0, Math.floor(buf.byteLength / 2));
@@ -222,7 +225,6 @@ function dispatch(run: Pending[]): void {
         inflight.delete(id);
       }
       waveformFetchGate.release();
-      pump();
     });
 }
 

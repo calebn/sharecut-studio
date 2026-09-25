@@ -317,7 +317,8 @@ not wired into the timeline yet. Each module has a `*.test.ts`.
     with the same object identity while it is unchanged.
 - **Data** (budgets in `budgets.ts`: bitmaps 128 MB, or 48 MB on the phone
   shell; tiles 64 or 32 MB; PCM 32 MB; 4 fetches in flight on the host and
-  3 through a share, tiles and PCM combined).
+  3 through a share, tiles and PCM combined; a slot freed by either store
+  wakes both, via `waveformFetchGate.onRelease`).
   - `pyramidStore.ts`: missing data tiles are queued by priority (visible,
     overscan, prefetch), deduplicated, and fetched in runs of up to
     `max_tiles_per_request`. A 429 re-queues after `Retry-After`. Zoom and

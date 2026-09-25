@@ -117,6 +117,20 @@ describe("pyramidStore", () => {
     expect(waveformFetchGate.active).toBe(0);
   });
 
+  it("wakes when another store frees a gate slot", () => {
+    for (let i = 0; i < 4; i++) {
+      expect(waveformFetchGate.tryAcquire(4)).toBe(true);
+    }
+    requestTiles(source, 1, [2], PRIORITY_VISIBLE);
+    expect(calls).toHaveLength(0);
+    waveformFetchGate.release();
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.req).toMatchObject({ level: 1, start: 2 });
+    for (let i = 0; i < 3; i++) {
+      waveformFetchGate.release();
+    }
+  });
+
   it("coalesces missing tiles into runs of max_tiles_per_request", async () => {
     requestTiles(
       source,
