@@ -325,7 +325,14 @@ describe("applyAnchoredZoom", () => {
       _timelineEl: fakeTimelineEl(),
       _timelineLeadPx: 0,
     });
+    const seen: Array<[number, number]> = [];
+    const unsub = useDawStore.subscribe((st) =>
+      seen.push([st.project?.timeline_duration_sec ?? 0, st.zoomPxPerSec]),
+    );
     useDawStore.getState().setProject({ timeline_duration_sec: 3600 } as never);
+    unsub();
+    expect(seen).toHaveLength(1);
+    expect(seen[0]![1]).toBeLessThanOrEqual(MAX_CONTENT_PX / 3600 + 1e-9);
     const s = useDawStore.getState();
     expect(s.zoomPxPerSec).toBeCloseTo(MAX_CONTENT_PX / 3600, 6);
     expect((s.scrollLeft + 200) / s.zoomPxPerSec).toBeCloseTo(30, 9);

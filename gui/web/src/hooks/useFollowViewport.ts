@@ -6,7 +6,7 @@ import {
   withProgrammaticScroll,
 } from "../presence/followSync";
 import { useDawStore } from "../state/dawStore";
-import { clampZoomPxPerSec, DEFAULT_SESSION_SEC } from "../utils/zoom";
+import { clampZoomPxPerSec, sessionSecOf } from "../utils/zoom";
 
 export function useFollowViewport(): void {
   const followingClientId = useDawStore((s) => s.followingClientId);
@@ -40,10 +40,7 @@ export function useFollowViewport(): void {
     const { zoomPxPerSec } = viewportToZoomScroll(v, width);
     // The leader may zoom past this session's ceiling (another viewport
     // width); scroll to their start at the zoom this view can show.
-    const zoom = clampZoomPxPerSec(
-      zoomPxPerSec,
-      state.project?.timeline_duration_sec ?? DEFAULT_SESSION_SEC,
-    );
+    const zoom = clampZoomPxPerSec(zoomPxPerSec, sessionSecOf(state));
     const scrollLeft = Math.max(0, v.start_sec * zoom);
     withProgrammaticScroll(() => {
       useDawStore.getState().setZoomPxPerSec(zoom);

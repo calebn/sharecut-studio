@@ -22,11 +22,11 @@ import {
   anchoredZoomScroll,
   clampWaveformAmp,
   clampZoomPxPerSec,
-  DEFAULT_SESSION_SEC,
   discreteZoomFactor,
   fitZoomPxPerSec,
   MAX_WAVEFORM_AMP,
   MIN_WAVEFORM_AMP,
+  sessionSecOf,
 } from "../utils/zoom";
 import {
   noteZoomPointerClientX,
@@ -46,9 +46,34 @@ import type {
   ToolMode,
 } from "./types";
 
-/** Session length the zoom ceiling uses (`timeline_duration_sec`, else 60 s). */
-function sessionSecOf(s: { project: ProjectView | null }): number {
-  return s.project?.timeline_duration_sec ?? DEFAULT_SESSION_SEC;
+/**
+ * The zoom/scroll patch that re-clamps zoom to `sessionSec`'s ceiling, keeping
+ * the time at the viewport centre; empty when the zoom already fits. Merge it
+ * into the same `set` as the project so no frame shows an over-ceiling zoom.
+ */
+export function zoomReclampPatch(
+  s: Pick<
+    DawStore,
+    | "zoomPxPerSec"
+    | "scrollLeft"
+    | "_timelineLeadPx"
+    | "measureTimelineViewport"
+  >,
+  sessionSec: number,
+): Partial<Pick<DawState, "zoomPxPerSec" | "scrollLeft">> {
+  const zoom = clampZoomPxPerSec(s.zoomPxPerSec, sessionSec);
+  if (zoom === s.zoomPxPerSec) {
+    return {};
+  }
+  const width = s.measureTimelineViewport();
+  const centerSec = (s.scrollLeft + width / 2) / s.zoomPxPerSec;
+  return {
+    zoomPxPerSec: zoom,
+    scrollLeft: Math.max(
+      minLogicalScrollLeft(s._timelineLeadPx),
+      centerSec * zoom - width / 2,
+    ),
+  };
 }
 
 const FOCUS_CYCLE: FocusMode[] = ["default", "timeline", "text", "review"];
@@ -137,8 +162,7 @@ export const useDawStore = create<DawStore>((set, get) => ({
     }
   },
   setProject: (project) => {
-    set({ project });
-    get().reclampZoomForDuration();
+    set({ project, ...zoomReclampPatch(get(), sessionSecOf({ project })) });
   },
   setGuestMode: (guestMode: string | null) => set({ guestMode }),
   setPipelineJob: (pipelineJob: PipelineJobSnapshot | null) =>
@@ -395,21 +419,7 @@ export const useDawStore = create<DawStore>((set, get) => ({
   setZoomPxPerSec: (zoomPxPerSec) =>
     set({ zoomPxPerSec: clampZoomPxPerSec(zoomPxPerSec, sessionSecOf(get())) }),
   reclampZoomForDuration: () => {
-    const s = get();
-    const zoom = clampZoomPxPerSec(s.zoomPxPerSec, sessionSecOf(s));
-    if (zoom === s.zoomPxPerSec) {
-      return;
-    }
-    // Keep the time at the viewport centre where it was.
-    const width = s.measureTimelineViewport();
-    const centerSec = (s.scrollLeft + width / 2) / s.zoomPxPerSec;
-    set({
-      zoomPxPerSec: zoom,
-      scrollLeft: Math.max(
-        minLogicalScrollLeft(s._timelineLeadPx),
-        centerSec * zoom - width / 2,
-      ),
-    });
+    set(zoomReclampPatch(get(), sessionSecOf(get())));
   },
   setWaveformAmpZoom: (waveformAmpZoom) =>
     set({ waveformAmpZoom: clampWaveformAmp(waveformAmpZoom) }),
@@ -704,7 +714,7 @@ export const useDawStore = create<DawStore>((set, get) => ({
   helpDialogOpen: false,
   setHelpDialogOpen: (helpDialogOpen) => set({ helpDialogOpen }),
   fitToWindow: (viewportWidth) => {
-    const duration = get().project?.timeline_duration_sec ?? 60;
+    const duration = sessionSecOf(get());
     if (duration > 0 && viewportWidth > 0) {
       const zoom = fitZoomPxPerSec(viewportWidth, duration);
       // A fixed playhead stays on the line through a fit.
@@ -768,7 +778,7 @@ export const useDawStore = create<DawStore>((set, get) => ({
             highlightStaleRender: false,
             renderPreviewBusy: false,
           }),
+      ...zoomReclampPatch(get(), sessionSecOf({ project: initialProject })),
     });
-    get().reclampZoomForDuration();
   },
 }));
