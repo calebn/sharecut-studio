@@ -779,6 +779,16 @@ describe("TimelineView render isolation", () => {
     }
     act(() => useDawStore.getState().setProject(next));
     expect([...renders.clips].sort()).toEqual(["host-1", "host-2", "host-3"]);
+    // The edited lane re-renders and shows the new value. (Other lanes also
+    // re-render today: the snapshot carries fresh envelopes / edit records,
+    // which `reuseUnchanged` does not yet keep by identity.)
+    expect(renders.lanes).toContain("host");
+    const block = screen
+      .getByRole("button", { name: "Select clip host-2" })
+      .closest(".clip-block");
+    expect(block?.querySelector(".fade-in-region")).not.toBeNull();
+    // The snapshot path built new objects instead of mutating the old ones.
+    expect(prev.clips.tracks.host![2]!.fade_in_ms).toBe(0);
   });
 
   it("draws the blade guide on target lanes at the pointer time", () => {
