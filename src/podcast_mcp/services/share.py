@@ -713,6 +713,35 @@ def share_daw_peaks(token: str, track_id: str) -> dict[str, Any]:
     return _drop_absolute_path_strings(payload)
 
 
+_GUEST_WAVEFORM_REFS = ("track:", "source:")
+
+
+def share_daw_waveform_status(token: str) -> dict[str, Any]:
+    """Raw-media pyramid status for guests (``view``); stems are host-only."""
+    from podcast_mcp.services.waveform import waveform_status
+
+    _row, ws = require_share_cap(token, CAP_VIEW)
+    return waveform_status(ws.path, "raw")
+
+
+def share_daw_waveform_tiles(
+    token: str, *, ref: str, key: str, level: int, start: int, count: int
+) -> bytes:
+    """Pyramid data tiles for guests (``view``): raw refs only, live keys only.
+
+    There is deliberately no guest PCM window: raw samples never go to guests.
+    """
+    from podcast_mcp.services.waveform import current_key, media_index, tile_bytes
+
+    _row, ws = require_share_cap(token, CAP_VIEW)
+    if not ref.startswith(_GUEST_WAVEFORM_REFS):
+        raise ValueError("guests may only read track: and source: waveforms")
+    entry = media_index(ws.path).refs.get(ref)
+    if entry is None or current_key(entry) != key:
+        raise KeyError("waveform not found")
+    return tile_bytes(ws.path, ref, key, level, start, count)
+
+
 def share_daw_waveform_snap(
     token: str,
     *,

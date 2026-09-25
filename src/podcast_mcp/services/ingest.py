@@ -33,6 +33,7 @@ from podcast_mcp.models import (
     Track,
     TrackRole,
 )
+from podcast_mcp.services.waveform import schedule_track_waveforms
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.progress import resolve_progress_task
 from podcast_mcp.util.workspace_paths import resolve_within
@@ -369,6 +370,8 @@ class IngestService:
             p.meta.ingest_alignment = align_meta or None
 
         self.ws.mutate("before ingest consolidate", "after ingest consolidate", mutate)
+        for track in self.ws.project.tracks:
+            schedule_track_waveforms(self.ws.project, track)
         return [t.id for t in self.ws.project.tracks]
 
 

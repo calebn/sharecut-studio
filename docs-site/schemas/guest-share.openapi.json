@@ -6835,6 +6835,130 @@
         }
       }
     },
+    "/api/review/{token}/daw/waveform/status": {
+      "get": {
+        "description": "Raw-media pyramid status (``view``); same shape as the host status route.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/daw/waveform/tiles/{key}": {
+      "get": {
+        "description": "Immutable pyramid data tiles (``view``); audio rate class. No guest PCM route.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "description": "track:<id> or source:<id>",
+            "in": "query",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "description": "track:<id> or source:<id>",
+              "title": "Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "level",
+            "required": true,
+            "schema": {
+              "title": "Level",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "First data tile",
+            "in": "query",
+            "name": "start",
+            "required": true,
+            "schema": {
+              "description": "First data tile",
+              "title": "Start",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Data tiles (1..max_tiles_per_request)",
+            "in": "query",
+            "name": "count",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "Data tiles (1..max_tiles_per_request)",
+              "title": "Count",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
     "/api/review/{token}/features": {
       "get": {
         "description": "Share-scoped feature manifest (relay-safe; guests cannot hit /api/features).",

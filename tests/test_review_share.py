@@ -1575,3 +1575,111 @@ def test_share_review_audio_rejects_escaped_media_paths(minimal_project, sample_
     reopened = ProjectWorkspace.open(minimal_project)
     with pytest.raises(ValueError):
         PlayService(reopened).resolve_transport_path(f"review:{ver['id']}")
+
+
+def _waveform_share(minimal_project, sample_wav, capabilities):
+    from podcast_mcp.engines.waveform_pyramid import wait_pyramid_jobs
+    from podcast_mcp.models import MediaAsset, Track
+
+    proj = load_project(minimal_project)
+    proj.timeline.tracks = [Track(id="host", label="Host", media=MediaAsset(path="raw/host.wav"))]
+    save_project(proj, minimal_project)
+    ws = _seed_premix(minimal_project, sample_wav)
+    (ws.project.artifacts_dir() / "tracks").mkdir(parents=True, exist_ok=True)
+    (ws.project.artifacts_dir() / "tracks" / "host.wav").write_bytes(sample_wav.read_bytes())
+    ver = ReviewService(ws).publish(label="Waveform")
+    share = ShareService(ws).create(review_version_id=ver["id"], capabilities=capabilities)
+    client = TestClient(create_app())
+    client.get(f"/api/review/{share['token']}/daw/waveform/status")
+    wait_pyramid_jobs()
+    return client, share["token"]
+
+
+def test_guest_waveform_status_and_tiles(minimal_project, sample_wav, monkeypatch):
+    import podcast_mcp.engines.waveform_media as wm
+
+    monkeypatch.setattr(wm, "stem_is_fresh", lambda *_a: True)
+    client, token = _waveform_share(minimal_project, sample_wav, ["play", "view"])
+    status = client.get(f"/api/review/{token}/daw/waveform/status")
+    assert status.status_code == 200
+    assert status.headers["cache-control"] == "no-store"
+    media = status.json()["media"]
+    assert set(media) == {"track:host"}  # raw only, even with a fresh stem
+    key = media["track:host"]["key"]
+    assert media["track:host"]["status"] == "ready"
+    assert str(minimal_project.parent) not in status.text
+
+    tiles = client.get(
+        f"/api/review/{token}/daw/waveform/tiles/{key}",
+        params={"ref": "track:host", "level": 0, "start": 0},
+    )
+    assert tiles.status_code == 200
+    assert tiles.headers["cache-control"] == "private, max-age=31536000, immutable"
+    assert tiles.headers["etag"] == f'"{key}-0-0-1"'
+    assert len(tiles.content) % 6 == 0 and tiles.content
+
+    foreign = client.get(
+        f"/api/review/{token}/daw/waveform/tiles/{'0' * 20}",
+        params={"ref": "track:host", "level": 0, "start": 0},
+    )
+    assert foreign.status_code == 404
+    assert foreign.headers["cache-control"] == "no-store"
+    stem = client.get(
+        f"/api/review/{token}/daw/waveform/tiles/{key}",
+        params={"ref": "stem:host", "level": 0, "start": 0},
+    )
+    assert stem.status_code == 400
+    unknown = client.get(
+        f"/api/review/{token}/daw/waveform/tiles/{key}",
+        params={"ref": "track:nope", "level": 0, "start": 0},
+    )
+    assert unknown.status_code == 404
+    bad_count = client.get(
+        f"/api/review/{token}/daw/waveform/tiles/{key}",
+        params={"ref": "track:host", "level": 0, "start": 0, "count": 99},
+    )
+    assert bad_count.status_code == 400
+    # There is never a guest PCM route.
+    pcm = client.get(
+        f"/api/review/{token}/daw/waveform/pcm/{key}", params={"ref": "track:host", "block": 0}
+    )
+    assert pcm.status_code in {404, 405}
+
+
+def test_guest_waveform_requires_view(minimal_project, sample_wav):
+    client, token = _waveform_share(minimal_project, sample_wav, ["play", "comment"])
+    status = client.get(f"/api/review/{token}/daw/waveform/status")
+    assert status.status_code == 403
+    assert status.headers["cache-control"] == "no-store"
+    tiles = client.get(
+        f"/api/review/{token}/daw/waveform/tiles/{'0' * 20}",
+        params={"ref": "track:host", "level": 0, "start": 0},
+    )
+    assert tiles.status_code == 403
+    bad_token = client.get("/api/review/not-a-token/daw/waveform/status")
+    assert bad_token.status_code in {401, 403, 404}
+    assert bad_token.headers["cache-control"] == "no-store"
+
+
+def test_guest_waveform_tiles_hold_an_audio_slot(minimal_project, sample_wav, monkeypatch):
+    from podcast_mcp.services.remote_mcp import limits
+
+    client, token = _waveform_share(minimal_project, sample_wav, ["play", "view"])
+    key = client.get(f"/api/review/{token}/daw/waveform/status").json()["media"]["track:host"][
+        "key"
+    ]
+    monkeypatch.setenv("PODCAST_RATE_LIMIT", "1")
+    lim = limits.get_host_limiters()
+    params = {"ref": "track:host", "level": 0, "start": 0}
+    url = f"/api/review/{token}/daw/waveform/tiles/{key}"
+    denied = limits.RateLimitDecision(allowed=False, bucket="host_audio", retry_after_sec=1.0)
+    monkeypatch.setattr(lim.audio_concurrent, "try_enter", lambda _t: denied)
+    busy = client.get(url, params=params)
+    assert busy.status_code == 429
+    assert busy.headers["cache-control"] == "no-store"
+    exits: list[str] = []
+    allowed = limits.RateLimitDecision(allowed=True, bucket="host_audio")
+    monkeypatch.setattr(lim.audio_concurrent, "try_enter", lambda _t: allowed)
+    monkeypatch.setattr(lim.audio_concurrent, "exit", exits.append)
+    assert client.get(url, params=params).status_code == 200
+    assert exits == [token]  # released after the response

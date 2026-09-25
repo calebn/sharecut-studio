@@ -26,6 +26,7 @@ _PROTECTED_PREFIXES = (
     "/api/media",
     "/api/audio",
     "/api/peaks",
+    "/api/waveform",
     "/api/waveform-snap",
     "/api/history",
     "/api/document",

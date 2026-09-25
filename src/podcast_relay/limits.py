@@ -118,6 +118,7 @@ def is_audio_path(path_suffix: str) -> bool:
         or "/daw/audio" in p
         or "/daw/pending-preview" in p
         or "/daw/audition-context" in p
+        or "/daw/waveform/tiles/" in p
     )
 
 

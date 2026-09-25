@@ -55,6 +55,7 @@ from podcast_mcp.services.record.upload import (
     parse_session_id,
     parse_upload_index,
 )
+from podcast_mcp.services.waveform import schedule_track_waveforms
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.atomic_json import copy_file_atomic
 from podcast_mcp.util.hashing import sha256_file
@@ -651,6 +652,7 @@ class RecordLandingService:
             track = self.workspace.project.track_by_id(track_id)
             if track is not None and track.media is not None:
                 schedule_track_peaks(self.workspace.project, track)
+                schedule_track_waveforms(self.workspace.project, track)
 
         after_agent_mutation(self.workspace)
         return {

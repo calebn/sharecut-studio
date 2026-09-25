@@ -82,6 +82,7 @@ Audio candidates exist; video ingest, 9:16 export, captions, active-speaker — 
 |------|------|
 | Always-on hosted projects (SaaS) | Collaboration without laptop host; owned by the independently maintained `podcast_online` provider extension. |
 | Recording session (beta) | Recording links + full-session audio from browser/desktop — [ROADMAP § Recording session](../../ROADMAP.md#recording-session). Design locked: [docs/recording-session.md](../../docs/recording-session.md). Audio MVP shipped. Follow-up leftover (producer `talk`/`control`, room chat, Tauri cpal, restricted record shares): [ROADMAP § Follow-up](../../ROADMAP.md#follow-up). |
+| Waveform pyramids (#429) | Pyramid status/tile routes are live for host and guests (no visible change yet; the timeline still paints the legacy overview). When the renderer lands, review the two-tone Peak + RMS look, the "Generating waveform…" hint, and guest waveforms at deep zoom (guests stop at pyramid resolution). |
 | Full design system | Only if polish/scale demands it; Sharecut Studio uses CSS tokens today |
 | Marketing site | Separate from this UX pack |
 | Annotated FigJam wireframes | Optional; until then use [Screens](#/screens) ASCII + [Guest journeys](#/journeys). Add a FigJam link here when one exists. |

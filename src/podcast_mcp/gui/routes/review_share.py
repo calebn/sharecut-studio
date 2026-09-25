@@ -13,7 +13,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 
@@ -34,6 +34,8 @@ from podcast_mcp.gui.routes.share_common import (
     rate_limit_share,
     share_features_manifest,
 )
+from podcast_mcp.gui.routes.waveform import NO_STORE as WAVEFORM_NO_STORE
+from podcast_mcp.gui.routes.waveform import binary_response, no_store_error, waveform_error
 from podcast_mcp.gui.schemas import DocumentCommandRequest, ShareActionDoneRequest
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.payloads import (
@@ -73,6 +75,8 @@ from podcast_mcp.services.share import (
     share_daw_peaks,
     share_daw_project_view,
     share_daw_waveform_snap,
+    share_daw_waveform_status,
+    share_daw_waveform_tiles,
     share_pending_preview_image,
     share_pending_preview_image_cached,
     share_pending_preview_wav,
@@ -114,20 +118,27 @@ def _rate_limit(token: str, kind: str) -> None:
     rate_limit_share(token, kind)
 
 
+def _audio_slot(token: str) -> BackgroundTask | None:
+    """Take an audio concurrency slot; the returned task releases it after the response.
+
+    Raises 429 when the share is at its audio concurrency cap.
+    """
+    if not host_rate_limit_enabled():
+        return None
+    lim = get_host_limiters()
+    decision = lim.audio_concurrent.try_enter(token)
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=429,
+            detail=rate_limit_detail(decision),
+            headers={"Retry-After": decision.retry_after_header},
+        )
+    return BackgroundTask(lim.audio_concurrent.exit, token)
+
+
 def _audio_file_response(token: str, path, **kwargs: Any):
     """FileResponse that holds audio concurrency until the response completes."""
-    background = None
-    if host_rate_limit_enabled():
-        lim = get_host_limiters()
-        decision = lim.audio_concurrent.try_enter(token)
-        if not decision.allowed:
-            raise HTTPException(
-                status_code=429,
-                detail=rate_limit_detail(decision),
-                headers={"Retry-After": decision.retry_after_header},
-            )
-        background = BackgroundTask(lim.audio_concurrent.exit, token)
-    return FileResponse(path, background=background, **kwargs)
+    return FileResponse(path, background=_audio_slot(token), **kwargs)
 
 
 def _map_share_exc(exc: Exception) -> HTTPException:
@@ -233,6 +244,46 @@ def get_daw_peaks(token: str, track_id: str):
         )
     except Exception as exc:
         raise _map_share_exc(exc) from exc
+
+
+@router.get("/api/review/{token}/daw/waveform/status")
+def get_daw_waveform_status(token: str) -> JSONResponse:
+    """Raw-media pyramid status (``view``); same shape as the host status route."""
+    try:
+        _check_token(token)
+        _rate_limit(token, "read")
+        body = share_daw_waveform_status(token)
+    except HTTPException as exc:
+        raise no_store_error(exc) from exc
+    except Exception as exc:
+        raise no_store_error(_map_share_exc(exc)) from exc
+    return JSONResponse(body, headers=WAVEFORM_NO_STORE)
+
+
+@router.get("/api/review/{token}/daw/waveform/tiles/{key}")
+def get_daw_waveform_tiles(
+    token: str,
+    key: str,
+    ref: str = Query(..., description="track:<id> or source:<id>"),
+    level: int = Query(...),
+    start: int = Query(..., description="First data tile"),
+    count: int = Query(1, description="Data tiles (1..max_tiles_per_request)"),
+) -> Response:
+    """Immutable pyramid data tiles (``view``); audio rate class. No guest PCM route."""
+    try:
+        _check_token(token)
+        _rate_limit(token, "audio")
+        body = share_daw_waveform_tiles(
+            token, ref=ref, key=key, level=level, start=start, count=count
+        )
+        slot = _audio_slot(token)
+    except HTTPException as exc:
+        raise no_store_error(exc) from exc
+    except LookupError as exc:
+        raise waveform_error(exc) from exc
+    except Exception as exc:
+        raise no_store_error(_map_share_exc(exc)) from exc
+    return binary_response(body, f"{key}-{level}-{start}-{count}", background=slot)
 
 
 @router.get("/api/review/{token}/daw/waveform-snap")

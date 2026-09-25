@@ -38,6 +38,7 @@ from podcast_mcp.models import Track, TrackRole
 from podcast_mcp.project_store import ProjectStore
 from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.session_sync.viewer import publish_agent_play
+from podcast_mcp.services.waveform import schedule_stem_waveforms
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.process import run
 from podcast_mcp.util.project_state import project_state_lock, snapshot_project
@@ -535,6 +536,7 @@ class PlayService:
                 render_project, track_id
             ):
                 clear_invalidations_for_tracks(self.project, [track_id])
+        schedule_stem_waveforms(self.project, [track_id])
         return out
 
     def _segment_cache_path(

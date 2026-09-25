@@ -217,6 +217,8 @@ All under `/api/review/{token}/…` (proxied by the relay; **no** `?project=` pa
 | `GET …/daw/project` | `view` | Sanitized ProjectView (no host filesystem paths) |
 | `GET …/daw/meta` | `view` | mtime/size for poll reload |
 | `GET …/daw/peaks/{track_id}` | `view` | Uint8 overview waveform (same file as host; no extra coarsen); 404 `{"available": false, "track_id", "generating"}` while missing, with generation queued when possible |
+| `GET …/daw/waveform/status` | `view` | Waveform pyramid status for **raw** media only (`track:` / `source:` refs; stems stay host-only); `no-store`; read rate class. Same shape as host `GET /api/waveform/status` ([waveform.md § API](waveform.md#api)) |
+| `GET …/daw/waveform/tiles/{key}?ref=&level=&start=&count=` | `view` | Binary min/max/RMS pyramid tiles; `track:`/`source:` refs only and only the ref's live key (else 404). `Cache-Control: private, max-age=31536000, immutable` + `ETag`. **Audio** rate class (no RPM, holds an audio concurrency slot). There is no guest PCM route: raw samples never go to guests |
 | `GET …/daw/waveform-snap` | `suggest` / `edit` | Windowed snap ticks for the DAW overlay; view-only guests get the quiet wash only |
 | `GET …/daw/audio?kind=` | `play` | Whitelist: `premix`, `stem`, `processed`, `review`. Rejects `raw` and `rerender=true` |
 | `GET …/daw/pending-preview` | `play` + `view` | Listen-first Current / Suggested / A/B WAV (concat; not host speakers). First hit is FFmpeg (mutate RPM); cached GET uses audio concurrency. |
@@ -429,7 +431,7 @@ Generous defaults (tighten via env if you see abuse). Philosophy: false 429s hur
 | Host | Audio concurrent | 8 | share token |
 | Host | Guest WS concurrent | 8 | share token |
 
-Audio paths skip RPM (concurrency only). Guest WS fanout (host→guest) is unlimited; only inbound guest→host text frames hit `PODCAST_RELAY_WS_MSG_RPM`. Responses: HTTP **429** + `Retry-After`; WS close **4429**; MCP JSON-RPC error **`-32029`**.
+Audio paths skip RPM (concurrency only); guest waveform tiles (`…/daw/waveform/tiles/`) count as audio on both the relay (`is_audio_path`) and the host (`classify_review_request`), while `…/daw/waveform/status` stays in the read class. Guest WS fanout (host→guest) is unlimited; only inbound guest→host text frames hit `PODCAST_RELAY_WS_MSG_RPM`. Responses: HTTP **429** + `Retry-After`; WS close **4429**; MCP JSON-RPC error **`-32029`**.
 
 | Env | Role |
 |-----|------|

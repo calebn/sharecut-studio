@@ -34,6 +34,7 @@ from podcast_mcp.gui.routes import (
     record_host,
     session,
     transcript,
+    waveform,
 )
 from podcast_mcp.gui.routes.deps import require_host
 from podcast_mcp.gui.routes.session import apply_ws_client_message
@@ -194,6 +195,7 @@ def create_app(
 
     # Core FOSS routes only - share/auth/remote MCP come from extensions.
     app.include_router(project.router)
+    app.include_router(waveform.router)
     app.include_router(session.router)
     app.include_router(transcript.router)
     app.include_router(record_host.router)

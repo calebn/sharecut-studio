@@ -278,10 +278,14 @@ def test_apply_consolidated_tracks(minimal_project: Path, sample_wav: Path) -> N
         cross_speaker_align_method={"Host": "audio"},
     )
     probe = AudioProbe(duration_sec=2.0, sample_rate=48000, channels=1)
-    with patch("podcast_mcp.edits.track_media.FFmpegEngine") as eng_cls:
+    with (
+        patch("podcast_mcp.edits.track_media.FFmpegEngine") as eng_cls,
+        patch("podcast_mcp.services.ingest.schedule_track_waveforms") as waveforms,
+    ):
         eng_cls.return_value.probe.return_value = probe
         track_ids = IngestService(ws).apply_consolidated_tracks(result)
     assert track_ids == ["host"]
+    assert [call.args[1].id for call in waveforms.call_args_list] == ["host"]
     proj = load_project(minimal_project)
     assert len(proj.timeline.tracks) == 1
     assert proj.timeline.tracks[0].speaker == "Host"

@@ -8,6 +8,7 @@ from typing import Any
 
 from podcast_mcp.edits import apply_tighten_decisions, propose_tighten_edits
 from podcast_mcp.engines import TranscriptionEngine, ensure_track_peaks
+from podcast_mcp.engines.waveform_media import schedule_stem_waveforms
 from podcast_mcp.models import (
     AutomationEnvelope,
     AutomationPoint,
@@ -420,6 +421,7 @@ def _render_track_stems(project: EpisodeProject, defaults: dict[str, Any]) -> St
             json.dumps({k: str(v) for k, v in rendered.items()}, indent=2),
             encoding="utf-8",
         )
+    schedule_stem_waveforms(project, list(rendered))
     cached = len(rendered) - len(to_render)
     return f"{len(to_render)} rendered, {cached} cached ({len(rendered)} total)"
 
