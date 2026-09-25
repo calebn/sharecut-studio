@@ -353,7 +353,10 @@ not wired into the timeline yet. Each module has a `*.test.ts`.
     otherwise the CPU rasterizer plus `createImageBitmap`. It falls back to
     the CPU after a context loss.
   - `rasterClient.ts` keeps at most 4 jobs outstanding. It drops queued jobs
-    that are no longer wanted, but caches results that arrive late. Its
+    that are no longer wanted, but caches results that arrive late. A provisional request never
+    replaces a queued exact one. A `postMessage` that throws frees its slot,
+    and a result whose job is gone is closed. Pending `rasterParity()` calls
+    settle with null on a reset or a worker failure. Its
     backend is `none` without `Worker` (jsdom).
   - `bitmapCache.ts` holds the finished bitmaps and calls `close()` on
     every one it evicts. While a tile's exact bitmap is pending, it offers

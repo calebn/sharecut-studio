@@ -61,15 +61,20 @@ function setBackend(next: RasterBackendState): void {
   }
 }
 
+/** Settle every pending `rasterParity()` with null. */
+function settleParity(): void {
+  for (const resolve of parityWaiters.values()) {
+    resolve(null);
+  }
+  parityWaiters.clear();
+}
+
 function fail(): void {
   worker?.terminate();
   worker = null;
   queue.clear();
   sent.clear();
-  for (const resolve of parityWaiters.values()) {
-    resolve(null);
-  }
-  parityWaiters.clear();
+  settleParity();
   setBackend("none");
 }
 
@@ -85,6 +90,10 @@ function onMessage(msg: RasterOutMsg): void {
   }
   const job = sent.get(msg.id);
   sent.delete(msg.id);
+  if (msg.type === "done" && !job) {
+    // Its job was forgotten (reset, worker failure, duplicate id): nobody draws it.
+    msg.bitmap.close();
+  }
   if (msg.type === "done" && job) {
     setBackend(msg.backend satisfies WorkerBackend);
     tilesRendered += 1;
@@ -98,8 +107,11 @@ function onMessage(msg: RasterOutMsg): void {
       provisional: job.provisional,
     };
     bitmapCache.set(job.key, entry);
-    for (const fn of [...doneListeners]) {
-      fn(job.key, entry);
+    // An entry over the whole budget is evicted (and closed) on insert.
+    if (bitmapCache.holds(job.key, entry)) {
+      for (const fn of [...doneListeners]) {
+        fn(job.key, entry);
+      }
     }
   }
   pump();
@@ -161,7 +173,12 @@ function pump(): void {
     queue.delete(best.key);
     const id = nextId++;
     sent.set(id, { ...best, id });
-    post(w, { type: "render", id, job: best.job });
+    try {
+      post(w, { type: "render", id, job: best.job });
+    } catch {
+      // e.g. a DataCloneError on a detached buffer: drop the job, free its slot.
+      sent.delete(id);
+    }
   }
 }
 
@@ -174,6 +191,11 @@ export function requestRaster(req: RasterRequest): void {
     if (job.key === req.key && job.provisional === req.provisional) {
       return;
     }
+  }
+  const queued = queue.get(req.key);
+  if (queued && !queued.provisional && req.provisional) {
+    // Never let a stand-in replace a queued exact render.
+    return;
   }
   queue.set(req.key, req);
   pump();
@@ -230,7 +252,7 @@ export function resetRasterClient(): void {
   backend = "starting";
   queue.clear();
   sent.clear();
-  parityWaiters.clear();
+  settleParity();
   tilesRendered = 0;
   nextId = 1;
 }
