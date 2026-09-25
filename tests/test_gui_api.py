@@ -733,6 +733,24 @@ def test_api_audio_resolve_errors(minimal_project, monkeypatch) -> None:
     assert missing.status_code == 404
 
 
+def test_api_audio_rerender_merge_conflict_is_409(minimal_project, monkeypatch) -> None:
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.project_merge import ProjectMergeConflict
+
+    def conflict(*_args: object, **_kwargs: object) -> None:
+        raise ProjectMergeConflict(["render.premix_hash"])
+
+    monkeypatch.setattr("podcast_mcp.gui.routes.project.resolve_viewer_audio", conflict)
+    res = TestClient(create_app()).get(
+        "/api/audio", params={"path": str(minimal_project), "rerender": "true"}
+    )
+    assert res.status_code == 409
+    assert "re-run it" in res.json()["detail"]
+
+
 def test_api_health() -> None:
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
