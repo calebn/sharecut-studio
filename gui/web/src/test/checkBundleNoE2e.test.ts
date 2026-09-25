@@ -6,6 +6,9 @@ describe("production bundle E2E guard", () => {
     expect(forbiddenE2eMarker("window.__SHARECUT_E2E = true")).toBe(
       "__SHARECUT_E2E",
     );
+    expect(forbiddenE2eMarker("window.__SHARECUT_E2E_WAVEFORM = hook")).toBe(
+      "__SHARECUT_E2E",
+    );
     expect(forbiddenE2eMarker("window.__recordSignalCount++")).toBe(
       "__recordSignalCount",
     );
