@@ -87,6 +87,22 @@ describe("statusStore", () => {
     off();
   });
 
+  it("drops a refresh asked mid-flight when that poll fails permanently", async () => {
+    const off = subscribeWaveformStatus(P, "raw", () => {});
+    refreshWaveformStatus(P, "raw");
+    expect(loads).toHaveLength(1);
+    loads.shift()!.reject(new WaveformFetchError(403, null));
+    await flush();
+    vi.advanceTimersByTime(10_000);
+    expect(loads).toHaveLength(0);
+    refreshWaveformStatus(P, "raw");
+    expect(loads).toHaveLength(1);
+    loads.shift()!.resolve(status({ "track:a": ready("a".repeat(20)) }));
+    await flush();
+    expect(loads).toHaveLength(0);
+    off();
+  });
+
   it("polls with 1, 2, 4 s back-off while generating and stops when ready", async () => {
     const off = subscribeWaveformStatus(P, "raw", () => {});
     expect(loads).toHaveLength(1);
