@@ -1,7 +1,39 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { minimalProject } from "../test/fixtures";
 import type { SessionState } from "../types/session";
-import { useDawStore } from "./dawStore";
+import { estimateTimelineViewportWidth, useDawStore } from "./dawStore";
+
+describe("dawStore timeline viewport width", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    useDawStore.setState({ shellBreakpoint: "desktop" });
+  });
+
+  it("estimates the time column per shell", () => {
+    vi.stubGlobal("visualViewport", { width: 1280 });
+    expect(estimateTimelineViewportWidth("desktop")).toBe(780);
+    expect(estimateTimelineViewportWidth("tablet")).toBe(1080);
+    expect(estimateTimelineViewportWidth("phone")).toBe(1280);
+    vi.stubGlobal("visualViewport", { width: 300 });
+    expect(estimateTimelineViewportWidth("desktop")).toBe(200);
+  });
+
+  it("starts at a non-zero width before the timeline measures", () => {
+    expect(useDawStore.getInitialState().timelineViewportWidth).toBeGreaterThan(
+      0,
+    );
+  });
+
+  it("resets a stale measured width to the current shell's estimate", () => {
+    vi.stubGlobal("visualViewport", { width: 390 });
+    useDawStore.setState({
+      shellBreakpoint: "phone",
+      timelineViewportWidth: 777,
+    });
+    useDawStore.getState().resetTimelineViewportWidth();
+    expect(useDawStore.getState().timelineViewportWidth).toBe(390);
+  });
+});
 
 function agentSession(partial: Partial<SessionState> = {}): SessionState {
   return {

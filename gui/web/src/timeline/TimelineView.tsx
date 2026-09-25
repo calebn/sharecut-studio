@@ -486,6 +486,13 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     setTimelineViewportWidth,
   ]);
 
+  // Unmounting (shell switch, project close) drops the measured width, so the
+  // next timeline's first render uses the shell estimate, not a stale width.
+  useLayoutEffect(
+    () => () => useDawStore.getState().resetTimelineViewportWidth(),
+    [],
+  );
+
   useEffect(() => {
     const el = scrollRef.current;
     // Run when sessionRegion changes — not on zoom ticks (pointer anchor).

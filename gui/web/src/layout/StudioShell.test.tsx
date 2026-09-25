@@ -22,6 +22,7 @@ vi.mock("../hooks/useViewportClass", () => ({
   PHONE_MAX_PX: 767,
   TABLET_MAX_PX: 1100,
   shellBreakpointFromWidth: () => "tablet" as const,
+  cssViewportWidth: () => 1024,
 }));
 
 // Full-shell render; not exercising waveform fetching.

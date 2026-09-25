@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { Profiler, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { projectFromDocumentSnapshot } from "../document/projectPatch";
-import { useDawStore } from "../state/dawStore";
+import { estimateTimelineViewportWidth, useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject, sampleComment } from "../test/fixtures";
@@ -703,6 +703,16 @@ describe("TimelineView render isolation", () => {
     renders.clips = [];
     return view;
   }
+
+  it("resets the stored viewport width to the shell estimate on unmount", () => {
+    const view = mount();
+    act(() => useDawStore.setState({ timelineViewportWidth: 777 }));
+    view.unmount();
+    const s = useDawStore.getState();
+    expect(s.timelineViewportWidth).toBe(
+      estimateTimelineViewportWidth(s.shellBreakpoint),
+    );
+  });
 
   it("renders no lane or clip on playhead, scroll, pointer or presence ticks", () => {
     mount();
