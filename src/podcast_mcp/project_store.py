@@ -2,11 +2,25 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from podcast_mcp.models import EpisodeProject, load_project, project_file_path, save_project
 from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.util.atomic_json import write_json_atomic
 from podcast_mcp.util.project_state import project_commit_lock
+
+
+def history_index_path(project: EpisodeProject) -> Path:
+    """``history/index.json`` in ``project``'s workspace."""
+    return project.workspace_path() / "history" / "index.json"
+
+
+def restore_history_index(index_path: Path, payload: dict[str, Any] | None) -> None:
+    """Put ``history/index.json`` back to ``payload`` read earlier (``None``: it did not exist)."""
+    if payload is None:
+        index_path.unlink(missing_ok=True)
+    else:
+        write_json_atomic(index_path, payload)
 
 
 class ProjectStore:
@@ -36,7 +50,7 @@ class ProjectStore:
 
     def adopt_history_index(self, project: EpisodeProject) -> bool:
         """Fill an empty in-memory history from ``history/index.json`` if one exists."""
-        index_path = project.workspace_path() / "history" / "index.json"
+        index_path = history_index_path(project)
         if not project.history.is_empty() or not index_path.is_file():
             return False
         data = json.loads(index_path.read_text(encoding="utf-8"))
@@ -47,7 +61,7 @@ class ProjectStore:
         """Mirror history to ``history/index.json``; an empty one adopts the index instead."""
         if self.adopt_history_index(project):
             return
-        index_path = project.workspace_path() / "history" / "index.json"
+        index_path = history_index_path(project)
         if index_path.parent.exists() or not project.history.is_empty():
             index_path.parent.mkdir(parents=True, exist_ok=True)
             write_json_atomic(index_path, project.history.model_dump(mode="json"))

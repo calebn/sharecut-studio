@@ -141,6 +141,62 @@ def test_history_cursor_follows_the_side_that_moved(tmp_path):
     assert history["entries"][history["cursor"]]["id"] == "e0"
 
 
+def _two_entry_history(base: dict, cursor: int) -> dict:
+    base["history"] = {
+        "cursor": cursor,
+        "entries": [_entry("e0", "2026-01-01T00:00:00"), _entry("e1", "2026-01-01T00:00:01")],
+    }
+    return base
+
+
+def _assert_cursor_conflict(base, ours, theirs):
+    with pytest.raises(ProjectMergeConflict) as exc:
+        merge_project_data(base, ours, theirs)
+    assert "history.cursor" in exc.value.paths
+
+
+def test_history_conflicts_when_theirs_undid_and_ours_recorded(tmp_path):
+    base = _two_entry_history(_base(tmp_path), 1)
+    ours, theirs = copy.deepcopy(base), copy.deepcopy(base)
+    theirs["history"]["cursor"] = 0
+    ours["history"]["entries"].append(_entry("s1", "2026-01-01T00:00:02"))
+    ours["history"]["cursor"] = 2
+    _assert_cursor_conflict(base, ours, theirs)
+
+
+def test_history_conflicts_when_theirs_undid_then_recorded(tmp_path):
+    base = _two_entry_history(_base(tmp_path), 1)
+    ours, theirs = copy.deepcopy(base), copy.deepcopy(base)
+    theirs["history"] = {
+        "cursor": 1,
+        "entries": [_entry("e0", "2026-01-01T00:00:00"), _entry("t1", "2026-01-01T00:00:03")],
+    }
+    ours["history"]["entries"].append(_entry("s1", "2026-01-01T00:00:02"))
+    ours["history"]["cursor"] = 2
+    _assert_cursor_conflict(base, ours, theirs)
+
+
+def test_history_conflicts_when_ours_undid_and_theirs_recorded(tmp_path):
+    base = _two_entry_history(_base(tmp_path), 1)
+    ours, theirs = copy.deepcopy(base), copy.deepcopy(base)
+    ours["history"]["cursor"] = 0
+    theirs["history"]["entries"].append(_entry("s1", "2026-01-01T00:00:02"))
+    theirs["history"]["cursor"] = 2
+    _assert_cursor_conflict(base, ours, theirs)
+
+
+def test_history_redo_tail_truncated_by_ours_merges_as_deletion(tmp_path):
+    base = _two_entry_history(_base(tmp_path), 0)
+    ours, theirs = copy.deepcopy(base), copy.deepcopy(base)
+    ours["history"] = {
+        "cursor": 1,
+        "entries": [_entry("e0", "2026-01-01T00:00:00"), _entry("s1", "2026-01-01T00:00:02")],
+    }
+    history = merge_project_data(base, ours, theirs)["history"]
+    assert [e["id"] for e in history["entries"]] == ["e0", "s1"]
+    assert history["cursor"] == 1
+
+
 def test_unkeyed_lists_conflict_as_a_whole():
     base = {"words": [{"text": "a", "start": 0.0}, {"text": "b", "start": 1.0}]}
     ours = copy.deepcopy(base)

@@ -31,6 +31,7 @@ History publication is ordered: a new snapshot is written completely before
 `history/index.json` is updated. The index is published with an atomic replace,
 so concurrent readers observe either the previous complete index or the new
 complete index, never a truncated JSON file.
+A long job's entries (`before pipeline run`, `after <step>`, `after pipeline run`, the merge entry) are recorded inside `ProjectWorkspace.save_merged(history_label=...)`, in the same locked merge and commit. On a conflict, or a commit that fails before the project file is replaced, the index and the in-memory history are restored and the snapshots created by that call are removed. If the file was replaced and only the transcript cache write failed, memory adopts the saved state. An undo, redo or goto by another request during a job conflicts at `history.cursor` ("re-run it") rather than interleaving entries.
 Review mix publication compensates a failed project commit by restoring the
 prior history index and removing snapshots created for that failed publication
 before deleting its generated media. A version already present in the canonical
@@ -61,7 +62,7 @@ Snapshots are recorded automatically before/after:
 
 - `episode add-track`
 - `transcribe`, `propose-edits`
-- `pipeline run` (before run, after each step, after run; plus `after merging concurrent edits` when a save merged in another request's change)
+- `pipeline run` (before run, after each step, after run, recorded inside `save_merged(history_label=...)`; plus `after merging concurrent edits` when a save merged in another request's change)
 - Timeline mutations via `EditService.mutate()` (paired `before …` / `after …` entries)
 - `render_preview` when automation envelopes change
 

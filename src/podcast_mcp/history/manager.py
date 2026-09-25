@@ -8,7 +8,7 @@ from pathlib import Path
 from podcast_mcp.models.episode import EpisodeProject
 from podcast_mcp.models.history import HistoryEntry, ProjectHistory, ProjectStateSnapshot
 from podcast_mcp.models.project_format import apply_editable_snapshot, snapshot_editable_state
-from podcast_mcp.project_store import ProjectStore
+from podcast_mcp.project_store import ProjectStore, history_index_path
 from podcast_mcp.util.atomic_json import write_json_atomic
 from podcast_mcp.util.project_state import project_commit_lock
 
@@ -47,7 +47,7 @@ class HistoryManager:
 
     def _save_index(self, project: EpisodeProject) -> None:
         history = self._load_index(project)
-        index_path = project.workspace_path() / "history" / "index.json"
+        index_path = history_index_path(project)
         index_path.parent.mkdir(parents=True, exist_ok=True)
         write_json_atomic(index_path, history.model_dump(mode="json"))
 
