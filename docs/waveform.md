@@ -443,9 +443,11 @@ session-aware: `effectiveMaxZoomPxPerSec(sessionSec)` keeps
 `sessionSec × zoom ≤ max_content_px` (15,000,000 px), so a one-hour session
 tops out near 4,167 px/s. `utils/zoom.ts` `clampZoomPxPerSec(zoom,
 sessionSec)` applies it to every zoom path (keys, pinch, wheel, Fit,
-`setZoomPxPerSec`, follow). `reclampZoomForDuration` re-applies it, keeping
-the time at the view centre, when the session length changes (`setProject`,
-`hydrate`, document updates).
+`setZoomPxPerSec`, follow). When the session length changes (`setProject`,
+`hydrate`, document updates), `state/dawStore.ts` `zoomReclampPatch`
+re-clamps the zoom, keeping the time at the view centre, and is merged into
+the same store update as the new project, so no frame shows an over-ceiling
+zoom.
 
 - **Modes.** While a device column spans at least a level-0 bin
   (`base_samples_per_bin`, 64 frames) the layer draws the pyramid. Below
