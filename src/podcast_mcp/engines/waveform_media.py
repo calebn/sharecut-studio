@@ -26,9 +26,11 @@ from typing import Literal
 from podcast_mcp.edits.track_ids import SAFE_TRACK_ID
 from podcast_mcp.engines.play_audit import stem_hash_path, stem_is_fresh, stem_path
 from podcast_mcp.engines.waveform_pyramid import (
+    PyramidMeta,
     build_pyramid,
     media_key,
     pyramid_path,
+    read_meta,
     ref_slug,
     schedule_pyramid_build,
 )
@@ -245,3 +247,21 @@ def ensure_track_waveforms(project: EpisodeProject, track: Track) -> int:
             continue
         ready += 1
     return ready
+
+
+def track_pyramid(project: EpisodeProject, track_id: str) -> tuple[Path, PyramidMeta] | None:
+    """The ready ``track:<id>`` pyramid for the track's current media, if one is on disk.
+
+    Never builds. Raises ``ValueError`` when the file is corrupt and ``OSError``
+    when the media vanishes mid-call.
+    """
+    track = project.track_by_id(track_id)
+    if track is None:
+        return None
+    resolved = track_media_refs(project, track).refs.get(f"track:{track_id}")
+    if resolved is None:
+        return None
+    target = pyramid_target(project.artifacts_dir(), f"track:{track_id}", resolved)
+    if not target.out.is_file():
+        return None
+    return target.out, read_meta(target.out)

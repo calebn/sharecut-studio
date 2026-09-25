@@ -9,6 +9,8 @@ from typing import Any
 from podcast_mcp.edits.transcript_cuts import ensure_combined_transcript
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.session_timeline import SessionTimeline
+from podcast_mcp.engines.waveform_media import track_pyramid
+from podcast_mcp.engines.waveform_pyramid import pyramid_peak
 from podcast_mcp.models import EpisodeProject, SocialClipCandidate
 from podcast_mcp.util.review import approve_by_id, reject_by_id
 from podcast_mcp.util.timebase import SourceSec
@@ -63,39 +65,30 @@ def _platform_limits(defaults: dict[str, Any], platform: str | None) -> tuple[fl
     return min_sec, max_sec
 
 
+# Energy reads the pyramid level closest to 16 bins per second (the old overview rate).
+_ENERGY_BINS_PER_SEC = 16
+
+
 def _utterance_energy(
     project: EpisodeProject,
     track_id: str,
     start: float,
     end: float,
 ) -> float:
-    peaks_path = project.artifacts_dir() / "peaks" / f"{track_id}.json"
-    if not peaks_path.is_file():
-        return 0.5
+    """Loudness hint in [0, 1] from the track's waveform pyramid; 0.5 when unknown."""
     try:
-        data = json.loads(peaks_path.read_text(encoding="utf-8"))
-        peaks_raw = data.get("peaks", [])
-        if not isinstance(peaks_raw, list) or not peaks_raw:
+        found = track_pyramid(project, track_id)
+        if found is None:
             return 0.5
-        sample_rate = float(data.get("sample_rate") or 0)
-        spp = float(data.get("samples_per_pixel") or 0)
-        duration = float(data.get("duration_sec") or 0)
-        if duration <= 0 and sample_rate > 0 and spp > 0:
-            duration = len(peaks_raw) * spp / sample_rate
-        if duration <= 0:
-            return 0.5
-        n = len(peaks_raw)
-        i0 = int((start / duration) * n)
-        i1 = max(i0 + 1, int((end / duration) * n))
-        window = peaks_raw[i0:i1]
-        if not window:
-            return 0.5
-        peak = float(max(window))
-        if peak > 1.0:
-            peak = peak / 255.0
-        return min(1.0, peak * 4.0)
-    except (json.JSONDecodeError, OSError, ValueError):
+        path, meta = found
+        peak = pyramid_peak(
+            path, meta, start, end, max_spp=meta.sample_rate // _ENERGY_BINS_PER_SEC
+        )
+    except (OSError, ValueError):
         return 0.5
+    if peak is None:
+        return 0.5
+    return min(1.0, peak * 4.0)
 
 
 def _score_utterance(

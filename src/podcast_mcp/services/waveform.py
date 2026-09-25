@@ -358,9 +358,11 @@ def pcm_block(project_path: Path, ref: str, key: str, block: int) -> bytes:
 
 
 def gc_pyramids(project_path: Path, index: MediaIndex | None = None) -> int:
-    """Once per process per project: delete week-old pyramids whose ref is gone.
+    """Once per process per project: drop week-old orphan pyramids and legacy peaks JSON.
 
-    The project counts as done only after a pass succeeds.
+    Per-ref pruning never reaches refs that were deleted, so orphans are swept
+    here. ``artifacts/peaks/*.json`` is the pre-pyramid overview format; nothing
+    reads it any more. The project counts as done only after a pass succeeds.
     """
     marker = str(project_path.resolve())
     with _GC_LOCK:
@@ -380,6 +382,10 @@ def gc_pyramids(project_path: Path, index: MediaIndex | None = None) -> int:
                 if path.stat().st_mtime < cutoff:
                     path.unlink()
                     removed += 1
+        for legacy in (index.artifacts_dir / "peaks").glob("*.json"):
+            with contextlib.suppress(OSError):
+                legacy.unlink()
+                removed += 1
     except BaseException:
         with _GC_LOCK:
             _GC_DONE.discard(marker)

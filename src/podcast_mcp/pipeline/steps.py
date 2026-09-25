@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp.edits import apply_tighten_decisions, propose_tighten_edits
-from podcast_mcp.engines import TranscriptionEngine, ensure_track_peaks
-from podcast_mcp.engines.waveform_media import schedule_stem_waveforms
+from podcast_mcp.engines import TranscriptionEngine
+from podcast_mcp.engines.waveform_media import ensure_track_waveforms, schedule_stem_waveforms
 from podcast_mcp.models import (
     AutomationEnvelope,
     AutomationPoint,
@@ -67,7 +67,6 @@ def ingest_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSumm
     project.ensure_dirs()
     eng = ffmpeg()
     probed = 0
-    peaks = 0
     for track in project.tracks:
         if not track.media:
             continue
@@ -81,11 +80,11 @@ def ingest_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSumm
         track.media.sample_rate = probe.sample_rate
         track.media.channels = probe.channels
         probed += 1
-        if ensure_track_peaks(project, track) is not None:
-            peaks += 1
     ensure_dialogue_clips(project)
+    # After clips exist, so each track's clip sources get their pyramids too.
+    waveforms = sum(ensure_track_waveforms(project, t) for t in project.tracks if t.media)
     dialogue = sum(1 for t in project.tracks if t.role == TrackRole.DIALOGUE)
-    return f"{probed} tracks probed, {peaks} peaks, {dialogue} dialogue"
+    return f"{probed} tracks probed, {waveforms} waveforms, {dialogue} dialogue"
 
 
 def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:

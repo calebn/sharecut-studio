@@ -133,7 +133,7 @@ podcast review share --kind record --session-id <id> --role producer --expires-a
 | Capability | Meaning |
 |------------|---------|
 | `play`     | Stream review-mix / guest DAW audio |
-| `view`     | Read-only **Sharecut Studio** (timeline, tracks, peaks, premix) |
+| `view`     | Read-only **Sharecut Studio** (timeline, tracks, waveform pyramid tiles, premix) |
 | `comment`  | Add timeline comments |
 | `reply`    | Reply to existing comments |
 | `join`     | Be recorded in a record room (no MCP) |
@@ -216,7 +216,6 @@ All under `/api/review/{token}/…` (proxied by the relay; **no** `?project=` pa
 |-------|-----|--------|
 | `GET …/daw/project` | `view` | Sanitized ProjectView (no host filesystem paths) |
 | `GET …/daw/meta` | `view` | mtime/size for poll reload |
-| `GET …/daw/peaks/{track_id}` | `view` | Uint8 overview waveform (same file as host; no extra coarsen); 404 `{"available": false, "track_id", "generating"}` while missing, with generation queued when possible |
 | `GET …/daw/waveform/status` | `view` | Waveform pyramid status for **raw** media only (`track:` / `source:` refs; stems stay host-only); `no-store`; read rate class. Same shape as host `GET /api/waveform/status` ([waveform.md § API](waveform.md#api)) |
 | `GET …/daw/waveform/tiles/{key}?ref=&level=&start=&count=` | `view` | Binary min/max/RMS pyramid tiles; `track:`/`source:` refs only and only the ref's live key (else 404). `Cache-Control: private, max-age=31536000, immutable`. **Audio** rate class (no RPM, holds an audio concurrency slot). There is no guest PCM route: raw samples never go to guests |
 | `GET …/daw/waveform-snap` | `suggest` / `edit` | Windowed snap ticks for the DAW overlay; view-only guests get the quiet wash only |

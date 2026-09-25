@@ -10,8 +10,9 @@ and its knobs live in the `waveform` block of
 > **Status:** the engine (format, build, decode, I/O and job pool), the
 > HTTP API (status, tiles, PCM windows; host and guest), the client data
 > layer, the raster worker and the timeline renderer (§ Client) are in place.
-> The legacy overview JSON routes (`/api/peaks`) still exist on the server,
-> but the viewer no longer reads them; their removal is tracked in #429.
+> Pyramids are the only waveform format: the uint8 overview JSON
+> (`artifacts/peaks/{track}.json` and its HTTP route) is gone, and `gc_pyramids`
+> deletes any leftover `artifacts/peaks/*.json`.
 >
 > #446 (part 8) wires `effectiveMaxZoomPxPerSec` / `MAX_CONTENT_PX` into
 > `clampZoomPxPerSec`. Until then, zoom still clamps to the flat
@@ -248,11 +249,18 @@ file through `source_id` gets its own `source:` ref, whose key matches the
   builds them inline and returns how many are on disk;
   `schedule_stem_waveforms(project, track_ids)` queues just-rendered stems.
   They run after `add_track`, `set_track_media`, ingest consolidate, record
-  landing, stem renders (`_render_track_stems`) and `PlayService.ensure_stem`.
+  landing, stem renders (`_render_track_stems`) and `PlayService.ensure_stem`;
+  the pipeline's `ingest_tracks` step builds inline with
+  `ensure_track_waveforms` (its summary reports "N waveforms").
 - **`gc_pyramids(project_path)`:** once per process per project, deletes
   pyramids whose ref slug is no longer listed and that are older than 7 days
-  (per-ref pruning never reaches deleted refs). A failed pass is retried on a
+  (per-ref pruning never reaches deleted refs), plus any legacy
+  `artifacts/peaks/*.json` overview files. A failed pass is retried on a
   later status call and never fails the status request.
+- **Social clip energy:** `clips/social.py` reads a track's ready pyramid
+  through `engines/waveform_media.track_pyramid` and
+  `engines/waveform_pyramid.pyramid_peak`, at the coarsest level with
+  `spp ≤ sample_rate / 16`; it never builds and falls back to 0.5.
 
 ## API
 
@@ -290,7 +298,7 @@ There is **never** a guest PCM route: raw samples never go to guests.
 
 Guest tiles are cached `private, max-age=31536000, immutable` under their
 content-addressed key, so revoking a share does not remove tiles a guest's
-browser already downloaded (the same holds for the legacy peaks route).
+browser already downloaded.
 Revocation stops new requests only.
 
 ## Client

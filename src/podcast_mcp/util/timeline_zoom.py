@@ -1,15 +1,14 @@
-"""Load ``contracts/timeline-zoom.json`` and derive peak / zoom rates.
+"""Load ``contracts/timeline-zoom.json``: timeline zoom bounds and waveform knobs.
 
-Canonical knobs live in the JSON (not hardcoded 400 bins/sec). Callers use
-``overview_samples_per_pixel()`` / ``finest_bins_per_sec()`` so a max-zoom
-change updates generation and the GUI together. The ``waveform`` getters
-feed the ``.wfpk`` peak pyramid (``engines/waveform_pyramid.py``).
+The same JSON generates ``gui/web/src/utils/timelineZoom.generated.ts``, so
+Python and the GUI read one set of numbers. Python has getters only for the
+keys it reads: zoom bounds, and the ``waveform`` knobs of the ``.wfpk`` peak
+pyramid (``engines/waveform_pyramid.py``, ``docs/waveform.md``).
 """
 
 from __future__ import annotations
 
 import json
-import math
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -37,13 +36,6 @@ def load_timeline_zoom() -> dict[str, Any]:
     return data
 
 
-def _peaks() -> dict[str, Any]:
-    peaks = load_timeline_zoom().get("peaks")
-    if not isinstance(peaks, dict):
-        raise ValueError("timeline-zoom.json missing peaks object")
-    return peaks
-
-
 def _waveform() -> dict[str, Any]:
     waveform = load_timeline_zoom().get("waveform")
     if not isinstance(waveform, dict):
@@ -63,70 +55,7 @@ def zoom_step() -> float:
     return float(load_timeline_zoom()["zoom_step"])
 
 
-def overview_decode_hz() -> int:
-    return int(_peaks()["overview_decode_hz"])
-
-
-def overview_bins_per_sec() -> float:
-    return float(_peaks()["overview_bins_per_sec"])
-
-
-def dpr_headroom() -> float:
-    return float(_peaks()["dpr_headroom"])
-
-
-def paint_dpr_cap() -> float:
-    """Same key the generated TS ``PAINT_DPR_CAP`` reads (``waveform.paint_dpr_cap``)."""
-    return float(_waveform()["paint_dpr_cap"])
-
-
-def tile_sec() -> float:
-    return float(_peaks()["tile_sec"])
-
-
-def edit_focus_sec() -> float:
-    return float(_peaks()["edit_focus_sec"])
-
-
-def edit_focus_multiplier() -> float:
-    return float(_peaks()["edit_focus_multiplier"])
-
-
-def finest_bins_per_sec() -> float:
-    """Client detail ceiling: max zoom * DPR headroom (never a magic 400)."""
-    return max_zoom_px_per_sec() * dpr_headroom()
-
-
-def overview_samples_per_pixel() -> int:
-    hz = overview_decode_hz()
-    bins = overview_bins_per_sec()
-    if bins <= 0:
-        raise ValueError("overview_bins_per_sec must be > 0")
-    spp = round(hz / bins)
-    return max(1, spp)
-
-
-def paint_dpr(device_pixel_ratio: float) -> float:
-    """Paint DPR on a 1/8 grid in ``[1, paint_dpr_cap()]`` (mirrors the GUI's ``paintDpr``)."""
-    ok = math.isfinite(device_pixel_ratio) and device_pixel_ratio > 0
-    dpr = device_pixel_ratio if ok else 1.0
-    # floor(x + 0.5) matches JS Math.round for x > 0; Python's round() is banker's.
-    return min(max(math.floor(dpr * 8 + 0.5) / 8, 1.0), paint_dpr_cap())
-
-
-def detail_bins_per_sec(zoom_px_per_sec: float, device_pixel_ratio: float) -> float:
-    raw = zoom_px_per_sec * paint_dpr(device_pixel_ratio)
-    return min(raw, finest_bins_per_sec())
-
-
-def edit_focus_bins_per_sec(zoom_px_per_sec: float, device_pixel_ratio: float) -> float:
-    detail = detail_bins_per_sec(zoom_px_per_sec, device_pixel_ratio)
-    return min(detail * edit_focus_multiplier(), float(overview_decode_hz()))
-
-
-# --- Waveform pyramid (.wfpk) knobs Python reads. ------------------------------
-# max_tiles_per_request() is read by the tile route that lands in a later part
-# of #429 (services/waveform.py); the renderer-only keys stay TS-only.
+# --- Waveform pyramid (.wfpk) knobs: only the keys Python reads. -------------
 
 
 def waveform_format_version() -> int:
@@ -151,3 +80,7 @@ def max_tiles_per_request() -> int:
 
 def pcm_block_frames() -> int:
     return int(_waveform()["pcm_block_frames"])
+
+
+def paint_dpr_cap() -> float:
+    return float(_waveform()["paint_dpr_cap"])

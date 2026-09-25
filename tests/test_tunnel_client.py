@@ -55,8 +55,11 @@ def test_map_api_review_daw_project():
     assert _map_local_path("api/review/daw/project", "tok") == "/api/review/tok/daw/project"
 
 
-def test_map_api_review_daw_peaks():
-    assert _map_local_path("api/review/daw/peaks/host", "tok") == "/api/review/tok/daw/peaks/host"
+def test_map_api_review_daw_waveform_status():
+    assert (
+        _map_local_path("api/review/daw/waveform/status", "tok")
+        == "/api/review/tok/daw/waveform/status"
+    )
 
 
 def test_map_api_review_daw_audio():

@@ -3,15 +3,6 @@
   "max_zoom_px_per_sec": 200,
   "max_content_px": 15000000,
   "zoom_step": 1.25,
-  "peaks": {
-    "overview_decode_hz": 8000,
-    "overview_bins_per_sec": 16,
-    "dpr_headroom": 2,
-    "paint_dpr_cap": 2,
-    "tile_sec": 2,
-    "edit_focus_sec": 0.2,
-    "edit_focus_multiplier": 8
-  },
   "waveform": {
     "format_version": 1,
     "base_samples_per_bin": 64,

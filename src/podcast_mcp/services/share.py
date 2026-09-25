@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import threading
@@ -692,25 +691,6 @@ def share_daw_meta(token: str) -> dict[str, Any]:
         "size": stat.st_size,
         "server_seq": document_server_seq(ws.path),
     }
-
-
-def share_daw_peaks(token: str, track_id: str) -> dict[str, Any]:
-    from podcast_mcp.services.peaks import PeaksUnavailableError, lookup_track_peaks
-
-    _row, ws = require_share_cap(token, CAP_VIEW)
-    track_ids = {t.id for t in ws.project.tracks}
-    if track_id not in track_ids:
-        raise KeyError("track not found")
-    lookup = lookup_track_peaks(ws.project, track_id)
-    if lookup.path is None:
-        raise PeaksUnavailableError(generating=lookup.generating)
-    payload = json.loads(lookup.path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise FileNotFoundError("peaks not available")
-    payload.pop("source", None)
-    payload.pop("source_mtime_ns", None)
-    payload.pop("source_size", None)
-    return _drop_absolute_path_strings(payload)
 
 
 _GUEST_WAVEFORM_REFS = ("track:", "source:")

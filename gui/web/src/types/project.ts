@@ -277,7 +277,6 @@ export interface ProjectView {
     groups: HistoryGroup[];
   };
   transcript: { utterances: CombinedUtterance[] } | null;
-  peaks_index: Record<string, boolean>;
 }
 
 export type Selection =

@@ -12,7 +12,7 @@ my_episode/
 ├── raw/                 # Source recordings (never overwritten)
 ├── transcripts/         # Per-track and combined JSON
 ├── history/             # Undo/redo snapshots (editable state only)
-├── artifacts/           # Renders, peaks (overview JSON + .wfpk pyramids), pipeline logs
+├── artifacts/           # Renders, waveform pyramids (peaks/*.wfpk), pipeline logs
 └── export/              # Final audio (WAV + configured formats), SRT, MD
 ```
 

@@ -105,7 +105,7 @@ From [PR #73](https://github.com/calebn/sharecut-studio/pull/73) — projection 
 
 | Item | Notes |
 |------|--------|
-| **Share agent = share user (HTTP first)** | Maintenance. HTTP/MCP/WS parity CI (`check_share_http_mcp_parity`) covers `/api/review/` and `/api/rec/` including WebSockets. Remaining: bugs (GUI missing HTTP twin) vs non-goals (`http-only:` peaks/proxy/review WS). Record MCP twins remain a product decision (not a missing-twin bug). See [docs/host-online-relay.md](docs/host-online-relay.md) § Remote MCP. |
+| **Share agent = share user (HTTP first)** | Maintenance. HTTP/MCP/WS parity CI (`check_share_http_mcp_parity`) covers `/api/review/` and `/api/rec/` including WebSockets. Remaining: bugs (GUI missing HTTP twin) vs non-goals (`http-only:` waveform/proxy/review WS). Record MCP twins remain a product decision (not a missing-twin bug). See [docs/host-online-relay.md](docs/host-online-relay.md) § Remote MCP. |
 
 ### Beta tester ops
 
@@ -186,7 +186,7 @@ Required for v1 credibility with video-first creators — not just audio post.
 | **Named work regions** | Named timeline regions for agent/edit scopes + optional share deep-links. |
 | **Theme-token blade/comment cursors** | Per-theme cursor assets (CSS `url()` cannot read variables). |
 | **Pending inspector leftovers ([PR #174](https://github.com/calebn/sharecut-studio/pull/174))** | Pin/scroll shipped; still open: (1) mutation error is React state — StudioShell ↔ tablet/phone remount drops it (tests re-click Approve after resize); persist on the document/session plane. (2) Original overlap report was Firefox @ 1280; `frontend-e2e` is Chromium only. (3) `useProjectMutation.run` can start overlapping Approve calls before `busy` disables the button (pre-existing TOCTOU). |
-| **Background waveform peaks** | On-demand generation + viewer polling shipped (#397). Still open: full job/SSE fan-in, cancel, streamed decode for hour-long ingest. Polling cost: each lane with a pending overview polls `GET /api/peaks/{track_id}` (≤1 req / 10 s) and each poll opens and validates the whole project, so a batched status check or SSE fan-in should replace per-lane polling ([PR #417 review](https://github.com/calebn/sharecut-studio/pull/417#discussion_r4099291803)). |
+| **Waveform pyramids (#429)** | **Shipped:** `.wfpk` min/max/RMS peak pyramids per media file, immutable binary tiles (host + guest), WebGL2/CPU raster worker, one status poll per project; the uint8 overview JSON and its routes are gone. Follow-ups: [§ Waveforms](#waveforms). |
 | **Large-project performance ([#29](https://github.com/calebn/sharecut-studio/issues/29))** | Opt-in benchmark shipped ([docs/testing.md](docs/testing.md) § Large-project browser profile). Still open: timeline clip and transcript virtualization (the two-hour fixture renders ~81k DOM nodes), a many-entry history profile, and long-duration memory tracking. |
 | **Edit preference learning** | Persist reject/approve/undo as preference events for join ranker priors. |
 | **Room-tone pad from matched air** | Score quiet non-speech spans for `filler_pad_mode: room_tone`. |
@@ -196,6 +196,20 @@ Required for v1 credibility with video-first creators — not just audio post.
 | **MCP SDK Streamable HTTP + OAuth for remote MCP** | Only if replacing custom JSON-RPC guest bridge. ACL stays share caps — not MCP OAuth. |
 | **Destructive-tool policy hardening** | Beyond current guest allowlists. [docs/host-online-relay.md](docs/host-online-relay.md). |
 | **Opt-in diagnostics filing** | Help / `podcast doctor --bundle` may offer an explicit action to open a GitHub issue with the sanitized bundle. No crash-time upload. |
+
+### Waveforms
+
+Follow-ups from the pyramid rewrite ([#429](https://github.com/calebn/sharecut-studio/issues/429); [docs/waveform.md](docs/waveform.md)).
+
+| Item | Notes |
+|------|--------|
+| **Virtualized scrolling for sample-level zoom** | Transform-based scrolling on long sessions. At DPR 2, compositor exactness ends near 8.4M CSS px, and the layout budget (`max_content_px`) is 15M. |
+| **Playback page-follow + zoom commands** | Desktop page-follow during playback; zoom-to-selection / zoom-to-samples command; sticky clip labels. |
+| **Push `waveform.ready`** | Over SSE or the document WS instead of the status poll (1 → 2 → 4 s back-off). |
+| **Cheaper guest waveform requests** | Each guest status/tile request costs about 4 project loads through the share middleware chain. |
+| **Live-recording timeline waveform** | Draw record takes as they land; the pyramid builder already accepts appended chunks. |
+| **dB / log amplitude view** | Optional logarithmic amplitude scale for the clip waveform. |
+| **WebGPU backend + React Compiler** | Slot a WebGPU raster backend (for example for spectrograms) behind the raster interface; evaluate React Compiler adoption. |
 
 ### Multitrack ingest
 

@@ -8,14 +8,15 @@ import {
 import { committedE2eProjectPath, repoRoot } from "./env";
 
 // Workspace copy rule: skip generated output and per-machine review/share
-// state, keeping only committed inputs plus artifacts/peaks/. Source of truth is
+// state, keeping only committed inputs (nothing under artifacts/; waveform
+// pyramids rebuild on demand). Source of truth is
 // tests/fixtures/aligned_dialogue/.gitignore (parity enforced in
 // liveProject.test.ts); Python's WORKSPACE_COPY_IGNORE in
 // src/podcast_mcp/project_io.py is stricter and skips all of artifacts/.
 const SQLITE_FILES = new Set(["sync.db", "sync.db-wal", "sync.db-shm"]);
 const SKIP_ANY_DEPTH = new Set([".git"]);
 const SKIP_TOP_LEVEL = new Set(["history", "export", "_build"]);
-const ARTIFACTS_ALLOW = new Set(["peaks"]);
+const ARTIFACTS_ALLOW = new Set<string>();
 
 /** Whether a path relative to the fixture workspace root belongs in the copy. */
 export function shouldCopyWorkspaceEntry(relativePath: string): boolean {
@@ -64,7 +65,7 @@ export interface RelocatedE2eProject {
 /**
  * Copy the committed fixture into a disposable workspace with its own state.
  *
- * The copy drops all generated artifacts/ state except peaks/. A locally
+ * The copy drops all generated artifacts/ state. A locally
  * modified fixture whose review.versions or render.artifacts entries point at
  * artifacts/ audio will not resolve that audio in the copy; restore the clean
  * committed state with

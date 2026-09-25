@@ -48,7 +48,6 @@ from podcast_mcp.services.document_sync.payloads import (
 )
 from podcast_mcp.services.document_sync.service import document_hub_key
 from podcast_mcp.services.guest_progress import guest_progress_hub
-from podcast_mcp.services.peaks import PeaksUnavailableError, peaks_unavailable_body
 from podcast_mcp.services.remote_mcp.limits import (
     get_host_limiters,
     host_rate_limit_enabled,
@@ -76,7 +75,6 @@ from podcast_mcp.services.share import (
     share_audition_context_info,
     share_daw_audio_path,
     share_daw_meta,
-    share_daw_peaks,
     share_daw_project_view,
     share_daw_waveform_snap,
     share_daw_waveform_status,
@@ -232,26 +230,6 @@ def get_daw_meta(token: str) -> dict[str, Any]:
     _rate_limit(token, "read")
     try:
         return share_daw_meta(token)
-    except Exception as exc:
-        raise _map_share_exc(exc) from exc
-
-
-@router.get("/api/review/{token}/daw/peaks/{track_id}")
-def get_daw_peaks(token: str, track_id: str):
-    _check_token(token)
-    _rate_limit(token, "read")
-    try:
-        return share_daw_peaks(token, track_id)
-    except PeaksUnavailableError as exc:
-        return JSONResponse(
-            status_code=404,
-            content=peaks_unavailable_body(track_id, generating=exc.generating),
-        )
-    except FileNotFoundError:
-        return JSONResponse(
-            status_code=404,
-            content=peaks_unavailable_body(track_id, generating=False),
-        )
     except Exception as exc:
         raise _map_share_exc(exc) from exc
 

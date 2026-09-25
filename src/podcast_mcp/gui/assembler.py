@@ -13,7 +13,6 @@ from podcast_mcp.gui.mapper import (
     map_transcript_utterances_to_timeline,
     social_clips_for_view,
 )
-from podcast_mcp.gui.peaks import resolve_peaks_path
 from podcast_mcp.gui.schemas import ProjectView, TrackView
 from podcast_mcp.services import EditService, HistoryService, ProjectWorkspace
 from podcast_mcp.services.document_sync.projection_types import (
@@ -162,7 +161,6 @@ def build_project_view(
         render_status=render_status,
         effects_by_track=effects_by_track,
     )
-    peaks_index = {t.id: resolve_peaks_path(project, t.id) is not None for t in project.tracks}
 
     transcript = map_transcript_utterances_to_timeline(
         project,
@@ -211,7 +209,6 @@ def build_project_view(
         edit_impact=impact,
         history=history_payload,
         transcript=transcript,
-        peaks_index=peaks_index,
     )
 
 

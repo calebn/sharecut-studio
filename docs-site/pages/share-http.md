@@ -14,7 +14,7 @@ Full narrative: [docs/host-online-relay.md](https://github.com/calebn/sharecut-s
 | Cap | Meaning |
 |-----|---------|
 | `play` | Stream review-mix / guest DAW audio |
-| `view` | Read-only Sharecut Studio (timeline, tracks, peaks, premix) |
+| `view` | Read-only Sharecut Studio (timeline, tracks, waveform pyramid tiles, premix) |
 | `comment` | Add timeline comments (body max **8000** chars) |
 | `reply` | Reply to existing comments |
 | `action` | Toggle comment action items |
@@ -43,7 +43,6 @@ using MCP/WS; REST `/comments*` remains for ReviewApp-style clients.
 | `POST` | `…/daw/document/command` | `view + command allowlist` | Typed body — see Document commands |
 | `POST` | `…/daw/media/upload` | `edit` | Chunked audio into host raw/ |
 | `GET` | `…/daw/meta` | `view` | mtime/size for poll reload |
-| `GET` | `…/daw/peaks/{track_id}` | `view` | Uint8 overview waveform |
 | `GET` | `…/daw/pending-preview` | `play + view` | Listen-first Current/Suggested/A/B WAV (not host speakers) |
 | `GET` | `…/daw/pending-preview-image` | `play + view` | Waveform or spectrogram of the listen-first extract |
 | `GET` | `…/daw/project` | `view` | Sanitized ProjectView (no host paths) |

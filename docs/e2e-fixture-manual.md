@@ -6,7 +6,7 @@ Commands assume `podcast` is on your PATH from the project venv.
 
 | Fixture | Path | Use |
 |---------|------|-----|
-| `aligned_dialogue` | `tests/fixtures/aligned_dialogue/episode.project.json` | Smoke, NL edit, social; tracked uint8 overview peaks in `artifacts/peaks/` for Playwright `/api/peaks/` |
+| `aligned_dialogue` | `tests/fixtures/aligned_dialogue/episode.project.json` | Smoke, NL edit, social; waveform pyramids build on demand (nothing tracked under `artifacts/`) |
 | `synthetic_bleed_60s` | `tests/fixtures/synthetic_bleed_60s/episode.project.json` | Bleed/reconcile gold |
 | `ami_bleed_60s` | `tests/fixtures/ami_bleed_60s/episode.project.json` | AMI overlap realism |
 | `audition_defects` | `tests/fixtures/audition_defects/` (audio generated at test time) | Hum / clipping / skew hypothesis eval |

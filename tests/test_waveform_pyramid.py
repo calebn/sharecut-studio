@@ -1212,3 +1212,24 @@ def test_shutdown_pool_then_reschedule(tmp_path):
     wp._shutdown_pyramid_pool()
     assert out.exists()
     assert wp._POOL is None
+
+
+def test_pyramid_peak_reads_the_coarsest_level_within_max_spp(tmp_path):
+    out = write_synthetic_pyramid(
+        tmp_path / "p.wfpk", sample_rate=48000, total_frames=48000 * 60, seed=9
+    )
+    meta = read_meta(out)
+    assert [lv.spp for lv in meta.levels] == [64, 256, 1024]
+
+    def brute(level: int, start_sec: float, end_sec: float) -> float:
+        spp = meta.levels[level].spp
+        first = int(start_sec * 48000) // spp
+        last = -(-int(end_sec * 48000) // spp)
+        raw = read_bins(out, meta, level, first, last - first)
+        bins = np.frombuffer(raw, dtype="<i2").reshape(-1, 3).astype(int)
+        return float(np.abs(bins[:, :2]).max()) / FULL
+
+    assert wp.pyramid_peak(out, meta, 10.0, 12.5, max_spp=3000) == brute(2, 10.0, 12.5)
+    assert wp.pyramid_peak(out, meta, 10.0, 12.5, max_spp=300) == brute(1, 10.0, 12.5)
+    assert wp.pyramid_peak(out, meta, 10.0, 12.5, max_spp=10) == brute(0, 10.0, 12.5)
+    assert wp.pyramid_peak(out, meta, 61.0, 62.0, max_spp=3000) is None

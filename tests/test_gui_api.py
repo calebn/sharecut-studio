@@ -704,71 +704,6 @@ def test_api_waveform_snap_unknown_track(minimal_project) -> None:
     assert res.status_code == 400
 
 
-def test_api_audio_window_requires_track(minimal_project) -> None:
-    pytest.importorskip("fastapi")
-    from fastapi.testclient import TestClient
-
-    from podcast_mcp.gui.server import create_app
-
-    client = TestClient(create_app())
-    res = client.get(
-        "/api/audio",
-        params={
-            "path": str(minimal_project),
-            "review_version_id": "ver1",
-            "start_sec": 0.0,
-            "end_sec": 0.2,
-        },
-    )
-    assert res.status_code == 400
-    assert "track_id" in res.json()["detail"]
-
-
-def test_api_audio_window_extract_errors(minimal_project, monkeypatch) -> None:
-    pytest.importorskip("fastapi")
-    from fastapi.testclient import TestClient
-
-    from podcast_mcp.gui.server import create_app
-
-    client = TestClient(create_app())
-
-    def bad_window(*_args: object, **_kwargs: object) -> None:
-        raise ValueError("bad window")
-
-    monkeypatch.setattr(
-        "podcast_mcp.gui.routes.project.extract_viewer_waveform_window",
-        bad_window,
-    )
-    bad = client.get(
-        "/api/audio",
-        params={
-            "path": str(minimal_project),
-            "track_id": "host",
-            "start_sec": 0.0,
-            "end_sec": 0.2,
-        },
-    )
-    assert bad.status_code == 400
-
-    def missing_wav(*_args: object, **_kwargs: object) -> None:
-        raise FileNotFoundError("missing wav")
-
-    monkeypatch.setattr(
-        "podcast_mcp.gui.routes.project.extract_viewer_waveform_window",
-        missing_wav,
-    )
-    missing = client.get(
-        "/api/audio",
-        params={
-            "path": str(minimal_project),
-            "track_id": "host",
-            "start_sec": 0.0,
-            "end_sec": 0.2,
-        },
-    )
-    assert missing.status_code == 404
-
-
 def test_api_audio_resolve_errors(minimal_project, monkeypatch) -> None:
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
@@ -796,92 +731,6 @@ def test_api_audio_resolve_errors(minimal_project, monkeypatch) -> None:
     )
     missing = client.get("/api/audio", params={"path": str(minimal_project)})
     assert missing.status_code == 404
-
-
-def test_api_peaks_reference() -> None:
-    pytest.importorskip("fastapi")
-    from fastapi.testclient import TestClient
-
-    from podcast_mcp.gui.server import create_app
-
-    fixture = _fixture_project()
-    client = TestClient(create_app())
-    res = client.get(
-        "/api/peaks/reference",
-        params={"path": str(fixture)},
-    )
-    if res.status_code == 404:
-        pytest.skip("peaks not present in fixture")
-    assert res.status_code == 200
-    assert "peaks" in res.json()
-
-
-def test_api_peaks_missing_track(minimal_project) -> None:
-    pytest.importorskip("fastapi")
-    from fastapi.testclient import TestClient
-
-    from podcast_mcp.gui.server import create_app
-
-    client = TestClient(create_app())
-    res = client.get(
-        "/api/peaks/no_such_track",
-        params={"path": str(minimal_project)},
-    )
-    assert res.status_code == 404
-    body = res.json()
-    assert body["available"] is False
-    assert body["generating"] is False
-
-
-def test_api_peaks_generates_missing_overview(minimal_project, sample_wav) -> None:
-    pytest.importorskip("fastapi")
-    from fastapi.testclient import TestClient
-
-    from podcast_mcp.engines.peaks import wait_peaks_jobs
-    from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services.episode import EpisodeService
-    from podcast_mcp.services.workspace import ProjectWorkspace
-
-    ws = ProjectWorkspace.open(minimal_project)
-    EpisodeService(ws).add_track("host", str(sample_wav))
-    wait_peaks_jobs()
-    peaks_json = ws.project.artifacts_dir() / "peaks" / "host.json"
-    assert peaks_json.is_file()
-    peaks_json.unlink()
-
-    client = TestClient(create_app())
-    missing = client.get("/api/peaks/host", params={"path": str(minimal_project)})
-    assert missing.status_code == 404
-    body = missing.json()
-    assert body["available"] is False
-    assert body["generating"] is True
-
-    wait_peaks_jobs()
-    ready = client.get("/api/peaks/host", params={"path": str(minimal_project)})
-    assert ready.status_code == 200
-    assert "peaks" in ready.json()
-
-    project = client.get("/api/project", params={"path": str(minimal_project)}).json()
-    assert project["peaks_index"]["host"] is True
-
-
-def test_api_peaks_unavailable_without_media(minimal_project) -> None:
-    pytest.importorskip("fastapi")
-    from fastapi.testclient import TestClient
-
-    from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services.episode import EpisodeService
-    from podcast_mcp.services.workspace import ProjectWorkspace
-
-    ws = ProjectWorkspace.open(minimal_project)
-    EpisodeService(ws).add_empty_track("host")
-
-    client = TestClient(create_app())
-    res = client.get("/api/peaks/host", params={"path": str(minimal_project)})
-    assert res.status_code == 404
-    body = res.json()
-    assert body["available"] is False
-    assert body["generating"] is False
 
 
 def test_api_health() -> None:
@@ -2361,7 +2210,6 @@ def test_build_project_view_aligned_fixture() -> None:
     view = build_project_view(fixture)
     assert len(view.tracks) >= 1
     assert view.clips["clip_count"] >= 1
-    assert view.peaks_index
 
 
 def test_build_project_view_with_track_and_transcript(minimal_project) -> None:
@@ -2497,35 +2345,6 @@ def test_build_project_view_minimal(minimal_project) -> None:
     assert isinstance(view.tracks, list)
     assert "tracks" in view.clips
     assert view.timeline_duration_sec >= 0
-
-
-def test_resolve_peaks_path_missing(minimal_project) -> None:
-    from podcast_mcp.gui.peaks import resolve_peaks_path
-    from podcast_mcp.models import load_project
-
-    project = load_project(minimal_project)
-    assert resolve_peaks_path(project, "nonexistent") is None
-
-
-def test_resolve_peaks_path_fixture() -> None:
-    from pathlib import Path
-
-    from podcast_mcp.gui.peaks import resolve_peaks_path
-    from podcast_mcp.models import load_project
-
-    fixture = (
-        Path(__file__).resolve().parents[0]
-        / "fixtures"
-        / "aligned_dialogue"
-        / "episode.project.json"
-    )
-    if not fixture.is_file():
-        pytest.skip("aligned_dialogue fixture missing")
-    project = load_project(fixture)
-    path = resolve_peaks_path(project, "reference")
-    if path is None:
-        pytest.skip("reference peaks missing")
-    assert path.name == "reference.json"
 
 
 def test_create_app_serves_index_when_dist_exists() -> None:

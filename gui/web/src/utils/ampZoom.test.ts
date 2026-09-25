@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FINEST_BINS_PER_SEC } from "./timelineZoom.generated";
+import { PAINT_DPR_CAP } from "./timelineZoom.generated";
 import {
   clampWaveformAmp,
   MAX_WAVEFORM_AMP,
@@ -16,8 +16,9 @@ describe("waveform amplitude zoom", () => {
 });
 
 describe("generated zoom contract", () => {
-  it("does not hardcode a 400 Hz peak ceiling", () => {
-    expect(FINEST_BINS_PER_SEC).toBe(MAX_ZOOM_PX_PER_SEC * 2);
+  it("re-exports the contract zoom bounds and waveform paint cap", () => {
     expect(MIN_ZOOM_PX_PER_SEC).toBe(0.05);
+    expect(MAX_ZOOM_PX_PER_SEC).toBeGreaterThan(MIN_ZOOM_PX_PER_SEC);
+    expect(PAINT_DPR_CAP).toBe(2);
   });
 });

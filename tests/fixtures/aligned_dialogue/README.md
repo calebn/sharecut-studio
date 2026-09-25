@@ -4,7 +4,7 @@ Two-speaker episode project (60s) for e2e tests, MCP tools, and skills.
 
 **Project:** `episode.project.json`  
 **Tracks:** `reference`, `guest`  
-**Overview peaks:** `artifacts/peaks/{reference,guest}.json` (uint8, tracked so Playwright e2e can hit `/api/peaks/` without generating on the runner)
+**Waveforms:** nothing is tracked under `artifacts/`; the viewer builds `.wfpk` pyramids on demand (`docs/waveform.md`)
 
 ## Quick commands
 

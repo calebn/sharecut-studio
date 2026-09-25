@@ -405,6 +405,28 @@ def read_bins(path: Path, meta: PyramidMeta, level: int, start_bin: int, count: 
         return fh.read((end - start_bin) * BIN_BYTES)
 
 
+def pyramid_peak(
+    path: Path, meta: PyramidMeta, start_sec: float, end_sec: float, *, max_spp: int
+) -> float | None:
+    """Peak ``max(|min|, |max|) / 32767`` over ``[start_sec, end_sec)``; ``None`` if empty.
+
+    Reads the coarsest level whose ``spp <= max_spp`` (level 0 when none is
+    that fine), so callers trade precision for a smaller read.
+    """
+    level = 0
+    for idx, lv in enumerate(meta.levels):
+        if lv.spp <= max_spp:
+            level = idx
+    spp = meta.levels[level].spp
+    first = max(0, int(start_sec * meta.sample_rate) // spp)
+    last = max(first + 1, -(-int(end_sec * meta.sample_rate) // spp))
+    raw = read_bins(path, meta, level, first, last - first)
+    if not raw:
+        return None
+    bins = np.frombuffer(raw, dtype=_BIN_DTYPE).reshape(-1, 3).astype(np.int32)
+    return float(np.abs(bins[:, :2]).max()) / INT16_FULL_SCALE
+
+
 # --- Decode --------------------------------------------------------------------
 
 

@@ -24,10 +24,11 @@ const SKIPPED_SEED_PATHS = [
   "artifacts/play_cache/seg.wav",
   "artifacts/session/document.db",
   "history/h.json",
+  "artifacts/peaks/p.json",
+  "artifacts/peaks/track-reference.key.wfpk",
 ];
 const KEPT_SEED_PATHS = [
   "episode.project.json",
-  "artifacts/peaks/p.json",
   "transcripts/review/t.json",
   "sources/export/s.wav",
 ];
@@ -43,7 +44,7 @@ function seedSourceRoot(): string {
 }
 
 describe("createRelocatedE2eProject copy rule", () => {
-  it("skips generated and per-machine state but keeps inputs and peaks", () => {
+  it("skips generated and per-machine state but keeps inputs", () => {
     const sourceRoot = seedSourceRoot();
     let workspaceDir = "";
     try {
@@ -89,8 +90,8 @@ describe("createRelocatedE2eProject copy rule", () => {
       }
     }
     expect(shouldCopyWorkspaceEntry("artifacts")).toBe(true);
-    expect(shouldCopyWorkspaceEntry("artifacts/peaks")).toBe(true);
-    expect(shouldCopyWorkspaceEntry("artifacts/peaks/guest.json")).toBe(true);
+    expect(shouldCopyWorkspaceEntry("artifacts/peaks")).toBe(false);
+    expect(shouldCopyWorkspaceEntry("artifacts/peaks/guest.json")).toBe(false);
   });
 });
 

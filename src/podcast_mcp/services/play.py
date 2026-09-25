@@ -15,7 +15,6 @@ from podcast_mcp.edits.pending_preview import (
     PendingPreviewWindow,
     resolve_pending_preview,
 )
-from podcast_mcp.edits.track_ids import SAFE_TRACK_ID
 from podcast_mcp.edits.transcript_cuts import search_transcript
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import (
@@ -43,12 +42,10 @@ from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.process import run
 from podcast_mcp.util.project_state import project_state_lock, snapshot_project
 from podcast_mcp.util.tracks import track_audio_path
-from podcast_mcp.util.workspace_paths import resolve_within
 
 # Full-stem rebuild on --rerender is only worth it for long windows. Short
 # auditions use segment render (faster, and avoids silent stem-slice races).
 _FULL_STEM_RERENDER_MIN_SEC = 60.0
-WAVEFORM_WINDOW_MAX_SEC = 8.0
 
 
 def _wav_peak_abs(path: Path) -> float | None:
@@ -229,55 +226,6 @@ class PlayService:
             f"unknown transport kind {kind!r}; "
             "use premix, review[:id], stem/processed, or raw/track"
         )
-
-    def extract_waveform_window(
-        self,
-        *,
-        kind: str,
-        track_id: str,
-        start_sec: float,
-        end_sec: float,
-    ) -> Path:
-        """Short PCM WAV for client waveform tiles (source or stem clock).
-
-        Caps the window so a client cannot extract an hour. Uses the existing
-        ``play_cache/`` extract path with FFmpeg ``-threads 1``.
-        """
-        if not SAFE_TRACK_ID.fullmatch(track_id):
-            raise ValueError(f"invalid track_id: {track_id!r}")
-        if self.project.track_by_id(track_id) is None:
-            raise ValueError(f"unknown track: {track_id}")
-        lo = max(0.0, float(start_sec))
-        hi = float(end_sec)
-        if hi <= lo:
-            raise ValueError("end must be after start")
-        hi = min(hi, lo + WAVEFORM_WINDOW_MAX_SEC)
-        normalized = kind.strip().lower()
-        if normalized in ("stem", "processed", "fx"):
-            src = stem_path(self.project, track_id)
-            tracks_dir = (self.project.artifacts_dir() / "tracks").resolve()
-            try:
-                src = resolve_within(tracks_dir, str(src))
-            except ValueError:
-                raise ValueError(f"stem path escaped artifacts/tracks for {track_id!r}") from None
-            if not src.is_file():
-                raise FileNotFoundError(f"processed stem missing for {track_id!r}")
-            label = f"wf_stem_{track_id}"
-        else:
-            src = track_audio_path(self.project, track_id)
-            if not src.is_file():
-                raise FileNotFoundError(f"raw media not found: {src}")
-            label = f"wf_raw_{track_id}"
-        out = self._cache_path(label, lo, hi, src)
-        if not out.is_file():
-            tmp = out.with_name(f".{out.stem}.{os.getpid()}.{os.urandom(4).hex()}{out.suffix}")
-            try:
-                FFmpegEngine().extract_segment(src, tmp, lo, hi)
-                tmp.replace(out)
-            except Exception:
-                tmp.unlink(missing_ok=True)
-                raise
-        return out
 
     def play(
         self,

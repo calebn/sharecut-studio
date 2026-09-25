@@ -8,7 +8,7 @@ Canonical registry for Podcast MCP agent skills, MCP tools, pipeline steps, and 
 
 | Fixture | Path | Size | Gold labels | Purpose |
 |---------|------|------|-------------|---------|
-| `aligned_dialogue` | `tests/fixtures/aligned_dialogue/` | ~60s × 2 | Canned only (text ≠ audio) | CLI/MCP smoke, edits, social, history; tracked overview peaks for GUI Playwright |
+| `aligned_dialogue` | `tests/fixtures/aligned_dialogue/` | ~60s × 2 | Canned only (text ≠ audio) | CLI/MCP smoke, edits, social, history; GUI Playwright (waveform pyramids build on demand) |
 | `sharecut_ux_demo` | `tests/fixtures/sharecut_ux_demo/` | same audio (symlinked) | UX showcase seed | Sharecut Studio UX Pages demo; pending edit, comments, chapters |
 | `asr_gold` | `tests/fixtures/asr_gold/` | ~5 MB | LibriSpeech official | ASR WER regression (`test_asr_gold_wer.py`) |
 | `synthetic_bleed_60s` | `tests/fixtures/synthetic_bleed_60s/` | ~15 MB | Manifest + word JSON | Bleed/reconcile/precorrect gold (`test_synthetic_bleed_*.py`) |

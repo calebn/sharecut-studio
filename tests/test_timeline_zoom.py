@@ -1,24 +1,16 @@
 from __future__ import annotations
 
-import math
-
 import pytest
 
 from podcast_mcp.util import timeline_zoom
 from podcast_mcp.util.timeline_zoom import (
     base_samples_per_bin,
     bins_per_data_tile,
-    detail_bins_per_sec,
-    edit_focus_bins_per_sec,
-    finest_bins_per_sec,
     level_factor,
     load_timeline_zoom,
     max_tiles_per_request,
     max_zoom_px_per_sec,
-    overview_bins_per_sec,
-    overview_decode_hz,
-    overview_samples_per_pixel,
-    paint_dpr,
+    min_zoom_px_per_sec,
     paint_dpr_cap,
     pcm_block_frames,
     waveform_format_version,
@@ -32,48 +24,14 @@ def test_load_timeline_zoom_contract():
     assert data["max_zoom_px_per_sec"] == 200
     assert data["max_content_px"] == 15000000
     assert data["zoom_step"] == 1.25
-    peaks = data["peaks"]
-    assert peaks["overview_bins_per_sec"] == 16
-    assert peaks["overview_decode_hz"] == 8000
-    assert peaks["dpr_headroom"] == 2
+    assert "peaks" not in data  # the legacy overview block is gone
 
 
-def test_derived_rates_are_not_magic_400():
-    finest = finest_bins_per_sec()
-    assert finest == max_zoom_px_per_sec() * 2
-    assert finest == max_zoom_px_per_sec() * load_timeline_zoom()["peaks"]["dpr_headroom"]
-    spp = overview_samples_per_pixel()
-    assert spp == overview_decode_hz() // int(overview_bins_per_sec())
-    assert spp == 500
-
-
-# Same cases as gui/web/src/utils/timelineZoom.generated.test.ts (paintDpr).
-@pytest.mark.parametrize(
-    ("dpr", "want"),
-    [(1.33, 1.375), (1.5, 1.5), (1.0625, 1.125), (0.5, 1.0), (3, 2.0), (math.nan, 1.0), (-2, 1.0)],
-)
-def test_paint_dpr_matches_the_gui(dpr, want):
-    assert paint_dpr(dpr) == want
-
-
-def test_paint_dpr_keeps_render_tiles_whole_and_feeds_detail_bins():
-    render_tile = load_timeline_zoom()["waveform"]["render_tile_css_px"]
-    for dpr in (1, 1.1, 1.25, 1.33, 1.5, 1.75, 1.99):
-        assert float(render_tile * paint_dpr(dpr)).is_integer()
-    assert detail_bins_per_sec(40, 1.33) == 40 * 1.375
-    assert edit_focus_bins_per_sec(40, 1.33) == min(40 * 1.375 * 8, 8000)
-
-
-def test_detail_and_edit_focus_caps():
-    assert paint_dpr_cap() == 2
-    assert paint_dpr_cap() == load_timeline_zoom()["waveform"]["paint_dpr_cap"]
-    assert detail_bins_per_sec(200, 3) == finest_bins_per_sec()
-    assert detail_bins_per_sec(40, 1) == 40
-    loupe = edit_focus_bins_per_sec(200, 2)
-    assert loupe <= overview_decode_hz()
-    assert loupe >= detail_bins_per_sec(200, 2)
+def test_zoom_getters():
+    assert min_zoom_px_per_sec() == 0.05
+    assert max_zoom_px_per_sec() == 200
     assert zoom_step() == 1.25
-    assert detail_bins_per_sec(40, 0.5) == detail_bins_per_sec(40, 1.0)
+    assert paint_dpr_cap() == 2
 
 
 def test_packaged_timeline_zoom_matches_contract():
@@ -105,8 +63,6 @@ def test_waveform_contract_keys():
         "quiet_min_duration_sec": 0.12,
         "quiet_wash_min_zoom_px_per_sec": 8,
     }
-    # One paint DPR cap: the legacy peaks copy must agree until it is removed.
-    assert waveform["paint_dpr_cap"] == load_timeline_zoom()["peaks"]["paint_dpr_cap"]
 
 
 def test_waveform_getters():

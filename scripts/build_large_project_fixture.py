@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Create a disposable long-form project for browser performance profiling.
 
-The generated project uses sparse silent WAVs, flat overview peaks and, per
-track, a ``.wfpk`` waveform pyramid written without decoding (``--waveform
-synthetic`` draws a speech-like envelope; ``silent`` draws nothing). It is a
-UI/data-shape fixture, not an audio fidelity fixture, and is refused below
-``tests/fixtures`` so it is never committed. The output is suitable for
-``DAW_E2E_PROJECT`` and can be removed after the benchmark.
+The generated project uses sparse silent WAVs and, per track, a ``.wfpk``
+waveform pyramid written without decoding (``--waveform synthetic`` draws a
+speech-like envelope; ``silent`` draws nothing). It is a UI/data-shape
+fixture, not an audio fidelity fixture, and is refused below ``tests/fixtures``
+so it is never committed. The output is suitable for ``DAW_E2E_PROJECT`` and
+can be removed after the benchmark.
 """
 
 from __future__ import annotations
@@ -18,7 +18,6 @@ import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
-from podcast_mcp.engines.peaks import write_silent_peaks
 from podcast_mcp.engines.waveform_pyramid import (
     media_key,
     pyramid_path,
@@ -221,10 +220,8 @@ def _write_waveform(
 
 def _write_tree(
     staging: Path,
-    final: Path,
     project: EpisodeProject,
     frames: int,
-    duration_sec: float,
     *,
     track_ids: tuple[str, ...] = TRACKS,
     waveform: str = "synthetic",
@@ -238,12 +235,6 @@ def _write_tree(
     for seed, track in enumerate(project.timeline.tracks):
         if track.media is None:
             continue
-        write_silent_peaks(
-            staging / track.media.path,
-            staging / "artifacts" / "peaks" / f"{track.id}.json",
-            duration_sec,
-            source=final / track.media.path,
-        )
         # Keys hash the workspace-relative path, so they survive the rename to *final*.
         _write_waveform(
             project, track.id, staging / track.media.path, frames, seed=seed, waveform=waveform
@@ -274,9 +265,7 @@ def build_project(
     final.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=f".{final.name}.", dir=final.parent))
     try:
-        _write_tree(
-            staging, final, project, frames, duration_sec, track_ids=track_ids, waveform=waveform
-        )
+        _write_tree(staging, project, frames, track_ids=track_ids, waveform=waveform)
         staging.rename(final)
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
