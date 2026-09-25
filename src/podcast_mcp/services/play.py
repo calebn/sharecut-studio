@@ -424,8 +424,10 @@ class PlayService:
     def _ensure_premix(self, *, rerender: bool) -> Path:
         premix = self.project.artifacts_dir() / "premix.wav"
         if rerender or not premix.is_file():
+            # A render takes seconds: merge the save so an edit committed meanwhile survives.
+            self.project = self.ws.checkpoint()
             rerender_preview(self.project)
-            self.ws.save()
+            self.ws.save_merged()
         if not premix.is_file():
             raise FileNotFoundError("premix.wav not found; run render-preview or pipeline first")
         return premix
