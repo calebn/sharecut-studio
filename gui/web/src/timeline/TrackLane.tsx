@@ -302,6 +302,11 @@ export function TrackLaneView({
             />
           );
         })}
+        {/* Move ghosts draw raw media on purpose. A stem is per lane and on
+            the timeline clock, so the destination lane's stem read at the
+            ghost's new timeline_start would show unrelated audio. After the
+            drop both lanes' stems are stale and clipMediaRef falls back to
+            raw, so raw previews the post-drop waveform (docs/waveform.md). */}
         {moveGhosts.map((ghost) => (
           <ClipBlock
             key={`ghost-${ghost.clip.id}`}
