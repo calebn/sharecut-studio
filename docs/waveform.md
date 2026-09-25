@@ -173,8 +173,10 @@ because ffmpeg counts it in decoder packets, not samples.
   distinct ids from colliding.
 - **Reuse:** before a build, `reuse_existing_pyramid` hard-links any
   `*.{key}.wfpk` that passes `read_meta` to the new name, or copies it when
-  linking fails. An existing target that fails `read_meta` is deleted so it is
-  rebuilt, and a corrupt candidate is skipped.
+  linking fails. An existing target that fails `read_meta` is never deleted: a
+  valid candidate is copied over it, or the caller's rebuild replaces it, both
+  through an atomic `os.replace`, so a valid file that another build publishes
+  meanwhile is never removed. A corrupt candidate is skipped.
 - **Prune:** after a build, `prune_ref_pyramids` keeps the live key plus the
   newest other key for the slug, and deletes `.tmp` files older than one day.
 - **Jobs:** `schedule_pyramid_build(ref, key, audio, out)` queues a build on a

@@ -898,7 +898,7 @@ def test_reuse_existing_pyramid_links_or_copies(tmp_path):
     assert copied.stat().st_ino != src.stat().st_ino
 
 
-def test_reuse_repairs_a_corrupt_target_and_skips_corrupt_candidates(tmp_path):
+def test_reuse_replaces_a_corrupt_target_and_skips_corrupt_candidates(tmp_path):
     src, _, _ = _small_pyramid(tmp_path)
     key = _key()
     good = tmp_path / f"track-a.{key}.wfpk"
@@ -907,6 +907,7 @@ def test_reuse_repairs_a_corrupt_target_and_skips_corrupt_candidates(tmp_path):
     out.write_bytes(b"torn")
     assert reuse_existing_pyramid(tmp_path, key, out) is True
     assert out.read_bytes() == good.read_bytes()
+    assert out.stat().st_ino != good.stat().st_ino  # replaced by an atomic copy, not linked
     read_meta(out)
 
     bad_key = _key()
@@ -917,8 +918,8 @@ def test_reuse_repairs_a_corrupt_target_and_skips_corrupt_candidates(tmp_path):
 
     stuck = tmp_path / f"source-s3.{bad_key}.wfpk"
     stuck.write_bytes(b"torn")
-    with patch.object(Path, "unlink", side_effect=OSError("busy")):
-        assert reuse_existing_pyramid(tmp_path, bad_key, stuck) is False
+    assert reuse_existing_pyramid(tmp_path, bad_key, stuck) is False
+    assert stuck.read_bytes() == b"torn"  # left for the rebuild to replace
 
     raced = tmp_path / f"track-z.{key}.wfpk"
     with patch("podcast_mcp.engines.waveform_pyramid.os.link", side_effect=FileExistsError()):
@@ -934,6 +935,27 @@ def test_reuse_repairs_a_corrupt_target_and_skips_corrupt_candidates(tmp_path):
 
 
 # --- Synthetic pyramids ------------------------------------------------------------------------
+
+
+def test_reuse_never_unlinks_a_target_published_mid_check(tmp_path):
+    src, _, _ = _small_pyramid(tmp_path)
+    good_bytes = src.read_bytes()
+    src.unlink()
+    key = _key()
+    out = tmp_path / f"source-s1.{key}.wfpk"
+    out.write_bytes(b"torn")
+    real_valid = wp._valid_pyramid
+
+    def _racing(path):
+        ok = real_valid(path)
+        if path == out and not ok:
+            out.write_bytes(good_bytes)  # another build publishes a valid file now
+        return ok
+
+    with patch.object(wp, "_valid_pyramid", side_effect=_racing):
+        assert reuse_existing_pyramid(tmp_path, key, out) is False  # caller rebuilds over it
+    assert out.read_bytes() == good_bytes  # the published file was not unlinked
+    read_meta(out)
 
 
 def test_write_synthetic_pyramid_is_deterministic_and_speech_like(tmp_path):
