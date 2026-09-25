@@ -6,6 +6,7 @@ import {
   classifyFetchFailure,
   FetchGate,
   fetchLimit,
+  trimOnShellChange,
   WAVEFORM_BUDGETS,
   waveformBudget,
 } from "./budgets";
@@ -13,6 +14,15 @@ import {
 describe("waveform budgets", () => {
   afterEach(() => {
     useDawStore.getState().setShellBreakpoint("desktop");
+  });
+
+  it("re-trims registered caches when the shell changes", () => {
+    const cache = { trim: vi.fn() };
+    trimOnShellChange(cache);
+    useDawStore.getState().setShellBreakpoint("phone");
+    expect(cache.trim).toHaveBeenCalledOnce();
+    useDawStore.getState().setShellBreakpoint("phone");
+    expect(cache.trim).toHaveBeenCalledOnce();
   });
 
   it("uses the phone budgets on the phone shell", () => {
