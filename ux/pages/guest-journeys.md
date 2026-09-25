@@ -254,7 +254,9 @@ flowchart TD
    already joined keep their saved lease, and new people need a fresh link.
    Removal during REC stops microphone capture and upload, then offers local
    keeper recovery or download. A naturally expired lease can start a fresh
-   guest identity in the still-open room. The Join lease check and host removal
+   guest identity in the still-open room, unless someone who joined through the
+   same link was removed; then the guest sees "Invite link closed" and needs a
+   fresh link from the host. The Join lease check and host removal
    use one room decision so removal cannot look like ordinary lease expiry.
 9. In the native desktop app, a host or recorded guest who closes the window
    during REC, PAUSED, or finalizing sees a role-specific confirmation. The

@@ -745,10 +745,14 @@ concurrent removal cannot be misreported to the browser as lease expiry.
 **Decision (#370): removal closes that invite to new identities.** When the host
 removes a participant, the record token they joined through (guest or producer
 link) stops minting new participant identities for that room. `Join` without a
-valid lease gets `invite_closed`. The token keeps working for every participant
+valid lease gets `invite_closed`. The server then closes that socket with 4403, the close code every client already treats as terminal; the browser keeps the "Invite link closed" screen because the Error frame arrives first. The token keeps working for every participant
 it already minted who still holds a valid lease: reconnect, reload, heartbeat,
-signal, upload and keeper recovery. New people need a fresh guest link:
-`podcast review share --kind record --session-id <id> --role guest`. The rule is
+signal, upload and keeper recovery. New people need a fresh link for the same
+role the removed participant joined through:
+`podcast review share --kind record --session-id <id> --role guest` (or
+`--role producer` when a producer was removed). The Share dialog still lists the
+room's original links, including a closed one; mint the replacement with the CLI.
+The rule is
 derived from `participants[].removed` (never cleared within a room) and
 `record_participants.token_hash` (kept by `revoke()`), both in `sync.db`, and is
 checked under the room authority lock in `_join_locked`, so it survives restarts
@@ -756,9 +760,13 @@ and applies equally to direct and relayed joins. Nobody else is disconnected.
 
 - **Security boundary:** the link is still a bearer link; the host must share the
   replacement privately. A closure applies to that token only.
-- **Cost:** an unaffected guest who loses the saved lease (new device, cleared
-  data, lease older than 7 days) must use the new link and sees a terminal
-  "Invite link closed" screen with the Recover / Download local recording buttons.
+- **Cost:** when several guests share one guest link, removing any one of them
+  closes it for all of them. An unaffected guest who loses the saved lease (new
+  device, cleared data, lease older than 7 days) cannot be told apart from the
+  removed person omitting their lease, so they see a terminal "Invite link
+  closed" screen with the Recover / Download local recording buttons and need the
+  replacement link. Guests who keep their lease are unaffected. The check only
+  queries `record_participants` once the room has a removal.
 - **Keeper recovery:** unaffected guests keep uploading and recovering through
   their lease; a removed participant stays refused. The stopped-take question stays
   with [#316](https://github.com/calebn/sharecut-studio/issues/316).
@@ -1098,7 +1106,7 @@ Tone participants A=220 Hz, B=440 Hz, C=880 Hz, 48 kHz, −18 dBFS. No real
 | MM7 | Encoder does not duck monitor | Start "record": MM1 bars unchanged vs pre-roll. |
 | MM8 | Roster change does not glitch | Start N=2 (A, B); add C at t=1 s; remove B at t=2 s. A's bus: 880 Hz reaches its MM1 level within **20 ms** of add, 440 Hz falls ≥ 40 dB within 20 ms of remove, 220 Hz stays ≤ −50 dB throughout; no sample-to-sample step > **−30 dBFS** at either transition (ramped, not cut). A's keeper is **bit-identical** to a run with no roster change. Pause at t=3 s / Resume at t=4 s: MM1 bars on A's bus unchanged throughout (monitor is not paused). |
 | MM9 | Producer bus | Producer P joins N=3 (A, B, C): P's speaker bus has 220/440/880 each within **±1.5 dB** of the taps; P has **no** send track, **no** keeper file, and never called `getUserMedia`; A/B/C buses are unchanged vs MM1 (P adds nothing to anyone's mix). |
-| INV1 | Invite closure (#370) | `tests/test_record_ws.py` `test_removed_invite_*`, `test_invite_closure_*`, `test_expired_lease_on_closed_invite_cannot_mint`, `test_join_mint_raises_invite_closed`; `useRecordSync.test.ts` and `RecordApp.test.tsx` (terminal `invite_closed`, axe-clean). |
+| INV1 | Invite closure (#370) | `tests/test_record_ws.py` `test_removed_invite_*`, `test_invite_closure_*`, `test_expired_lease_on_closed_invite_cannot_mint`, `test_join_mint_raises_invite_closed`, `test_invite_closed_closes_the_socket_with_4403`; `useRecordSync.test.ts` (terminal `invite_closed`, including the `invalid_lease` → lease-less rejoin → `invite_closed` chain) and `RecordApp.test.tsx` (axe-clean). |
 
 Ship MM1–MM9 **in the same PR as the graph** (`gui/web/src/audio/mixMinus.ts` +
 `mixMinus.test.ts`). Prefer rendered spectra over `connect()` spies alone —

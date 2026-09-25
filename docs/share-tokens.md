@@ -90,8 +90,11 @@ version id, revoked, timestamps). Rich record for the host; the registry is the
 ## Record sessions
 
 Removing a participant closes the record token they joined through to new
-identities (`invite_closed`); existing leases keep working. Re-invite by minting a
-replacement with `podcast review share --kind record --session-id <id> --role guest`.
+identities (`invite_closed`); existing leases keep working. When several guests
+share the link, an unaffected guest who loses their lease also needs the
+replacement. Re-invite by minting a replacement for the same role with
+`podcast review share --kind record --session-id <id> --role guest` (or
+`--role producer`).
 See [recording-session.md](recording-session.md).
 
 A second share **kind** (`review` | `record`) lives on the same coolname
