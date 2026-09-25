@@ -624,7 +624,7 @@ def test_stream_timer_kills_stuck_process(tmp_path):
         patch("podcast_mcp.engines.ffmpeg.threading.Timer", _ImmediateTimer),
     ):
         _, _, chunks = eng.stream_pcm_f32(tmp_path / "stuck.wav")
-        with pytest.raises(RuntimeError, match="exit -9"):
+        with pytest.raises(RuntimeError, match=r"exit -9\); killed by the 600 s watchdog"):
             list(chunks)
     proc.kill.assert_called()
     timer = _ImmediateTimer.instances[0]
@@ -687,6 +687,55 @@ def test_stream_close_kills_running_process(tmp_path):
         assert len(next(chunks)) == 100
         chunks.close()
     proc.kill.assert_called_once()
+
+
+def test_stream_watchdog_is_disarmed_while_the_consumer_holds_a_chunk(tmp_path):
+    proc = _FakeProc(np.ones(250, dtype="<f4").tobytes())
+    _ImmediateTimer.instances.clear()
+
+    class _LazyTimer(_ImmediateTimer):
+        def start(self):
+            pass
+
+    eng = FFmpegEngine(ffmpeg="ffmpeg", ffprobe="ffprobe")
+    with (
+        patch.object(FFmpegEngine, "probe", side_effect=_probe),
+        patch("podcast_mcp.engines.ffmpeg.popen", return_value=proc),
+        patch("podcast_mcp.engines.ffmpeg.threading.Timer", _LazyTimer),
+    ):
+        _, _, chunks = eng.stream_pcm_f32(tmp_path / "a.wav", chunk_frames=100)
+        assert len(next(chunks)) == 100
+        # One watchdog per chunk, already cancelled while the consumer works.
+        assert len(_ImmediateTimer.instances) == 1
+        assert _ImmediateTimer.instances[0].cancelled
+        assert [len(c) for c in chunks] == [100, 50]
+    assert len(_ImmediateTimer.instances) == 3
+    assert all(t.cancelled for t in _ImmediateTimer.instances)
+    assert all(t.interval == PCM_STREAM_TIMEOUT_SEC for t in _ImmediateTimer.instances)
+
+
+def test_stream_failure_reports_the_stderr_tail(tmp_path):
+    def _popen(argv, *, stdout, stderr):
+        stderr.write(b"x" * 5000 + b"\nmoov atom not found\n")
+        return _FakeProc(b"", code=1)
+
+    class _LazyTimer(_ImmediateTimer):
+        def start(self):
+            pass
+
+    eng = FFmpegEngine(ffmpeg="ffmpeg", ffprobe="ffprobe")
+    with (
+        patch.object(FFmpegEngine, "probe", side_effect=_probe),
+        patch("podcast_mcp.engines.ffmpeg.popen", side_effect=_popen),
+        patch("podcast_mcp.engines.ffmpeg.threading.Timer", _LazyTimer),
+    ):
+        _, _, chunks = eng.stream_pcm_f32(tmp_path / "a.wav")
+        with pytest.raises(RuntimeError, match=r"exit 1\)") as exc:
+            list(chunks)
+    msg = str(exc.value)
+    assert msg.endswith("moov atom not found")
+    assert "watchdog" not in msg
+    assert len(msg) < 2200  # only the last PCM_STDERR_TAIL_BYTES
 
 
 def test_stream_clean_eof_and_missing_pipe(tmp_path):

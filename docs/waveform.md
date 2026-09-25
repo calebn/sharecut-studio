@@ -128,8 +128,11 @@ hits EOF.
   `FFmpegEngine.stream_pcm_f32`. That method probes with
   `probe(path, untrusted=True)`, then runs ffmpeg with the same
   `-protocol_whitelist file,crypto,data`, `-threads 1`, `-f f32le -ac <ch>
-  -ar <sr> pipe:1`. A 600 s timer kills a stuck process, and closing the
-  generator kills ffmpeg too. A non-zero exit raises. Because the command
+  -ar <sr> pipe:1`. A 600 s watchdog kills a stuck process. It is armed only while waiting on
+  ffmpeg for each chunk, so time the consumer spends between chunks never
+  counts, and a long episode decodes as long as ffmpeg keeps producing output.
+  Closing the generator kills ffmpeg too. A non-zero exit raises with the last
+  2 KB of ffmpeg's stderr and says whether the watchdog fired. Because the command
   passes `-ac <ch>`, ffmpeg remaps inputs with more than two channels whose
   layout is not its default for that count; mono and stereo are unchanged.
 
@@ -137,7 +140,7 @@ hits EOF.
 min/max across channels, for host deep zoom. `n` is clipped at the end of the
 media. WAVs use a bounded `setpos`/`readframes`. Other media use
 `FFmpegEngine.decode_window_f32`, which puts `-ss` before `-i`, stops reading
-at exactly `frames` frames, and has a 30 s timer. `-frames:a` is not used,
+at exactly `frames` frames, and has a 30 s watchdog. `-frames:a` is not used,
 because ffmpeg counts it in decoder packets, not samples.
 
 ### Keys, files and jobs

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import tempfile
 import threading
 from collections.abc import Generator
 from dataclasses import dataclass
@@ -21,12 +22,16 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.util.binaries import resolve_ffmpeg, resolve_ffprobe
 from podcast_mcp.util.model_assets import resolve_rnnoise_model
-from podcast_mcp.util.process import DEVNULL, PIPE, CalledProcessError, TimeoutExpired, popen, run
+from podcast_mcp.util.process import PIPE, CalledProcessError, TimeoutExpired, popen, run
 
-# Raw float32 PCM decode (waveform pyramid builds and deep-zoom windows).
+# Raw float32 PCM decode (waveform pyramid builds and deep-zoom windows). The
+# timeouts are watchdogs armed only while waiting on ffmpeg for one chunk, so
+# consumer time between chunks never counts toward them.
 PCM_STREAM_CHUNK_FRAMES = 1_048_576
 PCM_STREAM_TIMEOUT_SEC = 600.0
 PCM_WINDOW_TIMEOUT_SEC = 30.0
+# Bytes of ffmpeg stderr kept for a failed decode's error message.
+PCM_STDERR_TAIL_BYTES = 2048
 # Guest-safe input protocols (same whitelist as ``probe(untrusted=True)``).
 _UNTRUSTED_PROTOCOLS = "file,crypto,data"
 
@@ -184,6 +189,17 @@ def _read_exact(stream: IO[bytes], size: int) -> bytearray:
     return buf
 
 
+def _pcm_decode_error(code: int, timed_out: bool, timeout_sec: float, err: IO[bytes]) -> str:
+    """``RuntimeError`` text for a failed PCM decode: exit code, watchdog, stderr tail."""
+    msg = f"ffmpeg PCM decode failed (exit {code})"
+    if timed_out:
+        msg += f"; killed by the {timeout_sec:g} s watchdog"
+    err.seek(0, 2)
+    err.seek(max(0, err.tell() - PCM_STDERR_TAIL_BYTES))
+    tail = err.read().decode("utf-8", "replace").strip()
+    return f"{msg}: {tail}" if tail else msg
+
+
 class FFmpegEngine:
     def __init__(self, ffmpeg: str | None = None, ffprobe: str | None = None) -> None:
         self.ffmpeg = ffmpeg or resolve_ffmpeg()
@@ -243,8 +259,10 @@ class FFmpegEngine:
         Returns ``(sample_rate, channels, chunks)``; each chunk is a
         ``(frames, channels)`` float32 array of ``chunk_frames`` frames (the
         last may be shorter). ffmpeg starts on first ``next()`` and is killed
-        when the generator closes or after ``PCM_STREAM_TIMEOUT_SEC``. A
-        non-zero ffmpeg exit raises ``RuntimeError``.
+        when the generator closes, or when one chunk waits on ffmpeg longer than
+        ``PCM_STREAM_TIMEOUT_SEC`` (the consumer's time between chunks does not
+        count). A non-zero exit raises ``RuntimeError`` with the tail of ffmpeg's
+        stderr.
         """
         if chunk_frames < 1:
             raise ValueError("chunk_frames must be >= 1")
@@ -261,7 +279,7 @@ class FFmpegEngine:
     ) -> np.ndarray:
         """Decode ``frames`` frames from ``start_frame`` as ``(n, channels)`` float32.
 
-        ``n < frames`` only at end of media. Bounded by ``PCM_WINDOW_TIMEOUT_SEC``.
+        ``n < frames`` only at end of media. Bounded by the ``PCM_WINDOW_TIMEOUT_SEC`` watchdog.
         """
         if start_frame < 0 or frames < 0 or sample_rate < 1 or channels < 1:
             raise ValueError("invalid PCM window")
@@ -326,36 +344,51 @@ class FFmpegEngine:
         timeout_sec: float,
         max_frames: int | None = None,
     ) -> Generator[np.ndarray, None, None]:
-        proc = popen(argv, stdout=PIPE, stderr=DEVNULL)
-        timer = threading.Timer(timeout_sec, proc.kill)
-        timer.daemon = True
-        timer.start()
-        frame_bytes = 4 * channels
-        remaining = max_frames
-        try:
-            stdout = proc.stdout
-            if stdout is None:
-                raise RuntimeError("ffmpeg stdout pipe missing")
-            while remaining is None or remaining > 0:
-                want = chunk_frames if remaining is None else min(chunk_frames, remaining)
-                buf = _read_exact(stdout, want * frame_bytes)
-                frames = len(buf) // frame_bytes
-                if frames:
-                    if remaining is not None:
-                        remaining -= frames
-                    yield np.frombuffer(buf, dtype="<f4", count=frames * channels).reshape(
-                        frames, channels
-                    )
-                if len(buf) < want * frame_bytes:
-                    code = proc.wait()
-                    if code != 0:
-                        raise RuntimeError(f"ffmpeg PCM decode failed (exit {code})")
-                    return
-        finally:
-            timer.cancel()
-            if proc.poll() is None:
+        with tempfile.TemporaryFile() as err:
+            proc = popen(argv, stdout=PIPE, stderr=err)
+            timed_out = threading.Event()
+
+            def _watchdog() -> None:
+                timed_out.set()
                 proc.kill()
-            proc.wait()
+
+            timer: threading.Timer | None = None
+            frame_bytes = 4 * channels
+            remaining = max_frames
+            try:
+                stdout = proc.stdout
+                if stdout is None:
+                    raise RuntimeError("ffmpeg stdout pipe missing")
+                while remaining is None or remaining > 0:
+                    want = chunk_frames if remaining is None else min(chunk_frames, remaining)
+                    # Armed only while waiting on ffmpeg: time the consumer spends
+                    # between chunks (level builds, a busy pool) never counts.
+                    timer = threading.Timer(timeout_sec, _watchdog)
+                    timer.daemon = True
+                    timer.start()
+                    buf = _read_exact(stdout, want * frame_bytes)
+                    short = len(buf) < want * frame_bytes
+                    code = proc.wait() if short else 0
+                    timer.cancel()
+                    frames = len(buf) // frame_bytes
+                    if frames:
+                        if remaining is not None:
+                            remaining -= frames
+                        yield np.frombuffer(buf, dtype="<f4", count=frames * channels).reshape(
+                            frames, channels
+                        )
+                    if short:
+                        if code != 0:
+                            raise RuntimeError(
+                                _pcm_decode_error(code, timed_out.is_set(), timeout_sec, err)
+                            )
+                        return
+            finally:
+                if timer is not None:
+                    timer.cancel()
+                if proc.poll() is None:
+                    proc.kill()
+                proc.wait()
 
     def segments_after_edits(
         self,
