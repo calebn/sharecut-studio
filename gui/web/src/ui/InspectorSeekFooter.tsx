@@ -44,7 +44,12 @@ export function InspectorSeekFooter({
   suggestDisabledReason,
 }: Props) {
   const { setPlayheadSec, setPlayUntilSec, setIsPlaying, beginAudition } =
-    useDaw();
+    useDaw((s) => ({
+      setPlayheadSec: s.setPlayheadSec,
+      setPlayUntilSec: s.setPlayUntilSec,
+      setIsPlaying: s.setIsPlaying,
+      beginAudition: s.beginAudition,
+    }));
 
   const play = () => {
     const mode = previewMode ?? "current";

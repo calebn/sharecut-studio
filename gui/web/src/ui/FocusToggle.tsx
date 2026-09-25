@@ -19,7 +19,7 @@ export function FocusToggle({
   mode: Exclude<FocusMode, "default">;
   label: string;
 }) {
-  const { focusMode } = useDaw();
+  const { focusMode } = useDaw((s) => ({ focusMode: s.focusMode }));
   const active = focusMode === mode;
   return (
     <button

@@ -43,20 +43,22 @@ const dawState = vi.hoisted(() => ({
   activityJob: null as import("../types/pipeline").PipelineJobSnapshot | null,
 }));
 
+const mockState = {
+  projectPath: "/tmp/ep.project.json",
+  get pipelineJob() {
+    return dawState.pipelineJob;
+  },
+  get activityJob() {
+    return dawState.activityJob;
+  },
+  setPipelineJob,
+  setActivityJob,
+  setActiveTab,
+  sessionClients: [],
+};
+
 vi.mock("../state/useDaw", () => ({
-  useDaw: () => ({
-    projectPath: "/tmp/ep.project.json",
-    get pipelineJob() {
-      return dawState.pipelineJob;
-    },
-    get activityJob() {
-      return dawState.activityJob;
-    },
-    setPipelineJob,
-    setActivityJob,
-    setActiveTab,
-    sessionClients: [],
-  }),
+  useDaw: (sel: (s: typeof mockState) => unknown) => sel(mockState),
 }));
 
 const whisperModels = [

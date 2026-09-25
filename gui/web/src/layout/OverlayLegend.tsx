@@ -13,7 +13,13 @@ const TOGGLES: { key: keyof LayerVisibility; label: string }[] = [
 
 export function OverlayLegend({ menu = false }: { menu?: boolean }) {
   const { layers, setLayerVisible, projectPath, playheadSec, setSelection } =
-    useDaw();
+    useDaw((s) => ({
+      layers: s.layers,
+      setLayerVisible: s.setLayerVisible,
+      projectPath: s.projectPath,
+      playheadSec: s.playheadSec,
+      setSelection: s.setSelection,
+    }));
   const hostEditable = !isShareProjectKey(projectPath);
 
   return (

@@ -38,7 +38,13 @@ const BADGE_LABEL: Record<string, string> = {
 
 export function TightenPanel() {
   const { project, projectPath, guestMode, shareCapabilities, selection } =
-    useDaw();
+    useDaw((s) => ({
+      project: s.project,
+      projectPath: s.projectPath,
+      guestMode: s.guestMode,
+      shareCapabilities: s.shareCapabilities,
+      selection: s.selection,
+    }));
   const headingId = useId();
   const searchId = useId();
   const trackId = useId();

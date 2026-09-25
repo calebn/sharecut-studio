@@ -39,7 +39,24 @@ export function useProxyTransport(): boolean {
     clearSessionRegion,
     viewerMute,
     soloTracks,
-  } = useDaw();
+  } = useDaw((s) => ({
+    project: s.project,
+    projectPath: s.projectPath,
+    isPlaying: s.isPlaying,
+    playheadSec: s.playheadSec,
+    setPlayheadSec: s.setPlayheadSec,
+    playUntilSec: s.playUntilSec,
+    playSkipStartSec: s.playSkipStartSec,
+    playSkipEndSec: s.playSkipEndSec,
+    playAbFollowup: s.playAbFollowup,
+    auditionEpoch: s.auditionEpoch,
+    continueAudition: s.continueAudition,
+    setIsPlaying: s.setIsPlaying,
+    setAudioError: s.setAudioError,
+    clearSessionRegion: s.clearSessionRegion,
+    viewerMute: s.viewerMute,
+    soloTracks: s.soloTracks,
+  }));
 
   const [active, setActive] = useState(false);
   const engineRef = useRef<ProxyEngine | null>(null);

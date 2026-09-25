@@ -5,7 +5,11 @@ import { CommandPalette } from "./CommandPalette";
 /** App-level cheatsheets stay beside app chrome so modal inertness is valid. */
 export function CheatsheetDialogs() {
   const { gesturesSheetOpen, setCommandPaletteOpen, setGesturesSheetOpen } =
-    useDaw();
+    useDaw((s) => ({
+      gesturesSheetOpen: s.gesturesSheetOpen,
+      setCommandPaletteOpen: s.setCommandPaletteOpen,
+      setGesturesSheetOpen: s.setGesturesSheetOpen,
+    }));
 
   return (
     <>

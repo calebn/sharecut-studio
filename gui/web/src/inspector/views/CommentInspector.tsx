@@ -12,7 +12,11 @@ interface Props {
 }
 
 export function CommentInspector({ comment, onSeek }: Props) {
-  const { guestMode, shareCapabilities, projectPath } = useDaw();
+  const { guestMode, shareCapabilities, projectPath } = useDaw((s) => ({
+    guestMode: s.guestMode,
+    shareCapabilities: s.shareCapabilities,
+    projectPath: s.projectPath,
+  }));
   const guestShare = guestMode != null;
   const mayReply = canReply(projectPath, guestMode, shareCapabilities);
   const mayAction = canSetAction(projectPath, shareCapabilities);

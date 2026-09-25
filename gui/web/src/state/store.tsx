@@ -4,7 +4,7 @@ import { useDawStore } from "./dawStore";
 
 /**
  * Thin provider: hydrates the Zustand DAW store from App bootstrap props.
- * Prefer `useDaw()` / `useDawStore` selectors for new code.
+ * Use `useDaw(selector)` / `useDawStore` selectors.
  */
 export function DawProvider({
   children,

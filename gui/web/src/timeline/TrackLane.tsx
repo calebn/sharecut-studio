@@ -119,7 +119,13 @@ export function TrackLane({
     shareCapabilities,
     setIngestDropTrackId,
     setPointerTrackId,
-  } = useDaw();
+  } = useDaw((s) => ({
+    project: s.project,
+    guestMode: s.guestMode,
+    shareCapabilities: s.shareCapabilities,
+    setIngestDropTrackId: s.setIngestDropTrackId,
+    setPointerTrackId: s.setPointerTrackId,
+  }));
   const [dropOver, setDropOver] = useState(false);
   const [dragFileCount, setDragFileCount] = useState(1);
   const [rollPreview, setRollPreview] = useState<{

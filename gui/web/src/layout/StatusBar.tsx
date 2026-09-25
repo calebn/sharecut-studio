@@ -22,7 +22,19 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
     highlightStaleRender,
     statusAnnouncement,
     announceStatus,
-  } = useDaw();
+  } = useDaw((s) => ({
+    project: s.project,
+    pipelineJob: s.pipelineJob,
+    activityJob: s.activityJob,
+    activityRunningCount: s.activityRunningCount,
+    setActiveTab: s.setActiveTab,
+    setFocusMode: s.setFocusMode,
+    shellBreakpoint: s.shellBreakpoint,
+    sessionClients: s.sessionClients,
+    highlightStaleRender: s.highlightStaleRender,
+    statusAnnouncement: s.statusAnnouncement,
+    announceStatus: s.announceStatus,
+  }));
 
   const chipJob = activityJob ?? pipelineJob;
   const jobStatus = chipJob?.status;

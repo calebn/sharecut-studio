@@ -16,7 +16,16 @@ export function useBladeCut() {
     shellBreakpoint,
     setBladeConfirmSec,
     bladeConfirmSec,
-  } = useDaw();
+  } = useDaw((s) => ({
+    project: s.project,
+    projectPath: s.projectPath,
+    guestMode: s.guestMode,
+    shareCapabilities: s.shareCapabilities,
+    selectedTrackIds: s.selectedTrackIds,
+    shellBreakpoint: s.shellBreakpoint,
+    setBladeConfirmSec: s.setBladeConfirmSec,
+    bladeConfirmSec: s.bladeConfirmSec,
+  }));
   const { busy, error, setError, run } = useProjectMutation();
 
   const allowed = canSuggestStructuralOnProject(

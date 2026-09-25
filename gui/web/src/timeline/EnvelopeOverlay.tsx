@@ -53,7 +53,14 @@ export function EnvelopeOverlay({
   width,
   onSelectTrack,
 }: EnvelopeOverlayProps) {
-  const { projectPath, selection, setSelection, announceStatus } = useDaw();
+  const { projectPath, selection, setSelection, announceStatus } = useDaw(
+    (s) => ({
+      projectPath: s.projectPath,
+      selection: s.selection,
+      setSelection: s.setSelection,
+      announceStatus: s.announceStatus,
+    }),
+  );
   const { laneHeight } = useTimelineMetrics();
   const editable = !isShareProjectKey(projectPath);
   const [draft, setDraft] = useState<AutomationPoint[] | null>(null);

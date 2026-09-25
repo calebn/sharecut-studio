@@ -48,7 +48,10 @@ export function MarkerLane({
   onSelectSocial,
   onSelectComment,
 }: MarkerLaneProps) {
-  const { projectPath, setSelection } = useDaw();
+  const { projectPath, setSelection } = useDaw((s) => ({
+    projectPath: s.projectPath,
+    setSelection: s.setSelection,
+  }));
   const editable = !isShareProjectKey(projectPath);
   const chapterDrag = useRef<{
     time: number;

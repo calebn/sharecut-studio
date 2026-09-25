@@ -115,7 +115,27 @@ export function TranscriptPanel() {
     transcriptScrollRequest,
     setTranscriptScrollRequest,
     setTranscriptViewAnchor,
-  } = useDaw();
+  } = useDaw((s) => ({
+    project: s.project,
+    projectPath: s.projectPath,
+    playheadSec: s.playheadSec,
+    setPlayheadSec: s.setPlayheadSec,
+    selection: s.selection,
+    setSelection: s.setSelection,
+    transcriptFollowPlayhead: s.transcriptFollowPlayhead,
+    setTranscriptFollowPlayhead: s.setTranscriptFollowPlayhead,
+    toggleTranscriptFollowPlayhead: s.toggleTranscriptFollowPlayhead,
+    transcriptAnnotate: s.transcriptAnnotate,
+    toggleTranscriptAnnotate: s.toggleTranscriptAnnotate,
+    showCutAwayUtterances: s.showCutAwayUtterances,
+    setShowCutAwayUtterances: s.setShowCutAwayUtterances,
+    focusMode: s.focusMode,
+    followingClientId: s.followingClientId,
+    stopFollow: s.stopFollow,
+    transcriptScrollRequest: s.transcriptScrollRequest,
+    setTranscriptScrollRequest: s.setTranscriptScrollRequest,
+    setTranscriptViewAnchor: s.setTranscriptViewAnchor,
+  }));
   const listRef = useRef<HTMLDivElement | null>(null);
   const activeRef = useRef<HTMLElement | null>(null);
   const bindActiveRef = (active: boolean) =>

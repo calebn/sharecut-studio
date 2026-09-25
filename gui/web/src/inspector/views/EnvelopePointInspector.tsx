@@ -28,7 +28,12 @@ export function EnvelopePointInspector({
   trackId: string;
   index: number;
 }) {
-  const { project, projectPath, selection, setSelection } = useDaw();
+  const { project, projectPath, selection, setSelection } = useDaw((s) => ({
+    project: s.project,
+    projectPath: s.projectPath,
+    selection: s.selection,
+    setSelection: s.setSelection,
+  }));
   const editable = !isShareProjectKey(projectPath);
   const { busy, error, setError, run } = useProjectMutation();
   const points = sortedVolumePoints(project?.envelopes, trackId);

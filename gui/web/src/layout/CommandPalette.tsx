@@ -31,7 +31,11 @@ type TabId = KeymapCategory | "all" | "actions";
  */
 export function CommandPalette() {
   const { commandPaletteOpen, setCommandPaletteOpen, setGesturesSheetOpen } =
-    useDaw();
+    useDaw((s) => ({
+      commandPaletteOpen: s.commandPaletteOpen,
+      setCommandPaletteOpen: s.setCommandPaletteOpen,
+      setGesturesSheetOpen: s.setGesturesSheetOpen,
+    }));
   const [tab, setTab] = useState<TabId>("all");
   const [showRemap, setShowRemap] = useState(false);
 

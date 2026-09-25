@@ -12,7 +12,10 @@ function groupTitle(g: HistoryGroup): string {
 }
 
 export function HistoryPanel() {
-  const { project, projectPath } = useDaw();
+  const { project, projectPath } = useDaw((s) => ({
+    project: s.project,
+    projectPath: s.projectPath,
+  }));
   const { busy, error, run } = useProjectMutation();
   const [diff, setDiff] = useState<HistoryDiff | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);

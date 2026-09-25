@@ -19,19 +19,22 @@ vi.mock("../hooks/useClipWaveform", () => ({
     paint,
   }),
 }));
+
+const mockState = {
+  projectPath: "/tmp/p.json",
+  setProject: vi.fn(),
+  scrollLeft: 0,
+  playheadSec: 0,
+  waveformAmpZoom: 1,
+  auditionMode: "raw",
+  guestMode: null,
+  shareCapabilities: null,
+  pointerTrackId: null,
+  measureTimelineViewport: () => 800,
+};
+
 vi.mock("../state/useDaw", () => ({
-  useDaw: () => ({
-    projectPath: "/tmp/p.json",
-    setProject: vi.fn(),
-    scrollLeft: 0,
-    playheadSec: 0,
-    waveformAmpZoom: 1,
-    auditionMode: "raw",
-    guestMode: null,
-    shareCapabilities: null,
-    pointerTrackId: null,
-    measureTimelineViewport: () => 800,
-  }),
+  useDaw: (sel: (s: typeof mockState) => unknown) => sel(mockState),
 }));
 
 const clip: ClipRow = {

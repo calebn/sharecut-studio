@@ -22,18 +22,21 @@ vi.mock("../audio/waveformScheduler", () => ({
 vi.mock("../api", () => ({
   loadWaveformSnap: () => Promise.resolve(null),
 }));
+
+const mockState = {
+  projectPath: "",
+  scrollLeft: 0,
+  playheadSec: 0,
+  waveformAmpZoom: 1,
+  auditionMode: "raw",
+  guestMode: null,
+  shareCapabilities: null,
+  pointerTrackId: null,
+  measureTimelineViewport: () => 800,
+};
+
 vi.mock("../state/useDaw", () => ({
-  useDaw: () => ({
-    projectPath: "",
-    scrollLeft: 0,
-    playheadSec: 0,
-    waveformAmpZoom: 1,
-    auditionMode: "raw",
-    guestMode: null,
-    shareCapabilities: null,
-    pointerTrackId: null,
-    measureTimelineViewport: () => 800,
-  }),
+  useDaw: (sel: (s: typeof mockState) => unknown) => sel(mockState),
 }));
 
 const clip: ClipRow = {

@@ -39,7 +39,13 @@ import {
 
 export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   const { project, projectPath, guestMode, shareCapabilities, setSelection } =
-    useDaw();
+    useDaw((s) => ({
+      project: s.project,
+      projectPath: s.projectPath,
+      guestMode: s.guestMode,
+      shareCapabilities: s.shareCapabilities,
+      setSelection: s.setSelection,
+    }));
   const canApply = canApplyPass12(projectPath, guestMode, shareCapabilities);
   const canNudge = canSuggestOrNudge(projectPath, guestMode, shareCapabilities);
   const mayAsk = canComment(projectPath, guestMode, shareCapabilities);

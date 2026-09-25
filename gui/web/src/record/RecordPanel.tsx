@@ -79,7 +79,13 @@ export function RecordPanel({
     shareDialogOpen,
     projectPath,
     setShareDialogOpen,
-  } = useDaw();
+  } = useDaw((s) => ({
+    recordPanelOpen: s.recordPanelOpen,
+    setRecordPanelOpen: s.setRecordPanelOpen,
+    shareDialogOpen: s.shareDialogOpen,
+    projectPath: s.projectPath,
+    setShareDialogOpen: s.setShareDialogOpen,
+  }));
   const snapshot = useRecordHostStore((s) => s.snapshot);
   const setSnapshot = useRecordHostStore((s) => s.setSnapshot);
   const captureHealth = useRecordHostStore((s) => s.captureHealth);

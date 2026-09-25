@@ -20,7 +20,10 @@ export function ChapterInspector({
   title: string;
   time: number;
 }) {
-  const { projectPath, setSelection } = useDaw();
+  const { projectPath, setSelection } = useDaw((s) => ({
+    projectPath: s.projectPath,
+    setSelection: s.setSelection,
+  }));
   const editable = !isShareProjectKey(projectPath);
   const { busy, error, setError, run } = useProjectMutation();
   const [titleStr, setTitleStr] = useState(title);

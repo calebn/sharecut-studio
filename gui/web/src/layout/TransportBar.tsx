@@ -80,7 +80,25 @@ export function TransportBar({
     setHighlightStaleRender,
     renderPreviewBusy,
     ingestBusy,
-  } = useDaw();
+  } = useDaw((s) => ({
+    project: s.project,
+    playheadSec: s.playheadSec,
+    isPlaying: s.isPlaying,
+    auditionMode: s.auditionMode,
+    audioError: s.audioError,
+    sessionRegion: s.sessionRegion,
+    lastAgentQuery: s.lastAgentQuery,
+    commentMode: s.commentMode,
+    focusMode: s.focusMode,
+    toolMode: s.toolMode,
+    projectPath: s.projectPath,
+    guestMode: s.guestMode,
+    shareCapabilities: s.shareCapabilities,
+    highlightStaleRender: s.highlightStaleRender,
+    setHighlightStaleRender: s.setHighlightStaleRender,
+    renderPreviewBusy: s.renderPreviewBusy,
+    ingestBusy: s.ingestBusy,
+  }));
   const { preference, cyclePreference } = useTheme();
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [viewOpenState, setViewOpenState] = useState(false);

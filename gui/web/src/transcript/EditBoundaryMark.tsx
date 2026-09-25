@@ -72,7 +72,10 @@ function setDragLock(on: boolean) {
  * Both neighbors → roll join; single neighbor → TrimClipEdge.
  */
 export function EditBoundaryMark({ boundary, leftClip, rightClip }: Props) {
-  const { projectPath, project } = useDaw();
+  const { projectPath, project } = useDaw((s) => ({
+    projectPath: s.projectPath,
+    project: s.project,
+  }));
   const dragRef = useRef<DragState | null>(null);
   const [dragging, setDragging] = useState(false);
   const [previewDxPx, setPreviewDxPx] = useState(0);

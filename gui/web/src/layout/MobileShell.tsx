@@ -67,7 +67,15 @@ function MoreHub({ guestShare }: { guestShare: boolean }) {
     shareCapabilities,
     project,
     setGesturesSheetOpen,
-  } = useDaw();
+  } = useDaw((s) => ({
+    pipelineJob: s.pipelineJob,
+    activityJob: s.activityJob,
+    projectPath: s.projectPath,
+    guestMode: s.guestMode,
+    shareCapabilities: s.shareCapabilities,
+    project: s.project,
+    setGesturesSheetOpen: s.setGesturesSheetOpen,
+  }));
   const running =
     isPipelineSlotBusy(activityJob) || isPipelineSlotBusy(pipelineJob);
   const mayIngest = canIngestMedia(projectPath, guestMode, shareCapabilities);
@@ -154,7 +162,16 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
     pipelineJob,
     activityJob,
     activityRunningCount,
-  } = useDaw();
+  } = useDaw((s) => ({
+    project: s.project,
+    playheadSec: s.playheadSec,
+    isPlaying: s.isPlaying,
+    setActiveTab: s.setActiveTab,
+    setSelection: s.setSelection,
+    pipelineJob: s.pipelineJob,
+    activityJob: s.activityJob,
+    activityRunningCount: s.activityRunningCount,
+  }));
   const stale = useStaleRenderBreakdown(project).stale;
 
   if (!project) {
@@ -343,7 +360,22 @@ export function MobileShell({ guestShare = false }: { guestShare?: boolean }) {
     shareCapabilities,
     followingClientId,
     statusAnnouncement,
-  } = useDaw();
+  } = useDaw((s) => ({
+    selection: s.selection,
+    setSelection: s.setSelection,
+    mobileMode: s.mobileMode,
+    moreDestination: s.moreDestination,
+    setMoreDestination: s.setMoreDestination,
+    sheetExpanded: s.sheetExpanded,
+    setSheetExpanded: s.setSheetExpanded,
+    setTimelineFocused: s.setTimelineFocused,
+    guestMode: s.guestMode,
+    project: s.project,
+    projectPath: s.projectPath,
+    shareCapabilities: s.shareCapabilities,
+    followingClientId: s.followingClientId,
+    statusAnnouncement: s.statusAnnouncement,
+  }));
   const transportFocusRef = useTimelineFocusRegion<HTMLDivElement>(
     true,
     setTimelineFocused,

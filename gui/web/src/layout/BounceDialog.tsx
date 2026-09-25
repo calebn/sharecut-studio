@@ -20,7 +20,16 @@ export function BounceDialog() {
     soloTracks,
     sessionRegion,
     announceStatus,
-  } = useDaw();
+  } = useDaw((s) => ({
+    bounceDialogOpen: s.bounceDialogOpen,
+    setBounceDialogOpen: s.setBounceDialogOpen,
+    project: s.project,
+    projectPath: s.projectPath,
+    selectedTrackIds: s.selectedTrackIds,
+    soloTracks: s.soloTracks,
+    sessionRegion: s.sessionRegion,
+    announceStatus: s.announceStatus,
+  }));
   const [source, setSource] = useState<SourceMode>("entire");
   const [includeMp3, setIncludeMp3] = useState(false);
   const [useRegion, setUseRegion] = useState(false);

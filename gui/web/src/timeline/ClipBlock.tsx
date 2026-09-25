@@ -176,7 +176,7 @@ export function ClipBlock({
   onMoveCommit,
   onMoveCancel,
 }: ClipBlockProps) {
-  const { projectPath } = useDaw();
+  const { projectPath } = useDaw((s) => ({ projectPath: s.projectPath }));
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ghostCanvasRef = useRef<HTMLCanvasElement>(null);
   const dragRef = useRef<FadeDrag | TrimDrag | RollDrag | null>(null);

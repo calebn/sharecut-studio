@@ -57,7 +57,23 @@ export function StudioShell({ guestShare = false }: { guestShare?: boolean }) {
     projectPath,
     shareCapabilities,
     followingClientId,
-  } = useDaw();
+  } = useDaw((s) => ({
+    project: s.project,
+    selection: s.selection,
+    setSelection: s.setSelection,
+    activeTab: s.activeTab,
+    pipelineJob: s.pipelineJob,
+    activityJob: s.activityJob,
+    setTimelineFocused: s.setTimelineFocused,
+    setShellBreakpoint: s.setShellBreakpoint,
+    focusMode: s.focusMode,
+    sheetExpanded: s.sheetExpanded,
+    setSheetExpanded: s.setSheetExpanded,
+    guestMode: s.guestMode,
+    projectPath: s.projectPath,
+    shareCapabilities: s.shareCapabilities,
+    followingClientId: s.followingClientId,
+  }));
 
   const shell = useViewportClass();
   const mayIngest = canIngestMedia(projectPath, guestMode, shareCapabilities);
