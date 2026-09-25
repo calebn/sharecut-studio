@@ -92,6 +92,37 @@ describe("parseRgb / clipWaveformFill", () => {
 });
 
 describe("waveformStyle", () => {
+  it("resolves a color-mix peak token through a probe element", () => {
+    const real = window.getComputedStyle.bind(window);
+    vi.spyOn(window, "getComputedStyle").mockImplementation((el, pseudo) => {
+      if (el === document.documentElement) {
+        return {
+          getPropertyValue: (name: string) =>
+            name === "--color-waveform-peak"
+              ? "color-mix(in srgb, var(--primitive-white) 55%, transparent)"
+              : "",
+        } as CSSStyleDeclaration;
+      }
+      if (
+        el instanceof HTMLSpanElement &&
+        el.parentElement === document.documentElement
+      ) {
+        return { color: "color(srgb 1 1 1 / 0.55)" } as CSSStyleDeclaration;
+      }
+      return real(el, pseudo);
+    });
+    const s = waveformStyle(
+      clipLayer("transparent"),
+      "var(--clip-sfx)",
+      "dark",
+    );
+    expect([...s.core].map((v) => Math.round(v * 255))).toEqual([
+      255, 255, 255, 140,
+    ]);
+    expect(s.edge[3]).toBeCloseTo(0.33, 6);
+    expect(document.documentElement.querySelector(":scope > span")).toBeNull();
+  });
+
   function clipLayer(background: string): HTMLElement {
     const clip = document.createElement("div");
     clip.className = "clip-block";

@@ -360,7 +360,8 @@ not wired into the timeline yet. Each module has a `*.test.ts`.
     from a coarser level is kept only as a stand-in, never as the exact hit.
 - **Colours:** `timeline/waveformTheme.ts` `waveformStyle(layer, colorVar,
   theme)` returns the lane's core and edge tints as RGBA floats. Without a
-  readable fill it falls back to `--color-waveform-peak`, with the edge at
+  readable fill it falls back to `--color-waveform-peak` (resolved through a probe element,
+  since the token is `color-mix()`), with the edge at
   0.6 alpha.
 - **E2E hook:** `waveform/e2eHook.ts` sets `window.__SHARECUT_E2E_WAVEFORM`
   to `{backend, tilesRendered, rasterParity()}`, in test and

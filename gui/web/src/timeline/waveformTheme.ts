@@ -206,6 +206,27 @@ function rgba(color: string, alphaScale = 1): Float32Array | null {
 }
 
 /**
+ * `--color-waveform-peak` as a computed colour. The token is `color-mix(…)`
+ * text, which `getPropertyValue` returns unresolved; the `color` of a styled
+ * probe element resolves it (to `color(srgb …)` / `rgb(…)`).
+ */
+function waveformPeakColor(): string {
+  const token = getComputedStyle(document.documentElement)
+    .getPropertyValue("--color-waveform-peak")
+    .trim();
+  if (!token || parseRgb(token)) {
+    return token;
+  }
+  const probe = document.createElement("span");
+  probe.style.display = "none";
+  probe.style.setProperty("color", "var(--color-waveform-peak)");
+  document.documentElement.appendChild(probe);
+  const color = getComputedStyle(probe).color;
+  probe.remove();
+  return color;
+}
+
+/**
  * The two-tone look as straight RGBA floats for the raster worker: the RMS
  * body in the lane's core tint, the peak envelope in its edge tint. Resolved
  * once per (theme, lane colour). Without a readable clip fill it falls back
@@ -231,9 +252,7 @@ export function waveformStyle(
     styleByKey.set(key, style);
     return style;
   }
-  const peak = getComputedStyle(document.documentElement)
-    .getPropertyValue("--color-waveform-peak")
-    .trim();
+  const peak = waveformPeakColor();
   return {
     core: rgba(peak) ?? new Float32Array(4),
     edge: rgba(peak, FALLBACK_EDGE_ALPHA) ?? new Float32Array(4),
