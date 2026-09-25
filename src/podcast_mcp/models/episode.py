@@ -90,7 +90,8 @@ class Track(BaseModel):
     gain_db: float = 0.0
     # The user's saved volume on top of the staging gain; balance never touches it.
     fader_db: float = Field(default=0.0, ge=FADER_MIN_DB, le=FADER_MAX_DB)
-    # Saved mix mute: play, render, bounce and master leave the track out.
+    # Saved mix mute: the mix, play and bounce leave the track out. Edits,
+    # stems and analysis still cover it, so it stays in sync for an unmute.
     muted: bool = False
     # When True, stems/segments mute outside non-suppressed word intervals
     # (acoustic bleed mute). Snapshotted in history so undo/play_ab work.

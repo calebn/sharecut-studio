@@ -32,7 +32,7 @@ _FX_OPS = frozenset(
         "apply_preset",
     }
 )
-_GAIN_OPS = frozenset({"set_gain", "balance_levels", "set_track_gain", "set_track_fader"})
+_GAIN_OPS = frozenset({"set_gain", "balance_levels", "set_track_gain"})
 _MUTE_OPS = frozenset({"set_mute", "mute_bleed", "set_track_mute"})
 _ENVELOPE_OPS = frozenset({"set_envelope"})
 _CLIP_OPS = frozenset(

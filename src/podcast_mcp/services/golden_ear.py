@@ -87,12 +87,16 @@ def source_fingerprint(src_file: Path) -> dict[str, Any]:
 
 
 def _copy_premix(src_ws: Path, dest_ws: Path) -> None:
+    """Copy ``premix.wav`` and the hash of the mix it was made from."""
     premix = src_ws / "artifacts" / "premix.wav"
     if not premix.is_file():
         return
     dest_dir = dest_ws / "artifacts"
     dest_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy2(premix, dest_dir / "premix.wav")
+    mix_hash = src_ws / "artifacts" / "premix.hash"
+    if mix_hash.is_file():
+        shutil.copy2(mix_hash, dest_dir / "premix.hash")
 
 
 def copy_relocated_project(src_project: Path, dest_workspace: Path) -> Path:

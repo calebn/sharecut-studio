@@ -656,6 +656,7 @@ def test_copy_premix_partial_and_project_symlink(tmp_path, sample_wav):
     premix = src / "artifacts" / "premix.wav"
     premix.parent.mkdir(parents=True, exist_ok=True)
     premix.write_bytes(sample_wav.read_bytes())
+    (premix.parent / "premix.hash").write_text("abc123\n", encoding="utf-8")
     dest = tmp_path / "ws"
     partial = dest.with_name(dest.name + ".partial")
     partial.mkdir()
@@ -663,6 +664,7 @@ def test_copy_premix_partial_and_project_symlink(tmp_path, sample_wav):
     copied = copy_relocated_project(src, dest)
     assert copied.is_file()
     assert (dest / "artifacts" / "premix.wav").is_file()
+    assert (dest / "artifacts" / "premix.hash").read_text(encoding="utf-8") == "abc123\n"
     linked = tmp_path / "linked-file"
     linked.mkdir()
     (linked / "episode.project.json").symlink_to(src / "episode.project.json")

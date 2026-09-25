@@ -479,18 +479,20 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
             rendered[track.id] = str(out)
             music_envelopes += 1
 
-        mix_inputs: list[tuple[Path, float]] = []
-        for track in project.tracks:
-            if track.muted or track.id not in rendered:
-                continue
-            mix_inputs.append((Path(rendered[track.id]), track.output_gain_db))
+        mixed = {
+            track.id: track.output_gain_db
+            for track in project.tracks
+            if not track.muted and track.id in rendered
+        }
+        if not mixed:
+            raise ValueError("every track is muted in the mix; unmute one to mix")
 
-        prog.set_phase("mix", f"Mixing {len(mix_inputs)} tracks…")
+        prog.set_phase("mix", f"Mixing {len(mixed)} tracks…")
         premix = artifact(project, "premix.wav")
-        eng.mix_tracks(mix_inputs, premix)
-        write_premix_hash(project)
-        prog.message(f"{len(mix_inputs)} tracks mixed")
-    return f"{len(mix_inputs)} tracks mixed, {music_envelopes} music envelopes"
+        eng.mix_tracks([(Path(rendered[tid]), gain) for tid, gain in mixed.items()], premix)
+        write_premix_hash(project, mixed)
+        prog.message(f"{len(mixed)} tracks mixed")
+    return f"{len(mixed)} tracks mixed, {music_envelopes} music envelopes"
 
 
 def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:

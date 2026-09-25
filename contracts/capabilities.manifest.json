@@ -881,7 +881,8 @@
       "surfaces": {
         "command": "track.muteToggle",
         "gui": [
-          "trackHeader"
+          "trackHeader",
+          "trackInspector"
         ],
         "keyboard": "M",
         "mcp": [
@@ -908,7 +909,8 @@
       "surfaces": {
         "command": "track.soloToggle",
         "gui": [
-          "trackHeader"
+          "trackHeader",
+          "trackInspector"
         ],
         "keyboard": "S"
       },
@@ -934,7 +936,7 @@
           "trackInspector"
         ],
         "mcp": [
-          "track_set_fader_tool"
+          "track_set_volume_tool"
         ],
         "cli": "podcast episode set-track-volume"
       },
@@ -944,7 +946,7 @@
       "tooltip": "Set track volume",
       "presence": {
         "cursor": "none",
-        "follow": "hear"
+        "follow": "none"
       }
     },
     {

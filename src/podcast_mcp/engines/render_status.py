@@ -18,6 +18,7 @@ from podcast_mcp.util.tracks import dialogue_track_ids
 def render_status_report(project: EpisodeProject) -> dict:
     tracks: dict[str, dict] = {}
     stem_mtimes: list[float] = []
+    # Muted tracks too: the pipeline renders their stems, and an unmute plays them.
     for tid in dialogue_track_ids(project):
         stem = stem_path(project, tid)
         exists = stem.is_file()

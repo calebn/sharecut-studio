@@ -13,7 +13,7 @@ from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.process import run
 from podcast_mcp.util.timebase import TimelineSec
-from podcast_mcp.util.tracks import dialogue_track_ids
+from podcast_mcp.util.tracks import mixed_dialogue_track_ids
 
 GATE_FADE_SEC = 0.012
 GATE_MERGE_GAP_SEC = DEFAULT_MERGE_GAP_SEC
@@ -323,4 +323,4 @@ def render_gated_mix(
 def dialogue_tracks_for_play(project: EpisodeProject) -> list[str]:
     return [
         t.id for t in project.tracks if t.role == TrackRole.DIALOGUE and t.media and not t.muted
-    ] or dialogue_track_ids(project)
+    ] or mixed_dialogue_track_ids(project)

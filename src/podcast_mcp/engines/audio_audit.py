@@ -337,8 +337,6 @@ def _rms_for_track_at_timeline(
     caches: TrackRmsCacheSet | None = None,
 ) -> float | None:
     track = project.track_by_id(track_id)
-    if track and track.muted:
-        return -80.0
     cache = caches.get(track_id) if caches else None
     if cache is not None:
         rms = cache.rms_db(t_start, t_end)
@@ -353,7 +351,8 @@ def _rms_for_track_at_timeline(
                 rms = measure_window_rms_db(path, src0, src1)
             except Exception:
                 return None
-    gain = track.output_gain_db if track else 0.0
+    # The recording's level, not the mix: volume and mute are listening choices.
+    gain = track.gain_db if track else 0.0
     return _effective_rms_db(rms, gain)
 
 

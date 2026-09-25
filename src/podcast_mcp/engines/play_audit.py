@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,7 @@ from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.mute_regions import mute_regions_payload
 from podcast_mcp.engines.timeline_render import RENDER_SEMANTICS_REV
 from podcast_mcp.models import AutomationEnvelope, EpisodeProject
+from podcast_mcp.util.atomic_json import write_text_atomic
 
 log = logging.getLogger(__name__)
 
@@ -29,7 +31,7 @@ def envelope_audio_payload(envelope: AutomationEnvelope | None) -> dict[str, Any
 
 
 def track_render_hash(project: EpisodeProject, track_id: str) -> str:
-    """Fingerprint applied edits, clips, mix state for a track (stem/segment cache).
+    """Fingerprint what a track's stem and segment renders bake in (edits, clips, FX).
 
     Includes ``RENDER_SEMANTICS_REV`` so stems and play segments rendered under
     older renderer rules are treated as stale after a semantics change.
@@ -64,7 +66,9 @@ def track_render_hash(project: EpisodeProject, track_id: str) -> str:
         "render_rev": RENDER_SEMANTICS_REV,
         "track_id": track_id,
         "gain_db": track.gain_db if track else 0.0,
-        "muted": track.muted if track else False,
+        # Stems never bake the mix mute (the mix step skips muted tracks). The
+        # key stays, always false, so stem hashes written before it stay valid.
+        "muted": False,
         "transcript_gate": bool(track.transcript_gate) if track else False,
         "edits": edits,
         "clips": clips,
@@ -216,46 +220,57 @@ def stem_is_fresh(project: EpisodeProject, track_id: str) -> bool:
     return stem_duration_matches_timeline(project, track_id)
 
 
-def mix_render_hash(project: EpisodeProject) -> str:
-    """Fingerprint the mix settings ``premix.wav`` applies on top of its stems.
+def mix_gains(project: EpisodeProject) -> dict[str, float]:
+    """The tracks the mix step mixes (media, not muted) and each one's output gain."""
+    return {t.id: t.output_gain_db for t in project.tracks if t.media and not t.muted}
+
+
+def mix_render_hash(gains: Mapping[str, float]) -> str:
+    """Fingerprint a mix: which tracks, at what output gain, in any order.
 
     Stem audio is covered by each stem's own hash and the premix-vs-stem mtime
-    check. This adds what only the mix step reads: which tracks are in the mix
-    and at what output gain (staging ``gain_db`` plus the user's ``fader_db``).
-    So a fader or mute change stales the premix without staling any stem.
+    check. The mix step adds only this, so a volume or mute change stales the
+    premix without staling any stem.
     """
-    payload = [
-        {"id": t.id, "muted": t.muted, "gain_db": t.gain_db, "fader_db": t.fader_db}
-        for t in project.tracks
-    ]
-    raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    payload = sorted((track_id, round(float(gain), 4)) for track_id, gain in gains.items())
+    raw = json.dumps(payload, separators=(",", ":"))
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+
+def premix_path(project: EpisodeProject) -> Path:
+    return project.artifacts_dir() / "premix.wav"
 
 
 def premix_hash_path(project: EpisodeProject) -> Path:
     return project.artifacts_dir() / "premix.hash"
 
 
-def write_premix_hash(project: EpisodeProject) -> str:
-    h = mix_render_hash(project)
-    path = premix_hash_path(project)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(h + "\n", encoding="utf-8")
+def read_premix_hash(project: EpisodeProject) -> str | None:
+    try:
+        return premix_hash_path(project).read_text(encoding="utf-8").strip() or None
+    except FileNotFoundError:
+        return None
+
+
+def write_premix_hash(project: EpisodeProject, gains: Mapping[str, float]) -> str:
+    """Record the mix ``premix.wav`` was just mixed from (``track id -> gain``)."""
+    h = mix_render_hash(gains)
+    write_text_atomic(premix_hash_path(project), h + "\n")
     return h
 
 
 def premix_stale_vs_mix(project: EpisodeProject) -> bool:
     """True when the saved mix settings changed since ``premix.wav`` was mixed.
 
-    A premix mixed before this hash existed predates faders, so it counts as
-    stale only once a fader moves off 0 dB.
+    A premix mixed before this hash existed had no saved volume or mute, so
+    it's stale once a fader moves off 0 dB or a track is muted.
     """
-    if not (project.artifacts_dir() / "premix.wav").is_file():
+    if not premix_path(project).is_file():
         return False
-    path = premix_hash_path(project)
-    if not path.is_file():
-        return any(t.fader_db for t in project.tracks)
-    return path.read_text(encoding="utf-8").strip() != mix_render_hash(project)
+    stored = read_premix_hash(project)
+    if stored is None:
+        return any(t.fader_db or t.muted for t in project.tracks if t.media)
+    return stored != mix_render_hash(mix_gains(project))
 
 
 def invalidate_stem_hashes(project: EpisodeProject) -> list[str]:

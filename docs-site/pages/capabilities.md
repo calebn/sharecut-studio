@@ -67,9 +67,9 @@ Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Documen
 | Paste | `edit.paste` | `Mod+V` | — | — | — | — | — | — |
 | Select all tracks | `track.selectAll` | `Mod+A` | — | — | — | — | — | — |
 | Deselect all tracks | `track.deselectAll` | `Mod+Shift+A` | `trackHeadersWell` | — | — | — | — | none · none |
-| Toggle track mute | `track.muteToggle` | `M` | `trackHeader` | `track_set_mute_tool` | `podcast episode set-track-mute` | — | — | anchor · hear |
-| Toggle track solo | `track.soloToggle` | `S` | `trackHeader` | — | — | — | — | anchor · hear |
-| Set track volume | `track.setVolume` | — (slider: arrow keys step the focused fader) | `trackInspector` | `track_set_fader_tool` | `podcast episode set-track-volume` | — | — | none · hear |
+| Toggle track mute | `track.muteToggle` | `M` | `trackHeader`, `trackInspector` | `track_set_mute_tool` | `podcast episode set-track-mute` | — | — | anchor · hear |
+| Toggle track solo | `track.soloToggle` | `S` | `trackHeader`, `trackInspector` | — | — | — | — | anchor · hear |
+| Set track volume | `track.setVolume` | — (slider: arrow keys step the focused fader) | `trackInspector` | `track_set_volume_tool` | `podcast episode set-track-volume` | — | — | none · none |
 | Zoom in | `view.zoomIn` | `=` | `transport.menu` | — | — | — | — | none · look |
 | Zoom out | `view.zoomOut` | `-` | `transport.menu` | — | — | — | — | none · look |
 | Fit session in view | `view.fit` | `\` | `transport.fit` | — | — | — | — | none · look |
