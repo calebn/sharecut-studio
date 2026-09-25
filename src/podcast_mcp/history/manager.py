@@ -103,6 +103,8 @@ class HistoryManager:
         with project_commit_lock(project):
             return self._goto_locked(project, index)
 
+    # record/undo/redo/goto above take project_commit_lock; each ``_X_locked`` body
+    # runs while that lock is held. Call the public methods, not these.
     def _record_locked(
         self,
         project: EpisodeProject,
@@ -201,6 +203,8 @@ def record_if_changed(
     store = ProjectStore(project_path)
     project = store.load()
     mgr = HistoryManager(project_path)
+    # record() and commit() each take the re-entrant lock; this outer hold makes
+    # record + commit one cross-process step so no other commit lands between them.
     with project_commit_lock(project):
         entry = mgr.record(project, label, force=force)
         store.commit(project)

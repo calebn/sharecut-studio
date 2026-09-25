@@ -59,30 +59,50 @@ class ReviewService:
             created = (path, identity)
 
         with project_state_lock(project):
-            # Media creation (copy + MP3) stays outside the cross-process file lock.
+            # Media creation (copy + MP3) stays outside the cross-process file lock, but
+            # inside the in-process state lock: other threads on this workspace (mutations,
+            # render snapshots, GUI requests) wait for the encode, which keeps stage +
+            # attach atomic within this process.
             ver = stage_version(
                 project, label=label, prefer=prefer, on_media_created=remember_media
             )
             recorded = created
-            with project_commit_lock(project):
-                history_before = load_json_object(history_index_path)
+            mutation_started = False
+            try:
+                with project_commit_lock(project):
+                    history_before = load_json_object(history_index_path)
 
-                def mutate(p) -> dict[str, Any]:
-                    attach_version(p, ver, set_active=set_active)
-                    return ver.model_dump()
+                    def mutate(p) -> dict[str, Any]:
+                        attach_version(p, ver, set_active=set_active)
+                        return ver.model_dump()
 
-                try:
-                    return self.ws.mutate(
-                        "before publish review version",
-                        "after publish review version",
-                        mutate,
-                    )
-                except BaseException:
-                    if recorded is not None:
-                        self._clean_uncommitted_media(
-                            ver.id, recorded[0], recorded[1], history_index_path, history_before
+                    mutation_started = True
+                    try:
+                        return self.ws.mutate(
+                            "before publish review version",
+                            "after publish review version",
+                            mutate,
                         )
-                    raise
+                    except BaseException:
+                        if recorded is not None:
+                            self._clean_uncommitted_media(
+                                ver.id, recorded[0], recorded[1], history_index_path, history_before
+                            )
+                        raise
+            except BaseException:
+                # Lock timeout, lock-file I/O, or an unreadable history index: nothing
+                # references the staged version yet, so remove its media here.
+                if not mutation_started and recorded is not None:
+                    self._clean_staged_media(recorded[0], recorded[1])
+                raise
+
+    @staticmethod
+    def _clean_staged_media(created_dir: Path, identity: DirectoryIdentity) -> None:
+        """Remove media staged before the commit lock was held; never mask the original error."""
+        try:
+            clean_created_version(created_dir, identity)
+        except BaseException:
+            log.warning("Could not clean staged review version %s", created_dir, exc_info=True)
 
     def _clean_uncommitted_media(
         self,

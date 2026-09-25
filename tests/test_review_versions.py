@@ -1255,3 +1255,21 @@ def test_attach_version_appends_and_optionally_activates(minimal_project, sample
     second = stage_version(project, label="b")
     attach_version(project, second)
     assert project.review.active_version_id == second.id
+
+
+def test_publish_removes_staged_media_when_history_read_fails(
+    minimal_project, sample_wav, monkeypatch
+):
+    from podcast_mcp.services import review as review_service
+
+    _, art = _premix_project(minimal_project, sample_wav, monkeypatch)
+
+    def unreadable(path):
+        raise ValueError(f"corrupt JSON sidecar: {path}")
+
+    monkeypatch.setattr(review_service, "load_json_object", unreadable)
+    with pytest.raises(ValueError, match="corrupt JSON sidecar"):
+        ReviewService(ProjectWorkspace.open(minimal_project)).publish(label="x")
+    review_root = art / "review"
+    assert not review_root.exists() or not any(review_root.iterdir())
+    assert load_project(minimal_project).review.versions == []
