@@ -310,7 +310,7 @@ Revocation stops new requests only.
     `api.ts` `loadWaveformStatus` (host route, or the share route for
     `share:` keys). It polls again after 1, 2, then 4 s while anything is
     generating, and stops otherwise. A failed poll backs off the same way, except that a
-    4xx other than 408/429 stops polling until the next refresh or subscriber. It polls at once on a media-signature
+    4xx other than 408/429 stops polling until the next refresh, or until a subscriber arrives at least 5 s later (STOPPED_RETRY_MS). It polls at once on a media-signature
     change (the `WaveformStatusSync` leaf) and after a tile 404 (once per
     key, until a poll no longer lists that key as ready). `useWaveformStatus(projectPath, kind, ref)` returns one entry,
     with the same object identity while it is unchanged.

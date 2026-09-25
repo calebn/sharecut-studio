@@ -272,10 +272,11 @@ describe("statusStore", () => {
     expect(loads).toHaveLength(0);
   });
 
-  it("restarts a poller stopped by a permanent error for the next subscriber", async () => {
+  it("restarts a poller stopped by a permanent error for a later subscriber", async () => {
     const off1 = subscribeWaveformStatus(P, "raw", () => {});
     loads.shift()!.reject(new WaveformFetchError(403, null));
     await flush();
+    vi.advanceTimersByTime(5000);
     const off2 = subscribeWaveformStatus(P, "raw", () => {});
     expect(loads).toHaveLength(1);
     loads.shift()!.resolve(status({}));
@@ -285,6 +286,41 @@ describe("statusStore", () => {
     off1();
     off2();
     off3();
+  });
+
+  it("restarts a stopped poller at most once per cooldown, however many subscribe", async () => {
+    const offs = [subscribeWaveformStatus(P, "raw", () => {})];
+    loads.shift()!.reject(new WaveformFetchError(403, null));
+    await flush();
+    for (let i = 0; i < 10; i++) {
+      offs.push(subscribeWaveformStatus(P, "raw", () => {}));
+    }
+    expect(loads).toHaveLength(0);
+    vi.advanceTimersByTime(5000);
+    offs.push(subscribeWaveformStatus(P, "raw", () => {}));
+    expect(loads).toHaveLength(1);
+    loads.shift()!.reject(new WaveformFetchError(403, null));
+    await flush();
+    for (let i = 0; i < 10; i++) {
+      offs.push(subscribeWaveformStatus(P, "raw", () => {}));
+    }
+    expect(loads).toHaveLength(0);
+    for (const off of offs) {
+      off();
+    }
+  });
+
+  it("keeps no trace of a tile 404 from before the project was watched", async () => {
+    const key = "a".repeat(20);
+    noteWaveformTileMissing(P, "track:a", key);
+    const off = subscribeWaveformStatus(P, "raw", () => {});
+    expect(loads).toHaveLength(1);
+    loads.shift()!.resolve(status({ "track:a": ready(key) }));
+    await flush();
+    // The unwatched 404 was not recorded, so this one re-polls.
+    noteWaveformTileMissing(P, "track:a", key);
+    expect(loads).toHaveLength(1);
+    off();
   });
 });
 
