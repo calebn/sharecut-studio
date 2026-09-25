@@ -27,6 +27,20 @@ type Props = {
   hidePlayheadForClientId?: string | null;
 };
 
+/**
+ * A remote selection box: `left` and `width` in seconds, `top` in px, and
+ * the narrowest it may draw (px), so a point or a short span stays visible
+ * at any zoom.
+ */
+type SelectionBox = { left: number; width: number; top: number; minPx: number };
+
+/** Narrowest remote span (px), e.g. a one-word transcript selection. */
+const SPAN_MIN_PX = 2;
+/** Width of a remote pending / applied point selection (px). */
+const POINT_PX = 2;
+/** Width of a remote envelope-point selection (px). */
+const ENVELOPE_POINT_PX = 5;
+
 function laneCursorTop(
   cursor: PresenceCursor,
   tracks: TrackView[],
@@ -57,7 +71,7 @@ function clipBox(
   tracks: TrackView[],
   id: string,
   laneHeight: number,
-): { left: number; width: number; top: number } | null {
+): SelectionBox | null {
   for (const [trackId, clips] of Object.entries(clipsByTrack)) {
     const clip = clips.find((c) => c.id === id);
     if (!clip) {
@@ -68,6 +82,7 @@ function clipBox(
       left: clip.timeline_start,
       width: Math.max(0, clip.timeline_end - clip.timeline_start),
       top: (idx < 0 ? 0 : idx) * laneHeight,
+      minPx: SPAN_MIN_PX,
     };
   }
   return null;
@@ -78,7 +93,7 @@ function transcriptWordBox(
   tracks: TrackView[],
   sel: SessionSelection,
   laneHeight: number,
-): { left: number; width: number; top: number } | null {
+): SelectionBox | null {
   if (
     (sel.kind !== "transcriptWord" && sel.kind !== "transcriptRange") ||
     !sel.track_id ||
@@ -118,7 +133,8 @@ function transcriptWordBox(
   const idx = tracks.findIndex((t) => t.id === sel.track_id);
   return {
     left: t0,
-    width: Math.max(0.05, t1 - t0),
+    width: t1 - t0,
+    minPx: SPAN_MIN_PX,
     top: (idx < 0 ? 0 : idx) * laneHeight,
   };
 }
@@ -133,7 +149,7 @@ function selectionBox(
       : never
     : never,
   laneHeight: number,
-): { left: number; width: number; top: number } | null {
+): SelectionBox | null {
   if (!sel) {
     return null;
   }
@@ -149,14 +165,19 @@ function selectionBox(
     if (idx < 0) {
       return null;
     }
-    return { left: sel.time, width: 0.05, top: idx * laneHeight };
+    return { left: sel.time, width: 0, top: idx * laneHeight, minPx: POINT_PX };
   }
   if (sel.kind === "envelopePoint" && sel.track_id && sel.time != null) {
     const idx = tracks.findIndex((t) => t.id === sel.track_id);
     if (idx < 0) {
       return null;
     }
-    return { left: sel.time, width: 0.12, top: idx * laneHeight };
+    return {
+      left: sel.time,
+      width: 0,
+      top: idx * laneHeight,
+      minPx: ENVELOPE_POINT_PX,
+    };
   }
   return transcriptWordBox(project, tracks, sel, laneHeight);
 }
@@ -344,7 +365,7 @@ export function PresenceOverlayView({
                 style={
                   {
                     left: box.left * zoomPxPerSec,
-                    width: box.width * zoomPxPerSec,
+                    width: Math.max(box.minPx, box.width * zoomPxPerSec),
                     top: box.top,
                     height: laneHeight,
                     "--presence-color": color,

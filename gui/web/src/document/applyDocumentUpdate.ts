@@ -41,6 +41,9 @@ export function applyDocumentSnapshot(
     }
     return { project: next };
   });
+  if (applied) {
+    useDawStore.getState().reclampZoomForDuration();
+  }
   if (seq > 0) {
     noteDocumentSeq(seq);
   }

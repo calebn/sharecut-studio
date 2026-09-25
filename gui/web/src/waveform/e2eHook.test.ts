@@ -22,6 +22,7 @@ describe("waveform e2e hook", () => {
     // jsdom has no Worker: nothing renders.
     expect(hook.backend).toBe("none");
     expect(hook.tilesRendered).toBe(0);
+    expect(hook.tilesByMode).toEqual({ pyramid: 0, pcm: 0, line: 0 });
     await expect(hook.rasterParity()).resolves.toBeNull();
   });
 

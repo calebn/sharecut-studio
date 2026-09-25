@@ -72,7 +72,7 @@ export function planCorrection(
 }
 
 /** Shortest viewport span the server accepts (`MIN_VIEWPORT_SPAN_SEC` there). */
-const MIN_VIEWPORT_SPAN_SEC = 0.1;
+const MIN_VIEWPORT_SPAN_SEC = 0.001;
 /** Span published before the timeline has been measured. */
 const UNMEASURED_VIEWPORT_SPAN_SEC = 60;
 
@@ -102,13 +102,13 @@ export function zoomScrollToViewport(
   );
   const start = Math.max(0, scrollLeft / zoom);
   const end = start + span;
-  // Float addition can land a hair under the minimum (0.8 − 0.7 < 0.1), and
-  // the server would drop the whole presence frame.
+  // Float addition can land a hair under the minimum (0.8 − 0.799 <
+  // 0.001), and the server would drop the whole presence frame.
   return {
     start_sec: start,
     end_sec:
       end - start < MIN_VIEWPORT_SPAN_SEC
-        ? start + MIN_VIEWPORT_SPAN_SEC + 1e-6
+        ? start + MIN_VIEWPORT_SPAN_SEC * (1 + 1e-6)
         : end,
   };
 }

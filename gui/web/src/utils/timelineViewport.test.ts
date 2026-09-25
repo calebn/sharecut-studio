@@ -14,7 +14,9 @@ import {
   timelineCanvasSize,
   timelineHeaderOffsetWidth,
   timelineTimeViewportWidth,
+  VIEWPORT_CHUNK_PX,
   viewportCenterOffsetPx,
+  viewportChunkRange,
 } from "./timelineViewport";
 
 describe("timelineViewport", () => {
@@ -167,5 +169,36 @@ describe("fixed-playhead geometry", () => {
     expect(scrollLeftToCenterSec(scrollLeft, zoom, viewport, 60)).toBe(
       clientXToTimelineSec(viewport / 2, { left: 0 }, scrollLeft, zoom, 60),
     );
+  });
+});
+
+describe("viewportChunkRange", () => {
+  it("returns the 2048 px chunks that meet the viewport", () => {
+    expect(VIEWPORT_CHUNK_PX).toBe(2048);
+    expect(viewportChunkRange(0, 1200, 1e6)).toEqual([0, 0]);
+    expect(viewportChunkRange(1000, 1200, 1e6)).toEqual([0, 1]);
+    expect(viewportChunkRange(2048 * 100 + 5, 1200, 3e6)).toEqual([100, 100]);
+  });
+
+  it("covers at most the viewport plus two chunks", () => {
+    for (const [scroll, vw] of [
+      [0, 1200],
+      [2047, 1200],
+      [123_456, 2560],
+      [2_000_000, 390],
+    ] as const) {
+      const [c0, c1] = viewportChunkRange(scroll, vw, 3e6);
+      expect(c0 * VIEWPORT_CHUNK_PX).toBeLessThanOrEqual(scroll);
+      expect((c1 + 1) * VIEWPORT_CHUNK_PX).toBeGreaterThanOrEqual(scroll + vw);
+      expect((c1 - c0 + 1) * VIEWPORT_CHUNK_PX).toBeLessThanOrEqual(
+        vw + 2 * VIEWPORT_CHUNK_PX,
+      );
+    }
+  });
+
+  it("clamps negative scroll to 0 and past-the-end scroll to the last chunk", () => {
+    expect(viewportChunkRange(-500, 400, 1e6)).toEqual([0, 0]);
+    expect(viewportChunkRange(9e6, 400, 5000)).toEqual([2, 2]);
+    expect(viewportChunkRange(0, 400, 0)).toEqual([0, 0]);
   });
 });

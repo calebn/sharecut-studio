@@ -4,6 +4,7 @@ import { expect, type Page } from "@playwright/test";
 type WaveformHook = {
   backend: string;
   tilesRendered: number;
+  tilesByMode: Record<"pyramid" | "pcm" | "line", number>;
   rasterParity(): Promise<number | null>;
 };
 
@@ -23,6 +24,15 @@ export async function rasterParity(page: Page): Promise<number | null> {
   return page.evaluate(
     () =>
       (window as HookWindow).__SHARECUT_E2E_WAVEFORM?.rasterParity() ?? null,
+  );
+}
+
+/** Finished raster tiles by mode since load (`pyramid`, `pcm`, `line`). */
+export async function waveformTilesByMode(
+  page: Page,
+): Promise<Record<"pyramid" | "pcm" | "line", number> | null> {
+  return page.evaluate(
+    () => (window as HookWindow).__SHARECUT_E2E_WAVEFORM?.tilesByMode ?? null,
   );
 }
 

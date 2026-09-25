@@ -23,7 +23,10 @@ test.describe("Arrange chrome", () => {
 
     const lastTick = page.locator(".ruler-tick").last();
     await expect(lastTick).toBeVisible();
-    const lastSec = parseTimecodeSec(await lastTick.innerText());
+    const lastLabel = await lastTick.innerText();
+    // Ruler labels carry the decimals their step needs: one when zoomed out.
+    expect(lastLabel).toMatch(/^\d+:\d{2}\.\d$/);
+    const lastSec = parseTimecodeSec(lastLabel);
     expect(lastSec).toBeGreaterThan(sessionMax - 1);
 
     await page.keyboard.press("Home");

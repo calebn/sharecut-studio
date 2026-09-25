@@ -1,14 +1,21 @@
-import { memo, useMemo, useRef } from "react";
+import { memo, useCallback, useRef } from "react";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { useDawStore } from "../state/dawStore";
-import { formatTimeShort, rulerTickTimes } from "../utils/time";
-import { MIN_TIMELINE_WIDTH_PX } from "../utils/timelineViewport";
+import { formatRulerTime, niceTimeStep } from "../utils/time";
+import {
+  MIN_TIMELINE_WIDTH_PX,
+  viewportChunkRange,
+} from "../utils/timelineViewport";
 import { Playhead } from "./Playhead";
 import {
-  dropCollidingRulerEndTick,
   estimateRulerLabelWidthPx,
   RULER_END_EDGE_PX,
+  rulerEndTickDropped,
+  rulerTickIndices,
 } from "./rulerTicks";
+
+/** A comment drag shorter than this (px) is an instant comment. */
+const COMMENT_SPAN_MIN_PX = 4;
 
 interface TimeRulerProps {
   /**
@@ -29,30 +36,60 @@ interface TimeRulerProps {
   hidePlayhead?: boolean;
 }
 
-/** Tick labels; re-render only for a new canvas length or zoom. */
+/**
+ * Tick labels for the 2048 px chunks on screen. The chunk range is selected
+ * as a string, so scrolling re-renders the ticks only when a chunk comes or
+ * goes, and a deep zoom never mounts millions of labels.
+ */
 const RulerTicks = memo(function RulerTicks({
-  ticks,
+  durationSec,
   zoomPxPerSec,
   width,
+  step,
 }: {
-  ticks: number[];
+  durationSec: number;
   zoomPxPerSec: number;
   width: number;
+  step: number;
 }) {
-  return ticks.map((t, i) => {
-    const leftPx = t * zoomPxPerSec;
-    const endAligned =
-      i === ticks.length - 1 && leftPx > width - RULER_END_EDGE_PX && t > 0;
-    return (
-      <span
-        key={t}
-        className={`ruler-tick${endAligned ? " ruler-tick--end" : ""}`}
-        style={{ left: leftPx }}
-      >
-        {formatTimeShort(t)}
-      </span>
-    );
-  });
+  const range = useDawStore(
+    useCallback(
+      (s: { scrollLeft: number; timelineViewportWidth: number }) =>
+        viewportChunkRange(s.scrollLeft, s.timelineViewportWidth, width).join(
+          ":",
+        ),
+      [width],
+    ),
+  );
+  const [c0 = 0, c1 = 0] = range.split(":").map(Number);
+  const lastIndex = Math.floor(durationSec / step + 1e-9);
+  const dropLast = rulerEndTickDropped(
+    durationSec,
+    step,
+    zoomPxPerSec,
+    width,
+    estimateRulerLabelWidthPx(lastIndex * step, step),
+  );
+  return rulerTickIndices([c0, c1], step, zoomPxPerSec, durationSec).map(
+    (i) => {
+      if (dropLast && i === lastIndex) {
+        return null;
+      }
+      const t = i * step;
+      const leftPx = t * zoomPxPerSec;
+      const endAligned =
+        i === lastIndex && leftPx > width - RULER_END_EDGE_PX && t > 0;
+      return (
+        <span
+          key={i}
+          className={`ruler-tick${endAligned ? " ruler-tick--end" : ""}`}
+          style={{ left: leftPx }}
+        >
+          {formatRulerTime(t, step)}
+        </span>
+      );
+    },
+  );
 });
 
 /**
@@ -78,17 +115,7 @@ export function TimeRuler({
 }: TimeRulerProps) {
   const valueSec = useDawStore(selectRulerValueSec);
   const width = Math.max(durationSec * zoomPxPerSec, MIN_TIMELINE_WIDTH_PX);
-  const ticks = useMemo(() => {
-    const rawTicks = rulerTickTimes(durationSec, zoomPxPerSec);
-    return dropCollidingRulerEndTick(
-      rawTicks,
-      zoomPxPerSec,
-      width,
-      estimateRulerLabelWidthPx(rawTicks),
-    );
-  }, [durationSec, zoomPxPerSec, width]);
-  const majorStep =
-    ticks.length >= 2 ? ticks[1]! - ticks[0]! : Math.max(1, durationSec);
+  const majorStep = niceTimeStep(zoomPxPerSec);
   const sessionEnd = Math.max(0, sessionDurationSec);
 
   const dragStart = useRef<number | null>(null);
@@ -110,7 +137,7 @@ export function TimeRuler({
       aria-valuemin={0}
       aria-valuemax={sessionEnd}
       aria-valuenow={valueSec}
-      aria-valuetext={formatTimeShort(valueSec)}
+      aria-valuetext={formatRulerTime(valueSec, majorStep)}
       onClick={(e) => {
         if (commentMode) {
           return;
@@ -159,7 +186,7 @@ export function TimeRuler({
         const a = dragStart.current;
         const start = Math.min(a, sec);
         const end = Math.max(a, sec);
-        if (end - start < 0.05) {
+        if ((end - start) * zoomPxPerSec < COMMENT_SPAN_MIN_PX) {
           onCommentAnchor(start, null);
         } else {
           onCommentAnchor(start, end);
@@ -174,7 +201,7 @@ export function TimeRuler({
         dragStart.current = null;
         const start = Math.min(a, sec);
         const end = Math.max(a, sec);
-        if (end - start < 0.05) {
+        if ((end - start) * zoomPxPerSec < COMMENT_SPAN_MIN_PX) {
           onCommentAnchor(start, null);
         } else {
           onCommentAnchor(start, end);
@@ -188,7 +215,12 @@ export function TimeRuler({
             : undefined
       }
     >
-      <RulerTicks ticks={ticks} zoomPxPerSec={zoomPxPerSec} width={width} />
+      <RulerTicks
+        durationSec={durationSec}
+        zoomPxPerSec={zoomPxPerSec}
+        width={width}
+        step={majorStep}
+      />
       {!hidePlayhead ? <Playhead height="100%" /> : null}
     </div>
   );

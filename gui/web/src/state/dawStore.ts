@@ -22,6 +22,7 @@ import {
   anchoredZoomScroll,
   clampWaveformAmp,
   clampZoomPxPerSec,
+  DEFAULT_SESSION_SEC,
   discreteZoomFactor,
   fitZoomPxPerSec,
   MAX_WAVEFORM_AMP,
@@ -44,6 +45,11 @@ import type {
   ShellBreakpoint,
   ToolMode,
 } from "./types";
+
+/** Session length the zoom ceiling uses (`timeline_duration_sec`, else 60 s). */
+function sessionSecOf(s: { project: ProjectView | null }): number {
+  return s.project?.timeline_duration_sec ?? DEFAULT_SESSION_SEC;
+}
 
 const FOCUS_CYCLE: FocusMode[] = ["default", "timeline", "text", "review"];
 
@@ -130,7 +136,10 @@ export const useDawStore = create<DawStore>((set, get) => ({
       get().announceStatus("Stopped following");
     }
   },
-  setProject: (project) => set({ project }),
+  setProject: (project) => {
+    set({ project });
+    get().reclampZoomForDuration();
+  },
   setGuestMode: (guestMode: string | null) => set({ guestMode }),
   setPipelineJob: (pipelineJob: PipelineJobSnapshot | null) =>
     set({ pipelineJob }),
@@ -383,7 +392,25 @@ export const useDawStore = create<DawStore>((set, get) => ({
   _timelineEl: null,
   _timelineLeadPx: 0,
   _lanesEl: null,
-  setZoomPxPerSec: (zoomPxPerSec) => set({ zoomPxPerSec }),
+  setZoomPxPerSec: (zoomPxPerSec) =>
+    set({ zoomPxPerSec: clampZoomPxPerSec(zoomPxPerSec, sessionSecOf(get())) }),
+  reclampZoomForDuration: () => {
+    const s = get();
+    const zoom = clampZoomPxPerSec(s.zoomPxPerSec, sessionSecOf(s));
+    if (zoom === s.zoomPxPerSec) {
+      return;
+    }
+    // Keep the time at the viewport centre where it was.
+    const width = s.measureTimelineViewport();
+    const centerSec = (s.scrollLeft + width / 2) / s.zoomPxPerSec;
+    set({
+      zoomPxPerSec: zoom,
+      scrollLeft: Math.max(
+        minLogicalScrollLeft(s._timelineLeadPx),
+        centerSec * zoom - width / 2,
+      ),
+    });
+  },
   setWaveformAmpZoom: (waveformAmpZoom) =>
     set({ waveformAmpZoom: clampWaveformAmp(waveformAmpZoom) }),
   nudgeWaveformAmp: (direction) => {
@@ -477,7 +504,8 @@ export const useDawStore = create<DawStore>((set, get) => ({
     }
     const el = get()._timelineEl;
     const currentZoom = get().zoomPxPerSec;
-    const z = clampZoomPxPerSec(nextZoom);
+    const sessionSec = sessionSecOf(get());
+    const z = clampZoomPxPerSec(nextZoom, sessionSec);
     if (!el) {
       set({ zoomPxPerSec: z, userZoomed: true });
       return;
@@ -516,6 +544,7 @@ export const useDawStore = create<DawStore>((set, get) => ({
       clientX: anchorX,
       rectLeft,
       scrollLeft: get().scrollLeft,
+      sessionSec,
       minScrollLeft: minLogicalScrollLeft(lead),
       // A padded view's range ends with the session end under the line.
       maxScrollLeft:
@@ -740,5 +769,6 @@ export const useDawStore = create<DawStore>((set, get) => ({
             renderPreviewBusy: false,
           }),
     });
+    get().reclampZoomForDuration();
   },
 }));

@@ -30,6 +30,26 @@ describe("useFollowViewport", () => {
     expect(useDawStore.getState().scrollLeft).toBe(200);
   });
 
+  it("follows a deep-zoomed leader at this session's zoom ceiling", () => {
+    // The leader shows 1 ms across 200 px (200,000 px/s): past 48,000 px/s.
+    useDawStore.setState({
+      measureTimelineViewport: () => 200,
+      sessionClients: [
+        {
+          client_id: "a",
+          role: "viewer",
+          last_seen_ns: Date.now() * 1e6,
+          meta: { viewport: { start_sec: 10, end_sec: 10.001 } },
+        },
+      ],
+    });
+    renderHook(() => useFollowViewport());
+    const s = useDawStore.getState();
+    expect(s.zoomPxPerSec).toBe(48000);
+    // Scroll uses the clamped zoom, so the leader's start is at the left.
+    expect(s.scrollLeft).toBe(10 * 48000);
+  });
+
   it("does not slave zoom on phone", () => {
     useDawStore.setState({
       shellBreakpoint: "phone",

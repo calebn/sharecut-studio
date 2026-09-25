@@ -59,7 +59,7 @@ import {
   type WaveformKind,
   type WaveformStyle,
 } from "../waveform/types";
-import { pyramidColumnPeaks, quietBandsFromPeaks } from "./quietWash";
+import { quietBandsInView } from "./quietWash";
 import { useTimelineMetrics } from "./timelineMetrics";
 import { useResolvedTheme, waveformStyle } from "./waveformTheme";
 
@@ -149,7 +149,7 @@ function drawBitmap(
   draw(ctx);
 }
 
-/** Quiet wash bands over the mounted tile range, at CSS-px columns. */
+/** Quiet wash bands over the mounted tile range. */
 function quietBands(
   meta: ReadyEntry | null,
   range: string,
@@ -163,18 +163,14 @@ function quietBands(
   }
   const x0 = Math.max(0, r[0] * RENDER_TILE_CSS_PX + origin);
   const x1 = Math.min(clipWidthCss, (r[1] + 1) * RENDER_TILE_CSS_PX + origin);
-  const cols = Math.ceil(x1 - x0);
-  if (cols <= 0) {
-    return [];
-  }
-  const startSec = (x0 - origin) / zoom;
-  const peaks = pyramidColumnPeaks(
+  // Clip-relative CSS px to media seconds.
+  const sec = (x: number) => (x - origin) / zoom;
+  return quietBandsInView(
     meta,
-    startSec * meta.sample_rate,
-    meta.sample_rate / zoom,
-    cols,
+    zoom,
+    [sec(x0), sec(x1)],
+    [sec(0), sec(clipWidthCss)],
   );
-  return quietBandsFromPeaks(peaks, startSec, 1 / zoom);
 }
 
 /**

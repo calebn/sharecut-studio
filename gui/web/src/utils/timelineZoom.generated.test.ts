@@ -31,8 +31,9 @@ describe("effectiveMaxZoomPxPerSec", () => {
     expect(effectiveMaxZoomPxPerSec(3600)).toBeCloseTo(
       Math.min(MAX_ZOOM_PX_PER_SEC, MAX_CONTENT_PX / 3600),
     );
+    // Floating-point division may land a few ulps over; never a whole pixel.
     expect(effectiveMaxZoomPxPerSec(3600) * 3600).toBeLessThanOrEqual(
-      MAX_CONTENT_PX,
+      MAX_CONTENT_PX + 1e-6,
     );
   });
 

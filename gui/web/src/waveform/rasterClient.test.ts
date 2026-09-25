@@ -5,6 +5,7 @@ import {
   hasRaster,
   type RasterRequest,
   rasterParity,
+  rasterTilesByMode,
   rasterTilesRendered,
   requestRaster,
   resetRasterClient,
@@ -186,6 +187,7 @@ describe("rasterClient", () => {
     // e is no longer wanted: dropped, never sent.
     expect(w.posted).toHaveLength(5);
     expect(rasterTilesRendered()).toBe(2);
+    expect(rasterTilesByMode()).toEqual({ pyramid: 2, pcm: 0, line: 0 });
   });
 
   it("caches results, stale ones too, and provisional ones as stand-ins", () => {

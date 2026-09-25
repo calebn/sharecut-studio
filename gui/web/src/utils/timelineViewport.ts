@@ -181,3 +181,24 @@ export function scrollLeftToCenterSec(
     maxSec,
   );
 }
+
+/**
+ * Long timeline overlays (ruler ticks, envelopes) mount only the chunks of
+ * this many px that overlap the view, so a deep zoom never builds millions of
+ * px of DOM or SVG.
+ */
+export const VIEWPORT_CHUNK_PX = 2048;
+
+/** Chunks `[c0, c1]` of a `widthPx`-wide overlay that meet the time viewport. */
+export function viewportChunkRange(
+  scrollLeft: number,
+  viewportWidth: number,
+  widthPx: number,
+): [number, number] {
+  const last = Math.max(0, Math.ceil(widthPx / VIEWPORT_CHUNK_PX) - 1);
+  const c0 = Math.floor(Math.max(0, scrollLeft) / VIEWPORT_CHUNK_PX);
+  const c1 = Math.floor(
+    Math.max(0, scrollLeft + Math.max(0, viewportWidth)) / VIEWPORT_CHUNK_PX,
+  );
+  return [Math.min(c0, last), Math.min(c1, last)];
+}

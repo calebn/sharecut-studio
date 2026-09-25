@@ -9,6 +9,7 @@ import {
   expectPaintedWaveformTile,
   rasterParity,
   waveformBackend,
+  waveformTilesByMode,
 } from "./waveformHook";
 
 const thresholds = JSON.parse(
@@ -24,6 +25,13 @@ const thresholds = JSON.parse(
   tile_count_slop: number;
   max_full_audio_bytes: number;
 };
+
+/** Ruler content width (px): session-or-more seconds × zoom. */
+function rulerWidth(page: Page): Promise<number> {
+  return page
+    .locator(".time-ruler")
+    .evaluate((el) => (el as HTMLElement).getBoundingClientRect().width);
+}
 
 /** Record waveform and audio traffic for one page. */
 function watchWaveformTraffic(page: Page) {
@@ -109,6 +117,60 @@ test.describe("pyramid waveforms", () => {
     }
     expect(seen.audioWindows).toBe(0);
     expect(seen.fullAudio).toBe(0);
+  });
+
+  test("host zooms to near-sample detail from PCM, with a bounded ruler", async ({
+    page,
+  }) => {
+    const seen = watchWaveformTraffic(page);
+    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await expect(page.locator(".daw-shell")).toBeVisible();
+    await page.locator(".timeline-scroll").waitFor({ state: "visible" });
+    await expectPaintedWaveformTile(page);
+
+    // Zoom in until the session-aware ceiling stops it (48,000 px/s on the
+    // 60 s fixture), at most 50 steps.
+    await page.locator(".timeline-scroll").click();
+    let width = await rulerWidth(page);
+    let stopped = false;
+    for (let i = 0; i < 50 && !stopped; i++) {
+      await page.keyboard.press("=");
+      const next = await rulerWidth(page);
+      stopped = next === width && i > 0;
+      width = next;
+    }
+    expect(stopped).toBe(true);
+    // The fixture's ceiling is the 48,000 px/s cap, not the content cap.
+    expect(width).toBeGreaterThan(60 * 48000 * 0.99);
+    expect(width).toBeLessThanOrEqual(15_000_000);
+
+    // Below level 0 the host draws from PCM, as a line at this zoom.
+    await expectPaintedWaveformTile(page);
+    await expect.poll(() => seen.pcm, { timeout: 30_000 }).toBeGreaterThan(0);
+    await expect
+      .poll(async () => (await waveformTilesByMode(page))?.line ?? 0, {
+        timeout: 30_000,
+      })
+      .toBeGreaterThan(0);
+    expect(seen.audioWindows).toBe(0);
+
+    // Ruler: millisecond labels, and only the viewport's chunks mount.
+    const ruler = await page.evaluate(() => {
+      const view =
+        (document.querySelector(".timeline-scroll") as HTMLElement | null)
+          ?.clientWidth ?? 0;
+      const labels = [
+        ...document.querySelectorAll(".time-ruler .ruler-tick"),
+      ].map((el) => el.textContent ?? "");
+      return { view, labels };
+    });
+    expect(ruler.labels.length).toBeGreaterThan(0);
+    for (const label of ruler.labels) {
+      expect(label).toMatch(/^\d+:\d{2}\.\d{3,4}$/);
+    }
+    expect(ruler.labels.length).toBeLessThanOrEqual(
+      Math.ceil((ruler.view + 4096) / 70) + 2,
+    );
   });
 
   test("guest share draws tiles through the share route, with no PCM", async ({

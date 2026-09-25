@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ZOOM_STEP } from "../utils/zoom";
+import { MAX_CONTENT_PX } from "../utils/timelineZoom.generated";
+import { MAX_ZOOM_PX_PER_SEC, ZOOM_STEP } from "../utils/zoom";
 import { noteZoomPointerClientX } from "../utils/zoomPointer";
 import { useDawStore } from "./dawStore";
 
@@ -273,6 +274,67 @@ describe("applyAnchoredZoom", () => {
       anchorSec,
       5,
     );
+  });
+
+  it("stops zooming in at the session-aware ceiling", () => {
+    const zoomIn = (times: number) => {
+      for (let i = 0; i < times; i++) {
+        useDawStore
+          .getState()
+          .applyAnchoredZoom(
+            useDawStore.getState().zoomPxPerSec * ZOOM_STEP,
+            0,
+          );
+      }
+    };
+    // A 60 s session reaches the 48,000 px/s cap.
+    useDawStore.setState({
+      project: { timeline_duration_sec: 60 } as never,
+      zoomPxPerSec: 10,
+      scrollLeft: 0,
+      _timelineEl: fakeTimelineEl(),
+    });
+    zoomIn(50);
+    expect(useDawStore.getState().zoomPxPerSec).toBe(MAX_ZOOM_PX_PER_SEC);
+
+    // An hour stops where its content would pass MAX_CONTENT_PX.
+    useDawStore.setState({
+      project: { timeline_duration_sec: 3600 } as never,
+      zoomPxPerSec: 10,
+      scrollLeft: 0,
+    });
+    zoomIn(50);
+    const z = useDawStore.getState().zoomPxPerSec;
+    expect(z).toBeCloseTo(MAX_CONTENT_PX / 3600, 6);
+    expect(z * 3600).toBeLessThanOrEqual(MAX_CONTENT_PX + 1e-6);
+  });
+
+  it("clamps setZoomPxPerSec to the session ceiling", () => {
+    useDawStore.setState({ project: { timeline_duration_sec: 3600 } as never });
+    useDawStore.getState().setZoomPxPerSec(1e9);
+    expect(useDawStore.getState().zoomPxPerSec * 3600).toBeLessThanOrEqual(
+      MAX_CONTENT_PX + 1e-6,
+    );
+  });
+
+  it("reclamps zoom around the view centre when the session grows", () => {
+    useDawStore.setState({
+      project: { timeline_duration_sec: 60 } as never,
+      zoomPxPerSec: 48000,
+      scrollLeft: 30 * 48000 - 200, // 30 s at the centre of 400 px
+      _timelineEl: fakeTimelineEl(),
+      _timelineLeadPx: 0,
+    });
+    useDawStore.getState().setProject({ timeline_duration_sec: 3600 } as never);
+    const s = useDawStore.getState();
+    expect(s.zoomPxPerSec).toBeCloseTo(MAX_CONTENT_PX / 3600, 6);
+    expect((s.scrollLeft + 200) / s.zoomPxPerSec).toBeCloseTo(30, 9);
+
+    // A zoom under the new ceiling is left alone.
+    useDawStore.setState({ zoomPxPerSec: 10, scrollLeft: 5 });
+    useDawStore.getState().reclampZoomForDuration();
+    expect(useDawStore.getState().zoomPxPerSec).toBe(10);
+    expect(useDawStore.getState().scrollLeft).toBe(5);
   });
 
   it("uses visualViewport CSS px when no timeline element is registered", () => {

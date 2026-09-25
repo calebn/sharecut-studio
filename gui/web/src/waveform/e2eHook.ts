@@ -2,9 +2,11 @@ import {
   getRasterBackend,
   type RasterBackendState,
   rasterParity,
+  rasterTilesByMode,
   rasterTilesRendered,
   startRasterWorker,
 } from "./rasterClient";
+import type { RasterMode } from "./types";
 
 /** Same gate as `record/monitor/e2eHook.ts`: tests and E2E builds only. */
 export const WAVEFORM_E2E_BUILD =
@@ -13,6 +15,8 @@ export const WAVEFORM_E2E_BUILD =
 export type WaveformE2eHook = {
   readonly backend: RasterBackendState;
   readonly tilesRendered: number;
+  /** Finished tiles by raster mode (pyramid, pcm, line). */
+  readonly tilesByMode: Readonly<Record<RasterMode, number>>;
   /** GL vs CPU difference on a fixed tile (0..1), or null without WebGL2. */
   rasterParity(): Promise<number | null>;
 };
@@ -36,6 +40,9 @@ export function installWaveformE2eHook(
       },
       get tilesRendered() {
         return rasterTilesRendered();
+      },
+      get tilesByMode() {
+        return rasterTilesByMode();
       },
       rasterParity,
     };

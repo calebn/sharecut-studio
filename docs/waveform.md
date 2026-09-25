@@ -13,10 +13,7 @@ and its knobs live in the `waveform` block of
 > Pyramids are the only waveform format: the uint8 overview JSON
 > (`artifacts/peaks/{track}.json` and its HTTP route) is gone, and `gc_pyramids`
 > deletes leftover `artifacts/peaks/*.json` once it is 7 days old.
->
-> #446 (part 8) wires `effectiveMaxZoomPxPerSec` / `MAX_CONTENT_PX` into
-> `clampZoomPxPerSec`. Until then, zoom still clamps to the flat
-> `MAX_ZOOM_PX_PER_SEC`.
+> Zoom clamps to `effectiveMaxZoomPxPerSec(sessionSec)` (§ Deep zoom).
 
 ## Contract knobs
 
@@ -383,7 +380,8 @@ Revocation stops new requests only.
   since the token is `color-mix()`), with the edge at
   0.6 alpha.
 - **E2E hook:** `waveform/e2eHook.ts` sets `window.__SHARECUT_E2E_WAVEFORM`
-  to `{backend, tilesRendered, rasterParity()}`, in test and
+  to `{backend, tilesRendered, tilesByMode, rasterParity()}` (`tilesByMode`
+  counts finished tiles per mode: `pyramid`, `pcm`, `line`), in test and
   `VITE_SHARECUT_E2E=1` builds only. `rasterParity()` renders a fixed tile
   in the worker through WebGL2 and through the CPU, and returns the largest
   difference, `max(|Δa|, |Δ(rgb·a)|/255)`.
@@ -418,9 +416,14 @@ starts at the ghost's source start and has the ghost's width.
 - **Hold the old ref.** A new ref (for example, a cross-lane `source_id` flip)
   replaces the old pyramid only once it is ready. Data requests use the held
   ref. `unavailable` or a project change hides the waveform.
-- **Quiet wash.** The wash comes from max-pooled column peaks over the
-  mounted tile range, at 8 px/s and above. It is memoized, and recomputed only
-  when the range, the geometry or the loaded pyramid tiles change.
+- **Quiet wash.** The wash comes from max-pooled column peaks, at 8 px/s
+  and above (`timeline/quietWash.ts` `quietBandsInView`). A quiet run is
+  judged over the mounted tile range plus `quiet_min_duration_sec` on each
+  side (within the clip), then clipped to the mounted range, so a long pause
+  still washes when a deep zoom shows only milliseconds of it. Columns are
+  one CSS px, but never finer than a level-0 bin. It is memoized, and
+  recomputed only when the range, the geometry or the loaded pyramid tiles
+  change.
 - **Move ghosts.** Ghosts carry `origin_track_id` and always draw raw media.
 - **Lane hint.** `laneWaveformStatus` returns generating when any ref of the
   lane is generating. It returns unavailable only when every ref is known
@@ -428,6 +431,37 @@ starts at the ghost's source start and has the ghost's width.
 - **Backend.** `TimelineView` mounts `WaveformStatusSync`, which also starts
   the worker and installs the E2E hook. It renders `data-waveform-backend`
   on `.timeline-area`.
+
+### Deep zoom
+
+Zoom runs from `min_zoom_px_per_sec` (0.05) to `max_zoom_px_per_sec`
+(48,000 px/s: about one CSS px per sample at 48 kHz), and the ceiling is
+session-aware: `effectiveMaxZoomPxPerSec(sessionSec)` keeps
+`sessionSec × zoom ≤ max_content_px` (15,000,000 px), so a one-hour session
+tops out near 4,167 px/s. `utils/zoom.ts` `clampZoomPxPerSec(zoom,
+sessionSec)` applies it to every zoom path (keys, pinch, wheel, Fit,
+`setZoomPxPerSec`, follow). `reclampZoomForDuration` re-applies it, keeping
+the time at the view centre, when the session length changes (`setProject`,
+`hydrate`, document updates).
+
+- **Modes.** While a device column spans at least a level-0 bin
+  (`base_samples_per_bin`, 64 frames) the layer draws the pyramid. Below
+  that, the host draws `(min, max)` PCM blocks from `/api/waveform/pcm/`,
+  and under `line_mode_max_samples_per_px` (4) frames per device column it
+  draws them as a line (the envelope of the piecewise-linear interpolant).
+  Guests have no PCM route: they stop at level 0, whose bins stretch over
+  several pixels.
+- **Precision.** Tile geometry stays source-anchored (`t = k·512/zoom`, no
+  accumulation), snap ticks round to 1 µs on client and server, presence
+  x-fractions carry 6 decimals, and drag thresholds are in pixels (roll
+  commit 0.5 px, move no-op 0.5 px, social-clip drag 3 px, ruler comment
+  span 4 px), so edits work at any zoom. Domain minimums (0.05 s spans,
+  integer-ms fades) are unchanged.
+- **Bounded DOM.** The ruler, the Levels envelope and the waveform tiles
+  mount only what meets the viewport: the ruler and envelope in 2048 px
+  chunks (`utils/timelineViewport.ts` `viewportChunkRange`, a selector that
+  returns a string), the tiles in 512 px tiles plus overscan. A ruler never
+  mounts more than `ceil((viewport + 4096) / 70) + 1` ticks.
 
 **Budgets:** the bitmap cache holds 128 MB (48 MB on the phone shell), data
 tiles 64 MB (32 MB on the phone shell) and PCM 32 MB. There are 4 fetches in
