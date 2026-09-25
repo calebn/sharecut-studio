@@ -310,6 +310,21 @@ describe("statusStore", () => {
     }
   });
 
+  it("keeps a stopped poller stopped when all subscribers leave and one returns within the cooldown", async () => {
+    const off1 = subscribeWaveformStatus(P, "raw", () => {});
+    loads.shift()!.reject(new WaveformFetchError(403, null));
+    await flush();
+    off1();
+    vi.advanceTimersByTime(4000);
+    const off2 = subscribeWaveformStatus(P, "raw", () => {});
+    expect(loads).toHaveLength(0);
+    off2();
+    vi.advanceTimersByTime(1000);
+    const off3 = subscribeWaveformStatus(P, "raw", () => {});
+    expect(loads).toHaveLength(1);
+    off3();
+  });
+
   it("keeps no trace of a tile 404 from before the project was watched", async () => {
     const key = "a".repeat(20);
     noteWaveformTileMissing(P, "track:a", key);
