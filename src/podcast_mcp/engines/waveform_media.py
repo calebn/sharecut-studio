@@ -70,103 +70,129 @@ class PyramidTarget:
     out: Path
 
 
-def _resolve_media(
-    project: EpisodeProject, stored: str, kind: MediaKind
-) -> MediaEntry | str | None:
-    """Entry, a ``no-media`` reason, or ``None`` when the path escapes the workspace."""
+@dataclass(frozen=True)
+class _Candidate:
+    """A ref before any availability check: its workspace-safe path, or why it has none."""
+
+    ref: str
+    kind: MediaKind
+    path: Path | None = None
+    reason: str = REASON_NO_MEDIA
+
+
+def _stored_candidate(project: EpisodeProject, ref: str, stored: str) -> _Candidate | None:
+    """Raw candidate for a stored media path; ``None`` when the path escapes the workspace."""
     try:
         path = resolve_under_workspace(project, stored)
     except ValueError:
         log.debug("waveform media path escaped the workspace: %s", stored)
         return None
-    if not path.is_file():
-        return REASON_NO_MEDIA
-    return MediaEntry(kind=kind, abs_path=path, rel_path=workspace_relpath(project, path))
+    return _Candidate(ref=ref, kind="raw", path=path)
 
 
-def _add(out: MediaRefs, ref: str, resolved: MediaEntry | str | None) -> None:
-    if isinstance(resolved, MediaEntry):
-        out.refs[ref] = resolved
-    elif resolved is not None:
-        out.unavailable[ref] = resolved
+def _track_candidate(project: EpisodeProject, track: Track) -> _Candidate | None:
+    if track.media is None:
+        return None
+    return _stored_candidate(project, f"track:{track.id}", track.media.path)
 
 
-def _track_ref(project: EpisodeProject, track: Track, out: MediaRefs) -> None:
-    if track.media is not None:
-        _add(out, f"track:{track.id}", _resolve_media(project, track.media.path, "raw"))
-
-
-def _source_ref(project: EpisodeProject, source_id: str, out: MediaRefs) -> None:
-    source = project.source_by_id(source_id)
+def _source_candidate(project: EpisodeProject, source_id: str) -> _Candidate | None:
     ref = f"source:{source_id}"
+    source = project.source_by_id(source_id)
     if source is None:
-        out.unavailable[ref] = REASON_NO_MEDIA
-        return
-    _add(out, ref, _resolve_media(project, source.path, "raw"))
+        return _Candidate(ref=ref, kind="raw")
+    return _stored_candidate(project, ref, source.path)
 
 
-def _stem_ref(project: EpisodeProject, track_id: str, out: MediaRefs, *, fresh_only: bool) -> None:
+def _stem_candidate(project: EpisodeProject, track_id: str) -> _Candidate | None:
     ref = f"stem:{track_id}"
     if not SAFE_TRACK_ID.fullmatch(track_id):
-        out.unavailable[ref] = REASON_UNSAFE_ID
-        return
-    if fresh_only and not stem_is_fresh(project, track_id):
-        return
+        return _Candidate(ref=ref, kind="stem", reason=REASON_UNSAFE_ID)
+    stem = stem_path(project, track_id)
     try:
-        path = resolve_within(project.artifacts_dir() / "tracks", f"{track_id}.wav")
+        path = resolve_within(stem.parent, stem.name)
     except ValueError:
-        return
-    if not path.is_file():
-        return
-    out.refs[ref] = MediaEntry(
-        kind="stem", abs_path=path, rel_path=workspace_relpath(project, path)
+        return None
+    return _Candidate(ref=ref, kind="stem", path=path)
+
+
+def _clip_source_ids(project: EpisodeProject, track_id: str | None = None) -> list[str]:
+    """Sorted source ids referenced by clips (only *track_id*'s lane when given)."""
+    return sorted(
+        {
+            c.source_id
+            for c in project.clips
+            if c.source_id and (track_id is None or c.track_id == track_id)
+        }
     )
+
+
+def _project_candidates(project: EpisodeProject) -> list[_Candidate | None]:
+    """Every ref of *project* in listing order: track media, clip sources, then stems."""
+    found = [_track_candidate(project, t) for t in project.tracks]
+    found += [_source_candidate(project, s) for s in _clip_source_ids(project)]
+    found += [_stem_candidate(project, t.id) for t in project.tracks if t.media is not None]
+    return found
+
+
+def _resolve(
+    project: EpisodeProject, candidates: list[_Candidate | None], *, fresh_only: bool
+) -> MediaRefs:
+    """Check each candidate on disk: drawable refs, or refs that exist but cannot be drawn."""
+    out = MediaRefs(refs={}, unavailable={})
+    for cand in candidates:
+        if cand is None:
+            continue
+        if cand.path is None:
+            out.unavailable[cand.ref] = cand.reason
+            continue
+        _, _, ref_id = cand.ref.partition(":")
+        if cand.kind == "stem" and fresh_only and not stem_is_fresh(project, ref_id):
+            continue
+        if not cand.path.is_file():
+            if cand.kind == "raw":
+                out.unavailable[cand.ref] = REASON_NO_MEDIA
+            continue
+        out.refs[cand.ref] = MediaEntry(
+            kind=cand.kind, abs_path=cand.path, rel_path=workspace_relpath(project, cand.path)
+        )
+    return out
 
 
 def collect_media_refs(project: EpisodeProject) -> MediaRefs:
     """Every raw and (fresh) stem ref of *project*."""
-    out = MediaRefs(refs={}, unavailable={})
-    for track in project.tracks:
-        _track_ref(project, track, out)
-    for source_id in sorted({c.source_id for c in project.clips if c.source_id}):
-        _source_ref(project, source_id, out)
-    for track in project.tracks:
-        if track.media is not None:
-            _stem_ref(project, track.id, out, fresh_only=True)
-    return out
+    return _resolve(project, _project_candidates(project), fresh_only=True)
 
 
 def media_watch_paths(project: EpisodeProject) -> tuple[Path, ...]:
-    """Files whose appearance or change can flip a ref without touching the project JSON."""
-    stored = [t.media.path for t in project.tracks if t.media is not None]
-    for source_id in sorted({c.source_id for c in project.clips if c.source_id}):
-        source = project.source_by_id(source_id)
-        if source is not None:
-            stored.append(source.path)
+    """Files whose appearance or change can flip a ref without touching the project JSON.
+
+    Derived from the same walk as ``collect_media_refs``: each candidate's path, plus
+    the ``.hash`` sidecar of each stem (an input to ``stem_is_fresh``).
+    """
     paths: list[Path] = []
-    for value in stored:
-        try:
-            paths.append(resolve_under_workspace(project, value))
-        except ValueError:
+    for cand in _project_candidates(project):
+        if cand is None or cand.path is None:
             continue
-    for track in project.tracks:
-        if track.media is not None and SAFE_TRACK_ID.fullmatch(track.id):
-            paths += [stem_path(project, track.id), stem_hash_path(project, track.id)]
+        paths.append(cand.path)
+        if cand.kind == "stem":
+            paths.append(stem_hash_path(project, cand.ref.partition(":")[2]))
     return tuple(paths)
 
 
 def track_media_refs(project: EpisodeProject, track: Track) -> MediaRefs:
     """The track ref plus the source refs of the clips on *track*'s lane."""
-    out = MediaRefs(refs={}, unavailable={})
-    _track_ref(project, track, out)
-    source_ids = {c.source_id for c in project.clips if c.track_id == track.id and c.source_id}
-    for source_id in sorted(source_ids):
-        _source_ref(project, source_id, out)
-    return out
+    candidates = [_track_candidate(project, track)]
+    candidates += [_source_candidate(project, s) for s in _clip_source_ids(project, track.id)]
+    return _resolve(project, candidates, fresh_only=False)
 
 
 def current_key(entry: MediaEntry) -> str:
-    """Pyramid key of *entry*'s media as it is on disk now (``OSError`` if it is gone)."""
+    """Pyramid key of *entry*'s media as it is on disk now (``OSError`` if it is gone).
+
+    Request handlers call ``services.waveform.live_key`` instead: it turns a missing
+    file into ``LookupError`` (404), where a bare ``OSError`` would become a 500.
+    """
     st = entry.abs_path.stat()
     return media_key(entry.rel_path, st.st_size, st.st_mtime_ns)
 
@@ -199,11 +225,10 @@ def schedule_track_waveforms(project: EpisodeProject, track: Track) -> int:
 
 def schedule_stem_waveforms(project: EpisodeProject, track_ids: list[str]) -> int:
     """Queue pyramids for just-rendered stems (safe ids with a stem file)."""
-    out = MediaRefs(refs={}, unavailable={})
-    for track_id in track_ids:
-        _stem_ref(project, track_id, out, fresh_only=False)
+    candidates = [_stem_candidate(project, track_id) for track_id in track_ids]
+    refs = _resolve(project, candidates, fresh_only=False).refs
     artifacts = project.artifacts_dir()
-    return sum(schedule_media_ref(artifacts, ref, entry) for ref, entry in out.refs.items())
+    return sum(schedule_media_ref(artifacts, ref, entry) for ref, entry in refs.items())
 
 
 def ensure_track_waveforms(project: EpisodeProject, track: Track) -> int:

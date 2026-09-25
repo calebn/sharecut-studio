@@ -70,6 +70,20 @@ def test_media_index_lists_raw_refs(tmp_path):
     assert wm.pyramid_target(artifacts, "track:host", host).key == current_key(host)
 
 
+def test_media_watch_paths_follow_the_ref_walk(tmp_path):
+    project_path = waveform_project(tmp_path)
+    project = load_project(project_path)
+    ws = project_path.parent.resolve()
+    stems = ws / "artifacts" / "tracks"
+    watched = {p.resolve() for p in wm.media_watch_paths(project)}
+    assert {ws / "raw" / "host.wav", ws / "raw" / "missing.wav"} <= watched
+    assert {stems / "host.wav", stems / "host.hash"} <= watched
+    assert stems / "empty.wav" not in watched  # no media, no stem ref
+    assert (ws.parent / "outside.wav").resolve() not in watched  # escaping media is skipped
+    refs = wm.collect_media_refs(project).refs
+    assert {e.abs_path.resolve() for e in refs.values()} <= watched
+
+
 def test_media_index_stems_fresh_only_and_unsafe_ids(tmp_path):
     project_path = waveform_project(tmp_path)
     project = load_project(project_path)
@@ -207,6 +221,23 @@ def test_status_drops_and_rebuilds_corrupt_pyramid(tmp_path):
     assert waveform_status(project_path, "raw")["media"]["track:host"] == {"status": "generating"}
     wait_pyramid_jobs()
     assert read_meta(out).total_frames == 64 * 302
+
+
+def test_tile_and_pcm_treat_a_corrupt_pyramid_as_missing(tmp_path):
+    project_path = waveform_project(tmp_path)
+    waveform_status(project_path, "raw")
+    wait_pyramid_jobs()
+    key = waveform_status(project_path, "raw")["media"]["track:host"]["key"]
+    out = pyramid_path(project_path.parent / "artifacts" / "peaks", "track-host", key)
+    for read in (
+        lambda: tile_bytes(project_path, "track:host", key, 0, 0, 1),
+        lambda: pcm_block(project_path, "track:host", key, 0),
+    ):
+        out.write_bytes(b"garbage")
+        svc._META.clear()
+        with pytest.raises(svc.WaveformDecodeError):
+            read()
+        assert not out.exists()
 
 
 def test_status_schedule_refused_and_vanished_media(tmp_path):

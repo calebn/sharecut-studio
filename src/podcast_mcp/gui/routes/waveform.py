@@ -94,6 +94,7 @@ def waveform_call(
     ``HTTPException`` keeps its status. Service errors go through ``waveform_error``.
     Anything else goes through *fallback*: guests pass ``_map_share_exc``, so a
     ``PermissionError`` from the share capability check stays 403.
+    Only errors that map to 5xx are logged, so a guest's routine 403 or 404 never writes a traceback.
     """
     try:
         return fn()
@@ -102,8 +103,10 @@ def waveform_call(
     except (ValueError, LookupError, FileNotFoundError) as exc:
         raise waveform_error(exc) from exc
     except Exception as exc:
-        log.exception("waveform request failed")
-        raise no_store_error(fallback(exc)) from exc
+        mapped = fallback(exc)
+        if mapped.status_code >= 500:
+            log.exception("waveform request failed")
+        raise no_store_error(mapped) from exc
 
 
 @router.get("/api/waveform/status")
