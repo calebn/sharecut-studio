@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MAX_CONTENT_PX } from "../utils/timelineZoom.generated";
 import {
   expectedPlayheadSec,
   followBannerDetail,
@@ -53,6 +54,7 @@ describe("followSync", () => {
     const { zoomPxPerSec, scrollLeft } = viewportToZoomScroll(
       { start_sec: 10, end_sec: 20 },
       200,
+      60,
     );
     expect(zoomPxPerSec).toBe(20);
     expect(scrollLeft).toBe(200);
@@ -61,10 +63,25 @@ describe("followSync", () => {
   it("round-trips a viewport through zoom and scroll", () => {
     const viewport = zoomScrollToViewport(200, 20, 200);
     expect(viewport).toEqual({ start_sec: 10, end_sec: 20 });
-    expect(viewportToZoomScroll(viewport, 200)).toEqual({
+    expect(viewportToZoomScroll(viewport, 200, 60)).toEqual({
       zoomPxPerSec: 20,
       scrollLeft: 200,
     });
+  });
+
+  it("clamps a leader's zoom to this session's ceiling and scrolls to their start", () => {
+    // 1 ms over 1200 px wants 1.2M px/s; a 60 s session stops at 48,000.
+    expect(
+      viewportToZoomScroll({ start_sec: 30, end_sec: 30.001 }, 1200, 60),
+    ).toEqual({ zoomPxPerSec: 48000, scrollLeft: 30 * 48000 });
+    // An hour-long session caps content at MAX_CONTENT_PX.
+    const hour = viewportToZoomScroll(
+      { start_sec: 10, end_sec: 10.01 },
+      1200,
+      3600,
+    );
+    expect(hour.zoomPxPerSec).toBeCloseTo(MAX_CONTENT_PX / 3600, 6);
+    expect(hour.scrollLeft).toBeCloseTo((10 * MAX_CONTENT_PX) / 3600, 3);
   });
 
   it("shifts a padded viewport to 0 instead of shrinking it (#385)", () => {
