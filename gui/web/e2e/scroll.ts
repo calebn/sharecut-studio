@@ -19,17 +19,27 @@ export async function scrollToEnd(
   timeout = 10_000,
 ): Promise<void> {
   await expect(async () => {
-    const measured = await list.evaluate((element, key) => {
+    const measured = await list.evaluate((element: HTMLElement, key) => {
       const horizontal = key === "scrollLeft";
       element[key] = horizontal ? element.scrollWidth : element.scrollHeight;
       element.dispatchEvent(new Event("scroll"));
       const size = horizontal ? element.scrollWidth : element.scrollHeight;
       const client = horizontal ? element.clientWidth : element.clientHeight;
       const at = element[key];
-      return { gap: size - (at + client), size, client, at };
+      // A classic (non-overlay) scrollbar on the cross axis, as on Linux CI, can leave its width unreachable.
+      const scrollbar = horizontal
+        ? element.offsetHeight - element.clientHeight - 2 * element.clientTop
+        : element.offsetWidth - element.clientWidth - 2 * element.clientLeft;
+      return {
+        gap: size - (at + client),
+        size,
+        client,
+        at,
+        scrollbar: Math.max(0, scrollbar),
+      };
     }, axis);
     expect(measured.gap, JSON.stringify(measured)).toBeLessThanOrEqual(
-      END_SLACK_PX,
+      END_SLACK_PX + measured.scrollbar,
     );
   }).toPass({ timeout });
 }
