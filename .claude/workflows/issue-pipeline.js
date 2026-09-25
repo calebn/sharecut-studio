@@ -70,6 +70,10 @@ const SETUP = `Before committing, provision this worktree (idempotent; hooks + v
 Never bypass hooks (--no-verify) and never add noqa/nosec/biome-ignore/eslint-disable.`
 
 // PR-body issue links: "Fixes #N" auto-closes on merge; "Related #N" links without closing.
+// "Part of #N" marks one PR of a multi-PR issue: it links N for resume and claims without
+// closing it, so the next part can still claim N after this one merges. Later parts wait
+// behind do-not-merge until the owner (or the agent driving the series) promotes them.
+const PART_OF = 'Part of #'
 const LINKS = (fixes, related) => [`Fixes #${fixes}`, ...(related || []).filter((n) => n !== fixes).map((n) => `Related #${n}`)].join('\n')
 
 // Local checks stay targeted for speed; GitHub Actions (CI stage) is the full-suite gate.
@@ -356,7 +360,7 @@ function claimIssue(issue, { resumePr } = {}) {
   return stage(
     `Claim ${REPO} issue #${issue.number} for this pipeline run, safely against other runs/agents.
 ${CLAIM_FORMAT}
-0. \`gh issue view ${issue.number} -R ${REPO} --json state,closedByPullRequestsReferences\` and \`gh pr list -R ${REPO} --state open --search "${issue.number} in:body" --json number,body\`. If the issue is CLOSED, or an open PR links it (Fixes/Closes/Resolves #${issue.number}), do not claim: return won=false with that reason (explicitly named issues skip triage, so this is the only guard against duplicate PRs).${resumePr ? ` Exception: this run is RESUMING PR #${resumePr}, so that PR linking the issue is expected and is not a reason to refuse; refuse only if a DIFFERENT open PR links it.` : ''}
+0. \`gh issue view ${issue.number} -R ${REPO} --json state,closedByPullRequestsReferences\` and \`gh pr list -R ${REPO} --state open --search "${issue.number} in:body" --json number,body\`. If the issue is CLOSED, or an open PR links it (Fixes/Closes/Resolves #${issue.number}, or a "${PART_OF}${issue.number}" line), do not claim: return won=false with that reason (explicitly named issues skip triage, so this is the only guard against duplicate PRs).${resumePr ? ` Exception: this run is RESUMING PR #${resumePr}, so that PR linking the issue is expected and is not a reason to refuse; refuse only if a DIFFERENT open PR links it and that PR carries neither ${HOLD_LABELS.join(' nor ')} (a held "${PART_OF}${issue.number}" PR is a later part of the same issue waiting its turn).` : ''}
 1. Make a token: \`echo "$(date -u +%Y%m%dT%H%M%SZ)-$RANDOM$RANDOM"\`.
 2. List comments: \`gh api repos/${REPO}/issues/${issue.number}/comments --paginate --jq '.[] | {id, created_at, body}'\`. If any LIVE claim exists, do not claim: return won=false, reason naming its token.
 3. \`gh issue edit ${issue.number} -R ${REPO} --add-label ${CLAIM_LABEL} --add-label ${STAGE_LABELS.planning}\` and post the claim comment (stage=planning, heartbeat=now, released=no) with \`gh api repos/${REPO}/issues/${issue.number}/comments -f body=…\`; note its id.
@@ -603,7 +607,7 @@ ${DETACHED(`origin/${branch}`)}
 ${SETUP}
 Plan (JSON): ${JSON.stringify(plan.items)}
 1. implement items: make the change per steps, one commit per concern, run ${VERIFY} Push once to ${branch}. Confirm every SHA exists via \`gh api repos/${REPO}/commits/<sha>\` BEFORE replying.
-2. follow_up items: \`gh issue create -R ${REPO} --title <followup_title> --body <followup_body>\` (the body must mention "Related #${issue.number}" and link the PR). Then append one "Related #<new issue>" line per follow-up to the PR body (\`gh pr view ${pr} -R ${REPO} --json body -q .body\` → \`gh pr edit ${pr} -R ${REPO} --body-file -\`), keeping the existing "Fixes #${issue.number}" line intact.
+2. follow_up items: \`gh issue create -R ${REPO} --title <followup_title> --body <followup_body>\` (the body must mention "Related #${issue.number}" and link the PR). Then append one "Related #<new issue>" line per follow-up to the PR body (\`gh pr view ${pr} -R ${REPO} --json body -q .body\` → \`gh pr edit ${pr} -R ${REPO} --body-file -\`), keeping the existing "Fixes #${issue.number}" or "${PART_OF}${issue.number}" line intact.
 3. Reply to EVERY item (mandatory):
    - implement → "Fixed in <bare sha> — <what changed>." then resolve the thread.
    - follow_up → "Tracked in #<issue> — <one-line why deferred>." then resolve the thread.
@@ -926,11 +930,11 @@ const S_STALLED = {
 }
 const stalled = A.noResume ? { prs: [] } : await stage(
   `List stalled issue-pipeline PRs to resume. Read-only.
-\`gh pr list -R ${REPO} --state open --limit 200 --json number,author,headRefName,headRefOid,labels,closingIssuesReferences\`. Keep only PRs authored by ${AUTHORS.join(' or ')} that do NOT carry ${HOLD_LABELS.join(' or ')}, and that are either:
+\`gh pr list -R ${REPO} --state open --limit 200 --json number,author,headRefName,headRefOid,labels,closingIssuesReferences,body\`. Keep only PRs authored by ${AUTHORS.join(' or ')} that do NOT carry ${HOLD_LABELS.join(' or ')}, and that are either:
 (a) STALLED: labelled ${STALL_LABEL} → resume = the value of resume= in its latest comment starting with "${STALL_MARK}" (\`gh api repos/${REPO}/issues/<pr>/comments --paginate\`), defaulting to review; or
 (b) ORPHANED by a run that died: labelled with any of ${Object.values(STAGE_LABELS).join(', ')} but not ${STALL_LABEL}, AND the linked issue's claim is not live. ${CLAIM_FORMAT}
   Read the issue's latest comment starting with "${CLAIM_MARK}"; the claim is not live if it is released or its heartbeat is ${STALE_HOURS}+ hours old (compute with \`date -u\`); if the issue has no claim comment, treat it as live (skip). Orphans always resume = review.
-For each kept PR: issue = the first closingIssuesReferences number (skip the PR if none); head_sha = headRefOid; branch = headRefName.`,
+For each kept PR: issue = the first closingIssuesReferences number, else N from a line starting "${PART_OF}N" in the PR body (one part of a multi-PR issue); skip the PR if neither exists. head_sha = headRefOid; branch = headRefName.`,
   { label: 'resume:list', phase: 'Triage', model: M.worker, effort: 'low', schema: S_STALLED },
 )
 const toResume = (stalled ? stalled.prs : []).filter((r) => SHA_RE.test(r.head_sha))

@@ -14,7 +14,7 @@ Ship via **feature branch → PR → `main`**. Do not commit or push directly to
 1. Update local `main` (`git checkout main && git pull`).
 2. Create a branch: `type/short-kebab-description`.
 3. Implement with tests and docs in the same change.
-4. When the user asks to ship: commit on the branch, `git push -u origin HEAD`, `gh pr create` targeting **`main`**. Put `Fixes #N` (or `Closes` / `Resolves`) in the PR body so merge into `main` auto-closes linked issues, and `Related #N` for issues the PR touches but does not close (including review follow-ups).
+4. When the user asks to ship: commit on the branch, `git push -u origin HEAD`, `gh pr create` targeting **`main`**. Put `Fixes #N` (or `Closes` / `Resolves`) in the PR body so merge into `main` auto-closes linked issues, and `Related #N` for issues the PR touches but does not close (including review follow-ups); one part of a multi-PR series uses `Part of #N` instead of `Fixes #N` until the final part ([docs/contributing.md § Automated issue pipeline](docs/contributing.md#automated-issue-pipeline)).
 5. Merge with **rebase** (`gh pr merge --rebase`), not squash, so `main` keeps each focused commit; keep branch commits conventional and self-contained. Merge only when the user asks. Exception: the `issue-pipeline` workflow (`.claude/workflows/issue-pipeline.js`) is pre-approved to rebase-merge its own PRs when its merge gate passes — see [docs/contributing.md § Automated issue pipeline](docs/contributing.md#automated-issue-pipeline).
 
 Before working a GitHub issue, follow [.agents/rules/issue-claims.md](.agents/rules/issue-claims.md): skip issues with a live claim, claim before starting, move `pipeline:*` stage labels, and release when done.
