@@ -325,7 +325,7 @@ not wired into the timeline yet. Each module has a `*.test.ts`.
     overscan, prefetch), deduplicated, and fetched in runs of up to
     `max_tiles_per_request`. A 429 holds the run back until `Retry-After` and then re-queues it. Any
     other failure holds it back for 5 s. A 404, or tiles missing from a short
-    response, are skipped until their key is ready again. Zoom and
+    response, are skipped until their key is ready again or for 30 s. Zoom and
     scroll never abort a fetch; only leaving the project does. When a ref
     becomes ready, the store prefetches the coarsest level and the next two
     levels when each has at most 8 tiles. `getBins` returns a copy, and

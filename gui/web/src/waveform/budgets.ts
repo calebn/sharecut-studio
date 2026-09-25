@@ -181,6 +181,9 @@ export class ByteLru<V> {
 /** How long a failed fetch (other than a 429 or 404) is held back before a request may try it again. */
 export const FAILED_FETCH_BACKOFF_MS = 5000;
 
+/** How long a tile that 404'd or came back short is skipped when its key does not become ready again. */
+export const MISSING_TILE_RETRY_MS = 30_000;
+
 /** How to treat a failed waveform fetch. */
 export type FetchFailure =
   | { kind: "retry"; afterMs: number }
