@@ -11,6 +11,7 @@ import type {
   PresenceUi,
   PresenceViewport,
 } from "../types/session";
+import { MIN_VIEWPORT_SPAN_SEC } from "../utils/timelineZoom.generated";
 
 export { serverNowMs } from "./clock";
 
@@ -71,8 +72,6 @@ export function planCorrection(
   return { action: "none" };
 }
 
-/** Shortest viewport span the server accepts (`MIN_VIEWPORT_SPAN_SEC` there). */
-const MIN_VIEWPORT_SPAN_SEC = 0.001;
 /** Span published before the timeline has been measured. */
 const UNMEASURED_VIEWPORT_SPAN_SEC = 60;
 

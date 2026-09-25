@@ -123,6 +123,7 @@ from podcast_mcp.engines.render_status import render_status_report
 from podcast_mcp.models import EditDecision
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.progress import ProgressReporter
+from podcast_mcp.util.timeline_zoom import snap_tick_decimals
 from podcast_mcp.util.tracks import resolve_track
 
 log = logging.getLogger(__name__)
@@ -514,8 +515,8 @@ class EditService:
             ticks.extend([float(preview["start"]), float(preview["end"])])
         # Unrounded midpoints: to_dict() rounds to 0.1 ms, too coarse at deep zoom.
         ticks.extend(float(island.midpoint) for island in found)
-        # 1 µs: ticks stay distinct at near-sample zoom (48,000 px/s).
-        uniq = sorted({round(t, 6) for t in ticks})
+        # 1 µs (contract `snap_tick_decimals`): ticks stay distinct at near-sample zoom.
+        uniq = sorted({round(t, snap_tick_decimals()) for t in ticks})
         return {
             "track_id": tid,
             "start": lo,
