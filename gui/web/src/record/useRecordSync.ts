@@ -44,10 +44,15 @@ type RecordMsg = {
   snapshot?: RecordSnapshot;
 };
 
+/** Guest was removed (or forbidden before joining); RecordApp shows "Recording access ended". */
+export const RECORD_ACCESS_REMOVED = "access_removed";
+/** Removed participant's invite link is closed to new identities; RecordApp shows "Invite link closed". */
+export const RECORD_INVITE_CLOSED = "invite_closed";
+
 /** Record errors after which the hook stops reconnecting and RecordApp shows an ended screen. */
 export const RECORD_ACCESS_ENDED_REASONS = [
-  "access_removed",
-  "invite_closed",
+  RECORD_ACCESS_REMOVED,
+  RECORD_INVITE_CLOSED,
 ] as const;
 export type RecordAccessEndedReason =
   (typeof RECORD_ACCESS_ENDED_REASONS)[number];
@@ -187,8 +192,8 @@ export function useRecordSync(
               );
               return;
             }
-            if (msg.code === "invite_closed") {
-              endAccess("invite_closed", thisSocket);
+            if (msg.code === RECORD_INVITE_CLOSED) {
+              endAccess(RECORD_INVITE_CLOSED, thisSocket);
               return;
             }
             if (
@@ -196,7 +201,7 @@ export function useRecordSync(
               msg.code === "forbidden"
             ) {
               if (!joined) {
-                endAccess("access_removed", thisSocket);
+                endAccess(RECORD_ACCESS_REMOVED, thisSocket);
               } else {
                 setError("forbidden");
               }
@@ -230,7 +235,7 @@ export function useRecordSync(
           heartbeat = null;
         }
         if (event.code === 4403 && !accessEnded) {
-          endAccess("access_removed");
+          endAccess(RECORD_ACCESS_REMOVED);
         }
         if (!cancelled && !accessEnded) {
           const delay = retryMsRef.current;
