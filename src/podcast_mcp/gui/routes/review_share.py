@@ -140,10 +140,10 @@ def _audio_slot(token: str) -> BackgroundTask | None:
     return BackgroundTask(lim.audio_concurrent.exit, token)
 
 
-def _release_audio_slot(token: str, slot: BackgroundTask | None) -> None:
-    """Release a slot from ``_audio_slot`` when no response will run its task."""
+def _release_audio_slot(slot: BackgroundTask | None) -> None:
+    """Run *slot*'s release now, when no response will run it (``exit`` is not idempotent)."""
     if slot is not None:
-        get_host_limiters().audio_concurrent.exit(token)
+        slot.func(*slot.args, **slot.kwargs)
 
 
 def _audio_file_response(token: str, path, **kwargs: Any):
@@ -295,7 +295,7 @@ def get_daw_waveform_tiles(
                 token, ref=ref, key=key, level=level, start=start, count=count
             )
         except BaseException:
-            _release_audio_slot(token, slot)
+            _release_audio_slot(slot)
             raise
         return binary_response(body, background=slot)
 
