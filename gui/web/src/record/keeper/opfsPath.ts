@@ -12,6 +12,19 @@ export function assertSafePart(part: string): string {
   return part;
 }
 
+/** Walk (optionally creating) validated directory parts under `root`. */
+export async function opfsDirHandle(
+  root: FileSystemDirectoryHandle,
+  parts: readonly string[],
+  create: boolean,
+): Promise<FileSystemDirectoryHandle> {
+  let dir = root;
+  for (const part of parts) {
+    dir = await dir.getDirectoryHandle(assertSafePart(part), { create });
+  }
+  return dir;
+}
+
 export async function opfsFileHandle(
   root: FileSystemDirectoryHandle,
   path: string,
@@ -22,13 +35,7 @@ export async function opfsFileHandle(
   if (!fileName) {
     throw new Error("invalid keeper path");
   }
-  let dir = root;
-  for (const part of parts) {
-    assertSafePart(part);
-    dir = await dir.getDirectoryHandle(part, { create });
-  }
-  assertSafePart(
-    fileName.replace(/\.wav$/i, "").replace(/\.json$/i, "") || fileName,
-  );
+  const dir = await opfsDirHandle(root, parts, create);
+  assertSafePart(fileName);
   return dir.getFileHandle(fileName, { create });
 }

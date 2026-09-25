@@ -1,5 +1,5 @@
 import { removeKeeperUnlessHeld } from "./deletionGuard";
-import { assertSafePart, opfsFileHandle } from "./opfsPath";
+import { assertSafePart, opfsDirHandle, opfsFileHandle } from "./opfsPath";
 import { KEEPER_SAMPLE_RATE } from "./pcm";
 import {
   type SyncWriterClient,
@@ -39,6 +39,12 @@ export const ORPHAN_KEEPER_RETENTION_MS = 7 * 24 * 60 * 60_000;
 export type ByteStream = {
   write(bytes: Uint8Array, offset?: number): Promise<void>;
   close(): Promise<void>;
+  /**
+   * Best-effort synchronous release after an open/close deadline passes, e.g.
+   * terminating the sync-access writer worker so its exclusive OPFS handle is
+   * freed for recovery and reclaim. Later calls on the stream reject.
+   */
+  abort?(): void;
 };
 
 export type ByteSink = {
@@ -551,10 +557,7 @@ export async function createOpfsSink(
         return;
       }
       try {
-        let dir = root;
-        for (const part of parts) {
-          dir = await dir.getDirectoryHandle(part);
-        }
+        const dir = await opfsDirHandle(root, parts, false);
         await dir.removeEntry(fileName);
       } catch (error) {
         if (error instanceof DOMException && error.name === "NotFoundError") {
@@ -592,14 +595,13 @@ export async function createOpfsSink(
       takeIndex: number,
       participantId: string,
     ) {
-      const parts = keeperDirPrefix(sessionId, takeIndex, participantId).split(
-        "/",
-      );
-      let dir = root;
+      let dir: FileSystemDirectoryHandle;
       try {
-        for (const part of parts) {
-          dir = await dir.getDirectoryHandle(part);
-        }
+        dir = await opfsDirHandle(
+          root,
+          keeperDirPrefix(sessionId, takeIndex, participantId).split("/"),
+          false,
+        );
       } catch (error) {
         if (error instanceof DOMException && error.name === "NotFoundError") {
           return 0;
