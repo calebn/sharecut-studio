@@ -7,7 +7,10 @@ import type { DawState } from "./types";
  *
  * Select exactly the keys a component uses. Return primitives, store
  * references, or objects/tuples of those; build derived arrays or objects
- * with `useMemo` outside the selector (`state/storeGovernance.test.ts`).
+ * with `useMemo` outside the selector. `useShallow` compares one level deep,
+ * so a fresh array or object in the result re-renders on every store change.
+ * `state/storeGovernance.test.ts` rejects only whole-store reads (no selector
+ * or an identity selector); the derived-value rule is enforced in review.
  */
 export function useDaw<T>(selector: (s: DawState) => T): T {
   return useDawStore(useShallow(selector));
