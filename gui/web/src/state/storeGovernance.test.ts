@@ -106,4 +106,9 @@ describe("store governance", () => {
     const text = readFileSync(join(SRC_ROOT, rel), "utf8");
     expect(hotFieldReads(text)).toEqual([]);
   });
+
+  it("keeps the DAW store free of waveform modules", () => {
+    const text = readFileSync(join(SRC_ROOT, "state/dawStore.ts"), "utf8");
+    expect(text).not.toMatch(/from\s+["'][./]*waveform\//);
+  });
 });
