@@ -36,6 +36,8 @@ prior history index and removing snapshots created for that failed publication
 before deleting its generated media. A version already present in the canonical
 project keeps its history and media.
 
+History record/undo/redo/goto and `ProjectStore.commit` run under `project_commit_lock` (an in-process lock plus a per-workspace file lock at `artifacts/episode.project.json.lock`, kept outside `history/`). `ReviewService.publish` stages media (copy + MP3) outside the file lock, then holds it from the history-index read through commit and failure cleanup, so no other process can commit the failed version between the canonical check and media deletion. Loads stay unlocked, and lost-update prevention on reload is out of scope (#213, #426).
+
 See [episode-format-v2.md](episode-format-v2.md) for the canonical project layout.
 
 ## CLI

@@ -8,17 +8,19 @@ from typing import Any
 
 from podcast_mcp.edits.review_versions import (
     DirectoryIdentity,
+    attach_version,
     clean_created_version,
     get_version,
     list_versions,
-    publish_version,
     set_active_version,
+    stage_version,
     version_audio_path,
 )
 from podcast_mcp.models import load_project
 from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
+from podcast_mcp.util.project_state import project_commit_lock, project_state_lock
 
 log = logging.getLogger(__name__)
 
@@ -48,40 +50,39 @@ class ReviewService:
         prefer: str = "premix",
         set_active: bool = True,
     ) -> dict[str, Any]:
-        history_index_path = self.ws.project.workspace_path() / "history" / "index.json"
-        history_before = load_json_object(history_index_path)
+        project = self.ws.project
+        history_index_path = project.workspace_path() / "history" / "index.json"
         created: tuple[Path, DirectoryIdentity] | None = None
-        version_id: str | None = None
 
         def remember_media(path: Path, identity: DirectoryIdentity) -> None:
             nonlocal created
             created = (path, identity)
 
-        def mutate(p) -> dict[str, Any]:
-            nonlocal version_id
-            ver = publish_version(
-                p,
-                label=label,
-                prefer=prefer,
-                set_active=set_active,
-                on_media_created=remember_media,
+        with project_state_lock(project):
+            # Media creation (copy + MP3) stays outside the cross-process file lock.
+            ver = stage_version(
+                project, label=label, prefer=prefer, on_media_created=remember_media
             )
-            version_id = ver.id
-            return ver.model_dump()
-
-        try:
-            return self.ws.mutate(
-                "before publish review version",
-                "after publish review version",
-                mutate,
-            )
-        except BaseException:
             recorded = created
-            if version_id is not None and recorded is not None:
-                self._clean_uncommitted_media(
-                    version_id, recorded[0], recorded[1], history_index_path, history_before
-                )
-            raise
+            with project_commit_lock(project):
+                history_before = load_json_object(history_index_path)
+
+                def mutate(p) -> dict[str, Any]:
+                    attach_version(p, ver, set_active=set_active)
+                    return ver.model_dump()
+
+                try:
+                    return self.ws.mutate(
+                        "before publish review version",
+                        "after publish review version",
+                        mutate,
+                    )
+                except BaseException:
+                    if recorded is not None:
+                        self._clean_uncommitted_media(
+                            ver.id, recorded[0], recorded[1], history_index_path, history_before
+                        )
+                    raise
 
     def _clean_uncommitted_media(
         self,

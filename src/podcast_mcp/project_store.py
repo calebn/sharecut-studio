@@ -6,6 +6,7 @@ from pathlib import Path
 from podcast_mcp.models import EpisodeProject, load_project, project_file_path, save_project
 from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.util.atomic_json import write_json_atomic
+from podcast_mcp.util.project_state import project_commit_lock
 
 
 class ProjectStore:
@@ -22,10 +23,11 @@ class ProjectStore:
         return project
 
     def commit(self, project: EpisodeProject) -> Path:
-        self._sync_history_index_to_project(project)
-        path = save_project(project, self.project_path)
-        self._mirror_transcript_cache(project)
-        return path
+        with project_commit_lock(project):
+            self._sync_history_index_to_project(project)
+            path = save_project(project, self.project_path)
+            self._mirror_transcript_cache(project)
+            return path
 
     def reload(self, project: EpisodeProject) -> EpisodeProject:
         loaded = self.load()

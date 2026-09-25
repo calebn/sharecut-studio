@@ -18,7 +18,7 @@ from podcast_mcp.history.manager import (
 )
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.project_store import ProjectStore
-from podcast_mcp.util.project_state import project_state_lock
+from podcast_mcp.util.project_state import project_commit_lock, project_state_lock
 from podcast_mcp.util.tracks import dialogue_track_ids
 
 T = TypeVar("T")
@@ -88,6 +88,7 @@ def _run_mutation_locked(
         fresh_changed = [tid for tid in changed_tracks if stem_is_fresh(project, tid)]
         if fresh_changed:
             maybe_auto_reconcile(project, track_ids=fresh_changed)
-    mgr.record(project, label_after, operation=operation, params=params)
-    store.commit(project)
+    with project_commit_lock(project):
+        mgr.record(project, label_after, operation=operation, params=params)
+        store.commit(project)
     return result

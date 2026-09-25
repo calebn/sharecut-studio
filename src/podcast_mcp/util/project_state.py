@@ -2,20 +2,37 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from threading import Lock, RLock
+
+from filelock import FileLock
 
 from podcast_mcp.models import EpisodeProject, project_file_path
 
 _registry_lock = Lock()
 _locks: dict[str, RLock] = {}
 
+_file_locks: dict[str, FileLock] = {}
+
 FileRevision = tuple[int, int, int, int]
+
+PROJECT_COMMIT_LOCK_TIMEOUT_SEC = 30.0
+
+
+def _workspace_key(project: EpisodeProject) -> str:
+    return str(project.workspace_path().resolve())
+
+
+def project_commit_lock_path(project: EpisodeProject) -> Path:
+    """Lock file for cross-process commits (not under ``history/``: that dir arms index writes)."""
+    return project.workspace_path().resolve() / "artifacts" / "episode.project.json.lock"
 
 
 def project_state_lock(project: EpisodeProject) -> RLock:
     """Return the in-process lock shared by this workspace's mutations and reads."""
-    key = str(project.workspace_path().resolve())
+    key = _workspace_key(project)
     with _registry_lock:
         lock = _locks.get(key)
         if lock is None:
@@ -50,3 +67,22 @@ def snapshot_project_with_revision(
     """Capture in-memory render state and the workspace's durable revision together."""
     with project_state_lock(project):
         return project.model_copy(deep=True), project_file_revision(project)
+
+
+@contextmanager
+def project_commit_lock(project: EpisodeProject) -> Iterator[None]:
+    """Serialize history-index + project-JSON commits across threads and processes.
+
+    Takes the in-process state lock first, then a re-entrant per-workspace file lock.
+    """
+    key = _workspace_key(project)
+    with project_state_lock(project):
+        with _registry_lock:
+            file_lock = _file_locks.get(key)
+            if file_lock is None:
+                path = project_commit_lock_path(project)
+                path.parent.mkdir(parents=True, exist_ok=True)
+                file_lock = FileLock(str(path), timeout=PROJECT_COMMIT_LOCK_TIMEOUT_SEC)
+                _file_locks[key] = file_lock
+        with file_lock:
+            yield
