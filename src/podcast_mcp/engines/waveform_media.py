@@ -182,10 +182,11 @@ def media_watch_paths(project: EpisodeProject) -> tuple[Path, ...]:
     return tuple(paths)
 
 
-def track_media_refs(project: EpisodeProject, track: Track) -> MediaRefs:
-    """The track ref plus the source refs of the clips on *track*'s lane."""
+def track_media_refs(project: EpisodeProject, track: Track, *, sources: bool = True) -> MediaRefs:
+    """The track ref plus, unless ``sources=False``, the clip source refs of *track*'s lane."""
     candidates = [_track_candidate(project, track)]
-    candidates += [_source_candidate(project, s) for s in _clip_source_ids(project, track.id)]
+    if sources:
+        candidates += [_source_candidate(project, s) for s in _clip_source_ids(project, track.id)]
     return _resolve(project, candidates, fresh_only=False)
 
 
@@ -239,10 +240,7 @@ def ensure_track_waveforms(project: EpisodeProject, track: Track, *, sources: bo
     ``sources=False`` builds only the ``track:<id>`` ref (what social-clip energy
     reads) and skips the source refs of the clips on the lane.
     """
-    if sources:
-        refs = track_media_refs(project, track).refs
-    else:
-        refs = _resolve(project, [_track_candidate(project, track)], fresh_only=False).refs
+    refs = track_media_refs(project, track, sources=sources).refs
     ready = 0
     artifacts = project.artifacts_dir()
     for ref, entry in refs.items():
@@ -273,7 +271,7 @@ def track_pyramid(project: EpisodeProject, track_id: str) -> tuple[Path, Pyramid
     track = project.track_by_id(track_id)
     if track is None:
         return None
-    resolved = track_media_refs(project, track).refs.get(f"track:{track_id}")
+    resolved = track_media_refs(project, track, sources=False).refs.get(f"track:{track_id}")
     if resolved is None:
         return None
     target = pyramid_target(project.artifacts_dir(), f"track:{track_id}", resolved)

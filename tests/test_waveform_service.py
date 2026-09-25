@@ -429,6 +429,14 @@ def test_ensure_project_waveforms_track_refs_only_then_all(tmp_path):
 # --- GC -------------------------------------------------------------------------------
 
 
+def test_track_media_refs_sources_flag(tmp_path):
+    project = load_project(waveform_project(tmp_path))
+    guest = project.track_by_id("guest")
+    assert guest is not None
+    assert set(wm.track_media_refs(project, guest, sources=False).refs) == {"track:guest"}
+    assert set(wm.track_media_refs(project, guest).refs) == {"track:guest", "source:s_host"}
+
+
 def test_gc_pyramids_drops_week_old_orphans_once(tmp_path):
     project_path = waveform_project(tmp_path)
     peaks = project_path.parent / "artifacts" / "peaks"
