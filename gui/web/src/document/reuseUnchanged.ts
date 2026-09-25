@@ -15,7 +15,12 @@ function sameMuteRegions(
   );
 }
 
-/** Same own keys with equal values; `mute_regions` compared per region. */
+/**
+ * Same own keys with equal values; `mute_regions` compared per region.
+ * Any other nested value compares by identity, so a freshly parsed one never
+ * matches. That is safe (the row only loses reuse), but a nested field added to
+ * `ClipRow` or `TrackView` that should keep reuse needs its own case here.
+ */
 function sameShallow<T extends object>(a: T, b: T): boolean {
   const aKeys = Object.keys(a) as (keyof T)[];
   if (aKeys.length !== Object.keys(b).length) {
