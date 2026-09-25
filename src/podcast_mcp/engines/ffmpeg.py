@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import json
 import re
 import shutil
@@ -349,13 +350,15 @@ class FFmpegEngine:
             timed_out = threading.Event()
 
             watch_lock = threading.Lock()
-            waiting = False
+            # Generation of the armed watchdog (0 = disarmed). Each chunk arms a
+            # new one, so a timer from an earlier chunk that runs late is stale.
+            armed = 0
 
-            def _watchdog() -> None:
+            def _watchdog(gen: int) -> None:
                 # A timer that fires after its chunk's read (and EOF wait)
-                # finished is stale: never kill a completed read or blame it.
+                # finished, even once the next chunk has armed, is ignored.
                 with watch_lock:
-                    if not waiting:
+                    if armed != gen:
                         return
                     timed_out.set()
                     proc.kill()
@@ -363,6 +366,7 @@ class FFmpegEngine:
             timer: threading.Timer | None = None
             frame_bytes = 4 * channels
             remaining = max_frames
+            gen = 0
             try:
                 stdout = proc.stdout
                 if stdout is None:
@@ -371,16 +375,17 @@ class FFmpegEngine:
                     want = chunk_frames if remaining is None else min(chunk_frames, remaining)
                     # Armed only while waiting on ffmpeg: time the consumer spends
                     # between chunks (level builds, a busy pool) never counts.
+                    gen += 1
                     with watch_lock:
-                        waiting = True
-                    timer = threading.Timer(timeout_sec, _watchdog)
+                        armed = gen
+                    timer = threading.Timer(timeout_sec, functools.partial(_watchdog, gen))
                     timer.daemon = True
                     timer.start()
                     buf = _read_exact(stdout, want * frame_bytes)
                     short = len(buf) < want * frame_bytes
                     code = proc.wait() if short else 0
                     with watch_lock:
-                        waiting = False
+                        armed = 0
                     timer.cancel()
                     frames = len(buf) // frame_bytes
                     if frames:
