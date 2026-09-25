@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MAX_CONTENT_PX } from "../utils/timelineZoom.generated";
 import { MAX_ZOOM_PX_PER_SEC, ZOOM_STEP } from "../utils/zoom";
 import { noteZoomPointerClientX } from "../utils/zoomPointer";
-import { useDawStore } from "./dawStore";
+import { useDawStore, zoomReclampPatch } from "./dawStore";
 
 type FakeTimelineOptions = {
   left?: number;
@@ -339,9 +339,7 @@ describe("applyAnchoredZoom", () => {
 
     // A zoom under the new ceiling is left alone.
     useDawStore.setState({ zoomPxPerSec: 10, scrollLeft: 5 });
-    useDawStore.getState().reclampZoomForDuration();
-    expect(useDawStore.getState().zoomPxPerSec).toBe(10);
-    expect(useDawStore.getState().scrollLeft).toBe(5);
+    expect(zoomReclampPatch(useDawStore.getState(), 3600)).toEqual({});
   });
 
   it("uses visualViewport CSS px when no timeline element is registered", () => {

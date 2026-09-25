@@ -418,9 +418,6 @@ export const useDawStore = create<DawStore>((set, get) => ({
   _lanesEl: null,
   setZoomPxPerSec: (zoomPxPerSec) =>
     set({ zoomPxPerSec: clampZoomPxPerSec(zoomPxPerSec, sessionSecOf(get())) }),
-  reclampZoomForDuration: () => {
-    set(zoomReclampPatch(get(), sessionSecOf(get())));
-  },
   setWaveformAmpZoom: (waveformAmpZoom) =>
     set({ waveformAmpZoom: clampWaveformAmp(waveformAmpZoom) }),
   nudgeWaveformAmp: (direction) => {
