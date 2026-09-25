@@ -7,11 +7,12 @@ The engine lives in
 and its knobs live in the `waveform` block of
 [`contracts/timeline-zoom.json`](../contracts/timeline-zoom.json).
 
-> **Status:** the engine (format, build, decode, I/O and job pool) and the
-> HTTP API (status, tiles, PCM windows; host and guest) are in place. The
-> viewer still paints from the legacy overview JSON
+> **Status:** the engine (format, build, decode, I/O and job pool), the
+> HTTP API (status, tiles, PCM windows; host and guest) and the client data
+> layer and raster worker (§ Client) are in place. The viewer still paints
+> from the legacy overview JSON
 > (`artifacts/peaks/{track}.json`, [gui-integration.md § Waveforms](gui-integration.md))
-> until the pyramid renderer lands (#429). The rest of #429 lands in stacked PRs:
+> until the pyramid renderer is wired in. The rest of #429 lands in stacked PRs:
 >
 > - #444 (part 6) moves `gui/web/src/timeline/quietWash.ts` off its local
 >   `QUIET_AMP` / `MIN_DURATION_SEC` onto the generated `QUIET_*` constants.
@@ -294,3 +295,71 @@ Guest tiles are cached `private, max-age=31536000, immutable` under their
 content-addressed key, so revoking a share does not remove tiles a guest's
 browser already downloaded (the same holds for the legacy peaks route).
 Revocation stops new requests only.
+
+## Client
+
+`gui/web/src/waveform/` holds the viewer's data layer and rasterizer. It is
+not wired into the timeline yet. Each module has a `*.test.ts`.
+
+- **Refs and status.**
+  - `mediaRef.ts`: `clipMediaRef(clip, laneTrack, kind)` returns
+    `stem:<lane>` while the lane's stem is fresh in FX mode, otherwise
+    `source:<source_id>` or `track:<origin track>`.
+    `clipMediaStartSec` returns the media time at the clip's left edge: the
+    live source start, or the timeline clock for stems.
+    `mediaSignature(project)` covers the inputs that decide the listed refs.
+  - `statusStore.ts`: one poller per (project, kind), through
+    `api.ts` `loadWaveformStatus` (host route, or the share route for
+    `share:` keys). It polls again after 1, 2, then 4 s while anything is
+    generating, and stops otherwise. It polls at once on a media-signature
+    change (the `WaveformStatusSync` leaf) and after a tile 404 (once per
+    key). `useWaveformStatus(projectPath, kind, ref)` returns one entry,
+    with the same object identity while it is unchanged.
+- **Data** (budgets in `budgets.ts`: bitmaps 128 MB, or 48 MB on the phone
+  shell; tiles 64 or 32 MB; PCM 32 MB; 4 fetches in flight on the host and
+  3 through a share, tiles and PCM combined).
+  - `pyramidStore.ts`: missing data tiles are queued by priority (visible,
+    overscan, prefetch), deduplicated, and fetched in runs of up to
+    `max_tiles_per_request`. A 429 re-queues after `Retry-After`. Zoom and
+    scroll never abort a fetch; only leaving the project does. When a ref
+    becomes ready, the store prefetches the coarsest level and the next two
+    levels when each has at most 8 tiles. `getBins` returns a copy, and
+    missing bins have `rms = -1`.
+  - `pcmStore.ts` (host only): block-aligned `(min, max)` frames. A 409
+    polls status again.
+  - `pyramidMath.ts`: `levelFor` and the pyramid and PCM envelope
+    reductions (the PCM one is the envelope of the piecewise-linear
+    interpolant).
+- **Rendering.**
+  - `renderTiles.ts` holds the tile geometry. Tile `k` covers media seconds
+    `[k·512/zoom, (k+1)·512/zoom)`, at paint DPR `d = paintDpr(dpr)`. The
+    module also computes the origin snapped to device pixels, the visible
+    range with ±512 px overscan, the canvas rectangle clipped to the clip,
+    the tile keys, and the mode: pyramid, pcm, or pcm drawn as a line.
+  - `shade.ts` turns an envelope into per-column geometry: the peak span and
+    the RMS body in device rows. Silence and columns with no data are
+    skipped, and thin columns are widened to 1 row (pyramid) or 1.5 rows
+    (PCM). It also holds the row-coverage formula. `rasterCpu.ts` and
+    `rasterGl.ts` both draw from this geometry, so the two cannot drift
+    apart. Each pixel is `core·rc + edge·(pc − rc)`, premultiplied.
+  - The WebGL2 path uploads the geometry as a `cols × 1` RGBA32F texture and
+    draws one full-screen triangle.
+  - `raster.worker.ts` uses WebGL2 on an `OffscreenCanvas` when it can, and
+    otherwise the CPU rasterizer plus `createImageBitmap`. It falls back to
+    the CPU after a context loss.
+  - `rasterClient.ts` keeps at most 4 jobs outstanding. It drops queued jobs
+    that are no longer wanted, but caches results that arrive late. Its
+    backend is `none` without `Worker` (jsdom).
+  - `bitmapCache.ts` holds the finished bitmaps and calls `close()` on
+    every one it evicts. While a tile's exact bitmap is pending, it offers
+    the nearest-zoom bitmap that overlaps as a stand-in. A bitmap rendered
+    from a coarser level is kept only as a stand-in, never as the exact hit.
+- **Colours:** `timeline/waveformTheme.ts` `waveformStyle(layer, colorVar,
+  theme)` returns the lane's core and edge tints as RGBA floats. Without a
+  readable fill it falls back to `--color-waveform-peak`, with the edge at
+  0.6 alpha.
+- **E2E hook:** `waveform/e2eHook.ts` sets `window.__SHARECUT_E2E_WAVEFORM`
+  to `{backend, tilesRendered, rasterParity()}`, in test and
+  `VITE_SHARECUT_E2E=1` builds only. `rasterParity()` renders a fixed tile
+  in the worker through WebGL2 and through the CPU, and returns the largest
+  difference, `max(|Δa|, |Δ(rgb·a)|/255)`.

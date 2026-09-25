@@ -5,6 +5,8 @@ import { peakAmp, peakIndexRange, WAVEFORM_OVERSCAN_PX } from "../utils/peaks";
 import { paintDpr } from "../utils/timelineZoom.generated";
 
 export { WAVEFORM_OVERSCAN_PX } from "../utils/peaks";
+// Clip tints moved to waveformTheme.ts; re-exported until the old painter goes.
+export { clipWaveformFill, parseRgb } from "./waveformTheme";
 
 export type VisibleClipWindow = {
   cssWidth: number;
@@ -125,80 +127,6 @@ export function samePaintInputs(
     prev.tiles.length === next.tiles.length &&
     prev.tiles.every((tile, i) => tile === next.tiles[i])
   );
-}
-
-const WAVEFORM_CORE_LIGHTEN = 0.45;
-const WAVEFORM_EDGE_LIGHTEN = 0.72;
-
-const NUM = String.raw`(-?[\d.]+(?:e[-+]?\d+)?)`;
-const ALPHA = String.raw`(?:\s*[,/]\s*([\d.]+%?))?`;
-const RGB_RE = new RegExp(
-  String.raw`^rgba?\(\s*${NUM}[\s,]+${NUM}[\s,]+${NUM}${ALPHA}\s*\)$`,
-  "i",
-);
-/** What `getComputedStyle` returns for `color-mix()` / `oklch()` fills. */
-const SRGB_RE = new RegExp(
-  String.raw`^color\(\s*srgb\s+${NUM}\s+${NUM}\s+${NUM}${ALPHA}\s*\)$`,
-  "i",
-);
-
-function parseAlpha(raw: string | undefined): number {
-  if (raw == null) {
-    return 1;
-  }
-  const n = raw.endsWith("%") ? Number(raw.slice(0, -1)) / 100 : Number(raw);
-  return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 1;
-}
-
-/**
- * Channels (0–255) and alpha (0–1) of a computed colour: `rgb()` / `rgba()`,
- * or `color(srgb r g b / a)` with 0–1 channels.
- */
-function parseRgb(
-  color: string,
-): { rgb: [number, number, number]; alpha: number } | null {
-  const text = color.trim();
-  const rgb = text.match(RGB_RE);
-  const srgb = rgb ? null : text.match(SRGB_RE);
-  const match = rgb ?? srgb;
-  if (!match) {
-    return null;
-  }
-  const scale = srgb ? 255 : 1;
-  const channel = (raw: string | undefined) =>
-    Math.min(255, Math.max(0, Number(raw) * scale));
-  return {
-    rgb: [channel(match[1]), channel(match[2]), channel(match[3])],
-    alpha: parseAlpha(match[4]),
-  };
-}
-
-function towardWhite(
-  [r, g, b]: [number, number, number],
-  amount: number,
-): string {
-  const mix = (channel: number) =>
-    Math.round(channel + (255 - channel) * amount);
-  return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
-}
-
-/**
- * Waveform tints derived from the clip's own fill, so every track keeps its
- * identity color. Returns null when the fill is unparseable or fully
- * transparent, so the themed peak color applies; partial alpha keeps the
- * channels (clip fills are opaque today).
- */
-export function clipWaveformFill(
-  clipBackground: string,
-): { core: string; edge: string } | null {
-  const parsed = parseRgb(clipBackground);
-  if (!parsed || parsed.alpha === 0) {
-    return null;
-  }
-  return {
-    core: towardWhite(parsed.rgb, WAVEFORM_CORE_LIGHTEN),
-    edge: towardWhite(parsed.rgb, WAVEFORM_EDGE_LIGHTEN),
-  };
 }
 
 export function paintWaveform(

@@ -56,6 +56,7 @@ import {
 } from "./utils/documentClient";
 import { withVolumeEnvelopePoints } from "./utils/envelopes";
 import { jobResultPaths } from "./utils/pipeline";
+import type { WaveformKind, WaveformStatus } from "./waveform/types";
 
 async function hostFetch(input: string, init?: RequestInit): Promise<Response> {
   return fetch(input, {
@@ -193,6 +194,108 @@ export async function loadPeaks(
     `/api/peaks/${encodeURIComponent(trackId)}?path=${encodeURIComponent(projectPath)}`,
   );
   return peaksFetchResult(res);
+}
+
+/** A failed waveform request, with the server's `Retry-After` (seconds). */
+export class WaveformFetchError extends ApiError {
+  readonly retryAfterSec: number | null;
+
+  constructor(status: number, retryAfterSec: number | null) {
+    super(`Waveform request failed (${status})`, null, status);
+    this.name = "WaveformFetchError";
+    this.retryAfterSec = retryAfterSec;
+  }
+}
+
+async function waveformResponse(res: Response): Promise<Response> {
+  if (res.ok) {
+    return res;
+  }
+  const retry = Number(res.headers.get("Retry-After"));
+  throw new WaveformFetchError(
+    res.status,
+    Number.isFinite(retry) && retry >= 0 ? retry : null,
+  );
+}
+
+/** Pyramid status of every listed media ref (`docs/waveform.md` § API). */
+export async function loadWaveformStatus(
+  projectPath: string,
+  kind: WaveformKind,
+  signal?: AbortSignal,
+): Promise<WaveformStatus> {
+  if (isShareProjectKey(projectPath)) {
+    // Guests only get raw media.
+    if (kind !== "raw") {
+      return { format_version: 1, media: {} };
+    }
+    const token = shareTokenFromKey(projectPath)!;
+    const res = await fetch(`${reviewApiBase(token)}/daw/waveform/status`, {
+      signal,
+    });
+    return (await waveformResponse(res)).json() as Promise<WaveformStatus>;
+  }
+  const params = new URLSearchParams({ path: projectPath, kind });
+  const res = await hostFetch(`/api/waveform/status?${params}`, { signal });
+  return (await waveformResponse(res)).json() as Promise<WaveformStatus>;
+}
+
+/** Concatenated bins of data tiles `[start, start + count)` of one level. */
+export async function loadWaveformTiles(
+  projectPath: string,
+  req: {
+    key: string;
+    ref: string;
+    level: number;
+    start: number;
+    count: number;
+  },
+  signal?: AbortSignal,
+): Promise<ArrayBuffer> {
+  const params = new URLSearchParams({
+    ref: req.ref,
+    level: String(req.level),
+    start: String(req.start),
+    count: String(req.count),
+  });
+  const key = encodeURIComponent(req.key);
+  if (isShareProjectKey(projectPath)) {
+    const token = shareTokenFromKey(projectPath)!;
+    const res = await fetch(
+      `${reviewApiBase(token)}/daw/waveform/tiles/${key}?${params}`,
+      { signal },
+    );
+    return (await waveformResponse(res)).arrayBuffer();
+  }
+  params.set("path", projectPath);
+  const res = await hostFetch(`/api/waveform/tiles/${key}?${params}`, {
+    signal,
+  });
+  return (await waveformResponse(res)).arrayBuffer();
+}
+
+/**
+ * Host deep zoom: int16 `(min, max)` pairs for one PCM block. There is no
+ * guest route; raw samples never go to guests.
+ */
+export async function loadWaveformPcm(
+  projectPath: string,
+  req: { key: string; ref: string; block: number },
+  signal?: AbortSignal,
+): Promise<ArrayBuffer> {
+  if (isShareProjectKey(projectPath)) {
+    throw new WaveformFetchError(403, null);
+  }
+  const params = new URLSearchParams({
+    path: projectPath,
+    ref: req.ref,
+    block: String(req.block),
+  });
+  const res = await hostFetch(
+    `/api/waveform/pcm/${encodeURIComponent(req.key)}?${params}`,
+    { signal },
+  );
+  return (await waveformResponse(res)).arrayBuffer();
 }
 
 export type WaveformSnapPayload = {
