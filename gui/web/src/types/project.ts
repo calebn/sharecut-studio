@@ -298,21 +298,6 @@ export type Selection =
   | { kind: "envelopePoint"; trackId: string; index: number }
   | null;
 
-export interface PeaksData {
-  peaks: number[] | Uint8Array;
-  samples_per_pixel: number;
-  sample_rate: number;
-  bins_per_sec?: number;
-  encoding?: string;
-  duration_sec?: number;
-}
-
-/** Result of a peaks fetch: ready with data, still generating server-side, or unavailable. */
-export type PeaksFetchResult =
-  | { status: "ready"; peaks: PeaksData }
-  | { status: "generating" }
-  | { status: "unavailable" };
-
 export interface HistoryDiff {
   from_index?: number | null;
   to_index?: number | null;

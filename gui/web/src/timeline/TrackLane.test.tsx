@@ -4,27 +4,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ClipRow, TrackView } from "../types/project";
 import { TrackLane } from "./TrackLane";
 
-const mockPeaksState = vi.hoisted(() => ({
-  current: { peaks: null as unknown, status: "idle" as string },
+const laneStatus = vi.hoisted(() => ({
+  current: "idle" as string,
+  refs: [] as string[],
 }));
 
-vi.mock("../hooks/usePeaks", () => ({
-  usePeaks: () => mockPeaksState.current,
-}));
-
-vi.mock("../hooks/useClipWaveform", () => ({
-  useClipWaveform: () => ({
-    window: {
-      cssWidth: 100,
-      canvasLeft: 0,
-      sourceStart: 0,
-      sourceEnd: 10,
-      offscreen: false,
-    },
-    quiet: [],
-    ticks: [],
-    paint: vi.fn(),
-  }),
+vi.mock("../waveform/statusStore", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../waveform/statusStore")>()),
+  useWaveformStatus: () => null,
+  useLaneWaveformStatus: (_path: string, refsKey: string) => {
+    laneStatus.refs.push(refsKey);
+    return laneStatus.current;
+  },
 }));
 
 const track: TrackView = {
@@ -59,7 +50,6 @@ const baseProps = {
   width: 1000,
   zoomPxPerSec: 100,
   projectPath: "/tmp/p.json",
-  hasPeaks: false,
   selection: null,
   showLevels: false,
   showEdits: false,
@@ -73,7 +63,7 @@ const baseProps = {
 
 describe("TrackLane bladeMode", () => {
   afterEach(() => {
-    mockPeaksState.current = { peaks: null, status: "idle" };
+    laneStatus.current = "idle";
   });
 
   it("routes clip hit through onSeek with lane-seek underlay when bladeMode", async () => {
@@ -131,13 +121,13 @@ describe("TrackLane bladeMode", () => {
   });
 });
 
-describe("TrackLane peaks status hint", () => {
+describe("TrackLane waveform status hint", () => {
   afterEach(() => {
-    mockPeaksState.current = { peaks: null, status: "idle" };
+    laneStatus.current = "idle";
   });
 
-  it("shows a generating hint and marks the lane while waveform peaks are pending", () => {
-    mockPeaksState.current = { peaks: null, status: "generating" };
+  it("shows a generating hint and marks the lane while a pyramid builds", () => {
+    laneStatus.current = "generating";
     const { container } = render(
       <TrackLane {...baseProps} onSeek={vi.fn()} onSelectClip={vi.fn()} />,
     );
@@ -145,12 +135,12 @@ describe("TrackLane peaks status hint", () => {
       "Generating waveform…",
     );
     expect(
-      container.querySelector("[data-peaks-status='generating']"),
+      container.querySelector("[data-waveform-status='generating']"),
     ).toBeTruthy();
   });
 
-  it("shows an unavailable hint when peaks cannot be generated", () => {
-    mockPeaksState.current = { peaks: null, status: "unavailable" };
+  it("shows an unavailable hint when no ref has a pyramid", () => {
+    laneStatus.current = "unavailable";
     const { container } = render(
       <TrackLane {...baseProps} onSeek={vi.fn()} onSelectClip={vi.fn()} />,
     );
@@ -158,27 +148,41 @@ describe("TrackLane peaks status hint", () => {
       "Waveform unavailable",
     );
     expect(
-      container.querySelector("[data-peaks-status='unavailable']"),
+      container.querySelector("[data-waveform-status='unavailable']"),
     ).toBeTruthy();
   });
 
-  it("shows no hint once peaks are ready", () => {
-    mockPeaksState.current = {
-      peaks: { peaks: [], samples_per_pixel: 1, sample_rate: 1 },
-      status: "ready",
-    };
+  it("shows no hint once a pyramid is ready", () => {
+    laneStatus.current = "ready";
     const { container } = render(
       <TrackLane {...baseProps} onSeek={vi.fn()} onSelectClip={vi.fn()} />,
     );
-    expect(container.querySelector(".lane-peaks-status")).toBeNull();
-    expect(container.querySelector("[data-peaks-status='ready']")).toBeTruthy();
+    expect(container.querySelector(".lane-waveform-status")).toBeNull();
+    expect(
+      container.querySelector("[data-waveform-status='ready']"),
+    ).toBeTruthy();
   });
 
   it("shows no hint while idle", () => {
-    mockPeaksState.current = { peaks: null, status: "idle" };
+    laneStatus.current = "idle";
     const { container } = render(
       <TrackLane {...baseProps} onSeek={vi.fn()} onSelectClip={vi.fn()} />,
     );
-    expect(container.querySelector(".lane-peaks-status")).toBeNull();
+    expect(container.querySelector(".lane-waveform-status")).toBeNull();
+  });
+});
+
+describe("TrackLane media refs", () => {
+  it("asks lane status for the refs its clips draw", () => {
+    laneStatus.refs = [];
+    render(
+      <TrackLane
+        {...baseProps}
+        clips={[clip, { ...clip, id: "c2", source_id: "s1" }]}
+        onSeek={vi.fn()}
+        onSelectClip={vi.fn()}
+      />,
+    );
+    expect(laneStatus.refs.at(-1)).toBe("source:s1\ntrack:host");
   });
 });

@@ -241,7 +241,7 @@ requires HTTP 200 and host setup still waits for `networkidle`.
 | Share HTTP / MCP / WS parity | `test_share_http_mcp_parity.py` (`scripts/export_docs_site_contract.py`; WS discovery + curated notes for `/api/rec/` and `/api/review/`) |
 | Document handlers / caps | `test_document_sync.py`, `test_review_share.py`, `test_remote_mcp.py`, `test_structural_policy.py` |
 | GUI / timeline inspector APIs | `test_gui_api.py`, `test_waveform_zoom.py` |
-| Zoom-matched waveforms | `test_timeline_zoom.py`, `test_peaks.py`, `test_waveform_zoom.py` (incl. guest overview + snap ACL), `gui/web/src/audio/waveformExtract.test.ts`, `gui/web/src/timeline/drawWaveform.test.ts`, Playwright `e2e/waveform.spec.ts` (host always; guest `/r/{token}` when share tokens exist) |
+| Zoom-matched waveforms | `test_timeline_zoom.py`, `test_peaks.py`, `test_waveform_zoom.py` (incl. guest overview + snap ACL), `gui/web/src/waveform/*.test.ts` (tile geometry, envelope reduction vs brute force, shared CPU/GL shading, stores, worker), `gui/web/src/timeline/WaveformLayer.test.tsx`, Playwright `e2e/waveform.spec.ts` (host tiles, WebGL2 + raster parity on Chromium, guest tiles through the share route with no PCM) and the compat matrix (`webgl2` or `cpu-worker`) |
 | Brand / public CSS | `test_brand_color_roles.py`, `test_public_sites.py`, `test_css_policy.py`, `test_css_no_important.py` |
 | Body / host security hardening | `test_security_hardening.py` (pure ASGI `MaxBodySizeMiddleware`, authz, served_project) |
 | Large-project benchmark fixture | `test_large_project_fixture.py` (`scripts/build_large_project_fixture.py`; two-hour shape under `e2e_real`), Playwright `e2e/large-project.spec.ts` (opt-in) |

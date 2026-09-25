@@ -1,6 +1,6 @@
 {
-  "max_overview_bytes": 200000,
+  "max_tile_response_bytes": 393216,
+  "tile_count_slop": 1,
   "max_full_audio_bytes": 5000000,
-  "canvas_overscan_slop_px": 1120,
-  "notes": "aligned_dialogue is ~60s. Playwright imports these numbers from this file. Overscan slop is WAVEFORM_OVERSCAN_PX (512) × 2 plus a small layout margin. Guest HTTP contracts live in pytest (share_daw_peaks)."
+  "notes": "aligned_dialogue is ~60s. Playwright imports these numbers from this file. A tile response holds at most max_tiles_per_request (16) data tiles of bins_per_data_tile (4096) bins × 6 B. A clip mounts at most ceil((viewport + 2 × 512 overscan) / 512) render tiles, plus tile_count_slop for a partial edge tile. Guest HTTP contracts live in pytest (share_daw_waveform_*)."
 }

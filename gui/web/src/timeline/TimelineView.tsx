@@ -9,6 +9,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { shallow } from "zustand/shallow";
@@ -59,6 +60,11 @@ import {
 } from "../utils/timelineViewport";
 import { useStableCallback } from "../utils/useStableCallback";
 import { noteZoomPointerClientX } from "../utils/zoomPointer";
+import {
+  getRasterBackend,
+  subscribeRasterBackend,
+} from "../waveform/rasterClient";
+import { WaveformStatusSync } from "../waveform/WaveformStatusSync";
 import { AuditionOverlay } from "./AuditionOverlay";
 import { CommentPlaybackBubble } from "./CommentPlaybackBubble";
 import { CommentSelectionOverlay } from "./CommentSelectionOverlay";
@@ -164,6 +170,11 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     })),
   );
   const followColorIndex = useDawStore(selectFollowColorIndex);
+  const waveformBackend = useSyncExternalStore(
+    subscribeRasterBackend,
+    getRasterBackend,
+    () => "none",
+  );
   const project = useDawStore(
     useShallow((s) => {
       const p = s.project;
@@ -178,7 +189,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
         envelopes: p.envelopes,
         applied_edits: p.applied_edits,
         pending_edits: p.pending_edits,
-        peaks_index: p.peaks_index,
         chapters: p.chapters,
         social_clips: p.social_clips,
         render_status: p.render_status,
@@ -736,6 +746,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
           className={`timeline-area${fixedPlayhead ? " timeline-area--fixed-playhead" : ""}`}
           data-following={followingClientId ? "" : undefined}
           data-playing={isPlaying}
+          data-waveform-backend={waveformBackend}
           data-lane-density={
             laneHeight < COMPACT_LANE_HEIGHT ? "compact" : undefined
           }
@@ -767,6 +778,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
           }
         >
           {scrollLeaves}
+          <WaveformStatusSync />
           {fixedPlayhead ? (
             <div className="playhead playhead--fixed" aria-hidden>
               <FollowPlayheadChip />
@@ -920,7 +932,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                           width={width}
                           zoomPxPerSec={zoomPxPerSec}
                           projectPath={projectPath}
-                          hasPeaks={project.peaks_index[track.id] ?? false}
                           selection={selection}
                           showLevels={layers.showLevels}
                           showEdits={layers.showEdits}

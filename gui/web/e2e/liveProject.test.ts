@@ -8,6 +8,7 @@ import {
 } from "./cleanupManifest";
 import { committedE2eProjectPath } from "./env";
 import {
+  copyUxDemoProject,
   createRelocatedE2eProject,
   E2E_FIXTURE_COPY_TEST_TIMEOUT_MS,
   prepareLiveE2eProject,
@@ -162,4 +163,40 @@ describe("prepareLiveE2eProject", () => {
     },
     E2E_FIXTURE_COPY_TEST_TIMEOUT_MS,
   );
+});
+
+describe("copyUxDemoProject", () => {
+  const saved = process.env.UX_DEMO_PROJECT;
+
+  afterEach(() => {
+    if (saved === undefined) {
+      delete process.env.UX_DEMO_PROJECT;
+    } else {
+      process.env.UX_DEMO_PROJECT = saved;
+    }
+  });
+
+  it("copies media behind symlinks and reuses the copy", () => {
+    delete process.env.UX_DEMO_PROJECT;
+    const src = fs.mkdtempSync(path.join(os.tmpdir(), "ux-demo-src-"));
+    const media = path.join(src, "real.wav");
+    fs.writeFileSync(media, "RIFF");
+    fs.mkdirSync(path.join(src, "demo", "raw"), { recursive: true });
+    fs.writeFileSync(path.join(src, "demo", "episode.project.json"), "{}");
+    fs.symlinkSync(media, path.join(src, "demo", "raw", "a.wav"));
+    const projectPath = copyUxDemoProject(
+      path.join(src, "demo", "episode.project.json"),
+    );
+    try {
+      const copied = path.join(path.dirname(projectPath), "raw", "a.wav");
+      expect(fs.lstatSync(copied).isSymbolicLink()).toBe(false);
+      expect(fs.readFileSync(copied, "utf8")).toBe("RIFF");
+      expect(copyUxDemoProject("/nowhere/episode.project.json")).toBe(
+        projectPath,
+      );
+    } finally {
+      fs.rmSync(path.dirname(projectPath), { recursive: true, force: true });
+      fs.rmSync(src, { recursive: true, force: true });
+    }
+  });
 });

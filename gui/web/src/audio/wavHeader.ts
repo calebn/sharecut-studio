@@ -82,24 +82,6 @@ export function parseWavHeader(buffer: ArrayBufferLike): WavHeader {
   };
 }
 
-export function byteRangeForTime(
-  header: WavHeader,
-  startSec: number,
-  endSec: number,
-): { start: number; endExclusive: number } {
-  const startFrame = Math.max(0, Math.floor(startSec * header.sampleRate));
-  const endFrame = Math.max(
-    startFrame + 1,
-    Math.ceil(endSec * header.sampleRate),
-  );
-  const start = header.dataOffset + startFrame * header.blockAlign;
-  const endExclusive = Math.min(
-    header.dataOffset + header.dataSize,
-    header.dataOffset + endFrame * header.blockAlign,
-  );
-  return { start, endExclusive };
-}
-
 function readSample(view: DataView, offset: number, header: WavHeader): number {
   if (header.audioFormat === 3 && header.bitsPerSample === 32) {
     return view.getFloat32(offset, true);
@@ -149,13 +131,6 @@ export function wavPcmToFloat32(
     out[i] = peak;
   }
   return out;
-}
-
-export function isPcmWavPath(path: string | null | undefined): boolean {
-  if (!path) {
-    return false;
-  }
-  return /\.wav$/i.test(path);
 }
 
 function writeFourcc(view: DataView, offset: number, id: string): void {

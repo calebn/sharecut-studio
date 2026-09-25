@@ -22,8 +22,11 @@ const offlineStore = vi.hoisted(() => ({
 vi.mock("../state/offlineStore", () => offlineStore);
 
 // Full-shell render; not exercising waveform fetching.
-vi.mock("../hooks/usePeaks", () => ({
-  usePeaks: () => ({ peaks: null, status: "idle" }),
+// No waveform status polls: shell tests do not fetch.
+vi.mock("../waveform/statusStore", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../waveform/statusStore")>()),
+  useWaveformStatus: () => null,
+  useLaneWaveformStatus: () => "idle",
 }));
 
 describe("MobileShell", () => {

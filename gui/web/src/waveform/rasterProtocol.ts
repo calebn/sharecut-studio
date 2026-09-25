@@ -100,7 +100,7 @@ export function rasterParityValue(
   return worst;
 }
 
-/** Handle one message in the worker (following `audio/waveformWorker.ts`). */
+/** Handle one message in the worker. */
 export async function handleRasterMessage(
   msg: RasterInMsg,
   engine: RasterEngine,

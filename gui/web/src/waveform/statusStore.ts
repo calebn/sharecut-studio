@@ -271,3 +271,68 @@ export function useWaveformStatus(
     ref ? getWaveformStatusEntry(projectPath, kind, ref) : null;
   return useSyncExternalStore(subscribe, snapshot, snapshot);
 }
+
+/** A lane's waveform hint over the refs its clips draw. */
+export type LaneWaveformStatus =
+  | "idle"
+  | "generating"
+  | "unavailable"
+  | "ready";
+
+/**
+ * Generating if any ref is generating; ready if any is ready; idle while a
+ * ref is not listed yet (or there are none); unavailable only when every
+ * ref is known and none is ready.
+ */
+export function laneWaveformStatus(
+  entries: readonly (StatusEntry | null)[],
+): LaneWaveformStatus {
+  if (entries.length === 0) {
+    return "idle";
+  }
+  if (entries.some((e) => e?.status === "generating")) {
+    return "generating";
+  }
+  if (entries.some((e) => e?.status === "ready")) {
+    return "ready";
+  }
+  if (entries.some((e) => e == null)) {
+    return "idle";
+  }
+  return "unavailable";
+}
+
+/** {@link laneWaveformStatus} of `refsKey` (refs joined by newlines), live. */
+export function useLaneWaveformStatus(
+  projectPath: string,
+  refsKey: string,
+): LaneWaveformStatus {
+  const subscribe = useCallback(
+    (fn: () => void) => {
+      if (!projectPath || !refsKey) {
+        return () => {};
+      }
+      const kinds = new Set(refsKey.split("\n").map(refKind));
+      const offs = [...kinds].map((kind) =>
+        subscribeWaveformStatus(projectPath, kind, fn),
+      );
+      return () => {
+        for (const off of offs) {
+          off();
+        }
+      };
+    },
+    [projectPath, refsKey],
+  );
+  const snapshot = () =>
+    refsKey
+      ? laneWaveformStatus(
+          refsKey
+            .split("\n")
+            .map((ref) =>
+              getWaveformStatusEntry(projectPath, refKind(ref), ref),
+            ),
+        )
+      : "idle";
+  return useSyncExternalStore(subscribe, snapshot, snapshot);
+}

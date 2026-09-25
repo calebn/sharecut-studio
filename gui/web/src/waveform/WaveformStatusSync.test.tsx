@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   retainWaveformStatus: vi.fn(),
   retainPyramids: vi.fn(),
   retainPcm: vi.fn(),
+  startRasterWorker: vi.fn(),
+  installHook: vi.fn(),
 }));
 
 vi.mock("./statusStore", () => ({
@@ -16,6 +18,10 @@ vi.mock("./statusStore", () => ({
 }));
 vi.mock("./pyramidStore", () => ({ retainPyramids: mocks.retainPyramids }));
 vi.mock("./pcmStore", () => ({ retainPcm: mocks.retainPcm }));
+vi.mock("./rasterClient", () => ({
+  startRasterWorker: mocks.startRasterWorker,
+}));
+vi.mock("./e2eHook", () => ({ installWaveformE2eHook: mocks.installHook }));
 
 const { WaveformStatusSync } = await import("./WaveformStatusSync");
 
@@ -42,6 +48,13 @@ describe("WaveformStatusSync", () => {
       }),
     );
     expect(mocks.refreshWaveformStatus).toHaveBeenCalledWith("/tmp/p.json");
+  });
+
+  it("starts the raster worker and the E2E hook once", () => {
+    const view = render(<WaveformStatusSync />);
+    view.rerender(<WaveformStatusSync />);
+    expect(mocks.startRasterWorker).toHaveBeenCalledOnce();
+    expect(mocks.installHook).toHaveBeenCalledOnce();
   });
 
   it("drops other projects' waveform work", () => {

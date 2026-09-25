@@ -1,10 +1,9 @@
-import { memo, useCallback, useRef, useState } from "react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 import type {
   ClipMovePointerInfo,
   ClipSelectMods,
   MoveGhost,
 } from "../edit/clipMove";
-import { usePeaks } from "../hooks/usePeaks";
 import {
   audioFilesFromDrop,
   fileCountFromDataTransfer,
@@ -23,9 +22,10 @@ import type {
   TrackView,
 } from "../types/project";
 import { EMPTY_ARR, EMPTY_OBJ } from "../utils/empty";
-import { trackHasSourceAudio } from "../utils/projectMedia";
 import type { RenderInvalidationView } from "../utils/staleRender";
 import { originTrackId } from "../utils/timebase";
+import { clipMediaRef } from "../waveform/mediaRef";
+import { useLaneWaveformStatus } from "../waveform/statusStore";
 import { AppliedEditOverlay } from "./AppliedEditOverlay";
 import { ClipBlock } from "./ClipBlock";
 import { EnvelopeOverlay } from "./EnvelopeOverlay";
@@ -48,7 +48,6 @@ interface TrackLaneProps {
   width: number;
   zoomPxPerSec: number;
   projectPath: string;
-  hasPeaks: boolean;
   selection: Selection;
   showLevels: boolean;
   showEdits: boolean;
@@ -92,7 +91,6 @@ export function TrackLaneView({
   width,
   zoomPxPerSec,
   projectPath,
-  hasPeaks,
   selection,
   showLevels,
   showEdits,
@@ -118,21 +116,15 @@ export function TrackLaneView({
   staleInvalidations = EMPTY_ARR,
   showStaleInvalidations = false,
 }: TrackLaneProps) {
-  const { peaks, status: peaksStatus } = usePeaks(
-    projectPath,
-    track.id,
-    hasPeaks || trackHasSourceAudio(track),
-    `${hasPeaks ? 1 : 0}|${track.media_path ?? ""}|${track.duration_sec ?? ""}`,
-  );
   const seekRef = useRef<HTMLDivElement>(null);
   const {
-    projectTracks,
+    auditionMode,
     guestMode,
     shareCapabilities,
     setIngestDropTrackId,
     setPointerTrackId,
   } = useDaw((s) => ({
-    projectTracks: s.project?.tracks,
+    auditionMode: s.auditionMode,
     guestMode: s.guestMode,
     shareCapabilities: s.shareCapabilities,
     setIngestDropTrackId: s.setIngestDropTrackId,
@@ -147,14 +139,17 @@ export function TrackLaneView({
     clipCount: clips.length,
   });
 
-  const originPaint = (clip: ClipRow) => {
-    const tid = originTrackId(clip);
-    const src = projectTracks?.find((t) => t.id === tid) ?? track;
-    return {
-      mediaPath: src.media_path,
-      mediaVersion: `${src.media_path ?? ""}|${src.stem_is_fresh ?? ""}|${src.duration_sec ?? ""}`,
-    };
-  };
+  // FX mode draws the lane's fresh stem; otherwise each clip's own media.
+  const waveKind = auditionMode === "fx" ? "stem" : "raw";
+  const mediaRefs = useMemo(
+    () => clips.map((clip) => clipMediaRef(clip, track, waveKind)),
+    [clips, track, waveKind],
+  );
+  const refsKey = useMemo(
+    () => [...new Set(mediaRefs)].sort().join("\n"),
+    [mediaRefs],
+  );
+  const waveformStatus = useLaneWaveformStatus(projectPath, refsKey);
 
   const trackId = track.id;
   const selectClip = useCallback(
@@ -195,7 +190,7 @@ export function TrackLaneView({
       className={`lane-row${track.muted ? " muted" : ""}${bladeHighlight ? " blade-target" : ""}${staleWholeTrack ? " stale-whole-track" : ""}${dropOver ? " lane-drop-target" : ""}`}
       style={{ width }}
       data-track-id={track.id}
-      data-peaks-status={peaksStatus}
+      data-waveform-status={waveformStatus}
       onPointerEnter={(e) => {
         if (e.pointerType === "touch") {
           return;
@@ -239,9 +234,9 @@ export function TrackLaneView({
           })}
         </div>
       ) : null}
-      {peaksStatus === "generating" || peaksStatus === "unavailable" ? (
-        <div className="lane-peaks-status" role="status">
-          {peaksStatus === "generating"
+      {waveformStatus === "generating" || waveformStatus === "unavailable" ? (
+        <div className="lane-waveform-status" role="status">
+          {waveformStatus === "generating"
             ? "Generating waveform…"
             : "Waveform unavailable"}
         </div>
@@ -263,7 +258,6 @@ export function TrackLaneView({
           const grandPrev = clips[i - 2];
           const mediaDur = track.duration_sec ?? Number.POSITIVE_INFINITY;
           const originId = originTrackId(clip);
-          const paint = originPaint(clip);
           return (
             <ClipBlock
               key={clip.id}
@@ -277,9 +271,7 @@ export function TrackLaneView({
                 selectedClipIds.includes(clip.id) ||
                 (selection?.kind === "clip" && selection.id === clip.id)
               }
-              peaks={originId === track.id ? peaks : null}
-              mediaPath={paint.mediaPath}
-              mediaVersion={paint.mediaVersion}
+              mediaRef={mediaRefs[i]!}
               prevClip={prev ?? null}
               nextClip={next ?? null}
               neighborSourceLo={prev?.source_end ?? 0}
@@ -319,9 +311,7 @@ export function TrackLaneView({
             zoomPxPerSec={zoomPxPerSec}
             color={laneColor(track.role, ghost.trackIndex)}
             selected={selectedClipIds.includes(ghost.clip.id)}
-            peaks={null}
-            mediaPath={ghost.mediaPath}
-            mediaVersion={ghost.mediaVersion}
+            mediaRef={clipMediaRef(ghost.clip, track, "raw")}
             prevClip={null}
             nextClip={null}
             neighborSourceLo={0}

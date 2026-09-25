@@ -8,17 +8,14 @@ and its knobs live in the `waveform` block of
 [`contracts/timeline-zoom.json`](../contracts/timeline-zoom.json).
 
 > **Status:** the engine (format, build, decode, I/O and job pool), the
-> HTTP API (status, tiles, PCM windows; host and guest) and the client data
-> layer and raster worker (§ Client) are in place. The viewer still paints
-> from the legacy overview JSON
-> (`artifacts/peaks/{track}.json`, [gui-integration.md § Waveforms](gui-integration.md))
-> until the pyramid renderer is wired in. The rest of #429 lands in stacked PRs:
+> HTTP API (status, tiles, PCM windows; host and guest), the client data
+> layer, the raster worker and the timeline renderer (§ Client) are in place.
+> The legacy overview JSON routes (`/api/peaks`) still exist on the server,
+> but the viewer no longer reads them; their removal is tracked in #429.
 >
-> - #444 (part 6) moves `gui/web/src/timeline/quietWash.ts` off its local
->   `QUIET_AMP` / `MIN_DURATION_SEC` onto the generated `QUIET_*` constants.
-> - #446 (part 8) wires `effectiveMaxZoomPxPerSec` / `MAX_CONTENT_PX` into
->   `clampZoomPxPerSec`. Until then, zoom still clamps to the flat
->   `MAX_ZOOM_PX_PER_SEC`.
+> #446 (part 8) wires `effectiveMaxZoomPxPerSec` / `MAX_CONTENT_PX` into
+> `clampZoomPxPerSec`. Until then, zoom still clamps to the flat
+> `MAX_ZOOM_PX_PER_SEC`.
 
 ## Contract knobs
 
@@ -298,8 +295,9 @@ Revocation stops new requests only.
 
 ## Client
 
-`gui/web/src/waveform/` holds the viewer's data layer and rasterizer. It is
-not wired into the timeline yet. Each module has a `*.test.ts`.
+`gui/web/src/waveform/` holds the viewer's data layer and rasterizer, and
+`timeline/WaveformLayer.tsx` draws each clip from it. Each module has a
+`*.test.ts`.
 
 - **Refs and status.**
   - `mediaRef.ts`: `clipMediaRef(clip, laneTrack, kind)` returns
@@ -373,3 +371,49 @@ not wired into the timeline yet. Each module has a `*.test.ts`.
   `VITE_SHARECUT_E2E=1` builds only. `rasterParity()` renders a fixed tile
   in the worker through WebGL2 and through the CPU, and returns the largest
   difference, `max(|Δa|, |Δ(rgb·a)|/255)`.
+
+### Renderer
+
+`timeline/WaveformLayer.tsx` is a `memo` component with primitive props:
+`{mediaRef, kind, mediaStartSec, clipLeftCss, clipWidthCss, zoom, colorVar}`.
+`ClipBlock` renders one for the clip, and a second for the trim ghost, which
+starts at the ghost's source start and has the ghost's width.
+
+- **Subscriptions.** The layer subscribes to its ref's status entry, the DPR,
+  the amp zoom, the theme and its visible tile range. The range comes from a
+  selector over `scrollLeft` and `timelineViewportWidth` that returns a
+  string (`"k0:k1"`), so scrolling re-renders the layer only when tiles come
+  or go.
+- **Geometry (S5).** `origin` puts media time 0 on a device pixel. Tile
+  `k`'s canvas (`canvas.clip-waveform-tile`) covers only the part of
+  `[k·512 + origin, +512)` inside the clip, and its backing store is
+  `sw × round(height·d)` device px. The layer's height is measured with a
+  `ResizeObserver`, never read during render. Clips narrower than
+  `min_clip_css_px` (6) get no layer.
+- **Draw.** The layer draws the cached bitmap for the tile key
+  (`mediaKey|zoom|d|heightDev|style|ampZoom|k`) with `drawImage` on a 2D
+  context. Without one, it draws a stand-in (the nearest zoom that overlaps,
+  or a render from a coarser level that is already loaded) and asks for the
+  data and a raster. The mode is pyramid, or host PCM below level 0, drawn as
+  a line under 4 frames per device column. Guests use level 0 bins
+  stretched over several pixels.
+- **Hold the old ref.** A new ref (for example, a cross-lane `source_id` flip)
+  replaces the old pyramid only once it is ready. Only `unavailable` hides
+  the waveform.
+- **Quiet wash.** The wash comes from max-pooled column peaks over the
+  mounted tile range, at 8 px/s and above.
+- **Move ghosts.** Ghosts carry `origin_track_id` and always draw raw media.
+- **Lane hint.** `laneWaveformStatus` returns generating when any ref of the
+  lane is generating. It returns unavailable only when every ref is known
+  and none is ready.
+- **Backend.** `TimelineView` mounts `WaveformStatusSync`, which also starts
+  the worker and installs the E2E hook. It renders `data-waveform-backend`
+  on `.timeline-area`.
+
+**Budgets:** the bitmap cache holds 128 MB (48 MB on the phone shell), data
+tiles 64 MB (32 MB on the phone shell) and PCM 32 MB. There are 4 fetches in
+flight on the host and 3 through a share, and 4 raster jobs outstanding.
+**Desktop webviews:** WebGL2 in a worker needs `OffscreenCanvas`. Where a
+webview lacks it (older WKWebView, some WebKitGTK builds), or a GPU context
+is lost, the CPU worker draws the same pixels
+([desktop-packaging.md](desktop-packaging.md)).

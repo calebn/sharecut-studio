@@ -157,62 +157,6 @@ export class ProxyEngine {
     this.decodedBytes = 0;
   }
 
-  copyCachedPcmWindow(
-    trackId: string,
-    startSec: number,
-    endSec: number,
-  ): { pcm: Float32Array; sampleRate: number } | null {
-    const meta = this.manifest?.tracks[trackId];
-    if (!meta || !(endSec > startSec)) {
-      return null;
-    }
-    const chunkSec = meta.chunk_sec;
-    if (!(chunkSec > 0)) {
-      return null;
-    }
-    const i0 = Math.floor(startSec / chunkSec);
-    const i1 = Math.floor((endSec - 1e-9) / chunkSec);
-    const bufs: Array<{ buf: AudioBuffer; idx: number }> = [];
-    for (let i = i0; i <= i1; i++) {
-      const buf = this.buffers.get(this.bufKey(trackId, i));
-      if (!buf) {
-        return null;
-      }
-      bufs.push({ buf, idx: i });
-    }
-    if (bufs.length === 0) {
-      return null;
-    }
-    const sampleRate = bufs[0]?.buf.sampleRate ?? 0;
-    if (!(sampleRate > 0)) {
-      return null;
-    }
-    const n = Math.max(1, Math.ceil((endSec - startSec) * sampleRate));
-    const out = new Float32Array(n);
-    for (const { buf, idx } of bufs) {
-      const chunkStart = idx * chunkSec;
-      const ch0 = buf.getChannelData(0);
-      const ch1 = buf.numberOfChannels > 1 ? buf.getChannelData(1) : null;
-      const localStart = Math.max(0, startSec - chunkStart);
-      const localEnd = Math.min(chunkSec, endSec - chunkStart);
-      const f0 = Math.floor(localStart * sampleRate);
-      const f1 = Math.min(ch0.length, Math.ceil(localEnd * sampleRate));
-      const destOff = Math.floor(
-        (chunkStart + localStart - startSec) * sampleRate,
-      );
-      for (let f = f0; f < f1; f++) {
-        const a = ch0[f] ?? 0;
-        const b = ch1 ? (ch1[f] ?? 0) : 0;
-        const peak = Math.max(Math.abs(a), Math.abs(b));
-        const di = destOff + (f - f0);
-        if (di >= 0 && di < out.length && peak > (out[di] ?? 0)) {
-          out[di] = peak;
-        }
-      }
-    }
-    return { pcm: out, sampleRate };
-  }
-
   private stopSources(): void {
     for (const a of this.active) {
       try {

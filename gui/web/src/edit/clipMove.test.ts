@@ -209,7 +209,9 @@ describe("patchClipsMove / laneMovePreview", () => {
     });
     expect(preview.ghosts).toHaveLength(1);
     expect(preview.ghosts[0]?.clip.timeline_start).toBe(4);
-    expect(preview.ghosts[0]?.mediaPath).toBe("raw/host.wav");
+    // The ghost draws its origin lane's media from the destination lane.
+    expect(preview.ghosts[0]?.clip.origin_track_id).toBe("host");
+    expect(preview.ghosts[0]?.clip.track_id).toBe("guest");
     const origin = laneMovePreview({
       trackId: "host",
       laneClips: [all[0]!],

@@ -136,3 +136,40 @@ export function removeLiveE2eProject(): void {
     fs.unlinkSync(e2eWorkspaceStampPath);
   }
 }
+
+/**
+ * Copy a directory tree, replacing every symlink by what it points at.
+ * (`fs.cpSync`'s `dereference` only follows a symlinked source root.)
+ */
+function copyDereferenced(src: string, dest: string): void {
+  fs.mkdirSync(dest, { recursive: true });
+  for (const name of fs.readdirSync(src)) {
+    const from = path.join(src, name);
+    const to = path.join(dest, name);
+    if (fs.statSync(from).isDirectory()) {
+      copyDereferenced(from, to);
+    } else {
+      fs.copyFileSync(fs.realpathSync(from), to);
+    }
+  }
+}
+
+/**
+ * The UX demo fixture with its media copied in. Its `raw/` files are
+ * symlinks out of the fixture, which the waveform routes reject
+ * (`resolve_within`), so screenshots pin a dereferenced copy. The copy is
+ * reused by every Playwright process of the run (`UX_DEMO_PROJECT`).
+ */
+export function copyUxDemoProject(demoProjectPath: string): string {
+  const existing = process.env.UX_DEMO_PROJECT;
+  if (existing && fs.existsSync(existing)) {
+    return existing;
+  }
+  const workspaceDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "sharecut-e2e-ux-demo-"),
+  );
+  copyDereferenced(path.dirname(demoProjectPath), workspaceDir);
+  const projectPath = path.join(workspaceDir, path.basename(demoProjectPath));
+  process.env.UX_DEMO_PROJECT = projectPath;
+  return projectPath;
+}
