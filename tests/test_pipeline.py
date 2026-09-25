@@ -66,7 +66,7 @@ def test_runner_keeps_logging_after_a_save_swaps_the_render_section(minimal_proj
         on_step_complete=lambda: setattr(proj, "render", proj.render.model_copy(deep=True)),
     )
     logs = proj.pipeline_runs[-1].steps
-    assert [s.step for s in logs][0] == "master_loudness"
-    assert [s.step for s in logs][-1] == "export_deliverables"
+    assert logs[0].step == "master_loudness"
+    assert logs[-1].step == "export_deliverables"
     assert all(s.finished_at for s in logs)
     assert run is proj.pipeline_runs[-1]
