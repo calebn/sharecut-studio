@@ -59,17 +59,20 @@ class ProjectWorkspace:
         params: dict | None = None,
     ) -> T:
         with project_state_lock(self.project):
-            result = run_mutation(
-                self.path,
-                self.project,
-                label_before,
-                label_after,
-                fn,
-                operation=operation,
-                params=params,
-            )
-            self._loaded_file_signature = None
-            return result
+            try:
+                return run_mutation(
+                    self.path,
+                    self.project,
+                    label_before,
+                    label_after,
+                    fn,
+                    operation=operation,
+                    params=params,
+                )
+            finally:
+                # Even a failed save may have changed the in-memory project,
+                # so the next reload reads the file instead of trusting it.
+                self._loaded_file_signature = None
 
     def record_snapshot(self, label: str, *, force: bool = False) -> str:
         entry = HistoryManager(self.path).record(self.project, label, force=force)

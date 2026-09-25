@@ -51,7 +51,7 @@ HANDLERS: dict[str, Handler] = {
     "AddTrack": episode.add_track,
     "SetTrackMedia": episode.set_track_media,
     "SetTrackMeta": episode.set_track_meta,
-    "SetTrackFader": episode.set_track_fader,
+    "SetTrackFader": episode.set_track_volume,
     "SetTrackMute": episode.set_track_mute,
     "RemoveTrack": episode.remove_track,
     "ReorderTrack": episode.reorder_track,

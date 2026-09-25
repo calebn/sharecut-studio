@@ -233,6 +233,23 @@ def test_verify_alignment_no_waveforms_and_requires_two_tracks(
     assert result.per_track_segments == []
 
 
+def test_verify_alignment_still_checks_a_track_muted_in_the_mix(
+    minimal_project: Path,
+    sample_wav: Path,
+) -> None:
+    ws = _two_track_workspace(minimal_project, sample_wav)
+    ws.project.tracks[1].muted = True
+    with (
+        patch("podcast_mcp.services.ingest.vad_speech_intervals", return_value=[]),
+        patch("podcast_mcp.services.ingest.simultaneous_speech_sec", return_value=0.0),
+    ):
+        result = IngestService(ws).verify_alignment(
+            write_waveforms=False,
+            diag_dir=minimal_project / "diag",
+        )
+    assert result.status == "pass"
+
+
 def test_apply_consolidated_tracks(minimal_project: Path, sample_wav: Path) -> None:
     ws = ProjectWorkspace.open(minimal_project)
     ws_path = ws.project.workspace_path()

@@ -161,7 +161,7 @@ class EpisodeService:
             "speaker": track.speaker,
         }
 
-    def set_track_fader(self, track_id: str, fader_db: float) -> dict:
+    def set_track_volume(self, track_id: str, fader_db: float) -> dict:
         """Set a track's saved volume: the mix plays it at ``gain_db + fader_db``."""
         if self.ws.project.track_by_id(track_id) is None:
             raise ValueError(f"unknown track: {track_id}")
@@ -194,7 +194,10 @@ class EpisodeService:
         }
 
     def set_track_mute(self, track_id: str, muted: bool) -> dict:
-        """Set a track's saved mix mute (play, render, bounce and master skip it)."""
+        """Set a track's saved mix mute: the mix, play and bounce leave it out.
+
+        The track stays on the timeline, so edits, stems and analysis cover it.
+        """
         if self.ws.project.track_by_id(track_id) is None:
             raise ValueError(f"unknown track: {track_id}")
 

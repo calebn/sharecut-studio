@@ -125,6 +125,24 @@ def proxy_render_hash(project: EpisodeProject, track_id: str) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
+PREMIX_NAME = "premix.wav"
+PREMIX_HASH_NAME = "premix.hash"
+
+
+def _read_hash(path: Path) -> str | None:
+    """A render's hash sidecar, or None when it's missing or empty."""
+    try:
+        return path.read_text(encoding="utf-8").strip() or None
+    except FileNotFoundError:
+        return None
+
+
+def _write_hash(path: Path, h: str) -> str:
+    """Write a hash sidecar atomically, so a reader never sees half of it."""
+    write_text_atomic(path, h + "\n")
+    return h
+
+
 def stem_path(project: EpisodeProject, track_id: str) -> Path:
     return project.artifacts_dir() / "tracks" / f"{track_id}.wav"
 
@@ -134,10 +152,7 @@ def stem_hash_path(project: EpisodeProject, track_id: str) -> Path:
 
 
 def read_stem_hash(project: EpisodeProject, track_id: str) -> str | None:
-    path = stem_hash_path(project, track_id)
-    if not path.is_file():
-        return None
-    return path.read_text(encoding="utf-8").strip()
+    return _read_hash(stem_hash_path(project, track_id))
 
 
 def write_stem_hash(
@@ -152,10 +167,7 @@ def write_stem_hash(
     clear on the main thread after ``run_parallel`` so the cause journal is
     not mutated concurrently.
     """
-    h = track_render_hash(project, track_id)
-    path = stem_hash_path(project, track_id)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(h + "\n", encoding="utf-8")
+    h = _write_hash(stem_hash_path(project, track_id), track_render_hash(project, track_id))
     if clear_invalidations:
         from podcast_mcp.engines.render_invalidations import (
             clear_invalidations_for_tracks,
@@ -238,32 +250,29 @@ def mix_render_hash(gains: Mapping[str, float]) -> str:
 
 
 def premix_path(project: EpisodeProject) -> Path:
-    return project.artifacts_dir() / "premix.wav"
+    return project.artifacts_dir() / PREMIX_NAME
 
 
 def premix_hash_path(project: EpisodeProject) -> Path:
-    return project.artifacts_dir() / "premix.hash"
+    return project.artifacts_dir() / PREMIX_HASH_NAME
 
 
 def read_premix_hash(project: EpisodeProject) -> str | None:
-    try:
-        return premix_hash_path(project).read_text(encoding="utf-8").strip() or None
-    except FileNotFoundError:
-        return None
+    return _read_hash(premix_hash_path(project))
 
 
 def write_premix_hash(project: EpisodeProject, gains: Mapping[str, float]) -> str:
     """Record the mix ``premix.wav`` was just mixed from (``track id -> gain``)."""
-    h = mix_render_hash(gains)
-    write_text_atomic(premix_hash_path(project), h + "\n")
-    return h
+    return _write_hash(premix_hash_path(project), mix_render_hash(gains))
 
 
 def premix_stale_vs_mix(project: EpisodeProject) -> bool:
     """True when the saved mix settings changed since ``premix.wav`` was mixed.
 
-    A premix mixed before this hash existed had no saved volume or mute, so
-    it's stale once a fader moves off 0 dB or a track is muted.
+    A premix mixed before this hash existed predates saved volumes, so it's
+    stale once a fader moves off 0 dB. It also counts stale once a track is
+    muted: older mixes skipped muted tracks too, but nothing records which,
+    so a project with a hand-set mute re-mixes once.
     """
     if not premix_path(project).is_file():
         return False

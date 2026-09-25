@@ -178,11 +178,7 @@ class IngestService:
         write_waveforms: bool = True,
         diag_dir: Path | None = None,
     ) -> VerifyResult:
-        dialogue = [
-            t
-            for t in self.ws.project.tracks
-            if t.role == TrackRole.DIALOGUE and t.media and not t.muted
-        ]
+        dialogue = [t for t in self.ws.project.tracks if t.role == TrackRole.DIALOGUE and t.media]
         if len(dialogue) < 2:
             raise ValueError("verify requires at least two dialogue tracks")
 

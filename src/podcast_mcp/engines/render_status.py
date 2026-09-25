@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from podcast_mcp.engines.play_audit import (
     expected_stem_duration_sec,
+    premix_path,
     premix_stale_vs_mix,
     probe_stem_duration_sec,
     read_stem_hash,
@@ -37,10 +38,12 @@ def render_status_report(project: EpisodeProject) -> dict:
             "duration_mismatch": exists and not duration_ok,
         }
         tracks[tid] = entry
-        if exists:
+        track = project.track_by_id(tid)
+        # Only stems the mix plays can leave the premix behind.
+        if exists and track is not None and not track.muted:
             stem_mtimes.append(stem.stat().st_mtime)
 
-    premix = project.artifacts_dir() / "premix.wav"
+    premix = premix_path(project)
     premix_info: dict = {
         "path": str(premix) if premix.is_file() else None,
         "exists": premix.is_file(),

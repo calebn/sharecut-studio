@@ -696,7 +696,7 @@ def test_repetition_requires_local_timestamps_and_ignores_filler_words():
     assert not any(candidate.reason.startswith("repetition:") for candidate in candidates)
 
 
-def test_retained_pause_floor_ignores_muted_peer():
+def test_retained_pause_floor_counts_a_peer_muted_in_the_mix():
     from podcast_mcp.edits.fillers import _retained_pause_floor_sec
 
     host_words = [
@@ -731,8 +731,9 @@ def test_retained_pause_floor_ignores_muted_peer():
             }
         },
     )
-    assert solo is True
-    assert floor == pytest.approx(0.55)
+    # The mute is a listening choice; the guest still speaks in this gap.
+    assert solo is False
+    assert floor == pytest.approx(0.18)
 
 
 def test_solo_floor_not_below_turn_floor():

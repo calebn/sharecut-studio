@@ -64,7 +64,7 @@ def track_set_volume_tool(project_path: str, track_id: str, fader_db: float) -> 
     step never changes the fader. Undoable; stales the premix until re-mixed.
     """
     ws = ProjectWorkspace.open(project_path)
-    return EpisodeService(ws).set_track_fader(track_id, fader_db)
+    return EpisodeService(ws).set_track_volume(track_id, fader_db)
 
 
 def track_set_mute_tool(project_path: str, track_id: str, muted: bool) -> dict:
