@@ -5,6 +5,7 @@ import {
   classifyFetchFailure,
   fetchLimit,
   holdBackMs,
+  MISSING_TILE_RETRY_MS,
   trimOnShellChange,
   waveformBudget,
   waveformFetchGate,
@@ -51,8 +52,29 @@ const retries = new Set<{
 }>();
 /** Tile ids held back after a failed fetch (a 429 until Retry-After, otherwise FAILED_FETCH_BACKOFF_MS). */
 const cooling = new Set<string>();
-/** Tile ids that 404'd or came back short under their key; skipped until the key is ready again. */
-const missing = new Set<string>();
+/**
+ * Tile ids that 404'd or came back short under their key, with the time they
+ * may be asked again: skipped until the key is ready again or
+ * MISSING_TILE_RETRY_MS passes (a truncated response can recover under the same key).
+ */
+const missing = new Map<string, number>();
+
+function markMissing(id: string): void {
+  missing.set(id, Date.now() + MISSING_TILE_RETRY_MS);
+}
+
+/** Whether `id` is still skipped as missing; an expired entry is dropped. */
+function stillMissing(id: string): boolean {
+  const until = missing.get(id);
+  if (until === undefined) {
+    return false;
+  }
+  if (Date.now() < until) {
+    return true;
+  }
+  missing.delete(id);
+  return false;
+}
 const listeners = keyedListeners();
 
 function tileId(key: string, level: number, tile: number): string {
@@ -88,7 +110,7 @@ export function requestTiles(
       data.has(id) ||
       inflight.has(id) ||
       cooling.has(id) ||
-      missing.has(id)
+      stillMissing(id)
     ) {
       continue;
     }
@@ -162,7 +184,7 @@ function store(run: Pending[], buf: ArrayBuffer): void {
     if (short || offset + n > all.length) {
       // Fewer tiles came back than were asked for: treat the rest like a 404.
       short = true;
-      missing.add(id);
+      markMissing(id);
       continue;
     }
     const bins = all.slice(offset, offset + n);
@@ -210,7 +232,7 @@ function dispatch(run: Pending[]): void {
       const failure = classifyFetchFailure(err);
       if (failure.kind === "missing") {
         for (const id of ids) {
-          missing.add(id);
+          markMissing(id);
         }
         noteWaveformTileMissing(head.projectPath, head.ref, head.meta.key);
         return;
@@ -334,7 +356,7 @@ export function prefetchPyramid(source: Source): void {
 /** A key that is ready again may have the tiles that 404'd. */
 function forgetMissing(key: string): void {
   const prefix = `${key}|`;
-  for (const id of [...missing]) {
+  for (const id of [...missing.keys()]) {
     if (id.startsWith(prefix)) {
       missing.delete(id);
     }

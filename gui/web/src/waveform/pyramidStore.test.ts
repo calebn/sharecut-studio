@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WaveformFetchError } from "../api";
-import { FAILED_FETCH_BACKOFF_MS, waveformFetchGate } from "./budgets";
+import {
+  FAILED_FETCH_BACKOFF_MS,
+  MISSING_TILE_RETRY_MS,
+  waveformFetchGate,
+} from "./budgets";
 import type { PyramidMeta } from "./types";
 
 type Call = {
@@ -265,6 +269,20 @@ describe("pyramidStore", () => {
     );
     requestTiles(source, 1, [1], PRIORITY_VISIBLE);
     expect(calls).toHaveLength(0);
+  });
+
+  it("asks for a missing tile again after MISSING_TILE_RETRY_MS under the same key", async () => {
+    vi.useFakeTimers();
+    requestTiles(source, 1, [2], PRIORITY_VISIBLE);
+    calls.shift()!.reject(new WaveformFetchError(404, null));
+    await flush();
+    vi.advanceTimersByTime(MISSING_TILE_RETRY_MS - 1);
+    requestTiles(source, 1, [2], PRIORITY_VISIBLE);
+    expect(calls).toHaveLength(0);
+    vi.advanceTimersByTime(1);
+    requestTiles(source, 1, [2], PRIORITY_VISIBLE);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.req).toMatchObject({ level: 1, start: 2, count: 1 });
   });
 
   it("hands a queued tile to the project that asked last", async () => {
