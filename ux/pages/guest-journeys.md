@@ -194,7 +194,7 @@ flowchart TD
    "No audio is reaching the recorder." alert with **Check mic** appears and REC
    reads "REC: no audio". Real audio, or a Check mic that finds a running,
    unmuted microphone, clears it. A sleeping or throttled tab restarts the
-   5-second wait instead of alarming. The wait also starts only once the recorder is attached, and restarts if it reopens. Check mic with no recorder attached reopens it and says so if that fails. If the alert returns after Check mic, it adds unmute-or-reconnect guidance until audio arrives. The host can close the record dialog while the alert shows; the transport chip keeps saying no audio.
+   5-second wait instead of alarming. The wait also starts only once the recorder is attached, and restarts if it reopens. Check mic with no recorder attached reopens it and says so if that fails. If the alert returns after Check mic, it adds unmute-or-reconnect guidance until audio arrives. The host can close the record dialog while the alert shows; the transport chip keeps saying no audio. Hardware checks for this alert are listed in the recording-session golden-ear checklist.
    Reconnect opens a new segment at the current room clock; if a selected device was
    unplugged, recovery can use the default available input. In the lobby,
    microphone loss disables Accept until recovery.
