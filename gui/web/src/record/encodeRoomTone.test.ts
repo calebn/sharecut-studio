@@ -1,16 +1,19 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { encodeRoomToneWav } from "./encodeRoomTone";
-import { attachKeeperTap } from "./keeper/graph";
+import { openKeeperTap } from "./keeper/graph";
 import { KEEPER_SAMPLE_RATE } from "./keeper/pcm";
 
 vi.mock("./keeper/graph", () => ({
-  attachKeeperTap: vi.fn(
+  openKeeperTap: vi.fn(
     async (_stream, onPcm: (pcm: Float32Array, rate: number) => void) => {
       onPcm(
         new Float32Array(KEEPER_SAMPLE_RATE).fill(0.01),
         KEEPER_SAMPLE_RATE,
       );
-      return () => undefined;
+      return {
+        stop: () => undefined,
+        resume: async () => "running" as AudioContextState,
+      };
     },
   ),
 }));
@@ -34,7 +37,7 @@ describe("encodeRoomToneWav", () => {
     });
     expect(encoded.wav.byteLength).toBeGreaterThan(44);
     expect(encoded.samples.length).toBe(KEEPER_SAMPLE_RATE);
-    expect(attachKeeperTap).toHaveBeenCalledOnce();
+    expect(openKeeperTap).toHaveBeenCalledOnce();
   });
 
   it("uses deterministic PCM only for the room-tone E2E harness", async () => {
@@ -46,18 +49,18 @@ describe("encodeRoomToneWav", () => {
 
     expect(encoded.wav.byteLength).toBe(288_044);
     expect(encoded.samples).toHaveLength(144_000);
-    expect(attachKeeperTap).not.toHaveBeenCalled();
+    expect(openKeeperTap).not.toHaveBeenCalled();
   });
 
   it("stops the tap even when samples arrive during attach", async () => {
     const stop = vi.fn();
-    vi.mocked(attachKeeperTap).mockImplementationOnce(
+    vi.mocked(openKeeperTap).mockImplementationOnce(
       async (_stream, onPcm: (pcm: Float32Array, rate: number) => void) => {
         onPcm(
           new Float32Array(KEEPER_SAMPLE_RATE).fill(0.01),
           KEEPER_SAMPLE_RATE,
         );
-        return stop;
+        return { stop, resume: async () => "running" as AudioContextState };
       },
     );
     await encodeRoomToneWav({} as MediaStream, { durationSec: 1 });
@@ -67,9 +70,9 @@ describe("encodeRoomToneWav", () => {
   it("rejects when aborted before samples arrive", async () => {
     const stop = vi.fn();
     const controller = new AbortController();
-    vi.mocked(attachKeeperTap).mockImplementationOnce(async () => {
+    vi.mocked(openKeeperTap).mockImplementationOnce(async () => {
       controller.abort();
-      return stop;
+      return { stop, resume: async () => "running" as AudioContextState };
     });
     await expect(
       encodeRoomToneWav({} as MediaStream, {
@@ -83,7 +86,10 @@ describe("encodeRoomToneWav", () => {
   it("times out if samples never arrive", async () => {
     vi.useFakeTimers();
     const stop = vi.fn();
-    vi.mocked(attachKeeperTap).mockImplementationOnce(async () => stop);
+    vi.mocked(openKeeperTap).mockImplementationOnce(async () => ({
+      stop,
+      resume: async () => "running" as AudioContextState,
+    }));
     const pending = encodeRoomToneWav({} as MediaStream, { durationSec: 1 });
     const expectation = expect(pending).rejects.toThrow(/timed out/);
     await vi.advanceTimersByTimeAsync(2000);

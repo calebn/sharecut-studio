@@ -48,7 +48,7 @@ export async function openKeeperTap(
         node.port.onmessage = null;
         node.disconnect();
         silent.disconnect();
-        void opened.close();
+        void opened.close().catch(() => undefined);
       },
       resume: async () => {
         try {
@@ -61,15 +61,8 @@ export async function openKeeperTap(
     };
   } catch (err) {
     if (ctx) {
-      void ctx.close();
+      void ctx.close().catch(() => undefined);
     }
     throw err;
   }
-}
-
-export async function attachKeeperTap(
-  stream: MediaStream,
-  onPcm: (pcm: Float32Array, sampleRate: number) => void,
-): Promise<() => void> {
-  return (await openKeeperTap(stream, onPcm)).stop;
 }

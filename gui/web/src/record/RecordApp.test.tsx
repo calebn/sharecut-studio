@@ -31,7 +31,6 @@ vi.mock("./monitor/useRecordMonitor", () => ({
 }));
 
 vi.mock("./keeper/graph", () => ({
-  attachKeeperTap: vi.fn(async () => () => undefined),
   openKeeperTap: vi.fn(async () => ({
     stop: () => undefined,
     resume: async () => "running",
