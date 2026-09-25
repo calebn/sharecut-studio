@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import threading
 from unittest.mock import MagicMock, patch
 
@@ -415,36 +414,35 @@ def test_episode_service_add_track(minimal_project, sample_wav, tmp_path):
     assert len(clips) == 1
     assert clips[0].source_start == 0.0
     assert clips[0].source_end == track.media.duration_sec
-    from podcast_mcp.engines.peaks import wait_peaks_jobs
+    from podcast_mcp.engines.waveform_pyramid import wait_pyramid_jobs
 
-    wait_peaks_jobs()
-    peaks_path = ws.project.artifacts_dir() / "peaks" / "guest.json"
-    assert peaks_path.is_file()
+    wait_pyramid_jobs()
+    assert len(list((ws.project.artifacts_dir() / "peaks").glob("track-guest.*.wfpk"))) == 1
 
 
-def test_episode_service_add_track_returns_before_peaks(minimal_project, sample_wav):
+def test_episode_service_add_track_returns_before_waveform(minimal_project, sample_wav):
     from unittest.mock import patch
 
-    from podcast_mcp.engines.peaks import wait_peaks_jobs
+    from podcast_mcp.engines import waveform_pyramid
+    from podcast_mcp.engines.waveform_pyramid import wait_pyramid_jobs
 
     ws = ProjectWorkspace.open(minimal_project)
     release = threading.Event()
     started = threading.Event()
+    real_decode = waveform_pyramid.decode_media
 
-    def _gated_generate(audio_path, output_json, samples_per_pixel=None):
+    def _gated_decode(path, **kwargs):
         started.set()
         assert release.wait(timeout=5.0)
-        output_json.parent.mkdir(parents=True, exist_ok=True)
-        output_json.write_text("{}", encoding="utf-8")
-        return output_json
+        return real_decode(path, **kwargs)
 
-    with patch("podcast_mcp.engines.peaks.generate_peaks", side_effect=_gated_generate):
+    with patch.object(waveform_pyramid, "decode_media", side_effect=_gated_decode):
         EpisodeService(ws).add_track("slow", str(sample_wav), speaker="Slow")
         assert started.wait(timeout=5.0)
         assert not release.is_set()
         release.set()
-        wait_peaks_jobs()
-        assert started.is_set()
+        wait_pyramid_jobs()
+    assert list((ws.project.artifacts_dir() / "peaks").glob("track-slow.*.wfpk"))
 
 
 def test_episode_service_empty_set_meta_remove(minimal_project, sample_wav):
@@ -460,14 +458,11 @@ def test_episode_service_empty_set_meta_remove(minimal_project, sample_wav):
     media = svc.set_track_media("narrator", str(sample_wav))
     assert media["duration_sec"] and media["duration_sec"] > 0
     assert len(clips_for_track(ws.project, "narrator")) == 1
-    from podcast_mcp.engines.peaks import wait_peaks_jobs
+    from podcast_mcp.engines.waveform_pyramid import read_meta, wait_pyramid_jobs
 
-    wait_peaks_jobs()
-    peaks = ws.project.artifacts_dir() / "peaks" / "narrator.json"
-    assert peaks.is_file()
-    payload = json.loads(peaks.read_text(encoding="utf-8"))
-    assert isinstance(payload.get("peaks"), list)
-    assert payload["peaks"]
+    wait_pyramid_jobs()
+    (pyramid,) = (ws.project.artifacts_dir() / "peaks").glob("track-narrator.*.wfpk")
+    assert read_meta(pyramid).total_frames > 0
 
     meta = svc.set_track_meta("narrator", label="Voiceover", role="sfx")
     assert meta["label"] == "Voiceover"

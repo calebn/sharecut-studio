@@ -2269,8 +2269,6 @@ export function audioUrl(
   opts?: {
     rerender?: boolean;
     cacheKey?: string;
-    startSec?: number;
-    endSec?: number;
   },
 ): string {
   if (isShareProjectKey(projectPath)) {
@@ -2297,15 +2295,6 @@ export function audioUrl(
   }
   if (opts?.cacheKey) {
     params.set("v", opts.cacheKey);
-  }
-  if (
-    opts?.startSec != null &&
-    opts?.endSec != null &&
-    Number.isFinite(opts.startSec) &&
-    Number.isFinite(opts.endSec)
-  ) {
-    params.set("start_sec", String(opts.startSec));
-    params.set("end_sec", String(opts.endSec));
   }
   const st = getSessionToken();
   if (st) {

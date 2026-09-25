@@ -50,23 +50,6 @@ def resolve_viewer_transport(
     )
 
 
-def extract_viewer_waveform_window(
-    workspace: ProjectWorkspace,
-    *,
-    kind: str,
-    track_id: str,
-    start_sec: float,
-    end_sec: float,
-) -> Path:
-    """Windowed PCM for waveform tiles via :meth:`PlayService.extract_waveform_window`."""
-    return PlayService(workspace).extract_waveform_window(
-        kind=kind,
-        track_id=track_id,
-        start_sec=start_sec,
-        end_sec=end_sec,
-    )
-
-
 def audio_cache_headers(path: Path) -> dict[str, str]:
     st = path.stat()
     return {

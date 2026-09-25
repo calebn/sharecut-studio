@@ -44,7 +44,6 @@ const PROJECT_KEYS: (keyof ProjectView)[] = [
   "edit_impact",
   "history",
   "transcript",
-  "peaks_index",
 ];
 
 function mergeHydration(

@@ -1,5 +1,3 @@
 artifacts/*
-!artifacts/peaks/
-!artifacts/peaks/*.json
 history/
 export/

@@ -30,7 +30,6 @@ export function minimalProject(
     },
     history: { cursor: 0, can_undo: false, can_redo: false, groups: [] },
     transcript: null,
-    peaks_index: {},
     ...overrides,
   };
 }

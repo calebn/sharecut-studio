@@ -213,7 +213,7 @@ When the timeline / transport / track headers **or the Transcript tab** are focu
 | **S** | Listen-only solo for everyone (AFL-style; never saved, never exported). Tracks your solo silences show a dashed "implied mute" on M. Solid = saved in the mix; dashed = only you hear it that way. |
 | **Volume** | Track inspector fader: saved `fader_db` (`track.setVolume` → `SetTrackFader`), −60 to +12 dB on top of the staging gain the pipeline's balance step writes (balance never touches it). Each step shows and plays at once (the premix is marked behind, so Mix switches to stems); the last value of a burst is saved 300 ms after it (one undo step). Mix changes send one at a time; an unsaved or queued value stays shown over server snapshots until it lands, and undo, redo and hiding the page send it first. Double-click or **Reset** sets 0 dB. Read-only without `edit`, with the reason shown under it. The header gain strip shows the output gain. |
 
-Audio is served by `GET /api/audio?path=&kind=premix|stem|raw&track_id=` with HTTP Range support and an `ETag` (mtime+size) so Range revalidation can hit the browser cache. Optional `start_sec`/`end_sec` (capped at 8s) returns a short PCM extract via `PlayService.extract_waveform_window` for compressed raw media. Resolution of full files goes through **`PlayService.resolve_transport_path`**. Optional `rerender=true` matches CLI `--rerender`. The Sharecut Studio FX transport passes `rerender=true` (plus a cache-bust `v=`) when a track’s stem is stale — e.g. after Track inspector **Bypass** toggles — so A/B audition hears the new chain.
+Audio is served by `GET /api/audio?path=&kind=premix|stem|raw&track_id=` with HTTP Range support and an `ETag` (mtime+size) so Range revalidation can hit the browser cache. Resolution of full files goes through **`PlayService.resolve_transport_path`**. Optional `rerender=true` matches CLI `--rerender`. The Sharecut Studio FX transport passes `rerender=true` (plus a cache-bust `v=`) when a track’s stem is stale — e.g. after Track inspector **Bypass** toggles — so A/B audition hears the new chain.
 
 ### Waveforms (pyramid tiles)
 
@@ -348,8 +348,7 @@ Keyboard **`=` / `+` / `-` / `\`** (zoom in / out / fit) require **`timelineFocu
 | `GET /api/project?path=` | Bootstrap JSON (`ProjectView`). Default `phase=shell`; `phase=detail` hydrates words+history; `phase=full` is the full dump. Loopback also pins `served_project` for host MCP |
 | `POST /api/project/close` | Loopback — unpin `served_project` (host home / New project) |
 | `GET /api/project/meta?path=` | `{ mtime_ns, size, server_seq }` for live reload |
-| `GET /api/audio?path=&kind=&track_id=&rerender=` | Stream premix / stem / raw via `PlayService` (Range + ETag). Optional `start_sec`/`end_sec` windowed PCM |
-| `GET /api/peaks/{track_id}?path=` | Legacy (the viewer draws from pyramid tiles; removal is tracked in #429): uint8 overview peaks JSON (contract `overview_bins_per_sec`); 404 `{"available": false, "track_id", "generating"}` while the overview is missing (generation is queued when possible) |
+| `GET /api/audio?path=&kind=&track_id=&rerender=` | Stream premix / stem / raw via `PlayService` (Range + ETag) |
 | `GET /api/waveform-snap?path=&track_id=&start=&end=` | Windowed inaudible-cut ticks + islands for the snap overlay |
 | `GET /api/history/diff?path=&from_index=&to_index=` | Snapshot delta |
 | `POST /api/document/command?path=` | Typed document commands (`UndoHistory`, `SetClipFade`, `TrimClipEdge`, `SetEnvelope`, `AddChapter`, …) |
@@ -401,10 +400,10 @@ Implementation: [`src/podcast_mcp/gui/`](../src/podcast_mcp/gui/) (`server.py` w
 
 - `GET /favicon.svg` is served from the built `gui/web/dist` root (not only `/assets`).
 - Hashed files under `/assets/*` use `Cache-Control: public, max-age=31536000, immutable`; HTML (`/`, `/r/{token}`, `/rec/{token}`) stays `no-cache`.
-- JSON responses (project, peaks, …) are gzip-compressed when the client accepts encoding (`GZipMiddleware`). Document `/api/document/ws` (and guest dual-plane WS) negotiate permessage-deflate.
+- JSON responses (project, waveform status, …) are gzip-compressed when the client accepts encoding (`GZipMiddleware`). Document `/api/document/ws` (and guest dual-plane WS) negotiate permessage-deflate.
 - Guest Sharecut Studio (`share:{token}`) does **not** poll `/api/pipeline/*` — pipeline status is host-only.
 - Guest `daw/project` keeps a zeroed `edit_impact` stub (StatusBar-safe), empties
-  `social_clips`, and strips transcript `words[]`; guest peaks are the same uint8 overview as the host.
+  `social_clips`, and strips transcript `words[]`; guest waveforms are the host's raw-media pyramid tiles (no stems, no PCM).
 - ReviewApp registers optional WebMCP tools (`play_pause`, `seek_timeline`, `add_comment`) when the browser exposes `navigator.modelContext`.
 - Record lobby (`/rec/{token}`) fetches `GET /api/rec/{token}/bootstrap` then
   connects `WS /api/rec/{token}/ws` (Join / Consent / roster / WebRTC Signal)

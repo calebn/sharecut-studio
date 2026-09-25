@@ -222,14 +222,15 @@ def test_export_deliverables_with_chapters(minimal_project, sample_wav, tmp_work
     assert (proj.export_dir() / f"{proj.name}.srt").is_file()
 
 
-def test_ingest_peaks_failure_tolerated(minimal_project, sample_wav, tmp_workspace):
+def test_ingest_waveform_failure_tolerated(minimal_project, sample_wav, tmp_workspace):
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     with patch(
-        "podcast_mcp.pipeline.steps.ensure_track_peaks",
-        return_value=None,
+        "podcast_mcp.pipeline.steps.ensure_track_waveforms",
+        return_value=0,
     ):
-        steps.ingest_tracks(proj, load_defaults())
+        summary = steps.ingest_tracks(proj, load_defaults())
     assert proj.track_by_id("host").media.duration_sec
+    assert "0 waveforms" in summary
 
 
 def test_transcribe_tracks_mock(minimal_project, sample_wav, tmp_workspace):
@@ -701,7 +702,7 @@ def test_ingest_tracks_resolves_relative_media_path(minimal_project, sample_wav,
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     host = proj.track_by_id("host")
     host.media.path = str((proj.workspace_path() / "raw" / "host.wav").resolve())
-    with patch("podcast_mcp.pipeline.steps.ensure_track_peaks"):
+    with patch("podcast_mcp.pipeline.steps.ensure_track_waveforms", return_value=0):
         steps.ingest_tracks(proj, load_defaults())
     assert host.media.duration_sec is not None
 

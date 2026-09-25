@@ -69,11 +69,8 @@ def _assert_benchmark_shape(
             with wave.open(str(workspace / folder / f"{track_id}.wav")) as audio:
                 assert audio.getframerate() == 48_000
                 assert audio.getnframes() == duration * 48_000
-        peaks = json.loads(
-            (workspace / "artifacts" / "peaks" / f"{track_id}.json").read_text(encoding="utf-8")
-        )
-        assert peaks["source"] == str(workspace / "raw" / f"{track_id}.wav")
-        assert peaks["peaks"] and set(peaks["peaks"]) == {0}
+        assert len(list((workspace / "artifacts" / "peaks").glob(f"track-{track_id}.*.wfpk"))) == 1
+    assert not list((workspace / "artifacts" / "peaks").glob("*.json"))  # no legacy overview
     assert [path.name for path in workspace.parent.iterdir()] == [workspace.name]
 
 
@@ -155,7 +152,7 @@ def test_large_project_fixture_removes_staging_on_failure(tmp_path, monkeypatch)
     def fail(*_args, **_kwargs):
         raise OSError("disk full")
 
-    monkeypatch.setattr(builder, "write_silent_peaks", fail)
+    monkeypatch.setattr(builder, "write_synthetic_pyramid", fail)
     with pytest.raises(OSError, match="disk full"):
         builder.build_project(tmp_path / "partial", duration=10, clip_count=2, utterance_count=2)
     assert list(tmp_path.iterdir()) == []

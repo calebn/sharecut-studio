@@ -152,7 +152,6 @@ class ProjectView(BaseModel):
     edit_impact: dict[str, Any]
     history: dict[str, Any]
     transcript: dict[str, Any] | None = None
-    peaks_index: dict[str, bool] = Field(default_factory=dict)
 
 
 class CommentCreateRequest(BaseModel):

@@ -35,23 +35,11 @@ WAVEFORM_EXPORTS: tuple[tuple[str, str], ...] = (
 
 def generate() -> str:
     data = json.loads(CONTRACT.read_text(encoding="utf-8"))
-    peaks = data["peaks"]
     waveform = data["waveform"]
     min_z = data["min_zoom_px_per_sec"]
     max_z = data["max_zoom_px_per_sec"]
     max_content_px = data["max_content_px"]
     step = data["zoom_step"]
-    decode_hz = peaks["overview_decode_hz"]
-    overview_bins = peaks["overview_bins_per_sec"]
-    dpr_headroom = peaks["dpr_headroom"]
-    # One PAINT_DPR_CAP, from the waveform block; Python's paint_dpr_cap() reads the
-    # same key, and tests/test_timeline_zoom.py asserts the legacy peaks copy is equal.
-    paint_dpr_cap = waveform["paint_dpr_cap"]
-    tile_sec = peaks["tile_sec"]
-    edit_focus_sec = peaks["edit_focus_sec"]
-    edit_focus_mult = peaks["edit_focus_multiplier"]
-    finest = max_z * dpr_headroom
-    overview_spp = max(1, round(decode_hz / overview_bins))
     return "\n".join(
         [
             "/** Generated from contracts/timeline-zoom.json — do not edit by hand. */",
@@ -60,15 +48,7 @@ def generate() -> str:
             f"export const MAX_ZOOM_PX_PER_SEC = {max_z};",
             f"export const MAX_CONTENT_PX = {max_content_px};",
             f"export const ZOOM_STEP = {step};",
-            f"export const OVERVIEW_DECODE_HZ = {decode_hz};",
-            f"export const OVERVIEW_BINS_PER_SEC = {overview_bins};",
-            f"export const OVERVIEW_SAMPLES_PER_PIXEL = {overview_spp};",
-            f"export const DPR_HEADROOM = {dpr_headroom};",
-            f"export const PAINT_DPR_CAP = {paint_dpr_cap};",
-            f"export const TILE_SEC = {tile_sec};",
-            f"export const EDIT_FOCUS_SEC = {edit_focus_sec};",
-            f"export const EDIT_FOCUS_MULTIPLIER = {edit_focus_mult};",
-            f"export const FINEST_BINS_PER_SEC = {finest};",
+            f"export const PAINT_DPR_CAP = {waveform['paint_dpr_cap']};",
             *[f"export const {name} = {waveform[key]};" for key, name in WAVEFORM_EXPORTS],
             "",
             "/** Paint DPR on a 1/8 grid, so `RENDER_TILE_CSS_PX * paintDpr(d)` is an integer. */",
@@ -82,23 +62,6 @@ def generate() -> str:
             "/** Zoom ceiling that keeps the timeline content under MAX_CONTENT_PX. */",
             "export function effectiveMaxZoomPxPerSec(sessionSec: number): number {",
             "  return Math.min(MAX_ZOOM_PX_PER_SEC, MAX_CONTENT_PX / Math.max(sessionSec, 1));",
-            "}",
-            "",
-            "export function detailBinsPerSec(",
-            "  zoomPxPerSec: number,",
-            "  devicePixelRatio: number,",
-            "): number {",
-            "  return Math.min(zoomPxPerSec * paintDpr(devicePixelRatio), FINEST_BINS_PER_SEC);",
-            "}",
-            "",
-            "export function editFocusBinsPerSec(",
-            "  zoomPxPerSec: number,",
-            "  devicePixelRatio: number,",
-            "): number {",
-            "  return Math.min(",
-            "    detailBinsPerSec(zoomPxPerSec, devicePixelRatio) * EDIT_FOCUS_MULTIPLIER,",
-            "    OVERVIEW_DECODE_HZ,",
-            "  );",
             "}",
             "",
         ]

@@ -528,7 +528,6 @@ def test_host_binding_rejects_evil_host(minimal_project, monkeypatch):
     assert path_requires_host_binding("/api/project/open")
     assert path_requires_host_binding("/api/project/pick")
     assert path_requires_host_binding("/api/audio")
-    assert path_requires_host_binding("/api/peaks/host")
     assert path_requires_host_binding("/api/waveform-snap")
     assert path_requires_host_binding("/api/waveform/tiles/x")
     assert path_requires_host_binding("/api/waveform/status")

@@ -40,7 +40,6 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
     ("GET", "/api/review/{token}/audio"): ("play", "ReviewApp frozen mix"),
     ("GET", "/api/review/{token}/daw/project"): ("view", "Sanitized ProjectView (no host paths)"),
     ("GET", "/api/review/{token}/daw/meta"): ("view", "mtime/size for poll reload"),
-    ("GET", "/api/review/{token}/daw/peaks/{track_id}"): ("view", "Uint8 overview waveform"),
     ("GET", "/api/review/{token}/daw/waveform/status"): (
         "view",
         "Waveform pyramid status (raw media)",
@@ -134,9 +133,6 @@ _ROUTE_AGENT: dict[tuple[str, str], str] = {
     ("GET", "/api/review/{token}/audio"): "guest_audio_info",
     ("GET", "/api/review/{token}/daw/project"): "guest_get_project",
     ("GET", "/api/review/{token}/daw/meta"): "http-only: poll mtime for Sharecut Studio reload",
-    ("GET", "/api/review/{token}/daw/peaks/{track_id}"): (
-        "http-only: Sharecut Studio peaks; agents use guest_audition_context"
-    ),
     ("GET", "/api/review/{token}/daw/waveform/status"): (
         "http-only: Sharecut Studio waveform; agents use guest_audition_context"
     ),

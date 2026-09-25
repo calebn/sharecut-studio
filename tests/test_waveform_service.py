@@ -431,7 +431,10 @@ def test_gc_pyramids_drops_week_old_orphans_once(tmp_path):
         path.write_bytes(b"x")
         if label != "orphan_new":
             os.utime(path, (old, old))
-    assert gc_pyramids(project_path) == 1
+    legacy = peaks / "host.json"  # pre-pyramid overview JSON is always swept
+    legacy.write_text("{}", encoding="utf-8")
+    assert gc_pyramids(project_path) == 2
+    assert not legacy.exists()
     assert not (peaks / names["orphan_old"]).exists()
     assert all((peaks / names[k]).exists() for k in ("orphan_new", "live_old", "odd"))
     (peaks / names["orphan_new"]).touch()
@@ -584,3 +587,13 @@ def test_source_ref_resolves_like_clip_render(tmp_path):
     track = project.track_by_id(clip.track_id)
     entry = wm.collect_media_refs(project).refs["source:s_host"]
     assert entry.abs_path == resolve_clip_audio_path(project, track, clip)
+
+
+def test_track_media_symlinked_outside_workspace_is_skipped(tmp_path):
+    project_path = waveform_project(tmp_path)
+    outside = write_wav(tmp_path / "outside.wav", 640)
+    (project_path.parent / "raw" / "host.wav").unlink()
+    (project_path.parent / "raw" / "host.wav").symlink_to(outside)
+    index = media_index(project_path)
+    assert "track:host" not in index.refs
+    assert "track:host" not in index.unavailable

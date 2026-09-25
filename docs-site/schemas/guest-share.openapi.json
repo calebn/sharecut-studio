@@ -6388,50 +6388,6 @@
         }
       }
     },
-    "/api/review/{token}/daw/peaks/{track_id}": {
-      "get": {
-        "parameters": [
-          {
-            "in": "path",
-            "name": "token",
-            "required": true,
-            "schema": {
-              "title": "Token",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "track_id",
-            "required": true,
-            "schema": {
-              "title": "Track Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        }
-      }
-    },
     "/api/review/{token}/daw/pending-preview": {
       "get": {
         "description": "Listen-first Current / Suggested / A/B WAV (``play`` + ``view``).",

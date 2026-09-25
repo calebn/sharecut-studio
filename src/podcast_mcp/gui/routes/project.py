@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import json
 import threading
 from pathlib import Path
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from podcast_mcp.gui.assembler import (
@@ -15,7 +13,6 @@ from podcast_mcp.gui.assembler import (
 )
 from podcast_mcp.gui.audio import (
     audio_file_response,
-    extract_viewer_waveform_window,
     resolve_viewer_audio,
 )
 from podcast_mcp.gui.host_file_dialog import pick_episode_project_path
@@ -23,7 +20,6 @@ from podcast_mcp.gui.jobs import project_meta
 from podcast_mcp.gui.routes.deps import peer_host, require_host, resolve_project
 from podcast_mcp.project_io import require_episode_project_file
 from podcast_mcp.services import HistoryService, ProjectWorkspace
-from podcast_mcp.services.peaks import lookup_track_peaks, peaks_unavailable_body
 from podcast_mcp.services.session_sync.authz import is_loopback_host
 
 router = APIRouter()
@@ -206,26 +202,6 @@ def get_project_meta(
     return project_meta(project_path)
 
 
-@router.get("/api/peaks/{track_id}")
-def get_peaks(
-    track_id: str,
-    request: Request,
-    path: str = Query(..., description="Path to episode.project.json"),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
-):
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
-    project_path = resolve_project(path, request)
-    ws = ProjectWorkspace.open(project_path)
-    lookup = lookup_track_peaks(ws.project, track_id)
-    if lookup.path is None:
-        return JSONResponse(
-            status_code=404,
-            content=peaks_unavailable_body(track_id, generating=lookup.generating),
-        )
-    return json.loads(lookup.path.read_text(encoding="utf-8"))
-
-
 @router.get("/api/waveform-snap")
 def get_waveform_snap(
     request: Request,
@@ -276,14 +252,6 @@ def get_audio(
         False,
         description="Rebuild premix/stem before serving (same as podcast play --rerender)",
     ),
-    start_sec: float | None = Query(
-        None,
-        description="Optional window start for waveform PCM extract (source/stem clock)",
-    ),
-    end_sec: float | None = Query(
-        None,
-        description="Optional window end for waveform PCM extract",
-    ),
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
@@ -296,25 +264,6 @@ def get_audio(
     if review_version_id:
         transport_kind = f"review:{review_version_id}"
         transport_track = None
-    if start_sec is not None and end_sec is not None:
-        if not transport_track:
-            raise HTTPException(
-                status_code=400,
-                detail="track_id required for windowed audio",
-            )
-        try:
-            audio_path = extract_viewer_waveform_window(
-                ws,
-                kind=transport_kind,
-                track_id=transport_track,
-                start_sec=start_sec,
-                end_sec=end_sec,
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except (KeyError, FileNotFoundError) as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        return audio_file_response(audio_path, request=request)
     try:
         audio_path = resolve_viewer_audio(
             ws,

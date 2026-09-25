@@ -326,7 +326,6 @@ def test_share_object_store_warning_and_daw_meta(
     from podcast_mcp.services.share import (
         ShareService,
         share_daw_meta,
-        share_daw_peaks,
     )
 
     ws, ver, share = _seed_share(
@@ -350,9 +349,6 @@ def test_share_object_store_warning_and_daw_meta(
 
     meta = share_daw_meta(share["token"])
     assert "mtime_ns" in meta and "size" in meta
-
-    with pytest.raises(KeyError, match="track"):
-        share_daw_peaks(share["token"], "missing-track")
 
     assert share_hard_expired({}) is False
     assert share_hard_expired({"expires_at": "not-a-date"}) is False

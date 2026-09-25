@@ -15,7 +15,6 @@ from podcast_mcp.edits.comments import add_comment, delete_comment
 from podcast_mcp.edits.timeline_ops import room_tone_source_id
 from podcast_mcp.edits.track_ids import slug_track_id
 from podcast_mcp.edits.track_media import refresh_timeline_duration
-from podcast_mcp.engines.peaks import schedule_track_peaks
 from podcast_mcp.engines.render_invalidations import record_invalidation
 from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, SourceRecording, Track, TrackRole
 from podcast_mcp.services.document_sync import after_agent_mutation
@@ -651,7 +650,6 @@ class RecordLandingService:
         for track_id in {str(item["track_id"]) for item in clips}:
             track = self.workspace.project.track_by_id(track_id)
             if track is not None and track.media is not None:
-                schedule_track_peaks(self.workspace.project, track)
                 schedule_track_waveforms(self.workspace.project, track)
 
         after_agent_mutation(self.workspace)

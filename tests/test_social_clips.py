@@ -174,32 +174,52 @@ def test_platform_limits_uses_platform_preset():
     assert _platform_limits(defaults, None) == (15.0, 60.0)
 
 
-def test_utterance_energy_handles_empty_peaks(tmp_path):
+def _host_with_pyramid(tmp_path: Path) -> EpisodeProject:
+    """4 s host track: silence, 0.25 full-scale, 0.05, silence (1 s each); pyramid built."""
+    import wave
+
+    import numpy as np
+
+    from podcast_mcp.engines.waveform_media import ensure_track_waveforms
+
+    sr = 8000
+    amps = np.repeat([0.0, 0.25, 0.05, 0.0], sr)
+    signs = np.where(np.arange(len(amps)) % 2, 1.0, -1.0)
+    raw = tmp_path / "raw" / "host.wav"
+    raw.parent.mkdir(parents=True)
+    with wave.open(str(raw), "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sr)
+        wf.writeframes(np.round(amps * signs * 32768).astype("<i2").tobytes())
     proj = EpisodeProject.create("t", str(tmp_path))
     proj.ensure_dirs()
-    peaks_dir = proj.artifacts_dir() / "peaks"
-    peaks_dir.mkdir(parents=True)
-    (peaks_dir / "host.json").write_text(
-        json.dumps({"peaks": [], "duration_sec": 0}),
-        encoding="utf-8",
-    )
-    assert _utterance_energy(proj, "host", 0.0, 2.0) == 0.5
+    proj.timeline.tracks = [
+        Track(id="host", label="Host", media=MediaAsset(path="raw/host.wav", duration_sec=4.0))
+    ]
+    assert ensure_track_waveforms(proj, proj.timeline.tracks[0]) == 1
+    return proj
 
 
-def test_utterance_energy_from_peaks(tmp_path):
-    proj = EpisodeProject.create("t", str(tmp_path))
-    proj.ensure_dirs()
-    peaks_dir = proj.artifacts_dir() / "peaks"
-    peaks_dir.mkdir(parents=True)
-    peaks_path = peaks_dir / "host.json"
-    peaks_path.write_text(
-        json.dumps({"peaks": [0, 64, 255, 10], "duration_sec": 4.0, "encoding": "uint8"}),
-        encoding="utf-8",
-    )
+def test_utterance_energy_from_pyramid(tmp_path):
+    proj = _host_with_pyramid(tmp_path)
     assert _utterance_energy(proj, "host", 0.0, 2.0) == 1.0
-    assert _utterance_energy(proj, "host", 10.0, 10.0) == 0.5
+    assert _utterance_energy(proj, "host", 2.0, 3.0) == pytest.approx(0.2, abs=1e-3)
+    assert _utterance_energy(proj, "host", 3.0, 4.0) == 0.0
+    assert _utterance_energy(proj, "host", 10.0, 10.0) == 0.5  # past the end
     assert _utterance_energy(proj, "missing", 0.0, 2.0) == 0.5
-    peaks_path.write_text("not json", encoding="utf-8")
+    (pyramid,) = (proj.artifacts_dir() / "peaks").glob("track-host.*.wfpk")
+    pyramid.write_bytes(b"corrupt")
+    assert _utterance_energy(proj, "host", 0.0, 2.0) == 0.5
+    pyramid.unlink()
+    assert _utterance_energy(proj, "host", 0.0, 2.0) == 0.5  # never builds on read
+
+
+def test_utterance_energy_without_media_or_vanished_file(tmp_path):
+    proj = _host_with_pyramid(tmp_path)
+    (tmp_path / "raw" / "host.wav").unlink()
+    assert _utterance_energy(proj, "host", 0.0, 2.0) == 0.5
+    proj.timeline.tracks[0].media = None
     assert _utterance_energy(proj, "host", 0.0, 2.0) == 0.5
 
 
@@ -236,14 +256,7 @@ def test_propose_skips_low_score_and_truncates_title(tmp_path):
 
 
 def test_propose_applies_edge_penalty_and_filler_dense(tmp_path):
-    proj = EpisodeProject.create("t", str(tmp_path))
-    proj.ensure_dirs()
-    peaks_dir = proj.artifacts_dir() / "peaks"
-    peaks_dir.mkdir(parents=True)
-    (peaks_dir / "host.json").write_text(
-        json.dumps({"peaks": [0.2] * 100, "duration_sec": 100.0}),
-        encoding="utf-8",
-    )
+    proj = _host_with_pyramid(tmp_path)
     proj.combined_transcript = CombinedTranscript(
         utterances=[
             CombinedUtterance(
