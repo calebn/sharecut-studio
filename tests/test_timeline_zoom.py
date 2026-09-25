@@ -10,8 +10,10 @@ from podcast_mcp.util.timeline_zoom import (
     load_timeline_zoom,
     max_tiles_per_request,
     max_zoom_px_per_sec,
+    min_viewport_span_sec,
     min_zoom_px_per_sec,
     pcm_block_frames,
+    snap_tick_decimals,
     waveform_format_version,
     zoom_step,
 )
@@ -23,6 +25,8 @@ def test_load_timeline_zoom_contract():
     assert data["max_zoom_px_per_sec"] == 48000
     assert data["max_content_px"] == 15000000
     assert data["zoom_step"] == 1.25
+    assert data["min_viewport_span_sec"] == 0.001
+    assert data["snap_tick_decimals"] == 6
     assert "peaks" not in data  # the legacy overview block is gone
 
 
@@ -30,6 +34,8 @@ def test_zoom_getters():
     assert min_zoom_px_per_sec() == 0.05
     assert max_zoom_px_per_sec() == 48000
     assert zoom_step() == 1.25
+    assert min_viewport_span_sec() == 0.001
+    assert snap_tick_decimals() == 6
 
 
 def test_packaged_timeline_zoom_matches_contract():

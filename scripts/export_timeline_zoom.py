@@ -48,6 +48,8 @@ def generate() -> str:
             f"export const MAX_ZOOM_PX_PER_SEC = {max_z};",
             f"export const MAX_CONTENT_PX = {max_content_px};",
             f"export const ZOOM_STEP = {step};",
+            f"export const MIN_VIEWPORT_SPAN_SEC = {data['min_viewport_span_sec']};",
+            f"export const SNAP_TICK_DECIMALS = {data['snap_tick_decimals']};",
             f"export const PAINT_DPR_CAP = {waveform['paint_dpr_cap']};",
             *[f"export const {name} = {waveform[key]};" for key, name in WAVEFORM_EXPORTS],
             "",

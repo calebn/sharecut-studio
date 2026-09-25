@@ -1,8 +1,11 @@
+import { SNAP_TICK_DECIMALS } from "../utils/timelineZoom.generated";
+
 export type SnapTick = {
   sec: number;
 };
 
 const MAGNET_PX = 8;
+const SNAP_TICK_SCALE = 10 ** SNAP_TICK_DECIMALS;
 
 export function magnetSec(
   proposedSec: number,
@@ -27,8 +30,10 @@ export function magnetSec(
 }
 
 export function uniqueTicks(values: number[]): number[] {
-  // 1 µs, like the server: ticks stay distinct at near-sample zoom.
-  return [...new Set(values.map((v) => Math.round(v * 1e6) / 1e6))].sort(
-    (a, b) => a - b,
-  );
+  // 1 µs (contract `snap_tick_decimals`, like the server).
+  return [
+    ...new Set(
+      values.map((v) => Math.round(v * SNAP_TICK_SCALE) / SNAP_TICK_SCALE),
+    ),
+  ].sort((a, b) => a - b);
 }

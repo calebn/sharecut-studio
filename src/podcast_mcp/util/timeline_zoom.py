@@ -2,7 +2,8 @@
 
 The same JSON generates ``gui/web/src/utils/timelineZoom.generated.ts``, so
 Python and the GUI read one set of numbers. Python has getters only for the
-keys it reads: zoom bounds, and the ``waveform`` knobs of the ``.wfpk`` peak
+keys it reads: zoom bounds, the presence viewport minimum, snap tick
+precision, and the ``waveform`` knobs of the ``.wfpk`` peak
 pyramid (``engines/waveform_pyramid.py``, ``docs/waveform.md``).
 """
 
@@ -53,6 +54,16 @@ def max_zoom_px_per_sec() -> float:
 
 def zoom_step() -> float:
     return float(load_timeline_zoom()["zoom_step"])
+
+
+def min_viewport_span_sec() -> float:
+    """Shortest presence viewport span (s) a client may publish."""
+    return float(load_timeline_zoom()["min_viewport_span_sec"])
+
+
+def snap_tick_decimals() -> int:
+    """Decimals waveform snap ticks round to (6 = 1 µs), client and server."""
+    return int(load_timeline_zoom()["snap_tick_decimals"])
 
 
 # --- Waveform pyramid (.wfpk) knobs: only the keys Python reads. -------------

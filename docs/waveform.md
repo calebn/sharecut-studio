@@ -33,7 +33,10 @@ CI's `frontend` job runs it with `--check`).
 | `render_tile_css_px`, `overscan_css_px`, `paint_dpr_cap`, `min_clip_css_px`, `line_mode_max_samples_per_px` | 512, 512, 2, 6, 4 | Client rendering |
 | `quiet_amp`, `quiet_min_duration_sec`, `quiet_wash_min_zoom_px_per_sec` | 0.04, 0.12, 8 | Quiet wash |
 
-`max_content_px` (15,000,000) at the top level caps timeline content width. The
+`max_content_px` (15,000,000) at the top level caps timeline content width;
+`min_viewport_span_sec` (0.001) is the shortest presence viewport span, and
+`snap_tick_decimals` (6, 1 µs) is the precision snap ticks round to, both read
+by Python and the GUI. The
 generated TS exports `effectiveMaxZoomPxPerSec(sessionSec) =
 min(MAX_ZOOM_PX_PER_SEC, MAX_CONTENT_PX / max(sessionSec, 1))` and
 `paintDpr(dpr) = clamp(round(dpr·8)/8, 1, PAINT_DPR_CAP)`, so `512·paintDpr` is
@@ -452,7 +455,7 @@ the time at the view centre, when the session length changes (`setProject`,
   Guests have no PCM route: they stop at level 0, whose bins stretch over
   several pixels.
 - **Precision.** Tile geometry stays source-anchored (`t = k·512/zoom`, no
-  accumulation), snap ticks round to 1 µs on client and server, presence
+  accumulation), snap ticks round to 1 µs on client and server (`snap_tick_decimals`), presence
   x-fractions carry 6 decimals, and drag thresholds are in pixels (roll
   commit 0.5 px, move no-op 0.5 px, social-clip drag 3 px, ruler comment
   span 4 px), so edits work at any zoom. Domain minimums (0.05 s spans,

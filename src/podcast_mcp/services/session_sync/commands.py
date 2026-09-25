@@ -19,6 +19,8 @@ from pydantic import (
     model_validator,
 )
 
+from podcast_mcp.util.timeline_zoom import min_viewport_span_sec
+
 ClientRole = Literal["agent", "viewer", "cli"]
 
 
@@ -156,9 +158,9 @@ class PresenceCursor(BaseModel):
         return self
 
 
-# Shortest viewport span a client may publish (mirrored in the GUI's
-# presence/followSync.ts).
-MIN_VIEWPORT_SPAN_SEC = 0.001
+# Shortest viewport span a client may publish (contracts/timeline-zoom.json,
+# shared with the GUI).
+MIN_VIEWPORT_SPAN_SEC = min_viewport_span_sec()
 
 
 class PresenceViewport(BaseModel):
