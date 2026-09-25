@@ -567,6 +567,58 @@ def test_record_ws_bridged(monkeypatch):
             tunnel.close()
 
 
+def test_record_ws_relays_invite_closed_error_before_4403(monkeypatch):
+    """The guest UI keeps "Invite link closed" only if the Error frame precedes the 4403 close."""
+    with _live_relay(monkeypatch) as base:
+        tunnel = _tunnel_hello_register(
+            base,
+            host_id="host-rec-closed",
+            token="rtok-closed",
+            capabilities=["join", "monitor", "comment"],
+        )
+        try:
+            with ws_connect(
+                f"{base}/api/rec/rtok-closed/ws", open_timeout=5, close_timeout=5
+            ) as guest:
+                open_msg = _ws_recv(tunnel)
+                assert open_msg["type"] == "ws_open"
+                stream_id = open_msg["id"]
+
+                guest.send('{"type":"Record","command_type":"Join"}')
+                data_msg = _ws_recv(tunnel)
+                assert data_msg["type"] == "ws_data"
+                assert "Join" in data_msg["text"]
+
+                _ws_send(
+                    tunnel,
+                    {
+                        "type": "ws_data",
+                        "id": stream_id,
+                        "text": json.dumps(
+                            {"plane": "record", "type": "Error", "code": "invite_closed"}
+                        ),
+                    },
+                )
+                _ws_send(
+                    tunnel,
+                    {"type": "ws_close", "id": stream_id, "code": 4403, "reason": "invite closed"},
+                )
+
+                got = guest.recv(timeout=5)
+                if isinstance(got, bytes):
+                    got = got.decode("utf-8")
+                err = json.loads(got)
+                assert err["type"] == "Error"
+                assert err["code"] == "invite_closed"
+
+                with pytest.raises(ConnectionClosed) as closed:
+                    guest.recv(timeout=5)
+                assert closed.value.rcvd is not None
+                assert closed.value.rcvd.code == 4403
+        finally:
+            tunnel.close()
+
+
 def test_guest_daw_ws_requires_view_cap(monkeypatch):
     with _live_relay(monkeypatch) as base:
         tunnel = _tunnel_hello_register(
