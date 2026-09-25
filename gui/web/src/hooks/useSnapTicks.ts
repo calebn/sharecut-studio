@@ -9,10 +9,10 @@ const FOCUS_EPS_SEC = 1e-6;
 /** Snap ticks come from ±this many seconds around the focus. */
 const SNAP_WINDOW_SEC = 1;
 /**
- * A trim drag fetches around its edge snapped to this grid, so moving the
- * edge restarts the debounce only when it crosses a step.
+ * Ticks are fetched around the focus snapped to this grid, so a moving trim
+ * edge or blade hover restarts the debounce only when it crosses a step.
  */
-const TRIM_FETCH_STEP_SEC = SNAP_WINDOW_SEC / 2;
+const FETCH_STEP_SEC = SNAP_WINDOW_SEC / 2;
 const DEBOUNCE_MS = 80;
 
 /** Ticks with the project, track and source window they were loaded for. */
@@ -79,13 +79,13 @@ export function useSnapTicks(opts: {
           ((sourceEnd - sourceStart) / Math.max(1e-9, tl1 - tl0)));
   const [state, setState] = useState<SnapState>(NO_STATE);
   const active = enabled && canSnap && Boolean(projectPath) && srcFocus != null;
-  // While trimming, fetch around the edge on a coarse grid: the ±1 s window
-  // still covers the edge, and a continuous drag is not held off by the
-  // debounce restarting on every pointer move.
+  // Fetch around the focus on a coarse grid. The ±1 s window still covers
+  // it, and the debounce restarting on every pointer move neither holds off
+  // a trim drag nor refetches for a resting blade hover.
   const center =
-    srcFocus != null && trimFocusSourceSec != null
-      ? Math.round(srcFocus / TRIM_FETCH_STEP_SEC) * TRIM_FETCH_STEP_SEC
-      : srcFocus;
+    srcFocus == null
+      ? null
+      : Math.round(srcFocus / FETCH_STEP_SEC) * FETCH_STEP_SEC;
   const stateKey = `${projectPath}\n${trackId}`;
 
   useEffect(() => {

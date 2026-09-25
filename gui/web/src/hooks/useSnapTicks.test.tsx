@@ -155,4 +155,20 @@ describe("useSnapTicks", () => {
     expect(snap.mock.calls[0]![6]).toBe(18.5);
     expect(result.current).toEqual([12.5, 13]);
   });
+
+  it("fetches blade-hover ticks on the same 0.5 s grid", async () => {
+    useDawStore.setState({ bladeHoverSec: 5.1 });
+    const { result } = renderHook(() => useTicks());
+    for (const hover of [5.12, 5.18, 5.2]) {
+      act(() => {
+        vi.advanceTimersByTime(30);
+        useDawStore.setState({ bladeHoverSec: hover });
+      });
+    }
+    await settle();
+    expect(snap).toHaveBeenCalledTimes(1);
+    expect(snap.mock.calls[0]!.slice(2, 5)).toEqual([14, 16, false]);
+    expect(snap.mock.calls[0]![6]).toBe(15);
+    expect(result.current).toEqual([12.5, 13]);
+  });
 });
