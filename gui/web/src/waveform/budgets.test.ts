@@ -4,8 +4,10 @@ import { useDawStore } from "../state/dawStore";
 import {
   ByteLru,
   classifyFetchFailure,
+  FAILED_FETCH_BACKOFF_MS,
   FetchGate,
   fetchLimit,
+  holdBackMs,
   trimOnShellChange,
   WAVEFORM_BUDGETS,
   waveformBudget,
@@ -109,5 +111,11 @@ describe("classifyFetchFailure", () => {
       "drop",
     );
     expect(classifyFetchFailure(new Error("offline")).kind).toBe("drop");
+  });
+
+  it("holds a 429 back for Retry-After and anything else for FAILED_FETCH_BACKOFF_MS", () => {
+    expect(holdBackMs({ kind: "retry", afterMs: 2000 })).toBe(2000);
+    expect(holdBackMs({ kind: "drop" })).toBe(FAILED_FETCH_BACKOFF_MS);
+    expect(holdBackMs({ kind: "stale" })).toBe(FAILED_FETCH_BACKOFF_MS);
   });
 });

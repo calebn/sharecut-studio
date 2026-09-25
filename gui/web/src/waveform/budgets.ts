@@ -178,10 +178,10 @@ export class ByteLru<V> {
   }
 }
 
-/** How to treat a failed waveform fetch. */
 /** How long a failed fetch (other than a 429 or 404) is held back before a request may try it again. */
 export const FAILED_FETCH_BACKOFF_MS = 5000;
 
+/** How to treat a failed waveform fetch. */
 export type FetchFailure =
   | { kind: "retry"; afterMs: number }
   | { kind: "missing" }
@@ -208,4 +208,9 @@ export function classifyFetchFailure(err: unknown): FetchFailure {
     return { kind: "stale" };
   }
   return { kind: "drop" };
+}
+
+/** How long to hold a failed fetch back: a 429's Retry-After, otherwise FAILED_FETCH_BACKOFF_MS. */
+export function holdBackMs(failure: FetchFailure): number {
+  return failure.kind === "retry" ? failure.afterMs : FAILED_FETCH_BACKOFF_MS;
 }

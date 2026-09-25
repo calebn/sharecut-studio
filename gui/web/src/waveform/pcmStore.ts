@@ -4,8 +4,8 @@ import { PCM_BLOCK_FRAMES } from "../utils/timelineZoom.generated";
 import {
   ByteLru,
   classifyFetchFailure,
-  FAILED_FETCH_BACKOFF_MS,
   fetchLimit,
+  holdBackMs,
   trimOnShellChange,
   waveformBudget,
   waveformFetchGate,
@@ -122,22 +122,19 @@ function dispatch(id: string, block: Block): void {
       const retry = {
         projectPath: block.projectPath,
         id,
-        timer: setTimeout(
-          () => {
-            retries.delete(retry);
-            cooling.delete(id);
-            if (
-              failure.kind === "retry" &&
-              !data.has(id) &&
-              !inflight.has(id) &&
-              !queue.has(id)
-            ) {
-              queue.set(id, block);
-            }
-            pump();
-          },
-          failure.kind === "retry" ? failure.afterMs : FAILED_FETCH_BACKOFF_MS,
-        ),
+        timer: setTimeout(() => {
+          retries.delete(retry);
+          cooling.delete(id);
+          if (
+            failure.kind === "retry" &&
+            !data.has(id) &&
+            !inflight.has(id) &&
+            !queue.has(id)
+          ) {
+            queue.set(id, block);
+          }
+          pump();
+        }, holdBackMs(failure)),
       };
       retries.add(retry);
     })
