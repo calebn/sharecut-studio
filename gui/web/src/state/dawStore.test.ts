@@ -6,7 +6,7 @@ import { estimateTimelineViewportWidth, useDawStore } from "./dawStore";
 describe("dawStore timeline viewport width", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
-    useDawStore.setState({ shellBreakpoint: "desktop" });
+    useDawStore.setState({ shellBreakpoint: "desktop", _timelineEl: null });
   });
 
   it("estimates the time column per shell", () => {
@@ -32,6 +32,35 @@ describe("dawStore timeline viewport width", () => {
     });
     useDawStore.getState().resetTimelineViewportWidth();
     expect(useDawStore.getState().timelineViewportWidth).toBe(390);
+  });
+
+  it("follows a shell breakpoint change before the timeline measures", () => {
+    vi.stubGlobal("visualViewport", { width: 390 });
+    useDawStore.setState({ _timelineEl: null, timelineViewportWidth: 777 });
+    useDawStore.getState().setShellBreakpoint("phone");
+    expect(useDawStore.getState().timelineViewportWidth).toBe(390);
+  });
+
+  it("keeps a measured width across a shell breakpoint change", () => {
+    vi.stubGlobal("visualViewport", { width: 390 });
+    useDawStore.setState({
+      _timelineEl: document.createElement("div"),
+      timelineViewportWidth: 777,
+    });
+    useDawStore.getState().setShellBreakpoint("phone");
+    expect(useDawStore.getState().timelineViewportWidth).toBe(777);
+  });
+
+  it("stores the shell estimate for a zero-width measure", () => {
+    vi.stubGlobal("visualViewport", { width: 390 });
+    useDawStore.setState({
+      shellBreakpoint: "phone",
+      timelineViewportWidth: 777,
+    });
+    useDawStore.getState().setTimelineViewportWidth(0);
+    expect(useDawStore.getState().timelineViewportWidth).toBe(390);
+    useDawStore.getState().setTimelineViewportWidth(640);
+    expect(useDawStore.getState().timelineViewportWidth).toBe(640);
   });
 });
 
