@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from podcast_mcp.services.remote_mcp.limits import (
@@ -99,6 +101,22 @@ def test_classify_mcp_and_review():
     assert classify_review_request("GET", "/api/review/t/daw/audition-context-image") == "audio"
     assert classify_review_request("GET", "/api/review/t/daw/waveform/tiles/abc") == "audio"
     assert classify_review_request("GET", "/api/review/t/daw/waveform/status") == "read"
+
+
+def test_host_and_relay_audio_classifiers_agree_on_guest_routes():
+    from podcast_mcp.gui.routes import review_share
+
+    checked = 0
+    for route in review_share.router.routes:
+        path = getattr(route, "path", "")
+        methods = getattr(route, "methods", None) or set()
+        if "GET" not in methods or not path.startswith("/api/review/{token}/"):
+            continue
+        concrete = re.sub(r"\{[^}]+\}", "x", path)
+        host_audio = classify_review_request("GET", concrete) == "audio"
+        assert is_audio_path(concrete.lstrip("/")) == host_audio, concrete
+        checked += 1
+    assert checked >= 10
 
 
 def test_is_audio_path():
