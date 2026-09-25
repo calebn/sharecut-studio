@@ -13,7 +13,8 @@ from typing import Any
 from podcast_mcp.models import EpisodeProject
 
 # Lists of objects merge item by item when every item carries one of these keys
-# (first match wins) as strings, unique within each list.
+# (first match wins) as strings, unique within each list. Other lists (e.g.
+# transcript words) merge as one value, so changes on both sides conflict.
 _IDENTITY_KEYS: tuple[tuple[str, ...], ...] = (("id",), ("track_id", "parameter"), ("track_id",))
 _HISTORY = "history"
 

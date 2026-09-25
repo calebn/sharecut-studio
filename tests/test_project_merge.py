@@ -141,6 +141,17 @@ def test_history_cursor_follows_the_side_that_moved(tmp_path):
     assert history["entries"][history["cursor"]]["id"] == "e0"
 
 
+def test_unkeyed_lists_conflict_as_a_whole():
+    base = {"words": [{"text": "a", "start": 0.0}, {"text": "b", "start": 1.0}]}
+    ours = copy.deepcopy(base)
+    ours["words"][0]["suppressed"] = True
+    theirs = copy.deepcopy(base)
+    theirs["words"][1]["text"] = "B"
+    with pytest.raises(ProjectMergeConflict) as exc:
+        merge_project_data(base, ours, theirs)
+    assert exc.value.paths == ["words"]
+
+
 def test_conflict_message_truncates():
     exc = ProjectMergeConflict([f"p{i}" for i in range(7)])
     assert "and 2 more" in str(exc)
