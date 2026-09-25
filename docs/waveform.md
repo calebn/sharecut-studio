@@ -7,10 +7,19 @@ The engine lives in
 and its knobs live in the `waveform` block of
 [`contracts/timeline-zoom.json`](../contracts/timeline-zoom.json).
 
-> **Status:** the engine (format, build, decode, I/O and job pool) is in place.
-> The viewer still paints from the legacy overview JSON
+> **Status:** the engine (format, build, decode, I/O and job pool) is in place,
+> but nothing calls it yet. The viewer still paints from the legacy overview JSON
 > (`artifacts/peaks/{track}.json`, [gui-integration.md § Waveforms](gui-integration.md))
-> until the pyramid is served and rendered (#429).
+> until the pyramid is served and rendered. The rest of #429 lands in stacked PRs:
+>
+> - #440 (part 2) serves pyramids from `services/waveform.py`. It adds the
+>   `.wfpk` store to [persistence.md](persistence.md) and the HTTP routes to
+>   [gui-integration.md § Waveforms](gui-integration.md).
+> - #444 (part 6) moves `gui/web/src/timeline/quietWash.ts` off its local
+>   `QUIET_AMP` / `MIN_DURATION_SEC` onto the generated `QUIET_*` constants.
+> - #446 (part 8) wires `effectiveMaxZoomPxPerSec` / `MAX_CONTENT_PX` into
+>   `clampZoomPxPerSec`. Until then, zoom still clamps to the flat
+>   `MAX_ZOOM_PX_PER_SEC`.
 
 ## Contract knobs
 
@@ -151,11 +160,13 @@ because ffmpeg counts it in decoder packets, not samples.
 - **Key:** `media_key(rel_posix, size, mtime_ns)` is
   `sha256("{format_version}|{rel}|{size}|{mtime_ns}")[:20]`, where `rel` is
   the workspace-relative POSIX path. When the media changes, the key changes,
-  so a pyramid is never stale.
+  so a pyramid is never stale. Device and inode (`file_revision`) are left out
+  on purpose, so the key survives a copied or restored workspace.
 - **File:** `pyramid_path(peaks_dir, slug, key)` is
   `artifacts/peaks/{slug}.{key}.wfpk`, resolved with `resolve_within`.
   `ref_slug(kind, id)` is `{kind}-{id}` for ids matching `SAFE_TRACK_ID`, and
-  otherwise `{kind}-h{sha1(id)[:12]}`.
+  otherwise `{kind}-h{sha1(id)[:12]}`. The hash, rather than `slug_track_id`, keeps
+  distinct ids from colliding.
 - **Reuse:** before a build, `reuse_existing_pyramid` hard-links any
   `*.{key}.wfpk` that passes `read_meta` to the new name, or copies it when
   linking fails. An existing target that fails `read_meta` is deleted so it is

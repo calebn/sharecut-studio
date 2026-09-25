@@ -542,13 +542,24 @@ def read_pcm_minmax(
 
 
 def media_key(rel_posix: str, size: int, mtime_ns: int) -> str:
-    """20-hex pyramid key for a media file (workspace-relative POSIX path, size, mtime)."""
+    """20-hex pyramid key for a media file (workspace-relative POSIX path, size, mtime).
+
+    Deliberately not ``util.project_state.file_revision``: that includes device
+    and inode, which change when a workspace is copied or restored, while this
+    key is persisted in ``.wfpk`` file names and must survive both. The format
+    version is hashed in, so a format bump never reuses old files.
+    """
     raw = f"{waveform_format_version()}|{rel_posix}|{size}|{mtime_ns}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:20]
 
 
 def ref_slug(kind: str, ref_id: str) -> str:
-    """Filename-safe slug for a media ref: ``{kind}-{id}`` or ``{kind}-h{sha1[:12]}``."""
+    """Filename-safe slug for a media ref: ``{kind}-{id}`` or ``{kind}-h{sha1[:12]}``.
+
+    Ids that are not ``SAFE_TRACK_ID`` are hashed rather than slugified
+    (``edits.track_ids.slug_track_id`` is lossy, so two refs could share a
+    slug and prune each other's pyramids). sha1 here is a name, not security.
+    """
     if SAFE_TRACK_ID.fullmatch(ref_id):
         return f"{kind}-{ref_id}"
     digest = hashlib.sha1(ref_id.encode("utf-8"), usedforsecurity=False).hexdigest()
