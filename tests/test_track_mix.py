@@ -506,6 +506,52 @@ def test_the_gated_play_mix_plays_each_track_at_its_output_gain(minimal_project:
     assert calls == [{"host": -2.0, "guest": -3.0}, {"host": -2.0, "guest": -6.0}]
 
 
+def test_gated_single_and_compare_takes_play_at_output_gain(minimal_project: Path) -> None:
+    ws = _two_tracks(minimal_project)
+    ws.project.track_by_id("guest").fader_db = -3.0
+    cache = ws.project.artifacts_dir() / "play_cache"
+    cache.mkdir(parents=True, exist_ok=True)
+    audio = {"host": (cache / "host.wav", "stem"), "guest": (cache / "guest.wav", "segment_render")}
+    for path, _tier in audio.values():
+        path.write_bytes(b"RIFF")
+    calls: list[tuple[str, float]] = []
+
+    def _track(seg, _iv, out, **kw):
+        calls.append((seg.name, kw["gain_db"]))
+        out.write_bytes(b"RIFF")
+        return out
+
+    def _mix(_segs, _iv, out, **_kw):
+        out.write_bytes(b"RIFF")
+        return out
+
+    def _play(**req) -> None:
+        PlayService(ws).play(
+            PlayRequest(start_sec=0.0, end_sec=1.0, follow_transcript=True, **req),
+            dry_run=True,
+            publish_audition=False,
+        )
+
+    with (
+        patch.object(
+            PlayService,
+            "_processed_audio",
+            side_effect=lambda tid, start, end, *, rerender: (*audio[tid], start, end),
+        ),
+        patch("podcast_mcp.services.play.word_intervals", return_value=[]),
+        patch("podcast_mcp.services.play.dialogue_tracks_for_play", return_value=["host", "guest"]),
+        patch("podcast_mcp.services.play.render_gated_track", side_effect=_track),
+        patch("podcast_mcp.services.play.render_gated_mix", side_effect=_mix),
+    ):
+        _play(source="premix", compare=True)
+        assert sorted(calls) == [("guest.wav", -3.0), ("host.wav", -2.0)]
+        calls.clear()
+        ws.project.track_by_id("guest").fader_db = -6.0
+        calls.clear()
+        _play(source="processed:guest")
+        assert calls == [("guest.wav", -6.0)]
+
+
 def test_document_commands_apply_and_send_a_mix_patch(minimal_project: Path) -> None:
     _two_tracks(minimal_project)
     svc = DocumentSyncService.open(minimal_project)

@@ -628,11 +628,15 @@ class PlayService:
         dry_run: bool,
         player: str | None,
     ) -> PlayResult:
-        segment, _tier, _, _ = self._processed_audio(track_id, start, end, rerender=rerender)
+        segment, tier, _, _ = self._processed_audio(track_id, start, end, rerender=rerender)
+        # Same level rule as the gated mix and play_compose: output gain minus what the tier baked.
+        gain_db = _compose_gain_db(self.project.track_by_id(track_id), tier)
         intervals = word_intervals(self.project, track_id, start, end)
         rel_intervals = [(s - start, e - start) for s, e in intervals]
         fp = transcript_gate_fingerprint(self.project, [track_id], start, end)
-        out = self._cache_path(f"follow_{track_id}_{fp}", start, end, segment)
+        out = self._cache_path(
+            f"follow_{track_id}_{fp}", start, end, segment, extra=f"gain={gain_db}"
+        )
         if not out.is_file():
             self._render_atomic(
                 out,
@@ -642,6 +646,7 @@ class PlayService:
                     tmp,
                     timeline_start=0.0,
                     timeline_end=end - start,
+                    gain_db=gain_db,
                 ),
             )
         cmd = None if dry_run else self._player_command(player, out)
