@@ -656,9 +656,12 @@ export function ClipBlockView({
         />
       ) : null}
       {ghostExtraPx > 0 ? (
+        // The clip's padding box starts 1px in (its border): -1 puts the
+        // ghost's border box, and so its layer (1px outside the ghost's
+        // dashed border, like the clip's), at timeline x left + committedWidth.
         <span
           className="clip-trim-ghost"
-          style={{ width: ghostExtraPx, left: committedWidth }}
+          style={{ width: ghostExtraPx, left: committedWidth - 1 }}
           aria-hidden
         >
           <WaveformLayer

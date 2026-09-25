@@ -47,4 +47,14 @@ describe("timeline styles", () => {
       /scrollbar-gutter:\s*stable/,
     );
   });
+
+  it("puts the waveform layer and its overlays on the clip's border box", () => {
+    const css = partial("timeline.css");
+    for (const selector of [".clip-waveform", ".clip-waveform-overlays"]) {
+      const body = rule(css, selector);
+      expect(body).toMatch(/left:\s*-1px/);
+      expect(body).toMatch(/right:\s*-1px/);
+    }
+    expect(rule(css, ".clip-mute-region")).toMatch(/margin-left:\s*-1px/);
+  });
 });
