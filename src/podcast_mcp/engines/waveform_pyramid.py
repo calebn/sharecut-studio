@@ -489,10 +489,16 @@ def decode_media(
 
 
 def _minmax_int16(data: np.ndarray) -> np.ndarray:
-    """Per-frame ``(min, max)`` across channels as int16, floored/ceiled outward."""
+    """Per-frame ``(min, max)`` across channels as int16, floored/ceiled outward.
+
+    NaN counts as 0 and ±inf as ±1, as in ``build_levels``.
+    """
     full = float(INT16_FULL_SCALE)
     out = np.empty((len(data), 2), dtype=np.int16)
     if len(data):
+        # A NaN would win min/max and cast to an undefined int16, hiding the
+        # other channels' peaks.
+        data = np.nan_to_num(data, nan=0.0, posinf=1.0, neginf=-1.0)
         # Reduce across channels in float32 (exact), then widen only (n,) arrays.
         lo = data.min(axis=1).astype(np.float64)
         hi = data.max(axis=1).astype(np.float64)
