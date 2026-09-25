@@ -6,6 +6,7 @@ import platform
 import re
 import shutil
 import wave
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -558,18 +559,26 @@ class PlayService:
     def _temp_beside(self, dest: Path) -> Path:
         return dest.with_name(f"{dest.stem}.{os.getpid()}.partial{dest.suffix}")
 
-    def _join_parts_atomic(self, parts: list[Path], dest: Path) -> Path:
+    def _render_atomic(self, dest: Path, render: Callable[[Path], object]) -> Path:
+        """Render into a temp file beside ``dest``, then swap it in.
+
+        Concurrent plays of the same cache key never see a partially written
+        WAV, and a failed render leaves neither ``dest`` nor the temp file.
+        """
         dest.parent.mkdir(parents=True, exist_ok=True)
         tmp = self._temp_beside(dest)
         published = False
         try:
-            FFmpegEngine().join_audio_parts(parts, tmp)
+            render(tmp)
             self._publish_atomic(tmp, dest)
             published = True
             return dest
         finally:
             if not published:
                 tmp.unlink(missing_ok=True)
+
+    def _join_parts_atomic(self, parts: list[Path], dest: Path) -> Path:
+        return self._render_atomic(dest, lambda tmp: FFmpegEngine().join_audio_parts(parts, tmp))
 
     def _play_follow_transcript(
         self,
@@ -625,12 +634,15 @@ class PlayService:
         fp = transcript_gate_fingerprint(self.project, [track_id], start, end)
         out = self._cache_path(f"follow_{track_id}_{fp}", start, end, segment)
         if not out.is_file():
-            render_gated_track(
-                segment,
-                rel_intervals,
+            self._render_atomic(
                 out,
-                timeline_start=0.0,
-                timeline_end=end - start,
+                lambda tmp: render_gated_track(
+                    segment,
+                    rel_intervals,
+                    tmp,
+                    timeline_start=0.0,
+                    timeline_end=end - start,
+                ),
             )
         cmd = None if dry_run else self._player_command(player, out)
         if cmd:
@@ -687,13 +699,16 @@ class PlayService:
             extra=_mix_cache_extra([(seg, gains_db[tid]) for tid, seg in segments]),
         )
         if not out.is_file():
-            render_gated_mix(
-                segments,
-                intervals_by_track,
+            self._render_atomic(
                 out,
-                timeline_start=0.0,
-                timeline_end=end - start,
-                gains_db=gains_db,
+                lambda tmp: render_gated_mix(
+                    segments,
+                    intervals_by_track,
+                    tmp,
+                    timeline_start=0.0,
+                    timeline_end=end - start,
+                    gains_db=gains_db,
+                ),
             )
         cmd = None if dry_run else self._player_command(player, out)
         if cmd:
@@ -910,15 +925,7 @@ class PlayService:
             extra=extra,
         )
         if not out.is_file() or rerender:
-            tmp = self._temp_beside(out)
-            published = False
-            try:
-                FFmpegEngine().mix_tracks(segments, tmp)
-                self._publish_atomic(tmp, out)
-                published = True
-            finally:
-                if not published:
-                    tmp.unlink(missing_ok=True)
+            self._render_atomic(out, lambda tmp: FFmpegEngine().mix_tracks(segments, tmp))
 
         cmd = None if dry_run else self._player_command(player, out)
         if cmd:
@@ -968,15 +975,9 @@ class PlayService:
         gap = max(0.0, float(gap_sec))
         out = self._ab_concat_path(path_a, path_b, gap)
         if not out.is_file():
-            tmp = self._temp_beside(out)
-            published = False
-            try:
-                self._write_ab_concat(path_a, path_b, tmp, gap_sec=gap)
-                self._publish_atomic(tmp, out)
-                published = True
-            finally:
-                if not published:
-                    tmp.unlink(missing_ok=True)
+            self._render_atomic(
+                out, lambda tmp: self._write_ab_concat(path_a, path_b, tmp, gap_sec=gap)
+            )
 
         cmd = None if dry_run else self._player_command(player, out)
         if cmd:
