@@ -401,7 +401,12 @@ def publish_version(
     eng: FFmpegEngine | None = None,
     on_media_created: Callable[[Path, DirectoryIdentity], None] | None = None,
 ) -> ReviewMixVersion:
-    """Stage media, then attach it to the project."""
+    """Stage media, then attach it to the project in one call.
+
+    Convenience wrapper for callers without a cross-process commit (tests, scripts).
+    Services call ``stage_version`` outside ``project_commit_lock`` and
+    ``attach_version`` inside the commit (see ``ReviewService.publish``).
+    """
     ver = stage_version(
         project, label=label, prefer=prefer, eng=eng, on_media_created=on_media_created
     )

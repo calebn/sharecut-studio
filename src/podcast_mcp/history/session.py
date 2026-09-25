@@ -88,6 +88,8 @@ def _run_mutation_locked(
         fresh_changed = [tid for tid in changed_tracks if stem_is_fresh(project, tid)]
         if fresh_changed:
             maybe_auto_reconcile(project, track_ids=fresh_changed)
+    # record() and commit() each take the re-entrant lock; this outer hold makes
+    # record(after) + commit one cross-process step so no other commit lands between them.
     with project_commit_lock(project):
         mgr.record(project, label_after, operation=operation, params=params)
         store.commit(project)

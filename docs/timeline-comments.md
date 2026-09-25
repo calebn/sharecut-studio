@@ -152,7 +152,7 @@ uses `GET /api/review/{token}/audio` (MP3; optional object storage 302 — see
 after symlinks are followed. A path that escapes it (`..`, an absolute path elsewhere, or an
 outward-pointing symlink) is refused with `ValueError`: guest `/audio` and
 `/daw/audio?kind=review` return 400, and host play with `kind=review` errors the same way.
-There is no WAV fallback when `mp3_relpath` is bad. Paths written by `publish_version` always
+There is no WAV fallback when `mp3_relpath` is bad. Paths written by `stage_version` (via `ReviewService.publish`) always
 pass the check, and `./`-prefixed or absolute in-root spellings are still accepted; the
 `artifacts/review/` directory itself may be a symlink. See
 `util/workspace_paths.resolve_within`.
