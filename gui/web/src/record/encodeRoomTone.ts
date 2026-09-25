@@ -1,5 +1,5 @@
 import { encodePcmWav } from "../audio/wavHeader";
-import { attachKeeperTap } from "./keeper/graph";
+import { openKeeperTap } from "./keeper/graph";
 import { KEEPER_SAMPLE_RATE, toKeeperPcm } from "./keeper/pcm";
 import { e2eRoomTonePcm } from "./monitor/e2eHook";
 import { ROOM_TONE_DURATION_SEC } from "./types";
@@ -63,7 +63,7 @@ export async function encodeRoomToneWav(
     if (testPcm) {
       collectPcm(testPcm, KEEPER_SAMPLE_RATE);
     } else {
-      stopTap = await attachKeeperTap(stream, collectPcm);
+      stopTap = (await openKeeperTap(stream, collectPcm)).stop;
     }
     if (!gotEnough) {
       await enough;

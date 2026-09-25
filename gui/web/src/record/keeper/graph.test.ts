@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { attachKeeperTap, openKeeperTap } from "./graph";
+import { openKeeperTap } from "./graph";
 
 type FakeWorklet = { port: { onmessage: unknown } };
 const nodes: FakeWorklet[] = [];
-const closeSpy = vi.fn();
+const closeSpy = vi.fn(async (): Promise<void> => undefined);
 
 function install(rejects: number) {
   let left = rejects;
@@ -50,7 +50,8 @@ function install(rejects: number) {
 afterEach(() => {
   vi.unstubAllGlobals();
   nodes.length = 0;
-  closeSpy.mockClear();
+  closeSpy.mockReset();
+  closeSpy.mockImplementation(async () => undefined);
 });
 
 const stream = {} as MediaStream;
@@ -78,10 +79,13 @@ describe("openKeeperTap", () => {
     expect(node?.port.onmessage).toBeNull();
     expect(closeSpy).toHaveBeenCalled();
   });
-  it("attachKeeperTap returns a stop function", async () => {
+  it("swallows a rejected close on a double stop", async () => {
     install(0);
-    const stop = await attachKeeperTap(stream, () => undefined);
-    stop();
-    expect(closeSpy).toHaveBeenCalled();
+    closeSpy.mockRejectedValue(new DOMException("closed", "InvalidStateError"));
+    const tap = await openKeeperTap(stream, () => undefined);
+    tap.stop();
+    tap.stop();
+    await Promise.resolve();
+    expect(closeSpy).toHaveBeenCalledTimes(2);
   });
 });
