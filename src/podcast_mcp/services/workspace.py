@@ -60,16 +60,24 @@ class ProjectWorkspace:
 
         Long jobs (pipeline run, export) call this before their slow work so a
         change another request commits meanwhile is merged in, not overwritten.
-        Unsaved edits already on ``self.project`` count as this job's changes.
+        Unsaved edits already on ``self.project`` count as this job's changes only
+        while the file is unchanged since this workspace loaded it. If the file
+        changed since then (another writer committed, or this workspace saved),
+        ``self.project`` is replaced by the saved file and those unsaved edits are
+        dropped.
         """
         with project_state_lock(self.project):
-            cached = self.project
-            project = self.reload()
-            # reload() kept the in-memory copy: unsaved edits on it are this job's
-            # changes, so the base is the saved file, not that copy.
-            base = self._store.load() if project is cached else project
-            self._merge_base = project_merge_data(base)
-            return project
+            before = file_revision(self.path)
+            saved = self._store.load()
+            stable = file_revision(self.path) == before
+            if not (stable and before == self._loaded_file_signature):
+                # The file changed since load (or while being read): adopt it.
+                self.project = saved
+                self._loaded_file_signature = before if stable else None
+            # Otherwise keep the in-memory copy: unsaved edits on it are this job's
+            # changes. Either way the base is this one read of the saved file.
+            self._merge_base = project_merge_data(saved)
+            return self.project
 
     def save_merged(self) -> None:
         """Commit this workspace's changes since ``checkpoint`` on top of the saved file.

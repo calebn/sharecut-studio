@@ -59,6 +59,35 @@ def test_save_merged_keeps_unsaved_edits_made_before_checkpoint(minimal_project)
         assert project.track_by_id("host").fader_db == -6.0
 
 
+def test_checkpoint_drops_unsaved_edits_when_another_writer_committed_first(minimal_project):
+    ws = _two_tracks(minimal_project)
+    ws.project.track_by_id("guest").gain_db = 5.0
+    _other_sets_volume(minimal_project)
+    ws.checkpoint()
+    ws.save_merged()
+    saved = load_project(minimal_project)
+    assert saved.track_by_id("guest").gain_db == 0.0
+    assert saved.track_by_id("host").fader_db == -6.0
+
+
+def test_checkpoint_bases_the_merge_on_the_read_it_checked(minimal_project, monkeypatch):
+    ws = _two_tracks(minimal_project)
+    real_load = ws._store.load
+    calls: list[int] = []
+
+    def racing_load():
+        if not calls:
+            calls.append(1)
+            # Another writer commits after checkpoint() sampled the file signature.
+            _other_sets_volume(minimal_project)
+        return real_load()
+
+    monkeypatch.setattr(ws._store, "load", racing_load)
+    ws.checkpoint()
+    ws.save_merged()
+    assert load_project(minimal_project).track_by_id("host").fader_db == -6.0
+
+
 def test_save_merged_without_other_writers_adds_no_merge_entry(minimal_project):
     ws = _two_tracks(minimal_project)
     ws.checkpoint()
