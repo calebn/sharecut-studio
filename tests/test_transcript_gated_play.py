@@ -358,6 +358,34 @@ def test_render_gated_track_and_mix(tmp_path: Path, monkeypatch) -> None:
         render_gated_mix([], {}, mix_out, timeline_start=0.0, timeline_end=0.1)
 
 
+def test_render_gated_mix_plays_each_track_at_its_gain(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "podcast_mcp.engines.transcript_gated_play._load_segment",
+        lambda *args, **kwargs: np.ones(4800, dtype=np.float32),
+    )
+    written: list[np.ndarray] = []
+    monkeypatch.setattr(
+        "podcast_mcp.engines.transcript_gated_play._write_wav",
+        lambda samples, path, **kwargs: written.append(samples) or path,
+    )
+    stem = tmp_path / "stem.wav"
+    # Host speaks in the first half, guest in the second: each half holds one track.
+    intervals = {"host": [(0.0, 0.05)], "guest": [(0.05, 0.1)]}
+    for gains, host_over_guest in ((None, 1.0), ({"host": 0.0, "guest": -6.0}, 10 ** (6 / 20))):
+        render_gated_mix(
+            [("host", stem), ("guest", stem)],
+            intervals,
+            tmp_path / "mix.wav",
+            timeline_start=0.0,
+            timeline_end=0.1,
+            gains_db=gains,
+        )
+        mix = written[-1]
+        # Samples 1200 and 3600 sit clear of the 12 ms gate fades.
+        assert float(mix[1200] / mix[3600]) == pytest.approx(host_over_guest, rel=1e-4)
+    assert float(np.max(np.abs(written[-1]))) == pytest.approx(0.95, rel=1e-4)
+
+
 def test_dialogue_tracks_for_play(tmp_path: Path) -> None:
     project = EpisodeProject.create("ep", str(tmp_path))
     project.tracks = [

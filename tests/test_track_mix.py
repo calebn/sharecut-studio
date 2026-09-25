@@ -55,7 +55,7 @@ from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.projection_types import ViewProjection
 from podcast_mcp.services.document_sync.projections import projection_for_command
 from podcast_mcp.services.history import HistoryService
-from podcast_mcp.services.play import _compose_gain_db
+from podcast_mcp.services.play import PlayRequest, PlayService, _compose_gain_db
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -465,6 +465,45 @@ def test_compose_adds_only_the_gain_a_tier_has_not_baked() -> None:
     assert _compose_gain_db(track, "stem") == -5.0
     assert _compose_gain_db(track, "raw") == -5.0
     assert _compose_gain_db(None, "stem") == 0.0
+
+
+def test_the_gated_play_mix_plays_each_track_at_its_output_gain(minimal_project: Path) -> None:
+    ws = _two_tracks(minimal_project)  # host gain_db -2.0, guest 0.0
+    ws.project.track_by_id("guest").fader_db = -3.0
+    cache = ws.project.artifacts_dir() / "play_cache"
+    cache.mkdir(parents=True, exist_ok=True)
+    # The host plays from a stem (nothing baked), the guest from a segment render (staging baked).
+    audio = {"host": (cache / "host.wav", "stem"), "guest": (cache / "guest.wav", "segment_render")}
+    for path, _tier in audio.values():
+        path.write_bytes(b"RIFF")
+    calls: list[dict[str, float]] = []
+
+    def _render(_stems, _intervals, out, **kw):
+        calls.append(dict(kw["gains_db"]))
+        out.write_bytes(b"RIFF")
+        return out
+
+    def _play() -> None:
+        PlayService(ws).play(
+            PlayRequest(source="premix", start_sec=0.0, end_sec=1.0, follow_transcript=True),
+            dry_run=True,
+            publish_audition=False,
+        )
+
+    with (
+        patch.object(
+            PlayService,
+            "_processed_audio",
+            side_effect=lambda tid, start, end, *, rerender: (*audio[tid], start, end),
+        ),
+        patch("podcast_mcp.services.play.word_intervals", return_value=[]),
+        patch("podcast_mcp.services.play.render_gated_mix", side_effect=_render),
+    ):
+        _play()
+        _play()  # an unchanged mix replays from play_cache
+        ws.project.track_by_id("guest").fader_db = -6.0
+        _play()  # a volume change is a new gated mix
+    assert calls == [{"host": -2.0, "guest": -3.0}, {"host": -2.0, "guest": -6.0}]
 
 
 def test_document_commands_apply_and_send_a_mix_patch(minimal_project: Path) -> None:

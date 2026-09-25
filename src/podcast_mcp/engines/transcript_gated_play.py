@@ -306,12 +306,22 @@ def render_gated_mix(
     *,
     timeline_start: float,
     timeline_end: float,
+    gains_db: dict[str, float] | None = None,
 ) -> Path:
+    """Sum the gated stems, each at its ``gains_db`` entry (dB, default 0), then peak-normalise.
+
+    Stems don't bake a track's output gain, so the caller passes it here and the
+    gated mix keeps the track balance every other mix path plays.
+    """
     duration = timeline_end - timeline_start
+    gains = gains_db or {}
     mix: np.ndarray | None = None
     for tid, path in stems:
         seg = _load_segment(path, timeline_start, duration)
         gated = _apply_gate(seg, intervals_by_track.get(tid, []), timeline_start=timeline_start)
+        gain_db = float(gains.get(tid, 0.0))
+        if gain_db:
+            gated = gated * np.float32(10.0 ** (gain_db / 20.0))
         mix = gated if mix is None else mix + gated
     if mix is None:
         raise ValueError("no stems to mix")
