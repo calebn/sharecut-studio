@@ -450,6 +450,9 @@ export function useKeeperCapture({
     const id = setInterval(() => {
       if (watchdog.tick(performance.now())) {
         setNoAudio(true);
+        if (watchdog.silentSinceCheck) {
+          setMicCheckFailed(true);
+        }
       }
     }, SILENT_PCM_TICK_MS);
     return () => {
@@ -479,7 +482,7 @@ export function useKeeperCapture({
           track.enabled !== false &&
           track.muted !== true;
         if (healthy && watchdogRef.current.isArmed) {
-          watchdogRef.current.arm(performance.now());
+          watchdogRef.current.recheck(performance.now());
           setNoAudio(false);
           setMicCheckFailed(false);
         } else {

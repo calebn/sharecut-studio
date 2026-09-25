@@ -23,14 +23,19 @@ export const DEFAULT_METER_FLOOR_DB = -60;
 /** Peak-hold fall rate: 20 dB over 1.5 s, the PPM fall ballistics (IEC 60268-10). */
 export const PEAK_HOLD_FALL_DB_PER_SEC = 20 / 1.5;
 
-/** Highest instantaneous sample magnitude, in dBFS. Silence → −Infinity. */
-export function peakDbFromSamples(samples: ArrayLike<number>): number {
+/** Highest instantaneous sample magnitude, linear (0 for digital silence). */
+export function peakLinear(samples: ArrayLike<number>): number {
   let peak = 0;
   for (let i = 0; i < samples.length; i++) {
     const v = Math.abs(samples[i] ?? 0);
     if (v > peak) peak = v;
   }
-  return linearToDb(peak);
+  return peak;
+}
+
+/** Highest instantaneous sample magnitude, in dBFS. Silence → −Infinity. */
+export function peakDbFromSamples(samples: ArrayLike<number>): number {
+  return linearToDb(peakLinear(samples));
 }
 
 export type PeakHoldOptions = {
