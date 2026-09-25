@@ -23,7 +23,7 @@ from podcast_mcp.gui.routes.share_common import (
     rate_limit_share,
     share_features_manifest,
 )
-from podcast_mcp.services.record.commands import RecordAuthzError
+from podcast_mcp.services.record.commands import CLIENT_VISIBLE_AUTHZ_CODES, RecordAuthzError
 from podcast_mcp.services.record.reducer import RecordStateError, RoomFullError
 from podcast_mcp.services.record.service import (
     LeaseInUseError,
@@ -291,9 +291,14 @@ async def record_ws(
                 await guard.send_json({"plane": "record", "type": "Error", "code": "lease_in_use"})
             except RecordAuthzError as exc:
                 code = str(exc)
-                if code not in ("participant_removed", "invalid_lease", "invite_closed"):
+                if code not in CLIENT_VISIBLE_AUTHZ_CODES:
                     code = "forbidden"
                 await guard.send_json({"plane": "record", "type": "Error", "code": code})
+                if code == "invite_closed":
+                    # 4403 is the only close code every shipped client treats as
+                    # terminal; any other code makes an older bundle reconnect in a loop.
+                    await guard.close(4403, "invite closed")
+                    break
             except RoomFullError:
                 await guard.send_json({"plane": "record", "type": "Error", "code": "room_full"})
             except (RecordStateError, ValueError) as exc:
