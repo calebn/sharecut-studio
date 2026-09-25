@@ -163,6 +163,10 @@ class DocumentSyncService:
                     "idempotent": True,
                 }
 
+            # Apply on the saved project: another request may have committed
+            # since this service opened it, and committing a stale copy would
+            # drop that change.
+            self.project = self.ws.reload()
             if command.type == "SetEnvelope":
                 from podcast_mcp.services.document_sync.payloads import validate_payload
 
