@@ -140,7 +140,8 @@ hits EOF.
 
 `read_pcm_minmax(path, start_frame, frames)` returns int16 `(n, 2)` per-frame
 min/max across channels, for host deep zoom. `n` is clipped at the end of the
-media. WAVs use a bounded `setpos`/`readframes`. Other media use
+media. `frames` is capped at 4 × `pcm_block_frames` (262,144); a larger
+window raises `ValueError`. WAVs use a bounded `setpos`/`readframes`. Other media use
 `FFmpegEngine.decode_window_f32`, which puts `-ss` before `-i`, stops reading
 at exactly `frames` frames, and has a 30 s watchdog. `-frames:a` is not used,
 because ffmpeg counts it in decoder packets, not samples.

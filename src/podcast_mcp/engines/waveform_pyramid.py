@@ -48,6 +48,7 @@ from podcast_mcp.util.timeline_zoom import (
     base_samples_per_bin,
     bins_per_data_tile,
     level_factor,
+    pcm_block_frames,
     waveform_format_version,
 )
 from podcast_mcp.util.workspace_paths import resolve_within
@@ -60,6 +61,8 @@ LEVEL_ENTRY_BYTES = 16
 BIN_BYTES = 6
 INT16_FULL_SCALE = 32767
 TMP_MAX_AGE_SEC = 86_400.0
+# read_pcm_minmax windows are capped at this many contract PCM blocks.
+PCM_WINDOW_MAX_BLOCKS = 4
 
 # magic, version, header_bytes, sample_rate, channels, total_frames, base_spp,
 # level_factor, level_count, bins_per_tile, bin_bytes, flags, 24 reserved bytes.
@@ -490,9 +493,11 @@ def _minmax_int16(data: np.ndarray) -> np.ndarray:
     full = float(INT16_FULL_SCALE)
     out = np.empty((len(data), 2), dtype=np.int16)
     if len(data):
-        wide = data.astype(np.float64)
-        out[:, 0] = np.clip(np.floor(wide.min(axis=1) * full), -full, full)
-        out[:, 1] = np.clip(np.ceil(wide.max(axis=1) * full), -full, full)
+        # Reduce across channels in float32 (exact), then widen only (n,) arrays.
+        lo = data.min(axis=1).astype(np.float64)
+        hi = data.max(axis=1).astype(np.float64)
+        out[:, 0] = np.clip(np.floor(lo * full), -full, full)
+        out[:, 1] = np.clip(np.ceil(hi * full), -full, full)
     return out
 
 
@@ -510,9 +515,14 @@ def read_pcm_minmax(
     ``n`` is clipped at end of media. WAVs read a bounded ``setpos``/``readframes``
     window; other media decode through ``FFmpegEngine.decode_window_f32``
     (``sample_rate``/``channels`` default to a probe).
+    *frames* is capped at ``PCM_WINDOW_MAX_BLOCKS * pcm_block_frames()``; larger
+    windows raise ``ValueError``.
     """
     if start_frame < 0 or frames < 0:
         raise ValueError("start_frame and frames must be >= 0")
+    max_frames = PCM_WINDOW_MAX_BLOCKS * pcm_block_frames()
+    if frames > max_frames:
+        raise ValueError(f"PCM window of {frames} frames exceeds {max_frames}")
     info = _wav_info(path)
     if info is not None:
         start = min(start_frame, info.frames)

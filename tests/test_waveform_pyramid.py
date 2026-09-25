@@ -555,6 +555,10 @@ def test_read_pcm_minmax_wav_edges(tmp_path):
     assert read_pcm_minmax(path, 900, 10).shape == (0, 2)
     with pytest.raises(ValueError):
         read_pcm_minmax(path, -1, 10)
+    cap = wp.PCM_WINDOW_MAX_BLOCKS * 65536
+    assert read_pcm_minmax(path, 0, cap).shape == (500, 2)
+    with pytest.raises(ValueError, match="exceeds"):
+        read_pcm_minmax(path, 0, cap + 1)
 
 
 @needs_ffmpeg
