@@ -2,8 +2,12 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { SRC_ROOT, srcRelative, walkTsFiles } from "../test/sourceFiles";
 
-/** `useDaw()` / `useDawStore()` with no selector subscribe to the whole store. */
-const WHOLE_STORE_READ = /\buseDaw(?:Store)?\(\s*\)/g;
+/**
+ * Whole-store reads: `useDaw()` / `useDawStore()` with no selector, or with an
+ * identity selector such as `(s) => s`. Both subscribe to every store change.
+ */
+const WHOLE_STORE_READ =
+  /\buseDaw(?:Store)?\(\s*(?:\(?\s*(\w+)\s*\)?\s*=>\s*\1\s*,?\s*)?\)/g;
 
 function wholeStoreReads(text: string): number {
   return text.match(WHOLE_STORE_READ)?.length ?? 0;
@@ -23,6 +27,12 @@ describe("store governance", () => {
     ["const a = useDawStore((s) => s.a);", 0],
     ["useDawStore.getState();", 0],
     ["const x = myuseDaw();", 0],
+    ["const s = useDaw((s) => s);", 1],
+    ["const s = useDawStore((state) => state);", 1],
+    ["const s = useDaw(s => s);", 1],
+    ["const s = useDawStore(\n  (s) => s,\n);", 1],
+    ["const a = useDaw((s) => s.a);", 0],
+    ["const t = useDaw((s) => t);", 0],
   ])("counts whole-store reads in %j", (text, expected) => {
     expect(wholeStoreReads(text)).toBe(expected);
   });
