@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
@@ -284,6 +284,44 @@ describe("EnvelopeOverlay", () => {
     const line = container.querySelector("polyline")!.getAttribute("points")!;
     expect(line.split(" ")).toHaveLength(4);
     expect(line.startsWith(`${-x0},`)).toBe(true);
+    useDawStore.setState({ scrollLeft: 0, timelineViewportWidth: 0 });
+  });
+
+  it("keeps a dragged, selected or focused point mounted when it scrolls out of the chunk range", () => {
+    useDawStore.setState({ scrollLeft: 0, timelineViewportWidth: 1000 });
+    const { container } = render(
+      <EnvelopeOverlay
+        envelopes={useDawStore.getState().project?.envelopes ?? []}
+        trackId="host"
+        zoomPxPerSec={10}
+        width={100000}
+        onSelectTrack={vi.fn()}
+      />,
+    );
+    const late = container.querySelectorAll("circle")[1]!;
+    fireEvent.pointerDown(late);
+    // Scroll far right: chunk 0 (both points) leaves the mounted range.
+    act(() => {
+      useDawStore.setState({ scrollLeft: 50000 });
+    });
+    expect(late.isConnected).toBe(true);
+    fireEvent.pointerUp(late);
+    // Still selected after the drag, so it stays mounted.
+    expect(late.isConnected).toBe(true);
+    act(() => {
+      useDawStore.getState().setSelection(null);
+    });
+    expect(container.querySelectorAll("circle")).toHaveLength(0);
+    // A focused point stays mounted too.
+    act(() => {
+      useDawStore.setState({ scrollLeft: 0 });
+    });
+    const early = container.querySelectorAll("circle")[0]!;
+    fireEvent.focus(early);
+    act(() => {
+      useDawStore.setState({ scrollLeft: 50000 });
+    });
+    expect(early.isConnected).toBe(true);
     useDawStore.setState({ scrollLeft: 0, timelineViewportWidth: 0 });
   });
 });
