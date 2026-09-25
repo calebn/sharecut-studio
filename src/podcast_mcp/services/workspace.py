@@ -60,10 +60,15 @@ class ProjectWorkspace:
 
         Long jobs (pipeline run, export) call this before their slow work so a
         change another request commits meanwhile is merged in, not overwritten.
+        Unsaved edits already on ``self.project`` count as this job's changes.
         """
         with project_state_lock(self.project):
+            cached = self.project
             project = self.reload()
-            self._merge_base = project_merge_data(project)
+            # reload() kept the in-memory copy: unsaved edits on it are this job's
+            # changes, so the base is the saved file, not that copy.
+            base = self._store.load() if project is cached else project
+            self._merge_base = project_merge_data(base)
             return project
 
     def save_merged(self) -> None:
@@ -72,6 +77,10 @@ class ProjectWorkspace:
         Another writer's change since then is merged in, adopted in place (later
         steps see it) and recorded as its own history entry. Raises
         ``ProjectMergeConflict``, saving nothing, when both changed one value.
+
+        The merge replaces whole sections (``tracks``, ``pipeline_runs``, ``render``, ...)
+        on ``self.project`` in place: re-fetch sub-objects after this call instead of
+        keeping references taken before it.
         """
         with project_state_lock(self.project):
             if self._merge_base is None:
@@ -101,6 +110,12 @@ class ProjectWorkspace:
         params: dict | None = None,
         reload_first: bool = False,
     ) -> T:
+        """Run ``fn`` on the project as an undoable mutation and commit it.
+
+        ``reload_first`` re-reads the saved project first when the file changed since
+        this workspace loaded it. Unsaved edits on ``self.project`` are then discarded,
+        and anything still holding the old ``self.project`` object keeps a detached copy.
+        """
         with project_state_lock(self.project):
             if reload_first:
                 # Mutate the saved project: this copy may predate another request's commit.
@@ -140,7 +155,11 @@ class ProjectWorkspace:
 
 
 def _adopt_project_state(target: EpisodeProject, source: EpisodeProject) -> None:
-    """Copy ``source``'s sections into ``target`` in place, so holders of ``target`` see them."""
+    """Copy ``source``'s sections into ``target`` in place, so holders of ``target`` see them.
+
+    Not ``history.manager.apply_snapshot_to_project``: that copies only
+    ``EDITABLE_FIELDS``, and a merge also changes history and ``pipeline_runs``.
+    """
     for name in type(target).model_fields:
         value = getattr(source, name)
         if getattr(target, name) != value:
