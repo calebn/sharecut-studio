@@ -420,6 +420,22 @@ def test_triage_picks_any_actionable_unblocked_issue() -> None:
     assert "Any size is eligible" in text
 
 
+def test_conflicting_prs_are_rebased_before_the_ci_wait() -> None:
+    """A conflicting PR gets no CI, so waiting for CI first stalled #487 until the wait timed out."""
+    script = _script()
+    finish = script[script.index("async function finishLane(") :]
+    gate = finish[finish.index("// Gate: merge as soon as") :]
+    pre = gate.index("const pre = await gateFacts(issue, pr)")
+    rebase_before = gate.index("await rebase(issue, pr, branch)")
+    ci_wait = gate.index("green = await ensureGreen(issue, pr, branch, head)")
+    assert pre < rebase_before < ci_wait
+    assert "GitHub starts no CI on a PR that conflicts with main" in gate
+    # The check after the wait stays, for a PR that starts conflicting while CI runs.
+    assert gate.count("g.merge_state_status === 'DIRTY'") == 1
+    assert "pre.merge_state_status === 'DIRTY'" in gate
+    assert "before the CI wait" in CONTRIBUTING.read_text(encoding="utf-8")
+
+
 def test_model_tiers() -> None:
     script = _script()
     assert "const M = { cheap: 'haiku', worker: 'sonnet', senior: 'opus' }" in script
