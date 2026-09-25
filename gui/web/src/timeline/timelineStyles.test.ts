@@ -9,13 +9,28 @@ function partial(name: string): string {
   return readFileSync(join(here, "../styles/partials", name), "utf8");
 }
 
+/** A selector list, trimmed, whitespace-collapsed and sorted, for comparison. */
+function selectorList(list: string): string {
+  return list
+    .split(",")
+    .map((s) => s.trim().replace(/\s+/g, " "))
+    .sort()
+    .join(",");
+}
+
+/**
+ * The body of the first top-level rule whose selector list equals `selector`,
+ * ignoring selector order, spacing and comments.
+ */
 function rule(css: string, selector: string): string {
-  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = css.match(new RegExp(`(?:^|\\n)${escaped}\\s*\\{([^}]*)\\}`));
-  if (!match?.[1]) {
-    throw new Error(`No ${selector} rule`);
+  const want = selectorList(selector);
+  const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  for (const match of bare.matchAll(/(?:^|\n)([^\s{}@][^{}]*?)\{([^}]*)\}/g)) {
+    if (match[2] && selectorList(match[1] ?? "") === want) {
+      return match[2];
+    }
   }
-  return match[1];
+  throw new Error(`No ${selector} rule`);
 }
 
 describe("timeline styles", () => {
@@ -55,5 +70,11 @@ describe("timeline styles", () => {
     expect(shared).toMatch(/right:\s*-1px/);
     expect(rule(css, ".clip-waveform")).toMatch(/overflow:\s*hidden/);
     expect(rule(css, ".clip-mute-region")).toMatch(/margin-left:\s*-1px/);
+  });
+
+  it("matches a grouped selector in any order or spacing", () => {
+    expect(rule(".a,\n.b { x: 1 }", ".b, .a")).toBe(" x: 1 ");
+    expect(rule("/* .a */\n.a, .b { x: 1 }", ".a,\n.b")).toBe(" x: 1 ");
+    expect(() => rule(".a, .b { x: 1 }", ".a")).toThrow("No .a rule");
   });
 });
