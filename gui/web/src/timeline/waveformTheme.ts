@@ -209,9 +209,14 @@ function rgba(color: string, alphaScale = 1): Float32Array | null {
   ]);
 }
 
+/** Set before the real colour: if it is still there, the context rejected the colour. */
+const CANVAS_SENTINEL = "#010203";
+
 /**
  * Any CSS colour (`oklch()`, `lab()`, `color(display-p3 …)`) as sRGB
- * `rgba(…)`, read back from a 1×1 canvas; null without a 2D context.
+ * `rgba(…)`, read back from a 1×1 canvas. Null without a 2D context, or when
+ * the context rejects the colour (an ignored assignment would otherwise paint
+ * the default black, which would then be cached for the theme).
  */
 function srgbViaCanvas(color: string): string | null {
   const canvas = document.createElement("canvas");
@@ -221,7 +226,14 @@ function srgbViaCanvas(color: string): string | null {
   if (!ctx) {
     return null;
   }
+  ctx.fillStyle = CANVAS_SENTINEL;
   ctx.fillStyle = color;
+  if (
+    ctx.fillStyle === CANVAS_SENTINEL &&
+    color.trim().toLowerCase() !== CANVAS_SENTINEL
+  ) {
+    return null;
+  }
   ctx.fillRect(0, 0, 1, 1);
   const px = ctx.getImageData(0, 0, 1, 1).data;
   return `rgba(${px[0] ?? 0}, ${px[1] ?? 0}, ${px[2] ?? 0}, ${(px[3] ?? 0) / 255})`;
