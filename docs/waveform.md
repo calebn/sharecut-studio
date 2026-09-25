@@ -257,10 +257,13 @@ file through `source_id` gets its own `source:` ref, whose key matches the
   (per-ref pruning never reaches deleted refs), plus any legacy
   `artifacts/peaks/*.json` overview files. A failed pass is retried on a
   later status call and never fails the status request.
-- **Social clip energy:** `clips/social.py` reads a track's ready pyramid
-  through `engines/waveform_media.track_pyramid` and
+- **Social clip energy:** `ClipService.propose` first builds any missing track
+  pyramids inline with `ensure_track_waveforms`, so the ranking does not depend
+  on background builds. `clips/social.py` then reads each track's pyramid once
+  per call through `engines/waveform_media.track_pyramid` and
   `engines/waveform_pyramid.pyramid_peak`, at the coarsest level with
-  `spp ≤ sample_rate / 16`; it never builds and falls back to 0.5.
+  `spp ≤ sample_rate / 16`. It never builds itself and falls back to 0.5 when
+  no pyramid is readable.
 
 ## API
 
