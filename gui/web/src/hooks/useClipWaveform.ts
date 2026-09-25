@@ -49,7 +49,6 @@ export function useClipWaveform(opts: {
   sourceEnd: number;
   peaks: PeaksData | null;
   trimActive: boolean;
-  bladeHoverSec: number | null;
   selected: boolean;
   /** Clip fill (a lane colour var); keys the cached waveform tint. */
   color: string;
@@ -74,7 +73,6 @@ export function useClipWaveform(opts: {
     sourceEnd,
     peaks,
     trimActive,
-    bladeHoverSec,
     selected,
     color,
     laneHeight,
@@ -88,7 +86,8 @@ export function useClipWaveform(opts: {
     guestMode,
     shareCapabilities,
     pointerTrackId,
-    measureTimelineViewport,
+    bladeHoverSec,
+    timelineViewportWidth,
   } = useDaw((s) => ({
     projectPath: s.projectPath,
     scrollLeft: s.scrollLeft,
@@ -98,7 +97,8 @@ export function useClipWaveform(opts: {
     guestMode: s.guestMode,
     shareCapabilities: s.shareCapabilities,
     pointerTrackId: s.pointerTrackId,
-    measureTimelineViewport: s.measureTimelineViewport,
+    bladeHoverSec: s.bladeHoverSec,
+    timelineViewportWidth: s.timelineViewportWidth,
   }));
   // A theme flip re-renders the clip so its paint effect repaints the tint.
   const theme = useResolvedTheme();
@@ -113,9 +113,9 @@ export function useClipWaveform(opts: {
   const [pendingPaints] = useState(
     () => new Map<HTMLCanvasElement, WaveformPaintOverride | undefined>(),
   );
-  // What each canvas was last painted from. Clips re-render every playhead
-  // tick, so a paint whose inputs match is skipped instead of reallocating
-  // and redrawing the canvas every frame.
+  // What each canvas was last painted from. This hook follows the playhead
+  // and scroll, so its clip re-renders every tick; a paint whose inputs match
+  // is skipped instead of reallocating and redrawing the canvas every frame.
   const [paintedWith] = useState(
     () => new WeakMap<HTMLCanvasElement, WaveformPaintInputs>(),
   );
@@ -137,7 +137,7 @@ export function useClipWaveform(opts: {
     [trackId],
   );
 
-  const viewportWidth = measureTimelineViewport();
+  const viewportWidth = timelineViewportWidth;
   const win = visibleClipWindow({
     clipTimelineStart: clip.timeline_start,
     clipSourceStart: sourceStart,

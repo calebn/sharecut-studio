@@ -2,7 +2,7 @@ import type { RenderInvalidationView } from "../utils/staleRender";
 import { isRegionalInvalidation } from "../utils/staleRender";
 
 type Props = {
-  invalidations: RenderInvalidationView[];
+  invalidations: readonly RenderInvalidationView[];
   trackId: string;
   zoomPxPerSec: number;
   width: number;

@@ -220,6 +220,26 @@ describe("patchClipsMove / laneMovePreview", () => {
     expect([...origin.hideIds]).toEqual(["c1"]);
   });
 
+  it("returns the same empty preview while idle", () => {
+    const all = [clip("c1", "host", 0)];
+    const idle = (placements: null | []) =>
+      laneMovePreview({
+        trackId: "host",
+        laneClips: all,
+        allClips: all,
+        tracks,
+        placements,
+      });
+    const a = idle(null);
+    const b = idle([]);
+    expect(b.previewStartById).toBe(a.previewStartById);
+    expect(b.hideIds).toBe(a.hideIds);
+    expect(b.ghosts).toBe(a.ghosts);
+    expect(a.ghosts).toHaveLength(0);
+    expect(a.hideIds.size).toBe(0);
+    expect(Object.keys(a.previewStartById)).toHaveLength(0);
+  });
+
   it("reports no-op moves", () => {
     const clips = [clip("c1", "host", 2)];
     expect(

@@ -1,4 +1,5 @@
 import {
+  memo,
   type PointerEvent as ReactPointerEvent,
   useEffect,
   useRef,
@@ -21,7 +22,7 @@ import {
 } from "../edit/clipMove";
 import { useClipWaveform } from "../hooks/useClipWaveform";
 import { isShareProjectKey } from "../shareMode";
-import { useDaw } from "../state/useDaw";
+import { useDawStore } from "../state/dawStore";
 import type { ClipRow, PeaksData } from "../types/project";
 import { formatDurationCompact } from "../utils/time";
 import { magnetSec } from "./snapOverlay";
@@ -40,7 +41,6 @@ interface ClipBlockProps {
   peaks: PeaksData | null;
   mediaPath?: string | null;
   mediaVersion?: string;
-  bladeHoverSec?: number | null;
   /** Previous clip on this track (for roll join); null if first. */
   prevClip: ClipRow | null;
   /** Next clip on this track (roll clamp); null if last. */
@@ -53,7 +53,10 @@ interface ClipBlockProps {
   leftNeighborSourceEnd: number;
   /** Media duration for roll clamp (or Infinity). */
   mediaDurationSec: number;
-  /** Lane-owned roll preview so both abutting clips stay flush while dragging. */
+  /**
+   * Lane-owned roll preview so both abutting clips stay flush while dragging.
+   * Only the two clips of the join get it; the rest get null.
+   */
   rollPreview: {
     leftClipId: string;
     rightClipId: string;
@@ -66,12 +69,13 @@ interface ClipBlockProps {
       deltaSec: number;
     } | null,
   ) => void;
-  /** Select-only (e.g. fade drag start). */
-  onSelect: () => void;
+  /** Select-only (e.g. fade drag start). Callbacks take the clip id first,
+   *  so a lane passes one stable function to every clip. */
+  onSelect: (clipId: string) => void;
   /** Primary clip-hit click; receives clientX for blade seek. */
-  onHit: (clientX: number) => void;
+  onHit: (clipId: string, clientX: number) => void;
   /** Select-tool body click with Shift/Mod modifiers. */
-  onSelectClip?: (mods: ClipSelectMods) => void;
+  onSelectClip?: (clipId: string, mods: ClipSelectMods) => void;
   /** Host or share `edit` — not the host-only handle check. */
   canMove?: boolean;
   bladeMode?: boolean;
@@ -81,8 +85,8 @@ interface ClipBlockProps {
   moving?: boolean;
   /** Ghost on a dest lane — paint only, no hit/handles. */
   interactive?: boolean;
-  onMovePreview?: (info: ClipMovePointerInfo) => void;
-  onMoveCommit?: (info: ClipMovePointerInfo) => void;
+  onMovePreview?: (clipId: string, info: ClipMovePointerInfo) => void;
+  onMoveCommit?: (clipId: string, info: ClipMovePointerInfo) => void;
   onMoveCancel?: () => void;
 }
 
@@ -143,7 +147,7 @@ function msToPx(ms: number, zoomPxPerSec: number): number {
   return Math.max(4, (ms / 1000) * zoomPxPerSec);
 }
 
-export function ClipBlock({
+export function ClipBlockView({
   clip,
   trackId,
   role,
@@ -154,7 +158,6 @@ export function ClipBlock({
   peaks,
   mediaPath = null,
   mediaVersion = "",
-  bladeHoverSec = null,
   prevClip,
   nextClip,
   neighborSourceLo,
@@ -176,7 +179,8 @@ export function ClipBlock({
   onMoveCommit,
   onMoveCancel,
 }: ClipBlockProps) {
-  const { projectPath } = useDaw((s) => ({ projectPath: s.projectPath }));
+  // Commit handlers read the project path at call time (getState()).
+  const editable = useDawStore((s) => !isShareProjectKey(s.projectPath));
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ghostCanvasRef = useRef<HTMLCanvasElement>(null);
   const dragRef = useRef<FadeDrag | TrimDrag | RollDrag | null>(null);
@@ -216,7 +220,6 @@ export function ClipBlock({
     (clip.source_end - clip.source_start) * zoomPxPerSec,
   );
   const label = clipLabel(role, durationSec, width);
-  const editable = !isShareProjectKey(projectPath);
   const fadeInMs = fadePreview?.inMs ?? clip.fade_in_ms;
   const fadeOutMs = fadePreview?.outMs ?? clip.fade_out_ms;
   const fadeInW = fadeInMs > 0 ? msToPx(fadeInMs, zoomPxPerSec) : 0;
@@ -260,7 +263,6 @@ export function ClipBlock({
     sourceEnd,
     peaks,
     trimActive: trimPreview != null,
-    bladeHoverSec,
     selected,
     color,
     laneHeight,
@@ -292,7 +294,12 @@ export function ClipBlock({
       nextOut = Math.max(0, Math.round(state.baseOut - dxMs));
     }
     try {
-      await setClipFade(projectPath, clip.id, nextIn, nextOut);
+      await setClipFade(
+        useDawStore.getState().projectPath,
+        clip.id,
+        nextIn,
+        nextOut,
+      );
     } finally {
       dragRef.current = null;
       setFadePreview(null);
@@ -315,7 +322,12 @@ export function ClipBlock({
       neighborSourceHi,
     );
     try {
-      await trimClipEdge(projectPath, clip.id, state.edge, sourceSec);
+      await trimClipEdge(
+        useDawStore.getState().projectPath,
+        clip.id,
+        state.edge,
+        sourceSec,
+      );
     } finally {
       dragRef.current = null;
       setTrimPreview(null);
@@ -336,7 +348,7 @@ export function ClipBlock({
     try {
       if (Math.abs(delta) >= 1e-3) {
         await rollClipJoin(
-          projectPath,
+          useDawStore.getState().projectPath,
           state.leftClipId,
           state.rightClipId,
           delta,
@@ -367,7 +379,7 @@ export function ClipBlock({
       baseOut: clip.fade_out_ms,
     };
     setFadePreview({ inMs: clip.fade_in_ms, outMs: clip.fade_out_ms });
-    onSelect();
+    onSelect(clip.id);
   };
 
   const startTrimDrag = (edge: TrimEdge, e: ReactPointerEvent) => {
@@ -395,7 +407,7 @@ export function ClipBlock({
       sourceStart: clip.source_start,
       sourceEnd: clip.source_end,
     });
-    onSelect();
+    onSelect(clip.id);
   };
 
   const startRollDrag = (e: ReactPointerEvent) => {
@@ -427,7 +439,7 @@ export function ClipBlock({
       rightClipId: clip.id,
       deltaSec: 0,
     });
-    onSelect();
+    onSelect(clip.id);
   };
 
   const onDragMove = (e: ReactPointerEvent) => {
@@ -526,9 +538,9 @@ export function ClipBlock({
     };
     const wasSelected = selected;
     if (wasSelected) {
-      onSelect();
+      onSelect(clip.id);
     } else {
-      onSelectClip?.(mods);
+      onSelectClip?.(clip.id, mods);
     }
     if (!canMove) {
       return;
@@ -563,7 +575,7 @@ export function ClipBlock({
       d.started = true;
       bodyMovedRef.current = true;
     }
-    onMovePreview?.({
+    onMovePreview?.(clip.id, {
       deltaSec: (e.clientX - d.originX) / zoomPxPerSec,
       clientX: e.clientX,
       clientY: e.clientY,
@@ -585,11 +597,11 @@ export function ClipBlock({
     if (cancelled || !d.started) {
       onMoveCancel?.();
       if (!cancelled && d.wasSelected && (d.mods.shift || d.mods.mod)) {
-        onSelectClip?.(d.mods);
+        onSelectClip?.(clip.id, d.mods);
       }
       return;
     }
-    onMoveCommit?.({
+    onMoveCommit?.(clip.id, {
       deltaSec: (e.clientX - d.originX) / zoomPxPerSec,
       clientX: e.clientX,
       clientY: e.clientY,
@@ -633,12 +645,12 @@ export function ClipBlock({
               return;
             }
             if (bladeMode) {
-              onHit(e.clientX);
+              onHit(clip.id, e.clientX);
               pointerHandledRef.current = false;
               return;
             }
             if (!pointerHandledRef.current) {
-              onSelectClip?.({
+              onSelectClip?.(clip.id, {
                 shift: e.shiftKey,
                 mod: e.metaKey || e.ctrlKey,
               });
@@ -815,3 +827,6 @@ export function ClipBlock({
     </div>
   );
 }
+
+/** Re-renders only when its own props change (see `TrackLane`). */
+export const ClipBlock = memo(ClipBlockView);

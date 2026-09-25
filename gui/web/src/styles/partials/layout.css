@@ -567,10 +567,11 @@
   opacity: 0.85;
 }
 
+/* One per target lane over the lane stack; BladeGuide sets `top` to the
+   lane's offset, and the guide keeps the lane's 0.25rem inset. */
 .blade-cut-guide--lane {
-  top: 0.25rem;
-  bottom: 0.25rem;
-  height: auto;
+  translate: 0 0.25rem;
+  height: calc(var(--lane-height) - 0.5rem);
   opacity: 1;
   box-shadow: 0 0 0 1px var(--color-warning-emphasis);
 }

@@ -1,5 +1,6 @@
-import { useRef } from "react";
+import { memo, useMemo, useRef } from "react";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
+import { useDawStore } from "../state/dawStore";
 import { formatTimeShort, rulerTickTimes } from "../utils/time";
 import { MIN_TIMELINE_WIDTH_PX } from "../utils/timelineViewport";
 import { Playhead } from "./Playhead";
@@ -21,7 +22,6 @@ interface TimeRulerProps {
    */
   sessionDurationSec: number;
   zoomPxPerSec: number;
-  playheadSec: number;
   onSeek: (sec: number) => void;
   onFit?: () => void;
   commentMode?: boolean;
@@ -29,25 +29,64 @@ interface TimeRulerProps {
   hidePlayhead?: boolean;
 }
 
+/** Tick labels; re-render only for a new canvas length or zoom. */
+const RulerTicks = memo(function RulerTicks({
+  ticks,
+  zoomPxPerSec,
+  width,
+}: {
+  ticks: number[];
+  zoomPxPerSec: number;
+  width: number;
+}) {
+  return ticks.map((t, i) => {
+    const leftPx = t * zoomPxPerSec;
+    const endAligned =
+      i === ticks.length - 1 && leftPx > width - RULER_END_EDGE_PX && t > 0;
+    return (
+      <span
+        key={t}
+        className={`ruler-tick${endAligned ? " ruler-tick--end" : ""}`}
+        style={{ left: leftPx }}
+      >
+        {formatTimeShort(t)}
+      </span>
+    );
+  });
+});
+
+/**
+ * The slider's value: the playhead, in quarter seconds while playing so the
+ * ruler re-renders four times a second rather than every frame.
+ */
+function selectRulerValueSec(s: {
+  isPlaying: boolean;
+  playheadSec: number;
+}): number {
+  return s.isPlaying ? Math.floor(s.playheadSec * 4) / 4 : s.playheadSec;
+}
+
 export function TimeRuler({
   durationSec,
   sessionDurationSec,
   zoomPxPerSec,
-  playheadSec,
   onSeek,
   onFit,
   commentMode = false,
   onCommentAnchor,
   hidePlayhead = false,
 }: TimeRulerProps) {
+  const valueSec = useDawStore(selectRulerValueSec);
   const width = Math.max(durationSec * zoomPxPerSec, MIN_TIMELINE_WIDTH_PX);
-  const rawTicks = rulerTickTimes(durationSec, zoomPxPerSec);
-  const ticks = dropCollidingRulerEndTick(
-    rawTicks,
-    zoomPxPerSec,
-    width,
-    estimateRulerLabelWidthPx(rawTicks),
-  );
+  const ticks = useMemo(() => {
+    const rawTicks = rulerTickTimes(durationSec, zoomPxPerSec);
+    return dropCollidingRulerEndTick(
+      rawTicks,
+      zoomPxPerSec,
+      width,
+      estimateRulerLabelWidthPx(rawTicks),
+    );
+  }, [durationSec, zoomPxPerSec, width]);
   const majorStep =
     ticks.length >= 2 ? ticks[1]! - ticks[0]! : Math.max(1, durationSec);
   const sessionEnd = Math.max(0, sessionDurationSec);
@@ -70,8 +109,8 @@ export function TimeRuler({
       aria-label={commentMode ? "Comment time anchor" : "Timeline position"}
       aria-valuemin={0}
       aria-valuemax={sessionEnd}
-      aria-valuenow={playheadSec}
-      aria-valuetext={formatTimeShort(playheadSec)}
+      aria-valuenow={valueSec}
+      aria-valuetext={formatTimeShort(valueSec)}
       onClick={(e) => {
         if (commentMode) {
           return;
@@ -80,6 +119,7 @@ export function TimeRuler({
       }}
       onKeyDown={(e) => {
         const step = majorStep;
+        const playheadSec = useDawStore.getState().playheadSec;
         if (e.key === "ArrowLeft") {
           e.preventDefault();
           onSeek(Math.max(0, playheadSec - step));
@@ -148,27 +188,8 @@ export function TimeRuler({
             : undefined
       }
     >
-      {ticks.map((t, i) => {
-        const leftPx = t * zoomPxPerSec;
-        const endAligned =
-          i === ticks.length - 1 && leftPx > width - RULER_END_EDGE_PX && t > 0;
-        return (
-          <span
-            key={t}
-            className={`ruler-tick${endAligned ? " ruler-tick--end" : ""}`}
-            style={{ left: leftPx }}
-          >
-            {formatTimeShort(t)}
-          </span>
-        );
-      })}
-      {!hidePlayhead ? (
-        <Playhead
-          playheadSec={playheadSec}
-          zoomPxPerSec={zoomPxPerSec}
-          height="100%"
-        />
-      ) : null}
+      <RulerTicks ticks={ticks} zoomPxPerSec={zoomPxPerSec} width={width} />
+      {!hidePlayhead ? <Playhead height="100%" /> : null}
     </div>
   );
 }

@@ -114,9 +114,9 @@ export type MarkerRows = {
 
 /** Marker rows that have content to show; empty rows collapse. */
 export function markerRows(input: {
-  chapters: ChapterMarker[];
-  socialClips: SocialClipView[];
-  comments: TimelineComment[];
+  chapters: readonly ChapterMarker[];
+  socialClips: readonly SocialClipView[];
+  comments: readonly TimelineComment[];
   showMarkers: boolean;
   showComments: boolean;
 }): MarkerRows {

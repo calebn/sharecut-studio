@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { selectionToWire } from "../session/wire";
 import { useDawStore } from "../state/dawStore";
+import type { DawState } from "../state/types";
 import type { PresenceCursor } from "../types/session";
 import { timelineTimeViewportWidth } from "../utils/timelineViewport";
 import {
@@ -10,7 +11,21 @@ import {
 } from "./followSync";
 import { createPresenceThrottle, type PresenceSend } from "./publisher";
 
+type PresenceThrottle = ReturnType<typeof createPresenceThrottle>;
+
 const KEEPALIVE_MS = 10_000;
+
+/** Store fields the `ui` frame is built from. */
+const UI_KEYS = [
+  "activeTab",
+  "mobileMode",
+  "shellBreakpoint",
+  "pointerKind",
+  "auditionMode",
+  "viewerMute",
+  "soloTracks",
+  "transcriptViewAnchor",
+] as const satisfies readonly (keyof DawState)[];
 
 export function usePresencePublisher(
   send: PresenceSend | null,
@@ -66,108 +81,108 @@ export function usePresencePublisher(
     return () => window.clearInterval(id);
   }, [send]);
 
-  const playheadSec = useDawStore((s) => s.playheadSec);
-  const isPlaying = useDawStore((s) => s.isPlaying);
-  const selection = useDawStore((s) => s.selection);
-  const scrollLeft = useDawStore((s) => s.scrollLeft);
-  const zoomPxPerSec = useDawStore((s) => s.zoomPxPerSec);
-  const followingClientId = useDawStore((s) => s.followingClientId);
-  const activeTab = useDawStore((s) => s.activeTab);
-  const mobileMode = useDawStore((s) => s.mobileMode);
-  const shellBreakpoint = useDawStore((s) => s.shellBreakpoint);
-  const pointerKind = useDawStore((s) => s.pointerKind);
-  const auditionMode = useDawStore((s) => s.auditionMode);
-  const viewerMute = useDawStore((s) => s.viewerMute);
-  const soloTracks = useDawStore((s) => s.soloTracks);
-  const transcriptViewAnchor = useDawStore((s) => s.transcriptViewAnchor);
-
+  // Published from store subscriptions, not selectors: the host's app root
+  // calls this hook, and a playhead or scroll tick must not re-render it.
   useEffect(() => {
     if (!send) {
       return;
     }
-    if (followingClientId) {
-      throttleRef.current.push({
-        following: followingClientId,
-        transport: null,
-        viewport: null,
+    const push = (meta: Parameters<PresenceThrottle["push"]>[0]) =>
+      throttleRef.current.push(meta);
+    const publishFollowing = (s: DawState) => {
+      if (s.followingClientId) {
+        push({
+          following: s.followingClientId,
+          transport: null,
+          viewport: null,
+        });
+        return;
+      }
+      push({ following: null });
+    };
+    const publishTransport = (s: DawState) => {
+      if (s.followingClientId) {
+        return;
+      }
+      push({
+        transport: {
+          playing: s.isPlaying,
+          playhead_sec: s.playheadSec,
+          rate: s.playbackRate,
+        },
       });
-      return;
-    }
-    throttleRef.current.push({ following: null });
-  }, [send, followingClientId]);
+    };
+    const publishSelection = (s: DawState) => {
+      push({ selection: selectionToWire(s.selection, s.project?.envelopes) });
+    };
+    const publishViewport = (s: DawState) => {
+      if (s.followingClientId) {
+        return;
+      }
+      push({
+        viewport: zoomScrollToViewport(
+          s.scrollLeft,
+          s.zoomPxPerSec,
+          timelineTimeViewportWidth(useDawStore.getState()._timelineEl),
+        ),
+      });
+    };
+    const publishUi = (s: DawState) => {
+      push({
+        ui: {
+          tab: s.activeTab,
+          mobile_mode:
+            s.shellBreakpoint === "phone"
+              ? s.mobileMode
+              : s.pointerKind === "coarse"
+                ? mobileModeForTab(s.activeTab).mobileMode
+                : null,
+          transcript_anchor:
+            s.activeTab === "transcript" ? s.transcriptViewAnchor : null,
+          audition: s.auditionMode,
+          viewer_mute: Object.keys(s.viewerMute)
+            .filter((k) => s.viewerMute[k])
+            .sort(),
+          solo: Object.keys(s.soloTracks)
+            .filter((k) => s.soloTracks[k])
+            .sort(),
+        },
+      });
+    };
 
-  useEffect(() => {
-    if (!send || followingClientId) {
-      return;
-    }
-    throttleRef.current.push({
-      transport: {
-        playing: isPlaying,
-        playhead_sec: playheadSec,
-        rate: useDawStore.getState().playbackRate,
-      },
-    });
-  }, [send, playheadSec, isPlaying, followingClientId]);
+    // Connect: publish everything once, in the order of the frames below.
+    const initial = useDawStore.getState();
+    publishFollowing(initial);
+    publishTransport(initial);
+    publishSelection(initial);
+    publishViewport(initial);
+    publishUi(initial);
 
-  useEffect(() => {
-    if (!send) {
-      return;
-    }
-    throttleRef.current.push({
-      selection: selectionToWire(
-        selection,
-        useDawStore.getState().project?.envelopes,
-      ),
+    return useDawStore.subscribe((s, prev) => {
+      const followChanged = s.followingClientId !== prev.followingClientId;
+      if (followChanged) {
+        publishFollowing(s);
+      }
+      if (
+        followChanged ||
+        s.playheadSec !== prev.playheadSec ||
+        s.isPlaying !== prev.isPlaying
+      ) {
+        publishTransport(s);
+      }
+      if (s.selection !== prev.selection) {
+        publishSelection(s);
+      }
+      if (
+        followChanged ||
+        s.scrollLeft !== prev.scrollLeft ||
+        s.zoomPxPerSec !== prev.zoomPxPerSec
+      ) {
+        publishViewport(s);
+      }
+      if (UI_KEYS.some((key) => s[key] !== prev[key])) {
+        publishUi(s);
+      }
     });
-  }, [send, selection]);
-
-  useEffect(() => {
-    if (!send || followingClientId) {
-      return;
-    }
-    const el = useDawStore.getState()._timelineEl;
-    throttleRef.current.push({
-      viewport: zoomScrollToViewport(
-        scrollLeft,
-        zoomPxPerSec,
-        timelineTimeViewportWidth(el),
-      ),
-    });
-  }, [send, scrollLeft, zoomPxPerSec, followingClientId]);
-
-  useEffect(() => {
-    if (!send) {
-      return;
-    }
-    throttleRef.current.push({
-      ui: {
-        tab: activeTab,
-        mobile_mode:
-          shellBreakpoint === "phone"
-            ? mobileMode
-            : pointerKind === "coarse"
-              ? mobileModeForTab(activeTab).mobileMode
-              : null,
-        transcript_anchor:
-          activeTab === "transcript" ? transcriptViewAnchor : null,
-        audition: auditionMode,
-        viewer_mute: Object.keys(viewerMute)
-          .filter((k) => viewerMute[k])
-          .sort(),
-        solo: Object.keys(soloTracks)
-          .filter((k) => soloTracks[k])
-          .sort(),
-      },
-    });
-  }, [
-    send,
-    activeTab,
-    mobileMode,
-    shellBreakpoint,
-    pointerKind,
-    auditionMode,
-    viewerMute,
-    soloTracks,
-    transcriptViewAnchor,
-  ]);
+  }, [send]);
 }

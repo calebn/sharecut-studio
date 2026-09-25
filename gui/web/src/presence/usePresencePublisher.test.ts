@@ -1,4 +1,4 @@
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useFollowUi } from "../hooks/useFollowUi";
 import { useDawStore } from "../state/dawStore";
@@ -177,4 +177,47 @@ describe("usePresencePublisher", () => {
       expect(useDawStore.getState().mobileMode).toBe(mode);
     },
   );
+
+  it("publishes store changes without re-rendering its host", async () => {
+    useDawStore.setState({
+      followingClientId: null,
+      isPlaying: false,
+      playheadSec: 0,
+      selection: null,
+      activeTab: "transcript",
+    });
+    const sent: Record<string, unknown>[] = [];
+    let renders = 0;
+    renderHook(() => {
+      renders += 1;
+      usePresencePublisher((frame) => sent.push(frame), "Host");
+    });
+    const rendersAfterMount = renders;
+    act(() => {
+      useDawStore.setState({ isPlaying: true, playheadSec: 4 });
+      useDawStore.setState({ playheadSec: 5 });
+      useDawStore.setState({ scrollLeft: 120 });
+      useDawStore.setState({ activeTab: "comments" });
+    });
+    expect(renders).toBe(rendersAfterMount);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    });
+    const metas = sent.map((f) => f.meta as Record<string, unknown>);
+    expect(
+      metas.some(
+        (m) =>
+          (m.transport as { playing?: boolean } | undefined)?.playing === true,
+      ),
+    ).toBe(true);
+    expect(
+      metas.some(
+        (m) => (m.ui as { tab?: string } | undefined)?.tab === "comments",
+      ),
+    ).toBe(true);
+    const last = metas.findLast((m) => m.transport != null) as {
+      transport: { playhead_sec: number };
+    };
+    expect(last.transport.playhead_sec).toBe(5);
+  });
 });

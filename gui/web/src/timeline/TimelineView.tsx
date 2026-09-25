@@ -1,5 +1,6 @@
 import {
   type CSSProperties,
+  memo,
   type ReactNode,
   type PointerEvent as ReactPointerEvent,
   useCallback,
@@ -16,6 +17,7 @@ import {
   allClipsFromTracks,
   type ClipMoveItem,
   type ClipMovePointerInfo,
+  type ClipSelectMods,
   computeClipMoves,
   laneMovePreview,
   moveSnapTicks,
@@ -24,7 +26,7 @@ import {
   trackIdFromPoint,
 } from "../edit/clipMove";
 import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
-import { presenceColorVar, rosterDisplayName } from "../presence/colors";
+import { presenceColorVar } from "../presence/colors";
 import {
   isProgrammaticScroll,
   withProgrammaticScroll,
@@ -32,7 +34,7 @@ import {
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { ClipRow } from "../types/project";
-import { Avatar } from "../ui/Avatar";
+import { EMPTY_ARR, EMPTY_CLIPS } from "../utils/empty";
 import {
   COMPACT_LANE_HEIGHT,
   FIT_GUTTER,
@@ -42,7 +44,6 @@ import {
 } from "../utils/layout";
 import { clientXToTimelineSec } from "../utils/timelinePointer";
 import {
-  centerSecToScrollLeft,
   domToLogicalScrollLeft,
   fixedPlayheadCanvasSize,
   fixedPlayheadLeadPx,
@@ -56,13 +57,21 @@ import {
   timelineCanvasSize,
   timelineHeaderEl,
 } from "../utils/timelineViewport";
+import { useStableCallback } from "../utils/useStableCallback";
 import { noteZoomPointerClientX } from "../utils/zoomPointer";
 import { AuditionOverlay } from "./AuditionOverlay";
 import { CommentPlaybackBubble } from "./CommentPlaybackBubble";
 import { CommentSelectionOverlay } from "./CommentSelectionOverlay";
+import { selectFollowColorIndex } from "./followTarget";
 import { MarkerLane } from "./MarkerLane";
 import { Playhead } from "./Playhead";
 import { PresenceOverlay } from "./PresenceOverlay";
+import {
+  BladeGuide,
+  FixedPlayheadRecenter,
+  FollowPlayheadChip,
+  TimelineScrollSync,
+} from "./TimelineLeaves";
 import { TimeRuler } from "./TimeRuler";
 import { TrackLane } from "./TrackLane";
 import {
@@ -83,17 +92,15 @@ type Props = {
   headerSlot?: ReactNode;
 };
 
-export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
+export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   // Before a project loads this view provides no metrics, so its skeleton and
   // any header column beside or inside it read the same ambient defaults.
   const loadingMetrics = useTimelineMetrics();
   const {
     projectPath,
     zoomPxPerSec,
-    scrollLeft,
     setScrollLeft,
     registerTimelineLead,
-    playheadSec,
     setPlayheadSec,
     selection,
     setSelection,
@@ -117,18 +124,16 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
     guestMode,
     shareCapabilities,
     highlightStaleRender,
-    sessionClients,
-    localClientId,
     followingClientId,
     stopFollow,
+    setBladeHoverSec,
+    setTimelineViewportWidth,
   } = useDawStore(
     useShallow((s) => ({
       projectPath: s.projectPath,
       zoomPxPerSec: s.zoomPxPerSec,
-      scrollLeft: s.scrollLeft,
       setScrollLeft: s.setScrollLeft,
       registerTimelineLead: s.registerTimelineLead,
-      playheadSec: s.playheadSec,
       setPlayheadSec: s.setPlayheadSec,
       selection: s.selection,
       setSelection: s.setSelection,
@@ -152,12 +157,13 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
       guestMode: s.guestMode,
       shareCapabilities: s.shareCapabilities,
       highlightStaleRender: s.highlightStaleRender,
-      sessionClients: s.sessionClients,
-      localClientId: s.localClientId,
       followingClientId: s.followingClientId,
       stopFollow: s.stopFollow,
+      setBladeHoverSec: s.setBladeHoverSec,
+      setTimelineViewportWidth: s.setTimelineViewportWidth,
     })),
   );
+  const followColorIndex = useDawStore(selectFollowColorIndex);
   const project = useDawStore(
     useShallow((s) => {
       const p = s.project;
@@ -195,11 +201,9 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
   // Set while a pinch or wheel zoom applies its anchored scroll, so the
   // scroll events it causes neither seek nor unfollow.
   const anchoringZoom = useRef(false);
-  const prevZoomForPlayheadRef = useRef(zoomPxPerSec);
   const applyZoomAtRef = useRef<(nextZoom: number, clientX: number) => void>(
     () => undefined,
   );
-  const [bladeHoverSec, setBladeHoverSec] = useState<number | null>(null);
   // One measurement of the scroller drives the fit, the lead pads, the fixed
   // line, the center math and the stage edges, so they cannot disagree.
   const [columns, setColumns] = useState({
@@ -215,24 +219,24 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
   // the new margins. A logical scroll before −lead has nowhere to go.
   useLayoutEffect(() => {
     registerTimelineLead(leadPx);
-    const s = useDawStore.getState();
+    const { scrollLeft } = useDawStore.getState();
     const floor = minLogicalScrollLeft(leadPx);
-    if (s.scrollLeft < floor) {
-      s.setScrollLeft(floor);
+    if (scrollLeft < floor) {
+      setScrollLeft(floor);
     }
-  }, [leadPx, registerTimelineLead]);
+  }, [leadPx, registerTimelineLead, setScrollLeft]);
   // Unmounting drops the pads, so the next (unpadded) view must not inherit a
   // scroll before 0: it would anchor zoom and publish presence from it.
   useEffect(
     () => () => {
       registerTimelineLead(0);
-      const s = useDawStore.getState();
+      const { scrollLeft } = useDawStore.getState();
       const floor = minLogicalScrollLeft(0);
-      if (s.scrollLeft < floor) {
-        s.setScrollLeft(floor);
+      if (scrollLeft < floor) {
+        setScrollLeft(floor);
       }
     },
-    [registerTimelineLead],
+    [registerTimelineLead, setScrollLeft],
   );
   // The last DOM scroll this view wrote. Its scroll event is an echo, not a
   // person's scroll, even if it arrives after the programmatic flags clear.
@@ -296,7 +300,7 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
     const ticks = moveSnapTicks({
       clips: snap.clips,
       movingIds: new Set(snap.movingIds),
-      playheadSec,
+      playheadSec: useDawStore.getState().playheadSec,
       extraTicks: info.extraTicks,
     });
     const deltaSec = snapMoveDeltaSec({
@@ -353,13 +357,20 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
   // Fit-to-window lanes: few tracks grow to fill the stage. The stage height
   // lives in a ref; state changes only when the whole-px lane height does, so
   // a vertical resize (e.g. the tabs splitter) does not re-render every clip.
-  const liveRows = markerRows({
-    chapters: project?.chapters ?? [],
-    socialClips: project?.social_clips ?? [],
-    comments: project?.comments ?? [],
-    showMarkers: layers.showMarkers,
-    showComments: layers.showComments,
-  });
+  const chapters = project?.chapters ?? EMPTY_ARR;
+  const socialClips = project?.social_clips ?? EMPTY_ARR;
+  const comments = project?.comments ?? EMPTY_ARR;
+  const liveRows = useMemo(
+    () =>
+      markerRows({
+        chapters,
+        socialClips,
+        comments,
+        showMarkers: layers.showMarkers,
+        showComments: layers.showComments,
+      }),
+    [chapters, socialClips, comments, layers.showMarkers, layers.showComments],
+  );
   const liveMarkerLaneHeightPx = markerLaneHeight(liveRows);
   const trackCount = project?.tracks.length ?? 0;
   const [fittedLaneHeight, setFittedLaneHeight] = useState(LANE_HEIGHT);
@@ -396,11 +407,15 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
 
   // Lane geometry as drawn: held still while a move / trim / fade / envelope
   // drag is active (children hold via useHoldTimelineMetrics).
-  const { value: layout, hold: holdLayout } = useGestureStable({
-    laneHeight: fittedLaneHeight,
-    markerLaneHeightPx: liveMarkerLaneHeightPx,
-    rows: liveRows,
-  });
+  const liveLayout = useMemo(
+    () => ({
+      laneHeight: fittedLaneHeight,
+      markerLaneHeightPx: liveMarkerLaneHeightPx,
+      rows: liveRows,
+    }),
+    [fittedLaneHeight, liveMarkerLaneHeightPx, liveRows],
+  );
+  const { value: layout, hold: holdLayout } = useGestureStable(liveLayout);
   const { laneHeight, markerLaneHeightPx, rows } = layout;
   const moving = movePlacements != null;
   useEffect(() => (moving ? holdLayout() : undefined), [moving, holdLayout]);
@@ -438,6 +453,7 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
         `${scrollbarBlockPx}px`,
       );
       const timeWidth = next.timeViewportPx;
+      setTimelineViewportWidth(timeWidth);
       stageHeightRef.current = el.clientHeight;
       refitLanes();
       if (useDawStore.getState().followingClientId) {
@@ -461,17 +477,14 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
       ro.observe(header);
     }
     return () => ro.disconnect();
-  }, [project, userZoomed, fitToWindow, followingClientId, refitLanes]);
-
-  // Apply store scroll after zoom expands content width (avoids clamp on fitted views).
-  // Also runs in fixed-playhead mode so pinch/cursor anchors are not discarded.
-  useLayoutEffect(() => {
-    const el = scrollRef.current;
-    if (!el) {
-      return;
-    }
-    writeScroll(el, scrollLeft, leadPx);
-  }, [scrollLeft, zoomPxPerSec, leadPx, writeScroll]);
+  }, [
+    project,
+    userZoomed,
+    fitToWindow,
+    followingClientId,
+    refitLanes,
+    setTimelineViewportWidth,
+  ]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -499,72 +512,95 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
     writeScroll,
   ]);
 
-  // Fixed playhead: transport/seek recenters on the playhead. Pinch and
-  // pointer zoom keep the time under the fingers still and move the playhead
-  // to the new center; fit and command zoom (menu, keys) anchor at the line
-  // (dawStore), so they keep it.
-  useEffect(() => {
-    const el = scrollRef.current;
-    // Track every zoom, even while unpadded, so a later switch to a fixed
-    // playhead does not read an old zoom as a pinch.
-    const zoomChanged = prevZoomForPlayheadRef.current !== zoomPxPerSec;
-    prevZoomForPlayheadRef.current = zoomPxPerSec;
-    if (!el || !fixedPlayhead || !project || timeViewportPx <= 0) {
-      return;
-    }
-
-    if (zoomChanged && userZoomed) {
-      const centerSec = scrollLeftToCenterSec(
-        scrollLeft,
-        zoomPxPerSec,
-        timeViewportPx,
-        project.timeline_duration_sec,
-      );
-      if (
-        Math.abs(centerSec - playheadSec) * zoomPxPerSec >
-        PLAYHEAD_MOVE_MIN_PX
-      ) {
-        setPlayheadSec(centerSec);
-      }
-      return;
-    }
-
-    const target = centerSecToScrollLeft(
-      playheadSec,
-      zoomPxPerSec,
-      timeViewportPx,
-    );
-    const current = domToLogicalScrollLeft(el.scrollLeft, leadPx);
-    if (Math.abs(current - target) > PLAYHEAD_MOVE_MIN_PX) {
-      writeScroll(el, target, leadPx);
-      setScrollLeft(target);
-    }
-  }, [
-    playheadSec,
-    zoomPxPerSec,
-    scrollLeft,
-    fixedPlayhead,
-    project,
-    setScrollLeft,
-    setPlayheadSec,
-    isPlaying,
-    userZoomed,
-    leadPx,
-    timeViewportPx,
-    writeScroll,
-  ]);
-
   useEffect(() => {
     if (toolMode !== "blade" || commentMode) {
       setBladeHoverSec(null);
     }
-  }, [toolMode, commentMode]);
+  }, [toolMode, commentMode, setBladeHoverSec]);
+  // The hover belongs to this view's lanes; it goes when they do.
+  useEffect(() => () => setBladeHoverSec(null), [setBladeHoverSec]);
 
-  // Stable context value: TimelineView renders every playhead tick, and a new
-  // object would re-render the headers column and every metrics reader too.
+  // Stable context value: a new object would re-render the headers column and
+  // every metrics reader too.
   const metrics = useMemo(
     () => ({ laneHeight, markerLaneHeight: markerLaneHeightPx }),
     [laneHeight, markerLaneHeightPx],
+  );
+
+  const sessionSec = project?.timeline_duration_sec ?? 0;
+  // A fixed playhead's canvas is the session (the pads fill the viewport),
+  // so the scroll range itself ends with the session end under the line.
+  const { widthPx: width, durationSec: canvasSec } = fixedPlayhead
+    ? fixedPlayheadCanvasSize(sessionSec, zoomPxPerSec)
+    : timelineCanvasSize(sessionSec, zoomPxPerSec, timeViewportPx);
+  const bladeMode = toolMode === "blade" && !commentMode;
+
+  // Lane callbacks: one stable function each, taking the track id first, so
+  // memoized lanes and clips see equal props. Hot fields (playhead, scroll)
+  // are read at call time.
+  const onSeek = useStableCallback((clientX: number, target: HTMLElement) => {
+    const sec = clientXToTimelineSec(
+      clientX,
+      target,
+      useDawStore.getState().scrollLeft,
+      zoomPxPerSec,
+      canvasSec,
+    );
+    void execute("transport.seek", { sec }, { skipWhen: true });
+    if (bladeMode) {
+      void execute("edit.bladeCut", { atTime: sec }, { skipWhen: true });
+    }
+  });
+  const onSelectClip = useStableCallback(
+    (trackId: string, clipId: string, mods?: ClipSelectMods) => {
+      if (mods) {
+        selectClip(clipId, trackId, mods);
+        return;
+      }
+      setSelection({ kind: "clip", id: clipId, trackId });
+    },
+  );
+  const onSelectTrack = useStableCallback((trackId: string) => {
+    setSelection({ kind: "track", trackId });
+  });
+  const onSelectApplied = useStableCallback((trackId: string, id: string) =>
+    setSelection({ kind: "applied", id, trackId }),
+  );
+  const onSelectPending = useStableCallback((trackId: string, id: string) =>
+    setSelection({ kind: "pending", id, trackId }),
+  );
+  const onClipMovePreview = useStableCallback(
+    (clipId: string, info: ClipMovePointerInfo) => {
+      setMovePlacements(resolveMove(clipId, info, "preview"));
+    },
+  );
+  const onClipMoveCommit = useStableCallback(
+    (clipId: string, info: ClipMovePointerInfo) => {
+      const moves = resolveMove(clipId, info, "commit");
+      endMoveGesture();
+      if (!movesDifferFromClips(allClips, moves)) {
+        return;
+      }
+      void execute("edit.moveClips", { clips: moves }, { skipWhen: true });
+    },
+  );
+  const onClipMoveCancel = useStableCallback(() => endMoveGesture());
+
+  const scrollLeaves = (
+    <>
+      <TimelineScrollSync
+        scrollRef={scrollRef}
+        leadPx={leadPx}
+        writeScroll={writeScroll}
+      />
+      <FixedPlayheadRecenter
+        scrollRef={scrollRef}
+        leadPx={leadPx}
+        writeScroll={writeScroll}
+        fixedPlayhead={fixedPlayhead}
+        timeViewportPx={timeViewportPx}
+      />
+    </>
   );
 
   if (!project) {
@@ -576,6 +612,7 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
         aria-busy="true"
         aria-label="Loading timeline"
       >
+        {scrollLeaves}
         <div className="timeline-scroll" ref={scrollRef}>
           <div
             className={
@@ -605,12 +642,6 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
     );
   }
 
-  const sessionSec = project.timeline_duration_sec;
-  // A fixed playhead's canvas is the session (the pads fill the viewport),
-  // so the scroll range itself ends with the session end under the line.
-  const { widthPx: width, durationSec: canvasSec } = fixedPlayhead
-    ? fixedPlayheadCanvasSize(sessionSec, zoomPxPerSec)
-    : timelineCanvasSize(sessionSec, zoomPxPerSec, timeViewportPx);
   const laneStackHeight =
     markerLaneHeightPx + project.tracks.length * laneHeight;
 
@@ -640,6 +671,7 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
           timeViewportPx,
           canvasSec,
         );
+        const playheadSec = useDawStore.getState().playheadSec;
         if (Math.abs(sec - playheadSec) * zoomPxPerSec > PLAYHEAD_MOVE_MIN_PX) {
           setPlayheadSec(sec);
         }
@@ -647,22 +679,6 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
     }
     setScrollLeft(logicalLeft);
   };
-
-  const seekAt = (clientX: number, target: HTMLElement) => {
-    const sec = clientXToTimelineSec(
-      clientX,
-      target,
-      scrollLeft,
-      zoomPxPerSec,
-      canvasSec,
-    );
-    void execute("transport.seek", { sec }, { skipWhen: true });
-    if (toolMode === "blade" && !commentMode) {
-      void execute("edit.bladeCut", { atTime: sec }, { skipWhen: true });
-    }
-  };
-
-  const bladeMode = toolMode === "blade" && !commentMode;
 
   const onBladePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!bladeMode || !lanesRef.current) {
@@ -672,7 +688,7 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
       clientXToTimelineSec(
         e.clientX,
         lanesRef.current,
-        scrollLeft,
+        useDawStore.getState().scrollLeft,
         zoomPxPerSec,
         canvasSec,
       ),
@@ -700,9 +716,10 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
   const lockClass = headerSlot
     ? "timeline-lock-inner timeline-lock-inner--headers"
     : "timeline-lock-inner";
-  const followTarget = followingClientId
-    ? sessionClients.find((c) => c.client_id === followingClientId)
-    : undefined;
+  const selectedCommentId = selection?.kind === "comment" ? selection.id : null;
+  const staleInvalidations = showStaleInv
+    ? staleBreakdown.invalidations
+    : EMPTY_ARR;
 
   return (
     <TimelineMetricsProvider value={metrics}>
@@ -736,26 +753,16 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
                 : {}),
               ...(followingClientId
                 ? {
-                    "--presence-color": presenceColorVar(
-                      followTarget?.meta?.color_index,
-                    ),
+                    "--presence-color": presenceColorVar(followColorIndex),
                   }
                 : {}),
             } as CSSProperties
           }
         >
+          {scrollLeaves}
           {fixedPlayhead ? (
             <div className="playhead playhead--fixed" aria-hidden>
-              {followTarget ? (
-                <span className="playhead-fixed-chip">
-                  <Avatar
-                    name={rosterDisplayName(followTarget)}
-                    colorIndex={followTarget.meta?.color_index}
-                    sessionRole={followTarget.role}
-                    size="sm"
-                  />
-                </span>
-              ) : null}
+              <FollowPlayheadChip />
             </div>
           ) : null}
           <div
@@ -780,7 +787,6 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
                   durationSec={canvasSec}
                   sessionDurationSec={sessionSec}
                   zoomPxPerSec={zoomPxPerSec}
-                  playheadSec={playheadSec}
                   hidePlayhead={fixedPlayhead}
                   onSeek={(sec) => {
                     void execute("transport.seek", { sec }, { skipWhen: true });
@@ -804,13 +810,11 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
                 />
                 <div style={{ position: "relative", width }}>
                   <MarkerLane
-                    chapters={project.chapters}
-                    socialClips={project.social_clips ?? []}
-                    comments={project.comments ?? []}
+                    chapters={chapters}
+                    socialClips={socialClips}
+                    comments={comments}
                     rows={rows}
-                    selectedCommentId={
-                      selection?.kind === "comment" ? selection.id : null
-                    }
+                    selectedCommentId={selectedCommentId}
                     zoomPxPerSec={zoomPxPerSec}
                     width={width}
                     onSelectChapter={(ch) => {
@@ -851,7 +855,7 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
                     )}
                     {selection?.kind === "comment" &&
                       (() => {
-                        const selectedComment = (project.comments ?? []).find(
+                        const selectedComment = comments.find(
                           (c) => c.id === selection.id,
                         );
                         return selectedComment ? (
@@ -863,15 +867,9 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
                         ) : null;
                       })()}
                     {!fixedPlayhead ? (
-                      <Playhead
-                        playheadSec={playheadSec}
-                        zoomPxPerSec={zoomPxPerSec}
-                        height={laneStackHeight - markerLaneHeightPx}
-                      />
+                      <Playhead height={laneStackHeight - markerLaneHeightPx} />
                     ) : null}
                     <PresenceOverlay
-                      clients={sessionClients}
-                      localClientId={localClientId}
                       zoomPxPerSec={zoomPxPerSec}
                       height={laneStackHeight - markerLaneHeightPx}
                       tracks={project.tracks}
@@ -879,12 +877,9 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
                       hidePlayheadForClientId={followingClientId}
                     />
                     <CommentPlaybackBubble
-                      comments={project.comments ?? []}
-                      playheadSec={playheadSec}
+                      comments={comments}
                       zoomPxPerSec={zoomPxPerSec}
-                      selectedCommentId={
-                        selection?.kind === "comment" ? selection.id : null
-                      }
+                      selectedCommentId={selectedCommentId}
                       visible={layers.showComments && isPlaying}
                       onSelect={(c) => {
                         setSelection({ kind: "comment", id: c.id });
@@ -892,10 +887,19 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
                         setActiveTab("comments");
                       }}
                     />
+                    {bladeMode ? (
+                      <BladeGuide
+                        tracks={project.tracks}
+                        selectedTrackIds={selectedTrackIds}
+                        zoomPxPerSec={zoomPxPerSec}
+                      />
+                    ) : null}
                     {project.tracks.map((track, idx) => {
+                      const laneClips =
+                        project.clips.tracks[track.id] ?? EMPTY_CLIPS;
                       const lanePreview = laneMovePreview({
                         trackId: track.id,
-                        laneClips: project.clips.tracks[track.id] ?? [],
+                        laneClips,
                         allClips,
                         tracks: project.tracks,
                         placements: movePlacements,
@@ -905,7 +909,7 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
                           key={track.id}
                           track={track}
                           trackIndex={idx}
-                          clips={project.clips.tracks[track.id] ?? []}
+                          clips={laneClips}
                           width={width}
                           zoomPxPerSec={zoomPxPerSec}
                           projectPath={projectPath}
@@ -916,46 +920,18 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
                           envelopes={project.envelopes}
                           appliedRecords={project.applied_edits.records}
                           pendingEdits={project.pending_edits}
-                          onSeek={seekAt}
+                          onSeek={onSeek}
                           bladeMode={bladeMode}
-                          bladeHoverSec={bladeHoverSec}
                           canMoveClips={canMoveClips}
                           selectedClipIds={selectedClipIds}
                           previewStartById={lanePreview.previewStartById}
                           hideClipIds={lanePreview.hideIds}
                           moveGhosts={lanePreview.ghosts}
-                          onClipMovePreview={(clipId, info) => {
-                            setMovePlacements(
-                              resolveMove(clipId, info, "preview"),
-                            );
-                          }}
-                          onClipMoveCommit={(clipId, info) => {
-                            const moves = resolveMove(clipId, info, "commit");
-                            endMoveGesture();
-                            if (!movesDifferFromClips(allClips, moves)) {
-                              return;
-                            }
-                            void execute(
-                              "edit.moveClips",
-                              { clips: moves },
-                              { skipWhen: true },
-                            );
-                          }}
-                          onClipMoveCancel={() => endMoveGesture()}
-                          onSelectClip={(clipId, mods) => {
-                            if (mods) {
-                              selectClip(clipId, track.id, mods);
-                              return;
-                            }
-                            setSelection({
-                              kind: "clip",
-                              id: clipId,
-                              trackId: track.id,
-                            });
-                          }}
-                          onSelectTrack={() => {
-                            setSelection({ kind: "track", trackId: track.id });
-                          }}
+                          onClipMovePreview={onClipMovePreview}
+                          onClipMoveCommit={onClipMoveCommit}
+                          onClipMoveCancel={onClipMoveCancel}
+                          onSelectClip={onSelectClip}
+                          onSelectTrack={onSelectTrack}
                           bladeHighlight={
                             bladeMode &&
                             (selectedTrackIds.length === 0 ||
@@ -965,23 +941,9 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
                             showStaleInv && fallbackWhole.has(track.id),
                           )}
                           showStaleInvalidations={showStaleInv}
-                          staleInvalidations={
-                            showStaleInv ? staleBreakdown.invalidations : []
-                          }
-                          onSelectApplied={(id) =>
-                            setSelection({
-                              kind: "applied",
-                              id,
-                              trackId: track.id,
-                            })
-                          }
-                          onSelectPending={(id) =>
-                            setSelection({
-                              kind: "pending",
-                              id,
-                              trackId: track.id,
-                            })
-                          }
+                          staleInvalidations={staleInvalidations}
+                          onSelectApplied={onSelectApplied}
+                          onSelectPending={onSelectPending}
                         />
                       );
                     })}
@@ -999,3 +961,9 @@ export function TimelineView({ fixedPlayhead = false, headerSlot }: Props) {
     </TimelineMetricsProvider>
   );
 }
+
+/**
+ * The arrangement view. Memoized: it selects no per-frame store fields, so a
+ * playhead, scroll or presence tick re-renders only its leaves.
+ */
+export const TimelineView = memo(TimelineViewView);

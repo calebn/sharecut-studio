@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { memo, useCallback, useRef, useState } from "react";
 import type {
   ClipMovePointerInfo,
   ClipSelectMods,
@@ -22,6 +22,7 @@ import type {
   Selection,
   TrackView,
 } from "../types/project";
+import { EMPTY_ARR, EMPTY_OBJ } from "../utils/empty";
 import { trackHasSourceAudio } from "../utils/projectMedia";
 import type { RenderInvalidationView } from "../utils/staleRender";
 import { originTrackId } from "../utils/timebase";
@@ -32,10 +33,18 @@ import { laneColor } from "./laneColors";
 import { PendingEditOverlay } from "./PendingEditOverlay";
 import { StaleInvalidationOverlay } from "./StaleInvalidationOverlay";
 
+type RollPreview = {
+  leftClipId: string;
+  rightClipId: string;
+  deltaSec: number;
+};
+
+const NOOP = () => undefined;
+
 interface TrackLaneProps {
   track: TrackView;
   trackIndex: number;
-  clips: ClipRow[];
+  clips: readonly ClipRow[];
   width: number;
   zoomPxPerSec: number;
   projectPath: string;
@@ -47,32 +56,36 @@ interface TrackLaneProps {
   appliedRecords: AppliedEditRecord[];
   pendingEdits: PendingEditView[];
   onSeek: (clientX: number, target: HTMLElement) => void;
-  onSelectClip: (clipId: string, mods?: ClipSelectMods) => void;
-  onSelectTrack: () => void;
-  onSelectApplied: (id: string) => void;
-  onSelectPending: (id: string) => void;
+  /** Lane callbacks take the track id first, so the timeline passes one
+   *  stable function to every lane. */
+  onSelectClip: (
+    trackId: string,
+    clipId: string,
+    mods?: ClipSelectMods,
+  ) => void;
+  onSelectTrack: (trackId: string) => void;
+  onSelectApplied: (trackId: string, id: string) => void;
+  onSelectPending: (trackId: string, id: string) => void;
   bladeHighlight?: boolean;
   /** When true, clip hits seek/blade via lane-seek underlay (not select). */
   bladeMode?: boolean;
   canMoveClips?: boolean;
-  selectedClipIds?: string[];
-  previewStartById?: Record<string, number>;
+  selectedClipIds?: readonly string[];
+  previewStartById?: Readonly<Record<string, number>>;
   hideClipIds?: ReadonlySet<string>;
-  moveGhosts?: MoveGhost[];
+  moveGhosts?: readonly MoveGhost[];
   onClipMovePreview?: (clipId: string, info: ClipMovePointerInfo) => void;
   onClipMoveCommit?: (clipId: string, info: ClipMovePointerInfo) => void;
   onClipMoveCancel?: () => void;
-  /** Pointer-following cut preview (seconds); only shown on target lanes. */
-  bladeHoverSec?: number | null;
   /** Whole-track stale cause → light lane edge (not full wash when bands exist). */
   staleWholeTrack?: boolean;
   /** Cause journal entries for this hover session. */
-  staleInvalidations?: RenderInvalidationView[];
+  staleInvalidations?: readonly RenderInvalidationView[];
   /** Show regional invalidation bands. */
   showStaleInvalidations?: boolean;
 }
 
-export function TrackLane({
+export function TrackLaneView({
   track,
   trackIndex,
   clips,
@@ -94,16 +107,15 @@ export function TrackLane({
   bladeHighlight = false,
   bladeMode = false,
   canMoveClips = false,
-  selectedClipIds = [],
-  previewStartById = {},
+  selectedClipIds = EMPTY_ARR,
+  previewStartById = EMPTY_OBJ,
   hideClipIds,
-  moveGhosts = [],
+  moveGhosts = EMPTY_ARR,
   onClipMovePreview,
   onClipMoveCommit,
   onClipMoveCancel,
-  bladeHoverSec = null,
   staleWholeTrack = false,
-  staleInvalidations = [],
+  staleInvalidations = EMPTY_ARR,
   showStaleInvalidations = false,
 }: TrackLaneProps) {
   const { peaks, status: peaksStatus } = usePeaks(
@@ -114,13 +126,13 @@ export function TrackLane({
   );
   const seekRef = useRef<HTMLDivElement>(null);
   const {
-    project,
+    projectTracks,
     guestMode,
     shareCapabilities,
     setIngestDropTrackId,
     setPointerTrackId,
   } = useDaw((s) => ({
-    project: s.project,
+    projectTracks: s.project?.tracks,
     guestMode: s.guestMode,
     shareCapabilities: s.shareCapabilities,
     setIngestDropTrackId: s.setIngestDropTrackId,
@@ -128,11 +140,7 @@ export function TrackLane({
   }));
   const [dropOver, setDropOver] = useState(false);
   const [dragFileCount, setDragFileCount] = useState(1);
-  const [rollPreview, setRollPreview] = useState<{
-    leftClipId: string;
-    rightClipId: string;
-    deltaSec: number;
-  } | null>(null);
+  const [rollPreview, setRollPreview] = useState<RollPreview | null>(null);
   const canDrop = canIngestMedia(projectPath, guestMode, shareCapabilities);
   const replacing = trackHasMedia({
     mediaPath: track.media_path,
@@ -141,22 +149,41 @@ export function TrackLane({
 
   const originPaint = (clip: ClipRow) => {
     const tid = originTrackId(clip);
-    const src = project?.tracks.find((t) => t.id === tid) ?? track;
+    const src = projectTracks?.find((t) => t.id === tid) ?? track;
     return {
       mediaPath: src.media_path,
       mediaVersion: `${src.media_path ?? ""}|${src.stem_is_fresh ?? ""}|${src.duration_sec ?? ""}`,
     };
   };
 
-  const onClipHit = (clipId: string, clientX: number) => {
-    if (bladeMode && seekRef.current) {
-      onSeek(clientX, seekRef.current);
-      return;
-    }
-    onSelectClip(clipId);
-  };
-
-  const showBladeGuide = bladeMode && bladeHighlight && bladeHoverSec != null;
+  const trackId = track.id;
+  const selectClip = useCallback(
+    (clipId: string, mods?: ClipSelectMods) =>
+      onSelectClip(trackId, clipId, mods),
+    [onSelectClip, trackId],
+  );
+  const selectTrack = useCallback(
+    () => onSelectTrack(trackId),
+    [onSelectTrack, trackId],
+  );
+  const selectApplied = useCallback(
+    (id: string) => onSelectApplied(trackId, id),
+    [onSelectApplied, trackId],
+  );
+  const selectPending = useCallback(
+    (id: string) => onSelectPending(trackId, id),
+    [onSelectPending, trackId],
+  );
+  const onClipHit = useCallback(
+    (clipId: string, clientX: number) => {
+      if (bladeMode && seekRef.current) {
+        onSeek(clientX, seekRef.current);
+        return;
+      }
+      selectClip(clipId);
+    },
+    [bladeMode, onSeek, selectClip],
+  );
 
   const clearDrop = () => {
     setDropOver(false);
@@ -229,13 +256,6 @@ export function TrackLane({
         role="presentation"
         onClick={(e) => onSeek(e.clientX, e.currentTarget)}
       />
-      {showBladeGuide ? (
-        <div
-          className="blade-cut-guide blade-cut-guide--lane"
-          style={{ left: bladeHoverSec * zoomPxPerSec }}
-          aria-hidden
-        />
-      ) : null}
       <div className="lane-inner" style={{ width }}>
         {clips.map((clip, i) => {
           const prev = clips[i - 1];
@@ -260,18 +280,23 @@ export function TrackLane({
               peaks={originId === track.id ? peaks : null}
               mediaPath={paint.mediaPath}
               mediaVersion={paint.mediaVersion}
-              bladeHoverSec={bladeHoverSec}
               prevClip={prev ?? null}
               nextClip={next ?? null}
               neighborSourceLo={prev?.source_end ?? 0}
               neighborSourceHi={next?.source_start ?? mediaDur}
               leftNeighborSourceEnd={grandPrev?.source_end ?? 0}
               mediaDurationSec={mediaDur}
-              rollPreview={rollPreview}
+              rollPreview={
+                rollPreview &&
+                (rollPreview.leftClipId === clip.id ||
+                  rollPreview.rightClipId === clip.id)
+                  ? rollPreview
+                  : null
+              }
               onRollPreview={setRollPreview}
-              onSelect={() => onSelectClip(clip.id)}
-              onHit={(clientX) => onClipHit(clip.id, clientX)}
-              onSelectClip={(mods) => onSelectClip(clip.id, mods)}
+              onSelect={selectClip}
+              onHit={onClipHit}
+              onSelectClip={selectClip}
               canMove={canMoveClips}
               bladeMode={bladeMode}
               previewTimelineStart={previewStartById[clip.id] ?? null}
@@ -279,16 +304,8 @@ export function TrackLane({
               moving={Boolean(
                 hideClipIds?.has(clip.id) || previewStartById[clip.id] != null,
               )}
-              onMovePreview={
-                onClipMovePreview
-                  ? (info) => onClipMovePreview(clip.id, info)
-                  : undefined
-              }
-              onMoveCommit={
-                onClipMoveCommit
-                  ? (info) => onClipMoveCommit(clip.id, info)
-                  : undefined
-              }
+              onMovePreview={onClipMovePreview}
+              onMoveCommit={onClipMoveCommit}
               onMoveCancel={onClipMoveCancel}
             />
           );
@@ -312,9 +329,9 @@ export function TrackLane({
             leftNeighborSourceEnd={0}
             mediaDurationSec={Number.POSITIVE_INFINITY}
             rollPreview={null}
-            onRollPreview={() => undefined}
-            onSelect={() => undefined}
-            onHit={() => undefined}
+            onRollPreview={NOOP}
+            onSelect={NOOP}
+            onHit={NOOP}
             interactive={false}
             moving
           />
@@ -325,7 +342,7 @@ export function TrackLane({
             trackId={track.id}
             zoomPxPerSec={zoomPxPerSec}
             width={width}
-            onSelectTrack={onSelectTrack}
+            onSelectTrack={selectTrack}
           />
         )}
         {showEdits && (
@@ -335,14 +352,14 @@ export function TrackLane({
               trackId={track.id}
               zoomPxPerSec={zoomPxPerSec}
               selectedId={selection?.kind === "applied" ? selection.id : null}
-              onSelect={onSelectApplied}
+              onSelect={selectApplied}
             />
             <PendingEditOverlay
               edits={pendingEdits}
               trackId={track.id}
               zoomPxPerSec={zoomPxPerSec}
               selectedId={selection?.kind === "pending" ? selection.id : null}
-              onSelect={onSelectPending}
+              onSelect={selectPending}
             />
           </>
         )}
@@ -358,3 +375,7 @@ export function TrackLane({
     </div>
   );
 }
+
+/** Re-renders only when its own props change: a playhead or scroll tick
+ *  never reaches the lanes. */
+export const TrackLane = memo(TrackLaneView);

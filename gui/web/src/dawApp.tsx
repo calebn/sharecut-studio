@@ -6,18 +6,13 @@ import {
 } from "./commands/register";
 import { useDesktopCloseGuard } from "./desktop/useDesktopCloseGuard";
 import { HelpDialog } from "./home/HelpDialog";
-import { useAudioTransport } from "./hooks/useAudioTransport";
 import { useBladeCut } from "./hooks/useBladeCut";
 import { useDocumentSync } from "./hooks/useDocumentSync";
-import { useFollowTransport } from "./hooks/useFollowTransport";
-import { useFollowUi } from "./hooks/useFollowUi";
-import { useFollowViewport } from "./hooks/useFollowViewport";
 import { useGuestSync } from "./hooks/useGuestSync";
 import { usePipelineJob } from "./hooks/usePipelineJob";
 import { usePointerType } from "./hooks/usePointerType";
 import { useProjectBootstrap } from "./hooks/useProjectBootstrap";
 import { useProjectPoll } from "./hooks/useProjectPoll";
-import { useProxyTransport } from "./hooks/useProxyTransport";
 import { useSessionSync } from "./hooks/useSessionSync";
 import { useDawKeymapListener } from "./keymap/listener";
 import { BounceDialog } from "./layout/BounceDialog";
@@ -32,6 +27,7 @@ import { RecordPanel } from "./record/RecordPanel";
 import { useHostKeeperCapture } from "./record/useHostKeeperCapture";
 import { isShareProjectKey } from "./shareMode";
 import { useDaw } from "./state/useDaw";
+import { FollowEngine, TransportEngine } from "./TransportEngine";
 import { Button, ErrorScreen } from "./ui";
 
 let commandsRegistered = false;
@@ -133,12 +129,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     setSessionClients,
     guestSyncEnabled,
   );
-  useFollowTransport();
-  useFollowViewport();
-  useFollowUi();
   usePointerType();
-  const proxyActive = useProxyTransport();
-  useAudioTransport(!proxyActive);
 
   useEffect(() => {
     if (!commandsRegistered) {
@@ -194,12 +185,25 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     };
   }, [project?.meta.name]);
 
+  const engines = (
+    <>
+      <TransportEngine />
+      <FollowEngine />
+    </>
+  );
+
   if (bootstrapError && !project) {
-    return <ErrorScreen message={bootstrapError} />;
+    return (
+      <>
+        {engines}
+        <ErrorScreen message={bootstrapError} />
+      </>
+    );
   }
 
   return (
     <>
+      {engines}
       <div data-daw-app-chrome>
         {bootstrapError && project ? (
           <div className="guest-banner" role="alert">

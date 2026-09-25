@@ -117,7 +117,7 @@ describe("TrackLane bladeMode", () => {
     );
 
     expect(onSeek).not.toHaveBeenCalled();
-    expect(onSelectClip).toHaveBeenCalledWith("c1", {
+    expect(onSelectClip).toHaveBeenCalledWith("host", "c1", {
       shift: false,
       mod: false,
     });
@@ -128,48 +128,6 @@ describe("TrackLane bladeMode", () => {
       <TrackLane {...baseProps} onSeek={vi.fn()} onSelectClip={vi.fn()} />,
     );
     expect(container.querySelector("[data-track-id='host']")).toBeTruthy();
-  });
-
-  it("shows a lane cut guide when blade hover is set on a target lane", () => {
-    const { container, rerender } = render(
-      <TrackLane
-        {...baseProps}
-        bladeMode
-        bladeHighlight
-        bladeHoverSec={2.5}
-        onSeek={vi.fn()}
-        onSelectClip={vi.fn()}
-      />,
-    );
-    const guide = container.querySelector(".blade-cut-guide--lane");
-    expect(guide).toBeTruthy();
-    expect((guide as HTMLElement).style.left).toBe("250px");
-
-    rerender(
-      <TrackLane
-        {...baseProps}
-        bladeMode
-        bladeHighlight
-        bladeHoverSec={null}
-        onSeek={vi.fn()}
-        onSelectClip={vi.fn()}
-      />,
-    );
-    expect(container.querySelector(".blade-cut-guide--lane")).toBeNull();
-  });
-
-  it("hides the cut guide on non-target lanes", () => {
-    const { container } = render(
-      <TrackLane
-        {...baseProps}
-        bladeMode
-        bladeHighlight={false}
-        bladeHoverSec={1}
-        onSeek={vi.fn()}
-        onSelectClip={vi.fn()}
-      />,
-    );
-    expect(container.querySelector(".blade-cut-guide--lane")).toBeNull();
   });
 });
 

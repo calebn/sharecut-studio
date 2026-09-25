@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { execute } from "../commands/execute";
 import { FEATURE_SHARE_UI_BANNER } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
@@ -39,7 +39,11 @@ import { StatusBar } from "./StatusBar";
 import { TransportBar } from "./TransportBar";
 import { TAB_LABELS } from "./tabLabels";
 
-export function StudioShell({ guestShare = false }: { guestShare?: boolean }) {
+export function StudioShellView({
+  guestShare = false,
+}: {
+  guestShare?: boolean;
+}) {
   const importShortcut = displayShortcutFor("media.import") ?? "Menu";
   const {
     project,
@@ -126,6 +130,26 @@ export function StudioShell({ guestShare = false }: { guestShare?: boolean }) {
 
   const tabs = studioTabIds(guestShare);
 
+  // Memoized: a new element here would re-render the timeline it is slotted
+  // into (headerSlot) on every shell render.
+  const trackHeaders = useMemo(
+    () => (
+      <TrackHeadersColumn
+        showFocusToggle
+        showAddTrack
+        addDropOver={addDropOver}
+        addFileCount={addFileCount}
+        onAddDropOverChange={(over, fileCount) => {
+          setAddDropOver(over);
+          if (fileCount != null) {
+            setAddFileCount(fileCount);
+          }
+        }}
+      />
+    ),
+    [addDropOver, addFileCount],
+  );
+
   if (shell === "phone") {
     return <MobileShell guestShare={guestShare} />;
   }
@@ -142,21 +166,6 @@ export function StudioShell({ guestShare = false }: { guestShare?: boolean }) {
   // timeline hosts them so both read one TimelineMetricsProvider and align.
   const showIngestTarget = emptySession && mayIngest;
   const arranging = !loadingSession && !showIngestTarget;
-
-  const trackHeaders = (
-    <TrackHeadersColumn
-      showFocusToggle
-      showAddTrack
-      addDropOver={addDropOver}
-      addFileCount={addFileCount}
-      onAddDropOverChange={(over, fileCount) => {
-        setAddDropOver(over);
-        if (fileCount != null) {
-          setAddFileCount(fileCount);
-        }
-      }}
-    />
-  );
 
   return (
     <div
@@ -318,3 +327,6 @@ export function StudioShell({ guestShare = false }: { guestShare?: boolean }) {
     </div>
   );
 }
+
+/** Desktop and tablet shell; the phone shell is `MobileShell`. */
+export const StudioShell = memo(StudioShellView);

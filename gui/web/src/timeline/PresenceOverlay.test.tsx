@@ -1,10 +1,10 @@
-import { render } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { presenceCursorFromPointer } from "../presence/usePresenceCursorSource";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
-import { PresenceOverlay } from "./PresenceOverlay";
+import { PresenceOverlay, PresenceOverlayView } from "./PresenceOverlay";
 import { TimelineMetricsProvider } from "./timelineMetrics";
 
 const hostTracks = [
@@ -32,12 +32,12 @@ const hostTracks = [
   },
 ];
 
-describe("PresenceOverlay", () => {
+describe("PresenceOverlayView", () => {
   it("positions ghosts from zoom and hides the local client", async () => {
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     const project = minimalProject();
     const { container } = render(
-      <PresenceOverlay
+      <PresenceOverlayView
         clients={[
           {
             client_id: "me",
@@ -80,7 +80,7 @@ describe("PresenceOverlay", () => {
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     const project = minimalProject();
     const { container } = render(
-      <PresenceOverlay
+      <PresenceOverlayView
         clients={[
           {
             client_id: "me",
@@ -114,7 +114,7 @@ describe("PresenceOverlay", () => {
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     const project = minimalProject();
     const { container } = render(
-      <PresenceOverlay
+      <PresenceOverlayView
         clients={[
           { client_id: "me", role: "viewer" },
           {
@@ -145,7 +145,7 @@ describe("PresenceOverlay", () => {
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     const project = minimalProject();
     const { container } = render(
-      <PresenceOverlay
+      <PresenceOverlayView
         clients={[
           {
             client_id: "guest-token-me",
@@ -172,7 +172,7 @@ describe("PresenceOverlay", () => {
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     const project = minimalProject();
     const { container } = render(
-      <PresenceOverlay
+      <PresenceOverlayView
         clients={[
           { client_id: "me", role: "viewer" },
           {
@@ -200,7 +200,7 @@ describe("PresenceOverlay", () => {
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     const project = minimalProject();
     const { container } = render(
-      <PresenceOverlay
+      <PresenceOverlayView
         clients={[
           { client_id: "me", role: "viewer" },
           {
@@ -251,7 +251,7 @@ describe("PresenceOverlay", () => {
     });
     useDawStore.getState().hydrate("/tmp/p.json", project);
     const { container } = render(
-      <PresenceOverlay
+      <PresenceOverlayView
         clients={[
           { client_id: "me", role: "viewer" },
           {
@@ -297,7 +297,7 @@ describe("PresenceOverlay", () => {
     });
     useDawStore.getState().hydrate("/tmp/p.json", project);
     const { container } = render(
-      <PresenceOverlay
+      <PresenceOverlayView
         clients={[
           { client_id: "me", role: "viewer" },
           {
@@ -331,7 +331,7 @@ describe("PresenceOverlay", () => {
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     const project = minimalProject();
     const { container } = render(
-      <PresenceOverlay
+      <PresenceOverlayView
         clients={[
           { client_id: "me", role: "viewer" },
           {
@@ -394,7 +394,7 @@ describe("PresenceOverlay", () => {
         <TimelineMetricsProvider
           value={{ laneHeight: viewerLane, markerLaneHeight: 24 }}
         >
-          <PresenceOverlay
+          <PresenceOverlayView
             clients={[
               { client_id: "me", role: "viewer" },
               {
@@ -416,4 +416,37 @@ describe("PresenceOverlay", () => {
       expect(parseFloat(el.style.top)).toBeCloseTo(1.6 * viewerLane, 1);
     },
   );
+});
+
+describe("PresenceOverlay", () => {
+  it("reads the session roster and local id from the store", () => {
+    useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+    useDawStore.setState({
+      localClientId: "me",
+      sessionClients: [
+        { client_id: "me", role: "viewer", playhead_sec: 1 },
+        {
+          client_id: "them",
+          role: "viewer",
+          playhead_sec: 2,
+          last_seen_ns: Date.now() * 1e6,
+          meta: { display_name: "Ada" },
+        },
+      ],
+    });
+    const { container } = render(
+      <PresenceOverlay
+        zoomPxPerSec={10}
+        height={72}
+        tracks={hostTracks}
+        clipsByTrack={{}}
+      />,
+    );
+    const playheads = container.querySelectorAll(".presence-playhead");
+    expect(playheads).toHaveLength(1);
+    expect((playheads[0] as HTMLElement).style.left).toBe("20px");
+    act(() => useDawStore.setState({ sessionClients: [] }));
+    expect(container.querySelector(".presence-overlay")).toBeNull();
+    useDawStore.setState({ localClientId: null });
+  });
 });
