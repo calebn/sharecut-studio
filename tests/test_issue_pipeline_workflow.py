@@ -406,6 +406,20 @@ def test_feedback_implements_in_the_pr_and_files_follow_ups_only_for_big_unrelat
     assert "leaning hard toward doing the work in the PR" in text
 
 
+def test_triage_picks_any_actionable_unblocked_issue() -> None:
+    """The owner never limited the backlog to small issues: size only breaks ties."""
+    script = _script()
+    assert "s.size !== 'L'" not in script
+    assert "explicit || (s.actionable && !s.blockers)" in script
+    assert "SIZE_RANK[a.size] - SIZE_RANK[b.size]" in script
+    assert "it never makes an issue ineligible" in script
+    # A blocker counts only while the issue or PR it names is still open.
+    assert "a closed issue or merged PR is not a blocker" in script
+    text = CONTRIBUTING.read_text(encoding="utf-8")
+    assert "not size L" not in text
+    assert "Any size is eligible" in text
+
+
 def test_model_tiers() -> None:
     script = _script()
     assert "const M = { cheap: 'haiku', worker: 'sonnet', senior: 'opus' }" in script

@@ -106,7 +106,7 @@ Args:
 | `noMerge` | `false` | Run every stage but stop at the gate and report whether it would merge (A/B comparisons) |
 | `baseRef` | `origin/main` | Commit that new branches start from (reproducible comparisons) |
 | `dryRun` | `false` | Triage only; return the selected / skipped table |
-| `issues` | all eligible | Explicit issue numbers (skips the actionable / size / area filters) |
+| `issues` | all eligible | Explicit issue numbers (skips the actionable / blocker / area filters) |
 | `lanes` | `4` | Issues worked in parallel |
 | `maxRounds` | `2` | Review → feedback rounds per PR |
 | `maxNewFollowups` | `2` | Most follow-up issues one feedback plan may file as new issues (big, unrelated work only) |
@@ -119,7 +119,7 @@ Args:
 
 Stages per issue (each issue is its own lane; lanes do not wait for each other):
 
-1. **Triage** (Haiku, batches of 10, issue text only): score every eligible open issue opened by an `authors` login; pick the top `lanes` that are actionable, not size L, unblocked, and in distinct code areas.
+1. **Triage** (Haiku, batches of 10, issue text only): score every eligible open issue opened by an `authors` login; pick the top `lanes` that are actionable, unblocked, and in distinct code areas. Any size is eligible; size only breaks ties between equal priorities (smaller first). A blocker counts only while the issue or PR it names is still open. The planner still aborts to a hold when an issue truly needs an owner decision or cannot fit in one PR.
 2. **Plan** (Opus): claim the issue (`in-progress`), research, post a detailed implementation plan on the issue, and list related issues.
 3. **Implement** (Sonnet, own worktree): follow the plan, run **targeted** local checks only (changed-file Ruff, the related pytest / Vitest files; never `make test` / `make ci`), and open a PR. GitHub Actions is the full-suite gate whose body has `Fixes #N` plus one `Related #M` line per related issue.
 4. **CI** runs on GitHub in parallel with review and feedback; the pipeline waits for it only once, at the merge gate, on the final head. Haiku watches and copies the raw check rows and head SHA. The script derives pass or fail from those rows, rejects data that is malformed or incomplete (re-watching once), and re-checks CI when a later push moves the head. On red, Sonnet first classifies the failure: `pr` (caused by the diff, so it fixes and pushes), `flaky` (re-runs only the failed jobs) or `unrelated` (for example `main` itself is broken, so the PR is held with that reason). It gets one attempt. Haiku-tier agents never edit code; only Sonnet and Opus do.

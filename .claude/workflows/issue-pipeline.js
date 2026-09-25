@@ -875,7 +875,9 @@ Compute ages with \`date -u\`. Return the remaining issues and the excluded ones
   log(`${candidates.length} candidate issue(s); ${listed.excluded.length} excluded`)
 }
 
-const SCORE_RUBRIC = `actionable = the desired outcome is clear enough to implement without asking the owner. size: S (<~150 LOC, one area), M (a few files / one subsystem), L (multi-subsystem, design decision, or epic-like). priority 1–5 (5 = security/data-loss bug). area = primary code area. blockers = dependency on another open issue or a needed product decision ("" when none).`
+// Any actionable, unblocked issue is eligible; among equal priorities the smaller one goes first.
+const SIZE_RANK = { S: 0, M: 1, L: 2 }
+const SCORE_RUBRIC = `actionable = the desired outcome is clear enough to implement without asking the owner. size: S (<~150 LOC, one area), M (a few files / one subsystem), L (multi-subsystem, design decision, or epic-like); size only breaks ties, it never makes an issue ineligible. priority 1–5 (5 = security/data-loss bug). area = primary code area. blockers = dependency on another issue or PR that is still OPEN (check with \`gh issue view <n> --json state\` or \`gh pr view <n> --json state\`: a closed issue or merged PR is not a blocker) or a needed product decision ("" when none).`
 // One cheap agent per batch of issues, issue text only: per-issue code skims cost ~50k
 // tokens each, and the Opus planner still catches (and aborts) a bad pick.
 const batches = []
@@ -893,8 +895,8 @@ const foreign = scores.filter((s) => !AUTHORS.includes(s.author))
 if (foreign.length) log(`Ignored (not opened by ${AUTHORS.join('/')}): ${foreign.map((s) => `#${s.number}(${s.author})`).join(' ')}`)
 const ranked = scores
   .filter((s) => AUTHORS.includes(s.author))
-  .filter((s) => explicit || (s.actionable && s.size !== 'L' && !s.blockers))
-  .sort((a, b) => b.priority - a.priority || a.size.localeCompare(b.size))
+  .filter((s) => explicit || (s.actionable && !s.blockers))
+  .sort((a, b) => b.priority - a.priority || SIZE_RANK[a.size] - SIZE_RANK[b.size])
 const selected = []
 const areas = new Set()
 for (const s of ranked) {
