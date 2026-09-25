@@ -102,21 +102,23 @@ export function niceTimeStep(zoomPxPerSec: number, minPx = 70): number {
 }
 
 /**
- * Ruler label for a tick (or the ruler's slider value): `m:ss.fff`
- * (`h:mm:ss.fff` past an hour) with `ceil(−log10 step)` decimals, clamped to
- * 1–4, so a 0.5 ms step reads `0:01.2345`, a 2 s step `0:02.0`.
+ * Ruler label for a tick (or the ruler's slider value): `m:ss` for whole-second
+ * steps, else `m:ss.fff` (`h:mm:ss…` past an hour) with `ceil(−log10 step)`
+ * decimals, at most 4, so a 0.5 ms step reads `0:01.2345`, a 0.5 s step
+ * `0:02.5` and a 2 s step `0:02`.
  */
 export function formatRulerTime(sec: number, step: number): string {
   const decimals = Math.min(
     4,
-    Math.max(1, Math.ceil(-Math.log10(step) - 1e-9)),
+    Math.max(0, Math.ceil(-Math.log10(step) - 1e-9)),
   );
   const scale = 10 ** decimals;
   const units = Math.round(Math.max(0, sec) * scale);
   const whole = Math.floor(units / scale);
-  const frac = String(units % scale).padStart(decimals, "0");
+  const frac =
+    decimals > 0 ? `.${String(units % scale).padStart(decimals, "0")}` : "";
   const h = Math.floor(whole / 3600);
   const m = Math.floor((whole % 3600) / 60);
-  const ss = `${String(whole % 60).padStart(2, "0")}.${frac}`;
+  const ss = `${String(whole % 60).padStart(2, "0")}${frac}`;
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
 }
