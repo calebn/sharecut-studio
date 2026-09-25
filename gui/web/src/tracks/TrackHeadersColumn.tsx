@@ -1,5 +1,4 @@
 import { type ReactNode, useRef, useState } from "react";
-import { useShallow } from "zustand/react/shallow";
 import { capabilityTooltip } from "../capabilities/copy";
 import { execute } from "../commands/execute";
 import {
@@ -9,7 +8,7 @@ import {
 } from "../ingest/dropLabels";
 import { ingestFiles } from "../ingest/ingestFiles";
 import { canIngestMedia } from "../shareMode";
-import { useDawStore } from "../state/dawStore";
+import { useDaw } from "../state/useDaw";
 import { useTimelineMetrics } from "../timeline/timelineMetrics";
 import { FocusToggle } from "../ui";
 import { RULER_HEIGHT } from "../utils/layout";
@@ -47,18 +46,16 @@ export function TrackHeadersColumn({
     projectPath,
     guestMode,
     shareCapabilities,
-  } = useDawStore(
-    useShallow((s) => ({
-      tracks: s.project?.tracks ?? null,
-      selection: s.selection,
-      setSelection: s.setSelection,
-      selectedTrackIds: s.selectedTrackIds,
-      toggleTrackSelected: s.toggleTrackSelected,
-      projectPath: s.projectPath,
-      guestMode: s.guestMode,
-      shareCapabilities: s.shareCapabilities,
-    })),
-  );
+  } = useDaw((s) => ({
+    tracks: s.project?.tracks ?? null,
+    selection: s.selection,
+    setSelection: s.setSelection,
+    selectedTrackIds: s.selectedTrackIds,
+    toggleTrackSelected: s.toggleTrackSelected,
+    projectPath: s.projectPath,
+    guestMode: s.guestMode,
+    shareCapabilities: s.shareCapabilities,
+  }));
   const mayIngest =
     showAddTrack && canIngestMedia(projectPath, guestMode, shareCapabilities);
   const mayReorder = canIngestMedia(projectPath, guestMode, shareCapabilities);
