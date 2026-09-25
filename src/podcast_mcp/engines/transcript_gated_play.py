@@ -11,6 +11,7 @@ import numpy as np
 from podcast_mcp.engines.session_timeline import DEFAULT_MERGE_GAP_SEC, SessionTimeline
 from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.util.binaries import resolve_ffmpeg
+from podcast_mcp.util.dsp import db_to_amplitude
 from podcast_mcp.util.process import run
 from podcast_mcp.util.timebase import TimelineSec
 from podcast_mcp.util.tracks import mixed_dialogue_track_ids
@@ -204,6 +205,13 @@ def _normalize_peak(samples: np.ndarray, peak: float = 0.95) -> np.ndarray:
     return samples * (peak / max_val)
 
 
+def _apply_gain_db(samples: np.ndarray, gain_db: float) -> np.ndarray:
+    """Scale ``samples`` by ``gain_db``; 0 dB returns them unchanged."""
+    if not gain_db:
+        return samples
+    return samples * np.float32(db_to_amplitude(gain_db))
+
+
 def render_gated_track(
     stem_path: Path,
     intervals: list[tuple[float, float]],
@@ -319,9 +327,7 @@ def render_gated_mix(
     for tid, path in stems:
         seg = _load_segment(path, timeline_start, duration)
         gated = _apply_gate(seg, intervals_by_track.get(tid, []), timeline_start=timeline_start)
-        gain_db = float(gains.get(tid, 0.0))
-        if gain_db:
-            gated = gated * np.float32(10.0 ** (gain_db / 20.0))
+        gated = _apply_gain_db(gated, float(gains.get(tid, 0.0)))
         mix = gated if mix is None else mix + gated
     if mix is None:
         raise ValueError("no stems to mix")
