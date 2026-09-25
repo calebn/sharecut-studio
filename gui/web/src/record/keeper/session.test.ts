@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseWavHeader, wavPcmToFloat32 } from "../../audio/wavHeader";
 import { deferred } from "../../test/deferred";
+import { inspectKeeperRecovery } from "../upload/recovery";
 import { sha256Hex } from "./fingerprint";
 import { KEEPER_SAMPLE_RATE, toKeeperPcm } from "./pcm";
 import type { KeeperGate } from "./segments";
@@ -84,6 +85,21 @@ afterEach(() => {
 });
 
 describe("KeeperSession", () => {
+  it("leaves recoverable PCM on disk when the tab dies mid-segment", async () => {
+    // MemorySink stream writes land immediately, like the sync-access writer.
+    const sink = new MemorySink();
+    const session = new KeeperSession(sink);
+    await session.apply(recordingGate());
+    session.push(new Float32Array(24_000).fill(0.1), KEEPER_SAMPLE_RATE);
+    await session.flush();
+    // No dispose: the tab was killed.
+    const status = await inspectKeeperRecovery(sink, segmentPath(0));
+    expect(status.kind).toBe("recoverable");
+    if (status.kind === "recoverable") {
+      expect(status.plan.pcmBytes).toBe(24_000 * 2);
+    }
+  });
+
   it("advances after an initial header failure before retrying", async () => {
     const sink = new MemorySink();
     wrapSinkOpen(sink, (stream, opens) => ({

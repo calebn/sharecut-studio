@@ -24,9 +24,10 @@ import {
 export const KEEPER_MAX_QUEUED_SAMPLES = KEEPER_SAMPLE_RATE * 15;
 export const KEEPER_OPERATION_TIMEOUT_MS = 5_000;
 /**
- * Conservative OPFS commit throughput. `createWritable()` stages writes in a
- * swap file that close() commits, so the close deadline grows with segment
- * size instead of failing a long, healthy segment.
+ * Conservative OPFS commit throughput. The in-place sync-access writer closes
+ * in constant time, but the `createWritable()` fallback still commits a swap
+ * file on close, so the close deadline keeps growing with segment size instead
+ * of failing a long, healthy segment.
  */
 export const KEEPER_CLOSE_BYTES_PER_MS = 10_000;
 /** Guest-facing reason; the technical detail is kept on `Error.cause`. */

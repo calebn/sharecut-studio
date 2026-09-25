@@ -894,6 +894,75 @@ test.describe("record lobby", () => {
     });
   });
 
+  test("guest keeper survives a closed tab and offers Recover partial take", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    await withShareableProject(async (projectPath) => {
+      await withBrowserPages(browser, [{}, {}], async ([host, guest]) => {
+        await markSharecutE2e(host);
+        await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
+        await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
+        const room = await createRecordRoom(host, projectPath);
+        await host.getByRole("button", { name: "Menu" }).click();
+        await host.getByRole("menuitem", { name: "Record room…" }).click();
+        const roomDlg = host.getByRole("dialog", { name: "Record room" });
+
+        await markSharecutE2e(guest);
+        await openRecordLink(guest, room.guest.token);
+        await guest.getByLabel("Display name").fill("Ava");
+        await guest.getByLabel("I am wearing headphones").check();
+        await guest.getByRole("button", { name: "Allow microphone" }).click();
+        await expect(guest.getByLabel("Level")).toBeVisible();
+        await guest.getByRole("button", { name: "Skip" }).click();
+        await guest.getByRole("button", { name: "Accept" }).click();
+        await expect(
+          roomDlg.getByRole("button", { name: "Start", exact: true }),
+        ).toBeEnabled();
+        await clickHostTransport(
+          host,
+          roomDlg.getByRole("button", { name: "Start", exact: true }),
+          projectPath,
+          "Start",
+          "recording",
+        );
+        await expect(guest.locator(".record-rec-label")).toHaveText("REC");
+        await expect
+          .poll(async () => guest.locator(".record-clock").innerText(), {
+            timeout: 15_000,
+          })
+          .not.toMatch(/^0:0[0-2]$/);
+
+        // Tear the page and its writer worker down with no keeper close.
+        const ctx = guest.context();
+        await guest.close({ runBeforeUnload: false });
+
+        await clickHostTransport(
+          host,
+          roomDlg.getByRole("button", { name: "Stop", exact: true }),
+          projectPath,
+          "Stop",
+          "stopped",
+        );
+
+        const reopened = await ctx.newPage();
+        await markSharecutE2e(reopened);
+        await openRecordLink(reopened, room.guest.token);
+        // More than 1 s of committed PCM; on main the swap file is discarded.
+        await expect
+          .poll(async () => keeperWavBytes(reopened), { timeout: 15_000 })
+          .toBeGreaterThan(44 + 48_000 * 2);
+        const recover = reopened.getByRole("button", {
+          name: "Recover partial take",
+        });
+        await expect(recover).toBeVisible({ timeout: 15_000 });
+        await recover.click();
+        await expect(recover).toBeHidden({ timeout: 15_000 });
+      });
+    });
+  });
+
   test("guest Retry recovers from a denied microphone", async ({
     browser,
   }: {
