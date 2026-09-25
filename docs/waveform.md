@@ -181,10 +181,13 @@ because ffmpeg counts it in decoder packets, not samples.
   newest other key for the slug, and deletes `.tmp` files older than one day.
 - **Jobs:** `schedule_pyramid_build(ref, key, audio, out)` queues a build on a
   two-worker pool (`waveform` threads). It dedupes pending `(slug, key)` jobs,
-  and it refuses a key whose build failed in this process within the last
-  `FAILED_RETRY_SEC` (300 s), then retries it, because failures can be transient
-  (ffmpeg missing until bootstrap, a full disk, a watchdog kill). Failures are
-  logged at WARNING. Failed-key memory is an LRU of 4,096 keys; changed media
+  and it refuses a key whose build failed in this process while that key's
+  retry window is open, then retries it, because failures can be transient
+  (ffmpeg missing until bootstrap, a full disk, a watchdog kill). The window
+  starts at `FAILED_RETRY_SEC` (300 s) and doubles with each consecutive
+  failure of the key, up to `FAILED_RETRY_MAX_SEC` (1 h), so media that never
+  decodes stops costing a decode every few minutes. A key's first failure is
+  logged at WARNING and repeats at DEBUG; a successful build forgets the key. Failed-key memory is an LRU of 4,096 keys; changed media
   gets a new key and is retried at once. A job
   leaves the pending set only after `os.replace`, so a key that is not pending
   either has its file or is marked failed until its retry window ends (#421).

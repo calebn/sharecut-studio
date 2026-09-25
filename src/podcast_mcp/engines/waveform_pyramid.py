@@ -778,15 +778,18 @@ _POOL: ThreadPoolExecutor | None = None
 _POOL_LOCK = Lock()
 _JOBS: list[Future[None]] = []
 _JOBS_LOCK = Lock()
-# Pending (slug, key) jobs, and the keys whose build failed mapped to the
-# time.monotonic() deadline after which a schedule retries them (bounded LRU).
+# Pending (slug, key) jobs, and the keys whose build failed mapped to
+# (time.monotonic() retry deadline, consecutive failures) (bounded LRU).
 # A failure can be transient (ffmpeg missing until bootstrap, ENOSPC, a
-# watchdog kill, media still being copied), so it is not remembered forever;
-# a changed file has a new key and is retried at once. Guarded by _JOBS_LOCK.
+# watchdog kill, media still being copied), so it is retried, but the window
+# doubles per failure up to FAILED_RETRY_MAX_SEC so a file that never decodes
+# stops costing a decode every few minutes. A changed file has a new key and
+# is retried at once; a successful build forgets the key. Guarded by _JOBS_LOCK.
 _PENDING: set[tuple[str, str]] = set()
-_FAILED: OrderedDict[str, float] = OrderedDict()
+_FAILED: OrderedDict[str, tuple[float, int]] = OrderedDict()
 _FAILED_MAX = 4096
 FAILED_RETRY_SEC = 300.0
+FAILED_RETRY_MAX_SEC = 3600.0
 
 
 def _pyramid_pool() -> ThreadPoolExecutor:
@@ -824,23 +827,30 @@ def _shutdown_pyramid_pool() -> None:
 atexit.register(_shutdown_pyramid_pool)
 
 
-def _remember_failed(key: str) -> None:
+def _remember_failed(key: str) -> tuple[int, float]:
+    """Record a failed build of *key*; returns ``(consecutive failures, retry window s)``.
+
+    The window is ``FAILED_RETRY_SEC`` doubled per earlier failure, capped at
+    ``FAILED_RETRY_MAX_SEC``.
+    """
     with _JOBS_LOCK:
-        _FAILED[key] = time.monotonic() + FAILED_RETRY_SEC
+        failures = _FAILED.get(key, (0.0, 0))[1] + 1
+        window = min(FAILED_RETRY_SEC * 2 ** min(failures - 1, 16), FAILED_RETRY_MAX_SEC)
+        _FAILED[key] = (time.monotonic() + window, failures)
         _FAILED.move_to_end(key)
         while len(_FAILED) > _FAILED_MAX:
             _FAILED.popitem(last=False)
+        return failures, window
 
 
 def _failed_locked(key: str) -> bool:
-    """True while *key* is inside its retry window; drops an expired entry. Hold ``_JOBS_LOCK``."""
-    retry_at = _FAILED.get(key)
-    if retry_at is None:
-        return False
-    if time.monotonic() < retry_at:
-        return True
-    del _FAILED[key]
-    return False
+    """True while *key* is inside its retry window. Hold ``_JOBS_LOCK``.
+
+    An expired entry is kept, so its failure count sets the next (longer)
+    window, until a build of *key* succeeds or the LRU evicts it.
+    """
+    entry = _FAILED.get(key)
+    return entry is not None and time.monotonic() < entry[0]
 
 
 def pyramid_build_pending(slug: str, key: str) -> bool:
@@ -850,7 +860,7 @@ def pyramid_build_pending(slug: str, key: str) -> bool:
 
 
 def pyramid_build_failed(key: str) -> bool:
-    """True when a build for *key* failed in this process within the last ``FAILED_RETRY_SEC``."""
+    """True when a build for *key* failed in this process and its retry window has not ended."""
     with _JOBS_LOCK:
         return _failed_locked(key)
 
@@ -859,13 +869,16 @@ def _run_pyramid_job(ref: str, slug: str, key: str, audio: Path, out: Path) -> N
     try:
         build_pyramid(ref, key, audio, out)
     except Exception as exc:
-        log.warning(
-            "waveform pyramid build failed for %s (retry after %.0f s): %s",
+        failures, window = _remember_failed(key)
+        # Only a key's first failure is a WARNING; repeats back off quietly.
+        log.log(
+            logging.WARNING if failures == 1 else logging.DEBUG,
+            "waveform pyramid build failed for %s (failure %d, retry after %.0f s): %s",
             ref,
-            FAILED_RETRY_SEC,
+            failures,
+            window,
             exc,
         )
-        _remember_failed(key)
     finally:
         # Cleared only after os.replace, so "not pending" implies the file exists (#421).
         with _JOBS_LOCK:
@@ -876,7 +889,8 @@ def schedule_pyramid_build(ref: str, key: str, audio: Path, out: Path) -> bool:
     """Queue a background build of *audio* into *out* (2 workers).
 
     Returns ``True`` when a build is pending or was just queued, and ``False``
-    when *key* failed in this process within the last ``FAILED_RETRY_SEC``.
+    while *key* is inside the retry window of a failed build (``FAILED_RETRY_SEC``,
+    doubling per repeat failure up to ``FAILED_RETRY_MAX_SEC``).
     """
     slug = _slug_from_out(out, key)
     job = (slug, key)

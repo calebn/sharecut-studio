@@ -1097,14 +1097,41 @@ def test_failed_key_is_logged_and_retried_after_the_window(tmp_path, caplog):
     assert "waveform pyramid build failed for track:host" in caplog.text
     assert "ENOSPC" in caplog.text
     assert pyramid_build_failed(key) is True
-    assert wp._FAILED[key] > 0
-    wp._FAILED[key] = 0.0  # retry window elapsed
+    assert wp._FAILED[key][0] > 0
+    assert wp._FAILED[key][1] == 1
+    wp._FAILED[key] = (0.0, 1)  # retry window elapsed
     assert pyramid_build_failed(key) is False
-    assert key not in wp._FAILED
+    assert wp._FAILED[key] == (0.0, 1)  # count kept for the next window
     assert schedule_pyramid_build("track:host", key, audio, out) is True
     wait_pyramid_jobs()
     assert out.exists()
     assert pyramid_build_failed(key) is False
+    assert key not in wp._FAILED  # a success forgets the key
+
+
+def test_repeated_failures_back_off_and_log_at_debug(tmp_path, caplog):
+    audio = _wav_media(tmp_path)
+    key = _key()
+    out = pyramid_path(tmp_path / "peaks", "track-host", key)
+    windows = []
+    with (
+        caplog.at_level(logging.DEBUG, logger="podcast_mcp.engines.waveform_pyramid"),
+        patch("podcast_mcp.engines.waveform_pyramid.decode_media", side_effect=OSError("bad")),
+    ):
+        for n in range(1, 7):
+            before = time.monotonic()
+            assert schedule_pyramid_build("track:host", key, audio, out) is True
+            wait_pyramid_jobs()
+            retry_at, failures = wp._FAILED[key]
+            assert failures == n
+            assert pyramid_build_failed(key) is True
+            windows.append(retry_at - before)
+            wp._FAILED[key] = (0.0, failures)  # window elapsed
+    for got, want in zip(windows, [300, 600, 1200, 2400, 3600, 3600], strict=True):
+        assert want <= got < want + 5
+    records = [r for r in caplog.records if "waveform pyramid build failed" in r.getMessage()]
+    assert [r.levelno for r in records] == [logging.WARNING] + [logging.DEBUG] * 5
+    wp._FAILED.pop(key, None)
 
 
 def test_schedule_submit_failure_clears_pending(tmp_path):
