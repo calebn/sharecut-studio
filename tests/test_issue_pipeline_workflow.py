@@ -381,6 +381,31 @@ def test_feedback_plan_must_cover_every_open_thread() -> None:
     )
 
 
+def test_feedback_implements_in_the_pr_and_files_follow_ups_only_for_big_unrelated_work() -> None:
+    """Follow-ups piled up (30+ from one series): do the work in the PR, dedupe, and cap the rest."""
+    script = _script()
+    assert script.count("enum: ['implement', 'follow_up', 'wont_do']") == 2
+    assert "decline" not in script  # a silent won't-do only hides the pile
+    assert "existing_issue" in script
+    assert "const MAX_NEW_FOLLOWUPS = A.maxNewFollowups ?? 2" in script
+    plan = script[script.index("function feedbackPlan(") : script.index("function feedbackExec(")]
+    assert "Lean hard toward doing the work in THIS PR" in plan
+    assert "implement (the default)" in plan
+    assert "ONLY a big change that is unrelated to this PR" in plan
+    assert "gh issue list -R ${REPO} --state open --search" in plan
+    assert "${MAX_NEW_FOLLOWUPS}" in plan
+    assert "Only a big, unrelated change may be a follow_up" in plan
+    execute = script[
+        script.index("function feedbackExec(") : script.index("function verifyReplies(")
+    ]
+    assert "when the item has existing_issue, create NOTHING" in execute
+    # A wont_do still holds the PR for the owner.
+    assert "wontDo += exec.wont_do_count" in script
+    text = CONTRIBUTING.read_text(encoding="utf-8")
+    assert "`maxNewFollowups`" in text
+    assert "leaning hard toward doing the work in the PR" in text
+
+
 def test_model_tiers() -> None:
     script = _script()
     assert "const M = { cheap: 'haiku', worker: 'sonnet', senior: 'opus' }" in script
