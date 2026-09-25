@@ -534,14 +534,18 @@ def _peer_speaking_in_gap(
     gap_start: float,
     gap_end: float,
 ) -> bool:
-    """True when another dialogue transcript has audible words in the gap."""
+    """True when another dialogue transcript has audible words in the gap.
+
+    A peer muted in the mix still counts: the mute is a listening choice, and
+    a cut here ripples the muted track too.
+    """
     from podcast_mcp.models import TrackRole
 
     for tr in project.transcripts:
         if tr.track_id == track_id:
             continue
         track = project.track_by_id(tr.track_id)
-        if track is None or track.role != TrackRole.DIALOGUE or track.muted:
+        if track is None or track.role != TrackRole.DIALOGUE:
             continue
         for w in tr.words:
             if w.suppressed or w.end <= gap_start or w.start >= gap_end:

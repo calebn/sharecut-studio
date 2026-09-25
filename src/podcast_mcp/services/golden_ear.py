@@ -19,6 +19,7 @@ from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_cac
 from podcast_mcp.edits.pending_preview import resolve_pending_preview
 from podcast_mcp.engines.audio_audit import detect_mains_hum, measure_astats
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.play_audit import PREMIX_HASH_NAME, PREMIX_NAME
 from podcast_mcp.models import EditDecision, EditDecisionType
 from podcast_mcp.models.episode import EPISODE_PROJECT_FILENAME
 from podcast_mcp.project_io import (
@@ -88,15 +89,15 @@ def source_fingerprint(src_file: Path) -> dict[str, Any]:
 
 def _copy_premix(src_ws: Path, dest_ws: Path) -> None:
     """Copy ``premix.wav`` and the hash of the mix it was made from."""
-    premix = src_ws / "artifacts" / "premix.wav"
+    premix = src_ws / "artifacts" / PREMIX_NAME
     if not premix.is_file():
         return
     dest_dir = dest_ws / "artifacts"
     dest_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(premix, dest_dir / "premix.wav")
-    mix_hash = src_ws / "artifacts" / "premix.hash"
+    shutil.copy2(premix, dest_dir / PREMIX_NAME)
+    mix_hash = src_ws / "artifacts" / PREMIX_HASH_NAME
     if mix_hash.is_file():
-        shutil.copy2(mix_hash, dest_dir / "premix.hash")
+        shutil.copy2(mix_hash, dest_dir / PREMIX_HASH_NAME)
 
 
 def copy_relocated_project(src_project: Path, dest_workspace: Path) -> Path:

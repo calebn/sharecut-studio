@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -434,7 +435,7 @@ def assemble_timeline(project: EpisodeProject, defaults: dict[str, Any]) -> Step
 
 
 def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
-    from podcast_mcp.engines.play_audit import write_premix_hash
+    from podcast_mcp.engines.play_audit import mix_gains, write_premix_hash
 
     mix_cfg = defaults.get("mix", {})
     meta_path = artifact(project, "track_outputs.json")
@@ -479,17 +480,21 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
             rendered[track.id] = str(out)
             music_envelopes += 1
 
-        mixed = {
-            track.id: track.output_gain_db
-            for track in project.tracks
-            if not track.muted and track.id in rendered
-        }
+        # The same set the staleness check compares against, less anything
+        # this run has no stem for.
+        mixed = {tid: gain for tid, gain in mix_gains(project).items() if tid in rendered}
         if not mixed:
-            raise ValueError("every track is muted in the mix; unmute one to mix")
+            if any(track.id in rendered for track in project.tracks):
+                raise ValueError("every track is muted in the mix; unmute one to mix")
+            raise ValueError("no tracks to mix")
 
         prog.set_phase("mix", f"Mixing {len(mixed)} tracks…")
         premix = artifact(project, "premix.wav")
-        eng.mix_tracks([(Path(rendered[tid]), gain) for tid, gain in mixed.items()], premix)
+        # Mix beside it and swap in whole, so a failed or cancelled mix never
+        # leaves a half-written premix next to an old hash.
+        mixing = premix.with_name(".premix.mixing.wav")
+        eng.mix_tracks([(Path(rendered[tid]), gain) for tid, gain in mixed.items()], mixing)
+        os.replace(mixing, premix)
         write_premix_hash(project, mixed)
         prog.message(f"{len(mixed)} tracks mixed")
     return f"{len(mixed)} tracks mixed, {music_envelopes} music envelopes"

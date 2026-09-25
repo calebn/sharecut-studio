@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from podcast_mcp.project_io import (
     copy_relocated_workspace,
     open_project,
@@ -91,6 +93,23 @@ def test_workspace_mutation_does_not_cache_another_writers_revision(minimal_proj
     monkeypatch.setattr(workspace_module, "run_mutation", interleaved_mutation)
     ws.mutate("before rename", "after rename", lambda project: setattr(project, "name", "first"))
     assert ws.reload().name == "later writer"
+
+
+def test_a_failed_save_doesnt_leave_its_change_for_the_next_reload(minimal_project, monkeypatch):
+    from podcast_mcp.services import workspace as workspace_module
+
+    ws = ProjectWorkspace.open(minimal_project)
+    saved_name = ws.project.name
+
+    def change_then_fail(path, project, *args, **kwargs):
+        project.name = "never saved"
+        raise OSError("disk full")
+
+    monkeypatch.setattr(workspace_module, "run_mutation", change_then_fail)
+    with pytest.raises(OSError, match="disk full"):
+        ws.mutate("before", "after", lambda project: None)
+    assert ws.project.name == "never saved"
+    assert ws.reload().name == saved_name
 
 
 def test_require_episode_project_file_basename(tmp_path):

@@ -9,6 +9,7 @@ listening choices: edits, the audio audit and render caches ignore them.
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -25,6 +26,7 @@ from podcast_mcp.engines.play_audit import (
     mix_gains,
     mix_render_hash,
     premix_hash_path,
+    premix_path,
     premix_stale_vs_mix,
     read_premix_hash,
     track_render_hash,
@@ -71,9 +73,25 @@ def _two_tracks(minimal_project: Path) -> ProjectWorkspace:
 
 
 def _fake_premix(ws: ProjectWorkspace) -> None:
-    premix = ws.project.artifacts_dir() / "premix.wav"
+    premix = premix_path(ws.project)
     premix.parent.mkdir(parents=True, exist_ok=True)
     premix.write_bytes(b"RIFF")
+
+
+def _fake_rendered_stems(project) -> dict[str, str]:
+    """Pretend the stem step ran: ``track_outputs.json`` lists every track."""
+    tracks_dir = project.artifacts_dir() / "tracks"
+    tracks_dir.mkdir(parents=True, exist_ok=True)
+    rendered = {t.id: str(tracks_dir / f"{t.id}.wav") for t in project.tracks}
+    (project.artifacts_dir() / "track_outputs.json").write_text(json.dumps(rendered))
+    return rendered
+
+
+def _mixing_engine() -> MagicMock:
+    """An ffmpeg stand-in whose mix writes the file it's asked for."""
+    eng = MagicMock()
+    eng.mix_tracks.side_effect = lambda inputs, out: out.write_bytes(b"RIFFMIX") or out
+    return eng
 
 
 def test_output_gain_adds_the_fader_to_the_staging_gain() -> None:
@@ -96,9 +114,9 @@ def test_the_volume_range_matches_the_gui_and_the_schema() -> None:
     assert (fader["minimum"], fader["maximum"]) == (FADER_MIN_DB, FADER_MAX_DB)
 
 
-def test_set_track_fader_saves_rounds_and_undoes(minimal_project: Path) -> None:
+def test_set_track_volume_saves_rounds_and_undoes(minimal_project: Path) -> None:
     ws = _two_tracks(minimal_project)
-    out = EpisodeService(ws).set_track_fader("host", -3.337)
+    out = EpisodeService(ws).set_track_volume("host", -3.337)
     assert out == {"track_id": "host", "fader_db": -3.34, "output_gain_db": -5.34}
     assert load_project(minimal_project).track_by_id("host").fader_db == -3.34
 
@@ -107,10 +125,10 @@ def test_set_track_fader_saves_rounds_and_undoes(minimal_project: Path) -> None:
 
 
 @pytest.mark.parametrize("bad", [12.01, -60.5, float("nan"), float("inf")])
-def test_set_track_fader_rejects_values_outside_the_range(minimal_project, bad) -> None:
+def test_set_track_volume_rejects_values_outside_the_range(minimal_project, bad) -> None:
     ws = _two_tracks(minimal_project)
     with pytest.raises(ValueError, match="between -60 and 12 dB"):
-        EpisodeService(ws).set_track_fader("host", bad)
+        EpisodeService(ws).set_track_volume("host", bad)
 
 
 def test_set_track_mute_saves_and_undoes(minimal_project: Path) -> None:
@@ -127,7 +145,7 @@ def test_set_track_mute_saves_and_undoes(minimal_project: Path) -> None:
 def test_unknown_tracks_are_rejected(minimal_project: Path) -> None:
     ws = _two_tracks(minimal_project)
     with pytest.raises(ValueError, match="unknown track"):
-        EpisodeService(ws).set_track_fader("nobody", 0.0)
+        EpisodeService(ws).set_track_volume("nobody", 0.0)
     with pytest.raises(ValueError, match="unknown track"):
         EpisodeService(ws).set_track_mute("nobody", True)
 
@@ -151,31 +169,49 @@ def test_the_mix_applies_output_gain_skips_muted_and_hashes_the_mix(
     project = ws.project
     project.track_by_id("host").fader_db = -3.0
     project.track_by_id("guest").muted = True
-    tracks_dir = project.artifacts_dir() / "tracks"
-    tracks_dir.mkdir(parents=True, exist_ok=True)
-    rendered = {t.id: str(tracks_dir / f"{t.id}.wav") for t in project.tracks}
-    (project.artifacts_dir() / "track_outputs.json").write_text(json.dumps(rendered))
-    eng = MagicMock()
+    rendered = _fake_rendered_stems(project)
+    eng = _mixing_engine()
     with patch.object(steps, "ffmpeg", return_value=eng):
         steps.mix_with_music(project, load_defaults())
     (inputs, _out), _kw = eng.mix_tracks.call_args
     assert inputs == [(Path(rendered["host"]), -5.0)]
+    assert premix_path(project).read_bytes() == b"RIFFMIX"
     assert read_premix_hash(project) == mix_render_hash({"host": -5.0})
     assert premix_stale_vs_mix(project) is False
 
 
-def test_a_mix_with_every_track_muted_says_so(minimal_project: Path) -> None:
+def test_a_failed_mix_leaves_the_old_premix_whole(minimal_project: Path) -> None:
+    ws = _two_tracks(minimal_project)
+    _fake_premix(ws)
+    write_premix_hash(ws.project, {"old": 0.0})
+    _fake_rendered_stems(ws.project)
+    eng = MagicMock()
+    eng.mix_tracks.side_effect = RuntimeError("ffmpeg died")
+    with patch.object(steps, "ffmpeg", return_value=eng), pytest.raises(RuntimeError):
+        steps.mix_with_music(ws.project, load_defaults())
+    assert premix_path(ws.project).read_bytes() == b"RIFF"
+    assert read_premix_hash(ws.project) == mix_render_hash({"old": 0.0})
+
+
+@pytest.mark.parametrize(
+    ("muted", "has_stems", "message"),
+    [(True, True, "every track is muted"), (False, False, "no tracks to mix")],
+)
+def test_an_empty_mix_says_why(
+    minimal_project: Path, muted: bool, has_stems: bool, message: str
+) -> None:
     ws = _two_tracks(minimal_project)
     for track in ws.project.tracks:
-        track.muted = True
-    tracks_dir = ws.project.artifacts_dir() / "tracks"
-    tracks_dir.mkdir(parents=True, exist_ok=True)
-    rendered = {t.id: str(tracks_dir / f"{t.id}.wav") for t in ws.project.tracks}
-    (ws.project.artifacts_dir() / "track_outputs.json").write_text(json.dumps(rendered))
-    eng = MagicMock()
+        track.muted = muted
+    if has_stems:
+        _fake_rendered_stems(ws.project)
+    else:
+        (ws.project.artifacts_dir()).mkdir(parents=True, exist_ok=True)
+        (ws.project.artifacts_dir() / "track_outputs.json").write_text("{}")
+    eng = _mixing_engine()
     with (
         patch.object(steps, "ffmpeg", return_value=eng),
-        pytest.raises(ValueError, match="every track is muted"),
+        pytest.raises(ValueError, match=message),
     ):
         steps.mix_with_music(ws.project, load_defaults())
     eng.mix_tracks.assert_not_called()
@@ -194,7 +230,7 @@ def test_volume_and_mute_stale_the_premix_but_no_stem(minimal_project: Path) -> 
         hashes = {t.id: track_render_hash(ws.project, t.id) for t in ws.project.tracks}
         return hashes == stem_hashes and audio_state_fingerprint(ws.project) == fingerprint
 
-    EpisodeService(ws).set_track_fader("host", -6.0)
+    EpisodeService(ws).set_track_volume("host", -6.0)
     assert premix_stale_vs_mix(ws.project) is True
     assert unchanged()
     report = render_status_report(ws.project)
@@ -215,6 +251,19 @@ def test_render_status_keeps_reporting_a_muted_track(minimal_project: Path) -> N
     ws = _two_tracks(minimal_project)
     EpisodeService(ws).set_track_mute("guest", True)
     assert set(render_status_report(ws.project)["tracks"]) == {"host", "guest"}
+
+
+def test_a_muted_stem_newer_than_the_premix_doesnt_stale_it(minimal_project: Path) -> None:
+    ws = _two_tracks(minimal_project)
+    rendered = _fake_rendered_stems(ws.project)
+    for path in rendered.values():
+        Path(path).write_bytes(b"RIFF")
+    _fake_premix(ws)
+    later = premix_path(ws.project).stat().st_mtime + 10
+    os.utime(rendered["guest"], (later, later))
+    assert render_status_report(ws.project)["premix"]["stale_vs_stems"] is True
+    ws.project.track_by_id("guest").muted = True
+    assert render_status_report(ws.project)["premix"]["stale_vs_stems"] is False
 
 
 def test_the_mix_hash_covers_only_what_the_mix_plays(minimal_project: Path) -> None:
@@ -250,7 +299,7 @@ def test_a_premix_from_before_the_hash_is_stale_once_the_mix_is_saved(
 
 def test_no_premix_is_never_stale_vs_mix(minimal_project: Path) -> None:
     ws = _two_tracks(minimal_project)
-    EpisodeService(ws).set_track_fader("host", -1.0)
+    EpisodeService(ws).set_track_volume("host", -1.0)
     assert premix_stale_vs_mix(ws.project) is False
 
 
@@ -274,11 +323,7 @@ def test_a_cut_ripples_a_muted_track_too(minimal_project: Path) -> None:
     project.track_by_id("guest").muted = True
     ripple_delete(project, 2.0, 5.0, use_inaudible_opt=False)
     ends = {
-        tid: max(
-            c.timeline_start + c.source_end - c.source_start
-            for c in project.clips
-            if c.track_id == tid
-        )
+        tid: max(c.timeline_end for c in project.clips if c.track_id == tid)
         for tid in ("host", "guest")
     }
     assert ends == {"host": 7.0, "guest": 7.0}

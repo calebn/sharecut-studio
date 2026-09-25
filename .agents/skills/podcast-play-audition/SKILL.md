@@ -58,7 +58,7 @@ When the user hears “two conversations at once,” overlap that isn’t simple
 7. `detail="full"` expands edit/comment payloads; `detail="visual"` adds waveform/spectrogram PNGs plus `events[]` (word/comment/edit/hypothesis with `t` and plot-relative `x`). After visual, **Read** each PNG; `plot.read_for` is `degradation_not_asr` — do not try to read speech off the spectrogram. Hum/clip codes do **not** require visual — they are already in `hypotheses[]` on summary.
 8. `summary` is a one-line caption dump for chat; `warnings[]` are one prose line per hypothesis (same count).
 9. `limits` always includes `cannot_hear` — the model does not hear; play for the human.
-10. Captions include **muted** dialogue tracks so `muted_track_speaking` can fire. Mix/render still skip muted tracks.
+10. Captions include **muted** dialogue tracks so `muted_track_speaking` can fire. The mix, play and bounce skip muted tracks; their stems still render, so an unmute plays in sync.
 
 Do not skip this step when reviewing multitrack join quality or when the user reports disparate dialogue in the mix.
 
