@@ -29,6 +29,20 @@ vi.mock("../hooks/usePeaks", () => ({
   usePeaks: () => ({ peaks: null, status: "idle" }),
 }));
 
+// The real timeline, memoized as in production, counting its renders.
+const timelineRender = vi.hoisted(() => vi.fn());
+vi.mock("../timeline/TimelineView", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("../timeline/TimelineView")>();
+  const { memo } = await import("react");
+  return {
+    ...mod,
+    TimelineView: memo((p: Parameters<typeof mod.TimelineViewView>[0]) => {
+      timelineRender();
+      return <mod.TimelineViewView {...p} />;
+    }),
+  };
+});
+
 const tabletProject = () =>
   minimalProject({
     tracks: [
@@ -212,5 +226,38 @@ describe("StudioShell tablet peek", () => {
       "daw-shell--attention",
     );
     await expectNoA11yViolations(alert);
+  });
+
+  it("does not re-render the timeline on playhead, scroll or presence ticks", () => {
+    const project = tabletProject();
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <StudioShell />
+      </DawProvider>,
+    );
+    expect(timelineRender).toHaveBeenCalled();
+    timelineRender.mockClear();
+    const s = useDawStore.getState();
+    act(() => s.setIsPlaying(true));
+    timelineRender.mockClear();
+    act(() => {
+      for (let i = 1; i <= 20; i++) {
+        s.setPlayheadSec(i * 0.25);
+        s.setScrollLeft(i * 3);
+      }
+      for (let i = 0; i < 10; i++) {
+        s.setPointerTrackId(i % 2 ? "guest" : null);
+      }
+      for (let i = 0; i < 5; i++) {
+        s.setSessionClients([
+          { client_id: `peer-${i}`, role: "viewer", playhead_sec: i },
+        ]);
+      }
+    });
+    expect(timelineRender).not.toHaveBeenCalled();
+    act(() => {
+      s.setIsPlaying(false);
+      s.setSessionClients([]);
+    });
   });
 });

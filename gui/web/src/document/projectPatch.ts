@@ -5,6 +5,7 @@ import type {
   TrackView,
   TranscriptWordView,
 } from "../types/project";
+import { reuseUnchanged } from "./reuseUnchanged";
 
 export type ProjectHydration = {
   transcript_words?: boolean;
@@ -97,7 +98,7 @@ export function mergeProjectPatch(
     }
     (next as unknown as Record<string, unknown>)[key] = value;
   }
-  return next;
+  return reuseUnchanged(previous, next);
 }
 
 function utteranceSourceKey(utterance: CombinedUtterance): string {
@@ -243,7 +244,7 @@ export function projectFromDocumentSnapshot(
     if (snap.comments) {
       next = { ...next, comments: snap.comments };
     }
-    return mergeSnapshotHistory(next, snap.history);
+    return reuseUnchanged(previous, mergeSnapshotHistory(next, snap.history));
   }
   if (!previous) {
     return null;
@@ -255,7 +256,7 @@ export function projectFromDocumentSnapshot(
   if (snap.comments) {
     next = { ...next, comments: snap.comments };
   }
-  return mergeSnapshotHistory(next, snap.history);
+  return reuseUnchanged(previous, mergeSnapshotHistory(next, snap.history));
 }
 
 export function patchTracksOrder(

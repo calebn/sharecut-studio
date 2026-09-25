@@ -23,9 +23,9 @@ function rowAnchor(row: keyof MarkerRows): Record<string, string> {
 }
 
 interface MarkerLaneProps {
-  chapters: ChapterMarker[];
-  socialClips: SocialClipView[];
-  comments: TimelineComment[];
+  chapters: readonly ChapterMarker[];
+  socialClips: readonly SocialClipView[];
+  comments: readonly TimelineComment[];
   /** Rows to draw, from `markerRows` (TimelineView sizes the lane from them). */
   rows: MarkerRows;
   selectedCommentId?: string | null;

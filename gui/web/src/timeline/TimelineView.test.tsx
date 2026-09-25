@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { Profiler, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { projectFromDocumentSnapshot } from "../document/projectPatch";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
@@ -23,6 +24,34 @@ import { useTimelineMetrics } from "./timelineMetrics";
 
 const execute = vi.hoisted(() => vi.fn());
 vi.mock("../commands/execute", () => ({ execute }));
+// Render counters: the real lane and clip, memoized as in production, with a
+// count of how often each actually renders.
+const renders = vi.hoisted(() => ({
+  lanes: [] as string[],
+  clips: [] as string[],
+}));
+vi.mock("./TrackLane", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("./TrackLane")>();
+  const { memo } = await import("react");
+  return {
+    ...mod,
+    TrackLane: memo((p: Parameters<typeof mod.TrackLaneView>[0]) => {
+      renders.lanes.push(p.track.id);
+      return <mod.TrackLaneView {...p} />;
+    }),
+  };
+});
+vi.mock("./ClipBlock", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("./ClipBlock")>();
+  const { memo } = await import("react");
+  return {
+    ...mod,
+    ClipBlock: memo((p: Parameters<typeof mod.ClipBlockView>[0]) => {
+      renders.clips.push(p.clip.id);
+      return <mod.ClipBlockView {...p} />;
+    }),
+  };
+});
 // Clips here exercise geometry and gestures, not waveform fetching.
 vi.mock("../hooks/usePeaks", () => ({
   usePeaks: () => ({ peaks: null, status: "idle" }),
@@ -604,5 +633,180 @@ describe("TimelineView lane fit", () => {
         `${(2 * 150 - MARKER_ROW_HEIGHT) / 2}px`,
       );
     });
+  });
+});
+
+describe("TimelineView render isolation", () => {
+  const trackIds = ["host", "guest", "third"];
+  const laneClips = (trackId: string): ClipRow[] =>
+    [0, 1, 2, 3, 4].map((i) => ({
+      ...hostClip,
+      id: `${trackId}-${i}`,
+      track_id: trackId,
+      source_start: i * 2,
+      source_end: i * 2 + 2,
+      timeline_start: i * 2,
+      timeline_end: i * 2 + 2,
+    }));
+  const project = () =>
+    minimalProject({
+      tracks: trackIds.map((id) => ({
+        id,
+        label: id,
+        role: "dialogue",
+        speaker: null,
+        gain_db: 0,
+        muted: false,
+        duration_sec: 60,
+        fx_count: 0,
+        stem_is_fresh: true,
+      })),
+      clips: {
+        tracks: Object.fromEntries(trackIds.map((id) => [id, laneClips(id)])),
+        clip_count: 15,
+      },
+    });
+
+  beforeEach(() => {
+    RecordingResizeObserver.all = [];
+    vi.stubGlobal("ResizeObserver", RecordingResizeObserver);
+    stubElementSize(800, 600);
+    useDawStore.getState().hydrate("/tmp/p.json", project());
+    useDawStore.setState({
+      userZoomed: true,
+      zoomPxPerSec: 40,
+      followingClientId: null,
+      isPlaying: true,
+      selection: null,
+      selectedClipIds: [],
+    });
+  });
+
+  afterEach(() => {
+    useDawStore.setState({ isPlaying: false, sessionClients: [] });
+    vi.unstubAllGlobals();
+    Reflect.deleteProperty(HTMLElement.prototype, "clientWidth");
+    Reflect.deleteProperty(HTMLElement.prototype, "clientHeight");
+  });
+
+  function mount() {
+    const view = render(
+      <DawProvider
+        projectPath="/tmp/p.json"
+        initialProject={useDawStore.getState().project}
+      >
+        <TimelineView />
+      </DawProvider>,
+    );
+    expect(renders.clips.length).toBeGreaterThanOrEqual(15);
+    renders.lanes = [];
+    renders.clips = [];
+    return view;
+  }
+
+  it("renders no lane or clip on playhead, scroll, pointer or presence ticks", () => {
+    mount();
+    const s = useDawStore.getState();
+    act(() => {
+      for (let i = 1; i <= 20; i++) {
+        s.setPlayheadSec(i * 0.25);
+      }
+    });
+    act(() => {
+      for (let i = 1; i <= 20; i++) {
+        s.setScrollLeft(i * 3);
+      }
+    });
+    act(() => {
+      for (let i = 0; i < 10; i++) {
+        s.setPointerTrackId(trackIds[i % 3]!);
+      }
+    });
+    act(() => {
+      for (let i = 0; i < 5; i++) {
+        s.setSessionClients([
+          {
+            client_id: `peer-${i}`,
+            role: "viewer",
+            playhead_sec: i,
+            last_seen_ns: Date.now() * 1e6,
+          },
+        ]);
+      }
+    });
+    expect(renders.lanes).toEqual([]);
+    expect(renders.clips).toEqual([]);
+  });
+
+  it("re-renders only the newly and previously selected clips", () => {
+    mount();
+    act(() =>
+      useDawStore
+        .getState()
+        .setSelection({ kind: "clip", id: "guest-1", trackId: "guest" }),
+    );
+    renders.clips = [];
+    act(() =>
+      useDawStore
+        .getState()
+        .setSelection({ kind: "clip", id: "third-3", trackId: "third" }),
+    );
+    expect([...renders.clips].sort()).toEqual(["guest-1", "third-3"]);
+  });
+
+  it("re-renders an edited clip and its lane neighbours only", () => {
+    mount();
+    const prev = useDawStore.getState().project!;
+    // A fresh projection from the server, as a document snapshot brings it.
+    const fresh = structuredClone(prev);
+    fresh.clips.tracks.host![2] = {
+      ...fresh.clips.tracks.host![2]!,
+      fade_in_ms: 40,
+    };
+    const next = projectFromDocumentSnapshot(prev, { project: fresh });
+    if (!next) {
+      throw new Error("snapshot dropped the project");
+    }
+    act(() => useDawStore.getState().setProject(next));
+    expect([...renders.clips].sort()).toEqual(["host-1", "host-2", "host-3"]);
+  });
+
+  it("draws the blade guide on target lanes at the pointer time", () => {
+    useDawStore.setState({ toolMode: "blade", selectedTrackIds: ["guest"] });
+    const { container } = mount();
+    const lanes = container.querySelector(".lane-row")
+      ?.parentElement as HTMLElement;
+    Object.defineProperty(lanes, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 0, top: 0, width: 800, height: 216 }),
+    });
+    fireEvent.pointerMove(lanes, { clientX: 100 });
+    const guides = container.querySelectorAll<HTMLElement>(
+      ".blade-cut-guide.blade-cut-guide--lane",
+    );
+    // One target lane (guest, the second): 100 px at 40 px/s is 2.5 s.
+    expect(guides).toHaveLength(1);
+    expect(guides[0]!.style.left).toBe("100px");
+    const laneHeight = (
+      container.querySelector(".timeline-area") as HTMLElement
+    ).style.getPropertyValue("--lane-height");
+    expect(guides[0]!.style.top).toBe(laneHeight);
+    expect(renders.clips).toEqual([]);
+
+    fireEvent.pointerLeave(lanes);
+    expect(container.querySelector(".blade-cut-guide--lane")).toBeNull();
+    useDawStore.setState({ toolMode: "select", selectedTrackIds: [] });
+  });
+
+  it("draws the blade guide on every lane when no track is selected", () => {
+    useDawStore.setState({ toolMode: "blade", selectedTrackIds: [] });
+    const { container } = mount();
+    act(() => useDawStore.getState().setBladeHoverSec(1));
+    expect(container.querySelectorAll(".blade-cut-guide--lane")).toHaveLength(
+      3,
+    );
+    act(() => useDawStore.getState().setToolMode("select"));
+    expect(useDawStore.getState().bladeHoverSec).toBeNull();
+    expect(container.querySelector(".blade-cut-guide--lane")).toBeNull();
   });
 });

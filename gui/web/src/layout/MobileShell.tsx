@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 import { execute } from "../commands/execute";
 import { FEATURE_SHARE_UI_BANNER } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
@@ -44,6 +44,8 @@ import { EditingToolRail } from "./EditingToolRail";
 import { FollowBanner } from "./FollowBanner";
 import { GuestAttentionBanner } from "./GuestAttentionBanner";
 import { ListenHero } from "./ListenHero";
+import { ListenScrubber, ListenTimecode } from "./ListenPlayhead";
+import { seekListen, skipListen } from "./listenSeek";
 import { OverlayLegend } from "./OverlayLegend";
 import { PipelineStatusChip } from "./PipelineStatusChip";
 import { TransportBar } from "./TransportBar";
@@ -148,14 +150,9 @@ function MoreHub({ guestShare }: { guestShare: boolean }) {
   );
 }
 
-function seekListen(sec: number): void {
-  void execute("transport.seek", { sec }, { skipWhen: true });
-}
-
 function ListenMode({ guestShare }: { guestShare: boolean }) {
   const {
     project,
-    playheadSec,
     isPlaying,
     setActiveTab,
     setSelection,
@@ -164,7 +161,6 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
     activityRunningCount,
   } = useDaw((s) => ({
     project: s.project,
-    playheadSec: s.playheadSec,
     isPlaying: s.isPlaying,
     setActiveTab: s.setActiveTab,
     setSelection: s.setSelection,
@@ -214,32 +210,15 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
             {...transportPlayHandlers}
           />
         }
-        timecode={<Timecode {...transportTimecode(playheadSec, duration)} />}
-        scrubber={
-          <input
-            type="range"
-            className="listen-scrub mobile-scrub"
-            min={0}
-            max={Math.max(duration, 0.01)}
-            step={0.01}
-            value={Math.min(playheadSec, duration)}
-            aria-label="Scrub timeline"
-            onChange={(e) => seekListen(Number(e.target.value))}
-          />
-        }
+        timecode={<ListenTimecode durationSec={duration} />}
+        scrubber={<ListenScrubber durationSec={duration} />}
         skipBack={
-          <button
-            type="button"
-            onClick={() => seekListen(Math.max(0, playheadSec - 15))}
-          >
+          <button type="button" onClick={() => skipListen(-15, duration)}>
             −15s
           </button>
         }
         skipForward={
-          <button
-            type="button"
-            onClick={() => seekListen(Math.min(duration, playheadSec + 15))}
-          >
+          <button type="button" onClick={() => skipListen(15, duration)}>
             +15s
           </button>
         }
@@ -344,7 +323,11 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
   );
 }
 
-export function MobileShell({ guestShare = false }: { guestShare?: boolean }) {
+export function MobileShellView({
+  guestShare = false,
+}: {
+  guestShare?: boolean;
+}) {
   const {
     selection,
     setSelection,
@@ -389,6 +372,8 @@ export function MobileShell({ guestShare = false }: { guestShare?: boolean }) {
     setTimelineFocused,
   );
   const shellRef = useRef<HTMLDivElement>(null);
+  // Stable element: the timeline it is slotted into skips re-rendering.
+  const headerSlot = useMemo(() => <TrackHeadersColumn />, []);
   const undoEnabled =
     project != null &&
     canApplyPass12(projectPath, guestMode, shareCapabilities);
@@ -443,7 +428,7 @@ export function MobileShell({ guestShare = false }: { guestShare?: boolean }) {
         {mobileMode === "listen" && <ListenMode guestShare={guestShare} />}
         {mobileMode === "timeline" && (
           <div className="mobile-timeline-mode">
-            <TimelineView fixedPlayhead headerSlot={<TrackHeadersColumn />} />
+            <TimelineView fixedPlayhead headerSlot={headerSlot} />
             <EditingToolRail />
           </div>
         )}
@@ -559,3 +544,6 @@ export function MobileShell({ guestShare = false }: { guestShare?: boolean }) {
     </div>
   );
 }
+
+/** Phone shell. */
+export const MobileShell = memo(MobileShellView);

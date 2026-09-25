@@ -325,7 +325,19 @@ export const useDawStore = create<DawStore>((set, get) => ({
   waveformAmpZoom: 1,
   pointerTrackId: null as string | null,
   setPointerTrackId: (pointerTrackId) => set({ pointerTrackId }),
+  bladeHoverSec: null as number | null,
+  setBladeHoverSec: (bladeHoverSec) => {
+    if (bladeHoverSec !== get().bladeHoverSec) {
+      set({ bladeHoverSec });
+    }
+  },
   scrollLeft: 0,
+  timelineViewportWidth: 0,
+  setTimelineViewportWidth: (timelineViewportWidth) => {
+    if (timelineViewportWidth !== get().timelineViewportWidth) {
+      set({ timelineViewportWidth });
+    }
+  },
   selection: null as Selection,
   activeTab: "transcript" as DawTab,
   userZoomed: false,

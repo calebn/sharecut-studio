@@ -1,16 +1,7 @@
-import { useMemo } from "react";
+import { useCallback } from "react";
+import { useDawStore } from "../state/dawStore";
 import type { TimelineComment } from "../types/project";
-
-const INSTANT_EPS = 0.35;
-
-function commentCovers(c: TimelineComment, t: number): boolean {
-  const start = c.timeline_start;
-  const end =
-    c.timeline_end != null && c.timeline_end > start
-      ? c.timeline_end
-      : start + INSTANT_EPS;
-  return t >= start && t <= end;
-}
+import { activeCommentId } from "./activeComment";
 
 function truncate(body: string, max = 80): string {
   const t = body.trim();
@@ -21,8 +12,7 @@ function truncate(body: string, max = 80): string {
 }
 
 interface CommentPlaybackBubbleProps {
-  comments: TimelineComment[];
-  playheadSec: number;
+  comments: readonly TimelineComment[];
   zoomPxPerSec: number;
   selectedCommentId: string | null;
   visible: boolean;
@@ -32,30 +22,23 @@ interface CommentPlaybackBubbleProps {
 /** Transient bubble while playhead overlaps a comment (at most one). */
 export function CommentPlaybackBubble({
   comments,
-  playheadSec,
   zoomPxPerSec,
   selectedCommentId,
   visible,
   onSelect,
 }: CommentPlaybackBubbleProps) {
-  const active = useMemo(() => {
-    if (!visible) {
-      return null;
-    }
-    const hits = comments.filter((c) => commentCovers(c, playheadSec));
-    if (hits.length === 0) {
-      return null;
-    }
-    const selected = hits.find((c) => c.id === selectedCommentId);
-    if (selected) {
-      return selected;
-    }
-    return hits.reduce((best, c) => {
-      const bestDist = Math.abs(best.timeline_start - playheadSec);
-      const dist = Math.abs(c.timeline_start - playheadSec);
-      return dist < bestDist ? c : best;
-    });
-  }, [comments, playheadSec, selectedCommentId, visible]);
+  // Select the id, not the playhead: a tick re-renders only when it changes.
+  const activeId = useDawStore(
+    useCallback(
+      (s: { playheadSec: number }) =>
+        visible
+          ? activeCommentId(comments, s.playheadSec, selectedCommentId)
+          : null,
+      [comments, selectedCommentId, visible],
+    ),
+  );
+  const active =
+    activeId == null ? null : comments.find((c) => c.id === activeId);
 
   if (!active) {
     return null;

@@ -1,5 +1,6 @@
 import { magnetSec, uniqueTicks } from "../timeline/snapOverlay";
 import type { ClipRow, TrackView } from "../types/project";
+import { EMPTY_ARR, EMPTY_OBJ, EMPTY_SET } from "../utils/empty";
 import { originTrackId, sourceSecOnClipToTimeline } from "../utils/timebase";
 
 export const MOVE_THRESHOLD_PX = 5;
@@ -219,6 +220,12 @@ export type MoveGhost = {
   trackIndex: number;
 };
 
+const IDLE_LANE_PREVIEW = Object.freeze({
+  previewStartById: EMPTY_OBJ,
+  hideIds: EMPTY_SET,
+  ghosts: EMPTY_ARR,
+});
+
 export function laneMovePreview(opts: {
   trackId: string;
   laneClips: ClipRow[];
@@ -226,16 +233,17 @@ export function laneMovePreview(opts: {
   tracks: TrackView[];
   placements: ClipMoveItem[] | null;
 }): {
-  previewStartById: Record<string, number>;
-  hideIds: Set<string>;
-  ghosts: MoveGhost[];
+  previewStartById: Readonly<Record<string, number>>;
+  hideIds: ReadonlySet<string>;
+  ghosts: readonly MoveGhost[];
 } {
+  if (!opts.placements?.length) {
+    // Idle: shared empties, so memoized lanes see equal props.
+    return IDLE_LANE_PREVIEW;
+  }
   const previewStartById: Record<string, number> = {};
   const hideIds = new Set<string>();
   const ghosts: MoveGhost[] = [];
-  if (!opts.placements?.length) {
-    return { previewStartById, hideIds, ghosts };
-  }
   const clipById = new Map(opts.allClips.map((c) => [c.id, c]));
   const trackIndex = new Map(opts.tracks.map((t, i) => [t.id, i]));
   const mediaByTrack = new Map(

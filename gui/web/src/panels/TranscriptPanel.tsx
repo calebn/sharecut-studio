@@ -11,6 +11,7 @@ import {
   resolvePresenceAnchor,
 } from "../presence/anchors";
 import { isShareProjectKey } from "../shareMode";
+import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { EditBoundaryMark } from "../transcript/EditBoundaryMark";
 import {
@@ -25,11 +26,8 @@ import type {
 } from "../types/project";
 import { FocusToggle, ToggleButton } from "../ui";
 import {
-  findActiveUtteranceIndex,
   findTurnIndexForUtterance,
   groupConsecutiveSpeakerTurns,
-  isUtteranceActive,
-  isWordActive,
   scrollChildIntoParent,
   selectUnmappedUtterances,
   transcriptAnchorTurnIndex,
@@ -39,6 +37,12 @@ import {
   wordSeekSec,
   wordsForUtterance,
 } from "../utils/transcript";
+import {
+  activeWordId,
+  buildTranscriptActiveIndex,
+  parseTranscriptActiveKey,
+  transcriptActiveKey,
+} from "./transcriptActive";
 
 const LOW_CONFIDENCE = 0.7;
 const EMPTY_UTTERANCES: CombinedUtterance[] = [];
@@ -98,7 +102,6 @@ export function TranscriptPanel() {
   const {
     project,
     projectPath,
-    playheadSec,
     setPlayheadSec,
     selection,
     setSelection,
@@ -118,7 +121,6 @@ export function TranscriptPanel() {
   } = useDaw((s) => ({
     project: s.project,
     projectPath: s.projectPath,
-    playheadSec: s.playheadSec,
     setPlayheadSec: s.setPlayheadSec,
     selection: s.selection,
     setSelection: s.setSelection,
@@ -301,9 +303,40 @@ export function TranscriptPanel() {
     () => groupConsecutiveSpeakerTurns(utterances),
     [utterances],
   );
-  const activeIndex = useMemo(
-    () => findActiveUtteranceIndex(utterances, playheadSec),
-    [utterances, playheadSec],
+  // The highlight, selected as one string key rather than the playhead: a
+  // tick re-renders the panel only when an utterance or word changes.
+  const activeIndexData = useMemo(
+    () => buildTranscriptActiveIndex(utterances),
+    [utterances],
+  );
+  const activeKey = useDawStore(
+    useCallback(
+      (s: { playheadSec: number }) =>
+        transcriptActiveKey(activeIndexData, s.playheadSec),
+      [activeIndexData],
+    ),
+  );
+  const active = useMemo(
+    () => parseTranscriptActiveKey(activeKey),
+    [activeKey],
+  );
+  const activeIndex = active.first;
+  // A scroll request holds follow until the playhead moves; wake the follow
+  // effect when it does (the highlight alone may not change).
+  const [holdRelease, setHoldRelease] = useState(0);
+  useEffect(
+    () =>
+      useDawStore.subscribe((s, prev) => {
+        const hold = followHoldRef.current;
+        if (
+          hold &&
+          s.playheadSec !== prev.playheadSec &&
+          s.playheadSec !== hold.sec
+        ) {
+          setHoldRelease((n) => n + 1);
+        }
+      }),
+    [],
   );
   const activeTurnIndex = useMemo(
     () => findTurnIndexForUtterance(turns, activeIndex),
@@ -409,7 +442,7 @@ export function TranscriptPanel() {
       return;
     }
     const hold = followHoldRef.current;
-    if (hold?.follow && hold.sec === playheadSec) {
+    if (hold?.follow && hold.sec === useDawStore.getState().playheadSec) {
       // A scroll request (e.g. leader jump) wins until the playhead moves.
       return;
     }
@@ -424,9 +457,10 @@ export function TranscriptPanel() {
     }
     scrollChildIntoParent(root, el, 0.5);
   }, [
+    activeKey,
     activeIndex,
     activeTurnStart,
-    playheadSec,
+    holdRelease,
     transcriptFollowPlayhead,
     utterances,
   ]);
@@ -502,12 +536,11 @@ export function TranscriptPanel() {
       return;
     }
     followHoldRef.current = {
-      sec: playheadSec,
+      sec: useDawStore.getState().playheadSec,
       follow: transcriptFollowPlayhead,
     };
     scrollChildIntoParent(root, el, 0.2);
   }, [
-    playheadSec,
     transcriptFollowPlayhead,
     transcriptScrollRequest,
     setTranscriptScrollRequest,
@@ -709,7 +742,9 @@ export function TranscriptPanel() {
           const blockSeek = turnSeekSec(turn);
           const labelSec = blockSeek ?? lead.start;
           const turnHasActive = turn.utterances.some(
-            (u) => u.mappable !== false && isUtteranceActive(u, playheadSec),
+            (u, j) =>
+              u.mappable !== false &&
+              active.utterances.has(turn.startIndex + j),
           );
           const turnAllUnmapped = turn.utterances.every(
             (u) => u.mappable === false,
@@ -762,11 +797,11 @@ export function TranscriptPanel() {
               {turn.utterances.map((u, j) => {
                 const flatIndex = turn.startIndex + j;
                 const unmapped = u.mappable === false;
-                const uttActive =
-                  !unmapped && isUtteranceActive(u, playheadSec);
+                const uttActive = !unmapped && active.utterances.has(flatIndex);
                 const words = wordsForUtterance(u);
                 const activeWord = words.find(
-                  (w) => !unmapped && isWordActive(w, playheadSec),
+                  (_w, wi) =>
+                    !unmapped && active.words.has(activeWordId(flatIndex, wi)),
                 );
                 return (
                   <span
@@ -779,7 +814,9 @@ export function TranscriptPanel() {
                       const afterWordIndex = flatWordIndex;
                       flatWordIndex += 1;
                       const wSeek = wordSeekSec(w);
-                      const wActive = !unmapped && isWordActive(w, playheadSec);
+                      const wActive =
+                        !unmapped &&
+                        active.words.has(activeWordId(flatIndex, wi));
                       const sep = wi > 0 ? " " : "";
                       const wordIndex = w.word_index;
                       const selected = wordInRange(

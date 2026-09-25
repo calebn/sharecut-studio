@@ -77,7 +77,11 @@ export interface DawState {
   zoomPxPerSec: number;
   waveformAmpZoom: number;
   pointerTrackId: string | null;
+  /** Blade-mode pointer time (s) over the lanes; null when not hovering. */
+  bladeHoverSec: number | null;
   scrollLeft: number;
+  /** Visible time column (px) of the mounted timeline, from its observer. */
+  timelineViewportWidth: number;
   selection: Selection;
   activeTab: DawTab;
   userZoomed: boolean;
@@ -221,6 +225,8 @@ export interface DawState {
   setWaveformAmpZoom: (amp: number) => void;
   nudgeWaveformAmp: (direction: "in" | "out") => void;
   setPointerTrackId: (trackId: string | null) => void;
+  setBladeHoverSec: (sec: number | null) => void;
+  setTimelineViewportWidth: (px: number) => void;
   setLayerVisible: (key: keyof LayerVisibility, visible: boolean) => void;
   setCommentMode: (on: boolean) => void;
   toggleCommentMode: () => void;

@@ -193,7 +193,22 @@ function usePresenceAnnouncer(
   }, [clients, localId, offsetMs]);
 }
 
-export function PresenceOverlay({
+/** Remote presence over the lanes, reading the session roster itself. */
+export function PresenceOverlay(
+  props: Omit<Props, "clients" | "localClientId">,
+) {
+  const clients = useDawStore((s) => s.sessionClients);
+  const localClientId = useDawStore((s) => s.localClientId);
+  return (
+    <PresenceOverlayView
+      {...props}
+      clients={clients}
+      localClientId={localClientId}
+    />
+  );
+}
+
+export function PresenceOverlayView({
   clients,
   localClientId,
   zoomPxPerSec,

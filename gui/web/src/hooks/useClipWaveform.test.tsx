@@ -32,7 +32,8 @@ const mockState = {
   guestMode: null,
   shareCapabilities: null,
   pointerTrackId: null,
-  measureTimelineViewport: () => 800,
+  bladeHoverSec: null,
+  timelineViewportWidth: 800,
 };
 
 vi.mock("../state/useDaw", () => ({
@@ -63,7 +64,6 @@ function useWave(laneHeight = 72) {
     sourceEnd: 4,
     peaks: null,
     trimActive: false,
-    bladeHoverSec: null,
     selected: false,
     color: "var(--clip-dialogue-0)",
     laneHeight,

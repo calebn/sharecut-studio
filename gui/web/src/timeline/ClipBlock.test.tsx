@@ -20,23 +20,6 @@ vi.mock("../hooks/useClipWaveform", () => ({
   }),
 }));
 
-const mockState = {
-  projectPath: "/tmp/p.json",
-  setProject: vi.fn(),
-  scrollLeft: 0,
-  playheadSec: 0,
-  waveformAmpZoom: 1,
-  auditionMode: "raw",
-  guestMode: null,
-  shareCapabilities: null,
-  pointerTrackId: null,
-  measureTimelineViewport: () => 800,
-};
-
-vi.mock("../state/useDaw", () => ({
-  useDaw: (sel: (s: typeof mockState) => unknown) => sel(mockState),
-}));
-
 const clip: ClipRow = {
   id: "c1",
   track_id: "host",
@@ -164,7 +147,10 @@ describe("ClipBlock waveform", () => {
     fireEvent.pointerDown(hit, { clientX: 40, clientY: 10, pointerId: 2 });
     fireEvent.pointerMove(hit, { clientX: 42, clientY: 10, pointerId: 2 });
     fireEvent.pointerUp(hit, { clientX: 42, clientY: 10, pointerId: 2 });
-    expect(onSelectClip).toHaveBeenCalledWith({ shift: false, mod: false });
+    expect(onSelectClip).toHaveBeenCalledWith("c1", {
+      shift: false,
+      mod: false,
+    });
     expect(onMovePreview).not.toHaveBeenCalled();
   });
 
@@ -189,7 +175,8 @@ describe("ClipBlock waveform", () => {
     expect(onMovePreview).toHaveBeenCalled();
     fireEvent.pointerUp(hit, { clientX: 80, clientY: 10, pointerId: 3 });
     expect(onMoveCommit).toHaveBeenCalled();
-    expect(onMoveCommit.mock.calls[0]?.[0].deltaSec).toBeCloseTo(0.8, 5);
+    expect(onMoveCommit.mock.calls[0]?.[0]).toBe("c1");
+    expect(onMoveCommit.mock.calls[0]?.[1].deltaSec).toBeCloseTo(0.8, 5);
   });
 
   it("does not body-move in blade mode", () => {
@@ -228,7 +215,10 @@ describe("ClipBlock waveform", () => {
     );
     const hit = container.querySelector(".clip-hit") as HTMLElement;
     fireEvent.click(hit, { shiftKey: true });
-    expect(onSelectClip).toHaveBeenCalledWith({ shift: true, mod: false });
+    expect(onSelectClip).toHaveBeenCalledWith("c1", {
+      shift: true,
+      mod: false,
+    });
     expect(hit.getAttribute("aria-label")).toBe("Select clip c1");
   });
 

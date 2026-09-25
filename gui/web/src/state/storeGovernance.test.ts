@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { SRC_ROOT, srcRelative, walkTsFiles } from "../test/sourceFiles";
 
@@ -14,6 +15,27 @@ const WHOLE_STORE_READ =
 
 function wholeStoreReads(text: string): number {
   return text.match(WHOLE_STORE_READ)?.length ?? 0;
+}
+
+/**
+ * Hot fields change every frame (playhead, scroll) or every presence frame.
+ * Only leaves select them; handlers read `useDawStore.getState()`.
+ */
+const HOT_FIELD_READ =
+  /\bs\.(playheadSec|scrollLeft|sessionClients|pointerTrackId|bladeHoverSec)\b/g;
+
+/** The app root, shells and timeline rows: none may select a hot field. */
+const HOT_FIELD_FREE_FILES = [
+  "dawApp.tsx",
+  "layout/StudioShell.tsx",
+  "layout/MobileShell.tsx",
+  "timeline/TimelineView.tsx",
+  "timeline/TrackLane.tsx",
+  "timeline/ClipBlock.tsx",
+];
+
+function hotFieldReads(text: string): string[] {
+  return [...text.matchAll(HOT_FIELD_READ)].map((m) => m[0]);
 }
 
 function isTestFile(rel: string): boolean {
@@ -65,5 +87,23 @@ describe("store governance", () => {
     }
     expect(scanned).toBeGreaterThan(0);
     expect(offenders).toEqual([]);
+  });
+
+  it.each([
+    ["useDaw((s) => ({ a: s.playheadSec }))", ["s.playheadSec"]],
+    ["useDawStore((s) => s.scrollLeft)", ["s.scrollLeft"]],
+    [
+      "(s) => s.sessionClients.length + s.bladeHoverSec",
+      ["s.sessionClients", "s.bladeHoverSec"],
+    ],
+    ["useDawStore.getState().pointerTrackId", []],
+    ["useDawStore((s) => s.playheadSecs)", []],
+  ])("finds hot field reads in %j", (text, expected) => {
+    expect(hotFieldReads(text)).toEqual(expected);
+  });
+
+  it.each(HOT_FIELD_FREE_FILES)("%s selects no hot store field", (rel) => {
+    const text = readFileSync(join(SRC_ROOT, rel), "utf8");
+    expect(hotFieldReads(text)).toEqual([]);
   });
 });

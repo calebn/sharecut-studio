@@ -1,5 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { useDawStore } from "../state/dawStore";
 import { TimeRuler } from "./TimeRuler";
 
 describe("TimeRuler", () => {
@@ -17,7 +18,6 @@ describe("TimeRuler", () => {
         durationSec={9}
         sessionDurationSec={9}
         zoomPxPerSec={40}
-        playheadSec={0}
         onSeek={vi.fn()}
       />,
     );
@@ -36,7 +36,6 @@ describe("TimeRuler", () => {
         durationSec={9}
         sessionDurationSec={9}
         zoomPxPerSec={40}
-        playheadSec={0}
         onSeek={vi.fn()}
       />,
     );
@@ -49,10 +48,44 @@ describe("TimeRuler", () => {
         durationSec={9}
         sessionDurationSec={9}
         zoomPxPerSec={200}
-        playheadSec={0}
         onSeek={vi.fn()}
       />,
     );
     expect(screen.getByText("0:08")).toBeTruthy();
+  });
+
+  it("reads its value from the store, in quarter seconds while playing", () => {
+    useDawStore.setState({ playheadSec: 3.3, isPlaying: false });
+    render(
+      <TimeRuler
+        durationSec={9}
+        sessionDurationSec={9}
+        zoomPxPerSec={40}
+        onSeek={vi.fn()}
+      />,
+    );
+    const slider = screen.getByRole("slider");
+    expect(slider).toHaveAttribute("aria-valuenow", "3.3");
+    act(() => useDawStore.setState({ isPlaying: true, playheadSec: 3.6 }));
+    expect(slider).toHaveAttribute("aria-valuenow", "3.5");
+    act(() => useDawStore.setState({ playheadSec: 3.7 }));
+    expect(slider).toHaveAttribute("aria-valuenow", "3.5");
+    act(() => useDawStore.setState({ isPlaying: false, playheadSec: 0 }));
+  });
+
+  it("steps from the store playhead on arrow keys", () => {
+    useDawStore.setState({ playheadSec: 4, isPlaying: false });
+    const onSeek = vi.fn();
+    render(
+      <TimeRuler
+        durationSec={9}
+        sessionDurationSec={9}
+        zoomPxPerSec={40}
+        onSeek={onSeek}
+      />,
+    );
+    fireEvent.keyDown(screen.getByRole("slider"), { key: "ArrowLeft" });
+    expect(onSeek).toHaveBeenCalledWith(2);
+    act(() => useDawStore.setState({ playheadSec: 0 }));
   });
 });
