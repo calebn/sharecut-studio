@@ -640,6 +640,6 @@ The host rechecks an existing record socket against participant removal on
 each inbound command, outbound room event, and while idle. A removed guest's
 socket closes with 4403 without disconnecting other room participants; the
 relay forwards the host's close. A relayed `Join` without a valid lease on a
-token whose participant was removed gets `invite_closed` and a 4403 close (same handler as direct).
+token whose participant was removed gets `invite_closed` and then a 4403 close (same handler as direct; the relay keeps that order, which the guest UI relies on, and `tests/test_relay_ws.py::test_record_ws_relays_invite_closed_error_before_4403` checks it).
 
 Old tunnel clients ignore unknown frame types (guest socket stays silent; HTTP poll still works). See [session-sync.md](session-sync.md) § Guest dual-plane WebSocket. Record rate buckets: host `guest_ws_record` / `guest_ws_record_token` for room commands, plus `guest_ws_record_signal` / `guest_ws_record_signal_token` for WebRTC `Signal` ICE/SDP (Heartbeat and HeadphonesAck stay exempt).
