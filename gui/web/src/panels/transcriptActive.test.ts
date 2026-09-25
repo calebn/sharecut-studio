@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CombinedUtterance } from "../types/project";
 import {
   findActiveUtteranceIndex,
+  INSTANT_WORD_SEC,
   isUtteranceActive,
   isWordActive,
   wordsForUtterance,
@@ -69,6 +70,18 @@ describe("transcriptActiveKey", () => {
       expect(active.first).toBe(findActiveUtteranceIndex(utterances, sec));
     },
   );
+
+  it("prefilters zero-length words with the shared instant-word window", () => {
+    const lone = [utt(9, 11, [[10, null]])];
+    const index = buildTranscriptActiveIndex(lone);
+    const has = (sec: number) =>
+      parseTranscriptActiveKey(transcriptActiveKey(index, sec)).words.has(
+        activeWordId(0, 0),
+      );
+    expect(has(10 - INSTANT_WORD_SEC * 0.9)).toBe(true);
+    expect(has(10 + INSTANT_WORD_SEC * 0.9)).toBe(true);
+    expect(has(10 + INSTANT_WORD_SEC * 1.1)).toBe(false);
+  });
 
   it("is equal across ticks that change nothing", () => {
     const index = buildTranscriptActiveIndex(utterances);

@@ -55,6 +55,9 @@ export function wordSeekSec(w: TranscriptWordView): number | null {
   return w.timeline_start ?? null;
 }
 
+/** How far from its start a zero-length word still counts as active (s). */
+export const INSTANT_WORD_SEC = 0.05;
+
 /** True when playhead lies in this word's timeline span (half-open). */
 export function isWordActive(
   w: TranscriptWordView,
@@ -65,7 +68,7 @@ export function isWordActive(
   }
   const end = w.timeline_end ?? w.timeline_start;
   if (end <= w.timeline_start) {
-    return Math.abs(playheadSec - w.timeline_start) < 0.05;
+    return Math.abs(playheadSec - w.timeline_start) < INSTANT_WORD_SEC;
   }
   return playheadSec >= w.timeline_start && playheadSec < end;
 }
