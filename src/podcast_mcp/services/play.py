@@ -126,6 +126,13 @@ def _compose_gain_db(track: Track | None, tier: str) -> float:
     return float(track.output_gain_db)
 
 
+def _mix_cache_extra(inputs: list[tuple[Path, float]]) -> str:
+    """Play-cache key part for a mix: each input's path, mtime and gain."""
+    return ":".join(
+        f"{path}:{path.stat().st_mtime_ns if path.is_file() else 0}:{gain}" for path, gain in inputs
+    )
+
+
 class PlayService:
     def __init__(self, workspace: ProjectWorkspace) -> None:
         self.ws = workspace
@@ -659,9 +666,12 @@ class PlayService:
             raise ValueError("follow-transcript mix requires dialogue tracks")
 
         segments: list[tuple[str, Path]] = []
+        gains_db: dict[str, float] = {}
         for tid in track_ids:
-            seg, _, _, _ = self._processed_audio(tid, start, end, rerender=rerender)
+            seg, tier, _, _ = self._processed_audio(tid, start, end, rerender=rerender)
             segments.append((tid, seg))
+            # Segment renders bake the staging gain; stems don't, and neither bakes the fader.
+            gains_db[tid] = _compose_gain_db(self.project.track_by_id(tid), tier)
 
         intervals_by_track = {
             tid: [(s - start, e - start) for s, e in word_intervals(self.project, tid, start, end)]
@@ -669,7 +679,13 @@ class PlayService:
         }
         fp = transcript_gate_fingerprint(self.project, track_ids, start, end)
         label = f"follow_mix_{fp}"
-        out = self._cache_path(label, start, end, segments[0][1])
+        out = self._cache_path(
+            label,
+            start,
+            end,
+            segments[0][1],
+            extra=_mix_cache_extra([(seg, gains_db[tid]) for tid, seg in segments]),
+        )
         if not out.is_file():
             render_gated_mix(
                 segments,
@@ -677,6 +693,7 @@ class PlayService:
                 out,
                 timeline_start=0.0,
                 timeline_end=end - start,
+                gains_db=gains_db,
             )
         cmd = None if dry_run else self._player_command(player, out)
         if cmd:
@@ -884,10 +901,7 @@ class PlayService:
             track = self.project.track_by_id(tid)
             segments.append((wav, _compose_gain_db(track, tier_used)))
 
-        extra = ":".join(
-            f"{path}:{path.stat().st_mtime_ns if path.is_file() else 0}:{gain}"
-            for path, gain in segments
-        )
+        extra = _mix_cache_extra(segments)
         out = self._cache_path(
             f"compose_{kind}_{'-'.join(ids)}",
             start_sec,
