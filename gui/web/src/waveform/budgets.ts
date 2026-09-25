@@ -161,6 +161,9 @@ export class ByteLru<V> {
 }
 
 /** How to treat a failed waveform fetch. */
+/** How long a failed fetch (other than a 429 or 404) is held back before a request may try it again. */
+export const FAILED_FETCH_BACKOFF_MS = 5000;
+
 export type FetchFailure =
   | { kind: "retry"; afterMs: number }
   | { kind: "missing" }
@@ -169,8 +172,9 @@ export type FetchFailure =
 
 /**
  * 429 re-queues after `Retry-After` (1 s without one); 404 means the key or
- * ref is gone; 409 means the PCM key is stale; anything else is dropped (the
- * next request for the same data tries again).
+ * ref is gone; 409 means the PCM key is stale; anything else is dropped: the
+ * data is held back for `FAILED_FETCH_BACKOFF_MS`, then the next request
+ * tries again.
  */
 export function classifyFetchFailure(err: unknown): FetchFailure {
   if (!(err instanceof WaveformFetchError)) {

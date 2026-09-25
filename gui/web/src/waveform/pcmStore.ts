@@ -4,6 +4,7 @@ import { PCM_BLOCK_FRAMES } from "../utils/timelineZoom.generated";
 import {
   ByteLru,
   classifyFetchFailure,
+  FAILED_FETCH_BACKOFF_MS,
   fetchLimit,
   waveformBudget,
   waveformFetchGate,
@@ -29,8 +30,11 @@ const requests = new Set<{
 }>();
 const retries = new Set<{
   projectPath: string;
+  id: string;
   timer: ReturnType<typeof setTimeout>;
 }>();
+/** Block ids held back after a failed fetch (a 429 until Retry-After, otherwise FAILED_FETCH_BACKOFF_MS). */
+const cooling = new Set<string>();
 const listeners = new Map<string, Set<() => void>>();
 
 function blockId(key: string, block: number): string {
@@ -63,9 +67,17 @@ export function requestPcm(
   }
   for (let block = Math.max(0, b0); block <= b1; block++) {
     const id = blockId(source.key, block);
-    if (!data.has(id) && !inflight.has(id) && !queue.has(id)) {
-      queue.set(id, { ...source, block });
+    if (data.has(id) || inflight.has(id) || cooling.has(id)) {
+      continue;
     }
+    const queued = queue.get(id);
+    if (queued) {
+      // The latest requester owns the block, so leaving the other project keeps it.
+      queued.projectPath = source.projectPath;
+      queued.ref = source.ref;
+      continue;
+    }
+    queue.set(id, { ...source, block });
   }
   pump();
 }
@@ -112,21 +124,32 @@ function dispatch(id: string, block: Block): void {
         return;
       }
       const failure = classifyFetchFailure(err);
-      if (failure.kind === "retry") {
-        const retry = {
-          projectPath: block.projectPath,
-          timer: setTimeout(() => {
+      if (failure.kind === "stale" || failure.kind === "missing") {
+        refreshWaveformStatus(block.projectPath, refKind(block.ref));
+      }
+      // Hold the block back: a 429 until Retry-After (then re-queue it), anything else briefly.
+      cooling.add(id);
+      const retry = {
+        projectPath: block.projectPath,
+        id,
+        timer: setTimeout(
+          () => {
             retries.delete(retry);
-            if (!data.has(id) && !inflight.has(id)) {
+            cooling.delete(id);
+            if (
+              failure.kind === "retry" &&
+              !data.has(id) &&
+              !inflight.has(id) &&
+              !queue.has(id)
+            ) {
               queue.set(id, block);
             }
             pump();
-          }, failure.afterMs),
-        };
-        retries.add(retry);
-      } else if (failure.kind === "stale" || failure.kind === "missing") {
-        refreshWaveformStatus(block.projectPath, refKind(block.ref));
-      }
+          },
+          failure.kind === "retry" ? failure.afterMs : FAILED_FETCH_BACKOFF_MS,
+        ),
+      };
+      retries.add(retry);
     })
     .finally(() => {
       requests.delete(request);
@@ -190,6 +213,7 @@ export function retainPcm(projectPath: string): void {
   for (const retry of [...retries]) {
     if (retry.projectPath !== projectPath) {
       clearTimeout(retry.timer);
+      cooling.delete(retry.id);
       retries.delete(retry);
     }
   }
