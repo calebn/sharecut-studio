@@ -103,8 +103,10 @@ iterable of float32 `(frames, channels)` chunks and returns
    under-reports the decoded samples.
 
 `write_pyramid(out, …)` writes to a unique sibling temp file
-(`.{name}.XXXX.tmp`) and moves it into place with `os.replace`. Pyramids are
-content-addressed, so when `out` already exists the temp file is discarded.
+(`.{name}.XXXX.tmp`), fsyncs it, moves it into place with `os.replace`, then
+fsyncs the directory. An existing `out` is replaced: pyramids are
+content-addressed, so a valid file gets identical bytes and a corrupt one is
+repaired.
 
 `write_synthetic_pyramid(out, *, sample_rate, total_frames, seed, silent=False)`
 writes a deterministic, mono, speech-like pyramid without decoding: phrases
@@ -154,7 +156,9 @@ because ffmpeg counts it in decoder packets, not samples.
   `ref_slug(kind, id)` is `{kind}-{id}` for ids matching `SAFE_TRACK_ID`, and
   otherwise `{kind}-h{sha1(id)[:12]}`.
 - **Reuse:** before a build, `reuse_existing_pyramid` hard-links any
-  `*.{key}.wfpk` to the new name, or copies it when linking fails.
+  `*.{key}.wfpk` that passes `read_meta` to the new name, or copies it when
+  linking fails. An existing target that fails `read_meta` is deleted so it is
+  rebuilt, and a corrupt candidate is skipped.
 - **Prune:** after a build, `prune_ref_pyramids` keeps the live key plus the
   newest other key for the slug, and deletes `.tmp` files older than one day.
 - **Jobs:** `schedule_pyramid_build(ref, key, audio, out)` queues a build on a

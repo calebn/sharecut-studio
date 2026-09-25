@@ -232,11 +232,22 @@ def build_levels(
 # --- File I/O ------------------------------------------------------------------
 
 
-def _publish(out: Path, write: Callable[[IO[bytes]], None]) -> Path:
-    """Write via a unique sibling temp file, then ``os.replace`` into *out*.
+def _fsync_dir(path: Path) -> None:
+    """Persist a rename in directory *path* (best effort; no-op where dirs cannot be opened)."""
+    with contextlib.suppress(OSError):
+        fd = os.open(path, os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
 
-    Pyramids are content-addressed, so when *out* already exists the temp file
-    is discarded and the existing file is kept.
+
+def _publish(out: Path, write: Callable[[IO[bytes]], None]) -> Path:
+    """Write via a unique sibling temp file, fsync, then ``os.replace`` into *out*.
+
+    An existing *out* is replaced: pyramids are content-addressed, so a valid
+    one gets identical bytes and a corrupt one (torn write, disk damage) is
+    repaired.
     """
     out.parent.mkdir(parents=True, exist_ok=True)
     with NamedTemporaryFile(
@@ -245,18 +256,18 @@ def _publish(out: Path, write: Callable[[IO[bytes]], None]) -> Path:
         tmp = Path(fh.name)
         try:
             write(fh)
+            fh.flush()
+            os.fsync(fh.fileno())
         except BaseException:
             fh.close()
             tmp.unlink(missing_ok=True)
             raise
-    if out.exists():
-        tmp.unlink(missing_ok=True)
-        return out
     try:
         os.replace(tmp, out)
     except OSError:
         tmp.unlink(missing_ok=True)
         raise
+    _fsync_dir(out.parent)
     return out
 
 
@@ -542,6 +553,15 @@ def pyramid_path(peaks_dir: Path, slug: str, key: str) -> Path:
     return resolve_within(peaks_dir, f"{slug}.{key}.wfpk")
 
 
+def _valid_pyramid(path: Path) -> bool:
+    """True when *path* parses with ``read_meta``."""
+    try:
+        read_meta(path)
+    except (OSError, ValueError):
+        return False
+    return True
+
+
 def prune_ref_pyramids(peaks_dir: Path, slug: str, live_key: str) -> None:
     """Keep *live_key* plus the newest other key for *slug*; drop day-old temp files."""
     pattern = re.compile(rf"^{re.escape(slug)}\.([0-9a-f]{{20}})\.wfpk$")
@@ -564,10 +584,21 @@ def prune_ref_pyramids(peaks_dir: Path, slug: str, live_key: str) -> None:
 
 
 def reuse_existing_pyramid(peaks_dir: Path, key: str, out: Path) -> bool:
-    """Link (or copy) any ``*.{key}.wfpk`` to *out*; ``True`` when *out* now exists."""
+    """Link (or copy) a valid ``*.{key}.wfpk`` to *out*; ``True`` when *out* now exists.
+
+    Files that fail ``read_meta`` are never trusted: a bad *out* is unlinked
+    and a bad candidate skipped, so the caller rebuilds.
+    """
     if out.exists():
-        return True
+        if _valid_pyramid(out):
+            return True
+        try:
+            out.unlink()
+        except OSError:
+            return False
     for candidate in sorted(peaks_dir.glob(f"*.{key}.wfpk")):
+        if not _valid_pyramid(candidate):
+            continue
         try:
             os.link(candidate, out)
         except FileExistsError:
