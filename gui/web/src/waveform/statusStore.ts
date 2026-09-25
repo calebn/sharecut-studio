@@ -2,6 +2,7 @@ import { useCallback, useSyncExternalStore } from "react";
 import { loadWaveformStatus } from "../api";
 import { isClientRejection, isRetryLater } from "../utils/apiError";
 import {
+  isReady,
   type ReadyEntry,
   refKind,
   type StatusEntry,
@@ -30,8 +31,10 @@ type Poller = {
   inflight: AbortController | null;
   /** Another poll was asked for while one was in flight. */
   again: boolean;
-  /** Keys whose tile 404 already triggered a refetch. */
+  /** Keys whose tile 404 already triggered a refetch (until a poll drops them). */
   missing: Set<string>;
+  /** A permanent failure stopped polling: the next subscriber restarts it. */
+  stopped: boolean;
 };
 
 type ReadyListener = (
@@ -61,6 +64,7 @@ function pollerFor(projectPath: string, kind: WaveformKind): Poller {
       inflight: null,
       again: false,
       missing: new Set(),
+      stopped: false,
     };
     pollers.set(key, poller);
   }
@@ -94,6 +98,16 @@ function applyStatus(poller: Poller, status: WaveformStatus): boolean {
   }
   if (next.size !== poller.entries.size) {
     changed = true;
+  }
+  // A key no poll lists as ready any more (regenerating, or replaced) may
+  // 404 again later: let that 404 re-poll.
+  const readyKeys = new Set(
+    [...next.values()].filter(isReady).map((e) => e.key),
+  );
+  for (const key of poller.missing) {
+    if (!readyKeys.has(key)) {
+      poller.missing.delete(key);
+    }
   }
   poller.entries = next;
   return changed;
@@ -137,6 +151,7 @@ function poll(poller: Poller): void {
         return;
       }
       poller.inflight = null;
+      poller.stopped = false;
       if (applyStatus(poller, status)) {
         for (const fn of [...poller.listeners]) {
           fn();
@@ -165,7 +180,8 @@ function poll(poller: Poller): void {
       // permanent error would repeat, and a transient one schedules a retry below.
       poller.again = false;
       if (permanentFailure(err)) {
-        // Stop until a refresh or a new subscriber asks again.
+        // Stop until a refresh, a tile 404 or a new subscriber asks again.
+        poller.stopped = true;
         poller.backoffMs = FIRST_BACKOFF_MS;
         return;
       }
@@ -182,7 +198,7 @@ export function subscribeWaveformStatus(
 ): () => void {
   const poller = pollerFor(projectPath, kind);
   poller.listeners.add(listener);
-  if (poller.listeners.size === 1 && !poller.inflight) {
+  if ((poller.listeners.size === 1 || poller.stopped) && !poller.inflight) {
     poll(poller);
   }
   return () => {
@@ -216,14 +232,17 @@ export function refreshWaveformStatus(
   }
 }
 
-/** A tile 404: the key may be gone. Poll again, once per key. */
+/**
+ * A tile 404: the key may be gone. Poll again, once per key until a poll
+ * no longer lists it as ready. Only a watched project polls.
+ */
 export function noteWaveformTileMissing(
   projectPath: string,
   ref: string,
   key: string,
 ): void {
-  const poller = pollerFor(projectPath, refKind(ref));
-  if (poller.missing.has(key)) {
+  const poller = pollers.get(pollerKey(projectPath, refKind(ref)));
+  if (!poller || poller.missing.has(key)) {
     return;
   }
   poller.missing.add(key);

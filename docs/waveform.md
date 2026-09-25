@@ -312,7 +312,7 @@ Revocation stops new requests only.
     generating, and stops otherwise. A failed poll backs off the same way, except that a
     4xx other than 408/429 stops polling until the next refresh or subscriber. It polls at once on a media-signature
     change (the `WaveformStatusSync` leaf) and after a tile 404 (once per
-    key). `useWaveformStatus(projectPath, kind, ref)` returns one entry,
+    key, until a poll no longer lists that key as ready). `useWaveformStatus(projectPath, kind, ref)` returns one entry,
     with the same object identity while it is unchanged.
 - **Data** (budgets in `budgets.ts`: bitmaps 128 MB, or 48 MB on the phone
   shell; tiles 64 or 32 MB; PCM 32 MB; 4 fetches in flight on the host and
