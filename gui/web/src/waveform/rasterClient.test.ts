@@ -80,6 +80,70 @@ describe("rasterClient", () => {
     vi.unstubAllGlobals();
   });
 
+  it("frees the slot when postMessage throws", () => {
+    startRasterWorker();
+    const w = FakeWorker.last!;
+    const real = w.postMessage.bind(w);
+    w.postMessage = () => {
+      throw new DOMException("detached", "DataCloneError");
+    };
+    for (const k of ["a", "b", "c", "d"]) {
+      expect(() => requestRaster(req(k))).not.toThrow();
+    }
+    w.postMessage = real;
+    requestRaster(req("e"));
+    expect(w.posted).toHaveLength(1);
+  });
+
+  it("closes a finished bitmap whose job is gone", () => {
+    startRasterWorker();
+    const close = vi.fn();
+    FakeWorker.last!.reply({
+      type: "done",
+      id: 99,
+      bitmap: { close } as unknown as ImageBitmap,
+      backend: "webgl2",
+    });
+    expect(close).toHaveBeenCalledOnce();
+    expect(rasterTilesRendered()).toBe(0);
+  });
+
+  it("does not hand listeners a bitmap evicted on insert", () => {
+    const done = vi.fn();
+    subscribeRasterDone(done);
+    requestRaster(
+      req("huge", { job: { ...parityJob(), cols: 8192, rows: 8192 } }),
+    );
+    const close = vi.fn();
+    FakeWorker.last!.reply({
+      type: "done",
+      id: 1,
+      bitmap: { close } as unknown as ImageBitmap,
+      backend: "webgl2",
+    });
+    expect(close).toHaveBeenCalledOnce();
+    expect(done).not.toHaveBeenCalled();
+  });
+
+  it("settles pending parity with null on reset", async () => {
+    const p = rasterParity();
+    resetRasterClient();
+    await expect(p).resolves.toBeNull();
+  });
+
+  it("never lets a provisional request replace a queued exact one", () => {
+    for (const k of ["a", "b", "c", "d"]) {
+      requestRaster(req(k));
+    }
+    requestRaster(req("x"));
+    requestRaster(req("x", { provisional: true }));
+    const w = FakeWorker.last!;
+    w.reply({ type: "done", id: 1, bitmap: bitmap(), backend: "webgl2" });
+    expect(w.posted).toHaveLength(5);
+    w.reply({ type: "done", id: 5, bitmap: bitmap(), backend: "webgl2" });
+    expect(bitmapCache.get("x")).toBeDefined();
+  });
+
   it("starts a module worker lazily and takes its backend", () => {
     expect(getRasterBackend()).toBe("starting");
     expect(FakeWorker.last).toBeNull();
