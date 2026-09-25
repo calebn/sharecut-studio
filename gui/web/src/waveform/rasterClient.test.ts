@@ -224,6 +224,15 @@ describe("rasterClient", () => {
     await expect(p).resolves.toBe(0.004);
   });
 
+  it("settles parity with null when posting to the worker throws", async () => {
+    requestRaster(req("a"));
+    const w = FakeWorker.last!;
+    vi.spyOn(w, "postMessage").mockImplementation(() => {
+      throw new Error("DataCloneError");
+    });
+    await expect(rasterParity()).resolves.toBeNull();
+  });
+
   it("falls back to backend none when the worker fails", async () => {
     requestRaster(req("a"));
     const w = FakeWorker.last!;
