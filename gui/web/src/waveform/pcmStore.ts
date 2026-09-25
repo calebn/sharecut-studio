@@ -80,6 +80,9 @@ function pump(): void {
   }
 }
 
+// Tiles and PCM share the gate: a slot either store frees wakes both.
+waveformFetchGate.onRelease(pump);
+
 function dispatch(id: string, block: Block): void {
   inflight.add(id);
   const request = {
@@ -129,7 +132,6 @@ function dispatch(id: string, block: Block): void {
       requests.delete(request);
       inflight.delete(id);
       waveformFetchGate.release();
-      pump();
     });
 }
 

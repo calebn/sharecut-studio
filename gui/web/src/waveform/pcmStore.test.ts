@@ -51,6 +51,19 @@ async function flush(): Promise<void> {
 }
 
 describe("pcmStore", () => {
+  it("wakes when another store frees a gate slot", () => {
+    for (let i = 0; i < 4; i++) {
+      expect(waveformFetchGate.tryAcquire(4)).toBe(true);
+    }
+    requestPcm(source, 3, 3);
+    expect(calls).toHaveLength(0);
+    waveformFetchGate.release();
+    expect(calls.map((c) => c.req.block)).toEqual([3]);
+    for (let i = 0; i < 3; i++) {
+      waveformFetchGate.release();
+    }
+  });
+
   beforeEach(() => {
     calls.length = 0;
     refresh.mockClear();
