@@ -72,6 +72,9 @@ export function useKeeperCapture({
   const [tapAttempt, setTapAttempt] = useState(0);
   const sessionRef = useRef<KeeperSession | null>(null);
   const tapRef = useRef<KeeperTap | null>(null);
+  // State twin of tapRef: the watchdog arms only once a tap is attached and
+  // re-arms whenever a new tap replaces it.
+  const [openTap, setOpenTap] = useState<KeeperTap | null>(null);
   const [noAudio, setNoAudio] = useState(false);
   const [micCheckFailed, setMicCheckFailed] = useState(false);
   const watchdogRef = useRef(new SilentPcmWatchdog());
@@ -314,6 +317,7 @@ export function useKeeperCapture({
           return;
         }
         tapRef.current = tap;
+        setOpenTap(tap);
         tapFailedRef.current = false;
         if (sessionRef.current === session && session.error === null) {
           setError(null);
@@ -332,6 +336,7 @@ export function useKeeperCapture({
       cancelled = true;
       tapRef.current?.stop();
       tapRef.current = null;
+      setOpenTap(null);
     };
   }, [stream, epoch, tapAttempt, onActivity]);
 
@@ -429,7 +434,10 @@ export function useKeeperCapture({
 
   const recordingLocally = writing && stream !== null;
   const watchdogActive =
-    recordingLocally && !muted && snapshot?.state === "recording";
+    recordingLocally &&
+    !muted &&
+    snapshot?.state === "recording" &&
+    openTap !== null;
   useEffect(() => {
     setNoAudio(false);
     setMicCheckFailed(false);
@@ -448,7 +456,7 @@ export function useKeeperCapture({
       clearInterval(id);
       watchdog.disarm();
     };
-  }, [watchdogActive, stream]);
+  }, [watchdogActive, stream, openTap]);
   const checkMic = useCallback(() => {
     const tap = tapRef.current;
     if (!tap) {
