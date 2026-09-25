@@ -9,12 +9,17 @@ describe("useDevicePixelRatio", () => {
 
   it("follows devicePixelRatio across resizes and resolution changes", () => {
     const listeners: (() => void)[] = [];
-    vi.stubGlobal("matchMedia", (query: string) => ({
-      media: query,
-      matches: true,
-      addEventListener: (_: string, fn: () => void) => listeners.push(fn),
-      removeEventListener: vi.fn(),
-    }));
+    const queries: string[] = [];
+    const remove = vi.fn();
+    vi.stubGlobal("matchMedia", (query: string) => {
+      queries.push(query);
+      return {
+        media: query,
+        matches: true,
+        addEventListener: (_: string, fn: () => void) => listeners.push(fn),
+        removeEventListener: remove,
+      };
+    });
     vi.stubGlobal("devicePixelRatio", 1);
     const { result } = renderHook(() => useDevicePixelRatio());
     expect(result.current).toBe(1);
@@ -28,6 +33,9 @@ describe("useDevicePixelRatio", () => {
       listeners.at(-1)?.();
     });
     expect(result.current).toBe(1.5);
+    // Re-armed for the new ratio, the old query released.
+    expect(queries.at(-1)).toBe("(resolution: 1.5dppx)");
+    expect(remove).toHaveBeenCalled();
   });
 
   it("falls back to 1 for a missing ratio", () => {

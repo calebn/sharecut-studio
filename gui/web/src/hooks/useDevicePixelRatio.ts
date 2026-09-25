@@ -1,4 +1,7 @@
-import { useSyncExternalStore } from "react";
+import {
+  mediaQuerySubscription,
+  useMediaQueryStore,
+} from "./useMediaQueryStore";
 
 function currentDpr(): number {
   const dpr = typeof window === "undefined" ? 1 : window.devicePixelRatio;
@@ -6,18 +9,17 @@ function currentDpr(): number {
 }
 
 /**
- * Re-arm a `(resolution: <dpr>dppx)` query on every change: it fires when the
- * page moves to a screen with another DPR. Browser zoom also fires `resize`.
+ * A `(resolution: <dpr>dppx)` query through `mediaQuerySubscription`,
+ * re-armed for the new DPR on every change: it fires when the page moves to
+ * a screen with another DPR. Browser zoom also fires `resize`.
  */
 function subscribeDpr(onChange: () => void): () => void {
-  let media: MediaQueryList | null = null;
+  let disarm = () => {};
   const arm = () => {
-    media?.removeEventListener?.("change", fire);
-    media =
-      typeof window.matchMedia === "function"
-        ? window.matchMedia(`(resolution: ${currentDpr()}dppx)`)
-        : null;
-    media?.addEventListener?.("change", fire);
+    disarm();
+    disarm = mediaQuerySubscription([`(resolution: ${currentDpr()}dppx)`])(
+      fire,
+    );
   };
   const fire = () => {
     arm();
@@ -26,12 +28,12 @@ function subscribeDpr(onChange: () => void): () => void {
   arm();
   window.addEventListener("resize", onChange);
   return () => {
-    media?.removeEventListener?.("change", fire);
+    disarm();
     window.removeEventListener("resize", onChange);
   };
 }
 
 /** `window.devicePixelRatio`, kept live across browser zoom and screens. */
 export function useDevicePixelRatio(): number {
-  return useSyncExternalStore(subscribeDpr, currentDpr, () => 1);
+  return useMediaQueryStore(subscribeDpr, currentDpr, () => 1);
 }
