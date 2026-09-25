@@ -232,7 +232,7 @@ Zoom knobs live in [`contracts/timeline-zoom.json`](../contracts/timeline-zoom.j
 | Route | Response | Notes |
 |-------|----------|-------|
 | `GET /api/waveform/status?path=&kind=raw\|stem` | JSON `{format_version, media: {ref: entry}}` | `ready` (key, sample rate, channels, frames, level table) / `generating` / `unavailable` (`no-media`, `decode-failed`, `unsafe-id`); missing pyramids are queued. `no-store` |
-| `GET /api/waveform/tiles/{key}?path=&ref=&level=&start=&count=` | octet-stream | Concatenated bins of data tiles `[start, start+count)` (1–16), clipped at the level end; no project parse. Immutable + `ETag` |
+| `GET /api/waveform/tiles/{key}?path=&ref=&level=&start=&count=` | octet-stream | Concatenated bins of data tiles `[start, start+count)` (1–16), clipped at the level end; no project parse. Immutable |
 | `GET /api/waveform/pcm/{key}?path=&ref=&block=` | octet-stream | Host only: int16 `(min, max)` per frame for one 65,536-frame block; **409** when `key` is not the ref's current key. Immutable |
 
 Errors send `Cache-Control: no-store`. Guests get raw-media status and tiles under `/api/review/{token}/daw/waveform/…` ([host-online-relay.md § Guest Sharecut Studio APIs](host-online-relay.md#guest-sharecut-studio-apis-token-scoped)).

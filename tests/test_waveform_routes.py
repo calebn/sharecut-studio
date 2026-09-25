@@ -58,7 +58,7 @@ def test_tiles_route_serves_immutable_bins(tmp_path):
     assert res.status_code == 200
     assert res.headers["content-type"] == "application/octet-stream"
     assert res.headers["cache-control"] == IMMUTABLE
-    assert res.headers["etag"] == f'"{key}-0-0-1"'
+    assert "etag" not in res.headers
     path = pyramid_path(project_path.parent / "artifacts" / "peaks", "track-host", key)
     assert res.content == read_bins(path, read_meta(path), 0, 0, 4096)
 
@@ -92,7 +92,7 @@ def test_pcm_route_blocks_and_stale_key(tmp_path, monkeypatch):
     res = client.get(f"/api/waveform/pcm/{key}", params={**base, "block": 1})
     assert res.status_code == 200
     assert res.headers["cache-control"] == IMMUTABLE
-    assert res.headers["etag"] == f'"{key}-pcm-1"'
+    assert "etag" not in res.headers
     pairs = np.frombuffer(res.content, "<i2").reshape(-1, 2)
     np.testing.assert_array_equal(
         pairs, read_pcm_minmax(project_path.parent / "raw" / "host.wav", 512, 512)
@@ -114,3 +114,52 @@ def test_waveform_routes_respect_servedwaveform_project(tmp_path):
     missing = client.get("/api/waveform/status", params={"path": str(tmp_path / "nope.json")})
     assert missing.status_code == 404
     assert missing.headers["cache-control"] == "no-store"
+
+
+def test_pcm_route_decode_failure_is_404_no_store(tmp_path, monkeypatch):
+    monkeypatch.setattr(svc, "pcm_block_frames", lambda: 512)
+    project_path = waveform_project(tmp_path)
+    client = TestClient(create_app())
+    key = _ready_key(client, project_path)
+
+    def boom(*_a, **_k):
+        raise RuntimeError("ffmpeg failed")
+
+    monkeypatch.setattr(svc, "read_pcm_minmax", boom)
+    res = client.get(
+        f"/api/waveform/pcm/{key}",
+        params={"path": str(project_path), "ref": "track:host", "block": 0},
+    )
+    assert res.status_code == 404
+    assert res.headers["cache-control"] == "no-store"
+
+
+def test_waveform_call_maps_unknown_errors_to_500_no_store():
+    from fastapi import HTTPException
+
+    from podcast_mcp.gui.routes.waveform import waveform_call
+
+    def boom():
+        raise RuntimeError("x")
+
+    with pytest.raises(HTTPException) as info:
+        waveform_call(boom)
+    assert info.value.status_code == 500
+    assert info.value.headers["Cache-Control"] == "no-store"
+
+
+@pytest.mark.parametrize(
+    ("exc", "status"),
+    [(FileNotFoundError("gone"), 404), (ValueError("bad json"), 400), (RuntimeError("x"), 500)],
+)
+def test_status_route_maps_service_errors(tmp_path, monkeypatch, exc, status):
+    project_path = waveform_project(tmp_path)
+
+    def raiser(*_a, **_k):
+        raise exc
+
+    monkeypatch.setattr("podcast_mcp.gui.routes.waveform.waveform_status", raiser)
+    client = TestClient(create_app(), raise_server_exceptions=False)
+    res = client.get("/api/waveform/status", params={"path": str(project_path)})
+    assert res.status_code == status
+    assert res.headers["cache-control"] == "no-store"

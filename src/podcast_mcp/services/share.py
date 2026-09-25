@@ -717,7 +717,12 @@ _GUEST_WAVEFORM_REFS = ("track:", "source:")
 
 
 def share_daw_waveform_status(token: str) -> dict[str, Any]:
-    """Raw-media pyramid status for guests (``view``); stems are host-only."""
+    """Raw-media pyramid status for guests (``view``); stems are host-only.
+
+    Like the host route, this queues missing pyramids: it is the only builder for
+    media that predates the eager hooks. The build pool dedupes by (slug, key), so
+    a guest can cause at most one build per missing ref.
+    """
     from podcast_mcp.services.waveform import waveform_status
 
     _row, ws = require_share_cap(token, CAP_VIEW)
@@ -731,13 +736,13 @@ def share_daw_waveform_tiles(
 
     There is deliberately no guest PCM window: raw samples never go to guests.
     """
-    from podcast_mcp.services.waveform import current_key, media_index, tile_bytes
+    from podcast_mcp.services.waveform import live_key, media_index, tile_bytes
 
     _row, ws = require_share_cap(token, CAP_VIEW)
     if not ref.startswith(_GUEST_WAVEFORM_REFS):
         raise ValueError("guests may only read track: and source: waveforms")
     entry = media_index(ws.path).refs.get(ref)
-    if entry is None or current_key(entry) != key:
+    if entry is None or live_key(entry) != key:
         raise KeyError("waveform not found")
     return tile_bytes(ws.path, ref, key, level, start, count)
 

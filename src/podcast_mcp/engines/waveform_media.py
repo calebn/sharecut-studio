@@ -4,7 +4,8 @@ A media ref names one media file the viewer draws a waveform for:
 
 - ``track:<id>`` — the track's ``media`` (listed when the track has media);
 - ``source:<id>`` — a ``project.sources`` row, resolved like
-  ``engines/timeline_render.resolve_clip_audio_path`` (listed when at least one
+  ``engines/timeline_render.resolve_clip_audio_path`` (pinned by
+  ``test_source_ref_resolves_like_clip_render``; listed when at least one
   clip references it);
 - ``stem:<id>`` — ``artifacts/tracks/<id>.wav`` (listed only while
   ``stem_is_fresh``; ids must match ``SAFE_TRACK_ID``).
@@ -23,7 +24,7 @@ from pathlib import Path
 from typing import Literal
 
 from podcast_mcp.edits.track_ids import SAFE_TRACK_ID
-from podcast_mcp.engines.play_audit import stem_is_fresh
+from podcast_mcp.engines.play_audit import stem_hash_path, stem_is_fresh, stem_path
 from podcast_mcp.engines.waveform_pyramid import (
     build_pyramid,
     media_key,
@@ -135,6 +136,25 @@ def collect_media_refs(project: EpisodeProject) -> MediaRefs:
     return out
 
 
+def media_watch_paths(project: EpisodeProject) -> tuple[Path, ...]:
+    """Files whose appearance or change can flip a ref without touching the project JSON."""
+    stored = [t.media.path for t in project.tracks if t.media is not None]
+    for source_id in sorted({c.source_id for c in project.clips if c.source_id}):
+        source = project.source_by_id(source_id)
+        if source is not None:
+            stored.append(source.path)
+    paths: list[Path] = []
+    for value in stored:
+        try:
+            paths.append(resolve_under_workspace(project, value))
+        except ValueError:
+            continue
+    for track in project.tracks:
+        if track.media is not None and SAFE_TRACK_ID.fullmatch(track.id):
+            paths += [stem_path(project, track.id), stem_hash_path(project, track.id)]
+    return tuple(paths)
+
+
 def track_media_refs(project: EpisodeProject, track: Track) -> MediaRefs:
     """The track ref plus the source refs of the clips on *track*'s lane."""
     out = MediaRefs(refs={}, unavailable={})
@@ -145,11 +165,16 @@ def track_media_refs(project: EpisodeProject, track: Track) -> MediaRefs:
     return out
 
 
+def current_key(entry: MediaEntry) -> str:
+    """Pyramid key of *entry*'s media as it is on disk now (``OSError`` if it is gone)."""
+    st = entry.abs_path.stat()
+    return media_key(entry.rel_path, st.st_size, st.st_mtime_ns)
+
+
 def pyramid_target(artifacts_dir: Path, ref: str, entry: MediaEntry) -> PyramidTarget:
     """Current key and file for *ref* (``stat()`` on every call; ``OSError`` if gone)."""
     kind, _, ref_id = ref.partition(":")
-    st = entry.abs_path.stat()
-    key = media_key(entry.rel_path, st.st_size, st.st_mtime_ns)
+    key = current_key(entry)
     slug = ref_slug(kind, ref_id)
     return PyramidTarget(slug=slug, key=key, out=pyramid_path(artifacts_dir / "peaks", slug, key))
 
