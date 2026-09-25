@@ -61,3 +61,18 @@ def test_revoke_is_scoped_to_session_and_persists(tmp_path: Path) -> None:
     reopened = RecordParticipantStore(path)
     assert not reopened.verify(pid, lease, token="cool-token", session_id="sess")
     reopened.close()
+
+
+def test_participant_ids_for_token_scopes_token_and_session(tmp_path: Path) -> None:
+    store = RecordParticipantStore(tmp_path / "sync.db")
+    a, _ = store.mint(session_id="sess", token="tok-a", role="guest", display_name="Ava")
+    b, _ = store.mint(session_id="sess", token="tok-a", role="guest", display_name="Bea")
+    c, _ = store.mint(session_id="sess", token="tok-b", role="guest", display_name="Cy")
+    d, _ = store.mint(session_id="other", token="tok-a", role="guest", display_name="Di")
+    assert store.participant_ids_for_token(token="tok-a", session_id="sess") == {a, b}
+    assert store.participant_ids_for_token(token="tok-b", session_id="sess") == {c}
+    assert store.participant_ids_for_token(token="tok-a", session_id="other") == {d}
+    store.revoke(a, session_id="sess")
+    assert store.participant_ids_for_token(token="tok-a", session_id="sess") == {a, b}
+    assert store.participant_ids_for_token(token="nope", session_id="sess") == set()
+    store.close()

@@ -217,6 +217,35 @@ describe("useRecordSync", () => {
     }
   });
 
+  it("treats invite_closed as terminal and keeps the cached identity", async () => {
+    vi.useFakeTimers();
+    loadRecordParticipant.mockResolvedValue({
+      participant_id: "p_g",
+      lease: "kept",
+    });
+    try {
+      const { result } = renderHook(() => useRecordSync("tok", "Ava"));
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      await act(async () => {
+        FakeWebSocket.instances[0].emit({
+          type: "Error",
+          code: "invite_closed",
+        });
+      });
+      expect(result.current.error).toBe("invite_closed");
+      expect(clearRecordParticipant).not.toHaveBeenCalled();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      expect(FakeWebSocket.instances).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("treats removal close 4403 as terminal", async () => {
     vi.useFakeTimers();
     try {

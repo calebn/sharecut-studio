@@ -106,7 +106,8 @@ export function RecordApp({ token }: { token: string }) {
     syncName,
     !!bootstrap && (!producer || producerJoined),
   );
-  const accessEnded = error === "access_removed";
+  const inviteClosed = error === "invite_closed";
+  const accessEnded = error === "access_removed" || inviteClosed;
   const liveComments = useRecordLiveComments({
     token,
     snapshot,
@@ -291,11 +292,13 @@ export function RecordApp({ token }: { token: string }) {
   if (accessEnded) {
     return (
       <CoverScreen
-        heading="Recording access ended"
+        heading={inviteClosed ? "Invite link closed" : "Recording access ended"}
         shellClassName="error-screen"
       >
         <p className="home-screen-error" role="alert">
-          Your access to this recording room has ended.
+          {inviteClosed
+            ? "The host closed this invite link to new participants. Ask the host for a new link."
+            : "Your access to this recording room has ended."}
         </p>
         {!captureSettled ? <p>Finishing your local recording…</p> : null}
         {captureSettled && keeperActions.recover ? (

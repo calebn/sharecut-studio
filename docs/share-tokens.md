@@ -89,6 +89,11 @@ version id, revoked, timestamps). Rich record for the host; the registry is the
 
 ## Record sessions
 
+Removing a participant closes the record token they joined through to new
+identities (`invite_closed`); existing leases keep working. Re-invite by minting a
+replacement with `podcast review share --kind record --session-id <id> --role guest`.
+See [recording-session.md](recording-session.md).
+
 A second share **kind** (`review` | `record`) lives on the same coolname
 registry — same active + cooldown pools and rate limits, no third token index.
 Record URLs are `{base}/rec/{token}` (review stays `/r/{token}`). Registry

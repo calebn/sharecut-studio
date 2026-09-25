@@ -146,3 +146,12 @@ class RecordParticipantStore:
             }
             for row in rows
         ]
+
+    def participant_ids_for_token(self, *, token: str, session_id: str) -> set[str]:
+        """Participant ids minted through ``token`` in ``session_id`` (revoked ones included)."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT participant_id FROM record_participants WHERE session_id = ? AND token_hash = ?",
+                (session_id, hash_lease(token)),
+            ).fetchall()
+        return {str(row["participant_id"]) for row in rows}

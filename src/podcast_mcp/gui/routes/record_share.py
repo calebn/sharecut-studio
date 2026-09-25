@@ -291,7 +291,7 @@ async def record_ws(
                 await guard.send_json({"plane": "record", "type": "Error", "code": "lease_in_use"})
             except RecordAuthzError as exc:
                 code = str(exc)
-                if code not in ("participant_removed", "invalid_lease"):
+                if code not in ("participant_removed", "invalid_lease", "invite_closed"):
                     code = "forbidden"
                 await guard.send_json({"plane": "record", "type": "Error", "code": code})
             except RoomFullError:

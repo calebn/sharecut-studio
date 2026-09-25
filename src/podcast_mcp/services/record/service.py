@@ -389,6 +389,15 @@ class RecordSessionService:
         with self._authority_lock:
             return (self.session_id, participant_id) not in self._removed_ids
 
+    def invite_closed(self, token: str) -> bool:
+        """True when a participant minted through ``token`` was removed (closes the invite)."""
+        removed = {p.participant_id for p in self._model().participants if p.removed}
+        if not removed:
+            return False
+        return not removed.isdisjoint(
+            self._participants.participant_ids_for_token(token=token, session_id=self.session_id)
+        )
+
     def signal(
         self,
         *,
@@ -496,6 +505,8 @@ class RecordSessionService:
             lease_out = lease
             self._participants.touch(pid)
         else:
+            if self.invite_closed(token):
+                raise RecordAuthzError("invite_closed")
             pid, lease_out = self._participants.mint(
                 session_id=self.session_id,
                 token=token,
