@@ -123,4 +123,36 @@ describe("useSnapTicks", () => {
     await settle();
     expect(snap).not.toHaveBeenCalled();
   });
+
+  it("shows no ticks outside the loaded window or for another project", async () => {
+    const { result } = renderHook(() => useTicks());
+    await settle();
+    expect(result.current).toEqual([12.5, 13]);
+    snap.mockReturnValue(new Promise(() => {}));
+    // Playhead 8 s is source 18 s: outside the loaded 12..14 window.
+    act(() => useDawStore.setState({ playheadSec: 8 }));
+    expect(result.current).toEqual([]);
+    act(() => useDawStore.setState({ playheadSec: 3 }));
+    expect(result.current).toEqual([12.5, 13]);
+    act(() => useDawStore.setState({ projectPath: "/tmp/q.json" }));
+    expect(result.current).toEqual([]);
+  });
+
+  it("fetches a trim drag's ticks on a 0.5 s grid, not after every move", async () => {
+    const { result, rerender } = renderHook(
+      ({ trim }: { trim: number }) => useTicks(trim),
+      { initialProps: { trim: 18.5 } },
+    );
+    for (const trim of [18.52, 18.55, 18.6, 18.64]) {
+      act(() => {
+        vi.advanceTimersByTime(30);
+      });
+      rerender({ trim });
+    }
+    await settle();
+    expect(snap).toHaveBeenCalledTimes(1);
+    expect(snap.mock.calls[0]!.slice(2, 5)).toEqual([17.5, 19.5, false]);
+    expect(snap.mock.calls[0]![6]).toBe(18.5);
+    expect(result.current).toEqual([12.5, 13]);
+  });
 });
