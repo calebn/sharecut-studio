@@ -25,17 +25,25 @@ export async function opfsDirHandle(
   return dir;
 }
 
+/** Split a keeper path into validated directory parts and a validated file name. */
+export function splitOpfsPath(path: string): {
+  dirParts: string[];
+  fileName: string;
+} {
+  const dirParts = path.split("/").filter(Boolean);
+  const fileName = dirParts.pop();
+  if (!fileName) {
+    throw new Error("invalid keeper path");
+  }
+  return { dirParts, fileName: assertSafePart(fileName) };
+}
+
 export async function opfsFileHandle(
   root: FileSystemDirectoryHandle,
   path: string,
   create: boolean,
 ): Promise<FileSystemFileHandle> {
-  const parts = path.split("/").filter(Boolean);
-  const fileName = parts.pop();
-  if (!fileName) {
-    throw new Error("invalid keeper path");
-  }
-  const dir = await opfsDirHandle(root, parts, create);
-  assertSafePart(fileName);
+  const { dirParts, fileName } = splitOpfsPath(path);
+  const dir = await opfsDirHandle(root, dirParts, create);
   return dir.getFileHandle(fileName, { create });
 }
