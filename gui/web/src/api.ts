@@ -218,26 +218,44 @@ async function waveformResponse(res: Response): Promise<Response> {
   );
 }
 
+/**
+ * A waveform route: the review route (`sharePath` under the share's API
+ * base) for a `share:` key, otherwise the host route. Throws
+ * `WaveformFetchError` when not ok.
+ */
+async function waveformFetch(
+  projectPath: string,
+  hostPath: string,
+  sharePath: string,
+  signal?: AbortSignal,
+): Promise<Response> {
+  const res = isShareProjectKey(projectPath)
+    ? await fetch(
+        `${reviewApiBase(shareTokenFromKey(projectPath)!)}${sharePath}`,
+        { signal },
+      )
+    : await hostFetch(hostPath, { signal });
+  return waveformResponse(res);
+}
+
 /** Pyramid status of every listed media ref (`docs/waveform.md` § API). */
 export async function loadWaveformStatus(
   projectPath: string,
   kind: WaveformKind,
   signal?: AbortSignal,
 ): Promise<WaveformStatus> {
-  if (isShareProjectKey(projectPath)) {
-    // Guests only get raw media.
-    if (kind !== "raw") {
-      return { format_version: 1, media: {} };
-    }
-    const token = shareTokenFromKey(projectPath)!;
-    const res = await fetch(`${reviewApiBase(token)}/daw/waveform/status`, {
-      signal,
-    });
-    return (await waveformResponse(res)).json() as Promise<WaveformStatus>;
+  // Guests only get raw media.
+  if (isShareProjectKey(projectPath) && kind !== "raw") {
+    return { format_version: 1, media: {} };
   }
   const params = new URLSearchParams({ path: projectPath, kind });
-  const res = await hostFetch(`/api/waveform/status?${params}`, { signal });
-  return (await waveformResponse(res)).json() as Promise<WaveformStatus>;
+  const res = await waveformFetch(
+    projectPath,
+    `/api/waveform/status?${params}`,
+    "/daw/waveform/status",
+    signal,
+  );
+  return res.json() as Promise<WaveformStatus>;
 }
 
 /** Concatenated bins of data tiles `[start, start + count)` of one level. */
@@ -259,19 +277,15 @@ export async function loadWaveformTiles(
     count: String(req.count),
   });
   const key = encodeURIComponent(req.key);
-  if (isShareProjectKey(projectPath)) {
-    const token = shareTokenFromKey(projectPath)!;
-    const res = await fetch(
-      `${reviewApiBase(token)}/daw/waveform/tiles/${key}?${params}`,
-      { signal },
-    );
-    return (await waveformResponse(res)).arrayBuffer();
-  }
+  const sharePath = `/daw/waveform/tiles/${key}?${params}`;
   params.set("path", projectPath);
-  const res = await hostFetch(`/api/waveform/tiles/${key}?${params}`, {
+  const res = await waveformFetch(
+    projectPath,
+    `/api/waveform/tiles/${key}?${params}`,
+    sharePath,
     signal,
-  });
-  return (await waveformResponse(res)).arrayBuffer();
+  );
+  return res.arrayBuffer();
 }
 
 /**
