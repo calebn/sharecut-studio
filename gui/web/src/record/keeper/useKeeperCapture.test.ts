@@ -1022,8 +1022,12 @@ describe("useKeeperCapture silent PCM watchdog", () => {
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(result.current.noAudio).toBe(false);
+    expect(result.current.micCheckFailed).toBe(false);
     await advance(6000, zeros);
     expect(result.current.noAudio).toBe(true);
+    expect(result.current.micCheckFailed).toBe(true);
+    act(() => graphEmit.fn(quiet));
+    expect(result.current.micCheckFailed).toBe(false);
   });
 
   it("Check mic failure keeps the alarm until signal returns", async () => {

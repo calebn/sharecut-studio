@@ -4,9 +4,17 @@ import {
   decayPeakHold,
   PEAK_HOLD_FALL_DB_PER_SEC,
   peakDbFromSamples,
+  peakLinear,
   SILENT_METER,
   stepMeter,
 } from "./metering";
+
+describe("peakLinear", () => {
+  it("returns the largest magnitude and 0 for silence", () => {
+    expect(peakLinear(new Float32Array(8))).toBe(0);
+    expect(peakLinear(new Float32Array([0.1, -0.4, 0.2]))).toBeCloseTo(0.4, 6);
+  });
+});
 
 describe("peakDbFromSamples", () => {
   it("reports digital silence as -Infinity", () => {

@@ -69,6 +69,21 @@ describe("SilentPcmWatchdog", () => {
     for (let t = 32000; t <= 35000; t += 1000) expect(w.tick(t)).toBe(false);
     expect(w.tick(36000)).toBe(true);
   });
+  it("flags a re-alarm that follows a healthy check until real signal", () => {
+    const w = new SilentPcmWatchdog();
+    w.arm(0);
+    for (let t = 1000; t <= 5000; t += 1000) w.tick(t);
+    w.recheck(5500);
+    expect(w.isAlarmed).toBe(false);
+    for (let t = 6500; t <= 9500; t += 1000) expect(w.tick(t)).toBe(false);
+    expect(w.tick(10500)).toBe(true);
+    expect(w.silentSinceCheck).toBe(true);
+    w.observe(quiet, 11000);
+    expect(w.silentSinceCheck).toBe(false);
+    w.recheck(12000);
+    w.disarm();
+    expect(w.silentSinceCheck).toBe(false);
+  });
   it("disarm and arm reset state", () => {
     const w = new SilentPcmWatchdog();
     w.arm(0);
