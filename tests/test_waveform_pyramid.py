@@ -366,7 +366,7 @@ def test_publish_uses_unique_temp_names_and_cleans_up(tmp_path):
         fh.write(b"x")
 
     wp._publish(out, _write)
-    wp._publish(out, _write)  # target exists: temp discarded, file kept
+    wp._publish(out, _write)  # target exists: replaced atomically
     assert len(set(names)) == 2
     for name in names:
         assert name.startswith(f".{out.name}.")
@@ -389,6 +389,23 @@ def test_publish_removes_temp_on_failure(tmp_path):
     ):
         wp._publish(out, lambda fh: fh.write(b"y"))
     assert list(tmp_path.iterdir()) == []
+
+
+def test_publish_fsyncs_file_and_directory(tmp_path):
+    out = tmp_path / "peaks" / "f.wfpk"
+    with patch("podcast_mcp.engines.waveform_pyramid.os.fsync", wraps=os.fsync) as fsync:
+        wp._publish(out, lambda fh: fh.write(b"z"))
+    assert fsync.call_count == 2  # temp file, then the directory
+    assert out.read_bytes() == b"z"
+    with patch("podcast_mcp.engines.waveform_pyramid.os.open", side_effect=OSError("dir")):
+        wp._fsync_dir(out.parent)  # best effort: no raise
+
+
+def test_publish_replaces_a_corrupt_existing_file(tmp_path):
+    out = tmp_path / "p.wfpk"
+    out.write_bytes(b"torn")
+    wp._publish(out, lambda fh: fh.write(b"fresh"))
+    assert out.read_bytes() == b"fresh"
 
 
 # --- Decode --------------------------------------------------------------------------------
@@ -837,6 +854,29 @@ def test_reuse_existing_pyramid_links_or_copies(tmp_path):
         assert reuse_existing_pyramid(tmp_path, key, copied) is True
     assert copied.read_bytes() == src.read_bytes()
     assert copied.stat().st_ino != src.stat().st_ino
+
+
+def test_reuse_repairs_a_corrupt_target_and_skips_corrupt_candidates(tmp_path):
+    src, _, _ = _small_pyramid(tmp_path)
+    key = _key()
+    good = tmp_path / f"track-a.{key}.wfpk"
+    src.rename(good)
+    out = tmp_path / f"source-s1.{key}.wfpk"
+    out.write_bytes(b"torn")
+    assert reuse_existing_pyramid(tmp_path, key, out) is True
+    assert out.read_bytes() == good.read_bytes()
+    read_meta(out)
+
+    bad_key = _key()
+    (tmp_path / f"track-b.{bad_key}.wfpk").write_bytes(b"junk")
+    target = tmp_path / f"source-s2.{bad_key}.wfpk"
+    assert reuse_existing_pyramid(tmp_path, bad_key, target) is False
+    assert not target.exists()
+
+    stuck = tmp_path / f"source-s3.{bad_key}.wfpk"
+    stuck.write_bytes(b"torn")
+    with patch.object(Path, "unlink", side_effect=OSError("busy")):
+        assert reuse_existing_pyramid(tmp_path, bad_key, stuck) is False
 
     raced = tmp_path / f"track-z.{key}.wfpk"
     with patch("podcast_mcp.engines.waveform_pyramid.os.link", side_effect=FileExistsError()):
