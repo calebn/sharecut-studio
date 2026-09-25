@@ -24,22 +24,23 @@ describe("TimeRuler", () => {
     const labels = [...container.querySelectorAll(".ruler-tick")].map(
       (el) => el.textContent,
     );
-    // 0:08 would collide with 0:06, so it is skipped.
-    expect(labels).not.toContain("0:08");
-    expect(labels).toContain("0:06");
+    // 0:08.0 would collide with 0:06.0, so it is skipped.
+    expect(labels).not.toContain("0:08.0");
+    expect(labels).toContain("0:06.0");
   });
 
   it("keeps the end label on desktop where labels fit", () => {
-    // No matchMedia stub: fine pointer, tight estimate, no drop.
+    // No matchMedia stub: fine pointer, tight estimate (46 px), no drop.
+    // At 47 px/s the 0:08.0 label right-aligns 94 px after 0:06.0.
     render(
       <TimeRuler
         durationSec={9}
         sessionDurationSec={9}
-        zoomPxPerSec={40}
+        zoomPxPerSec={47}
         onSeek={vi.fn()}
       />,
     );
-    expect(screen.getByText("0:08")).toBeTruthy();
+    expect(screen.getByText("0:08.0")).toBeTruthy();
   });
 
   it("keeps the end label when there is room", () => {
@@ -51,7 +52,45 @@ describe("TimeRuler", () => {
         onSeek={vi.fn()}
       />,
     );
-    expect(screen.getByText("0:08")).toBeTruthy();
+    expect(screen.getByText("0:08.0")).toBeTruthy();
+  });
+
+  it("labels deep-zoom ticks in m:ss.fff and mounts only the visible chunks", () => {
+    // 60 s at 48,000 px/s: 2.88M px of ruler, 2 ms ticks 96 px apart.
+    useDawStore.setState({
+      scrollLeft: 1_000_000,
+      timelineViewportWidth: 1200,
+    });
+    const { container } = render(
+      <TimeRuler
+        durationSec={60}
+        sessionDurationSec={60}
+        zoomPxPerSec={48000}
+        onSeek={vi.fn()}
+      />,
+    );
+    const ticks = [...container.querySelectorAll(".ruler-tick")];
+    expect(ticks.length).toBeGreaterThan(0);
+    expect(ticks.length).toBeLessThanOrEqual(Math.ceil((1200 + 4096) / 70) + 2);
+    for (const el of ticks) {
+      expect(el.textContent).toMatch(/^\d+:\d{2}\.\d{3}$/);
+      const left = parseFloat((el as HTMLElement).style.left);
+      expect(left).toBeGreaterThanOrEqual(1_000_000 - 2048);
+      expect(left).toBeLessThanOrEqual(1_000_000 + 1200 + 2048);
+    }
+    expect(screen.getByRole("slider")).toHaveAttribute(
+      "aria-valuetext",
+      "0:00.000",
+    );
+    // Scrolling swaps in the new chunk's ticks.
+    act(() => useDawStore.setState({ scrollLeft: 2_000_000 }));
+    const moved = [...container.querySelectorAll(".ruler-tick")].map((el) =>
+      parseFloat((el as HTMLElement).style.left),
+    );
+    expect(Math.min(...moved)).toBeGreaterThanOrEqual(2_000_000 - 2048);
+    act(() =>
+      useDawStore.setState({ scrollLeft: 0, timelineViewportWidth: 0 }),
+    );
   });
 
   it("reads its value from the store, in quarter seconds while playing", () => {

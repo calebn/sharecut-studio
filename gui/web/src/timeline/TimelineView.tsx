@@ -595,7 +595,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     (clipId: string, info: ClipMovePointerInfo) => {
       const moves = resolveMove(clipId, info, "commit");
       endMoveGesture();
-      if (!movesDifferFromClips(allClips, moves)) {
+      if (!movesDifferFromClips(allClips, moves, zoomPxPerSec)) {
         return;
       }
       void execute("edit.moveClips", { clips: moves }, { skipWhen: true });

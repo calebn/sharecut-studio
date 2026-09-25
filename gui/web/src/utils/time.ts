@@ -84,35 +84,39 @@ export function formatDurationCompact(sec: number): string {
   return `${sec.toFixed(1)}s`;
 }
 
+/** Ruler steps (s), from 0.1 ms to an hour. */
+const NICE_TIME_STEPS = [
+  0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5,
+  1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600,
+];
+
 /** Pick a nice major tick step so labels are ~minPx apart. */
 export function niceTimeStep(zoomPxPerSec: number, minPx = 70): number {
-  const candidates = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600];
   const needSec = minPx / Math.max(zoomPxPerSec, 0.001);
-  for (const step of candidates) {
+  for (const step of NICE_TIME_STEPS) {
     if (step >= needSec) {
       return step;
     }
   }
-  return candidates[candidates.length - 1];
+  return NICE_TIME_STEPS[NICE_TIME_STEPS.length - 1]!;
 }
 
 /**
- * Major ruler ticks for [0, durationSec] (session or visible canvas).
- * Never emits a tick past duration (avoids left-aligned end labels stretching layout).
+ * Ruler label for a tick (or the ruler's slider value): `m:ss.fff`
+ * (`h:mm:ss.fff` past an hour) with `ceil(−log10 step)` decimals, clamped to
+ * 1–4, so a 0.5 ms step reads `0:01.2345`, a 2 s step `0:02.0`.
  */
-export function rulerTickTimes(
-  durationSec: number,
-  zoomPxPerSec: number,
-  minPx = 70,
-): number[] {
-  if (!(durationSec > 0) || !(zoomPxPerSec > 0)) {
-    return durationSec > 0 ? [0] : [];
-  }
-  const majorStep = niceTimeStep(zoomPxPerSec, minPx);
-  const ticks: number[] = [];
-  for (let t = 0; t <= durationSec + 1e-9; t += majorStep) {
-    ticks.push(Number(t.toFixed(6)));
-  }
-  // Floating error may land slightly past duration — drop those; never force end.
-  return ticks.filter((t) => t <= durationSec + 1e-6);
+export function formatRulerTime(sec: number, step: number): string {
+  const decimals = Math.min(
+    4,
+    Math.max(1, Math.ceil(-Math.log10(step) - 1e-9)),
+  );
+  const scale = 10 ** decimals;
+  const units = Math.round(Math.max(0, sec) * scale);
+  const whole = Math.floor(units / scale);
+  const frac = String(units % scale).padStart(decimals, "0");
+  const h = Math.floor(whole / 3600);
+  const m = Math.floor((whole % 3600) / 60);
+  const ss = `${String(whole % 60).padStart(2, "0")}.${frac}`;
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
 }

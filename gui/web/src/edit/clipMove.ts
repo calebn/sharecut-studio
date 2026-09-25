@@ -142,10 +142,15 @@ export function waveformTicksToTimeline(
   return sourceTicks.map((t) => sourceSecOnClipToTimeline(clip, t));
 }
 
+/** A move of less than this (px at the current zoom) is no move. */
+export const MOVE_NOOP_PX = 0.5;
+
 export function movesDifferFromClips(
   clips: ClipRow[],
   moves: ClipMoveItem[],
+  zoomPxPerSec: number,
 ): boolean {
+  const minSec = MOVE_NOOP_PX / Math.max(zoomPxPerSec, 1e-9);
   const byId = new Map(clips.map((c) => [c.id, c]));
   for (const m of moves) {
     const clip = byId.get(m.clip_id);
@@ -155,7 +160,7 @@ export function movesDifferFromClips(
     if (clip.track_id !== m.track_id) {
       return true;
     }
-    if (Math.abs(clip.timeline_start - m.timeline_start) >= 1e-4) {
+    if (Math.abs(clip.timeline_start - m.timeline_start) >= minSec) {
       return true;
     }
   }

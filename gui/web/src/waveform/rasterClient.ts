@@ -5,7 +5,7 @@ import type {
   RasterOutMsg,
   WorkerBackend,
 } from "./rasterProtocol";
-import type { RasterBackend, RasterJob } from "./types";
+import type { RasterBackend, RasterJob, RasterMode } from "./types";
 
 /**
  * Main-thread side of the raster worker. The worker starts lazily; at most
@@ -39,6 +39,7 @@ let worker: Worker | null = null;
 let backend: RasterBackendState = "starting";
 let nextId = 1;
 let tilesRendered = 0;
+const tilesByMode: Record<RasterMode, number> = { pyramid: 0, pcm: 0, line: 0 };
 const queue = new Map<string, RasterRequest>();
 const sent = new Map<number, Sent>();
 const parityWaiters = new Map<number, (value: number | null) => void>();
@@ -98,6 +99,7 @@ function onMessage(msg: RasterOutMsg): void {
   if (msg.type === "done" && job) {
     setBackend(msg.backend satisfies WorkerBackend);
     tilesRendered += 1;
+    tilesByMode[job.job.mode] += 1;
     const entry: BitmapEntry = {
       bitmap: msg.bitmap,
       width: job.job.cols,
@@ -276,6 +278,11 @@ export function rasterTilesRendered(): number {
   return tilesRendered;
 }
 
+/** Raster jobs finished since load, by mode (E2E: deep zoom reaches line). */
+export function rasterTilesByMode(): Readonly<Record<RasterMode, number>> {
+  return { ...tilesByMode };
+}
+
 /** GL vs CPU difference on a fixed tile, in the worker; null without GL. */
 export function rasterParity(): Promise<number | null> {
   const w = ensureWorker();
@@ -304,5 +311,8 @@ export function resetRasterClient(): void {
   sent.clear();
   settleParity();
   tilesRendered = 0;
+  tilesByMode.pyramid = 0;
+  tilesByMode.pcm = 0;
+  tilesByMode.line = 0;
   nextId = 1;
 }

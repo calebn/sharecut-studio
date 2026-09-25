@@ -1,5 +1,6 @@
-import { fireEvent, render } from "@testing-library/react";
+import { fireEvent, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { rollClipJoin } from "../api";
 import type { ClipRow } from "../types/project";
 import { ClipBlock } from "./ClipBlock";
 
@@ -14,6 +15,11 @@ type LayerProps = {
 };
 
 const layers = vi.hoisted(() => [] as LayerProps[][]);
+
+vi.mock("../api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../api")>()),
+  rollClipJoin: vi.fn(async () => undefined),
+}));
 
 // The layer is tested in WaveformLayer.test.tsx; here, what the clip gives it.
 vi.mock("./WaveformLayer", () => ({
@@ -356,5 +362,71 @@ describe("ClipBlock waveform", () => {
     fireEvent.pointerDown(handle, { clientX: 100, pointerId: 5 });
     fireEvent.pointerMove(handle, { clientX: 160, pointerId: 5 });
     expect(onMovePreview).not.toHaveBeenCalled();
+  });
+
+  it("shows clip times to the millisecond in its tooltip", () => {
+    const { container } = render(
+      <ClipBlock
+        {...base}
+        clip={{
+          ...clip,
+          timeline_start: 1.23456,
+          timeline_end: 3.23456,
+        }}
+      />,
+    );
+    const block = container.querySelector(".clip-block") as HTMLElement;
+    expect(block.title).toContain("(1.235–3.235s)");
+  });
+
+  describe("join roll", () => {
+    const prevClip: ClipRow = {
+      ...clip,
+      id: "c0",
+      source_start: 0,
+      source_end: 2,
+      timeline_start: 0,
+      timeline_end: 2,
+    };
+    const right: ClipRow = {
+      ...clip,
+      source_start: 4,
+      source_end: 6,
+      timeline_start: 2,
+      timeline_end: 4,
+    };
+    const rollBy = (zoom: number, dxPx: number) => {
+      const { container } = render(
+        <ClipBlock
+          {...base}
+          clip={right}
+          prevClip={prevClip}
+          leftNeighborSourceEnd={0}
+          zoomPxPerSec={zoom}
+        />,
+      );
+      const diamond = container.querySelector(
+        "button.join-diamond",
+      ) as HTMLElement;
+      fireEvent.pointerDown(diamond, { clientX: 100, pointerId: 7 });
+      fireEvent.pointerUp(diamond, { clientX: 100 + dxPx, pointerId: 7 });
+    };
+
+    beforeEach(() => {
+      vi.mocked(rollClipJoin).mockClear();
+    });
+
+    it("commits a 1 px roll at deep zoom (a 21 µs join move)", async () => {
+      rollBy(48000, 1);
+      await waitFor(() => expect(rollClipJoin).toHaveBeenCalledTimes(1));
+      const delta = vi.mocked(rollClipJoin).mock.calls[0]?.[3];
+      expect(delta).toBeCloseTo(1 / 48000, 12);
+    });
+
+    it("skips a roll under half a pixel", async () => {
+      rollBy(50, 0.4);
+      await Promise.resolve();
+      expect(rollClipJoin).not.toHaveBeenCalled();
+    });
   });
 });

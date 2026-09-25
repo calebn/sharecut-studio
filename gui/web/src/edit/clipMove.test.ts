@@ -245,15 +245,29 @@ describe("patchClipsMove / laneMovePreview", () => {
   it("reports no-op moves", () => {
     const clips = [clip("c1", "host", 2)];
     expect(
-      movesDifferFromClips(clips, [
-        { clip_id: "c1", timeline_start: 2, track_id: "host" },
-      ]),
+      movesDifferFromClips(
+        clips,
+        [{ clip_id: "c1", timeline_start: 2, track_id: "host" }],
+        40,
+      ),
     ).toBe(false);
     expect(
-      movesDifferFromClips(clips, [
-        { clip_id: "c1", timeline_start: 2.5, track_id: "host" },
-      ]),
+      movesDifferFromClips(
+        clips,
+        [{ clip_id: "c1", timeline_start: 2.5, track_id: "host" }],
+        40,
+      ),
     ).toBe(true);
+  });
+
+  it("measures a no-op move in pixels at the current zoom", () => {
+    const clips = [clip("c1", "host", 2)];
+    const nudge = [
+      { clip_id: "c1", timeline_start: 2.00005, track_id: "host" },
+    ];
+    // 50 µs: 0.002 px at 40 px/s (no move), 2.4 px at 48,000 px/s (a move).
+    expect(movesDifferFromClips(clips, nudge, 40)).toBe(false);
+    expect(movesDifferFromClips(clips, nudge, 48000)).toBe(true);
   });
 
   it("converts waveform ticks into timeline seconds", () => {

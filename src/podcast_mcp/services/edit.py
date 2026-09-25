@@ -512,7 +512,8 @@ class EditService:
             ticks.extend([float(preview["start"]), float(preview["end"])])
         for island in islands:
             ticks.append(float(island["midpoint"]))
-        uniq = sorted({round(t, 4) for t in ticks})
+        # 1 µs: ticks stay distinct at near-sample zoom (48,000 px/s).
+        uniq = sorted({round(t, 6) for t in ticks})
         return {
             "track_id": tid,
             "start": lo,

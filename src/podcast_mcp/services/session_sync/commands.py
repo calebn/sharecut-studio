@@ -158,7 +158,7 @@ class PresenceCursor(BaseModel):
 
 # Shortest viewport span a client may publish (mirrored in the GUI's
 # presence/followSync.ts).
-MIN_VIEWPORT_SPAN_SEC = 0.1
+MIN_VIEWPORT_SPAN_SEC = 0.001
 
 
 class PresenceViewport(BaseModel):

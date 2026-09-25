@@ -144,6 +144,9 @@ function clipLabel(role: string, durationSec: number, width: number): string {
   return `${role} · ${dur}`;
 }
 
+/** A roll shorter than this (px at the current zoom) is not committed. */
+const ROLL_COMMIT_MIN_PX = 0.5;
+
 function msToPx(ms: number, zoomPxPerSec: number): number {
   return Math.max(4, (ms / 1000) * zoomPxPerSec);
 }
@@ -325,7 +328,7 @@ export function ClipBlockView({
       mediaEnd: state.mediaEnd,
     });
     try {
-      if (Math.abs(delta) >= 1e-3) {
+      if (Math.abs(delta) * zoomPxPerSec >= ROLL_COMMIT_MIN_PX) {
         await rollClipJoin(
           useDawStore.getState().projectPath,
           state.leftClipId,
@@ -601,8 +604,8 @@ export function ClipBlockView({
       aria-hidden={!interactive}
       title={
         canMove && !bladeMode && interactive
-          ? `${clip.id} · ${role} (${clip.timeline_start.toFixed(2)}–${(clip.timeline_start + (clip.source_end - clip.source_start)).toFixed(2)}s) · ${moveTip}`
-          : `${clip.id} · ${role} (${clip.timeline_start.toFixed(2)}–${(clip.timeline_start + (clip.source_end - clip.source_start)).toFixed(2)}s)`
+          ? `${clip.id} · ${role} (${clip.timeline_start.toFixed(3)}–${(clip.timeline_start + (clip.source_end - clip.source_start)).toFixed(3)}s) · ${moveTip}`
+          : `${clip.id} · ${role} (${clip.timeline_start.toFixed(3)}–${(clip.timeline_start + (clip.source_end - clip.source_start)).toFixed(3)}s)`
       }
     >
       {interactive ? (

@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatRulerTime,
   formatTime,
   formatTimecodeCompact,
   formatTimecodePair,
-  rulerTickTimes,
+  niceTimeStep,
   transportTimecode,
 } from "./time";
 
@@ -53,26 +54,36 @@ describe("formatTime", () => {
   });
 });
 
-describe("rulerTickTimes", () => {
-  it("never emits a tick past duration", () => {
-    const ticks = rulerTickTimes(95, 10);
-    expect(ticks.length).toBeGreaterThan(0);
-    expect(Math.max(...ticks)).toBeLessThanOrEqual(95);
+describe("niceTimeStep", () => {
+  it.each([
+    [0.05, 1800],
+    [10, 10],
+    [40, 2],
+    [100, 1],
+    [1000, 0.1],
+    [48000, 0.002],
+    [1e6, 0.0001],
+  ])("at %s px/s steps by %s s (labels ≥ 70 px apart)", (zoom, step) => {
+    expect(niceTimeStep(zoom)).toBe(step);
+    expect(step * zoom).toBeGreaterThanOrEqual(70);
   });
 
-  it("does not force a duration end tick", () => {
-    const ticks = rulerTickTimes(95, 10);
-    expect(ticks).not.toContain(95);
+  it("stops at an hour", () => {
+    expect(niceTimeStep(0.001)).toBe(3600);
   });
+});
 
-  it("includes zero", () => {
-    expect(rulerTickTimes(60, 40)[0]).toBe(0);
-  });
-
-  it("ticks through empty canvas past a short session", () => {
-    const canvasSec = 100;
-    const ticks = rulerTickTimes(canvasSec, 10);
-    expect(Math.max(...ticks)).toBeGreaterThan(60);
-    expect(Math.max(...ticks)).toBeLessThanOrEqual(canvasSec);
+describe("formatRulerTime", () => {
+  it.each([
+    [0, 2, "0:00.0"],
+    [65, 5, "1:05.0"],
+    [1.25, 0.05, "0:01.25"],
+    [1.2346, 0.002, "0:01.235"],
+    [1.23456, 0.0005, "0:01.2346"],
+    [59.9999, 0.001, "1:00.000"],
+    [3725.5, 60, "1:02:05.5"],
+    [12, 0.0001, "0:12.0000"],
+  ])("formats %s s at a %s s step as %s", (sec, step, label) => {
+    expect(formatRulerTime(sec, step)).toBe(label);
   });
 });

@@ -324,7 +324,42 @@ describe("PresenceOverlayView", () => {
     const box = container.querySelector(".presence-selection") as HTMLElement;
     expect(box).toBeTruthy();
     expect(parseFloat(box.style.left)).toBeCloseTo(40, 5);
-    expect(parseFloat(box.style.width)).toBeCloseTo(1.2, 5);
+    // A point: a fixed 5 px box, whatever the zoom.
+    expect(parseFloat(box.style.width)).toBeCloseTo(5, 5);
+  });
+
+  it("keeps a remote point selection 2 px wide at any zoom", () => {
+    const project = minimalProject({ tracks: hostTracks });
+    useDawStore.getState().hydrate("/tmp/p.json", project);
+    const clients = [
+      { client_id: "me", role: "viewer" },
+      {
+        client_id: "them",
+        role: "viewer",
+        last_seen_ns: Date.now() * 1e6,
+        meta: {
+          display_name: "Ada",
+          selection: { kind: "pending", track_id: "host", time: 2 },
+        },
+      },
+    ];
+    const view = (zoom: number) => (
+      <PresenceOverlayView
+        clients={clients}
+        localClientId="me"
+        zoomPxPerSec={zoom}
+        height={72}
+        tracks={hostTracks}
+        clipsByTrack={project.clips.tracks}
+      />
+    );
+    const { container, rerender } = render(view(10));
+    const box = () =>
+      container.querySelector(".presence-selection") as HTMLElement;
+    expect(parseFloat(box().style.width)).toBeCloseTo(2, 5);
+    rerender(view(48000));
+    expect(parseFloat(box().style.left)).toBeCloseTo(96000, 5);
+    expect(parseFloat(box().style.width)).toBeCloseTo(2, 5);
   });
 
   it("does not draw a timeline cursor for an anchor-only pointer", () => {

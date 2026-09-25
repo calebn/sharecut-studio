@@ -88,3 +88,39 @@ export function pyramidColumnPeaks(
   }
   return out;
 }
+
+/**
+ * Quiet bands shown in the view `[viewStartSec, viewEndSec]`, judged over
+ * the stretch around it (clamped to `[limitStartSec, limitEndSec]`, the
+ * clip's media). A quiet run counts by its whole length, not the sliver in
+ * view, so the wash stays when a deep zoom shows only milliseconds of a long
+ * pause. Columns are one CSS px, but never finer than a level-0 bin.
+ */
+export function quietBandsInView(
+  meta: PyramidMeta,
+  zoom: number,
+  view: readonly [number, number],
+  limit: readonly [number, number],
+): QuietBand[] {
+  const [viewStart, viewEnd] = view;
+  const base = meta.levels[0]?.spp;
+  if (!base || !(zoom > 0) || !(viewEnd > viewStart)) {
+    return [];
+  }
+  const secPerCol = Math.max(1 / zoom, base / meta.sample_rate);
+  const start = Math.max(limit[0], viewStart - QUIET_MIN_DURATION_SEC);
+  const end = Math.min(limit[1], viewEnd + QUIET_MIN_DURATION_SEC);
+  const cols = Math.ceil((end - start) / secPerCol);
+  const peaks = pyramidColumnPeaks(
+    meta,
+    start * meta.sample_rate,
+    secPerCol * meta.sample_rate,
+    cols,
+  );
+  return quietBandsFromPeaks(peaks, start, secPerCol)
+    .map((b) => ({
+      startSec: Math.max(b.startSec, viewStart),
+      endSec: Math.min(b.endSec, viewEnd),
+    }))
+    .filter((b) => b.endSec > b.startSec);
+}

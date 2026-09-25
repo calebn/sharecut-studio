@@ -1,5 +1,5 @@
 import {
-  MAX_ZOOM_PX_PER_SEC,
+  effectiveMaxZoomPxPerSec,
   MIN_ZOOM_PX_PER_SEC,
   ZOOM_STEP,
 } from "./timelineZoom.generated";
@@ -10,8 +10,18 @@ export {
   ZOOM_STEP,
 } from "./timelineZoom.generated";
 
-export function clampZoomPxPerSec(zoom: number): number {
-  return Math.min(MAX_ZOOM_PX_PER_SEC, Math.max(MIN_ZOOM_PX_PER_SEC, zoom));
+/** Session length (s) the zoom ceiling uses when no project is loaded. */
+export const DEFAULT_SESSION_SEC = 60;
+
+/**
+ * Clamp zoom to `[MIN_ZOOM, effectiveMaxZoomPxPerSec(sessionSec)]`: near
+ * sample level on a short session, and never wider than `MAX_CONTENT_PX`.
+ */
+export function clampZoomPxPerSec(zoom: number, sessionSec: number): number {
+  return Math.min(
+    effectiveMaxZoomPxPerSec(sessionSec),
+    Math.max(MIN_ZOOM_PX_PER_SEC, zoom),
+  );
 }
 
 export function discreteZoomFactor(direction: "in" | "out"): number {
@@ -43,6 +53,8 @@ export type AnchoredZoomInput = {
   minScrollLeft?: number;
   /** Highest logical scroll, when the view knows it (the session end). */
   maxScrollLeft?: number;
+  /** Session length (s): sets the zoom ceiling. */
+  sessionSec: number;
 };
 
 export type AnchoredZoomResult = {
@@ -54,7 +66,7 @@ export type AnchoredZoomResult = {
 export function anchoredZoomScroll(
   input: AnchoredZoomInput,
 ): AnchoredZoomResult {
-  const zoom = clampZoomPxPerSec(input.nextZoom);
+  const zoom = clampZoomPxPerSec(input.nextZoom, input.sessionSec);
   const current = input.currentZoom > 0 ? input.currentZoom : zoom;
   const anchorX = input.clientX - input.rectLeft + input.scrollLeft;
   const anchorSec = anchorX / current;
@@ -78,5 +90,5 @@ export function fitZoomPxPerSec(
     return MIN_ZOOM_PX_PER_SEC;
   }
   const usable = Math.max(1, viewportWidth - paddingPx);
-  return Math.max(MIN_ZOOM_PX_PER_SEC, usable / durationSec);
+  return clampZoomPxPerSec(usable / durationSec, durationSec);
 }

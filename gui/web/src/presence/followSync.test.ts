@@ -81,10 +81,20 @@ describe("followSync", () => {
   });
 
   it("never publishes a span under the server's minimum", () => {
-    // 20px at 200px/s is a 0.1 s span; 0.7 s + 0.1 s − 0.7 s < 0.1 in floats.
-    const v = zoomScrollToViewport(140, 200, 20);
+    // 48px at 48,000px/s is a 1 ms span; float subtraction can land under it.
+    const v = zoomScrollToViewport(33600, 48000, 48);
     expect(v.start_sec).toBeCloseTo(0.7, 12);
-    expect(v.end_sec - v.start_sec).toBeGreaterThanOrEqual(0.1);
+    expect(v.end_sec - v.start_sec).toBeGreaterThanOrEqual(0.001);
+    // A span far under the minimum is widened to it.
+    const tiny = zoomScrollToViewport(33600, 48000, 1);
+    expect(tiny.end_sec - tiny.start_sec).toBeGreaterThanOrEqual(0.001);
+  });
+
+  it("publishes a deep-zoomed viewport under the old 0.1 s floor", () => {
+    // 1200px at 48,000px/s is a 25 ms window.
+    const v = zoomScrollToViewport(48000, 48000, 1200);
+    expect(v.start_sec).toBeCloseTo(1, 12);
+    expect(v.end_sec - v.start_sec).toBeCloseTo(0.025, 9);
   });
 
   it("treats a following client as observing", () => {

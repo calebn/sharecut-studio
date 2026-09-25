@@ -173,7 +173,13 @@ export interface DawState {
   setProject: (project: ProjectView) => void;
   setGuestMode: (mode: string | null) => void;
   setPlayheadSec: (sec: number) => void;
+  /** Set zoom, clamped to the session-aware ceiling. */
   setZoomPxPerSec: (z: number) => void;
+  /**
+   * Re-clamp zoom after the session length changes (a shorter session has a
+   * higher ceiling, a longer one a lower), keeping the viewport centre.
+   */
+  reclampZoomForDuration: () => void;
   setScrollLeft: (x: number) => void;
   setSelection: (sel: Selection) => void;
   selectClip: (

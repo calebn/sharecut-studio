@@ -20,7 +20,7 @@ from podcast_mcp.util.timeline_zoom import (
 def test_load_timeline_zoom_contract():
     data = load_timeline_zoom()
     assert data["min_zoom_px_per_sec"] == 0.05
-    assert data["max_zoom_px_per_sec"] == 200
+    assert data["max_zoom_px_per_sec"] == 48000
     assert data["max_content_px"] == 15000000
     assert data["zoom_step"] == 1.25
     assert "peaks" not in data  # the legacy overview block is gone
@@ -28,7 +28,7 @@ def test_load_timeline_zoom_contract():
 
 def test_zoom_getters():
     assert min_zoom_px_per_sec() == 0.05
-    assert max_zoom_px_per_sec() == 200
+    assert max_zoom_px_per_sec() == 48000
     assert zoom_step() == 1.25
 
 

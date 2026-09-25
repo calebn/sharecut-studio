@@ -41,6 +41,26 @@ def test_waveform_snap_window_returns_ticks(minimal_project, sample_wav):
     )
     assert focused["start"] == pytest.approx(7.0)
     assert focused["end"] == pytest.approx(9.0)
+    # Ticks round to 1 µs: 20 µs apart stays two ticks (at 48,000 px/s that
+    # is about a pixel); sub-µs noise still merges.
+    with patch.object(
+        EditService,
+        "preview_inaudible_cut",
+        return_value={"start": 1.01002, "end": 1.0100204, "mode": "word"},
+    ):
+        fine = EditService(ws).waveform_snap_window(
+            track_id="host", start=1.0, end=1.3, timeline=False
+        )
+    assert fine["ticks"] == [1.01002]
+    with patch.object(
+        EditService,
+        "preview_inaudible_cut",
+        return_value={"start": 1.01, "end": 1.01002, "mode": "word"},
+    ):
+        apart = EditService(ws).waveform_snap_window(
+            track_id="host", start=1.0, end=1.3, timeline=False
+        )
+    assert apart["ticks"] == [1.01, 1.01002]
 
 
 def test_waveform_snap_window_swaps_tiny_span_and_skips_errors(minimal_project, sample_wav):

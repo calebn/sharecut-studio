@@ -1,7 +1,7 @@
 /** Generated from contracts/timeline-zoom.json — do not edit by hand. */
 
 export const MIN_ZOOM_PX_PER_SEC = 0.05;
-export const MAX_ZOOM_PX_PER_SEC = 200;
+export const MAX_ZOOM_PX_PER_SEC = 48000;
 export const MAX_CONTENT_PX = 15000000;
 export const ZOOM_STEP = 1.25;
 export const PAINT_DPR_CAP = 2;

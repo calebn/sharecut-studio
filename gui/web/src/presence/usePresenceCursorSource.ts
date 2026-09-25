@@ -43,7 +43,9 @@ export function presenceCursorFromPointer(
   const { x, y } = anchorFractions(hit.el, clientX, clientY);
   return {
     anchor: hit.id,
-    x: Number(x.toFixed(3)),
+    // Six decimals: an anchor as wide as a deep-zoomed ruler (millions of
+    // px) still places the ghost within a pixel.
+    x: Number(x.toFixed(6)),
     y: Number(y.toFixed(3)),
   };
 }

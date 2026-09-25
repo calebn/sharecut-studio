@@ -1,6 +1,7 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { setEnvelope } from "../api";
 import { isShareProjectKey } from "../shareMode";
+import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import type {
   AutomationEnvelope,
@@ -15,6 +16,10 @@ import {
   sortedVolumePoints,
 } from "../utils/envelopes";
 import { formatTime } from "../utils/time";
+import {
+  VIEWPORT_CHUNK_PX,
+  viewportChunkRange,
+} from "../utils/timelineViewport";
 import { useHoldTimelineMetrics, useTimelineMetrics } from "./timelineMetrics";
 
 interface EnvelopeOverlayProps {
@@ -62,6 +67,16 @@ export function EnvelopeOverlay({
     }),
   );
   const { laneHeight } = useTimelineMetrics();
+  // Only the chunks on screen: the lane can be millions of px wide.
+  const chunks = useDawStore(
+    useCallback(
+      (s: { scrollLeft: number; timelineViewportWidth: number }) =>
+        viewportChunkRange(s.scrollLeft, s.timelineViewportWidth, width).join(
+          ":",
+        ),
+      [width],
+    ),
+  );
   const editable = !isShareProjectKey(projectPath);
   const [draft, setDraft] = useState<AutomationPoint[] | null>(null);
   const dragRef = useRef<{
@@ -81,8 +96,18 @@ export function EnvelopeOverlay({
 
   const height = laneHeight;
   const sorted = draft ?? base;
+  const [c0 = 0, c1 = 0] = chunks.split(":").map(Number);
+  const x0 = c0 * VIEWPORT_CHUNK_PX;
+  const x1 = Math.min(width, (c1 + 1) * VIEWPORT_CHUNK_PX);
+  const xOf = (p: AutomationPoint) => p.time * zoomPxPerSec;
+  // Points in the chunk, plus one each side so edge segments still draw.
+  let first = sorted.findIndex((p) => xOf(p) >= x0);
+  first = first < 0 ? sorted.length - 1 : Math.max(0, first - 1);
+  let last = sorted.findIndex((p) => xOf(p) > x1);
+  last = last < 0 ? sorted.length - 1 : last;
   const points = sorted
-    .map((p) => `${p.time * zoomPxPerSec},${valueToY(p.value, height)}`)
+    .slice(first, last + 1)
+    .map((p) => `${xOf(p) - x0},${valueToY(p.value, height)}`)
     .join(" ");
   const selectedIndex =
     selection?.kind === "envelopePoint" && selection.trackId === trackId
@@ -144,8 +169,11 @@ export function EnvelopeOverlay({
           onSelectTrack();
         }}
       />
-      <div className="envelope-overlay" style={{ width, height }}>
-        <svg width={width} height={height} className="envelope-svg">
+      <div
+        className="envelope-overlay"
+        style={{ left: x0, width: x1 - x0, height }}
+      >
+        <svg width={x1 - x0} height={height} className="envelope-svg">
           <polyline
             fill="none"
             stroke="var(--envelope-line)"
@@ -155,12 +183,15 @@ export function EnvelopeOverlay({
             aria-hidden="true"
           />
           {sorted.map((p, i) => {
+            if (xOf(p) < x0 || xOf(p) > x1) {
+              return null;
+            }
             const selected = selectedIndex === i;
             const label = `Envelope point ${i + 1} at ${formatTime(p.time)}`;
             return (
               <circle
                 key={p.id}
-                cx={p.time * zoomPxPerSec}
+                cx={xOf(p) - x0}
                 cy={valueToY(p.value, height)}
                 r={selected ? 7 : editable ? 5 : 2.5}
                 fill="var(--envelope-line)"
@@ -205,7 +236,8 @@ export function EnvelopeOverlay({
                     return;
                   }
                   const rect = svg.getBoundingClientRect();
-                  const x = e.clientX - rect.left;
+                  // The SVG starts at the chunk's x.
+                  const x = e.clientX - rect.left + x0;
                   const y = e.clientY - rect.top;
                   const next = dragRef.current.points.map((pt, j) =>
                     j === dragRef.current!.index

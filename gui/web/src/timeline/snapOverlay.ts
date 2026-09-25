@@ -27,7 +27,8 @@ export function magnetSec(
 }
 
 export function uniqueTicks(values: number[]): number[] {
-  return [...new Set(values.map((v) => Math.round(v * 1e4) / 1e4))].sort(
+  // 1 µs, like the server: ticks stay distinct at near-sample zoom.
+  return [...new Set(values.map((v) => Math.round(v * 1e6) / 1e6))].sort(
     (a, b) => a - b,
   );
 }

@@ -237,4 +237,53 @@ describe("EnvelopeOverlay", () => {
     await vi.waitFor(() => expect(release).toHaveBeenCalledTimes(1));
     expect(hold).toHaveBeenCalledTimes(1);
   });
+
+  it("draws only the viewport chunks of a deep-zoomed lane", () => {
+    useDawStore.getState().hydrate(
+      "/tmp/p.json",
+      minimalProject({
+        envelopes: [
+          {
+            track_id: "host",
+            parameter: "volume",
+            points: [
+              { id: "a", time: 0, value: 1 },
+              { id: "b", time: 30, value: 0.5 },
+              { id: "c", time: 30.01, value: 0.75 },
+              { id: "d", time: 59, value: 1 },
+            ],
+          },
+        ],
+      }),
+    );
+    const zoom = 48000;
+    // 30 s sits 100 px into a 1200 px view; chunk 703 starts at 1,439,744.
+    useDawStore.setState({
+      scrollLeft: 30 * zoom - 100,
+      timelineViewportWidth: 1200,
+    });
+    const { container } = render(
+      <EnvelopeOverlay
+        envelopes={useDawStore.getState().project?.envelopes ?? []}
+        trackId="host"
+        zoomPxPerSec={zoom}
+        width={60 * zoom}
+        onSelectTrack={vi.fn()}
+      />,
+    );
+    const x0 = 703 * 2048;
+    const overlay = container.querySelector(".envelope-overlay") as HTMLElement;
+    expect(parseFloat(overlay.style.left)).toBe(x0);
+    expect(parseFloat(overlay.style.width)).toBe(2048);
+    const circles = [...container.querySelectorAll("circle")];
+    expect(circles.map((c) => Number(c.getAttribute("cx")))).toEqual([
+      30 * zoom - x0,
+      30.01 * zoom - x0,
+    ]);
+    // The line runs to the off-screen neighbours on both sides.
+    const line = container.querySelector("polyline")!.getAttribute("points")!;
+    expect(line.split(" ")).toHaveLength(4);
+    expect(line.startsWith(`${-x0},`)).toBe(true);
+    useDawStore.setState({ scrollLeft: 0, timelineViewportWidth: 0 });
+  });
 });

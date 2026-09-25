@@ -1,5 +1,6 @@
-import { render } from "@testing-library/react";
+import { fireEvent, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { updateSocialClip } from "../api";
 import {
   PRESENCE_ANCHOR_ATTR,
   resolvePresenceAnchor,
@@ -15,6 +16,11 @@ import type {
 import { MARKER_ROW_HEIGHT } from "../utils/layout";
 import { MarkerLane } from "./MarkerLane";
 import type { MarkerRows } from "./timelineMetrics";
+
+vi.mock("../api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../api")>()),
+  updateSocialClip: vi.fn(async () => undefined),
+}));
 
 const chapters = [{ time: 2, title: "Intro" }] as ChapterMarker[];
 const socialClips = [
@@ -32,14 +38,14 @@ const comments = [
   },
 ] as unknown as TimelineComment[];
 
-function renderLane(rows: MarkerRows) {
+function renderLane(rows: MarkerRows, zoomPxPerSec = 10) {
   return render(
     <MarkerLane
       chapters={chapters}
       socialClips={socialClips}
       comments={comments}
       rows={rows}
-      zoomPxPerSec={10}
+      zoomPxPerSec={zoomPxPerSec}
       width={400}
       onSelectChapter={vi.fn()}
       onSelectSocial={vi.fn()}
@@ -130,5 +136,35 @@ describe("MarkerLane", () => {
     const pin = container.querySelector(".comment-marker.pin") as HTMLElement;
     expect(pin.style.left).toBe(`${4 * 10 - MARKER_ROW_HEIGHT / 2}px`);
     expect(pin.style.width).toBe(`${MARKER_ROW_HEIGHT}px`);
+  });
+
+  describe("social clip drag", () => {
+    const rows = { chapters: false, social: true, comments: false };
+    // jsdom rects are empty, so any press lands on the end edge.
+    const dragEnd = (zoom: number, dxPx: number) => {
+      const { container } = renderLane(rows, zoom);
+      const marker = container.querySelector(".social-marker") as HTMLElement;
+      fireEvent.pointerDown(marker, { clientX: 100, pointerId: 4 });
+      fireEvent.pointerUp(marker, { clientX: 100 + dxPx, pointerId: 4 });
+    };
+
+    beforeEach(() => {
+      vi.mocked(updateSocialClip).mockClear();
+    });
+
+    it("treats a drag under 3 px as a click", async () => {
+      dragEnd(10, 2);
+      await Promise.resolve();
+      expect(updateSocialClip).not.toHaveBeenCalled();
+    });
+
+    it("commits a 3 px drag at deep zoom, well under the old 20 ms", async () => {
+      dragEnd(48000, 3);
+      await waitFor(() => expect(updateSocialClip).toHaveBeenCalledTimes(1));
+      const [, id, start, end] = vi.mocked(updateSocialClip).mock.calls[0]!;
+      expect(id).toBe("s1");
+      expect(start).toBe(1);
+      expect(end).toBeCloseTo(3 + 3 / 48000, 12);
+    });
   });
 });

@@ -966,7 +966,10 @@ def test_normalize_presence_meta_accepts_and_clears() -> None:
     )
     assert extra_sel is not None
     assert "evil" not in extra_sel["selection"]
-    assert normalize_presence_meta({"viewport": {"start_sec": 0, "end_sec": 0.05}}) is None
+    # Near-sample zoom: a 50 ms window is valid; under 1 ms is not.
+    narrow = normalize_presence_meta({"viewport": {"start_sec": 0, "end_sec": 0.05}})
+    assert narrow is not None and narrow["viewport"]["end_sec"] == 0.05
+    assert normalize_presence_meta({"viewport": {"start_sec": 0, "end_sec": 0.0005}}) is None
     view = normalize_presence_meta({"viewport": {"start_sec": 0, "end_sec": 12}})
     assert view is not None and view["viewport"]["end_sec"] == 12
     assert sanitize_display_name(12) == "12"

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MAX_CONTENT_PX } from "./timelineZoom.generated";
 import {
   anchoredZoomScroll,
   clampZoomPxPerSec,
@@ -29,13 +30,31 @@ describe("fitZoomPxPerSec", () => {
   it("clamps to MIN_ZOOM for extreme durations", () => {
     expect(fitZoomPxPerSec(800, 1_000_000)).toBe(MIN_ZOOM_PX_PER_SEC);
   });
+
+  it("never fits above the session's ceiling", () => {
+    // A 0.01 s session in 800 px would be 80,000 px/s.
+    expect(fitZoomPxPerSec(800, 0.01)).toBe(MAX_ZOOM_PX_PER_SEC);
+  });
 });
 
 describe("clampZoomPxPerSec / discrete steps", () => {
-  it("clamps to min and max", () => {
-    expect(clampZoomPxPerSec(0)).toBe(MIN_ZOOM_PX_PER_SEC);
-    expect(clampZoomPxPerSec(9999)).toBe(MAX_ZOOM_PX_PER_SEC);
+  it("clamps to min and to the session-aware max", () => {
+    expect(clampZoomPxPerSec(0, 60)).toBe(MIN_ZOOM_PX_PER_SEC);
+    expect(MAX_ZOOM_PX_PER_SEC).toBe(48000);
+    expect(clampZoomPxPerSec(1e9, 60)).toBe(48000);
+    // An hour: 15M px of content caps zoom at ~4167 px/s.
+    expect(clampZoomPxPerSec(1e9, 3600)).toBeCloseTo(MAX_CONTENT_PX / 3600, 6);
+    expect(clampZoomPxPerSec(9999, 60)).toBe(9999);
   });
+
+  it.each([1, 60, 312, 1200, 3600, 36000])(
+    "keeps a %s s session's content under MAX_CONTENT_PX",
+    (sec) => {
+      expect(sec * clampZoomPxPerSec(1e12, sec)).toBeLessThanOrEqual(
+        MAX_CONTENT_PX + 1e-6,
+      );
+    },
+  );
 
   it("uses one step for keyboard and wheel ticks", () => {
     expect(discreteZoomFactor("in")).toBe(ZOOM_STEP);
@@ -58,6 +77,7 @@ describe("anchoredZoomScroll", () => {
       clientX,
       rectLeft,
       scrollLeft,
+      sessionSec: 60,
     });
     expect(zoom).toBe(currentZoom * ZOOM_STEP);
     expect((clientX - rectLeft + nextScroll) / zoom).toBeCloseTo(anchorSec, 8);
@@ -70,6 +90,7 @@ describe("anchoredZoomScroll", () => {
       clientX: 150,
       rectLeft: 0,
       scrollLeft: -100,
+      sessionSec: 60,
     };
     // Anchor at 5 s: 5 s × 20 px/s − 150 px = −50 px.
     expect(anchoredZoomScroll(input).scrollLeft).toBe(0);
@@ -79,5 +100,21 @@ describe("anchoredZoomScroll", () => {
     expect(
       anchoredZoomScroll({ ...input, minScrollLeft: -20 }).scrollLeft,
     ).toBe(-20);
+  });
+});
+
+describe("anchoredZoomScroll at the ceiling", () => {
+  it("stops at the session's max and anchors at the clamped zoom", () => {
+    const { zoom, scrollLeft } = anchoredZoomScroll({
+      currentZoom: 40000,
+      nextZoom: 50000,
+      clientX: 400,
+      rectLeft: 0,
+      scrollLeft: 1_000_000,
+      sessionSec: 60,
+    });
+    expect(zoom).toBe(48000);
+    // 1,000,400 px at 40,000 px/s is 25.01 s: still under the pointer.
+    expect((400 + scrollLeft) / zoom).toBeCloseTo(25.01, 9);
   });
 });

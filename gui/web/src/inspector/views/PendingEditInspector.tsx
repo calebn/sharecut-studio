@@ -237,7 +237,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                 <FieldRow>
                   <input
                     type="number"
-                    step="0.01"
+                    step="any"
                     value={startStr}
                     disabled={busy}
                     aria-label="Cut time"
@@ -276,7 +276,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
               <FieldRow>
                 <input
                   type="number"
-                  step="0.01"
+                  step="any"
                   value={startStr}
                   disabled={busy}
                   aria-label="Source start"
@@ -285,7 +285,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                 <span>–</span>
                 <input
                   type="number"
-                  step="0.01"
+                  step="any"
                   value={endStr}
                   disabled={busy}
                   aria-label="Source end"

@@ -14,7 +14,8 @@ vi.mock("../waveform/pyramidStore", () => ({
   },
 }));
 
-const { pyramidColumnPeaks, quietBandsFromPeaks } = await import("./quietWash");
+const { pyramidColumnPeaks, quietBandsFromPeaks, quietBandsInView } =
+  await import("./quietWash");
 
 describe("quietBandsFromPeaks", () => {
   it("keeps quiet runs of at least the minimum duration", () => {
@@ -82,5 +83,57 @@ describe("pyramidColumnPeaks", () => {
     const peaks = pyramidColumnPeaks(meta, 6400 * 20, 128, 3);
     expect([...peaks].every(Number.isNaN)).toBe(true);
     expect(pyramidColumnPeaks(meta, 0, 128, 0)).toHaveLength(0);
+  });
+});
+
+describe("quietBandsInView", () => {
+  const meta: PyramidMeta = {
+    key: "q".repeat(20),
+    sample_rate: 6400,
+    channels: 1,
+    total_frames: 6400 * 10,
+    base_spp: 64,
+    level_factor: 4,
+    bins_per_tile: 4096,
+    levels: [
+      { spp: 64, bins: 1000 },
+      { spp: 256, bins: 250 },
+    ],
+  };
+
+  afterEach(() => {
+    bins.fill = () => 0;
+  });
+
+  // Level-0 bins are 10 ms: loud except a 1 s pause from 2 s to 3 s.
+  const pause = (i: number) => (i >= 200 && i < 300 ? 0 : 20000);
+
+  it("washes a long pause when the view shows only a sliver of it", () => {
+    bins.fill = pause;
+    // 20 ms of view at 48,000 px/s, inside the pause.
+    expect(quietBandsInView(meta, 48000, [2.5, 2.52], [0, 10])).toEqual([
+      { startSec: 2.5, endSec: 2.52 },
+    ]);
+  });
+
+  it("clips a band to the view at its edge", () => {
+    bins.fill = pause;
+    const [band] = quietBandsInView(meta, 48000, [2.99, 3.01], [0, 10]);
+    expect(band!.startSec).toBe(2.99);
+    expect(band!.endSec).toBeCloseTo(3, 6);
+  });
+
+  it("still ignores a short dip, and quiet media outside the clip", () => {
+    // A 50 ms dip: under QUIET_MIN_DURATION_SEC.
+    bins.fill = (i) => (i >= 200 && i < 205 ? 0 : 20000);
+    expect(quietBandsInView(meta, 48000, [2.01, 2.03], [0, 10])).toEqual([]);
+    // The pause runs on past a clip that ends at 2.05 s: only 50 ms of it
+    // is in the clip.
+    bins.fill = pause;
+    expect(quietBandsInView(meta, 48000, [2.01, 2.03], [0, 2.05])).toEqual([]);
+  });
+
+  it("is empty for an empty view", () => {
+    expect(quietBandsInView(meta, 100, [1, 1], [0, 10])).toEqual([]);
   });
 });
