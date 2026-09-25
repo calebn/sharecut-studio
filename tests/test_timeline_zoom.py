@@ -11,7 +11,6 @@ from podcast_mcp.util.timeline_zoom import (
     max_tiles_per_request,
     max_zoom_px_per_sec,
     min_zoom_px_per_sec,
-    paint_dpr_cap,
     pcm_block_frames,
     waveform_format_version,
     zoom_step,
@@ -31,7 +30,6 @@ def test_zoom_getters():
     assert min_zoom_px_per_sec() == 0.05
     assert max_zoom_px_per_sec() == 200
     assert zoom_step() == 1.25
-    assert paint_dpr_cap() == 2
 
 
 def test_packaged_timeline_zoom_matches_contract():
