@@ -82,7 +82,9 @@ test.describe("deep zoom at the content ceiling", () => {
   test("keeps ruler, tiles, envelope and scroll range exact at 15 M px", async ({
     page,
   }) => {
-    test.setTimeout(180_000);
+    // Covers every wait below plus setup and cleanup: switch 10 s + painted tile 30 s
+    // + zoom 90 s + snapshot 60 s + restore 10 s = 200 s, before navigation.
+    test.setTimeout(240_000);
     let stretched!: StretchedProject;
     await withShareableProject(
       async (projectPath) => {
