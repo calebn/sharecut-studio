@@ -10,7 +10,7 @@ from podcast_mcp.edits.transcript_cuts import ensure_combined_transcript
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.waveform_media import track_pyramid
-from podcast_mcp.engines.waveform_pyramid import pyramid_peak
+from podcast_mcp.engines.waveform_pyramid import PyramidMeta, pyramid_peak
 from podcast_mcp.models import EpisodeProject, SocialClipCandidate
 from podcast_mcp.util.review import approve_by_id, reject_by_id
 from podcast_mcp.util.timebase import SourceSec
@@ -65,8 +65,20 @@ def _platform_limits(defaults: dict[str, Any], platform: str | None) -> tuple[fl
     return min_sec, max_sec
 
 
-# Energy reads the pyramid level closest to 16 bins per second (the old overview rate).
+# Energy reads the coarsest pyramid level at least as fine as 16 bins/s (the old overview rate).
 _ENERGY_BINS_PER_SEC = 16
+
+
+_PyramidCache = dict[str, tuple[Path, PyramidMeta] | None]
+
+
+def _track_pyramid_or_none(
+    project: EpisodeProject, track_id: str
+) -> tuple[Path, PyramidMeta] | None:
+    try:
+        return track_pyramid(project, track_id)
+    except (OSError, ValueError):
+        return None
 
 
 def _utterance_energy(
@@ -74,13 +86,22 @@ def _utterance_energy(
     track_id: str,
     start: float,
     end: float,
+    *,
+    pyramids: _PyramidCache | None = None,
 ) -> float:
-    """Loudness hint in [0, 1] from the track's waveform pyramid; 0.5 when unknown."""
+    """Loudness hint in [0, 1] from the track's waveform pyramid; 0.5 when unknown.
+
+    *pyramids* memoizes each track's ``(path, meta)`` for one propose call.
+    """
+    if pyramids is None:
+        pyramids = {}
+    if track_id not in pyramids:
+        pyramids[track_id] = _track_pyramid_or_none(project, track_id)
+    found = pyramids[track_id]
+    if found is None:
+        return 0.5
+    path, meta = found
     try:
-        found = track_pyramid(project, track_id)
-        if found is None:
-            return 0.5
-        path, meta = found
         peak = pyramid_peak(
             path, meta, start, end, max_spp=meta.sample_rate // _ENERGY_BINS_PER_SEC
         )
@@ -101,6 +122,7 @@ def _score_utterance(
     duration_sec: float,
     min_sec: float,
     max_sec: float,
+    pyramids: _PyramidCache | None = None,
 ) -> tuple[float, list[str]]:
     reasons: list[str] = []
     dur = end - start
@@ -122,7 +144,7 @@ def _score_utterance(
             score += 0.12
             reasons.append("hook_pattern")
             break
-    energy = _utterance_energy(project, track_id, start, end)
+    energy = _utterance_energy(project, track_id, start, end, pyramids=pyramids)
     score += 0.2 * energy
     if energy > 0.6:
         reasons.append("high_energy")
@@ -170,6 +192,7 @@ def propose_social_clips(
     combined = ensure_combined_transcript(project)
     duration_sec = _episode_duration(project)
     st = SessionTimeline(project)
+    pyramids: _PyramidCache = {}
 
     scored: list[SocialClipCandidate] = []
     for utt in combined.utterances:
@@ -182,6 +205,7 @@ def propose_social_clips(
             duration_sec=duration_sec,
             min_sec=min_sec,
             max_sec=max_sec,
+            pyramids=pyramids,
         )
         if score < 0.4:
             continue

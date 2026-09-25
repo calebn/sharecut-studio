@@ -223,6 +223,40 @@ def test_utterance_energy_without_media_or_vanished_file(tmp_path):
     assert _utterance_energy(proj, "host", 0.0, 2.0) == 0.5
 
 
+def test_propose_resolves_each_track_pyramid_once(tmp_path, monkeypatch):
+    import podcast_mcp.clips.social as social
+
+    proj = _host_with_pyramid(tmp_path)
+    proj.combined_transcript = CombinedTranscript(
+        utterances=[
+            CombinedUtterance(
+                track_id="host", speaker="Host", start=float(i), end=float(i + 1), text="Why?"
+            )
+            for i in range(3)
+        ]
+    )
+    calls: list[str] = []
+    real = social.track_pyramid
+
+    def counting(project, track_id):
+        calls.append(track_id)
+        return real(project, track_id)
+
+    monkeypatch.setattr(social, "track_pyramid", counting)
+    propose_social_clips(proj, {"social_clips": {"min_sec": 0.5, "max_candidates": 5}})
+    assert calls == ["host"]
+
+
+def test_utterance_energy_cached_pyramid_that_vanished(tmp_path):
+    from podcast_mcp.engines.waveform_media import track_pyramid
+
+    proj = _host_with_pyramid(tmp_path)
+    found = track_pyramid(proj, "host")
+    assert found is not None
+    found[0].unlink()
+    assert _utterance_energy(proj, "host", 0.0, 2.0, pyramids={"host": found}) == 0.5
+
+
 def test_propose_skips_low_score_and_truncates_title(tmp_path):
     proj = EpisodeProject.create("t", str(tmp_path))
     long_text = (
