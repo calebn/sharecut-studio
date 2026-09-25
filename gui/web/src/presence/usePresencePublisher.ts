@@ -166,7 +166,8 @@ export function usePresencePublisher(
       if (
         followChanged ||
         s.playheadSec !== prev.playheadSec ||
-        s.isPlaying !== prev.isPlaying
+        s.isPlaying !== prev.isPlaying ||
+        s.playbackRate !== prev.playbackRate
       ) {
         publishTransport(s);
       }

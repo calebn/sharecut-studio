@@ -220,4 +220,25 @@ describe("usePresencePublisher", () => {
     };
     expect(last.transport.playhead_sec).toBe(5);
   });
+
+  it("publishes a playback rate change while paused", async () => {
+    useDawStore.setState({
+      followingClientId: null,
+      isPlaying: false,
+      playheadSec: 3,
+      playbackRate: 1,
+    });
+    const sent: Record<string, unknown>[] = [];
+    renderHook(() => usePresencePublisher((frame) => sent.push(frame), "Host"));
+    act(() => {
+      useDawStore.setState({ playbackRate: 1.5 });
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    });
+    const last = sent
+      .map((f) => f.meta as Record<string, unknown>)
+      .findLast((m) => m.transport != null) as { transport: { rate: number } };
+    expect(last.transport.rate).toBe(1.5);
+  });
 });
