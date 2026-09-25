@@ -58,6 +58,27 @@ def test_document_add_comment_and_idempotent(minimal_project):
     assert len(again["snapshot"]["comments"]) == 1
 
 
+def test_a_command_applies_on_top_of_a_change_saved_since_open(minimal_project):
+    """Each request opens its own service; the later commit must not drop the
+    earlier one by saving the copy it loaded before the lock."""
+    first = DocumentSyncService.open(minimal_project)
+    second = DocumentSyncService.open(minimal_project)
+
+    def add(seq: int, body: str) -> DocumentCommand:
+        return DocumentCommand(
+            type="AddComment",
+            payload={"body": body, "author": "viewer", "timeline_start": 1.0},
+            client_id=f"c{seq}",
+            role="viewer",
+            client_seq=seq,
+        )
+
+    assert first.submit(add(1, "first"))["ok"]
+    assert second.submit(add(2, "second"))["ok"]
+    saved = ProjectWorkspace.open(minimal_project).project
+    assert sorted(c.body for c in saved.review.comments) == ["first", "second"]
+
+
 def test_document_reply_via_command(minimal_project):
     svc = DocumentSyncService.open(minimal_project)
     add = svc.submit(
