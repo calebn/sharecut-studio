@@ -12,6 +12,7 @@ import type {
   PresenceViewport,
 } from "../types/session";
 import { MIN_VIEWPORT_SPAN_SEC } from "../utils/timelineZoom.generated";
+import { clampZoomPxPerSec } from "../utils/zoom";
 
 export { serverNowMs } from "./clock";
 
@@ -75,12 +76,18 @@ export function planCorrection(
 /** Span published before the timeline has been measured. */
 const UNMEASURED_VIEWPORT_SPAN_SEC = 60;
 
+/**
+ * The zoom and scroll that show a leader's viewport here. The leader may zoom
+ * past this session's ceiling (another viewport width), so the zoom is clamped
+ * to `sessionSec` and the scroll lands on their start at that zoom.
+ */
 export function viewportToZoomScroll(
   v: PresenceViewport,
   viewportWidthPx: number,
+  sessionSec: number,
 ): { zoomPxPerSec: number; scrollLeft: number } {
   const span = Math.max(MIN_VIEWPORT_SPAN_SEC, v.end_sec - v.start_sec);
-  const zoom = Math.max(1e-6, viewportWidthPx / span);
+  const zoom = clampZoomPxPerSec(viewportWidthPx / span, sessionSec);
   return { zoomPxPerSec: zoom, scrollLeft: Math.max(0, v.start_sec * zoom) };
 }
 
