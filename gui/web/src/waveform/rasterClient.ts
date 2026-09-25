@@ -241,7 +241,13 @@ export function rasterParity(): Promise<number | null> {
   const id = nextId++;
   return new Promise((resolve) => {
     parityWaiters.set(id, resolve);
-    post(w, { type: "parity", id });
+    try {
+      post(w, { type: "parity", id });
+    } catch {
+      // The worker could not take the message: settle now, not on the next reset.
+      parityWaiters.delete(id);
+      resolve(null);
+    }
   });
 }
 
