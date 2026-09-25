@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, type Page, test } from "@playwright/test";
+import { rulerWidthPx } from "./deepZoom";
 import { e2eProjectPath } from "./env";
 import { withShareableProject } from "./shareableProject";
 import { openGuestShare, openHostShare } from "./shareNavigation";
@@ -25,13 +26,6 @@ const thresholds = JSON.parse(
   tile_count_slop: number;
   max_full_audio_bytes: number;
 };
-
-/** Ruler content width (px): session-or-more seconds × zoom. */
-function rulerWidth(page: Page): Promise<number> {
-  return page
-    .locator(".time-ruler")
-    .evaluate((el) => (el as HTMLElement).getBoundingClientRect().width);
-}
 
 /** Record waveform and audio traffic for one page. */
 function watchWaveformTraffic(page: Page) {
@@ -131,11 +125,11 @@ test.describe("pyramid waveforms", () => {
     // Zoom in until the session-aware ceiling stops it (48,000 px/s on the
     // 60 s fixture), at most 50 steps.
     await page.locator(".timeline-scroll").click();
-    let width = await rulerWidth(page);
+    let width = await rulerWidthPx(page);
     let stopped = false;
     for (let i = 0; i < 50 && !stopped; i++) {
       await page.keyboard.press("=");
-      const next = await rulerWidth(page);
+      const next = await rulerWidthPx(page);
       stopped = next === width && i > 0;
       width = next;
     }

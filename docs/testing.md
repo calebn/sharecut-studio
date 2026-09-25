@@ -241,7 +241,7 @@ requires HTTP 200 and host setup still waits for `networkidle`.
 | Share HTTP / MCP / WS parity | `test_share_http_mcp_parity.py` (`scripts/export_docs_site_contract.py`; WS discovery + curated notes for `/api/rec/` and `/api/review/`) |
 | Document handlers / caps | `test_document_sync.py`, `test_review_share.py`, `test_remote_mcp.py`, `test_structural_policy.py` |
 | GUI / timeline inspector APIs | `test_gui_api.py`, `test_waveform_zoom.py` |
-| Zoom-matched waveforms | `test_timeline_zoom.py`, `test_waveform_pyramid.py`, `test_waveform_service.py`, `test_waveform_routes.py`, `test_waveform_snap.py` (incl. guest snap ACL), `gui/web/src/waveform/*.test.ts` (tile geometry, envelope reduction vs brute force, shared CPU/GL shading, stores, worker), `gui/web/src/timeline/WaveformLayer.test.tsx`, Playwright `e2e/waveform.spec.ts` (host tiles, WebGL2 + raster parity on Chromium, guest tiles through the share route with no PCM) and the compat matrix (`webgl2` or `cpu-worker`) |
+| Zoom-matched waveforms | `test_timeline_zoom.py`, `test_waveform_pyramid.py`, `test_waveform_service.py`, `test_waveform_routes.py`, `test_waveform_snap.py` (incl. guest snap ACL), `gui/web/src/waveform/*.test.ts` (tile geometry, envelope reduction vs brute force, shared CPU/GL shading, stores, worker), `gui/web/src/timeline/WaveformLayer.test.tsx`, Playwright `e2e/waveform.spec.ts` (host tiles, WebGL2 + raster parity on Chromium, guest tiles through the share route with no PCM) and the compat matrix (`webgl2` or `cpu-worker`; `deep-zoom.spec.ts` geometry at the 15 M px ceiling on Chromium and WebKit) |
 | Brand / public CSS | `test_brand_color_roles.py`, `test_public_sites.py`, `test_css_policy.py`, `test_css_no_important.py` |
 | Body / host security hardening | `test_security_hardening.py` (pure ASGI `MaxBodySizeMiddleware`, authz, served_project) |
 | Large-project benchmark fixture | `test_large_project_fixture.py` (`scripts/build_large_project_fixture.py`; two-hour shape under `e2e_real`), Playwright `e2e/large-project.spec.ts` (opt-in) |
@@ -415,7 +415,7 @@ the focused `gui/web/e2e-compat/` matrix (`playwright.compat.config.ts`) in
 bundled Chromium and Playwright WebKit. It covers the project shell and playback
 control, the phone listening shell under an `iPhone 13` touch profile (coarse
 pointer, viewport-derived x/y bounds), and the recording guest's
-microphone-consent-to-level path.
+microphone-consent-to-level path. `e2e-compat/deep-zoom.spec.ts` stretches a disposable `aligned_dialogue` copy to a one-hour session (`e2e/deepZoom.ts` `stretchProjectToSession`) and zooms to `effectiveMaxZoomPxPerSec(3600)` (about 15 M px of content). At the end it checks, within 1 px: `scrollWidth`, the reachable scroll end, the last ruler label, tick offsets (`t × zoom`), tile placement on the 512 px grid ending at the session end, and envelope point and chunk offsets. Firefox is not in the matrix; its layout limit (about 17.9 M px) is above `max_content_px`.
 
 The recording check uses `stubSyntheticMicrophone` (`gui/web/e2e/syntheticMicrophone.ts`):
 `getUserMedia` returns a live oscillator track, and the test polls the Level
