@@ -1,5 +1,6 @@
 import { useCallback, useSyncExternalStore } from "react";
-import { loadWaveformStatus, WaveformFetchError } from "../api";
+import { loadWaveformStatus } from "../api";
+import { isClientRejection, isRetryLater } from "../utils/apiError";
 import {
   type ReadyEntry,
   refKind,
@@ -119,14 +120,7 @@ function schedule(poller: Poller): void {
 
 /** A 4xx other than 408 / 429 (revoked share, deleted project): polling again will not help. */
 function permanentFailure(err: unknown): boolean {
-  return (
-    err instanceof WaveformFetchError &&
-    err.status != null &&
-    err.status >= 400 &&
-    err.status < 500 &&
-    err.status !== 408 &&
-    err.status !== 429
-  );
+  return isClientRejection(err) && !isRetryLater(err);
 }
 
 function poll(poller: Poller): void {
