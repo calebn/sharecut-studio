@@ -80,7 +80,3 @@ def max_tiles_per_request() -> int:
 
 def pcm_block_frames() -> int:
     return int(_waveform()["pcm_block_frames"])
-
-
-def paint_dpr_cap() -> float:
-    return float(_waveform()["paint_dpr_cap"])
