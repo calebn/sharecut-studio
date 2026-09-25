@@ -24,14 +24,14 @@ describe("TimeRuler", () => {
     const labels = [...container.querySelectorAll(".ruler-tick")].map(
       (el) => el.textContent,
     );
-    // 0:08.0 would collide with 0:06.0, so it is skipped.
-    expect(labels).not.toContain("0:08.0");
-    expect(labels).toContain("0:06.0");
+    // 0:08 would collide with 0:06, so it is skipped.
+    expect(labels).not.toContain("0:08");
+    expect(labels).toContain("0:06");
   });
 
   it("keeps the end label on desktop where labels fit", () => {
-    // No matchMedia stub: fine pointer, tight estimate (46 px), no drop.
-    // At 47 px/s the 0:08.0 label right-aligns 94 px after 0:06.0.
+    // No matchMedia stub: fine pointer, tight estimate (34 px), no drop.
+    // At 47 px/s the 0:08 label right-aligns 94 px after 0:06.
     render(
       <TimeRuler
         durationSec={9}
@@ -40,7 +40,13 @@ describe("TimeRuler", () => {
         onSeek={vi.fn()}
       />,
     );
-    expect(screen.getByText("0:08.0")).toBeTruthy();
+    expect(screen.getByText("0:08")).toBeTruthy();
+    // Whole-second steps announce whole seconds.
+    expect(
+      screen
+        .getByRole("slider", { name: "Timeline position" })
+        .getAttribute("aria-valuetext"),
+    ).toMatch(/^\d+:\d{2}$/);
   });
 
   it("keeps the end label when there is room", () => {

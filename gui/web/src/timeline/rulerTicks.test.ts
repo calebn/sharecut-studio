@@ -68,8 +68,8 @@ describe("estimateRulerLabelWidthPx", () => {
   });
 
   it("uses a tight estimate on desktop (fine pointer)", () => {
-    // jsdom has no matchMedia: treated as a fine pointer. "0:08.0".
-    expect(estimateRulerLabelWidthPx(8, 2)).toBe(6 * 6 + 10);
+    // jsdom has no matchMedia: treated as a fine pointer. "0:08".
+    expect(estimateRulerLabelWidthPx(8, 2)).toBe(4 * 6 + 10);
     // "0:08.002": deep-zoom labels are wider.
     expect(estimateRulerLabelWidthPx(8.002, 0.002)).toBe(8 * 6 + 10);
   });
@@ -79,6 +79,6 @@ describe("estimateRulerLabelWidthPx", () => {
       matches: query === "(pointer: coarse)",
       media: query,
     }));
-    expect(estimateRulerLabelWidthPx(8, 2)).toBe(6 * 8 + 12);
+    expect(estimateRulerLabelWidthPx(8, 2)).toBe(4 * 8 + 12);
   });
 });

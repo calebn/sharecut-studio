@@ -24,8 +24,8 @@ test.describe("Arrange chrome", () => {
     const lastTick = page.locator(".ruler-tick").last();
     await expect(lastTick).toBeVisible();
     const lastLabel = await lastTick.innerText();
-    // Ruler labels carry the decimals their step needs: one when zoomed out.
-    expect(lastLabel).toMatch(/^\d+:\d{2}\.\d$/);
+    // Zoomed out, the step is whole seconds: labels carry no fraction.
+    expect(lastLabel).toMatch(/^\d+:\d{2}$/);
     const lastSec = parseTimecodeSec(lastLabel);
     expect(lastSec).toBeGreaterThan(sessionMax - 1);
 
