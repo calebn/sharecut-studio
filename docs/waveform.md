@@ -39,7 +39,7 @@ CI's `frontend` job runs it with `--check`).
 `max_content_px` (15,000,000) at the top level caps timeline content width. The
 generated TS exports `effectiveMaxZoomPxPerSec(sessionSec) =
 min(MAX_ZOOM_PX_PER_SEC, MAX_CONTENT_PX / max(sessionSec, 1))` and
-`paintDpr(dpr) = clamp(round(dpr·8)/8, 1, PAINT_DPR_CAP)` , so `512·paintDpr` is
+`paintDpr(dpr) = clamp(round(dpr·8)/8, 1, PAINT_DPR_CAP)`, so `512·paintDpr` is
 always an integer. `paintDpr` is client-only: `paint_dpr_cap` has no Python getter
 and reaches TS as `PAINT_DPR_CAP` via `scripts/export_timeline_zoom.py`. Python
 reads only the keys it needs, through
