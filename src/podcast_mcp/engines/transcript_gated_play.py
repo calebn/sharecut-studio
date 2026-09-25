@@ -219,11 +219,13 @@ def render_gated_track(
     *,
     timeline_start: float,
     timeline_end: float,
+    gain_db: float = 0.0,
 ) -> Path:
+    """Gate one stem and play it at ``gain_db`` (the track's output gain; no normalisation)."""
     duration = timeline_end - timeline_start
     seg = _load_segment(stem_path, timeline_start, duration)
     gated = _apply_gate(seg, intervals, timeline_start=timeline_start)
-    _write_wav(gated, output_path)
+    _write_wav(_apply_gain_db(gated, gain_db), output_path)
     return output_path
 
 
@@ -320,6 +322,8 @@ def render_gated_mix(
 
     Stems don't bake a track's output gain, so the caller passes it here and the
     gated mix keeps the track balance every other mix path plays.
+    Peak normalisation keeps the balance but not the absolute level: a uniform
+    gain change renders the same audio.
     """
     duration = timeline_end - timeline_start
     gains = gains_db or {}

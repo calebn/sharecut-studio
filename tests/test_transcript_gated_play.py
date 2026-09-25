@@ -439,3 +439,26 @@ def test_source_word_intervals_merge_and_window(tmp_path: Path) -> None:
     assert source_word_intervals(project, "host", 10.0, 11.0) == []
     clipped = source_word_intervals(project, "host", 1.2, 2.0)
     assert clipped == [(1.2, 1.4), (1.9, 2.0)]
+
+
+def test_render_gated_track_plays_at_its_gain(tmp_path, monkeypatch) -> None:
+    from podcast_mcp.engines import transcript_gated_play as tgp
+
+    monkeypatch.setattr(
+        tgp, "_load_segment", lambda *_a, **_k: np.full(4800, 0.5, dtype=np.float32)
+    )
+    written: list[np.ndarray] = []
+
+    def _write(samples, path):
+        written.append(samples)
+        return path
+
+    monkeypatch.setattr(tgp, "_write_wav", _write)
+    stem = tmp_path / "s.wav"
+    out = tmp_path / "g.wav"
+    tgp.render_gated_track(stem, [(0.0, 0.1)], out, timeline_start=0.0, timeline_end=0.1)
+    tgp.render_gated_track(
+        stem, [(0.0, 0.1)], out, timeline_start=0.0, timeline_end=0.1, gain_db=-6.0
+    )
+    assert float(written[0][2400]) == pytest.approx(0.5, rel=1e-4)
+    assert float(written[1][2400] / written[0][2400]) == pytest.approx(10 ** (-6 / 20), rel=1e-4)
