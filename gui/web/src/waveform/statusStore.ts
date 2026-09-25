@@ -196,7 +196,11 @@ function poll(poller: Poller): void {
     });
 }
 
-/** Watch one project's status; the first subscriber starts polling. */
+/**
+ * Watch one project's status; the first subscriber starts polling. A poller
+ * a permanent failure stopped restarts only for a subscriber (first or not)
+ * arriving STOPPED_RETRY_MS later.
+ */
 export function subscribeWaveformStatus(
   projectPath: string,
   kind: WaveformKind,
@@ -207,7 +211,8 @@ export function subscribeWaveformStatus(
   const retryStopped =
     poller.stoppedAt != null &&
     Date.now() - poller.stoppedAt >= STOPPED_RETRY_MS;
-  if ((poller.listeners.size === 1 || retryStopped) && !poller.inflight) {
+  const first = poller.listeners.size === 1 && poller.stoppedAt == null;
+  if ((first || retryStopped) && !poller.inflight) {
     poll(poller);
   }
   return () => {
