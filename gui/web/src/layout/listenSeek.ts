@@ -1,6 +1,9 @@
 import { execute } from "../commands/execute";
 import { useDawStore } from "../state/dawStore";
 
+/** How far the listen-mode skip buttons jump (s). */
+export const LISTEN_SKIP_SEC = 15;
+
 export function seekListen(sec: number): void {
   void execute("transport.seek", { sec }, { skipWhen: true });
 }

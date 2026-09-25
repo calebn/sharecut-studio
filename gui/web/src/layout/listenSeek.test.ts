@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
-import { skipListen } from "./listenSeek";
+import { LISTEN_SKIP_SEC, skipListen } from "./listenSeek";
 
 const execute = vi.hoisted(() => vi.fn());
 vi.mock("../commands/execute", () => ({ execute }));
@@ -12,10 +12,10 @@ describe("skipListen", () => {
   });
 
   it.each([
-    [10, -15, 0],
-    [40, -15, 25],
-    [50, 15, 60],
-    [20, 15, 35],
+    [10, -LISTEN_SKIP_SEC, 0],
+    [40, -LISTEN_SKIP_SEC, 25],
+    [50, LISTEN_SKIP_SEC, 60],
+    [20, LISTEN_SKIP_SEC, 35],
   ])("from %s s by %s s seeks to %s s", (from, delta, to) => {
     useDawStore.setState({ playheadSec: from });
     skipListen(delta, 60);

@@ -45,7 +45,7 @@ import { FollowBanner } from "./FollowBanner";
 import { GuestAttentionBanner } from "./GuestAttentionBanner";
 import { ListenHero } from "./ListenHero";
 import { ListenScrubber, ListenTimecode } from "./ListenPlayhead";
-import { seekListen, skipListen } from "./listenSeek";
+import { LISTEN_SKIP_SEC, seekListen, skipListen } from "./listenSeek";
 import { OverlayLegend } from "./OverlayLegend";
 import { PipelineStatusChip } from "./PipelineStatusChip";
 import { TransportBar } from "./TransportBar";
@@ -213,13 +213,19 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
         timecode={<ListenTimecode durationSec={duration} />}
         scrubber={<ListenScrubber durationSec={duration} />}
         skipBack={
-          <button type="button" onClick={() => skipListen(-15, duration)}>
-            −15s
+          <button
+            type="button"
+            onClick={() => skipListen(-LISTEN_SKIP_SEC, duration)}
+          >
+            {`−${LISTEN_SKIP_SEC}s`}
           </button>
         }
         skipForward={
-          <button type="button" onClick={() => skipListen(15, duration)}>
-            +15s
+          <button
+            type="button"
+            onClick={() => skipListen(LISTEN_SKIP_SEC, duration)}
+          >
+            {`+${LISTEN_SKIP_SEC}s`}
           </button>
         }
       />
