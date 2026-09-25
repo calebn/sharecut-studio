@@ -429,11 +429,13 @@ def test_wav_info_rejects_unsupported_widths(tmp_path):
 
 @needs_ffmpeg
 def test_decode_media_extensible_wav_falls_back_to_ffmpeg(tmp_path):
+    # Python 3.12+ ``wave`` reads extensible *PCM*, so use the float subformat,
+    # which every supported version rejects.
     rng = np.random.default_rng(5)
-    ints = rng.integers(-32768, 32767, size=(2500, 2), dtype=np.int64)
+    samples = rng.uniform(-0.9, 0.9, size=(2500, 2)).astype(np.float32)
     path = tmp_path / "ext.wav"
     _write_raw_wav(
-        path, ints.astype("<i2").tobytes(), channels=2, sr=8000, bits=16, extensible_sub=1
+        path, samples.astype("<f4").tobytes(), channels=2, sr=8000, bits=32, extensible_sub=3
     )
     assert wp._wav_info(path) is None
     eng = FFmpegEngine()
@@ -442,7 +444,7 @@ def test_decode_media_extensible_wav_falls_back_to_ffmpeg(tmp_path):
         data = np.concatenate(list(chunks))
     spy.assert_called_once()
     assert (sr, ch) == (8000, 2)
-    np.testing.assert_array_equal(data, ints.astype(np.float32) / 32768.0)
+    np.testing.assert_array_equal(data, samples)
 
 
 @needs_ffmpeg
