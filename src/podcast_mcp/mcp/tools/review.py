@@ -16,7 +16,7 @@ def publish_review_version_tool(
 
     Comments created while a version is active stamp review_version_id.
     prefer: \"premix\" (default) or \"mastered\".
-    Refuses a premix that's stale vs the project (Refresh first) or a master older than the premix.
+    Refuses a premix that's stale vs the project (Refresh first) or a master not mastered from the current premix (export first).
     """
     ws = ProjectWorkspace.open(project_path)
     return to_json(ReviewService(ws).publish(label=label, prefer=prefer, set_active=set_active))

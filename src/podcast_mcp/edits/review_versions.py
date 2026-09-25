@@ -14,7 +14,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
-from podcast_mcp.engines.play_audit import mastered_is_fresh, premix_is_stale, premix_path
+from podcast_mcp.engines.play_audit import (
+    mastered_is_fresh,
+    mastered_path,
+    premix_is_stale,
+    premix_path,
+    read_mastered_hash,
+)
 from podcast_mcp.models import EpisodeProject, ReviewMixVersion
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.workspace_paths import resolve_within
@@ -88,28 +94,37 @@ def resolve_source_mix(
     """Return (absolute wav path, source label). Prefer premix, else mastered.
 
     Refuses a premix that's behind the project (a volume, mute or edit since the
-    last Refresh) and a master older than the current premix, so a review
-    version never freezes an outdated mix.
+    last Refresh) and a master that wasn't mastered from the current premix, so a
+    review version never freezes an outdated mix. A master with no
+    ``mastered.hash`` (mastered before it existed) or whose premix was re-mixed,
+    copied or restored since is refused until export re-masters it.
     """
     if premix_is_stale(project):
         raise ValueError(
             "premix.wav is out of date (edits, volume or mute changed since the last "
-            "Refresh); Refresh (render-preview) before publishing a review version"
+            "Refresh), and so is any master built from it; Refresh (render-preview) "
+            "before publishing a review version, then export for a mastered one"
         )
-    art = project.artifacts_dir()
+    paths = {"premix": premix_path(project), "mastered": mastered_path(project)}
     order = [prefer, "mastered", "premix"] if prefer == "mastered" else ["premix", "mastered"]
     seen: set[str] = set()
     for name in order:
         if name in seen:
             continue
         seen.add(name)
-        path = art / f"{name}.wav"
+        path = paths[name]
         if not path.is_file():
             continue
-        if name == "mastered" and premix_path(project).is_file() and not mastered_is_fresh(project):
+        if name == "mastered" and paths["premix"].is_file() and not mastered_is_fresh(project):
+            if read_mastered_hash(project) is None:
+                raise ValueError(
+                    "mastered.wav has no record of the premix it was mastered from "
+                    "(mastered before that was tracked, or its last master failed); "
+                    "export (or re-run master_loudness) to re-master it, or publish the premix"
+                )
             raise ValueError(
-                "mastered.wav is older than the current premix; export (or re-run "
-                "master_loudness) first, or publish the premix"
+                "mastered.wav wasn't mastered from the current premix (re-mixed, copied or "
+                "restored since); export (or re-run master_loudness) first, or publish the premix"
             )
         return path.resolve(), name
     raise FileNotFoundError("no premix.wav or mastered.wav; run render-preview / pipeline first")

@@ -178,7 +178,7 @@ passkeys, and agent credentials when accounts are enabled. See
 
 ## Operator quick path
 
-**Sharecut Studio (host):** Menu → **Share…** (`share.manage`) lists live links, mints a coolname URL (role viewer / commenter / editor, optional MCP), and stops sharing. If no review mix exists, Create link publishes **Share mix** first. Same `ShareService` as CLI.
+**Sharecut Studio (host):** Menu → **Share…** (`share.manage`) lists live links, mints a coolname URL (role viewer / commenter / editor, optional MCP), and stops sharing. If no review mix exists, Create link publishes **Share mix** first. That publish refuses a premix that's behind the project (edits, volume or mute since the last Refresh), and the dialog shows the error: Refresh (**Mod+B**), then create the link again. Same `ShareService` as CLI.
 
 CLI:
 

@@ -23,7 +23,11 @@ from podcast_mcp.edits.review_versions import (
     version_audio_path,
     version_mp3_path,
 )
-from podcast_mcp.engines.play_audit import write_mastered_hash
+from podcast_mcp.engines.play_audit import (
+    master_source_hash,
+    mastered_is_fresh,
+    write_mastered_hash,
+)
 from podcast_mcp.history import HistoryManager
 from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project, save_project
 from podcast_mcp.project_store import ProjectStore
@@ -1142,7 +1146,7 @@ def test_publish_refuses_a_stale_premix(minimal_project, sample_wav):
     assert not root.exists() or not any(root.iterdir())
 
 
-def test_publish_mastered_refuses_a_master_older_than_the_premix(minimal_project, sample_wav):
+def test_publish_mastered_refuses_a_master_without_a_hash(minimal_project, sample_wav):
     proj = load_project(minimal_project)
     art = Path(proj.workspace_dir) / "artifacts"
     art.mkdir(parents=True, exist_ok=True)
@@ -1151,8 +1155,52 @@ def test_publish_mastered_refuses_a_master_older_than_the_premix(minimal_project
     save_project(proj, minimal_project)
 
     ws = ProjectWorkspace.open(minimal_project)
-    with pytest.raises(ValueError, match=r"mastered\.wav is older"):
+    with pytest.raises(ValueError, match=r"mastered\.wav has no record"):
         ReviewService(ws).publish(label="m", prefer="mastered")
-    write_mastered_hash(ws.project)
+    write_mastered_hash(ws.project, master_source_hash(ws.project))
     ver = ReviewService(ws).publish(label="m", prefer="mastered")
     assert ver["source"] == "mastered"
+
+
+def test_publish_mastered_refuses_a_master_from_another_premix(minimal_project, sample_wav):
+    proj = load_project(minimal_project)
+    art = Path(proj.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    for name in ("premix", "mastered"):
+        (art / f"{name}.wav").write_bytes(sample_wav.read_bytes())
+    save_project(proj, minimal_project)
+
+    ws = ProjectWorkspace.open(minimal_project)
+    write_mastered_hash(ws.project, master_source_hash(ws.project))
+    premix = art / "premix.wav"
+    st = premix.stat()
+    os.utime(premix, ns=(st.st_atime_ns, st.st_mtime_ns + 10**9))  # re-mixed or restored
+    with pytest.raises(ValueError, match=r"wasn't mastered from the current premix"):
+        ReviewService(ws).publish(label="m", prefer="mastered")
+
+
+def test_publish_mastered_refuses_a_stale_premix_even_with_a_fresh_master(
+    minimal_project, sample_wav
+):
+    proj = load_project(minimal_project)
+    proj.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav"),
+            fader_db=-3.0,
+        )
+    ]
+    art = Path(proj.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    for name in ("premix", "mastered"):
+        (art / f"{name}.wav").write_bytes(sample_wav.read_bytes())
+    save_project(proj, minimal_project)
+
+    ws = ProjectWorkspace.open(minimal_project)
+    write_mastered_hash(ws.project, master_source_hash(ws.project))
+    assert mastered_is_fresh(ws.project)
+    with pytest.raises(ValueError, match="any master built from it"):
+        ReviewService(ws).publish(label="m", prefer="mastered")
+    assert load_project(minimal_project).review.versions == []

@@ -5,10 +5,11 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from podcast_mcp.gui.server import create_app
-from podcast_mcp.models import load_project, save_project
+from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project, save_project
 from podcast_mcp.services import ProjectWorkspace, ReviewService, ShareService
 from podcast_mcp.services.share import present_share
 
@@ -123,6 +124,32 @@ def test_create_for_host_auto_publishes(minimal_project, sample_wav, tmp_workspa
     assert row["review_version_label"] == "Share mix"
     assert "project_workspace" not in row
     assert ReviewService(ws).list_versions()
+
+
+def test_create_for_host_refuses_a_stale_premix(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    monkeypatch.delenv("PODCAST_SESSION_AUTHZ", raising=False)
+    proj = load_project(minimal_project)
+    proj.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav"),
+            fader_db=-3.0,
+        )
+    ]
+    save_project(proj, minimal_project)
+    ws = _seed_premix(minimal_project, sample_wav)
+    with pytest.raises(ValueError, match="Refresh"):
+        ShareService(ws).create_for_host(role="viewer", public_base_url="http://gui.test")
+    assert ReviewService(ws).list_versions() == []
+
+    client = TestClient(create_app(served_project=Path(minimal_project)))
+    res = client.post("/api/shares", json={"path": str(minimal_project), "role": "viewer"})
+    assert res.status_code == 400
+    assert "Refresh" in res.text
 
 
 def test_create_for_host_uses_latest_created_mix(

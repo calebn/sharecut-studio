@@ -10,7 +10,7 @@ FFmpeg filters and `numpy` — no extra installs required.
 |------|----------------|-------|
 | `podcast edit audio-diagnostics --track <id> [--start --end]` | Spectrogram PNG + waveform PNG + `astats` health + hum flag, bundled for one track (or window) | `audio_diagnostics_tool` MCP / CLI |
 | `podcast edit analyze-cleanup` | Per-track `health` block (astats + hum) alongside existing gate/bleed/fade findings | `analyze_cleanup_tool` MCP / CLI |
-| `artifacts/mastered.hash` | Fingerprint of the premix the master was built from; a mismatch re-masters on export | written by the `master_loudness` pipeline step |
+| `artifacts/mastered.hash` | Fingerprint of the premix the master was built from; a mismatch re-masters on export | written by the `master_loudness` pipeline step after `mastered.wav` is swapped in whole; cleared (with `master_qc.json`) when a master starts |
 | `artifacts/master_qc.json` | Post-master loudness verification (measured vs. target, pass/fail) | written by the `master_loudness` pipeline step |
 
 When `--start` / `--end` (or MCP `start_sec` / `end_sec`) are set, `astats` and
