@@ -1030,6 +1030,27 @@ describe("useKeeperCapture silent PCM watchdog", () => {
     expect(result.current.micCheckFailed).toBe(false);
   });
 
+  it("a healthy Check mic that resolves after mute does not report failure", async () => {
+    const { result, rerender } = await setup();
+    await advance(6000, zeros);
+    expect(result.current.noAudio).toBe(true);
+    let finish!: (state: string) => void;
+    tapResume.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    act(() => result.current.checkMic());
+    rerender({ snapshot: snap, muted: true });
+    await act(async () => {
+      finish("running");
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.micCheckFailed).toBe(false);
+    expect(result.current.noAudio).toBe(false);
+  });
+
   it("Check mic failure keeps the alarm until signal returns", async () => {
     const { result } = await setup();
     await advance(6000, zeros);

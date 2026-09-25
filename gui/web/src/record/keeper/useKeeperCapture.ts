@@ -481,13 +481,15 @@ export function useKeeperCapture({
           track?.readyState === "live" &&
           track.enabled !== false &&
           track.muted !== true;
-        if (healthy && watchdogRef.current.isArmed) {
+        if (!healthy) {
+          setMicCheckFailed(true);
+        } else if (watchdogRef.current.isArmed) {
           watchdogRef.current.recheck(performance.now());
           setNoAudio(false);
           setMicCheckFailed(false);
-        } else {
-          setMicCheckFailed(true);
         }
+        // Healthy but unarmed: pause, mute or stop landed while resume() was
+        // pending, so there is no alert to clear or fail. Leave state as is.
       })
       .catch(() => {
         if (mountedRef.current && tapRef.current === tap) {
