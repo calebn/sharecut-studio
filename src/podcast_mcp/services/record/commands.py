@@ -60,6 +60,12 @@ class RecordAuthzError(PermissionError):
     """Role or capability does not allow this command."""
 
 
+CLIENT_VISIBLE_AUTHZ_CODES: frozenset[str] = frozenset(
+    {"participant_removed", "invalid_lease", "invite_closed"}
+)
+"""``RecordAuthzError`` messages the guest record WebSocket forwards verbatim; others become ``forbidden``."""
+
+
 class JoinPayload(BaseModel):
     model_config = ConfigDict(extra="ignore")
     display_name: str

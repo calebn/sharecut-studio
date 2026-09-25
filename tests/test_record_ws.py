@@ -11,7 +11,11 @@ from starlette.websockets import WebSocketDisconnect
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services import ProjectWorkspace
-from podcast_mcp.services.record.commands import RecordAuthzError, RecordCommand
+from podcast_mcp.services.record.commands import (
+    CLIENT_VISIBLE_AUTHZ_CODES,
+    RecordAuthzError,
+    RecordCommand,
+)
 from podcast_mcp.services.record.control import RecordControlService
 from podcast_mcp.services.record.reducer import RecordStateError
 from podcast_mcp.services.record.service import (
@@ -1541,6 +1545,26 @@ def test_unaffected_guest_keeper_status_after_invite_closed(
         headers={"X-Record-Participant": a["participant_id"], "X-Record-Lease": a["lease"]},
     )
     assert gone.status_code == 403
+
+
+def test_client_visible_authz_codes_cover_join_refusals():
+    assert {"participant_removed", "invalid_lease", "invite_closed"} == CLIENT_VISIBLE_AUTHZ_CODES
+
+
+def test_invite_closed_closes_the_socket_with_4403(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    token = room["guest"]["token"]
+    a, _b = _join_two(client, token)
+    _remove(client, ws, a["participant_id"])
+    with client.websocket_connect(f"/api/rec/{token}/ws") as fresh:
+        _join(fresh, name="Cy")
+        err = _drain_until(fresh, lambda m: m.get("type") == "Error")
+        assert err["code"] == "invite_closed"
+        with pytest.raises(WebSocketDisconnect) as closed:
+            fresh.receive_json()
+        assert closed.value.code == 4403
 
 
 def test_join_mint_raises_invite_closed(minimal_project, sample_wav, tmp_workspace, monkeypatch):
