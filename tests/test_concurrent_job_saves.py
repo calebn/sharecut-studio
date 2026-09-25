@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from podcast_mcp.engines.play_audit import premix_is_stale, write_stem_hash
+from podcast_mcp.gui.jobs import _gui_fail_message
 from podcast_mcp.history import HistoryManager
 from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project, save_project
 from podcast_mcp.pipeline import runner as runner_mod
@@ -16,6 +17,7 @@ from podcast_mcp.pipeline import steps
 from podcast_mcp.project_merge import ProjectMergeConflict
 from podcast_mcp.project_store import history_index_path
 from podcast_mcp.services import EpisodeService, PipelineService, ProjectWorkspace
+from podcast_mcp.services import workspace as workspace_mod
 from podcast_mcp.services.workspace import MERGED_HISTORY_LABEL
 from podcast_mcp.util.atomic_json import load_json_object
 
@@ -229,12 +231,19 @@ def _index_matches_file(minimal_project: Path) -> None:
     assert load_json_object(history_index_path(saved)) == saved.history.model_dump(mode="json")
 
 
+def _snapshots(ws: ProjectWorkspace) -> set[str]:
+    snap_dir = ws.project.workspace_path() / "history" / "snapshots"
+    return {p.name for p in snap_dir.glob("*")} if snap_dir.exists() else set()
+
+
 def test_pipeline_step_conflict_leaves_history_index_matching_the_file(
     minimal_project, monkeypatch
 ):
     ws = _two_tracks(minimal_project)
+    snaps_at_step: set[str] = set()
 
     def step(project, _defaults):
+        snaps_at_step.update(_snapshots(ws))
         project.track_by_id("host").gain_db = 2.0
         other = ProjectWorkspace.open(minimal_project)
         other.mutate("b", "a", lambda p: setattr(p.track_by_id("host"), "gain_db", 5.0))
@@ -247,11 +256,8 @@ def test_pipeline_step_conflict_leaves_history_index_matching_the_file(
     saved = load_project(minimal_project)
     assert "after merge_transcript" not in [e.label for e in saved.history.entries]
     assert "after merge_transcript" not in [e.label for e in ws.project.history.entries]
-
-
-def _snapshots(ws: ProjectWorkspace) -> set[str]:
-    snap_dir = ws.project.workspace_path() / "history" / "snapshots"
-    return {p.name for p in snap_dir.glob("*")} if snap_dir.exists() else set()
+    referenced = {Path(e.snapshot_file).name for e in saved.history.entries}
+    assert _snapshots(ws) - snaps_at_step <= referenced
 
 
 def test_save_merged_commit_failure_adopts_nothing(minimal_project, monkeypatch):
@@ -304,6 +310,113 @@ def test_save_merged_conflicts_when_another_writer_undid_during_the_job(minimal_
     other = ProjectWorkspace.open(minimal_project)
     HistoryManager(other.path).undo(other.project)
     ws.project.track_by_id("guest").gain_db = 1.0
-    with pytest.raises(ProjectMergeConflict, match=r"history\.cursor"):
+    with pytest.raises(ProjectMergeConflict, match=r"history\.lineage"):
         ws.save_merged(history_label="after step")
+    _index_matches_file(minimal_project)
+
+
+def test_save_merged_raises_the_commit_error_when_rollback_fails(minimal_project, monkeypatch):
+    ws = _two_tracks(minimal_project)
+    ws.checkpoint()
+    ws.project.track_by_id("host").gain_db = 2.0
+
+    def commit_boom(*_a, **_k):
+        raise OSError("disk full")
+
+    def rollback_boom(*_a, **_k):
+        raise OSError("rollback failed")
+
+    monkeypatch.setattr(ws._store, "commit", commit_boom)
+    monkeypatch.setattr(workspace_mod, "rollback_history", rollback_boom)
+    with pytest.raises(OSError, match="disk full"):
+        ws.save_merged(history_label="after step")
+    assert "after step" not in [e.label for e in ws.project.history.entries]
+
+
+def test_save_merged_removes_a_snapshot_left_by_a_failed_record(minimal_project, monkeypatch):
+    ws = _two_tracks(minimal_project)
+    ws.checkpoint()
+    ws.project.track_by_id("host").gain_db = 2.0
+    index_path = history_index_path(ws.project)
+    index_before = load_json_object(index_path)
+    snaps_before = _snapshots(ws)
+
+    def boom(*_a, **_k):
+        raise OSError("index write failed")
+
+    monkeypatch.setattr(HistoryManager, "_save_index", boom)
+    with pytest.raises(OSError, match="index write failed"):
+        ws.save_merged(history_label="after step")
+    assert _snapshots(ws) == snaps_before
+    assert load_json_object(index_path) == index_before
+
+
+def test_save_merged_rewrites_a_corrupt_history_index(minimal_project):
+    ws = _two_tracks(minimal_project)
+    _other_sets_volume(minimal_project)
+    ws.checkpoint()
+    history_index_path(ws.project).write_text("{", encoding="utf-8")
+    ws.project.track_by_id("guest").gain_db = 1.0
+    ws.save_merged(history_label="after step")
+    _index_matches_file(minimal_project)
+
+
+def test_save_merged_conflict_restores_a_corrupt_index_from_the_file(minimal_project):
+    ws = _two_tracks(minimal_project)
+    _other_sets_volume(minimal_project)
+    ws.checkpoint()
+    ws.project.track_by_id("host").fader_db = 3.0
+    _other_sets_volume(minimal_project, db=-9.0)
+    history_index_path(ws.project).write_text("{", encoding="utf-8")
+    with pytest.raises(ProjectMergeConflict):
+        ws.save_merged(history_label="after step")
+    _index_matches_file(minimal_project)
+
+
+def test_save_merged_invalid_merge_rolls_back_history(minimal_project, monkeypatch):
+    ws = _two_tracks(minimal_project)
+    ws.checkpoint()
+    _other_sets_volume(minimal_project)
+    ws.project.track_by_id("host").gain_db = 2.0
+    index_path = history_index_path(ws.project)
+    index_before = load_json_object(index_path)
+    history_before = ws.project.history.model_copy(deep=True)
+    snaps_before = _snapshots(ws)
+    monkeypatch.setattr(
+        workspace_mod,
+        "merge_project_data",
+        lambda _base, _ours, theirs: {**theirs, "history": 5},
+    )
+    with pytest.raises(ProjectMergeConflict, match="merged project is invalid"):
+        ws.save_merged(history_label="after step")
+    assert load_json_object(index_path) == index_before
+    assert ws.project.history == history_before
+    assert _snapshots(ws) == snaps_before
+
+
+def test_pipeline_run_reports_an_undo_before_the_first_step(minimal_project, monkeypatch):
+    ws = _two_tracks(minimal_project)
+    _other_sets_volume(minimal_project)
+    real_checkpoint = ws.checkpoint
+
+    def checkpoint_then_undo():
+        project = real_checkpoint()
+        project.track_by_id("guest").gain_db = 1.0  # the run's own unsaved change
+        other = ProjectWorkspace.open(minimal_project)
+        HistoryManager(other.path).undo(other.project)
+        return project
+
+    ran: list[str] = []
+
+    def step(_project, _defaults):
+        ran.append("merge_transcript")
+        return "done"
+
+    monkeypatch.setattr(ws, "checkpoint", checkpoint_then_undo)
+    monkeypatch.setitem(runner_mod._STEP_MAP, "merge_transcript", step)
+    with pytest.raises(ProjectMergeConflict, match="undo or redo") as exc:
+        PipelineService(ws).run(only_step="merge_transcript")
+    assert "history.lineage" in exc.value.paths
+    assert ran == []
+    assert "re-run it" in (_gui_fail_message(str(exc.value)) or "")
     _index_matches_file(minimal_project)
