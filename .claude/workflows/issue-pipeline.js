@@ -23,6 +23,8 @@ const REPO = A.repo || 'calebn/sharecut-studio'
 const AUTHORS = A.authors || ['calebn']
 const LANES = A.lanes ?? 4
 const MAX_ROUNDS = A.maxRounds ?? 2
+// Most follow-up issues one feedback plan may file as NEW issues (big, unrelated work only).
+const MAX_NEW_FOLLOWUPS = A.maxNewFollowups ?? 2
 const CI_FIX_ATTEMPTS = A.ciFixAttempts ?? 1
 const GATE_ATTEMPTS = A.gateAttempts ?? 3
 // noMerge: run every stage but stop at the gate and report the verdict (A/B comparisons).
@@ -226,6 +228,7 @@ const FB_ITEM = {
     steps: { type: 'string', description: 'implement: exact step-level instructions (files, symbols, tests)' },
     followup_title: { type: 'string' },
     followup_body: { type: 'string' },
+    existing_issue: { type: 'integer', description: 'follow_up: an open issue that already covers the item; no new issue is filed' },
   },
   required: ['kind', 'id', 'action', 'rationale'],
 }
@@ -590,10 +593,10 @@ function feedbackPlan(issue, pr, round, finalRound, mustCover = []) {
 ${mustCover.length ? `A previous plan missed open review threads. Each of these thread ids MUST get exactly one item (kind "thread", id verbatim): ${mustCover.map((t) => `${t.id} (${t.path}:${t.line})`).join('; ')}. Use only real ids from GraphQL; never invent placeholder rows.\n` : ''}
 Read ${SKILLS.feedback} and execute Phases 1–2 for ${REPO} PR #${pr}, following its "AUTONOMOUS MODE (pipeline)" section (no approval gate; nothing is posted in plan mode).
 Include EVERY unresolved review thread and every top-level PR comment that still needs a response (not only this round's findings; human comments too).
-For each item choose exactly one action:
-- implement: valid and fits this PR. Give precise step-level instructions a cheaper model can follow without judgment calls or re-exploring: exact files and line ranges with the current snippet quoted, the replacement, tests to add, docs to update per AGENTS.md. When one change repeats across call sites, list every site.
-- follow_up: valid but out of scope, large, or risky${finalRound ? ' (FINAL ROUND: anything not trivially safe to finish now MUST be follow_up)' : ''}. Provide followup_title and a self-contained followup_body (file paths, link to the PR comment).
-- wont_do: ONLY when the finding is wrong or the change would be harmful; give the technical rationale. A wont_do holds the PR for the owner, so prefer follow_up when in doubt.
+For each item choose exactly one action. Lean hard toward doing the work in THIS PR: a few extra commits are cheap, and every follow-up issue is a cost to the owner.
+- implement (the default): the finding is valid, whatever its size or kind: a bug, a missing test, naming or style, a small optimisation, a cleanup, a doc fix. If it touches code this PR changes or the area it lands in, do it here, in every round including the last. Give precise step-level instructions a cheaper model can follow without judgment calls or re-exploring: exact files and line ranges with the current snippet quoted, the replacement, tests to add, docs to update per AGENTS.md. When one change repeats across call sites, list every site.
+- follow_up: ONLY a big change that is unrelated to this PR, such as a separate feature or refactor, or a cross-cutting change across many files or subsystems that would be its own PR. Never for something merely small, nitty or "out of scope" that could be done here. Provide followup_title and a self-contained followup_body (file paths, link to the PR comment). First search for an existing open issue (\`gh issue list -R ${REPO} --state open --search "<key terms>"\`): if one already covers the item, set existing_issue to its number and leave the title and body out. At most ${MAX_NEW_FOLLOWUPS} follow_up items may file NEW issues in one plan; implement the rest here or fold them into one as a checklist.
+- wont_do: ONLY when the finding is wrong, the change would be harmful, or it is a purely speculative need nobody has (\`if/when ...\`); give the technical rationale. A wont_do holds the PR for the owner.${finalRound ? '\nFINAL ROUND: keep implementing what fits (CI still gates the merge). Only a big, unrelated change may be a follow_up.' : ''}
 Return the items.`,
     { label: `fb-plan:${tag(issue)}:r${round}`, phase: 'Feedback', model: M.senior, effort: 'high', isolation: 'worktree', schema: S_FB_PLAN },
   )
@@ -607,7 +610,7 @@ ${DETACHED(`origin/${branch}`)}
 ${SETUP}
 Plan (JSON): ${JSON.stringify(plan.items)}
 1. implement items: make the change per steps, one commit per concern, run ${VERIFY} Push once to ${branch}. Confirm every SHA exists via \`gh api repos/${REPO}/commits/<sha>\` BEFORE replying.
-2. follow_up items: \`gh issue create -R ${REPO} --title <followup_title> --body <followup_body>\` (the body must mention "Related #${issue.number}" and link the PR). Then append one "Related #<new issue>" line per follow-up to the PR body (\`gh pr view ${pr} -R ${REPO} --json body -q .body\` → \`gh pr edit ${pr} -R ${REPO} --body-file -\`), keeping the existing "Fixes #${issue.number}" or "${PART_OF}${issue.number}" line intact.
+2. follow_up items: when the item has existing_issue, create NOTHING: set followup_issue to it and reply "Tracked in #<existing_issue> — <one-line why deferred>." Otherwise \`gh issue create -R ${REPO} --title <followup_title> --body <followup_body>\` (the body must mention "Related #${issue.number}" and link the PR). Then append one "Related #<new issue>" line per follow-up to the PR body (\`gh pr view ${pr} -R ${REPO} --json body -q .body\` → \`gh pr edit ${pr} -R ${REPO} --body-file -\`), keeping the existing "Fixes #${issue.number}" or "${PART_OF}${issue.number}" line intact.
 3. Reply to EVERY item (mandatory):
    - implement → "Fixed in <bare sha> — <what changed>." then resolve the thread.
    - follow_up → "Tracked in #<issue> — <one-line why deferred>." then resolve the thread.
