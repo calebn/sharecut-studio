@@ -249,8 +249,9 @@ flowchart TD
    If the host removes a guest, that guest's live room connection closes and
    stops receiving room events or sending signal, heartbeat, and comments;
    other guests remain in the room. The browser does not auto-rejoin after a
-   removal close, and a reload retains the revoked identity. A shared link
-   alone cannot permanently identify a removed person (follow-up #370).
+   removal close, and a reload retains the revoked identity. The host's removal
+   closes that invite link to new people ("Invite link closed"); guests who
+   already joined keep their saved lease, and new people need a fresh link.
    Removal during REC stops microphone capture and upload, then offers local
    keeper recovery or download. A naturally expired lease can start a fresh
    guest identity in the still-open room. The Join lease check and host removal

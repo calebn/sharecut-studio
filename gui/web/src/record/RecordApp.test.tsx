@@ -697,6 +697,38 @@ describe("RecordApp", () => {
     });
   });
 
+  it("shows the invite-closed screen and is axe-clean", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (urlOf(input).includes("/bootstrap")) {
+          return new Response(JSON.stringify(guestBootstrap), { status: 200 });
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+    const { container } = render(<RecordApp token="guest-tok" />);
+    await waitFor(() => expect(sockets).toHaveLength(1));
+    sockets[0].onmessage?.({
+      data: JSON.stringify({
+        plane: "record",
+        type: "Error",
+        code: "invite_closed",
+      }),
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Invite link closed" }),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByText(
+        "The host closed this invite link to new participants. Ask the host for a new link.",
+      ),
+    ).toBeInTheDocument();
+    await expectNoA11yViolations(container);
+  });
+
   it("shows ended access after the room closes with 4403", async () => {
     vi.stubGlobal(
       "fetch",

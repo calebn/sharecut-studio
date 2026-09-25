@@ -164,7 +164,7 @@ Required for v1 credibility with video-first creators — not just audio post.
 
 | Item | Notes |
 |------|--------|
-| **Host admit / waiting room** | Optional host approval before a `/rec/` guest enters the lobby (Riverside waiting room). Today anyone with the link joins. Spec stays in [recording-session.md](docs/recording-session.md). |
+| **Host admit / waiting room** | Optional host approval before a `/rec/` guest enters the lobby (Riverside waiting room). Today removal closes that invite link to new identities (#370); otherwise anyone with the link joins. Spec stays in [recording-session.md](docs/recording-session.md). |
 | **Producer push-to-talk (`talk`)** | Silent producer MVP shipped (recvonly, no `getUserMedia`, MM9). Heard-by-room when the producer holds talk (Descript PTT). New `talk` cap; not a beta gate. Spec: [recording-session.md](docs/recording-session.md) § Roles. |
 | **Producer `control`** | Start/stop/pause from a producer token. Host already owns transport. New `control` cap. Spec: [recording-session.md](docs/recording-session.md) § Roles. |
 | **Room text chat** | Live comments are timeline notes, not a chat channel. Riverside Audience-style room chat stays follow-up. Spec: [recording-session.md](docs/recording-session.md). |

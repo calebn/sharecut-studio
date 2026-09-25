@@ -1403,3 +1403,159 @@ def test_host_ws_reattaches_when_record_session_changes(
         )
         assert rec["plane"] == "record"
         assert room["session_id"]
+
+
+def _remove(client, ws, pid: str) -> None:
+    response = client.post(
+        "/api/record/command",
+        json={
+            "path": str(ws.path),
+            "command_type": "RemoveParticipant",
+            "payload": {"participant_id": pid},
+        },
+    )
+    assert response.status_code == 200, response.text
+
+
+def _join_two(client, token: str):
+    """Join Ava and Bea on one token; return (ava_echo, bea_echo)."""
+    with client.websocket_connect(f"/api/rec/{token}/ws") as ava:
+        _join(ava, name="Ava")
+        a = _drain_until(ava, lambda m: m.get("type") == "Echo")
+    with client.websocket_connect(f"/api/rec/{token}/ws") as bea:
+        _join(bea, name="Bea")
+        b = _drain_until(bea, lambda m: m.get("type") == "Echo")
+    return a, b
+
+
+def test_removed_invite_refuses_new_identity_while_other_guest_continues(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    token = room["guest"]["token"]
+    with client.websocket_connect(f"/api/rec/{token}/ws") as ava:
+        _join(ava, name="Ava")
+        a = _drain_until(ava, lambda m: m.get("type") == "Echo")
+        with client.websocket_connect(f"/api/rec/{token}/ws") as bea:
+            _join(bea, name="Bea")
+            b = _drain_until(bea, lambda m: m.get("type") == "Echo")
+            _remove(client, ws, a["participant_id"])
+            with client.websocket_connect(f"/api/rec/{token}/ws") as fresh:
+                _join(fresh, name="Cy")
+                err = _drain_until(fresh, lambda m: m.get("type") == "Error")
+                assert err["code"] == "invite_closed"
+            bea.send_json(
+                {"type": "Record", "command_type": "Heartbeat", "payload": {}, "client_seq": 2}
+            )
+            _drain_until(bea, lambda m: m.get("command_type") == "Heartbeat")
+    with client.websocket_connect(f"/api/rec/{token}/ws") as again:
+        _join(again, name="Bea", participant_id=b["participant_id"], lease=b["lease"])
+        echo = _drain_until(again, lambda m: m.get("type") == "Echo")
+        assert echo["participant_id"] == b["participant_id"]
+
+
+def test_removed_invite_omitting_lease_is_refused_over_relay(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    token = room["guest"]["token"]
+    a, _b = _join_two(client, token)
+    _remove(client, ws, a["participant_id"])
+    relay = {"x-sharecut-relayed": "1"}
+    with client.websocket_connect(f"/api/rec/{token}/ws", headers=relay) as fresh:
+        _join(fresh, name="Cy")
+        err = _drain_until(fresh, lambda m: m.get("type") == "Error")
+        assert err["code"] == "invite_closed"
+    with client.websocket_connect(f"/api/rec/{token}/ws", headers=relay) as old:
+        _join(old, name="Ava", participant_id=a["participant_id"], lease=a["lease"])
+        err = _drain_until(old, lambda m: m.get("type") == "Error")
+        assert err["code"] == "participant_removed"
+
+
+def test_invite_closure_survives_runtime_reset(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    token = room["guest"]["token"]
+    a, b = _join_two(client, token)
+    _remove(client, ws, a["participant_id"])
+    reset_record_runtime_for_tests()
+    client = TestClient(create_app())
+    with client.websocket_connect(f"/api/rec/{token}/ws") as fresh:
+        _join(fresh, name="Cy")
+        err = _drain_until(fresh, lambda m: m.get("type") == "Error")
+        assert err["code"] == "invite_closed"
+    with client.websocket_connect(f"/api/rec/{token}/ws") as again:
+        _join(again, name="Bea", participant_id=b["participant_id"], lease=b["lease"])
+        echo = _drain_until(again, lambda m: m.get("type") == "Echo")
+        assert echo["participant_id"] == b["participant_id"]
+
+
+def test_invite_closure_is_scoped_to_the_removed_participants_token(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    token = room["guest"]["token"]
+    a, _b = _join_two(client, token)
+    _remove(client, ws, a["participant_id"])
+    new = ShareService(ws).create_record_token(role="guest", session_id=room["session_id"])
+    for tok in (new["token"], room["producer"]["token"]):
+        with client.websocket_connect(f"/api/rec/{tok}/ws") as sock:
+            _join(sock, name="Dee")
+            echo = _drain_until(sock, lambda m: m.get("type") == "Echo")
+            assert echo["participant_id"]
+
+
+def test_expired_lease_on_closed_invite_cannot_mint(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    token = room["guest"]["token"]
+    a, b = _join_two(client, token)
+    _remove(client, ws, a["participant_id"])
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    svc._participants.revoke(b["participant_id"], session_id=room["session_id"])
+    with client.websocket_connect(f"/api/rec/{token}/ws") as sock:
+        _join(sock, name="Bea", participant_id=b["participant_id"], lease=b["lease"])
+        err = _drain_until(sock, lambda m: m.get("type") == "Error")
+        assert err["code"] == "invalid_lease"
+        _join(sock, name="Bea", seq=2)
+        err = _drain_until(sock, lambda m: m.get("type") == "Error")
+        assert err["code"] == "invite_closed"
+
+
+def test_unaffected_guest_keeper_status_after_invite_closed(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    token = room["guest"]["token"]
+    a, b = _join_two(client, token)
+    _remove(client, ws, a["participant_id"])
+    ok = client.get(
+        f"/api/rec/{token}/upload",
+        headers={"X-Record-Participant": b["participant_id"], "X-Record-Lease": b["lease"]},
+    )
+    assert ok.status_code == 200, ok.text
+    gone = client.get(
+        f"/api/rec/{token}/upload",
+        headers={"X-Record-Participant": a["participant_id"], "X-Record-Lease": a["lease"]},
+    )
+    assert gone.status_code == 403
+
+
+def test_join_mint_raises_invite_closed(minimal_project, sample_wav, tmp_workspace, monkeypatch):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    token = room["guest"]["token"]
+    a, _b = _join_two(client, token)
+    _remove(client, ws, a["participant_id"])
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    assert svc.invite_closed(token) is True
+    assert svc.invite_closed(room["producer"]["token"]) is False
+    with pytest.raises(RecordAuthzError, match="invite_closed"):
+        svc.join(
+            token=token,
+            role="guest",
+            display_name="Cy",
+            client_id="c1",
+            connection_id="conn1",
+        )

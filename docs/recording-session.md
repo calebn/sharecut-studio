@@ -738,13 +738,30 @@ events, and idle connections recheck membership. Other guests stay connected.
 The browser treats a 4403 close or explicit removed-participant error as terminal
 and keeps that identity on reload; it does not automatically join as a new
 participant. An expired or otherwise invalid lease can rejoin with a fresh
-identity. Removal during a take stops local microphone capture and upload; the
+identity, unless the token's invite is closed (below). Removal during a take stops local microphone capture and upload; the
 guest can recover or download the retained local keeper after capture settles.
 Join validates saved leases under the same room authority as removal, so a
 concurrent removal cannot be misreported to the browser as lease expiry.
-The shared record link remains a bearer link, so someone who deliberately drops
-the saved identity can join anew. Durable person-level exclusion needs separate
-invite credentials or host admission ([#370](https://github.com/calebn/sharecut-studio/issues/370)).
+**Decision (#370): removal closes that invite to new identities.** When the host
+removes a participant, the record token they joined through (guest or producer
+link) stops minting new participant identities for that room. `Join` without a
+valid lease gets `invite_closed`. The token keeps working for every participant
+it already minted who still holds a valid lease: reconnect, reload, heartbeat,
+signal, upload and keeper recovery. New people need a fresh guest link:
+`podcast review share --kind record --session-id <id> --role guest`. The rule is
+derived from `participants[].removed` (never cleared within a room) and
+`record_participants.token_hash` (kept by `revoke()`), both in `sync.db`, and is
+checked under the room authority lock in `_join_locked`, so it survives restarts
+and applies equally to direct and relayed joins. Nobody else is disconnected.
+
+- **Security boundary:** the link is still a bearer link; the host must share the
+  replacement privately. A closure applies to that token only.
+- **Cost:** an unaffected guest who loses the saved lease (new device, cleared
+  data, lease older than 7 days) must use the new link and sees a terminal
+  "Invite link closed" screen with the Recover / Download local recording buttons.
+- **Keeper recovery:** unaffected guests keep uploading and recovering through
+  their lease; a removed participant stays refused. The stopped-take question stays
+  with [#316](https://github.com/calebn/sharecut-studio/issues/316).
 
 Host admit / waiting room is **not** in this PR (ROADMAP Follow-up).
 
@@ -795,6 +812,7 @@ stateDiagram-v2
 | Mic blocked in the Linux Tauri desktop app | "Microphone access is blocked in this Linux desktop window. Retry once, or open Sharecut Studio in your browser and allow microphone access there." |
 | Mic permission prompt in the Linux Tauri desktop app | "Waiting for the desktop webview microphone permission prompt…" |
 | No input device | "No microphone was found. Connect an input device, then Retry." |
+| Invite closed | Heading "Invite link closed"; "The host closed this invite link to new participants. Ask the host for a new link." |
 | Mic required for consent | "Allow the microphone before you accept recording." |
 | Room tone | "Record 3 seconds of room tone" |
 | Room tone too loud | "Too loud: is something playing?" |
@@ -1080,6 +1098,7 @@ Tone participants A=220 Hz, B=440 Hz, C=880 Hz, 48 kHz, −18 dBFS. No real
 | MM7 | Encoder does not duck monitor | Start "record": MM1 bars unchanged vs pre-roll. |
 | MM8 | Roster change does not glitch | Start N=2 (A, B); add C at t=1 s; remove B at t=2 s. A's bus: 880 Hz reaches its MM1 level within **20 ms** of add, 440 Hz falls ≥ 40 dB within 20 ms of remove, 220 Hz stays ≤ −50 dB throughout; no sample-to-sample step > **−30 dBFS** at either transition (ramped, not cut). A's keeper is **bit-identical** to a run with no roster change. Pause at t=3 s / Resume at t=4 s: MM1 bars on A's bus unchanged throughout (monitor is not paused). |
 | MM9 | Producer bus | Producer P joins N=3 (A, B, C): P's speaker bus has 220/440/880 each within **±1.5 dB** of the taps; P has **no** send track, **no** keeper file, and never called `getUserMedia`; A/B/C buses are unchanged vs MM1 (P adds nothing to anyone's mix). |
+| INV1 | Invite closure (#370) | `tests/test_record_ws.py` `test_removed_invite_*`, `test_invite_closure_*`, `test_expired_lease_on_closed_invite_cannot_mint`, `test_join_mint_raises_invite_closed`; `useRecordSync.test.ts` and `RecordApp.test.tsx` (terminal `invite_closed`, axe-clean). |
 
 Ship MM1–MM9 **in the same PR as the graph** (`gui/web/src/audio/mixMinus.ts` +
 `mixMinus.test.ts`). Prefer rendered spectra over `connect()` spies alone —

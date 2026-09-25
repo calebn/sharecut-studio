@@ -166,6 +166,12 @@ export function useRecordSync(
               );
               return;
             }
+            if (msg.code === "invite_closed") {
+              accessEnded = true;
+              setError("invite_closed");
+              thisSocket.close();
+              return;
+            }
             if (
               msg.code === "participant_removed" ||
               msg.code === "forbidden"
