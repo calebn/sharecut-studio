@@ -11,6 +11,7 @@ import {
   startRasterWorker,
   subscribeRasterBackend,
   subscribeRasterDone,
+  subscribeRasterDropped,
 } from "./rasterClient";
 import { parityJob, type RasterInMsg } from "./rasterProtocol";
 
@@ -270,5 +271,25 @@ describe("rasterClient", () => {
     want = false;
     expect(hasRaster("x", false, 1)).toBe(false);
     expect(hasRaster("y", false, 1)).toBe(false);
+  });
+
+  it("tells listeners which queued jobs it dropped as unwanted", () => {
+    const dropped: string[] = [];
+    const off = subscribeRasterDropped((key) => {
+      dropped.push(key);
+    });
+    for (const k of ["a", "b", "c", "d"]) {
+      requestRaster(req(k));
+    }
+    let want = true;
+    requestRaster(req("x", { wanted: () => want }));
+    // Another layer would skip x: the queued job is still wanted.
+    expect(hasRaster("x", false, 0)).toBe(true);
+    want = false;
+    const w = FakeWorker.last!;
+    w.reply({ type: "done", id: 1, bitmap: bitmap(), backend: "webgl2" });
+    expect(dropped).toEqual(["x"]);
+    expect(w.posted).toHaveLength(4);
+    off();
   });
 });

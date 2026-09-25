@@ -20,6 +20,7 @@ const state = vi.hoisted(() => ({
   }[],
   pcmRequests: [] as number[][],
   listeners: new Set<() => void>(),
+  dropped: new Set<(key: string) => void>(),
 }));
 
 /** Set a status entry the way a poll would, notifying subscribers. */
@@ -72,6 +73,10 @@ vi.mock("../waveform/pcmStore", () => ({
 vi.mock("../waveform/rasterClient", () => ({
   requestRaster: (req: unknown) => state.rasters.push(req),
   subscribeRasterDone: () => () => {},
+  subscribeRasterDropped: (fn: (key: string) => void) => {
+    state.dropped.add(fn);
+    return () => state.dropped.delete(fn);
+  },
   hasRaster: (key: string, provisional: boolean) =>
     (state.rasters as { key: string; provisional: boolean }[]).some(
       (r) => r.key === key && r.provisional === provisional,
@@ -335,6 +340,25 @@ describe("WaveformLayer", () => {
     setEntry("track:host", ready());
     expect(rasters()).toHaveLength(sent);
     expect(state.tileRequests).toHaveLength(asked);
+  });
+
+  it("asks again for a skipped tile when the queued job it deferred to is dropped", () => {
+    mount();
+    const key = rasters()[0]!.key;
+    state.rasters = rasters().filter((r) => r.key !== key);
+    const before = rasters().length;
+    act(() => {
+      for (const fn of state.dropped) {
+        fn("not-a-tile-of-this-layer");
+      }
+    });
+    expect(rasters()).toHaveLength(before);
+    act(() => {
+      for (const fn of state.dropped) {
+        fn(key);
+      }
+    });
+    expect(rasters().filter((r) => r.key === key)).toHaveLength(1);
   });
 
   it("asks for a held pyramid under its own ref, and drops it on a project change", () => {

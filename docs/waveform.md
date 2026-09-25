@@ -395,7 +395,7 @@ starts at the ghost's source start and has the ghost's width.
   context. Without one, it draws a stand-in (the nearest zoom that overlaps,
   or a render from a coarser level that is already loaded) and asks for the
   data and a raster. A tile whose render is already queued or in flight is
-  skipped (`rasterClient.hasRaster`), so data events do not rebuild its job.
+  skipped (`rasterClient.hasRaster`), so data events do not rebuild its job. If the queue later drops that job as unwanted, `subscribeRasterDropped` tells any layer that still wants the key, and it asks again.
   The mode is pyramid, or host PCM below level 0, drawn as
   a line under 4 frames per device column. Guests use level 0 bins
   stretched over several pixels.
