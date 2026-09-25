@@ -928,11 +928,10 @@ test.describe("record lobby", () => {
           "recording",
         );
         await expect(guest.locator(".record-rec-label")).toHaveText("REC");
+        // Wait for about 2 s of PCM written in place before killing the tab.
         await expect
-          .poll(async () => guest.locator(".record-clock").innerText(), {
-            timeout: 15_000,
-          })
-          .not.toMatch(/^0:0[0-2]$/);
+          .poll(async () => keeperWavBytes(guest), { timeout: 15_000 })
+          .toBeGreaterThan(44 + 48_000 * 2 * 2);
 
         // Tear the page and its writer worker down with no keeper close.
         const ctx = guest.context();
