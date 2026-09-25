@@ -22,6 +22,7 @@ from podcast_mcp.engines.waveform_pyramid import (
 from podcast_mcp.models import MediaAsset, Track, load_project, save_project
 from podcast_mcp.services import waveform as svc
 from podcast_mcp.services.waveform import (
+    MediaEntry,
     StaleWaveformKeyError,
     current_key,
     ensure_track_waveforms,
@@ -65,6 +66,8 @@ def test_media_index_lists_raw_refs(tmp_path):
     host, pinned = index.refs["track:host"], index.refs["source:s_host"]
     assert host.rel_path == pinned.rel_path == "raw/host.wav"
     assert current_key(host) == current_key(pinned)  # cross-lane pin shares the pyramid
+    artifacts = project_path.parent.resolve() / "artifacts"
+    assert wm.pyramid_target(artifacts, "track:host", host).key == current_key(host)
 
 
 def test_media_index_stems_fresh_only_and_unsafe_ids(tmp_path):
@@ -245,6 +248,7 @@ def test_tile_bytes_match_read_bins_without_parsing(tmp_path, monkeypatch):
     body = tile_bytes(project_path, "track:host", key, 0, 0, 16)
     assert body == read_bins(path, meta, 0, 0, 16 * 4096)
     assert len(body) == 300 * 6
+    assert all(isinstance(k, tuple) and k[0].endswith(".wfpk") for k in svc._META)
 
 
 @pytest.mark.parametrize(
@@ -407,3 +411,115 @@ def test_meta_cache_is_bounded(tmp_path, monkeypatch):
     media = waveform_status(project_path, "raw")["media"]
     assert media["track:host"]["status"] == media["track:guest"]["status"] == "ready"
     assert len(svc._META) == 1
+
+
+def test_live_key_maps_missing_media_to_lookup_error(tmp_path):
+    entry = MediaEntry(kind="raw", abs_path=tmp_path / "nope.wav", rel_path="nope.wav")
+    with pytest.raises(LookupError):
+        svc.live_key(entry)
+
+
+def test_pcm_block_decode_failure_is_lookup_error(tmp_path, monkeypatch):
+    monkeypatch.setattr(svc, "pcm_block_frames", lambda: 256)
+    project_path = waveform_project(tmp_path)
+    key, _ = _ready(project_path)
+
+    def boom(*_a, **_k):
+        raise RuntimeError("ffmpeg failed")
+
+    monkeypatch.setattr(svc, "read_pcm_minmax", boom)
+    with pytest.raises(svc.WaveformDecodeError):
+        pcm_block(project_path, "track:host", key, 0)
+
+
+def test_pcm_block_stale_when_media_changes_mid_read(tmp_path, monkeypatch):
+    monkeypatch.setattr(svc, "pcm_block_frames", lambda: 256)
+    project_path = waveform_project(tmp_path)
+    key, _ = _ready(project_path)
+    audio = project_path.parent / "raw" / "host.wav"
+    real = svc.read_pcm_minmax
+
+    def swapping(*a, **k):
+        out = real(*a, **k)
+        st = audio.stat()
+        os.utime(audio, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
+        return out
+
+    monkeypatch.setattr(svc, "read_pcm_minmax", swapping)
+    with pytest.raises(StaleWaveformKeyError):
+        pcm_block(project_path, "track:host", key, 0)
+
+
+def test_media_index_sees_media_that_appears_later(tmp_path):
+    project_path = waveform_project(tmp_path)
+    assert media_index(project_path).unavailable["track:gone"] == "no-media"
+    write_wav(project_path.parent / "raw" / "missing.wav", 640)
+    assert "track:gone" in media_index(project_path).refs
+
+
+def test_media_index_sees_stem_hash_rewritten_in_place(tmp_path):
+    project_path = waveform_project(tmp_path)
+    stems = project_path.parent / "artifacts" / "tracks"
+    write_wav(stems / "host.wav", 640)
+    (stems / "host.hash").write_text("old")
+
+    def fresh(_p, tid):
+        h = stems / f"{tid}.hash"
+        return h.read_text() == "new" if h.is_file() else False
+
+    with patch.object(wm, "stem_is_fresh", fresh):
+        assert "stem:host" not in media_index(project_path).refs
+        st = (stems / "host.hash").stat()
+        (stems / "host.hash").write_text("new")
+        os.utime(stems / "host.hash", ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
+        assert "stem:host" in media_index(project_path).refs
+
+
+def test_media_index_stem_written_during_parse_is_not_kept(tmp_path, monkeypatch):
+    project_path = waveform_project(tmp_path)
+    stems = project_path.parent / "artifacts" / "tracks"
+    real = svc.collect_media_refs
+
+    def racing(project):
+        write_wav(stems / "host.wav", 640)
+        return real(project)
+
+    monkeypatch.setattr(svc, "collect_media_refs", racing)
+    first = media_index(project_path)
+    monkeypatch.setattr(svc, "collect_media_refs", real)
+    assert media_index(project_path) is not first
+
+
+def test_gc_failure_is_retried_and_does_not_break_status(tmp_path, monkeypatch):
+    project_path = waveform_project(tmp_path)
+
+    def gone(_p):
+        raise FileNotFoundError("x")
+
+    monkeypatch.setattr(svc, "media_index", gone)
+    with pytest.raises(FileNotFoundError):
+        gc_pyramids(project_path)
+    assert str(project_path.resolve()) not in svc._GC_DONE
+    monkeypatch.undo()
+    assert gc_pyramids(project_path) == 0
+    assert str(project_path.resolve()) in svc._GC_DONE
+
+
+def test_status_survives_gc_error(tmp_path, monkeypatch):
+    project_path = waveform_project(tmp_path)
+
+    def boom(*_a, **_k):
+        raise RuntimeError("x")
+
+    monkeypatch.setattr(svc, "gc_pyramids", boom)
+    assert "track:host" in waveform_status(project_path, "raw")["media"]
+
+
+def test_source_ref_resolves_like_clip_render(tmp_path):
+    from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
+
+    project = load_project(waveform_project(tmp_path))
+    clip = next(c for c in project.clips if c.source_id == "s_host")
+    track = project.track_by_id(clip.track_id)
+    entry = wm.collect_media_refs(project).refs["source:s_host"]
+    assert entry.abs_path == resolve_clip_audio_path(project, track, clip)

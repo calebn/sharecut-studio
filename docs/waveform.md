@@ -220,9 +220,13 @@ file through `source_id` gets its own `source:` ref, whose key matches the
 [`services/waveform.py`](../src/podcast_mcp/services/waveform.py) adds:
 
 - **`media_index(project_path)`:** the refs of one project, cached in an LRU
-  of 16 keyed by the project JSON's `file_revision` and the mtime of
-  `artifacts/tracks` (stem renders do not touch the project JSON). A parse is
-  cached only when the revision is the same before and after it. Keys are
+  of 16 keyed by the project JSON's `file_revision`. Each entry also stores a
+  stat signature (size and mtime, or missing) of the files that decide
+  availability without touching the project JSON: each track's media, each
+  clip-referenced source, and each track's stem WAV and `.hash` sidecar
+  (`media_watch_paths`). A hit whose signature changed is re-parsed, so media
+  that appears later or a re-rendered stem shows up on the next call. A parse
+  is cached only when the revision is the same before and after it. Keys are
   recomputed with `stat()` on every call, so media edits that do not touch the
   project JSON still change the key.
 - **`waveform_status(project_path, kind)`:** `{"format_version": 1, "media": {ref: entry}}`.
@@ -234,7 +238,7 @@ file through `source_id` gets its own `source:` ref, whose key matches the
   | Failed | `{"status": "unavailable", "reason": "no-media" \| "decode-failed" \| "unsafe-id"}` |
 
   A pending build is checked before the file (#421). A pyramid that fails
-  `read_meta` is deleted and rebuilt. `read_meta` results are cached per key.
+  `read_meta` is deleted and rebuilt. `read_meta` results are cached per pyramid file.
 - **Hooks** (engine functions, re-exported by the service):
   `schedule_track_waveforms(project, track)` queues the track ref plus the
   source refs of that track's clips; `ensure_track_waveforms(project, track)`
@@ -244,7 +248,8 @@ file through `source_id` gets its own `source:` ref, whose key matches the
   landing, stem renders (`_render_track_stems`) and `PlayService.ensure_stem`.
 - **`gc_pyramids(project_path)`:** once per process per project, deletes
   pyramids whose ref slug is no longer listed and that are older than 7 days
-  (per-ref pruning never reaches deleted refs).
+  (per-ref pruning never reaches deleted refs). A failed pass is retried on a
+  later status call and never fails the status request.
 
 ## API
 
@@ -255,11 +260,11 @@ need the host role (`require_host`) and a project path (`resolve_project`);
 | Route | Response | Rules |
 | --- | --- | --- |
 | `GET /api/waveform/status?path=&kind=raw\|stem` | JSON | `Cache-Control: no-store` |
-| `GET /api/waveform/tiles/{key}?path=&ref=&level=&start=&count=` | octet-stream: the concatenated bins of data tiles `[start, start+count)`, clipped at the end of the level | Validates the ref grammar, `key` (`^[0-9a-f]{20}$`), that the file exists, the level, `start`, and `1 ≤ count ≤ max_tiles_per_request`. No index and no project parse. `Cache-Control: private, max-age=31536000, immutable`, `ETag: "{key}-{level}-{start}-{count}"` |
-| `GET /api/waveform/pcm/{key}?path=&ref=&block=` | octet-stream: int16 `(min, max)` pairs for frames `[block·B, min((block+1)·B, total))`, `B = pcm_block_frames` | **409** when `key` is not the ref's current key. Immutable, `ETag: "{key}-pcm-{block}"` |
+| `GET /api/waveform/tiles/{key}?path=&ref=&level=&start=&count=` | octet-stream: the concatenated bins of data tiles `[start, start+count)`, clipped at the end of the level | Validates the ref grammar, `key` (`^[0-9a-f]{20}$`), that the file exists, the level, `start`, and `1 ≤ count ≤ max_tiles_per_request`. No index and no project parse. `Cache-Control: private, max-age=31536000, immutable` (no ETag: the URL carries the key) |
+| `GET /api/waveform/pcm/{key}?path=&ref=&block=` | octet-stream: int16 `(min, max)` pairs for frames `[block·B, min((block+1)·B, total))`, `B = pcm_block_frames` | **409** when `key` is not the ref's current key, checked before and after the read. Immutable |
 
-Errors map bad input to 400, missing refs or pyramids to 404 and stale keys to
-409, and always send `Cache-Control: no-store`. Tile bytes are
+Errors map bad input to 400, missing refs or pyramids, and media that cannot be
+read or decoded, to 404, stale keys to 409 and anything else to 500, and always send `Cache-Control: no-store`. Tile bytes are
 `i16 min, i16 max, i16 rms` per bin, as in the file.
 
 Guest routes (`gui/routes/review_share.py`, services
@@ -267,9 +272,20 @@ Guest routes (`gui/routes/review_share.py`, services
 `services/share.py`) need the `view` capability and only cover `kind=raw`:
 
 - `GET /api/review/{token}/daw/waveform/status`: read rate class.
+  Like the host status, it queues missing pyramids. It is the only builder for
+  media that predates the eager hooks, and the viewer polls it. The build pool
+  dedupes by `(slug, key)` with two workers, so a guest can cause at most one
+  build per missing ref. A failed key reports `decode-failed` and is not retried
+  in that process. GC runs once per process per project and deletes only
+  week-old orphans.
 - `GET /api/review/{token}/daw/waveform/tiles/{key}?ref=&level=&start=&count=`:
   only `track:` / `source:` refs, and only the ref's live key (404 otherwise).
-  Audio rate class on the relay and the host (no RPM; the response holds an
-  audio concurrency slot).
+  Audio rate class on the relay and the host (no RPM; the request takes an
+  audio concurrency slot before any disk work and holds it until the response is sent).
 
 There is **never** a guest PCM route: raw samples never go to guests.
+
+Guest tiles are cached `private, max-age=31536000, immutable` under their
+content-addressed key, so revoking a share does not remove tiles a guest's
+browser already downloaded (the same holds for the legacy peaks route).
+Revocation stops new requests only.

@@ -35,7 +35,11 @@ from podcast_mcp.gui.routes.share_common import (
     share_features_manifest,
 )
 from podcast_mcp.gui.routes.waveform import NO_STORE as WAVEFORM_NO_STORE
-from podcast_mcp.gui.routes.waveform import binary_response, no_store_error, waveform_error
+from podcast_mcp.gui.routes.waveform import (
+    OCTET_STREAM_RESPONSES,
+    binary_response,
+    waveform_call,
+)
 from podcast_mcp.gui.schemas import DocumentCommandRequest, ShareActionDoneRequest
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.payloads import (
@@ -134,6 +138,12 @@ def _audio_slot(token: str) -> BackgroundTask | None:
             headers={"Retry-After": decision.retry_after_header},
         )
     return BackgroundTask(lim.audio_concurrent.exit, token)
+
+
+def _release_audio_slot(token: str, slot: BackgroundTask | None) -> None:
+    """Release a slot from ``_audio_slot`` when no response will run its task."""
+    if slot is not None:
+        get_host_limiters().audio_concurrent.exit(token)
 
 
 def _audio_file_response(token: str, path, **kwargs: Any):
@@ -249,18 +259,20 @@ def get_daw_peaks(token: str, track_id: str):
 @router.get("/api/review/{token}/daw/waveform/status")
 def get_daw_waveform_status(token: str) -> JSONResponse:
     """Raw-media pyramid status (``view``); same shape as the host status route."""
-    try:
+
+    def run() -> dict[str, Any]:
         _check_token(token)
         _rate_limit(token, "read")
-        body = share_daw_waveform_status(token)
-    except HTTPException as exc:
-        raise no_store_error(exc) from exc
-    except Exception as exc:
-        raise no_store_error(_map_share_exc(exc)) from exc
-    return JSONResponse(body, headers=WAVEFORM_NO_STORE)
+        return share_daw_waveform_status(token)
+
+    return JSONResponse(waveform_call(run, fallback=_map_share_exc), headers=WAVEFORM_NO_STORE)
 
 
-@router.get("/api/review/{token}/daw/waveform/tiles/{key}")
+@router.get(
+    "/api/review/{token}/daw/waveform/tiles/{key}",
+    response_class=Response,
+    responses=OCTET_STREAM_RESPONSES,
+)
 def get_daw_waveform_tiles(
     token: str,
     key: str,
@@ -269,21 +281,25 @@ def get_daw_waveform_tiles(
     start: int = Query(..., description="First data tile"),
     count: int = Query(1, description="Data tiles (1..max_tiles_per_request)"),
 ) -> Response:
-    """Immutable pyramid data tiles (``view``); audio rate class. No guest PCM route."""
-    try:
+    """Immutable pyramid data tiles (``view``); audio rate class. No guest PCM route.
+
+    The audio slot is taken before any disk work, so the concurrency cap bounds it.
+    """
+
+    def run() -> Response:
         _check_token(token)
         _rate_limit(token, "audio")
-        body = share_daw_waveform_tiles(
-            token, ref=ref, key=key, level=level, start=start, count=count
-        )
         slot = _audio_slot(token)
-    except HTTPException as exc:
-        raise no_store_error(exc) from exc
-    except LookupError as exc:
-        raise waveform_error(exc) from exc
-    except Exception as exc:
-        raise no_store_error(_map_share_exc(exc)) from exc
-    return binary_response(body, f"{key}-{level}-{start}-{count}", background=slot)
+        try:
+            body = share_daw_waveform_tiles(
+                token, ref=ref, key=key, level=level, start=start, count=count
+            )
+        except BaseException:
+            _release_audio_slot(token, slot)
+            raise
+        return binary_response(body, background=slot)
+
+    return waveform_call(run, fallback=_map_share_exc)
 
 
 @router.get("/api/review/{token}/daw/waveform-snap")

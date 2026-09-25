@@ -4,7 +4,7 @@ Media refs and build hooks live in ``engines/waveform_media`` (so the pipeline
 never imports services) and are re-exported here. This module adds:
 
 - ``media_index`` — a small LRU of each project's refs, keyed by the project
-  JSON revision (plus the stems folder), parsed with a before/after revision
+  JSON revision and checked against a stat signature of the media and stem files, parsed with a before/after revision
   check so a racing save is never cached;
 - ``waveform_status`` — per-ref ``ready`` / ``generating`` / ``unavailable``,
   scheduling missing pyramids;
@@ -18,8 +18,10 @@ See ``docs/waveform.md``.
 from __future__ import annotations
 
 import contextlib
+import logging
 import re
 import time
+import wave
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
@@ -32,14 +34,15 @@ from podcast_mcp.engines.waveform_media import (
     MediaEntry,
     MediaKind,
     collect_media_refs,
+    current_key,
     ensure_track_waveforms,
+    media_watch_paths,
     pyramid_target,
     schedule_stem_waveforms,
     schedule_track_waveforms,
 )
 from podcast_mcp.engines.waveform_pyramid import (
     PyramidMeta,
-    media_key,
     pyramid_build_failed,
     pyramid_build_pending,
     pyramid_path,
@@ -61,9 +64,11 @@ __all__ = [
     "MediaEntry",
     "MediaIndex",
     "StaleWaveformKeyError",
+    "WaveformDecodeError",
     "current_key",
     "ensure_track_waveforms",
     "gc_pyramids",
+    "live_key",
     "media_index",
     "parse_ref",
     "pcm_block",
@@ -83,9 +88,18 @@ _INDEX_MAX = 16
 _META_MAX = 256
 GC_MIN_AGE_SEC = 7 * 86_400.0
 
+log = logging.getLogger(__name__)
+
 
 class StaleWaveformKeyError(ValueError):
     """The requested key is not the ref's current key (HTTP 409)."""
+
+
+class WaveformDecodeError(LookupError):
+    """The media could not be read or decoded (HTTP 404, like a missing ref)."""
+
+
+_WatchSig = tuple[tuple[int, int] | None, ...]
 
 
 @dataclass(frozen=True)
@@ -93,12 +107,14 @@ class MediaIndex:
     artifacts_dir: Path
     refs: dict[str, MediaEntry]
     unavailable: dict[str, str]
+    watch_paths: tuple[Path, ...] = ()
+    watch_sig: _WatchSig = ()
 
 
-_IndexKey = tuple[str, FileRevision, int | None]
+_IndexKey = tuple[str, FileRevision]
 _INDEX: OrderedDict[_IndexKey, MediaIndex] = OrderedDict()
 _INDEX_LOCK = Lock()
-_META: OrderedDict[str, PyramidMeta] = OrderedDict()
+_META: OrderedDict[tuple[str, str], PyramidMeta] = OrderedDict()
 _META_LOCK = Lock()
 _GC_DONE: set[str] = set()
 _GC_LOCK = Lock()
@@ -116,34 +132,42 @@ def _artifacts_dir(project_path: Path) -> Path:
     return project_path.parent.resolve() / "artifacts"
 
 
-def _stems_signature(project_path: Path) -> int | None:
-    """Stem renders rewrite ``artifacts/tracks`` without touching the project JSON."""
-    try:
-        return (_artifacts_dir(project_path) / "tracks").stat().st_mtime_ns
-    except OSError:
-        return None
+def _watch_signature(paths: tuple[Path, ...]) -> _WatchSig:
+    out: list[tuple[int, int] | None] = []
+    for path in paths:
+        try:
+            st = path.stat()
+        except OSError:
+            out.append(None)
+            continue
+        out.append((st.st_size, st.st_mtime_ns))
+    return tuple(out)
 
 
 def media_index(project_path: Path) -> MediaIndex:
-    """Refs of the project at *project_path* (LRU of 16, keyed by file revision)."""
-    cache_key: _IndexKey = (
-        str(project_path),
-        file_revision(project_path),
-        _stems_signature(project_path),
-    )
+    """Refs of the project at *project_path* (LRU of 16 keyed by file revision).
+
+    A hit is reused only while its watched media and stem files are unchanged.
+    """
+    cache_key: _IndexKey = (str(project_path), file_revision(project_path))
     with _INDEX_LOCK:
         hit = _INDEX.get(cache_key)
         if hit is not None:
             _INDEX.move_to_end(cache_key)
-            return hit
+    if hit is not None and _watch_signature(hit.watch_paths) == hit.watch_sig:
+        return hit
     before = file_revision(project_path)
     _, project = open_project(project_path)
     after = file_revision(project_path)
+    watch_paths = media_watch_paths(project)
+    watch_sig = _watch_signature(watch_paths)  # before collecting: a later change misses next time
     refs = collect_media_refs(project)
     index = MediaIndex(
         artifacts_dir=_artifacts_dir(project_path),
         refs=refs.refs,
         unavailable=refs.unavailable,
+        watch_paths=watch_paths,
+        watch_sig=watch_sig,
     )
     if before == after == cache_key[1]:
         with _INDEX_LOCK:
@@ -153,21 +177,24 @@ def media_index(project_path: Path) -> MediaIndex:
     return index
 
 
-def current_key(entry: MediaEntry) -> str:
-    """Pyramid key of *entry*'s media as it is on disk now."""
-    st = entry.abs_path.stat()
-    return media_key(entry.rel_path, st.st_size, st.st_mtime_ns)
+def live_key(entry: MediaEntry) -> str:
+    """``current_key`` for request paths: missing or unreadable media is ``LookupError`` (404)."""
+    try:
+        return current_key(entry)
+    except OSError as exc:
+        raise LookupError("waveform media not found") from exc
 
 
 def _meta(path: Path, key: str) -> PyramidMeta:
+    cache_key = (str(path), key)
     with _META_LOCK:
-        hit = _META.get(key)
+        hit = _META.get(cache_key)
         if hit is not None:
-            _META.move_to_end(key)
+            _META.move_to_end(cache_key)
             return hit
     meta = read_meta(path)
     with _META_LOCK:
-        _META[key] = meta
+        _META[cache_key] = meta
         while len(_META) > _META_MAX:
             _META.popitem(last=False)
     return meta
@@ -223,7 +250,10 @@ def _ref_kind(ref: str) -> MediaKind:
 def waveform_status(project_path: Path, kind: MediaKind) -> dict[str, Any]:
     """``{"format_version", "media": {ref: entry}}`` for every ref of *kind*."""
     index = media_index(project_path)
-    gc_pyramids(project_path)
+    try:
+        gc_pyramids(project_path, index)
+    except Exception:
+        log.warning("waveform pyramid GC failed for %s", project_path, exc_info=True)
     media: dict[str, dict[str, Any]] = {}
     for ref, entry in index.refs.items():
         if entry.kind == kind:
@@ -265,13 +295,14 @@ def tile_bytes(project_path: Path, ref: str, key: str, level: int, start: int, c
 def pcm_block(project_path: Path, ref: str, key: str, block: int) -> bytes:
     """int16 ``(min, max)`` pairs for frames ``[block*B, min((block+1)*B, total))``.
 
-    ``StaleWaveformKeyError`` when *key* is not the ref's current key.
+    ``StaleWaveformKeyError`` when *key* is not the ref's current key, checked before
+    and after the read.
     """
     parse_ref(ref)
     entry = media_index(project_path).refs.get(ref)
     if entry is None:
         raise LookupError("unknown media ref")
-    if current_key(entry) != key:
+    if live_key(entry) != key:
         raise StaleWaveformKeyError("waveform key is stale")
     meta = _meta(_pyramid_file(project_path, ref, key), key)
     frames_per_block = pcm_block_frames()
@@ -279,33 +310,46 @@ def pcm_block(project_path: Path, ref: str, key: str, block: int) -> bytes:
     if block < 0 or start >= meta.total_frames:
         raise ValueError("block out of range")
     frames = min(frames_per_block, meta.total_frames - start)
-    pairs = read_pcm_minmax(
-        entry.abs_path,
-        start,
-        frames,
-        sample_rate=meta.sample_rate,
-        channels=meta.channels,
-    )
+    try:
+        pairs = read_pcm_minmax(
+            entry.abs_path,
+            start,
+            frames,
+            sample_rate=meta.sample_rate,
+            channels=meta.channels,
+        )
+    except (OSError, EOFError, RuntimeError, wave.Error) as exc:
+        raise WaveformDecodeError("waveform media could not be decoded") from exc
+    if live_key(entry) != key:  # media replaced mid-read: never cache the wrong samples
+        raise StaleWaveformKeyError("waveform key is stale")
     return pairs.astype("<i2").tobytes()
 
 
-def gc_pyramids(project_path: Path) -> int:
-    """Once per process per project: delete week-old pyramids whose ref is gone."""
+def gc_pyramids(project_path: Path, index: MediaIndex | None = None) -> int:
+    """Once per process per project: delete week-old pyramids whose ref is gone.
+
+    The project counts as done only after a pass succeeds.
+    """
     marker = str(project_path.resolve())
     with _GC_LOCK:
         if marker in _GC_DONE:
             return 0
         _GC_DONE.add(marker)
-    index = media_index(project_path)
-    live = {ref_slug(*parse_ref(ref)) for ref in (*index.refs, *index.unavailable)}
-    cutoff = time.time() - GC_MIN_AGE_SEC
-    removed = 0
-    for path in (index.artifacts_dir / "peaks").glob("*.wfpk"):
-        match = _PYRAMID_NAME_RE.fullmatch(path.name)
-        if match is None or match.group(1) in live:
-            continue
-        with contextlib.suppress(OSError):
-            if path.stat().st_mtime < cutoff:
-                path.unlink()
-                removed += 1
+    try:
+        index = index if index is not None else media_index(project_path)
+        live = {ref_slug(*parse_ref(ref)) for ref in (*index.refs, *index.unavailable)}
+        cutoff = time.time() - GC_MIN_AGE_SEC
+        removed = 0
+        for path in (index.artifacts_dir / "peaks").glob("*.wfpk"):
+            match = _PYRAMID_NAME_RE.fullmatch(path.name)
+            if match is None or match.group(1) in live:
+                continue
+            with contextlib.suppress(OSError):
+                if path.stat().st_mtime < cutoff:
+                    path.unlink()
+                    removed += 1
+    except BaseException:
+        with _GC_LOCK:
+            _GC_DONE.discard(marker)
+        raise
     return removed

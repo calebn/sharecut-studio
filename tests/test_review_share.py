@@ -1615,7 +1615,7 @@ def test_guest_waveform_status_and_tiles(minimal_project, sample_wav, monkeypatc
     )
     assert tiles.status_code == 200
     assert tiles.headers["cache-control"] == "private, max-age=31536000, immutable"
-    assert tiles.headers["etag"] == f'"{key}-0-0-1"'
+    assert "etag" not in tiles.headers
     assert len(tiles.content) % 6 == 0 and tiles.content
 
     foreign = client.get(
@@ -1683,3 +1683,44 @@ def test_guest_waveform_tiles_hold_an_audio_slot(minimal_project, sample_wav, mo
     monkeypatch.setattr(lim.audio_concurrent, "exit", exits.append)
     assert client.get(url, params=params).status_code == 200
     assert exits == [token]  # released after the response
+    exits.clear()
+    missing = client.get(f"/api/review/{token}/daw/waveform/tiles/{'0' * 20}", params=params)
+    assert missing.status_code == 404
+    assert exits == [token]  # a failure releases exactly once
+
+
+def test_guest_waveform_tiles_take_the_slot_before_work(minimal_project, sample_wav, monkeypatch):
+    from podcast_mcp.services.remote_mcp import limits
+
+    client, token = _waveform_share(minimal_project, sample_wav, ["play", "view"])
+    key = client.get(f"/api/review/{token}/daw/waveform/status").json()["media"]["track:host"][
+        "key"
+    ]
+    monkeypatch.setenv("PODCAST_RATE_LIMIT", "1")
+    lim = limits.get_host_limiters()
+    order: list[str] = []
+    allowed = limits.RateLimitDecision(allowed=True, bucket="host_audio")
+    monkeypatch.setattr(
+        lim.audio_concurrent, "try_enter", lambda _t: (order.append("slot"), allowed)[1]
+    )
+    monkeypatch.setattr(lim.audio_concurrent, "exit", lambda _t: order.append("exit"))
+
+    def work(*_a, **_k):
+        order.append("work")
+        return b"\0" * 6
+
+    monkeypatch.setattr("podcast_mcp.gui.routes.review_share.share_daw_waveform_tiles", work)
+    res = client.get(
+        f"/api/review/{token}/daw/waveform/tiles/{key}",
+        params={"ref": "track:host", "level": 0, "start": 0},
+    )
+    assert res.status_code == 200
+    assert order == ["slot", "work", "exit"]
+
+
+def test_guest_waveform_tiles_openapi_is_octet_stream():
+    from podcast_mcp.gui.server import create_app
+
+    path = "/api/review/{token}/daw/waveform/tiles/{key}"
+    content = create_app().openapi()["paths"][path]["get"]["responses"]["200"]["content"]
+    assert content == {"application/octet-stream": {}}

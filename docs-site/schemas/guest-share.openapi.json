@@ -6873,7 +6873,7 @@
     },
     "/api/review/{token}/daw/waveform/tiles/{key}": {
       "get": {
-        "description": "Immutable pyramid data tiles (``view``); audio rate class. No guest PCM route.",
+        "description": "Immutable pyramid data tiles (``view``); audio rate class. No guest PCM route.\n\nThe audio slot is taken before any disk work, so the concurrency cap bounds it.",
         "parameters": [
           {
             "in": "path",
@@ -6940,11 +6940,9 @@
         "responses": {
           "200": {
             "content": {
-              "application/json": {
-                "schema": {}
-              }
+              "application/octet-stream": {}
             },
-            "description": "Successful Response"
+            "description": "Raw bins"
           },
           "422": {
             "content": {
