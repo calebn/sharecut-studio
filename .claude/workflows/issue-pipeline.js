@@ -796,6 +796,17 @@ async function finishLane(issue, pr, branch, head, { gateOnly = false } = {}) {
   let lastGate = null
   for (let attempt = 1; attempt <= GATE_ATTEMPTS; attempt++) {
     if (!green.ok || green.head_sha !== head) {
+      // GitHub starts no CI on a PR that conflicts with main, so waiting for CI first would
+      // sit until the wait times out. Rebase before the wait; the check below still covers
+      // a PR that starts conflicting while CI runs.
+      const pre = await gateFacts(issue, pr)
+      if (!pre) return stallOrInterrupt(issue, pr, 'gate agent died', 'gate')
+      if (pre.merge_state_status === 'DIRTY') {
+        lastGate = pre
+        const rb = await rebase(issue, pr, branch)
+        if (!rb || !rb.ok) { blockers = [`rebase onto main failed: ${rb ? rb.summary : 'agent died'}`]; break }
+        head = rb.head_sha
+      }
       green = await ensureGreen(issue, pr, branch, head)
       head = green.head_sha
     }

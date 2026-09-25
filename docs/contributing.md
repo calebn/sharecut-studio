@@ -131,7 +131,7 @@ Stages per issue (each issue is its own lane; lanes do not wait for each other):
    - the PR has neither `needs-user-input` nor `do-not-merge`,
    - there are 0 `wont_do` items.
 
-   A PR that conflicts with `main` is rebased (`--force-with-lease`) and re-checked.
+   A PR that conflicts with `main` is rebased (`--force-with-lease`) and re-checked. The conflict check runs before the CI wait, because GitHub starts no CI on a conflicting PR; it runs again after the wait for a PR that starts conflicting while CI runs.
 
 When every lane has finished, a Sonnet agent (low effort; a Haiku one fabricated its report) removes the run's clean `.claude/worktrees/wf_*` worktrees whose commit is on some branch, local or remote (so squash- or rebase-merged work counts). Any worktree with uncommitted or branchless commits is kept and reported, and the reported counts are cross-checked.
 
