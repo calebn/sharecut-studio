@@ -1,5 +1,6 @@
-import { useDawStore } from "../state/dawStore";
+import { useDawStore, zoomReclampPatch } from "../state/dawStore";
 import type { ProjectView, TimelineComment } from "../types/project";
+import { sessionSecOf } from "../utils/zoom";
 import {
   currentDocumentSeq,
   noteDocumentSeq,
@@ -39,11 +40,11 @@ export function applyDocumentSnapshot(
     if (!next) {
       return state;
     }
-    return { project: next };
+    return {
+      project: next,
+      ...zoomReclampPatch(state, sessionSecOf({ project: next })),
+    };
   });
-  if (applied) {
-    useDawStore.getState().reclampZoomForDuration();
-  }
   if (seq > 0) {
     noteDocumentSeq(seq);
   }

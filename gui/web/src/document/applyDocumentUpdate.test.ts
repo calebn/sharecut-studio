@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import { documentClientId } from "../utils/documentClient";
+import { MAX_CONTENT_PX } from "../utils/timelineZoom.generated";
 import {
   applyDocumentSnapshot,
   applyDocumentSnapshotWithResync,
@@ -21,6 +22,21 @@ const track = (id: string) => ({
 });
 
 describe("applyDocumentSnapshot", () => {
+  it("reclamps zoom to the new session length in the same update", () => {
+    resetDocumentSeqForTests();
+    useDawStore
+      .getState()
+      .hydrate("/tmp/p.json", minimalProject({ timeline_duration_sec: 60 }));
+    useDawStore.setState({ zoomPxPerSec: 48000, scrollLeft: 0 });
+    applyDocumentSnapshot({
+      server_seq: 9,
+      project: minimalProject({ timeline_duration_sec: 3600 }),
+    });
+    expect(useDawStore.getState().zoomPxPerSec).toBeLessThanOrEqual(
+      MAX_CONTENT_PX / 3600 + 1e-9,
+    );
+  });
+
   it("merges a second non-echo apply at the same seq", () => {
     resetDocumentSeqForTests();
     const first = minimalProject({ tracks: [] });

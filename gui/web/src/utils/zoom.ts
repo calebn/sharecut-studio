@@ -13,6 +13,13 @@ export {
 /** Session length (s) the zoom ceiling uses when no project is loaded. */
 export const DEFAULT_SESSION_SEC = 60;
 
+/** Session length the zoom ceiling uses (`timeline_duration_sec`, else 60 s). */
+export function sessionSecOf(s: {
+  project: { timeline_duration_sec?: number | null } | null | undefined;
+}): number {
+  return s.project?.timeline_duration_sec ?? DEFAULT_SESSION_SEC;
+}
+
 /**
  * Clamp zoom to `[MIN_ZOOM, effectiveMaxZoomPxPerSec(sessionSec)]`: near
  * sample level on a short session, and never wider than `MAX_CONTENT_PX`.

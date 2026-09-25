@@ -3,10 +3,12 @@ import { MAX_CONTENT_PX } from "./timelineZoom.generated";
 import {
   anchoredZoomScroll,
   clampZoomPxPerSec,
+  DEFAULT_SESSION_SEC,
   discreteZoomFactor,
   fitZoomPxPerSec,
   MAX_ZOOM_PX_PER_SEC,
   MIN_ZOOM_PX_PER_SEC,
+  sessionSecOf,
   wheelZoomFactor,
   ZOOM_STEP,
 } from "./zoom";
@@ -116,5 +118,12 @@ describe("anchoredZoomScroll at the ceiling", () => {
     expect(zoom).toBe(48000);
     // 1,000,400 px at 40,000 px/s is 25.01 s: still under the pointer.
     expect((400 + scrollLeft) / zoom).toBeCloseTo(25.01, 9);
+  });
+});
+
+describe("sessionSecOf", () => {
+  it("uses the project length, else the default", () => {
+    expect(sessionSecOf({ project: { timeline_duration_sec: 12 } })).toBe(12);
+    expect(sessionSecOf({ project: null })).toBe(DEFAULT_SESSION_SEC);
   });
 });
