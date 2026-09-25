@@ -435,6 +435,46 @@ describe("RecordPanel", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("lets the host close the dialog while no audio is flagged", async () => {
+    useRecordHostStore
+      .getState()
+      .setSnapshot({ ...lobby, state: "recording", take_index: 0 });
+    useDawStore.setState({ recordPanelOpen: false });
+    useRecordHostStore.getState().setCaptureHealth("silent");
+    render(
+      <RecordPanel
+        micStatus="granted"
+        stream={{} as MediaStream}
+        recordingLocally
+      />,
+    );
+    await screen.findByRole("dialog", { name: "Record room" });
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Record room" })).toBeNull(),
+    );
+    expect(useDawStore.getState().recordPanelOpen).toBe(false);
+  });
+
+  it("does not show REC: no audio while the microphone is lost", async () => {
+    useRecordHostStore
+      .getState()
+      .setSnapshot({ ...lobby, state: "recording", take_index: 0 });
+    useDawStore.setState({ recordPanelOpen: true });
+    useRecordHostStore.getState().setCaptureHealth("silent");
+    render(
+      <RecordPanel
+        micStatus="granted"
+        stream={{} as MediaStream}
+        recordingLocally
+        micLost
+      />,
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Record room" });
+    expect(dialog).not.toHaveTextContent("REC: no audio");
+    expect(dialog).not.toHaveTextContent("No audio is reaching the recorder.");
+  });
+
   it("reopens on silent capture and offers Check mic", async () => {
     const check = vi.fn();
     useRecordHostStore
@@ -454,7 +494,7 @@ describe("RecordPanel", () => {
     expect(dialog).toHaveTextContent("REC: no audio");
     expect(dialog).toHaveTextContent("No audio is reaching the recorder.");
     expect(dialog).not.toHaveTextContent("Recording locally on this device.");
-    expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Close" })).toBeEnabled();
     await userEvent.click(screen.getByRole("button", { name: "Check mic" }));
     expect(check).toHaveBeenCalledOnce();
     rerender(

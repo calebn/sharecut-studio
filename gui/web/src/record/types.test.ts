@@ -6,6 +6,7 @@ import {
   hostReconnectPauseCopyFromSnapshot,
   hostUploadLine,
   type RecordSnapshot,
+  resolveCaptureHealth,
   shouldApplyRecordSnapshot,
 } from "./types";
 
@@ -172,5 +173,15 @@ describe("shouldApplyRecordSnapshot", () => {
     expect(
       shouldApplyRecordSnapshot({ ...base, server_time_ns: 1 }, null),
     ).toBe(true);
+  });
+});
+
+describe("resolveCaptureHealth", () => {
+  it("ranks keeper error over mic trouble over no audio", () => {
+    expect(resolveCaptureHealth(true, "pending", true)).toBe("failed");
+    expect(resolveCaptureHealth(false, "pending", true)).toBe("pending");
+    expect(resolveCaptureHealth(false, "failed", true)).toBe("failed");
+    expect(resolveCaptureHealth(false, null, true)).toBe("silent");
+    expect(resolveCaptureHealth(false, null, false)).toBeNull();
   });
 });

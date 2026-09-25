@@ -35,9 +35,7 @@ export function RecordTransportChip() {
     >
       <RecIndicator
         snapshot={snapshot}
-        captureFailed={captureHealth === "failed"}
-        capturePending={captureHealth === "pending"}
-        noAudio={captureHealth === "silent"}
+        capture={captureHealth}
         clockId={clockId}
       />
     </CommandButton>

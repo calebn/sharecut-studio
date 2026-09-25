@@ -215,3 +215,21 @@ export function hostUploadLine(
   }
   return `${name}: ${ackedParts} ${plural(ackedParts, "chunk")} acked.`;
 }
+
+/** The capture problem a REC surface shows while recording. */
+export type CaptureHealth = "pending" | "failed" | "silent" | null;
+
+/**
+ * Resolves the capture problem a REC surface shows while recording. A keeper
+ * error outranks everything and mic trouble outranks no audio, so the REC
+ * label and the notice beneath it never disagree.
+ */
+export function resolveCaptureHealth(
+  keeperError: boolean,
+  micHealth: "pending" | "failed" | null,
+  silent: boolean,
+): CaptureHealth {
+  if (keeperError) return "failed";
+  if (micHealth) return micHealth;
+  return silent ? "silent" : null;
+}

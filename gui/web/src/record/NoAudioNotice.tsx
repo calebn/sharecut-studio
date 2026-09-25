@@ -1,4 +1,4 @@
-import { Button } from "../ui";
+import { RecordAlert } from "./RecordAlert";
 import { CHECK_MIC_COPY, MIC_CHECK_FAILED_COPY, NO_AUDIO_COPY } from "./types";
 
 export function NoAudioNotice({
@@ -9,14 +9,9 @@ export function NoAudioNotice({
   checkFailed?: boolean;
 }) {
   return (
-    <div className="record-warn" role="alert">
+    <RecordAlert actionLabel={CHECK_MIC_COPY} onAction={onCheck}>
       <span>{NO_AUDIO_COPY}</span>
-      {checkFailed ? <span> {MIC_CHECK_FAILED_COPY}</span> : null}{" "}
-      {onCheck ? (
-        <Button type="button" onClick={onCheck}>
-          {CHECK_MIC_COPY}
-        </Button>
-      ) : null}
-    </div>
+      {checkFailed ? <span> {MIC_CHECK_FAILED_COPY}</span> : null}
+    </RecordAlert>
   );
 }

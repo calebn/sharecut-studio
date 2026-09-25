@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { hostRecordUploadTransport, loadHostRecordState } from "../api";
 import { useDaw } from "../state/useDaw";
 import { Button, CommandButton, Dialog } from "../ui";
@@ -31,6 +31,7 @@ import {
   hostReconnectPauseCopyFromSnapshot,
   LOCAL_KEEPER_COPY,
   LOCAL_KEEPER_PENDING_COPY,
+  resolveCaptureHealth,
   shouldApplyRecordSnapshot,
 } from "./types";
 import { UploadStatus } from "./UploadStatus";
@@ -98,13 +99,16 @@ export function RecordPanel({
   const state = snapshot?.state;
   const recording = state === "recording";
   const paused = state === "paused";
-  const captureUnavailable = recording && captureHealth !== null;
+  // No audio is a soft warning: it opens the dialog once but never pins it.
+  const captureUnavailable =
+    recording && (captureHealth === "pending" || captureHealth === "failed");
   const micLossNeedsAttention = (recording || paused) && micLost;
-  const noAudioNeedsAttention =
-    recording &&
-    captureHealth === "silent" &&
-    !keeperError &&
-    !micLossNeedsAttention;
+  const capture = resolveCaptureHealth(
+    !!keeperError,
+    captureHealth === "silent" ? null : captureHealth,
+    captureHealth === "silent" && !micLossNeedsAttention,
+  );
+  const noAudioNeedsAttention = recording && capture === "silent";
   useEffect(() => {
     if (
       (micLossNeedsAttention || captureUnavailable) &&
@@ -120,6 +124,13 @@ export function RecordPanel({
     setRecordPanelOpen,
     shareDialogOpen,
   ]);
+  const noAudioShown = useRef(false);
+  useEffect(() => {
+    if (noAudioNeedsAttention && !noAudioShown.current && !shareDialogOpen) {
+      setRecordPanelOpen(true);
+    }
+    noAudioShown.current = noAudioNeedsAttention;
+  }, [noAudioNeedsAttention, setRecordPanelOpen, shareDialogOpen]);
   const host = snapshot?.participants.find(
     (person) => person.participant_id === "p_host",
   );
@@ -248,12 +259,7 @@ export function RecordPanel({
     >
       <div className="stack record-panel">
         {snapshot ? (
-          <RecIndicator
-            snapshot={snapshot}
-            captureFailed={!!keeperError || captureHealth === "failed"}
-            capturePending={captureHealth === "pending"}
-            noAudio={captureHealth === "silent"}
-          />
+          <RecIndicator snapshot={snapshot} capture={capture} />
         ) : null}
         <StorageHeadroomWarning
           visible={state === "lobby" || state === "stopped"}
