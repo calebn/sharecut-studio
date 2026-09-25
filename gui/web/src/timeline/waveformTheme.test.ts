@@ -185,4 +185,75 @@ describe("waveformStyle", () => {
     const s = waveformStyle(document.createElement("div"), "x", "dark");
     expect([...s.core, ...s.edge]).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
   });
+
+  it("resolves the peak probe once per theme", () => {
+    let probes = 0;
+    const real = window.getComputedStyle.bind(window);
+    vi.spyOn(window, "getComputedStyle").mockImplementation((el, pseudo) => {
+      if (el === document.documentElement) {
+        return {
+          getPropertyValue: (name: string) =>
+            name === "--color-waveform-peak"
+              ? "color-mix(in srgb, var(--primitive-white) 55%, transparent)"
+              : "",
+        } as CSSStyleDeclaration;
+      }
+      if (
+        el instanceof HTMLSpanElement &&
+        el.parentElement === document.documentElement
+      ) {
+        probes += 1;
+        return { color: "color(srgb 1 1 1 / 0.55)" } as CSSStyleDeclaration;
+      }
+      return real(el, pseudo);
+    });
+    const layer = clipLayer("transparent");
+    waveformStyle(layer, "var(--clip-sfx)", "dark");
+    waveformStyle(layer, "var(--clip-sfx)", "dark");
+    expect(probes).toBe(1);
+    waveformStyle(layer, "var(--clip-sfx)", "light");
+    expect(probes).toBe(2);
+    clearWaveformFillCache();
+    waveformStyle(layer, "var(--clip-sfx)", "dark");
+    expect(probes).toBe(3);
+  });
+
+  it("converts a non-sRGB peak colour through a canvas", () => {
+    const real = window.getComputedStyle.bind(window);
+    vi.spyOn(window, "getComputedStyle").mockImplementation((el, pseudo) => {
+      if (el === document.documentElement) {
+        return {
+          getPropertyValue: (name: string) =>
+            name === "--color-waveform-peak" ? "oklch(0.9 0 0)" : "",
+        } as CSSStyleDeclaration;
+      }
+      if (
+        el instanceof HTMLSpanElement &&
+        el.parentElement === document.documentElement
+      ) {
+        return { color: "oklch(0.9 0 0)" } as CSSStyleDeclaration;
+      }
+      return real(el, pseudo);
+    });
+    const ctx = {
+      fillStyle: "",
+      fillRect: vi.fn(),
+      getImageData: () => ({
+        data: new Uint8ClampedArray([230, 230, 230, 255]),
+      }),
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      ctx as unknown as CanvasRenderingContext2D,
+    );
+    const s = waveformStyle(
+      clipLayer("transparent"),
+      "var(--clip-sfx)",
+      "dark",
+    );
+    expect(ctx.fillStyle).toBe("oklch(0.9 0 0)");
+    expect([...s.core].map((v) => Math.round(v * 255))).toEqual([
+      230, 230, 230, 255,
+    ]);
+    expect(s.edge[3]).toBeCloseTo(0.6, 6);
+  });
 });
