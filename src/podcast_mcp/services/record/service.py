@@ -390,13 +390,20 @@ class RecordSessionService:
             return (self.session_id, participant_id) not in self._removed_ids
 
     def invite_closed(self, token: str) -> bool:
-        """True when a participant minted through ``token`` was removed (closes the invite)."""
-        removed = {p.participant_id for p in self._model().participants if p.removed}
-        if not removed:
-            return False
-        return not removed.isdisjoint(
-            self._participants.participant_ids_for_token(token=token, session_id=self.session_id)
-        )
+        """True when a participant minted through ``token`` was removed (closes the invite).
+
+        Takes the room authority lock (an ``RLock``, so ``_join_locked`` can call it
+        while holding the lock). The SQLite lookup only runs once a removal exists.
+        """
+        with self._authority_lock:
+            removed = {p.participant_id for p in self._model().participants if p.removed}
+            if not removed:
+                return False
+            return not removed.isdisjoint(
+                self._participants.participant_ids_for_token(
+                    token=token, session_id=self.session_id
+                )
+            )
 
     def signal(
         self,
