@@ -279,6 +279,17 @@ def clean_created_version(version_dir: Path, identity: DirectoryIdentity) -> Non
                 log.warning("Keeping failed review quarantine %s", quarantine)
 
 
+def discard_created_version(version_dir: Path, identity: DirectoryIdentity) -> None:
+    """Best-effort ``clean_created_version`` for error paths; logs a failure, never raises.
+
+    Callers are already propagating an error, so a cleanup failure must not mask it.
+    """
+    try:
+        clean_created_version(version_dir, identity)
+    except BaseException:
+        log.warning("Could not remove review version directory %s", version_dir, exc_info=True)
+
+
 def encode_version_mp3(
     project: EpisodeProject,
     version_id: str,
@@ -371,13 +382,7 @@ def stage_version(
         if review_root.resolve(strict=True) != resolved_root:
             raise RuntimeError("review artifacts directory changed during publication")
     except BaseException:
-        try:
-            clean_created_version(version_dir, created_identity)
-        except BaseException:
-            # Same contract as ReviewService._clean_uncommitted_media: never mask the original error.
-            log.warning(
-                "Could not remove failed review version directory %s", version_dir, exc_info=True
-            )
+        discard_created_version(version_dir, created_identity)
         raise
     return ver
 
