@@ -428,6 +428,29 @@ def test_wav_info_rejects_unsupported_widths(tmp_path):
     assert wp._wav_info(junk) is None
 
 
+@pytest.mark.parametrize("declared", [0, 0xFFFFFFFF, 4 * 200 + 8])
+def test_wav_info_rejects_a_data_size_the_file_does_not_hold(tmp_path, declared):
+    path = tmp_path / "bad.wav"
+    _write_int_wav(path, np.ones((200, 2), dtype=np.int64), width=2)
+    good = wp._wav_info(path)
+    assert good is not None and good.frames == 200
+    blob = bytearray(path.read_bytes())
+    assert blob[36:40] == b"data"
+    blob[40:44] = struct.pack("<I", declared)
+    path.write_bytes(bytes(blob))
+    assert wp._wav_info(path) is None
+    eng = MagicMock()
+    decode_media(path, engine=eng)
+    eng.stream_pcm_f32.assert_called_once()
+
+
+def test_wav_info_keeps_an_empty_wav_on_the_fast_path(tmp_path):
+    path = tmp_path / "empty.wav"
+    _write_int_wav(path, np.zeros((0, 1), dtype=np.int64), width=2)
+    info = wp._wav_info(path)
+    assert info is not None and info.frames == 0
+
+
 @needs_ffmpeg
 def test_decode_media_extensible_wav_falls_back_to_ffmpeg(tmp_path):
     # Python 3.12+ ``wave`` reads extensible *PCM*, so use the float subformat,
