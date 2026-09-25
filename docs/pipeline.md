@@ -80,6 +80,10 @@ podcast pipeline run --project episode.project.json --only master_loudness
 
 Defaults: `.agents/defaults/pipeline.yaml` (tighten, mix, export, and other step parameters; `effects:` is only a by-name overlay on the FX presets built into `effects/presets.py`, see [audio-engineering.md](audio-engineering.md#effect-presets-source-of-truth)). Cut boundaries: [inaudible-cuts.md](inaudible-cuts.md). **Tuning filler/pause cuts:** [filler-cut-quality.md](filler-cut-quality.md). **Audio diagnostics and mastering QC:** [audio-engineering.md](audio-engineering.md).
 
+## Edits during a run
+
+Each step's save merges onto the saved project (`ProjectWorkspace.checkpoint()` / `save_merged()`), so a volume, mute, comment or cut saved while the run is going survives and later steps see it. A volume or mute saved during the stems step does not stop it. If another request and the run changed the same value, that step fails with a "re-run it" message and saves nothing. This covers one process only (#213).
+
 ## Tighten params
 
 Pipeline auto-tighten stays **off** (`tighten.enabled: false`) until the golden-ear bar in [filler-cut-quality.md](filler-cut-quality.md). Manual `propose-edits` / `apply-edits` still read these keys.

@@ -336,6 +336,42 @@ def compress_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
     return f"compressor on {touched} dialogue tracks"
 
 
+def _stem_inputs_changed(
+    project: EpisodeProject,
+    render_project: EpisodeProject,
+    rendered: dict[str, Path],
+    render_roles: set[TrackRole],
+) -> bool:
+    """Whether ``project`` would render other stems than the ``render_project`` snapshot did.
+
+    ``track_render_hash`` leaves out the mix-only volume and mute, so saving
+    those mid-render doesn't void the stems.
+    """
+    from podcast_mcp.engines.play_audit import track_render_hash
+
+    live = {t.id for t in project.tracks if t.role in render_roles and t.media}
+    return live != rendered.keys() or any(
+        track_render_hash(project, tid) != track_render_hash(render_project, tid)
+        for tid in rendered
+    )
+
+
+def _saved_stem_inputs_changed(
+    project: EpisodeProject,
+    render_project: EpisodeProject,
+    rendered: dict[str, Path],
+    render_roles: set[TrackRole],
+) -> bool:
+    """``_stem_inputs_changed`` against the project another writer saved meanwhile."""
+    from podcast_mcp.project_store import ProjectStore
+
+    try:
+        saved = ProjectStore(project.workspace_path()).load()
+    except FileNotFoundError:
+        return True
+    return _stem_inputs_changed(saved, render_project, rendered, render_roles)
+
+
 def _render_track_stems(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.engines.play_audit import stem_is_fresh, track_render_hash, write_stem_hash
     from podcast_mcp.util.project_state import (
@@ -403,16 +439,9 @@ def _render_track_stems(project: EpisodeProject, defaults: dict[str, Any]) -> St
                 prog.advance(1, message=f"Stem {track_id} ({done}/{len(to_render)})")
 
     with project_state_lock(project):
-        live_tracks = {
-            track.id for track in project.tracks if track.role in render_roles and track.media
-        }
-        if (
+        if _stem_inputs_changed(project, render_project, rendered, render_roles) or (
             project_file_revision(project) != initial_revision
-            or live_tracks != rendered.keys()
-            or any(
-                track_render_hash(project, track_id) != track_render_hash(render_project, track_id)
-                for track_id in rendered
-            )
+            and _saved_stem_inputs_changed(project, render_project, rendered, render_roles)
         ):
             raise RuntimeError("project changed during stem rendering; retry the render")
         meta = artifact(project, "track_outputs.json")

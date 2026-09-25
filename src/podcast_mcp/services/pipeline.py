@@ -41,6 +41,7 @@ class PipelineService:
             only_step=only_step,
             skip_steps=skip_steps,
         )
+        self.ws.checkpoint()
         mgr = HistoryManager(self.ws.path)
         mgr.record(self.ws.project, "before pipeline run")
         defaults = merge_pipeline_config(config) if config is not None else None
@@ -50,13 +51,13 @@ class PipelineService:
             from_step=from_step,
             only_step=only_step,
             skip_steps=skip_steps,
-            on_step_complete=self.ws.save,
+            on_step_complete=self.ws.save_merged,
             progress=progress,
             unattended=unattended,
             cancel_check=cancel_check,
         )
         mgr.record(self.ws.project, "after pipeline run")
-        self.ws.save()
+        self.ws.save_merged()
         return self.ws.project.last_completed_step or ""
 
     def set_envelope(self, track_id: str, points: list[dict]) -> int:
@@ -99,14 +100,17 @@ class PipelineService:
                 "after render preview",
                 mutate,
                 operation="render_preview",
+                # Refresh renders and commits the saved project, not the copy this job opened.
+                reload_first=True,
             )
             return info
         return json.loads(render_preview_result(self.ws.project, rerender=False))
 
     def render_final(self) -> Path:
+        self.ws.checkpoint()
         runner = PipelineRunner()
         runner.run(self.ws.project, from_step="master_loudness")
-        self.ws.save()
+        self.ws.save_merged()
         from podcast_mcp.export.names import sanitize_export_stem
 
         wav = self.ws.project.export_dir() / f"{sanitize_export_stem(self.ws.project.name)}.wav"
@@ -118,6 +122,7 @@ class PipelineService:
         *,
         cancel_check: Callable[[], bool] | None = None,
     ) -> list[Path]:
+        self.ws.checkpoint()
         defaults = load_defaults()
         export_cfg = dict(defaults.get("export", {}))
         if formats is not None:
@@ -148,6 +153,6 @@ class PipelineService:
                 export_cfg,
                 max_workers=defaults.get("performance", {}).get("max_workers"),
             )
-            self.ws.save()
+            self.ws.save_merged()
             prog.advance(1, message="Export complete")
             return paths

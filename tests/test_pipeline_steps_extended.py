@@ -185,6 +185,38 @@ def test_stem_rejects_other_workspace_commit_during_render(
     assert not (proj.artifacts_dir() / "track_outputs.json").exists()
 
 
+def test_stem_allows_volume_saved_during_render(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    proj.tracks = proj.tracks[:1]
+    proj.clips = [
+        Clip(
+            id="host-clip",
+            track_id="host",
+            source_start=0.0,
+            source_end=1.0,
+            timeline_start=0.0,
+        )
+    ]
+    save_project(proj, minimal_project)
+    other = ProjectWorkspace.open(minimal_project)
+
+    class MutatingEngine:
+        def render_dialogue_track(self, _snapshot, _track, out, _defaults):
+            other.mutate(
+                "before volume",
+                "after volume",
+                lambda live: setattr(live.track_by_id("host"), "fader_db", -6.0),
+            )
+            out.write_bytes(b"old audio")
+            return out
+
+    monkeypatch.setattr(steps, "ffmpeg", MutatingEngine)
+    steps.assemble_timeline(proj, {"performance": {"max_workers": 2}})
+    assert (proj.artifacts_dir() / "track_outputs.json").is_file()
+
+
 def test_stem_rejects_track_added_during_render(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
