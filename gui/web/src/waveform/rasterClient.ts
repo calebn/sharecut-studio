@@ -201,6 +201,30 @@ export function requestRaster(req: RasterRequest): void {
   pump();
 }
 
+/**
+ * True when `requestRaster` would drop a request for `key`: a job with the
+ * same `provisional` flag is outstanding, or one is queued, still wanted and
+ * at least as urgent as `priority`. Lets callers skip building the job.
+ */
+export function hasRaster(
+  key: string,
+  provisional: boolean,
+  priority: number,
+): boolean {
+  for (const job of sent.values()) {
+    if (job.key === key && job.provisional === provisional) {
+      return true;
+    }
+  }
+  const queued = queue.get(key);
+  return (
+    queued != null &&
+    queued.provisional === provisional &&
+    queued.priority <= priority &&
+    queued.wanted()
+  );
+}
+
 /** Called for every finished render, wanted or not. */
 export function subscribeRasterDone(
   listener: (key: string, entry: BitmapEntry) => void,

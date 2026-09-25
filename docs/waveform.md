@@ -394,14 +394,17 @@ starts at the ghost's source start and has the ghost's width.
   (`mediaKey|zoom|d|heightDev|style|ampZoom|k`) with `drawImage` on a 2D
   context. Without one, it draws a stand-in (the nearest zoom that overlaps,
   or a render from a coarser level that is already loaded) and asks for the
-  data and a raster. The mode is pyramid, or host PCM below level 0, drawn as
+  data and a raster. A tile whose render is already queued or in flight is
+  skipped (`rasterClient.hasRaster`), so data events do not rebuild its job.
+  The mode is pyramid, or host PCM below level 0, drawn as
   a line under 4 frames per device column. Guests use level 0 bins
   stretched over several pixels.
 - **Hold the old ref.** A new ref (for example, a cross-lane `source_id` flip)
-  replaces the old pyramid only once it is ready. Only `unavailable` hides
-  the waveform.
+  replaces the old pyramid only once it is ready. Data requests use the held
+  ref. `unavailable` or a project change hides the waveform.
 - **Quiet wash.** The wash comes from max-pooled column peaks over the
-  mounted tile range, at 8 px/s and above.
+  mounted tile range, at 8 px/s and above. It is memoized, and recomputed only
+  when the range, the geometry or the loaded pyramid tiles change.
 - **Move ghosts.** Ghosts carry `origin_track_id` and always draw raw media.
 - **Lane hint.** `laneWaveformStatus` returns generating when any ref of the
   lane is generating. It returns unavailable only when every ref is known

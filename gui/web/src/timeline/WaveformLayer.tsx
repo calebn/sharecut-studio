@@ -27,7 +27,11 @@ import {
   requestTiles,
   subscribePyramid,
 } from "../waveform/pyramidStore";
-import { requestRaster, subscribeRasterDone } from "../waveform/rasterClient";
+import {
+  hasRaster,
+  requestRaster,
+  subscribeRasterDone,
+} from "../waveform/rasterClient";
 import {
   drawLevel,
   heightDevice,
@@ -81,18 +85,37 @@ function parseRange(range: string): [number, number] | null {
   return [a!, b!];
 }
 
+/** A ready entry with the project and ref it describes. */
+type HeldReady = { projectPath: string; ref: MediaRef; entry: ReadyEntry };
+
 /**
- * The newest ready entry for this layer: a new ref's pyramid replaces the old
- * one only once it is ready (a cross-lane `source_id` flip keeps drawing),
- * and only `unavailable` hides the waveform.
+ * The newest ready entry for this layer, with its ref: a new ref's pyramid
+ * replaces the old one only once it is ready (a cross-lane `source_id` flip
+ * keeps drawing), and data requests use the held ref, so a key is never
+ * sent under another ref. `unavailable` or a project change drops it.
  */
-function useHeldReady(entry: ReturnType<typeof useWaveformStatus>) {
-  const [held, setHeld] = useState<ReadyEntry | null>(null);
-  const next = isReady(entry)
-    ? entry
-    : entry?.status === "unavailable"
-      ? null
-      : held;
+function useHeldReady(
+  projectPath: string,
+  ref: MediaRef,
+  entry: ReturnType<typeof useWaveformStatus>,
+): HeldReady | null {
+  const [held, setHeld] = useState<HeldReady | null>(null);
+  let next: HeldReady | null;
+  if (isReady(entry)) {
+    next =
+      held?.entry === entry &&
+      held.ref === ref &&
+      held.projectPath === projectPath
+        ? held
+        : { projectPath, ref, entry };
+  } else if (
+    entry?.status === "unavailable" ||
+    held?.projectPath !== projectPath
+  ) {
+    next = null;
+  } else {
+    next = held;
+  }
   if (next !== held) {
     setHeld(next);
   }
@@ -173,7 +196,14 @@ function WaveformLayerView({
   const theme = useResolvedTheme();
   const dprReal = useDevicePixelRatio();
   const { laneHeight } = useTimelineMetrics();
-  const meta = useHeldReady(useWaveformStatus(projectPath, kind, mediaRef));
+  const held = useHeldReady(
+    projectPath,
+    mediaRef,
+    useWaveformStatus(projectPath, kind, mediaRef),
+  );
+  const meta = held?.entry ?? null;
+  // Data requests go out under the ref the held pyramid belongs to.
+  const dataRef = held?.ref ?? mediaRef;
   const [el, setEl] = useState<HTMLDivElement | null>(null);
   const heightCss = useLayerHeight(el, laneHeight);
   // Resolved once per (theme, lane colour) and cached; reads no layout.
@@ -202,6 +232,9 @@ function WaveformLayerView({
     ),
   );
   const [, bumpData] = useReducer((n: number) => n + 1, 0);
+  // Bumps when this media's pyramid tiles land: the only data the quiet wash
+  // reads (PCM and raster-done events re-render the layer but reuse it).
+  const [pyramidRev, bumpPyramid] = useReducer((n: number) => n + 1, 0);
   const mediaKey = meta?.key ?? "";
   useEffect(() => {
     if (!mediaKey) {
@@ -209,7 +242,7 @@ function WaveformLayerView({
     }
     const prefix = `${mediaKey}|`;
     const offs = [
-      subscribePyramid(mediaKey, bumpData),
+      subscribePyramid(mediaKey, bumpPyramid),
       subscribePcm(mediaKey, bumpData),
       subscribeRasterDone((key) => {
         if (key.startsWith(prefix)) {
@@ -271,7 +304,7 @@ function WaveformLayerView({
     const keys = new Set(tiles.map((t) => tileKey(identity, t.k)));
     wanted.current = keys;
     const hasPcm = !isShareProjectKey(projectPath);
-    const source = { projectPath, ref: mediaRef, meta };
+    const source = { projectPath, ref: dataRef, meta };
     const group = tileGroup(identity);
     const { scrollLeft, timelineViewportWidth } = useDawStore.getState();
     const viewL = scrollLeft - clipLeftCss;
@@ -334,6 +367,11 @@ function WaveformLayerView({
         L < viewR && L + RENDER_TILE_CSS_PX > viewL
           ? PRIORITY_VISIBLE
           : PRIORITY_OVERSCAN;
+      // Its exact render is already queued or in flight: don't rebuild (and
+      // copy) the job on every data event.
+      if (hasRaster(key, false, priority)) {
+        continue;
+      }
       const frames = tileFrames(k, meta.sample_rate, zoom, d);
       const mode = rasterMode(frames.sppDev, meta.base_spp, hasPcm);
       const base = {
@@ -420,7 +458,7 @@ function WaveformLayerView({
           drawn.current.set(canvas, tag);
           continue;
         }
-        requestPcm({ projectPath, ref: mediaRef, key: meta.key }, ...blocks);
+        requestPcm({ projectPath, ref: dataRef, key: meta.key }, ...blocks);
         const pcm = getPcm(
           meta.key,
           frames.frameStart,
@@ -435,7 +473,7 @@ function WaveformLayerView({
         submit(exactJob, false);
         continue;
       }
-      if (bitmapCache.hasProvisional(key)) {
+      if (bitmapCache.hasProvisional(key) || hasRaster(key, true, priority)) {
         continue;
       }
       // Coarser data already loaded draws now; the exact tile follows.
@@ -449,9 +487,11 @@ function WaveformLayerView({
     }
   });
 
-  // Recomputed on every layer render: the layer renders when its tile range
-  // or its data (dataRev) changes, which is exactly when bands can change.
-  const quiet = quietBands(meta, range, origin, zoom, clipWidthCss);
+  // Only the tile range, geometry or loaded pyramid tiles change the bands.
+  const quiet = useMemo(() => {
+    void pyramidRev; // new bins can fill columns that had no data
+    return quietBands(meta, range, origin, zoom, clipWidthCss);
+  }, [meta, range, origin, zoom, clipWidthCss, pyramidRev]);
 
   if (clipWidthCss < MIN_CLIP_CSS_PX) {
     return null;

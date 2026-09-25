@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { bitmapCache } from "./bitmapCache";
 import {
   getRasterBackend,
+  hasRaster,
   type RasterRequest,
   rasterParity,
   rasterTilesRendered,
@@ -253,5 +254,21 @@ describe("rasterClient", () => {
     w.reply({ type: "error", id: 1, message: "boom" });
     expect(w.posted).toHaveLength(5);
     expect(rasterTilesRendered()).toBe(0);
+  });
+
+  it("reports a request it would drop as a duplicate", () => {
+    for (const k of ["a", "b", "c", "d"]) {
+      requestRaster(req(k));
+    }
+    expect(hasRaster("a", false, 0)).toBe(true);
+    expect(hasRaster("a", true, 0)).toBe(false);
+    let want = true;
+    requestRaster(req("x", { priority: 1, wanted: () => want }));
+    expect(hasRaster("x", false, 1)).toBe(true);
+    // A more urgent request would replace the queued one.
+    expect(hasRaster("x", false, 0)).toBe(false);
+    want = false;
+    expect(hasRaster("x", false, 1)).toBe(false);
+    expect(hasRaster("y", false, 1)).toBe(false);
   });
 });
