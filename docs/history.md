@@ -61,7 +61,7 @@ Snapshots are recorded automatically before/after:
 
 - `episode add-track`
 - `transcribe`, `propose-edits`
-- `pipeline run` (before run, after each step, after run)
+- `pipeline run` (before run, after each step, after run; plus `after merging concurrent edits` when a save merged in another request's change)
 - Timeline mutations via `EditService.mutate()` (paired `before …` / `after …` entries)
 - `render_preview` when automation envelopes change
 

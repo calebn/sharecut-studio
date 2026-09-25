@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project, save_project
 from podcast_mcp.pipeline import STEP_NAMES, PipelineRunner
+from podcast_mcp.pipeline import runner as runner_mod
 from podcast_mcp.pipeline.runner import _STEP_MAP, ORDERED_STEP_NAMES
 
 
@@ -50,3 +51,22 @@ def test_ingest_step(minimal_project, sample_wav, tmp_workspace):
     runner.run(proj, only_step="ingest_tracks")
     t = proj.track_by_id("host")
     assert t and t.media and t.media.duration_sec and t.media.duration_sec > 0
+
+
+def test_runner_keeps_logging_after_a_save_swaps_the_render_section(minimal_project, monkeypatch):
+    proj = load_project(minimal_project)
+    monkeypatch.setattr(
+        runner_mod,
+        "PIPELINE_STEPS",
+        [(n, (lambda _p, _d: "")) for n in runner_mod.ORDERED_STEP_NAMES],
+    )
+    run = PipelineRunner(defaults={}).run(
+        proj,
+        from_step="master_loudness",
+        on_step_complete=lambda: setattr(proj, "render", proj.render.model_copy(deep=True)),
+    )
+    logs = proj.pipeline_runs[-1].steps
+    assert [s.step for s in logs][0] == "master_loudness"
+    assert [s.step for s in logs][-1] == "export_deliverables"
+    assert all(s.finished_at for s in logs)
+    assert run is proj.pipeline_runs[-1]

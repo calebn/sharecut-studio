@@ -101,6 +101,11 @@ STEP_NAMES = ORDERED_STEP_NAMES
 TRANSCRIBE_STEP = "transcribe_tracks"
 
 
+def _current_run(project: EpisodeProject, run: PipelineRun) -> PipelineRun:
+    """The run as the project holds it now: a merged save can swap the object."""
+    return next((r for r in project.pipeline_runs if r.id == run.id), run)
+
+
 def select_pipeline_steps(
     from_step: str | None,
     only_step: str | None,
@@ -180,6 +185,7 @@ class PipelineRunner:
             ) as pipe,
         ):
             for step_idx, (name, fn) in enumerate(selected, start=1):
+                run = _current_run(project, run)
                 if cancel_check is not None and cancel_check():
                     pipe.cancel("Pipeline cancelled")
                     raise CancelledProgress("Pipeline cancelled")
@@ -207,6 +213,7 @@ class PipelineRunner:
                         log.status = "ok"
                         if summary:
                             log.message = summary
+                        log.finished_at = datetime.now(UTC).isoformat()
                         if name == "require_transcript_refine" and (
                             refine_mode_from_defaults(step_defaults) != "off"
                         ):
@@ -244,7 +251,6 @@ class PipelineRunner:
                         log.message = str(exc)
                         log.finished_at = datetime.now(UTC).isoformat()
                         raise
-                log.finished_at = datetime.now(UTC).isoformat()
 
         if (
             gate_status is not None
@@ -259,7 +265,7 @@ class PipelineRunner:
                 gate_status=gate_status,
                 gate_text_fingerprint=gate_text_fingerprint,
             )
-        return run
+        return _current_run(project, run)
 
     def _select_steps(
         self,
