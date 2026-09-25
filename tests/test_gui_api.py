@@ -1303,6 +1303,36 @@ def test_api_export_deliverables(minimal_project, monkeypatch) -> None:
     assert job["result"]["paths"][0].endswith("demo.wav")
 
 
+def test_api_export_deliverables_reports_merge_conflict(minimal_project, monkeypatch) -> None:
+    pytest.importorskip("fastapi")
+    import time
+
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.project_merge import ProjectMergeConflict
+
+    def conflict(self, formats=None, **_k):
+        raise ProjectMergeConflict(["tracks[host].gain_db"])
+
+    monkeypatch.setattr("podcast_mcp.services.pipeline.PipelineService.export_audio", conflict)
+    client = TestClient(create_app())
+    res = client.post("/api/export/deliverables", json={"path": str(minimal_project)})
+    assert res.status_code == 200
+    job_id = res.json()["job_id"]
+    job = None
+    for _ in range(50):
+        cand = client.get("/api/pipeline/status").json().get("job")
+        if cand and cand["id"] == job_id and cand["status"] in ("ok", "error"):
+            job = cand
+            break
+        time.sleep(0.05)
+    assert job is not None
+    assert job["status"] == "error"
+    assert "re-run it" in job["error"]
+    assert "Traceback" not in job["error"]
+
+
 def test_api_pipeline_render_preview_marks_error_when_ok_false(
     minimal_project, monkeypatch
 ) -> None:
