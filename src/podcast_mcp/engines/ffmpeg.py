@@ -3,9 +3,13 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import threading
+from collections.abc import Generator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
+
+import numpy as np
 
 from podcast_mcp.models import (
     AutomationEnvelope,
@@ -17,7 +21,14 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.util.binaries import resolve_ffmpeg, resolve_ffprobe
 from podcast_mcp.util.model_assets import resolve_rnnoise_model
-from podcast_mcp.util.process import CalledProcessError, TimeoutExpired, run
+from podcast_mcp.util.process import DEVNULL, PIPE, CalledProcessError, TimeoutExpired, popen, run
+
+# Raw float32 PCM decode (waveform pyramid builds and deep-zoom windows).
+PCM_STREAM_CHUNK_FRAMES = 1_048_576
+PCM_STREAM_TIMEOUT_SEC = 600.0
+PCM_WINDOW_TIMEOUT_SEC = 30.0
+# Guest-safe input protocols (same whitelist as ``probe(untrusted=True)``).
+_UNTRUSTED_PROTOCOLS = "file,crypto,data"
 
 
 def _escape_filter_value(value: str) -> str:
@@ -162,6 +173,17 @@ class AudioProbe:
     channels: int
 
 
+def _read_exact(stream: IO[bytes], size: int) -> bytearray:
+    """Read *size* bytes, looping on short pipe reads; shorter only at EOF."""
+    buf = bytearray()
+    while len(buf) < size:
+        part = stream.read(size - len(buf))
+        if not part:
+            break
+        buf += part
+    return buf
+
+
 class FFmpegEngine:
     def __init__(self, ffmpeg: str | None = None, ffprobe: str | None = None) -> None:
         self.ffmpeg = ffmpeg or resolve_ffmpeg()
@@ -197,7 +219,7 @@ class FFmpegEngine:
         ]
         if untrusted:
             # Guest uploads: do not follow concat:/file: demuxer tricks.
-            cmd.extend(["-protocol_whitelist", "file,crypto,data"])
+            cmd.extend(["-protocol_whitelist", _UNTRUSTED_PROTOCOLS])
         cmd.append(str(path))
         r = run(cmd, capture_output=True, text=True, check=True)
         data = json.loads(r.stdout)
@@ -212,6 +234,128 @@ class FFmpegEngine:
             sample_rate=int(stream.get("sample_rate") or 48000),
             channels=int(stream.get("channels") or 1),
         )
+
+    def stream_pcm_f32(
+        self, path: Path, *, chunk_frames: int = PCM_STREAM_CHUNK_FRAMES
+    ) -> tuple[int, int, Generator[np.ndarray, None, None]]:
+        """Decode *path* to interleaved float32 PCM at its native rate and layout.
+
+        Returns ``(sample_rate, channels, chunks)``; each chunk is a
+        ``(frames, channels)`` float32 array of ``chunk_frames`` frames (the
+        last may be shorter). ffmpeg starts on first ``next()`` and is killed
+        when the generator closes or after ``PCM_STREAM_TIMEOUT_SEC``. A
+        non-zero ffmpeg exit raises ``RuntimeError``.
+        """
+        if chunk_frames < 1:
+            raise ValueError("chunk_frames must be >= 1")
+        info = self.probe(path, untrusted=True)
+        sample_rate, channels = info.sample_rate, max(1, info.channels)
+        argv = self._pcm_f32_argv(path, sample_rate, channels)
+        chunks = self._read_pcm_f32(
+            argv, channels, chunk_frames=chunk_frames, timeout_sec=PCM_STREAM_TIMEOUT_SEC
+        )
+        return sample_rate, channels, chunks
+
+    def decode_window_f32(
+        self, path: Path, start_frame: int, frames: int, sample_rate: int, channels: int
+    ) -> np.ndarray:
+        """Decode ``frames`` frames from ``start_frame`` as ``(n, channels)`` float32.
+
+        ``n < frames`` only at end of media. Bounded by ``PCM_WINDOW_TIMEOUT_SEC``.
+        """
+        if start_frame < 0 or frames < 0 or sample_rate < 1 or channels < 1:
+            raise ValueError("invalid PCM window")
+        if frames == 0:
+            return np.zeros((0, channels), dtype=np.float32)
+        # ``-frames:a`` counts decoder packets, not samples, so the read below
+        # stops at exactly ``frames``; ``-t`` (with slack) only bounds the decode.
+        argv = self._pcm_f32_argv(
+            path,
+            sample_rate,
+            channels,
+            start_sec=start_frame / sample_rate,
+            duration_sec=(frames + 64) / sample_rate,
+        )
+        parts = list(
+            self._read_pcm_f32(
+                argv,
+                channels,
+                chunk_frames=frames,
+                timeout_sec=PCM_WINDOW_TIMEOUT_SEC,
+                max_frames=frames,
+            )
+        )
+        if not parts:
+            return np.zeros((0, channels), dtype=np.float32)
+        return np.concatenate(parts)
+
+    def _pcm_f32_argv(
+        self,
+        path: Path,
+        sample_rate: int,
+        channels: int,
+        *,
+        start_sec: float | None = None,
+        duration_sec: float | None = None,
+    ) -> list[str]:
+        argv = [
+            self.ffmpeg,
+            "-nostdin",
+            "-hide_banner",
+            "-v",
+            "error",
+            "-protocol_whitelist",
+            _UNTRUSTED_PROTOCOLS,
+            "-threads",
+            "1",
+        ]
+        if start_sec:
+            argv += ["-ss", f"{start_sec:.9f}"]
+        argv += ["-i", str(path)]
+        if duration_sec is not None:
+            argv += ["-t", f"{duration_sec:.9f}"]
+        argv += ["-f", "f32le", "-ac", str(channels), "-ar", str(sample_rate), "pipe:1"]
+        return argv
+
+    @staticmethod
+    def _read_pcm_f32(
+        argv: list[str],
+        channels: int,
+        *,
+        chunk_frames: int,
+        timeout_sec: float,
+        max_frames: int | None = None,
+    ) -> Generator[np.ndarray, None, None]:
+        proc = popen(argv, stdout=PIPE, stderr=DEVNULL)
+        timer = threading.Timer(timeout_sec, proc.kill)
+        timer.daemon = True
+        timer.start()
+        frame_bytes = 4 * channels
+        remaining = max_frames
+        try:
+            stdout = proc.stdout
+            if stdout is None:
+                raise RuntimeError("ffmpeg stdout pipe missing")
+            while remaining is None or remaining > 0:
+                want = chunk_frames if remaining is None else min(chunk_frames, remaining)
+                buf = _read_exact(stdout, want * frame_bytes)
+                frames = len(buf) // frame_bytes
+                if frames:
+                    if remaining is not None:
+                        remaining -= frames
+                    yield np.frombuffer(buf, dtype="<f4", count=frames * channels).reshape(
+                        frames, channels
+                    )
+                if len(buf) < want * frame_bytes:
+                    code = proc.wait()
+                    if code != 0:
+                        raise RuntimeError(f"ffmpeg PCM decode failed (exit {code})")
+                    return
+        finally:
+            timer.cancel()
+            if proc.poll() is None:
+                proc.kill()
+            proc.wait()
 
     def segments_after_edits(
         self,

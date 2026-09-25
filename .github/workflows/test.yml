@@ -67,6 +67,11 @@ jobs:
           cache-dependency-path: gui/web/package-lock.json
 
       - run: npm ci
+      - name: Timeline zoom contract copies are generated
+        # The exporter needs Biome (gui/web/node_modules), so it runs here, not
+        # in the pytest job. Stdlib-only, so the runner's python3 is enough.
+        working-directory: .
+        run: python3 scripts/export_timeline_zoom.py --check
       - name: npm audit (production deps, non-blocking)
         id: npm-audit
         # Advisory only: surfaces high/critical advisories in shipped runtime

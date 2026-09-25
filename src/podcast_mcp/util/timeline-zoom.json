@@ -1,6 +1,7 @@
 {
   "min_zoom_px_per_sec": 0.05,
   "max_zoom_px_per_sec": 200,
+  "max_content_px": 15000000,
   "zoom_step": 1.25,
   "peaks": {
     "overview_decode_hz": 8000,
@@ -10,5 +11,21 @@
     "tile_sec": 2,
     "edit_focus_sec": 0.2,
     "edit_focus_multiplier": 8
+  },
+  "waveform": {
+    "format_version": 1,
+    "base_samples_per_bin": 64,
+    "level_factor": 4,
+    "bins_per_data_tile": 4096,
+    "max_tiles_per_request": 16,
+    "pcm_block_frames": 65536,
+    "render_tile_css_px": 512,
+    "overscan_css_px": 512,
+    "paint_dpr_cap": 2,
+    "min_clip_css_px": 6,
+    "line_mode_max_samples_per_px": 4,
+    "quiet_amp": 0.04,
+    "quiet_min_duration_sec": 0.12,
+    "quiet_wash_min_zoom_px_per_sec": 8
   }
 }

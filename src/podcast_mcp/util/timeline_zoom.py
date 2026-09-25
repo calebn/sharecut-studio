@@ -2,7 +2,8 @@
 
 Canonical knobs live in the JSON (not hardcoded 400 bins/sec). Callers use
 ``overview_samples_per_pixel()`` / ``finest_bins_per_sec()`` so a max-zoom
-change updates generation and the GUI together.
+change updates generation and the GUI together. The ``waveform`` getters
+feed the ``.wfpk`` peak pyramid (``engines/waveform_pyramid.py``).
 """
 
 from __future__ import annotations
@@ -40,6 +41,13 @@ def _peaks() -> dict[str, Any]:
     if not isinstance(peaks, dict):
         raise ValueError("timeline-zoom.json missing peaks object")
     return peaks
+
+
+def _waveform() -> dict[str, Any]:
+    waveform = load_timeline_zoom().get("waveform")
+    if not isinstance(waveform, dict):
+        raise ValueError("timeline-zoom.json missing waveform object")
+    return waveform
 
 
 def min_zoom_px_per_sec() -> float:
@@ -105,3 +113,30 @@ def detail_bins_per_sec(zoom_px_per_sec: float, device_pixel_ratio: float) -> fl
 def edit_focus_bins_per_sec(zoom_px_per_sec: float, device_pixel_ratio: float) -> float:
     detail = detail_bins_per_sec(zoom_px_per_sec, device_pixel_ratio)
     return min(detail * edit_focus_multiplier(), float(overview_decode_hz()))
+
+
+# --- Waveform pyramid (.wfpk) knobs: only the keys Python reads. -------------
+
+
+def waveform_format_version() -> int:
+    return int(_waveform()["format_version"])
+
+
+def base_samples_per_bin() -> int:
+    return int(_waveform()["base_samples_per_bin"])
+
+
+def level_factor() -> int:
+    return int(_waveform()["level_factor"])
+
+
+def bins_per_data_tile() -> int:
+    return int(_waveform()["bins_per_data_tile"])
+
+
+def max_tiles_per_request() -> int:
+    return int(_waveform()["max_tiles_per_request"])
+
+
+def pcm_block_frames() -> int:
+    return int(_waveform()["pcm_block_frames"])
