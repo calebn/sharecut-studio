@@ -291,14 +291,21 @@ def _mtime(path: Path) -> float | None:
         return None
 
 
+def _stem_newer_than(project: EpisodeProject, track_id: str, premix_mtime: float) -> bool | None:
+    """Whether a track's stem was rendered after the premix, or None when it's missing."""
+    stem_mtime = _mtime(stem_path(project, track_id))
+    if stem_mtime is None:
+        return None
+    return stem_mtime > premix_mtime
+
+
 def premix_stale_vs_stems(project: EpisodeProject) -> bool:
     """True when a stem the mix plays was rendered after ``premix.wav``."""
     premix_mtime = _mtime(premix_path(project))
     if premix_mtime is None:
         return False
     return any(
-        (stem_mtime := _mtime(stem_path(project, tid))) is not None and stem_mtime > premix_mtime
-        for tid in mixed_dialogue_track_ids(project)
+        _stem_newer_than(project, tid, premix_mtime) for tid in mixed_dialogue_track_ids(project)
     )
 
 
@@ -316,10 +323,10 @@ def premix_is_stale(project: EpisodeProject) -> bool:
     if premix_stale_vs_mix(project):
         return True
     for tid in mixed_dialogue_track_ids(project):
-        stem_mtime = _mtime(stem_path(project, tid))
-        if stem_mtime is None:
+        newer = _stem_newer_than(project, tid, premix_mtime)
+        if newer is None:
             continue  # a missing stem is unknown, not stale
-        if stem_mtime > premix_mtime or not stem_is_fresh(project, tid):
+        if newer or not stem_is_fresh(project, tid):
             return True
     return False
 
@@ -375,7 +382,9 @@ def write_mastered_hash(project: EpisodeProject, source_hash: str | None) -> str
 def mastered_is_fresh(project: EpisodeProject) -> bool:
     """True when ``mastered.wav`` was mastered from the current ``premix.wav``.
 
-    A master with no hash (mastered before it existed, or whose last master failed) is stale: export re-masters it, and publishing refuses it until then.
+    A master with no hash (mastered before it existed, or whose last master
+    failed) is stale: export re-masters it, and publishing refuses it until then
+    while ``premix.wav`` exists (with no premix, publish ships ``mastered.wav``).
     """
     if not mastered_path(project).is_file():
         return False
