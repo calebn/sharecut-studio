@@ -358,6 +358,8 @@ export class KeeperSession {
       this.fail(error);
       if (!closing) {
         await this.closeBounded(stream, samplesWritten);
+      } else {
+        stream.abort?.();
       }
       this.clearOpenSegment();
       return;
@@ -429,7 +431,9 @@ export class KeeperSession {
         this.closeTimeoutMs(samples),
       );
     } catch {
-      // A faulty or hung sink must not block retry or teardown past the limit.
+      // A faulty or hung sink must not block retry or teardown past the limit;
+      // abort releases whatever the stream still holds (an exclusive OPFS handle).
+      stream.abort?.();
     }
   }
 

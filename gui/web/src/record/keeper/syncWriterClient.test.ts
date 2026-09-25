@@ -110,25 +110,81 @@ describe("createSyncWriterClient", () => {
     ).rejects.toBeInstanceOf(SyncWriterUnavailableError);
   });
 
-  it("times out waiting for ready", async () => {
+  it("falls back per segment on a slow start and latches after repeated ones", async () => {
+    vi.useFakeTimers();
+    const spawn = vi.fn(() => fakeWorker().worker);
+    const client = createSyncWriterClient(spawn);
+    for (const name of ["a", "b"]) {
+      const assertion = expect(client.open(name)).rejects.toBeInstanceOf(
+        SyncWriterUnavailableError,
+      );
+      await vi.advanceTimersByTimeAsync(SYNC_WRITER_READY_TIMEOUT_MS);
+      await assertion;
+    }
+    expect(spawn).toHaveBeenCalledTimes(2);
+    await expect(client.open("c")).rejects.toBeInstanceOf(
+      SyncWriterUnavailableError,
+    );
+    expect(spawn).toHaveBeenCalledTimes(2);
+  });
+
+  it("treats an error before ready as a per-segment fallback", async () => {
     vi.useFakeTimers();
     const f = fakeWorker();
-    const assertion = expect(
-      createSyncWriterClient(() => f.worker).open("a"),
-    ).rejects.toBeInstanceOf(SyncWriterUnavailableError);
-    await vi.advanceTimersByTimeAsync(SYNC_WRITER_READY_TIMEOUT_MS);
+    const spawn = vi.fn(() => f.worker);
+    const client = createSyncWriterClient(spawn);
+    const assertion = expect(client.open("a")).rejects.toBeInstanceOf(
+      SyncWriterUnavailableError,
+    );
+    f.worker.onerror?.(new Event("error"));
+    await assertion;
+    void client.open("b").catch(() => undefined);
+    expect(spawn).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects writes and close at once after the worker dies post-ready", async () => {
+    vi.useFakeTimers();
+    const { worker, posted, stream } = await openReady();
+    worker.onerror?.(new Event("error"));
+    await expect(stream.write(new Uint8Array(2))).rejects.toThrow(
+      "stopped unexpectedly",
+    );
+    await expect(stream.close()).rejects.toThrow("stopped unexpectedly");
+    expect(posted).toHaveLength(1);
+  });
+
+  it("abort terminates the worker and rejects an in-flight close", async () => {
+    vi.useFakeTimers();
+    const { worker, stream } = await openReady();
+    const c = stream.close();
+    stream.abort?.();
+    await expect(c).rejects.toThrow("aborted");
+    expect(worker.terminate).toHaveBeenCalled();
+  });
+
+  it("times out a hung open and terminates the worker", async () => {
+    vi.useFakeTimers();
+    const f = fakeWorker();
+    const client = createSyncWriterClient(() => f.worker, {
+      openTimeoutMs: 50,
+    });
+    const p = client.open("a");
+    f.worker.emit({ type: "ready", supported: true });
+    await tick();
+    const assertion = expect(p).rejects.toThrow("open timed out after 50ms");
+    await vi.advanceTimersByTimeAsync(50);
     await assertion;
     expect(f.worker.terminate).toHaveBeenCalled();
   });
 
-  it("treats an error before ready as unavailable", async () => {
+  it("fails closed after a write error so later offset-less writes cannot leave a hole", async () => {
     vi.useFakeTimers();
-    const f = fakeWorker();
-    const assertion = expect(
-      createSyncWriterClient(() => f.worker).open("a"),
-    ).rejects.toBeInstanceOf(SyncWriterUnavailableError);
-    f.worker.onerror?.(new Event("error"));
-    await assertion;
+    const { worker, posted, stream } = await openReady();
+    const w = stream.write(new Uint8Array(4), 44);
+    worker.emit({ type: "error", id: 2, name: "Error", message: "short" });
+    await expect(w).rejects.toThrow("short");
+    await expect(stream.write(new Uint8Array(2))).rejects.toThrow("short");
+    expect(posted).toHaveLength(2);
   });
 
   it("fails pending writes when the worker dies after ready", async () => {

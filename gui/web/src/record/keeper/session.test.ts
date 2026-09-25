@@ -285,6 +285,7 @@ describe("KeeperSession", () => {
     vi.useFakeTimers();
     const sink = new MemorySink();
     const neverClose = deferred();
+    const abort = vi.fn();
     wrapSinkOpen(sink, (stream, opens) => ({
       close: async () => {
         if (opens === 2) {
@@ -292,6 +293,7 @@ describe("KeeperSession", () => {
         }
         await stream.close();
       },
+      abort,
     }));
     const session = new KeeperSession(sink, undefined, {
       operationTimeoutMs: 10,
@@ -310,6 +312,7 @@ describe("KeeperSession", () => {
     });
     await vi.advanceTimersByTimeAsync(20);
     await stop;
+    expect(abort).toHaveBeenCalledTimes(1);
     expect(stallDetail(session)).toContain("close timed out");
     expect(session.files.map((file) => file.segmentIndex)).toEqual([0]);
 
