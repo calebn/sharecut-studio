@@ -1,6 +1,7 @@
 import { opfsFileHandle } from "./opfsPath";
 import {
   createSyncWriterHandler,
+  errorReply,
   type SyncAccessHandleLike,
   type SyncWriterEngine,
   type SyncWriterInMsg,
@@ -42,10 +43,18 @@ export function startSyncWriterWorker(
   scope.postMessage({ type: "ready", supported: engine.supported });
   let chain: Promise<void> = Promise.resolve();
   scope.onmessage = (ev) => {
-    // A reply that cannot be posted must not wedge every later request.
+    const { id } = ev.data;
+    // A reply that cannot be posted (e.g. DataCloneError) must not wedge later
+    // requests; answer this one with an error so the client need not time out.
     chain = chain
       .then(async () => scope.postMessage(await handle(ev.data)))
-      .catch(() => undefined);
+      .catch((error: unknown) => {
+        try {
+          scope.postMessage(errorReply(id, error));
+        } catch {
+          // Worker is tearing down; the client's deadline covers this request.
+        }
+      });
   };
 }
 

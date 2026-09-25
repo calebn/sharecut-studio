@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   createSyncWriterHandler,
+  errorReply,
   KEEPER_FLUSH_INTERVAL_MS,
   type SyncAccessHandleLike,
 } from "./syncWriterProtocol";
@@ -126,5 +127,27 @@ describe("createSyncWriterHandler", () => {
     await handler({ type: "open", id: 1, path: "a.wav" });
     const out = await handler({ type: "open", id: 2, path: "b.wav" });
     expect(out.type).toBe("error");
+  });
+});
+
+describe("errorReply", () => {
+  it("keeps the name and message of an error-like value", () => {
+    expect(
+      errorReply(3, { name: "NoModificationAllowedError", message: "locked" }),
+    ).toEqual({
+      type: "error",
+      id: 3,
+      name: "NoModificationAllowedError",
+      message: "locked",
+    });
+  });
+
+  it("stringifies a thrown non-object", () => {
+    expect(errorReply(7, "boom")).toEqual({
+      type: "error",
+      id: 7,
+      name: "Error",
+      message: "boom",
+    });
   });
 });
