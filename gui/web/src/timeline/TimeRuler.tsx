@@ -137,7 +137,7 @@ export function TimeRuler({
       aria-valuemin={0}
       aria-valuemax={sessionEnd}
       aria-valuenow={valueSec}
-      aria-valuetext={formatRulerTime(valueSec, majorStep)}
+      aria-valuetext={formatRulerTime(valueSec, majorStep, "floor")}
       onClick={(e) => {
         if (commentMode) {
           return;

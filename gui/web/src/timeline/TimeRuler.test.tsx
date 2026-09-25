@@ -118,6 +118,24 @@ describe("TimeRuler", () => {
     act(() => useDawStore.setState({ isPlaying: false, playheadSec: 0 }));
   });
 
+  it("announces the slider value truncated, not rounded", () => {
+    useDawStore.setState({ playheadSec: 59.6, isPlaying: false });
+    render(
+      <TimeRuler
+        durationSec={60}
+        sessionDurationSec={60}
+        zoomPxPerSec={20}
+        onSeek={vi.fn()}
+      />,
+    );
+    // 20 px/s picks a whole-second step (5 s), so no decimals.
+    expect(screen.getByRole("slider")).toHaveAttribute(
+      "aria-valuetext",
+      "0:59",
+    );
+    act(() => useDawStore.setState({ playheadSec: 0 }));
+  });
+
   it("steps from the store playhead on arrow keys", () => {
     useDawStore.setState({ playheadSec: 4, isPlaying: false });
     const onSeek = vi.fn();

@@ -105,15 +105,24 @@ export function niceTimeStep(zoomPxPerSec: number, minPx = 70): number {
  * Ruler label for a tick (or the ruler's slider value): `m:ss` for whole-second
  * steps, else `m:ss.fff` (`h:mm:ss…` past an hour) with `ceil(−log10 step)`
  * decimals, at most 4, so a 0.5 ms step reads `0:01.2345`, a 0.5 s step
- * `0:02.5` and a 2 s step `0:02`.
+ * `0:02.5` and a 2 s step `0:02`. Tick labels round (ticks sit on float
+ * multiples of the step); `"floor"` truncates for a position readout, like a
+ * transport clock, so 59.68 s at a 1 s step reads `0:59`, not `1:00`.
  */
-export function formatRulerTime(sec: number, step: number): string {
+export function formatRulerTime(
+  sec: number,
+  step: number,
+  mode: "round" | "floor" = "round",
+): string {
   const decimals = Math.min(
     4,
     Math.max(0, Math.ceil(-Math.log10(step) - 1e-9)),
   );
   const scale = 10 ** decimals;
-  const units = Math.round(Math.max(0, sec) * scale);
+  const scaled = Math.max(0, sec) * scale;
+  // The 1e-6 keeps an exact value (3 * 0.1) from flooring one unit low.
+  const units =
+    mode === "floor" ? Math.floor(scaled + 1e-6) : Math.round(scaled);
   const whole = Math.floor(units / scale);
   const frac =
     decimals > 0 ? `.${String(units % scale).padStart(decimals, "0")}` : "";
