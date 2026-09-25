@@ -1,5 +1,5 @@
 import { RENDER_TILE_CSS_PX } from "../utils/timelineZoom.generated";
-import { ByteLru, waveformBudget } from "./budgets";
+import { ByteLru, trimOnShellChange, waveformBudget } from "./budgets";
 
 /**
  * Rendered tile bitmaps (S5, S8): an LRU by bytes that `close()`s every
@@ -63,12 +63,19 @@ export class BitmapCache {
     return this.lru.get(key);
   }
 
+  /** Whether `entry` is still cached under `key` (an insert over budget evicts it at once). */
+  holds(key: string, entry: BitmapEntry): boolean {
+    return this.lru.peek(entry.provisional ? key + PROVISIONAL : key) === entry;
+  }
+
   set(key: string, entry: BitmapEntry): void {
     const slot = entry.provisional ? key + PROVISIONAL : key;
     if (!entry.provisional) {
       // The exact render supersedes the stand-in.
       this.lru.delete(key + PROVISIONAL);
     }
+    // Drop (close and unindex) any old entry first, so it cannot unindex the new one.
+    this.lru.delete(slot);
     let keys = this.groups.get(entry.group);
     if (!keys) {
       keys = new Set();
@@ -127,7 +134,7 @@ export class BitmapCache {
     this.groups.clear();
   }
 
-  /** Re-apply the budget (after a shell change). */
+  /** Re-apply the budget (budgets.ts calls it on a shell change). */
   trim(): void {
     this.lru.trim();
   }
@@ -143,3 +150,4 @@ export class BitmapCache {
 
 /** The shared cache of rendered waveform tiles. */
 export const bitmapCache = new BitmapCache();
+trimOnShellChange(bitmapCache);

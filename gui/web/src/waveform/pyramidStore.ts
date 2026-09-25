@@ -5,6 +5,7 @@ import {
   classifyFetchFailure,
   FAILED_FETCH_BACKOFF_MS,
   fetchLimit,
+  trimOnShellChange,
   waveformBudget,
   waveformFetchGate,
 } from "./budgets";
@@ -35,6 +36,7 @@ type Source = { projectPath: string; ref: string; meta: PyramidMeta };
 type Pending = Source & { level: number; tile: number; priority: TilePriority };
 
 const data = new ByteLru<Int16Array>(() => waveformBudget().tileBytes);
+trimOnShellChange(data);
 const pending = new Map<string, Pending>();
 const inflight = new Set<string>();
 const requests = new Set<{

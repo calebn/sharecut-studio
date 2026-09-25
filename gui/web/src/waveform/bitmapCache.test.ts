@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { BitmapCache, type BitmapEntry, tileSeconds } from "./bitmapCache";
+import { useDawStore } from "../state/dawStore";
+import {
+  BitmapCache,
+  type BitmapEntry,
+  bitmapCache,
+  tileSeconds,
+} from "./bitmapCache";
 
 /** Each entry's bitmap `close` mock. */
 const closes = new Map<BitmapEntry, ReturnType<typeof vi.fn>>();
@@ -32,6 +38,37 @@ describe("tileSeconds", () => {
 });
 
 describe("BitmapCache", () => {
+  it("keeps an overwritten key available as a placeholder", () => {
+    const cache = new BitmapCache(() => 10_000);
+    const first = entry({ zoom: 10, tile: 0 });
+    const second = entry({ zoom: 10, tile: 0 });
+    cache.set("a", first);
+    cache.set("a", second);
+    expect(closeOf(first)).toHaveBeenCalledOnce();
+    expect(cache.placeholder("g", 20, 0)?.entry).toBe(second);
+  });
+
+  it("says whether an entry is still cached", () => {
+    const cache = new BitmapCache(() => 500);
+    const a = entry({ zoom: 10, tile: 0 });
+    cache.set("a", a);
+    expect(cache.holds("a", a)).toBe(true);
+    const big = entry({ zoom: 10, tile: 1, width: 20, height: 20 });
+    cache.set("b", big);
+    expect(cache.holds("b", big)).toBe(false);
+    expect(closeOf(big)).toHaveBeenCalledOnce();
+  });
+
+  it("shrinks the shared cache to the phone budget on a shell change", () => {
+    const e = entry({ zoom: 10, tile: 0, width: 4096, height: 4096 }); // 64 MB
+    bitmapCache.set("big", e);
+    expect(closeOf(e)).not.toHaveBeenCalled();
+    useDawStore.getState().setShellBreakpoint("phone");
+    expect(closeOf(e)).toHaveBeenCalledOnce();
+    useDawStore.getState().setShellBreakpoint("desktop");
+    bitmapCache.clear();
+  });
+
   it("evicts least recently used bitmaps past the budget and closes them", () => {
     const cache = new BitmapCache(() => 1000);
     const a = entry({ zoom: 10, tile: 0 });

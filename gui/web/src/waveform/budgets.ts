@@ -19,6 +19,21 @@ export function waveformBudget(): WaveformBudget {
     : WAVEFORM_BUDGETS.desktop;
 }
 
+const shellTrimmed = new Set<{ trim(): void }>();
+
+/** Re-apply `cache`'s budget whenever the shell breakpoint changes (desktop ↔ phone). */
+export function trimOnShellChange(cache: { trim(): void }): void {
+  shellTrimmed.add(cache);
+}
+
+useDawStore.subscribe((state, prev) => {
+  if (state.shellBreakpoint !== prev.shellBreakpoint) {
+    for (const cache of shellTrimmed) {
+      cache.trim();
+    }
+  }
+});
+
 /** Waveform fetches in flight: 4 against the host, 3 through a share. */
 export function fetchLimit(projectPath: string): number {
   return isShareProjectKey(projectPath) ? 3 : 4;

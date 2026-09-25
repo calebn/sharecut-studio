@@ -6,6 +6,7 @@ import {
   classifyFetchFailure,
   FAILED_FETCH_BACKOFF_MS,
   fetchLimit,
+  trimOnShellChange,
   waveformBudget,
   waveformFetchGate,
 } from "./budgets";
@@ -22,6 +23,7 @@ import { refKind } from "./types";
 type Block = { projectPath: string; ref: string; key: string; block: number };
 
 const data = new ByteLru<Int16Array>(() => waveformBudget().pcmBytes);
+trimOnShellChange(data);
 const queue = new Map<string, Block>();
 const inflight = new Set<string>();
 const requests = new Set<{
