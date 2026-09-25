@@ -42,11 +42,13 @@ CI's `frontend` job runs it with `--check`).
 `max_content_px` (15,000,000) at the top level caps timeline content width. The
 generated TS exports `effectiveMaxZoomPxPerSec(sessionSec) =
 min(MAX_ZOOM_PX_PER_SEC, MAX_CONTENT_PX / max(sessionSec, 1))` and
-`paintDpr(dpr) = clamp(round(dpr·8)/8, 1, PAINT_DPR_CAP)`, so `512·paintDpr`
+`paintDpr(dpr) = clamp(round(dpr·8)/8, 1, PAINT_DPR_CAP)` (Python mirrors it as
+`util/timeline_zoom.paint_dpr()`, and `detail_bins_per_sec` uses it), so `512·paintDpr`
 is always an integer. Python reads only the keys it needs, through
 `util/timeline_zoom.py` getters (`waveform_format_version()`,
 `base_samples_per_bin()`, `level_factor()`, `bins_per_data_tile()`,
-`max_tiles_per_request()`, `pcm_block_frames()`).
+`max_tiles_per_request()`, `pcm_block_frames()`). `max_tiles_per_request()` is
+for the tile route that a later part of #429 adds.
 
 ## Format
 

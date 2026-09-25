@@ -12,6 +12,7 @@ describe("paintDpr", () => {
   it("rounds to a 1/8 grid so a render tile is whole device pixels", () => {
     expect(paintDpr(1.33)).toBe(1.375);
     expect(paintDpr(1.5)).toBe(1.5);
+    expect(paintDpr(1.0625)).toBe(1.125); // half rounds up, same as Python's paint_dpr
     for (const dpr of [1, 1.1, 1.25, 1.33, 1.5, 1.75, 1.99]) {
       expect(Number.isInteger(RENDER_TILE_CSS_PX * paintDpr(dpr))).toBe(true);
     }
