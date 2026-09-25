@@ -642,28 +642,30 @@ def prune_ref_pyramids(peaks_dir: Path, slug: str, live_key: str) -> None:
 def reuse_existing_pyramid(peaks_dir: Path, key: str, out: Path) -> bool:
     """Link (or copy) a valid ``*.{key}.wfpk`` to *out*; ``True`` when *out* now exists.
 
-    Files that fail ``read_meta`` are never trusted: a bad *out* is unlinked
-    and a bad candidate skipped, so the caller rebuilds.
+    Files that fail ``read_meta`` are never trusted: a bad candidate is
+    skipped, and a bad *out* is replaced atomically (a copy here, or the
+    caller's rebuild through ``write_pyramid``) rather than unlinked, so a
+    valid file another build publishes meanwhile is never removed.
     """
-    if out.exists():
-        if _valid_pyramid(out):
-            return True
-        try:
-            out.unlink()
-        except OSError:
-            return False
+    replace = out.exists()
+    if replace and _valid_pyramid(out):
+        return True
     for candidate in sorted(peaks_dir.glob(f"*.{key}.wfpk")):
-        if not _valid_pyramid(candidate):
+        if candidate == out or not _valid_pyramid(candidate):
             continue
-        try:
-            os.link(candidate, out)
-        except FileExistsError:
-            return True
-        except OSError:
+        if not replace:
             try:
-                _publish(out, functools.partial(_copy_into, candidate))
+                os.link(candidate, out)
+            except FileExistsError:
+                return True
             except OSError:
-                continue
+                pass
+            else:
+                return True
+        try:
+            _publish(out, functools.partial(_copy_into, candidate))
+        except OSError:
+            continue
         return True
     return False
 
