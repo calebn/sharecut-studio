@@ -167,6 +167,11 @@ def _knobs(
     return spp, fac, bpt
 
 
+def _sanitize_pcm(arr: np.ndarray) -> np.ndarray:
+    """NaN -> 0 and +/-inf -> +/-1 (full scale), shared by the envelope and deep-zoom min/max."""
+    return np.nan_to_num(arr, nan=0.0, posinf=1.0, neginf=-1.0)
+
+
 def build_levels(
     chunks: Iterable[np.ndarray],
     *,
@@ -199,7 +204,7 @@ def build_levels(
             raise ValueError(f"chunk shape {arr.shape} does not match {channels} channel(s)")
         if not len(arr):
             continue
-        arr = np.nan_to_num(arr, nan=0.0, posinf=1.0, neginf=-1.0)
+        arr = _sanitize_pcm(arr)
         total += len(arr)
         buf = np.concatenate([carry, arr]) if len(carry) else arr
         n_full = len(buf) // spp
@@ -521,14 +526,14 @@ def decode_media(
 def _minmax_int16(data: np.ndarray) -> np.ndarray:
     """Per-frame ``(min, max)`` across channels as int16, floored/ceiled outward.
 
-    NaN counts as 0 and ±inf as ±1, as in ``build_levels``.
+    NaN counts as 0 and ±inf as ±1 (``_sanitize_pcm``, shared with ``build_levels``).
     """
     full = float(INT16_FULL_SCALE)
     out = np.empty((len(data), 2), dtype=np.int16)
     if len(data):
         # A NaN would win min/max and cast to an undefined int16, hiding the
         # other channels' peaks.
-        data = np.nan_to_num(data, nan=0.0, posinf=1.0, neginf=-1.0)
+        data = _sanitize_pcm(data)
         # Reduce across channels in float32 (exact), then widen only (n,) arrays.
         lo = data.min(axis=1).astype(np.float64)
         hi = data.max(axis=1).astype(np.float64)
