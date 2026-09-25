@@ -90,11 +90,37 @@ describe("stretchProjectToSession", () => {
     expect(env[0].points.map((pt: { time: number }) => pt.time)).toEqual([
       3540, 3599.9,
     ]);
-    expect(r.clipId).toBe(guest?.id);
+    expect(r.trackId).toBe("guest");
     expect(r.clipStartSec).toBe(3540);
     expect(r.endPointSec).toBeCloseTo(3599.9, 6);
   });
   it("throws for an unknown track", () => {
     expect(() => stretchProjectToSession(copy(), HOUR_SEC, "nope")).toThrow();
+  });
+
+  it("throws when the track already has a volume envelope", () => {
+    const p = copy();
+    const data = JSON.parse(fs.readFileSync(p, "utf8"));
+    data.mix = {
+      ...(data.mix ?? {}),
+      automation_envelopes: [
+        { track_id: "guest", parameter: "volume", points: [] },
+      ],
+    };
+    fs.writeFileSync(p, JSON.stringify(data));
+    expect(() => stretchProjectToSession(p, HOUR_SEC)).toThrow(
+      /already has a volume envelope/,
+    );
+  });
+
+  it("throws when the track has more than one clip", () => {
+    const p = copy();
+    const data = JSON.parse(fs.readFileSync(p, "utf8"));
+    const guest = (data.timeline.clips as Clip[]).find(
+      (c) => c.track_id === "guest",
+    );
+    data.timeline.clips.push({ ...guest, id: `${guest?.id}_dup` });
+    fs.writeFileSync(p, JSON.stringify(data));
+    expect(() => stretchProjectToSession(p, HOUR_SEC)).toThrow(/found 2/);
   });
 });
