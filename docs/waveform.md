@@ -311,7 +311,8 @@ not wired into the timeline yet. Each module has a `*.test.ts`.
   - `statusStore.ts`: one poller per (project, kind), through
     `api.ts` `loadWaveformStatus` (host route, or the share route for
     `share:` keys). It polls again after 1, 2, then 4 s while anything is
-    generating, and stops otherwise. It polls at once on a media-signature
+    generating, and stops otherwise. A failed poll backs off the same way, except that a
+    4xx other than 408/429 stops polling until the next refresh or subscriber. It polls at once on a media-signature
     change (the `WaveformStatusSync` leaf) and after a tile 404 (once per
     key). `useWaveformStatus(projectPath, kind, ref)` returns one entry,
     with the same object identity while it is unchanged.
