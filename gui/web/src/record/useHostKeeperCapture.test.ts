@@ -31,8 +31,14 @@ const keeper = vi.hoisted(() =>
       sink?: MemorySink | null;
       enabled: boolean;
       onActivity?: () => void;
-    }) => ({
-      error: null as string | null,
+    }): {
+      error: string | null;
+      recordingLocally: boolean;
+      noAudio?: boolean;
+      micCheckFailed?: boolean;
+      checkMic?: () => void;
+    } => ({
+      error: null,
       recordingLocally: args.enabled,
     }),
   ),
@@ -333,6 +339,45 @@ describe("useHostKeeperCapture", () => {
     expect(result.current.micStatus).toBe("prompting");
     expect(result.current.micLost).toBe(true);
     expect(useRecordHostStore.getState().captureHealth).toBe("pending");
+  });
+
+  it("reports silent capture health when the keeper sees no audio", () => {
+    const checkMic = vi.fn();
+    mic.mockReturnValueOnce({
+      stream: {} as MediaStream,
+      devices: [],
+      error: null,
+      errorName: null,
+      settingsWarning: null,
+      pending: false,
+      lost: false,
+      retry: vi.fn(),
+    });
+    keeper.mockReturnValueOnce({
+      error: null,
+      recordingLocally: true,
+      noAudio: true,
+      micCheckFailed: true,
+      checkMic,
+    });
+    const { result } = renderHook(() => useHostKeeperCapture());
+    expect(useRecordHostStore.getState().captureHealth).toBe("silent");
+    expect(result.current.noAudio).toBe(true);
+    expect(result.current.micCheckFailed).toBe(true);
+    result.current.checkMic();
+    expect(checkMic).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a missing microphone failed even when the keeper reports no audio", () => {
+    keeper.mockReturnValueOnce({
+      error: null,
+      recordingLocally: true,
+      noAudio: true,
+      micCheckFailed: false,
+      checkMic: vi.fn(),
+    });
+    renderHook(() => useHostKeeperCapture());
+    expect(useRecordHostStore.getState().captureHealth).toBe("failed");
   });
 
   it("clears capture failure after the take stops", () => {

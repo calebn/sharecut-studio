@@ -231,6 +231,8 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
         stream={hostKeeper.stream}
         micLost={hostKeeper.micLost}
         onRetryMic={hostKeeper.retryMic}
+        onCheckMic={hostKeeper.checkMic}
+        micCheckFailed={hostKeeper.micCheckFailed}
       />
       <HostMcpDialog
         open={hostMcpDialogOpen}

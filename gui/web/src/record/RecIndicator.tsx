@@ -13,11 +13,13 @@ export function RecIndicator({
   snapshot,
   captureFailed = false,
   capturePending = false,
+  noAudio = false,
   clockId,
 }: {
   snapshot: RecordSnapshot;
   captureFailed?: boolean;
   capturePending?: boolean;
+  noAudio?: boolean;
   clockId?: string;
 }) {
   const [now, setNow] = useState(() => Date.now());
@@ -40,7 +42,9 @@ export function RecIndicator({
       ? "REC: local capture failed"
       : capturePending
         ? "REC: waiting for microphone"
-        : "REC";
+        : noAudio
+          ? "REC: no audio"
+          : "REC";
   } else if (snapshot.state === "paused") {
     label = "PAUSED";
   } else if (snapshot.state === "stopped") {
@@ -53,7 +57,10 @@ export function RecIndicator({
   return (
     <div className="cluster record-indicator" role="status">
       <span className="record-rec-label" data-state={snapshot.state}>
-        {snapshot.state === "recording" && !captureFailed && !capturePending ? (
+        {snapshot.state === "recording" &&
+        !captureFailed &&
+        !capturePending &&
+        !noAudio ? (
           <span className="record-rec-dot" aria-hidden="true" />
         ) : null}
         {label}

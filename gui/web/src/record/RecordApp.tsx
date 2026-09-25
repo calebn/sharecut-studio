@@ -362,6 +362,9 @@ export function RecordApp({ token }: { token: string }) {
               connected={connected}
               recordingLocally={keeper.recordingLocally}
               keeperError={keeper.error}
+              noAudio={keeper.noAudio}
+              micCheckFailed={keeper.micCheckFailed}
+              onCheckMic={keeper.checkMic}
               uploadSinkError={sinkError}
               onRetryKeeper={keeper.error ? keeper.retry : undefined}
               hearing={monitor.hearing}

@@ -2,14 +2,16 @@ import { create } from "zustand";
 import type { ByteSink } from "./keeper/store";
 import type { RecordSnapshot } from "./types";
 
+export type CaptureHealth = "pending" | "failed" | "silent" | null;
+
 type RecordHostState = {
   snapshot: RecordSnapshot | null;
   connected: boolean;
   startPending: boolean;
   keeperSink: ByteSink | null;
   keeperStorageError: string | null;
-  captureHealth: "pending" | "failed" | null;
-  setCaptureHealth: (health: "pending" | "failed" | null) => void;
+  captureHealth: CaptureHealth;
+  setCaptureHealth: (health: CaptureHealth) => void;
   setKeeperStorage: (sink: ByteSink | null, error: string | null) => void;
   setSnapshot: (snap: RecordSnapshot | null) => void;
   setConnected: (connected: boolean) => void;

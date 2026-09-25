@@ -114,6 +114,50 @@ describe("Room", () => {
     expect(screen.getByRole("button", { name: "Leave" })).toBeDisabled();
   });
 
+  describe("no audio", () => {
+    const base = {
+      snapshot,
+      me,
+      onMute: () => undefined,
+      onLeave: () => undefined,
+      recordingLocally: true,
+      noAudio: true,
+    };
+
+    it("shows a persistent alert with Check mic", async () => {
+      const check = vi.fn();
+      const { container } = render(<Room {...base} onCheckMic={check} />);
+      expect(
+        screen.getByText("No audio is reaching the recorder."),
+      ).toBeInTheDocument();
+      expect(screen.getByText("REC: no audio")).toBeInTheDocument();
+      expect(screen.queryByText(LOCAL_KEEPER_COPY)).not.toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: "Check mic" }));
+      expect(check).toHaveBeenCalledOnce();
+      await expectNoA11yViolations(container);
+    });
+
+    it("explains a failed mic check", () => {
+      render(<Room {...base} onCheckMic={() => undefined} micCheckFailed />);
+      expect(screen.getByText(/Still no audio/)).toBeInTheDocument();
+    });
+
+    it("stays quiet while paused", () => {
+      render(<Room {...base} snapshot={{ ...snapshot, state: "paused" }} />);
+      expect(
+        screen.queryByText("No audio is reaching the recorder."),
+      ).not.toBeInTheDocument();
+    });
+
+    it("yields to microphone loss", () => {
+      render(<Room {...base} micLost onRetryMic={() => undefined} />);
+      expect(
+        screen.queryByText("No audio is reaching the recorder."),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("REC: local capture failed")).toBeInTheDocument();
+    });
+  });
+
   it("offers microphone reconnect while local capture is lost", async () => {
     const retry = vi.fn();
     render(
