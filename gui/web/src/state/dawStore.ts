@@ -82,6 +82,18 @@ type DawStore = DawState & {
   ) => void;
 };
 
+/** Time-column width guess (px) for a shell whose timeline has not measured. */
+export function estimateTimelineViewportWidth(bp: ShellBreakpoint): number {
+  const w = cssViewportWidth();
+  if (bp === "phone") {
+    return Math.max(200, w);
+  }
+  if (bp === "tablet") {
+    return Math.max(200, w - 200);
+  }
+  return Math.max(200, w - 500);
+}
+
 export const useDawStore = create<DawStore>((set, get) => ({
   // --- project ---
   project: null,
@@ -332,12 +344,18 @@ export const useDawStore = create<DawStore>((set, get) => ({
     }
   },
   scrollLeft: 0,
-  timelineViewportWidth: 0,
+  // The desktop estimate (shellBreakpoint starts at desktop) until the
+  // timeline measures, so first-render readers never see 0.
+  timelineViewportWidth: estimateTimelineViewportWidth("desktop"),
   setTimelineViewportWidth: (timelineViewportWidth) => {
     if (timelineViewportWidth !== get().timelineViewportWidth) {
       set({ timelineViewportWidth });
     }
   },
+  resetTimelineViewportWidth: () =>
+    get().setTimelineViewportWidth(
+      estimateTimelineViewportWidth(get().shellBreakpoint),
+    ),
   selection: null as Selection,
   activeTab: "transcript" as DawTab,
   userZoomed: false,
@@ -687,18 +705,9 @@ export const useDawStore = create<DawStore>((set, get) => ({
   registerLanesEl: (el) => set({ _lanesEl: el }),
   measureTimelineViewport: () => {
     const el = get()._timelineEl;
-    if (el) {
-      return timelineTimeViewportWidth(el);
-    }
-    const bp = get().shellBreakpoint;
-    const w = cssViewportWidth();
-    if (bp === "phone") {
-      return Math.max(200, w);
-    }
-    if (bp === "tablet") {
-      return Math.max(200, w - 200);
-    }
-    return Math.max(200, w - 500);
+    return el
+      ? timelineTimeViewportWidth(el)
+      : estimateTimelineViewportWidth(get().shellBreakpoint);
   },
 
   hydrate: (

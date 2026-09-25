@@ -80,7 +80,7 @@ export interface DawState {
   /** Blade-mode pointer time (s) over the lanes; null when not hovering. */
   bladeHoverSec: number | null;
   scrollLeft: number;
-  /** Visible time column (px) of the mounted timeline, from its observer. */
+  /** Visible time column (px) of the mounted timeline, from its observer; the shell estimate before it measures and after it unmounts. */
   timelineViewportWidth: number;
   selection: Selection;
   activeTab: DawTab;
@@ -227,6 +227,8 @@ export interface DawState {
   setPointerTrackId: (trackId: string | null) => void;
   setBladeHoverSec: (sec: number | null) => void;
   setTimelineViewportWidth: (px: number) => void;
+  /** Back to the current shell's estimate (the timeline unmounted). */
+  resetTimelineViewportWidth: () => void;
   setLayerVisible: (key: keyof LayerVisibility, visible: boolean) => void;
   setCommentMode: (on: boolean) => void;
   toggleCommentMode: () => void;
