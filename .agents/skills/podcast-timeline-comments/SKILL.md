@@ -84,7 +84,7 @@ When the user asks you to note something for later (or for a human):
 
 ## Review mix versions
 
-Before inviting guests, freeze a mix: `publish_review_version_tool` / `podcast review publish-version --label "…"`. New comments stamp `review_version_id` while that version is active.
+Before inviting guests, freeze a mix: `publish_review_version_tool` / `podcast review publish-version --label "…"`. New comments stamp `review_version_id` while that version is active. Publishing refuses a stale premix (`render_preview` / Refresh first) and a master not mastered from the current premix (export first, or publish the premix).
 
 Share: `podcast review share --role commenter --version <vid> --base-url https://host:8765` → `/r/fantastic-acoustic-whale` (coolname slug; see [share-tokens.md](../../docs/share-tokens.md)). Prefer relay + `podcast tunnel` ([host-online-relay.md](../../docs/host-online-relay.md)). Bind with `--host 0.0.0.0` only for LAN-only sharing; revoke with `podcast review revoke-share`. Default link shares stay **login-free** for comments. `--kind record` mints studio `/rec/` links; live comments during REC/PAUSED use the record Comment command (not this review share).
 

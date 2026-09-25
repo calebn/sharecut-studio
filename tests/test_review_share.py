@@ -1578,15 +1578,18 @@ def test_share_review_audio_rejects_escaped_media_paths(minimal_project, sample_
 
 
 def _waveform_share(minimal_project, sample_wav, capabilities):
+    from podcast_mcp.engines.play_audit import write_stem_hash
     from podcast_mcp.engines.waveform_pyramid import wait_pyramid_jobs
     from podcast_mcp.models import MediaAsset, Track
 
     proj = load_project(minimal_project)
     proj.timeline.tracks = [Track(id="host", label="Host", media=MediaAsset(path="raw/host.wav"))]
     save_project(proj, minimal_project)
+    # A current stem, mixed into the premix after it, so publish sees a fresh mix.
+    (proj.artifacts_dir() / "tracks").mkdir(parents=True, exist_ok=True)
+    (proj.artifacts_dir() / "tracks" / "host.wav").write_bytes(sample_wav.read_bytes())
+    write_stem_hash(proj, "host", clear_invalidations=False)
     ws = _seed_premix(minimal_project, sample_wav)
-    (ws.project.artifacts_dir() / "tracks").mkdir(parents=True, exist_ok=True)
-    (ws.project.artifacts_dir() / "tracks" / "host.wav").write_bytes(sample_wav.read_bytes())
     ver = ReviewService(ws).publish(label="Waveform")
     share = ShareService(ws).create(review_version_id=ver["id"], capabilities=capabilities)
     client = TestClient(create_app())

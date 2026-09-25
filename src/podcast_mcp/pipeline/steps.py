@@ -436,7 +436,7 @@ def assemble_timeline(project: EpisodeProject, defaults: dict[str, Any]) -> Step
 
 
 def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
-    from podcast_mcp.engines.play_audit import mix_gains, write_premix_hash
+    from podcast_mcp.engines.play_audit import mix_gains, premix_path, write_premix_hash
 
     mix_cfg = defaults.get("mix", {})
     meta_path = artifact(project, "track_outputs.json")
@@ -490,7 +490,7 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
             raise ValueError("no tracks to mix")
 
         prog.set_phase("mix", f"Mixing {len(mixed)} tracks…")
-        premix = artifact(project, "premix.wav")
+        premix = premix_path(project)
         # Mix beside it and swap in whole, so a failed or cancelled mix never
         # leaves a half-written premix next to an old hash.
         mixing = premix.with_name(".premix.mixing.wav")
@@ -502,34 +502,72 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
 
 
 def ensure_current_premix(project: EpisodeProject, defaults: dict[str, Any]) -> None:
-    """Re-render stems and re-mix when ``premix.wav`` is missing or behind the project."""
-    from podcast_mcp.engines.play_audit import premix_is_stale, premix_path
+    """Re-render stems and re-mix when ``premix.wav`` is missing or behind the project.
+
+    Warns when the rebuilt premix still reads stale (a stem that never goes fresh,
+    such as a duration mismatch), since every export would otherwise redo it silently.
+    """
+    from podcast_mcp.engines.play_audit import (
+        premix_is_stale,
+        premix_path,
+        stem_is_fresh,
+        stem_path,
+    )
+    from podcast_mcp.util.tracks import mixed_dialogue_track_ids
 
     if premix_path(project).is_file() and not premix_is_stale(project):
         return
     assemble_timeline(project, defaults)
     mix_with_music(project, defaults)
+    if premix_is_stale(project):
+        stuck = [
+            tid
+            for tid in mixed_dialogue_track_ids(project)
+            if stem_path(project, tid).is_file() and not stem_is_fresh(project, tid)
+        ]
+        log.warning(
+            "premix.wav is still out of date after a rebuild; stems that stay stale: %s "
+            "(check render_status for a duration mismatch)",
+            ", ".join(stuck) or "none",
+        )
 
 
 def ensure_current_master(project: EpisodeProject, defaults: dict[str, Any]) -> Path:
     """Master again unless ``mastered.wav`` came from the current, fresh premix."""
     from podcast_mcp.engines.play_audit import mastered_is_fresh, mastered_path, premix_is_stale
 
-    if premix_is_stale(project) or not mastered_is_fresh(project):
+    # The cheap hash check first: master_loudness checks the premix itself, so
+    # the premix is checked here only when the master looks fresh.
+    if not mastered_is_fresh(project) or premix_is_stale(project):
         master_loudness(project, defaults)
     return mastered_path(project)
 
 
 def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
-    from podcast_mcp.engines.play_audit import clear_mastered_hash, write_mastered_hash
+    from podcast_mcp.engines.play_audit import (
+        clear_mastered_hash,
+        master_source_hash,
+        mastered_path,
+        premix_path,
+        write_mastered_hash,
+    )
 
     master_cfg = defaults.get("master", {})
-    premix = artifact(project, "premix.wav")
     ensure_current_premix(project, defaults)
+    premix = premix_path(project)
+    # Fingerprint the premix before mastering it: a Refresh that swaps it while
+    # loudnorm runs must leave this master stale, not vouch for it.
+    source_hash = master_source_hash(project)
     eng = ffmpeg()
-    mastered = artifact(project, "mastered.wav")
-    # A failed or cancelled master must not leave a hash vouching for a half-written file.
+    mastered = mastered_path(project)
+    # Master beside it and swap in whole, like the premix, so a reader never
+    # sees a half-written master.
+    mastering = mastered.with_name(".mastered.mastering.wav")
+    tame_path = artifact(project, "premix_premaster.wav")
+    qc_path = artifact(project, "master_qc.json")
+    # A failed or cancelled master must not leave a hash or QC report vouching for it.
     clear_mastered_hash(project)
+    qc_path.unlink(missing_ok=True)
     target_lufs = float(master_cfg.get("integrated_lufs", -16))
     target_tp = float(master_cfg.get("true_peak_db", -1.5))
     target_lra = float(master_cfg.get("lra", 11.0))
@@ -564,49 +602,52 @@ def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
             qc["within_tolerance"] = not issues
         return qc
 
-    with resolve_progress_task(
-        "master_loudness",
-        "Mastering loudness",
-        prefer_parent=True,
-    ) as prog:
-        prog.set_phase("loudnorm", "Running loudnorm…")
-        eng.master_loudnorm(
-            premix,
-            mastered,
-            integrated_lufs=target_lufs,
-            true_peak_db=target_tp,
-            lra=target_lra,
-        )
-        prog.set_phase("measure", "Measuring loudness…")
-        measured = eng.measure_loudness_full(mastered)
-        qc = _qc(measured)
-
-        # Peak-limited / high-crest premixes often under-shoot I under loudnorm alone.
-        # Tame crest, then remaster once before writing QC.
-        if (
-            crest_tame_af
-            and measured
-            and qc.get("within_tolerance") is False
-            and any("Integrated loudness" in i for i in (qc.get("issues") or []))
-        ):
-            prog.set_phase("crest_tame", "Taming crest then remastering…")
-            tame_path = artifact(project, "premix_premaster.wav")
-            eng.filter_audio(premix, tame_path, crest_tame_af)
+    try:
+        with resolve_progress_task(
+            "master_loudness",
+            "Mastering loudness",
+            prefer_parent=True,
+        ) as prog:
+            prog.set_phase("loudnorm", "Running loudnorm…")
             eng.master_loudnorm(
-                tame_path,
-                mastered,
+                premix,
+                mastering,
                 integrated_lufs=target_lufs,
                 true_peak_db=target_tp,
                 lra=target_lra,
             )
-            measured = eng.measure_loudness_full(mastered)
+            prog.set_phase("measure", "Measuring loudness…")
+            measured = eng.measure_loudness_full(mastering)
             qc = _qc(measured)
-            qc["crest_tame_af"] = crest_tame_af
 
-        prog.set_phase("qc", "Writing master QC…")
-        qc_path = artifact(project, "master_qc.json")
-        qc_path.write_text(json.dumps(qc, indent=2), encoding="utf-8")
-        write_mastered_hash(project)
+            # Peak-limited / high-crest premixes often under-shoot I under loudnorm alone.
+            # Tame crest, then remaster once before writing QC.
+            if (
+                crest_tame_af
+                and measured
+                and qc.get("within_tolerance") is False
+                and any("Integrated loudness" in i for i in (qc.get("issues") or []))
+            ):
+                prog.set_phase("crest_tame", "Taming crest then remastering…")
+                eng.filter_audio(premix, tame_path, crest_tame_af)
+                eng.master_loudnorm(
+                    tame_path,
+                    mastering,
+                    integrated_lufs=target_lufs,
+                    true_peak_db=target_tp,
+                    lra=target_lra,
+                )
+                measured = eng.measure_loudness_full(mastering)
+                qc = _qc(measured)
+                qc["crest_tame_af"] = crest_tame_af
+
+            os.replace(mastering, mastered)
+            prog.set_phase("qc", "Writing master QC…")
+            qc_path.write_text(json.dumps(qc, indent=2), encoding="utf-8")
+            write_mastered_hash(project, source_hash)
+    finally:
+        mastering.unlink(missing_ok=True)
+        tame_path.unlink(missing_ok=True)
 
     if measured and measured.get("integrated_lufs") is not None:
         lufs = measured["integrated_lufs"]

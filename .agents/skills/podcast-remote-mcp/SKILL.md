@@ -24,7 +24,7 @@ Connect a remote MCP client (e.g. Cursor) to a **review share token** so an agen
    installed and its account surface is wanted.
 2. `PODCAST_REMOTE_MCP=1 podcast gui --project <episode.project.json> --no-open`
 3. `podcast tunnel --project … --relay-url wss://<relay>/tunnel --host-token …`
-4. Publish a review version if needed: `podcast review publish-version …`
+4. Publish a review version if needed: `podcast review publish-version …` (refused while the premix is stale; run `render_preview` first)
 5. Create share with `mcp` **and** the caps the agent should have:
 
 ```bash

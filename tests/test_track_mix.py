@@ -9,6 +9,7 @@ listening choices: edits, the audio audit and render caches ignore them.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import shutil
@@ -22,6 +23,7 @@ from typer.testing import CliRunner
 from podcast_mcp.cli.main import app
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.timeline_ops import ripple_delete
+from podcast_mcp.engines import play_audit
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet, _rms_for_track_at_timeline
 from podcast_mcp.engines.play_audit import (
     mastered_is_fresh,
@@ -557,3 +559,153 @@ def test_history_titles_name_volume_and_mute() -> None:
         params={"track_id": "host", "muted": False},
     )
     assert "unmuted" in mute
+
+
+def test_premix_is_stale_checks_each_mixed_stem_once(minimal_project: Path) -> None:
+    ws = _two_tracks(minimal_project)
+    _fresh_stems(ws.project)
+    eng = _mastering_engine()
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        steps.mix_with_music(ws.project, load_defaults())
+    with patch(
+        "podcast_mcp.engines.play_audit.stem_is_fresh", wraps=play_audit.stem_is_fresh
+    ) as fresh:
+        assert premix_is_stale(ws.project) is False
+    assert fresh.call_count == 2
+
+
+def test_a_stem_vanishing_mid_check_is_unknown_not_an_error(minimal_project: Path) -> None:
+    ws = _two_tracks(minimal_project)
+    _fresh_stems(ws.project)
+    with patch.object(steps, "ffmpeg", return_value=_mastering_engine()):
+        steps.mix_with_music(ws.project, load_defaults())
+    real_stat = Path.stat
+
+    def racing_stat(self: Path, *args, **kwargs):
+        if self.name == "guest.wav":
+            raise FileNotFoundError(self)
+        return real_stat(self, *args, **kwargs)
+
+    with patch.object(Path, "stat", racing_stat):
+        assert premix_stale_vs_stems(ws.project) is False
+        assert premix_is_stale(ws.project) is False
+
+
+def test_a_premix_swapped_mid_master_leaves_the_master_stale(minimal_project: Path) -> None:
+    ws = _two_tracks(minimal_project)
+    _fresh_stems(ws.project)
+    eng = _mastering_engine()
+    defaults = load_defaults()
+
+    def master_then_refresh(src, dst, **_kw):
+        shutil.copyfile(src, dst)
+        # A concurrent Refresh swaps the premix while loudnorm runs.
+        premix = premix_path(ws.project)
+        st = premix.stat()
+        os.utime(premix, ns=(st.st_atime_ns, st.st_mtime_ns + 10**9))
+
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        steps.mix_with_music(ws.project, defaults)
+        eng.master_loudnorm.side_effect = master_then_refresh
+        steps.master_loudness(ws.project, defaults)
+    assert mastered_path(ws.project).is_file()
+    assert read_mastered_hash(ws.project) is None
+    assert mastered_is_fresh(ws.project) is False
+
+
+def test_a_failed_master_keeps_the_last_master_and_drops_its_qc(minimal_project: Path) -> None:
+    ws = _two_tracks(minimal_project)
+    _fresh_stems(ws.project)
+    eng = _mastering_engine()
+    defaults = load_defaults()
+    art = ws.project.artifacts_dir()
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        steps.mix_with_music(ws.project, defaults)
+        steps.master_loudness(ws.project, defaults)
+        before = mastered_path(ws.project).read_bytes()
+        assert (art / "master_qc.json").is_file()
+
+        def half_written(src, dst, **_kw):
+            Path(dst).write_bytes(b"half")
+            raise RuntimeError("ffmpeg died")
+
+        eng.master_loudnorm.side_effect = half_written
+        with pytest.raises(RuntimeError):
+            steps.master_loudness(ws.project, defaults)
+    assert mastered_path(ws.project).read_bytes() == before
+    assert not (art / "master_qc.json").exists()
+    assert not (art / ".mastered.mastering.wav").exists()
+    assert read_mastered_hash(ws.project) is None
+
+
+def test_mastering_removes_the_crest_tame_intermediate(minimal_project: Path) -> None:
+    ws = _two_tracks(minimal_project)
+    _fresh_stems(ws.project)
+    eng = _mastering_engine()
+    eng.measure_loudness_full.return_value = {
+        "integrated_lufs": -30.0,
+        "true_peak_db": -3.0,
+        "lra": 5.0,
+    }
+    eng.filter_audio.side_effect = lambda src, dst, _af: shutil.copyfile(src, dst)
+    defaults = load_defaults()
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        steps.mix_with_music(ws.project, defaults)
+        steps.master_loudness(ws.project, defaults)
+    assert eng.filter_audio.called
+    assert not (ws.project.artifacts_dir() / "premix_premaster.wav").exists()
+    assert mastered_is_fresh(ws.project)
+
+
+def test_master_after_a_fresh_mix_does_not_mix_again(minimal_project: Path) -> None:
+    ws = _two_tracks(minimal_project)
+    _fresh_stems(ws.project)
+    eng = _mastering_engine()
+    defaults = load_defaults()
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        steps.mix_with_music(ws.project, defaults)
+        with (
+            patch.object(steps, "assemble_timeline") as assemble,
+            patch.object(steps, "mix_with_music") as mix,
+        ):
+            steps.master_loudness(ws.project, defaults)
+    assert not assemble.called
+    assert not mix.called
+    assert eng.mix_tracks.call_count == 1
+
+
+def test_exporting_an_unchanged_project_checks_the_premix_once(minimal_project: Path) -> None:
+    ws = _two_tracks(minimal_project)
+    _fresh_stems(ws.project)
+    eng = _mastering_engine()
+    defaults = load_defaults()
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        steps.mix_with_music(ws.project, defaults)
+        steps.master_loudness(ws.project, defaults)
+    with patch(
+        "podcast_mcp.engines.play_audit.premix_is_stale", wraps=play_audit.premix_is_stale
+    ) as check:
+        _export(ws, eng)
+    assert check.call_count == 1
+    assert eng.master_loudnorm.call_count == 1
+
+
+def test_a_premix_that_stays_stale_after_a_rebuild_warns(
+    minimal_project: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    ws = _two_tracks(minimal_project)
+    _fresh_stems(ws.project)
+    eng = _mastering_engine()
+    defaults = load_defaults()
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        steps.mix_with_music(ws.project, defaults)
+        with (
+            patch.object(steps, "assemble_timeline"),
+            patch(
+                "podcast_mcp.engines.play_audit.stem_is_fresh",
+                side_effect=lambda _p, tid: tid != "guest",
+            ),
+            caplog.at_level(logging.WARNING, logger="podcast_mcp.pipeline.steps"),
+        ):
+            steps.ensure_current_premix(ws.project, defaults)
+    assert "stems that stay stale: guest" in caplog.text

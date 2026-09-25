@@ -12,6 +12,7 @@ from podcast_mcp.edits.mute_regions import mute_regions_payload
 from podcast_mcp.engines.timeline_render import RENDER_SEMANTICS_REV
 from podcast_mcp.models import AutomationEnvelope, EpisodeProject
 from podcast_mcp.util.atomic_json import write_text_atomic
+from podcast_mcp.util.tracks import mixed_dialogue_track_ids
 
 log = logging.getLogger(__name__)
 
@@ -282,36 +283,45 @@ def premix_stale_vs_mix(project: EpisodeProject) -> bool:
     return stored != mix_render_hash(mix_gains(project))
 
 
+def _mtime(path: Path) -> float | None:
+    """A file's mtime, or None when it's missing (or swapped out mid-check)."""
+    try:
+        return path.stat().st_mtime
+    except FileNotFoundError:
+        return None
+
+
 def premix_stale_vs_stems(project: EpisodeProject) -> bool:
     """True when a stem the mix plays was rendered after ``premix.wav``."""
-    from podcast_mcp.util.tracks import mixed_dialogue_track_ids
-
-    premix = premix_path(project)
-    if not premix.is_file():
+    premix_mtime = _mtime(premix_path(project))
+    if premix_mtime is None:
         return False
-    stems = (stem_path(project, tid) for tid in mixed_dialogue_track_ids(project))
-    mtimes = [stem.stat().st_mtime for stem in stems if stem.is_file()]
-    return bool(mtimes) and premix.stat().st_mtime < max(mtimes)
+    return any(
+        (stem_mtime := _mtime(stem_path(project, tid))) is not None and stem_mtime > premix_mtime
+        for tid in mixed_dialogue_track_ids(project)
+    )
 
 
 def premix_is_stale(project: EpisodeProject) -> bool:
     """True when ``premix.wav`` no longer matches what the mix would play now.
 
     Covers the saved mix (volume, mute), a stem rendered after the premix, and a
-    rendered stem the mix plays that's behind its edits, clips or FX. A missing
-    stem is unknown rather than stale, and no premix is not stale: callers
-    check that it exists.
+    rendered stem the mix plays that's behind its edits, clips or FX, in one pass
+    over the mixed stems. A missing stem is unknown rather than stale, and no
+    premix is not stale: callers check that it exists.
     """
-    from podcast_mcp.util.tracks import mixed_dialogue_track_ids
-
-    if not premix_path(project).is_file():
+    premix_mtime = _mtime(premix_path(project))
+    if premix_mtime is None:
         return False
-    if premix_stale_vs_mix(project) or premix_stale_vs_stems(project):
+    if premix_stale_vs_mix(project):
         return True
-    return any(
-        stem_path(project, tid).is_file() and not stem_is_fresh(project, tid)
-        for tid in mixed_dialogue_track_ids(project)
-    )
+    for tid in mixed_dialogue_track_ids(project):
+        stem_mtime = _mtime(stem_path(project, tid))
+        if stem_mtime is None:
+            continue  # a missing stem is unknown, not stale
+        if stem_mtime > premix_mtime or not stem_is_fresh(project, tid):
+            return True
+    return False
 
 
 MASTERED_NAME = "mastered.wav"
@@ -349,19 +359,23 @@ def clear_mastered_hash(project: EpisodeProject) -> None:
     mastered_hash_path(project).unlink(missing_ok=True)
 
 
-def write_mastered_hash(project: EpisodeProject) -> str | None:
-    """Record the premix ``mastered.wav`` was just mastered from."""
-    h = master_source_hash(project)
-    if h is None:
+def write_mastered_hash(project: EpisodeProject, source_hash: str | None) -> str | None:
+    """Record the premix ``mastered.wav`` was mastered from.
+
+    ``source_hash`` is ``master_source_hash`` captured before mastering. If the
+    premix changed since (a Refresh while loudnorm ran), nothing is recorded, so
+    the master stays stale instead of vouching for a premix it never read.
+    """
+    if source_hash is None or master_source_hash(project) != source_hash:
         clear_mastered_hash(project)
         return None
-    return _write_hash(mastered_hash_path(project), h)
+    return _write_hash(mastered_hash_path(project), source_hash)
 
 
 def mastered_is_fresh(project: EpisodeProject) -> bool:
     """True when ``mastered.wav`` was mastered from the current ``premix.wav``.
 
-    A master from before this hash counts as stale and is re-mastered once.
+    A master with no hash (mastered before it existed, or whose last master failed) is stale: export re-masters it, and publishing refuses it until then.
     """
     if not mastered_path(project).is_file():
         return False
