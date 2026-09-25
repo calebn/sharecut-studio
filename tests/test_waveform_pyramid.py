@@ -202,6 +202,14 @@ def test_build_levels_never_under_reports():
         spp *= 4
 
 
+def test_minmax_int16_treats_nan_as_zero_and_inf_as_full_scale():
+    data = np.array([[np.nan, 0.5], [-0.25, np.nan], [np.inf, -np.inf]], dtype=np.float32)
+    full = wp.INT16_FULL_SCALE
+    with np.errstate(invalid="raise"):
+        out = wp._minmax_int16(data)
+    assert out.tolist() == [[0, 16384], [-8192, 0], [-full, full]]
+
+
 def test_build_levels_silence_and_nan_are_zero():
     silent = np.zeros((64 * 5 + 3, 2), dtype=np.float32)
     nan = np.full((10, 2), np.nan, dtype=np.float32)
