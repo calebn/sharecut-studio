@@ -321,13 +321,16 @@ not wired into the timeline yet. Each module has a `*.test.ts`.
   wakes both, via `waveformFetchGate.onRelease`).
   - `pyramidStore.ts`: missing data tiles are queued by priority (visible,
     overscan, prefetch), deduplicated, and fetched in runs of up to
-    `max_tiles_per_request`. A 429 re-queues after `Retry-After`. Zoom and
+    `max_tiles_per_request`. A 429 holds the run back until `Retry-After` and then re-queues it. Any
+    other failure holds it back for 5 s. A 404, or tiles missing from a short
+    response, are skipped until their key is ready again. Zoom and
     scroll never abort a fetch; only leaving the project does. When a ref
     becomes ready, the store prefetches the coarsest level and the next two
     levels when each has at most 8 tiles. `getBins` returns a copy, and
     missing bins have `rms = -1`.
-  - `pcmStore.ts` (host only): block-aligned `(min, max)` frames. A 409
-    polls status again.
+  - `pcmStore.ts` (host only): block-aligned `(min, max)` frames. A 409 or 404
+    polls status again. Failed blocks are held back the same way (429: until
+    `Retry-After`, then re-queued; otherwise 5 s).
   - `pyramidMath.ts`: `levelFor` and the pyramid and PCM envelope
     reductions (the PCM one is the envelope of the piecewise-linear
     interpolant).

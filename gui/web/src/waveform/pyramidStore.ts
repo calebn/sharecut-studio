@@ -3,6 +3,7 @@ import { MAX_TILES_PER_REQUEST } from "../utils/timelineZoom.generated";
 import {
   ByteLru,
   classifyFetchFailure,
+  FAILED_FETCH_BACKOFF_MS,
   fetchLimit,
   waveformBudget,
   waveformFetchGate,
@@ -42,8 +43,13 @@ const requests = new Set<{
 }>();
 const retries = new Set<{
   projectPath: string;
+  ids: string[];
   timer: ReturnType<typeof setTimeout>;
 }>();
+/** Tile ids held back after a failed fetch (a 429 until Retry-After, otherwise FAILED_FETCH_BACKOFF_MS). */
+const cooling = new Set<string>();
+/** Tile ids that 404'd or came back short under their key; skipped until the key is ready again. */
+const missing = new Set<string>();
 const listeners = new Map<string, Set<() => void>>();
 
 function tileId(key: string, level: number, tile: number): string {
@@ -92,12 +98,20 @@ export function requestTiles(
       continue;
     }
     const id = tileId(source.meta.key, level, tile);
-    if (data.has(id) || inflight.has(id)) {
+    if (
+      data.has(id) ||
+      inflight.has(id) ||
+      cooling.has(id) ||
+      missing.has(id)
+    ) {
       continue;
     }
     const queued = pending.get(id);
     if (queued) {
       queued.priority = Math.min(queued.priority, priority) as TilePriority;
+      // The latest requester owns the tile, so leaving the other project keeps it.
+      queued.projectPath = source.projectPath;
+      queued.ref = source.ref;
       continue;
     }
     pending.set(id, { ...source, level, tile, priority });
@@ -155,16 +169,24 @@ function store(run: Pending[], buf: ArrayBuffer): void {
   const head = run[0]!;
   const all = new Int16Array(buf, 0, Math.floor(buf.byteLength / 2));
   let offset = 0;
+  let short = false;
   for (const p of run) {
+    const id = tileId(p.meta.key, p.level, p.tile);
     const n = tileBinCount(p.meta, p.level, p.tile) * BIN_VALUES;
-    if (offset + n > all.length) {
-      break;
+    if (short || offset + n > all.length) {
+      // Fewer tiles came back than were asked for: treat the rest like a 404.
+      short = true;
+      missing.add(id);
+      continue;
     }
     const bins = all.slice(offset, offset + n);
     offset += n;
-    data.set(tileId(p.meta.key, p.level, p.tile), bins, bins.byteLength);
+    data.set(id, bins, bins.byteLength);
   }
   notify(head.meta.key);
+  if (short) {
+    noteWaveformTileMissing(head.projectPath, head.ref, head.meta.key);
+  }
 }
 
 function dispatch(run: Pending[]): void {
@@ -200,24 +222,40 @@ function dispatch(run: Pending[]): void {
         return;
       }
       const failure = classifyFetchFailure(err);
-      if (failure.kind === "retry") {
-        const retry = {
-          projectPath: head.projectPath,
-          timer: setTimeout(() => {
+      if (failure.kind === "missing") {
+        for (const id of ids) {
+          missing.add(id);
+        }
+        noteWaveformTileMissing(head.projectPath, head.ref, head.meta.key);
+        return;
+      }
+      // Hold the run back: a 429 until Retry-After (then re-queue it), anything else briefly.
+      for (const id of ids) {
+        cooling.add(id);
+      }
+      const retry = {
+        projectPath: head.projectPath,
+        ids,
+        timer: setTimeout(
+          () => {
             retries.delete(retry);
-            for (const p of run) {
-              const id = tileId(p.meta.key, p.level, p.tile);
-              if (!data.has(id) && !inflight.has(id) && !pending.has(id)) {
-                pending.set(id, p);
+            for (const id of ids) {
+              cooling.delete(id);
+            }
+            if (failure.kind === "retry") {
+              for (const p of run) {
+                const id = tileId(p.meta.key, p.level, p.tile);
+                if (!data.has(id) && !inflight.has(id) && !pending.has(id)) {
+                  pending.set(id, p);
+                }
               }
             }
             pump();
-          }, failure.afterMs),
-        };
-        retries.add(retry);
-      } else if (failure.kind === "missing") {
-        noteWaveformTileMissing(head.projectPath, head.ref, head.meta.key);
-      }
+          },
+          failure.kind === "retry" ? failure.afterMs : FAILED_FETCH_BACKOFF_MS,
+        ),
+      };
+      retries.add(retry);
     })
     .finally(() => {
       requests.delete(request);
@@ -310,9 +348,20 @@ export function prefetchPyramid(source: Source): void {
   }
 }
 
-onWaveformReady((projectPath, ref, meta) =>
-  prefetchPyramid({ projectPath, ref, meta }),
-);
+/** A key that is ready again may have the tiles that 404'd. */
+function forgetMissing(key: string): void {
+  const prefix = `${key}|`;
+  for (const id of [...missing]) {
+    if (id.startsWith(prefix)) {
+      missing.delete(id);
+    }
+  }
+}
+
+onWaveformReady((projectPath, ref, meta) => {
+  forgetMissing(meta.key);
+  prefetchPyramid({ projectPath, ref, meta });
+});
 
 /** Leaving a project: abort its fetches and drop its queue. */
 export function retainPyramids(projectPath: string): void {
@@ -329,6 +378,9 @@ export function retainPyramids(projectPath: string): void {
   for (const retry of [...retries]) {
     if (retry.projectPath !== projectPath) {
       clearTimeout(retry.timer);
+      for (const id of retry.ids) {
+        cooling.delete(id);
+      }
       retries.delete(retry);
     }
   }
@@ -338,6 +390,7 @@ export function retainPyramids(projectPath: string): void {
 export function resetPyramidStore(): void {
   retainPyramids("\u0000none");
   data.clear();
+  missing.clear();
   listeners.clear();
 }
 

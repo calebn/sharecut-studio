@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WaveformFetchError } from "../api";
-import { waveformFetchGate } from "./budgets";
+import { FAILED_FETCH_BACKOFF_MS, waveformFetchGate } from "./budgets";
 import type { PyramidMeta } from "./types";
 
 type Call = {
@@ -212,6 +212,8 @@ describe("pyramidStore", () => {
     calls.shift()!.reject(new WaveformFetchError(429, 2));
     await flush();
     expect(calls).toHaveLength(0);
+    requestTiles(source, 1, [2], PRIORITY_VISIBLE);
+    expect(calls).toHaveLength(0);
     vi.advanceTimersByTime(1999);
     expect(calls).toHaveLength(0);
     vi.advanceTimersByTime(1);
@@ -219,7 +221,7 @@ describe("pyramidStore", () => {
     expect(calls[0]!.req).toMatchObject({ level: 1, start: 2, count: 1 });
   });
 
-  it("asks for a status refresh on 404 and allows a later retry", async () => {
+  it("asks for a status refresh on 404 and skips the tile until its key is ready again", async () => {
     requestTiles(source, 1, [2], PRIORITY_VISIBLE);
     calls.shift()!.reject(new WaveformFetchError(404, null));
     await flush();
@@ -229,7 +231,58 @@ describe("pyramidStore", () => {
       meta.key,
     );
     requestTiles(source, 1, [2], PRIORITY_VISIBLE);
+    expect(calls).toHaveLength(0);
+    status.readyListener!("/tmp/p.json", "track:host", meta);
+    requestTiles(source, 1, [2], PRIORITY_VISIBLE);
+    expect(calls.some((c) => c.req.level === 1 && c.req.start === 2)).toBe(
+      true,
+    );
+  });
+
+  it("holds a failed run back briefly without re-queueing it", async () => {
+    vi.useFakeTimers();
+    requestTiles(source, 1, [2], PRIORITY_VISIBLE);
+    calls.shift()!.reject(new WaveformFetchError(500, null));
+    await flush();
+    requestTiles(source, 1, [2], PRIORITY_VISIBLE);
+    expect(calls).toHaveLength(0);
+    vi.advanceTimersByTime(FAILED_FETCH_BACKOFF_MS);
+    expect(calls).toHaveLength(0);
+    requestTiles(source, 1, [2], PRIORITY_VISIBLE);
     expect(calls).toHaveLength(1);
+  });
+
+  it("treats the tail of a short response as missing", async () => {
+    requestTiles(source, 1, [0, 1], PRIORITY_VISIBLE);
+    calls.shift()!.resolve(tileBytes(1, 0, 1));
+    await flush();
+    expect(hasTile(meta.key, 1, 0)).toBe(true);
+    expect(hasTile(meta.key, 1, 1)).toBe(false);
+    expect(status.noteWaveformTileMissing).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      "track:host",
+      meta.key,
+    );
+    requestTiles(source, 1, [1], PRIORITY_VISIBLE);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("hands a queued tile to the project that asked last", async () => {
+    for (const t of [0, 2, 4, 6]) {
+      requestTiles(source, 0, [t], PRIORITY_VISIBLE);
+    }
+    requestTiles(source, 1, [3], PRIORITY_VISIBLE);
+    requestTiles(
+      { ...source, projectPath: "/tmp/q.json" },
+      1,
+      [3],
+      PRIORITY_VISIBLE,
+    );
+    retainPyramids("/tmp/q.json");
+    answer(calls.shift()!);
+    await flush();
+    expect(calls.at(-1)!.projectPath).toBe("/tmp/q.json");
+    expect(calls.at(-1)!.req).toMatchObject({ level: 1, start: 3 });
   });
 
   it("returns copies of loaded bins, missing ones with rms -1", async () => {

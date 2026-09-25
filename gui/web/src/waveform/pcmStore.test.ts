@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WaveformFetchError } from "../api";
 import { PCM_BLOCK_FRAMES } from "../utils/timelineZoom.generated";
-import { waveformFetchGate } from "./budgets";
+import { FAILED_FETCH_BACKOFF_MS, waveformFetchGate } from "./budgets";
 
 type Call = {
   projectPath: string;
@@ -119,6 +119,32 @@ describe("pcmStore", () => {
     calls.shift()!.reject(new WaveformFetchError(409, null));
     await flush();
     expect(refresh).toHaveBeenCalledWith("/tmp/p.json", "stem");
+    requestPcm({ ...source, ref: "stem:host" }, 2, 2);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("holds a failed block back briefly without re-queueing it", async () => {
+    vi.useFakeTimers();
+    requestPcm(source, 5, 5);
+    calls.shift()!.reject(new WaveformFetchError(500, null));
+    await flush();
+    requestPcm(source, 5, 5);
+    expect(calls).toHaveLength(0);
+    vi.advanceTimersByTime(FAILED_FETCH_BACKOFF_MS);
+    expect(calls).toHaveLength(0);
+    requestPcm(source, 5, 5);
+    expect(calls.map((c) => c.req.block)).toEqual([5]);
+  });
+
+  it("hands a queued block to the project that asked last", async () => {
+    requestPcm(source, 0, 3);
+    requestPcm(source, 9, 9);
+    requestPcm({ ...source, projectPath: "/tmp/q.json" }, 9, 9);
+    retainPcm("/tmp/q.json");
+    calls.shift()!.resolve(new ArrayBuffer(0));
+    await flush();
+    expect(calls.at(-1)!.projectPath).toBe("/tmp/q.json");
+    expect(calls.at(-1)!.req.block).toBe(9);
   });
 
   it("re-queues after Retry-After on 429", async () => {
@@ -126,6 +152,8 @@ describe("pcmStore", () => {
     requestPcm(source, 4, 4);
     calls.shift()!.reject(new WaveformFetchError(429, 1));
     await flush();
+    requestPcm(source, 4, 4);
+    expect(calls).toHaveLength(0);
     vi.advanceTimersByTime(1000);
     expect(calls.map((c) => c.req.block)).toEqual([4]);
   });
