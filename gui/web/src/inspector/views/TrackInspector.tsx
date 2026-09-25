@@ -145,7 +145,8 @@ export function TrackInspector({
         </div>
         <TrackFader track={track} />
         <p className="track-sheet-gain">
-          Automate volume with Levels: drag a point, then edit it here.
+          For volume over time, drag Levels points on the timeline, then edit
+          the selected point in the inspector.
         </p>
       </div>
       {mayIngest ? (

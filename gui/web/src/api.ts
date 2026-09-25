@@ -338,6 +338,10 @@ export async function submitDocumentCommand(
             },
             reason: detail,
           });
+        }
+        if (res.status < 500) {
+          // A 4xx (a refusal, a rate limit) is reported to the caller now.
+          // Replaying it later would overwrite newer edits, as on the host.
           await removeQueuedCommand(token, command_id);
         }
         throw new Error(detail);

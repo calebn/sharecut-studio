@@ -1,6 +1,5 @@
-import { trackOutputGainDb } from "../tracks/trackMix";
 import type { ClipRow } from "../types/project";
-import { dbToLinear, trackIsAudible } from "../utils/audio";
+import { dbToLinear, trackIsAudible, trackOutputGainDb } from "../utils/audio";
 import {
   buildSchedule,
   type ProxyManifest,
@@ -15,6 +14,8 @@ export interface TrackInfo {
 }
 
 const WINDOW_PAD_SEC = 120;
+/** Time constant for a live gain change (reaches ~99% in 5x this). */
+const GAIN_GLIDE_SEC = 0.01;
 const LRU_BUDGET_BYTES = 500 * 1024 * 1024;
 
 type FetchChunk = (trackId: string, idx: number) => Promise<ArrayBuffer>;
@@ -57,6 +58,7 @@ export class ProxyEngine {
     clipsByTrack: Record<string, ClipRow[]>,
     tracks: TrackInfo[],
   ): void {
+    const clipsChanged = clipsByTrack !== this.clipsByTrack;
     this.clipsByTrack = clipsByTrack;
     this.tracks = tracks;
     for (const t of tracks) {
@@ -67,7 +69,8 @@ export class ProxyEngine {
       }
     }
     this.applyGains();
-    if (this.playing) {
+    // A volume or mute change only moves gains; new clips need new sources.
+    if (this.playing && clipsChanged) {
       const now = this.currentTimeSec();
       this.stopSources();
       void this.scheduleAround(now);
@@ -86,15 +89,23 @@ export class ProxyEngine {
     this.applyGains();
   }
 
-  /** Every track at its output gain (staging + fader) unless silenced. */
+  /** Every track at its output gain (staging + volume) unless silenced. */
   private applyGains(): void {
+    const now = this.ctx.currentTime;
     for (const t of this.tracks) {
       const g = this.trackGains.get(t.id);
       if (!g) {
         continue;
       }
       const audible = trackIsAudible(t.id, t.muted, this.listenMute, this.solo);
-      g.gain.value = audible ? dbToLinear(trackOutputGainDb(t)) : 0;
+      const target = audible ? dbToLinear(trackOutputGainDb(t)) : 0;
+      g.gain.cancelScheduledValues(now);
+      if (this.playing) {
+        // Glide to a live change so it doesn't click.
+        g.gain.setTargetAtTime(target, now, GAIN_GLIDE_SEC);
+      } else {
+        g.gain.value = target;
+      }
     }
   }
 

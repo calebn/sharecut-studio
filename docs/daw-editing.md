@@ -2,7 +2,7 @@
 
 Multi-pass plan that turned the host Sharecut Studio from a **read-only inspector** into a consistent **editor** for agent-mutable timeline/project concerns. Passes 0–8 shipped. Remaining polish lives in [ROADMAP.md § Follow-up](../ROADMAP.md#follow-up).
 
-Agents mutate via MCP/CLI; the GUI writes the same services through typed document commands (`POST /api/document/command`) plus comments, pipeline, bounce, and ingest. Display-only document ops (`ReorderTrack`, `SetTrackMeta`) apply optimistically in the DAW and revert on 4xx/network failure. See [gui-integration.md](gui-integration.md) and [session-sync.md](session-sync.md).
+Agents mutate via MCP/CLI; the GUI writes the same services through typed document commands (`POST /api/document/command`) plus comments, pipeline, bounce, and ingest. Display-only document ops (`ReorderTrack`, `SetTrackMeta`) and the saved mix (`SetTrackFader`, `SetTrackMute`) apply optimistically in the DAW and revert on 4xx/network failure; mix changes revert only the failed field. See [gui-integration.md](gui-integration.md) and [session-sync.md](session-sync.md).
 
 ## Architecture rule
 

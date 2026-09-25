@@ -3,18 +3,21 @@ import { execute } from "../commands/execute";
 import { canEditMix } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import type { TrackView } from "../types/project";
+import { Button } from "../ui";
 import {
   FADER_MAX_DB,
   FADER_MIN_DB,
   FADER_STEP_DB,
-  formatDb,
-} from "./trackMix";
+  formatGainDb,
+  trackOutputGainDb,
+} from "../utils/audio";
 
 /**
  * A track's saved volume (``fader_db``) on top of its staging gain. The thumb
- * moves locally while dragging; the native ``change`` event (release, or each
- * arrow-key step) sends one SetTrackFader. Double-click resets to 0 dB.
- * Only the host and editors can change it; other guests see it read-only.
+ * moves locally while dragging; each native ``change`` (release, or an arrow
+ * key step) runs track.setVolume, which saves the last value of a burst.
+ * Double-click or Reset sets 0 dB. Only the host and editors can change it;
+ * other guests see it read-only, with the reason under it.
  */
 export function TrackFader({ track }: { track: TrackView }) {
   const { projectPath, guestMode, shareCapabilities } = useDaw();
@@ -41,6 +44,10 @@ export function TrackFader({ track }: { track: TrackView }) {
       );
     }
   };
+  const reset = () => {
+    setValue(0);
+    commit(0);
+  };
   const onNativeChange = useEffectEvent((db: number) => commit(db));
 
   // React's onChange fires on every input; the native change event is the
@@ -55,7 +62,14 @@ export function TrackFader({ track }: { track: TrackView }) {
     return () => el.removeEventListener("change", onChange);
   }, []);
 
+  // A drag released where it started fires no change event; stop ignoring
+  // the saved value anyway.
+  const endDrag = () => {
+    draggingRef.current = false;
+  };
+
   const id = `track-fader-${track.id}`;
+  const noteId = `${id}-note`;
   return (
     <div className="track-fader">
       <label htmlFor={id} className="track-fader-label">
@@ -72,28 +86,42 @@ export function TrackFader({ track }: { track: TrackView }) {
         value={value}
         disabled={!editable}
         title={
-          editable
-            ? "Saved volume. Double-click to reset to 0 dB"
-            : "Only the host and editors can change the volume"
+          editable ? "Saved volume. Double-click to reset to 0 dB" : undefined
         }
-        aria-valuetext={formatDb(value)}
+        aria-describedby={noteId}
+        aria-valuetext={formatGainDb(value)}
         onChange={(e) => {
           draggingRef.current = true;
           setValue(Number(e.currentTarget.value));
         }}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onBlur={endDrag}
         onDoubleClick={() => {
           if (editable) {
-            setValue(0);
-            commit(0);
+            reset();
           }
         }}
       />
       <output htmlFor={id} className="track-fader-value">
-        {formatDb(value)}
+        {formatGainDb(value)}
       </output>
-      <p className="track-fader-note">
-        Staging gain {formatDb(track.gain_db)}; plays at{" "}
-        {formatDb(track.gain_db + value)}
+      {editable ? (
+        <Button
+          className="ui-control--compact"
+          aria-label="Reset volume to 0 dB"
+          disabled={value === 0}
+          onClick={reset}
+        >
+          Reset
+        </Button>
+      ) : null}
+      <p id={noteId} className="track-fader-note">
+        {editable
+          ? `Staging gain ${formatGainDb(track.gain_db)}; plays at ${formatGainDb(
+              trackOutputGainDb({ gain_db: track.gain_db, fader_db: value }),
+            )}`
+          : "Only the host and editors can change the volume"}
       </p>
     </div>
   );

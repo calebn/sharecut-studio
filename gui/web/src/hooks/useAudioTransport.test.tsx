@@ -1,8 +1,9 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { patchTrackMix } from "../document/projectPatch";
 import { useDawStore } from "../state/dawStore";
-import { minimalProject } from "../test/fixtures";
-import type { ProjectView } from "../types/project";
+import { minimalProject, sampleTrack } from "../test/fixtures";
+import type { ProjectView, TrackView } from "../types/project";
 import { useAudioTransport } from "./useAudioTransport";
 
 class FakeAudio extends EventTarget {
@@ -153,6 +154,128 @@ describe("useAudioTransport project transitions", () => {
     });
     expect(useDawStore.getState().audioError).toBeNull();
     expect(useDawStore.getState().isPlaying).toBe(false);
+    unmount();
+  });
+});
+
+function mixProject(tracks: TrackView[], staleVsMix = false): ProjectView {
+  return minimalProject({
+    tracks,
+    render_status: {
+      needs_rerender: staleVsMix,
+      reconciliation: { stale: false },
+      premix: { exists: true, mtime_sec: 1, stale_vs_mix: staleVsMix },
+    },
+  });
+}
+
+/** Volume of each live player (torn-down ones have no src). */
+function volumes(): Record<string, number> {
+  return Object.fromEntries(
+    FakeAudio.instances
+      .filter((el) => el.src)
+      .map((el) => [
+        new URL(el.src, "http://x").searchParams.get("track_id") ?? "premix",
+        el.volume,
+      ]),
+  );
+}
+
+describe("useAudioTransport saved mix (#386)", () => {
+  beforeEach(() => {
+    FakeAudio.instances = [];
+    vi.stubGlobal("Audio", FakeAudio);
+    useDawStore.getState().hydrate("/tmp/project-a.json", minimalProject());
+    useDawStore.getState().setAuditionMode("mix");
+  });
+
+  afterEach(() => {
+    act(() => useDawStore.getState().setIsPlaying(false));
+    vi.unstubAllGlobals();
+  });
+
+  it("plays the stems at their output gain once the premix is behind the mix", () => {
+    useDawStore
+      .getState()
+      .setProject(
+        mixProject([sampleTrack({ id: "host" }), sampleTrack({ id: "guest" })]),
+      );
+    const { unmount } = renderHook(() => useAudioTransport());
+    expect(Object.keys(volumes())).toEqual(["premix"]);
+
+    act(() =>
+      useDawStore
+        .getState()
+        .setProject(
+          mixProject(
+            [
+              sampleTrack({ id: "host", fader_db: -20 }),
+              sampleTrack({ id: "guest", muted: true }),
+            ],
+            true,
+          ),
+        ),
+    );
+    // One audible track still follows its own volume (no normalising up).
+    expect(volumes()).toEqual({ host: expect.closeTo(0.1, 6), guest: 0 });
+    unmount();
+  });
+
+  it("lowers every track by the loudest boost so none clips", () => {
+    useDawStore
+      .getState()
+      .setProject(
+        mixProject(
+          [
+            sampleTrack({ id: "host", fader_db: 6 }),
+            sampleTrack({ id: "guest" }),
+          ],
+          true,
+        ),
+      );
+    const { unmount } = renderHook(() => useAudioTransport());
+    expect(volumes()).toEqual({ host: 1, guest: expect.closeTo(0.501, 3) });
+    unmount();
+  });
+
+  it("keeps playing through a saved volume or mute change", async () => {
+    useDawStore
+      .getState()
+      .setProject(
+        mixProject(
+          [sampleTrack({ id: "host" }), sampleTrack({ id: "guest" })],
+          true,
+        ),
+      );
+    const { unmount } = renderHook(() => useAudioTransport());
+    const players = [...FakeAudio.instances];
+    expect(players).toHaveLength(2);
+
+    act(() => useDawStore.getState().setIsPlaying(true));
+    await vi.waitFor(() => {
+      expect(players.every((el) => !el.paused)).toBe(true);
+    });
+
+    act(() => {
+      const project = useDawStore.getState().project;
+      if (project) {
+        useDawStore
+          .getState()
+          .setProject(patchTrackMix(project, "host", { fader_db: -6 }));
+      }
+    });
+    act(() => {
+      const project = useDawStore.getState().project;
+      if (project) {
+        useDawStore
+          .getState()
+          .setProject(patchTrackMix(project, "guest", { muted: true }));
+      }
+    });
+    expect(FakeAudio.instances).toEqual(players);
+    expect(players.every((el) => !el.paused)).toBe(true);
+    expect(useDawStore.getState().isPlaying).toBe(true);
+    expect(volumes()).toEqual({ host: expect.closeTo(0.501, 3), guest: 0 });
     unmount();
   });
 });

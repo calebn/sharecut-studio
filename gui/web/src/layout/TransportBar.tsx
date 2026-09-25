@@ -136,7 +136,11 @@ export function TransportBar({
 
   const premixCue =
     highlightStaleRender &&
-    Boolean(breakdown?.premixMissing || breakdown?.premixStaleVsStems);
+    Boolean(
+      breakdown?.premixMissing ||
+        breakdown?.premixStaleVsStems ||
+        breakdown?.premixStaleVsMix,
+    );
   const guestMixOnly = guestHearsMixOnly(guestMode);
   const auditionGroup = (menu = false) => (
     <SegmentedControl

@@ -362,8 +362,16 @@ test.describe("presence follow desktop", () => {
           '[data-presence-anchor="audition:fx"][aria-pressed="true"]',
         ),
       ).toBeVisible({ timeout: 8_000 });
-      await pageB.locator('[data-presence-anchor="track:guest:mute"]').click();
+      // Both tabs are the host, so M saves the mute for everyone (#386).
+      const muteB = pageB.locator('[data-presence-anchor="track:guest:mute"]');
+      await muteB.click();
       await expect(pageB.locator(".follow-banner")).toBeVisible();
+      await expect(muteB).toHaveAttribute("data-mute-state", "saved");
+      await expect(
+        pageA.locator('[data-presence-anchor="track:guest:mute"]'),
+      ).toHaveAttribute("data-mute-state", "saved", { timeout: 8_000 });
+      await muteB.click();
+      await expect(muteB).toHaveAttribute("data-mute-state", "off");
     });
   });
 });

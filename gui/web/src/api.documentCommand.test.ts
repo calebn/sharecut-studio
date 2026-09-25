@@ -5,6 +5,7 @@ const enqueueHostCommand = vi.fn();
 const removeHostQueuedCommand = vi.fn();
 const addHostConflict = vi.fn();
 const enqueueCommand = vi.fn();
+const removeQueuedCommand = vi.fn();
 const applyDocumentResult = vi.fn();
 
 const applyDocumentSnapshot = vi.fn();
@@ -22,7 +23,7 @@ vi.mock("./state/offlineStore", () => ({
   removeHostQueuedCommand,
   addHostConflict,
   enqueueCommand,
-  removeQueuedCommand: vi.fn(),
+  removeQueuedCommand,
   addConflict: vi.fn(),
 }));
 
@@ -65,6 +66,23 @@ describe("host document command queue", () => {
       }),
     ).resolves.toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("drops a guest command the server refused, so it never replays", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("slow down", { status: 429 })),
+    );
+    const { submitDocumentCommand } = await import("./api");
+
+    await expect(
+      submitDocumentCommand("share:tok", "SetTrackFader", {
+        track_id: "host",
+        fader_db: -3,
+      }),
+    ).rejects.toThrow();
+    const queued = enqueueCommand.mock.calls[0]?.[1] as { command_id: string };
+    expect(removeQueuedCommand).toHaveBeenCalledWith("tok", queued.command_id);
   });
 
   it("binds a legacy guest queue record to the current tab identity on replay", async () => {

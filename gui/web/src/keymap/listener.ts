@@ -4,7 +4,11 @@ import { buildCommandContext, evaluateWhen } from "../commands/context";
 import { execute } from "../commands/execute";
 import { useDawStore } from "../state/dawStore";
 import { peekMenuOpen } from "../ui/menuGate";
-import { argsFromKeyEvent, matchKeymapCommands } from "./registry";
+import {
+  argsFromKeyEvent,
+  ignoresKeyRepeat,
+  matchKeymapCommands,
+} from "./registry";
 import { isTypingTarget } from "./typing";
 
 /**
@@ -71,6 +75,9 @@ export function useDawKeymapListener(): void {
             continue;
           }
           e.preventDefault();
+          if (ignoresKeyRepeat(e, cmd.id)) {
+            return;
+          }
           const result = await execute(cmd.id, argsFromKeyEvent(e, cmd.id), {
             ctx,
             skipWhen: true,

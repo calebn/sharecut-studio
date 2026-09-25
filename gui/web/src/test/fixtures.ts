@@ -1,5 +1,5 @@
 import type { RecordParticipant, RecordSnapshot } from "../record/types";
-import type { ProjectView, TimelineComment } from "../types/project";
+import type { ProjectView, TimelineComment, TrackView } from "../types/project";
 
 /** Minimal ProjectView for unit tests that need DawProvider / store hydrate. */
 export function minimalProject(
@@ -31,6 +31,25 @@ export function minimalProject(
     history: { cursor: 0, can_undo: false, can_redo: false, groups: [] },
     transcript: null,
     peaks_index: {},
+    ...overrides,
+  };
+}
+
+/** A dialogue track with media, a fresh stem and no saved mix changes. */
+export function sampleTrack(overrides: Partial<TrackView> = {}): TrackView {
+  const id = overrides.id ?? "host";
+  return {
+    id,
+    label: id,
+    role: "dialogue",
+    speaker: null,
+    gain_db: 0,
+    fader_db: 0,
+    muted: false,
+    duration_sec: 60,
+    media_path: `/tmp/${id}.wav`,
+    fx_count: 0,
+    stem_is_fresh: true,
     ...overrides,
   };
 }
