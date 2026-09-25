@@ -20,7 +20,14 @@ export function EmptyInspector({
     shareCapabilities,
     playheadSec,
     sessionRegion,
-  } = useDaw();
+  } = useDaw((s) => ({
+    project: s.project,
+    projectPath: s.projectPath,
+    guestMode: s.guestMode,
+    shareCapabilities: s.shareCapabilities,
+    playheadSec: s.playheadSec,
+    sessionRegion: s.sessionRegion,
+  }));
   const canSuggest = canSuggestOrNudge(
     projectPath,
     guestMode,

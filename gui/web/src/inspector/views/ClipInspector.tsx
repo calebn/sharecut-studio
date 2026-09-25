@@ -18,7 +18,11 @@ import { ModifierInspector } from "../ModifierInspector";
 const JOIN_MODES = ["fade", "crossfade", "cut"] as const;
 
 export function ClipInspector({ clip }: { clip: ClipRow }) {
-  const { projectPath, guestMode, shareCapabilities } = useDaw();
+  const { projectPath, guestMode, shareCapabilities } = useDaw((s) => ({
+    projectPath: s.projectPath,
+    guestMode: s.guestMode,
+    shareCapabilities: s.shareCapabilities,
+  }));
   const { busy, error, setError, run } = useProjectMutation();
   const [fadeInStr, setFadeInStr] = useState(String(clip.fade_in_ms));
   const [fadeOutStr, setFadeOutStr] = useState(String(clip.fade_out_ms));

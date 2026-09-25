@@ -20,7 +20,14 @@ export function ToolModeToggle({ compact = false }: { compact?: boolean }) {
     projectPath,
     guestMode,
     shareCapabilities,
-  } = useDaw();
+  } = useDaw((s) => ({
+    toolMode: s.toolMode,
+    commentMode: s.commentMode,
+    project: s.project,
+    projectPath: s.projectPath,
+    guestMode: s.guestMode,
+    shareCapabilities: s.shareCapabilities,
+  }));
   const allowed = canSuggestStructuralOnProject(
     projectPath,
     guestMode,

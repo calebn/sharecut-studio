@@ -26,7 +26,7 @@ export function useCommentActions(opts?: {
   ) => Promise<void>;
   refresh: () => Promise<void>;
 } {
-  const { projectPath } = useDaw();
+  const { projectPath } = useDaw((s) => ({ projectPath: s.projectPath }));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const author = opts?.author;

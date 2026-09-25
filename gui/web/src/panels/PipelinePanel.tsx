@@ -235,7 +235,15 @@ export function PipelinePanel() {
     setActivityJob,
     setActiveTab,
     sessionClients,
-  } = useDaw();
+  } = useDaw((s) => ({
+    projectPath: s.projectPath,
+    pipelineJob: s.pipelineJob,
+    activityJob: s.activityJob,
+    setPipelineJob: s.setPipelineJob,
+    setActivityJob: s.setActivityJob,
+    setActiveTab: s.setActiveTab,
+    sessionClients: s.sessionClients,
+  }));
   const [cfg, setCfg] = useState<PipelineConfigResponse | null>(null);
   const [whisperPending, setWhisperPending] =
     useState<WhisperDownloadRequest | null>(null);

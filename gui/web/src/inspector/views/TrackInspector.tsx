@@ -43,7 +43,15 @@ export function TrackInspector({
     setPlayUntilSec,
     setIsPlaying,
     setProject,
-  } = useDaw();
+  } = useDaw((s) => ({
+    projectPath: s.projectPath,
+    guestMode: s.guestMode,
+    shareCapabilities: s.shareCapabilities,
+    setPlayheadSec: s.setPlayheadSec,
+    setPlayUntilSec: s.setPlayUntilSec,
+    setIsPlaying: s.setIsPlaying,
+    setProject: s.setProject,
+  }));
   const { busy, error, setError, run } = useProjectMutation();
   const editable = canApplyPass12(projectPath, guestMode, shareCapabilities);
   const mayIngest = canIngestMedia(projectPath, guestMode, shareCapabilities);

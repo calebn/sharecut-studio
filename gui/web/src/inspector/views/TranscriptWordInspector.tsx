@@ -48,7 +48,10 @@ export function TranscriptWordInspector({
   /** Docked inside TranscriptPanel (text focus) — not the side rail. */
   embedded?: boolean;
 }) {
-  const { project, projectPath } = useDaw();
+  const { project, projectPath } = useDaw((s) => ({
+    project: s.project,
+    projectPath: s.projectPath,
+  }));
   const wordsHydrated = project?.meta.hydration?.transcript_words !== false;
   const word = useMemo(
     () =>

@@ -69,7 +69,15 @@ export function TrackHeader({
     projectPath,
     guestMode,
     shareCapabilities,
-  } = useDaw();
+  } = useDaw((s) => ({
+    viewerMute: s.viewerMute,
+    project: s.project,
+    highlightStaleRender: s.highlightStaleRender,
+    ingestDropTrackId: s.ingestDropTrackId,
+    projectPath: s.projectPath,
+    guestMode: s.guestMode,
+    shareCapabilities: s.shareCapabilities,
+  }));
   const mayReorder =
     reorderEnabled && canIngestMedia(projectPath, guestMode, shareCapabilities);
   const muted = Boolean(viewerMute[track.id]) || track.muted;

@@ -21,7 +21,11 @@ import {
  * other guests see it read-only, with the reason under it.
  */
 export function TrackFader({ track }: { track: TrackView }) {
-  const { projectPath, guestMode, shareCapabilities } = useDaw();
+  const { projectPath, guestMode, shareCapabilities } = useDaw((s) => ({
+    projectPath: s.projectPath,
+    guestMode: s.guestMode,
+    shareCapabilities: s.shareCapabilities,
+  }));
   const editable = canEditMix(projectPath, guestMode, shareCapabilities);
   const saved = trackFaderDb(track);
   const [value, setValue] = useState(saved);

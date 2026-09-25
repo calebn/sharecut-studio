@@ -20,7 +20,10 @@ export function SocialClipInspector({
   clip: SocialClipView;
   onSeek: (sec: number) => void;
 }) {
-  const { projectPath, setSelection } = useDaw();
+  const { projectPath, setSelection } = useDaw((s) => ({
+    projectPath: s.projectPath,
+    setSelection: s.setSelection,
+  }));
   const editable = !isShareProjectKey(projectPath);
   const { busy, error, setError, run } = useProjectMutation();
   const [startStr, setStartStr] = useState(String(clip.start));

@@ -42,7 +42,21 @@ export function CommentsPanel({
     shareCapabilities,
     guestMode,
     announceStatus,
-  } = useDaw();
+  } = useDaw((s) => ({
+    project: s.project,
+    projectPath: s.projectPath,
+    setSelection: s.setSelection,
+    setPlayheadSec: s.setPlayheadSec,
+    setActiveTab: s.setActiveTab,
+    commentMode: s.commentMode,
+    commentDraft: s.commentDraft,
+    setCommentDraft: s.setCommentDraft,
+    setCommentMode: s.setCommentMode,
+    selection: s.selection,
+    shareCapabilities: s.shareCapabilities,
+    guestMode: s.guestMode,
+    announceStatus: s.announceStatus,
+  }));
 
   const [filter, setFilter] = useState<Filter>("open");
   const [author, setAuthor] = useState(loadCommentAuthor);

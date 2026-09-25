@@ -89,7 +89,17 @@ export function useClipWaveform(opts: {
     shareCapabilities,
     pointerTrackId,
     measureTimelineViewport,
-  } = useDaw();
+  } = useDaw((s) => ({
+    projectPath: s.projectPath,
+    scrollLeft: s.scrollLeft,
+    playheadSec: s.playheadSec,
+    waveformAmpZoom: s.waveformAmpZoom,
+    auditionMode: s.auditionMode,
+    guestMode: s.guestMode,
+    shareCapabilities: s.shareCapabilities,
+    pointerTrackId: s.pointerTrackId,
+    measureTimelineViewport: s.measureTimelineViewport,
+  }));
   // A theme flip re-renders the clip so its paint effect repaints the tint.
   const theme = useResolvedTheme();
   const [tiles, setTiles] = useState<WaveformTile[]>([]);

@@ -11,7 +11,11 @@ import { TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
 import { selectUnmappedPending } from "../utils/edits";
 
 export function ImpactPanel() {
-  const { project, projectPath, setSelection } = useDaw();
+  const { project, projectPath, setSelection } = useDaw((s) => ({
+    project: s.project,
+    projectPath: s.projectPath,
+    setSelection: s.setSelection,
+  }));
   const { busy, error, errorCode, setError, run } = useProjectMutation();
 
   if (!project) {

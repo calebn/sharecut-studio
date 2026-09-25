@@ -77,7 +77,13 @@ export function ShareDialog() {
     project,
     projectPath,
     announceStatus,
-  } = useDaw();
+  } = useDaw((s) => ({
+    shareDialogOpen: s.shareDialogOpen,
+    setShareDialogOpen: s.setShareDialogOpen,
+    project: s.project,
+    projectPath: s.projectPath,
+    announceStatus: s.announceStatus,
+  }));
   const roleId = useId();
   const mcpId = useId();
   const [role, setRole] = useState<ShareRole>("commenter");

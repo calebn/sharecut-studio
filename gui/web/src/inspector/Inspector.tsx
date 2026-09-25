@@ -13,7 +13,12 @@ import { TrackInspector } from "./views/TrackInspector";
 import { TranscriptWordInspector } from "./views/TranscriptWordInspector";
 
 export function Inspector() {
-  const { project, selection, setSelection, setPlayheadSec } = useDaw();
+  const { project, selection, setSelection, setPlayheadSec } = useDaw((s) => ({
+    project: s.project,
+    selection: s.selection,
+    setSelection: s.setSelection,
+    setPlayheadSec: s.setPlayheadSec,
+  }));
 
   if (!project) {
     return (

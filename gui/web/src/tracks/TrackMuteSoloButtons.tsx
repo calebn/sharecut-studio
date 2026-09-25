@@ -22,7 +22,14 @@ export function TrackMuteSoloButtons({ trackId }: { trackId: string }) {
     projectPath,
     guestMode,
     shareCapabilities,
-  } = useDaw();
+  } = useDaw((s) => ({
+    viewerMute: s.viewerMute,
+    soloTracks: s.soloTracks,
+    project: s.project,
+    projectPath: s.projectPath,
+    guestMode: s.guestMode,
+    shareCapabilities: s.shareCapabilities,
+  }));
   const track = project?.tracks.find((t) => t.id === trackId);
   const editsMix = canEditMix(projectPath, guestMode, shareCapabilities);
   const solo = Boolean(soloTracks[trackId]);

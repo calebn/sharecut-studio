@@ -13,7 +13,7 @@ import { plural } from "../utils/format";
 
 /** Pending host edits and host/guest 409 conflicts from IndexedDB. */
 export function GuestAttentionBanner() {
-  const { projectPath } = useDaw();
+  const { projectPath } = useDaw((s) => ({ projectPath: s.projectPath }));
   const [conflicts, setConflicts] = useState<OfflineConflict[]>([]);
   const [pending, setPending] = useState(0);
   const token = isShareProjectKey(projectPath)

@@ -62,7 +62,32 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     setHostMcpDialogOpen,
     helpDialogOpen,
     setHelpDialogOpen,
-  } = useDaw();
+  } = useDaw((s) => ({
+    project: s.project,
+    projectPath: s.projectPath,
+    setProject: s.setProject,
+    isPlaying: s.isPlaying,
+    applyAgentSession: s.applyAgentSession,
+    buildViewerSnapshot: s.buildViewerSnapshot,
+    suppressPublish: s.suppressPublish,
+    lastAppliedRevision: s.lastAppliedRevision,
+    lastAppliedCommandId: s.lastAppliedCommandId,
+    auditionMode: s.auditionMode,
+    selection: s.selection,
+    sessionRegion: s.sessionRegion,
+    viewerMute: s.viewerMute,
+    soloTracks: s.soloTracks,
+    pipelineJob: s.pipelineJob,
+    setPipelineJob: s.setPipelineJob,
+    activityJob: s.activityJob,
+    setActivityJob: s.setActivityJob,
+    setActivityRunningCount: s.setActivityRunningCount,
+    setSessionClients: s.setSessionClients,
+    hostMcpDialogOpen: s.hostMcpDialogOpen,
+    setHostMcpDialogOpen: s.setHostMcpDialogOpen,
+    helpDialogOpen: s.helpDialogOpen,
+    setHelpDialogOpen: s.setHelpDialogOpen,
+  }));
 
   const { error: bootstrapError, retry: retryBootstrap } =
     useProjectBootstrap(projectPath);

@@ -8,7 +8,14 @@ import { DefItem, DefinitionList, InspectorSeekFooter } from "../../ui";
 import { ModifierInspector } from "../ModifierInspector";
 
 export function AppliedEditInspector({ rec }: { rec: AppliedEditRecord }) {
-  const { projectPath, guestMode, shareCapabilities, setSelection } = useDaw();
+  const { projectPath, guestMode, shareCapabilities, setSelection } = useDaw(
+    (s) => ({
+      projectPath: s.projectPath,
+      guestMode: s.guestMode,
+      shareCapabilities: s.shareCapabilities,
+      setSelection: s.setSelection,
+    }),
+  );
   const { busy, error, run } = useProjectMutation();
 
   const canRestore =

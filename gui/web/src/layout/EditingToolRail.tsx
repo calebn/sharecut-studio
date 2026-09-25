@@ -15,7 +15,14 @@ export function EditingToolRail() {
     projectPath,
     guestMode,
     shareCapabilities,
-  } = useDaw();
+  } = useDaw((s) => ({
+    toolMode: s.toolMode,
+    commentMode: s.commentMode,
+    playheadSec: s.playheadSec,
+    projectPath: s.projectPath,
+    guestMode: s.guestMode,
+    shareCapabilities: s.shareCapabilities,
+  }));
   const { allowed, busy, error, bladeConfirmSec, trackIdsForCut } =
     useBladeCut();
   const mayIngest = canIngestMedia(projectPath, guestMode, shareCapabilities);

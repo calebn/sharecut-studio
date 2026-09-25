@@ -17,7 +17,7 @@ export function useProjectMutation(): {
   refresh: () => Promise<ProjectView>;
   projectPath: string;
 } {
-  const { projectPath } = useDaw();
+  const { projectPath } = useDaw((s) => ({ projectPath: s.projectPath }));
   const [busy, setBusy] = useState(false);
   const [error, setErrorState] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);

@@ -24,7 +24,7 @@ export function useHostKeeperCapture(enabled = true): {
   micLost: boolean;
   retryMic: () => void;
 } {
-  const { projectPath } = useDaw();
+  const { projectPath } = useDaw((s) => ({ projectPath: s.projectPath }));
   const snapshot = useRecordHostStore((s) => s.snapshot);
   const setSnapshot = useRecordHostStore((s) => s.setSnapshot);
   const connected = useRecordHostStore((s) => s.connected);

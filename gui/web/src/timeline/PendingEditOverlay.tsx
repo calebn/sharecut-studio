@@ -49,7 +49,7 @@ export function PendingEditOverlay({
   selectedId,
   onSelect,
 }: PendingEditOverlayProps) {
-  const { projectPath } = useDaw();
+  const { projectPath } = useDaw((s) => ({ projectPath: s.projectPath }));
   const [drag, setDrag] = useState<DragState | null>(null);
   const [preview, setPreview] = useState<{
     editId: string;
