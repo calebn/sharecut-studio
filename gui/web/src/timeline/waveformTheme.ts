@@ -184,12 +184,16 @@ export function clearWaveformFillCache(): void {
   peakByTheme.clear();
   tintByKey.clear();
   styleByKey.clear();
+  peakColorByTheme.clear();
 }
 
 /** Edge alpha of the flat fallback: the peak envelope over a solid body. */
 const FALLBACK_EDGE_ALPHA = 0.6;
 
 const styleByKey = new Map<string, WaveformStyle>();
+
+/** Resolved `--color-waveform-peak` per theme, kept once it parses (the probe forces a style recalc). */
+const peakColorByTheme = new Map<ResolvedTheme, string>();
 
 function rgba(color: string, alphaScale = 1): Float32Array | null {
   const parsed = parseRgb(color);
@@ -206,23 +210,52 @@ function rgba(color: string, alphaScale = 1): Float32Array | null {
 }
 
 /**
- * `--color-waveform-peak` as a computed colour. The token is `color-mix(…)`
- * text, which `getPropertyValue` returns unresolved; the `color` of a styled
- * probe element resolves it (to `color(srgb …)` / `rgb(…)`).
+ * Any CSS colour (`oklch()`, `lab()`, `color(display-p3 …)`) as sRGB
+ * `rgba(…)`, read back from a 1×1 canvas; null without a 2D context.
  */
-function waveformPeakColor(): string {
+function srgbViaCanvas(color: string): string | null {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1;
+  canvas.height = 1;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return null;
+  }
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, 1, 1);
+  const px = ctx.getImageData(0, 0, 1, 1).data;
+  return `rgba(${px[0] ?? 0}, ${px[1] ?? 0}, ${px[2] ?? 0}, ${(px[3] ?? 0) / 255})`;
+}
+
+/**
+ * `--color-waveform-peak` as a computed sRGB colour, cached per theme once it
+ * parses. The token is `color-mix(…)` text, which `getPropertyValue` returns
+ * unresolved; the `color` of a styled probe element resolves it (to
+ * `color(srgb …)` / `rgb(…)`), and anything else goes through a canvas.
+ */
+function waveformPeakColor(theme: ResolvedTheme): string {
+  const cached = peakColorByTheme.get(theme);
+  if (cached) {
+    return cached;
+  }
   const token = getComputedStyle(document.documentElement)
     .getPropertyValue("--color-waveform-peak")
     .trim();
-  if (!token || parseRgb(token)) {
-    return token;
+  let color = token;
+  if (token && !parseRgb(token)) {
+    const probe = document.createElement("span");
+    probe.style.display = "none";
+    probe.style.setProperty("color", "var(--color-waveform-peak)");
+    document.documentElement.appendChild(probe);
+    color = getComputedStyle(probe).color;
+    probe.remove();
   }
-  const probe = document.createElement("span");
-  probe.style.display = "none";
-  probe.style.setProperty("color", "var(--color-waveform-peak)");
-  document.documentElement.appendChild(probe);
-  const color = getComputedStyle(probe).color;
-  probe.remove();
+  if (color && !parseRgb(color)) {
+    color = srgbViaCanvas(color) ?? color;
+  }
+  if (parseRgb(color)) {
+    peakColorByTheme.set(theme, color);
+  }
   return color;
 }
 
@@ -230,8 +263,9 @@ function waveformPeakColor(): string {
  * The two-tone look as straight RGBA floats for the raster worker: the RMS
  * body in the lane's core tint, the peak envelope in its edge tint. Resolved
  * once per (theme, lane colour). Without a readable clip fill it falls back
- * to `--color-waveform-peak` (edge at 0.6 alpha); fallbacks are not cached,
- * so a read before styles apply does not stick.
+ * to `--color-waveform-peak` (edge at 0.6 alpha; the peak colour is cached
+ * per theme once it parses). The fallback style itself is not cached, so a
+ * clip-fill read before styles apply does not stick.
  */
 export function waveformStyle(
   layerEl: Element,
@@ -252,7 +286,7 @@ export function waveformStyle(
     styleByKey.set(key, style);
     return style;
   }
-  const peak = waveformPeakColor();
+  const peak = waveformPeakColor(theme);
   return {
     core: rgba(peak) ?? new Float32Array(4),
     edge: rgba(peak, FALLBACK_EDGE_ALPHA) ?? new Float32Array(4),
