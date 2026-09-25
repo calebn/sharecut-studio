@@ -21,4 +21,16 @@ describe("RecordTransportChip", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("REC: no audio")).toBeInTheDocument();
   });
+
+  it.each([
+    ["failed", "Local capture failed. Open record panel"],
+    ["pending", "Waiting for microphone. Open record panel"],
+    ["silent", "No audio reaching the recorder. Open record panel"],
+    [null, "Recording. Open record panel"],
+  ] as const)("labels %s capture while recording", (health, name) => {
+    useRecordHostStore.getState().setSnapshot(recordSnapshot());
+    useRecordHostStore.getState().setCaptureHealth(health);
+    render(<RecordTransportChip />);
+    expect(screen.getByRole("button", { name })).toBeInTheDocument();
+  });
 });

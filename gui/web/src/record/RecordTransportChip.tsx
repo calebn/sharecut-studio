@@ -2,6 +2,7 @@ import { useId } from "react";
 import { CommandButton } from "../ui";
 import { useRecordHostStore } from "./hostStore";
 import { RecIndicator } from "./RecIndicator";
+import { REC_CHIP_CAPTURE_LABEL } from "./types";
 
 export function RecordTransportChip() {
   const clockId = useId();
@@ -13,13 +14,9 @@ export function RecordTransportChip() {
 
   const label =
     snapshot.state === "recording"
-      ? captureHealth === "failed"
-        ? "Local capture failed. Open record panel"
-        : captureHealth === "pending"
-          ? "Waiting for microphone. Open record panel"
-          : captureHealth === "silent"
-            ? "No audio reaching the recorder. Open record panel"
-            : "Recording. Open record panel"
+      ? captureHealth
+        ? REC_CHIP_CAPTURE_LABEL[captureHealth]
+        : "Recording. Open record panel"
       : snapshot.state === "paused"
         ? "Paused. Open record panel"
         : "Open record panel";
