@@ -142,15 +142,20 @@ export function waveformTicksToTimeline(
   return sourceTicks.map((t) => sourceSecOnClipToTimeline(clip, t));
 }
 
-/** A move of less than this (px at the current zoom) is no move. */
+/** A move of less than this (px at the current zoom) is no move… */
 export const MOVE_NOOP_PX = 0.5;
+/** …nor is one under 0.1 ms, so a snapped move at low zoom still commits. */
+export const MOVE_NOOP_MAX_SEC = 1e-4;
 
 export function movesDifferFromClips(
   clips: ClipRow[],
   moves: ClipMoveItem[],
   zoomPxPerSec: number,
 ): boolean {
-  const minSec = MOVE_NOOP_PX / Math.max(zoomPxPerSec, 1e-9);
+  const minSec = Math.min(
+    MOVE_NOOP_MAX_SEC,
+    MOVE_NOOP_PX / Math.max(zoomPxPerSec, 1e-9),
+  );
   const byId = new Map(clips.map((c) => [c.id, c]));
   for (const m of moves) {
     const clip = byId.get(m.clip_id);
