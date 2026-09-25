@@ -178,7 +178,9 @@ def media_index(project_path: Path) -> MediaIndex:
 
 
 def live_key(entry: MediaEntry) -> str:
-    """``current_key`` for request paths: missing or unreadable media is ``LookupError`` (404)."""
+    """``current_key`` for request paths: missing or unreadable media is ``LookupError`` (404).
+
+    Use this, not ``current_key``, on any HTTP path (``pcm_block``, guest tiles)."""
     try:
         return current_key(entry)
     except OSError as exc:
@@ -198,6 +200,21 @@ def _meta(path: Path, key: str) -> PyramidMeta:
         while len(_META) > _META_MAX:
             _META.popitem(last=False)
     return meta
+
+
+def _served_meta(path: Path, key: str) -> PyramidMeta:
+    """``_meta`` for request paths: an unreadable pyramid is ``WaveformDecodeError`` (404).
+
+    A corrupt file is deleted so the next status call queues a rebuild, as ``_ref_status`` does.
+    """
+    try:
+        return _meta(path, key)
+    except ValueError as exc:
+        with contextlib.suppress(OSError):
+            path.unlink()
+        raise WaveformDecodeError("waveform pyramid could not be read") from exc
+    except OSError as exc:
+        raise WaveformDecodeError("waveform pyramid could not be read") from exc
 
 
 def _ready_entry(key: str, meta: PyramidMeta) -> dict[str, Any]:
@@ -278,10 +295,10 @@ def tile_bytes(project_path: Path, ref: str, key: str, level: int, start: int, c
     """Concatenated bins of data tiles ``[start, start+count)``, clipped at the level end.
 
     Does not parse the project: the file name is derived from *ref* and *key*.
-    ``ValueError`` for bad input, ``LookupError`` when the pyramid is missing.
+    ``ValueError`` for bad input, ``LookupError`` when the pyramid is missing or corrupt (a corrupt file is deleted).
     """
     path = _pyramid_file(project_path, ref, key)
-    meta = _meta(path, key)
+    meta = _served_meta(path, key)
     if not 0 <= level < len(meta.levels):
         raise ValueError("level out of range")
     if not 1 <= count <= max_tiles_per_request():
@@ -304,7 +321,7 @@ def pcm_block(project_path: Path, ref: str, key: str, block: int) -> bytes:
         raise LookupError("unknown media ref")
     if live_key(entry) != key:
         raise StaleWaveformKeyError("waveform key is stale")
-    meta = _meta(_pyramid_file(project_path, ref, key), key)
+    meta = _served_meta(_pyramid_file(project_path, ref, key), key)
     frames_per_block = pcm_block_frames()
     start = block * frames_per_block
     if block < 0 or start >= meta.total_frames:

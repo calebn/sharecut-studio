@@ -224,7 +224,7 @@ file through `source_id` gets its own `source:` ref, whose key matches the
   stat signature (size and mtime, or missing) of the files that decide
   availability without touching the project JSON: each track's media, each
   clip-referenced source, and each track's stem WAV and `.hash` sidecar
-  (`media_watch_paths`). A hit whose signature changed is re-parsed, so media
+  (`media_watch_paths`, derived from the same ref walk as `collect_media_refs`). A hit whose signature changed is re-parsed, so media
   that appears later or a re-rendered stem shows up on the next call. A parse
   is cached only when the revision is the same before and after it. Keys are
   recomputed with `stat()` on every call, so media edits that do not touch the

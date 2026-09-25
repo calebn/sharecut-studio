@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
@@ -134,7 +136,7 @@ def test_pcm_route_decode_failure_is_404_no_store(tmp_path, monkeypatch):
     assert res.headers["cache-control"] == "no-store"
 
 
-def test_waveform_call_maps_unknown_errors_to_500_no_store():
+def test_waveform_call_maps_unknown_errors_to_500_no_store(caplog):
     from fastapi import HTTPException
 
     from podcast_mcp.gui.routes.waveform import waveform_call
@@ -142,10 +144,48 @@ def test_waveform_call_maps_unknown_errors_to_500_no_store():
     def boom():
         raise RuntimeError("x")
 
-    with pytest.raises(HTTPException) as info:
+    with (
+        caplog.at_level(logging.ERROR, logger="podcast_mcp.gui.routes.waveform"),
+        pytest.raises(HTTPException) as info,
+    ):
         waveform_call(boom)
     assert info.value.status_code == 500
     assert info.value.headers["Cache-Control"] == "no-store"
+    assert any(r.levelno == logging.ERROR for r in caplog.records)
+
+
+def test_waveform_call_does_not_log_mapped_client_errors(caplog):
+    from fastapi import HTTPException
+
+    from podcast_mcp.gui.routes.waveform import waveform_call
+
+    def denied():
+        raise PermissionError("share lacks view")
+
+    with (
+        caplog.at_level(logging.ERROR, logger="podcast_mcp.gui.routes.waveform"),
+        pytest.raises(HTTPException) as info,
+    ):
+        waveform_call(denied, fallback=lambda _e: HTTPException(status_code=403, detail="no"))
+    assert info.value.status_code == 403
+    assert info.value.headers["Cache-Control"] == "no-store"
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
+
+
+def test_tiles_route_corrupt_pyramid_is_404_no_store(tmp_path):
+    project_path = waveform_project(tmp_path)
+    client = TestClient(create_app())
+    key = _ready_key(client, project_path)
+    out = pyramid_path(project_path.parent / "artifacts" / "peaks", "track-host", key)
+    out.write_bytes(b"garbage")
+    svc._META.clear()
+    res = client.get(
+        f"/api/waveform/tiles/{key}",
+        params={"path": str(project_path), "ref": "track:host", "level": 0, "start": 0},
+    )
+    assert res.status_code == 404
+    assert res.headers["cache-control"] == "no-store"
+    assert not out.exists()
 
 
 @pytest.mark.parametrize(
