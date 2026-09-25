@@ -26,8 +26,8 @@ export type SyncWriterEngine = {
 
 /** Thrown by the client when in-place writes are unavailable; the sink falls back to createWritable. */
 export class SyncWriterUnavailableError extends Error {
-  constructor() {
-    super("In-place OPFS writes are unavailable.");
+  constructor(options?: ErrorOptions) {
+    super("In-place OPFS writes are unavailable.", options);
     this.name = "SyncWriterUnavailableError";
   }
 }

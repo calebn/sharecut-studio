@@ -6,7 +6,7 @@ import {
 } from "./syncWriterProtocol";
 
 export const SYNC_WRITER_READY_TIMEOUT_MS = 2_000;
-/** Bounds the worker's createSyncAccessHandle(); on timeout the worker is terminated so it cannot take the exclusive handle late. */
+/** Bounds the worker's createSyncAccessHandle(); on timeout the worker is terminated (so it cannot take the exclusive handle late) and the segment falls back to createWritable(). */
 export const SYNC_WRITER_OPEN_TIMEOUT_MS = 5_000;
 /** Consecutive slow or crashed worker starts before in-place writes stay off for this tab. */
 export const SYNC_WRITER_MAX_START_FAILURES = 2;
@@ -39,6 +39,13 @@ export function createSyncWriterClient(
 ): SyncWriterClient {
   let unavailable = false;
   let startFailures = 0;
+  /** Count a slow or crashed start; enough in a row turn in-place writes off for the tab. */
+  const noteStartFailure = () => {
+    startFailures += 1;
+    if (startFailures >= SYNC_WRITER_MAX_START_FAILURES) {
+      unavailable = true;
+    }
+  };
   return {
     async open(path: string): Promise<ByteStream> {
       if (unavailable) {
@@ -118,34 +125,35 @@ export function createSyncWriterClient(
       const state = await ready;
       clearTimeout(timer);
       if (state !== "supported") {
-        // Only an explicit "unsupported" (or repeated slow/crashed starts)
-        // latches; one slow start falls back for this segment alone.
-        startFailures = state === "failed" ? startFailures + 1 : startFailures;
-        if (
-          state === "unsupported" ||
-          startFailures >= SYNC_WRITER_MAX_START_FAILURES
-        ) {
+        // Only an explicit "unsupported" latches at once; a slow or crashed
+        // start falls back for this segment and counts toward the latch.
+        if (state === "unsupported") {
           unavailable = true;
+        } else {
+          noteStartFailure();
         }
         worker.terminate();
         throw new SyncWriterUnavailableError();
       }
-      startFailures = 0;
-      const openTimer = setTimeout(
-        () =>
-          fail(
-            new Error(`keeper writer open timed out after ${openTimeoutMs}ms`),
-          ),
-        openTimeoutMs,
+      const openTimeout = new Error(
+        `keeper writer open timed out after ${openTimeoutMs}ms`,
       );
+      const openTimer = setTimeout(() => fail(openTimeout), openTimeoutMs);
       try {
         await request((id) => ({ type: "open", id, path }));
       } catch (error) {
         worker.terminate();
+        if (error === openTimeout) {
+          // A hung createSyncAccessHandle() is a slow start: the worker is
+          // gone, so fall back to createWritable() for this segment.
+          noteStartFailure();
+          throw new SyncWriterUnavailableError({ cause: error });
+        }
         throw error;
       } finally {
         clearTimeout(openTimer);
       }
+      startFailures = 0;
       let end = 0;
       let closed = false;
       /** First write failure; later writes reject so no offset-less write leaves a hole. */
