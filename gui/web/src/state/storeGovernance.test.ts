@@ -4,10 +4,13 @@ import { SRC_ROOT, srcRelative, walkTsFiles } from "../test/sourceFiles";
 
 /**
  * Whole-store reads: `useDaw()` / `useDawStore()` with no selector, or with an
- * identity selector such as `(s) => s`. Both subscribe to every store change.
+ * inline arrow identity selector such as `(s) => s`, `(s: DawState) => s`,
+ * `(s) => { return s; }`, optionally wrapped in `useShallow(...)` or followed
+ * by extra arguments (`(s) => s, shallow`). All subscribe to every store
+ * change. A named identity function (`useDaw(identity)`) is not detected.
  */
 const WHOLE_STORE_READ =
-  /\buseDaw(?:Store)?\(\s*(?:\(?\s*(\w+)\s*\)?\s*=>\s*\1\s*,?\s*)?\)/g;
+  /\buseDaw(?:Store)?\(\s*(?:(?:useShallow\(\s*)?\(?\s*(\w+)(?:\s*:\s*[\w.<>[\]]+)?\s*\)?\s*=>\s*(?:\1|\{\s*return\s+\1\s*;?\s*\})\s*\)?\s*(?:,[^)]*)?)?\)/g;
 
 function wholeStoreReads(text: string): number {
   return text.match(WHOLE_STORE_READ)?.length ?? 0;
@@ -33,6 +36,16 @@ describe("store governance", () => {
     ["const s = useDawStore(\n  (s) => s,\n);", 1],
     ["const a = useDaw((s) => s.a);", 0],
     ["const t = useDaw((s) => t);", 0],
+    ["const s = useDaw((s: DawState) => s);", 1],
+    ["const s = useDawStore((s) => s, shallow);", 1],
+    ["const s = useDawStore(useShallow((s) => s));", 1],
+    ["const s = useDawStore(useShallow((s: DawState) => s));", 1],
+    ["const s = useDaw((s) => { return s; });", 1],
+    ["const a = useDaw((s: DawState) => s.a);", 0],
+    ["const a = useDawStore((s) => s.a, shallow);", 0],
+    ["const a = useDawStore(useShallow((s) => ({ a: s.a })));", 0],
+    ["const a = useDaw((s) => { return s.a; });", 0],
+    ["const a = useDawStore((s) => sx);", 0],
   ])("counts whole-store reads in %j", (text, expected) => {
     expect(wholeStoreReads(text)).toBe(expected);
   });

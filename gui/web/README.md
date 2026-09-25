@@ -152,7 +152,7 @@ visibility, not command permissions. Contextual controls perform their actions
 through their own gesture or API paths; argument-taking commands can still run
 through the command bus with the required input.
 
-Store reads: read the DAW store only through `useDaw(selector)` (`state/useDaw.ts`, which wraps `useDawStore(useShallow(selector))`) or `useDawStore(selector)`. Select exactly the keys the component uses. Selectors return primitives or store references (or objects of those), never derived arrays or objects; build those with `useMemo` outside the selector, because `useShallow` compares one level deep and a fresh array re-renders every time. `state/storeGovernance.test.ts` fails on whole-store reads: `useDaw()` / `useDawStore()` with no selector, or an identity selector like `(s) => s`. In tests, mock `useDaw` as `(sel) => sel(mockState)`.
+Store reads: read the DAW store only through `useDaw(selector)` (`state/useDaw.ts`, which wraps `useDawStore(useShallow(selector))`) or `useDawStore(selector)`. Select exactly the keys the component uses. Selectors return primitives or store references (or objects of those), never derived arrays or objects; build those with `useMemo` outside the selector, because `useShallow` compares one level deep and a fresh array re-renders every time. `state/storeGovernance.test.ts` fails on whole-store reads: `useDaw()` / `useDawStore()` with no selector, or an inline arrow identity selector such as `(s) => s` / `(s: DawState) => s` (also inside `useShallow(...)`). In tests, mock `useDaw` as `(sel) => sel(mockState)`.
 
 Mutations: prefer `hooks/useProjectMutation()` (`busy` / `error` / `run` / `refresh`) over local try/catch boilerplate.
 

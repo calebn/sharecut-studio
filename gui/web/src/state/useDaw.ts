@@ -10,7 +10,8 @@ import type { DawState } from "./types";
  * with `useMemo` outside the selector. `useShallow` compares one level deep,
  * so a fresh array or object in the result re-renders on every store change.
  * `state/storeGovernance.test.ts` rejects only whole-store reads (no selector
- * or an identity selector); the derived-value rule is enforced in review.
+ * or an inline arrow identity selector such as `(s) => s`); the derived-value
+ * rule is enforced in review.
  */
 export function useDaw<T>(selector: (s: DawState) => T): T {
   return useDawStore(useShallow(selector));
