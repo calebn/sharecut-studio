@@ -161,6 +161,9 @@ function poll(poller: Poller): void {
         return;
       }
       poller.inflight = null;
+      // The failed poll answers a request made while it was in flight: a
+      // permanent error would repeat, and a transient one schedules a retry below.
+      poller.again = false;
       if (permanentFailure(err)) {
         // Stop until a refresh or a new subscriber asks again.
         poller.backoffMs = FIRST_BACKOFF_MS;
