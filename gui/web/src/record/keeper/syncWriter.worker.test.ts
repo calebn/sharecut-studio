@@ -60,6 +60,39 @@ describe("startSyncWriterWorker", () => {
     ]);
   });
 
+  it("keeps handling messages after a reply fails to post", async () => {
+    const out: SyncWriterOutMsg[] = [];
+    let calls = 0;
+    const s: SyncWriterScope = {
+      postMessage: (m) => {
+        calls += 1;
+        if (calls === 2) {
+          throw new Error("DataCloneError");
+        }
+        out.push(m);
+      },
+      onmessage: null,
+    };
+    startSyncWriterWorker(s, {
+      supported: true,
+      openHandle: async () => ({
+        write: (b) => b.byteLength,
+        flush: () => undefined,
+        close: () => undefined,
+      }),
+      now: () => 0,
+    });
+    s.onmessage?.({
+      data: { type: "open", id: 1, path: "a.wav" },
+    } as MessageEvent);
+    s.onmessage?.({
+      data: { type: "write", id: 2, bytes: new ArrayBuffer(2), offset: 0 },
+    } as MessageEvent);
+    await vi.waitFor(() =>
+      expect(out).toContainEqual({ type: "result", id: 2 }),
+    );
+  });
+
   it("reports sync access handles unsupported under jsdom", () => {
     expect(createOpfsSyncEngine().supported).toBe(false);
   });

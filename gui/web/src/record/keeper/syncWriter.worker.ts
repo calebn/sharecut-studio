@@ -42,7 +42,10 @@ export function startSyncWriterWorker(
   scope.postMessage({ type: "ready", supported: engine.supported });
   let chain: Promise<void> = Promise.resolve();
   scope.onmessage = (ev) => {
-    chain = chain.then(async () => scope.postMessage(await handle(ev.data)));
+    // A reply that cannot be posted must not wedge every later request.
+    chain = chain
+      .then(async () => scope.postMessage(await handle(ev.data)))
+      .catch(() => undefined);
   };
 }
 
