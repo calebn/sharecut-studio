@@ -130,7 +130,7 @@ test.describe("deep zoom at the content ceiling", () => {
             Math.abs(g.scrollWidth - (g.headerPx + contentPx)),
           ).toBeLessThanOrEqual(DEEP_ZOOM_TOLERANCE_PX);
           expect(g.scrollLeft + g.clientWidth).toBeGreaterThanOrEqual(
-            g.scrollWidth - DEEP_ZOOM_TOLERANCE_PX,
+            g.scrollWidth - 2 * DEEP_ZOOM_TOLERANCE_PX, // rounded box vs fractional max offset
           );
 
           // Ruler: the expected last label, and every tick sits at t x zoom.
