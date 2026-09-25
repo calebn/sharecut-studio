@@ -226,8 +226,12 @@ export interface DawState {
   nudgeWaveformAmp: (direction: "in" | "out") => void;
   setPointerTrackId: (trackId: string | null) => void;
   setBladeHoverSec: (sec: number | null) => void;
+  /** Stores a measured width; 0 or less stores the shell estimate instead. */
   setTimelineViewportWidth: (px: number) => void;
-  /** Back to the current shell's estimate (the timeline unmounted). */
+  /**
+   * Back to the current shell's estimate (the timeline unmounted, or the
+   * shell changed before it measured).
+   */
   resetTimelineViewportWidth: () => void;
   setLayerVisible: (key: keyof LayerVisibility, visible: boolean) => void;
   setCommentMode: (on: boolean) => void;

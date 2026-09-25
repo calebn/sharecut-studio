@@ -347,7 +347,10 @@ export const useDawStore = create<DawStore>((set, get) => ({
   // The desktop estimate (shellBreakpoint starts at desktop) until the
   // timeline measures, so first-render readers never see 0.
   timelineViewportWidth: estimateTimelineViewportWidth("desktop"),
-  setTimelineViewportWidth: (timelineViewportWidth) => {
+  setTimelineViewportWidth: (px) => {
+    // A hidden or zero-width scrollport measures 0: keep the shell estimate.
+    const timelineViewportWidth =
+      px > 0 ? px : estimateTimelineViewportWidth(get().shellBreakpoint);
     if (timelineViewportWidth !== get().timelineViewportWidth) {
       set({ timelineViewportWidth });
     }
@@ -602,7 +605,13 @@ export const useDawStore = create<DawStore>((set, get) => ({
     }),
   setBladeConfirmSec: (bladeConfirmSec: number | null) =>
     set({ bladeConfirmSec }),
-  setShellBreakpoint: (shellBreakpoint) => set({ shellBreakpoint }),
+  setShellBreakpoint: (shellBreakpoint) => {
+    set({ shellBreakpoint });
+    // Before the timeline measures, follow the new shell's estimate.
+    if (!get()._timelineEl) {
+      get().resetTimelineViewportWidth();
+    }
+  },
   setPointerKind: (pointerKind) =>
     set((s) => (s.pointerKind === pointerKind ? s : { pointerKind })),
   setMobileMode: (mobileMode) =>
