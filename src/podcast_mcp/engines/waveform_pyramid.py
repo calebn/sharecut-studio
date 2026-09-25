@@ -411,12 +411,38 @@ class _WavInfo:
     frames: int
 
 
+# Trailing RIFF chunks (``LIST``, ``id3 ``...) after an empty ``data`` chunk.
+_RIFF_CHUNK_ID = re.compile(rb"[\x20-\x7e]{4}")
+_MAX_TRAILING_CHUNKS = 16
+
+
+def _only_riff_chunks(path: Path, offset: int, size: int) -> bool:
+    """True when bytes ``[offset, size)`` of *path* are whole RIFF chunks (e.g. ``LIST``).
+
+    Tells an empty ``data`` chunk followed by metadata apart from a 0-size
+    header in front of real samples. A missing final pad byte is tolerated.
+    """
+    pos = offset
+    with path.open("rb") as fh:
+        for _ in range(_MAX_TRAILING_CHUNKS):
+            if size - pos < 8:
+                break
+            fh.seek(pos)
+            head = fh.read(8)
+            if _RIFF_CHUNK_ID.fullmatch(head[:4]) is None:
+                return False
+            chunk_size = int.from_bytes(head[4:8], "little")
+            pos += 8 + chunk_size + (chunk_size & 1)
+    return pos in (size, size + 1)
+
+
 def _wav_info(path: Path) -> _WavInfo | None:
     """Integer-PCM WAV params for the stdlib fast path, else ``None`` (use ffmpeg).
 
     The header's ``data`` size must fit the file: a streamed or truncated WAV
     that declares 0, ``0xFFFFFFFF`` or more bytes than it holds goes to ffmpeg,
-    which decodes what is actually there.
+    which decodes what is actually there. An empty ``data`` chunk followed only by
+    whole RIFF chunks (``LIST``, ``id3 ``) stays on the fast path.
     """
     try:
         with path.open("rb") as fh, wave.open(fh, "rb") as wf:
@@ -434,7 +460,11 @@ def _wav_info(path: Path) -> _WavInfo | None:
     available = size - data_offset
     if info.frames * frame_bytes > available:
         return None  # overstated or 0xFFFFFFFF data size
-    if info.frames == 0 and available >= frame_bytes:
+    if (
+        info.frames == 0
+        and available >= frame_bytes
+        and not _only_riff_chunks(path, data_offset, size)
+    ):
         return None  # 0-size header in front of real samples
     return info
 

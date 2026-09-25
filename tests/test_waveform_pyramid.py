@@ -476,6 +476,36 @@ def test_wav_info_keeps_an_empty_wav_on_the_fast_path(tmp_path):
     assert info is not None and info.frames == 0
 
 
+def test_wav_info_keeps_an_empty_wav_with_trailing_chunks_on_the_fast_path(tmp_path):
+    path = tmp_path / "empty-list.wav"
+    _write_int_wav(path, np.zeros((0, 2), dtype=np.int64), width=2)
+    with path.open("ab") as fh:
+        fh.write(b"LIST" + struct.pack("<I", 5) + b"INFOx" + b"\0")  # odd size + pad
+        fh.write(b"id3 " + struct.pack("<I", 3) + b"abc")  # odd size, pad missing
+    info = wp._wav_info(path)
+    assert info is not None and info.frames == 0
+    eng = MagicMock()
+    _, _, chunks = decode_media(path, engine=eng)
+    assert list(chunks) == []
+    eng.stream_pcm_f32.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "tail",
+    [
+        b"LIST" + struct.pack("<I", 1000) + b"INFO",  # chunk overruns the file
+        (b"JUNK" + struct.pack("<I", 0)) * 17,  # more chunks than the walk allows
+        b"LIST" + struct.pack("<I", 0) + b"\x01\x00",  # stray bytes after a chunk
+    ],
+)
+def test_wav_info_sends_an_empty_header_with_non_chunk_bytes_to_ffmpeg(tmp_path, tail):
+    path = tmp_path / "odd.wav"
+    _write_int_wav(path, np.zeros((0, 2), dtype=np.int64), width=2)
+    with path.open("ab") as fh:
+        fh.write(tail)
+    assert wp._wav_info(path) is None
+
+
 @needs_ffmpeg
 def test_decode_media_extensible_wav_falls_back_to_ffmpeg(tmp_path):
     # Python 3.12+ ``wave`` reads extensible *PCM*, so use the float subformat,
