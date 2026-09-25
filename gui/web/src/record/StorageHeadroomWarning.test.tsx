@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
+import { deferred } from "../test/deferred";
 import { KEEPER_BYTES_PER_SECOND } from "./keeper/pcm";
 import { StorageHeadroomWarning } from "./StorageHeadroomWarning";
 import { STORAGE_HEADROOM_SECONDS } from "./storageQuota";
@@ -20,14 +21,6 @@ function stubStorage(estimate: (() => Promise<Estimate>) | null) {
     value: mock ? { estimate: mock } : undefined,
   });
   return mock;
-}
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((r) => {
-    resolve = r;
-  });
-  return { promise, resolve };
 }
 
 describe("StorageHeadroomWarning", () => {

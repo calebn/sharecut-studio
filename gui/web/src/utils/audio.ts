@@ -69,11 +69,16 @@ export function clampFaderDb(db: number): number {
   return Math.min(FADER_MAX_DB, Math.max(FADER_MIN_DB, db));
 }
 
+/** A track's saved volume; tracks saved before volumes existed are at 0 dB. */
+export function trackFaderDb(track: Pick<TrackView, "fader_db">): number {
+  return track.fader_db ?? 0;
+}
+
 /** Gain the mix applies to a track: staging gain plus the saved volume. */
 export function trackOutputGainDb(
   track: Pick<TrackView, "gain_db" | "fader_db">,
 ): number {
-  return track.gain_db + (track.fader_db ?? 0);
+  return track.gain_db + trackFaderDb(track);
 }
 
 /** Signed gain label: "+1.5 dB", "−3.0 dB", "0.0 dB". */

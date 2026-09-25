@@ -15,19 +15,7 @@ import { execute } from "../commands/execute";
 
 function staleProject() {
   return minimalProject({
-    tracks: [
-      {
-        id: "host",
-        label: "Host",
-        role: "dialogue",
-        speaker: null,
-        gain_db: 0,
-        muted: false,
-        duration_sec: 60,
-        fx_count: 0,
-        stem_is_fresh: false,
-      },
-    ],
+    tracks: [sampleTrack({ stem_is_fresh: false })],
     render_status: {
       needs_rerender: true,
       reconciliation: { stale: false },

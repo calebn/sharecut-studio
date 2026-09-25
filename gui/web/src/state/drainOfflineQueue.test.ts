@@ -201,3 +201,43 @@ describe("drainHostOfflineQueue", () => {
     );
   });
 });
+
+describe("drainOfflineQueue (guest)", () => {
+  const queued = (id: string, seq: number): QueuedCommand => ({
+    command_id: id,
+    client_seq: seq,
+    type: "SetTrackFader",
+    payload: { track_id: "host", fader_db: -seq },
+    created_at: seq,
+  });
+
+  beforeEach(() => {
+    submit.mockReset().mockResolvedValue({ ok: true });
+    guestQueue.mockReset();
+  });
+
+  it("replays in order, skips a refused edit and stops at a rate limit", async () => {
+    guestQueue.mockResolvedValue([
+      queued("c", 3),
+      queued("a", 1),
+      queued("b", 2),
+      queued("d", 4),
+    ]);
+    submit
+      .mockResolvedValueOnce({ ok: true })
+      .mockRejectedValueOnce(new ApiError("Not allowed", null, 403))
+      .mockRejectedValueOnce(new ApiError("Slow down", null, 429));
+    const { drainOfflineQueue } = await import("./drainOfflineQueue");
+
+    await drainOfflineQueue("tok");
+
+    expect(submit.mock.calls.map((call) => call[3].command_id)).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
+    for (const call of submit.mock.calls) {
+      expect(call[3]).toMatchObject({ replaying: true });
+    }
+  });
+});

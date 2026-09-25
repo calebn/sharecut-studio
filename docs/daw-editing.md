@@ -2,7 +2,7 @@
 
 Multi-pass plan that turned the host Sharecut Studio from a **read-only inspector** into a consistent **editor** for agent-mutable timeline/project concerns. Passes 0–8 shipped. Remaining polish lives in [ROADMAP.md § Follow-up](../ROADMAP.md#follow-up).
 
-Agents mutate via MCP/CLI; the GUI writes the same services through typed document commands (`POST /api/document/command`) plus comments, pipeline, bounce, and ingest. Display-only document ops (`ReorderTrack`, `SetTrackMeta`) and the saved mix (`SetTrackFader`, `SetTrackMute`) apply optimistically in the DAW and revert on 4xx/network failure; mix changes revert only the failed field. See [gui-integration.md](gui-integration.md) and [session-sync.md](session-sync.md).
+Agents mutate via MCP/CLI; the GUI writes the same services through typed document commands (`POST /api/document/command`) plus comments, pipeline, bounce, and ingest. Display-only document ops (`ReorderTrack`, `SetTrackMeta`) and the saved mix (`SetTrackFader`, `SetTrackMute`) apply optimistically in the DAW and revert on 4xx/network failure; mix changes revert only the failed field, and a guest mix change whose request never arrived stays queued rather than failing. See [gui-integration.md](gui-integration.md) and [session-sync.md](session-sync.md).
 
 ## Architecture rule
 
@@ -222,7 +222,7 @@ Shipped:
 Shipped:
 
 - **Shared media/clip helper** (`edits/track_media.py`): probe → `MediaAsset` + one full-span `Clip`; reused by `EpisodeService` and ingest consolidate (no second GUI clip stack).
-- **`EpisodeService`:** `add_track` (with media), `add_empty_track`, `set_track_media`, `set_track_meta`, `set_track_fader`, `set_track_mute`, `remove_track`, `reorder_track`; stale render via `record_invalidation` (not on reorder). Host MCP `track_add` / episode mutators call `notify_after_mutation`.
+- **`EpisodeService`:** `add_track` (with media), `add_empty_track`, `set_track_media`, `set_track_meta`, `set_track_volume`, `set_track_mute`, `remove_track`, `reorder_track`; stale render via `record_invalidation` (not on reorder). Host MCP `track_add` / episode mutators call `notify_after_mutation`.
 - **Document commands** (`AddTrack`, `SetTrackMedia`, `SetTrackMeta`, `SetTrackFader`, `SetTrackMute`, `RemoveTrack`, `ReorderTrack`) in `EDIT_COMMANDS` — host and share `edit` only (not `suggest` / `view`).
 - **Saved mix (#386):** each track's volume is `fader_db` on top of the staging `gain_db` (the mix plays `gain_db + fader_db`; balance never changes the fader), and M is the saved `muted` flag. Solo stays listen-only. Host MCP `track_set_volume_tool` / `track_set_mute_tool`, CLI `podcast episode set-track-volume` / `set-track-mute`. A change stales the premix (`artifacts/premix.hash`), not the stems, so Refresh only re-mixes. A muted track is still part of the timeline: cuts, approvals and restores ripple it, and analysis (the audio audit, the speech-energy guard) ignores the mix mute and volume. `dialogue_track_ids()` returns every dialogue track, and render status reports each one's stem; `mixed_dialogue_track_ids()` is the mix's subset.
 - **Binary upload** (not in document JSON): host `POST /api/media/upload`; guest `edit` `POST /api/review/{token}/daw/media/upload` (chunked under the relay JSON body cap). Assembler + allowlist in `services/media_store.py`.

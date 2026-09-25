@@ -75,7 +75,7 @@ export function useDawKeymapListener(): void {
             continue;
           }
           e.preventDefault();
-          if (ignoresKeyRepeat(e, cmd.id)) {
+          if (ignoresKeyRepeat(e, cmd)) {
             return;
           }
           const result = await execute(cmd.id, argsFromKeyEvent(e, cmd.id), {

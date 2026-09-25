@@ -40,6 +40,8 @@ export type KeymapCommand = {
   requireMod?: boolean;
   /** true = Shift required; false = Shift excluded; omit = Shift optional. */
   requireShift?: boolean;
+  /** A toggle a held key must not flip back and forth (M saves the mix mute). */
+  noRepeat?: boolean;
   /** Keyboard when-clause: must match command catalog when for that id. */
   when: ContextPredicateId;
   notes?: string;
@@ -387,6 +389,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     label: "Toggle track mute",
     keys: ["M"],
     bareKey: true,
+    noRepeat: true,
     when: "hasProject",
   },
   {
@@ -405,6 +408,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     label: "Toggle track solo",
     keys: ["S"],
     bareKey: true,
+    noRepeat: true,
     when: "hasProject",
   },
   {
@@ -725,14 +729,11 @@ export function matchKeymapCommand(
   return matchKeymapCommands(e)[0] ?? null;
 }
 
-/** Toggles a held key must not flip back and forth (M saves the mix mute). */
-const NO_KEY_REPEAT = new Set(["track.muteToggle", "track.soloToggle"]);
-
 export function ignoresKeyRepeat(
   e: Pick<KeyboardEvent, "repeat">,
-  commandId: string,
+  cmd: Pick<KeymapCommand, "noRepeat">,
 ): boolean {
-  return e.repeat && NO_KEY_REPEAT.has(commandId);
+  return e.repeat && cmd.noRepeat === true;
 }
 
 export function argsFromKeyEvent(

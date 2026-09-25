@@ -230,7 +230,7 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 | `SetJoinMode` | `EditService.set_join_mode` | `clip_id`, `join_in_mode` (`fade` \| `crossfade` \| `cut`) |
 | `ApplyFadeRecommendations` | `EditService.apply_fade_recommendations_for_track` | `track_id?` (null = all tracks) |
 | `SetEffectBypass` | `EditService.set_effect_bypass` | `track_id`, `effect_index`, `bypass` |
-| `SetTrackFader` | `EpisodeService.set_track_fader` | `track_id`, `fader_db` (−60 to +12; saved volume on top of staging `gain_db`) |
+| `SetTrackFader` | `EpisodeService.set_track_volume` | `track_id`, `fader_db` (−60 to +12; saved volume on top of staging `gain_db`) |
 | `SetTrackMute` | `EpisodeService.set_track_mute` | `track_id`, `muted` (saved mix mute) |
 | `CorrectTranscriptWord` | `EditService.correct_word` | `track_id`, `word_index`, `text` |
 | `CorrectTranscriptPhrase` | `EditService.correct_phrase` | `track_id`, `start_word_index`, `end_word_index`, `text` |

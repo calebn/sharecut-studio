@@ -1,6 +1,6 @@
 import { submitDocumentCommand } from "../api";
 import { shareProjectKey } from "../shareMode";
-import { isClientRejection } from "../utils/apiError";
+import { isClientRejection, isRetryLater } from "../utils/apiError";
 import {
   loadCommandQueue,
   loadHostCommandQueue,
@@ -20,9 +20,15 @@ export async function drainOfflineQueue(token: string): Promise<void> {
         client_id: cmd.client_id,
         client_seq: cmd.client_seq,
         structural_mode: cmd.structural_mode,
+        replaying: true,
       });
-    } catch {
-      // Leave in queue / conflicts handled inside submitDocumentCommand.
+    } catch (error) {
+      // A refused replay was recorded as a conflict and dequeued, so later
+      // edits still drain. A rate limit, server or network error stays
+      // queued and keeps order until the next drain.
+      if (isClientRejection(error) && !isRetryLater(error)) {
+        continue;
+      }
       break;
     }
   }

@@ -43,7 +43,12 @@ import type {
   HostSharesResponse,
   ShareRole,
 } from "./types/shares";
-import { ApiError, readApiError, readApiFailure } from "./utils/apiError";
+import {
+  ApiError,
+  isRetryLater,
+  readApiError,
+  readApiFailure,
+} from "./utils/apiError";
 import {
   documentClientId,
   newCommandId,
@@ -314,8 +319,9 @@ export async function submitDocumentCommand(
       created_at: Date.now(),
     });
 
+    let res: Response;
     try {
-      const res = await fetch(`${reviewApiBase(token)}/daw/document/command`, {
+      res = await fetch(`${reviewApiBase(token)}/daw/document/command`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -324,46 +330,45 @@ export async function submitDocumentCommand(
           ...(structural_mode ? { structural_mode } : {}),
         }),
       });
-      if (!res.ok) {
-        const detail = await readApiError(res);
-        if (res.status === 409) {
-          const { addConflict } = await import("./state/offlineStore");
-          await addConflict(token, {
-            command: {
-              command_id,
-              client_seq,
-              type,
-              payload,
-              created_at: Date.now(),
-            },
-            reason: detail,
-          });
-        }
-        if (res.status < 500) {
-          // A 4xx (a refusal, a rate limit) is reported to the caller now.
-          // Replaying it later would overwrite newer edits, as on the host.
-          await removeQueuedCommand(token, command_id);
-        }
-        throw new Error(detail);
-      }
-      await removeQueuedCommand(token, command_id);
-      const data = (await res.json()) as Record<string, unknown>;
-      applyDocumentResult(data);
-      return data;
     } catch (err) {
-      if (
-        offline ||
-        (typeof navigator !== "undefined" && navigator.onLine === false)
-      ) {
-        return {
-          ok: true,
-          queued: true,
-          command_id,
-          client_seq,
-        };
+      // The request never reached the server. The command stays queued and
+      // replays on reconnect, so the caller keeps its optimistic value.
+      if (opts?.replaying) {
+        throw err;
       }
-      throw err;
+      return { ok: true, queued: true, command_id, client_seq };
     }
+    if (!res.ok) {
+      const failure = await readApiFailure(res);
+      if (opts?.replaying && isRetryLater(failure)) {
+        // Nobody awaits a replay: keep it queued for the next drain.
+        throw failure;
+      }
+      if (res.status === 409 || opts?.replaying) {
+        // Record it, so the banner says why the edit was dropped.
+        const { addConflict } = await import("./state/offlineStore");
+        await addConflict(token, {
+          command: {
+            command_id,
+            client_seq,
+            type,
+            payload,
+            created_at: Date.now(),
+          },
+          reason: failure.message,
+        });
+      }
+      // The caller reports a live refusal now. Replaying it later would
+      // overwrite newer edits, as on the host.
+      await removeQueuedCommand(token, command_id);
+      throw failure;
+    }
+    await removeQueuedCommand(token, command_id);
+    const data = (await res.json()) as Record<string, unknown>;
+    if (useDawStore.getState().projectPath === projectPath) {
+      applyDocumentResult(data);
+    }
+    return data;
   }
   const hostQueue = await import("./state/offlineStore");
   let enqueueResult = { persisted: false, hadPredecessor: false };

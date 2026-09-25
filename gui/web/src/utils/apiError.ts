@@ -22,6 +22,14 @@ export function errorMessage(error: unknown, fallback?: string): string {
 }
 
 /** True for a 4xx the server answered: retrying the same request cannot succeed. */
+/** A rate limit, timeout or server error: the same request may succeed later. */
+export function isRetryLater(error: unknown): boolean {
+  if (!(error instanceof ApiError) || error.status === null) {
+    return false;
+  }
+  return error.status === 408 || error.status === 429 || error.status >= 500;
+}
+
 export function isClientRejection(error: unknown): boolean {
   return (
     error instanceof ApiError &&

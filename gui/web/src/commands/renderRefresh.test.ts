@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
 import { useDawStore } from "../state/dawStore";
+import { deferred } from "../test/deferred";
 import { minimalProject } from "../test/fixtures";
 import { clearRegisteredCommands, execute } from "./execute";
 import { registerDawCommands } from "./register";
@@ -10,14 +11,6 @@ vi.mock("../api", () => ({
   refreshProject: vi.fn(),
   waitForPipelineJob: vi.fn(),
 }));
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => {
-    resolve = done;
-  });
-  return { promise, resolve };
-}
 
 describe("render.refreshMix project ownership", () => {
   beforeEach(() => {

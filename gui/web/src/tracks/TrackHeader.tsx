@@ -7,7 +7,7 @@ import { canIngestMedia } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import { laneColor } from "../timeline/laneColors";
 import type { TrackView } from "../types/project";
-import { formatGainDb, trackOutputGainDb } from "../utils/audio";
+import { formatGainDb, trackFaderDb, trackOutputGainDb } from "../utils/audio";
 import { trackHasSourceAudio } from "../utils/projectMedia";
 import {
   reasonChipLabel,
@@ -223,7 +223,7 @@ export function TrackHeader({
       </div>
       <div
         className="gain-strip"
-        title={`Plays at ${formatGainDb(outputDb)}: staging ${formatGainDb(track.gain_db)}, volume ${formatGainDb(track.fader_db ?? 0)}`}
+        title={`Plays at ${formatGainDb(outputDb)}: staging ${formatGainDb(track.gain_db)}, volume ${formatGainDb(trackFaderDb(track))}`}
       >
         <div
           className="gain-fill"

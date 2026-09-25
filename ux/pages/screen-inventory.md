@@ -254,7 +254,7 @@ flowchart TB
 |--------|----------------|
 | **Track headers** | Identity bar in the lane color · track name · stem status dot (trailing) · M/S (M solid = saved mix mute, dashed = only you; S listen-only) · FX badge · role · gain strip (output gain: staging + volume); content is top-aligned, selected = neutral chip |
 | **Timeline** | Clips · body-drag move (Select tool) · fades/joins · layer overlays · moving playhead · pinch/ctrl-wheel zoom. Lanes grow to fill the stage when every track fits (72–240px) and scroll beyond that; the marker lane shows only rows with content (chapters, social, comments) and collapses to one 24px row when empty |
-| **Inspector** | Track selection adds the mixer group: M/S and the saved **Volume** fader (−60 to +12 dB, double-click resets; read-only without edit). Selection modifier (same shapes as sheet): eyebrow badge, title, subtitle only when it differs, full-width fields, one section gap; the body scrolls with edge shadows |
+| **Inspector** | Track selection adds the mixer group: M/S and the saved **Volume** fader (−60 to +12 dB; double-click or **Reset** sets 0 dB; read-only without edit, with the reason shown). Selection modifier (same shapes as sheet): eyebrow badge, title, subtitle only when it differs, full-width fields, one section gap; the body scrolls with edge shadows |
 | **Comments** | Filter segmented control (Open · Open actions · Resolved · All) · list + thread · timeline seek · action items |
 | **History** | Groups · Undo/Redo · step count (“No edits yet” when empty) · diff affordances; list updates from Applied snapshots (SHELL project, or DETAIL/TRACKS/CLIPS/FX/ENVELOPES/MIX/COMMENTS patches) |
 | **Impact** | Pending count · bulk approve/reject · removed duration |

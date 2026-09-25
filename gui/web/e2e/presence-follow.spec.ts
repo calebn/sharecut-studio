@@ -363,15 +363,19 @@ test.describe("presence follow desktop", () => {
         ),
       ).toBeVisible({ timeout: 8_000 });
       // Both tabs are the host, so M saves the mute for everyone (#386).
+      const muteA = pageA.locator('[data-presence-anchor="track:guest:mute"]');
       const muteB = pageB.locator('[data-presence-anchor="track:guest:mute"]');
       await muteB.click();
+      await expect(muteA).toHaveAttribute("data-mute-state", "saved", {
+        timeout: 8_000,
+      });
+      // Checked after the server has applied it, when an unfollow would show.
       await expect(pageB.locator(".follow-banner")).toBeVisible();
-      await expect(muteB).toHaveAttribute("data-mute-state", "saved");
-      await expect(
-        pageA.locator('[data-presence-anchor="track:guest:mute"]'),
-      ).toHaveAttribute("data-mute-state", "saved", { timeout: 8_000 });
       await muteB.click();
-      await expect(muteB).toHaveAttribute("data-mute-state", "off");
+      await expect(muteA).toHaveAttribute("data-mute-state", "off", {
+        timeout: 8_000,
+      });
+      await expect(pageB.locator(".follow-banner")).toBeVisible();
     });
   });
 });

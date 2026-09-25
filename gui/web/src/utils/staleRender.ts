@@ -27,6 +27,8 @@ export type StaleRenderBreakdown = {
   premixStaleVsStems: boolean;
   /** Track volume, mute or staging gain changed since the premix was mixed. */
   premixStaleVsMix: boolean;
+  /** Mix mode would play an old or missing premix (any of the three above). */
+  premixBehind: boolean;
   reconcileStale: boolean;
   invalidations: RenderInvalidationView[];
   /** Tracks with a whole-track (non-regional) invalidation. */
@@ -85,6 +87,7 @@ function freshBreakdown(): StaleRenderBreakdown {
     premixMissing: false,
     premixStaleVsStems: false,
     premixStaleVsMix: false,
+    premixBehind: false,
     reconcileStale: false,
     invalidations: [],
     wholeTrackIds: [],
@@ -156,6 +159,7 @@ export function staleRenderBreakdown(
   const premixMissing = premix?.exists === false;
   const premixStaleVsStems = premix?.stale_vs_stems === true;
   const premixStaleVsMix = premix?.stale_vs_mix === true;
+  const premixBehind = premixMissing || premixStaleVsStems || premixStaleVsMix;
   const reconcileStale = Boolean(rs.reconciliation?.stale);
   // Freshness flags (needs_rerender / stem hashes / premix) are authoritative.
   // Invalidations are diagnostic only — do not mark stale from the journal alone.
@@ -163,9 +167,7 @@ export function staleRenderBreakdown(
     Boolean(rs.needs_rerender) ||
     reconcileStale ||
     staleTrackIds.length > 0 ||
-    premixMissing ||
-    premixStaleVsStems ||
-    premixStaleVsMix;
+    premixBehind;
 
   const allStaleAreWholeTrack =
     staleTrackIds.length > 0 &&
@@ -208,6 +210,7 @@ export function staleRenderBreakdown(
     premixMissing,
     premixStaleVsStems,
     premixStaleVsMix,
+    premixBehind,
     reconcileStale,
     invalidations,
     wholeTrackIds: [...wholeTrackIds],

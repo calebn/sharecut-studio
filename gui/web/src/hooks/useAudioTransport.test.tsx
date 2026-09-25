@@ -42,18 +42,10 @@ class FakeAudio extends EventTarget {
 function trackProject(mediaPath?: string): ProjectView {
   return minimalProject({
     tracks: [
-      {
-        id: "host",
-        label: "Host",
-        role: "dialogue",
-        speaker: null,
-        gain_db: 0,
-        muted: false,
+      sampleTrack({
         duration_sec: mediaPath ? 60 : null,
-        fx_count: 0,
-        stem_is_fresh: true,
-        ...(mediaPath ? { media_path: mediaPath } : {}),
-      },
+        media_path: mediaPath ?? null,
+      }),
     ],
   });
 }
@@ -158,13 +150,27 @@ describe("useAudioTransport project transitions", () => {
   });
 });
 
-function mixProject(tracks: TrackView[], staleVsMix = false): ProjectView {
+function mixProject(
+  tracks: TrackView[],
+  staleVsMix = false,
+  extra: { mtime?: number; renderHash?: Record<string, string> } = {},
+): ProjectView {
   return minimalProject({
     tracks,
     render_status: {
       needs_rerender: staleVsMix,
       reconciliation: { stale: false },
-      premix: { exists: true, mtime_sec: 1, stale_vs_mix: staleVsMix },
+      premix: {
+        exists: true,
+        mtime_sec: extra.mtime ?? 1,
+        stale_vs_mix: staleVsMix,
+      },
+      tracks: Object.fromEntries(
+        Object.entries(extra.renderHash ?? {}).map(([id, hash]) => [
+          id,
+          { stem_is_fresh: false, render_hash: hash },
+        ]),
+      ),
     },
   });
 }
@@ -218,6 +224,49 @@ describe("useAudioTransport saved mix (#386)", () => {
     );
     // One audible track still follows its own volume (no normalising up).
     expect(volumes()).toEqual({ host: expect.closeTo(0.1, 6), guest: 0 });
+    unmount();
+  });
+
+  it("leaves a saved-muted track's boost out of the headroom", () => {
+    useDawStore
+      .getState()
+      .setProject(
+        mixProject(
+          [
+            sampleTrack({ id: "host", fader_db: 12, muted: true }),
+            sampleTrack({ id: "guest", fader_db: -6 }),
+          ],
+          true,
+        ),
+      );
+    const { unmount } = renderHook(() => useAudioTransport());
+    expect(volumes()).toEqual({ host: 0, guest: expect.closeTo(0.501, 3) });
+    unmount();
+  });
+
+  it("reloads a stale stem when a later edit changes what it renders", () => {
+    const stale = (hash: string, mtime = 1) =>
+      mixProject(
+        [
+          sampleTrack({ id: "host", stem_is_fresh: false }),
+          sampleTrack({ id: "guest" }),
+        ],
+        true,
+        { mtime, renderHash: { host: hash } },
+      );
+    useDawStore.getState().setProject(stale("edit-1"));
+    const { unmount } = renderHook(() => useAudioTransport());
+    const first = FakeAudio.instances.length;
+
+    act(() => useDawStore.getState().setProject(stale("edit-2")));
+    expect(FakeAudio.instances.length).toBeGreaterThan(first);
+    const host = FakeAudio.instances.filter((el) => el.src).at(0);
+    expect(host?.src).toContain("edit-2");
+
+    // A Refresh that only rewrites the premix leaves stem players alone.
+    const second = FakeAudio.instances.length;
+    act(() => useDawStore.getState().setProject(stale("edit-2", 2)));
+    expect(FakeAudio.instances.length).toBe(second);
     unmount();
   });
 
