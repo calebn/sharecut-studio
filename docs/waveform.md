@@ -224,7 +224,8 @@ file through `source_id` gets its own `source:` ref, whose key matches the
   stat signature (size and mtime, or missing) of the files that decide
   availability without touching the project JSON: each track's media, each
   clip-referenced source, and each track's stem WAV and `.hash` sidecar
-  (`media_watch_paths`, derived from the same ref walk as `collect_media_refs`). A hit whose signature changed is re-parsed, so media
+  (`media_watch_paths`, derived from the same ref walk as
+  `collect_media_refs`). A hit whose signature changed is re-parsed, so media
   that appears later or a re-rendered stem shows up on the next call. A parse
   is cached only when the revision is the same before and after it. Keys are
   recomputed with `stat()` on every call, so media edits that do not touch the
@@ -238,7 +239,11 @@ file through `source_id` gets its own `source:` ref, whose key matches the
   | Failed | `{"status": "unavailable", "reason": "no-media" \| "decode-failed" \| "unsafe-id"}` |
 
   A pending build is checked before the file (#421). A pyramid that fails
-  `read_meta` is deleted and rebuilt. `read_meta` results are cached per pyramid file.
+  `read_meta` is deleted and rebuilt. `read_meta` results are cached per
+  pyramid file. A tile read shorter than the cached header promises (the file
+  changed under the cache) counts as corrupt too: the file and its cached
+  header are dropped, the request gets a 404 with `no-store`, and the next
+  status call rebuilds it.
 - **Hooks** (engine functions, re-exported by the service):
   `schedule_track_waveforms(project, track)` queues the track ref plus the
   source refs of that track's clips; `ensure_track_waveforms(project, track)`
