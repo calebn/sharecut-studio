@@ -765,22 +765,6 @@ def test_inaudible_when_own_rms_missing(tmp_path: Path):
     assert rows[0]["audibility_status"] == "inaudible"
 
 
-def test_muted_track_rms_is_floor(tmp_path: Path):
-    from podcast_mcp.engines import audio_audit as aa
-
-    project = EpisodeProject.create("ep", str(tmp_path))
-    project.timeline.tracks = [
-        Track(
-            id="host",
-            label="Host",
-            role=TrackRole.DIALOGUE,
-            speaker="Host",
-            muted=True,
-        )
-    ]
-    assert aa._rms_for_track_at_timeline(project, "host", 0.0, 0.5) == -80.0
-
-
 def test_gate_overreach_no_transcript_words(tmp_path: Path):
     project = EpisodeProject.create("ep", str(tmp_path))
     project.timeline.tracks = [

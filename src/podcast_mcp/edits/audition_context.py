@@ -266,13 +266,13 @@ def build_audition_context(
     if detail in ("full", "visual"):
         speaker_roles = _speaker_roles_for_window(
             project,
-            dialogue_track_ids(project, include_muted=True),
+            dialogue_track_ids(project),
             timeline_start,
             timeline_end,
         )
 
     st = SessionTimeline(project)
-    track_ids = dialogue_track_ids(project, include_muted=True)
+    track_ids = dialogue_track_ids(project)
     mid = (timeline_start + timeline_end) / 2.0
     window = _clock_window(timeline_start, timeline_end)
     tracks_out: list[dict[str, Any]] = []

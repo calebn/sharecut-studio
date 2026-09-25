@@ -182,7 +182,7 @@ class EpisodeService:
             f"before set track volume {track_id}",
             f"after set track volume {track_id}",
             mutate,
-            operation="set_track_fader",
+            operation="set_track_volume",
             params={"track_id": track_id, "fader_db": value},
         )
         track = self.ws.project.track_by_id(track_id)
@@ -212,7 +212,9 @@ class EpisodeService:
             operation="set_track_mute",
             params={"track_id": track_id, "muted": bool(muted)},
         )
-        return {"track_id": track_id, "muted": bool(muted)}
+        track = self.ws.project.track_by_id(track_id)
+        assert track is not None
+        return {"track_id": track_id, "muted": track.muted}
 
     def remove_track(self, track_id: str) -> dict:
         if self.ws.project.track_by_id(track_id) is None:

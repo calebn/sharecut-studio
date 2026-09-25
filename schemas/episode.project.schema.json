@@ -88,7 +88,7 @@
         },
         "muted": {
           "type": "boolean",
-          "description": "Saved mix mute: play, render, bounce and master leave the track out."
+          "description": "Saved mix mute: the mix, play and bounce leave the track out. Edits, stems and analysis still cover it."
         },
         "transcript_gate": {
           "type": "boolean",

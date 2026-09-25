@@ -53,10 +53,15 @@ def resolve_track(
     )
 
 
-def dialogue_track_ids(project: EpisodeProject, *, include_muted: bool = False) -> list[str]:
-    """Dialogue track ids. Mix/render omit muted tracks; set include_muted for captions."""
-    return [
-        t.id
-        for t in project.tracks
-        if t.role == TrackRole.DIALOGUE and (include_muted or not t.muted)
-    ]
+def dialogue_track_ids(project: EpisodeProject) -> list[str]:
+    """Every dialogue track id, muted or not.
+
+    A saved mute is mix state, not timeline membership: edits, analysis and
+    render caches cover muted tracks so they stay in sync for an unmute.
+    """
+    return [t.id for t in project.tracks if t.role == TrackRole.DIALOGUE]
+
+
+def mixed_dialogue_track_ids(project: EpisodeProject) -> list[str]:
+    """Dialogue track ids the mix plays (the saved mute leaves a track out)."""
+    return [t.id for t in project.tracks if t.role == TrackRole.DIALOGUE and not t.muted]

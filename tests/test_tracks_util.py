@@ -44,8 +44,8 @@ def test_resolve_track_ambiguous_and_unknown_id() -> None:
         resolve_track(p)
 
 
-def test_dialogue_track_ids_skips_muted() -> None:
-    from podcast_mcp.util.tracks import dialogue_track_ids
+def test_dialogue_track_ids_keep_muted_tracks_and_the_mix_skips_them() -> None:
+    from podcast_mcp.util.tracks import dialogue_track_ids, mixed_dialogue_track_ids
 
     p = EpisodeProject.create("r5", "/tmp")
     p.timeline.tracks = [
@@ -53,8 +53,8 @@ def test_dialogue_track_ids_skips_muted() -> None:
         Track(id="guest", label="Guest", role=TrackRole.DIALOGUE, muted=True),
         Track(id="bed", label="Bed", role=TrackRole.MUSIC),
     ]
-    assert dialogue_track_ids(p) == ["host"]
-    assert dialogue_track_ids(p, include_muted=True) == ["host", "guest"]
+    assert dialogue_track_ids(p) == ["host", "guest"]
+    assert mixed_dialogue_track_ids(p) == ["host"]
 
 
 def test_resolve_track_by_label_without_speaker() -> None:
