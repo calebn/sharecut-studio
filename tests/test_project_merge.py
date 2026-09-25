@@ -149,10 +149,10 @@ def _two_entry_history(base: dict, cursor: int) -> dict:
     return base
 
 
-def _assert_cursor_conflict(base, ours, theirs):
+def _assert_lineage_conflict(base, ours, theirs):
     with pytest.raises(ProjectMergeConflict) as exc:
         merge_project_data(base, ours, theirs)
-    assert "history.cursor" in exc.value.paths
+    assert "history.lineage" in exc.value.paths
 
 
 def test_history_conflicts_when_theirs_undid_and_ours_recorded(tmp_path):
@@ -161,7 +161,7 @@ def test_history_conflicts_when_theirs_undid_and_ours_recorded(tmp_path):
     theirs["history"]["cursor"] = 0
     ours["history"]["entries"].append(_entry("s1", "2026-01-01T00:00:02"))
     ours["history"]["cursor"] = 2
-    _assert_cursor_conflict(base, ours, theirs)
+    _assert_lineage_conflict(base, ours, theirs)
 
 
 def test_history_conflicts_when_theirs_undid_then_recorded(tmp_path):
@@ -173,7 +173,7 @@ def test_history_conflicts_when_theirs_undid_then_recorded(tmp_path):
     }
     ours["history"]["entries"].append(_entry("s1", "2026-01-01T00:00:02"))
     ours["history"]["cursor"] = 2
-    _assert_cursor_conflict(base, ours, theirs)
+    _assert_lineage_conflict(base, ours, theirs)
 
 
 def test_history_conflicts_when_ours_undid_and_theirs_recorded(tmp_path):
@@ -182,7 +182,7 @@ def test_history_conflicts_when_ours_undid_and_theirs_recorded(tmp_path):
     ours["history"]["cursor"] = 0
     theirs["history"]["entries"].append(_entry("s1", "2026-01-01T00:00:02"))
     theirs["history"]["cursor"] = 2
-    _assert_cursor_conflict(base, ours, theirs)
+    _assert_lineage_conflict(base, ours, theirs)
 
 
 def test_history_redo_tail_truncated_by_ours_merges_as_deletion(tmp_path):
@@ -212,3 +212,10 @@ def test_conflict_message_truncates():
     exc = ProjectMergeConflict([f"p{i}" for i in range(7)])
     assert "and 2 more" in str(exc)
     assert str(exc).endswith("re-run it")
+
+
+def test_lineage_conflict_message_names_the_undo():
+    msg = str(ProjectMergeConflict(["history.lineage"]))
+    assert msg.startswith("an undo or redo changed the project while this job ran")
+    assert msg.endswith("re-run it")
+    assert str(ProjectMergeConflict(["tracks[host].gain_db"])).startswith("project changed")

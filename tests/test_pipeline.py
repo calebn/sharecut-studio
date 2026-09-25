@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import pytest
+
 from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project, save_project
 from podcast_mcp.pipeline import STEP_NAMES, PipelineRunner
 from podcast_mcp.pipeline import runner as runner_mod
 from podcast_mcp.pipeline.runner import _STEP_MAP, ORDERED_STEP_NAMES
+from podcast_mcp.project_merge import ProjectMergeConflict
 
 
 def test_pipeline_step_order():
@@ -70,3 +73,21 @@ def test_runner_keeps_logging_after_a_save_swaps_the_render_section(minimal_proj
     assert logs[-1].step == "export_deliverables"
     assert all(s.finished_at for s in logs)
     assert run is proj.pipeline_runs[-1]
+
+
+def test_runner_keeps_last_completed_step_when_the_step_save_conflicts(
+    minimal_project, monkeypatch
+):
+    proj = load_project(minimal_project)
+    proj.last_completed_step = "merge_transcript"
+    monkeypatch.setitem(runner_mod._STEP_MAP, "master_loudness", lambda _p, _d: "")
+
+    def conflict(_step: str) -> None:
+        raise ProjectMergeConflict(["history.lineage"])
+
+    with pytest.raises(ProjectMergeConflict):
+        PipelineRunner(defaults={}).run(
+            proj, only_step="master_loudness", on_step_complete=conflict
+        )
+    assert proj.last_completed_step == "merge_transcript"
+    assert proj.pipeline_runs[-1].steps[-1].status == "error"

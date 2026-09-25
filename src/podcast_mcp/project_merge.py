@@ -17,6 +17,8 @@ from podcast_mcp.models import EpisodeProject
 # transcript words) merge as one value, so changes on both sides conflict.
 _IDENTITY_KEYS: tuple[tuple[str, ...], ...] = (("id",), ("track_id", "parameter"), ("track_id",))
 _HISTORY = "history"
+# Conflict path: one side undid/redid past the checkpoint state while the other recorded.
+HISTORY_LINEAGE_CONFLICT = "history.lineage"
 
 
 class _Missing:
@@ -35,7 +37,12 @@ class ProjectMergeConflict(RuntimeError):
         shown = ", ".join(paths[:5])
         if len(paths) > 5:
             shown += f" and {len(paths) - 5} more"
-        super().__init__(f"project changed while this job ran, conflicting at {shown}; re-run it")
+        what = (
+            "an undo or redo changed the project"
+            if HISTORY_LINEAGE_CONFLICT in paths
+            else "project changed"
+        )
+        super().__init__(f"{what} while this job ran, conflicting at {shown}; re-run it")
 
 
 def project_merge_data(project: EpisodeProject) -> dict[str, Any]:
@@ -153,7 +160,7 @@ def _merge_history(base, ours, theirs, conflicts) -> dict[str, Any]:
     records the merged state right after); otherwise it follows whichever side
     moved it.
 
-    Conflicts (``history.cursor``) when one side added entries while the other undid
+    Conflicts (``history.lineage``) when one side added entries while the other undid
     past, or truncated, the base cursor entry.
     """
     base_entries = base.get("entries") or []
@@ -165,7 +172,7 @@ def _merge_history(base, ours, theirs, conflicts) -> dict[str, Any]:
     ):
         # One side undid/redid back past the base state while the other recorded on
         # top of it: interleaving the entries would put undone edits back in the lineage.
-        conflicts.append("history.cursor")
+        conflicts.append(HISTORY_LINEAGE_CONFLICT)
     entries = _merge(
         base_entries,
         ours.get("entries") or [],

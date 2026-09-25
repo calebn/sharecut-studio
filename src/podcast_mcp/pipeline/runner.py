@@ -22,6 +22,7 @@ from podcast_mcp.models import (
     PipelineStepLog,
 )
 from podcast_mcp.pipeline import steps as pipeline_steps
+from podcast_mcp.project_merge import ProjectMergeConflict
 from podcast_mcp.util.progress import (
     CancelledProgress,
     ProgressReporter,
@@ -225,10 +226,16 @@ class PipelineRunner:
                                 gate_text_fingerprint = transcript_text_fingerprint(project)
                         if name in AUDIO_AFFECTING_STEPS:
                             mark_reconciliation_stale(project)
+                        previous_step = project.last_completed_step
                         project.last_completed_step = name
                         if on_step_complete is not None:
                             # The callback saves (and records ``after <name>``) in one commit.
-                            on_step_complete(name)
+                            try:
+                                on_step_complete(name)
+                            except ProjectMergeConflict:
+                                # Nothing was saved: do not report the step done in memory.
+                                project.last_completed_step = previous_step
+                                raise
                         done_msg = f"Completed {name}"
                         if summary:
                             done_msg = f"{done_msg}: {summary}"
