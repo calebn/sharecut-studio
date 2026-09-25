@@ -3,8 +3,8 @@ import { MAX_TILES_PER_REQUEST } from "../utils/timelineZoom.generated";
 import {
   ByteLru,
   classifyFetchFailure,
-  FAILED_FETCH_BACKOFF_MS,
   fetchLimit,
+  holdBackMs,
   trimOnShellChange,
   waveformBudget,
   waveformFetchGate,
@@ -222,24 +222,21 @@ function dispatch(run: Pending[]): void {
       const retry = {
         projectPath: head.projectPath,
         ids,
-        timer: setTimeout(
-          () => {
-            retries.delete(retry);
-            for (const id of ids) {
-              cooling.delete(id);
-            }
-            if (failure.kind === "retry") {
-              for (const p of run) {
-                const id = tileId(p.meta.key, p.level, p.tile);
-                if (!data.has(id) && !inflight.has(id) && !pending.has(id)) {
-                  pending.set(id, p);
-                }
+        timer: setTimeout(() => {
+          retries.delete(retry);
+          for (const id of ids) {
+            cooling.delete(id);
+          }
+          if (failure.kind === "retry") {
+            for (const p of run) {
+              const id = tileId(p.meta.key, p.level, p.tile);
+              if (!data.has(id) && !inflight.has(id) && !pending.has(id)) {
+                pending.set(id, p);
               }
             }
-            pump();
-          },
-          failure.kind === "retry" ? failure.afterMs : FAILED_FETCH_BACKOFF_MS,
-        ),
+          }
+          pump();
+        }, holdBackMs(failure)),
       };
       retries.add(retry);
     })
