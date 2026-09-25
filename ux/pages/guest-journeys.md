@@ -193,7 +193,8 @@ flowchart TD
    audio reach the recorder while recording (not paused or muted), a persistent
    "No audio is reaching the recorder." alert with **Check mic** appears and REC
    reads "REC: no audio". Real audio, or a Check mic that finds a running,
-   unmuted microphone, clears it.
+   unmuted microphone, clears it. A sleeping or throttled tab restarts the
+   5-second wait instead of alarming.
    Reconnect opens a new segment at the current room clock; if a selected device was
    unplugged, recovery can use the default available input. In the lobby,
    microphone loss disables Accept until recovery.

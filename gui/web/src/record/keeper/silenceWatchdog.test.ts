@@ -33,7 +33,7 @@ describe("SilentPcmWatchdog", () => {
   it("alarms on missing PCM", () => {
     const w = new SilentPcmWatchdog();
     w.arm(0);
-    expect(w.tick(4000)).toBe(false);
+    for (let t = 1000; t <= 4000; t += 1000) expect(w.tick(t)).toBe(false);
     expect(w.tick(5000)).toBe(true);
   });
   it("never alarms on genuine quiet", () => {
@@ -58,7 +58,16 @@ describe("SilentPcmWatchdog", () => {
     expect(w.tick(1000)).toBe(false);
     expect(w.tick(2000)).toBe(false);
     expect(w.tick(8000)).toBe(false);
-    expect(w.tick(9000)).toBe(true);
+    for (let t = 9000; t <= 12000; t += 1000) expect(w.tick(t)).toBe(false);
+    expect(w.tick(13000)).toBe(true);
+  });
+  it("restarts the silence window after a late tick (sleep)", () => {
+    const w = new SilentPcmWatchdog();
+    w.arm(0);
+    expect(w.tick(1000)).toBe(false);
+    expect(w.tick(31000)).toBe(false);
+    for (let t = 32000; t <= 35000; t += 1000) expect(w.tick(t)).toBe(false);
+    expect(w.tick(36000)).toBe(true);
   });
   it("disarm and arm reset state", () => {
     const w = new SilentPcmWatchdog();
