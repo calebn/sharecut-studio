@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { recordSnapshot } from "../test/fixtures";
 import {
+  captureAttention,
   hostKeeperResetKey,
   hostReconnectPauseCopy,
   hostReconnectPauseCopyFromSnapshot,
@@ -183,5 +184,41 @@ describe("resolveCaptureHealth", () => {
     expect(resolveCaptureHealth(false, "failed", true)).toBe("failed");
     expect(resolveCaptureHealth(false, null, true)).toBe("silent");
     expect(resolveCaptureHealth(false, null, false)).toBeNull();
+  });
+});
+
+describe("captureAttention", () => {
+  it("flags no audio only while recording", () => {
+    expect(captureAttention("recording", "silent")).toEqual({
+      capture: "silent",
+      noAudio: true,
+    });
+    expect(captureAttention("paused", "silent")).toEqual({
+      capture: "silent",
+      noAudio: false,
+    });
+    expect(captureAttention(undefined, "silent")).toEqual({
+      capture: "silent",
+      noAudio: false,
+    });
+  });
+
+  it("suppresses silent but never a harder failure", () => {
+    expect(captureAttention("recording", "silent", true)).toEqual({
+      capture: null,
+      noAudio: false,
+    });
+    expect(captureAttention("recording", "failed", true)).toEqual({
+      capture: "failed",
+      noAudio: false,
+    });
+    expect(captureAttention("recording", "pending", true)).toEqual({
+      capture: "pending",
+      noAudio: false,
+    });
+    expect(captureAttention("recording", null)).toEqual({
+      capture: null,
+      noAudio: false,
+    });
   });
 });

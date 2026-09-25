@@ -5,6 +5,7 @@ import { NoAudioNotice } from "./NoAudioNotice";
 import { RecIndicator } from "./RecIndicator";
 import { Roster } from "./Roster";
 import {
+  captureAttention,
   HEARING_COPY,
   HOST_OFFLINE_COPY,
   LOCAL_KEEPER_COPY,
@@ -82,13 +83,14 @@ export function Room({
   const micNeedsAttention =
     (snapshot.state === "recording" || snapshot.state === "paused") &&
     (micLost || !micReady);
-  const capture = resolveCaptureHealth(
-    !!keeperError,
-    micNeedsAttention ? (micPending ? "pending" : "failed") : null,
-    noAudio,
+  const { capture, noAudio: noAudioNeedsAttention } = captureAttention(
+    snapshot.state,
+    resolveCaptureHealth(
+      !!keeperError,
+      micNeedsAttention ? (micPending ? "pending" : "failed") : null,
+      noAudio,
+    ),
   );
-  const noAudioNeedsAttention =
-    snapshot.state === "recording" && capture === "silent";
   return (
     <div className="stack">
       <RecIndicator snapshot={snapshot} capture={capture} />

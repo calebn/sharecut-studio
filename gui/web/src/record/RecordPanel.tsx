@@ -27,11 +27,11 @@ import { RoomToneCapture } from "./RoomToneCapture";
 import { Roster } from "./Roster";
 import { StorageHeadroomWarning } from "./StorageHeadroomWarning";
 import {
+  captureAttention,
   HEARING_COPY,
   hostReconnectPauseCopyFromSnapshot,
   LOCAL_KEEPER_COPY,
   LOCAL_KEEPER_PENDING_COPY,
-  resolveCaptureHealth,
   shouldApplyRecordSnapshot,
 } from "./types";
 import { UploadStatus } from "./UploadStatus";
@@ -103,12 +103,13 @@ export function RecordPanel({
   const captureUnavailable =
     recording && (captureHealth === "pending" || captureHealth === "failed");
   const micLossNeedsAttention = (recording || paused) && micLost;
-  const capture = resolveCaptureHealth(
-    !!keeperError,
-    captureHealth === "silent" ? null : captureHealth,
-    captureHealth === "silent" && !micLossNeedsAttention,
+  // captureHealth is already merged by useHostKeeperCapture; a keeper error
+  // prop still outranks it, and shown mic loss suppresses no audio.
+  const { capture, noAudio: noAudioNeedsAttention } = captureAttention(
+    state,
+    keeperError ? "failed" : captureHealth,
+    micLossNeedsAttention,
   );
-  const noAudioNeedsAttention = recording && capture === "silent";
   useEffect(() => {
     if (
       (micLossNeedsAttention || captureUnavailable) &&
