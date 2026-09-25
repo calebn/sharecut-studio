@@ -48,6 +48,17 @@ def test_save_merged_keeps_an_edit_committed_after_checkpoint(minimal_project):
     assert ws.project.history.entries[-1].label == MERGED_HISTORY_LABEL
 
 
+def test_save_merged_keeps_unsaved_edits_made_before_checkpoint(minimal_project):
+    ws = _two_tracks(minimal_project)
+    ws.project.track_by_id("guest").gain_db = 5.0
+    ws.checkpoint()
+    _other_sets_volume(minimal_project)
+    ws.save_merged()
+    for project in (ws.project, load_project(minimal_project)):
+        assert project.track_by_id("guest").gain_db == 5.0
+        assert project.track_by_id("host").fader_db == -6.0
+
+
 def test_save_merged_without_other_writers_adds_no_merge_entry(minimal_project):
     ws = _two_tracks(minimal_project)
     ws.checkpoint()
@@ -132,6 +143,34 @@ def test_render_preview_renders_the_saved_project(minimal_project):
         PipelineService(ws).render_preview()
     assert seen == [True]
     assert load_project(minimal_project).track_by_id("guest").muted is True
+
+
+def test_play_premix_rerender_keeps_an_edit_saved_mid_render(minimal_project):
+    from podcast_mcp.services.play import PlayService
+
+    ws = _two_tracks(minimal_project)
+    svc = PlayService(ws)
+
+    def fake(project, progress=None):
+        _other_sets_volume(minimal_project)
+        premix = project.artifacts_dir() / "premix.wav"
+        premix.parent.mkdir(parents=True, exist_ok=True)
+        premix.write_bytes(b"RIFF")
+        return {"ok": True}
+
+    with patch("podcast_mcp.services.play.rerender_preview", fake):
+        svc._ensure_premix(rerender=True)
+    assert load_project(minimal_project).track_by_id("host").fader_db == -6.0
+    assert svc.project is ws.project
+
+
+def test_mutate_reload_first_discards_unsaved_edits(minimal_project):
+    ws = _two_tracks(minimal_project)
+    _other_sets_volume(minimal_project)
+    ws.project.track_by_id("guest").gain_db = 5.0
+    ws.mutate("before", "after", lambda _p: None, reload_first=True)
+    assert ws.project.track_by_id("guest").gain_db == 0.0
+    assert ws.project.track_by_id("host").fader_db == -6.0
 
 
 def test_export_audio_keeps_an_edit_saved_during_export(minimal_project, tmp_path):
