@@ -395,3 +395,18 @@ def test_contributing_documents_pipeline() -> None:
     for check in _js_string_list("REQUIRED_CHECKS"):
         assert f"`{check}`" in text
     assert "Related #" in text
+
+
+def test_multi_pr_issues_link_parts_without_closing() -> None:
+    """#429 ships as stacked PRs; a merged part must not close the issue or block the next."""
+    script = _script()
+    assert "const PART_OF = 'Part of #'" in script
+    # Resume/adoption reads the issue from a Part-of line when there is no closing reference.
+    assert "closingIssuesReferences,body" in script
+    assert 'else N from a line starting "${PART_OF}N" in the PR body' in script
+    # A Part-of PR blocks a fresh claim, but a resumed lane ignores held later parts.
+    assert 'or a "${PART_OF}${issue.number}" line' in script
+    assert "that PR carries neither ${HOLD_LABELS.join(' nor ')}" in script
+    # Follow-up edits keep whichever link line the body has.
+    assert '"Fixes #${issue.number}" or "${PART_OF}${issue.number}" line intact' in script
+    assert "`Part of #N`" in CONTRIBUTING.read_text(encoding="utf-8")
