@@ -547,7 +547,6 @@ def test_gated_single_and_compare_takes_play_at_output_gain(minimal_project: Pat
         assert sorted(calls) == [("guest.wav", -3.0), ("host.wav", -2.0)]
         calls.clear()
         ws.project.track_by_id("guest").fader_db = -6.0
-        calls.clear()
         _play(source="processed:guest")
         assert calls == [("guest.wav", -6.0)]
 
