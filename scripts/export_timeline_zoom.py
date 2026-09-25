@@ -15,7 +15,7 @@ OUT = ROOT / "gui" / "web" / "src" / "utils" / "timelineZoom.generated.ts"
 BUNDLED = ROOT / "src" / "podcast_mcp" / "util" / "timeline-zoom.json"
 
 # (contract key under "waveform", exported TS constant). paint_dpr_cap is
-# emitted separately as PAINT_DPR_CAP.
+# emitted separately as PAINT_DPR_CAP (client-only; Python has no getter).
 WAVEFORM_EXPORTS: tuple[tuple[str, str], ...] = (
     ("format_version", "WAVEFORM_FORMAT_VERSION"),
     ("base_samples_per_bin", "BASE_SAMPLES_PER_BIN"),
