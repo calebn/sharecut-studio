@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +13,7 @@ from podcast_mcp.util.project_state import project_commit_lock
 
 def history_index_path(project: EpisodeProject) -> Path:
     """``history/index.json`` in ``project``'s workspace."""
-    return project.workspace_path() / "history" / "index.json"
+    return project.history_dir() / "index.json"
 
 
 def restore_history_index(index_path: Path, payload: dict[str, Any] | None) -> None:
@@ -21,6 +22,25 @@ def restore_history_index(index_path: Path, payload: dict[str, Any] | None) -> N
         index_path.unlink(missing_ok=True)
     else:
         write_json_atomic(index_path, payload)
+
+
+def history_snapshot_ids(index_path: Path) -> set[str]:
+    """Entry ids that have a snapshot file beside ``index_path`` (``snapshots/<id>.json``)."""
+    return {p.stem for p in (index_path.parent / "snapshots").glob("*.json")}
+
+
+def rollback_history(
+    index_path: Path, index_before: dict[str, Any] | None, new_entry_ids: Iterable[str]
+) -> None:
+    """Undo an uncommitted history write: restore the index, then delete the new snapshots.
+
+    Snapshots are removed only once the index no longer lists them, so a failed restore
+    raises and leaves them in place.
+    """
+    restore_history_index(index_path, index_before)
+    snapshots = index_path.parent / "snapshots"
+    for entry_id in new_entry_ids:
+        (snapshots / f"{entry_id}.json").unlink(missing_ok=True)
 
 
 class ProjectStore:

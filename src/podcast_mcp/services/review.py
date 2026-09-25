@@ -19,7 +19,7 @@ from podcast_mcp.edits.review_versions import (
 )
 from podcast_mcp.models import load_project
 from podcast_mcp.models.history import ProjectHistory
-from podcast_mcp.project_store import restore_history_index
+from podcast_mcp.project_store import history_index_path, rollback_history
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.atomic_json import load_json_object
 from podcast_mcp.util.project_state import project_commit_lock, project_state_lock
@@ -53,7 +53,7 @@ class ReviewService:
         set_active: bool = True,
     ) -> dict[str, Any]:
         project = self.ws.project
-        history_index_path = project.workspace_path() / "history" / "index.json"
+        index_path = history_index_path(project)
         created: tuple[Path, DirectoryIdentity] | None = None
 
         def remember_media(path: Path, identity: DirectoryIdentity) -> None:
@@ -72,7 +72,7 @@ class ReviewService:
             mutation_started = False
             try:
                 with project_commit_lock(project):
-                    history_before = load_json_object(history_index_path)
+                    history_before = load_json_object(index_path)
 
                     # attach_version only touches project.review, so the audio fingerprint
                     # is unchanged and run_mutation never auto-reconciles here; the commit
@@ -91,7 +91,7 @@ class ReviewService:
                     except BaseException:
                         if recorded is not None:
                             self._clean_uncommitted_media(
-                                ver.id, recorded[0], recorded[1], history_index_path, history_before
+                                ver.id, recorded[0], recorded[1], index_path, history_before
                             )
                         raise
             except BaseException:
@@ -106,7 +106,7 @@ class ReviewService:
         version_id: str,
         created_dir: Path,
         identity: DirectoryIdentity,
-        history_index_path: Path,
+        index_path: Path,
         history_before: dict[str, Any] | None,
     ) -> None:
         """Undo only this publication's sidecars if canonical commit did not land."""
@@ -117,23 +117,24 @@ class ReviewService:
                 return
             expected_index = self.ws.project.history.model_dump(mode="json")
             self.ws.project = persisted
-            current_index = load_json_object(history_index_path)
+            current_index = load_json_object(index_path)
             if current_index not in (history_before, expected_index):
                 log.warning(
                     "Review history changed during failed publication; keeping %s", created_dir
                 )
                 return
             if current_index != history_before:
-                restore_history_index(history_index_path, history_before)
                 old_ids = (
                     {entry.id for entry in ProjectHistory.model_validate(history_before).entries}
                     if history_before is not None
                     else set()
                 )
-                for entry in ProjectHistory.model_validate(current_index).entries:
-                    if entry.id not in old_ids:
-                        snapshot = history_index_path.parent / "snapshots" / f"{entry.id}.json"
-                        snapshot.unlink(missing_ok=True)
+                new_ids = {
+                    entry.id
+                    for entry in ProjectHistory.model_validate(current_index).entries
+                    if entry.id not in old_ids
+                }
+                rollback_history(index_path, history_before, new_ids)
             clean_created_version(created_dir, identity)
             self.ws.project = persisted
         except BaseException:
