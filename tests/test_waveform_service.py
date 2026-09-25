@@ -431,10 +431,14 @@ def test_gc_pyramids_drops_week_old_orphans_once(tmp_path):
         path.write_bytes(b"x")
         if label != "orphan_new":
             os.utime(path, (old, old))
-    legacy = peaks / "host.json"  # pre-pyramid overview JSON is always swept
-    legacy.write_text("{}", encoding="utf-8")
+    legacy_old = peaks / "host.json"  # week-old pre-pyramid overview JSON is swept
+    legacy_old.write_text("{}", encoding="utf-8")
+    os.utime(legacy_old, (old, old))
+    legacy_new = peaks / "guest.json"  # a fresh one may belong to an older build: kept
+    legacy_new.write_text("{}", encoding="utf-8")
     assert gc_pyramids(project_path) == 2
-    assert not legacy.exists()
+    assert not legacy_old.exists()
+    assert legacy_new.exists()
     assert not (peaks / names["orphan_old"]).exists()
     assert all((peaks / names[k]).exists() for k in ("orphan_new", "live_old", "odd"))
     (peaks / names["orphan_new"]).touch()
