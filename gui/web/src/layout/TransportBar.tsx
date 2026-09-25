@@ -134,13 +134,7 @@ export function TransportBar({
           ? "Focus: Text"
           : "Focus: Review";
 
-  const premixCue =
-    highlightStaleRender &&
-    Boolean(
-      breakdown?.premixMissing ||
-        breakdown?.premixStaleVsStems ||
-        breakdown?.premixStaleVsMix,
-    );
+  const premixCue = highlightStaleRender && Boolean(breakdown?.premixBehind);
   const guestMixOnly = guestHearsMixOnly(guestMode);
   const auditionGroup = (menu = false) => (
     <SegmentedControl

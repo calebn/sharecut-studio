@@ -9,6 +9,7 @@ import {
   FADER_MIN_DB,
   FADER_STEP_DB,
   formatGainDb,
+  trackFaderDb,
   trackOutputGainDb,
 } from "../utils/audio";
 
@@ -22,7 +23,7 @@ import {
 export function TrackFader({ track }: { track: TrackView }) {
   const { projectPath, guestMode, shareCapabilities } = useDaw();
   const editable = canEditMix(projectPath, guestMode, shareCapabilities);
-  const saved = track.fader_db ?? 0;
+  const saved = trackFaderDb(track);
   const [value, setValue] = useState(saved);
   const inputRef = useRef<HTMLInputElement>(null);
   const draggingRef = useRef(false);
@@ -103,25 +104,30 @@ export function TrackFader({ track }: { track: TrackView }) {
           }
         }}
       />
-      <output htmlFor={id} className="track-fader-value">
-        {formatGainDb(value)}
-      </output>
-      {editable ? (
-        <Button
-          className="ui-control--compact"
-          aria-label="Reset volume to 0 dB"
-          disabled={value === 0}
-          onClick={reset}
-        >
-          Reset
-        </Button>
-      ) : null}
+      <span className="track-fader-end">
+        <output htmlFor={id} className="track-fader-value">
+          {formatGainDb(value)}
+        </output>
+        {editable ? (
+          <Button
+            aria-label="Reset volume to 0 dB"
+            disabled={value === 0}
+            onClick={() => {
+              reset();
+              // Reset disables itself at 0 dB; keep keyboard focus nearby.
+              inputRef.current?.focus();
+            }}
+          >
+            Reset
+          </Button>
+        ) : null}
+      </span>
       <p id={noteId} className="track-fader-note">
-        {editable
-          ? `Staging gain ${formatGainDb(track.gain_db)}; plays at ${formatGainDb(
-              trackOutputGainDb({ gain_db: track.gain_db, fader_db: value }),
-            )}`
-          : "Only the host and editors can change the volume"}
+        {editable ? "" : "Only the host and editors can change the volume. "}
+        Staging gain {formatGainDb(track.gain_db)}; plays at{" "}
+        {formatGainDb(
+          trackOutputGainDb({ gain_db: track.gain_db, fader_db: value }),
+        )}
       </p>
     </div>
   );

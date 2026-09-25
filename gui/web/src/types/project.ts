@@ -32,7 +32,7 @@ export interface TrackView {
   gain_db: number;
   /** The user's saved volume on top of gain_db (older servers omit it). */
   fader_db?: number;
-  /** Saved mix mute (play, render, bounce, master). */
+  /** Saved mix mute: the mix, play and bounce leave the track out. */
   muted: boolean;
   duration_sec: number | null;
   fx_count: number;
@@ -260,6 +260,8 @@ export interface ProjectView {
         stem_is_fresh?: boolean | null;
         stem_exists?: boolean;
         duration_mismatch?: boolean;
+        /** What the stem would render from now (edits, clips, FX; not mix). */
+        render_hash?: string;
       }
     >;
   };

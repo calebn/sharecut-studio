@@ -60,7 +60,7 @@ import { type CommandContext, evaluateWhen } from "./context";
 import { registerCommand } from "./execute";
 import { resolveTrackId } from "./targets";
 import { registerTightenCommands } from "./tighten";
-import { registerTrackMixCommands } from "./trackMix";
+import { flushPendingMix, registerTrackMixCommands } from "./trackMix";
 import type { ExecuteResult } from "./types";
 
 const PROJECT_SWITCH_BLOCKED =
@@ -562,12 +562,16 @@ export function registerDawCommands(): void {
     return { status: "ok" };
   });
 
+  // A volume still in its save delay goes first, so undo takes it back
+  // instead of the step before it.
   registerCommand("history.undo", async (_args, ctx) => {
+    await flushPendingMix();
     await undoHistory(ctx.projectPath);
     return { status: "ok" };
   });
 
   registerCommand("history.redo", async (_args, ctx) => {
+    await flushPendingMix();
     await redoHistory(ctx.projectPath);
     return { status: "ok" };
   });

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseWavHeader, wavPcmToFloat32 } from "../../audio/wavHeader";
+import { deferred } from "../../test/deferred";
 import { sha256Hex } from "./fingerprint";
 import { KEEPER_SAMPLE_RATE, toKeeperPcm } from "./pcm";
 import type { KeeperGate } from "./segments";
@@ -32,17 +33,6 @@ function recordingGate(overrides: Partial<Gate> = {}): Gate {
     muted: false,
     ...overrides,
   };
-}
-
-function deferred<T = void>(): {
-  promise: Promise<T>;
-  resolve: (value: T) => void;
-} {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => {
-    resolve = done;
-  });
-  return { promise, resolve };
 }
 
 /** Wrap each stream the sink opens; `openIndex` is 1-based. */

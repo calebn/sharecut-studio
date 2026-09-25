@@ -88,6 +88,7 @@ describe("TrackFader (#386)", () => {
     expect(
       screen.getByRole("button", { name: "Reset volume to 0 dB" }),
     ).toBeDisabled();
+    expect(slider).toHaveFocus();
   });
 
   it("follows the saved value again after a drag released where it began", () => {
@@ -131,7 +132,7 @@ describe("TrackFader (#386)", () => {
     expect(slider).toBeDisabled();
     expect(screen.queryByRole("button", { name: /Reset/ })).toBeNull();
     expect(slider).toHaveAccessibleDescription(
-      "Only the host and editors can change the volume",
+      /^Only the host and editors can change the volume\. Staging gain/,
     );
   });
 });

@@ -147,7 +147,8 @@ describe("ProxyEngine", () => {
     const scheduled = created.length;
     expect(scheduled).toBeGreaterThan(0);
 
-    engine.setProject(clips, [
+    // A full snapshot's fresh but equal clips don't reschedule either.
+    engine.setProject(structuredClone(clips), [
       { id: "host", gain_db: 0, fader_db: -6, muted: false },
     ]);
     await new Promise((r) => setTimeout(r, 20));

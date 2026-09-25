@@ -6,6 +6,7 @@ const removeHostQueuedCommand = vi.fn();
 const addHostConflict = vi.fn();
 const enqueueCommand = vi.fn();
 const removeQueuedCommand = vi.fn();
+const addConflict = vi.fn();
 const applyDocumentResult = vi.fn();
 
 const applyDocumentSnapshot = vi.fn();
@@ -24,7 +25,7 @@ vi.mock("./state/offlineStore", () => ({
   addHostConflict,
   enqueueCommand,
   removeQueuedCommand,
-  addConflict: vi.fn(),
+  addConflict,
 }));
 
 describe("host document command queue", () => {
@@ -68,21 +69,91 @@ describe("host document command queue", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("drops a guest command the server refused, so it never replays", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response("slow down", { status: 429 })),
-    );
-    const { submitDocumentCommand } = await import("./api");
+  describe("guest queue outcomes", () => {
+    const fader = { track_id: "host", fader_db: -3 };
+    const queuedId = () =>
+      (enqueueCommand.mock.calls[0]?.[1] as { command_id: string }).command_id;
 
-    await expect(
-      submitDocumentCommand("share:tok", "SetTrackFader", {
-        track_id: "host",
-        fader_db: -3,
-      }),
-    ).rejects.toThrow();
-    const queued = enqueueCommand.mock.calls[0]?.[1] as { command_id: string };
-    expect(removeQueuedCommand).toHaveBeenCalledWith("tok", queued.command_id);
+    it("drops a live command the server refused, so it never replays", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => new Response("slow down", { status: 429 })),
+      );
+      const { submitDocumentCommand } = await import("./api");
+
+      await expect(
+        submitDocumentCommand("share:tok", "SetTrackFader", fader),
+      ).rejects.toThrow();
+      expect(removeQueuedCommand).toHaveBeenCalledWith("tok", queuedId());
+      expect(addConflict).not.toHaveBeenCalled();
+    });
+
+    it("keeps a rate-limited replay queued for the next drain", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => new Response("slow down", { status: 429 })),
+      );
+      const { submitDocumentCommand } = await import("./api");
+
+      await expect(
+        submitDocumentCommand("share:tok", "SetTrackFader", fader, {
+          replaying: true,
+        }),
+      ).rejects.toThrow();
+      expect(removeQueuedCommand).not.toHaveBeenCalled();
+      expect(addConflict).not.toHaveBeenCalled();
+    });
+
+    it("records a refused replay before dropping it", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => new Response("no edit", { status: 403 })),
+      );
+      const { submitDocumentCommand } = await import("./api");
+
+      await expect(
+        submitDocumentCommand("share:tok", "SetTrackFader", fader, {
+          replaying: true,
+        }),
+      ).rejects.toThrow();
+      expect(addConflict).toHaveBeenCalledWith(
+        "tok",
+        expect.objectContaining({ reason: "no edit" }),
+      );
+      expect(removeQueuedCommand).toHaveBeenCalledWith("tok", queuedId());
+    });
+
+    it("keeps a command whose request never arrived queued, not failed", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => {
+          throw new TypeError("network down");
+        }),
+      );
+      const { submitDocumentCommand } = await import("./api");
+
+      await expect(
+        submitDocumentCommand("share:tok", "SetTrackFader", fader),
+      ).resolves.toMatchObject({ queued: true });
+      expect(removeQueuedCommand).not.toHaveBeenCalled();
+    });
+
+    it("doesn't apply a reply after the guest switched projects", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(
+          async () =>
+            new Response(JSON.stringify({ ok: true }), { status: 200 }),
+        ),
+      );
+      const { submitDocumentCommand } = await import("./api");
+      const { useDawStore } = await import("./state/dawStore");
+      useDawStore.setState({ projectPath: "share:other" });
+
+      await submitDocumentCommand("share:tok", "SetTrackFader", fader);
+      expect(applyDocumentResult).not.toHaveBeenCalled();
+      useDawStore.setState({ projectPath: "" });
+    });
   });
 
   it("binds a legacy guest queue record to the current tab identity on replay", async () => {

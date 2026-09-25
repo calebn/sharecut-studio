@@ -30,6 +30,7 @@ export class ProxyEngine {
   private fetchChunk: FetchChunk;
   private manifest: ProxyManifest | null = null;
   private clipsByTrack: Record<string, ClipRow[]> = {};
+  private clipsKey = "";
   private tracks: TrackInfo[] = [];
   private buffers = new Map<string, AudioBuffer>();
   private lru: string[] = [];
@@ -58,12 +59,19 @@ export class ProxyEngine {
     clipsByTrack: Record<string, ClipRow[]>,
     tracks: TrackInfo[],
   ): void {
-    const clipsChanged = clipsByTrack !== this.clipsByTrack;
+    // Full snapshots rebuild `clips` even when nothing moved, so compare
+    // what the clips say rather than the object.
+    const clipsKey = JSON.stringify(clipsByTrack);
+    const clipsChanged = clipsKey !== this.clipsKey;
+    this.clipsKey = clipsKey;
     this.clipsByTrack = clipsByTrack;
     this.tracks = tracks;
     for (const t of tracks) {
       if (!this.trackGains.has(t.id)) {
         const g = this.ctx.createGain();
+        // Start silent: applyGains glides it up, so a muted new track never
+        // leaks through.
+        g.gain.value = 0;
         g.connect(this.master);
         this.trackGains.set(t.id, g);
       }

@@ -300,11 +300,27 @@ describe("shortcut helpers by command id", () => {
 
 describe("held keys", () => {
   it("don't auto-repeat the M and S toggles", () => {
-    expect(ignoresKeyRepeat({ repeat: true }, "track.muteToggle")).toBe(true);
-    expect(ignoresKeyRepeat({ repeat: true }, "track.soloToggle")).toBe(true);
-    expect(ignoresKeyRepeat({ repeat: false }, "track.muteToggle")).toBe(false);
+    const row = (id: string) => {
+      const cmd = keymapCommandById(id);
+      if (!cmd) {
+        throw new Error(id);
+      }
+      return cmd;
+    };
+    expect(ignoresKeyRepeat({ repeat: true }, row("track.muteToggle"))).toBe(
+      true,
+    );
+    expect(ignoresKeyRepeat({ repeat: true }, row("track.soloToggle"))).toBe(
+      true,
+    );
+    expect(ignoresKeyRepeat({ repeat: false }, row("track.muteToggle"))).toBe(
+      false,
+    );
     expect(
-      ignoresKeyRepeat({ repeat: true }, "navigation.nudgePlayheadForward"),
+      ignoresKeyRepeat(
+        { repeat: true },
+        row("navigation.nudgePlayheadForward"),
+      ),
     ).toBe(false);
   });
 });

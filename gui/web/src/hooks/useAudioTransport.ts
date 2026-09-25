@@ -113,18 +113,31 @@ function effectsFingerprint(project: ProjectView): string {
   return parts.join("|");
 }
 
+/** What a track's stem renders from now; changes with edits, not the mix. */
+function stemRenderHash(project: ProjectView, trackId: string): string {
+  return project.render_status.tracks?.[trackId]?.render_hash ?? "";
+}
+
 /**
  * What the players load. They're rebuilt only when this changes: a saved
  * volume or mute change patches the project too, and rebuilding the players
  * would stop playback. The volume effect applies gains and mutes.
  */
-function playerSourcesKey(project: ProjectView): string {
-  const premix = project.render_status.premix;
-  const tracks = project.tracks.map(
-    (track) =>
-      `${track.id}:${trackHasAudioContent(track, project) ? 1 : 0}:${track.media_path ?? ""}`,
-  );
-  return `${premix.exists ? (premix.mtime_sec ?? 1) : 0}|${tracks.join(",")}`;
+function playerSourcesKey(
+  project: ProjectView,
+  source: "premix" | "stem" | "raw",
+): string {
+  if (source === "premix") {
+    const premix = project.render_status.premix;
+    return `premix:${premix.exists ? (premix.mtime_sec ?? 1) : 0}`;
+  }
+  return project.tracks
+    .map((track) => {
+      const content =
+        source === "stem" ? stemRenderHash(project, track.id) : "";
+      return `${track.id}:${trackHasAudioContent(track, project) ? 1 : 0}:${track.media_path ?? ""}:${content}`;
+    })
+    .join(",");
 }
 
 /**
@@ -180,7 +193,13 @@ export function useAudioTransport(enabled = true): void {
     Object.values(viewerMute).some(Boolean);
 
   const fxKey = project ? effectsFingerprint(project) : "";
-  const sourcesKey = project ? playerSourcesKey(project) : "";
+  const playerSource =
+    auditionMode === "raw"
+      ? "raw"
+      : !needsMultitrack && auditionMode === "mix"
+        ? "premix"
+        : "stem";
+  const sourcesKey = project ? playerSourcesKey(project, playerSource) : "";
   const modeKey = `${auditionMode}:${needsMultitrack ? "mt" : "premix"}:${fxKey}:${sourcesKey}`;
 
   useEffect(() => {
@@ -252,9 +271,10 @@ export function useAudioTransport(enabled = true): void {
           continue;
         }
         const stale = track.stem_is_fresh === false;
-        const cacheKey = `${track.stem_is_fresh ? "f" : "s"}-${(
-          project.effects_by_track[track.id] ?? []
-        )
+        const cacheKey = `${track.stem_is_fresh ? "f" : "s"}-${stemRenderHash(
+          project,
+          track.id,
+        )}-${(project.effects_by_track[track.id] ?? [])
           .map((e) => `${e.effect}:${e.bypass ? 1 : 0}`)
           .join(",")}`;
         make(
@@ -317,7 +337,12 @@ export function useAudioTransport(enabled = true): void {
     // gain (staging + volume); when one is boosted above 0 dB, lower every
     // track by that boost, so the balance still matches the mix.
     const playing = project.tracks.filter((track) => players.has(track.id));
-    const headroomDb = Math.max(0, ...playing.map(trackOutputGainDb));
+    // The premix leaves saved-muted tracks out, so their boost doesn't count;
+    // solo and listen-only mutes do, so toggling them keeps levels steady.
+    const headroomDb = Math.max(
+      0,
+      ...playing.filter((track) => !track.muted).map(trackOutputGainDb),
+    );
     for (const track of playing) {
       const el = players.get(track.id);
       if (!el) {
