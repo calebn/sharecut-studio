@@ -111,6 +111,7 @@ def is_presence_ws_text(text: str) -> bool:
     return len(text) <= 2048 and text.lstrip().startswith('{"type":"Presence"')
 
 
+# Keep in step with remote_mcp.limits.classify_review_request (test_rate_limit pins agreement).
 def is_audio_path(path_suffix: str) -> bool:
     p = path_suffix.lower().split("?", 1)[0]
     return (

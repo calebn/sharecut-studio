@@ -174,6 +174,7 @@ def classify_mcp_rpc(method: str | None, tool_name: str | None = None) -> str:
     return "read"
 
 
+# Keep in step with podcast_relay.limits.is_audio_path (test_rate_limit pins agreement).
 def classify_review_request(http_method: str, path: str) -> str:
     """Return ``read``, ``mutate``, or ``audio`` for a review-share route."""
     method = http_method.upper()
