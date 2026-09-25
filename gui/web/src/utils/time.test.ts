@@ -95,6 +95,9 @@ describe("formatRulerTime", () => {
     [59.68, 0.5, "0:59.6"],
     [0.3, 0.1, "0:00.3"],
     [3725.99, 60, "1:02:05"],
+    [59.9999995, 1, "0:59"],
+    [0.29, 0.01, "0:00.29"],
+    [4.35, 0.01, "0:04.35"],
   ])(
     "floors %s s at a %s s step to %s for a position readout",
     (sec, step, label) => {

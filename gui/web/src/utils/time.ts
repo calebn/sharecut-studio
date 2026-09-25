@@ -102,6 +102,13 @@ export function niceTimeStep(zoomPxPerSec: number, minPx = 70): number {
 }
 
 /**
+ * Relative slack for `formatRulerTime(..., "floor")`: a few ULPs of the scaled
+ * value, so `0.29 * 100 = 28.999999999999996` still floors to 29, while
+ * 59.9999995 s at a 1 s step floors to 59, not 60.
+ */
+const FLOOR_UNIT_EPSILON = 4 * Number.EPSILON;
+
+/**
  * Ruler label for a tick (or the ruler's slider value): `m:ss` for whole-second
  * steps, else `m:ss.fff` (`h:mm:ss…` past an hour) with `ceil(−log10 step)`
  * decimals, at most 4, so a 0.5 ms step reads `0:01.2345`, a 0.5 s step
@@ -120,9 +127,10 @@ export function formatRulerTime(
   );
   const scale = 10 ** decimals;
   const scaled = Math.max(0, sec) * scale;
-  // The 1e-6 keeps an exact value (3 * 0.1) from flooring one unit low.
   const units =
-    mode === "floor" ? Math.floor(scaled + 1e-6) : Math.round(scaled);
+    mode === "floor"
+      ? Math.floor(scaled + FLOOR_UNIT_EPSILON * Math.max(1, scaled))
+      : Math.round(scaled);
   const whole = Math.floor(units / scale);
   const frac =
     decimals > 0 ? `.${String(units % scale).padStart(decimals, "0")}` : "";
