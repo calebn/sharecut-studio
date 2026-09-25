@@ -773,6 +773,37 @@ def test_stream_watchdog_is_disarmed_while_the_consumer_holds_a_chunk(tmp_path):
     assert all(t.interval == PCM_STREAM_TIMEOUT_SEC for t in _ImmediateTimer.instances)
 
 
+@pytest.mark.parametrize("code", [0, 1])
+def test_stream_watchdog_that_fires_after_the_read_is_ignored(tmp_path, code):
+    proc = _FakeProc(np.ones(250, dtype="<f4").tobytes(), code=code)
+    _ImmediateTimer.instances.clear()
+
+    class _LateTimer(_ImmediateTimer):
+        """Fires in the gap between the read finishing and ``cancel()``."""
+
+        def start(self):
+            pass
+
+        def cancel(self):
+            self.fn()
+            super().cancel()
+
+    eng = FFmpegEngine(ffmpeg="ffmpeg", ffprobe="ffprobe")
+    with (
+        patch.object(FFmpegEngine, "probe", side_effect=_probe),
+        patch("podcast_mcp.engines.ffmpeg.popen", return_value=proc),
+        patch("podcast_mcp.engines.ffmpeg.threading.Timer", _LateTimer),
+    ):
+        _, _, chunks = eng.stream_pcm_f32(tmp_path / "a.wav", chunk_frames=100)
+        if code == 0:
+            assert [len(c) for c in chunks] == [100, 100, 50]
+        else:
+            with pytest.raises(RuntimeError, match=r"exit 1\)") as err:
+                list(chunks)
+            assert "watchdog" not in str(err.value)
+    proc.kill.assert_not_called()
+
+
 def test_stream_failure_reports_the_stderr_tail(tmp_path):
     def _popen(argv, *, stdout, stderr):
         stderr.write(b"x" * 5000 + b"\nmoov atom not found\n")

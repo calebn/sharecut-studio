@@ -145,6 +145,9 @@ hits EOF.
   -ar <sr> pipe:1`. A 600 s watchdog kills a stuck process. It is armed only while waiting on
   ffmpeg for each chunk, so time the consumer spends between chunks never
   counts, and a long episode decodes as long as ffmpeg keeps producing output.
+  A watchdog that fires after its chunk's read (and, at end of input, the wait
+  for ffmpeg's exit) has finished is ignored, so a completed read is never
+  killed or reported as a watchdog kill.
   Closing the generator kills ffmpeg too. A non-zero exit raises with the last
   2 KB of ffmpeg's stderr and says whether the watchdog fired. Because the command
   passes `-ac <ch>`, ffmpeg remaps inputs with more than two channels whose

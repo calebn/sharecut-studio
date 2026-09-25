@@ -348,9 +348,17 @@ class FFmpegEngine:
             proc = popen(argv, stdout=PIPE, stderr=err)
             timed_out = threading.Event()
 
+            watch_lock = threading.Lock()
+            waiting = False
+
             def _watchdog() -> None:
-                timed_out.set()
-                proc.kill()
+                # A timer that fires after its chunk's read (and EOF wait)
+                # finished is stale: never kill a completed read or blame it.
+                with watch_lock:
+                    if not waiting:
+                        return
+                    timed_out.set()
+                    proc.kill()
 
             timer: threading.Timer | None = None
             frame_bytes = 4 * channels
@@ -363,12 +371,16 @@ class FFmpegEngine:
                     want = chunk_frames if remaining is None else min(chunk_frames, remaining)
                     # Armed only while waiting on ffmpeg: time the consumer spends
                     # between chunks (level builds, a busy pool) never counts.
+                    with watch_lock:
+                        waiting = True
                     timer = threading.Timer(timeout_sec, _watchdog)
                     timer.daemon = True
                     timer.start()
                     buf = _read_exact(stdout, want * frame_bytes)
                     short = len(buf) < want * frame_bytes
                     code = proc.wait() if short else 0
+                    with watch_lock:
+                        waiting = False
                     timer.cancel()
                     frames = len(buf) // frame_bytes
                     if frames:
