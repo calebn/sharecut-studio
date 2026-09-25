@@ -146,6 +146,11 @@ describe("ClipBlock waveform", () => {
     expect(
       container.querySelector(".clip-trim-ghost .clip-waveform"),
     ).toBeTruthy();
+    // The committed clip is 100 px wide; the ghost's border box starts at its
+    // edge, 1px left of padding-box x 100.
+    expect(
+      (container.querySelector(".clip-trim-ghost") as HTMLElement).style.left,
+    ).toBe("99px");
     expect(ghost).toMatchObject({
       mediaStartSec: clip.source_end,
       clipLeftCss: 100,
