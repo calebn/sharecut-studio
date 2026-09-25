@@ -135,7 +135,8 @@ hits EOF.
   (`(v−128)/128`), and 24-bit samples are unpacked by hand.
   The header's data size must fit the file; a WAV that declares 0, `0xFFFFFFFF`
   or more bytes than it holds (streamed or truncated) goes to the ffmpeg path
-  instead.
+  instead. An empty `data` chunk followed only by whole RIFF chunks (`LIST`, `id3 `)
+  is still read on the fast path.
 - **ffmpeg fallback:** anything `wave` rejects (float or `WAVE_FORMAT_EXTENSIBLE`
   WAVs on Python 3.11, compressed media) streams through
   `FFmpegEngine.stream_pcm_f32`. That method probes with
