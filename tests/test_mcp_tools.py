@@ -701,3 +701,12 @@ def test_export_transcript_mcp(tmp_path):
     save_project(proj, Path(path))
     out = mcp_server.export_transcript(path)
     assert out.endswith(".md")
+
+
+def test_render_final_mcp_surfaces_merge_conflict(minimal_project):
+    from podcast_mcp.project_merge import ProjectMergeConflict
+
+    with patch("podcast_mcp.mcp.tools.pipeline.PipelineService") as pipe:
+        pipe.return_value.render_final.side_effect = ProjectMergeConflict(["tracks[host].gain_db"])
+        with pytest.raises(ProjectMergeConflict, match="re-run it"):
+            mcp_server.render_final(str(minimal_project))
