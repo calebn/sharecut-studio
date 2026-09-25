@@ -180,7 +180,7 @@ test.describe("large project benchmark (opt-in fixture)", () => {
         const history = page.locator(".history-list");
         await expect(history).toBeVisible(HEAVY);
         await expect(history).not.toHaveAttribute("aria-busy", /.*/, HEAVY);
-        await scrollToEnd(history, "scrollTop");
+        await scrollToEnd(history, "scrollTop", HEAVY.timeout);
       }),
     );
     process.stdout.write(
