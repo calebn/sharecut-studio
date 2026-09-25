@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -218,7 +219,7 @@ def test_stem_allows_volume_saved_during_render(
 
 
 def test_stem_rejects_unreadable_project_saved_during_render(
-    minimal_project, sample_wav, tmp_workspace, monkeypatch
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, caplog
 ):
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     proj.tracks = proj.tracks[:1]
@@ -240,8 +241,12 @@ def test_stem_rejects_unreadable_project_saved_during_render(
             return out
 
     monkeypatch.setattr(steps, "ffmpeg", CorruptingEngine)
-    with pytest.raises(RuntimeError, match="project changed during stem rendering"):
+    with (
+        caplog.at_level(logging.WARNING, logger="podcast_mcp.pipeline.steps"),
+        pytest.raises(RuntimeError, match="project changed during stem rendering"),
+    ):
         steps.assemble_timeline(proj, {"performance": {"max_workers": 2}})
+    assert "saved project unreadable" in caplog.text
     assert not (proj.artifacts_dir() / "track_outputs.json").exists()
 
 
