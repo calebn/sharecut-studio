@@ -1,13 +1,8 @@
 import fs from "node:fs";
-import {
-  type CDPSession,
-  expect,
-  type Locator,
-  type Page,
-  test,
-} from "@playwright/test";
+import { type CDPSession, expect, type Page, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
 import { openHostProject } from "./overlayReachability";
+import { scrollToEnd } from "./scroll";
 
 // Diagnostic benchmark: no hardware-dependent pass/fail thresholds, so waits
 // are generous and only bound a hung run.
@@ -69,30 +64,6 @@ async function nextPaint(page: Page): Promise<void> {
   );
 }
 
-async function scrollToEnd(
-  list: Locator,
-  axis: "scrollLeft" | "scrollTop",
-): Promise<void> {
-  await list.evaluate((element, key) => {
-    element[key] =
-      key === "scrollLeft" ? element.scrollWidth : element.scrollHeight;
-    element.dispatchEvent(new Event("scroll"));
-  }, axis);
-  await expect
-    .poll(() =>
-      list.evaluate(
-        (element, key) =>
-          key === "scrollLeft"
-            ? element.scrollLeft + element.clientWidth >=
-              element.scrollWidth - 1
-            : element.scrollTop + element.clientHeight >=
-              element.scrollHeight - 1,
-        axis,
-      ),
-    )
-    .toBe(true);
-}
-
 async function profile(
   page: Page,
   cdp: CDPSession,
@@ -152,7 +123,7 @@ test.describe("large project benchmark (opt-in fixture)", () => {
     const timeline = page.locator(".timeline-scroll");
     profiles.push(
       await profile(page, cdp, "timeline-scroll-seek", async () => {
-        await scrollToEnd(timeline, "scrollLeft");
+        await scrollToEnd(timeline, "scrollLeft", HEAVY.timeout);
         await expect(clipButton(shape.lastClipId)).toBeInViewport(HEAVY);
         await slider.press("Home");
         await expect(slider).toHaveAttribute("aria-valuenow", "0", HEAVY);
@@ -181,7 +152,11 @@ test.describe("large project benchmark (opt-in fixture)", () => {
     );
     profiles.push(
       await profile(page, cdp, "transcript-scroll-seek", async () => {
-        await scrollToEnd(page.locator(".transcript-list"), "scrollTop");
+        await scrollToEnd(
+          page.locator(".transcript-list"),
+          "scrollTop",
+          HEAVY.timeout,
+        );
         const lastTurn = page.locator(
           `.utterance-turn[data-turn-index="${shape.utterances - 1}"]`,
         );
