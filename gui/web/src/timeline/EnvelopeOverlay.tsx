@@ -79,6 +79,10 @@ export function EnvelopeOverlay({
   );
   const editable = !isShareProjectKey(projectPath);
   const [draft, setDraft] = useState<AutomationPoint[] | null>(null);
+  // Kept mounted outside the chunk range: unmounting would drop pointer
+  // capture mid-drag or keyboard focus.
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const dragRef = useRef<{
     index: number;
     origin: AutomationPoint[];
@@ -120,6 +124,7 @@ export function EnvelopeOverlay({
 
   const clearDrag = () => {
     dragRef.current = null;
+    setDragIndex(null);
     setDraft(null);
   };
 
@@ -183,7 +188,9 @@ export function EnvelopeOverlay({
             aria-hidden="true"
           />
           {sorted.map((p, i) => {
-            if (xOf(p) < x0 || xOf(p) > x1) {
+            const pinned =
+              i === dragIndex || i === selectedIndex || i === focusedIndex;
+            if (!pinned && (xOf(p) < x0 || xOf(p) > x1)) {
               return null;
             }
             const selected = selectedIndex === i;
@@ -201,6 +208,10 @@ export function EnvelopeOverlay({
                 tabIndex={0}
                 aria-label={label}
                 aria-pressed={selected}
+                onFocus={() => setFocusedIndex(i)}
+                onBlur={() =>
+                  setFocusedIndex((cur) => (cur === i ? null : cur))
+                }
                 onKeyDown={(e) => {
                   if (e.key !== "Enter" && e.key !== " ") {
                     return;
@@ -225,6 +236,7 @@ export function EnvelopeOverlay({
                     points: copy,
                   };
                   setDraft(copy);
+                  setDragIndex(i);
                 }}
                 onPointerMove={(e) => {
                   if (!dragRef.current) {
@@ -258,6 +270,7 @@ export function EnvelopeOverlay({
                   e.stopPropagation();
                   const { index, points: next, origin } = dragRef.current;
                   dragRef.current = null;
+                  setDragIndex(null);
                   void commit(next, index, origin);
                 }}
                 onPointerCancel={(e) => {

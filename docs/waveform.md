@@ -457,14 +457,14 @@ the time at the view centre, when the session length changes (`setProject`,
 - **Precision.** Tile geometry stays source-anchored (`t = k·512/zoom`, no
   accumulation), snap ticks round to 1 µs on client and server (`snap_tick_decimals`), presence
   x-fractions carry 6 decimals, and drag thresholds are in pixels (roll
-  commit 0.5 px, move no-op 0.5 px, social-clip drag 3 px, ruler comment
+  commit 0.5 px, move no-op 0.5 px or 0.1 ms, whichever is smaller, social-clip drag 3 px, ruler comment
   span 4 px), so edits work at any zoom. Domain minimums (0.05 s spans,
   integer-ms fades) are unchanged.
 - **Bounded DOM.** The ruler, the Levels envelope and the waveform tiles
   mount only what meets the viewport: the ruler and envelope in 2048 px
   chunks (`utils/timelineViewport.ts` `viewportChunkRange`, a selector that
   returns a string), the tiles in 512 px tiles plus overscan. A ruler never
-  mounts more than `ceil((viewport + 4096) / 70) + 1` ticks.
+  mounts more than `ceil((viewport + 4096) / 70) + 1` ticks. A Levels point being dragged, selected or focused stays mounted outside the chunks, so pointer capture and focus survive a scroll.
 
 **Budgets:** the bitmap cache holds 128 MB (48 MB on the phone shell), data
 tiles 64 MB (32 MB on the phone shell) and PCM 32 MB. There are 4 fetches in
