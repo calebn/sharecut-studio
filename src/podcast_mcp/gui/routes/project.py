@@ -19,6 +19,7 @@ from podcast_mcp.gui.host_file_dialog import pick_episode_project_path
 from podcast_mcp.gui.jobs import project_meta
 from podcast_mcp.gui.routes.deps import peer_host, require_host, resolve_project
 from podcast_mcp.project_io import require_episode_project_file
+from podcast_mcp.project_merge import ProjectMergeConflict
 from podcast_mcp.services import HistoryService, ProjectWorkspace
 from podcast_mcp.services.session_sync.authz import is_loopback_host
 
@@ -277,6 +278,9 @@ def get_audio(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ProjectMergeConflict as exc:
+        # The premix re-render's save collided with a concurrent edit; nothing was saved.
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return audio_file_response(audio_path, request=request)
 
 
