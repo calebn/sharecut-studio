@@ -877,6 +877,62 @@ describe("useKeeperCapture silent PCM watchdog", () => {
     expect(result.current.noAudio).toBe(true);
   });
 
+  it("does not arm until the keeper tap is attached", async () => {
+    let attach!: () => void;
+    graphOpen.mockImplementationOnce(async (_stream, onPcm) => {
+      await new Promise<void>((resolve) => {
+        attach = resolve;
+      });
+      graphEmit.fn = (pcm) => onPcm(pcm, 48_000);
+      return { stop: () => undefined, resume: tapResume };
+    });
+    const { result } = await setup();
+    await advance(8000);
+    expect(result.current.noAudio).toBe(false);
+    await act(async () => {
+      attach();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await advance(4000, zeros);
+    expect(result.current.noAudio).toBe(false);
+    await advance(2000, zeros);
+    expect(result.current.noAudio).toBe(true);
+  });
+
+  it("re-arms when the tap reopens mid-take", async () => {
+    const hook = renderHook(
+      (props: { onActivity: () => void }) =>
+        useKeeperCapture({
+          ...args,
+          enabled: true,
+          stream,
+          onActivity: props.onActivity,
+        }),
+      { initialProps: { onActivity: () => undefined } },
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await advance(3000, quiet);
+    let attach!: () => void;
+    graphOpen.mockImplementationOnce(async (_stream, onPcm) => {
+      await new Promise<void>((resolve) => {
+        attach = resolve;
+      });
+      graphEmit.fn = (pcm) => onPcm(pcm, 48_000);
+      return { stop: () => undefined, resume: tapResume };
+    });
+    hook.rerender({ onActivity: () => undefined }); // new onActivity reopens the tap
+    await advance(8000);
+    expect(hook.result.current.noAudio).toBe(false);
+    await act(async () => {
+      attach();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await advance(6000, zeros);
+    expect(hook.result.current.noAudio).toBe(true);
+  });
+
   it("does not alarm on genuine quiet input", async () => {
     const { result } = await setup();
     await advance(10000, quiet);
