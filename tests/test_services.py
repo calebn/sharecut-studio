@@ -5,7 +5,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from podcast_mcp.models import CombinedTranscript, CombinedUtterance, Transcript, TranscriptWord
+from podcast_mcp.models import (
+    CombinedTranscript,
+    CombinedUtterance,
+    MediaAsset,
+    Track,
+    Transcript,
+    TranscriptWord,
+)
 from podcast_mcp.services import (
     ClipService,
     EditService,
@@ -65,6 +72,25 @@ def test_clip_service_propose(minimal_project):
     )
     clips = ClipService(ws).propose(max_clips=3)
     assert len(clips) >= 1
+
+
+def test_clip_service_propose_builds_missing_track_pyramids(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.project.timeline.tracks = [
+        Track(id="host", label="Host", media=MediaAsset(path="raw/host.wav", duration_sec=2.0)),
+        Track(id="empty", label="Empty"),
+    ]
+    ws.project.combined_transcript = CombinedTranscript(
+        utterances=[
+            CombinedUtterance(
+                track_id="host", speaker="Host", start=0.0, end=2.0, text="Why is this great?"
+            )
+        ]
+    )
+    peaks = ws.project.artifacts_dir() / "peaks"
+    assert not list(peaks.glob("track-host.*.wfpk"))
+    ClipService(ws).propose(max_clips=3)
+    assert len(list(peaks.glob("track-host.*.wfpk"))) == 1
 
 
 def test_history_service_list(minimal_project):

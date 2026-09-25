@@ -4,7 +4,7 @@ Propose short highlight clips from combined transcripts and export WAV + JSON si
 
 ## MCP
 
-- `propose_social_clips_tool` — heuristic ranking (hooks, energy, duration, sentence-like starts; mid-utterance chunks are demoted)
+- `propose_social_clips_tool` — heuristic ranking (hooks, energy, duration, sentence-like starts; mid-utterance chunks are demoted). Energy comes from each track's waveform pyramid, which is built inline first when missing.
 - `social_clip_report_tool` — markdown summary
 - `approve_social_clips_tool` / `reject_social_clips_tool`
 - `export_social_clips_tool` — audio only
