@@ -23,6 +23,8 @@ class PipelineRunRequest(BaseModel):
     unattended: bool | None = None
     config: dict | None = None
     use_working_set: bool = True
+    # Run-only: re-run ASR over existing transcripts (never persisted).
+    force_transcribe: bool = False
 
 
 class PipelineConfigPutRequest(BaseModel):

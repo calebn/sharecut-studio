@@ -25,6 +25,7 @@ from podcast_mcp.services.pipeline_config import (
     merge_pipeline_config,
     skip_steps_from_enabled,
     suggest_pipeline_tuning,
+    with_transcribe_overwrite,
 )
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.whisper_models import WhisperWeightsMissingError
@@ -151,9 +152,10 @@ def pipeline_run(
             unattended=unattended,
         )
 
+    run_config = with_transcribe_overwrite(config) if req.force_transcribe else config
     try:
         ensure_whisper_cached_for_run(
-            config=config,
+            config=run_config,
             from_step=req.from_step,
             only_step=req.only_step,
             skip_steps=skip_steps,
@@ -168,7 +170,7 @@ def pipeline_run(
             only_step=req.only_step,
             skip_steps=skip_steps,
             unattended=bool(unattended),
-            config=config,
+            config=run_config,
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc

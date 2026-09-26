@@ -16,6 +16,7 @@ from podcast_mcp.models import (
     ProcessingEffect,
     Track,
     TrackRole,
+    Transcript,
 )
 from podcast_mcp.pipeline.helpers import (
     artifact,
@@ -88,37 +89,57 @@ def ingest_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSumm
 
 
 def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
+    from podcast_mcp.edits.pipeline_unattended import is_unattended
+    from podcast_mcp.edits.transcript_reuse import plan_transcription, stamp_adopted_transcripts
     from podcast_mcp.engines.audio_audit import AnalysisPolicy
-    from podcast_mcp.engines.transcribe import collect_anomalous_asr_duration_flags
+    from podcast_mcp.engines.transcribe import (
+        collect_anomalous_asr_duration_flags,
+        dialogue_transcribe_jobs,
+        transcript_key,
+    )
     from podcast_mcp.transcript_context import load_transcript_context
 
     cfg = defaults.get("transcribe", {})
     pol = AnalysisPolicy.from_defaults(defaults)
-    engine = TranscriptionEngine(
-        model_size=cfg.get("model", DEFAULT_WHISPER_MODEL),
-        device="cpu",
-    )
-    ctx = load_transcript_context(project.workspace_path())
-    prompt = ctx.initial_prompt_text()
-    # Prompt and vocabulary_revision must come from this one load: a concurrent
-    # edit mints a newer revision, so these transcripts stay stale in Studio.
-    transcripts = engine.transcribe_all_dialogue(
+    overwrite = bool(cfg.get("overwrite", False))
+    jobs = dialogue_transcribe_jobs(project)
+    plan = plan_transcription(
         project,
-        language=cfg.get("language", "en"),
-        initial_prompt=prompt,
-        max_word_sec=pol.max_word_audibility_sec,
+        jobs,
+        overwrite=overwrite,
+        unattended=is_unattended(defaults=defaults),
     )
+    stamp_adopted_transcripts(project, plan)
+    for track_id in plan.overwrite_edited:
+        log.warning("re-transcribing overwrites edited transcript for track %s", track_id)
 
-    def _key(t: object) -> tuple[str, str | None]:
-        return (getattr(t, "track_id", ""), getattr(t, "source_id", None))
-
-    by_id = {_key(t): t for t in project.transcripts}
-    for t in transcripts:
-        by_id[_key(t)] = t
-    project.transcripts = list(by_id.values())
-    for t in transcripts:
-        t.vocabulary_revision = ctx.vocabulary_revision
-    words = sum(len(t.words) for t in transcripts)
+    transcripts: list[Transcript] = []
+    if plan.run:
+        engine = TranscriptionEngine(
+            model_size=cfg.get("model", DEFAULT_WHISPER_MODEL),
+            device="cpu",
+        )
+        ctx = load_transcript_context(project.workspace_path())
+        prompt = ctx.initial_prompt_text()
+        # Prompt and vocabulary_revision must come from this one load: a concurrent
+        # edit mints a newer revision, so these transcripts stay stale in Studio.
+        transcripts = engine.transcribe_all_dialogue(
+            project,
+            language=cfg.get("language", "en"),
+            initial_prompt=prompt,
+            max_word_sec=pol.max_word_audibility_sec,
+            jobs=plan.run,
+            audio_hashes=plan.audio_hashes,
+            legacy_cache=not overwrite,
+        )
+        by_id = {transcript_key(t): t for t in project.transcripts}
+        for t in transcripts:
+            by_id[transcript_key(t)] = t
+        project.transcripts = list(by_id.values())
+        for t in transcripts:
+            t.vocabulary_revision = ctx.vocabulary_revision
+    job_keys = {j.key for j in jobs}
+    words = sum(len(t.words) for t in project.transcripts if transcript_key(t) in job_keys)
     timing_flags = collect_anomalous_asr_duration_flags(
         project,
         max_word_sec=pol.max_word_audibility_sec,
@@ -135,7 +156,9 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         ),
         encoding="utf-8",
     )
-    summary = f"{len(transcripts)} tracks, {words} words"
+    summary = f"{len(transcripts)} transcribed, {len(plan.reused)} reused, {words} words"
+    if plan.overwrite_edited:
+        summary += f", {len(plan.overwrite_edited)} edited overwritten"
     if timing_flags:
         summary += f", {len(timing_flags)} timing flags"
     return summary

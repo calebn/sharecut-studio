@@ -191,6 +191,9 @@ transcribe:
   # Lowest practical WER. Override at setup (`--whisper-model`) or pipeline config.
   model: large-v3-turbo
   language: en
+  # false = reuse stored transcripts (and keep hand edits); true = re-run ASR.
+  # Run-only: CLI --force, MCP/GUI force_transcribe. Changed audio always re-runs.
+  overwrite: false
 
 align:
   # Conversation-clock placement after ASR. Uncheck align_tracks for unrelated clips.

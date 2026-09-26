@@ -596,3 +596,17 @@ def test_align_module_constants_match_yaml() -> None:
     assert align["bleed_min_share"] == ca.BLEED_MIN_SHARE
     assert align["bleed_identity_sec"] == ca.BLEED_IDENTITY_SEC
     assert align["realign"] is False
+
+
+def test_transcribe_overwrite_param_and_run_only_helper() -> None:
+    from podcast_mcp.pipeline.meta import PARAM_FIELDS
+    from podcast_mcp.services.pipeline_config import with_transcribe_overwrite
+
+    field = next(f for f in PARAM_FIELDS if f.path == "transcribe.overwrite")
+    assert field.type == "boolean" and field.group == "advanced"
+    assert load_defaults()["transcribe"]["overwrite"] is False
+    forced = with_transcribe_overwrite({"balance": {"dialogue_lufs": -17.0}})
+    assert forced["transcribe"]["overwrite"] is True
+    assert forced["balance"]["dialogue_lufs"] == -17.0
+    assert with_transcribe_overwrite(None)["transcribe"]["overwrite"] is True
+    assert load_defaults()["transcribe"]["overwrite"] is False

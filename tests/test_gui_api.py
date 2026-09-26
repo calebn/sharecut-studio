@@ -2680,3 +2680,37 @@ def test_api_transcript_vocabulary_busy_lock_returns_503(minimal_project, monkey
         },
     )
     assert response.status_code == 503
+
+
+def test_api_pipeline_run_force_transcribe_is_run_only(minimal_project, monkeypatch) -> None:
+    pytest.importorskip("fastapi")
+    import time
+
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.services.pipeline_config import config_store
+
+    seen: list[dict | None] = []
+
+    def fake_run(self, **kwargs):
+        seen.append(kwargs.get("config"))
+        return "done"
+
+    monkeypatch.setattr("podcast_mcp.services.pipeline.PipelineService.run", fake_run)
+    monkeypatch.setattr(
+        "podcast_mcp.gui.routes.pipeline.ensure_whisper_cached_for_run", lambda **_: None
+    )
+    client = TestClient(create_app())
+    res = client.post(
+        "/api/pipeline/run", json={"path": str(minimal_project), "force_transcribe": True}
+    )
+    assert res.status_code == 200
+    for _ in range(100):
+        if not client.get("/api/pipeline/status").json()["running"]:
+            break
+        time.sleep(0.05)
+    assert seen and seen[0]["transcribe"]["overwrite"] is True
+    working = config_store().get(Path(str(minimal_project)))
+    persisted = ((working.config or {}).get("transcribe") or {}) if working else {}
+    assert not persisted.get("overwrite")

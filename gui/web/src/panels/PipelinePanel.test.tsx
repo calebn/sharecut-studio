@@ -214,6 +214,7 @@ describe("PipelinePanel", () => {
       expect.objectContaining({
         fromStep: "transcribe_tracks",
         enabledSteps: expect.arrayContaining(["transcribe_tracks"]),
+        forceTranscribe: true,
       }),
     );
   });
@@ -273,6 +274,7 @@ describe("PipelinePanel", () => {
       expect(startPipelineRun).toHaveBeenCalled();
     });
     expect(startPipelineRun.mock.calls[0][1].unattended).toBe(true);
+    expect(startPipelineRun.mock.calls[0][1].forceTranscribe).toBe(false);
     expect(startPipelineRun.mock.calls[0][1].enabledSteps).toContain(
       "balance_tracks",
     );

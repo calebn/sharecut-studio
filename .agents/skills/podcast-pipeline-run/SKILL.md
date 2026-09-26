@@ -59,7 +59,10 @@ podcast pipeline run --project episode.project.json --from precorrect_transcript
 podcast pipeline run --project episode.project.json --from tighten_from_transcript
 podcast pipeline run --project episode.project.json --from assemble_timeline
 podcast pipeline run --project episode.project.json --only transcribe_tracks
+podcast pipeline run --project episode.project.json --force   # re-run ASR over existing transcripts
 ```
+
+Existing transcripts are reused (a second run does not call Whisper). On seeded projects use `--from merge_transcript` or rely on the skip. `--force` / MCP `force_transcribe=true` re-transcribes; if a transcript was hand-edited and the run is unattended, it fails with `TranscriptOverwriteRefused` — rerun attended or skip transcription.
 
 ## After automation
 

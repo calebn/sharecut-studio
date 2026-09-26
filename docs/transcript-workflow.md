@@ -105,6 +105,13 @@ it never migrates or rewrites that file. The prompt
 has a 400-character limit by default, and Studio rejects terms that would be
 truncated. This changes future ASR output, not existing transcript words.
 
+**Reuse policy:** `transcribe_tracks` never re-runs ASR over a transcript that
+already exists for the same audio. Studio's **Re-transcribe** (`force_transcribe`),
+CLI `--force`, or `transcribe.overwrite: true` replace it explicitly; changed
+media re-transcribes automatically. Transcripts edited through `correct_word`,
+`correct_phrase`, `set_word_suppressed`, `verify_transcript` or transcript cleanup
+are flagged `user_edited` and are refused (not overwritten) in unattended runs.
+
 Set context before transcribe when possible:
 
 ```bash

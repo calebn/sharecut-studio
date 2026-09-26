@@ -243,3 +243,19 @@ def test_mcp_bounce_audio_tool(tmp_path, sample_wav, monkeypatch):
         mcp_pipeline.bounce_audio_tool(path, formats_json='["wav"]', start_s=0.0, end_s=1.0)
     )
     assert out[0].endswith("b.wav")
+
+
+def test_mcp_pipeline_run_force_transcribe_is_run_only(tmp_path, sample_wav):
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    mcp_server.track_add(path, "host", str(sample_wav), role="dialogue")
+    from podcast_mcp.services.pipeline_config import config_store
+
+    store = config_store()
+    store.put(Path(path), reset=True)
+    with patch("podcast_mcp.services.pipeline.PipelineRunner") as mock_runner:
+        mock_runner.return_value.run.return_value = MagicMock()
+        mcp_pipeline.pipeline_run(path, only_step="ingest_tracks", force_transcribe=True)
+        defaults = mock_runner.call_args.kwargs.get("defaults")
+    assert defaults["transcribe"]["overwrite"] is True
+    working = store.get(Path(path))
+    assert not ((working.config or {}).get("transcribe") or {}).get("overwrite")

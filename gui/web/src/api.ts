@@ -1305,6 +1305,7 @@ export async function startPipelineRun(
     unattended?: boolean;
     config?: Record<string, unknown>;
     useWorkingSet?: boolean;
+    forceTranscribe?: boolean;
   },
 ): Promise<PipelineJobSnapshot> {
   if (isShareProjectKey(projectPath)) {
@@ -1322,6 +1323,7 @@ export async function startPipelineRun(
       unattended: opts?.unattended ?? null,
       config: opts?.config ?? null,
       use_working_set: opts?.useWorkingSet ?? true,
+      force_transcribe: opts?.forceTranscribe ?? false,
     }),
   });
   if (!res.ok) {

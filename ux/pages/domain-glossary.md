@@ -59,7 +59,7 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 | **Transcript word** | Timed text + confidence / suppress | `transcripts.per_track[].words[]` | Text mode, word inspector |
 | **Edited transcript** | A transcript whose words a person or agent corrected, suppressed or verified; re-transcribing it is protected | `transcripts.per_track[].user_edited`, `audio_sha256` | Text mode, Re-transcribe |
 | **Combined transcript** | Utterance stream for search/NL | `transcripts.combined` | Search / agent; export captions |
-| **Transcription vocabulary** | Names and terms used for Whisper; re-transcribe when any transcript was produced with a different saved revision | `transcript_context.yaml` revision + `transcripts.per_track[].vocabulary_revision` | Pipeline vocabulary editor |
+| **Transcription vocabulary** | Names and terms used for Whisper; Re-transcribe (forces ASR; normal runs reuse transcripts) when any transcript was produced with a different saved revision | `transcript_context.yaml` revision + `transcripts.per_track[].vocabulary_revision` | Pipeline vocabulary editor |
 | **FX chain** | Per-track cleanup/EQ/etc. | `mix.processing_chains` | Track FX, audition FX vs Raw |
 | **Envelope** | Volume automation over time | `mix.automation_envelopes` | Levels overlay, selected-point inspector |
 | **Volume (fader)** | A track's saved level, on top of the staging gain Balance sets | `timeline.tracks[].fader_db` (+ `gain_db`) | Track inspector / sheet fader; header gain strip shows the sum |

@@ -191,6 +191,7 @@ function pipelineRunOptions(
     unattended: cfg.unattended,
     config: cfg.config,
     useWorkingSet: true,
+    forceTranscribe: retranscribe,
   };
 }
 
