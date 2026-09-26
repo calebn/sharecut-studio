@@ -64,6 +64,27 @@ describe("FetchGate", () => {
     expect(wake).toHaveBeenCalledOnce();
     expect(gate.active).toBe(0);
   });
+
+  it("keeps waking waiters after one throws", () => {
+    const deferred: (() => void)[] = [];
+    const spy = vi
+      .spyOn(globalThis, "queueMicrotask")
+      .mockImplementation((fn) => {
+        deferred.push(fn);
+      });
+    const gate = new FetchGate();
+    const after = vi.fn();
+    gate.onRelease(() => {
+      throw new Error("boom");
+    });
+    gate.onRelease(after);
+    gate.tryAcquire(1);
+    gate.release();
+    spy.mockRestore();
+    expect(after).toHaveBeenCalledOnce();
+    expect(gate.active).toBe(0);
+    expect(() => deferred[0]!()).toThrow("boom");
+  });
 });
 
 describe("ByteLru", () => {
