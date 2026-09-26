@@ -18,6 +18,7 @@ const patchComment = vi.fn();
 const refreshProject = vi.fn();
 const approveEdits = vi.fn();
 const waiveTranscriptRefine = vi.fn();
+const updatePendingEdit = vi.fn();
 
 vi.mock("../../api", () => ({
   createComment: (...args: unknown[]) => createComment(...args),
@@ -26,7 +27,7 @@ vi.mock("../../api", () => ({
   approveEdits: (...args: unknown[]) => approveEdits(...args),
   waiveTranscriptRefine: (...args: unknown[]) => waiveTranscriptRefine(...args),
   rejectEdits: vi.fn(),
-  updatePendingEdit: vi.fn(),
+  updatePendingEdit: (...args: unknown[]) => updatePendingEdit(...args),
 }));
 
 const sessionCut: PendingEditView = {
@@ -281,5 +282,63 @@ describe("PendingEditInspector", () => {
     expect(validation).toHaveAttribute("role", "alert");
     expect(waiveTranscriptRefine).not.toHaveBeenCalled();
     await expectNoA11yViolations(container);
+  });
+
+  describe("plain-language copy and m:ss.mmm times", () => {
+    const guestCut: PendingEditView = {
+      ...sessionCut,
+      reason: "guest:suggest",
+      source_start: 0,
+      source_end: 1.999999,
+      timeline_start: 0,
+      timeline_end: 1.999999,
+      timeline_spans: [{ start: 0, end: 1.999999 }],
+      crossfade_ms: 10,
+    };
+
+    beforeEach(() => {
+      updatePendingEdit.mockReset();
+      updatePendingEdit.mockResolvedValue(undefined);
+    });
+
+    it("shows Join fade, rounded times and the reason once in words", () => {
+      render(<PendingEditInspector edit={guestCut} />);
+      expect(screen.getByText("Join fade")).toBeInTheDocument();
+      expect(screen.queryByText("Crossfade")).toBeNull();
+      expect(screen.getByLabelText("Source start")).toHaveValue("0:00.000");
+      expect(screen.getByLabelText("Source end")).toHaveValue("0:02.000");
+      expect(screen.getAllByText("Suggested by guest")).toHaveLength(1);
+      expect(screen.queryByText("guest:suggest")).toBeNull();
+      expect(screen.getByText("Cut")).toBeInTheDocument();
+    });
+
+    it("accepts m:ss.mmm in the nudge fields", async () => {
+      const user = userEvent.setup();
+      render(<PendingEditInspector edit={guestCut} />);
+      const end = screen.getByLabelText("Source end");
+      await user.clear(end);
+      await user.type(end, "0:02.380");
+      await user.click(screen.getByRole("button", { name: /Snap & apply/ }));
+      expect(updatePendingEdit).toHaveBeenCalledTimes(1);
+      const args = updatePendingEdit.mock.calls[0] as unknown[];
+      expect(args.slice(0, 2)).toEqual(["/tmp/p.json", "ed1"]);
+      expect(args[2]).toBe(0);
+      expect(args[3] as number).toBeCloseTo(2.38, 9);
+      expect(args[4]).toBe(true);
+      expect(args[5]).toBeUndefined();
+    });
+
+    it("rejects a malformed time", async () => {
+      const user = userEvent.setup();
+      render(<PendingEditInspector edit={guestCut} />);
+      const end = screen.getByLabelText("Source end");
+      await user.clear(end);
+      await user.type(end, "1:75");
+      await user.click(screen.getByRole("button", { name: /Snap & apply/ }));
+      expect(
+        await screen.findByText("Times must be m:ss.mmm or seconds"),
+      ).toBeInTheDocument();
+      expect(updatePendingEdit).not.toHaveBeenCalled();
+    });
   });
 });

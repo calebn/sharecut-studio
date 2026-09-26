@@ -3,6 +3,10 @@ import { updatePendingEdit } from "../api";
 import { isHandleDrag } from "../edit/dragThreshold";
 import { useDaw } from "../state/useDaw";
 import type { PendingEditView } from "../types/project";
+import {
+  pendingReasonLabel,
+  pendingTypeLabel,
+} from "../utils/pendingEditLabels";
 import { pendingOverlayWidthPx } from "./pendingOverlayWidth";
 
 interface PendingEditOverlayProps {
@@ -121,7 +125,7 @@ export function PendingEditOverlay({
                 key={`${edit.id}-${i}`}
                 className={`pending-overlay${isMute ? " mute" : isSplit ? " split" : " remove"}${selectedId === edit.id ? " selected" : ""}`}
                 style={{ left, width }}
-                title={`${edit.type}: ${edit.reason ?? ""}`}
+                title={`${pendingTypeLabel(edit.type)}: ${pendingReasonLabel(edit.reason)}`}
               >
                 <button
                   type="button"

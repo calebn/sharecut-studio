@@ -27,10 +27,15 @@ import {
 import { TRANSCRIPT_REFINE_REQUIRED_CODE } from "../../utils/apiError";
 import { loadCommentAuthor } from "../../utils/commentAuthor";
 import {
+  pendingReasonLabel,
+  pendingTypeLabel,
+} from "../../utils/pendingEditLabels";
+import {
   canSuggestSkip,
   type PreviewMode,
   suggestDisabledReason,
 } from "../../utils/playRange";
+import { formatTimeMs, parseTimecode } from "../../utils/time";
 import { ModifierInspector } from "../ModifierInspector";
 import {
   REFINE_GATE_GUI_MESSAGE,
@@ -57,8 +62,8 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   const [previewMode, setPreviewMode] = useState<PreviewMode>(
     skipOk ? "suggested" : "current",
   );
-  const [startStr, setStartStr] = useState(String(edit.source_start));
-  const [endStr, setEndStr] = useState(String(edit.source_end));
+  const [startStr, setStartStr] = useState(formatTimeMs(edit.source_start));
+  const [endStr, setEndStr] = useState(formatTimeMs(edit.source_end));
   const [tracksStr, setTracksStr] = useState(
     (edit.track_ids ?? [edit.track_id]).join(", "),
   );
@@ -84,8 +89,8 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   }, [edit.id, setError]);
 
   useEffect(() => {
-    setStartStr(String(edit.source_start));
-    setEndStr(String(edit.source_end));
+    setStartStr(formatTimeMs(edit.source_start));
+    setEndStr(formatTimeMs(edit.source_end));
     setTracksStr((edit.track_ids ?? [edit.track_id]).join(", "));
     setAskBody("");
     setPreviewMode(
@@ -128,10 +133,10 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   };
 
   const applyNudge = async () => {
-    const start = Number.parseFloat(startStr);
-    const end = isSplit ? start : Number.parseFloat(endStr);
-    if (!Number.isFinite(start) || !Number.isFinite(end)) {
-      setError("Times must be valid numbers");
+    const start = parseTimecode(startStr);
+    const end = isSplit ? start : parseTimecode(endStr);
+    if (start == null || end == null) {
+      setError("Times must be m:ss.mmm or seconds");
       return;
     }
     if (!isSplit && end <= start) {
@@ -191,7 +196,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
     <ModifierInspector
       badge="Pending"
       title={isSplit ? "Pending split" : "Pending edit"}
-      subtitle={edit.reason ?? edit.type}
+      subtitle={pendingReasonLabel(edit.reason)}
       primaryActions={
         canApply
           ? [
@@ -228,16 +233,16 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
       }
     >
       <DefinitionList>
-        <DefItem label="Type">{edit.type}</DefItem>
-        <DefItem label="Reason">{edit.reason ?? "Not provided"}</DefItem>
+        <DefItem label="Type">{pendingTypeLabel(edit.type)}</DefItem>
         {isSplit ? (
           <>
             <DefItem label="Cut time (timeline)">
               {canNudge ? (
                 <FieldRow>
                   <input
-                    type="number"
-                    step="any"
+                    type="text"
+                    spellCheck={false}
+                    placeholder="m:ss.mmm"
                     value={startStr}
                     disabled={busy}
                     aria-label="Cut time"
@@ -248,7 +253,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                   </Button>
                 </FieldRow>
               ) : (
-                `${edit.source_start.toFixed(3)} s`
+                formatTimeMs(edit.source_start)
               )}
             </DefItem>
             <DefItem label="Tracks">
@@ -275,8 +280,9 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
             {canNudge ? (
               <FieldRow>
                 <input
-                  type="number"
-                  step="any"
+                  type="text"
+                  spellCheck={false}
+                  placeholder="m:ss.mmm"
                   value={startStr}
                   disabled={busy}
                   aria-label="Source start"
@@ -284,8 +290,9 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                 />
                 <span>–</span>
                 <input
-                  type="number"
-                  step="any"
+                  type="text"
+                  spellCheck={false}
+                  placeholder="m:ss.mmm"
                   value={endStr}
                   disabled={busy}
                   aria-label="Source end"
@@ -296,19 +303,19 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                 </Button>
               </FieldRow>
             ) : (
-              `${edit.source_start.toFixed(3)} – ${edit.source_end.toFixed(3)} s`
+              `${formatTimeMs(edit.source_start)} – ${formatTimeMs(edit.source_end)}`
             )}
           </DefItem>
         )}
         {!isSplit ? (
           <DefItem label="Timeline">
             {edit.mappable && edit.timeline_start != null
-              ? `${edit.timeline_start.toFixed(3)} – ${edit.timeline_end?.toFixed(3)} s`
+              ? `${formatTimeMs(edit.timeline_start)} – ${formatTimeMs(edit.timeline_end ?? edit.timeline_start)}`
               : "Not mappable (cut away)"}
           </DefItem>
         ) : null}
         {edit.crossfade_ms != null && !isSplit ? (
-          <DefItem label="Crossfade">{edit.crossfade_ms} ms</DefItem>
+          <DefItem label="Join fade">{edit.crossfade_ms} ms</DefItem>
         ) : null}
         {edit.boundary_mode ? (
           <DefItem label="Boundary">{edit.boundary_mode}</DefItem>

@@ -141,6 +141,38 @@ export function formatRulerTime(
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
 }
 
+/** `m:ss.mmm` (`h:mm:ss.mmm` from an hour): a precise time for inspector fields. */
+export function formatTimeMs(sec: number): string {
+  return formatRulerTime(sec, 0.001);
+}
+
+const TIMECODE_FIELD = /^(\d+(\.\d*)?|\.\d+)$/;
+
+/**
+ * Parse `m:ss.mmm`, `h:mm:ss.mmm` or plain seconds to seconds; null when the
+ * text is not one of those. Only the last field may carry a fraction, and
+ * seconds (with minutes, from three fields) stay under 60.
+ */
+export function parseTimecode(text: string): number | null {
+  const fields = text.trim().split(":");
+  if (fields.length > 3 || !fields.every((f) => TIMECODE_FIELD.test(f))) {
+    return null;
+  }
+  const last = fields.length - 1;
+  for (let i = 0; i < last; i++) {
+    if (fields[i]!.includes(".")) {
+      return null;
+    }
+  }
+  if (fields.length >= 2 && Number(fields[last]) >= 60) {
+    return null;
+  }
+  if (fields.length === 3 && Number(fields[1]) >= 60) {
+    return null;
+  }
+  return fields.reduce((acc, f) => acc * 60 + Number(f), 0);
+}
+
 /**
  * Clamp a session time to `[0, durationSec]`. The upper clamp is skipped
  * while the duration is unknown (not finite, e.g. before the project loads).
