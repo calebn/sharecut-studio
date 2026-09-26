@@ -90,6 +90,7 @@ def _ack_pcm(
     segment: int,
     join_offset_ms: int,
     pcm: bytes,
+    clipping: str | None = None,
 ) -> None:
     wav = pcm_wav_header(len(pcm)) + pcm
     uploader.ingest_part(
@@ -104,6 +105,7 @@ def _ack_pcm(
         final=True,
         expected_parts=1,
         join_offset_ms=join_offset_ms,
+        clipping=clipping,
     )
 
 
@@ -3209,3 +3211,112 @@ def test_ack_replaced_before_registration_skips_project_media(
     row = uploader.status(session_id=room["session_id"])["segments"][0]
     assert row["file_sha256"] == replacement_hash
     assert row["landed"] is False
+
+
+def _two_second_pcm() -> tuple[bytes, str, str]:
+    pcm = bytes(48_000 * 2 * 2)
+    wav = pcm_wav_header(len(pcm)) + pcm
+    return pcm, sha256_hex(pcm), sha256_hex(wav)
+
+
+def test_http_final_part_lands_clipping_regions_on_source_and_list_clips(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.edits.timeline_ops import list_clips
+
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    client = TestClient(create_app())
+    token = room["guest"]["token"]
+    svc, pid, lease = _consent_guest(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=3_000)
+    pcm, digest, file_hash = _two_second_pcm()
+    res = client.post(
+        f"/api/rec/{token}/upload",
+        params={
+            "take_index": 0,
+            "segment_index": 0,
+            "part_seq": 0,
+            "sha256": digest,
+            "file_sha256": file_hash,
+            "final": "true",
+            "expected_parts": 1,
+            "join_offset_ms": 0,
+            "clipping": "100-250,1500-1600",
+        },
+        headers={"X-Record-Participant": pid, "X-Record-Lease": lease},
+        content=pcm,
+    )
+    assert res.status_code == 200, res.text
+    assert res.json().get("landed") is True
+    reloaded = load_project(minimal_project)
+    source = next(s for s in reloaded.sources if s.id.startswith("rec-"))
+    assert [(r.start_s, r.end_s) for r in source.clipping_regions] == [
+        (pytest.approx(0.1), pytest.approx(0.25)),
+        (pytest.approx(1.5), pytest.approx(1.6)),
+    ]
+    rows = [row for track in list_clips(reloaded)["tracks"].values() for row in track]
+    landed = next(r for r in rows if r["source_id"] == source.id)
+    assert [(c["start_s"], c["end_s"]) for c in landed["clipping_regions"]] == [
+        (pytest.approx(0.1), pytest.approx(0.25)),
+        (pytest.approx(1.5), pytest.approx(1.6)),
+    ]
+
+
+def test_landing_clamps_or_drops_out_of_range_clipping(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=3_000)
+    uploader = RecordUploadService(ws.project)
+    pcm, _digest, _file_hash = _two_second_pcm()
+    _ack_pcm(
+        uploader,
+        session_id=room["session_id"],
+        take=0,
+        pid=guest,
+        segment=0,
+        join_offset_ms=0,
+        pcm=pcm,
+        clipping="1900-5000,6000-7000",
+    )
+    RecordLandingService(ws).land(align=lambda _p: None)
+    source = next(s for s in ws.project.sources if s.id.startswith("rec-"))
+    assert [(r.start_s, r.end_s) for r in source.clipping_regions] == [
+        (pytest.approx(1.9), pytest.approx(2.0))
+    ]
+
+
+def test_reack_before_landing_replaces_clipping_regions(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=3_000)
+    uploader = RecordUploadService(ws.project)
+    pcm, _digest, _file_hash = _two_second_pcm()
+    for spans in ("100-250", "400-500"):
+        _ack_pcm(
+            uploader,
+            session_id=room["session_id"],
+            take=0,
+            pid=guest,
+            segment=0,
+            join_offset_ms=0,
+            pcm=pcm,
+            clipping=spans,
+        )
+    RecordLandingService(ws).land(align=lambda _p: None)
+    source = next(s for s in ws.project.sources if s.id.startswith("rec-"))
+    assert [(r.start_s, r.end_s) for r in source.clipping_regions] == [
+        (pytest.approx(0.4), pytest.approx(0.5))
+    ]

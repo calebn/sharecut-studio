@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { uploadKeeperWav } from "../upload/pump";
+import { inspectKeeperRecovery } from "../upload/recovery";
+import { memoryUploadTransport } from "../upload/transport";
 import { KEEPER_CLIP_THRESHOLD, KEEPER_SAMPLE_RATE } from "./pcm";
 import type { KeeperGate } from "./segments";
 import { type KeeperClipEvent, KeeperSession } from "./session";
@@ -128,5 +131,44 @@ describe("clip capture through a real KeeperSession", () => {
     await session.dispose();
     const take = await readTakeClipping(sink, "cool-room", "p_g", 0);
     expect(take).toMatchObject({ regions: [], known: true });
+  });
+
+  it("hands the stored regions to recovery and sends them on the final part only", async () => {
+    const sink = new MemorySink();
+    const session = new KeeperSession(sink);
+    await session.apply(gate());
+    // 65 s in one-second pushes so the WAV spans three upload parts.
+    for (let second = 0; second < 65; second++) {
+      session.push(
+        new Float32Array(rate).fill(second === 40 ? 0.95 : 0.3),
+        rate,
+      );
+      if (second % 5 === 4) await session.flush();
+    }
+    await session.dispose();
+    const wavPath = keeperWavPath({ ...ids, takeIndex: 0, segmentIndex: 0 });
+    const recovery = await inspectKeeperRecovery(sink, wavPath);
+    expect(recovery.kind).toBe("complete");
+    if (recovery.kind !== "complete") return;
+    expect(recovery.clippingRegions).toEqual([
+      { startMs: 40_000, endMs: 41_000 },
+    ]);
+    const transport = memoryUploadTransport();
+    await uploadKeeperWav({
+      wav: (await sink.read(wavPath)) ?? new Uint8Array(),
+      takeIndex: 0,
+      segmentIndex: 0,
+      transport,
+      ackedParts: [],
+      fileAck: false,
+      joinOffsetMs: recovery.joinOffsetMs,
+      clippingRegions: recovery.clippingRegions,
+    });
+    expect(transport.puts).toBe(3);
+    expect(transport.clippingRegions).toEqual([
+      undefined,
+      undefined,
+      [{ startMs: 40_000, endMs: 41_000 }],
+    ]);
   });
 });

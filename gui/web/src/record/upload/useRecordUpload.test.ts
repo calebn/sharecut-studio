@@ -307,6 +307,43 @@ describe("useRecordUpload", () => {
     unmount();
   });
 
+  it("uploads the segment's stored clip regions with its final part", async () => {
+    const sink = new MemorySink();
+    const ids = { sessionId: "room1", takeIndex: 0, participantId: "p_a" };
+    const wavPath = keeperWavPath({ ...ids, segmentIndex: 0 });
+    await sink.write(wavPath, wavWithPcm(8));
+    await sink.write(
+      keeperMetaPath(wavPath),
+      new TextEncoder().encode(
+        JSON.stringify({
+          ...ids,
+          segmentIndex: 0,
+          sampleRate: 48_000,
+          joinOffsetMs: 0,
+          samplesWritten: 4,
+          complete: true,
+          clippingRegions: [{ startMs: 100, endMs: 250 }],
+        }),
+      ),
+    );
+    const transport = memoryUploadTransport();
+    const { result, unmount } = renderHook(() =>
+      useRecordUpload({
+        enabled: true,
+        roomState: "stopped",
+        captureSettled: true,
+        sessionId: ids.sessionId,
+        takeIndex: ids.takeIndex,
+        participantId: ids.participantId,
+        transport,
+        sink,
+      }),
+    );
+    await waitFor(() => expect(result.current.fileAck).toBe(true));
+    expect(transport.clippingRegions).toEqual([[{ startMs: 100, endMs: 250 }]]);
+    unmount();
+  });
+
   it("retains an abandoned partial and releases Leave after complete segments upload", async () => {
     const sink = new MemorySink();
     const ids = { sessionId: "room1", takeIndex: 0, participantId: "p_a" };

@@ -102,6 +102,11 @@ async def post_host_record_upload(
     final: bool = Query(False),
     expected_parts: int | None = Query(None, ge=1),
     join_offset_ms: int | None = Query(None),
+    clipping: str | None = Query(
+        None,
+        max_length=4096,
+        description="Segment-relative sample-peak clip spans a-b,c-d in ms; final part only.",
+    ),
     kind: UploadKindParam = None,
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
@@ -121,6 +126,7 @@ async def post_host_record_upload(
         final=final,
         expected_parts=expected_parts,
         join_offset_ms=join_offset_ms,
+        clipping=clipping,
         workspace=ws,
         kind=kind,
     )

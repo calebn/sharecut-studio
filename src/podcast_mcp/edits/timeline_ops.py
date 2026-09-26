@@ -4,6 +4,7 @@ from collections.abc import Callable
 
 from pydantic import ValidationError
 
+from podcast_mcp.edits.clipping_regions import clip_clipping_payload
 from podcast_mcp.edits.clips_ops import (
     JOIN_GAP_TOLERANCE_SEC,
     build_clips_after_removes,
@@ -875,6 +876,7 @@ def list_clips(project: EpisodeProject, track_id: str | None = None) -> dict:
     if track_id:
         clips = [c for c in clips if c.track_id == track_id]
     by_track: dict[str, list[dict]] = {}
+    sources = {s.id: s for s in project.sources}
     for c in sorted(clips, key=lambda x: (x.track_id, x.timeline_start)):
         by_track.setdefault(c.track_id, []).append(
             {
@@ -890,6 +892,11 @@ def list_clips(project: EpisodeProject, track_id: str | None = None) -> dict:
                 "source_id": c.source_id,
                 "origin_track_id": origin_track_id_for_clip(project, c),
                 "mute_regions": mute_regions_payload(c.mute_regions),
+                "clipping_regions": clip_clipping_payload(
+                    sources.get(c.source_id) if c.source_id else None,
+                    c.source_start,
+                    c.source_end,
+                ),
             }
         )
     return {"tracks": by_track, "clip_count": len(clips)}

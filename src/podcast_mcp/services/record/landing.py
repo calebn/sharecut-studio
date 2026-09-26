@@ -13,13 +13,22 @@ from typing import Any
 from filelock import FileLock
 from filelock import Timeout as FileLockTimeout
 
+from podcast_mcp.edits.clipping_regions import clipping_regions_from_ms
 from podcast_mcp.edits.clips_ops import new_clip_id
 from podcast_mcp.edits.comments import add_comment, delete_comment
 from podcast_mcp.edits.timeline_ops import room_tone_source_id
 from podcast_mcp.edits.track_ids import slug_track_id
 from podcast_mcp.edits.track_media import refresh_timeline_duration
 from podcast_mcp.engines.render_invalidations import record_invalidation
-from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, SourceRecording, Track, TrackRole
+from podcast_mcp.models import (
+    Clip,
+    EpisodeProject,
+    MediaAsset,
+    SourceClippingRegion,
+    SourceRecording,
+    Track,
+    TrackRole,
+)
 from podcast_mcp.services.document_sync import after_agent_mutation
 from podcast_mcp.services.media_store import unique_raw_path
 from podcast_mcp.services.record.landing_math import (
@@ -519,6 +528,9 @@ class RecordLandingService:
                 try:
                     sample_rate, channels, samples = wav_pcm_info(acked)
                     join_ms = int(row.get("join_offset_ms") or 0)
+                    clipping = clipping_regions_from_ms(
+                        row.get("clipping_regions"), duration_s(samples, sample_rate)
+                    )
                     take_offset = offsets.get(take, 0.0)
                     source_id = record_source_id(self.session_id, take, pid, segment)
                     _dest, rel = _copy_into_raw(
@@ -552,6 +564,7 @@ class RecordLandingService:
                         "source_id": source_id,
                         "file_sha256": row.get("file_sha256"),
                         "label": names.get(pid) or pid,
+                        "clipping": clipping,
                     }
                 )
                 progress.advance()
@@ -638,6 +651,7 @@ class RecordLandingService:
                     duration_s=float(item["duration_s"]),
                     sample_rate=int(item["sample_rate"]),
                     channels=int(item["channels"]),
+                    clipping_regions=item["clipping"],
                 )
                 clip = _upsert_clip(
                     project,
@@ -1119,9 +1133,12 @@ def _upsert_source(
     duration_s: float,
     sample_rate: int,
     channels: int,
+    clipping_regions: list[SourceClippingRegion] | None = None,
 ) -> SourceRecording:
     existing = project.source_by_id(source_id)
     if existing is not None:
+        if clipping_regions is not None:
+            existing.clipping_regions = list(clipping_regions)
         existing.path = rel
         existing.speaker = speaker
         existing.duration_sec = duration_s
@@ -1136,6 +1153,7 @@ def _upsert_source(
         duration_sec=duration_s,
         sample_rate=sample_rate,
         channels=channels,
+        clipping_regions=list(clipping_regions or []),
     )
     project.sources.append(src)
     return src

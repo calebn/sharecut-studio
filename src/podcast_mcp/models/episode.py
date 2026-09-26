@@ -309,6 +309,19 @@ class ProjectMeta(BaseModel):
     ingest_alignment: dict[str, SpeakerIngestAlignment] | None = None
 
 
+class SourceClippingRegion(BaseModel):
+    """Encoder-detected sample-peak clipping span in source seconds (recording sessions)."""
+
+    start_s: float = Field(ge=0, allow_inf_nan=False)
+    end_s: float = Field(gt=0, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def _end_after_start(self) -> SourceClippingRegion:
+        if self.end_s <= self.start_s:
+            raise ValueError("end_s must be greater than start_s")
+        return self
+
+
 class SourceRecording(BaseModel):
     id: str
     path: str
@@ -318,6 +331,7 @@ class SourceRecording(BaseModel):
     duration_sec: float | None = None
     sample_rate: int | None = None
     channels: int | None = None
+    clipping_regions: list[SourceClippingRegion] = Field(default_factory=list)
 
 
 class TimelineSection(BaseModel):

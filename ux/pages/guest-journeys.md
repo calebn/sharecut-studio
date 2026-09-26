@@ -344,7 +344,8 @@ flowchart TD
 ```
 
 1. Producer lands on the same record lobby, listed under **Not recorded**.
-2. No `getUserMedia`, no consent, no room tone, no keeper, no upload panel.
+2. No `getUserMedia`, no consent, no room tone, no keeper, no upload panel,
+   no mic meter or clip LED.
 3. Host Start does not wait on the producer.
 4. During REC/PAUSED they see the roster and clock and **Hearing the room.**
    Press **M** for a Marker comment, or type a note — the host and producer see

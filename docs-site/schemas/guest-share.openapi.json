@@ -5544,6 +5544,25 @@
             }
           },
           {
+            "description": "Segment-relative sample-peak clip spans a-b,c-d in ms; final part only.",
+            "in": "query",
+            "name": "clipping",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 4096,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Segment-relative sample-peak clip spans a-b,c-d in ms; final part only.",
+              "title": "Clipping"
+            }
+          },
+          {
             "description": "keeper or room_tone",
             "in": "query",
             "name": "kind",

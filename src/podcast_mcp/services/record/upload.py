@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import sqlite3
 import threading
@@ -19,6 +20,9 @@ from podcast_mcp.util.wav import pcm_wav_header
 
 KEEPER_SAMPLE_RATE = 48_000
 JOIN_OFFSET_MAX_MS = 24 * 60 * 60 * 1000
+# Encoder clip regions (sample peak) sent with a segment's final part.
+CLIPPING_MAX_REGIONS = 100
+CLIPPING_PARAM_MAX_CHARS = 4096
 RECORD_UPLOAD_MAX_PARTS = 256
 RECORD_UPLOAD_MAX_ASSEMBLED = 512 * 1024 * 1024
 RECORD_UPLOAD_PENDING_QUOTA = 2 * RECORD_UPLOAD_MAX_ASSEMBLED
@@ -57,6 +61,7 @@ CREATE TABLE IF NOT EXISTS record_upload_files (
   expected_parts INTEGER,
   acked_ns INTEGER,
   join_offset_ms INTEGER,
+  clipping_regions TEXT,
   landed_ns INTEGER,
   land_failed_ns INTEGER,
   PRIMARY KEY (session_id, take_index, participant_id, segment_index)
@@ -72,6 +77,7 @@ CREATE TABLE IF NOT EXISTS record_take_tombstones (
 
 _FILE_COLUMN_MIGRATIONS: dict[str, str] = {
     "join_offset_ms": "INTEGER",
+    "clipping_regions": "TEXT",
     "landed_ns": "INTEGER",
     "expected_parts": "INTEGER",
     "land_failed_ns": "INTEGER",
@@ -116,6 +122,46 @@ def parse_join_offset_ms(value: int | str) -> int:
     if parsed > JOIN_OFFSET_MAX_MS:
         raise RecordUploadError("join_offset_ms too large")
     return parsed
+
+
+def parse_clipping_regions(value: str) -> list[list[int]]:
+    """Parse ``a-b,c-d`` (segment-relative ms) into ascending, disjoint spans."""
+    text = str(value)
+    if len(text) > CLIPPING_PARAM_MAX_CHARS:
+        raise RecordUploadError("clipping too long")
+    if not text:
+        return []
+    spans: list[list[int]] = []
+    previous_end = 0
+    for chunk in text.split(","):
+        start_text, sep, end_text = chunk.partition("-")
+        if not sep:
+            raise RecordUploadError("clipping span needs start-end")
+        start = parse_upload_index(start_text, name="clipping")
+        end = parse_upload_index(end_text, name="clipping")
+        if end <= start:
+            raise RecordUploadError("clipping span must end after it starts")
+        if end > JOIN_OFFSET_MAX_MS:
+            raise RecordUploadError("clipping span too large")
+        if start < previous_end:
+            raise RecordUploadError("clipping spans must be ascending and disjoint")
+        spans.append([start, end])
+        previous_end = end
+        if len(spans) > CLIPPING_MAX_REGIONS:
+            raise RecordUploadError("too many clipping spans")
+    return spans
+
+
+def _load_clipping(raw: Any) -> list[list[int]] | None:
+    if raw is None:
+        return None
+    try:
+        parsed = json.loads(str(raw))
+    except ValueError:
+        return None
+    if not isinstance(parsed, list):
+        return None
+    return [[int(a), int(b)] for a, b in parsed]
 
 
 def parse_participant_id(value: str) -> str:
@@ -344,6 +390,37 @@ class RecordUploadStore:
                 (session_id, take_index, participant_id, segment_index, join_offset_ms),
             )
 
+    def set_clipping_regions(
+        self,
+        *,
+        session_id: str,
+        take_index: int,
+        participant_id: str,
+        segment_index: int,
+        regions: list[list[int]],
+    ) -> None:
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT landed_ns FROM record_upload_files
+                WHERE session_id = ? AND take_index = ? AND participant_id = ?
+                  AND segment_index = ?
+                """,
+                (session_id, take_index, participant_id, segment_index),
+            ).fetchone()
+            if row is not None and row["landed_ns"] is not None:
+                raise RecordUploadError("clipping refused after land")
+            self._conn.execute(
+                """
+                INSERT INTO record_upload_files (
+                  session_id, take_index, participant_id, segment_index, clipping_regions
+                ) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(session_id, take_index, participant_id, segment_index)
+                DO UPDATE SET clipping_regions = excluded.clipping_regions
+                """,
+                (session_id, take_index, participant_id, segment_index, json.dumps(regions)),
+            )
+
     def set_expected_parts(
         self,
         *,
@@ -502,7 +579,7 @@ class RecordUploadStore:
             row = self._conn.execute(
                 """
                 SELECT file_sha256, byte_length, expected_parts, acked_ns,
-                       join_offset_ms, landed_ns, land_failed_ns
+                       join_offset_ms, clipping_regions, landed_ns, land_failed_ns
                 FROM record_upload_files
                 WHERE session_id = ? AND take_index = ? AND participant_id = ?
                   AND segment_index = ? AND acked_ns IS NOT NULL
@@ -521,6 +598,7 @@ class RecordUploadStore:
             ),
             "acked_ns": int(row["acked_ns"]),
             "join_offset_ms": int(join) if join is not None else 0,
+            "clipping_regions": _load_clipping(row["clipping_regions"]),
             "landed": landed is not None,
             "land_failed": row["land_failed_ns"] is not None,
         }
@@ -632,7 +710,8 @@ class RecordUploadStore:
                 """
             file_sql = """
                 SELECT take_index, participant_id, segment_index, file_sha256, byte_length,
-                       expected_parts, acked_ns, join_offset_ms, landed_ns, land_failed_ns
+                       expected_parts, acked_ns, join_offset_ms, clipping_regions,
+                       landed_ns, land_failed_ns
                 FROM record_upload_files
                 WHERE session_id = ? AND participant_id = ?
                 """
@@ -646,7 +725,8 @@ class RecordUploadStore:
                 """
             file_sql = """
                 SELECT take_index, participant_id, segment_index, file_sha256, byte_length,
-                       expected_parts, acked_ns, join_offset_ms, landed_ns, land_failed_ns
+                       expected_parts, acked_ns, join_offset_ms, clipping_regions,
+                       landed_ns, land_failed_ns
                 FROM record_upload_files
                 WHERE session_id = ?
                 """
@@ -700,6 +780,7 @@ class RecordUploadStore:
                 slot["byte_length"] = int(row["byte_length"])
             join = row["join_offset_ms"]
             slot["join_offset_ms"] = int(join) if join is not None else 0
+            slot["clipping_regions"] = _load_clipping(row["clipping_regions"])
             slot["landed"] = row["landed_ns"] is not None
             slot["land_failed"] = row["land_failed_ns"] is not None
             if row["expected_parts"] is not None:
@@ -773,6 +854,7 @@ class RecordUploadService:
         expected_parts: int | None = None,
         join_offset_ms: int | None = None,
         kind: str | None = None,
+        clipping: str | None = None,
     ) -> dict[str, Any]:
         sid = parse_session_id(session_id)
         pid = parse_participant_id(participant_id)
@@ -794,6 +876,7 @@ class RecordUploadService:
                 join_offset_ms=join_offset_ms,
                 upload_kind=upload_kind,
                 expected_parts=expected_parts,
+                clipping=clipping,
             )
 
     def _ingest_part_locked(
@@ -811,6 +894,7 @@ class RecordUploadService:
         expected_parts: int | None,
         join_offset_ms: int | None,
         upload_kind: str,
+        clipping: str | None = None,
     ) -> dict[str, Any]:
         if upload_kind == UPLOAD_KIND_ROOM_TONE:
             take = ROOM_TONE_TAKE_INDEX
@@ -821,6 +905,8 @@ class RecordUploadService:
                 raise RecordUploadError("join_offset_ms not allowed for room tone")
             if not final:
                 raise RecordUploadError("room tone must be a single part")
+            if clipping is not None:
+                raise RecordUploadError("clipping not allowed for room tone")
         else:
             take = parse_upload_index(take_index, name="take_index")
             segment = parse_upload_index(segment_index, name="segment_index")
@@ -839,6 +925,9 @@ class RecordUploadService:
                 declared_parts = seq + 1
             if declared_parts is not None and seq >= declared_parts:
                 raise RecordUploadError("part_seq exceeds expected_parts")
+        if clipping is not None and not final:
+            raise RecordUploadError("clipping only on the final part")
+        clip_regions = parse_clipping_regions(clipping) if clipping is not None else None
         payload = bytes(data or b"")
         offset: int | None = None
         if join_offset_ms is not None:
@@ -934,6 +1023,14 @@ class RecordUploadService:
                 participant_id=pid,
                 segment_index=segment,
                 join_offset_ms=offset,
+            )
+        if clip_regions is not None:
+            self._store.set_clipping_regions(
+                session_id=sid,
+                take_index=take,
+                participant_id=pid,
+                segment_index=segment,
+                regions=clip_regions,
             )
         newly_acked = False
         if final:

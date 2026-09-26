@@ -23,7 +23,7 @@ my_episode/
 | Section | Purpose |
 |---------|---------|
 | `meta` | `name`, `workspace_dir`, `created_at`, `schema_id`. On disk, `workspace_dir` is always `"."`; `load_project` remaps to the directory containing `episode.project.json`. Media and source paths are workspace-relative (never absolute host paths). |
-| `sources` | Raw ingest files, alignment offsets (pre- or post-consolidation) |
+| `sources` | Raw ingest files, alignment offsets (pre- or post-consolidation). Recorded keepers also carry `clipping_regions[]` (`start_s`/`end_s`, source seconds): sample-peak clipping the browser encoder detected (-1 dBFS), written at landing; `list_clips` reports each clip's share as `clipping_regions`. Consolidated sources carry none |
 | `timeline` | `tracks`, `clips` (placement on session clock), `duration_sec` |
 | `editorial` | Non-destructive `edit_decisions` (remove/mute ranges; `split` blade proposals use timeline clock via `timebase`); `edit_log` (committed-cut provenance) |
 | `transcripts` | `per_track[]` word-level ASR; `combined` utterances for NL editing |

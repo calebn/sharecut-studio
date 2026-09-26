@@ -20,10 +20,12 @@ from podcast_mcp.services.record.service import (
     reset_record_runtime_for_tests,
 )
 from podcast_mcp.services.record.upload import (
+    CLIPPING_MAX_REGIONS,
     JOIN_OFFSET_MAX_MS,
     ROOM_TONE_MAX_PCM_BYTES,
     RecordUploadError,
     RecordUploadService,
+    parse_clipping_regions,
     parse_upload_kind,
     sha256_hex,
 )
@@ -1309,3 +1311,137 @@ def test_guest_keeper_upload_rechecks_lease_after_body_read(
         session_id=room["session_id"], participant_id=pid
     )
     assert status["segments"] == []
+
+
+def test_parse_clipping_regions() -> None:
+    assert parse_clipping_regions("") == []
+    assert parse_clipping_regions("100-250,1500-1600") == [[100, 250], [1500, 1600]]
+    assert parse_clipping_regions("0-1,1-2") == [[0, 1], [1, 2]]
+    bad = [
+        "x" * 5000,
+        "100",
+        "a-b",
+        "5-5",
+        "9-3",
+        "-1-5",
+        f"0-{JOIN_OFFSET_MAX_MS + 1}",
+        "10-20,15-30",
+        "30-40,10-20",
+        ",".join(f"{i * 2}-{i * 2 + 1}" for i in range(CLIPPING_MAX_REGIONS + 1)),
+    ]
+    for value in bad:
+        with pytest.raises(RecordUploadError):
+            parse_clipping_regions(value)
+
+
+def _ingest_final(svc, pid="p_aa", *, clipping=None, seq=0, final=True, kind=None):
+    pcm, digest, wav_hash = _pcm_part(32)
+    return svc.ingest_part(
+        session_id="room1",
+        take_index=0,
+        participant_id=pid,
+        segment_index=0,
+        part_seq=seq,
+        data=pcm,
+        digest=digest,
+        file_sha256=wav_hash if final else None,
+        final=final,
+        expected_parts=1 if final else None,
+        clipping=clipping,
+        kind=kind,
+    )
+
+
+def test_clipping_is_stored_on_the_final_part_and_shown_in_status(minimal_project, sample_wav):
+    ws = _seed_premix(minimal_project, sample_wav)
+    svc = RecordUploadService(ws.project)
+    _ingest_final(svc, clipping="100-250,1500-1600")
+    row = svc.status(session_id="room1")["segments"][0]
+    assert row["clipping_regions"] == [[100, 250], [1500, 1600]]
+    file_row = svc._store.file_row(
+        session_id="room1", take_index=0, participant_id="p_aa", segment_index=0
+    )
+    assert file_row is not None
+    assert file_row["clipping_regions"] == [[100, 250], [1500, 1600]]
+
+
+def test_clipping_absent_reads_as_none(minimal_project, sample_wav):
+    ws = _seed_premix(minimal_project, sample_wav)
+    svc = RecordUploadService(ws.project)
+    _ingest_final(svc)
+    assert svc.status(session_id="room1")["segments"][0]["clipping_regions"] is None
+
+
+def test_clipping_rejected_on_non_final_part_and_room_tone(minimal_project, sample_wav):
+    ws = _seed_premix(minimal_project, sample_wav)
+    svc = RecordUploadService(ws.project)
+    with pytest.raises(RecordUploadError, match="final part"):
+        _ingest_final(svc, clipping="1-2", final=False)
+    with pytest.raises(RecordUploadError, match="room tone"):
+        _ingest_final(svc, clipping="1-2", kind="room_tone")
+    assert svc.status(session_id="room1")["segments"] == []
+
+
+def test_clipping_refused_after_land(minimal_project, sample_wav):
+    ws = _seed_premix(minimal_project, sample_wav)
+    svc = RecordUploadService(ws.project)
+    _ingest_final(svc, clipping="1-2")
+    svc.mark_landed(session_id="room1", take_index=0, participant_id="p_aa", segment_index=0)
+    with pytest.raises(RecordUploadError, match="clipping refused after land"):
+        _ingest_final(svc, clipping="5-6")
+    assert svc.status(session_id="room1")["segments"][0]["clipping_regions"] == [[1, 2]]
+
+
+def test_old_upload_db_gains_the_clipping_column(tmp_path: Path):
+    import sqlite3
+
+    from podcast_mcp.services.record.upload import RecordUploadStore
+
+    db = tmp_path / "sync.db"
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "CREATE TABLE record_upload_files (session_id TEXT NOT NULL, take_index INTEGER NOT NULL,"
+        " participant_id TEXT NOT NULL, segment_index INTEGER NOT NULL, file_sha256 TEXT,"
+        " byte_length INTEGER, expected_parts INTEGER, acked_ns INTEGER, join_offset_ms INTEGER,"
+        " landed_ns INTEGER, land_failed_ns INTEGER,"
+        " PRIMARY KEY (session_id, take_index, participant_id, segment_index))"
+    )
+    conn.commit()
+    conn.close()
+    store = RecordUploadStore(db)
+    store.set_clipping_regions(
+        session_id="s", take_index=0, participant_id="p_a", segment_index=0, regions=[[1, 2]]
+    )
+    store.close()
+
+
+def test_http_rejects_bad_clipping_with_400(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    RecordSessionService(ws.project, session_id=room["session_id"]).join(
+        token=room["guest"]["token"],
+        role="host",
+        display_name="Host",
+        client_id="host",
+        connection_id="h1",
+    )
+    pcm, digest, wav_hash = _pcm_part(64)
+    params = {
+        "path": str(minimal_project),
+        "take_index": 0,
+        "segment_index": 0,
+        "part_seq": 0,
+        "sha256": digest,
+        "file_sha256": wav_hash,
+        "final": True,
+        "expected_parts": 1,
+        "clipping": "20-10",
+    }
+    res = client.post("/api/record/upload", params=params, content=pcm)
+    assert res.status_code == 400, res.text
+    params["clipping"] = "10-20"
+    res = client.post("/api/record/upload", params=params, content=pcm)
+    assert res.status_code == 200, res.text
+    status = client.get("/api/record/upload", params={"path": str(minimal_project)})
+    assert status.json()["segments"][0]["clipping_regions"] == [[10, 20]]

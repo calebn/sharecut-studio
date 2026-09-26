@@ -263,6 +263,7 @@ export function useRecordUpload(args: {
             ackedParts: remoteSeg?.acked_parts ?? [],
             fileAck: false,
             joinOffsetMs: recovery.joinOffsetMs,
+            clippingRegions: recovery.clippingRegions,
             signal: abort.signal,
           });
           acked += result.acked;
