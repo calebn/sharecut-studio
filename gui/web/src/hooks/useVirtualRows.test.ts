@@ -1,18 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
   nextVirtualized,
-  VIRTUALIZE_OFF_TURNS,
-  VIRTUALIZE_ON_TURNS,
+  VIRTUALIZE_OFF_ROWS,
+  VIRTUALIZE_ON_ROWS,
   withPinnedIndexes,
-} from "./useVirtualTurns";
+} from "./useVirtualRows";
 
 describe("nextVirtualized", () => {
   it("switches on at the upper threshold and off below the lower one", () => {
-    expect(nextVirtualized(VIRTUALIZE_ON_TURNS, false)).toBe(true);
-    expect(nextVirtualized(VIRTUALIZE_ON_TURNS - 1, false)).toBe(false);
-    expect(nextVirtualized(VIRTUALIZE_ON_TURNS - 1, true)).toBe(true);
-    expect(nextVirtualized(VIRTUALIZE_OFF_TURNS, true)).toBe(true);
-    expect(nextVirtualized(VIRTUALIZE_OFF_TURNS - 1, true)).toBe(false);
+    expect(nextVirtualized(VIRTUALIZE_ON_ROWS, false)).toBe(true);
+    expect(nextVirtualized(VIRTUALIZE_ON_ROWS - 1, false)).toBe(false);
+    expect(nextVirtualized(VIRTUALIZE_ON_ROWS - 1, true)).toBe(true);
+    expect(nextVirtualized(VIRTUALIZE_OFF_ROWS, true)).toBe(true);
+    expect(nextVirtualized(VIRTUALIZE_OFF_ROWS - 1, true)).toBe(false);
   });
 });
 
