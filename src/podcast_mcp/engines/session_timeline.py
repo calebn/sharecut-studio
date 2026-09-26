@@ -27,6 +27,7 @@ DEFAULT_MERGE_GAP_SEC = 0.15
 
 _EPS = 1e-9
 _MERGE_EPS = 1e-6
+_REL_DRIFT_MIN_PIECE_SEC = 1.0  # ignore reference-edit slivers shorter than this
 
 _ClipKey = tuple[float, float, float]  # (timeline_start, source_start, source_end)
 
@@ -373,20 +374,32 @@ class SessionTimeline:
             default=0.0,
         )
 
-    def max_relative_drift(self, track_id: str, reference_track_id: str) -> float:
-        """Largest |drift(track) - drift(reference)| at the track's clip midpoints.
+    def clip_relative_drift(self, clip: Clip, reference_track_id: str) -> float:
+        """Signed drift(clip) - drift(reference) with the largest magnitude over the clip.
 
-        Ripple cuts shift every track alike and cancel out; what remains is the
-        track's offset from the reference clock (alignment).
+        The clip's timeline span is split at the reference's span boundaries and each
+        piece at least ``_REL_DRIFT_MIN_PIECE_SEC`` long is sampled at its midpoint, so
+        an offset region anywhere inside the clip is seen, while a sliver left by per-lane
+        cut snapping is not. Ripple cuts shift every track alike and cancel out.
         """
-        idx = self._index(track_id)
-        if idx is None or not idx.by_timeline:
-            return 0.0
+        start, end = float(clip.timeline_start), float(clip.timeline_end)
+        own = -clip_source_to_timeline_shift(clip)
+        edges = {start, end}
+        ref_idx = self._index(reference_track_id)
+        if ref_idx is not None:
+            for span in ref_idx.by_timeline:
+                for b in (span.timeline_start, span.timeline_end):
+                    if start < b < end:
+                        edges.add(b)
+        ordered = sorted(edges)
+        pieces = [
+            (a, b) for a, b in itertools.pairwise(ordered) if b - a >= _REL_DRIFT_MIN_PIECE_SEC
+        ] or [(start, end)]
         worst = 0.0
-        for span in idx.by_timeline:
-            mid = TimelineSec((span.timeline_start + span.timeline_end) / 2.0)
-            rel = self.drift_at(track_id, mid) - self.drift_at(reference_track_id, mid)
-            worst = max(worst, abs(rel))
+        for a, b in pieces:
+            rel = own - self.drift_at(reference_track_id, TimelineSec((a + b) / 2.0))
+            if abs(rel) > abs(worst):
+                worst = rel
         return worst
 
 
