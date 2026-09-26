@@ -1,9 +1,11 @@
 import {
+  crashRasterWorker,
   getRasterBackend,
   type RasterBackendState,
   rasterParity,
   rasterTilesByMode,
   rasterTilesRendered,
+  rasterWorkerRestarts,
   startRasterWorker,
 } from "./rasterClient";
 import type { RasterMode } from "./types";
@@ -17,8 +19,12 @@ export type WaveformE2eHook = {
   readonly tilesRendered: number;
   /** Finished tiles by raster mode (pyramid, pcm, line). */
   readonly tilesByMode: Readonly<Record<RasterMode, number>>;
+  /** Raster worker restarts since load. */
+  readonly workerRestarts: number;
   /** GL vs CPU difference on a fixed tile (0..1), or null without WebGL2. */
   rasterParity(): Promise<number | null>;
+  /** Treat the raster worker as crashed, so it restarts. */
+  crashWorker(): void;
 };
 
 /**
@@ -44,7 +50,11 @@ export function installWaveformE2eHook(
       get tilesByMode() {
         return rasterTilesByMode();
       },
+      get workerRestarts() {
+        return rasterWorkerRestarts();
+      },
       rasterParity,
+      crashWorker: crashRasterWorker,
     };
     target.__SHARECUT_E2E_WAVEFORM = hook;
   }

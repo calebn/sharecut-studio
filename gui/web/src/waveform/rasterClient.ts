@@ -389,6 +389,13 @@ export function rasterWorkerRestarts(): number {
   return restartsSinceLoad;
 }
 
+/** Treat the current worker as crashed, so it restarts (E2E: a real restart). */
+export function crashRasterWorker(): void {
+  if (worker) {
+    onCrash(worker);
+  }
+}
+
 /** GL vs CPU difference on a fixed tile, in the worker; null without GL. */
 export function rasterParity(): Promise<number | null> {
   const w = ensureWorker();

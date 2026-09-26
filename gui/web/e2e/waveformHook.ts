@@ -5,7 +5,9 @@ type WaveformHook = {
   backend: string;
   tilesRendered: number;
   tilesByMode: Record<"pyramid" | "pcm" | "line", number>;
+  workerRestarts: number;
   rasterParity(): Promise<number | null>;
+  crashWorker(): void;
 };
 
 type HookWindow = Window & { __SHARECUT_E2E_WAVEFORM?: WaveformHook };
@@ -25,6 +27,22 @@ export async function rasterParity(page: Page): Promise<number | null> {
     () =>
       (window as HookWindow).__SHARECUT_E2E_WAVEFORM?.rasterParity() ?? null,
   );
+}
+
+/** Finished raster tiles since load, or -1 without the hook. */
+export async function waveformTilesRendered(page: Page): Promise<number> {
+  return page.evaluate(
+    () => (window as HookWindow).__SHARECUT_E2E_WAVEFORM?.tilesRendered ?? -1,
+  );
+}
+
+/** Crash the raster worker on purpose; returns worker restarts since load. */
+export async function crashWaveformWorker(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const hook = (window as HookWindow).__SHARECUT_E2E_WAVEFORM;
+    hook?.crashWorker();
+    return hook?.workerRestarts ?? -1;
+  });
 }
 
 /** Finished raster tiles by mode since load (`pyramid`, `pcm`, `line`). */
@@ -70,10 +88,7 @@ export async function waitForWaveformsSettled(
   page: Page,
   quietMs = 750,
 ): Promise<void> {
-  const count = () =>
-    page.evaluate(
-      () => (window as HookWindow).__SHARECUT_E2E_WAVEFORM?.tilesRendered ?? -1,
-    );
+  const count = () => waveformTilesRendered(page);
   await expect.poll(count, { timeout: 30_000 }).toBeGreaterThan(0);
   let last = await count();
   let stableSince = Date.now();

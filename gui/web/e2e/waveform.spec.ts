@@ -7,10 +7,12 @@ import { e2eProjectPath } from "./env";
 import { withShareableProject } from "./shareableProject";
 import { openGuestShare, openHostShare } from "./shareNavigation";
 import {
+  crashWaveformWorker,
   expectPaintedWaveformTile,
   rasterParity,
   waveformBackend,
   waveformTilesByMode,
+  waveformTilesRendered,
 } from "./waveformHook";
 
 const thresholds = JSON.parse(
@@ -111,6 +113,34 @@ test.describe("pyramid waveforms", () => {
     }
     expect(seen.audioWindows).toBe(0);
     expect(seen.fullAudio).toBe(0);
+  });
+
+  test("host restarts a crashed raster worker and keeps painting", async ({
+    page,
+    browserName,
+  }) => {
+    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await expect(page.locator(".daw-shell")).toBeVisible();
+    await page.locator(".timeline-scroll").waitFor({ state: "visible" });
+    const backend = await waveformBackend(page);
+    await expectPaintedWaveformTile(page);
+
+    expect(await crashWaveformWorker(page)).toBe(1);
+    const rendered = await waveformTilesRendered(page);
+    // Zoom in so the new worker has tiles to render.
+    await page.locator(".timeline-scroll").click();
+    for (let i = 0; i < 4; i++) {
+      await page.keyboard.press("=");
+    }
+    await expect
+      .poll(() => waveformTilesRendered(page), { timeout: 30_000 })
+      .toBeGreaterThan(rendered);
+    await expectPaintedWaveformTile(page);
+    expect(await waveformBackend(page)).toBe(backend);
+    if (browserName === "chromium") {
+      // Parity is a round trip through the new module worker.
+      expect(await rasterParity(page)).not.toBeNull();
+    }
   });
 
   test("host zooms to near-sample detail from PCM, with a bounded ruler", async ({
