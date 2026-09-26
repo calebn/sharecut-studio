@@ -28,7 +28,7 @@ from podcast_mcp.edits.audio_cache import (
 from podcast_mcp.edits.join_cost_spectral import score_spectral_join
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.util.dsp import autocorr_peak, rms_db
+from podcast_mcp.util.dsp import autocorr_peak, clamp01, linear_rms, rms_db
 from podcast_mcp.util.timebase import TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
 
@@ -150,14 +150,13 @@ class JoinContinuityReport:
         return d
 
 
-def _clamp01(x: float) -> float:
-    return float(max(0.0, min(1.0, x)))
+_clamp01 = clamp01
 
 
 def _rms(x: np.ndarray) -> float:
     if x.size == 0:  # pragma: no cover
         return 0.0
-    return float(np.sqrt(np.mean(np.square(x, dtype=np.float64)) + 1e-20))
+    return linear_rms(x, epsilon=1e-20)
 
 
 def _hann(n: int) -> np.ndarray:

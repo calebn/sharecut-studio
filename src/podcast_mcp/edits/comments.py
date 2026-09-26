@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
 from typing import Any
 
 from podcast_mcp.models import (
@@ -12,12 +11,9 @@ from podcast_mcp.models import (
     EpisodeProject,
     TimelineComment,
 )
+from podcast_mcp.util.datetime_utils import now_iso as _now_iso
 
 COMMENT_BODY_MAX = 8000
-
-
-def _now_iso() -> str:
-    return datetime.now(UTC).isoformat()
 
 
 def _new_id() -> str:

@@ -5,6 +5,17 @@ from pathlib import Path
 from podcast_mcp.models import EpisodeProject, Track, TrackRole
 
 
+def stem_path(project: EpisodeProject, track_id: str) -> Path:
+    """Canonical rendered track stem path, whether or not it exists yet."""
+    return project.artifacts_dir() / "tracks" / f"{track_id}.wav"
+
+
+def existing_stem_path(project: EpisodeProject, track_id: str) -> Path | None:
+    """Return the rendered stem only when it exists."""
+    path = stem_path(project, track_id)
+    return path if path.is_file() else None
+
+
 def track_audio_path(project: EpisodeProject, track_id: str) -> Path:
     """Resolve a dialogue track's raw source audio file path."""
     track = project.track_by_id(track_id)

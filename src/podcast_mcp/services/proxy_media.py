@@ -6,7 +6,6 @@ import logging
 import math
 import shutil
 import tempfile
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +17,7 @@ from podcast_mcp.engines.timeline_render import render_source_with_chain
 from podcast_mcp.models import EpisodeProject, TrackProxy
 from podcast_mcp.services.review_media import presign_ttl_seconds
 from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.util.datetime_utils import now_iso as _now_iso
 from podcast_mcp.util.object_store import (
     ObjectStoreClient,
     ObjectStoreConfig,
@@ -32,10 +32,6 @@ log = logging.getLogger(__name__)
 CHUNK_SEC = 60.0
 OVERLAP_MS = 200
 PROXY_BITRATE_KBPS = 64
-
-
-def _now_iso() -> str:
-    return datetime.now(UTC).isoformat()
 
 
 def proxy_object_prefix(track_id: str, hash_: str) -> str:

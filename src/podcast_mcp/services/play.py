@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import hashlib
-import os
 import platform
 import re
 import shutil
-import uuid
 import wave
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -41,6 +39,7 @@ from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.session_sync.viewer import publish_agent_play
 from podcast_mcp.services.waveform import schedule_stem_waveforms
 from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.process import run
 from podcast_mcp.util.project_state import project_commit_lock, snapshot_project
 from podcast_mcp.util.tracks import track_audio_path
@@ -548,19 +547,6 @@ class PlayService:
             return 0
         return path.stat().st_mtime_ns
 
-    def _publish_atomic(self, tmp: Path, dest: Path) -> Path:
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            os.replace(tmp, dest)
-        except OSError:
-            tmp.unlink(missing_ok=True)
-            raise
-        return dest
-
-    def _temp_beside(self, dest: Path) -> Path:
-        """A temp path beside ``dest`` that is unique per call (pid + uuid), across threads too."""
-        return dest.with_name(f"{dest.stem}.{os.getpid()}.{uuid.uuid4().hex}.partial{dest.suffix}")
-
     def _render_atomic(self, dest: Path, render: Callable[[Path], object]) -> Path:
         """Render into a temp file beside ``dest``, then swap it in.
 
@@ -569,17 +555,7 @@ class PlayService:
         share a temp file or see a partially written WAV. A failed render
         leaves neither ``dest`` nor the temp file.
         """
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self._temp_beside(dest)
-        published = False
-        try:
-            render(tmp)
-            self._publish_atomic(tmp, dest)
-            published = True
-            return dest
-        finally:
-            if not published:
-                tmp.unlink(missing_ok=True)
+        return render_atomic(dest, render)
 
     def _join_parts_atomic(self, parts: list[Path], dest: Path) -> Path:
         return self._render_atomic(dest, lambda tmp: FFmpegEngine().join_audio_parts(parts, tmp))

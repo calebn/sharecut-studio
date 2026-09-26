@@ -10,7 +10,6 @@ import tempfile
 import time
 import uuid
 from collections.abc import Callable
-from datetime import UTC, datetime
 from pathlib import Path
 
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
@@ -22,6 +21,7 @@ from podcast_mcp.engines.play_audit import (
     read_mastered_hash,
 )
 from podcast_mcp.models import EpisodeProject, ReviewMixVersion
+from podcast_mcp.util.datetime_utils import now_iso as _now_iso
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.workspace_paths import resolve_within
 
@@ -76,10 +76,6 @@ def _created_dir_identity(version_dir: Path) -> DirectoryIdentity:
         except OSError:
             log.warning("Could not remove review version directory %s", version_dir)
         raise
-
-
-def _now_iso() -> str:
-    return datetime.now(UTC).isoformat()
 
 
 def _new_id() -> str:

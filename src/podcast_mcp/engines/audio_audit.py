@@ -9,6 +9,7 @@ from typing import Any
 import numpy as np
 
 from podcast_mcp.config import load_defaults
+from podcast_mcp.edits.timeline_span import source_span_timeline_bounds
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.asr_timing import (
     ANOMALOUS_WORD_DURATION_REASON,
@@ -25,8 +26,7 @@ from podcast_mcp.util.progress import (
     ProgressReporter,
     resolve_progress_task,
 )
-from podcast_mcp.util.timebase import SourceSec
-from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
+from podcast_mcp.util.tracks import dialogue_track_ids, existing_stem_path, track_audio_path
 
 _RMS_SAMPLE_RATE = 8000
 
@@ -305,8 +305,7 @@ def measure_window_rms_db(
 
 
 def _processed_track_path(project: EpisodeProject, track_id: str) -> Path | None:
-    p = project.artifacts_dir() / "tracks" / f"{track_id}.wav"
-    return p if p.is_file() else None
+    return existing_stem_path(project, track_id)
 
 
 def _effective_rms_db(rms: float | None, gain_db: float) -> float | None:
@@ -322,10 +321,8 @@ def _word_timeline_span(
     src_end: float,
 ) -> tuple[float, float] | None:
     """Map a source-clock word span to a timeline window for stem RMS."""
-    spans = st.map_source_span(track_id, SourceSec(src_start), SourceSec(src_end))
-    if not spans:
-        return None
-    return float(spans[0][0]), float(spans[-1][1])
+    start, end = source_span_timeline_bounds(st, track_id, src_start, src_end)
+    return (start, end) if start is not None and end is not None else None
 
 
 def _rms_for_track_at_timeline(

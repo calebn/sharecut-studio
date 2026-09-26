@@ -16,9 +16,9 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from podcast_mcp.util.dsp import clamp01
 
-def _clamp01(x: float) -> float:
-    return float(max(0.0, min(1.0, x)))
+_clamp01 = clamp01
 
 
 def _preemph(x: np.ndarray, a: float = 0.97) -> np.ndarray:

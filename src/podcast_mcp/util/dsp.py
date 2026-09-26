@@ -14,11 +14,23 @@ import numpy as np
 _SILENCE_RMS = 1e-10
 
 
+def clamp01(value: float) -> float:
+    """Clamp a scalar to the unit interval."""
+    return float(max(0.0, min(1.0, value)))
+
+
+def linear_rms(samples: np.ndarray, *, epsilon: float = 0.0) -> float:
+    """Linear RMS with caller-selected squared-amplitude floor."""
+    if samples.size == 0:
+        return 0.0
+    return float(np.sqrt(np.mean(np.square(samples, dtype=np.float64)) + epsilon))
+
+
 def rms_db(samples: np.ndarray, *, floor_db: float = -80.0) -> float:
     """RMS level in dBFS; empty or digitally silent input returns ``floor_db``."""
     if samples.size == 0:
         return floor_db
-    rms = float(np.sqrt(np.mean(np.square(samples, dtype=np.float64))))
+    rms = linear_rms(samples)
     if rms < _SILENCE_RMS:
         return floor_db
     return 20.0 * math.log10(rms)

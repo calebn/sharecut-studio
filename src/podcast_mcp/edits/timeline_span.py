@@ -6,6 +6,21 @@ from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.util.timebase import SourceSec
 
 
+def source_span_timeline_bounds(
+    timeline: SessionTimeline,
+    track_id: str,
+    source_start: float,
+    source_end: float,
+    *,
+    default: tuple[float | None, float | None] = (None, None),
+) -> tuple[float | None, float | None]:
+    """First/last timeline bounds of a source span, with the caller's empty fallback."""
+    spans = timeline.map_source_span(track_id, SourceSec(source_start), SourceSec(source_end))
+    if not spans:
+        return default
+    return float(spans[0][0]), float(spans[-1][1])
+
+
 def map_source_span_fields(
     timeline: SessionTimeline,
     track_id: str,
