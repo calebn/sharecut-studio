@@ -708,3 +708,40 @@ def test_apply_multi_source_only_primary_placed(minimal_project: Path, sample_wa
         key=lambda c: c.timeline_start,
     )
     assert [(c.source_start, c.timeline_start) for c in clips] == [(4.0, 0.0), (0.0, 6.0)]
+
+
+def test_timeline_vad_reads_through_clips(minimal_project: Path, sample_wav: Path) -> None:
+    from podcast_mcp.models import Clip
+    from podcast_mcp.services.ingest import _timeline_vad_intervals, _waveform_file_start
+
+    ws = _two_track_workspace(minimal_project, sample_wav)
+    proj = ws.project
+    guest = next(t for t in proj.timeline.tracks if t.id == "guest")
+    proj.timeline.clips = [
+        Clip(id="c1", track_id="guest", source_start=4.0, source_end=10.0, timeline_start=0.0)
+    ]
+    calls: list[tuple[float, float]] = []
+
+    def fake_vad(_path, *, start_sec, duration_sec):
+        calls.append((start_sec, duration_sec))
+        return [(start_sec + 1.0, start_sec + 2.0)]
+
+    with patch("podcast_mcp.services.ingest.vad_speech_intervals", fake_vad):
+        iv = _timeline_vad_intervals(proj, guest, window_start_sec=0.0, window_end_sec=5.0)
+    assert calls == [(4.0, 5.0)]
+    assert iv == [(1.0, 2.0)]
+    assert _waveform_file_start(proj, guest) == 4.0
+
+
+def test_timeline_vad_without_clips_reads_track_media(
+    minimal_project: Path, sample_wav: Path
+) -> None:
+    from podcast_mcp.services.ingest import _timeline_vad_intervals, _waveform_file_start
+
+    ws = _two_track_workspace(minimal_project, sample_wav)
+    host = ws.project.timeline.tracks[0]
+    with patch("podcast_mcp.services.ingest.vad_speech_intervals", return_value=[(0.0, 1.0)]) as v:
+        iv = _timeline_vad_intervals(ws.project, host, window_start_sec=1.0, window_end_sec=3.0)
+    assert iv == [(0.0, 1.0)]
+    assert v.call_args.kwargs == {"start_sec": 1.0, "duration_sec": 2.0}
+    assert _waveform_file_start(ws.project, host) == 0.0

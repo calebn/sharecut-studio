@@ -84,6 +84,64 @@ class ImportFolderReport:
     written: bool
 
 
+def _track_media_path(project, track) -> Path:
+    """Track media file; relative paths resolve under the project workspace."""
+    assert track.media is not None
+    media_path = Path(track.media.path)
+    if not media_path.is_absolute():
+        media_path = project.workspace_path() / media_path
+    return media_path
+
+
+def _track_clips(project, track) -> list:
+    return sorted(
+        (c for c in project.timeline.clips if c.track_id == track.id),
+        key=lambda c: c.timeline_start,
+    )
+
+
+def _timeline_vad_intervals(
+    project,
+    track,
+    *,
+    window_start_sec: float,
+    window_end_sec: float,
+) -> list[tuple[float, float]]:
+    """Speech intervals on the timeline clock, read through the track's clips."""
+    from podcast_mcp.engines.session_timeline import clip_timeline_overlap_to_source
+    from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
+
+    clips = _track_clips(project, track)
+    if not clips:
+        return vad_speech_intervals(
+            _track_media_path(project, track),
+            start_sec=window_start_sec,
+            duration_sec=window_end_sec - window_start_sec,
+        )
+    out: list[tuple[float, float]] = []
+    for clip in clips:
+        mapped = clip_timeline_overlap_to_source(clip, window_start_sec, window_end_sec)
+        if mapped is None:
+            continue
+        src_a, src_b = mapped
+        shift = clip.timeline_start - clip.source_start
+        for a, b in vad_speech_intervals(
+            resolve_clip_audio_path(project, track, clip),
+            start_sec=src_a,
+            duration_sec=src_b - src_a,
+        ):
+            out.append((a + shift, b + shift))
+    return out
+
+
+def _waveform_file_start(project, track) -> float:
+    """File time of timeline 0 for the track's first clip (0 when unclipped)."""
+    clips = _track_clips(project, track)
+    if not clips:
+        return 0.0
+    return max(0.0, clips[0].source_start - clips[0].timeline_start)
+
+
 class IngestService:
     def __init__(self, workspace: ProjectWorkspace) -> None:
         self.ws = workspace
@@ -183,20 +241,17 @@ class IngestService:
         if len(dialogue) < 2:
             raise ValueError("verify requires at least two dialogue tracks")
 
-        ws = self.ws.project.workspace_path()
         duration = window_end_sec - window_start_sec
         intervals: dict[str, list[tuple[float, float]]] = {}
         segments_out: list[dict] = []
 
         for track in dialogue:
             assert track.media is not None
-            media_path = Path(track.media.path)
-            if not media_path.is_absolute():
-                media_path = ws / media_path
-            iv = vad_speech_intervals(
-                media_path,
-                start_sec=window_start_sec,
-                duration_sec=duration,
+            iv = _timeline_vad_intervals(
+                self.ws.project,
+                track,
+                window_start_sec=window_start_sec,
+                window_end_sec=window_end_sec,
             )
             intervals[track.id] = iv
             if iv:
@@ -245,11 +300,9 @@ class IngestService:
             out_dir = diag_dir or (self.ws.project.artifacts_dir() / "alignment")
             track_triples: list[tuple[str, Path, float]] = []
             for track in dialogue:
-                assert track.media is not None
-                media_path = Path(track.media.path)
-                if not media_path.is_absolute():
-                    media_path = ws / media_path
-                track_triples.append((track.speaker or track.id, media_path, 0.0))
+                media_path = _track_media_path(self.ws.project, track)
+                file_start = _waveform_file_start(self.ws.project, track)
+                track_triples.append((track.speaker or track.id, media_path, file_start))
             wf = render_comparison_waveforms(
                 track_triples,
                 out_dir,
