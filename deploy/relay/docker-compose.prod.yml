@@ -19,6 +19,12 @@ services:
     environment:
       PODCAST_RELAY_HOST_TOKENS: ${PODCAST_RELAY_HOST_TOKENS:?set PODCAST_RELAY_HOST_TOKENS}
       PODCAST_RELAY_PORT: "8081"
+      PODCAST_RELAY_FORWARDED_ALLOW_IPS: "*"
+      PODCAST_REPORT_STORE: /var/lib/sharecut-reports
+      PODCAST_REPORT_PUBLIC_BASE_URL: ${PODCAST_REPORT_PUBLIC_BASE_URL:-}
+      PODCAST_REPORT_GITHUB_TOKEN: ${PODCAST_REPORT_GITHUB_TOKEN:-}
+    volumes:
+      - report_data:/var/lib/sharecut-reports
     entrypoint: ["/bin/sh", "-ec"]
     command:
       - |
@@ -57,3 +63,4 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+  report_data:

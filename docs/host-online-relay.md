@@ -592,7 +592,7 @@ src/podcast_mcp/
 - **No filesystem paths in URLs**: tokens map to workspaces internally; guests never
   see absolute paths.
 - **Diagnostics bundle**: host-only (`POST /api/diagnostics/bundle`). Guests cannot
-  reach it via the proxy allowlist. The zip is written locally and never uploaded.
+  reach it via the proxy allowlist. Creating the zip writes it locally; uploading requires separate host consent in Help.
 - **Host export jobs**: `POST /api/export/bounce` and `POST /api/export/deliverables` are
   host-only. The tunnel never maps `/api/export/*` (proxy allowlist), and a direct remote
   request under strict authz must present `PODCAST_SESSION_TOKEN`. A share token in
@@ -643,3 +643,33 @@ relay forwards the host's close. A relayed `Join` without a valid lease on a
 token whose participant was removed gets `invite_closed` and then a 4403 close (same handler as direct; the relay keeps that order, which the guest UI relies on, and `tests/test_relay_ws.py::test_record_ws_relays_invite_closed_error_before_4403` checks it).
 
 Old tunnel clients ignore unknown frame types (guest socket stays silent; HTTP poll still works). See [session-sync.md](session-sync.md) § Guest dual-plane WebSocket. Record rate buckets: host `guest_ws_record` / `guest_ws_record_token` for room commands, plus `guest_ws_record_signal` / `guest_ws_record_signal_token` for WebRTC `Signal` ICE/SDP (Heartbeat and HeadphonesAck stay exempt).
+
+## Public diagnostics report intake
+
+A self-hosted relay can accept consented bug reports at `POST /api/reports`. Configure
+`PODCAST_REPORT_STORE` on a persistent volume, `PODCAST_REPORT_PUBLIC_BASE_URL`
+(the public HTTPS origin), and server-only `PODCAST_REPORT_GITHUB_TOKEN` with issue
+write access. The Studio host uses `PODCAST_REPORT_RELAY_URL` (HTTPS, or loopback
+HTTP for local development). No account is required. The relay validates a bounded
+diagnostics ZIP, stores it before queueing publication, and creates a GitHub issue
+with the `beta-report` label. GitHub issues cannot accept ZIP attachments via its
+API, so the public issue links to the ZIP on this relay. Both the description and
+ZIP are publicly accessible. The ZIP and status expire after 30 days.
+
+The JSON POST has a 7 MiB body cap to accommodate the base64 encoding of a 5 MiB
+ZIP; expanded ZIP content is capped at 8 MiB and 34 members. The public intake
+allows three reports per source IP and 100 globally per UTC day. SQLite serializes
+these counters across relay workers and retains a bounded queue of 1,000 reports.
+The publisher retries GitHub failures with capped exponential backoff without a
+second user submission. It checks recent `beta-report` issues for a stable report
+marker before publishing after a crash; GitHub issue creation and the local queue
+cannot be committed atomically, so a rare duplicate issue remains possible if
+GitHub has not yet returned the new issue during reconciliation. `GET /api/reports/{id}` shows queued/published status;
+`GET /api/reports/bundles/{id}` serves the opaque ZIP link during retention. The
+optional `proof_of_work` request field is accepted but unused by default.
+
+In production Caddy is the only ingress to the relay container. The production
+Compose file trusts Caddy's forwarded client IP so per-IP limits use the real
+source. Do not expose the relay container directly when
+`PODCAST_RELAY_FORWARDED_ALLOW_IPS=*` is set. Without a configured intake, Studio
+Help keeps the local-download/Open support path.

@@ -611,6 +611,7 @@ def test_diagnostics_routes_meta_errors_and_served_project(
     meta = client.get("/api/diagnostics")
     assert meta.status_code == 200
     assert meta.json() == {
+        "report_available": False,
         "support_url": "https://support.example.test/help",
         "privacy_url": "https://privacy.example.test/policy",
         "repository_url": "https://code.example.test/sharecut",
@@ -805,3 +806,76 @@ def test_http_bundle_ignores_client_out_dir(
     name = created.json()["filename"]
     assert (dest / name).is_file()
     assert not (other / name).exists()
+
+
+def test_submit_registered_bundle_requires_host_and_consent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.services.diagnostics import bundle_filename
+
+    client = TestClient(create_app())
+    name = bundle_filename()
+    unregistered = client.post(
+        "/api/diagnostics/submit",
+        json={"filename": name, "description": "A sufficiently long description", "consent": True},
+    )
+    assert unregistered.status_code == 404
+    denied = client.post(
+        "/api/diagnostics/submit",
+        json={"filename": name, "description": "A sufficiently long description", "consent": False},
+    )
+    assert denied.status_code == 400
+    guest = client.post(
+        "/api/diagnostics/submit",
+        json={"filename": name, "description": "A sufficiently long description", "consent": True},
+        headers={"Host": "127.0.0.1:8765", "Origin": "https://evil.example"},
+    )
+    assert guest.status_code == 403
+
+
+def test_submit_registered_bundle_and_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json
+    import zipfile
+
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.services.diagnostics import bundle_filename
+
+    app = create_app()
+    client = TestClient(app)
+    name = bundle_filename()
+    with zipfile.ZipFile(tmp_path / name, "w") as archive:
+        archive.writestr("report.json", json.dumps({"app_version": "1", "created_at": "now"}))
+        archive.writestr("README.txt", "help")
+    app.state.diagnostics_bundles = {name: str(tmp_path)}
+    monkeypatch.setattr(
+        "podcast_mcp.gui.routes.diagnostics.submit_bundle",
+        lambda path, *, description: {
+            "status": "queued",
+            "status_url": "https://relay.example.test/api/reports/abc",
+        },
+    )
+    monkeypatch.setattr(
+        "podcast_mcp.gui.routes.diagnostics.get_report_status",
+        lambda url: {
+            "status": "published",
+            "issue_url": "https://github.com/calebn/sharecut-studio/issues/123",
+        },
+    )
+    sent = client.post(
+        "/api/diagnostics/submit",
+        json={"filename": name, "description": "Episode fails to open", "consent": True},
+    )
+    assert sent.status_code == 200
+    status = client.get(
+        "/api/diagnostics/report-status",
+        params={"url": "https://relay.example.test/api/reports/abc"},
+    )
+    assert status.json()["issue_url"].endswith("/123")
+    unknown = client.get(
+        "/api/diagnostics/report-status",
+        params={"url": "https://other.example.test/api/reports/abc"},
+    )
+    assert unknown.status_code == 404

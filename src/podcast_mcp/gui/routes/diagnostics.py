@@ -7,6 +7,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
+import httpx
 from fastapi import APIRouter, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -21,11 +22,23 @@ from podcast_mcp.services.diagnostics import (
     is_allowed_bundle_name,
     resolve_bundle_file,
 )
+from podcast_mcp.services.report_submission import (
+    get_report_status,
+    preview_bundle,
+    report_relay_url,
+    submit_bundle,
+)
 from podcast_mcp.services.workspace import ProjectWorkspace
 
 router = APIRouter()
 log = logging.getLogger(__name__)
 _BUNDLES_LOCK = threading.Lock()
+
+
+class DiagnosticsSubmitRequest(BaseModel):
+    filename: str
+    description: str
+    consent: bool
 
 
 class DiagnosticsBundleRequest(BaseModel):
@@ -78,10 +91,16 @@ def diagnostics_meta(
     request: Request,
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
-) -> dict[str, str | None]:
+) -> dict[str, Any]:
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     metadata = runtime_distribution_metadata()
+    try:
+        report_relay_url()
+        report_available = True
+    except ValueError:
+        report_available = False
     return {
+        "report_available": report_available,
         "support_url": metadata.support_url,
         "privacy_url": metadata.privacy_url,
         "repository_url": metadata.repository_url,
@@ -110,8 +129,12 @@ def create_diagnostics_bundle(
         raise HTTPException(status_code=400, detail="could not write diagnostics bundle") from None
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    preview = preview_bundle(report.path)
     _register_bundle(request, report.filename, report.path.parent)
     return {
+        "files": list(preview.files),
+        "app_version": preview.app_version,
+        "created_at": preview.created_at,
         "path": str(report.path),
         "filename": report.filename,
         "support_url": report.support_url,
@@ -147,3 +170,51 @@ def download_diagnostics_bundle(
         filename=name,
         headers={"Cache-Control": "no-store"},
     )
+
+
+@router.post("/api/diagnostics/submit")
+def submit_diagnostics_report(
+    body: DiagnosticsSubmitRequest,
+    request: Request,
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, str]:
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    if not body.consent:
+        raise HTTPException(400, "public upload consent is required")
+    if not is_allowed_bundle_name(body.filename):
+        raise HTTPException(400, "invalid bundle filename")
+    directory = _bundle_registry(request).get(body.filename)
+    if not directory:
+        raise HTTPException(404, "bundle not found")
+    path = resolve_bundle_file(body.filename, extra_dirs=[Path(directory)])
+    if path is None:
+        raise HTTPException(404, "bundle not found")
+    try:
+        result = submit_bundle(path, description=body.description)
+        statuses: set[str] = getattr(request.app.state, "diagnostics_report_statuses", set())
+        statuses.add(result["status_url"])
+        request.app.state.diagnostics_report_statuses = statuses
+        return result
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except (OSError, httpx.HTTPError):
+        log.exception("diagnostics report forwarding failed")
+        raise HTTPException(502, "report relay unavailable; use the download fallback") from None
+
+
+@router.get("/api/diagnostics/report-status")
+def diagnostics_report_status(
+    request: Request,
+    url: str,
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, str | None]:
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    statuses: set[str] = getattr(request.app.state, "diagnostics_report_statuses", set())
+    if url not in statuses:
+        raise HTTPException(404, "report not found")
+    try:
+        return get_report_status(url)
+    except (ValueError, httpx.HTTPError):
+        raise HTTPException(502, "report status unavailable") from None

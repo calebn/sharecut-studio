@@ -41,6 +41,8 @@ from podcast_relay.limits import (
 )
 from podcast_relay.offline import offline_page
 from podcast_relay.protocol import msg, new_id
+from podcast_relay.reports import router as reports_router
+from podcast_relay.reports import start_report_worker
 from podcast_relay.version import read_relay_git_sha, read_relay_version
 
 _OFFLINE_HTML = offline_page(
@@ -330,6 +332,8 @@ def create_relay_app() -> FastAPI:
         openapi_url=None,
     )
     app.state.relay = state
+    app.include_router(reports_router)
+    app.router.on_startup.append(start_report_worker)
 
     @app.get("/healthz")
     def healthz() -> dict[str, Any]:
@@ -840,6 +844,7 @@ def main() -> None:
         port=port,
         log_level="info",
         ws_max_size=ws_max_size,
+        forwarded_allow_ips=os.environ.get("PODCAST_RELAY_FORWARDED_ALLOW_IPS", "127.0.0.1"),
     )
 
 
