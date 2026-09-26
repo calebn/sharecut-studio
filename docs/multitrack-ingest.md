@@ -53,8 +53,8 @@ Home → “Import recorder folder” GUI is a follow-up.
 2. Review speaker labels (and `session.reference_speaker`); override with `--speaker file=Name` if needed.
 3. **`podcast ingest suggest`** — VAD sweep for `session_start_in_file_sec` (+ optional waveform PNGs).
 4. Merge suggested offsets into `ingest.yaml`.
-5. **`podcast ingest consolidate`** — extract `raw/{speaker}.wav` (+ `_srcN` for extras) and register tracks/clips.
-6. **`podcast ingest verify`** — VAD overlap audit on consolidated tracks.
+5. **`podcast ingest consolidate`** — extract `raw/{speaker}.wav` (+ `_srcN` for extras) and register tracks/clips. Without `--extract-start`/`--extract-duration` the WAV stays whole and the primary clip is **placed** on the session clock (see Placement below). Short recordings are fine with default flags: a correlation window past EOF scores peak 0 and falls back to the session-start offset.
+6. **`podcast ingest verify`** — VAD overlap audit on consolidated tracks, read through each track's clips (timeline clock).
 7. **`podcast play --compare`** — hear each dialogue track then premix on the same window.
 8. Or run the **pipeline** (transcribe → align_tracks → …) and clear the align gate.
 
@@ -154,6 +154,9 @@ Suggest sweeps **each** non-reference guest independently. Cost is O(guests × s
 | Session clock | `session_start_in_file_sec` | VAD sweep (`ingest suggest`) or RMS onset at consolidate |
 | Content fine-tune | `content_align_sec` / `session_offset_sec` | VAD turn-taking; optional transcript anchors |
 | Trim | — | `file_trim = session_start + extract_start - content_align` |
+| Placement | clip `source_start` / `timeline_start` | Whole-file (untrimmed) consolidate: `offset_to_clip_geometry(content_align - session_start)` so session t=0 is timeline 0 for every speaker; the raw WAV stays whole (non-destructive). Only the primary clip is placed; extra clips follow sequentially. Trimmed extracts are not re-placed. |
+
+Cross-speaker correlation uses `session.reference_speaker` as the reference (not the first-listed file).
 
 **Primary score:** `simultaneous_speech_sec` (VAD overlap). **Secondary:** correlation peak, anchor match, drift between two windows (`drift_warning` in suggest output).
 
@@ -164,7 +167,7 @@ Waveform PNGs under `artifacts/alignment/` (`showwavespic` via ffmpeg) show whet
 ## v2 project fields written by consolidate
 
 - **`sources`** — one raw file per speaker
-- **`timeline.tracks`** / **`timeline.clips`** — one dialogue track per speaker
+- **`timeline.tracks`** / **`timeline.clips`** — one dialogue track per speaker; untrimmed clips carry the session placement (`source_start`, `timeline_start`)
 - **`meta.ingest_alignment`** — per-speaker (or `track_id:clip_id` when a speaker has several whole-file clips) `session_start_in_file_sec`, `content_align_sec`, `align_method`
 
 ## MCP tools
