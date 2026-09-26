@@ -13,6 +13,7 @@ import {
   RASTER_WORKER_RESTARTS,
 } from "./budgets";
 import {
+  crashRasterWorker,
   getRasterBackend,
   hasRaster,
   rasterParity,
@@ -412,6 +413,16 @@ describe("rasterClient", () => {
     expect(getRasterBackend()).not.toBe("none");
     expect(FakeRasterWorker.created).toBe(RASTER_WORKER_RESTARTS + 1);
     expect(rasterWorkerRestarts()).toBe(RASTER_WORKER_RESTARTS);
+  });
+
+  it("crashRasterWorker restarts the current worker (E2E) and counts it", () => {
+    crashRasterWorker();
+    expect(FakeRasterWorker.created).toBe(0);
+    startRasterWorker();
+    crashRasterWorker();
+    expect(FakeRasterWorker.created).toBe(2);
+    expect(FakeRasterWorker.last!.terminated).toBe(false);
+    expect(rasterWorkerRestarts()).toBe(1);
   });
 
   it("reports a request it would drop as a duplicate", () => {

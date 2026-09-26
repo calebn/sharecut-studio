@@ -15,7 +15,7 @@ describe("waveform e2e hook", () => {
     expect(WAVEFORM_E2E_BUILD).toBe(true);
   });
 
-  it("exposes backend, render count and parity", async () => {
+  it("exposes backend, render count, restarts and parity", async () => {
     const target: Record<string, unknown> = {};
     installWaveformE2eHook(target);
     const hook = target.__SHARECUT_E2E_WAVEFORM as WaveformE2eHook;
@@ -24,6 +24,9 @@ describe("waveform e2e hook", () => {
     expect(hook.tilesRendered).toBe(0);
     expect(hook.tilesByMode).toEqual({ pyramid: 0, pcm: 0, line: 0 });
     await expect(hook.rasterParity()).resolves.toBeNull();
+    expect(hook.workerRestarts).toBe(0);
+    hook.crashWorker();
+    expect(hook.workerRestarts).toBe(0);
   });
 
   it("installs on window by default", () => {

@@ -400,11 +400,13 @@ Revocation stops new requests only.
   since the token is `color-mix()`), with the edge at
   0.6 alpha.
 - **E2E hook:** `waveform/e2eHook.ts` sets `window.__SHARECUT_E2E_WAVEFORM`
-  to `{backend, tilesRendered, tilesByMode, rasterParity()}` (`tilesByMode`
+  to `{backend, tilesRendered, tilesByMode, workerRestarts, rasterParity(), crashWorker()}` (`tilesByMode`
   counts finished tiles per mode: `pyramid`, `pcm`, `line`), in test and
   `VITE_SHARECUT_E2E=1` builds only. `rasterParity()` renders a fixed tile
   in the worker through WebGL2 and through the CPU, and returns the largest
-  difference, `max(|Δa|, |Δ(rgb·a)|/255)`.
+  difference, `max(|Δa|, |Δ(rgb·a)|/255)`. `crashWorker()` runs the client's
+  crash handling on the live worker (terminate and restart), so a spec can
+  check a real restart; `workerRestarts` counts restarts since load.
 
 ### Renderer
 
