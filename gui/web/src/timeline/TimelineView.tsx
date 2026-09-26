@@ -34,6 +34,7 @@ import {
 } from "../presence/followSync";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
 import type { ClipRow } from "../types/project";
 import { EMPTY_ARR, EMPTY_CLIPS } from "../utils/empty";
 import {
@@ -107,7 +108,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     projectPath,
     zoomPxPerSec,
     setScrollLeft,
-    registerTimelineLead,
     setPlayheadSec,
     selection,
     setSelection,
@@ -116,8 +116,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     setTimelineFocused,
     layers,
     fitToWindow,
-    registerTimelineViewport,
-    registerLanesEl,
     sessionRegion,
     lastAgentQuery,
     commentMode,
@@ -140,7 +138,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
       projectPath: s.projectPath,
       zoomPxPerSec: s.zoomPxPerSec,
       setScrollLeft: s.setScrollLeft,
-      registerTimelineLead: s.registerTimelineLead,
       setPlayheadSec: s.setPlayheadSec,
       selection: s.selection,
       setSelection: s.setSelection,
@@ -149,8 +146,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
       setTimelineFocused: s.setTimelineFocused,
       layers: s.layers,
       fitToWindow: s.fitToWindow,
-      registerTimelineViewport: s.registerTimelineViewport,
-      registerLanesEl: s.registerLanesEl,
       sessionRegion: s.sessionRegion,
       lastAgentQuery: s.lastAgentQuery,
       commentMode: s.commentMode,
@@ -229,25 +224,25 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   // Layout effect: zoom anchoring reads the lead in the commit that applies
   // the new margins. A logical scroll before −lead has nowhere to go.
   useLayoutEffect(() => {
-    registerTimelineLead(leadPx);
+    timelineViewportRegistry.setLeadPx(leadPx);
     const { scrollLeft } = useDawStore.getState();
     const floor = minLogicalScrollLeft(leadPx);
     if (scrollLeft < floor) {
       setScrollLeft(floor);
     }
-  }, [leadPx, registerTimelineLead, setScrollLeft]);
+  }, [leadPx, setScrollLeft]);
   // Unmounting drops the pads, so the next (unpadded) view must not inherit a
   // scroll before 0: it would anchor zoom and publish presence from it.
   useEffect(
     () => () => {
-      registerTimelineLead(0);
+      timelineViewportRegistry.setLeadPx(0);
       const { scrollLeft } = useDawStore.getState();
       const floor = minLogicalScrollLeft(0);
       if (scrollLeft < floor) {
         setScrollLeft(floor);
       }
     },
-    [registerTimelineLead, setScrollLeft],
+    [setScrollLeft],
   );
   // The last DOM scroll this view wrote. Its scroll event is an echo, not a
   // person's scroll, even if it arrives after the programmatic flags clear.
@@ -337,13 +332,13 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   };
 
   useEffect(() => {
-    registerTimelineViewport(scrollRef.current);
-    registerLanesEl(lanesRef.current);
+    timelineViewportRegistry.setTimelineElement(scrollRef.current);
+    timelineViewportRegistry.setLanesElement(lanesRef.current);
     return () => {
-      registerTimelineViewport(null);
-      registerLanesEl(null);
+      timelineViewportRegistry.setTimelineElement(null);
+      timelineViewportRegistry.setLanesElement(null);
     };
-  }, [registerTimelineViewport, registerLanesEl, project]);
+  }, [project]);
 
   useEffect(() => {
     const el = scrollRef.current;

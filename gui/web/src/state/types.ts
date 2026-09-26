@@ -240,11 +240,6 @@ export interface DawState {
   toggleTrackSelected: (trackId: string, additive: boolean) => void;
   setBladeConfirmSec: (sec: number | null) => void;
   fitToWindow: (viewportWidth: number) => void;
-  registerTimelineViewport: (el: HTMLElement | null) => void;
-  /** Fixed-playhead lead pad (px) of the mounted timeline; 0 when unpadded. */
-  registerTimelineLead: (px: number) => void;
-  _lanesEl: HTMLElement | null;
-  registerLanesEl: (el: HTMLElement | null) => void;
   measureTimelineViewport: () => number;
   /** Also re-stores `timelineViewportWidth` from the live timeline or the new shell's estimate. */
   setShellBreakpoint: (bp: ShellBreakpoint) => void;
@@ -267,4 +262,15 @@ export interface DawState {
   setIngestBusy: (on: boolean) => void;
   setIngestDropTrackId: (trackId: string | null) => void;
   announceStatus: (message: string) => void;
+}
+
+/** Internal state shared by the four slice creators. DOM refs live outside Zustand. */
+export interface DawStore extends DawState {
+  _suppressTimer: number | null;
+  hydrate: (
+    projectPath: string,
+    initialProject: ProjectView | null,
+    guestMode?: string | null,
+    shareCapabilities?: string[] | null,
+  ) => void;
 }
