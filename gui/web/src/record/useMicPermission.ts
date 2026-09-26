@@ -15,6 +15,7 @@ export type MicPermissionState = {
   error: string | null;
   settingsWarning: string | null;
   lost: boolean;
+  fellBackFrom: string | null;
   pending: boolean;
 };
 
@@ -161,6 +162,7 @@ export function useMicPermission(
     error: mic.error,
     settingsWarning: mic.settingsWarning,
     lost: mic.lost,
+    fellBackFrom: mic.fellBackFrom,
     pending: mic.pending,
   };
 }

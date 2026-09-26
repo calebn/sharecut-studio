@@ -5,6 +5,7 @@ import {
   keeperAudioConstraints,
   keeperSettingsMatch,
 } from "./keeper/constraints";
+import { selectedMicMissing } from "./micPermission";
 
 export type MicStreamState = {
   stream: MediaStream | null;
@@ -15,6 +16,8 @@ export type MicStreamState = {
   pending: boolean;
   settledAttempt: number;
   lost: boolean;
+  /** Saved deviceId that could not be opened and was replaced by the default input. */
+  fellBackFrom: string | null;
   retry: () => void;
 };
 
@@ -35,22 +38,21 @@ export function useMicStream(
   const [pending, setPending] = useState(false);
   const [settledAttempt, setSettledAttempt] = useState(0);
   const [lost, setLost] = useState(false);
+  const [fellBackFrom, setFellBackFrom] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
   const streamRef = useRef<MediaStream | null>(null);
   const lostRef = useRef(false);
   const acquiringRef = useRef(false);
   const acquisitionGenerationRef = useRef(0);
   const deviceRefreshGenerationRef = useRef(0);
-  const fallbackToDefaultRef = useRef(false);
 
   const retry = useCallback(() => {
     if (!enabled || acquiringRef.current) {
       return;
     }
     acquiringRef.current = true;
-    fallbackToDefaultRef.current = lostRef.current && Boolean(deviceId);
     setRetryKey((key) => key + 1);
-  }, [deviceId, enabled]);
+  }, [enabled]);
 
   useEffect(() => {
     if (!enabled) {
@@ -62,6 +64,7 @@ export function useMicStream(
       setSettingsWarning(null);
       setPending(false);
       setSettledAttempt(resetKey);
+      setFellBackFrom(null);
       lostRef.current = false;
       setLost(false);
       return;
@@ -73,8 +76,6 @@ export function useMicStream(
     const acquisitionGeneration = acquisitionGenerationRef.current + 1;
     acquisitionGenerationRef.current = acquisitionGeneration;
     acquiringRef.current = true;
-    const fallbackToDefault = fallbackToDefaultRef.current;
-    fallbackToDefaultRef.current = false;
     const refreshDevices = async () => {
       const refreshGeneration = deviceRefreshGenerationRef.current + 1;
       deviceRefreshGenerationRef.current = refreshGeneration;
@@ -109,18 +110,17 @@ export function useMicStream(
     const start = async () => {
       try {
         let next: MediaStream;
+        let usedDefault = false;
         try {
           next = await navigator.mediaDevices.getUserMedia(
             keeperAudioConstraints(deviceId),
           );
         } catch (err) {
           const name = err instanceof Error ? err.name : "";
-          const canUseDefault =
-            fallbackToDefault &&
-            (name === "NotFoundError" || name === "OverconstrainedError");
-          if (!canUseDefault) {
+          if (!selectedMicMissing(name, deviceId)) {
             throw err;
           }
+          usedDefault = true;
           next = await navigator.mediaDevices.getUserMedia(
             keeperAudioConstraints(),
           );
@@ -152,6 +152,7 @@ export function useMicStream(
         setError(null);
         setErrorName(null);
         setStream(next);
+        setFellBackFrom(usedDefault ? deviceId : null);
         lostRef.current = false;
         setLost(false);
         setPending(false);
@@ -160,6 +161,7 @@ export function useMicStream(
       } catch (err) {
         if (!cancelled) {
           setStream(null);
+          setFellBackFrom(null);
           setSettingsWarning(null);
           setErrorName(err instanceof Error ? err.name : null);
           setError(errorMessage(err));
@@ -198,6 +200,7 @@ export function useMicStream(
     pending,
     settledAttempt,
     lost,
+    fellBackFrom,
     retry,
   };
 }

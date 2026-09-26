@@ -21,6 +21,8 @@ export const MIC_ERROR_COPY = "Couldn't open the microphone. Retry.";
 export const MIC_GRANT_HINT_COPY =
   "Allow the microphone before you accept recording.";
 export const MIC_PROMPTING_COPY = "Waiting for the browser microphone prompt…";
+export const MIC_SAVED_DEVICE_MISSING_COPY =
+  "Your saved microphone isn't available, so the default input is in use.";
 export const MIC_LOST_COPY = "Microphone disconnected.";
 export const MIC_DESKTOP_PROMPTING_COPY =
   "Waiting for the operating system microphone permission prompt…";
@@ -64,6 +66,17 @@ export function statusFromGumError(
     return "unavailable";
   }
   return null;
+}
+
+/** True when a saved (exact) deviceId could not be opened and the default input should be tried. */
+export function selectedMicMissing(
+  errorName: string | null | undefined,
+  deviceId: string,
+): boolean {
+  return (
+    Boolean(deviceId) &&
+    (errorName === "OverconstrainedError" || errorName === "NotFoundError")
+  );
 }
 
 export function micGrantFailed(status: MicPermissionStatus): boolean {

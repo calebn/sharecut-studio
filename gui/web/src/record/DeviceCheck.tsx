@@ -17,6 +17,7 @@ type Props = {
   devices: MediaDeviceInfo[];
   error: string | null;
   settingsWarning: string | null;
+  notice?: string | null;
   deviceLocked?: boolean;
   permission: MicPermissionStatus;
   onAllow: () => void;
@@ -33,6 +34,7 @@ export function DeviceCheck({
   devices,
   error,
   settingsWarning,
+  notice,
   deviceLocked = false,
   permission,
   onAllow,
@@ -171,6 +173,7 @@ export function DeviceCheck({
         ) : (
           <span id={grantHintId} className="sr-only" />
         )}
+        {notice ? <p className="record-warn">{notice}</p> : null}
         {settingsWarning ? (
           <p className="record-warn">{settingsWarning}</p>
         ) : null}
