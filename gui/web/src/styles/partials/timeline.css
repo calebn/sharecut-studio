@@ -722,10 +722,6 @@ button.join-diamond {
   color: var(--color-bg-canvas);
 }
 
-.theme-toggle-btn {
-  min-width: 2rem;
-}
-
 .lane-waveform-status {
   position: absolute;
   z-index: 5;

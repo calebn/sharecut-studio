@@ -29,14 +29,14 @@ Open the in-app cheatsheet with **?** while Sharecut Studio is focused.
 | `V` | Select tool (`tool.select`) | Timeline focused + structural edits allowed | When timeline is focused |
 | `C` | Blade tool (`tool.blade`) | Timeline focused + structural edits allowed | When timeline is focused |
 
-## focus
+## layout
 
 | Shortcut | Command | When | Notes |
 |----------|---------|------|-------|
-| `1` | Focus: default layout (`focus.default`) | Timeline or transcript focused |  |
-| `2` | Focus: timeline (`focus.timeline`) | Timeline or transcript focused |  |
-| `3` | Focus: text (`focus.text`) | Timeline or transcript focused |  |
-| `4` | Focus: review (`focus.review`) | Timeline or transcript focused |  |
+| `Mod+1` | Restore layout (`layout.default`) | Always (when not typing in an input) | Mod+1 |
+| `Mod+2` | Maximize timeline (`layout.timeline`) | Always (when not typing in an input) | Mod+2 |
+| `Mod+3` | Maximize transcript (`layout.text`) | Always (when not typing in an input) | Mod+3 |
+| `Mod+4` | Review layout (`layout.review`) | Always (when not typing in an input) | Mod+4 |
 
 ## navigation
 
@@ -125,7 +125,6 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Audition Mix / FX / Raw | `transport.audition` | Project loaded | Args: { mode: mix \| fx \| raw } |
 | Follow | `presence.follow` | Always (when not typing in an input) | Args: { clientId: string } |
 | Resolve comment | `comment.resolve` | Loaded host project | Args: { commentId: string, resolved: boolean, by: string } — host only; use a comment's Resolve/Reopen control |
-| Cycle focus mode | `focus.cycle` | Always (when not typing in an input) |  |
 | Confirm blade cut | `edit.bladeCut.confirm` | Structural edits allowed |  |
 | Cancel blade cut | `edit.bladeCut.cancel` | Always (when not typing in an input) |  |
 | Set track volume | `track.setVolume` | Host or shared edit mode | Args: { trackId?, db }: SetTrackFader, the saved volume on top of staging gain (-60 to +12 dB) |

@@ -406,111 +406,88 @@
       }
     },
     {
-      "id": "daw.focus.default",
-      "label": "Focus: default layout",
-      "service": "Sharecut Studio command bus \u2192 services/document",
-      "industry_standard_key": false,
-      "gates": [
-        "layoutFocused"
-      ],
-      "surfaces": {
-        "command": "focus.default",
-        "gui": [
-          "focusToggle"
-        ],
-        "keyboard": "1"
-      },
-      "omit": {},
-      "tooltip": "Focus: default layout",
-      "presence": {
-        "cursor": "none",
-        "follow": "none"
-      }
-    },
-    {
-      "id": "daw.focus.timeline",
-      "label": "Focus: timeline",
-      "service": "Sharecut Studio command bus \u2192 services/document",
-      "industry_standard_key": false,
-      "gates": [
-        "layoutFocused"
-      ],
-      "surfaces": {
-        "command": "focus.timeline",
-        "gui": [
-          "focusToggle"
-        ],
-        "keyboard": "2"
-      },
-      "omit": {},
-      "tooltip": "Focus: timeline",
-      "presence": {
-        "cursor": "none",
-        "follow": "none"
-      }
-    },
-    {
-      "id": "daw.focus.text",
-      "label": "Focus: text",
-      "service": "Sharecut Studio command bus \u2192 services/document",
-      "industry_standard_key": false,
-      "gates": [
-        "layoutFocused"
-      ],
-      "surfaces": {
-        "command": "focus.text",
-        "gui": [
-          "focusToggle"
-        ],
-        "keyboard": "3"
-      },
-      "omit": {},
-      "tooltip": "Focus: text",
-      "presence": {
-        "cursor": "none",
-        "follow": "none"
-      }
-    },
-    {
-      "id": "daw.focus.review",
-      "label": "Focus: review",
-      "service": "Sharecut Studio command bus \u2192 services/document",
-      "industry_standard_key": false,
-      "gates": [
-        "layoutFocused"
-      ],
-      "surfaces": {
-        "command": "focus.review",
-        "gui": [
-          "focusToggle"
-        ],
-        "keyboard": "4"
-      },
-      "omit": {},
-      "tooltip": "Focus: review",
-      "presence": {
-        "cursor": "none",
-        "follow": "none"
-      }
-    },
-    {
-      "id": "daw.focus.cycle",
-      "label": "Cycle focus mode",
+      "id": "daw.layout.default",
+      "label": "Restore layout",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
         "always"
       ],
       "surfaces": {
-        "command": "focus.cycle",
+        "command": "layout.default",
+        "gui": [
+          "layoutChip"
+        ],
+        "keyboard": "Mod+1"
+      },
+      "omit": {},
+      "tooltip": "Restore layout",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.layout.timeline",
+      "label": "Maximize timeline",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "layout.timeline",
+        "gui": [
+          "transport.layout"
+        ],
+        "keyboard": "Mod+2"
+      },
+      "omit": {},
+      "tooltip": "Maximize timeline",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.layout.text",
+      "label": "Maximize transcript",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "layout.text",
         "gui": [
           "transport.menu"
-        ]
+        ],
+        "keyboard": "Mod+3"
       },
-      "omit": {
-        "keyboard_reason": "not industry-standard; menu/toolbar or unkeyed"
+      "omit": {},
+      "tooltip": "Maximize transcript",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.layout.review",
+      "label": "Review layout",
+      "service": "Sharecut Studio command bus \u2192 services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "layout.review",
+        "gui": [
+          "transport.menu"
+        ],
+        "keyboard": "Mod+4"
       },
-      "tooltip": "Cycle focus mode",
+      "omit": {},
+      "tooltip": "Review layout",
       "presence": {
         "cursor": "none",
         "follow": "none"

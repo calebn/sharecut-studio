@@ -12,7 +12,7 @@ Canonical strategy and feature map for agents/contributors. Implementation lives
 |-------|-------|------------|--------|
 | Phone | `< 768px` | `data-shell="phone"` / `.daw-shell--phone` | Four modes + selection sheet |
 | Tablet | `768–1100px` | `data-shell="tablet"` / `.daw-shell--tablet` | Timeline + peek inspector sheet (portrait); side inspector when wide enough |
-| Desktop | `> 1100px` | `data-shell="desktop"` | Reaper four-pane grid + optional focus modes |
+| Desktop | `> 1100px` | `data-shell="desktop"` | Reaper four-pane grid + optional layouts |
 
 Hook: [`gui/web/src/hooks/useViewportClass.ts`](../gui/web/src/hooks/useViewportClass.ts) reads a first-render snapshot through the shared media-query subscription in `useMediaQueryStore.ts` (`matchMedia` + `visualViewport` resize). Pointer capability and Storybook docs theme use that subscription too; pointer events still select the last used device. Store mirrors `shellBreakpoint`. CSS class stem `.daw-shell*` is frozen BEM (`StudioShell` / `MobileShell`); do not rename it in lockstep with the TypeScript component.
 
@@ -170,16 +170,16 @@ Bottom tabs default to ~40–45% of space below transport/status, capped so the 
 └───────────────────────────────────────────┘
 ```
 
-### Desktop — focus modes
+### Desktop — layouts
 
-| Mode | Effect |
-|------|--------|
-| `default` | Full grid |
-| `timeline` | Collapse bottom tabs (more lane height) |
-| `text` | Expand transcript; shrink timeline; dock Correct word editor when a word is selected |
-| `review` | Comments tab + mix-oriented chrome |
+| Layout | Command | Effect |
+|--------|---------|--------|
+| `default` | `layout.default` — **Restore layout** | Full grid |
+| `timeline` | `layout.timeline` — **Maximize timeline** | Collapse bottom tabs (more lane height) |
+| `text` | `layout.text` — **Maximize transcript** | Expand transcript; shrink timeline; dock Correct word editor when a word is selected |
+| `review` | `layout.review` — **Review layout** | Comments tab + mix-oriented chrome |
 
-Keyboard: `1` default, `2` timeline, `3` text, `4` review (when timeline focused, not in inputs). Pane **Focus** toggles on timeline chrome, transcript toolbar, and Comments tab call the same `focus.*` commands.
+Keyboard: `Mod+1` restore, `Mod+2` maximize timeline, `Mod+3` maximize transcript, `Mod+4` review layout. These work from anywhere except text inputs; bare digits do nothing. A browser tab may keep Ctrl/⌘+1–4 for tab switching (the desktop app does not); use the transport layout control or View › Layout there. View › Layout and View › Theme are radio groups (no cycling).
 
 The shell grid uses named areas (`banners / follow / transport / main / tabs / status`); modes only resize the `main` and `tabs` tracks, so banners, transport and status rows never move (`layout/shellGrid.test.ts`).
 
@@ -205,7 +205,7 @@ The host recording chip remains a full touch target in the collapsed tablet tran
 | Primary (always visible) | Play/Stop, compact playhead timecode, **Comment** icon, **Fit** (except Listen), Menu icon |
 | Menu → People | Live roster (follow / unfollow) when the bar is collapsed. Rows are `var(--touch-min)` (`2.75rem`) via `@container transport`. |
 | Menu → Project (host) | New / Open, **Connect agent…**, Bounce…, **Share…** (collaboration extension), Export deliverables. Home also has **Connect agent…** |
-| Menu (secondary) | One combined menu on phone and tablet: Project, Media, audition Mix/FX/Raw, **Refresh mix** when render is stale, layers, zoom, theme, focus, Fit if omitted from bar, Help (wide desktop splits layers/zoom/theme/focus into a **View** menu) |
+| Menu (secondary) | One combined menu on phone and tablet: Project, Media, audition Mix/FX/Raw, **Refresh mix** when render is stale, layers, zoom, layout, theme, Fit if omitted from bar, Help (wide desktop splits layers/zoom/theme/focus into a **View** menu) |
 
 ### Editing tool rail (phone / tablet Timeline)
 
@@ -228,7 +228,7 @@ Track headers use their lane's clip color at the leading edge. Playback lighting
 only animates when reduced motion is not requested.
 
 - Transport overflow (theme, layers, zoom, + Chapter secondary)
-- Focus modes (above)
+- Layouts (above)
 - Wider invisible hit targets for fades/envelopes
 - Actionable status chips → Impact / Pipeline / Comments
 - Capability-aware chrome for guests
@@ -242,7 +242,7 @@ Host offline command attention occupies its own shell row on phone, tablet, and 
 
 ## Testing
 
-- Vitest: `useViewportClass`, `BottomSheet`, mobile shell smoke, follow live region + Listen unfollow, focus mode CSS classes
+- Vitest: `useViewportClass`, `BottomSheet`, mobile shell smoke, follow live region + Listen unfollow, layout CSS classes
 - Playwright: phone viewport (`390×844`) asserts `.daw-shell--phone` + mode nav; `e2e/overlay-viewport.spec.ts` Menu + Share dialog reachability at `1280×715` and `390×844`; `e2e/presence-follow.spec.ts` two-client follow at 390 / 820 / 1440; desktop smoke unchanged
 - Manual / guest parity: [`gui/web/e2e/PARITY.md`](../gui/web/e2e/PARITY.md)
 

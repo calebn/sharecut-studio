@@ -149,11 +149,11 @@ describe("TrackHeadersColumn deselect well", () => {
     useDawStore.setState({
       selectedTrackIds: ["host", "guest"],
       selection: { kind: "track", trackId: "host" },
-      focusMode: "default",
+      layoutMode: "default",
     });
     const focus = screen.getByRole("button", { name: "Focus" });
     await user.click(focus);
-    expect(useDawStore.getState().focusMode).toBe("timeline");
+    expect(useDawStore.getState().layoutMode).toBe("timeline");
     expect(useDawStore.getState().selectedTrackIds).toEqual(["host", "guest"]);
     expect(
       screen.getAllByRole("button", { name: "Deselect all tracks" }),

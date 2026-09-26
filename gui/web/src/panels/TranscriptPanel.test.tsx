@@ -113,7 +113,7 @@ describe("TranscriptPanel", () => {
       playheadSec: 0,
       selection: null,
       transcriptFollowPlayhead: false,
-      focusMode: "default",
+      layoutMode: "default",
     });
   });
 
@@ -148,7 +148,7 @@ describe("TranscriptPanel", () => {
   });
 
   it("docks word editor in text focus when Correct selects a word", () => {
-    useDawStore.setState({ focusMode: "text" });
+    useDawStore.setState({ layoutMode: "text" });
     const { container } = render(<TranscriptPanel />);
     fireEvent.click(
       within(container).getByRole("button", { name: /Correct/i }),
@@ -611,7 +611,7 @@ describe("TranscriptPanel virtualization", () => {
       transcriptFollowPlayhead: false,
       transcriptScrollRequest: null,
       followingClientId: null,
-      focusMode: "default",
+      layoutMode: "default",
     });
   });
 

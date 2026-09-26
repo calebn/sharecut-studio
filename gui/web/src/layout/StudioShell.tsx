@@ -54,7 +54,7 @@ export function StudioShellView({
     activityJob,
     setTimelineFocused,
     setShellBreakpoint,
-    focusMode,
+    layoutMode,
     sheetExpanded,
     setSheetExpanded,
     guestMode,
@@ -70,7 +70,7 @@ export function StudioShellView({
     activityJob: s.activityJob,
     setTimelineFocused: s.setTimelineFocused,
     setShellBreakpoint: s.setShellBreakpoint,
-    focusMode: s.focusMode,
+    layoutMode: s.layoutMode,
     sheetExpanded: s.sheetExpanded,
     setSheetExpanded: s.setSheetExpanded,
     guestMode: s.guestMode,
@@ -108,12 +108,12 @@ export function StudioShellView({
     }
     const root = document.documentElement;
     root.dataset.shell = shell;
-    if (focusMode === "default") {
-      delete root.dataset.focus;
+    if (layoutMode === "default") {
+      delete root.dataset.layout;
     } else {
-      root.dataset.focus = focusMode;
+      root.dataset.layout = layoutMode;
     }
-  }, [shell, focusMode, setShellBreakpoint]);
+  }, [shell, layoutMode, setShellBreakpoint]);
 
   useEffect(() => {
     return () => {
@@ -121,7 +121,7 @@ export function StudioShellView({
         return;
       }
       delete document.documentElement.dataset.shell;
-      delete document.documentElement.dataset.focus;
+      delete document.documentElement.dataset.layout;
     };
   }, []);
 
@@ -160,8 +160,8 @@ export function StudioShellView({
   const sheetOpen =
     useSheetInspector &&
     selection != null &&
-    focusMode !== "text" &&
-    focusMode !== "review";
+    layoutMode !== "text" &&
+    layoutMode !== "review";
   // Only the ingest drop target keeps headers outside the timeline; any drawn
   // timeline hosts them so both read one TimelineMetricsProvider and align.
   const showIngestTarget = emptySession && mayIngest;
@@ -176,7 +176,7 @@ export function StudioShellView({
         !guestShare ? "daw-shell--attention" : "",
         followingClientId ? "daw-shell--following" : "",
         `daw-shell--${shell}`,
-        focusMode !== "default" ? `daw-shell--focus-${focusMode}` : "",
+        layoutMode !== "default" ? `daw-shell--layout-${layoutMode}` : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -194,7 +194,7 @@ export function StudioShellView({
       </div>
       <FollowBanner />
       <div ref={transportFocusRef} className="daw-shell-transport">
-        <TransportBar compact={shell === "tablet"} />
+        <TransportBar compact={shell === "tablet"} showLayout />
       </div>
       <main
         ref={mainFocusRef}

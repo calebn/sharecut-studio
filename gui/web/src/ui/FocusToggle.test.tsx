@@ -6,14 +6,14 @@ import { FocusToggle } from "./FocusToggle";
 
 vi.mock("../commands/execute", () => ({
   execute: vi.fn(async (id: string) => {
-    if (id === "focus.text") {
-      useDawStore.getState().setFocusMode("text");
+    if (id === "layout.text") {
+      useDawStore.getState().setLayoutMode("text");
     }
-    if (id === "focus.default") {
-      useDawStore.getState().setFocusMode("default");
+    if (id === "layout.default") {
+      useDawStore.getState().setLayoutMode("default");
     }
-    if (id === "focus.timeline") {
-      useDawStore.getState().setFocusMode("timeline");
+    if (id === "layout.timeline") {
+      useDawStore.getState().setLayoutMode("timeline");
     }
     return { status: "ok" };
   }),
@@ -21,7 +21,7 @@ vi.mock("../commands/execute", () => ({
 
 describe("FocusToggle", () => {
   beforeEach(() => {
-    useDawStore.setState({ focusMode: "default" });
+    useDawStore.setState({ layoutMode: "default" });
   });
 
   it("activates focus mode and is axe-clean", async () => {
@@ -32,18 +32,18 @@ describe("FocusToggle", () => {
     expect(btn).toHaveAttribute("aria-pressed", "false");
     expect(btn).toHaveClass("ui-control");
     fireEvent.click(btn);
-    expect(useDawStore.getState().focusMode).toBe("text");
+    expect(useDawStore.getState().layoutMode).toBe("text");
     await expectNoA11yViolations(container);
   });
 
   it("toggles back to default when already active", () => {
-    useDawStore.setState({ focusMode: "timeline" });
+    useDawStore.setState({ layoutMode: "timeline" });
     const { container } = render(
       <FocusToggle mode="timeline" label="Timeline" />,
     );
     const btn = within(container).getByRole("button", { name: "Focused" });
     expect(btn).toHaveClass("ui-control", "active");
     fireEvent.click(btn);
-    expect(useDawStore.getState().focusMode).toBe("default");
+    expect(useDawStore.getState().layoutMode).toBe("default");
   });
 });

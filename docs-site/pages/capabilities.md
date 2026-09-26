@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**96** capabilities · **80** Sharecut Studio commands · **49** keyed · **162** MCP tools · **16** skills on rows (+ **18** hub skills).
+**95** capabilities · **79** Sharecut Studio commands · **49** keyed · **162** MCP tools · **16** skills on rows (+ **18** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -44,11 +44,10 @@ Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Documen
 | Apply eligible tighten hits | `tighten.applyAllSafe` | `Mod+Shift+Enter` | `tightenPanel` | — | — | `podcast-tighten-dialogue` | — | none · none |
 | Preview tighten hit | `tighten.previewHit` | `P` | `tightenPanel` | — | — | `podcast-tighten-dialogue` | — | none · none |
 | Go to tighten hit | `tighten.goToHit` | — (pointer/row action; seek+select) | `tightenPanel` | — | — | `podcast-tighten-dialogue` | — | time · look |
-| Focus: default layout | `focus.default` | `1` | `focusToggle` | — | — | — | — | none · none |
-| Focus: timeline | `focus.timeline` | `2` | `focusToggle` | — | — | — | — | none · none |
-| Focus: text | `focus.text` | `3` | `focusToggle` | — | — | — | — | none · none |
-| Focus: review | `focus.review` | `4` | `focusToggle` | — | — | — | — | none · none |
-| Cycle focus mode | `focus.cycle` | — (not industry-standard; menu/toolbar or unkeyed) | `transport.menu` | — | — | — | — | none · none |
+| Restore layout | `layout.default` | `Mod+1` | `layoutChip` | — | — | — | — | none · none |
+| Maximize timeline | `layout.timeline` | `Mod+2` | `transport.layout` | — | — | — | — | none · none |
+| Maximize transcript | `layout.text` | `Mod+3` | `transport.menu` | — | — | — | — | none · none |
+| Review layout | `layout.review` | `Mod+4` | `transport.menu` | — | — | — | — | none · none |
 | Nudge playhead back | `navigation.nudgePlayheadBack` | `ArrowLeft` | — | — | — | — | — | — |
 | Nudge playhead forward | `navigation.nudgePlayheadForward` | `ArrowRight` | — | — | — | — | — | — |
 | Go to start | `navigation.goToStart` | `Home` | — | — | — | — | — | — |

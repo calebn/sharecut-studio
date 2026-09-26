@@ -1,11 +1,11 @@
 import { execute } from "../commands/execute";
-import type { FocusMode } from "../state/types";
+import type { LayoutMode } from "../state/types";
 import { useDaw } from "../state/useDaw";
 
-const COMMAND: Record<Exclude<FocusMode, "default">, string> = {
-  timeline: "focus.timeline",
-  text: "focus.text",
-  review: "focus.review",
+const COMMAND: Record<Exclude<LayoutMode, "default">, string> = {
+  timeline: "layout.timeline",
+  text: "layout.text",
+  review: "layout.review",
 };
 
 /**
@@ -16,11 +16,11 @@ export function FocusToggle({
   mode,
   label,
 }: {
-  mode: Exclude<FocusMode, "default">;
+  mode: Exclude<LayoutMode, "default">;
   label: string;
 }) {
-  const { focusMode } = useDaw((s) => ({ focusMode: s.focusMode }));
-  const active = focusMode === mode;
+  const { layoutMode } = useDaw((s) => ({ layoutMode: s.layoutMode }));
+  const active = layoutMode === mode;
   return (
     <button
       type="button"
@@ -31,7 +31,7 @@ export function FocusToggle({
       aria-pressed={active}
       onClick={() => {
         void execute(
-          active ? "focus.default" : COMMAND[mode],
+          active ? "layout.default" : COMMAND[mode],
           {},
           { skipWhen: true },
         );

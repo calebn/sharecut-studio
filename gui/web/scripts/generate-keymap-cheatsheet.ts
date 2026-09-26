@@ -30,7 +30,7 @@ const REPO_ROOT = join(__dirname, "../../..");
 const CATEGORY_ORDER: KeymapCategory[] = [
   "transport",
   "tools",
-  "focus",
+  "layout",
   "navigation",
   "review",
   "history",

@@ -38,7 +38,7 @@ describe("keymap registry", () => {
     expect(ids).toContain("tool.select");
     expect(ids).toContain("tool.blade");
     expect(ids).toContain("transport.togglePlay");
-    expect(ids).toContain("focus.timeline");
+    expect(ids).toContain("layout.timeline");
     expect(ids).toContain("history.undo");
   });
 
@@ -56,7 +56,7 @@ describe("keymap registry", () => {
   it("groups by category for cheatsheet consumers", () => {
     const by = keymapByCategory();
     expect(by.tools.map((c) => c.id)).toEqual(["tool.select", "tool.blade"]);
-    expect(by.focus).toHaveLength(4);
+    expect(by.layout).toHaveLength(4);
   });
 
   it("matches V and C case-insensitively", () => {
@@ -68,13 +68,22 @@ describe("keymap registry", () => {
     );
   });
 
-  it("matches Space and focus digit", () => {
+  it("matches Space and Mod+digit layouts", () => {
     expect(matchKeymapCommand(keyEvent({ key: " ", code: "Space" }))?.id).toBe(
       "transport.togglePlay",
     );
-    expect(matchKeymapCommand(keyEvent({ key: "1", code: "Digit1" }))?.id).toBe(
-      "focus.default",
-    );
+    expect(
+      matchKeymapCommand(keyEvent({ key: "1", code: "Digit1" })),
+    ).toBeNull();
+    expect(
+      matchKeymapCommand(keyEvent({ key: "1", code: "Digit1", metaKey: true }))
+        ?.id,
+    ).toBe("layout.default");
+    expect(
+      matchKeymapCommand(keyEvent({ key: "2", code: "Digit2", ctrlKey: true }))
+        ?.id,
+    ).toBe("layout.timeline");
+    expect(formatShortcutKeys(keymapCommandById("layout.text")!)).toBe("Mod+3");
   });
 
   it("matches Mod+A / Mod+Shift+A for track targeting", () => {

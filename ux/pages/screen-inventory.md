@@ -71,7 +71,7 @@ flowchart TB
 | **Always visible (collapsed)** | Outside Listen: Play/Stop, compact playhead time, Comment icon, Fit, Menu icon. Listen uses its own body transport and no header transport. |
 | **Menu → Project (host)** | New / Open, **Connect agent…** (local Streamable HTTP MCP URL), Bounce…, **Share…** (collaboration extension), Record room…, Export deliverables |
 | **Menu → Media / Help** | Import audio, track add / remove / move; Help… and Keyboard shortcuts. Items show their shortcut (⌘ on Apple platforms, Ctrl elsewhere) and sections carry visible labels. |
-| **View menu (wide)** | Layer toggles, zoom, Fit if omitted, theme, focus modes. View and Menu are exclusive: opening one closes the other, and Escape returns focus to the button that opened the current menu. |
+| **View menu (wide)** | Layer toggles, zoom, Fit if omitted, layout and theme radio groups. View and Menu are exclusive: opening one closes the other, and Escape returns focus to the button that opened the current menu. |
 | **Menu (collapsed)** | One combined menu: Project, Media, audition Mix/FX/Raw, session, **Refresh mix** when render is stale, layers, view, Help |
 | **Data shown** | Playhead (timeline sec) · duration · audition kind · optional stale-render note |
 | **Empty / error** | Known `?project=` but shell not yet: real transport chrome, **Loading episode…**, play disabled. Zero tracks after load: ingest “Drop audio files” (not the loading well). Host with no path: home launch. Guest: token/project load failure. The empty stage names the import shortcut in platform form (⌘I on Apple platforms, Ctrl+I elsewhere) and uses themed ink on the light stage; Play stays disabled until the project has media. |
@@ -276,19 +276,19 @@ flowchart TB
 | **Impact** | Pending count · bulk approve/reject · removed duration |
 | **Tighten** | Filler/pause/repetition/restart list · search/filters · preview/skip/apply · apply-all (avoid harsh) · Intensity (Light/Medium/Aggressive) + Find hits |
 | **Pipeline** | Checklist (empty state until Analyze) · param inspector · Analyze · Batch vs leave-gates (align + refine) · Terms and guest-name vocabulary editor with a re-transcribe action when the saved list changes · SSE progress (live headline) |
-| **Transcript** | Follow/edit (also focus mode `text`); Follow unlocks only on wheel / touch / scrollbar / scroll-key input. Long transcripts (≥200 turns) render only nearby turns plus the active, selected and focused ones — browser find-in-page reaches only rendered turns |
+| **Transcript** | Follow/edit (also layout `text`); Follow unlocks only on wheel / touch / scrollbar / scroll-key input. Long transcripts (≥200 turns) render only nearby turns plus the active, selected and focused ones — browser find-in-page reaches only rendered turns |
 | **Status** | Actionable chips (pending, **Render: fresh/stale** from the same state as the transport pill, **Transcript: needs sync** only when stale); overflow-x on narrow |
 
-### Focus modes (desktop)
+### Layouts (desktop/tablet)
 
-| Mode | Key | Effect |
-|------|-----|--------|
-| default | `1` | Full grid |
-| timeline | `2` | Collapse bottom tabs — more lane height |
-| text | `3` | Expand transcript; shrink timeline |
-| review | `4` | Comments-forward + mix-oriented chrome |
+| Layout | Key | Effect |
+|--------|-----|--------|
+| default (**Restore layout**) | `Mod+1` | Full grid |
+| timeline (**Maximize timeline**) | `Mod+2` | Collapse bottom tabs — more lane height |
+| text (**Maximize transcript**) | `Mod+3` | Expand transcript; shrink timeline |
+| review (**Review layout**) | `Mod+4` | Comments-forward + mix-oriented chrome |
 
-Every mode keeps the banner, transport and status rows; only the timeline and bottom-tab areas resize.
+Every layout keeps the banner, transport and status rows; only the timeline and bottom-tab areas resize.
 
 ---
 

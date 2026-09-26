@@ -1,7 +1,7 @@
 import { patchComment } from "../api";
 import { canManageProjects, guestHearsMixOnly } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
-import type { AuditionMode, FocusMode } from "../state/types";
+import type { AuditionMode, LayoutMode } from "../state/types";
 import { errorMessage } from "../utils/apiError";
 import { clampToSession } from "../utils/time";
 import { registerCommand } from "./execute";
@@ -125,19 +125,15 @@ export function registerNavigationCommands(): void {
     }
   });
 
-  const setFocus = (mode: FocusMode) => {
-    useDawStore.getState().setFocusMode(mode);
+  const setLayout = (mode: LayoutMode) => {
+    useDawStore.getState().setLayoutMode(mode);
     return { status: "ok" } as const;
   };
 
-  registerCommand("focus.default", () => setFocus("default"));
-  registerCommand("focus.timeline", () => setFocus("timeline"));
-  registerCommand("focus.text", () => setFocus("text"));
-  registerCommand("focus.review", () => setFocus("review"));
-  registerCommand("focus.cycle", () => {
-    useDawStore.getState().cycleFocusMode();
-    return { status: "ok" };
-  });
+  registerCommand("layout.default", () => setLayout("default"));
+  registerCommand("layout.timeline", () => setLayout("timeline"));
+  registerCommand("layout.text", () => setLayout("text"));
+  registerCommand("layout.review", () => setLayout("review"));
 
   registerCommand("navigation.nudgePlayheadBack", (args, ctx) => {
     const delta = args.shift ? 5 : 1;

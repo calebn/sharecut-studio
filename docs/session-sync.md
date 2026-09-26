@@ -160,7 +160,7 @@ Every GUI surface is classified once as **Look**, **Hear**, or **Do** (`presence
 |-------|--------------------------|----------|
 | **Look** | Yes | Viewport + zoom, transport/playhead, active tab / phone mode, transcript scroll, inspector selection (`envelopePoint` is `{ kind, track_id, time }` — sorted volume time, not a transcript `word_index`) |
 | **Hear** | Yes if the follower can; otherwise the banner says what the leader hears | Audition Mix/FX/Raw, listen-only mute, solo (saved mix mute and volume are document state, so followers already hear them). Guests stay Mix. Host-only tabs (History, Impact, Pipeline) stay on the follower’s last available tab with a banner like “· in Pipeline (host-only)” |
-| **Do** | Never | Tool mode, comment mode, drafts, menus/dialogs/palette, focus mode, sheet, layer toggles, ingest, theme |
+| **Do** | Never | Tool mode, comment mode, drafts, menus/dialogs/palette, layout, sheet, layer toggles, ingest, theme |
 
 **Cursor** is independent of follow: drawn over any surface with a resolvable `data-presence-anchor` (or a timeline `t_sec` + `lane_pos`, in lane units, so it lands at the same spot in the same lane whatever each viewer's lane height). If the anchor is not in this DOM, draw nothing. Never guess a Y position (unknown `track_id` without `lane_pos` used to snap to lane 0).
 

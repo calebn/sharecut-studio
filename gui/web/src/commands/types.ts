@@ -3,7 +3,7 @@
 export type CommandCategory =
   | "transport"
   | "tools"
-  | "focus"
+  | "layout"
   | "navigation"
   | "review"
   | "edit"

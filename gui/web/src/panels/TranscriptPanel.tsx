@@ -112,7 +112,7 @@ export function TranscriptPanel() {
     toggleTranscriptAnnotate,
     showCutAwayUtterances,
     setShowCutAwayUtterances,
-    focusMode,
+    layoutMode,
     followingClientId,
     stopFollow,
     transcriptScrollRequest,
@@ -131,7 +131,7 @@ export function TranscriptPanel() {
     toggleTranscriptAnnotate: s.toggleTranscriptAnnotate,
     showCutAwayUtterances: s.showCutAwayUtterances,
     setShowCutAwayUtterances: s.setShowCutAwayUtterances,
-    focusMode: s.focusMode,
+    layoutMode: s.layoutMode,
     followingClientId: s.followingClientId,
     stopFollow: s.stopFollow,
     transcriptScrollRequest: s.transcriptScrollRequest,
@@ -553,7 +553,7 @@ export function TranscriptPanel() {
 
   const mappedCount = allUtterances.length - cutAwayCount;
   const dockWordEditor =
-    focusMode === "text" &&
+    layoutMode === "text" &&
     selection?.kind === "transcriptWord" &&
     intent === "correct";
 
