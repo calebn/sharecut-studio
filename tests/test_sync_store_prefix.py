@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -106,3 +108,108 @@ def test_mutate_snapshot_returns_none_when_empty(tmp_path: Path) -> None:
     rec = SyncStore(tmp_path / "sync.db", table_prefix="record_")
     assert rec.mutate_snapshot(lambda raw: raw) is None
     rec.close()
+
+
+def _record_append(store, command_id, seq, apply_fn, *, side_effect_fn=None):
+    return store.append_and_apply(
+        command_id=command_id,
+        client_id="guest",
+        client_seq=seq,
+        role="guest",
+        type="Join",
+        payload={"n": seq},
+        causation_id=None,
+        apply_fn=apply_fn,
+        empty_snap_fn=lambda: {"server_seq": 0},
+        side_effect_fn=side_effect_fn,
+    )
+
+
+def _count_apply(snapshot, row):
+    return {**snapshot, "server_seq": row["server_seq"], "n": int(snapshot.get("n") or 0) + 1}
+
+
+def test_record_prefix_independent_connections_materialize_in_order(tmp_path: Path) -> None:
+    db_path = tmp_path / "sync.db"
+    first_store = SyncStore(db_path, table_prefix="record_")
+    second_store = SyncStore(db_path, table_prefix="record_")
+    first_entered, second_done = threading.Event(), threading.Event()
+
+    def slow_first(snapshot, row):
+        first_entered.set()
+        second_done.wait(timeout=1.0)
+        return _count_apply(snapshot, row)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(_record_append, first_store, "first", 1, slow_first)
+        assert first_entered.wait(timeout=5.0)
+        second = pool.submit(_record_append, second_store, "second", 2, _count_apply)
+        second.add_done_callback(lambda _: second_done.set())
+        assert first.result()[0]["server_seq"] == 1
+        assert second.result()[0]["server_seq"] == 2
+    snapshot = first_store.get_snapshot()
+    assert snapshot is not None
+    assert (snapshot["server_seq"], snapshot["n"]) == (2, 2)
+    first_store.close()
+    second_store.close()
+
+
+def test_record_prefix_failed_apply_rolls_back_command_so_retry_applies(tmp_path: Path) -> None:
+    store = SyncStore(tmp_path / "sync.db", table_prefix="record_")
+
+    def boom(_snapshot, _row):
+        raise RuntimeError("apply failed")
+
+    with pytest.raises(RuntimeError):
+        _record_append(store, "c1", 1, boom)
+    assert store.commands_after(0) == []
+    assert store.get_snapshot() is None
+    _row, _snap, idempotent = _record_append(store, "c1", 1, _count_apply)
+    assert idempotent is False
+    store.close()
+
+
+def test_side_effect_commits_and_rolls_back_with_its_command(tmp_path: Path) -> None:
+    store = SyncStore(tmp_path / "sync.db", table_prefix="record_")
+    store._conn.execute("CREATE TABLE side (x INTEGER)")
+
+    def write_side(conn, row):
+        conn.execute("INSERT INTO side (x) VALUES (?)", (row["server_seq"],))
+
+    def fail_side(conn, row):
+        write_side(conn, row)
+        raise RuntimeError("side effect failed")
+
+    _record_append(store, "ok", 1, _count_apply, side_effect_fn=write_side)
+    with pytest.raises(RuntimeError):
+        _record_append(store, "bad", 2, _count_apply, side_effect_fn=fail_side)
+    assert [r[0] for r in store._conn.execute("SELECT x FROM side").fetchall()] == [1]
+    assert [r["command_id"] for r in store.commands_after(0)] == ["ok"]
+    store.close()
+
+
+def test_mutate_snapshot_is_one_write_transaction(tmp_path: Path) -> None:
+    db_path = tmp_path / "sync.db"
+    a = SyncStore(db_path, table_prefix="record_")
+    b = SyncStore(db_path, table_prefix="record_")
+    _record_append(a, "seed", 1, _count_apply)
+    entered, release = threading.Event(), threading.Event()
+
+    def mutator(body):
+        entered.set()
+        release.wait(timeout=5.0)
+        return {**body, "field": "mine"}
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        mutate = pool.submit(a.mutate_snapshot, mutator)
+        assert entered.wait(timeout=5.0)
+        append = pool.submit(_record_append, b, "later", 2, _count_apply)
+        release.set()
+        mutate.result()
+        appended = append.result()
+    assert appended[0]["server_seq"] == 2
+    snapshot = a.get_snapshot()
+    assert snapshot is not None
+    assert (snapshot["server_seq"], snapshot["field"], snapshot["n"]) == (2, "mine", 2)
+    a.close()
+    b.close()

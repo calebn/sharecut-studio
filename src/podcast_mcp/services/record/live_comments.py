@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import sqlite3
 import threading
 import time
 from pathlib import Path
@@ -68,6 +69,91 @@ def live_comment_store_for(project: EpisodeProject) -> RecordLiveCommentStore:
     return cached_record_live_comment_store(sync_db_path(project))
 
 
+def upsert_live_comment(
+    conn: sqlite3.Connection,
+    *,
+    session_id: str,
+    comment_id: str,
+    take_index: int,
+    recording_ms: int,
+    pressed_wall_ms: int,
+    author: str,
+    body: str,
+) -> str:
+    """Insert or update one live comment row; returns its id.
+
+    Caller serializes: the store's lock, or the record ``SyncStore`` transaction that
+    journals the Comment.
+    """
+    cid = parse_comment_id(comment_id)
+    text = (body or "").strip()
+    if not text:
+        raise RecordLiveCommentError("comment body is required")
+    if len(text) > COMMENT_BODY_MAX:
+        raise RecordLiveCommentError("comment body exceeds limit")
+    who = (author or "").strip()
+    if not who:
+        raise RecordLiveCommentError("author is required")
+    now_ns = time.time_ns()
+    existing = conn.execute(
+        """
+        SELECT comment_id, landed_ns, author FROM record_live_comments
+        WHERE session_id = ? AND comment_id = ?
+        """,
+        (session_id, cid),
+    ).fetchone()
+    if existing is None:
+        count = int(
+            conn.execute(
+                """
+                SELECT COUNT(*) AS n FROM record_live_comments
+                WHERE session_id = ? AND landed_ns IS NULL
+                """,
+                (session_id,),
+            ).fetchone()["n"]
+        )
+        if count >= RECORD_LIVE_COMMENT_MAX:
+            raise RecordLiveCommentError("too many live comments")
+        conn.execute(
+            """
+            INSERT INTO record_live_comments (
+              session_id, comment_id, take_index, recording_ms,
+              pressed_wall_ms, author, body, created_ns, landed_ns
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
+            """,
+            (
+                session_id,
+                cid,
+                take_index,
+                recording_ms,
+                pressed_wall_ms,
+                who,
+                text,
+                now_ns,
+            ),
+        )
+    elif existing["landed_ns"] is None:
+        if str(existing["author"]) != who:
+            raise RecordLiveCommentError("comment belongs to another participant")
+        conn.execute(
+            """
+            UPDATE record_live_comments
+            SET take_index = ?, recording_ms = ?, pressed_wall_ms = ?,
+                body = ?
+            WHERE session_id = ? AND comment_id = ? AND landed_ns IS NULL
+            """,
+            (
+                take_index,
+                recording_ms,
+                pressed_wall_ms,
+                text,
+                session_id,
+                cid,
+            ),
+        )
+    return cid
+
+
 class RecordLiveCommentStore:
     def __init__(self, db_path: Path) -> None:
         self.db_path = db_path
@@ -96,73 +182,17 @@ class RecordLiveCommentStore:
         author: str,
         body: str,
     ) -> dict[str, Any]:
-        cid = parse_comment_id(comment_id)
-        text = (body or "").strip()
-        if not text:
-            raise RecordLiveCommentError("comment body is required")
-        if len(text) > COMMENT_BODY_MAX:
-            raise RecordLiveCommentError("comment body exceeds limit")
-        who = (author or "").strip()
-        if not who:
-            raise RecordLiveCommentError("author is required")
-        now_ns = time.time_ns()
         with self._lock:
-            existing = self._conn.execute(
-                """
-                SELECT comment_id, landed_ns, author FROM record_live_comments
-                WHERE session_id = ? AND comment_id = ?
-                """,
-                (session_id, cid),
-            ).fetchone()
-            if existing is None:
-                count = int(
-                    self._conn.execute(
-                        """
-                        SELECT COUNT(*) AS n FROM record_live_comments
-                        WHERE session_id = ? AND landed_ns IS NULL
-                        """,
-                        (session_id,),
-                    ).fetchone()["n"]
-                )
-                if count >= RECORD_LIVE_COMMENT_MAX:
-                    raise RecordLiveCommentError("too many live comments")
-                self._conn.execute(
-                    """
-                    INSERT INTO record_live_comments (
-                      session_id, comment_id, take_index, recording_ms,
-                      pressed_wall_ms, author, body, created_ns, landed_ns
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
-                    """,
-                    (
-                        session_id,
-                        cid,
-                        take_index,
-                        recording_ms,
-                        pressed_wall_ms,
-                        who,
-                        text,
-                        now_ns,
-                    ),
-                )
-            elif existing["landed_ns"] is None:
-                if str(existing["author"]) != who:
-                    raise RecordLiveCommentError("comment belongs to another participant")
-                self._conn.execute(
-                    """
-                    UPDATE record_live_comments
-                    SET take_index = ?, recording_ms = ?, pressed_wall_ms = ?,
-                        body = ?
-                    WHERE session_id = ? AND comment_id = ? AND landed_ns IS NULL
-                    """,
-                    (
-                        take_index,
-                        recording_ms,
-                        pressed_wall_ms,
-                        text,
-                        session_id,
-                        cid,
-                    ),
-                )
+            cid = upsert_live_comment(
+                self._conn,
+                session_id=session_id,
+                comment_id=comment_id,
+                take_index=take_index,
+                recording_ms=recording_ms,
+                pressed_wall_ms=pressed_wall_ms,
+                author=author,
+                body=body,
+            )
         return self.get(session_id, cid) or {}
 
     def get(self, session_id: str, comment_id: str) -> dict[str, Any] | None:

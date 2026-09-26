@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,7 @@ from podcast_mcp.gui.server import create_app
 from podcast_mcp.history import HistoryManager
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services import ProjectWorkspace
+from podcast_mcp.services.record import service as record_service
 from podcast_mcp.services.record.commands import RecordAuthzError, RecordCommand
 from podcast_mcp.services.record.landing import RecordLandingService
 from podcast_mcp.services.record.live_comments import (
@@ -28,6 +30,8 @@ from podcast_mcp.services.record.service import (
     next_record_client_seq,
     reset_record_runtime_for_tests,
 )
+from podcast_mcp.services.session_sync.log import SyncStore
+from podcast_mcp.services.session_sync.service import sync_db_path
 from podcast_mcp.services.share import ShareService
 
 
@@ -671,3 +675,97 @@ def test_land_skips_foreign_comment_id(minimal_project, sample_wav, tmp_workspac
     assert result["comments"] == []
     assert [c.author for c in ws.project.comments] == ["host"]
     assert ws.project.comments[0].body == "host note"
+
+
+def _guest_comment(guest: str, cid: str, pressed: int):
+    return _cmd(
+        "Comment",
+        pid=guest,
+        role="guest",
+        payload=_comment_payload(cid, pressed=pressed),
+    )
+
+
+def test_comments_from_independent_connections_do_not_deadlock(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    """Two connections (as two processes) journal Comments without a second-connection deadlock."""
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc_b = RecordSessionService(ws.project, session_id=room["session_id"])
+    svc_b._store = SyncStore(sync_db_path(ws.project), table_prefix="record_")
+    svc_b._comments = RecordLiveCommentStore(sync_db_path(ws.project))
+    svc_b._authority_lock = threading.RLock()
+    first_entered, second_started = threading.Event(), threading.Event()
+    real_apply = record_service.apply_record_command
+    calls = {"n": 0}
+
+    def slow_first(current, applied, *, now_wall_ms):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            first_entered.set()
+            second_started.wait(timeout=1.0)
+        return real_apply(current, applied, now_wall_ms=now_wall_ms)
+
+    monkeypatch.setattr(record_service, "apply_record_command", slow_first)
+    caps = ["join", "monitor", "comment"]
+    errors: list[BaseException] = []
+
+    def submit(service, cid, pressed):
+        try:
+            service.submit(
+                _guest_comment(guest, cid, pressed), now_wall_ms=200_000, capabilities=caps
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    first = threading.Thread(target=submit, args=(svc, "a", 100_000))
+    first.start()
+    assert first_entered.wait(timeout=5)
+
+    def second_run():
+        second_started.set()
+        submit(svc_b, "b", 110_000)
+
+    second = threading.Thread(target=second_run)
+    second.start()
+    first.join(timeout=20)
+    second.join(timeout=20)
+    try:
+        assert errors == []
+        assert {c["id"] for c in svc.snapshot()["comments"]} == {"live-a", "live-b"}
+        last = svc._store.commands_after(0)[-1]
+        assert svc._store.get_snapshot()["server_seq"] == last["server_seq"]
+    finally:
+        svc_b._store.close()
+        svc_b._comments.close()
+
+
+def test_failed_comment_write_leaves_no_command_and_retry_applies(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    real = record_service.upsert_live_comment
+    calls = {"n": 0}
+
+    def fail_once(conn, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RecordLiveCommentError("boom")
+        return real(conn, **kwargs)
+
+    monkeypatch.setattr(record_service, "upsert_live_comment", fail_once)
+    cmd = _guest_comment(guest, "retry", 100_000)
+    caps = ["join", "monitor", "comment"]
+    with pytest.raises(RecordStateError):
+        svc.submit(cmd, now_wall_ms=200_000, capabilities=caps)
+    assert [r for r in svc._store.commands_after(0) if r["type"] == "Comment"] == []
+    svc.submit(cmd, now_wall_ms=200_000, capabilities=caps)
+    assert [c["id"] for c in svc.snapshot()["comments"]] == ["live-retry"]
