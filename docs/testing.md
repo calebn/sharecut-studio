@@ -155,10 +155,12 @@ checks both premix and mastered sources: frozen WAV bytes and SHA-256 match the
 source, and the saved MP3 decodes fully with FFmpeg. Pass `capabilities=[]` to
 test the default capability fallback, or leave it unset for all capabilities.
 `test_review_versions.py` fault-injects MP3 export and persistence failures, no-replace
-promotion collisions, staging identity failures, and failed cleanup. Its direct cleanup
+promotion collisions, staging identity failures, post-promotion media changes, and failed cleanup. Its direct cleanup
 cases cover replacement before and during quarantine, descriptor failures, missing
 directories, and a retained quarantine when removal fails. The stale quarantine sweep
-requires a matching ownership marker and identity and is bounded by age and entry count.
+requires a trusted ownership marker and identity; stale stages are also recovered.
+The sweep rotates its bounded candidate inspection across calls, including separate CLI
+processes, while enumeration and deletion stay outside the project commit lock.
 Subprocess tests race promotion and quarantine against an independent writer. Sweep tests
 keep fresh and symlinked entries, enforce the 32-entry cap, and retarget an ancestor
 symlink during root-relative quarantine creation. An identity-read failure retains only

@@ -106,23 +106,30 @@ Publication copies and encodes into a private `.staging-review-*` directory unde
 pinned review root. Under the project commit lock it atomically promotes the complete
 media directory to `{id}` with a no-replace rename, then records the version. Linux uses
 `renameat2(RENAME_NOREPLACE)` and macOS uses `renameatx_np(RENAME_EXCL)`; unsupported
-systems fail closed. An existing destination is never overwritten. A failed copy or
-encode leaves no public version.
+systems fail closed. **Review publishing is unavailable on Windows through CLI, MCP,
+and share flows** until a Windows implementation can provide equivalent descriptor-safe
+cleanup and atomic no-replace promotion. An existing destination is never overwritten.
+The promoted directory identity and WAV hash are verified before attach. A failed copy
+or encode leaves no public version.
 
 Generation and persistence failure cleanup use the directory identity recorded at
-staging creation, hold the project commit lock, and quarantine with descriptor-relative
+staging creation and quarantine with descriptor-relative
 operations. A replacement before the first identity check is retained. If replacement
 lands between the check and quarantine rename, cleanup tries an atomic no-replace restore
 to the public name. If that name is occupied or restoration fails, the replacement stays
 in `.failed-review-*` for inspection. Cleanup never overwrites or deletes it.
-Quarantines with a matching ownership marker and directory identity become eligible for
-a bounded sweep after 24 hours; each publish inspects at most 32 entries. Legacy,
-mismatched, and partially removed quarantines stay for manual inspection.
+Quarantines with a trusted ownership marker and directory identity, and private
+staging directories, become eligible for cleanup after 24 hours. Each publish scans
+private names outside the commit lock and inspects at most 32 randomly rotated
+candidates, so old entries can be reached across separate CLI runs. This scan costs
+more as the review directory grows. Legacy, mismatched, untrusted, and partially
+removed quarantines stay for manual inspection.
 
 The review root is resolved once before staging so symlink retargeting cannot redirect
 cleanup. A saved version retains its media even if a later write reports an error.
-Cleanup failures are logged without masking the publication error. The boundary assumes
-other local writers do not deliberately modify private staging or quarantine contents.
+Cleanup failures are logged without masking the publication error. Publication and
+automatic cleanup require the review root to be owned by the process and not writable
+by group or other users.
 If the staging identity read fails, the private directory is retained because its identity cannot be proven; no public name is created. Identity is `(st_dev, st_ino)`; inode reuse after deletion remains a filesystem limit.
 
 If a published version's MP3 is missing, retry encoding writes a temporary MP3 beside it and
