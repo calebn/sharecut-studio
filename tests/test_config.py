@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from podcast_mcp.config import (
     cache_dir,
     load_defaults,
@@ -78,3 +80,17 @@ def test_load_defaults_invalid_env_does_not_crash(tmp_path, monkeypatch):
 def test_load_defaults_missing_override_returns_empty(tmp_path, monkeypatch):
     monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(tmp_path / "missing.yaml"))
     assert load_defaults() == {}
+
+
+def test_load_defaults_rereads_a_changed_file_and_copies_per_caller(tmp_path, monkeypatch):
+    monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
+    cfg = tmp_path / "pipeline.yaml"
+    cfg.write_text("render:\n  join_fade_max_ms: 25\n", encoding="utf-8")
+    monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(cfg))
+    first = load_defaults()
+    first["render"]["join_fade_max_ms"] = 999
+    assert load_defaults()["render"]["join_fade_max_ms"] == 25
+    cfg.write_text("render:\n  join_fade_max_ms: 30\n", encoding="utf-8")
+    st = cfg.stat()
+    os.utime(cfg, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
+    assert load_defaults()["render"]["join_fade_max_ms"] == 30

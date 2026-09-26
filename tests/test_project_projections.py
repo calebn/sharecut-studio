@@ -396,3 +396,45 @@ def test_track_views_expose_fade_cap(minimal_project, monkeypatch) -> None:
     )
     caps = {t.id: t.fade_max_ms for t in build_track_views(ws)}
     assert caps == {"host": 25, "bed": None}
+
+
+def test_fade_cap_view_matches_the_writer_and_refreshes_with_clips(
+    minimal_project, tmp_path, monkeypatch
+) -> None:
+    import yaml
+
+    from podcast_mcp.config import load_defaults
+    from podcast_mcp.edits.timeline_ops import set_clip_fade
+    from podcast_mcp.gui.assembler import build_track_views
+    from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole
+
+    monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
+
+    def use_cap(name: str, cap: int) -> None:
+        cfg = load_defaults()
+        cfg["render"]["join_fade_max_ms"] = cap
+        path = tmp_path / name
+        path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+        monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(path))
+
+    use_cap("cap25.yaml", 25)
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.project.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=10.0),
+        )
+    ]
+    ws.project.timeline.clips = [
+        Clip(id="c1", track_id="host", source_start=0.0, source_end=2.0, timeline_start=0.0)
+    ]
+    view_cap = {t.id: t.fade_max_ms for t in build_track_views(ws)}["host"]
+    set_clip_fade(ws.project, "c1", 500, 0)
+    assert view_cap == ws.project.timeline.clips[0].fade_in_ms == 25
+
+    use_cap("cap30.yaml", 30)
+    ws.save()
+    clips = dump_project_projection(ws, projection=ViewProjection.CLIPS)
+    assert [t["fade_max_ms"] for t in clips["tracks"]] == [30]
