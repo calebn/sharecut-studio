@@ -439,6 +439,22 @@ describe("rasterClient", () => {
     expect(rasterWorkerRestarts()).toBe(RASTER_WORKER_RESTARTS);
   });
 
+  it("an onmessageerror restart charges no failure to the jobs in flight", () => {
+    const failed: string[] = [];
+    subscribeRasterFailed((k) => {
+      failed.push(k);
+      requestRaster(req(k));
+    });
+    requestRaster(req("a"));
+    for (let i = 0; i <= RASTER_JOB_RETRIES; i++) {
+      FakeRasterWorker.last!.onmessageerror?.();
+    }
+    // Reported each time and never retired: it reached the newest worker.
+    expect(failed).toEqual(Array(RASTER_JOB_RETRIES + 1).fill("a"));
+    expect(FakeRasterWorker.last!.posted).toHaveLength(1);
+    expect(getRasterBackend()).not.toBe("none");
+  });
+
   it("crashRasterWorker restarts the current worker (E2E) and counts it", () => {
     crashRasterWorker();
     expect(FakeRasterWorker.created).toBe(0);
