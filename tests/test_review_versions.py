@@ -278,7 +278,7 @@ def test_service_publish_keeps_media_when_history_was_not_rolled_back(
         mp3.write_bytes(b"encoded")
 
     monkeypatch.setattr(review_versions.FFmpegEngine, "export_mp3", export_mp3)
-    monkeypatch.setattr("podcast_mcp.history.session.rollback_own_history", lambda *a, **k: False)
+    monkeypatch.setattr("podcast_mcp.history.rollback.rollback_own_history", lambda *a, **k: False)
 
     def fail_commit(self, project):
         raise RuntimeError("commit failed")

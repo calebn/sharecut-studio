@@ -8,6 +8,7 @@ from typing import Any, TypeVar
 from pydantic import ValidationError
 
 from podcast_mcp.history import HistoryManager, run_mutation
+from podcast_mcp.history.manager import record_and_commit
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.project_io import open_project, resolve_project_path
@@ -20,6 +21,7 @@ from podcast_mcp.project_merge import (
 )
 from podcast_mcp.project_store import (
     ProjectStore,
+    commit_landed,
     history_index_path,
     history_index_to_restore,
     history_snapshot_ids,
@@ -184,12 +186,7 @@ class ProjectWorkspace:
         snapshots_before: set[str],
     ) -> None:
         """Best-effort cleanup after a failed ``save_merged``; logs and never raises."""
-        replaced: bool | None
-        try:
-            replaced = project_file_revision(self.project) != revision
-        except OSError:
-            log.warning("Could not stat the project file after a failed save", exc_info=True)
-            replaced = None  # unknown whether the commit landed
+        replaced = commit_landed(self.project, revision)  # None: unknown whether it landed
         if to_save is not None and replaced:
             # The project file was replaced; only a later write (transcript cache) failed.
             try:
@@ -280,8 +277,13 @@ class ProjectWorkspace:
                 self._loaded_file_signature = None
 
     def record_snapshot(self, label: str, *, force: bool = False) -> str:
-        entry = HistoryManager(self.path).record(self.project, label, force=force)
-        self.save()
+        """Record ``label`` as a history entry and commit it; a failure rolls the entry back."""
+        with project_state_lock(self.project):
+            try:
+                entry = record_and_commit(self._store, self.project, label, force=force)
+            finally:
+                # A failed commit may still have replaced the file; re-read before trusting it.
+                self._loaded_file_signature = None
         return f"{entry.id}: {entry.label}"
 
     @staticmethod

@@ -9,7 +9,7 @@ from typing import Any
 from podcast_mcp.models import EpisodeProject, load_project, project_file_path, save_project
 from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
-from podcast_mcp.util.project_state import project_commit_lock
+from podcast_mcp.util.project_state import FileRevision, project_commit_lock, project_file_revision
 
 log = logging.getLogger(__name__)
 
@@ -83,6 +83,11 @@ def rollback_own_history(
     Call under ``project_commit_lock``. The index is rolled back only if it still equals
     ``index_before`` or one of ``own_indexes`` (payloads this caller wrote); otherwise
     nothing is touched and ``False`` is returned.
+
+    Ownership is decided by payload equality, not identity. That assumes distinct writers
+    never produce an identical payload, which holds because every recorded entry gets a
+    fresh uuid id: an undo keeps entries in the index, and dropping the redo branch takes
+    a record that adds a new id, so another writer's work never reads as ours.
     """
     current = load_json_object(index_path)
     if current != index_before and current not in own_indexes:
@@ -91,6 +96,21 @@ def rollback_own_history(
     if current != index_before or ids:
         rollback_history(index_path, index_before, ids)
     return True
+
+
+def commit_landed(project: EpisodeProject, revision_before: FileRevision | None) -> bool | None:
+    """Whether the project file was replaced since ``revision_before`` (``None``: unknown).
+
+    For cleanup after a failed commit; call under ``project_commit_lock``. ``None`` when the
+    file cannot be stat'ed: callers then restore only the in-memory history and leave
+    ``history/index.json`` and its snapshots on disk (an orphaned snapshot is harmless; a
+    deleted one that the saved file references breaks undo).
+    """
+    try:
+        return project_file_revision(project) != revision_before
+    except OSError:
+        log.warning("Could not stat the project file after a failed commit", exc_info=True)
+        return None
 
 
 class ProjectStore:

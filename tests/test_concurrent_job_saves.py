@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from podcast_mcp import project_store as project_store_mod
 from podcast_mcp.engines.play_audit import premix_is_stale, write_stem_hash
 from podcast_mcp.gui.jobs import _gui_fail_message
 from podcast_mcp.history import HistoryManager
@@ -434,19 +435,14 @@ def test_save_merged_keeps_snapshots_when_the_file_cannot_be_statted(minimal_pro
     ws.checkpoint()
     ws.project.track_by_id("host").gain_db = 2.0
     history_before = ws.project.history.model_copy(deep=True)
-    real_revision = workspace_mod.project_file_revision
-    calls = {"n": 0}
 
-    def revision(project):
-        calls["n"] += 1
-        if calls["n"] > 1:
-            raise PermissionError("stat denied")
-        return real_revision(project)
+    def revision(_project):
+        raise PermissionError("stat denied")
 
     def cache_boom(*_a, **_k):
         raise OSError("cache")
 
-    monkeypatch.setattr(workspace_mod, "project_file_revision", revision)
+    monkeypatch.setattr(project_store_mod, "project_file_revision", revision)
     monkeypatch.setattr(ws._store, "_mirror_transcript_cache", cache_boom)
     with pytest.raises(OSError, match="cache"):
         ws.save_merged(history_label="after step")
