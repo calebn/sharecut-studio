@@ -1,5 +1,5 @@
+import { hostFetch } from "./api/documentTransport";
 import {
-  applyDocumentResult,
   applyDocumentSnapshot,
   mergeGuestActionDone,
   mergeReturnedComment,
@@ -9,7 +9,8 @@ import {
   copyUploadBody,
   recordUploadSearchParams,
 } from "./record/upload/params";
-import { authHeaders, getSessionToken } from "./sessionAuth";
+import { submitQueuedDocumentCommand } from "./services/commandQueue";
+import { getSessionToken } from "./sessionAuth";
 import {
   isShareProjectKey,
   reviewApiBase,
@@ -41,27 +42,11 @@ import type {
   HostSharesResponse,
   ShareRole,
 } from "./types/shares";
-import {
-  ApiError,
-  isRetryLater,
-  readApiError,
-  readApiFailure,
-} from "./utils/apiError";
-import {
-  documentClientId,
-  newCommandId,
-  nextDocumentClientSeq,
-} from "./utils/documentClient";
+import { ApiError, readApiError, readApiFailure } from "./utils/apiError";
 import { withVolumeEnvelopePoints } from "./utils/envelopes";
 import { jobResultPaths } from "./utils/pipeline";
 import type { WaveformKind, WaveformStatus } from "./waveform/types";
 
-async function hostFetch(input: string, init?: RequestInit): Promise<Response> {
-  return fetch(input, {
-    ...init,
-    headers: authHeaders(init?.headers),
-  });
-}
 export async function loadReviewBootstrap(token: string): Promise<{
   capabilities: string[];
   guest_mode?: string;
@@ -366,186 +351,7 @@ export async function submitDocumentCommand(
     client_id?: string;
   },
 ): Promise<Record<string, unknown>> {
-  const command_id = opts?.command_id ?? newCommandId();
-  const client_seq = opts?.client_seq ?? nextDocumentClientSeq();
-  const bodyBase = {
-    client_id: opts?.client_id ?? documentClientId(),
-    client_seq,
-    command_id,
-    type,
-    payload,
-    ...(opts?.structural_mode ? { structural_mode: opts.structural_mode } : {}),
-  };
-
-  if (isShareProjectKey(projectPath)) {
-    const token = shareTokenFromKey(projectPath)!;
-    const structural =
-      type === "SplitAtTime" ||
-      type === "DeleteClip" ||
-      type === "RippleDeleteClip";
-    const offline =
-      opts?.offline === true ||
-      (typeof navigator !== "undefined" && navigator.onLine === false);
-    const structural_mode =
-      opts?.structural_mode ?? (offline && structural ? "propose" : undefined);
-
-    const { enqueueCommand, removeQueuedCommand } = await import(
-      "./state/offlineStore"
-    );
-    await enqueueCommand(token, {
-      command_id,
-      client_id: bodyBase.client_id,
-      client_seq,
-      type,
-      payload,
-      structural_mode,
-      created_at: Date.now(),
-    });
-
-    let res: Response;
-    try {
-      res = await fetch(`${reviewApiBase(token)}/daw/document/command`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...bodyBase,
-          role: "guest",
-          ...(structural_mode ? { structural_mode } : {}),
-        }),
-      });
-    } catch (err) {
-      // The request never reached the server. The command stays queued and
-      // replays on reconnect, so the caller keeps its optimistic value.
-      if (opts?.replaying) {
-        throw err;
-      }
-      return { ok: true, queued: true, command_id, client_seq };
-    }
-    if (!res.ok) {
-      const failure = await readApiFailure(res);
-      if (opts?.replaying && isRetryLater(failure)) {
-        // Nobody awaits a replay: keep it queued for the next drain.
-        throw failure;
-      }
-      if (res.status === 409 || opts?.replaying) {
-        // Record it, so the banner says why the edit was dropped.
-        const { addConflict } = await import("./state/offlineStore");
-        await addConflict(token, {
-          command: {
-            command_id,
-            client_seq,
-            type,
-            payload,
-            created_at: Date.now(),
-          },
-          reason: failure.message,
-        });
-      }
-      // The caller reports a live refusal now. Replaying it later would
-      // overwrite newer edits, as on the host.
-      await removeQueuedCommand(token, command_id);
-      throw failure;
-    }
-    await removeQueuedCommand(token, command_id);
-    const data = (await res.json()) as Record<string, unknown>;
-    if (useDawStore.getState().projectPath === projectPath) {
-      applyDocumentResult(data);
-    }
-    return data;
-  }
-  const hostQueue = await import("./state/offlineStore");
-  let enqueueResult = { persisted: false, hadPredecessor: false };
-  if (opts?.replaying) {
-    // A replay already owns its persisted queue record.
-    enqueueResult.persisted = true;
-  } else {
-    try {
-      enqueueResult = await hostQueue.enqueueHostCommand(projectPath, {
-        command_id,
-        client_id: bodyBase.client_id,
-        client_seq,
-        type,
-        payload,
-        structural_mode: opts?.structural_mode,
-        created_at: Date.now(),
-      });
-    } catch (error) {
-      // Direct send is safe only when a readable queue proves there is no older edit.
-      let pending;
-      try {
-        pending = await hostQueue.loadHostCommandQueue(projectPath);
-      } catch {
-        throw error;
-      }
-      if (pending.length > 0) {
-        throw new Error(
-          "Cannot send this edit while older offline edits are pending",
-        );
-      }
-    }
-  }
-  if (enqueueResult.hadPredecessor && !opts?.replaying) {
-    return { ok: true, queued: true, command_id, client_seq };
-  }
-  let res: Response;
-  try {
-    res = await hostFetch(
-      `/api/document/command?path=${encodeURIComponent(projectPath)}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...bodyBase,
-          role: "viewer",
-        }),
-      },
-    );
-  } catch (err) {
-    if (enqueueResult.persisted) {
-      return { ok: true, queued: true, command_id, client_seq };
-    }
-    throw err;
-  }
-  if (!res.ok) {
-    const failure = await readApiFailure(res);
-    const detail = failure.message;
-    if (res.status < 500) {
-      // A 4xx will never succeed on retry. Record 409s, and any rejected
-      // replay (nobody is awaiting it), so the banner says why it was dropped.
-      if (res.status === 409 || opts?.replaying) {
-        await hostQueue.addHostConflict(projectPath, {
-          command: {
-            command_id,
-            client_seq,
-            type,
-            payload,
-            created_at: Date.now(),
-          },
-          reason: detail,
-        });
-      }
-      if (enqueueResult.persisted) {
-        await hostQueue.removeHostQueuedCommand(projectPath, command_id);
-      }
-    }
-    if (res.status >= 500 && enqueueResult.persisted) {
-      return { ok: true, queued: true, command_id, client_seq };
-    }
-    throw failure;
-  }
-  if (enqueueResult.persisted && !opts?.replaying) {
-    // The server already committed. Failed local cleanup must not invite a new edit.
-    try {
-      await hostQueue.removeHostQueuedCommand(projectPath, command_id);
-    } catch {
-      // A later idempotent replay will clean up this same command identity.
-    }
-  }
-  const data = (await res.json()) as Record<string, unknown>;
-  if (useDawStore.getState().projectPath === projectPath) {
-    applyDocumentResult(data);
-  }
-  return data;
+  return submitQueuedDocumentCommand(projectPath, type, payload, opts);
 }
 
 export async function undoHistory(

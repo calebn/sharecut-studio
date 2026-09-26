@@ -156,6 +156,60 @@ describe("host document command queue", () => {
     });
   });
 
+  it("persists a guest edit before posting its command identity", async () => {
+    const calls: string[] = [];
+    enqueueCommand.mockImplementation(async () => {
+      calls.push("enqueue");
+    });
+    const queuedId = "guest-command";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        calls.push("fetch");
+        const body = JSON.parse(init.body as string);
+        expect(body.role).toBe("guest");
+        expect(body.command_id).toBe(queuedId);
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      }),
+    );
+    const { submitDocumentCommand } = await import("./api");
+
+    await submitDocumentCommand(
+      "share:tok",
+      "SetTrackFader",
+      {},
+      {
+        command_id: queuedId,
+        client_seq: 8,
+      },
+    );
+    expect(calls).toEqual(["enqueue", "fetch"]);
+    expect(removeQueuedCommand).toHaveBeenCalledWith("tok", queuedId);
+  });
+
+  it("keeps a host replay queued after a server failure", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("busy", { status: 503 })),
+    );
+    const { submitDocumentCommand } = await import("./api");
+
+    await expect(
+      submitDocumentCommand(
+        "/tmp/episode.project.json",
+        "SetTrackMeta",
+        {},
+        {
+          command_id: "replay-command",
+          client_seq: 9,
+          replaying: true,
+        },
+      ),
+    ).resolves.toMatchObject({ queued: true, command_id: "replay-command" });
+    expect(enqueueHostCommand).not.toHaveBeenCalled();
+    expect(removeHostQueuedCommand).not.toHaveBeenCalled();
+  });
+
   it("binds a legacy guest queue record to the current tab identity on replay", async () => {
     vi.stubGlobal(
       "fetch",
