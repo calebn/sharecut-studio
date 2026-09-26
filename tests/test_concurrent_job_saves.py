@@ -16,7 +16,12 @@ from podcast_mcp.pipeline import runner as runner_mod
 from podcast_mcp.pipeline import steps
 from podcast_mcp.project_merge import ProjectMergeConflict
 from podcast_mcp.project_store import history_index_path, history_snapshot_ids
-from podcast_mcp.services import EpisodeService, PipelineService, ProjectWorkspace
+from podcast_mcp.services import (
+    EpisodeService,
+    HistoryService,
+    PipelineService,
+    ProjectWorkspace,
+)
 from podcast_mcp.services import workspace as workspace_mod
 from podcast_mcp.services.workspace import MERGED_HISTORY_LABEL
 from podcast_mcp.util.atomic_json import load_json_object
@@ -466,3 +471,64 @@ def test_pipeline_step_commit_failure_does_not_mark_the_step_done(minimal_projec
         PipelineService(ws).run(only_step="merge_transcript")
     assert ws.project.last_completed_step == before
     assert load_project(minimal_project).last_completed_step == before
+
+
+def _with_undoable_gain(minimal_project: Path) -> ProjectWorkspace:
+    ws = _two_tracks(minimal_project)
+    ws.mutate(
+        "before gain",
+        "after gain",
+        lambda proj: setattr(proj.track_by_id("guest"), "gain_db", 3.0),
+    )
+    return ws
+
+
+def _move_history_with_rerender(ws: ProjectWorkspace, move: str) -> dict:
+    svc = HistoryService(ws)
+    if move == "undo":
+        return svc.undo(rerender=True)
+    if move == "redo":
+        svc.undo()
+        return svc.redo(rerender=True)
+    return svc.goto(0, rerender=True)
+
+
+@pytest.mark.parametrize(("move", "guest_gain"), [("undo", 0.0), ("redo", 3.0), ("goto", 0.0)])
+def test_history_move_rerender_keeps_an_edit_saved_mid_render(minimal_project, move, guest_gain):
+    ws = _with_undoable_gain(minimal_project)
+
+    def fake_render(project):
+        project.track_by_id("guest").fader_db = -2.0  # the render's own change
+        _other_sets_volume(minimal_project)
+
+    with patch("podcast_mcp.services.history.rerender_preview", fake_render):
+        out = _move_history_with_rerender(ws, move)
+
+    saved = load_project(minimal_project)
+    for proj in (ws.project, saved):
+        assert proj.track_by_id("host").fader_db == -6.0
+        assert proj.track_by_id("guest").gain_db == guest_gain
+    assert saved.reconciliation_stale is True
+    assert saved.history.entries[-1].label == MERGED_HISTORY_LABEL
+    assert out["cursor"] == saved.history.cursor
+    assert "preview" in out
+    _index_matches_file(minimal_project)
+
+
+def test_history_undo_rerender_conflict_keeps_the_undo_and_says_not_to_repeat_it(minimal_project):
+    ws = _with_undoable_gain(minimal_project)
+
+    def fake_render(project):
+        project.track_by_id("host").fader_db = -3.0
+        _other_sets_volume(minimal_project)
+
+    with patch("podcast_mcp.services.history.rerender_preview", fake_render):
+        with pytest.raises(ProjectMergeConflict, match="instead of repeating the undo") as exc:
+            HistoryService(ws).undo(rerender=True)
+
+    assert "timeline.tracks[host].fader_db" in exc.value.paths
+    assert "re-run it" not in str(exc.value)
+    saved = load_project(minimal_project)
+    assert saved.track_by_id("guest").gain_db == 0.0
+    assert saved.track_by_id("host").fader_db == -6.0
+    _index_matches_file(minimal_project)

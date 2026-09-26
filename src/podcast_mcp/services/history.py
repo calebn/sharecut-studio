@@ -8,6 +8,7 @@ from podcast_mcp.engines.render_invalidations import replace_with_whole_track
 from podcast_mcp.history import HistoryManager
 from podcast_mcp.history.diff import diff_snapshots
 from podcast_mcp.history.summary import format_history_group_title, summarize_diff
+from podcast_mcp.project_merge import ProjectMergeConflict
 from podcast_mcp.render import render_preview_result, rerender_preview
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.tracks import dialogue_track_ids
@@ -73,46 +74,44 @@ class HistoryService:
         self._mgr = HistoryManager(workspace.path)
 
     def undo(self, *, rerender: bool = False) -> dict:
-        status = self._mgr.undo(self.ws.project)
-        mark_reconciliation_stale(self.ws.project)
-        invalidate_stem_hashes(self.ws.project)
-        replace_with_whole_track(
-            self.ws.project, dialogue_track_ids(self.ws.project), reason="other"
-        )
-        result = dict(status.__dict__)
-        if rerender:
-            rerender_preview(self.ws.project)
-            result["preview"] = json.loads(render_preview_result(self.ws.project, rerender=False))
-        self.ws.save()
-        return result
+        self._mgr.undo(self.ws.project)
+        return self._after_move("undo", rerender=rerender)
 
     def redo(self, *, rerender: bool = False) -> dict:
-        status = self._mgr.redo(self.ws.project)
-        mark_reconciliation_stale(self.ws.project)
-        invalidate_stem_hashes(self.ws.project)
-        replace_with_whole_track(
-            self.ws.project, dialogue_track_ids(self.ws.project), reason="other"
-        )
-        result = dict(status.__dict__)
-        if rerender:
-            rerender_preview(self.ws.project)
-            result["preview"] = json.loads(render_preview_result(self.ws.project, rerender=False))
-        self.ws.save()
-        return result
+        self._mgr.redo(self.ws.project)
+        return self._after_move("redo", rerender=rerender)
 
     def goto(self, index: int, *, rerender: bool = False) -> dict:
-        status = self._mgr.goto(self.ws.project, index)
-        mark_reconciliation_stale(self.ws.project)
-        invalidate_stem_hashes(self.ws.project)
-        replace_with_whole_track(
-            self.ws.project, dialogue_track_ids(self.ws.project), reason="other"
-        )
-        result = dict(status.__dict__)
-        if rerender:
-            rerender_preview(self.ws.project)
-            result["preview"] = json.loads(render_preview_result(self.ws.project, rerender=False))
+        self._mgr.goto(self.ws.project, index)
+        return self._after_move("history goto", rerender=rerender)
+
+    def _after_move(self, action: str, *, rerender: bool) -> dict:
+        """Save a committed history move's stale marks; optionally re-render the preview.
+
+        ``HistoryManager`` has already committed the move. A render takes seconds, so it
+        runs between ``checkpoint()`` and ``save_merged()``: an edit another request
+        commits meanwhile is merged in, not overwritten (#493). On a merge conflict the
+        move stays saved, so the message says to re-render, not to repeat the move.
+        """
+        project = self.ws.project
+        mark_reconciliation_stale(project)
+        invalidate_stem_hashes(project)
+        replace_with_whole_track(project, dialogue_track_ids(project), reason="other")
         self.ws.save()
-        return result
+        if not rerender:
+            return self.status()
+        project = self.ws.checkpoint()
+        rerender_preview(project)
+        preview = json.loads(render_preview_result(project, rerender=False))
+        try:
+            self.ws.save_merged()
+        except ProjectMergeConflict as exc:
+            raise ProjectMergeConflict(
+                exc.paths,
+                retry=f"the {action} is saved; re-render the preview "
+                f"instead of repeating the {action}",
+            ) from exc
+        return {**self.status(), "preview": preview}
 
     def status(self) -> dict:
         status = self._mgr.status(self.ws.project)
