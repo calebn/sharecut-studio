@@ -103,7 +103,7 @@ _MOOT_BED = "room-tone bed revision changed or unknown"
 def rollback_retry_after_ns(attempts: int, now_ns: int) -> int:
     """When a deferred rollback that has failed *attempts* retries may run again."""
     delay = min(
-        RECORD_LAND_ROLLBACK_RETRY_BASE_SEC * 2 ** max(attempts - 1, 0),
+        RECORD_LAND_ROLLBACK_RETRY_BASE_SEC * 2 ** min(max(attempts - 1, 0), 16),
         RECORD_LAND_ROLLBACK_RETRY_MAX_SEC,
     )
     return now_ns + delay * 1_000_000_000
