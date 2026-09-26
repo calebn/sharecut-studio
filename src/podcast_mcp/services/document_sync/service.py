@@ -14,7 +14,7 @@ from podcast_mcp.services.document_sync.projection_types import (
     ViewProjection,
     parse_view_projection,
 )
-from podcast_mcp.services.history import HistoryService
+from podcast_mcp.services.history import HISTORY_RERENDER_ERRORS, HistoryService
 from podcast_mcp.services.session_sync.hub import get_hub
 from podcast_mcp.services.session_sync.log import SyncStore
 from podcast_mcp.services.workspace import ProjectWorkspace
@@ -253,6 +253,13 @@ class DocumentSyncService:
 
                 raise DocumentConflictError(str(exc)) from exc
             raise
+        except HISTORY_RERENDER_ERRORS as exc:
+            # A history move with rerender=true is saved before these are raised. A 409
+            # carries the "re-render the preview, do not repeat the move" advice and keeps
+            # the client from replaying the move.
+            from podcast_mcp.services.document_sync.errors import DocumentConflictError
+
+            raise DocumentConflictError(str(exc)) from exc
 
 
 def notify_document_changed(project_path: str | Path) -> None:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
 from podcast_mcp.models import (
@@ -14,6 +16,7 @@ from podcast_mcp.models import (
     Track,
     TrackRole,
 )
+from podcast_mcp.project_merge import ProjectMergeConflict
 from podcast_mcp.services import ProjectWorkspace
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
@@ -105,6 +108,77 @@ def test_document_reply_via_command(minimal_project):
         )
     )
     assert len(reply["snapshot"]["comments"][0]["replies"]) == 1
+
+
+def _undoable_rejection(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.project.edit_decisions = [
+        EditDecision(
+            id="d1",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=1.0,
+            end=2.0,
+            reason="noise",
+            applied=False,
+        )
+    ]
+    ws.save()
+    svc = DocumentSyncService.open(minimal_project)
+    svc.submit(
+        DocumentCommand(
+            type="RejectEdits", payload={"ids": ["d1"]}, client_id="c1", role="viewer", client_seq=1
+        )
+    )
+    return svc
+
+
+@pytest.mark.parametrize("command", ["UndoHistory", "RedoHistory"])
+def test_document_history_move_render_failure_is_a_conflict_with_the_advice(
+    minimal_project, command
+):
+    svc = _undoable_rejection(minimal_project)
+    if command == "RedoHistory":
+        svc.submit(
+            DocumentCommand(
+                type="UndoHistory", payload={}, client_id="c1", role="viewer", client_seq=2
+            )
+        )
+
+    def failing_render(_project):
+        raise OSError("ffmpeg failed")
+
+    with patch("podcast_mcp.services.history.rerender_preview", failing_render):
+        with pytest.raises(
+            DocumentConflictError, match="re-render the preview instead of repeating"
+        ) as exc:
+            svc.submit(
+                DocumentCommand(
+                    type=command,
+                    payload={"rerender": True},
+                    client_id="c1",
+                    role="viewer",
+                    client_seq=3,
+                )
+            )
+    assert "ffmpeg failed" in str(exc.value)
+    assert exc.value.conflict is True
+
+
+def test_document_history_move_merge_conflict_is_a_conflict_with_the_advice(minimal_project):
+    svc = _undoable_rejection(minimal_project)
+    with patch("podcast_mcp.services.document_sync.handlers.history.HistoryService") as history:
+        history.return_value.undo.side_effect = ProjectMergeConflict(["tracks[host].gain_db"])
+        with pytest.raises(DocumentConflictError, match="re-run it"):
+            svc.submit(
+                DocumentCommand(
+                    type="UndoHistory",
+                    payload={"rerender": True},
+                    client_id="c1",
+                    role="viewer",
+                    client_seq=2,
+                )
+            )
 
 
 def test_document_undo_redo_history(minimal_project):
