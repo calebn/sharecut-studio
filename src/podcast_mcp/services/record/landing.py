@@ -739,7 +739,7 @@ class RecordLandingService:
             landed_comments = _land_live_comments(project, pending_comments, offsets)
             return {"clips": landed_clips, "comments": landed_comments, "accepted": accepted}
 
-        with project_state_lock(self.workspace.project):
+        with self.workspace.transaction():
             try:
                 landed = self.workspace.mutate(
                     "before record land",
@@ -899,7 +899,9 @@ class RecordLandingService:
 
         Hashing runs outside the project lock (#365); under it a stat confirms the file is
         unchanged and still registered, so the source check and the upload decision stay
-        atomic against in-process writers (#309). ``verified`` is the ``(path, revision)``
+        atomic against writers in every process (#309, #213): ``transaction()`` adopts another
+        process's commit before the re-check. A same-size rewrite within the file-system mtime
+        granularity is not detected. ``verified`` is the ``(path, revision)``
         hashed before the land's lock; pass it when called under that lock so nothing hashes.
         """
         source_id = self._landed_source_id(participant_id, take_index, segment_index)
@@ -912,8 +914,8 @@ class RecordLandingService:
                 revision = verified[1] if verified[0] == registered[0] else None
             else:
                 revision = _verified_file_revision(registered[0], expected_sha256)
-        with project_state_lock(self.workspace.project):
-            current = _registered_source_file(self.workspace.project, source_id)
+        with self.workspace.transaction() as project:
+            current = _registered_source_file(project, source_id)
             present = (
                 registered is not None
                 and current is not None
