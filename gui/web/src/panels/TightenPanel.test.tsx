@@ -1,5 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   loadPipelineConfig,
   putPipelineConfig,
@@ -169,8 +175,14 @@ function projectWithHits() {
 describe("TightenPanel", () => {
   beforeEach(() => {
     vi.mocked(execute).mockClear();
-    vi.mocked(loadPipelineConfig).mockClear();
-    vi.mocked(putPipelineConfig).mockClear();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.mocked(loadPipelineConfig).mockReset();
+    vi.mocked(loadPipelineConfig).mockImplementation(async () => pipelineCfg());
+    vi.mocked(putPipelineConfig).mockReset();
+    vi.mocked(putPipelineConfig).mockImplementation(async (_p, body) => ({
+      ...pipelineCfg(),
+      config: body.config ?? {},
+    }));
     vi.mocked(startPipelineRun).mockReset();
     vi.mocked(startPipelineRun).mockImplementation(async () => job());
     useDawStore.getState().hydrate("/tmp/p.json", projectWithHits());
@@ -181,6 +193,10 @@ describe("TightenPanel", () => {
       pipelineJob: null,
       activityJob: null,
     });
+  });
+
+  afterEach(() => {
+    vi.mocked(window.confirm).mockRestore();
   });
 
   it("changes intensity in the shared working set and finds hits for that tier", async () => {
@@ -223,7 +239,7 @@ describe("TightenPanel", () => {
     await expectNoA11yViolations(container);
   });
 
-  it("disables Find hits while a pipeline job is running", async () => {
+  it("disables Intensity and Find hits while a pipeline job is running", async () => {
     useDawStore.setState({ pipelineJob: job() });
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={projectWithHits()}>
@@ -232,6 +248,7 @@ describe("TightenPanel", () => {
     );
     await screen.findByRole("option", { name: "Light" });
     expect(screen.getByRole("button", { name: "Find hits" })).toBeDisabled();
+    expect(screen.getByLabelText("Intensity")).toBeDisabled();
   });
 
   it("shows an inline error when the run cannot start", async () => {
@@ -386,5 +403,197 @@ describe("TightenPanel", () => {
       { id: "e-unmapped" },
       { skipWhen: true },
     );
+  });
+
+  function renderPanel() {
+    return render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={projectWithHits()}>
+        <TightenPanel />
+      </DawProvider>,
+    );
+  }
+
+  it("disables Intensity while a save is pending and keeps the confirmed value", async () => {
+    let resolvePut: (v: PipelineConfigResponse) => void = () => {};
+    vi.mocked(putPipelineConfig).mockImplementationOnce(
+      () =>
+        new Promise((r) => {
+          resolvePut = r;
+        }),
+    );
+    renderPanel();
+    await screen.findByRole("option", { name: "Aggressive" });
+    fireEvent.change(screen.getByLabelText("Intensity"), {
+      target: { value: "aggressive" },
+    });
+    await waitFor(() =>
+      expect(screen.getByLabelText("Intensity")).toBeDisabled(),
+    );
+    expect(screen.getByRole("button", { name: "Find hits" })).toBeDisabled();
+    await waitFor(() => expect(putPipelineConfig).toHaveBeenCalled());
+    const saved = {
+      ...pipelineCfg(),
+      config: {
+        tighten: {
+          intensity: "aggressive",
+          enabled: false,
+          max_pause_sec: 1.2,
+        },
+      },
+    };
+    await act(async () => {
+      resolvePut(saved);
+    });
+    await waitFor(() =>
+      expect(screen.getByLabelText("Intensity")).not.toBeDisabled(),
+    );
+    expect(
+      (screen.getByLabelText("Intensity") as HTMLSelectElement).value,
+    ).toBe("aggressive");
+  });
+
+  it("rolls back to the last confirmed intensity when the save fails", async () => {
+    vi.mocked(putPipelineConfig).mockRejectedValueOnce(
+      new Error("save failed"),
+    );
+    renderPanel();
+    await screen.findByRole("option", { name: "Light" });
+    fireEvent.change(screen.getByLabelText("Intensity"), {
+      target: { value: "light" },
+    });
+    expect(await screen.findByText("save failed")).toBeTruthy();
+    expect(
+      (screen.getByLabelText("Intensity") as HTMLSelectElement).value,
+    ).toBe("medium");
+  });
+
+  it("saves intensity over a freshly loaded working set", async () => {
+    vi.mocked(loadPipelineConfig)
+      .mockResolvedValueOnce(pipelineCfg())
+      .mockResolvedValueOnce({
+        ...pipelineCfg(),
+        config: {
+          tighten: { intensity: "medium", enabled: false, max_pause_sec: 2.5 },
+        },
+      });
+    renderPanel();
+    await screen.findByRole("option", { name: "Light" });
+    fireEvent.change(screen.getByLabelText("Intensity"), {
+      target: { value: "light" },
+    });
+    await waitFor(() =>
+      expect(putPipelineConfig).toHaveBeenCalledWith("/tmp/p.json", {
+        config: {
+          tighten: { intensity: "light", enabled: false, max_pause_sec: 2.5 },
+        },
+      }),
+    );
+  });
+
+  it("Find hits runs on the refetched working set", async () => {
+    renderPanel();
+    await screen.findByRole("option", { name: "Light" });
+    vi.mocked(loadPipelineConfig).mockResolvedValueOnce({
+      ...pipelineCfg(),
+      config: {
+        tighten: { intensity: "medium", enabled: false, max_pause_sec: 3 },
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Find hits" }));
+    await waitFor(() =>
+      expect(startPipelineRun).toHaveBeenCalledWith(
+        "/tmp/p.json",
+        expect.objectContaining({
+          config: expect.objectContaining({
+            tighten: expect.objectContaining({
+              max_pause_sec: 3,
+              intensity: "medium",
+              enabled: true,
+            }),
+          }),
+        }),
+      ),
+    );
+  });
+
+  it("shows a config load error with Retry", async () => {
+    vi.mocked(loadPipelineConfig).mockRejectedValueOnce(new Error("offline"));
+    renderPanel();
+    expect(
+      await screen.findByText("Could not load tighten settings: offline"),
+    ).toBeTruthy();
+    expect(screen.getByLabelText("Intensity")).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await screen.findByRole("option", { name: "Light" });
+    expect(screen.queryByText(/Could not load tighten settings/)).toBeNull();
+    expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
+  });
+
+  it("asks before Find hits replaces listed hits", async () => {
+    vi.mocked(window.confirm).mockReturnValueOnce(false);
+    renderPanel();
+    await screen.findByRole("option", { name: "Light" });
+    fireEvent.click(screen.getByRole("button", { name: "Find hits" }));
+    expect(window.confirm).toHaveBeenCalledWith(
+      expect.stringContaining("(2 now)"),
+    );
+    expect(startPipelineRun).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Find hits" }));
+    await waitFor(() => expect(startPipelineRun).toHaveBeenCalled());
+  });
+
+  it("shows the Find hits job error in the panel", async () => {
+    renderPanel();
+    await screen.findByRole("option", { name: "Light" });
+    fireEvent.click(screen.getByRole("button", { name: "Find hits" }));
+    await waitFor(() =>
+      expect(useDawStore.getState().pipelineJob?.id).toBe("job1"),
+    );
+    act(() => {
+      useDawStore.setState({
+        pipelineJob: job({
+          status: "error",
+          error: "Transcript refine is required",
+        }),
+      });
+    });
+    expect(
+      await screen.findByText("Transcript refine is required"),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Find hits" }),
+    ).not.toBeDisabled();
+  });
+
+  it("ignores an error from a job this panel did not start", async () => {
+    useDawStore.setState({
+      pipelineJob: job({ id: "other", status: "error", error: "nope" }),
+    });
+    renderPanel();
+    await screen.findByRole("option", { name: "Light" });
+    fireEvent.click(screen.getByRole("button", { name: "Find hits" }));
+    await waitFor(() => expect(startPipelineRun).toHaveBeenCalled());
+    expect(screen.queryByText("nope")).toBeNull();
+  });
+
+  it("does not record a Find hits job after the project changes", async () => {
+    let resolveRun: (j: PipelineJobSnapshot) => void = () => {};
+    vi.mocked(startPipelineRun).mockImplementationOnce(
+      () =>
+        new Promise((r) => {
+          resolveRun = r;
+        }),
+    );
+    renderPanel();
+    await screen.findByRole("option", { name: "Light" });
+    fireEvent.click(screen.getByRole("button", { name: "Find hits" }));
+    await waitFor(() => expect(startPipelineRun).toHaveBeenCalled());
+    act(() => {
+      useDawStore.getState().hydrate("/tmp/other.json", projectWithHits());
+    });
+    await act(async () => {
+      resolveRun(job());
+    });
+    expect(useDawStore.getState().pipelineJob).toBeNull();
   });
 });

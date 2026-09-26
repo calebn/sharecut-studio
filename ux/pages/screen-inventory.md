@@ -208,7 +208,7 @@ Lane identity is a slim sticky gutter in the same scroller as the waveforms. Tap
 | Comments | Thread list / detail | `review.comments` |
 | History | Undo/redo · grouped steps (follows document snapshots) | `history` |
 | Impact | Pending bulk + removed duration | `editorial.edit_decisions` + impact report |
-| Tighten | Searchable filler/pause/repetition/restart list · preview/skip/apply · apply-all avoiding harsh cuts · Intensity (Light/Medium/Aggressive) + Find hits | pending tighten decisions |
+| Tighten | Searchable filler/pause/repetition/restart list · preview/skip/apply · apply-all avoiding harsh cuts · Intensity (Light/Medium/Aggressive; locked while saving or a job runs, load Retry) + Find hits (confirms before replacing listed hits, shows job errors) | pending tighten decisions |
 | Pipeline | Step checklist · params · Analyze · Batch/gates · run · progress (headline + bar/elapsed) | working-set config + live job |
 
 Destinations render as one settings-style list (hairline rows, 44pt targets), not stacked slabs. Plus **Overlay legend** on the hub. Theme and audition mode live in transport **Menu**, not a Settings destination. The bottom mode nav shows icon + label tabs; the active tab is tinted with an accent top indicator.
