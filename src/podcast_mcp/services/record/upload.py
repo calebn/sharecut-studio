@@ -69,6 +69,19 @@ CREATE TABLE IF NOT EXISTS record_upload_files (
   PRIMARY KEY (session_id, take_index, participant_id, segment_index)
 );
 
+CREATE TABLE IF NOT EXISTS record_land_rollbacks (
+  session_id TEXT NOT NULL,
+  take_index INTEGER NOT NULL,
+  participant_id TEXT NOT NULL,
+  segment_index INTEGER NOT NULL,
+  file_sha256 TEXT NOT NULL,
+  raw_rel TEXT NOT NULL,
+  raw_revision TEXT NOT NULL,
+  prior_json TEXT NOT NULL,
+  deferred_ns INTEGER NOT NULL,
+  PRIMARY KEY (session_id, take_index, participant_id, segment_index, file_sha256)
+);
+
 CREATE TABLE IF NOT EXISTS record_take_tombstones (
   session_id TEXT NOT NULL,
   take_index INTEGER NOT NULL,
@@ -788,6 +801,80 @@ class RecordUploadStore:
                 (session_id, take_index, participant_id, segment_index),
             )
 
+    def defer_land_rollback(
+        self,
+        *,
+        session_id: str,
+        take_index: int,
+        participant_id: str,
+        segment_index: int,
+        file_sha256: str,
+        raw_rel: str,
+        raw_revision: list[Any],
+        prior_json: str,
+    ) -> None:
+        """Persist a pending stale-ACK rollback; the first deferral wins."""
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO record_land_rollbacks
+                  (session_id, take_index, participant_id, segment_index, file_sha256,
+                   raw_rel, raw_revision, prior_json, deferred_ns)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT DO NOTHING
+                """,
+                (
+                    session_id,
+                    take_index,
+                    participant_id,
+                    segment_index,
+                    file_sha256,
+                    raw_rel,
+                    json.dumps(raw_revision),
+                    prior_json,
+                    time.time_ns(),
+                ),
+            )
+
+    def land_rollbacks(self, *, session_id: str) -> list[dict[str, Any]]:
+        """Pending rollbacks for a session, oldest first."""
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT take_index, participant_id, segment_index, file_sha256, raw_rel,
+                       raw_revision, prior_json, deferred_ns
+                FROM record_land_rollbacks
+                WHERE session_id = ?
+                ORDER BY deferred_ns, rowid
+                """,
+                (session_id,),
+            ).fetchall()
+        out: list[dict[str, Any]] = []
+        for row in rows:
+            item = dict(zip(row.keys(), row, strict=True))
+            item["raw_revision"] = json.loads(item["raw_revision"])
+            out.append(item)
+        return out
+
+    def clear_land_rollback(
+        self,
+        *,
+        session_id: str,
+        take_index: int,
+        participant_id: str,
+        segment_index: int,
+        file_sha256: str,
+    ) -> None:
+        with self._lock:
+            self._conn.execute(
+                """
+                DELETE FROM record_land_rollbacks
+                WHERE session_id = ? AND take_index = ? AND participant_id = ?
+                  AND segment_index = ? AND file_sha256 = ?
+                """,
+                (session_id, take_index, participant_id, segment_index, file_sha256),
+            )
+
     def status(
         self,
         *,
@@ -1310,6 +1397,49 @@ class RecordUploadService:
         if row is None:
             return None
         return str(row["file_sha256"])
+
+    def defer_land_rollback(
+        self,
+        *,
+        session_id: str,
+        take_index: int,
+        participant_id: str,
+        segment_index: int,
+        file_sha256: str,
+        raw_rel: str,
+        raw_revision: list[Any],
+        prior_json: str,
+    ) -> None:
+        self._store.defer_land_rollback(
+            session_id=parse_session_id(session_id),
+            take_index=parse_upload_index(take_index, name="take_index"),
+            participant_id=parse_participant_id(participant_id),
+            segment_index=parse_upload_index(segment_index, name="segment_index"),
+            file_sha256=file_sha256,
+            raw_rel=raw_rel,
+            raw_revision=raw_revision,
+            prior_json=prior_json,
+        )
+
+    def land_rollbacks(self, *, session_id: str) -> list[dict[str, Any]]:
+        return self._store.land_rollbacks(session_id=parse_session_id(session_id))
+
+    def clear_land_rollback(
+        self,
+        *,
+        session_id: str,
+        take_index: int,
+        participant_id: str,
+        segment_index: int,
+        file_sha256: str,
+    ) -> None:
+        self._store.clear_land_rollback(
+            session_id=parse_session_id(session_id),
+            take_index=parse_upload_index(take_index, name="take_index"),
+            participant_id=parse_participant_id(participant_id),
+            segment_index=parse_upload_index(segment_index, name="segment_index"),
+            file_sha256=file_sha256,
+        )
 
     def _acked_path(
         self,

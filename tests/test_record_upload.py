@@ -26,6 +26,7 @@ from podcast_mcp.services.record.upload import (
     ROOM_TONE_MAX_PCM_BYTES,
     RecordUploadError,
     RecordUploadService,
+    RecordUploadStore,
     parse_clipping_regions,
     parse_upload_kind,
     sha256_hex,
@@ -1563,3 +1564,34 @@ def test_http_rejects_bad_clipping_with_400(
     assert res.status_code == 200, res.text
     status = client.get("/api/record/upload", params={"path": str(minimal_project)})
     assert status.json()["segments"][0]["clipping_regions"] == [[10, 20]]
+
+
+def test_land_rollbacks_defer_list_clear_and_survive_revoke(tmp_path):
+    store = RecordUploadStore(tmp_path / "sync.db")
+    key = {
+        "session_id": "s1",
+        "take_index": 0,
+        "participant_id": "p_a",
+        "segment_index": 0,
+        "file_sha256": "aa",
+    }
+    store.defer_land_rollback(**key, raw_rel="r/one.wav", raw_revision=[1, 2], prior_json="{}")
+    store.defer_land_rollback(**key, raw_rel="r/other.wav", raw_revision=[9], prior_json="{1}")
+    store.defer_land_rollback(
+        **{**key, "segment_index": 1, "file_sha256": "bb"},
+        raw_rel="r/two.wav",
+        raw_revision=[3],
+        prior_json="{}",
+    )
+    store.defer_land_rollback(
+        **{**key, "session_id": "s2"}, raw_rel="x.wav", raw_revision=[], prior_json="{}"
+    )
+    rows = store.land_rollbacks(session_id="s1")
+    assert [r["raw_rel"] for r in rows] == ["r/one.wav", "r/two.wav"]
+    assert rows[0]["raw_revision"] == [1, 2]
+    assert rows[0]["prior_json"] == "{}"
+    store.delete_segment(session_id="s1", take_index=0, participant_id="p_a", segment_index=0)
+    assert len(store.land_rollbacks(session_id="s1")) == 2
+    store.clear_land_rollback(**key)
+    assert [r["raw_rel"] for r in store.land_rollbacks(session_id="s1")] == ["r/two.wav"]
+    assert len(store.land_rollbacks(session_id="s2")) == 1
