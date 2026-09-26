@@ -19,7 +19,7 @@ import { getKeymapOverride } from "./remaps";
 export type KeymapCategory =
   | "transport"
   | "tools"
-  | "focus"
+  | "layout"
   | "navigation"
   | "review"
   | "history"
@@ -120,36 +120,48 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     notes: "Mod+Shift+C",
   },
   {
-    id: "focus.default",
-    category: "focus",
-    label: "Focus: default layout",
+    id: "layout.default",
+    category: "layout",
+    label: "Restore layout",
     keys: ["1"],
-    bareKey: true,
-    when: "layoutFocused",
+    bareKey: false,
+    requireMod: true,
+    requireShift: false,
+    when: "always",
+    notes: "Mod+1",
   },
   {
-    id: "focus.timeline",
-    category: "focus",
-    label: "Focus: timeline",
+    id: "layout.timeline",
+    category: "layout",
+    label: "Maximize timeline",
     keys: ["2"],
-    bareKey: true,
-    when: "layoutFocused",
+    bareKey: false,
+    requireMod: true,
+    requireShift: false,
+    when: "always",
+    notes: "Mod+2",
   },
   {
-    id: "focus.text",
-    category: "focus",
-    label: "Focus: text",
+    id: "layout.text",
+    category: "layout",
+    label: "Maximize transcript",
     keys: ["3"],
-    bareKey: true,
-    when: "layoutFocused",
+    bareKey: false,
+    requireMod: true,
+    requireShift: false,
+    when: "always",
+    notes: "Mod+3",
   },
   {
-    id: "focus.review",
-    category: "focus",
-    label: "Focus: review",
+    id: "layout.review",
+    category: "layout",
+    label: "Review layout",
     keys: ["4"],
-    bareKey: true,
-    when: "layoutFocused",
+    bareKey: false,
+    requireMod: true,
+    requireShift: false,
+    when: "always",
+    notes: "Mod+4",
   },
   {
     id: "navigation.nudgePlayheadBack",
@@ -638,7 +650,7 @@ export function keymapByCategory(): Record<KeymapCategory, KeymapCommand[]> {
   const out: Record<KeymapCategory, KeymapCommand[]> = {
     transport: [],
     tools: [],
-    focus: [],
+    layout: [],
     navigation: [],
     review: [],
     history: [],

@@ -13,7 +13,7 @@ import { CommandButton, Dialog } from "../ui";
 const CATEGORY_ORDER: KeymapCategory[] = [
   "transport",
   "tools",
-  "focus",
+  "layout",
   "navigation",
   "review",
   "history",

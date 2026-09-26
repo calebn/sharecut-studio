@@ -74,25 +74,21 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Go to tighten hit",
     tooltip: "Seek the playhead to a tighten hit",
   },
-  "daw.focus.default": {
-    label: "Focus: default layout",
-    tooltip: "Focus: default layout",
+  "daw.layout.default": {
+    label: "Restore layout",
+    tooltip: "Restore layout",
   },
-  "daw.focus.timeline": {
-    label: "Focus: timeline",
-    tooltip: "Focus: timeline",
+  "daw.layout.timeline": {
+    label: "Maximize timeline",
+    tooltip: "Maximize timeline",
   },
-  "daw.focus.text": {
-    label: "Focus: text",
-    tooltip: "Focus: text",
+  "daw.layout.text": {
+    label: "Maximize transcript",
+    tooltip: "Maximize transcript",
   },
-  "daw.focus.review": {
-    label: "Focus: review",
-    tooltip: "Focus: review",
-  },
-  "daw.focus.cycle": {
-    label: "Cycle focus mode",
-    tooltip: "Cycle focus mode",
+  "daw.layout.review": {
+    label: "Review layout",
+    tooltip: "Review layout",
   },
   "daw.navigation.nudgePlayheadBack": {
     label: "Nudge playhead back",
@@ -393,7 +389,8 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "transport.comment": "daw.review.toggleCommentMode",
   "mobileShell.gesture.swipeLeftComment": "daw.review.resolveComment",
   tightenPanel: "daw.tighten.goToHit",
-  focusToggle: "daw.focus.review",
+  layoutChip: "daw.layout.default",
+  "transport.layout": "daw.layout.timeline",
   "transport.menu": "daw.media.import",
   editingToolRail: "daw.media.import",
   timeline: "daw.edit.bladeCut",

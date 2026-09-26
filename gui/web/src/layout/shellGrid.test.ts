@@ -5,7 +5,7 @@ const layoutCss = partial("layout.css");
 const responsiveCss = partial("responsive.css");
 const AREAS = ["banners", "follow", "transport", "main", "tabs", "status"];
 const LAYOUT_SELECTOR =
-  /daw-shell--focus-|daw-shell--attention|daw-shell-guest|daw-shell--following/;
+  /daw-shell--layout-|daw-shell--attention|daw-shell-guest|daw-shell--following/;
 
 describe("shell grid areas", () => {
   const shell = rule(layoutCss, ".daw-shell");
@@ -36,7 +36,7 @@ describe("shell grid areas", () => {
 
   it("lets focus layouts set only the main/tabs track sizes", () => {
     for (const mode of ["timeline", "text", "review"]) {
-      const body = rule(responsiveCss, `.daw-shell--focus-${mode}`);
+      const body = rule(responsiveCss, `.daw-shell--layout-${mode}`);
       const props = [...body.matchAll(/([\w-]+)\s*:/g)].map((m) => m[1]);
       for (const p of props) {
         expect(["--shell-main-row", "--shell-tabs-row"]).toContain(p);

@@ -70,7 +70,7 @@ describe("StudioShell tablet peek", () => {
     offlineStore.loadHostConflicts.mockResolvedValue([]);
     offlineStore.loadHostCommandCount.mockResolvedValue(0);
     useDawStore.getState().setSelection(null);
-    useDawStore.getState().setFocusMode("default");
+    useDawStore.getState().setLayoutMode("default");
     useDawStore.getState().setActiveTab("transcript");
     useDawStore.getState().setShellBreakpoint("tablet");
   });
@@ -97,7 +97,7 @@ describe("StudioShell tablet peek", () => {
     );
 
     act(() => {
-      useDawStore.getState().setFocusMode("text");
+      useDawStore.getState().setLayoutMode("text");
     });
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(useDawStore.getState().selection).toEqual({
@@ -107,7 +107,7 @@ describe("StudioShell tablet peek", () => {
     expect(useDawStore.getState().activeTab).toBe("transcript");
   });
 
-  it("clears html data-shell and data-focus on unmount", () => {
+  it("clears html data-shell and data-layout on unmount", () => {
     const project = tabletProject();
     const { unmount } = render(
       <DawProvider projectPath="/tmp/p.json" initialProject={project}>
@@ -116,12 +116,12 @@ describe("StudioShell tablet peek", () => {
     );
     expect(document.documentElement.dataset.shell).toBe("tablet");
     act(() => {
-      useDawStore.getState().setFocusMode("timeline");
+      useDawStore.getState().setLayoutMode("timeline");
     });
-    expect(document.documentElement.dataset.focus).toBe("timeline");
+    expect(document.documentElement.dataset.layout).toBe("timeline");
     unmount();
     expect(document.documentElement.dataset.shell).toBeUndefined();
-    expect(document.documentElement.dataset.focus).toBeUndefined();
+    expect(document.documentElement.dataset.layout).toBeUndefined();
   });
 
   it("places the transport wrapper in the shell grid", () => {

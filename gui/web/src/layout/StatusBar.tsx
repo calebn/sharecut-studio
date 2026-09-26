@@ -16,7 +16,7 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
     activityJob,
     activityRunningCount,
     setActiveTab,
-    setFocusMode,
+    setLayoutMode,
     shellBreakpoint,
     sessionClients,
     highlightStaleRender,
@@ -28,7 +28,7 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
     activityJob: s.activityJob,
     activityRunningCount: s.activityRunningCount,
     setActiveTab: s.setActiveTab,
-    setFocusMode: s.setFocusMode,
+    setLayoutMode: s.setLayoutMode,
     shellBreakpoint: s.shellBreakpoint,
     sessionClients: s.sessionClients,
     highlightStaleRender: s.highlightStaleRender,
@@ -102,7 +102,7 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
         className="ui-control status-chip"
         onClick={() => {
           setActiveTab("impact");
-          setFocusMode("default");
+          setLayoutMode("default");
         }}
       >
         Pending: {edit_impact.pending_review_count}
@@ -153,7 +153,7 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
         className={`ui-control status-chip status-bar-end${narrow ? " status-bar-secondary" : ""}`}
         onClick={() => {
           setActiveTab("comments");
-          setFocusMode("review");
+          setLayoutMode("review");
         }}
       >
         Open comments

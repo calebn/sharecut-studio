@@ -33,36 +33,36 @@
 }
 
 /* Desktop/tablet focus layouts: only the main/tabs track sizes change. */
-.daw-shell--focus-timeline {
+.daw-shell--layout-timeline {
   --shell-tabs-row: 0;
 }
 
-.daw-shell--focus-timeline > .bottom-tabs {
+.daw-shell--layout-timeline > .bottom-tabs {
   display: none;
 }
 
-.daw-shell--focus-text {
+.daw-shell--layout-text {
   --shell-main-row: minmax(7.5rem, 28vh);
   --shell-tabs-row: minmax(0, 1fr);
 }
 
-.daw-shell--focus-review {
+.daw-shell--layout-review {
   --shell-main-row: minmax(7.5rem, 32vh);
   --shell-tabs-row: minmax(0, 1fr);
 }
 
-.daw-shell--focus-text .daw-main .inspector,
-.daw-shell--focus-review .daw-main .inspector {
+.daw-shell--layout-text .daw-main .inspector,
+.daw-shell--layout-review .daw-main .inspector {
   display: none;
 }
 
-.daw-shell--focus-text .daw-main,
-.daw-shell--focus-review .daw-main {
+.daw-shell--layout-text .daw-main,
+.daw-shell--layout-review .daw-main {
   grid-template-columns: var(--header-width) 1fr 0;
 }
 
-.daw-shell--focus-text .daw-main--arrange,
-.daw-shell--focus-review .daw-main--arrange {
+.daw-shell--layout-text .daw-main--arrange,
+.daw-shell--layout-review .daw-main--arrange {
   grid-template-columns: 1fr 0;
 }
 

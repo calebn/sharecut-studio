@@ -3,8 +3,8 @@ import { execute } from "../commands/execute";
 import { FEATURE_SHARE_UI_MENU } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
 import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
-import { useTheme } from "../hooks/useTheme";
-import { displayShortcutFor } from "../keymap/registry";
+import { type ThemePreference, useTheme } from "../hooks/useTheme";
+import { ariaKeyShortcutsFor, displayShortcutFor } from "../keymap/registry";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { RecordTransportChip } from "../record/RecordTransportChip";
 import {
@@ -21,7 +21,6 @@ import {
   Icon,
   type IconName,
   Menu,
-  MenuItem,
   MenuSection,
   type MenuTriggerProps,
   Pill,
@@ -33,6 +32,7 @@ import {
 import { audioErrorLabel } from "../utils/audioErrorLabel";
 import { transportTimecode } from "../utils/time";
 import { AvatarStack } from "./AvatarStack";
+import { LAYOUT_MODES } from "./layoutModes";
 import { OverlayLegend } from "./OverlayLegend";
 import { ToolModeToggle } from "./ToolModeToggle";
 import { TransportFrame, TransportZone } from "./TransportFrame";
@@ -55,12 +55,21 @@ type Props = {
   showFit?: boolean;
   /** Phone shell places recording status above the mode body. */
   showRecordingChip?: boolean;
+  /** Desktop/tablet: layout toggle, restore chip, View › Layout radios. */
+  showLayout?: boolean;
 };
+
+const THEMES: { id: ThemePreference; label: string }[] = [
+  { id: "system", label: "System" },
+  { id: "light", label: "Light" },
+  { id: "dark", label: "Dark" },
+];
 
 export function TransportBar({
   compact = false,
   showFit = true,
   showRecordingChip = true,
+  showLayout = false,
 }: Props) {
   const {
     project,
@@ -71,7 +80,7 @@ export function TransportBar({
     sessionRegion,
     lastAgentQuery,
     commentMode,
-    focusMode,
+    layoutMode,
     toolMode,
     projectPath,
     guestMode,
@@ -89,7 +98,7 @@ export function TransportBar({
     sessionRegion: s.sessionRegion,
     lastAgentQuery: s.lastAgentQuery,
     commentMode: s.commentMode,
-    focusMode: s.focusMode,
+    layoutMode: s.layoutMode,
     toolMode: s.toolMode,
     projectPath: s.projectPath,
     guestMode: s.guestMode,
@@ -99,7 +108,7 @@ export function TransportBar({
     renderPreviewBusy: s.renderPreviewBusy,
     ingestBusy: s.ingestBusy,
   }));
-  const { preference, cyclePreference } = useTheme();
+  const { preference, setPreference } = useTheme();
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [viewOpenState, setViewOpenState] = useState(false);
   const [narrow, setNarrow] = useState(false);
@@ -135,22 +144,6 @@ export function TransportBar({
   const mayManage = canManageProjects(projectPath);
   const duration = project?.timeline_duration_sec ?? 0;
   const timecode = transportTimecode(playheadSec, duration);
-
-  const themeLabel =
-    preference === "system"
-      ? "Theme: System"
-      : preference === "dark"
-        ? "Theme: Dark"
-        : "Theme: Light";
-
-  const focusLabel =
-    focusMode === "default"
-      ? "Focus: Default"
-      : focusMode === "timeline"
-        ? "Focus: Timeline"
-        : focusMode === "text"
-          ? "Focus: Text"
-          : "Focus: Review";
 
   const premixCue = highlightStaleRender && Boolean(breakdown?.premixBehind);
   const guestMixOnly = guestHearsMixOnly(guestMode);
@@ -263,18 +256,43 @@ export function TransportBar({
             Fit to window
           </CommandMenuItem>
         ) : null}
-        <MenuItem
-          className="theme-toggle-btn"
-          title={themeLabel}
-          onSelect={() => cyclePreference()}
-        >
-          {themeLabel}
-        </MenuItem>
-        {!compact ? (
-          <CommandMenuItem commandId="focus.cycle">
-            {focusLabel}
-          </CommandMenuItem>
-        ) : null}
+      </MenuSection>
+      {showLayout ? (
+        <MenuSection label="Layout">
+          <SegmentedControl role="none" className="layout-modes">
+            {LAYOUT_MODES.map((m) => (
+              <ToggleButton
+                key={m.id}
+                quiet
+                role="menuitemradio"
+                pressed={layoutMode === m.id}
+                title={`${m.menuLabel} (${displayShortcutFor(m.command) ?? ""})`}
+                aria-keyshortcuts={ariaKeyShortcutsFor(m.command)}
+                onClick={() => {
+                  close();
+                  void execute(m.command, {}, { skipWhen: true });
+                }}
+              >
+                {m.menuLabel}
+              </ToggleButton>
+            ))}
+          </SegmentedControl>
+        </MenuSection>
+      ) : null}
+      <MenuSection label="Theme">
+        <SegmentedControl role="none" className="theme-modes">
+          {THEMES.map((t) => (
+            <ToggleButton
+              key={t.id}
+              quiet
+              role="menuitemradio"
+              pressed={preference === t.id}
+              onClick={() => setPreference(t.id)}
+            >
+              {t.label}
+            </ToggleButton>
+          ))}
+        </SegmentedControl>
       </MenuSection>
     </>
   );
@@ -408,7 +426,7 @@ export function TransportBar({
               className="transport-overflow ui-menu-root"
               trigger={menuTrigger(
                 "View",
-                "Layers, zoom, theme, and focus",
+                "Layers, zoom, layout, and theme",
                 "layers",
               )}
             >

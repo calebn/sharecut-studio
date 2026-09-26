@@ -27,8 +27,8 @@ import type {
   CommentDraft,
   DawStore,
   DawTab,
-  FocusMode,
   LayerVisibility,
+  LayoutMode,
   MobileMode,
   MoreDestination,
   PointerKind,
@@ -36,7 +36,6 @@ import type {
   ToolMode,
 } from "./types";
 
-const FOCUS_CYCLE: FocusMode[] = ["default", "timeline", "text", "review"];
 function clipTrackId(
   project: ProjectView | null,
   clipId: string,
@@ -95,7 +94,7 @@ type UiSlice = Pick<
   | "pointerKind"
   | "mobileMode"
   | "moreDestination"
-  | "focusMode"
+  | "layoutMode"
   | "sheetExpanded"
   | "setZoomPxPerSec"
   | "setWaveformAmpZoom"
@@ -125,8 +124,7 @@ type UiSlice = Pick<
   | "setPointerKind"
   | "setMobileMode"
   | "setMoreDestination"
-  | "setFocusMode"
-  | "cycleFocusMode"
+  | "setLayoutMode"
   | "setSheetExpanded"
   | "commandPaletteOpen"
   | "setCommandPaletteOpen"
@@ -216,7 +214,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
   pointerKind: "fine" as PointerKind,
   mobileMode: "listen" as MobileMode,
   moreDestination: "hub" as MoreDestination,
-  focusMode: "default" as FocusMode,
+  layoutMode: "default" as LayoutMode,
   sheetExpanded: false,
   setZoomPxPerSec: (zoomPxPerSec) =>
     set({ zoomPxPerSec: clampZoomPxPerSec(zoomPxPerSec, sessionSecOf(get())) }),
@@ -456,31 +454,16 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
                 ? { activeTab: "pipeline" as DawTab }
                 : {}),
     }),
-  setFocusMode: (focusMode) =>
+  setLayoutMode: (layoutMode) =>
     set({
-      focusMode,
-      ...(focusMode === "text"
+      layoutMode,
+      ...(layoutMode === "text"
         ? { activeTab: "transcript" as DawTab, timelineFocused: false }
-        : focusMode === "review"
+        : layoutMode === "review"
           ? { activeTab: "comments" as DawTab, timelineFocused: false }
-          : focusMode === "timeline"
+          : layoutMode === "timeline"
             ? { timelineFocused: true }
             : {}),
-    }),
-  cycleFocusMode: () =>
-    set((s) => {
-      const i = FOCUS_CYCLE.indexOf(s.focusMode);
-      const next = FOCUS_CYCLE[(i + 1) % FOCUS_CYCLE.length] ?? "default";
-      return {
-        focusMode: next,
-        ...(next === "text"
-          ? { activeTab: "transcript" as DawTab, timelineFocused: false }
-          : next === "review"
-            ? { activeTab: "comments" as DawTab, timelineFocused: false }
-            : next === "timeline"
-              ? { timelineFocused: true }
-              : {}),
-      };
     }),
   setSheetExpanded: (sheetExpanded) => set({ sheetExpanded }),
   commandPaletteOpen: false,

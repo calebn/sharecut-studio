@@ -27,8 +27,8 @@ export type MobileMode = PresenceMobileMode;
 /** Timeline tool — select inspects; blade splits at click/playhead. */
 export type ToolMode = "select" | "blade";
 
-/** Desktop/tablet chrome focus — see docs/gui-mobile.md. */
-export type FocusMode = "default" | "timeline" | "text" | "review";
+/** Desktop/tablet shell layout — see docs/gui-mobile.md § Desktop — layouts. */
+export type LayoutMode = "default" | "timeline" | "text" | "review";
 
 export type ShellBreakpoint = "phone" | "tablet" | "desktop";
 
@@ -121,7 +121,7 @@ export interface DawState {
   pointerKind: PointerKind;
   mobileMode: MobileMode;
   moreDestination: MoreDestination;
-  focusMode: FocusMode;
+  layoutMode: LayoutMode;
   sheetExpanded: boolean;
   /** Command cheatsheet / palette open. */
   commandPaletteOpen: boolean;
@@ -246,8 +246,7 @@ export interface DawState {
   setPointerKind: (kind: PointerKind) => void;
   setMobileMode: (mode: MobileMode) => void;
   setMoreDestination: (dest: MoreDestination) => void;
-  setFocusMode: (mode: FocusMode) => void;
-  cycleFocusMode: () => void;
+  setLayoutMode: (mode: LayoutMode) => void;
   setSheetExpanded: (on: boolean) => void;
   setCommandPaletteOpen: (on: boolean) => void;
   setGesturesSheetOpen: (on: boolean) => void;

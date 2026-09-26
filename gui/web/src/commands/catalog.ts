@@ -83,34 +83,28 @@ export const COMMANDS: Record<string, CommandDef> = {
     notes:
       "Args: { commentId: string, resolved: boolean, by: string } — host only; use a comment's Resolve/Reopen control",
   },
-  "focus.default": {
-    id: "focus.default",
-    category: "focus",
-    label: "Focus: default layout",
-    when: "layoutFocused",
+  "layout.default": {
+    id: "layout.default",
+    category: "layout",
+    label: "Restore layout",
+    when: "always",
   },
-  "focus.timeline": {
-    id: "focus.timeline",
-    category: "focus",
-    label: "Focus: timeline",
-    when: "layoutFocused",
+  "layout.timeline": {
+    id: "layout.timeline",
+    category: "layout",
+    label: "Maximize timeline",
+    when: "always",
   },
-  "focus.text": {
-    id: "focus.text",
-    category: "focus",
-    label: "Focus: text",
-    when: "layoutFocused",
+  "layout.text": {
+    id: "layout.text",
+    category: "layout",
+    label: "Maximize transcript",
+    when: "always",
   },
-  "focus.review": {
-    id: "focus.review",
-    category: "focus",
-    label: "Focus: review",
-    when: "layoutFocused",
-  },
-  "focus.cycle": {
-    id: "focus.cycle",
-    category: "focus",
-    label: "Cycle focus mode",
+  "layout.review": {
+    id: "layout.review",
+    category: "layout",
+    label: "Review layout",
     when: "always",
   },
   "navigation.nudgePlayheadBack": {

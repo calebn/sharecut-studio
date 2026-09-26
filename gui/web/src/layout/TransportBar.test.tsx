@@ -1,6 +1,8 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { clearRegisteredCommands } from "../commands/execute";
+import { registerDawCommands } from "../commands/register";
 import { useRecordHostStore } from "../record/hostStore";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
@@ -392,6 +394,36 @@ describe("TransportBar wide layout", () => {
     expect(zones[2].querySelector(".transport-primary-actions")).toBeTruthy();
   });
 
+  it("offers layouts as a radio group", async () => {
+    clearRegisteredCommands();
+    registerDawCommands();
+    const view = render(
+      <DawProvider
+        projectPath="/tmp/p.json"
+        initialProject={minimalProject({ tracks: TRACKS })}
+      >
+        <TransportBar showLayout />
+      </DawProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "View" }));
+    const menu = screen.getByRole("menu", { name: "View menu" });
+    const group = within(menu).getByRole("group", { name: "Layout" });
+    expect(within(group).getAllByRole("menuitemradio")).toHaveLength(4);
+    expect(
+      within(group).getByRole("menuitemradio", { name: "Default layout" }),
+    ).toHaveAttribute("aria-checked", "true");
+    await expectNoA11yViolations(view.container);
+    await userEvent.click(
+      within(group).getByRole("menuitemradio", { name: "Maximize transcript" }),
+    );
+    expect(useDawStore.getState().layoutMode).toBe("text");
+    expect(screen.queryByRole("menu", { name: "View menu" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "View" }));
+    expect(
+      screen.getByRole("menuitemradio", { name: "Maximize transcript" }),
+    ).toHaveAttribute("aria-checked", "true");
+  });
+
   it("splits view controls into their own menu on desktop", async () => {
     render(
       <DawProvider
@@ -404,7 +436,12 @@ describe("TransportBar wide layout", () => {
     await userEvent.click(screen.getByRole("button", { name: "View" }));
     const view = screen.getByRole("menu", { name: "View menu" });
     expect(within(view).getByRole("group", { name: "Layers" })).toBeTruthy();
-    expect(within(view).getByRole("menuitem", { name: /Theme:/ })).toBeTruthy();
+    const theme = within(view).getByRole("group", { name: "Theme" });
+    expect(within(theme).getAllByRole("menuitemradio")).toHaveLength(3);
+    expect(
+      within(theme).getByRole("menuitemradio", { name: "System" }),
+    ).toHaveAttribute("aria-checked", "true");
+    expect(within(view).queryByRole("group", { name: "Layout" })).toBeNull();
     await userEvent.keyboard("{Escape}");
 
     await userEvent.click(screen.getByRole("button", { name: "Menu" }));

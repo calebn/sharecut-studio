@@ -139,7 +139,7 @@ Domain CSS is split into `@import` partials from `src/styles/daw.css`, in cascad
 
 ## Responsive shells
 
-See [`docs/gui-mobile.md`](../../docs/gui-mobile.md). Breakpoints: phone `<768`, tablet `768–1100`, desktop `>1100` (`hooks/useViewportClass.ts`). Phone uses `MobileShell` (Listen / Timeline / Text / More); tablet uses peek `BottomSheet` inspector; desktop keeps the Reaper grid with focus modes (`1`–`4`) and transport **More** overflow.
+See [`docs/gui-mobile.md`](../../docs/gui-mobile.md). Breakpoints: phone `<768`, tablet `768–1100`, desktop `>1100` (`hooks/useViewportClass.ts`). Phone uses `MobileShell` (Listen / Timeline / Text / More); tablet uses peek `BottomSheet` inspector; desktop keeps the Reaper grid with layouts (`Mod+1`–`4`) and transport **More** overflow.
 
 ## UI library (`src/ui/`)
 

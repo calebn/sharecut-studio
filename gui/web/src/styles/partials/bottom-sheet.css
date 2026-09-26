@@ -19,7 +19,7 @@ html[data-shell="tablet"] .bottom-sheet-root {
   bottom: calc(var(--tabs-height) + var(--status-height));
 }
 
-html[data-shell="tablet"][data-focus="timeline"] .bottom-sheet-root {
+html[data-shell="tablet"][data-layout="timeline"] .bottom-sheet-root {
   bottom: var(--status-height);
 }
 
