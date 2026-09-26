@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from podcast_mcp.services.session_sync.commands import normalize_presence_playhead
 from podcast_mcp.services.session_sync.service import SessionSyncService
 from podcast_mcp.services.workspace import ProjectWorkspace
 
@@ -25,9 +26,10 @@ class SessionControlService:
         *,
         selection: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        if playhead_sec < 0:
-            raise ValueError("playhead_sec must be >= 0")
-        payload: dict[str, Any] = {"playhead_sec": float(playhead_sec)}
+        sec = normalize_presence_playhead(playhead_sec)
+        if sec is None:
+            raise ValueError("playhead_sec must be a finite number >= 0")
+        payload: dict[str, Any] = {"playhead_sec": sec}
         if selection is not None:
             payload["selection"] = selection
         return self._sync.submit_control("SetPlayhead", payload)["snapshot"]

@@ -200,7 +200,7 @@ class SessionSyncService:
         store.touch_client(
             command.client_id,
             role=command.role,
-            playhead_sec=snap.get("playhead_sec"),
+            playhead_sec=normalize_presence_playhead(snap.get("playhead_sec")),
             meta={"display_name": "Agent"} if command.role == "agent" else None,
         )
         clients = store.list_clients()

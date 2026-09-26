@@ -8,6 +8,7 @@ from typing import Any
 from podcast_mcp.services.session_sync.commands import (
     TRANSPORT_FIELDS,
     audition_mode_from_source,
+    normalize_presence_playhead,
     track_id_from_source,
 )
 
@@ -76,7 +77,9 @@ def apply_command(snap: dict[str, Any], cmd: dict[str, Any]) -> dict[str, Any]:
         # Presence handled by store; no transport field changes required.
         pass
     elif ctype == "SetPlayhead":
-        set_f("playhead_sec", float(payload["playhead_sec"]))
+        sec = normalize_presence_playhead(payload["playhead_sec"])
+        if sec is not None:
+            set_f("playhead_sec", sec)
         if "selection" in payload:
             set_f("selection", payload.get("selection"))
     elif ctype == "SetPlaying":

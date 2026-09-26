@@ -803,6 +803,25 @@ def test_presence_time_fields_share_presence_sec_rule() -> None:
             assert (normalize_presence_meta(meta) is not None) == expected, (meta, value)
 
 
+def test_set_playhead_drops_invalid_playhead(minimal_project) -> None:
+    svc = SessionSyncService(load_project(minimal_project))
+
+    def row(cid: str) -> float | None:
+        return next(c["playhead_sec"] for c in svc.snapshot()["clients"] if c["client_id"] == cid)
+
+    svc.submit_control("SetPlayhead", {"playhead_sec": 3.0}, client_id="agent-x")
+    for bad in (-1.0, float("nan"), float("inf"), "4"):
+        result = svc.submit_control("SetPlayhead", {"playhead_sec": bad}, client_id="agent-x")
+        assert result["snapshot"]["playhead_sec"] == 3.0
+        assert row("agent-x") == 3.0
+    svc.submit_control(
+        "SetRegion",
+        {"start_sec": 1.0, "end_sec": 2.0, "playhead_sec": float("inf")},
+        client_id="agent-r",
+    )
+    assert row("agent-r") is None
+
+
 def test_presence_and_ack_drop_invalid_playhead(minimal_project) -> None:
     svc = SessionSyncService(load_project(minimal_project))
 
@@ -1486,6 +1505,11 @@ def test_session_control_seek_stop_mode(minimal_project) -> None:
     seeked = svc.seek(12.5, selection={"kind": "clip", "id": "c1"})
     assert seeked["playhead_sec"] == 12.5
     assert seeked["selection"]["id"] == "c1"
+    for bad in (-1.0, float("nan"), float("inf")):
+        with pytest.raises(ValueError, match="finite"):
+            svc.seek(bad)
+    state = svc.get_state()
+    assert state is not None and state["playhead_sec"] == 12.5
     roster = svc.presence()
     assert any(c.get("role") == "agent" for c in roster)
     assert any(c.get("display_name") == "Agent" for c in roster)
