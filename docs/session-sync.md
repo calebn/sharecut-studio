@@ -60,6 +60,7 @@ WebSocket reports such collisions as `Error` frames with
 |--------|------|
 | [`session_sync/service.py`](../src/podcast_mcp/services/session_sync/service.py) | `SessionSyncService` — the sync authority only (`submit`, `snapshot`, `state_or_none` / `meta`; `state_or_none` is the single "empty authority" check) |
 | [`session_sync/viewer.py`](../src/podcast_mcp/services/session_sync/viewer.py) | Blob adapters over that authority: `publish_viewer_snapshot` (`POST /api/session/state`) and `publish_agent_play` (`PlayService`) |
+| [`session_sync/snapshot.py`](../src/podcast_mcp/services/session_sync/snapshot.py) | Typed-command handler registry applies per-field LWW values; unknown commands still advance envelope metadata for forward compatibility |
 | [`session_control.py`](../src/podcast_mcp/services/session_control.py) | `SessionControlService` — agent/CLI transport facade (seek, region, mode, selection, stop) |
 
 ## On disk

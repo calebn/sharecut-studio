@@ -1032,6 +1032,40 @@ def test_snapshot_apply_edge_commands(minimal_project) -> None:
     assert snap["origin"] == "agent"  # cli maps to agent alias
 
 
+@pytest.mark.parametrize(
+    ("ctype", "payload", "field", "expected"),
+    [
+        ("SetPlaying", {"is_playing": True}, "is_playing", True),
+        ("SetSelection", {"selection": {"track_id": "host"}}, "selection", {"track_id": "host"}),
+        ("SetMuteSolo", {"viewer_mute": {"host": True}}, "viewer_mute", {"host": True}),
+        ("PlayOsAudio", {"timeline_start_sec": 1, "timeline_end_sec": 2}, "dry_run", False),
+        ("AuditionInViewer", {"timeline_start_sec": 1, "timeline_end_sec": 2}, "dry_run", True),
+    ],
+)
+def test_snapshot_handler_registry_keeps_field_metadata(ctype, payload, field, expected) -> None:
+    from podcast_mcp.services.session_sync.snapshot import apply_command, empty_snapshot
+
+    snap = apply_command(
+        empty_snapshot(),
+        {
+            "type": ctype,
+            "payload": payload,
+            "server_seq": 7,
+            "client_id": "viewer-1",
+            "role": "viewer",
+            "command_id": "cmd-7",
+            "ts_ns": 99,
+        },
+    )
+    assert snap[field] == expected
+    assert snap["fields"][field] == {
+        "value": expected,
+        "server_seq": 7,
+        "client_id": "viewer-1",
+    }
+    assert snap["last_command_id"] == "cmd-7"
+
+
 def test_hub_fanout_delivers_applied(minimal_project) -> None:
     import asyncio
 

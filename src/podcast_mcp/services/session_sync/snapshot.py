@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from typing import Any
 
 from podcast_mcp.services.session_sync.commands import (
@@ -62,6 +63,125 @@ def _set_field(
     snap[key] = value
 
 
+def _set_playhead(payload: dict[str, Any], set_f: Callable[[str, Any], None]) -> None:
+    sec = normalize_presence_playhead(payload["playhead_sec"])
+    if sec is not None:
+        set_f("playhead_sec", sec)
+    if "selection" in payload:
+        set_f("selection", payload.get("selection"))
+
+
+def _set_playing(payload: dict[str, Any], set_f: Callable[[str, Any], None]) -> None:
+    set_f("is_playing", bool(payload["is_playing"]))
+
+
+def _set_mode(payload: dict[str, Any], set_f: Callable[[str, Any], None]) -> None:
+    mode = payload["audition_mode"]
+    set_f("audition_mode", mode)
+    if "source" in payload:
+        set_f("source", payload["source"])
+    else:
+        set_f(
+            "source",
+            {"mix": "premix", "fx": "processed", "raw": "track"}.get(mode),
+        )
+
+
+def _set_region(payload: dict[str, Any], set_f: Callable[[str, Any], None]) -> None:
+    region = {
+        "start_sec": float(payload["start_sec"]),
+        "end_sec": float(payload["end_sec"]),
+    }
+    set_f("region", region)
+    sec = normalize_presence_playhead(payload.get("playhead_sec", region["start_sec"]))
+    if sec is not None:
+        set_f("playhead_sec", sec)
+    if "is_playing" in payload:
+        set_f("is_playing", bool(payload["is_playing"]))
+    if "query" in payload:
+        set_f("query", payload["query"])
+    if "selection" in payload:
+        set_f("selection", payload.get("selection"))
+
+
+def _clear_region(payload: dict[str, Any], set_f: Callable[[str, Any], None]) -> None:
+    set_f("region", None)
+    if payload.get("stop"):
+        set_f("is_playing", False)
+
+
+def _set_selection(payload: dict[str, Any], set_f: Callable[[str, Any], None]) -> None:
+    set_f("selection", payload.get("selection"))
+
+
+def _set_mute_solo(payload: dict[str, Any], set_f: Callable[[str, Any], None]) -> None:
+    if "viewer_mute" in payload:
+        set_f("viewer_mute", dict(payload["viewer_mute"] or {}))
+    if "solo_tracks" in payload:
+        set_f("solo_tracks", dict(payload["solo_tracks"] or {}))
+
+
+def _play_os_audio(payload: dict[str, Any], set_f: Callable[[str, Any], None]) -> None:
+    # Speakers play OS audio - DAW seeks/highlights only.
+    start = float(payload["timeline_start_sec"])
+    end = float(payload["timeline_end_sec"])
+    source = payload.get("source")
+    set_f("playhead_sec", start)
+    set_f("is_playing", False)
+    set_f("region", {"start_sec": start, "end_sec": end})
+    set_f("source", source)
+    set_f("audition_mode", audition_mode_from_source(source))
+    tid = payload.get("track_id") or track_id_from_source(source)
+    set_f("track_id", tid)
+    set_f("solo_tracks", {tid: True} if tid else {})
+    set_f("viewer_mute", {})
+    set_f("query", payload.get("query"))
+    set_f("match_index", payload.get("match_index"))
+    set_f("tier", payload.get("tier"))
+    set_f("dry_run", False)
+    # Host play resolves wav locally from source/region; never persist paths.
+    set_f("wav", None)
+    set_f("compare_segments", None)
+    if "selection" in payload:
+        set_f("selection", payload.get("selection"))
+
+
+def _audition_in_viewer(payload: dict[str, Any], set_f: Callable[[str, Any], None]) -> None:
+    start = float(payload["timeline_start_sec"])
+    end = float(payload["timeline_end_sec"])
+    source = payload.get("source")
+    set_f("playhead_sec", start)
+    set_f("is_playing", True)
+    set_f("region", {"start_sec": start, "end_sec": end})
+    set_f("source", source)
+    set_f("audition_mode", audition_mode_from_source(source))
+    tid = payload.get("track_id") or track_id_from_source(source)
+    set_f("track_id", tid)
+    set_f("solo_tracks", {tid: True} if tid else {})
+    set_f("viewer_mute", {})
+    set_f("query", payload.get("query"))
+    set_f("match_index", payload.get("match_index"))
+    set_f("tier", payload.get("tier"))
+    set_f("dry_run", True)
+    set_f("wav", None)
+    set_f("compare_segments", None)
+    if "selection" in payload:
+        set_f("selection", payload.get("selection"))
+
+
+_COMMAND_HANDLERS: dict[str, Callable[[dict[str, Any], Callable[[str, Any], None]], None]] = {
+    "SetPlayhead": _set_playhead,
+    "SetPlaying": _set_playing,
+    "SetMode": _set_mode,
+    "SetRegion": _set_region,
+    "ClearRegion": _clear_region,
+    "SetSelection": _set_selection,
+    "SetMuteSolo": _set_mute_solo,
+    "PlayOsAudio": _play_os_audio,
+    "AuditionInViewer": _audition_in_viewer,
+}
+
+
 def apply_command(snap: dict[str, Any], cmd: dict[str, Any]) -> dict[str, Any]:
     """Apply one logged command onto a snapshot (mutates and returns snap)."""
     ctype = cmd["type"]
@@ -73,100 +193,9 @@ def apply_command(snap: dict[str, Any], cmd: dict[str, Any]) -> dict[str, Any]:
     def set_f(key: str, value: Any) -> None:
         _set_field(snap, key, value, server_seq=server_seq, client_id=client_id)
 
-    if ctype == "Ack" or ctype == "PresenceHeartbeat":
-        # Presence handled by store; no transport field changes required.
-        pass
-    elif ctype == "SetPlayhead":
-        sec = normalize_presence_playhead(payload["playhead_sec"])
-        if sec is not None:
-            set_f("playhead_sec", sec)
-        if "selection" in payload:
-            set_f("selection", payload.get("selection"))
-    elif ctype == "SetPlaying":
-        set_f("is_playing", bool(payload["is_playing"]))
-    elif ctype == "SetMode":
-        mode = payload["audition_mode"]
-        set_f("audition_mode", mode)
-        if "source" in payload:
-            set_f("source", payload["source"])
-        else:
-            set_f(
-                "source",
-                {"mix": "premix", "fx": "processed", "raw": "track"}.get(mode),
-            )
-    elif ctype == "SetRegion":
-        region = {
-            "start_sec": float(payload["start_sec"]),
-            "end_sec": float(payload["end_sec"]),
-        }
-        set_f("region", region)
-        sec = normalize_presence_playhead(payload.get("playhead_sec", region["start_sec"]))
-        if sec is not None:
-            set_f("playhead_sec", sec)
-        if "is_playing" in payload:
-            set_f("is_playing", bool(payload["is_playing"]))
-        if "query" in payload:
-            set_f("query", payload["query"])
-        if "selection" in payload:
-            set_f("selection", payload.get("selection"))
-    elif ctype == "ClearRegion":
-        set_f("region", None)
-        if payload.get("stop"):
-            set_f("is_playing", False)
-    elif ctype == "SetSelection":
-        set_f("selection", payload.get("selection"))
-    elif ctype == "SetMuteSolo":
-        if "viewer_mute" in payload:
-            set_f("viewer_mute", dict(payload["viewer_mute"] or {}))
-        if "solo_tracks" in payload:
-            set_f("solo_tracks", dict(payload["solo_tracks"] or {}))
-    elif ctype == "PlayOsAudio":
-        # Speakers play OS audio - DAW seeks/highlights only.
-        start = float(payload["timeline_start_sec"])
-        end = float(payload["timeline_end_sec"])
-        source = payload.get("source")
-        set_f("playhead_sec", start)
-        set_f("is_playing", False)
-        set_f("region", {"start_sec": start, "end_sec": end})
-        set_f("source", source)
-        set_f("audition_mode", audition_mode_from_source(source))
-        tid = payload.get("track_id") or track_id_from_source(source)
-        set_f("track_id", tid)
-        set_f("solo_tracks", {tid: True} if tid else {})
-        set_f("viewer_mute", {})
-        set_f("query", payload.get("query"))
-        set_f("match_index", payload.get("match_index"))
-        set_f("tier", payload.get("tier"))
-        set_f("dry_run", False)
-        # Host play resolves wav locally from source/region; never persist paths.
-        set_f("wav", None)
-        set_f("compare_segments", None)
-        if "selection" in payload:
-            set_f("selection", payload.get("selection"))
-    elif ctype == "AuditionInViewer":
-        start = float(payload["timeline_start_sec"])
-        end = float(payload["timeline_end_sec"])
-        source = payload.get("source")
-        set_f("playhead_sec", start)
-        set_f("is_playing", True)
-        set_f("region", {"start_sec": start, "end_sec": end})
-        set_f("source", source)
-        set_f("audition_mode", audition_mode_from_source(source))
-        tid = payload.get("track_id") or track_id_from_source(source)
-        set_f("track_id", tid)
-        set_f("solo_tracks", {tid: True} if tid else {})
-        set_f("viewer_mute", {})
-        set_f("query", payload.get("query"))
-        set_f("match_index", payload.get("match_index"))
-        set_f("tier", payload.get("tier"))
-        set_f("dry_run", True)
-        set_f("wav", None)
-        set_f("compare_segments", None)
-        if "selection" in payload:
-            set_f("selection", payload.get("selection"))
-    else:
-        # Unknown - ignore for forward compatibility
-        pass
+    handler = _COMMAND_HANDLERS.get(ctype)
+    if handler is not None:
+        handler(payload, set_f)
 
     snap["server_seq"] = server_seq
     snap["updated_at_ns"] = int(cmd.get("ts_ns") or time.time_ns())
