@@ -35,7 +35,7 @@ Full-session capture (Riverside/Zencastr-style) — browser + desktop Tauri; iOS
 
 ### Packaging / installs (tester residuals)
 
-Beta testers include **Intel Macs** and **Windows** — do not treat `mac-x64` or a signed NSIS installer as optional. Loopback squat ownership (exclusive bind, boot-token health, WebView allowlist) is required before sharing installers beyond solo dogfood; remaining public-customer trust work (client auth, deny-by-default WebView permissions, updater) stays [v1](#packaging--trust). Spec: [docs/desktop-packaging.md](docs/desktop-packaging.md).
+Beta testers include **Intel Macs** and **Windows** — do not treat `mac-x64` or a signed NSIS installer as optional. Loopback squat ownership (exclusive bind, boot-token health, WebView allowlist) is **shipped in code** (row below), which clears installers for sharing beyond solo dogfood; remaining public-customer trust work (client auth, deny-by-default WebView permissions, updater) stays [v1](#packaging--trust). Spec: [docs/desktop-packaging.md](docs/desktop-packaging.md).
 
 | Item | Notes |
 |------|--------|
@@ -45,7 +45,7 @@ Beta testers include **Intel Macs** and **Windows** — do not treat `mac-x64` o
 | **Standalone app packaging (finish)** | Tauri shell + first-run bootstrap shipped; **CDN client wired** for FFmpeg/RNNoise when `PODCAST_BOOTSTRAP_CDN_BASE` is set ([`util/asset_sources.py`](src/podcast_mcp/util/asset_sources.py)). Releases mirror blobs and pin SHAs. |
 | **Apple notarization + Developer ID** | **Hooks shipped** (`release-desktop-build.yml` `workflow_call`, Environment `desktop-signing` when `sign=true`). Remaining owner-only: attach Developer ID + App Store Connect secrets and dispatch with **sign**. Associated Domains entitlement + Mac App Store still deferred. Pair with Windows Authenticode. |
 | **Windows Authenticode** | **Hooks shipped** (`signtool` on sidecar `.exe` before `tauri build`, NSIS `*_x64-setup.exe` after). Remaining owner-only: attach PFX to Environment `desktop-signing`. Gate for Windows beta: unsigned setups hit SmartScreen / unknown publisher. EV preferred so reputation accrues faster; OV is OK if testers can click through during warmup. |
-| **Public source boundary** | Keep provider source, secrets, and deployment operations outside the public DAW repository. See [docs/extension-seams.md](docs/extension-seams.md). |
+| **Public source boundary** | Keep provider source, secrets, and deployment operations outside the public DAW repository. See [docs/extension-seams.md](docs/extension-seams.md). Enforced by Gitleaks (`secret-scan.yml`) and the public-tree marker/IPv4 test ([docs/testing.md](docs/testing.md) § Credential history scanning). |
 
 ### Progress UX
 
