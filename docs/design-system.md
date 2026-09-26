@@ -85,12 +85,13 @@ banner also render a `<main>` region beside it, so the story harness does not
 nest the banner inside its fallback main landmark.
 
 `Templates/TransportPlayControls` shows the shipped Play/Pause and Stop
-controls in `TransportFrame`, including the empty-project disabled state.
-`Templates/PipelineStatusChip` shows the shipped status footer chip with
-fictional pipeline and activity jobs. Both accept props and callbacks alone;
-the live `TransportBar` and `StatusBar` remain outside Storybook because they
-read DAW state. The running chip examples omit a progress timestamp so the
-catalog does not depend on a moving clock.
+controls in the wide `TransportFrame` and the phone `ListenHero`, including
+the empty-project disabled state. `Templates/PipelineStatusChip` shows the
+shipped status chip in the desktop footer and the phone Listen status row
+with fictional pipeline and activity jobs. Both accept props and callbacks
+alone; the live `TransportBar` and `StatusBar` remain outside Storybook because
+they read DAW state. The running chip examples omit a progress timestamp so
+the catalog does not depend on a moving clock.
 
 `Atoms/SurfaceLadder` renders the five ladder rungs, fields, the selected chip,
 stage, transport, accent, and danger from the live tokens — iterate on the

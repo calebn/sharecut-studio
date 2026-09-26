@@ -9,14 +9,24 @@ const meta: Meta<typeof PipelineStatusChip> = {
   tags: ["autodocs"],
   parameters: { layout: "fullscreen" },
   decorators: [
-    (Story) => (
-      <>
-        <main aria-label="Stage" style={{ blockSize: "12rem" }} />
-        <footer className="status-bar">
-          <Story />
-        </footer>
-      </>
-    ),
+    (Story, context) =>
+      context.parameters.mobileStatusChip ? (
+        <main className="mobile-listen">
+          <div className="mobile-status-chips">
+            <Story />
+          </div>
+        </main>
+      ) : (
+        <>
+          <main
+            aria-label="Stage"
+            style={{ blockSize: "var(--transport-height)" }}
+          />
+          <footer className="status-bar">
+            <Story />
+          </footer>
+        </>
+      ),
   ],
 };
 
@@ -99,11 +109,24 @@ export const CompactPhone: Story = {
   args: {
     job: pipelineJobSnapshot({
       kind: "agent",
-      message: "Scoring dialogue",
+      message: "Scoring the dialogue alignment windows",
       current: null,
       total: null,
     }),
     runningCount: 3,
+    headlineMax: 28,
   },
-  parameters: { viewport: { defaultViewport: "mobile1" } },
+  parameters: {
+    viewport: { defaultViewport: "mobile1" },
+    mobileStatusChip: true,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const chip = canvas
+      .getByText(/Activity: running/)
+      .closest(".status-pipeline");
+    await expect(chip).toHaveTextContent("3 activities");
+    await expect(chip).toHaveTextContent("…");
+    await expect(chip).toHaveAttribute("aria-busy", "true");
+  },
 };
