@@ -13,6 +13,7 @@ import {
   type HostSend,
 } from "../state/hostSendOrder";
 import type { QueuedCommand } from "../state/offlineStore";
+import { requestHostDrainLazy } from "../state/requestHostDrainLazy";
 import { isRetryLater, readApiFailure } from "../utils/apiError";
 import {
   documentClientId,
@@ -158,13 +159,6 @@ export async function submitQueuedDocumentCommand(
   }
 }
 
-/** Ask the host drain to run, or run once more, for this project. */
-function requestDrain(projectPath: string): void {
-  void import("../state/drainOfflineQueue")
-    .then(({ requestHostDrain }) => requestHostDrain(projectPath))
-    .catch(() => undefined);
-}
-
 /**
  * Wait (at most HOST_SEND_WAIT_MS) for this tab's earlier sends, then return
  * this command's persisted record if it is now the queue head. Null keeps it
@@ -238,7 +232,7 @@ async function submitHostDocumentCommand(
       : null;
     if (!head) {
       // Nothing in this call will send it, so make sure a drain does.
-      requestDrain(projectPath);
+      requestHostDrainLazy(projectPath);
       return queuedResult(command_id, client_seq);
     }
     bodyBase = { ...bodyBase, payload: head.payload };
