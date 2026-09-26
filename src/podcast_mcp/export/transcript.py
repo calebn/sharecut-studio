@@ -30,8 +30,14 @@ def _timeline_utterances(project: EpisodeProject) -> list[_TimelineUtterance]:
     combined = ensure_combined_transcript(project)
     st = SessionTimeline(project)
     out: list[_TimelineUtterance] = []
+    by_track: dict[str, list[tuple[SourceSec, SourceSec]]] = {}
     for u in combined.utterances:
-        spans = st.map_source_span(u.track_id, SourceSec(u.start), SourceSec(u.end))
+        by_track.setdefault(u.track_id, []).append((SourceSec(u.start), SourceSec(u.end)))
+    mapped = {
+        track_id: iter(st.map_source_spans(track_id, spans)) for track_id, spans in by_track.items()
+    }
+    for u in combined.utterances:
+        spans = next(mapped[u.track_id])
         if not spans:
             continue
         out.append(

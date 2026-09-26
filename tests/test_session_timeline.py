@@ -82,6 +82,15 @@ def test_source_to_timeline_after_cuts(compressed_project):
     assert st.source_to_timeline("host", SourceSec(250.0)) == pytest.approx(200.0)
 
 
+def test_batch_source_mapping_rebuilds_after_in_place_clip_edit(compressed_project):
+    st = SessionTimeline(compressed_project)
+    spans = [(SourceSec(100.0), SourceSec(101.0))] * 3
+    assert st.map_source_spans("host", spans) == [[(70.0, 71.0)]] * 3
+    compressed_project.clips[1].timeline_start = 65.0
+    assert st.map_source_spans("host", spans) == [[(75.0, 76.0)]] * 3
+    assert st.map_source_span("host", *spans[0]) == [(75.0, 76.0)]
+
+
 def test_source_point_in_cut_returns_none(compressed_project):
     st = SessionTimeline(compressed_project)
     assert st.source_to_timeline("host", SourceSec(75.0)) is None
@@ -188,9 +197,9 @@ def test_index_cache_reused_and_invalidated_by_clip_change(compressed_project):
     _build_index.cache_clear()
     st = SessionTimeline(compressed_project)
     st.source_to_timeline("host", SourceSec(10.0))
-    hits_before = _build_index.cache_info().hits
+    misses_before = _build_index.cache_info().misses
     st.source_to_timeline("host", SourceSec(20.0))
-    assert _build_index.cache_info().hits > hits_before
+    assert _build_index.cache_info().misses == misses_before
 
     misses_before = _build_index.cache_info().misses
     compressed_project.timeline.clips = compressed_project.timeline.clips[:2]

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from bisect import bisect_left
 from typing import Any
 
 from podcast_mcp.edits.audio_quality import _filter_rows_by_time
@@ -69,8 +70,33 @@ def overlap_duplicate_report(
     track_ids = sorted(by_track)
     for ai, tid_a in enumerate(track_ids):
         for tid_b in track_ids[ai + 1 :]:
+            # Preserve transcript order for equal-start output while excluding
+            # words whose start or end cannot intersect the current A word.
+            b_words = by_track[tid_b]
+            b_starts = sorted((w.start, pos) for pos, (_i, w) in enumerate(b_words))
+            start_times = [start for start, _pos in b_starts]
+            capacity = 1 << (max(1, len(b_starts)) - 1).bit_length()
+            max_ends = [float("-inf")] * (2 * capacity)
+            for order, (_start, pos) in enumerate(b_starts):
+                max_ends[capacity + order] = b_words[pos][1].end
+            for node in range(capacity - 1, 0, -1):
+                max_ends[node] = max(max_ends[2 * node], max_ends[2 * node + 1])
             for i_a, w_a in by_track[tid_a]:
-                for i_b, w_b in by_track[tid_b]:
+                stop = bisect_left(start_times, w_a.end)
+                candidates: list[int] = []
+                pending = [(1, 0, capacity)]
+                while pending:
+                    node, lo, hi = pending.pop()
+                    if lo >= stop or max_ends[node] <= w_a.start:
+                        continue
+                    if hi - lo == 1:
+                        candidates.append(b_starts[lo][1])
+                        continue
+                    mid = (lo + hi) // 2
+                    pending.append((node * 2 + 1, mid, hi))
+                    pending.append((node * 2, lo, mid))
+                for pos in sorted(candidates):
+                    i_b, w_b = b_words[pos]
                     if w_a.start >= w_b.end or w_b.start >= w_a.end:
                         continue
                     overlap = min(w_a.end, w_b.end) - max(w_a.start, w_b.start)

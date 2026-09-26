@@ -193,9 +193,16 @@ def propose_social_clips(
     duration_sec = _episode_duration(project)
     st = SessionTimeline(project)
     pyramids: _PyramidCache = {}
+    by_track: dict[str, list[tuple[SourceSec, SourceSec]]] = {}
+    for utt in combined.utterances:
+        by_track.setdefault(utt.track_id, []).append((SourceSec(utt.start), SourceSec(utt.end)))
+    mapped = {
+        track_id: iter(st.map_source_spans(track_id, spans)) for track_id, spans in by_track.items()
+    }
 
     scored: list[SocialClipCandidate] = []
     for utt in combined.utterances:
+        tl_spans = next(mapped[utt.track_id])
         score, reasons = _score_utterance(
             project,
             track_id=utt.track_id,
@@ -211,7 +218,6 @@ def propose_social_clips(
             continue
         # Candidate times are the deliverable (timeline) clock: export cuts
         # premix/mastered, so map the source-clock utterance through the clips.
-        tl_spans = st.map_source_span(utt.track_id, SourceSec(utt.start), SourceSec(utt.end))
         if not tl_spans:
             continue
         tl_start = float(tl_spans[0][0])

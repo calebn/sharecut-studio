@@ -28,6 +28,7 @@ from podcast_mcp.edits.conversation_align import (
     plan_conversation_alignment,
     restore_clip_geometry,
     run_conversation_align,
+    silence_midpoint_score,
     snapshot_clip_geometry,
     write_alignment_artifact,
 )
@@ -72,6 +73,28 @@ def _project(
         )
         p.transcripts.append(Transcript(track_id=tid, words=words))
     return p
+
+
+def test_silence_midpoint_score_matches_linear_nearest_search() -> None:
+    reference = [(0.0, 1.0), (3.0, 4.0), (7.0, 8.0)]
+    source = [(1.0, 1.2), (2.0, 2.4), (4.2, 4.4)]
+    silences = [(1.0, 3.0), (4.0, 7.0)]
+    mids = [(a + b) / 2 for a, b in silences]
+    for offset in (-1.0, 0.0, 0.8, 2.0, 4.0):
+        errors = []
+        inside = 0
+        for start, end in source:
+            center = (start + end) / 2 + offset
+            best = min(range(len(mids)), key=lambda i: abs(mids[i] - center))
+            a, b = silences[best]
+            if a <= center <= b:
+                inside += 1
+                errors.append(abs(mids[best] - center) / max((b - a) / 2, 0.1))
+            else:
+                errors.append(1.0 + min(abs(center - a), abs(center - b)))
+        errors.sort()
+        expected = inside * 3.0 - errors[len(errors) // 2] * 8.0 - 0.01 * abs(offset)
+        assert silence_midpoint_score(reference, source, offset) == pytest.approx(expected)
 
 
 def test_bleed_phrase_offsets_median() -> None:

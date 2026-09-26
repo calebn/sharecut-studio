@@ -12,6 +12,7 @@ import itertools
 import logging
 import statistics
 import subprocess
+from bisect import bisect_left
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -1113,13 +1114,11 @@ def silence_midpoint_score(
     errs: list[float] = []
     for s, e in source:
         center = (s + e) / 2.0 + offset_sec
-        best_i = 0
-        best_d = abs(mids[0] - center)
-        for i, mid in enumerate(mids[1:], start=1):
-            d = abs(mid - center)
-            if d < best_d:
-                best_d = d
-                best_i = i
+        right = bisect_left(mids, center)
+        best_i = min(right, len(mids) - 1)
+        if best_i and abs(mids[best_i - 1] - center) <= abs(mids[best_i] - center):
+            best_i -= 1
+        best_d = abs(mids[best_i] - center)
         sil_s, sil_e = sil[best_i]
         if sil_s <= center <= sil_e:
             in_sil += 1
