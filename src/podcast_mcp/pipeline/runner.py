@@ -22,7 +22,6 @@ from podcast_mcp.models import (
     PipelineStepLog,
 )
 from podcast_mcp.pipeline import steps as pipeline_steps
-from podcast_mcp.project_merge import ProjectMergeConflict
 from podcast_mcp.util.progress import (
     CancelledProgress,
     ProgressReporter,
@@ -30,6 +29,7 @@ from podcast_mcp.util.progress import (
     progress_task,
     resolve_progress,
 )
+from podcast_mcp.util.project_state import project_commit_lock, project_file_revision
 
 StepFn = Callable[[EpisodeProject, dict], str | None]
 
@@ -131,6 +131,33 @@ def select_pipeline_steps(
     return steps_list
 
 
+def _complete_step(
+    project: EpisodeProject, name: str, on_step_complete: Callable[[str], None]
+) -> None:
+    """Mark ``name`` done and let ``on_step_complete`` save it (and record ``after <name>``).
+
+    If the save fails before the project file is replaced (a merge conflict, a failed
+    commit or lock, an invalid history entry), the step is un-marked in memory so a later
+    save cannot persist a step that never saved. If the file was replaced and only a later
+    write failed, the saved state (step done) stays. The commit lock is held across the
+    check so no other writer can replace the file in between.
+    """
+    previous_step = project.last_completed_step
+    with project_commit_lock(project):
+        before = project_file_revision(project)
+        project.last_completed_step = name
+        try:
+            on_step_complete(name)
+        except BaseException:
+            try:
+                landed = project_file_revision(project) != before
+            except OSError:
+                landed = False  # unknown: never claim a step that may not be saved
+            if not landed:
+                project.last_completed_step = previous_step
+            raise
+
+
 class PipelineRunner:
     def __init__(self, defaults: dict | None = None) -> None:
         self.defaults = defaults if defaults is not None else load_defaults()
@@ -226,16 +253,10 @@ class PipelineRunner:
                                 gate_text_fingerprint = transcript_text_fingerprint(project)
                         if name in AUDIO_AFFECTING_STEPS:
                             mark_reconciliation_stale(project)
-                        previous_step = project.last_completed_step
-                        project.last_completed_step = name
-                        if on_step_complete is not None:
-                            # The callback saves (and records ``after <name>``) in one commit.
-                            try:
-                                on_step_complete(name)
-                            except ProjectMergeConflict:
-                                # Nothing was saved: do not report the step done in memory.
-                                project.last_completed_step = previous_step
-                                raise
+                        if on_step_complete is None:
+                            project.last_completed_step = name
+                        else:
+                            _complete_step(project, name, on_step_complete)
                         done_msg = f"Completed {name}"
                         if summary:
                             done_msg = f"{done_msg}: {summary}"

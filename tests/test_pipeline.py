@@ -91,3 +91,35 @@ def test_runner_keeps_last_completed_step_when_the_step_save_conflicts(
         )
     assert proj.last_completed_step == "merge_transcript"
     assert proj.pipeline_runs[-1].steps[-1].status == "error"
+
+
+def test_runner_unmarks_the_step_when_the_save_fails_before_writing(minimal_project, monkeypatch):
+    proj = load_project(minimal_project)
+    proj.last_completed_step = "merge_transcript"
+    monkeypatch.setitem(runner_mod._STEP_MAP, "master_loudness", lambda _p, _d: "")
+
+    def fail(_step: str) -> None:
+        raise OSError("disk full")
+
+    with pytest.raises(OSError, match="disk full"):
+        PipelineRunner(defaults={}).run(proj, only_step="master_loudness", on_step_complete=fail)
+    assert proj.last_completed_step == "merge_transcript"
+    assert proj.pipeline_runs[-1].steps[-1].status == "error"
+
+
+def test_runner_keeps_the_step_when_the_file_was_saved_before_the_error(
+    minimal_project, monkeypatch
+):
+    proj = load_project(minimal_project)
+    proj.last_completed_step = "merge_transcript"
+    monkeypatch.setitem(runner_mod._STEP_MAP, "master_loudness", lambda _p, _d: "")
+
+    def save_then_fail(_step: str) -> None:
+        save_project(proj, minimal_project)
+        raise OSError("cache")
+
+    with pytest.raises(OSError, match="cache"):
+        PipelineRunner(defaults={}).run(
+            proj, only_step="master_loudness", on_step_complete=save_then_fail
+        )
+    assert proj.last_completed_step == "master_loudness"
