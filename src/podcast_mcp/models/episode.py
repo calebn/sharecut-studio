@@ -332,6 +332,8 @@ class SourceRecording(BaseModel):
     sample_rate: int | None = None
     channels: int | None = None
     clipping_regions: list[SourceClippingRegion] = Field(default_factory=list)
+    # The encoder hit its region cap; clipping after the last region went unrecorded.
+    clipping_truncated: bool = False
 
 
 class TimelineSection(BaseModel):

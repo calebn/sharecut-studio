@@ -221,5 +221,35 @@ describe("MarkerLane", () => {
       expect(container.querySelector(".marker-row.clipping")).toBeTruthy();
       await expectNoA11yViolations(container);
     });
+
+    it("says when later clipping was not recorded", () => {
+      const { container } = render(
+        <MarkerLane
+          chapters={[]}
+          socialClips={[]}
+          comments={[]}
+          rows={rows}
+          zoomPxPerSec={10}
+          width={400}
+          onSelectChapter={vi.fn()}
+          onSelectSocial={vi.fn()}
+          onSelectComment={vi.fn()}
+          clippingFlags={[
+            {
+              id: "c1:0",
+              trackId: "t1",
+              label: "Ava",
+              start: 5,
+              end: 6,
+              truncated: true,
+            },
+          ]}
+        />,
+      );
+      const flag = container.querySelector(".clipping-marker") as HTMLElement;
+      expect(flag.getAttribute("aria-label")).toBe(
+        "Clipping on Ava at 0:05; later clipping not recorded",
+      );
+    });
   });
 });

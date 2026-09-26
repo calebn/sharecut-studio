@@ -9,6 +9,8 @@ export type ClippingFlag = {
   label: string;
   start: number;
   end: number;
+  /** Last flag of a clip whose recording hit the region cap. */
+  truncated?: boolean;
 };
 
 /** Clipping flags for every clip, sorted by timeline start. */
@@ -20,6 +22,7 @@ export function clippingFlags(
   const flags: ClippingFlag[] = [];
   for (const [trackId, clips] of Object.entries(clipTracks)) {
     for (const clip of clips) {
+      const before = flags.length;
       (clip.clipping_regions ?? []).forEach((region, i) => {
         const start = sourceSecInClipToTimeline(clip, region.start_s);
         const end = sourceSecInClipToTimeline(clip, region.end_s);
@@ -32,6 +35,9 @@ export function clippingFlags(
           end,
         });
       });
+      const last = flags[flags.length - 1];
+      if (clip.clipping_truncated && flags.length > before && last)
+        last.truncated = true;
     }
   }
   return flags.sort((a, b) => a.start - b.start || a.id.localeCompare(b.id));

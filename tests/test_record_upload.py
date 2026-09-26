@@ -1335,7 +1335,9 @@ def test_parse_clipping_regions() -> None:
             parse_clipping_regions(value)
 
 
-def _ingest_final(svc, pid="p_aa", *, clipping=None, seq=0, final=True, kind=None):
+def _ingest_final(
+    svc, pid="p_aa", *, clipping=None, clipping_truncated=False, seq=0, final=True, kind=None
+):
     pcm, digest, wav_hash = _pcm_part(32)
     return svc.ingest_part(
         session_id="room1",
@@ -1349,6 +1351,7 @@ def _ingest_final(svc, pid="p_aa", *, clipping=None, seq=0, final=True, kind=Non
         final=final,
         expected_parts=1 if final else None,
         clipping=clipping,
+        clipping_truncated=clipping_truncated,
         kind=kind,
     )
 
@@ -1381,6 +1384,44 @@ def test_clipping_rejected_on_non_final_part_and_room_tone(minimal_project, samp
     with pytest.raises(RecordUploadError, match="room tone"):
         _ingest_final(svc, clipping="1-2", kind="room_tone")
     assert svc.status(session_id="room1")["segments"] == []
+
+
+def test_clipping_truncated_is_stored_and_shown_in_status(minimal_project, sample_wav):
+    ws = _seed_premix(minimal_project, sample_wav)
+    svc = RecordUploadService(ws.project)
+    _ingest_final(svc, clipping="1-2", clipping_truncated=True)
+    assert svc.status(session_id="room1")["segments"][0]["clipping_truncated"] is True
+    file_row = svc._store.file_row(
+        session_id="room1", take_index=0, participant_id="p_aa", segment_index=0
+    )
+    assert file_row is not None
+    assert file_row["clipping_truncated"] is True
+
+
+def test_clipping_truncated_defaults_false(minimal_project, sample_wav):
+    ws = _seed_premix(minimal_project, sample_wav)
+    svc = RecordUploadService(ws.project)
+    _ingest_final(svc, clipping="1-2")
+    assert svc.status(session_id="room1")["segments"][0]["clipping_truncated"] is False
+
+
+def test_clipping_truncated_needs_clipping_and_not_room_tone(minimal_project, sample_wav):
+    ws = _seed_premix(minimal_project, sample_wav)
+    svc = RecordUploadService(ws.project)
+    with pytest.raises(RecordUploadError, match="needs clipping"):
+        _ingest_final(svc, clipping_truncated=True)
+    with pytest.raises(RecordUploadError, match="room tone"):
+        _ingest_final(svc, clipping="1-2", clipping_truncated=True, kind="room_tone")
+
+
+def test_clipping_truncated_replay_after_land(minimal_project, sample_wav):
+    ws = _seed_premix(minimal_project, sample_wav)
+    svc = RecordUploadService(ws.project)
+    _ingest_final(svc, clipping="1-2", clipping_truncated=True)
+    svc.mark_landed(session_id="room1", take_index=0, participant_id="p_aa", segment_index=0)
+    _ingest_final(svc, clipping="1-2", clipping_truncated=True)
+    with pytest.raises(RecordUploadError, match="clipping_truncated refused after land"):
+        _ingest_final(svc, clipping="1-2", clipping_truncated=False)
 
 
 def test_clipping_refused_after_land(minimal_project, sample_wav):
@@ -1445,6 +1486,9 @@ def test_old_upload_db_gains_the_clipping_column(tmp_path: Path):
     store = RecordUploadStore(db)
     store.set_clipping_regions(
         session_id="s", take_index=0, participant_id="p_a", segment_index=0, regions=[[1, 2]]
+    )
+    store.set_clipping_truncated(
+        session_id="s", take_index=0, participant_id="p_a", segment_index=0, truncated=True
     )
     store.close()
 

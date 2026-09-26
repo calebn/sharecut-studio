@@ -92,6 +92,7 @@ def _ack_pcm(
     join_offset_ms: int,
     pcm: bytes,
     clipping: str | None = None,
+    clipping_truncated: bool = False,
 ) -> None:
     wav = pcm_wav_header(len(pcm)) + pcm
     uploader.ingest_part(
@@ -107,6 +108,7 @@ def _ack_pcm(
         expected_parts=1,
         join_offset_ms=join_offset_ms,
         clipping=clipping,
+        clipping_truncated=clipping_truncated,
     )
 
 
@@ -3294,6 +3296,33 @@ def test_landing_clamps_or_drops_out_of_range_clipping(
     ]
 
 
+def test_landing_carries_clipping_truncated_to_the_source(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=3_000)
+    uploader = RecordUploadService(ws.project)
+    pcm, _digest, _file_hash = _two_second_pcm()
+    _ack_pcm(
+        uploader,
+        session_id=room["session_id"],
+        take=0,
+        pid=guest,
+        segment=0,
+        join_offset_ms=0,
+        pcm=pcm,
+        clipping="100-250",
+        clipping_truncated=True,
+    )
+    RecordLandingService(ws).land(align=lambda _p: None)
+    source = next(s for s in ws.project.sources if s.id.startswith("rec-"))
+    assert source.clipping_truncated is True
+
+
 def test_reack_before_landing_replaces_clipping_regions(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -3334,11 +3363,16 @@ def test_upsert_source_keeps_clipping_on_none_and_clears_on_empty(minimal_projec
         "channels": 1,
     }
     src = _upsert_source(
-        project, clipping_regions=[SourceClippingRegion(start_s=0.1, end_s=0.2)], **fields
+        project,
+        clipping_regions=[SourceClippingRegion(start_s=0.1, end_s=0.2)],
+        clipping_truncated=True,
+        **fields,
     )
     # None means "unknown" (recovered or older segment): keep what we had.
     _upsert_source(project, clipping_regions=None, **fields)
     assert [(r.start_s, r.end_s) for r in src.clipping_regions] == [(0.1, 0.2)]
+    assert src.clipping_truncated is True
     # [] means "checked, no clipping": clear.
     _upsert_source(project, clipping_regions=[], **fields)
     assert src.clipping_regions == []
+    assert src.clipping_truncated is False

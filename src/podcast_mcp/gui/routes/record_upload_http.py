@@ -61,6 +61,7 @@ async def ingest_record_upload_request(
     clip_scope: str | None = None,
     kind: str | None = None,
     clipping: str | None = None,
+    clipping_truncated: bool = False,
     before_ingest: Callable[[], None] | None = None,
 ) -> dict[str, Any] | JSONResponse:
     try:
@@ -92,6 +93,7 @@ async def ingest_record_upload_request(
             join_offset_ms=join_offset_ms,
             kind=parsed_kind,
             clipping=clipping,
+            clipping_truncated=clipping_truncated,
         )
     except RecordUploadError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

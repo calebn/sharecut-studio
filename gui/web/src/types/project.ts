@@ -29,6 +29,8 @@ export interface ClipRow {
   mute_regions?: ClipMuteRegion[];
   /** Source spans where the recording clipped, inside this clip window. */
   clipping_regions?: ClippingRegion[];
+  /** The recording hit its clip-region cap; clipping after this clip's last flag was not recorded. */
+  clipping_truncated?: boolean;
 }
 
 export interface TrackView {

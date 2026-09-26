@@ -54,4 +54,36 @@ describe("recordUploadSearchParams", () => {
     ).toBe(false);
     expect(recordUploadSearchParams(base).has("clipping")).toBe(false);
   });
+
+  it("sends clipping_truncated only with regions and a truncated segment", () => {
+    const base = {
+      takeIndex: 0,
+      segmentIndex: 0,
+      partSeq: 0,
+      digest: "abc",
+      final: true,
+    };
+    const regions = [{ startMs: 100, endMs: 250 }];
+    expect(
+      recordUploadSearchParams({
+        ...base,
+        clippingRegions: regions,
+        clippingTruncated: true,
+      }).get("clipping_truncated"),
+    ).toBe("true");
+    expect(
+      recordUploadSearchParams({
+        ...base,
+        clippingRegions: regions,
+        clippingTruncated: false,
+      }).has("clipping_truncated"),
+    ).toBe(false);
+    expect(
+      recordUploadSearchParams({
+        ...base,
+        clippingRegions: [],
+        clippingTruncated: true,
+      }).has("clipping_truncated"),
+    ).toBe(false);
+  });
 });

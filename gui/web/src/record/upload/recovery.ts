@@ -49,6 +49,7 @@ export type KeeperRecoveryStatus =
       kind: "complete";
       joinOffsetMs: number;
       clippingRegions?: KeeperClipRegion[];
+      clippingTruncated?: boolean;
     }
   | { kind: "pruned" }
   /** Not finalized, and not inspected because capture may still be open. */
@@ -148,6 +149,7 @@ export async function inspectKeeperRecovery(
       kind: "complete",
       joinOffsetMs: meta.joinOffsetMs,
       clippingRegions: meta.clippingRegions,
+      clippingTruncated: meta.clippingTruncated,
     };
   }
   let probe: HeaderProbe | null | undefined;
@@ -160,6 +162,7 @@ export async function inspectKeeperRecovery(
         kind: "complete",
         joinOffsetMs: meta.joinOffsetMs,
         clippingRegions: meta.clippingRegions,
+        clippingTruncated: meta.clippingTruncated,
       };
     }
   }

@@ -313,26 +313,29 @@ export function MarkerLane({
       )}
       {rows.clipping && (
         <div className="marker-row clipping" {...rowAnchor("clipping")}>
-          {clippingFlags.map((flag) => (
-            <button
-              key={flag.id}
-              type="button"
-              className="clipping-marker"
-              style={{
-                left: flag.start * zoomPxPerSec,
-                width: Math.max(
-                  MARKER_ROW_HEIGHT,
-                  (flag.end - flag.start) * zoomPxPerSec,
-                ),
-              }}
-              aria-label={`Clipping on ${flag.label} at ${formatTimeShort(flag.start)}`}
-              title={`Clipping on ${flag.label}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelectClipping?.(flag);
-              }}
-            />
-          ))}
+          {clippingFlags.map((flag) => {
+            const note = flag.truncated ? "; later clipping not recorded" : "";
+            return (
+              <button
+                key={flag.id}
+                type="button"
+                className="clipping-marker"
+                style={{
+                  left: flag.start * zoomPxPerSec,
+                  width: Math.max(
+                    MARKER_ROW_HEIGHT,
+                    (flag.end - flag.start) * zoomPxPerSec,
+                  ),
+                }}
+                aria-label={`Clipping on ${flag.label} at ${formatTimeShort(flag.start)}${note}`}
+                title={`Clipping on ${flag.label}${note}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectClipping?.(flag);
+                }}
+              />
+            );
+          })}
         </div>
       )}
     </div>

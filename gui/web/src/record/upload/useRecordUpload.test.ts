@@ -323,6 +323,7 @@ describe("useRecordUpload", () => {
           samplesWritten: 4,
           complete: true,
           clippingRegions: [{ startMs: 100, endMs: 250 }],
+          clippingTruncated: true,
         }),
       ),
     );
@@ -341,6 +342,7 @@ describe("useRecordUpload", () => {
     );
     await waitFor(() => expect(result.current.fileAck).toBe(true));
     expect(transport.clippingRegions).toEqual([[{ startMs: 100, endMs: 250 }]]);
+    expect(transport.clippingTruncated).toEqual([true]);
     unmount();
   });
 

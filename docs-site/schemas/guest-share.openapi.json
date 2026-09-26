@@ -5563,6 +5563,18 @@
             }
           },
           {
+            "description": "True when the encoder hit its 100-region cap and later clipping went unrecorded; needs clipping.",
+            "in": "query",
+            "name": "clipping_truncated",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "True when the encoder hit its 100-region cap and later clipping went unrecorded; needs clipping.",
+              "title": "Clipping Truncated",
+              "type": "boolean"
+            }
+          },
+          {
             "description": "keeper or room_tone",
             "in": "query",
             "name": "kind",

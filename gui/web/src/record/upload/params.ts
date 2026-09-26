@@ -12,6 +12,7 @@ export function recordUploadSearchParams(args: {
   final?: boolean;
   joinOffsetMs?: number;
   clippingRegions?: KeeperClipRegion[];
+  clippingTruncated?: boolean;
   kind?: string;
   expectedParts?: number;
   extra?: Record<string, string>;
@@ -32,6 +33,7 @@ export function recordUploadSearchParams(args: {
   }
   if (args.clippingRegions && args.clippingRegions.length > 0) {
     q.set("clipping", serializeClipRegions(args.clippingRegions));
+    if (args.clippingTruncated) q.set("clipping_truncated", "true");
   }
   if (args.kind) {
     q.set("kind", args.kind);

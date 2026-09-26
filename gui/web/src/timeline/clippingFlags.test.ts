@@ -44,6 +44,24 @@ describe("clippingFlags", () => {
     ]);
   });
 
+  it("marks only the last flag of a truncated clip", () => {
+    const flags = clippingFlags(
+      {
+        t1: [
+          clip({
+            clipping_truncated: true,
+            clipping_regions: [
+              { start_s: 11, end_s: 12 },
+              { start_s: 15, end_s: 16 },
+            ],
+          }),
+        ],
+      },
+      [],
+    );
+    expect(flags.map((f) => f.truncated)).toEqual([undefined, true]);
+  });
+
   it("falls back to the track id and skips spans outside the clip", () => {
     const flags = clippingFlags(
       { t9: [clip({ clipping_regions: [{ start_s: 50, end_s: 60 }] })] },
