@@ -190,8 +190,10 @@ flowchart TD
    error never replaces the full-room screen.
    If the saved microphone is no longer available, the lobby falls back to the
    default input, shows a notice, and resets the saved choice to Default.
-   Retry then goes straight to the default input, and the notice stays even if
-   that Retry fails.
+   Retry then goes straight to the default input while the saved microphone is
+   still missing, and the notice stays even if that Retry fails. Declining or
+   leaving the room never restores the dead choice, and a microphone that is
+   plugged back in is tried again on the next Retry.
    If the microphone ends involuntarily, the local keeper closes its current
    segment and a persistent warning offers **Reconnect microphone**. The room
    clock follows the shared take while REC says local capture failed and has no

@@ -17,15 +17,20 @@ export type MicStreamState = {
   settledAttempt: number;
   lost: boolean;
   /**
-   * Saved deviceId that could not be opened and was replaced by the default input.
-   * Latched through a failed Retry; later acquisitions skip it while it is not listed.
+   * The current deviceId when it could not be opened and the default input replaced it.
+   * Latched through a failed Retry and a disable; null once that id opens again or another id is chosen.
    */
-  fellBackFrom: string | null;
+  staleDeviceId: string | null;
   retry: () => void;
 };
 
 function stopTracks(stream: MediaStream | null): void {
   stream?.getTracks().forEach((t) => t.stop());
+}
+
+/** True when `deviceId` is the saved id that already fell back to the default input. */
+function isLatchedFallback(latched: string | null, deviceId: string): boolean {
+  return deviceId !== "" && latched === deviceId;
 }
 
 export function useMicStream(
@@ -48,9 +53,8 @@ export function useMicStream(
   const acquiringRef = useRef(false);
   const acquisitionGenerationRef = useRef(0);
   const deviceRefreshGenerationRef = useRef(0);
-  // Latched fallback: survives a failed acquisition so Retry/reconnect skip the dead id.
+  // Latched fallback: survives a failed acquisition and a disable; cleared only when an acquisition opens the requested id.
   const fellBackFromRef = useRef<string | null>(null);
-  const devicesRef = useRef<MediaDeviceInfo[]>([]);
 
   const retry = useCallback(() => {
     if (!enabled || acquiringRef.current) {
@@ -70,8 +74,8 @@ export function useMicStream(
       setSettingsWarning(null);
       setPending(false);
       setSettledAttempt(resetKey);
-      fellBackFromRef.current = null;
-      setFellBackFrom(null);
+      // Keep the stale-mic latch: it describes the saved id, not this stream, so
+      // RecordApp never writes a dead id back to storage while the mic is off.
       lostRef.current = false;
       setLost(false);
       return;
@@ -83,27 +87,28 @@ export function useMicStream(
     const acquisitionGeneration = acquisitionGenerationRef.current + 1;
     acquisitionGenerationRef.current = acquisitionGeneration;
     acquiringRef.current = true;
-    const refreshDevices = async () => {
+    // Returns the audio inputs, or null when enumeration failed (unknown, not empty).
+    const refreshDevices = async (): Promise<MediaDeviceInfo[] | null> => {
       const refreshGeneration = deviceRefreshGenerationRef.current + 1;
       deviceRefreshGenerationRef.current = refreshGeneration;
       try {
         const list = await mediaDevices.enumerateDevices();
+        const inputs = list.filter((d) => d.kind === "audioinput");
         if (
           !cancelled &&
           refreshGeneration === deviceRefreshGenerationRef.current
         ) {
-          const inputs = list.filter((d) => d.kind === "audioinput");
-          devicesRef.current = inputs;
           setDevices(inputs);
         }
+        return inputs;
       } catch {
         if (
           !cancelled &&
           refreshGeneration === deviceRefreshGenerationRef.current
         ) {
-          devicesRef.current = [];
           setDevices([]);
         }
+        return null;
       }
     };
     const onDeviceChange = () => {
@@ -120,11 +125,19 @@ export function useMicStream(
     const start = async () => {
       try {
         let next: MediaStream;
-        // An id that already fell back, and is still not listed, goes straight to the default.
-        const knownMissing =
-          deviceId !== "" &&
-          fellBackFromRef.current === deviceId &&
-          !devicesRef.current.some((d) => d.deviceId === deviceId);
+        // A latched id goes straight to the default only when a fresh, non-empty
+        // enumeration still lacks it; a failed or empty list is unknown, so try the id.
+        let knownMissing = false;
+        if (isLatchedFallback(fellBackFromRef.current, deviceId)) {
+          const inputs = await refreshDevices();
+          if (cancelled) {
+            return;
+          }
+          knownMissing =
+            inputs !== null &&
+            inputs.length > 0 &&
+            !inputs.some((d) => d.deviceId === deviceId);
+        }
         const requested = knownMissing ? "" : deviceId;
         let usedDefault = knownMissing;
         try {
@@ -216,7 +229,7 @@ export function useMicStream(
     pending,
     settledAttempt,
     lost,
-    fellBackFrom,
+    staleDeviceId: isLatchedFallback(fellBackFrom, deviceId) ? deviceId : null,
     retry,
   };
 }

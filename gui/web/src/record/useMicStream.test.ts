@@ -226,7 +226,7 @@ describe("useMicStream", () => {
     await waitFor(() => expect(result.current.stream).toBeTruthy());
     expect(gum).toHaveBeenNthCalledWith(1, keeperAudioConstraints("dead-id"));
     expect(gum).toHaveBeenNthCalledWith(2, keeperAudioConstraints());
-    expect(result.current.fellBackFrom).toBe("dead-id");
+    expect(result.current.staleDeviceId).toBe("dead-id");
     expect(result.current.error).toBeNull();
   });
 
@@ -257,7 +257,9 @@ describe("useMicStream", () => {
       vi.stubGlobal("navigator", {
         mediaDevices: {
           getUserMedia: gum,
-          enumerateDevices: vi.fn(async () => []),
+          enumerateDevices: vi.fn(async () => [
+            { kind: "audioinput", deviceId: "builtin", label: "Built-in" },
+          ]),
         },
       });
       const { result } = renderHook(() => useMicStream(true, "dead-id"));
@@ -266,7 +268,7 @@ describe("useMicStream", () => {
       await waitFor(() => expect(gum).toHaveBeenCalledTimes(3));
       expect(gum).toHaveBeenNthCalledWith(3, keeperAudioConstraints());
       await waitFor(() => expect(result.current.stream).toBeTruthy());
-      expect(result.current.fellBackFrom).toBe("dead-id");
+      expect(result.current.staleDeviceId).toBe("dead-id");
     });
 
     it("keeps the fallback when a later Retry fails", async () => {
@@ -280,7 +282,9 @@ describe("useMicStream", () => {
       vi.stubGlobal("navigator", {
         mediaDevices: {
           getUserMedia: gum,
-          enumerateDevices: vi.fn(async () => []),
+          enumerateDevices: vi.fn(async () => [
+            { kind: "audioinput", deviceId: "builtin", label: "Built-in" },
+          ]),
         },
       });
       const { result } = renderHook(() => useMicStream(true, "dead-id"));
@@ -289,7 +293,7 @@ describe("useMicStream", () => {
       await waitFor(() =>
         expect(result.current.errorName).toBe("NotAllowedError"),
       );
-      expect(result.current.fellBackFrom).toBe("dead-id");
+      expect(result.current.staleDeviceId).toBe("dead-id");
     });
 
     it("tries the saved id again once it is listed", async () => {
@@ -311,7 +315,76 @@ describe("useMicStream", () => {
       act(() => result.current.retry());
       await waitFor(() => expect(gum).toHaveBeenCalledTimes(3));
       expect(gum).toHaveBeenNthCalledWith(3, keeperAudioConstraints("dead-id"));
-      await waitFor(() => expect(result.current.fellBackFrom).toBeNull());
+      await waitFor(() => expect(result.current.staleDeviceId).toBeNull());
+    });
+
+    it("keeps the latch while the mic is disabled", async () => {
+      const gum = vi
+        .fn()
+        .mockRejectedValueOnce(staleError())
+        .mockResolvedValueOnce(makeStream());
+      vi.stubGlobal("navigator", {
+        mediaDevices: {
+          getUserMedia: gum,
+          enumerateDevices: vi.fn(async () => [
+            { kind: "audioinput", deviceId: "builtin", label: "Built-in" },
+          ]),
+        },
+      });
+      const { result, rerender } = renderHook(
+        ({ on }: { on: boolean }) => useMicStream(on, "dead-id"),
+        { initialProps: { on: true } },
+      );
+      await waitFor(() => expect(result.current.stream).toBeTruthy());
+      rerender({ on: false });
+      await waitFor(() => expect(result.current.stream).toBeNull());
+      expect(result.current.staleDeviceId).toBe("dead-id");
+    });
+
+    it("tries the saved id when enumeration fails", async () => {
+      const gum = vi
+        .fn()
+        .mockRejectedValueOnce(staleError())
+        .mockResolvedValueOnce(makeStream())
+        .mockResolvedValueOnce(makeStream());
+      vi.stubGlobal("navigator", {
+        mediaDevices: {
+          getUserMedia: gum,
+          enumerateDevices: vi.fn().mockRejectedValue(new Error("no list")),
+        },
+      });
+      const { result } = renderHook(() => useMicStream(true, "dead-id"));
+      await waitFor(() => expect(result.current.stream).toBeTruthy());
+      act(() => result.current.retry());
+      await waitFor(() => expect(gum).toHaveBeenCalledTimes(3));
+      expect(gum).toHaveBeenNthCalledWith(3, keeperAudioConstraints("dead-id"));
+      await waitFor(() => expect(result.current.staleDeviceId).toBeNull());
+    });
+
+    it("re-enumerates before skipping the saved id", async () => {
+      const builtin = {
+        kind: "audioinput",
+        deviceId: "builtin",
+        label: "Built-in",
+      };
+      const usb = { kind: "audioinput", deviceId: "dead-id", label: "USB" };
+      const gum = vi
+        .fn()
+        .mockRejectedValueOnce(staleError())
+        .mockResolvedValueOnce(makeStream())
+        .mockResolvedValueOnce(makeStream());
+      const enumerateDevices = vi
+        .fn()
+        .mockResolvedValueOnce([builtin])
+        .mockResolvedValue([builtin, usb]);
+      vi.stubGlobal("navigator", {
+        mediaDevices: { getUserMedia: gum, enumerateDevices },
+      });
+      const { result } = renderHook(() => useMicStream(true, "dead-id"));
+      await waitFor(() => expect(result.current.devices).toHaveLength(1));
+      act(() => result.current.retry());
+      await waitFor(() => expect(gum).toHaveBeenCalledTimes(3));
+      expect(gum).toHaveBeenNthCalledWith(3, keeperAudioConstraints("dead-id"));
     });
   });
 
@@ -330,7 +403,7 @@ describe("useMicStream", () => {
       expect(result.current.errorName).toBe("NotAllowedError"),
     );
     expect(gum).toHaveBeenCalledTimes(1);
-    expect(result.current.fellBackFrom).toBeNull();
+    expect(result.current.staleDeviceId).toBeNull();
   });
 
   it("falls back to the default input once when a lost selected mic is unavailable", async () => {
@@ -376,7 +449,7 @@ describe("useMicStream", () => {
     expect(gum).toHaveBeenNthCalledWith(2, keeperAudioConstraints("usb-mic"));
     expect(gum).toHaveBeenNthCalledWith(3, keeperAudioConstraints());
     expect(result.current.lost).toBe(false);
-    expect(result.current.fellBackFrom).toBe("usb-mic");
+    expect(result.current.staleDeviceId).toBe("usb-mic");
   });
 
   it("ignores repeated lost-state retries while reconnecting", async () => {

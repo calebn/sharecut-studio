@@ -121,6 +121,7 @@ class FakeSocket {
             snapshot: {
               ...guestSnap,
               start_blockers: [],
+              state: !msg.payload?.accepted ? "recording" : guestSnap.state,
               participants: [
                 {
                   ...guestSnap.participants[0],
@@ -324,6 +325,35 @@ describe("RecordApp", () => {
     );
     expect(getUserMedia).toHaveBeenCalledTimes(2);
     expect(screen.getByRole("button", { name: "Accept" })).toBeInTheDocument();
+  });
+
+  it("does not write the dead mic id back after a decline", async () => {
+    localStorage.setItem("record:guest-tok:mic", "dead-id");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (urlOf(input).includes("/bootstrap")) {
+          return new Response(JSON.stringify(guestBootstrap), { status: 200 });
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+    const staleDevice = new Error("gone");
+    staleDevice.name = "OverconstrainedError";
+    getUserMedia.mockRejectedValueOnce(staleDevice);
+    render(<RecordApp token="guest-tok" />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: MIC_ALLOW_LABEL }),
+    );
+    expect(
+      await screen.findByText(MIC_SAVED_DEVICE_MISSING_COPY),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(localStorage.getItem("record:guest-tok:mic")).toBe(""),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Decline" }));
+    expect(await screen.findByText(DECLINED_COPY)).toBeInTheDocument();
+    expect(localStorage.getItem("record:guest-tok:mic")).toBe("");
   });
 
   it("accepts consent once and waits for the host", async () => {
