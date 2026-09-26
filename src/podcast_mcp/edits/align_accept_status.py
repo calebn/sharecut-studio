@@ -6,7 +6,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
-from podcast_mcp.edits.conversation_align import alignment_fingerprint
+from podcast_mcp.edits.conversation_align import (
+    alignment_fingerprint,
+    large_move_sec_from_defaults,
+)
 from podcast_mcp.edits.pipeline_unattended import is_unattended
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
@@ -124,6 +127,29 @@ def status_is_clear(project: EpisodeProject) -> bool:
     )
 
 
+def align_artifact_path(project: EpisodeProject) -> Path:
+    return project.artifacts_dir() / "alignment" / "conversation_align.json"
+
+
+def load_align_artifact(project: EpisodeProject) -> dict[str, Any] | None:
+    path = align_artifact_path(project)
+    if not path.is_file():
+        return None
+    try:
+        return load_json_object(path)
+    except ValueError:
+        return None
+
+
+def large_align_moves(plans: list[dict[str, Any]], *, threshold: float) -> list[dict[str, Any]]:
+    """Plan rows that move a non-reference clip by more than ``threshold`` seconds."""
+    return [
+        p
+        for p in plans
+        if p.get("method") != "reference" and abs(float(p.get("offset_sec") or 0.0)) > threshold
+    ]
+
+
 def align_status_report(
     project: EpisodeProject,
     *,
@@ -143,14 +169,10 @@ def align_status_report(
         effective = status if data else "pending"
         stale = False
 
-    artifact = project.artifacts_dir() / "alignment" / "conversation_align.json"
-    plans: list[Any] = []
-    if artifact.is_file():
-        try:
-            payload = load_json_object(artifact)
-            plans = list((payload or {}).get("plans") or [])
-        except ValueError:
-            plans = []
+    artifact = align_artifact_path(project)
+    payload = load_align_artifact(project)
+    plans = list((payload or {}).get("plans") or [])
+    threshold = large_move_sec_from_defaults(defaults)
 
     return {
         "status": effective,
@@ -167,6 +189,8 @@ def align_status_report(
         "path": workspace_relpath(project, status_path(project)),
         "align_artifact": (workspace_relpath(project, artifact) if artifact.is_file() else None),
         "plans": plans,
+        "large_move_sec": threshold,
+        "large_moves": large_align_moves(plans, threshold=threshold),
         "hint": None if clear or mode == "off" else GATE_HINT,
     }
 
@@ -177,7 +201,11 @@ def require_or_waive_unattended(
     defaults: dict[str, Any] | None = None,
     unattended: bool | None = None,
 ) -> str:
-    """Pipeline gate: return summary, or raise if interactive + pending."""
+    """Pipeline gate: return summary, or raise if interactive + pending.
+
+    Unattended runs auto-waive only small moves; any move above
+    ``align.large_move_sec`` still needs a person (raises).
+    """
     mode = align_mode_from_defaults(defaults)
     if mode == "off":
         return "skipped (align.accept.mode=off)"
@@ -188,6 +216,20 @@ def require_or_waive_unattended(
 
     unattended_now = is_unattended(flag=unattended, defaults=defaults)
     if mode == "waive_unattended" and unattended_now:
+        threshold = large_move_sec_from_defaults(defaults)
+        large = large_align_moves(
+            list((load_align_artifact(project) or {}).get("plans") or []),
+            threshold=threshold,
+        )
+        if large:
+            listing = ", ".join(
+                f"{p.get('track_id')} {float(p.get('offset_sec') or 0.0):+.2f}s ({p.get('method')})"
+                for p in large[:6]
+            )
+            raise AlignAcceptRequiredError(
+                f"Unattended run will not auto-waive align move(s) above {threshold:.1f}s: "
+                f"{listing}. {GATE_HINT}"
+            )
         mark_align_waived(
             project,
             reason="unattended pipeline",
