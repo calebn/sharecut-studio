@@ -286,6 +286,8 @@ Read-only tests can still use `e2e_project_file` directly, since they only load 
 
 ## E2E fixture tests
 
+`tests/test_ingest_recorder_import_e2e.py` automates US-3: synthetic recorder folder (guest recorder starts 4 s early) → `ingest import` → `episode init` → `ingest consolidate` with default flags → asserts clip placement via the project and `/api/project`, then an `ingest verify` smoke.
+
 ### Committed fixtures (Tier A)
 
 - `tests/fixtures/aligned_dialogue/` — smoke / edits (canned transcript)

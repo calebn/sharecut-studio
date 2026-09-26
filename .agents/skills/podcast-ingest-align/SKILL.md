@@ -35,7 +35,7 @@ Do **not** use the same file timestamp on every recorder without `session_start_
 2. Run **`podcast ingest suggest`** on the opening (or your analysis window) — see `podcast-align-audio`.
 3. **Provisional extract + transcribe** each dialogue track when using anchors.
 4. Add **`align_anchors`** (host phrase → guest phrase after it).
-5. **Re-consolidate** with `--transcript` and `--align-mode transcript`.
+5. **Re-consolidate** with `--transcript` and `--align-mode transcript`. Untrimmed consolidates place clips by session offset (`source_start`/`timeline_start`); verify reads tracks through those clips.
 6. **Listen** — premix and solos on the same `--start` / `--end`.
 
 ```yaml

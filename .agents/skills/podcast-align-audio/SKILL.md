@@ -49,7 +49,7 @@ Still useful before a project exists, or for VAD-only packs:
 
 1. **`podcast ingest import DIR`** (or `ingest_import_folder_tool`) drafts `ingest.yaml` from a recorder export folder (audio-only; vendor hint is informational). Review labels; `--speaker file=Name` to override. Does not copy audio or mint record URLs.
 2. Or author `ingest.yaml` by hand with `session.reference_speaker` (several whole files per speaker OK — each stays one unsplit clip).
-3. `podcast ingest suggest` → merge offsets → `ingest consolidate` → `ingest verify` → `play --compare`.
+3. `podcast ingest suggest` → merge offsets → `ingest consolidate` → `ingest verify` → `play --compare`. Consolidate places each untrimmed clip on the session clock (guest `source_start` = lead-in, `timeline_start` 0); the reference speaker is `session.reference_speaker`.
 
 Suggest is VAD-primary; pipeline align prefers **bleed phrases**, then **own-speech gaps**,
 then **late-join occupancy** (first real island into a host silence that fits it).
