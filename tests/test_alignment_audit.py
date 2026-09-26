@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import numpy as np
+import pytest
 
 from podcast_mcp.engines.alignment_audit import (
     render_comparison_waveforms,
@@ -14,7 +15,7 @@ from podcast_mcp.engines.alignment_audit import (
     sweep_session_starts,
     vad_speech_intervals,
 )
-from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.ffmpeg import FFmpegEngine, PlacedSegment
 
 
 def _tone_with_speech_burst(
@@ -185,3 +186,34 @@ def test_score_session_start_handles_estimate_failure(sample_wav: Path):
             window_duration_sec=0.5,
         )
     assert score.correlation_peak is None
+
+
+def test_render_comparison_waveforms_pads_late_track(tmp_path: Path) -> None:
+    eng = MagicMock()
+    ref, late = tmp_path / "ref.wav", tmp_path / "late.wav"
+    render_comparison_waveforms(
+        [("ref", ref, 0.0), ("late", late, -3.0)],
+        tmp_path / "diag",
+        window_start_sec=0.0,
+        window_duration_sec=5.0,
+        engine=eng,
+    )
+    assert eng.extract_segment.call_args.args[0] == ref
+    assert eng.extract_segment.call_args.args[2:] == (0.0, 5.0)
+    call = eng.render_timeline.call_args
+    assert call.args[0] == late
+    assert call.args[2] == [PlacedSegment(src_start=0.0, src_end=2.0)]
+    assert call.kwargs["lead_in_sec"] == 3.0
+
+
+def test_render_comparison_waveforms_window_before_track_start(tmp_path: Path) -> None:
+    eng = MagicMock()
+    render_comparison_waveforms(
+        [("late", tmp_path / "late.wav", -10.0)],
+        tmp_path / "diag",
+        window_start_sec=0.0,
+        window_duration_sec=5.0,
+        engine=eng,
+    )
+    assert eng.render_timeline.call_args.kwargs["lead_in_sec"] == pytest.approx(4.99)
+    eng.extract_segment.assert_not_called()

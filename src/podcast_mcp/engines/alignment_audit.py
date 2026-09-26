@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from podcast_mcp.engines.align import load_mono_window
-from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.ffmpeg import FFmpegEngine, PlacedSegment
 from podcast_mcp.engines.session_clock import file_time_for_session
 from podcast_mcp.engines.transcript_align import (
     offset_turn_taking_score,
@@ -258,7 +258,8 @@ def render_comparison_waveforms(
     """Render per-speaker showwavespic PNGs and a vertical stack for the same session window.
 
     Each track is ``(label, source_path, file_start_sec)`` where ``file_start_sec`` is the
-    trim point on that file for session time ``window_start_sec``.
+    file time for session time 0. It may be negative when the track starts after session 0;
+    the window head is then padded with silence.
     """
     eng = engine or FFmpegEngine()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -272,12 +273,23 @@ def render_comparison_waveforms(
             window_wav = output_dir / f".window_{safe}.wav"
             out_png = output_dir / f"{safe}.png"
             trim = file_time_for_session(file_start, window_start_sec, 0.0)
-            eng.extract_segment(
-                src,
-                window_wav,
-                trim,
-                trim + window_duration_sec,
-            )
+            if trim < 0:
+                # Track starts later on the session clock: silence before its audio.
+                lead = min(-trim, max(0.0, window_duration_sec - 0.01))
+                eng.render_timeline(
+                    src,
+                    window_wav,
+                    [PlacedSegment(src_start=0.0, src_end=window_duration_sec - lead)],
+                    "anull",
+                    lead_in_sec=lead,
+                )
+            else:
+                eng.extract_segment(
+                    src,
+                    window_wav,
+                    trim,
+                    trim + window_duration_sec,
+                )
             tmp_windows.append(window_wav)
             color = palette[i % len(palette)]
             eng.render_showwavespic(

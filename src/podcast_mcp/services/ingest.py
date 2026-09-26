@@ -7,6 +7,7 @@ from pathlib import Path
 
 import yaml
 
+from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.track_media import apply_full_span_media
 from podcast_mcp.engines.alignment_audit import (
     check_drift,
@@ -15,6 +16,10 @@ from podcast_mcp.engines.alignment_audit import (
     sweep_content_offset,
     sweep_session_starts,
     vad_speech_intervals,
+)
+from podcast_mcp.engines.session_timeline import (
+    clip_source_to_timeline_shift,
+    clip_timeline_overlap_to_source,
 )
 from podcast_mcp.ingest.consolidate import ConsolidateResult, consolidate_speakers
 from podcast_mcp.ingest.import_folder import (
@@ -36,7 +41,7 @@ from podcast_mcp.models import (
 from podcast_mcp.services.waveform import schedule_track_waveforms
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.progress import resolve_progress_task
-from podcast_mcp.util.workspace_paths import resolve_within
+from podcast_mcp.util.workspace_paths import resolve_under_workspace, resolve_within
 
 
 @dataclass
@@ -84,22 +89,6 @@ class ImportFolderReport:
     written: bool
 
 
-def _track_media_path(project, track) -> Path:
-    """Track media file; relative paths resolve under the project workspace."""
-    assert track.media is not None
-    media_path = Path(track.media.path)
-    if not media_path.is_absolute():
-        media_path = project.workspace_path() / media_path
-    return media_path
-
-
-def _track_clips(project, track) -> list:
-    return sorted(
-        (c for c in project.timeline.clips if c.track_id == track.id),
-        key=lambda c: c.timeline_start,
-    )
-
-
 def _timeline_vad_intervals(
     project,
     track,
@@ -108,13 +97,13 @@ def _timeline_vad_intervals(
     window_end_sec: float,
 ) -> list[tuple[float, float]]:
     """Speech intervals on the timeline clock, read through the track's clips."""
-    from podcast_mcp.engines.session_timeline import clip_timeline_overlap_to_source
     from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
 
-    clips = _track_clips(project, track)
+    clips = clips_for_track(project, track.id)
     if not clips:
+        assert track.media is not None
         return vad_speech_intervals(
-            _track_media_path(project, track),
+            resolve_under_workspace(project, track.media.path),
             start_sec=window_start_sec,
             duration_sec=window_end_sec - window_start_sec,
         )
@@ -124,7 +113,7 @@ def _timeline_vad_intervals(
         if mapped is None:
             continue
         src_a, src_b = mapped
-        shift = clip.timeline_start - clip.source_start
+        shift = clip_source_to_timeline_shift(clip)
         for a, b in vad_speech_intervals(
             resolve_clip_audio_path(project, track, clip),
             start_sec=src_a,
@@ -135,11 +124,16 @@ def _timeline_vad_intervals(
 
 
 def _waveform_file_start(project, track) -> float:
-    """File time of timeline 0 for the track's first clip (0 when unclipped)."""
-    clips = _track_clips(project, track)
+    """File time of timeline 0 on the track's first clip (0 when unclipped).
+
+    Negative when the clip starts after timeline 0; the waveform renderer then pads
+    the window head with silence. Only the first clip is read: the stack shows the
+    primary file.
+    """
+    clips = clips_for_track(project, track.id)
     if not clips:
         return 0.0
-    return max(0.0, clips[0].source_start - clips[0].timeline_start)
+    return -clip_source_to_timeline_shift(clips[0])
 
 
 class IngestService:
@@ -300,7 +294,8 @@ class IngestService:
             out_dir = diag_dir or (self.ws.project.artifacts_dir() / "alignment")
             track_triples: list[tuple[str, Path, float]] = []
             for track in dialogue:
-                media_path = _track_media_path(self.ws.project, track)
+                assert track.media is not None
+                media_path = resolve_under_workspace(self.ws.project, track.media.path)
                 file_start = _waveform_file_start(self.ws.project, track)
                 track_triples.append((track.speaker or track.id, media_path, file_start))
             wf = render_comparison_waveforms(

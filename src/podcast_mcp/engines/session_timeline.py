@@ -180,6 +180,15 @@ def clip_timeline_point_to_source(clip: Clip, timeline_sec: float) -> float:
     return mapped[0]
 
 
+def clip_source_to_timeline_shift(clip: Clip) -> float:
+    """Seconds to add to a source time inside ``clip`` to reach the timeline clock.
+
+    ``timeline = source + shift``; its negation is the file time of timeline 0 for
+    the clip's placement (negative when the clip starts after timeline 0).
+    """
+    return clip.timeline_start - clip.source_start
+
+
 class SessionTimeline:
     """Bidirectional mapping between source media time and session timeline time.
 
