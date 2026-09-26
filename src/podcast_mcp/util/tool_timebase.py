@@ -55,7 +55,7 @@ TOOL_TIMEBASE: dict[str, TimebaseKind] = {
     "gate_overreach_tool": "source",
     "ingest_import_folder_tool": "na",
     "ingest_suggest_alignment_tool": "source",
-    "ingest_verify_alignment_tool": "source",
+    "ingest_verify_alignment_tool": "timeline",
     "add_chapter_tool": "timeline",
     "remove_chapter_tool": "na",
     "add_comment_tool": "timeline",
