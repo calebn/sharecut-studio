@@ -211,6 +211,36 @@ export const ProducerExcluded: Story = {
   },
 };
 
+export const TwelveTakeParticipants: Story = {
+  args: {
+    // A room caps concurrent recording participants at four, but a long
+    // session can retain participants from earlier takes in its upload list.
+    participants: Array.from({ length: 12 }, (_, index) =>
+      recordParticipant({
+        participant_id: `take-guest-${index + 1}`,
+        display_name: `Guest ${index + 1}`,
+        connected: index >= 9,
+      }),
+    ),
+    segments: Array.from({ length: 12 }, (_, index) => ({
+      participant_id: `take-guest-${index + 1}`,
+      acked_parts: [0, 1],
+      expected_parts: 3,
+      file_ack: index < 8,
+      landed: index < 5,
+    })),
+    stopped: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Twelve participants across earlier takes stress the upload roster without exceeding the four-at-once room cap.",
+      },
+    },
+  },
+};
+
 const longNames = [
   "Maximiliana Wolfeschlegelsteinhausen-Bergerdorff",
   "Oluwaseun Adebayo-Okonkwo-Fitzgerald",

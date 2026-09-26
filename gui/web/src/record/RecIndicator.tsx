@@ -15,6 +15,7 @@ export function RecIndicator({
   clockId,
   offline = false,
   clipping,
+  clockNowMs,
 }: {
   snapshot: RecordSnapshot;
   capture?: CaptureHealth;
@@ -23,20 +24,23 @@ export function RecIndicator({
   offline?: boolean;
   /** Take clipping state; undefined hides the LED (producers). */
   clipping?: boolean;
+  /** Fixed clock for deterministic previews; omit for the live timer. */
+  clockNowMs?: number;
 }) {
-  const [now, setNow] = useState(() => Date.now());
-  const [markedAt, setMarkedAt] = useState(() => Date.now());
+  const [now, setNow] = useState(() => clockNowMs ?? Date.now());
+  const [markedAt, setMarkedAt] = useState(() => clockNowMs ?? Date.now());
   const [baseMs, setBaseMs] = useState(snapshot.recording_ms ?? 0);
 
   useEffect(() => {
     setBaseMs(snapshot.recording_ms ?? 0);
-    setMarkedAt(Date.now());
-  }, [snapshot.recording_ms, snapshot.state]);
+    setMarkedAt(clockNowMs ?? Date.now());
+  }, [clockNowMs, snapshot.recording_ms, snapshot.state]);
 
   useEffect(() => {
+    if (clockNowMs != null) return;
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
-  }, []);
+  }, [clockNowMs]);
 
   let label = "Waiting for host";
   if (snapshot.state === "recording") {
@@ -55,7 +59,7 @@ export function RecIndicator({
   }
   const clock = recordingClockMs(
     { ...snapshot, recording_ms: baseMs },
-    now - markedAt,
+    (clockNowMs ?? now) - markedAt,
   );
   return (
     <div className="cluster record-indicator" role="status">

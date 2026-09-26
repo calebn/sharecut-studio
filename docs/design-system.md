@@ -30,7 +30,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference) |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, BottomSheet |
-| **Templates** | Assembled, context-specific domain screens built from the library, shown with static / representative content and locked domain copy — no live app state | ConsentGate, Declined, LiveComments, HostUploadRoster (record room), Transport, ListenHero |
+| **Templates** | Assembled, context-specific domain screens built from the library, shown with static / representative content and locked domain copy — no live app state | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, ListenHero |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -67,6 +67,10 @@ with its story colocated in the feature folder (for example
 - Use made-up fixtures only — never real share tokens, guest names, or relay
   URLs. Build them from the shared factories in `src/test/fixtures.ts`
   (`recordParticipant`, `recordSnapshot`, `sampleComment`, …), not new literals.
+- Record previews keep hardware and time fixed: `DeviceCheck` and `Lobby` pass
+  `stream: null`, `Lobby` supplies a static `storageHeadroomNotice` instead of
+  querying browser storage, and `RecIndicator` supplies `clockNowMs` instead of
+  running its wall clock. The live components use their normal defaults.
 - If a surface starts reading session or sync context, it needs a decorator
   that provides that context before its story can stay standalone.
 - The story does not replace the component's own Vitest + axe test.
