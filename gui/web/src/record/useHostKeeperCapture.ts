@@ -102,8 +102,8 @@ export function useHostKeeperCapture(enabled = true): {
   const setTakeClipping = useRecordHostStore((s) => s.setTakeClipping);
   useEffect(() => {
     setTakeClipping(clipping);
-    return () => setTakeClipping(null);
   }, [clipping, setTakeClipping]);
+  useEffect(() => () => setTakeClipping(null), [setTakeClipping]);
   useEffect(() => {
     if (
       !hostOn ||

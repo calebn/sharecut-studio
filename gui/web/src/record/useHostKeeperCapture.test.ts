@@ -99,6 +99,46 @@ describe("useHostKeeperCapture", () => {
     expect(useRecordHostStore.getState().takeClipping).toBeNull();
   });
 
+  it("replaces live clipping without a null write in between", () => {
+    const first = {
+      takeIndex: recording.take_index,
+      known: true,
+      regions: [{ segmentIndex: 0, startMs: 1, endMs: 5, segmentStartMs: 1 }],
+    };
+    const second = {
+      ...first,
+      regions: [
+        ...first.regions,
+        { segmentIndex: 0, startMs: 2000, endMs: 2100, segmentStartMs: 2000 },
+      ],
+    };
+    let live = first;
+    keeper.mockImplementation((args) => ({
+      error: null,
+      recordingLocally: args.enabled,
+      clipping: live,
+    }));
+    try {
+      const { rerender, unmount } = renderHook(() => useHostKeeperCapture());
+      const seen: unknown[] = [];
+      const unsub = useRecordHostStore.subscribe((s) => {
+        seen.push(s.takeClipping);
+      });
+      live = second;
+      rerender();
+      unsub();
+      expect(seen).not.toContain(null);
+      expect(useRecordHostStore.getState().takeClipping).toEqual(second);
+      unmount();
+      expect(useRecordHostStore.getState().takeClipping).toBeNull();
+    } finally {
+      keeper.mockImplementation((args) => ({
+        error: null,
+        recordingLocally: args.enabled,
+      }));
+    }
+  });
+
   it("passes the preflighted host sink to keeper capture", () => {
     const sink = new MemorySink();
     useRecordHostStore.getState().setKeeperStorage(sink, null);
