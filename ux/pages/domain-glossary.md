@@ -77,7 +77,7 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 | **Presence** | Connected viewers/agents | session `clients[]` | Transport avatar stack, ghost cursors, status bar names, phone More → People |
 | **Remote MCP URL** | Agent entry for a share | share row `mcp_url` → `{base}/mcp/{token}/mcp` | External MCP clients only |
 | **Record link** | Studio join URL (shipped) | `/rec/{token}` + share `kind` | Record lobby / room (not ReviewApp); keepers + mix-minus + landing shipped |
-| **Keeper** | Local dry WAV per recorded participant | guest OPFS / host `raw/` after ACK | Record session; timeline clips after landing |
+| **Keeper** | Local dry WAV per recorded participant | guest OPFS / host `raw/` after ACK | Record session; timeline clips after landing; landing verifies keepers before taking the project lock, so edits stay responsive while a large take lands |
 | **Mix-minus** | Monitor plays remotes only (shipped) | Web Audio speaker bus + WebRTC mesh | Record lobby / live room |
 | **Consent gate** | Per-person step before any keeper bytes (shipped) | `record_snapshot` in `sync.db` | Record lobby |
 | **Take** | One Start→Stop; lands sequentially | `takes[]` in record snapshot | Record room; timeline after landing |

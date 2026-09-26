@@ -74,7 +74,7 @@ from podcast_mcp.util.atomic_json import copy_file_atomic
 from podcast_mcp.util.file_locks import shared_file_lock
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.progress import resolve_progress_task
-from podcast_mcp.util.project_state import project_state_lock
+from podcast_mcp.util.project_state import FileRevision, file_revision, project_state_lock
 
 log = logging.getLogger(__name__)
 
@@ -614,6 +614,13 @@ class RecordLandingService:
                 "drift": drift_rows,
             }
 
+        # Hash each copy once, before any project lock (#365); under it only a stat runs.
+        workspace_dir = Path(self.workspace.project.workspace_dir)
+        for item in copied + room_tone_copied:
+            item["raw_revision"] = _verified_file_revision(
+                workspace_dir / str(item["rel"]), item.get("file_sha256")
+            )
+
         # ``mutate`` runs on the project it re-reads under the cross-process
         # project lock. It can be newer than the copy planned from above when a
         # non-land writer (edit, share, comment) committed meanwhile. Land and
@@ -754,7 +761,14 @@ class RecordLandingService:
                     int(item["segment_index"]),
                 )
                 if self._mark_registered_landing(
-                    key[0], key[1], key[2], expected_sha256=item["file_sha256"]
+                    key[0],
+                    key[1],
+                    key[2],
+                    expected_sha256=item["file_sha256"],
+                    verified=(
+                        (workspace_dir / str(item["rel"])).resolve(),
+                        item.get("raw_revision"),
+                    ),
                 ):
                     confirmed.add(key)
                 elif not self._ack_generation_current(item):
@@ -879,20 +893,33 @@ class RecordLandingService:
         segment_index: int,
         *,
         expected_sha256: str | None,
+        verified: tuple[Path, FileRevision | None] | None = None,
     ) -> bool:
-        """Keep the source check and upload decision inside the project mutation lock."""
+        """Mark landed only while the registered source still holds the row's bytes.
+
+        Hashing runs outside the project lock (#365); under it a stat confirms the file is
+        unchanged and still registered, so the source check and the upload decision stay
+        atomic against in-process writers (#309). ``verified`` is the ``(path, revision)``
+        hashed before the land's lock; pass it when called under that lock so nothing hashes.
+        """
+        source_id = self._landed_source_id(participant_id, take_index, segment_index)
         with project_state_lock(self.workspace.project):
-            source_id = self._landed_source_id(participant_id, take_index, segment_index)
             registered = _registered_source_file(self.workspace.project, source_id)
-            present = False
-            if registered is not None and expected_sha256:
-                try:
-                    present = sha256_file(registered[0]) == expected_sha256
-                except OSError:
-                    present = False
-            if present and registered is not None:
-                checked_again = _registered_source_file(self.workspace.project, source_id)
-                present = checked_again is not None and checked_again[0] == registered[0]
+        revision: FileRevision | None = None
+        if registered is not None:
+            if verified is not None:
+                # Called under the land's project lock: never hash here.
+                revision = verified[1] if verified[0] == registered[0] else None
+            else:
+                revision = _verified_file_revision(registered[0], expected_sha256)
+        with project_state_lock(self.workspace.project):
+            current = _registered_source_file(self.workspace.project, source_id)
+            present = (
+                registered is not None
+                and current is not None
+                and current[0] == registered[0]
+                and _same_revision(current[0], revision)
+            )
             if present:
                 return self._upload.mark_landed(
                     session_id=self.session_id,
@@ -918,14 +945,10 @@ class RecordLandingService:
             return False
 
     def _copied_raw_matches(self, project: EpisodeProject, item: dict[str, Any]) -> bool:
-        """Check copied bytes before registering project media."""
-        expected = item.get("file_sha256")
-        raw = Path(project.workspace_dir) / str(item["rel"])
-        present = False
-        if expected:
-            with suppress(OSError):
-                present = sha256_file(raw) == expected
-        return present
+        """Check under the lock, with one stat, that the copy hashed before the lock is unchanged."""
+        return _same_revision(
+            Path(project.workspace_dir) / str(item["rel"]), item.get("raw_revision")
+        )
 
     def _mark_copied_failed(self, item: dict[str, Any]) -> None:
         self._upload.mark_land_failed(
@@ -1020,6 +1043,32 @@ def _log_superseded(session_id: str, item: dict[str, Any]) -> None:
         item.get("participant_id"),
         item.get("segment_index"),
     )
+
+
+def _verified_file_revision(path: Path, expected_sha256: str | None) -> FileRevision | None:
+    """Hash ``path`` outside any project lock; its revision when the bytes match (#365).
+
+    The revision is read before and after hashing, so a file replaced or rewritten
+    meanwhile returns None. Under the lock ``_same_revision`` then costs one stat.
+    """
+    if not expected_sha256:
+        return None
+    try:
+        before = file_revision(path)
+        if sha256_file(path) != expected_sha256:
+            return None
+        return before if file_revision(path) == before else None
+    except OSError:
+        return None
+
+
+def _same_revision(path: Path, revision: FileRevision | None) -> bool:
+    if revision is None:
+        return False
+    try:
+        return file_revision(path) == revision
+    except OSError:
+        return False
 
 
 def _registered_source_file(project: EpisodeProject, source_id: str) -> tuple[Path, str] | None:
