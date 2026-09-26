@@ -101,6 +101,18 @@ class ProjectWorkspace:
             self._merge_base = project_merge_data(saved)
             return self.project
 
+    def discard_changes(self) -> EpisodeProject:
+        """Drop unsaved in-memory changes and any checkpoint; re-read the saved project.
+
+        For a job whose slow work failed after ``checkpoint()``: the workspace then
+        matches the file again, so a later ``save()`` / ``save_merged()`` cannot persist
+        the failed work's partial state. ``save_merged()`` needs a new ``checkpoint()``.
+        """
+        with project_state_lock(self.project):
+            self._loaded_file_signature = None
+            self._merge_base = None
+            return self.reload()
+
     def save_merged(
         self,
         history_label: str | None = None,
