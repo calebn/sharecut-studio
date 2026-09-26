@@ -3474,7 +3474,7 @@ def test_land_hashes_each_keeper_once_outside_the_project_locks(
             nbytes=480 + 8 * segment,
         )
     state_lock = project_state_lock(ws.project)
-    file_lock = shared_file_lock(project_commit_lock_path(ws.project), timeout=30)
+    file_lock = shared_file_lock(project_commit_lock_path(ws.project))
     real_hash = landing_mod.sha256_file
     observed: list[tuple[bool, bool]] = []
 

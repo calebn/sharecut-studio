@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
 import yaml
-from filelock import FileLock
 
 from podcast_mcp.config import repo_root
 from podcast_mcp.engines.asr_timing import DEFAULT_MAX_WORD_DURATION_SEC
@@ -113,17 +114,18 @@ class TranscriptContext:
 CONTEXT_LOCK_TIMEOUT_SEC = 10.0
 
 
-def context_lock(workspace: Path) -> FileLock:
+@contextmanager
+def context_lock(workspace: Path) -> Iterator[None]:
     """Writer lock for ``transcript_context.yaml`` at ``artifacts/transcript_context.yaml.lock``.
 
     One FileLock instance per workspace (``util.file_locks.shared_file_lock``), so
     ``TranscriptContext.save`` can re-enter it while a service holds it across
-    load-modify-save. Raises ``filelock.Timeout`` after ``CONTEXT_LOCK_TIMEOUT_SEC``.
+    load-modify-save. Each acquisition uses ``CONTEXT_LOCK_TIMEOUT_SEC`` and raises
+    ``filelock.Timeout`` when that deadline expires.
     """
-    return shared_file_lock(
-        workspace / "artifacts" / "transcript_context.yaml.lock",
-        timeout=CONTEXT_LOCK_TIMEOUT_SEC,
-    )
+    lock = shared_file_lock(workspace / "artifacts" / "transcript_context.yaml.lock")
+    with lock.acquire(timeout=CONTEXT_LOCK_TIMEOUT_SEC):
+        yield
 
 
 def new_vocabulary_revision() -> str:

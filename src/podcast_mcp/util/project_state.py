@@ -80,8 +80,6 @@ def project_commit_lock(project: EpisodeProject) -> Iterator[None]:
     Raises ``filelock.Timeout`` after ``PROJECT_COMMIT_LOCK_TIMEOUT_SEC``.
     """
     with project_state_lock(project):
-        file_lock = shared_file_lock(
-            project_commit_lock_path(project), timeout=PROJECT_COMMIT_LOCK_TIMEOUT_SEC
-        )
+        file_lock = shared_file_lock(project_commit_lock_path(project))
         with file_lock.acquire(timeout=PROJECT_COMMIT_LOCK_TIMEOUT_SEC):
             yield

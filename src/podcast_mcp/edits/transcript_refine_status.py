@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
-
-from filelock import FileLock
 
 from podcast_mcp.edits.pipeline_unattended import is_unattended
 from podcast_mcp.models import EpisodeProject
@@ -73,8 +73,11 @@ def _write_status(project: EpisodeProject, payload: dict[str, Any]) -> Path:
     return write_json_atomic(status_path(project), payload)
 
 
-def _status_lock(project: EpisodeProject) -> FileLock:
-    return shared_file_lock(Path(f"{status_path(project)}.lock"), timeout=-1)
+@contextmanager
+def _status_lock(project: EpisodeProject) -> Iterator[None]:
+    lock = shared_file_lock(Path(f"{status_path(project)}.lock"))
+    with lock.acquire(timeout=-1):
+        yield
 
 
 def _write_status_unlocked(

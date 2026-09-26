@@ -260,14 +260,15 @@ def test_context_update_validates_entry_length(minimal_project: Path) -> None:
 
 
 def test_context_lock_is_reentrant_and_under_artifacts(tmp_path: Path) -> None:
-    from podcast_mcp.transcript_context import CONTEXT_LOCK_TIMEOUT_SEC, context_lock
+    from podcast_mcp.transcript_context import context_lock
+    from podcast_mcp.util.file_locks import shared_file_lock
 
-    lock = context_lock(tmp_path)
-    assert lock is context_lock(tmp_path)
+    lock = shared_file_lock(tmp_path / "artifacts" / "transcript_context.yaml.lock")
     assert Path(lock.lock_file).parent == (tmp_path / "artifacts").resolve()
-    assert lock.timeout == CONTEXT_LOCK_TIMEOUT_SEC
-    with lock:
+    with context_lock(tmp_path):
+        assert lock.is_locked
         TranscriptContext(terms=["A"]).save(tmp_path)
+    assert not lock.is_locked
     saved = yaml.safe_load((tmp_path / "transcript_context.yaml").read_text())
     assert saved["terms"] == ["A"]
     assert not (tmp_path / "transcript_context.yaml.lock").exists()

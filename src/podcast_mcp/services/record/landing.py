@@ -165,10 +165,7 @@ def room_land_lock(workspace_dir: Path, session_id: str) -> Iterator[None]:
     ``RecordLandingError('land in progress')``.
     """
     with _session_land_lock(session_id):
-        file_lock = shared_file_lock(
-            record_land_lock_path(workspace_dir, session_id),
-            timeout=RECORD_LAND_LOCK_TIMEOUT_SEC,
-        )
+        file_lock = shared_file_lock(record_land_lock_path(workspace_dir, session_id))
         try:
             file_lock.acquire(timeout=RECORD_LAND_LOCK_TIMEOUT_SEC)
         except FileLockTimeout as exc:
