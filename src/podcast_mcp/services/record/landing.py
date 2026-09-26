@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import threading
+import time
 import wave
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any
@@ -66,6 +68,7 @@ from podcast_mcp.services.record.state import (
 from podcast_mcp.services.record.upload import (
     ROOM_TONE_MAX_PCM_BYTES,
     ROOM_TONE_TAKE_INDEX,
+    LandRollbackKey,
     RecordUploadService,
     parse_participant_id,
     parse_session_id,
@@ -90,6 +93,20 @@ _LAND_LOCKS: dict[str, threading.Lock] = {}
 # A land includes WAV hashing, copies, and drift measurement, so allow more than the
 # 30 s project commit lock, but never wait forever on a hung process (#503).
 RECORD_LAND_LOCK_TIMEOUT_SEC = 120.0
+
+RECORD_LAND_ROLLBACK_RETRY_BASE_SEC = 30
+RECORD_LAND_ROLLBACK_RETRY_MAX_SEC = 1800
+
+_MOOT_BED = "room-tone bed revision changed or unknown"
+
+
+def rollback_retry_after_ns(attempts: int, now_ns: int) -> int:
+    """When a deferred rollback that has failed *attempts* retries may run again."""
+    delay = min(
+        RECORD_LAND_ROLLBACK_RETRY_BASE_SEC * 2 ** max(attempts - 1, 0),
+        RECORD_LAND_ROLLBACK_RETRY_MAX_SEC,
+    )
+    return now_ns + delay * 1_000_000_000
 
 
 def _session_land_lock(session_id: str) -> threading.Lock:
@@ -138,6 +155,22 @@ def remove_session_land_lock_file(workspace_dir: Path, session_id: str) -> None:
             path.unlink()
     finally:
         probe.release()
+
+
+def purge_session_land_rollbacks(project: EpisodeProject, session_id: str) -> None:
+    """Drop a revoked room's deferred rollbacks: landing can no longer retry them."""
+    try:
+        purged = RecordUploadService(project).clear_session_land_rollbacks(session_id)
+    except Exception:
+        log.exception("could not purge deferred land rollbacks session=%s", session_id)
+        return
+    if purged:
+        log.warning(
+            "purged %d deferred land rollbacks of revoked room session=%s; undo the "
+            "record_land step through history to remove the stale registration",
+            purged,
+            session_id,
+        )
 
 
 class RecordLandingError(ValueError):
@@ -617,6 +650,7 @@ class RecordLandingService:
                 "ingest_suggest": False,
                 "drift_ms": drift_ms,
                 "drift": drift_rows,
+                "deferred_rollbacks_pending": self._deferred_rollbacks_pending(),
             }
 
         # Hash each copy once, before any project lock (#365); under it only a stat runs.
@@ -805,6 +839,7 @@ class RecordLandingService:
             "ingest_suggest": False,
             "drift_ms": drift_ms,
             "drift": drift_rows,
+            "deferred_rollbacks_pending": self._deferred_rollbacks_pending(),
         }
 
     def delete_take(self, take_index: int) -> dict[str, Any]:
@@ -1016,9 +1051,12 @@ class RecordLandingService:
     def _rollback_or_defer(self, stale: list[dict[str, Any]]) -> None:
         """Persist *stale*, roll it back, and clear it; on failure keep it for the next land.
 
-        Never raises: confirmed items already committed and were marked landed. A
-        failed rollback leaves the stale registration until the next land retries it;
-        meanwhile ``track.media`` is moved off the stale keeper rels.
+        Never raises: confirmed items already committed and were marked landed. The rows
+        are written before the rollback runs but after the ``record_land`` commit, so a
+        crash between that commit and this call still loses the rollback. Persisting is
+        best effort: if it fails the rollback still runs. A failed rollback leaves the
+        stale registration until the next land retries it; meanwhile ``track.media`` is
+        moved off the stale keeper rels.
         """
         try:
             self._defer_rollbacks(stale)
@@ -1026,7 +1064,6 @@ class RecordLandingService:
             log.exception(
                 "record land could not persist deferred rollback session=%s", self.session_id
             )
-            return
         try:
             self._rollback_stale(stale)
         except Exception:
@@ -1036,34 +1073,58 @@ class RecordLandingService:
             return
         self._clear_deferred(stale)
 
+    def _rollback_key(self, item: Mapping[str, Any]) -> LandRollbackKey:
+        return LandRollbackKey(
+            session_id=self.session_id,
+            take_index=int(item["take_index"]),
+            participant_id=str(item["participant_id"]),
+            segment_index=int(item["segment_index"]),
+            file_sha256=str(item["file_sha256"]),
+        )
+
     def _defer_rollbacks(self, items: list[dict[str, Any]]) -> None:
         for item in items:
             revision = item.get("raw_revision")
             self._upload.defer_land_rollback(
-                session_id=self.session_id,
-                take_index=int(item["take_index"]),
-                participant_id=str(item["participant_id"]),
-                segment_index=int(item["segment_index"]),
-                file_sha256=str(item["file_sha256"]),
+                self._rollback_key(item),
                 raw_rel=str(item["rel"]),
                 raw_revision=list(revision) if revision is not None else [],
                 prior_json=prior_to_json(item["prior"]),
             )
 
-    def _clear_deferred(self, items: list[dict[str, Any]]) -> None:
+    def _clear_deferred(self, items: Sequence[Mapping[str, Any]]) -> None:
         try:
             for item in items:
-                self._upload.clear_land_rollback(
-                    session_id=self.session_id,
-                    take_index=int(item["take_index"]),
-                    participant_id=str(item["participant_id"]),
-                    segment_index=int(item["segment_index"]),
-                    file_sha256=str(item["file_sha256"]),
-                )
+                self._upload.clear_land_rollback(self._rollback_key(item))
         except Exception:
             log.exception(
                 "record land could not clear deferred rollback session=%s", self.session_id
             )
+
+    def _note_retry_failed(self, rows: Sequence[Mapping[str, Any]]) -> None:
+        now = time.time_ns()
+        try:
+            for row in rows:
+                attempts = int(row.get("attempts") or 0) + 1
+                self._upload.note_land_rollback_failure(
+                    self._rollback_key(row),
+                    retry_after_ns=rollback_retry_after_ns(attempts, now),
+                )
+        except Exception:
+            log.exception(
+                "record land could not record deferred rollback attempt session=%s",
+                self.session_id,
+            )
+
+    def _deferred_rollbacks_pending(self) -> int | None:
+        """Deferred rollbacks still stored for this room (None when the store can't be read)."""
+        try:
+            return len(self._upload.land_rollbacks(session_id=self.session_id))
+        except Exception:
+            log.exception(
+                "record land could not count deferred rollbacks session=%s", self.session_id
+            )
+            return None
 
     def _drop_failed_write(self) -> None:
         """A failed mutation leaves in-memory state ahead of disk; re-read the saved project."""
@@ -1074,8 +1135,22 @@ class RecordLandingService:
                 "record land could not reload after failed write session=%s", self.session_id
             )
 
+    def _moot_reason(self, project: EpisodeProject, item: dict[str, Any]) -> str | None:
+        """Why a deferred rollback no longer applies, or None while it is still due."""
+        if self._ack_generation_current(item):
+            return "ACK generation current again"
+        if not registration_present(project, item["prior"]):
+            return "stale registration gone"
+        if not self._rollback_applies(project, item):
+            return _MOOT_BED
+        return None
+
     def _retry_deferred_rollbacks(self) -> None:
-        """Re-run rollbacks a previous land could not commit; never fails the land."""
+        """Re-run rollbacks a previous land could not commit; never fails the land.
+
+        A failed retry backs its rows off exponentially (``retry_after_ns``); rows still
+        backing off are skipped. An unreadable row is kept and backed off too.
+        """
         try:
             rows = self._upload.land_rollbacks(session_id=self.session_id)
         except Exception:
@@ -1083,30 +1158,44 @@ class RecordLandingService:
                 "record land could not read deferred rollbacks session=%s", self.session_id
             )
             return
-        if not rows:
-            return
+        now = time.time_ns()
         project = self.workspace.project
         due: list[dict[str, Any]] = []
         drop: list[dict[str, Any]] = []
+        failed: list[dict[str, Any]] = []
         for row in rows:
+            if int(row.get("retry_after_ns") or 0) > now:
+                continue
             try:
                 item = _item_from_deferred(row)
             except Exception:
                 log.warning(
-                    "dropped unreadable deferred rollback session=%s take=%s pid=%s seg=%s",
+                    "kept unreadable deferred rollback session=%s take=%s pid=%s seg=%s",
                     self.session_id,
                     row.get("take_index"),
                     row.get("participant_id"),
                     row.get("segment_index"),
                 )
-                drop.append(row)
+                failed.append(row)
                 continue
-            if self._ack_generation_current(item) or not self._rollback_applies(project, item):
-                drop.append(item)
-            else:
+            reason = self._moot_reason(project, item)
+            if reason is None:
                 due.append(item)
+                continue
+            log.log(
+                logging.WARNING if reason == _MOOT_BED else logging.INFO,
+                "dropped moot deferred rollback session=%s take=%s pid=%s seg=%s reason=%s",
+                self.session_id,
+                item["take_index"],
+                item["participant_id"],
+                item["segment_index"],
+                reason,
+            )
+            drop.append(item)
         if drop:
-            self._clear_deferred_rows(drop)
+            self._clear_deferred(drop)
+        if failed:
+            self._note_retry_failed(failed)
         if not due:
             return
         try:
@@ -1114,49 +1203,48 @@ class RecordLandingService:
         except Exception:
             log.exception("deferred stale ACK rollback failed session=%s", self.session_id)
             self._drop_failed_write()
+            self._note_retry_failed(due)
             return
-        self._clear_deferred_rows(due)
-
-    def _clear_deferred_rows(self, rows: list[dict[str, Any]]) -> None:
-        self._clear_deferred(
-            [
-                {
-                    "take_index": r["take_index"],
-                    "participant_id": r["participant_id"],
-                    "segment_index": r["segment_index"],
-                    "file_sha256": r["file_sha256"],
-                }
-                for r in rows
-            ]
-        )
+        self._clear_deferred(due)
 
     def _repoint_stale_media(self, stale: list[dict[str, Any]]) -> None:
-        """Best effort: move ``track.media`` off stale keeper rels after a failed rollback."""
-        stale_rels = {
-            str(item["rel"]): str(item["prior"].source_id)
-            for item in stale
-            if not item["prior"].room_tone
-        }
-        if not stale_rels:
-            return
-        skip = frozenset(stale_rels.values())
+        """Best effort: after a failed rollback, set ``track.media`` to what the rollback would.
 
-        def needs(project: EpisodeProject) -> set[str]:
-            return {
-                t.id for t in project.tracks if t.media is not None and t.media.path in stale_rels
-            }
+        That is the stale item's ``prior.media`` when it is not itself a stale rel, else the
+        earliest clip whose source is not stale. A later retry of the rollback then leaves
+        ``track.media`` as an immediate rollback would have.
+        """
+        priors: dict[str, PriorRegistration] = {
+            str(item["rel"]): item["prior"] for item in stale if not item["prior"].room_tone
+        }
+        if not priors:
+            return
+        skip = frozenset(prior.source_id for prior in priors.values())
+
+        def needs(project: EpisodeProject) -> list[str]:
+            return sorted(
+                t.id for t in project.tracks if t.media is not None and t.media.path in priors
+            )
 
         try:
             if not needs(self.workspace.project):
                 return
 
             def mutate(project: EpisodeProject) -> None:
-                for track_id in sorted(needs(project)):
+                ids = needs(project)
+                for track_id in ids:
                     track = project.track_by_id(track_id)
-                    if track is None:
+                    if track is None or track.media is None:
                         continue
-                    track.media = media_from_remaining_clip(project, track_id, skip_source_ids=skip)
-                record_invalidation(project, track_ids=sorted(needs(project)), reason="other")
+                    prior_media = priors[track.media.path].media
+                    if prior_media is not None and prior_media.path not in priors:
+                        track.media = prior_media.model_copy(deep=True)
+                    else:
+                        track.media = media_from_remaining_clip(
+                            project, track_id, skip_source_ids=skip
+                        )
+                if ids:
+                    record_invalidation(project, track_ids=ids, reason="other")
 
             self.workspace.mutate(
                 "before record land media repair",
@@ -1199,7 +1287,7 @@ class RecordLandingService:
 
 def _item_from_deferred(row: dict[str, Any]) -> dict[str, Any]:
     """Rebuild a landing item from a persisted deferred-rollback row."""
-    revision = row.get("raw_revision") or []
+    revision = json.loads(str(row["raw_revision"]))
     return {
         "take_index": int(row["take_index"]),
         "participant_id": str(row["participant_id"]),
@@ -1208,6 +1296,7 @@ def _item_from_deferred(row: dict[str, Any]) -> dict[str, Any]:
         "rel": str(row["raw_rel"]),
         "raw_revision": tuple(revision) if revision else None,
         "prior": prior_from_json(str(row["prior_json"])),
+        "attempts": int(row.get("attempts") or 0),
     }
 
 

@@ -63,7 +63,10 @@ def capture_prior(
 
 
 def prior_to_json(prior: PriorRegistration) -> str:
-    """Serialize *prior* so a failed rollback can be retried after a restart."""
+    """Serialize *prior* so a failed rollback can be retried after a restart.
+
+    Keys must match the dataclass fields (``test_prior_json_keys_match_dataclass_fields``).
+    """
     return json.dumps(
         {
             "track_id": prior.track_id,
@@ -193,8 +196,9 @@ def revert_registration(project: EpisodeProject, prior: PriorRegistration) -> bo
     else:
         if track.media is not None and track.media.path == prior.rel:
             track.media = prior_media
-            if track.media is None:
-                track.media = media_from_remaining_clip(project, prior.track_id)
+        if track.media is None:
+            # Also covers a deferred retry after the media repair left no media.
+            track.media = media_from_remaining_clip(project, prior.track_id)
 
     if (
         not prior.track_existed

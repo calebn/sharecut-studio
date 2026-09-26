@@ -9,6 +9,7 @@ import sqlite3
 import threading
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
 
@@ -79,6 +80,8 @@ CREATE TABLE IF NOT EXISTS record_land_rollbacks (
   raw_revision TEXT NOT NULL,
   prior_json TEXT NOT NULL,
   deferred_ns INTEGER NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  retry_after_ns INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (session_id, take_index, participant_id, segment_index, file_sha256)
 );
 
@@ -272,6 +275,16 @@ def parse_upload_kind(value: str | None) -> str:
     raise RecordUploadError("invalid kind")
 
 
+def _valid_rollback_key(key: LandRollbackKey) -> LandRollbackKey:
+    return LandRollbackKey(
+        session_id=parse_session_id(key.session_id),
+        take_index=parse_upload_index(key.take_index, name="take_index"),
+        participant_id=parse_participant_id(key.participant_id),
+        segment_index=parse_upload_index(key.segment_index, name="segment_index"),
+        file_sha256=key.file_sha256,
+    )
+
+
 def cached_record_upload_store(path: Path) -> RecordUploadStore:
     key = str(path.resolve())
     with _STORE_LOCK:
@@ -315,6 +328,32 @@ def sweep_stale_record_uploads(root: Path, *, ttl_sec: int = RECORD_UPLOAD_TTL_S
         except OSError:
             continue
     return removed
+
+
+@dataclass(frozen=True)
+class LandRollbackKey:
+    """Primary key of one ``record_land_rollbacks`` row."""
+
+    session_id: str
+    take_index: int
+    participant_id: str
+    segment_index: int
+    file_sha256: str
+
+    def params(self) -> tuple[str, int, str, int, str]:
+        return (
+            self.session_id,
+            self.take_index,
+            self.participant_id,
+            self.segment_index,
+            self.file_sha256,
+        )
+
+
+_ROLLBACK_KEY_WHERE = (
+    "session_id = ? AND take_index = ? AND participant_id = ? "
+    "AND segment_index = ? AND file_sha256 = ?"
+)
 
 
 class RecordUploadStore:
@@ -769,6 +808,10 @@ class RecordUploadStore:
                 """,
                 (session_id, take_index),
             )
+            self._conn.execute(
+                "DELETE FROM record_land_rollbacks WHERE session_id = ? AND take_index = ?",
+                (session_id, take_index),
+            )
             if already is None:
                 self._conn.execute(
                     "UPDATE record_upload_files SET landed_ns = NULL WHERE session_id = ?",
@@ -803,12 +846,8 @@ class RecordUploadStore:
 
     def defer_land_rollback(
         self,
+        key: LandRollbackKey,
         *,
-        session_id: str,
-        take_index: int,
-        participant_id: str,
-        segment_index: int,
-        file_sha256: str,
         raw_rel: str,
         raw_revision: list[Any],
         prior_json: str,
@@ -824,11 +863,7 @@ class RecordUploadStore:
                 ON CONFLICT DO NOTHING
                 """,
                 (
-                    session_id,
-                    take_index,
-                    participant_id,
-                    segment_index,
-                    file_sha256,
+                    *key.params(),
                     raw_rel,
                     json.dumps(raw_revision),
                     prior_json,
@@ -837,43 +872,46 @@ class RecordUploadStore:
             )
 
     def land_rollbacks(self, *, session_id: str) -> list[dict[str, Any]]:
-        """Pending rollbacks for a session, oldest first."""
+        """Pending rollbacks for a session, oldest first; ``raw_revision`` is stored JSON text."""
         with self._lock:
             rows = self._conn.execute(
                 """
                 SELECT take_index, participant_id, segment_index, file_sha256, raw_rel,
-                       raw_revision, prior_json, deferred_ns
+                       raw_revision, prior_json, deferred_ns, attempts, retry_after_ns
                 FROM record_land_rollbacks
                 WHERE session_id = ?
                 ORDER BY deferred_ns, rowid
                 """,
                 (session_id,),
             ).fetchall()
-        out: list[dict[str, Any]] = []
-        for row in rows:
-            item = dict(zip(row.keys(), row, strict=True))
-            item["raw_revision"] = json.loads(item["raw_revision"])
-            out.append(item)
-        return out
+        return [dict(zip(row.keys(), row, strict=True)) for row in rows]
 
-    def clear_land_rollback(
-        self,
-        *,
-        session_id: str,
-        take_index: int,
-        participant_id: str,
-        segment_index: int,
-        file_sha256: str,
-    ) -> None:
+    def clear_land_rollback(self, key: LandRollbackKey) -> None:
         with self._lock:
             self._conn.execute(
-                """
-                DELETE FROM record_land_rollbacks
-                WHERE session_id = ? AND take_index = ? AND participant_id = ?
-                  AND segment_index = ? AND file_sha256 = ?
-                """,
-                (session_id, take_index, participant_id, segment_index, file_sha256),
+                f"DELETE FROM record_land_rollbacks WHERE {_ROLLBACK_KEY_WHERE}",
+                key.params(),
             )
+
+    def note_land_rollback_failure(self, key: LandRollbackKey, *, retry_after_ns: int) -> None:
+        """Count a failed retry and hold the row back until *retry_after_ns*."""
+        with self._lock:
+            self._conn.execute(
+                f"""
+                UPDATE record_land_rollbacks
+                SET attempts = attempts + 1, retry_after_ns = ?
+                WHERE {_ROLLBACK_KEY_WHERE}
+                """,
+                (retry_after_ns, *key.params()),
+            )
+
+    def clear_session_land_rollbacks(self, session_id: str) -> int:
+        """Drop every deferred rollback of a room; returns how many rows were removed."""
+        with self._lock:
+            cur = self._conn.execute(
+                "DELETE FROM record_land_rollbacks WHERE session_id = ?", (session_id,)
+            )
+        return int(cur.rowcount)
 
     def status(
         self,
@@ -1400,22 +1438,14 @@ class RecordUploadService:
 
     def defer_land_rollback(
         self,
+        key: LandRollbackKey,
         *,
-        session_id: str,
-        take_index: int,
-        participant_id: str,
-        segment_index: int,
-        file_sha256: str,
         raw_rel: str,
         raw_revision: list[Any],
         prior_json: str,
     ) -> None:
         self._store.defer_land_rollback(
-            session_id=parse_session_id(session_id),
-            take_index=parse_upload_index(take_index, name="take_index"),
-            participant_id=parse_participant_id(participant_id),
-            segment_index=parse_upload_index(segment_index, name="segment_index"),
-            file_sha256=file_sha256,
+            _valid_rollback_key(key),
             raw_rel=raw_rel,
             raw_revision=raw_revision,
             prior_json=prior_json,
@@ -1424,22 +1454,16 @@ class RecordUploadService:
     def land_rollbacks(self, *, session_id: str) -> list[dict[str, Any]]:
         return self._store.land_rollbacks(session_id=parse_session_id(session_id))
 
-    def clear_land_rollback(
-        self,
-        *,
-        session_id: str,
-        take_index: int,
-        participant_id: str,
-        segment_index: int,
-        file_sha256: str,
-    ) -> None:
-        self._store.clear_land_rollback(
-            session_id=parse_session_id(session_id),
-            take_index=parse_upload_index(take_index, name="take_index"),
-            participant_id=parse_participant_id(participant_id),
-            segment_index=parse_upload_index(segment_index, name="segment_index"),
-            file_sha256=file_sha256,
+    def clear_land_rollback(self, key: LandRollbackKey) -> None:
+        self._store.clear_land_rollback(_valid_rollback_key(key))
+
+    def note_land_rollback_failure(self, key: LandRollbackKey, *, retry_after_ns: int) -> None:
+        self._store.note_land_rollback_failure(
+            _valid_rollback_key(key), retry_after_ns=retry_after_ns
         )
+
+    def clear_session_land_rollbacks(self, session_id: str) -> int:
+        return self._store.clear_session_land_rollbacks(parse_session_id(session_id))
 
     def _acked_path(
         self,
