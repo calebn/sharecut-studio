@@ -72,6 +72,7 @@ def _find_breath_in_window(
     speech_rms: float,
     min_duration_sec: float,
     max_duration_sec: float,
+    percentile: float = 25.0,
 ) -> BreathSpan | None:
     frame_size = max(1, int(sample_rate * 0.01))
     if samples.size < frame_size * 3:
@@ -81,7 +82,7 @@ def _find_breath_in_window(
     if not rms_values:
         return None
 
-    lo = max(noise_floor * 3, np.percentile(rms_values, 25))
+    lo = max(noise_floor * 3, np.percentile(rms_values, percentile))
     hi = speech_rms * 0.45
     if hi <= lo:
         hi = lo * 4
@@ -121,6 +122,57 @@ def _find_breath_in_window_silero(
     return _first_breath_span(active, window_start, window_dur, min_duration_sec, max_duration_sec)
 
 
+def classify_breath_samples(
+    samples: np.ndarray,
+    window_start: float,
+    *,
+    sample_rate: int,
+    vad_backend: str = "heuristic",
+    defaults: dict | None = None,
+    min_duration_sec: float = 0.08,
+    max_duration_sec: float = 0.45,
+    candidate_run: bool = False,
+) -> BreathSpan | None:
+    """Classify a bounded sample window using the shared breath detectors.
+
+    Callers choose the window: a hit outside that window cannot classify it.
+    Silero is only used at its required 16 kHz rate with its model available.
+    """
+    if vad_backend == "silero" and sample_rate == 16000:
+        from podcast_mcp.engines.vad_silero import get_shared_vad
+        from podcast_mcp.engines.vad_silero import is_available as silero_available
+
+        # Model construction can fail even when the package and ONNX file exist.
+        if silero_available() and get_shared_vad() is not None:
+            return _find_breath_in_window_silero(
+                samples,
+                window_start,
+                min_duration_sec=min_duration_sec,
+                max_duration_sec=max_duration_sec,
+            )
+
+    heuristics = (defaults or load_defaults()).get("analysis", {}).get("heuristics", {})
+    audibility_db = float(heuristics.get("audibility_rms_db", -42.0))
+    noise_floor = db_to_amplitude(audibility_db)
+    speech_rms = noise_floor * 8.0
+    # The percentile fallback in the adjacent-cut scanner deliberately widens
+    # its band in loud windows. For a window wholly inside an acoustic run,
+    # that would mislabel ordinary speech as breath; its RMS must remain below
+    # the speech boundary before the shape scan is useful.
+    if candidate_run and samples.size and float(np.sqrt(np.mean(samples**2))) > speech_rms * 0.45:
+        return None
+    return _find_breath_in_window(
+        samples,
+        window_start,
+        sample_rate=sample_rate,
+        noise_floor=noise_floor,
+        speech_rms=speech_rms,
+        min_duration_sec=min_duration_sec,
+        max_duration_sec=max_duration_sec,
+        percentile=10.0 if candidate_run else 25.0,
+    )
+
+
 def detect_adjacent_breath(
     project,
     track_id: str,
@@ -135,37 +187,16 @@ def detect_adjacent_breath(
     if not cfg["enabled"]:
         return []
 
-    heuristics = (defaults or load_defaults()).get("analysis", {}).get("heuristics", {})
-    audibility_db = float(heuristics.get("audibility_rms_db", -42.0))
-    noise_floor = db_to_amplitude(audibility_db)
-    speech_rms = noise_floor * 8.0
-
     min_dur = cfg["min_duration_ms"] / 1000.0
     max_dur = cfg["max_duration_ms"] / 1000.0
 
-    backend = cfg["vad_backend"]
-    if backend == "silero":
-        from podcast_mcp.engines.vad_silero import is_available as silero_available
-
-        # Silero VAD only accepts its own 16kHz contract; fall back to the
-        # heuristic rather than resample or silently skip detection.
-        if sample_rate != 16000 or not silero_available():
-            backend = "heuristic"
-
     def _find(samples: np.ndarray, window_start: float) -> BreathSpan | None:
-        if backend == "silero":
-            return _find_breath_in_window_silero(
-                samples,
-                window_start,
-                min_duration_sec=min_dur,
-                max_duration_sec=max_dur,
-            )
-        return _find_breath_in_window(
+        return classify_breath_samples(
             samples,
             window_start,
             sample_rate=sample_rate,
-            noise_floor=noise_floor,
-            speech_rms=speech_rms,
+            vad_backend=cfg["vad_backend"],
+            defaults=defaults,
             min_duration_sec=min_dur,
             max_duration_sec=max_dur,
         )

@@ -78,6 +78,9 @@ tighten:
     min_gap_sec: 0.35
     max_run_sec: 1.5
     max_frames: 600
+    # Breath rejection for each candidate run: heuristic by default, Silero
+    # only when explicitly selected (falls back if unavailable or not 16 kHz).
+    vad_backend: heuristic
   # Floor left after trimming a long pause. Turn/dead-air (peer speaking in the
   # gap) can go this short. Solo same-speaker pauses use the higher floor below
   # so thinking / list-restart air is not crushed to a hard edit.

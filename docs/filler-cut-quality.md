@@ -188,6 +188,7 @@ Per-episode overrides: copy relevant keys from `tighten:` / `inaudible_cuts:` / 
 | `tighten.acoustic_gap_filler.min_gap_sec` | `0.35` | Shortest inter-word gap scanned; values below `0.35` clamp up (max `10`) |
 | `tighten.acoustic_gap_filler.max_run_sec` | `1.5` | Longest voiced run proposed; values above `1.5` clamp down (min `0.1`) |
 | `tighten.acoustic_gap_filler.max_frames` | `600` | 10 ms analysis frames per gap (~6 s); gaps longer than the budget are skipped; values above `600` clamp down (min `20`) |
+| `tighten.acoustic_gap_filler.vad_backend` | `heuristic` | Reject breath-shaped candidate runs with the shared RMS heuristic; `silero` is opt-in and falls back when unavailable or not at 16 kHz |
 
 #### Acoustic gap candidates
 
@@ -208,7 +209,10 @@ Detection (`edits/acoustic_gap.py`, shared DSP in `util/dsp.py`):
   clear that noise estimate by 8 dB (and -55 dBFS); dips up to 60 ms are bridged.
 - A run must last 0.1 s–`max_run_sec`, cover at most 80% of the gap (a longer
   run is a level plateau), and pass a speech-pitch (70–350 Hz) autocorrelation
-  voicing check.
+  voicing check. Each surviving run is checked against the shared breath
+  classifier using only that run's audio, so a breath elsewhere in the gap
+  cannot veto it. The default RMS heuristic can reject quiet voiced breaths;
+  `vad_backend: silero` opts into the existing speech-probability classifier.
 - The proposed cut is bounded by the run, not the gap: waveform snapping and
   breath handling may move it at most 50 ms past the run, and never within
   25 ms of either word. Pacing never widens it across the gap or adds a paced

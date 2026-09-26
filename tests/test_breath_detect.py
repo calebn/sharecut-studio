@@ -294,6 +294,7 @@ def test_detect_adjacent_breath_uses_silero_backend_when_configured():
             return_value=np.zeros(16000, dtype=np.float32),
         ),
         patch("podcast_mcp.engines.vad_silero.is_available", return_value=True),
+        patch("podcast_mcp.engines.vad_silero.get_shared_vad", return_value=MagicMock()),
         patch("podcast_mcp.edits.breath_detect._find_breath_in_window_silero") as mock_silero,
         patch("podcast_mcp.edits.breath_detect._find_breath_in_window") as mock_heuristic,
     ):
@@ -302,6 +303,40 @@ def test_detect_adjacent_breath_uses_silero_backend_when_configured():
 
     assert mock_silero.called
     mock_heuristic.assert_not_called()
+
+
+def test_sample_classifier_falls_back_when_shared_silero_model_fails() -> None:
+    from podcast_mcp.edits.breath_detect import classify_breath_samples
+
+    with (
+        patch("podcast_mcp.engines.vad_silero.is_available", return_value=True),
+        patch("podcast_mcp.engines.vad_silero.get_shared_vad", return_value=None),
+        patch("podcast_mcp.edits.breath_detect._find_breath_in_window_silero") as silero,
+        patch("podcast_mcp.edits.breath_detect._find_breath_in_window") as heuristic,
+    ):
+        classify_breath_samples(
+            np.zeros(1600, dtype=np.float32), 1.0, sample_rate=16000, vad_backend="silero"
+        )
+
+    silero.assert_not_called()
+    heuristic.assert_called_once()
+
+
+def test_sample_classifier_does_not_fallback_after_valid_silero_no_breath() -> None:
+    from podcast_mcp.edits.breath_detect import classify_breath_samples
+
+    with (
+        patch("podcast_mcp.engines.vad_silero.is_available", return_value=True),
+        patch("podcast_mcp.engines.vad_silero.get_shared_vad", return_value=MagicMock()),
+        patch("podcast_mcp.edits.breath_detect._find_breath_in_window_silero", return_value=None),
+        patch("podcast_mcp.edits.breath_detect._find_breath_in_window") as heuristic,
+    ):
+        result = classify_breath_samples(
+            np.zeros(1600, dtype=np.float32), 1.0, sample_rate=16000, vad_backend="silero"
+        )
+
+    assert result is None
+    heuristic.assert_not_called()
 
 
 def test_detect_adjacent_breath_falls_back_to_heuristic_when_silero_unavailable():
