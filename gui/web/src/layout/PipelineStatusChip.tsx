@@ -1,8 +1,8 @@
 import type { MouseEventHandler } from "react";
 import type { PipelineJobSnapshot } from "../types/pipeline";
-import { formatElapsed } from "../utils/format";
 import { isPipelineRunning } from "../utils/pipeline";
 import { pipelineChromeLabel } from "../utils/pipelineProgress";
+import { formatTimeShort } from "../utils/time";
 import { StaleProgressCopy } from "./StaleProgressCopy";
 
 type Props = {
@@ -31,7 +31,7 @@ export function PipelineStatusChip({
         running={running}
         prefix=" · "
       />
-      {` · ${formatElapsed(job.elapsed_sec)}`}
+      {` · ${formatTimeShort(job.elapsed_sec)}`}
     </span>
   );
   const count =

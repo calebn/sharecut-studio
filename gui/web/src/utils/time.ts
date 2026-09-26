@@ -61,6 +61,7 @@ export function transportTimecode(
   };
 }
 
+/** Format seconds as m:ss, or h:mm:ss from one hour (elapsed timers, comment anchors). Negative input clamps to 0:00. */
 export function formatTimeShort(sec: number): string {
   const clamped = Math.max(0, sec);
   const h = Math.floor(clamped / 3600);
