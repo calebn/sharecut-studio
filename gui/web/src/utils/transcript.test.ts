@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { presenceAnchor } from "../presence/anchors";
-import type { CombinedUtterance } from "../types/project";
+import type { CombinedUtterance, ProjectView } from "../types/project";
 import {
   centeredScrollTop,
   findActiveUtteranceIndex,
+  findTranscriptWord,
   findTurnIndexForUtterance,
   groupConsecutiveSpeakerTurns,
   isUtteranceActive,
@@ -11,6 +12,7 @@ import {
   selectUnmappedUtterances,
   transcriptAnchorTurnIndex,
   transcriptWordAnchor,
+  transcriptWordRange,
   turnKey,
   turnSeekSec,
   utteranceSeekSec,
@@ -343,5 +345,88 @@ describe("turn identity and lookup", () => {
     const anchor = presenceAnchor("transcript", "word", longTrack, 12);
     expect(anchor).toHaveLength(96);
     expect(transcriptAnchorTurnIndex(turns, anchor)).toBe(1);
+  });
+});
+
+describe("indexed transcript word lookup", () => {
+  const project = {
+    transcript: {
+      utterances: [
+        u({
+          text: "first two",
+          start: 0,
+          end: 9,
+          words: [
+            {
+              text: "first",
+              word_index: 2,
+              start: 10,
+              end: 11,
+              timeline_start: 1,
+              timeline_end: 2,
+            },
+            { text: "two", word_index: 3, start: 12, end: 13 },
+          ],
+        }),
+        u({
+          track_id: "guest",
+          text: "ignore",
+          start: 0,
+          end: 9,
+          words: [{ text: "ignore", word_index: 4, start: 0, end: 99 }],
+        }),
+        u({
+          text: "last",
+          start: 0,
+          end: 9,
+          words: [
+            {
+              text: "last",
+              word_index: 4,
+              start: 14,
+              end: 15,
+              timeline_start: 4,
+              timeline_end: 5,
+            },
+          ],
+        }),
+      ],
+    },
+  } as ProjectView;
+
+  it("finds the first exact word on its track", () => {
+    expect(findTranscriptWord(project, "host", 2)?.text).toBe("first");
+    expect(findTranscriptWord(project, "host", 99)).toBeNull();
+    expect(findTranscriptWord(null, "host", 2)).toBeNull();
+  });
+
+  it("combines reversed indexed ranges across utterances using timeline fallback", () => {
+    expect(transcriptWordRange(project, "host", 4, 2)).toEqual({
+      start: 1,
+      end: 13,
+      text: "first two last",
+    });
+    expect(transcriptWordRange(project, "guest", 4, 4)?.text).toBe("ignore");
+    expect(transcriptWordRange(project, "host", 50, 51)).toBeNull();
+  });
+
+  it("keeps zero-length word spans available for remote point selections", () => {
+    const point = {
+      transcript: {
+        utterances: [
+          u({
+            text: "point",
+            start: 7,
+            end: 7,
+            words: [{ text: "point", word_index: 0, start: 7, end: 7 }],
+          }),
+        ],
+      },
+    } as ProjectView;
+    expect(transcriptWordRange(point, "host", 0, 0)).toEqual({
+      start: 7,
+      end: 7,
+      text: "point",
+    });
   });
 });

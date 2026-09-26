@@ -7,7 +7,6 @@ import {
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import { isShareProjectKey } from "../../shareMode";
 import { useDaw } from "../../state/useDaw";
-import type { ProjectView, TranscriptWordView } from "../../types/project";
 import {
   Button,
   DefItem,
@@ -15,28 +14,10 @@ import {
   FieldRow,
   InspectorSeekFooter,
 } from "../../ui";
-import { wordSeekSec } from "../../utils/transcript";
+import { findTranscriptWord, wordSeekSec } from "../../utils/transcript";
 import { ModifierInspector } from "../ModifierInspector";
 
 const LOW_CONFIDENCE = 0.7;
-
-function findWordView(
-  project: ProjectView,
-  trackId: string,
-  wordIndex: number,
-): TranscriptWordView | null {
-  for (const u of project.transcript?.utterances ?? []) {
-    if (u.track_id !== trackId) {
-      continue;
-    }
-    for (const w of u.words ?? []) {
-      if (w.word_index === wordIndex) {
-        return w;
-      }
-    }
-  }
-  return null;
-}
 
 export function TranscriptWordInspector({
   trackId,
@@ -56,7 +37,7 @@ export function TranscriptWordInspector({
   const word = useMemo(
     () =>
       project && wordsHydrated
-        ? findWordView(project, trackId, wordIndex)
+        ? findTranscriptWord(project, trackId, wordIndex)
         : null,
     [project, trackId, wordIndex, wordsHydrated],
   );

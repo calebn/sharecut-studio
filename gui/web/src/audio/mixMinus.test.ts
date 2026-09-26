@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { toKeeperPcm } from "../record/keeper/pcm";
 import { attachRemoteSource } from "../record/monitor/useRecordMonitor";
+import { dbToLinear } from "../utils/audio";
 import {
-  dbToGain,
   MIX_MINUS_RAMP_S,
   MixMinusGraph,
   SIDETONE_GAIN_DB,
@@ -11,9 +11,9 @@ import {
 
 const SAMPLE_RATE = 48_000;
 const TONE_DBFS = -18;
-const TONE_GAIN = dbToGain(TONE_DBFS);
+const TONE_GAIN = dbToLinear(TONE_DBFS);
 const FREQS = { A: 220, B: 440, C: 880, D: 1320 } as const;
-const STEP_LIMIT = dbToGain(-30);
+const STEP_LIMIT = dbToLinear(-30);
 
 type Kind = "gain" | "osc" | "impulse" | "dest";
 

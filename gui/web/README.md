@@ -51,6 +51,12 @@ alert roles on the caller's content so each screen retains its own semantics.
 | `!important` / `@layer` / viewport `@media` | Stylelint + pytest | Default-off; allowed only with `stylelint-disable` + `-- user-approved:`. `tests/test_css_policy.py` does **not** strip comments. `font-size: 62.5%` is a hard ban |
 | Format | Biome | `format:check` in CI; commit hook runs lint-staged (`biome check --write` on staged files; `make hooks`). Biome linter is off (oxlint + Stylelint own lint) |
 
+Transcript word lookup and inclusive timeline ranges for clipboard, inspector, and
+remote presence live in `src/utils/transcript.ts`. Ranges prefer mapped timeline
+times and fall back to source times when absent; zero-length spans remain valid
+for remote point selections but clipboard extraction requires a positive span.
+Mix-minus sidetone uses the shared `src/utils/audio.ts` dB conversion.
+
 Mobile transcript touch E2E should wait for an indexed word chip
 (`data-transcript-word` with `data-word-index`) before measuring its box for
 CDP touch events. The first unindexed chip can be a temporary turn-level
