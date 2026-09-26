@@ -9,7 +9,6 @@ from typing import Any
 import numpy as np
 
 from podcast_mcp.config import load_defaults
-from podcast_mcp.edits.timeline_span import source_span_timeline_bounds
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.asr_timing import (
     ANOMALOUS_WORD_DURATION_REASON,
@@ -26,6 +25,7 @@ from podcast_mcp.util.progress import (
     ProgressReporter,
     resolve_progress_task,
 )
+from podcast_mcp.util.source_spans import source_span_timeline_bounds
 from podcast_mcp.util.tracks import dialogue_track_ids, existing_stem_path, track_audio_path
 
 _RMS_SAMPLE_RATE = 8000

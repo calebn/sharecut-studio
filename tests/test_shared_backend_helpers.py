@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import subprocess
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -14,6 +16,23 @@ from podcast_mcp.models import load_project
 from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.dsp import clamp01, linear_rms
 from podcast_mcp.util.tracks import existing_stem_path, stem_path
+
+
+@pytest.mark.parametrize(
+    "module,symbol",
+    [
+        ("podcast_mcp.engines.session_timeline", "SessionTimeline"),
+        ("podcast_mcp.engines.audio_audit", "TrackRmsCache"),
+    ],
+)
+def test_engine_imports_work_in_fresh_process(module: str, symbol: str) -> None:
+    completed = subprocess.run(
+        [sys.executable, "-c", f"from {module} import {symbol}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
 
 
 def test_merge_intervals_preserves_caller_gap_and_unsorted_inputs() -> None:

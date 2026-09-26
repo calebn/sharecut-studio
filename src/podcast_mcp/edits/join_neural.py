@@ -15,7 +15,7 @@ import numpy as np
 
 from podcast_mcp.edits.join_detectors import DetectorHit
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.util.dsp import linear_rms
+from podcast_mcp.util.dsp import clamp01, linear_rms
 from podcast_mcp.util.tracks import track_audio_path
 
 log = logging.getLogger(__name__)
@@ -40,7 +40,7 @@ class NeuralJoinDetector:
             hits.append(
                 DetectorHit(
                     "nisqa_discontinuity",
-                    float(max(0.0, min(1.0, delta / 1.0))),
+                    clamp01(delta / 1.0),
                     self.weights["nisqa_discontinuity"],
                     self.nisqa,
                 )
@@ -50,7 +50,7 @@ class NeuralJoinDetector:
             hits.append(
                 DetectorHit(
                     "wavlm_continuity",
-                    float(max(0.0, min(1.0, (z - 2.0) / 4.0))),
+                    clamp01((z - 2.0) / 4.0),
                     self.weights["wavlm_continuity"],
                     self.wavlm,
                 )

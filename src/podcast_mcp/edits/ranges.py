@@ -2,22 +2,10 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from podcast_mcp.util.intervals import merge_intervals as merge_intervals
+
 # Tolerance (seconds) for span edge comparisons: touching spans do not overlap.
 SPAN_EPS_S = 1e-9
-
-
-def merge_intervals(
-    intervals: Iterable[tuple[float, float]], *, gap: float = 0.0
-) -> list[tuple[float, float]]:
-    """Merge sorted or unsorted overlapping intervals within ``gap`` seconds."""
-    ordered = sorted(intervals)
-    merged: list[tuple[float, float]] = []
-    for start, end in ordered:
-        if merged and start <= merged[-1][1] + gap:
-            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
-        else:
-            merged.append((start, end))
-    return merged
 
 
 def merge_timeline_ranges(
