@@ -8,7 +8,7 @@ from pathlib import Path
 from podcast_mcp.models.episode import EpisodeProject
 from podcast_mcp.models.history import HistoryEntry, ProjectHistory, ProjectStateSnapshot
 from podcast_mcp.models.project_format import apply_editable_snapshot, snapshot_editable_state
-from podcast_mcp.project_store import ProjectStore, history_index_path
+from podcast_mcp.project_store import ProjectStore, history_index_path, history_snapshot_path
 from podcast_mcp.util.atomic_json import write_json_atomic
 from podcast_mcp.util.project_state import project_commit_lock
 
@@ -57,8 +57,8 @@ class HistoryManager:
         snapshot: ProjectStateSnapshot,
         entry_id: str,
     ) -> str:
-        rel = f"history/snapshots/{entry_id}.json"
-        path = project.workspace_path() / rel
+        path = history_snapshot_path(history_index_path(project), entry_id)
+        rel = path.relative_to(project.workspace_path()).as_posix()
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(snapshot.model_dump_json(indent=2, by_alias=True), encoding="utf-8")
         return rel
