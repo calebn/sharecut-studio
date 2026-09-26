@@ -221,7 +221,8 @@ flowchart TD
    capture failure remain explicit states rather than a healthy REC dot.
    After Stop, microphone loss no longer locks the host dialog. A take with no
    host keeper warns that no local audio was captured, even if the mic never
-   became available.
+   became available. If a host record command (Start, Pause, Resume, Stop,
+   Land) fails, the Record room panel opens and shows the error.
 8. Host Stop. The native leave warning stays until the keeper finishes saving
    the final WAV and metadata, then clears. The upload panel warns the guest
    to keep the tab open until the final file ACK, shows N/M chunks where all

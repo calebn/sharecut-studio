@@ -6,6 +6,9 @@ type RecordHostState = {
   snapshot: RecordSnapshot | null;
   connected: boolean;
   startPending: boolean;
+  /** Last failed host record command (transport or land); shown in the Record room panel. */
+  transportError: string | null;
+  setTransportError: (error: string | null) => void;
   keeperSink: ByteSink | null;
   keeperStorageError: string | null;
   captureHealth: CaptureHealth;
@@ -21,6 +24,8 @@ export const useRecordHostStore = create<RecordHostState>((set) => ({
   snapshot: null,
   connected: false,
   startPending: false,
+  transportError: null,
+  setTransportError: (transportError) => set({ transportError }),
   keeperSink: null,
   keeperStorageError: null,
   captureHealth: null,

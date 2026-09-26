@@ -136,6 +136,7 @@ describe("RecordPanel", () => {
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     useDawStore.setState({ recordPanelOpen: true, shareDialogOpen: false });
     useRecordHostStore.getState().setSnapshot(null);
+    useRecordHostStore.getState().setTransportError(null);
     useRecordHostStore.getState().setCaptureHealth(null);
     useRecordHostStore.getState().setKeeperStorage(null, null);
     useRecordHostStore.getState().setConnected(false);
@@ -740,6 +741,12 @@ describe("RecordPanel", () => {
     });
     render(<RecordPanel />);
     expect(screen.queryByText(ROOM_TONE_PROMPT_COPY)).toBeNull();
+  });
+
+  it("renders a host record command failure from the store", () => {
+    useRecordHostStore.getState().setTransportError("Room is not ready");
+    render(<RecordPanel />);
+    expect(screen.getByText("Room is not ready")).toBeInTheDocument();
   });
 
   it("does not rehydrate on WS connected and skips stale HTTP snapshots", async () => {

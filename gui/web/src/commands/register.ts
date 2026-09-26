@@ -216,6 +216,30 @@ async function runDeleteClip(
   }
 }
 
+/** Keep a failed record command visible: store the error and open the Record room panel. */
+function revealRecordFailure(reason: string): void {
+  useRecordHostStore.getState().setTransportError(reason);
+  const daw = useDawStore.getState();
+  daw.announceStatus(reason);
+  if (!daw.shareDialogOpen) {
+    daw.setRecordPanelOpen(true);
+  }
+}
+
+async function runRecordTransportCommand(
+  commandType: string,
+): Promise<ExecuteResult> {
+  useRecordHostStore.getState().setTransportError(null);
+  try {
+    await submitHostRecordTransport(commandType);
+    return { status: "ok" };
+  } catch (err) {
+    const reason = errorMessage(err);
+    revealRecordFailure(reason);
+    return { status: "disabled", reason };
+  }
+}
+
 export function registerDawCommands(): void {
   registerCommand("transport.togglePlay", () => {
     const s = useDawStore.getState();
@@ -804,51 +828,16 @@ export function registerDawCommands(): void {
     return { status: "ok" };
   });
 
-  registerCommand("record.start", async () => {
-    try {
-      await submitHostRecordTransport("Start");
-      return { status: "ok" };
-    } catch (err) {
-      const reason = errorMessage(err);
-      useDawStore.getState().announceStatus(reason);
-      return { status: "disabled", reason };
-    }
-  });
-  registerCommand("record.pause", async () => {
-    try {
-      await submitHostRecordTransport("Pause");
-      return { status: "ok" };
-    } catch (err) {
-      const reason = errorMessage(err);
-      useDawStore.getState().announceStatus(reason);
-      return { status: "disabled", reason };
-    }
-  });
-  registerCommand("record.resume", async () => {
-    try {
-      await submitHostRecordTransport("Resume");
-      return { status: "ok" };
-    } catch (err) {
-      const reason = errorMessage(err);
-      useDawStore.getState().announceStatus(reason);
-      return { status: "disabled", reason };
-    }
-  });
-  registerCommand("record.stop", async () => {
-    try {
-      await submitHostRecordTransport("Stop");
-      return { status: "ok" };
-    } catch (err) {
-      const reason = errorMessage(err);
-      useDawStore.getState().announceStatus(reason);
-      return { status: "disabled", reason };
-    }
-  });
+  registerCommand("record.start", () => runRecordTransportCommand("Start"));
+  registerCommand("record.pause", () => runRecordTransportCommand("Pause"));
+  registerCommand("record.resume", () => runRecordTransportCommand("Resume"));
+  registerCommand("record.stop", () => runRecordTransportCommand("Stop"));
   registerCommand("record.land", async () => {
     const s = useDawStore.getState();
     if (!canManageProjects(s.projectPath)) {
       return { status: "disabled", reason: "Landing keepers is host-only" };
     }
+    useRecordHostStore.getState().setTransportError(null);
     try {
       const result = await hostLandRecord(s.projectPath);
       const n = Array.isArray(result.clips) ? result.clips.length : 0;
@@ -860,7 +849,7 @@ export function registerDawCommands(): void {
       return { status: "ok" };
     } catch (err) {
       const reason = errorMessage(err);
-      useDawStore.getState().announceStatus(reason);
+      revealRecordFailure(reason);
       return { status: "disabled", reason };
     }
   });
