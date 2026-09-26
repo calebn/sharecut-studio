@@ -24,7 +24,8 @@ import type { RasterBackend, RasterJob, RasterMode } from "./types";
  * `subscribeRasterFailed` reports the keys of jobs that died (an error reply,
  * a failed post, or a crash), each at most `RASTER_JOB_RETRIES` times before
  * the key is retired until reload. The re-arm forgets crash charges on keys
- * not yet retired, so two unrelated crashes do not retire an innocent tile. No `Worker` or `createImageBitmap` (jsdom)
+ * not yet retired, so two unrelated crashes do not retire an innocent tile. An
+ * `onmessageerror` restart charges no failure. No `Worker` or `createImageBitmap` (jsdom)
  * means backend `none`: nothing renders.
  */
 
@@ -148,8 +149,12 @@ function forgetCrashCharges(): void {
   }
 }
 
-/** `w` crashed: restart it (queued jobs keep their buffers) or give up. */
-function onCrash(w: Worker): void {
+/**
+ * `w` crashed: restart it (queued jobs keep their buffers) or give up.
+ * `charge` counts a failure against each job in flight (`onerror`); a lost
+ * reply (`onmessageerror`) restarts without charging the other jobs.
+ */
+function onCrash(w: Worker, charge: boolean): void {
   if (worker !== w) {
     return; // a replaced worker's late event (onerror and onmessageerror can both fire)
   }
@@ -158,8 +163,11 @@ function onCrash(w: Worker): void {
   if (restarts < RASTER_WORKER_RESTARTS) {
     restarts += 1;
     restartsSinceLoad += 1;
+    const inFlight = stopWorker();
     // A key in flight at crashes close together is retired (a poison tile).
-    lost = countFailures(stopWorker(), crashFailures);
+    lost = charge
+      ? countFailures(inFlight, crashFailures)
+      : [...new Set(inFlight)];
     if (ensureWorker()) {
       pump();
     }
@@ -247,10 +255,11 @@ function ensureWorker(): Worker | null {
       ev.data.bitmap.close(); // a replaced worker's late result
     }
   };
-  w.onerror = () => onCrash(w);
+  w.onerror = () => onCrash(w, true);
   // A reply that cannot be deserialized loses its job id, so its slot would
-  // never free: treat it as a crash (the restart frees every slot).
-  w.onmessageerror = () => onCrash(w);
+  // never free: restart (which frees every slot), but charge no failure,
+  // since only one reply was bad.
+  w.onmessageerror = () => onCrash(w, false);
   return w;
 }
 
@@ -416,7 +425,7 @@ export function rasterWorkerRestarts(): number {
 /** Treat the current worker as crashed, so it restarts (E2E: a real restart). */
 export function crashRasterWorker(): void {
   if (worker) {
-    onCrash(worker);
+    onCrash(worker, true);
   }
 }
 

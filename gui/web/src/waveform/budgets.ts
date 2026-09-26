@@ -57,7 +57,7 @@ export const RASTER_RESTART_REARM_TILES = 64;
 
 /**
  * Times a tile key that failed (an `error` reply, a `postMessage` that threw,
- * or in flight at a worker crash) is reported for a re-request. Its next
+ * or in flight at an `onerror` crash) is reported for a re-request. Its next
  * failure retires the key until reload, so a poison tile cannot loop.
  */
 export const RASTER_JOB_RETRIES = 1;
