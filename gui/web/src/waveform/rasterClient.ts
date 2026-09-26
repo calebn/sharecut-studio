@@ -1,5 +1,10 @@
 import { type BitmapEntry, bitmapCache } from "./bitmapCache";
-import { RASTER_JOBS_OUTSTANDING, RASTER_WORKER_RESTARTS } from "./budgets";
+import {
+  RASTER_JOB_RETRIES,
+  RASTER_JOBS_OUTSTANDING,
+  RASTER_RESTART_REARM_TILES,
+  RASTER_WORKER_RESTARTS,
+} from "./budgets";
 import { listenerSet } from "./listenerSet";
 import type {
   RasterInMsg,
@@ -14,9 +19,12 @@ import type { RasterBackend, RasterJob, RasterMode } from "./types";
  * before sending (never render stale work), but a result that arrives after
  * it stopped being wanted is still cached. A crashed worker (`onerror`, e.g.
  * out of memory, or `onmessageerror`) is restarted up to
- * `RASTER_WORKER_RESTARTS` times per load, and then the backend is `none`.
- * `subscribeRasterFailed` reports the keys of jobs that died with it. No `Worker` or
- * `createImageBitmap` (jsdom) means backend `none`: nothing renders.
+ * `RASTER_WORKER_RESTARTS` times (re-armed after `RASTER_RESTART_REARM_TILES`
+ * finished tiles), and then the backend is `none`.
+ * `subscribeRasterFailed` reports the keys of jobs that died (an error reply,
+ * a failed post, or a crash), each at most `RASTER_JOB_RETRIES` times before
+ * the key is retired until reload. No `Worker` or `createImageBitmap` (jsdom)
+ * means backend `none`: nothing renders.
  */
 
 export type RasterBackendState = RasterBackend | "starting";
@@ -44,6 +52,10 @@ let backend: RasterBackendState = "starting";
 let nextId = 1;
 let tilesRendered = 0;
 let restarts = 0;
+/** Tiles finished since the last crash; re-arms `restarts`. */
+let tilesSinceCrash = 0;
+/** Worker restarts since load (E2E, telemetry); never re-armed. */
+let restartsSinceLoad = 0;
 const tilesByMode: Record<RasterMode, number> = { pyramid: 0, pcm: 0, line: 0 };
 const queue = new Map<string, RasterRequest>();
 const sent = new Map<number, Sent>();
@@ -52,6 +64,8 @@ const backendListeners = listenerSet();
 const doneListeners = listenerSet<[key: string, entry: BitmapEntry]>();
 const droppedListeners = listenerSet<[key: string]>();
 const failedListeners = listenerSet<[key: string]>();
+/** Failures per tile key; a key over RASTER_JOB_RETRIES is retired until reload. */
+const failures = new Map<string, number>();
 
 function supported(): boolean {
   return (
@@ -99,15 +113,31 @@ function emitFailed(keys: readonly string[]): void {
   }
 }
 
+function retired(key: string): boolean {
+  return (failures.get(key) ?? 0) > RASTER_JOB_RETRIES;
+}
+
+/** Count one failure per key; returns the keys still worth asking again for. */
+function countFailures(keys: readonly string[]): string[] {
+  return [...new Set(keys)].filter((key) => {
+    const n = (failures.get(key) ?? 0) + 1;
+    failures.set(key, n);
+    return n <= RASTER_JOB_RETRIES;
+  });
+}
+
 /** `w` crashed: restart it (queued jobs keep their buffers) or give up. */
 function onCrash(w: Worker): void {
   if (worker !== w) {
-    return; // a replaced worker's late event
+    return; // a replaced worker's late event (onerror and onmessageerror can both fire)
   }
+  tilesSinceCrash = 0;
   let lost: string[];
   if (restarts < RASTER_WORKER_RESTARTS) {
     restarts += 1;
-    lost = stopWorker();
+    restartsSinceLoad += 1;
+    // A key in flight at repeated crashes is retired (a poison tile).
+    lost = countFailures(stopWorker());
     if (ensureWorker()) {
       pump();
     }
@@ -138,6 +168,11 @@ function onMessage(msg: RasterOutMsg): void {
     setBackend(msg.backend satisfies WorkerBackend);
     tilesRendered += 1;
     tilesByMode[job.job.mode] += 1;
+    failures.delete(job.key);
+    tilesSinceCrash += 1;
+    if (tilesSinceCrash >= RASTER_RESTART_REARM_TILES) {
+      restarts = 0;
+    }
     const entry: BitmapEntry = {
       bitmap: msg.bitmap,
       width: job.job.cols,
@@ -154,6 +189,10 @@ function onMessage(msg: RasterOutMsg): void {
     }
   }
   pump();
+  if (msg.type === "error" && job) {
+    // The render threw: ask again, at most RASTER_JOB_RETRIES times.
+    emitFailed(countFailures([job.key]));
+  }
 }
 
 function ensureWorker(): Worker | null {
@@ -185,6 +224,8 @@ function ensureWorker(): Worker | null {
     }
   };
   w.onerror = () => onCrash(w);
+  // A reply that cannot be deserialized loses its job id, so its slot would
+  // never free: treat it as a crash (the restart frees every slot).
   w.onmessageerror = () => onCrash(w);
   return w;
 }
@@ -204,6 +245,7 @@ function pump(): void {
     return;
   }
   const dropped: string[] = [];
+  const unsent: string[] = [];
   while (sent.size < RASTER_JOBS_OUTSTANDING && queue.size > 0) {
     let best: RasterRequest | null = null;
     for (const [key, req] of queue) {
@@ -225,8 +267,9 @@ function pump(): void {
     try {
       post(w, { type: "render", id, job: best.job });
     } catch {
-      // e.g. a DataCloneError on a detached buffer: drop the job, free its slot.
+      // e.g. a DataCloneError on a detached buffer: free its slot, report it below.
       sent.delete(id);
+      unsent.push(best.key);
     }
   }
   // Another layer may have skipped these keys (`hasRaster`) while they were
@@ -234,11 +277,13 @@ function pump(): void {
   for (const key of dropped) {
     droppedListeners.emit(key);
   }
+  // Bounded: a key whose post keeps throwing is retired (RASTER_JOB_RETRIES).
+  emitFailed(countFailures(unsent));
 }
 
 /** Queue a tile render; a job already queued or outstanding for `key` is kept. */
 export function requestRaster(req: RasterRequest): void {
-  if (!ensureWorker()) {
+  if (retired(req.key) || !ensureWorker()) {
     return;
   }
   for (const job of sent.values()) {
@@ -258,7 +303,7 @@ export function requestRaster(req: RasterRequest): void {
 /**
  * True when `requestRaster` would drop a request for `key`: a job with the
  * same `provisional` flag is outstanding, or one is queued, still wanted and
- * at least as urgent as `priority`. Lets callers skip building the job.
+ * at least as urgent as `priority`. Also true for a key retired after repeated failures (`RASTER_JOB_RETRIES`). Lets callers skip building the job.
  * If that queued job is later dropped as unwanted, `subscribeRasterDropped`
  * reports its key, so a caller that skipped can ask again.
  */
@@ -267,6 +312,9 @@ export function hasRaster(
   provisional: boolean,
   priority: number,
 ): boolean {
+  if (retired(key)) {
+    return true; // refused until reload: nothing to build
+  }
   for (const job of sent.values()) {
     if (job.key === key && job.provisional === provisional) {
       return true;
@@ -296,9 +344,12 @@ export function subscribeRasterDropped(
 }
 
 /**
- * Called with the key of each job that died with a crashed worker: those in
- * flight, and on the last crash the queued ones too. A caller that still
- * wants the key asks again (a restarted worker takes it; `none` ignores it).
+ * Called with the key of each job that died: a render that threw (an `error`
+ * reply), a `postMessage` that threw, a job in flight at a worker crash, and
+ * on the last crash the queued ones too. A key is reported at most
+ * `RASTER_JOB_RETRIES` times; its next failure retires it until reload. A
+ * caller that still wants the key asks again (a restarted worker takes it;
+ * `none` ignores it).
  */
 export function subscribeRasterFailed(
   listener: (key: string) => void,
@@ -333,6 +384,11 @@ export function rasterTilesByMode(): Readonly<Record<RasterMode, number>> {
   return { ...tilesByMode };
 }
 
+/** Worker restarts since load (E2E: tell a restart from normal running). */
+export function rasterWorkerRestarts(): number {
+  return restartsSinceLoad;
+}
+
 /** GL vs CPU difference on a fixed tile, in the worker; null without GL. */
 export function rasterParity(): Promise<number | null> {
   const w = ensureWorker();
@@ -357,7 +413,10 @@ export function resetRasterClient(): void {
   stopWorker();
   backend = "starting";
   queue.clear();
+  failures.clear();
   restarts = 0;
+  tilesSinceCrash = 0;
+  restartsSinceLoad = 0;
   tilesRendered = 0;
   tilesByMode.pyramid = 0;
   tilesByMode.pcm = 0;
