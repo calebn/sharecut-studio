@@ -87,7 +87,9 @@ fn wrapper_matches(path: &Path, expected: &[u8]) -> io::Result<bool> {
 #[cfg(unix)]
 fn wrapper_executable(path: &Path) -> io::Result<bool> {
     use std::os::unix::fs::PermissionsExt;
-    Ok(fs::metadata(path)?.permissions().mode() & 0o111 != 0)
+    // The installer creates the wrapper as this user, so its owner bit must
+    // permit that user to execute it; group/other bits are insufficient.
+    Ok(fs::metadata(path)?.permissions().mode() & 0o100 != 0)
 }
 
 #[cfg(unix)]
@@ -405,6 +407,14 @@ mod tests {
         let err = install_appimage(&bin, &wrappers).unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
         assert!(err.to_string().contains("not executable"));
+        for mode in [0o001, 0o010, 0o401, 0o410] {
+            fs::set_permissions(bin.join("podcast"), fs::Permissions::from_mode(mode)).unwrap();
+            let err = install_appimage(&bin, &wrappers).unwrap_err();
+            assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
+            if mode & 0o400 != 0 {
+                assert!(err.to_string().contains("not executable"));
+            }
+        }
         fs::set_permissions(bin.join("podcast"), fs::Permissions::from_mode(0o755)).unwrap();
         install_appimage(&bin, &wrappers).unwrap();
         assert_eq!(fs::read(bin.join("podcast")).unwrap(), wrappers[0].1);
