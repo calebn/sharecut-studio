@@ -414,55 +414,57 @@ class TunnelClient:
                 async with send_lock:
                     await ws.send(json.dumps(payload))
 
-            await send(
-                msg(
-                    "hello",
-                    host_token=cfg.host_token,
-                    host_id=cfg.host_id,
-                    protocol_version=PROTOCOL_VERSION,
-                )
-            )
-            ack = json.loads(await ws.recv())
-            if ack.get("type") != "hello" or not ack.get("ok"):
-                raise RuntimeError(f"Relay rejected hello: {ack}")
-
-            await send(msg("register", shares=shares))
-            reg_ack = json.loads(await ws.recv())
-            log.info("Registered %d shares (relay ack: %s)", len(shares), reg_ack)
-
-            tasks: set[asyncio.Task[None]] = set()
-            ws_streams: dict[str, asyncio.Queue[str | None]] = {}
-
+            await self._register(ws, send, shares)
             async with httpx.AsyncClient() as http_client:
-                while True:
-                    raw = json.loads(await ws.recv())
-                    mtype = raw.get("type")
-                    if mtype == "http":
-                        task = asyncio.create_task(self._proxy_http(http_client, raw, send=send))
-                        tasks.add(task)
-                        task.add_done_callback(tasks.discard)
-                    elif mtype == "ws_open":
-                        task = asyncio.create_task(
-                            self._proxy_ws(raw, send=send, streams=ws_streams)
-                        )
-                        tasks.add(task)
-                        task.add_done_callback(tasks.discard)
-                    elif mtype == "ws_data":
-                        q = ws_streams.get(str(raw.get("id") or ""))
-                        if q is not None:
-                            with contextlib.suppress(Exception):  # pragma: no cover
-                                q.put_nowait(str(raw.get("text") or ""))
-                    elif mtype == "ws_close":
-                        q = ws_streams.pop(str(raw.get("id") or ""), None)
-                        if q is not None:
-                            with contextlib.suppress(Exception):  # pragma: no cover
-                                q.put_nowait(None)
-                    elif mtype == "ping":
-                        await send(msg("pong"))
-                    elif mtype == "error":
-                        log.error("Relay error: %s", raw.get("detail"))
-                    else:
-                        log.debug("Unhandled relay message type: %s", mtype)
+                await self._serve_messages(ws, http_client, send)
+
+    async def _register(self, ws: Any, send: Any, shares: list[dict[str, Any]]) -> None:
+        cfg = self._cfg
+        await send(
+            msg(
+                "hello",
+                host_token=cfg.host_token,
+                host_id=cfg.host_id,
+                protocol_version=PROTOCOL_VERSION,
+            )
+        )
+        ack = json.loads(await ws.recv())
+        if ack.get("type") != "hello" or not ack.get("ok"):
+            raise RuntimeError(f"Relay rejected hello: {ack}")
+        await send(msg("register", shares=shares))
+        reg_ack = json.loads(await ws.recv())
+        log.info("Registered %d shares (relay ack: %s)", len(shares), reg_ack)
+
+    async def _serve_messages(self, ws: Any, http_client: Any, send: Any) -> None:
+        tasks: set[asyncio.Task[None]] = set()
+        ws_streams: dict[str, asyncio.Queue[str | None]] = {}
+        while True:
+            raw = json.loads(await ws.recv())
+            mtype = raw.get("type")
+            task: asyncio.Task[None] | None = None
+            if mtype == "http":
+                task = asyncio.create_task(self._proxy_http(http_client, raw, send=send))
+            elif mtype == "ws_open":
+                task = asyncio.create_task(self._proxy_ws(raw, send=send, streams=ws_streams))
+            elif mtype in ("ws_data", "ws_close"):
+                stream_id = str(raw.get("id") or "")
+                q = (
+                    ws_streams.pop(stream_id, None)
+                    if mtype == "ws_close"
+                    else ws_streams.get(stream_id)
+                )
+                if q is not None:
+                    with contextlib.suppress(Exception):  # pragma: no cover
+                        q.put_nowait(None if mtype == "ws_close" else str(raw.get("text") or ""))
+            elif mtype == "ping":
+                await send(msg("pong"))
+            elif mtype == "error":
+                log.error("Relay error: %s", raw.get("detail"))
+            else:
+                log.debug("Unhandled relay message type: %s", mtype)
+            if task is not None:
+                tasks.add(task)
+                task.add_done_callback(tasks.discard)
 
     async def run(
         self,
