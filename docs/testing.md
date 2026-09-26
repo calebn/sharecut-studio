@@ -164,6 +164,8 @@ eligible media, and deletes at most 32 outside both project locks. An active sta
 blocks recovery even when its directory mtime is old. Publication tests also verify
 private stage mode, no-follow output creation, root permissions, and a slow WAV hash
 while another process holds the commit lock.
+The stage API test also requires the ownership callback before any media or lease is
+created, so a direct caller cannot leave an unreachable active stage.
 Subprocess tests race promotion and quarantine against an independent writer. Sweep tests
 keep fresh and symlinked entries, enforce the 32-entry cap, and retarget an ancestor
 symlink during root-relative quarantine creation. An identity-read failure retains only

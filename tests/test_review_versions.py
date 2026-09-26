@@ -1637,6 +1637,17 @@ def test_stage_version_creates_media_without_touching_project(
     assert created[0][1] not in review_versions._active_stage_leases
 
 
+def test_stage_version_requires_lease_owner_callback_before_creating_media(
+    minimal_project, sample_wav, monkeypatch
+):
+    project, art = _premix_project(minimal_project, sample_wav, monkeypatch)
+    leases_before = set(review_versions._active_stage_leases)
+    with pytest.raises(TypeError, match="on_media_created"):
+        stage_version(project, **{"label": "unowned"})
+    assert not (art / "review").exists()
+    assert set(review_versions._active_stage_leases) == leases_before
+
+
 def test_attach_version_appends_and_optionally_activates(minimal_project, sample_wav, monkeypatch):
     project, _ = _premix_project(minimal_project, sample_wav, monkeypatch)
     first = publish_version(project, label="a", set_active=False)

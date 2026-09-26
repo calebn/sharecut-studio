@@ -634,15 +634,15 @@ def stage_version(
     label: str,
     prefer: str = "premix",
     eng: FFmpegEngine | None = None,
-    on_media_created: Callable[[Path, DirectoryIdentity], None] | None = None,
+    on_media_created: Callable[[Path, DirectoryIdentity], None],
     on_media_ready: Callable[[MediaIdentity], None] | None = None,
 ) -> ReviewMixVersion:
     """Copy current premix/mastered into private staging (+ mix.mp3).
 
     Creates media only; ``project.review`` is untouched until ``attach_version``.
 
-    ``on_media_created(version_dir, identity)`` receives the identity recorded once
-    at creation so callers clean up the same directory this call made.
+    ``on_media_created(version_dir, identity)`` is required: it hands the caller
+    the private stage needed to promote or discard media and release its lease.
     """
     text = (label or "").strip()
     if not text:
@@ -710,8 +710,7 @@ def stage_version(
     mp3_rel = f"{REVIEW_ARTIFACTS_RELDIR}/{vid}/mix.mp3"
     mp3_path = version_dir / "mix.mp3"
     try:
-        if on_media_created is not None:
-            on_media_created(version_dir, created_identity)
+        on_media_created(version_dir, created_identity)
         assert stage_fd is not None
         wav_fd = os.open(
             "mix.wav",
