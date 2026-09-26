@@ -618,7 +618,7 @@ def test_share_daw_document_command_caps(minimal_project, sample_wav, tmp_worksp
         f"/api/review/{edit_tok}/daw/document/command",
         json={
             "client_id": "t",
-            "client_seq": 1,
+            "client_seq": 4,
             "role": "guest",
             "type": "ApproveEdits",
             "payload": {"ids": ["pend-share-1"]},

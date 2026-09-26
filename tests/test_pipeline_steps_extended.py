@@ -126,6 +126,7 @@ def test_stem_uses_pre_mutation_snapshot_for_audio_and_hash(
             timeline_start=0.0,
         )
     ]
+    ProjectWorkspace(minimal_project, proj).save()  # mutate() adopts the saved project
     before_hash = track_render_hash(proj, "host")
     rendered: list[tuple[float, str]] = []
 
