@@ -24,7 +24,14 @@ try {
       # Record ownership first. A failed marker write leaves PATH untouched;
       # an interrupted registry write leaves a marker for uninstall recovery.
       [System.IO.File]::WriteAllText($marker, $normalized)
-      $key.SetValue('Path', $next, $kind)
+      try {
+        $key.SetValue('Path', $next, $kind)
+      } catch {
+        # A synchronous failure did not add PATH ownership. Do not leave a
+        # marker that could later remove an independently added entry.
+        Remove-Item -LiteralPath $marker -Force
+        throw
+      }
       $changed = $true
     }
   } elseif (Test-Path -LiteralPath $marker) {

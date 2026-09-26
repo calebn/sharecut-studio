@@ -53,6 +53,10 @@ def test_nsis_cli_path_is_optional_and_owned_entry_is_removed() -> None:
     assert ps.index("[System.IO.File]::WriteAllText($marker, $normalized)") < ps.index(
         "$key.SetValue('Path', $next, $kind)"
     )
+    assert ps.index("$key.SetValue('Path', $next, $kind)") < ps.index(
+        "Remove-Item -LiteralPath $marker -Force"
+    )
+    assert "} catch {" in ps
 
 
 def test_desktop_build_notarizes_app_once_then_packs_dmg() -> None:
