@@ -30,7 +30,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference) |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, BottomSheet |
-| **Templates** | Assembled, context-specific domain screens built from the library, shown with static / representative content and locked domain copy — no live app state | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, ListenHero |
+| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy — no live app state | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -83,6 +83,14 @@ presentational frame that the live component renders. `Templates/Transport`
 store-driven tool cluster, avatars, and menus. Templates that render a page
 banner also render a `<main>` region beside it, so the story harness does not
 nest the banner inside its fallback main landmark.
+
+`Templates/TransportPlayControls` shows the shipped Play/Pause and Stop
+controls in `TransportFrame`, including the empty-project disabled state.
+`Templates/PipelineStatusChip` shows the shipped status footer chip with
+fictional pipeline and activity jobs. Both accept props and callbacks alone;
+the live `TransportBar` and `StatusBar` remain outside Storybook because they
+read DAW state. The running chip examples omit a progress timestamp so the
+catalog does not depend on a moving clock.
 
 `Atoms/SurfaceLadder` renders the five ladder rungs, fields, the selected chip,
 stage, transport, accent, and danger from the live tokens — iterate on the
@@ -232,3 +240,5 @@ both themes, in story mode and on its docs page, before merging.
   applyTheme (#209).
 - 2026-09-25 — Added `Atoms/ClipLed`, the clip LED shared by `LevelMeter`
   and the REC indicator (#174). Clipping is sample peak only.
+- 2026-09-26 — Added standalone transport Play/Stop and pipeline status chip
+  stories with production chrome, fixture-only state, and interaction checks.
