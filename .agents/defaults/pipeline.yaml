@@ -209,11 +209,12 @@ align:
   large_move_sec: 1.0
   large_move_min_peak: 0.1
   bleed_ngram: 3
-  # Clustered bleed matches needed to trust the bleed clock.
+  # Clustered bleed matches needed to trust the bleed clock (was 2 before #519;
+  # set 2 + bleed_min_share: 0 for the old behaviour).
   min_bleed_matches: 5
   # Weighted share of matched n-grams that must agree; common filler n-grams count 0.2x.
   bleed_min_share: 0.3
-  # |bleed Δt| below this → confirm with waveform xcorr (not blind identity).
+  # |bleed Δt| below this → confirm with waveform xcorr (not blind identity); capped at large_move_sec.
   bleed_identity_sec: 1.0
   acoustic_min_peak: 0.05
   acoustic_floor_sec: 0.05

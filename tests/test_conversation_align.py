@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import wave
 from pathlib import Path
 from unittest.mock import patch
 
@@ -12,6 +13,7 @@ from podcast_mcp.edits.conversation_align import (
     AcousticOffset,
     AlignResult,
     ClipAlignPlan,
+    _confirm_large_move,
     _is_common_ngram,
     _weighted_median,
     acoustic_clip_offset,
@@ -19,6 +21,7 @@ from podcast_mcp.edits.conversation_align import (
     bleed_phrase_offsets,
     durations_match,
     first_utterance_end,
+    ingest_alignment_key,
     late_join_offset,
     offset_to_clip_geometry,
     own_speech_tokens,
@@ -616,8 +619,7 @@ def test_three_speakers_n_way(tmp_path: Path) -> None:
     assert {p.track_id for p in result.plans} == {"host", "guest", "third"}
 
 
-def test_multi_file_clips_plan_independently(tmp_path: Path) -> None:
-    """Several whole-file clips on one speaker each get their own plan."""
+def _multi_file_project(tmp_path: Path, *, guest_a_sec: float = 30.0) -> EpisodeProject:
     from podcast_mcp.models import SourceRecording
 
     host_words = [
@@ -662,7 +664,7 @@ def test_multi_file_clips_plan_independently(tmp_path: Path) -> None:
     p.sources.extend(
         [
             SourceRecording(
-                id="guest_a", path="raw/guest_a.wav", speaker="Guest", duration_sec=30.0
+                id="guest_a", path="raw/guest_a.wav", speaker="Guest", duration_sec=guest_a_sec
             ),
             SourceRecording(
                 id="guest_b", path="raw/guest_b.wav", speaker="Guest", duration_sec=20.0
@@ -703,6 +705,12 @@ def test_multi_file_clips_plan_independently(tmp_path: Path) -> None:
             Transcript(track_id="guest", source_id="guest_b", words=guest_b),
         ]
     )
+    return p
+
+
+def test_multi_file_clips_plan_independently(tmp_path: Path) -> None:
+    """Several whole-file clips on one speaker each get their own plan."""
+    p = _multi_file_project(tmp_path)
     result = plan_conversation_alignment(p)
     guest_plans = [pl for pl in result.plans if pl.track_id == "guest"]
     assert len(guest_plans) == 2
@@ -1315,6 +1323,9 @@ def test_is_common_ngram_and_weighted_median() -> None:
     assert not _is_common_ngram("i don't zebra")
     assert _weighted_median([1.0, 2.0, 10.0], [1.0, 1.0, 1.0]) == 2.0
     assert _weighted_median([1.0, 10.0], [0.1, 5.0]) == 10.0
+    assert _weighted_median([2.0, 1.0, 3.0], [1.0, 1.0, 2.0]) == 2.0
+    assert _weighted_median([3.0, 1.0], [0.0, 0.0]) == 1.0
+    assert _weighted_median([1.0, 2.0], [float("nan"), 1.0]) == 2.0
 
 
 _LONG = 1689.58
@@ -1418,6 +1429,8 @@ def test_manifest_pinned_offset_is_manual_lock(tmp_path: Path) -> None:
     result = plan_conversation_alignment(proj, defaults={"align": {"min_bleed_matches": 2}})
     guest = next(p for p in result.plans if p.track_id == "guest")
     assert guest.method == "manual"
+    assert guest.offset_sec == pytest.approx(3.0)
+    assert "locked guest" in result.summary()
     apply_alignment_plans(proj, result)
     gclip = next(c for c in proj.clips if c.track_id == "guest")
     assert gclip.timeline_start == 3.0
@@ -1451,7 +1464,9 @@ def test_write_alignment_artifact_includes_candidate_fields(tmp_path: Path) -> N
         ],
         reference_track_id="host",
     )
-    row = json.loads(write_alignment_artifact(proj, result).read_text())["plans"][0]
+    payload = json.loads(write_alignment_artifact(proj, result).read_text())
+    assert payload["large_move_sec"] == 1.0
+    row = payload["plans"][0]
     assert row["candidate_offset_sec"] == 4.2
     assert row["acoustic_confirmed"] is False
 
@@ -1465,3 +1480,137 @@ def test_equal_duration_dialogue_helper(tmp_path: Path) -> None:
     )
     found = equal_duration_dialogue(_project(tmp_path, [("host", 10.0, []), ("g", 10.0, [])]))
     assert found == (["g", "host"], 10.0)
+
+
+def test_manifest_pin_is_per_clip(tmp_path: Path) -> None:
+    p = _multi_file_project(tmp_path)
+    p.meta.ingest_alignment = {
+        "guest:clip_ga": SpeakerIngestAlignment(content_align_sec=0.0, align_method="manual")
+    }
+    methods = {pl.clip_id: pl.method for pl in plan_conversation_alignment(p).plans}
+    assert methods["clip_ga"] == "manual"
+    assert methods["clip_gb"] != "manual"
+
+
+def test_ingest_alignment_key_helper(tmp_path: Path) -> None:
+    p = _project(tmp_path, [("guest", 10.0, [])])
+    track, clip = p.tracks[0], p.clips[0]
+    assert ingest_alignment_key(track, clip, per_clip=True) == "guest:clip_guest"
+    assert ingest_alignment_key(track, clip, per_clip=False) == "Guest"
+
+
+def test_duplicate_speaker_label_does_not_cross_lock(tmp_path: Path) -> None:
+    def build() -> EpisodeProject:
+        p = _project(tmp_path, [("host", 100.0, []), ("guest", 90.0, []), ("guest2", 80.0, [])])
+        next(t for t in p.tracks if t.id == "guest2").speaker = "Guest"
+        return p
+
+    a = build()
+    a.meta.ingest_alignment = {"Guest": SpeakerIngestAlignment(align_method="manual")}
+    assert not [pl for pl in plan_conversation_alignment(a).plans if pl.method == "manual"]
+    b = build()
+    b.meta.ingest_alignment = {"guest2:clip_guest2": SpeakerIngestAlignment(align_method="manual")}
+    assert [
+        pl.track_id for pl in plan_conversation_alignment(b).plans if pl.method == "manual"
+    ] == ["guest2"]
+    apply_alignment_plans(a, plan_conversation_alignment(a))
+    assert a.meta.ingest_alignment is not None
+    assert "guest:clip_guest" in a.meta.ingest_alignment
+    assert "guest2:clip_guest2" in a.meta.ingest_alignment
+    assert a.meta.ingest_alignment["Guest"].align_method == "manual"
+
+
+def test_coincidental_equal_length_extra_is_not_locked(tmp_path: Path) -> None:
+    p = _multi_file_project(tmp_path, guest_a_sec=100.0)
+    plans = plan_conversation_alignment(p).plans
+    assert next(pl for pl in plans if pl.clip_id == "clip_ga").method != "hold"
+
+
+def test_hold_rebases_onto_reference_lead_in(tmp_path: Path) -> None:
+    proj = _project(tmp_path, [("host", 100.0, []), ("guest", 100.0, [])])
+    next(c for c in proj.clips if c.track_id == "host").source_start = 3.0
+    result = plan_conversation_alignment(proj)
+    assert next(pl for pl in result.plans if pl.track_id == "guest").method == "hold"
+    apply_alignment_plans(proj, result)
+    g = next(c for c in proj.clips if c.track_id == "guest")
+    assert (g.source_start, g.timeline_start) == (3.0, 0.0)
+
+
+def test_locked_track_joins_peer_union_in_pass_one(tmp_path: Path) -> None:
+    from podcast_mcp.edits import conversation_align as ca
+
+    def words(t0: float, text: str) -> list[TranscriptWord]:
+        return [
+            TranscriptWord(text=w, start=t0 + j * 0.3, end=t0 + j * 0.3 + 0.25, confidence=0.9)
+            for j, w in enumerate(text.split())
+        ]
+
+    p = _project(
+        tmp_path,
+        [
+            ("host", 100.0, words(10.0, "alpha bravo charlie")),
+            ("audra", 100.0, words(50.0, "zulu yankee xray")),
+            ("lana", 90.0, words(70.0, "kilo lima mike")),
+        ],
+    )
+    p.meta.ingest_alignment = {
+        "Audra": SpeakerIngestAlignment(content_align_sec=0.0, align_method="manual")
+    }
+    with patch.object(ca, "_score_one_clip", wraps=ca._score_one_clip) as spy:
+        ca.plan_conversation_alignment(p)
+    union = spy.call_args_list[0].kwargs["union"]
+    assert any(s <= 50.1 <= e for s, e in union)
+
+
+def test_bleed_identity_capped_at_large_move(tmp_path: Path) -> None:
+    from podcast_mcp.edits import conversation_align as ca
+
+    with patch.object(ca, "_score_one_clip", wraps=ca._score_one_clip) as spy:
+        ca.plan_conversation_alignment(
+            _bleed5_project(tmp_path),
+            defaults={
+                "align": {"bleed_identity_sec": 3.0, "large_move_sec": 1.0, "min_bleed_matches": 2}
+            },
+        )
+    assert spy.call_args_list
+    assert all(c.kwargs["bleed_identity_sec"] == 1.0 for c in spy.call_args_list)
+
+
+def _write_pcm16(path: Path, samples: np.ndarray, rate: int = 8000) -> None:
+    pcm = (np.clip(samples, -1.0, 1.0) * 32767).astype("<i2")
+    with wave.open(str(path), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(rate)
+        handle.writeframes(pcm.tobytes())
+
+
+@pytest.mark.parametrize("true_offset", [5.2, 4.8])
+def test_confirm_large_move_sign_with_real_xcorr(tmp_path: Path, true_offset: float) -> None:
+    """Residual lag through acoustic_clip_offset(source_shift_sec=...) adds to the candidate."""
+    rate = 8000
+    rng = np.random.default_rng(0)
+    ref = rng.uniform(-0.5, 0.5, rate * 90).astype(np.float32)
+    start = int(true_offset * rate)
+    src = ref[start : start + rate * 80]  # guest file starts true_offset s into the session
+    ref_path, src_path = tmp_path / "ref.wav", tmp_path / "src.wav"
+    _write_pcm16(ref_path, ref)
+    _write_pcm16(src_path, src)
+    durs = {ref_path: 90.0, src_path: 80.0}
+    plan = ClipAlignPlan(track_id="g", clip_id="c", offset_sec=5.0, method="bleed", detail="bleed")
+    with patch(
+        "podcast_mcp.edits.conversation_align._probe_duration_sec", side_effect=lambda p: durs[p]
+    ):
+        out = _confirm_large_move(
+            plan,
+            ref_audio=ref_path,
+            src_audio=src_path,
+            large_move_sec=1.0,
+            min_peak=0.1,
+            agree_sec=0.25,
+            confirm_fn=None,
+            prev_plan=None,
+        )
+    assert out.acoustic_confirmed is True
+    assert out.method == "bleed"
+    assert out.offset_sec == pytest.approx(true_offset, abs=0.01)

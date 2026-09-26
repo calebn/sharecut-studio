@@ -8,6 +8,7 @@ from pathlib import Path
 import yaml
 
 from podcast_mcp.edits.clips_ops import clips_for_track
+from podcast_mcp.edits.conversation_align import ingest_alignment_key
 from podcast_mcp.edits.track_media import apply_full_span_media
 from podcast_mcp.engines.alignment_audit import (
     check_drift,
@@ -418,7 +419,7 @@ class IngestService:
                         source_id=src.id,
                     )
                     clips.append(clip)
-                    meta_key = f"{tid}:{clip.id}" if multi else name
+                    meta_key = ingest_alignment_key(track, clip, per_clip=multi)
                     align_meta[meta_key] = SpeakerIngestAlignment(
                         session_start_in_file_sec=result.session_start_in_file_sec.get(name, 0.0),
                         content_align_sec=result.cross_speaker_offsets.get(name, 0.0),

@@ -84,7 +84,11 @@ SILENCE_REFINE_MAX_DRIFT_SEC = 0.3  # keep candidate when silence-mid wanders fa
 
 
 def large_move_sec_from_defaults(defaults: dict[str, Any] | None) -> float:
-    """``align.large_move_sec`` (moves above it are confirmed, gated and QC-checked)."""
+    """``align.large_move_sec`` (moves above it are confirmed, gated and QC-checked).
+
+    Only knobs read outside the scorer get an accessor; scorer-only knobs are read
+    inline at the top of :func:`plan_conversation_alignment`.
+    """
     cfg = (defaults or {}).get("align") or {}
     return float(cfg.get("large_move_sec", LARGE_MOVE_SEC))
 
@@ -130,11 +134,14 @@ class AlignResult:
     plans: list[ClipAlignPlan] = field(default_factory=list)
     reference_track_id: str | None = None
     skipped_reason: str | None = None
+    large_move_sec: float = LARGE_MOVE_SEC
 
     def summary(self) -> str:
         if self.skipped_reason:
             return self.skipped_reason
-        moved = [p for p in self.plans if abs(p.offset_sec) > 1e-3]
+        moved = [
+            p for p in self.plans if p.method not in LOCKED_METHODS and abs(p.offset_sec) > 1e-3
+        ]
         if not moved:
             base = f"{len(self.plans)} clips; all near identity (ref={self.reference_track_id})"
         else:
@@ -237,6 +244,10 @@ def _is_common_ngram(gram: str) -> bool:
 
 
 def _weighted_median(values: list[float], weights: list[float]) -> float:
+    """Lower weighted median: first value whose cumulative weight reaches half the total.
+
+    Zero total weight returns the smallest value; NaN weights fall through to the largest.
+    """
     pairs = sorted(zip(values, weights, strict=True))
     half = sum(w for _v, w in pairs) / 2.0
     acc = 0.0
@@ -458,9 +469,9 @@ def pick_reference_track(tracks: list[Track]) -> Track:
     return with_dur[0][0]
 
 
-def equal_duration_dialogue(project: EpisodeProject) -> tuple[list[str], float] | None:
-    """Track ids + duration when every dialogue file shares one length (likely pre-aligned)."""
-    units = dialogue_align_units(project)
+def _equal_duration_units(
+    units: list[tuple[Track, Clip, list[WordToken], float]],
+) -> tuple[list[str], float] | None:
     track_ids = sorted({t.id for t, _c, _tok, _d in units})
     if len(track_ids) < 2:
         return None
@@ -470,43 +481,86 @@ def equal_duration_dialogue(project: EpisodeProject) -> tuple[list[str], float] 
     return track_ids, durs[0]
 
 
-def _manifest_pinned(project: EpisodeProject, track: Track) -> bool:
-    """True when ingest recorded a manually pinned offset for this track."""
-    meta = project.meta.ingest_alignment or {}
-    speaker = track.speaker or track.label or track.id
-    return any(
-        v.align_method == "manual"
-        for k, v in meta.items()
-        if k == speaker or k.startswith(f"{track.id}:")
+def equal_duration_dialogue(project: EpisodeProject) -> tuple[list[str], float] | None:
+    """Track ids + duration when every dialogue file shares one length (likely pre-aligned)."""
+    return _equal_duration_units(dialogue_align_units(project))
+
+
+def _speaker_label(track: Track) -> str:
+    return track.speaker or track.label or track.id
+
+
+def ingest_alignment_key(track: Track, clip: Clip, *, per_clip: bool) -> str:
+    """``meta.ingest_alignment`` key: ``track_id:clip_id`` per clip, else the speaker label."""
+    return f"{track.id}:{clip.id}" if per_clip else _speaker_label(track)
+
+
+def _speaker_key_unique(project: EpisodeProject, track: Track) -> bool:
+    """True when no other dialogue track shares this track's speaker label."""
+    label = _speaker_label(track)
+    return (
+        sum(
+            1 for t in project.tracks if t.role == TrackRole.DIALOGUE and _speaker_label(t) == label
+        )
+        == 1
     )
+
+
+def _manifest_pinned(project: EpisodeProject, track: Track, clip: Clip) -> bool:
+    """True when ingest pinned this clip's offset (its own key, else a unique speaker key)."""
+    meta = project.meta.ingest_alignment or {}
+    entry = meta.get(ingest_alignment_key(track, clip, per_clip=True))
+    if entry is None and _speaker_key_unique(project, track):
+        entry = meta.get(ingest_alignment_key(track, clip, per_clip=False))
+    return entry is not None and entry.align_method == "manual"
 
 
 def _lock_plan(
-    project: EpisodeProject, track: Track, clip: Clip, *, same_len: bool
+    project: EpisodeProject,
+    track: Track,
+    clip: Clip,
+    *,
+    same_len: bool,
+    pre_aligned: bool,
+    ref_shift: float,
 ) -> ClipAlignPlan | None:
-    """Identity lock for manifest-pinned or equal-length stems (None → score normally)."""
-    if _manifest_pinned(project, track):
-        method = "manual"
-        detail = (
-            "ingest manifest offset pinned (session_offset_sec); "
-            "locked - set align.realign to re-align"
+    """Lock for a manifest-pinned clip or an equal-duration set (None → score normally)."""
+    if _manifest_pinned(project, track, clip):
+        return ClipAlignPlan(
+            track_id=track.id,
+            clip_id=clip.id,
+            offset_sec=clip_source_to_timeline_shift(clip) - ref_shift,
+            method="manual",
+            detail=(
+                "ingest manifest offset pinned (session_offset_sec); "
+                "locked - set align.realign to re-align"
+            ),
+            same_length_prior=same_len,
         )
-    elif same_len:
-        method = "hold"
-        detail = (
-            "equal file duration to reference (same_length_prior); "
-            "locked at identity - set align.realign to re-align"
+    if same_len and pre_aligned:
+        return ClipAlignPlan(
+            track_id=track.id,
+            clip_id=clip.id,
+            offset_sec=0.0,
+            method="hold",
+            detail=(
+                "every dialogue stem has the same file duration (likely pre-aligned); "
+                "locked at identity - set align.realign to re-align"
+            ),
+            same_length_prior=True,
         )
-    else:
-        return None
-    return ClipAlignPlan(
-        track_id=track.id,
-        clip_id=clip.id,
-        offset_sec=0.0,
-        method=method,
-        detail=detail,
-        same_length_prior=same_len,
-    )
+    return None
+
+
+def _reference_shift(ref_clips: list[Clip]) -> float:
+    """Timeline-minus-source shift of the first reference clip (ingest lead-in)."""
+    return clip_source_to_timeline_shift(ref_clips[0]) if ref_clips else 0.0
+
+
+def _co_timed(clip: Clip, ref_clips: list[Clip]) -> bool:
+    """True when a reference clip shares this clip's source-to-timeline shift."""
+    shift = clip_source_to_timeline_shift(clip)
+    return any(abs(clip_source_to_timeline_shift(r) - shift) < 1e-6 for r in ref_clips)
 
 
 def dialogue_align_units(
@@ -1315,6 +1369,7 @@ def plan_conversation_alignment(
     *,
     defaults: dict[str, Any] | None = None,
 ) -> AlignResult:
+    # Scorer-only knobs are read inline; shared ones use *_from_defaults accessors.
     cfg = (defaults or {}).get("align") or {}
     coarse_step = float(cfg.get("coarse_step_sec", 0.5))
     fine_step = float(cfg.get("fine_step_sec", 0.02))
@@ -1325,7 +1380,10 @@ def plan_conversation_alignment(
     large_move_sec = large_move_sec_from_defaults(defaults)
     large_min_peak = float(cfg.get("large_move_min_peak", LARGE_MOVE_MIN_PEAK))
     confirm_fn = (defaults or {}).get("_align_acoustic_confirm_fn")
-    bleed_identity_sec = float(cfg.get("bleed_identity_sec", BLEED_IDENTITY_SEC))
+    # Near-identity bleed skips the stricter large-move confirmation; never above it.
+    bleed_identity_sec = min(
+        float(cfg.get("bleed_identity_sec", BLEED_IDENTITY_SEC)), large_move_sec
+    )
     acoustic_min_peak = float(cfg.get("acoustic_min_peak", ACOUSTIC_MIN_PEAK))
     acoustic_floor_sec = float(cfg.get("acoustic_floor_sec", ACOUSTIC_FLOOR_SEC))
     acoustic_agree_sec = float(cfg.get("acoustic_agree_sec", ACOUSTIC_AGREE_SEC))
@@ -1337,8 +1395,11 @@ def plan_conversation_alignment(
 
     units = dialogue_align_units(project)
     if len(units) < 2:
-        return AlignResult(skipped_reason="skipped (<2 dialogue clips)")
+        return AlignResult(
+            skipped_reason="skipped (<2 dialogue clips)", large_move_sec=large_move_sec
+        )
 
+    pre_aligned = _equal_duration_units(units) is not None
     clip_total = max(1, len(units) * 2)
 
     all_durs = [d for _t, _c, _tok, d in units]
@@ -1355,6 +1416,7 @@ def plan_conversation_alignment(
     ref_track = pick_reference_track(tracks)
     ref_clip = next((c for t, c, _tok, _d in units if t.id == ref_track.id), None)
     ref_audio = resolve_clip_wav(project, ref_track, ref_clip) if ref_clip is not None else None
+    ref_shift = _reference_shift(clips_for_track(project, ref_track.id))
 
     offsets: dict[tuple[str, str], ClipAlignPlan] = {}
     for track, clip, _tokens, _dur in units:
@@ -1373,21 +1435,20 @@ def plan_conversation_alignment(
         if t.id == ref_track.id:
             ref_tokens.extend(tok)
 
+    def placed_intervals(
+        track: Track, tokens: list[WordToken], offset: float
+    ) -> list[tuple[float, float]]:
+        peers = [tok for t, _c, tok, _d in units if t.id != track.id]
+        own_iv = _own_speech_intervals(tokens, peers, ngram_n=ngram_n, max_word_sec=max_word_sec)
+        return [(s + offset, e + offset) for s, e in own_iv]
+
     def rebuild_placed() -> dict[tuple[str, str], list[tuple[float, float]]]:
         placed: dict[tuple[str, str], list[tuple[float, float]]] = {}
         for track, clip, tokens, _dur in units:
             plan = offsets.get((track.id, clip.id))
             if plan is None:
                 continue
-            peers = [tok for t, _c, tok, _d in units if t.id != track.id]
-            own_iv = _own_speech_intervals(
-                tokens,
-                peers,
-                ngram_n=ngram_n,
-                max_word_sec=max_word_sec,
-            )
-            off = plan.offset_sec
-            placed[(track.id, clip.id)] = [(s + off, e + off) for s, e in own_iv]
+            placed[(track.id, clip.id)] = placed_intervals(track, tokens, plan.offset_sec)
         return placed
 
     with resolve_progress_task(
@@ -1405,9 +1466,23 @@ def plan_conversation_alignment(
                     continue
                 raise_if_cancelled(cancel_check)
                 same_len = any(durations_match(dur, rd) for rd in ref_durs)
-                locked = None if realign else _lock_plan(project, track, clip, same_len=same_len)
+                locked = (
+                    None
+                    if realign
+                    else _lock_plan(
+                        project,
+                        track,
+                        clip,
+                        same_len=same_len,
+                        pre_aligned=pre_aligned,
+                        ref_shift=ref_shift,
+                    )
+                )
                 if locked is not None:
                     offsets[(track.id, clip.id)] = locked
+                    placed_iv[(track.id, clip.id)] = placed_intervals(
+                        track, tokens, locked.offset_sec
+                    )
                     prog.advance(1, message=f"Pass {pass_i + 1}: locked {clip.id}")
                     continue
                 peer_ivs = [iv for (tid, _cid), iv in placed_iv.items() if tid != track.id]
@@ -1453,20 +1528,12 @@ def plan_conversation_alignment(
                 scored.clip_id = clip.id
                 offsets[(track.id, clip.id)] = scored
                 # Mid-pass: later tracks see this placement in the peer union.
-                own_iv = _own_speech_intervals(
-                    tokens,
-                    peers,
-                    ngram_n=ngram_n,
-                    max_word_sec=max_word_sec,
-                )
-                placed_iv[(track.id, clip.id)] = [
-                    (s + scored.offset_sec, e + scored.offset_sec) for s, e in own_iv
-                ]
+                placed_iv[(track.id, clip.id)] = placed_intervals(track, tokens, scored.offset_sec)
                 prog.advance(1, message=f"Pass {pass_i + 1}: clip {clip.id}")
     plans = list(offsets.values())
     # Stable order: reference first, then by track/clip
     plans.sort(key=lambda p: (0 if p.method == "reference" else 1, p.track_id, p.clip_id))
-    return AlignResult(plans=plans, reference_track_id=ref_track.id)
+    return AlignResult(plans=plans, reference_track_id=ref_track.id, large_move_sec=large_move_sec)
 
 
 def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
@@ -1487,7 +1554,7 @@ def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
     )
     # Plans are file-time offsets against the reference file; rebase them onto the
     # reference clip's placement (an ingest lead-in keeps reference file L at timeline 0).
-    ref_shift = clip_source_to_timeline_shift(ref_clips[0]) if ref_clips else 0.0
+    ref_shift = _reference_shift(ref_clips)
 
     for track in project.tracks:
         if track.role != TrackRole.DIALOGUE:
@@ -1520,14 +1587,15 @@ def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
                 media_duration=media_dur,
             )
             if (
-                plan.method == "reference"
-                or plan.method in LOCKED_METHODS
+                plan.method in ("reference", "manual")
+                or (plan.method == "hold" and _co_timed(clip, ref_clips))
                 or abs(plan.offset_sec + ref_shift) < 1e-9
             ):
-                # Identity: reference clips (incl. sequential extras), locked (hold/manual)
-                # clips (splits, ripples and ingest placement stay) and guests whose
-                # rebased offset is zero keep their placement. Other offset-0 guests are
-                # rebased onto the reference lead-in like every other guest.
+                # Identity: reference clips (incl. sequential extras), manifest-pinned clips,
+                # held clips already co-timed with a reference clip (splits and ripples
+                # stay) and guests whose rebased offset is zero keep their placement.
+                # Other offset-0 guests, incl. a hold off the reference lead-in, are
+                # rebased onto the reference lead-in.
                 src_start = clip.source_start
                 src_end = clip.source_end
                 tl_start = clip.timeline_start
@@ -1539,8 +1607,10 @@ def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
                 continue  # keep the manifest's pinned meta entry
             session_start = src_start if tl_start <= 0 else 0.0
             content = tl_start if tl_start > 0 else 0.0
-            speaker = track.speaker or track.label or track.id
-            key = f"{track.id}:{clip.id}" if clips_by_track.get(track.id, 1) > 1 else speaker
+            per_clip = clips_by_track.get(track.id, 1) > 1 or not _speaker_key_unique(
+                project, track
+            )
+            key = ingest_alignment_key(track, clip, per_clip=per_clip)
             align_meta[key] = SpeakerIngestAlignment(
                 session_start_in_file_sec=session_start,
                 content_align_sec=content,
@@ -1552,13 +1622,18 @@ def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
     return updated
 
 
+def align_artifact_path(project: EpisodeProject) -> Path:
+    """``artifacts/alignment/conversation_align.json`` (writer, rollback and readers share it)."""
+    return project.artifacts_dir() / "alignment" / "conversation_align.json"
+
+
 def write_alignment_artifact(project: EpisodeProject, result: AlignResult) -> Path:
-    out_dir = project.artifacts_dir() / "alignment"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    path = out_dir / "conversation_align.json"
+    path = align_artifact_path(project)
+    path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "reference_track_id": result.reference_track_id,
         "skipped_reason": result.skipped_reason,
+        "large_move_sec": result.large_move_sec,
         "plans": [
             {
                 "track_id": p.track_id,
@@ -1612,8 +1687,7 @@ def run_conversation_align(
         write_alignment_artifact(project, result)
     except Exception:
         restore_clip_geometry(project, snap)
-        artifact = project.artifacts_dir() / "alignment" / "conversation_align.json"
-        artifact.unlink(missing_ok=True)
+        align_artifact_path(project).unlink(missing_ok=True)
         raise
     return result
 
