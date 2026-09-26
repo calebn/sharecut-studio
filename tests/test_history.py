@@ -398,7 +398,7 @@ def test_record_if_changed_rolls_back_when_the_index_write_fails(minimal_project
     import json
 
     from podcast_mcp.models import load_project
-    from podcast_mcp.project_store import ProjectStore, history_index_path, history_snapshot_ids
+    from podcast_mcp.project_store import history_index_path, history_snapshot_ids
 
     record_if_changed(minimal_project, "initial", force=True)
     index_path = history_index_path(load_project(minimal_project))
