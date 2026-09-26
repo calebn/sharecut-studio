@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import wave
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -145,40 +146,47 @@ def read_wav_mono_window(
     Returns ``(float64 mono samples at out_rate, PCM bytes read)``. Keepers are
     16-bit PCM. Unsupported widths (including 24-bit packed) yield empty.
     """
-    import wave
+    try:
+        with path.open("rb") as fh, wave.open(fh, "rb") as wf:
+            return read_open_wav_mono_window(
+                wf, start_sec=start_sec, duration_sec=duration_sec, out_rate=out_rate
+            )
+    except (OSError, wave.Error):
+        return np.zeros(0, dtype=np.float64), 0
 
+
+def read_open_wav_mono_window(
+    wf: wave.Wave_read, *, start_sec: float = 0.0, duration_sec: float, out_rate: int
+) -> tuple[np.ndarray, int]:
+    """Read one bounded window from an already open ``wave.Wave_read``."""
     start_sec = max(0.0, start_sec)
     duration_sec = max(0.0, duration_sec)
     if duration_sec <= 0 or out_rate <= 0:
         return np.zeros(0, dtype=np.float64), 0
-    try:
-        with path.open("rb") as fh, wave.open(fh, "rb") as wf:
-            in_rate = int(wf.getframerate() or 0)
-            channels = max(1, int(wf.getnchannels() or 1))
-            width = int(wf.getsampwidth() or 2)
-            nframes = int(wf.getnframes() or 0)
-            comptype = str(wf.getcomptype() or "NONE")
-            if (
-                in_rate <= 0
-                or nframes <= 0
-                or in_rate > _MAX_WAV_RATE
-                or channels > _MAX_WAV_CHANNELS
-                or width not in (1, 2, 4)
-                or comptype != "NONE"
-            ):
-                return np.zeros(0, dtype=np.float64), 0
-            start = min(nframes, round(start_sec * in_rate))
-            count = min(nframes - start, round(duration_sec * in_rate))
-            frame_bytes = channels * width
-            if frame_bytes <= 0 or count <= 0:
-                return np.zeros(0, dtype=np.float64), 0
-            count = min(count, _MAX_WAV_WINDOW_BYTES // frame_bytes)
-            if count <= 0:
-                return np.zeros(0, dtype=np.float64), 0
-            wf.setpos(start)
-            raw = wf.readframes(count)
-    except (OSError, wave.Error):
+    in_rate = int(wf.getframerate() or 0)
+    channels = max(1, int(wf.getnchannels() or 1))
+    width = int(wf.getsampwidth() or 2)
+    nframes = int(wf.getnframes() or 0)
+    comptype = str(wf.getcomptype() or "NONE")
+    if (
+        in_rate <= 0
+        or nframes <= 0
+        or in_rate > _MAX_WAV_RATE
+        or channels > _MAX_WAV_CHANNELS
+        or width not in (1, 2, 4)
+        or comptype != "NONE"
+    ):
         return np.zeros(0, dtype=np.float64), 0
+    start = min(nframes, round(start_sec * in_rate))
+    count = min(nframes - start, round(duration_sec * in_rate))
+    frame_bytes = channels * width
+    if frame_bytes <= 0 or count <= 0:
+        return np.zeros(0, dtype=np.float64), 0
+    count = min(count, _MAX_WAV_WINDOW_BYTES // frame_bytes)
+    if count <= 0:
+        return np.zeros(0, dtype=np.float64), 0
+    wf.setpos(start)
+    raw = wf.readframes(count)
     bytes_read = len(raw)
     if width == 2:
         pcm = np.frombuffer(raw, dtype="<i2")

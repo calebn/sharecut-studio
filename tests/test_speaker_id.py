@@ -1087,3 +1087,108 @@ def test_compare_window_picks_highest_own_margin(tmp_path, sample_wav) -> None:
             MockSpeakerBackend(),
         )
     assert out["owner_track_id"] == "guest"
+
+
+def test_gate_wav_snapshot_matches_bounded_decoder(tmp_path) -> None:
+    import wave
+
+    import numpy as np
+
+    from podcast_mcp.engines.align import load_mono_window
+    from podcast_mcp.engines.speaker_id import _WavWindowReader
+
+    path = tmp_path / "stereo.wav"
+    samples = np.arange(4000, dtype=np.int16).reshape(-1, 2)
+    with wave.open(str(path), "wb") as wf:
+        wf.setnchannels(2)
+        wf.setsampwidth(2)
+        wf.setframerate(16000)
+        wf.writeframes(samples.tobytes())
+    snapshot = _WavWindowReader.open(path)
+    assert snapshot is not None
+    try:
+        for start, duration in [(0.0, 0.02), (0.013, 0.067), (0.11, 0.01)]:
+            expected = load_mono_window(
+                path, start_sec=start, duration_sec=duration, sample_rate=8000
+            )
+            np.testing.assert_array_equal(snapshot.window(start, duration, 8000), expected)
+    finally:
+        snapshot.close()
+
+
+def test_gate_bleed_index_keeps_first_appended_match() -> None:
+    from podcast_mcp.engines.speaker_id import WindowScore, _FirstBleedWindowIndex
+
+    first = WindowScore("host", 2, 3, {}, "guest", 1)
+    later = WindowScore("host", 1, 4, {}, "other", 1)
+    index = _FirstBleedWindowIndex([(2, 3, first), (1, 4, later)])
+    assert index.first(2.2, 2.5) is first
+    assert index.first(1.2, 1.5) is later
+    assert index.first(4, 5) is None
+
+
+def test_gate_reader_bounds_reads_on_large_sparse_wav(tmp_path) -> None:
+    import struct
+
+    from podcast_mcp.engines.speaker_id import _WavWindowReader
+
+    path = tmp_path / "long.wav"
+    frames = 60 * 60 * 16000
+    data_bytes = frames * 2
+    header = (
+        b"RIFF"
+        + struct.pack("<I", 36 + data_bytes)
+        + b"WAVEfmt "
+        + struct.pack("<IHHIIHH", 16, 1, 1, 16000, 32000, 2, 16)
+        + b"data"
+        + struct.pack("<I", data_bytes)
+    )
+    with path.open("wb") as fh:
+        fh.write(header)
+        fh.seek(44 + data_bytes - 1)
+        fh.write(b"\0")
+    reader = _WavWindowReader.open(path)
+    assert reader is not None
+    reads: list[int] = []
+    original = reader._wf.readframes
+
+    def counted(n: int) -> bytes:
+        reads.append(n)
+        return original(n)
+
+    reader._wf.readframes = counted
+    try:
+        assert reader.window(1000.0, 0.1, 8000).size == 800
+    finally:
+        reader.close()
+    assert reads == [1600]
+
+
+def test_score_window_explicit_empty_profiles_does_not_reload(tmp_path, sample_wav) -> None:
+    from podcast_mcp.engines.speaker_id import MockSpeakerBackend, score_window
+    from podcast_mcp.transcript_context import SpeakerIdConfig
+
+    project = _two_track_project(tmp_path, sample_wav)
+    with patch("podcast_mcp.engines.speaker_id.load_all_profiles") as load_profiles:
+        assert (
+            score_window(
+                project, "host", 0.0, 0.1, SpeakerIdConfig(), MockSpeakerBackend(), profiles={}
+            )
+            is None
+        )
+    load_profiles.assert_not_called()
+
+
+def test_home_speaker_gate_snapshots_stem_once(tmp_path, sample_wav) -> None:
+    from podcast_mcp.engines.speaker_id import _WavWindowReader, label_track_home_speaker
+
+    project = _two_track_project(tmp_path, sample_wav)
+    cfg = SpeakerIdConfig(gate_window_sec=0.2, gate_hop_sec=0.1)
+    with (
+        patch("podcast_mcp.engines.speaker_id.load_all_profiles", return_value=_profiles()),
+        patch.object(_WavWindowReader, "open", wraps=_WavWindowReader.open) as open_snapshot,
+        patch("podcast_mcp.engines.speaker_id.load_mono_window") as bounded_decode,
+    ):
+        label_track_home_speaker(project, cfg, MockSpeakerBackend(), track_ids=["host"])
+    open_snapshot.assert_called_once()
+    bounded_decode.assert_not_called()
