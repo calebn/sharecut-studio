@@ -181,7 +181,7 @@ Phone (`<768`), tablet (`768–1100`), and desktop (`>1100`) share domain compon
 
 Host and guest shells reserve a banner row for offline command attention on all three sizes. Host pending edits remain visible there until replay; host and guest 409 conflicts appear in the same **Needs attention** list and can be dismissed. The guest share-mode label stays guest-only.
 
-The desktop/tablet shell is a single-column grid with named areas `banners / follow / transport / main / tabs / status`; the phone shell uses `banners / follow / transport / main / nav`. Banner rows are always `auto` (0 when empty), and layouts change only the `main` / `tabs` track sizes, so a banner or layout never shifts another child. Guarded by `gui/web/src/layout/shellGrid.test.ts`.
+The desktop/tablet shell is a single-column grid with named areas `banners / follow / transport / main / tabs / status`; the phone shell uses `banners / follow / transport / main / nav`. Banner rows are always `auto` (0 when empty), and layouts change only the `main` / `tabs` track sizes, so a banner or layout never shifts another child. Guarded by `gui/web/src/layout/shellGrid.test.ts`. Desktop/tablet layouts are switched by the transport layout control, View › Layout, and `Mod+1`–`4`; a Restore chip in the transport exits any non-default layout (see `docs/gui-mobile.md` § Desktop — layouts).
 
 ### Live project reload
 

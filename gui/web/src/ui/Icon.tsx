@@ -16,7 +16,9 @@ export type IconName =
   | "listen"
   | "timeline"
   | "text"
-  | "more";
+  | "more"
+  | "maximize"
+  | "restore";
 
 type Props = {
   name: IconName;
@@ -122,6 +124,22 @@ const PATHS: Record<IconName, ReactElement> = {
       <path d="M4 9h12" />
       <path d="M4 12.5h12" />
       <path d="M4 16h7" />
+    </>
+  ),
+  maximize: (
+    <>
+      <path d="M11.5 3.5h5v5" />
+      <path d="M16.5 3.5 11 9" />
+      <path d="M8.5 16.5h-5v-5" />
+      <path d="M3.5 16.5 9 11" />
+    </>
+  ),
+  restore: (
+    <>
+      <path d="M15.5 8.5h-4v-4" />
+      <path d="M16.5 3.5 11.5 8.5" />
+      <path d="M4.5 11.5h4v4" />
+      <path d="M3.5 16.5 8.5 11.5" />
     </>
   ),
   more: (

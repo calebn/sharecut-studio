@@ -16,7 +16,6 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
     activityJob,
     activityRunningCount,
     setActiveTab,
-    setLayoutMode,
     shellBreakpoint,
     sessionClients,
     highlightStaleRender,
@@ -28,7 +27,6 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
     activityJob: s.activityJob,
     activityRunningCount: s.activityRunningCount,
     setActiveTab: s.setActiveTab,
-    setLayoutMode: s.setLayoutMode,
     shellBreakpoint: s.shellBreakpoint,
     sessionClients: s.sessionClients,
     highlightStaleRender: s.highlightStaleRender,
@@ -100,10 +98,7 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
       <button
         type="button"
         className="ui-control status-chip"
-        onClick={() => {
-          setActiveTab("impact");
-          setLayoutMode("default");
-        }}
+        onClick={() => setActiveTab("impact")}
       >
         Pending: {edit_impact.pending_review_count}
       </button>
@@ -151,10 +146,7 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
       <button
         type="button"
         className={`ui-control status-chip status-bar-end${narrow ? " status-bar-secondary" : ""}`}
-        onClick={() => {
-          setActiveTab("comments");
-          setLayoutMode("review");
-        }}
+        onClick={() => setActiveTab("comments")}
       >
         Open comments
       </button>

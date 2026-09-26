@@ -107,6 +107,44 @@ describe("StudioShell tablet peek", () => {
     expect(useDawStore.getState().activeTab).toBe("transcript");
   });
 
+  it("keeps the transport in every layout with a Restore chip and no Focus buttons", () => {
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={tabletProject()}>
+        <StudioShell />
+      </DawProvider>,
+    );
+    expect(screen.queryByRole("button", { name: /^Focus/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Restore/ })).toBeNull();
+    expect(container.querySelector(".tab-bar .layout-toggle-btn")).toBeNull();
+    act(() => {
+      useDawStore.getState().setLayoutMode("timeline");
+    });
+    const shell = container.querySelector(".daw-shell");
+    expect(shell).toHaveClass("daw-shell--layout-timeline");
+    const transport = container.querySelector(".daw-shell-transport");
+    const restore = screen.getByRole("button", { name: /Restore/ });
+    expect(transport?.contains(restore)).toBe(true);
+    expect(container.querySelector("main")?.contains(restore)).toBe(false);
+    expect(container.querySelector(".bottom-tabs")?.contains(restore)).toBe(
+      false,
+    );
+    expect(
+      screen.queryByRole("separator", { name: "Resize editor panels" }),
+    ).toBeNull();
+    act(() => {
+      useDawStore.getState().setLayoutMode("text");
+    });
+    expect(
+      screen.queryByRole("separator", { name: "Resize editor panels" }),
+    ).toBeNull();
+    act(() => {
+      useDawStore.getState().setLayoutMode("default");
+    });
+    expect(
+      screen.getByRole("separator", { name: "Resize editor panels" }),
+    ).toBeTruthy();
+  });
+
   it("clears html data-shell and data-layout on unmount", () => {
     const project = tabletProject();
     const { unmount } = render(

@@ -6,6 +6,27 @@ import { DawProvider } from "../state/store";
 import { minimalProject } from "../test/fixtures";
 import { StatusBar } from "./StatusBar";
 
+describe("StatusBar chips", () => {
+  it("only switch tabs and leave the layout alone", async () => {
+    const user = userEvent.setup();
+    const project = minimalProject();
+    useDawStore.getState().hydrate("/tmp/p.json", project, null);
+    useDawStore.setState({ layoutMode: "timeline" });
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <StatusBar />
+      </DawProvider>,
+    );
+    await user.click(screen.getByRole("button", { name: /^Pending:/ }));
+    expect(useDawStore.getState().layoutMode).toBe("timeline");
+    expect(useDawStore.getState().activeTab).toBe("impact");
+    await user.click(screen.getByRole("button", { name: "Open comments" }));
+    expect(useDawStore.getState().layoutMode).toBe("timeline");
+    expect(useDawStore.getState().activeTab).toBe("comments");
+    useDawStore.setState({ layoutMode: "default" });
+  });
+});
+
 describe("StatusBar render state", () => {
   afterEach(() => {
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());

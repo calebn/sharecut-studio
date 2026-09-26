@@ -32,6 +32,7 @@ import {
 import { audioErrorLabel } from "../utils/audioErrorLabel";
 import { transportTimecode } from "../utils/time";
 import { AvatarStack } from "./AvatarStack";
+import { LayoutRestoreChip, LayoutToggle } from "./LayoutControls";
 import { LAYOUT_MODES } from "./layoutModes";
 import { OverlayLegend } from "./OverlayLegend";
 import { ToolModeToggle } from "./ToolModeToggle";
@@ -330,6 +331,7 @@ export function TransportBar({
             {collapsed ? "…" : "Importing…"}
           </Pill>
         ) : null}
+        {showLayout ? <LayoutRestoreChip collapsed={collapsed} /> : null}
         {!collapsed && stale ? (
           <CommandButton
             bare
@@ -416,6 +418,7 @@ export function TransportBar({
               <Icon name="fit" />
             </CommandButton>
           ) : null}
+          {showLayout ? <LayoutToggle /> : null}
           {!collapsed ? <AvatarStack /> : null}
           {!collapsed ? (
             <Menu

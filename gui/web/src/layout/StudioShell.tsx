@@ -28,7 +28,7 @@ import { canIngestMedia, guestShareBannerLabel } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import { TimelineView } from "../timeline/TimelineView";
 import { TrackHeadersColumn } from "../tracks/TrackHeadersColumn";
-import { BottomSheet, FocusToggle, ToggleButton } from "../ui";
+import { BottomSheet, ToggleButton } from "../ui";
 import { isPipelineSlotBusy } from "../utils/pipeline";
 import { BottomTabsSplitter } from "./BottomTabsSplitter";
 import { EditingToolRail } from "./EditingToolRail";
@@ -135,7 +135,6 @@ export function StudioShellView({
   const trackHeaders = useMemo(
     () => (
       <TrackHeadersColumn
-        showFocusToggle
         showAddTrack
         addDropOver={addDropOver}
         addFileCount={addFileCount}
@@ -274,7 +273,7 @@ export function StudioShellView({
         className="bottom-tabs"
         aria-label="Editor panels"
       >
-        <BottomTabsSplitter />
+        {layoutMode === "default" ? <BottomTabsSplitter /> : null}
         <div className="tab-bar">
           {tabs.map((id) => (
             <ToggleButton
@@ -291,11 +290,6 @@ export function StudioShellView({
               {id === "pipeline" && pipelineRunning ? " ●" : ""}
             </ToggleButton>
           ))}
-          {activeTab === "comments" ? (
-            <div className="tab-bar-focus">
-              <FocusToggle mode="review" label="Comments" />
-            </div>
-          ) : null}
         </div>
         <div className="tab-content">
           {activeTab === "transcript" && <TranscriptPanel />}
