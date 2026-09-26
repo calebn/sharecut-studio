@@ -33,10 +33,10 @@ Open the in-app cheatsheet with **?** while Sharecut Studio is focused.
 
 | Shortcut | Command | When | Notes |
 |----------|---------|------|-------|
-| `Mod+1` | Restore layout (`layout.default`) | Always (when not typing in an input) | Mod+1 |
-| `Mod+2` | Maximize timeline (`layout.timeline`) | Always (when not typing in an input) | Mod+2 |
-| `Mod+3` | Maximize transcript (`layout.text`) | Always (when not typing in an input) | Mod+3 |
-| `Mod+4` | Review layout (`layout.review`) | Always (when not typing in an input) | Mod+4 |
+| `Mod+1` | Restore layout (`layout.default`) | Always (when not typing in an input) | Mod+1; a browser tab may keep Mod+1–4 for tab switching, so use the transport Restore chip there (desktop app unaffected) |
+| `Mod+2` | Maximize timeline (`layout.timeline`) | Always (when not typing in an input) | Mod+2; a browser tab may keep Mod+1–4 for tab switching, so use the transport layout control there (desktop app unaffected) |
+| `Mod+3` | Maximize transcript (`layout.text`) | Always (when not typing in an input) | Mod+3; a browser tab may keep Mod+1–4 for tab switching, so use View › Layout there (desktop app unaffected) |
+| `Mod+4` | Review layout (`layout.review`) | Always (when not typing in an input) | Mod+4; a browser tab may keep Mod+1–4 for tab switching, so use View › Layout there (desktop app unaffected) |
 
 ## navigation
 
