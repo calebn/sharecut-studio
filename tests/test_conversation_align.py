@@ -1024,3 +1024,20 @@ def test_bleed_scores_against_reference_not_concatenated_peers(tmp_path: Path) -
     guest_plan = next(p for p in result.plans if p.track_id == "guest")
     assert guest_plan.method.startswith("bleed")
     assert abs(guest_plan.offset_sec - 5.0) < 0.5
+
+
+def test_apply_alignment_plans_rebases_on_reference_lead_in(tmp_path: Path) -> None:
+    proj = _project(tmp_path, [("host", 100.0, []), ("guest", 90.0, [])])
+    next(c for c in proj.clips if c.track_id == "host").source_start = 3.0
+    result = AlignResult(
+        plans=[
+            ClipAlignPlan(track_id="host", clip_id="clip_host", offset_sec=0.0, method="reference"),
+            ClipAlignPlan(track_id="guest", clip_id="clip_guest", offset_sec=-2.0, method="bleed"),
+        ],
+        reference_track_id="host",
+    )
+    apply_alignment_plans(proj, result)
+    host = next(c for c in proj.clips if c.track_id == "host")
+    guest = next(c for c in proj.clips if c.track_id == "guest")
+    assert (host.source_start, host.timeline_start) == (3.0, 0.0)
+    assert (guest.source_start, guest.timeline_start) == (5.0, 0.0)
