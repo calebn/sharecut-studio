@@ -34,6 +34,16 @@ describe("readTakeClipping", () => {
     expect(out).toEqual({ takeIndex: 1, regions: [], known: true });
   });
 
+  it("carries a truncated segment through", async () => {
+    const sink = new MemorySink();
+    await seed(sink, 0, {
+      clippingRegions: [{ startMs: 1, endMs: 2 }],
+      clippingTruncated: true,
+    });
+    const out = await readTakeClipping(sink, "room", "p_g", 1);
+    expect(out.truncated).toBe(true);
+  });
+
   it("offsets regions by each segment's join offset, sorted", async () => {
     const sink = new MemorySink();
     await seed(sink, 0, {

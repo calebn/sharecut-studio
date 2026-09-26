@@ -16,6 +16,7 @@ import {
  * Rebuild one take's clipping report from OPFS keeper metadata, so it
  * survives a reload. `known` is false when any segment is pending, legacy or
  * unreadable (crash recovery and older clients carry no clip regions).
+ * `truncated` is set when any segment hit the clip-region cap.
  */
 export async function readTakeClipping(
   sink: ByteSink,
@@ -29,6 +30,7 @@ export async function readTakeClipping(
   );
   const regions: TakeClipRegion[] = [];
   let known = true;
+  let truncated = false;
   for (let segmentIndex = 0; segmentIndex < count; segmentIndex += 1) {
     const wavPath = keeperWavPath({
       sessionId,
@@ -46,7 +48,13 @@ export async function readTakeClipping(
     regions.push(
       ...takeRelativeMs(segmentIndex, meta.joinOffsetMs, meta.clippingRegions),
     );
+    if (meta.clippingTruncated === true) truncated = true;
   }
   regions.sort((a, b) => a.startMs - b.startMs);
-  return { takeIndex, regions, known };
+  return {
+    takeIndex,
+    regions,
+    known,
+    ...(truncated ? { truncated: true } : {}),
+  };
 }

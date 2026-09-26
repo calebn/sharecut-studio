@@ -7,6 +7,7 @@ import { TakeClippingReport } from "./TakeClippingReport";
 import {
   CLIPPING_JUNCTION_HINT,
   CLIPPING_RECOVERY_COPY,
+  CLIPPING_TRUNCATED_COPY,
   clippingLiveCopy,
   clippingReportCopy,
   NO_CLIPPING_COPY,
@@ -79,6 +80,20 @@ describe("TakeClippingReport", () => {
     expect(jump).toHaveBeenCalledOnce();
     expect(screen.queryByText(CLIPPING_JUNCTION_HINT)).toBeNull();
     await expectNoA11yViolations(container);
+  });
+
+  it("says when a segment hit the clip-region cap", () => {
+    const { rerender } = render(
+      <TakeClippingReport report={clipped} roomState="stopped" />,
+    );
+    expect(screen.queryByText(CLIPPING_TRUNCATED_COPY)).toBeNull();
+    rerender(
+      <TakeClippingReport
+        report={{ ...clipped, truncated: true }}
+        roomState="stopped"
+      />,
+    );
+    expect(screen.getByText(CLIPPING_TRUNCATED_COPY)).toBeInTheDocument();
   });
 
   it("disables Jump to until the take lands", async () => {

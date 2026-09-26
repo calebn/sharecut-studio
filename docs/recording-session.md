@@ -275,7 +275,7 @@ ACK'd. Never mutate an ACK'd prefix. Mute writes zeros (see
 is tagged `session_start`, `join_offset_ms`, `sample_rate`, `samples_written`.
 The complete metadata also carries `clippingRegions` (segment-relative
 milliseconds, sample peak at or above -1 dBFS, merged when under 1 s apart,
-at most 100 per segment); recovered crash segments and older clients omit it.
+at most 100 per segment; later hits that cannot merge into the last region are dropped and the metadata sets `clippingTruncated: true`, which the post-take report states); recovered crash segments and older clients omit it.
 
 ## Mute semantics
 
@@ -636,8 +636,8 @@ so it has no meter. Producers have no meter and no clip LED.
   its latching clip LED. Nothing is stored.
 - *Encode path* (`keeper/pcm.ts` -> `KeeperSession`): the ground truth. It
   records segment-relative clip regions, merges hits less than 1 s apart,
-  caps them at 100 per segment, and writes them into the OPFS keeper metadata
-  (`clippingRegions`). The final upload part also sends them as
+  caps them at 100 per segment (later hits are dropped and flagged `clippingTruncated`, never stretched into the last region), and writes them into the OPFS keeper metadata
+  (`clippingRegions`). Live consumers are notified when a region opens or the open region grows by 250 ms or more, so live end times lag by less than 250 ms until the segment closes. The final upload part also sends them as
   `clipping=a-b,c-d` (ms, ascending, non-overlapping). After a segment lands, a
   replayed final part with the same `join_offset_ms` and `clipping` is a no-op
   (a lost response is retried); a different value is refused. The server stores them

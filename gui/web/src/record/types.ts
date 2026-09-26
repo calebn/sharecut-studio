@@ -1,4 +1,5 @@
 import { plural } from "../utils/format";
+import { MAX_CLIP_REGIONS } from "./keeper/clipRegions";
 import type { LiveComment } from "./liveCommentQueue";
 
 export type { LiveComment } from "./liveCommentQueue";
@@ -282,6 +283,7 @@ export const METER_CLIPPED_COPY =
 export const NO_CLIPPING_COPY = "No clipping detected on your mic.";
 export const CLIPPING_RECOVERY_COPY =
   "Clipping cannot be undone in the recording. Lower your input gain and re-record any section that matters.";
+export const CLIPPING_TRUNCATED_COPY = `Only the first ${MAX_CLIP_REGIONS} clipped spans of each recording segment are listed. Your mic clipped again after that.`;
 export const CLIPPING_JUNCTION_HINT =
   "Available after the take lands on the timeline";
 

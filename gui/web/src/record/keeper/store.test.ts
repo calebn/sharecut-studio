@@ -303,6 +303,13 @@ describe("keeper metadata", () => {
     ).toBeNull();
     expect(parseKeeperMeta(enc({ ...meta, clippingRegions: "x" }))).toBeNull();
     expect(parseKeeperMeta(enc(meta))?.clippingRegions).toBeUndefined();
+    expect(
+      parseKeeperMeta(enc({ ...meta, clippingTruncated: true }))
+        ?.clippingTruncated,
+    ).toBe(true);
+    expect(
+      parseKeeperMeta(enc({ ...meta, clippingTruncated: "yes" })),
+    ).toBeNull();
   });
 
   it("keeps legacy metadata without a complete flag distinguishable", () => {

@@ -96,8 +96,8 @@ describe("clip capture through a real KeeperSession", () => {
         ).toBeLessThanOrEqual(1);
       },
     );
-    // Two regions opened live, plus the final complete-metadata emit.
-    expect(events.filter((e) => e.regions.length === 1)).toHaveLength(1);
+    // The first region opens and then grows by >= 250 ms (merged burst); the second opens.
+    expect(events.filter((e) => e.regions.length === 1)).toHaveLength(2);
     expect(events.at(-1)?.regions).toHaveLength(2);
 
     const take = await readTakeClipping(sink, "cool-room", "p_g", 0);
