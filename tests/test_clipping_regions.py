@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from podcast_mcp.edits.clipping_regions import (
     clip_clipping_payload,
+    clip_clipping_truncated,
     clipping_regions_from_ms,
 )
 from podcast_mcp.edits.timeline_ops import list_clips
@@ -54,6 +55,21 @@ def _source() -> SourceRecording:
             SourceClippingRegion(start_s=5.0, end_s=6.0),
         ],
     )
+
+
+def test_clip_clipping_truncated_only_past_the_last_region() -> None:
+    capped = _source().model_copy(update={"clipping_truncated": True})
+    assert clip_clipping_truncated(capped, 5.5) is False
+    assert clip_clipping_truncated(capped, 10.0) is True
+    assert clip_clipping_truncated(_source(), 10.0) is False
+    assert clip_clipping_truncated(None, 10.0) is False
+
+
+def test_list_clips_reports_clipping_truncated() -> None:
+    project = _project([_clip("a", 0.0, 10.0, 0.0, "rec-a-0-p_host-0")])
+    assert list_clips(project)["tracks"]["t1"][0]["clipping_truncated"] is False
+    project.sources[0].clipping_truncated = True
+    assert list_clips(project)["tracks"]["t1"][0]["clipping_truncated"] is True
 
 
 def test_clip_payload_intersects_and_sorts() -> None:
@@ -113,7 +129,9 @@ def test_episode_schema_accepts_the_field_and_round_trips() -> None:
     schema = json.loads((ROOT / "schemas" / "episode.project.schema.json").read_text())
     source_schema = {**schema["$defs"]["SourceRecording"], "$defs": schema["$defs"]}
     validator = Draft202012Validator(source_schema)
-    payload = json.loads(_source().model_dump_json())
+    payload = json.loads(
+        _source().model_copy(update={"clipping_truncated": True}).model_dump_json()
+    )
     validator.validate(payload)
     bad = {**payload, "clipping_regions": [{"start_s": -1}]}
     assert list(validator.iter_errors(bad))

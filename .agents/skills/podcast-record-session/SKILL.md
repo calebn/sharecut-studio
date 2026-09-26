@@ -93,7 +93,8 @@ podcast record discard-take --project episode.project.json --take-index 0
    `clipping_regions` (sample peak at or above -1 dBFS from the encoder;
    recovered crash segments and older clients have none), and `list_clips`
    reports `clipping_regions` per clip: the source spans inside that clip's
-   window. The timeline shows them as flags in the marker lane and a red tint
+   window. `clipping_truncated` on a source and clip row means clipping after
+   the last region was not recorded. The timeline shows them as flags in the marker lane and a red tint
    on the clip. Reloading
    the same `/rec/` link reuses
    the host-minted `participant_id` + lease (7-day recovery window). A second

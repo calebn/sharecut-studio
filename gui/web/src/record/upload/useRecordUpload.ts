@@ -264,6 +264,7 @@ export function useRecordUpload(args: {
             fileAck: false,
             joinOffsetMs: recovery.joinOffsetMs,
             clippingRegions: recovery.clippingRegions,
+            clippingTruncated: recovery.clippingTruncated,
             signal: abort.signal,
           });
           acked += result.acked;

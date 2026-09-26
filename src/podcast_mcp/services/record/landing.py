@@ -565,6 +565,7 @@ class RecordLandingService:
                         "file_sha256": row.get("file_sha256"),
                         "label": names.get(pid) or pid,
                         "clipping": clipping,
+                        "clipping_truncated": bool(row.get("clipping_truncated")),
                     }
                 )
                 progress.advance()
@@ -652,6 +653,7 @@ class RecordLandingService:
                     sample_rate=int(item["sample_rate"]),
                     channels=int(item["channels"]),
                     clipping_regions=item["clipping"],
+                    clipping_truncated=bool(item["clipping_truncated"]),
                 )
                 clip = _upsert_clip(
                     project,
@@ -1134,11 +1136,13 @@ def _upsert_source(
     sample_rate: int,
     channels: int,
     clipping_regions: list[SourceClippingRegion] | None = None,
+    clipping_truncated: bool = False,
 ) -> SourceRecording:
     existing = project.source_by_id(source_id)
     if existing is not None:
         if clipping_regions is not None:
             existing.clipping_regions = list(clipping_regions)
+            existing.clipping_truncated = clipping_truncated
         existing.path = rel
         existing.speaker = speaker
         existing.duration_sec = duration_s
@@ -1154,6 +1158,7 @@ def _upsert_source(
         sample_rate=sample_rate,
         channels=channels,
         clipping_regions=list(clipping_regions or []),
+        clipping_truncated=clipping_truncated,
     )
     project.sources.append(src)
     return src

@@ -3,6 +3,7 @@
 Recording sessions detect sample-peak clipping in the browser encoder and land
 the spans on ``SourceRecording.clipping_regions``. ``list_clips`` reports the
 part of each span a clip still shows, so flags follow cuts, trims and moves.
+``list_clips`` also reports ``clipping_truncated`` when the encoder hit its region cap.
 """
 
 from __future__ import annotations
@@ -24,6 +25,14 @@ def clipping_regions_from_ms(
         for start_ms, end_ms in (list(span) for span in spans or [])
     )
     return [SourceClippingRegion(start_s=s, end_s=e) for s, e in clamp_spans(spans_s, 0.0, limit)]
+
+
+def clip_clipping_truncated(source: SourceRecording | None, source_end: float) -> bool:
+    """True when the source hit the region cap and this clip shows source time after its last region."""
+    if source is None or not source.clipping_truncated:
+        return False
+    last_end = source.clipping_regions[-1].end_s if source.clipping_regions else 0.0
+    return source_end > last_end + 1e-9
 
 
 def clip_clipping_payload(

@@ -107,6 +107,10 @@ async def post_host_record_upload(
         max_length=4096,
         description="Segment-relative sample-peak clip spans a-b,c-d in ms; final part only.",
     ),
+    clipping_truncated: bool = Query(
+        False,
+        description="True when the encoder hit its 100-region cap and later clipping went unrecorded; needs clipping.",
+    ),
     kind: UploadKindParam = None,
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
@@ -127,6 +131,7 @@ async def post_host_record_upload(
         expected_parts=expected_parts,
         join_offset_ms=join_offset_ms,
         clipping=clipping,
+        clipping_truncated=clipping_truncated,
         workspace=ws,
         kind=kind,
     )

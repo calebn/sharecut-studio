@@ -17,6 +17,7 @@ export async function uploadKeeperWav(args: {
   landFailed?: boolean;
   joinOffsetMs?: number;
   clippingRegions?: KeeperClipRegion[];
+  clippingTruncated?: boolean;
   kind?: string;
   signal?: AbortSignal;
 }): Promise<{
@@ -68,6 +69,7 @@ export async function uploadKeeperWav(args: {
       final,
       joinOffsetMs: args.joinOffsetMs,
       clippingRegions: final ? args.clippingRegions : undefined,
+      clippingTruncated: final ? args.clippingTruncated : undefined,
       kind: args.kind,
       expectedParts: parts.length,
       signal: args.signal,

@@ -638,13 +638,19 @@ so it has no meter. Producers have no meter and no clip LED.
   records segment-relative clip regions, merges hits less than 1 s apart,
   caps them at 100 per segment (later hits are dropped and flagged `clippingTruncated`, never stretched into the last region), and writes them into the OPFS keeper metadata
   (`clippingRegions`). Live consumers are notified when a region opens or the open region grows by 250 ms or more, so live end times lag by less than 250 ms until the segment closes. The final upload part also sends them as
-  `clipping=a-b,c-d` (ms, ascending, non-overlapping). After a segment lands, a
+  `clipping=a-b,c-d` (ms, ascending, non-overlapping). A capped segment also
+  sends `clipping_truncated=true` (final part; needs `clipping`), stored as
+  `record_upload_files.clipping_truncated` and landed as
+  `SourceRecording.clipping_truncated`. After a segment lands, a
   replayed final part with the same `join_offset_ms` and `clipping` is a no-op
   (a lost response is retried); a different value is refused. The server stores them
   on `record_upload_files.clipping_regions`; landing writes
   `SourceRecording.clipping_regions` in source seconds. `list_clips` adds
   `ClipRow.clipping_regions`: the source regions intersected with each clip
-  window, so they follow cuts and moves.
+  window, so they follow cuts and moves. `list_clips` also reports
+  `ClipRow.clipping_truncated` when the clip shows source time after the last
+  region, and the timeline labels that clip's last flag "later clipping not
+  recorded".
   The spans are untrusted client metadata (at most 4096 chars and 100
   ascending, disjoint spans, each ending within 24 h, clamped to the file on
   landing). They only drive UI flags; do not use them to drive audio edits
@@ -661,7 +667,8 @@ red tint on the affected span of each clip.
 
 **Limitations.** Recovered crash segments, older clients and consolidated
 sources carry no regions. "No clipping detected" is shown only when every
-segment's metadata has `clippingRegions` (`known`).
+segment's metadata has `clippingRegions` (`known`). A truncated clip with no
+flag in its window has no timeline cue (only `list_clips` reports it).
 
 ## Live comments
 

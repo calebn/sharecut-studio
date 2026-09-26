@@ -49,7 +49,11 @@
         "duration_sec": { "type": ["number", "null"] },
         "sample_rate": { "type": ["integer", "null"] },
         "channels": { "type": ["integer", "null"] },
-        "clipping_regions": { "type": "array", "items": { "$ref": "#/$defs/SourceClippingRegion" } }
+        "clipping_regions": { "type": "array", "items": { "$ref": "#/$defs/SourceClippingRegion" } },
+        "clipping_truncated": {
+          "type": "boolean",
+          "description": "The encoder hit its 100-region cap; clipping after the last region was not recorded."
+        }
       }
     },
     "TimelineSection": {

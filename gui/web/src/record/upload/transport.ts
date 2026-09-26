@@ -30,6 +30,8 @@ export type RecordUploadPutArgs = {
   joinOffsetMs?: number;
   /** Encoder clip regions; sent with the final part only. */
   clippingRegions?: KeeperClipRegion[];
+  /** Region cap was hit; sent with the final part only. */
+  clippingTruncated?: boolean;
   kind?: string;
   expectedParts?: number;
   signal?: AbortSignal;
@@ -47,6 +49,7 @@ export function memoryUploadTransport(): RecordUploadTransport & {
   joinOffsets: number[];
   /** Clip regions of every put, in order (undefined when none were sent). */
   clippingRegions: (KeeperClipRegion[] | undefined)[];
+  clippingTruncated: (boolean | undefined)[];
 } {
   const acked = new Map<string, Set<number>>();
   const partLengths = new Map<string, Map<number, number>>();
@@ -61,6 +64,7 @@ export function memoryUploadTransport(): RecordUploadTransport & {
   >();
   const joinOffsets: number[] = [];
   const clippingRegions: (KeeperClipRegion[] | undefined)[] = [];
+  const clippingTruncated: (boolean | undefined)[] = [];
   const state = { failNext: false, puts: 0 };
   const key = (take: number, segment: number) => `${take}:${segment}`;
   return {
@@ -75,6 +79,7 @@ export function memoryUploadTransport(): RecordUploadTransport & {
     },
     joinOffsets,
     clippingRegions,
+    clippingTruncated,
     async status() {
       const segments = [...acked.entries()].map(([id, parts]) => {
         const [take, segment] = id.split(":").map(Number);
@@ -101,6 +106,7 @@ export function memoryUploadTransport(): RecordUploadTransport & {
       state.puts += 1;
       joinOffsets.push(args.joinOffsetMs ?? 0);
       clippingRegions.push(args.clippingRegions);
+      clippingTruncated.push(args.clippingTruncated);
       const id = key(args.takeIndex, args.segmentIndex);
       const parts = acked.get(id) ?? new Set<number>();
       parts.add(args.partSeq);
