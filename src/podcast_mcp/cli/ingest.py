@@ -207,7 +207,9 @@ def ingest_consolidate_cmd(
         None, "--extract-start", help="Episode timeline start (sec)"
     ),
     extract_duration: float | None = typer.Option(
-        None, "--extract-duration", help="Clip length (sec)"
+        None,
+        "--extract-duration",
+        help="Clip length (sec); omit with --extract-start to trim to end of file",
     ),
     align_mode: str = typer.Option(
         "auto",

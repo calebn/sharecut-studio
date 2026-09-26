@@ -429,3 +429,32 @@ def test_cross_speaker_reference_follows_manifest(tmp_path: Path, sample_wav: Pa
     with patch("podcast_mcp.ingest.consolidate.cross_speaker_offsets", fake):
         consolidate_speakers(manifest, audio_dir, tmp_path / "raw", analysis_start_sec=0.0)
     assert seen[0] == "Guest"
+
+
+def test_consolidate_extract_start_alone_trims_to_eof(tmp_path: Path, sample_wav: Path) -> None:
+    audio_dir, manifest = _two_speaker_manifest(tmp_path, sample_wav)
+    with patch("podcast_mcp.ingest.consolidate.cross_speaker_offsets", return_value={}):
+        result = consolidate_speakers(
+            manifest, audio_dir, tmp_path / "raw", extract_start_sec=0.5, align_mode="audio"
+        )
+    assert result.session_trimmed is True
+    dur = FFmpegEngine().probe(result.speaker_tracks["Ref"]).duration_sec
+    assert abs(dur - 1.5) < 0.1
+
+
+def test_alignment_report_labels_manifest_reference(tmp_path: Path, sample_wav: Path) -> None:
+    audio_dir, manifest = _two_speaker_manifest(tmp_path, sample_wav)
+    manifest.session.reference_speaker = "Guest"
+    with patch("podcast_mcp.ingest.consolidate.cross_speaker_offsets", return_value={}):
+        rows = alignment_report(
+            manifest,
+            audio_dir,
+            analysis_start_sec=0.0,
+            analysis_duration_sec=1.5,
+            align_mode="audio",
+        )
+    assert [r["speaker"] for r in rows] == ["Ref", "Guest"]
+    by_name = {r["speaker"]: r for r in rows}
+    assert by_name["Guest"]["align_method"] == "reference"
+    assert by_name["Guest"]["content_align_sec"] == 0.0
+    assert by_name["Ref"]["align_method"] != "reference"
