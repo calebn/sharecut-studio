@@ -7,13 +7,14 @@ import json
 import re
 import unicodedata
 from dataclasses import dataclass, field
-from typing import Any, Literal, get_args
+from typing import Annotated, Any, Literal, get_args
 from uuid import uuid4
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    TypeAdapter,
     ValidationError,
     field_validator,
     model_validator,
@@ -140,6 +141,8 @@ PresenceTab = Literal["transcript", "history", "impact", "tighten", "pipeline", 
 PRESENCE_TABS = set(get_args(PresenceTab))
 PresenceMobileMode = Literal["listen", "timeline", "text", "more"]
 PresenceAudition = Literal["mix", "fx", "raw"]
+PresenceSec = Annotated[float, Field(ge=0, allow_inf_nan=False)]
+_PRESENCE_SEC: TypeAdapter[float] = TypeAdapter(PresenceSec)
 
 
 class PresenceCursor(BaseModel):
@@ -182,7 +185,7 @@ class PresenceViewport(BaseModel):
 class PresenceTransport(BaseModel):
     model_config = ConfigDict(extra="ignore")
     playing: bool
-    playhead_sec: float = Field(ge=0, allow_inf_nan=False)
+    playhead_sec: PresenceSec
     rate: float = Field(default=1.0, ge=0.5, le=2.0, allow_inf_nan=False)
     stamped_ns: int | None = None
 
@@ -272,6 +275,16 @@ def normalize_presence_meta(raw: Any, *, guest: bool = False) -> dict[str, Any] 
     except ValidationError:
         return None
     return model.model_dump(exclude_unset=True)
+
+
+def normalize_presence_playhead(raw: Any) -> float | None:
+    """Validate a top-level presence playhead. Returns None when invalid (never raise)."""
+    if raw is None:
+        return None
+    try:
+        return _PRESENCE_SEC.validate_python(raw)
+    except ValidationError:
+        return None
 
 
 def track_id_from_source(source: str | None) -> str | None:

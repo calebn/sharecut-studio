@@ -1455,6 +1455,72 @@ def test_guest_daw_ws_revocation_recheck_idle(
         assert closed
 
 
+def test_guest_daw_ws_drops_invalid_playhead(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.services.remote_mcp.limits import reset_host_limiters_for_tests
+
+    monkeypatch.setenv("PODCAST_RATE_LIMIT", "0")
+    reset_host_limiters_for_tests()
+    ws = _seed_premix(minimal_project, sample_wav)
+    ver = ReviewService(ws).publish(label="GuestPlayhead")
+    share = ShareService(ws).create(
+        review_version_id=ver["id"],
+        capabilities=["play", "view"],
+    )
+    token = share["token"]
+    client = TestClient(create_app())
+    with client.websocket_connect(f"/api/review/{token}/daw/ws") as guest_ws:
+        guest_ws.receive_json()
+        guest_ws.receive_json()
+        guest_ws.send_json({"type": "Presence", "client_seq": 2, "playhead_sec": 1.5})
+        guest_ws.send_text('{"type":"Presence","client_seq":3,"playhead_sec":NaN}')
+        guest_ws.send_json({"type": "Presence", "client_seq": 4, "playhead_sec": -9})
+        guest_ws.send_json(
+            {
+                "type": "Presence",
+                "client_seq": 5,
+                "playhead_sec": -1,
+                "meta": {"cursor": {"t_sec": 7.25}},
+            }
+        )
+        mine = None
+        for _ in range(50):
+            with client.websocket_connect(f"/api/review/{token}/daw/ws") as obs:
+                snaps = [obs.receive_json(), obs.receive_json()]
+            for frame in snaps:
+                for c in (frame.get("snapshot") or {}).get("clients") or []:
+                    if c.get("client_id", "").startswith("guest-") and (c.get("meta") or {}).get(
+                        "cursor"
+                    ):
+                        mine = c
+            if mine:
+                break
+            time.sleep(0.05)
+        assert mine is not None
+        assert mine["playhead_sec"] == 1.5
+
+
+def test_handle_guest_presence_frame_invalid_playhead_not_malformed(minimal_project) -> None:
+    from podcast_mcp.gui.routes.review_share import _handle_guest_presence_frame
+    from podcast_mcp.services.session_sync.service import SessionSyncService
+
+    svc = SessionSyncService(load_project(minimal_project))
+    seq, mal, reason = _handle_guest_presence_frame(
+        '{"type":"Presence","client_seq":3,"playhead_sec":NaN}',
+        session_svc=svc,
+        guest_client_id="guest-abcd-tab",
+        label="A",
+        seq=3,
+        token="abcd1234token",
+        websocket=MagicMock(),
+        malformed=0,
+    )
+    assert (seq, mal, reason) == (4, 0, None)
+    client = next(c for c in svc.snapshot()["clients"] if c["client_id"] == "guest-abcd-tab")
+    assert client["playhead_sec"] is None
+
+
 def test_handle_guest_presence_frame_rejects(minimal_project, monkeypatch) -> None:
     from podcast_mcp.gui.routes.review_share import _handle_guest_presence_frame
     from podcast_mcp.services.session_sync.service import SessionSyncService
