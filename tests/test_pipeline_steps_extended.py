@@ -460,7 +460,9 @@ def test_render_stems_skips_unsupported_role_and_no_media(
     ghost.role = "unknown"  # type: ignore[assignment]
     proj.tracks.append(ghost)
     with patch("podcast_mcp.pipeline.steps.ffmpeg") as ff:
-        ff.return_value.render_dialogue_track = MagicMock()
+        ff.return_value.render_dialogue_track = MagicMock(
+            side_effect=lambda _p, _t, out, _d: out.write_bytes(b"RIFF") or out
+        )
         steps.render_dialogue_stems(proj, load_defaults())
     ff.return_value.render_dialogue_track.assert_called()
 
@@ -622,7 +624,9 @@ def test_render_stems_skips_track_without_media(minimal_project, sample_wav, tmp
         patch("podcast_mcp.pipeline.steps.ffmpeg") as ff,
         patch("podcast_mcp.pipeline.steps.schedule_stem_waveforms") as waveforms,
     ):
-        ff.return_value.render_dialogue_track = MagicMock()
+        ff.return_value.render_dialogue_track = MagicMock(
+            side_effect=lambda _p, _t, out, _d: out.write_bytes(b"RIFF") or out
+        )
         steps.assemble_timeline(proj, load_defaults())
     assert ff.return_value.render_dialogue_track.call_count == 1
     assert waveforms.call_args.args[1] == ["host"]

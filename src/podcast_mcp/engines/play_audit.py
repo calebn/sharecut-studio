@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +12,8 @@ from podcast_mcp.edits.mute_regions import mute_regions_payload
 from podcast_mcp.engines.timeline_render import RENDER_SEMANTICS_REV
 from podcast_mcp.models import AutomationEnvelope, EpisodeProject
 from podcast_mcp.util.atomic_json import write_text_atomic
+from podcast_mcp.util.atomic_render import render_atomic
+from podcast_mcp.util.project_state import FileRevision, file_revision
 from podcast_mcp.util.tracks import mixed_dialogue_track_ids
 from podcast_mcp.util.tracks import stem_path as track_stem_path
 
@@ -155,6 +157,42 @@ def stem_hash_path(project: EpisodeProject, track_id: str) -> Path:
 
 def read_stem_hash(project: EpisodeProject, track_id: str) -> str | None:
     return _read_hash(stem_hash_path(project, track_id))
+
+
+def clear_stem_hash(project: EpisodeProject, track_id: str) -> None:
+    stem_hash_path(project, track_id).unlink(missing_ok=True)
+
+
+def stem_revision(project: EpisodeProject, track_id: str) -> FileRevision | None:
+    """The stem's file identity (replaced whole on every publish), or None when missing."""
+    try:
+        return file_revision(stem_path(project, track_id))
+    except FileNotFoundError:
+        return None
+
+
+def publish_stem(
+    project: EpisodeProject,
+    track_id: str,
+    render: Callable[[Path], object],
+    *,
+    clear_invalidations: bool = True,
+) -> Path:
+    """Render ``artifacts/tracks/<id>.wav`` from ``project`` and publish it with its hash (#356).
+
+    ``project`` is the snapshot ``render`` reads; the hash is computed from the same one.
+    Order: render into a unique sibling temp, drop the old hash, swap the WAV in, write
+    the new hash. A hash on disk only ever names the bytes beside it, and a reader holding
+    the old file keeps reading it whole. Callers hold ``render_lock`` (worker threads of a
+    holder excepted); that is what keeps two publishes of one stem from interleaving.
+    """
+    render_atomic(
+        stem_path(project, track_id),
+        render,
+        before_replace=lambda: clear_stem_hash(project, track_id),
+    )
+    write_stem_hash(project, track_id, clear_invalidations=clear_invalidations)
+    return stem_path(project, track_id)
 
 
 def write_stem_hash(
@@ -404,6 +442,6 @@ def invalidate_stem_hashes(project: EpisodeProject) -> list[str]:
     for tid in dialogue_track_ids(project):
         path = stem_hash_path(project, tid)
         if path.is_file():
-            path.unlink(missing_ok=True)
+            clear_stem_hash(project, tid)
             cleared.append(tid)
     return cleared

@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from podcast_mcp.edits.transcript_bleed_mute import _track_duration, apply_transcript_bleed_mute
-from podcast_mcp.engines.play_audit import write_stem_hash
+from podcast_mcp.engines.play_audit import stem_hash_path, write_stem_hash
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
@@ -200,6 +200,34 @@ def test_apply_transcript_bleed_mute_skips_grown_stem(tmp_path: Path, sample_wav
         result = apply_transcript_bleed_mute(project, dry_run=False)
     assert result["applied_count"] == 0
     assert any(s["reason"] == "duration_mismatch_after_gate" for s in result["skipped"])
+
+
+def test_apply_bleed_mute_drops_the_hash_before_swapping_the_stem(
+    tmp_path: Path, sample_wav: Path
+) -> None:
+    project = _project_with_stem(tmp_path, sample_wav)
+    write_stem_hash(project, "host")
+    hash_while_gating: list[bool] = []
+
+    def _gate(_src, _intervals, dest, **_kwargs) -> None:
+        hash_while_gating.append(stem_hash_path(project, "host").exists())
+        Path(dest).write_bytes(b"gated")
+
+    with (
+        patch("podcast_mcp.edits.transcript_bleed_mute.gate_stem_window", side_effect=_gate),
+        patch(
+            "podcast_mcp.edits.transcript_bleed_mute.probe_stem_duration_sec",
+            side_effect=[2.0, 9.0],
+        ),
+        patch("podcast_mcp.edits.transcript_bleed_mute.stem_is_fresh", return_value=True),
+    ):
+        result = apply_transcript_bleed_mute(project, dry_run=False)
+    tracks = project.artifacts_dir() / "tracks"
+    assert hash_while_gating == [True]
+    assert (tracks / "host.wav").read_bytes() == b"gated"
+    assert any(s["reason"] == "duration_mismatch_after_gate" for s in result["skipped"])
+    assert not stem_hash_path(project, "host").exists()
+    assert list(tracks.glob("*.partial*")) == []
 
 
 def test_apply_transcript_bleed_mute_window_scoped_intervals(

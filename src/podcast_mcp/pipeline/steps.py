@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import os
@@ -380,7 +381,7 @@ def _saved_stem_inputs_changed(
 
 @with_render_lock
 def _render_track_stems(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
-    from podcast_mcp.engines.play_audit import stem_is_fresh, track_render_hash, write_stem_hash
+    from podcast_mcp.engines.play_audit import publish_stem, stem_is_fresh, track_render_hash
     from podcast_mcp.util.project_state import (
         project_file_revision,
         project_state_lock,
@@ -412,10 +413,13 @@ def _render_track_stems(project: EpisodeProject, defaults: dict[str, Any]) -> St
         to_render.append(track)
 
     def render_one(track: Track) -> tuple[str, Path]:
-        out = out_dir / f"{track.id}.wav"
-        eng.render_dialogue_track(render_project, track, out, defaults)
-        # Hash on the worker; clear invalidations serially below.
-        write_stem_hash(render_project, track.id, clear_invalidations=False)
+        # Publish WAV + hash from the snapshot; clear invalidations serially below.
+        out = publish_stem(
+            render_project,
+            track.id,
+            lambda tmp: eng.render_dialogue_track(render_project, track, tmp, defaults),
+            clear_invalidations=False,
+        )
         return track.id, out
 
     max_workers = defaults.get("performance", {}).get("max_workers")
@@ -473,7 +477,12 @@ def assemble_timeline(project: EpisodeProject, defaults: dict[str, Any]) -> Step
 
 @with_render_lock
 def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
-    from podcast_mcp.engines.play_audit import mix_gains, premix_path, write_premix_hash
+    from podcast_mcp.engines.play_audit import (
+        mix_gains,
+        premix_path,
+        publish_stem,
+        write_premix_hash,
+    )
 
     mix_cfg = defaults.get("mix", {})
     meta_path = artifact(project, "track_outputs.json")
@@ -513,8 +522,12 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
                     ],
                 )
             )
-            out = project.artifacts_dir() / "tracks" / f"{track.id}.wav"
-            eng.render_dialogue_track(project, track, out, defaults)
+            out = publish_stem(
+                project,
+                track.id,
+                functools.partial(eng.render_dialogue_track, project, track, defaults=defaults),
+                clear_invalidations=False,
+            )
             rendered[track.id] = str(out)
             music_envelopes += 1
 

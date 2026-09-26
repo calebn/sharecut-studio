@@ -132,6 +132,7 @@ from podcast_mcp.engines.render_status import render_status_report
 from podcast_mcp.models import EditDecision, EpisodeProject
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.progress import ProgressReporter
+from podcast_mcp.util.project_state import render_lock
 from podcast_mcp.util.timeline_zoom import snap_tick_decimals
 from podcast_mcp.util.tracks import resolve_track
 
@@ -1487,11 +1488,13 @@ class EditService:
                 progress=progress,
             )
 
-        return self.ws.mutate(
-            "before apply bleed mute",
-            "after apply bleed mute",
-            mutate,
-        )
+        # The render lock comes before mutate()'s project locks (lock order, #482).
+        with render_lock(self.ws.project):
+            return self.ws.mutate(
+                "before apply bleed mute",
+                "after apply bleed mute",
+                mutate,
+            )
 
     def gate_overreach(
         self,

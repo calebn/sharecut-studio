@@ -21,10 +21,11 @@ from podcast_mcp.edits.pending_preview import (
 from podcast_mcp.edits.transcript_cuts import search_transcript
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import (
+    publish_stem,
     stem_is_fresh,
     stem_path,
+    stem_revision,
     track_render_hash,
-    write_stem_hash,
 )
 from podcast_mcp.engines.render_invalidations import clear_invalidations_for_tracks
 from podcast_mcp.engines.timeline_render import render_track_segment
@@ -45,7 +46,7 @@ from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.file_locks import shared_file_lock
 from podcast_mcp.util.process import run
-from podcast_mcp.util.project_state import project_commit_lock, snapshot_project
+from podcast_mcp.util.project_state import project_commit_lock, render_lock, snapshot_project
 from podcast_mcp.util.tracks import track_audio_path
 
 # Full-stem rebuild on --rerender is only worth it for long windows. Short
@@ -466,7 +467,11 @@ class PlayService:
 
         # Freshness includes timeline-duration match; mismatched stems fall through
         # to segment render so timeline seconds are never treated as source offsets.
-        if stem_is_fresh(render_project, track_id):
+        # Read the stem's identity before its hash: a publish that swaps the stem while we
+        # extract must not have its bytes played under this hash (#356).
+        revision = stem_revision(render_project, track_id)
+        fresh = stem_is_fresh(render_project, track_id)
+        if fresh and revision is not None:
             out = self._cache_path(
                 f"stem_{track_id}_{edit_hash}",
                 timeline_start,
@@ -474,10 +479,16 @@ class PlayService:
                 stem,
             )
             if not out.is_file() or rerender:
-                FFmpegEngine().extract_segment(stem, out, timeline_start, timeline_end)
-            peak = _wav_peak_abs(out)
-            if peak is not None and peak > 1e-5:
-                return out, "stem", timeline_start, timeline_end
+                self._render_atomic(
+                    out,
+                    lambda tmp: FFmpegEngine().extract_segment(
+                        stem, tmp, timeline_start, timeline_end
+                    ),
+                )
+            if stem_revision(render_project, track_id) == revision:
+                peak = _wav_peak_abs(out)
+                if peak is not None and peak > 1e-5:
+                    return out, "stem", timeline_start, timeline_end
             out.unlink(missing_ok=True)
 
         cache = self._segment_cache_path(track_id, timeline_start, timeline_end, edit_hash)
@@ -532,33 +543,40 @@ class PlayService:
         """Render full processed stem (assemble_timeline for one track)."""
         from podcast_mcp.engines.ffmpeg import FFmpegEngine
 
-        render_project = snapshot_project(self.project)
-        track = render_project.track_by_id(track_id)
-        if not track:
-            raise ValueError(f"unknown track {track_id!r}")
-        out = stem_path(render_project, track_id)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        FFmpegEngine().render_dialogue_track(render_project, track, out, self._defaults)
-        write_stem_hash(render_project, track_id, clear_invalidations=False)
-        with project_commit_lock(self.project):
-            store = ProjectStore(self.ws.path)
-            stored_project = store.load()
-            if track_render_hash(stored_project, track_id) == track_render_hash(
-                render_project, track_id
-            ):
-                before = [
-                    (inv.id, tuple(inv.track_ids)) for inv in stored_project.render.invalidations
-                ]
-                clear_invalidations_for_tracks(stored_project, [track_id])
-                after = [
-                    (inv.id, tuple(inv.track_ids)) for inv in stored_project.render.invalidations
-                ]
-                if after != before:
-                    store.commit(stored_project)
-            if track_render_hash(self.project, track_id) == track_render_hash(
-                render_project, track_id
-            ):
-                clear_invalidations_for_tracks(self.project, [track_id])
+        with render_lock(self.project):
+            render_project = snapshot_project(self.project)
+            track = render_project.track_by_id(track_id)
+            if not track:
+                raise ValueError(f"unknown track {track_id!r}")
+            out = publish_stem(
+                render_project,
+                track_id,
+                lambda tmp: FFmpegEngine().render_dialogue_track(
+                    render_project, track, tmp, self._defaults
+                ),
+                clear_invalidations=False,
+            )
+            with project_commit_lock(self.project):
+                store = ProjectStore(self.ws.path)
+                stored_project = store.load()
+                if track_render_hash(stored_project, track_id) == track_render_hash(
+                    render_project, track_id
+                ):
+                    before = [
+                        (inv.id, tuple(inv.track_ids))
+                        for inv in stored_project.render.invalidations
+                    ]
+                    clear_invalidations_for_tracks(stored_project, [track_id])
+                    after = [
+                        (inv.id, tuple(inv.track_ids))
+                        for inv in stored_project.render.invalidations
+                    ]
+                    if after != before:
+                        store.commit(stored_project)
+                if track_render_hash(self.project, track_id) == track_render_hash(
+                    render_project, track_id
+                ):
+                    clear_invalidations_for_tracks(self.project, [track_id])
         schedule_stem_waveforms(self.project, [track_id])
         return out
 
