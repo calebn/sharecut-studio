@@ -57,10 +57,14 @@ tighten:
   # is a no-op). See docs/filler-cut-quality.md § Mute vs cut.
   edit_mode: ripple
   # light | medium | aggressive. medium = the values below unchanged; light /
-  # aggressive override only the keys they name, and only where this config still
-  # holds the shipped value (a key you changed wins) (edits/tighten_intensity.py).
+  # aggressive override only the keys they name, and only where the run config
+  # still holds this file's value (edits/tighten_intensity.py). A key the working
+  # set / Pipeline tab changed from this file wins. Edits made in this file are
+  # the baseline, so light/aggressive still override them, and a key set to
+  # exactly this file's value counts as untouched.
   # CLI --intensity / MCP intensity= win over this key. Propose-time only.
-  # CLI/MCP read this file, not the GUI working set.
+  # CLI propose-edits / MCP propose_edits read this file, not the GUI working
+  # set (MCP pipeline_run uses the working set by default).
   intensity: medium
   # Tuning guide: docs/filler-cut-quality.md
   crossfade_ms: 25
