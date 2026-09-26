@@ -467,11 +467,11 @@ class _SsePublishReporter:
 
     def _live_job(self, task_id: str) -> PipelineJob | None:
         """Return the live job that owns this wrap's ``task_id``, if any."""
-        with self._manager._lock:
+        with self._manager._catalog._lock:
             candidates: list[PipelineJob] = []
-            if self._manager._job is not None:
-                candidates.append(self._manager._job)
-            candidates.extend(self._manager._agent_live.values())
+            if self._manager._catalog._job is not None:
+                candidates.append(self._manager._catalog._job)
+            candidates.extend(self._manager._catalog._agent_live.values())
             for job in candidates:
                 if (
                     job.status in _LIVE_STATUSES
@@ -847,7 +847,7 @@ class _JobCatalog:
 
 
 class PipelineJobManager:
-    """Facade for one pipeline slot plus in-process agent jobs."""
+    """Start and wait on jobs while the catalog owns their shared state."""
 
     def __init__(self) -> None:
         self._catalog = _JobCatalog()
@@ -865,17 +865,9 @@ class PipelineJobManager:
     def _finished(self) -> dict[str, PipelineJob]:
         return self._catalog._finished
 
-    @_finished.setter
-    def _finished(self, value: dict[str, PipelineJob]) -> None:
-        self._catalog._finished = value
-
     @property
     def _finished_order(self) -> list[str]:
         return self._catalog._finished_order
-
-    @_finished_order.setter
-    def _finished_order(self, value: list[str]) -> None:
-        self._catalog._finished_order = value
 
     @property
     def _finished_limit(self) -> int:
@@ -886,6 +878,10 @@ class PipelineJobManager:
         self._catalog._finished_limit = value
 
     @property
+    def _agent_live(self) -> dict[str, PipelineJob]:
+        return self._catalog._agent_live
+
+    @property
     def _agent_live_limit(self) -> int:
         return self._catalog._agent_live_limit
 
@@ -893,61 +889,23 @@ class PipelineJobManager:
     def _agent_live_limit(self, value: int) -> None:
         self._catalog._agent_live_limit = value
 
-    @property
-    def _agent_live(self) -> dict[str, PipelineJob]:
-        return self._catalog._agent_live
-
-    @_agent_live.setter
-    def _agent_live(self, value: dict[str, PipelineJob]) -> None:
-        self._catalog._agent_live = value
-
-    @property
-    def _agent_claims(self) -> dict[str, PipelineJob]:
-        return self._catalog._agent_claims
-
-    @_agent_claims.setter
-    def _agent_claims(self, value: dict[str, PipelineJob]) -> None:
-        self._catalog._agent_claims = value
-
-    @property
-    def _agent_latest(self) -> PipelineJob | None:
-        return self._catalog._agent_latest
-
-    @_agent_latest.setter
-    def _agent_latest(self, value: PipelineJob | None) -> None:
-        self._catalog._agent_latest = value
-
-    @property
-    def _served_project(self) -> str | None:
-        return self._catalog._served_project
-
-    @_served_project.setter
-    def _served_project(self, value: str | None) -> None:
-        self._catalog._served_project = value
+    def _archive_job(self, job: PipelineJob) -> None:
+        self._catalog._archive_job(job)
 
     def set_served_project(self, project_path: Path | str | None) -> None:
-        return self._catalog.set_served_project(project_path)
+        self._catalog.set_served_project(project_path)
 
     def add_sse_subscriber_for(self, job: PipelineJob) -> bool:
         return self._catalog.add_sse_subscriber_for(job)
 
     def add_sse_subscriber(self) -> None:
-        return self._catalog.add_sse_subscriber()
+        self._catalog.add_sse_subscriber()
 
     def remove_sse_subscriber(self, job: PipelineJob | None = None) -> None:
-        return self._catalog.remove_sse_subscriber(job)
+        self._catalog.remove_sse_subscriber(job)
 
     def sse_subscriber_count(self) -> int:
         return self._catalog.sse_subscriber_count()
-
-    def _running_jobs_locked(self) -> list[PipelineJob]:
-        return self._catalog._running_jobs_locked()
-
-    def _visible_jobs_locked(self) -> list[PipelineJob]:
-        return self._catalog._visible_jobs_locked()
-
-    def _primary_job_locked(self, scope: str | None = None) -> PipelineJob | None:
-        return self._catalog._primary_job_locked(scope)
 
     def status(self, project_path: str | None = None) -> dict[str, Any]:
         return self._catalog.status(project_path)
@@ -968,18 +926,12 @@ class PipelineJobManager:
     def complete_agent_job(
         self, job: PipelineJob, *, status: str, message: str | None = None, error: str | None = None
     ) -> None:
-        return self._catalog.complete_agent_job(job, status=status, message=message, error=error)
-
-    def _forget_agent_locked(self, job: PipelineJob) -> None:
-        return self._catalog._forget_agent_locked(job)
-
-    def _archive_job(self, job: PipelineJob) -> None:
-        return self._catalog._archive_job(job)
+        self._catalog.complete_agent_job(job, status=status, message=message, error=error)
 
     def listening_progress_reporter(self) -> _SsePublishReporter | None:
         """Publish-only SSE sink when the pipeline job itself has listeners."""
-        with self._lock:
-            job = self._job
+        with self._catalog._lock:
+            job = self._catalog._job
             if job is None or job.status not in _LIVE_STATUSES:
                 return None
             if job._sse_listeners <= 0:
@@ -1067,8 +1019,8 @@ class PipelineJobManager:
         )
 
     def cancel(self, job_id: str | None = None) -> PipelineJob | None:
-        with self._lock:
-            job = self._job
+        with self._catalog._lock:
+            job = self._catalog._job
             if job is None:
                 return None
             if job_id is not None and job.id != job_id:
@@ -1092,16 +1044,20 @@ class PipelineJobManager:
         label: str | None = None,
         validate: Callable[[], None] | None = None,
     ) -> PipelineJob:
-        with self._lock:
-            if self._job is not None and self._job.status in _LIVE_STATUSES:
+        with self._catalog._lock:
+            if self._catalog._job is not None and self._catalog._job.status in _LIVE_STATUSES:
                 raise RuntimeError("A pipeline-slot job is already running")
         if validate is not None:
             validate()
-        with self._lock:
-            if self._job is not None and self._job.status in _LIVE_STATUSES:
+        with self._catalog._lock:
+            if self._catalog._job is not None and self._catalog._job.status in _LIVE_STATUSES:
                 raise RuntimeError("A pipeline-slot job is already running")
-            if self._job is not None and self._job.status in ("ok", "error", "cancelled"):
-                self._archive_job(self._job)
+            if self._catalog._job is not None and self._catalog._job.status in (
+                "ok",
+                "error",
+                "cancelled",
+            ):
+                self._catalog._archive_job(self._catalog._job)
             job = PipelineJob(
                 id=uuid.uuid4().hex[:12],
                 project_path=str(project_path.resolve()),
@@ -1113,7 +1069,7 @@ class PipelineJobManager:
                 unattended=unattended,
                 config=config,
             )
-            self._job = job
+            self._catalog._job = job
 
         thread = threading.Thread(
             target=self._run_job,
@@ -1171,9 +1127,9 @@ class PipelineJobManager:
                         job.steps[-1].finished_at = job.finished_at
         finally:
             reporter.close()
-        with self._lock:
-            if self._job is job and job.status in ("ok", "error", "cancelled"):
-                self._archive_job(job)
+        with self._catalog._lock:
+            if self._catalog._job is job and job.status in ("ok", "error", "cancelled"):
+                self._catalog._archive_job(job)
         job.publish({"type": "done", "job": job.snapshot()})
         job.close_stream()
 
