@@ -143,6 +143,12 @@ MCP: `export_audio_tool` with optional `formats_json` (same array shape).
 
 ## Performance
 
+Each completed step still commits its canonical state and `last_completed_step`
+synchronously for crash resume. Unchanged history-index and transcript-cache mirrors
+skip duplicate writes; bulk word corrections rebuild the combined transcript once
+per batch. History trims oldest undo entries toward a 400-snapshot limit while
+preserving the redo tail.
+
 Step **order** is always strictly sequential (each step's input is the previous
 step's output) — but three steps parallelize the independent work they loop over
 internally, via a shared thread-pool helper (`util/parallel.py`):

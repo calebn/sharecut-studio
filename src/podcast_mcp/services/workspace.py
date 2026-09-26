@@ -14,6 +14,7 @@ from podcast_mcp.models import EpisodeProject
 from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.project_io import open_project, resolve_project_path
 from podcast_mcp.project_merge import (
+    HISTORY_LINEAGE_CONFLICT,
     RERUN_ADVICE,
     ConflictAdvice,
     ProjectMergeConflict,
@@ -261,6 +262,14 @@ class ProjectWorkspace:
         ``save_merged`` does that after the commit.
         """
         assert self._merge_base is not None
+        base_history = self._merge_base.get("history") or {}
+        base_entries = base_history.get("entries") or []
+        base_cursor = base_history.get("cursor", -1)
+        if 0 <= base_cursor < len(base_entries):
+            base_id = base_entries[base_cursor]["id"]
+            saved_ids = {entry["id"] for entry in (saved.get("history") or {}).get("entries", [])}
+            if base_id not in saved_ids:
+                raise ProjectMergeConflict([HISTORY_LINEAGE_CONFLICT], advice=advice)
         mgr = HistoryManager(self.path)
         if history_label is not None:
             mgr.record(self.project, history_label)

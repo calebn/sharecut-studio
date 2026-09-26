@@ -225,6 +225,10 @@ Podcast MCP treats **all editable project state** as undoable unless explicitly 
    - on failure (any `BaseException`, including one in `record(before)`), removes the history entries and snapshots it recorded, unless the commit landed or another writer recorded on top (then memory adopts the index on disk); unless the commit landed it also restores the in-memory editable state and `project.render` to their pre-`mutate` values (after a `kept` or `unknown` rollback a caller that keeps the project must reload it before committing; `ProjectWorkspace.mutate` does); see [history.md § Storage layout](history.md#storage-layout). A new record-then-commit path takes `history.rollback.take_history_checkpoint` and wraps its steps in `rolled_back_on_failure` instead of its own try/except, passing `on_not_landed` to restore other in-memory state unless the commit landed.
 3. **New features** add a service method that delegates to `mutate`; CLI/MCP handlers stay thin.
 4. **Batch work** (e.g. transcript cleanup, multi-cut approve) should use **one** `mutate` per user-confirmed step so a single undo reverts the whole batch.
+   Bulk transcript corrections rebuild the combined transcript once after the batch;
+   keep per-step canonical commits for pipeline crash resume. The project store skips
+   unchanged mirror writes and trims old undo history toward 400 snapshots without
+   removing redo entries.
 5. **Skills** that orchestrate mutations must mention `history_undo` and prefer batch tools where they exist.
 
 ### Transcript sync after audio changes

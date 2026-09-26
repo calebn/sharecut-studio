@@ -5,8 +5,9 @@ import json
 import pytest
 
 from podcast_mcp.models import EpisodeProject, save_project
-from podcast_mcp.models.history import ProjectHistory
+from podcast_mcp.models.history import HistoryEntry, ProjectHistory
 from podcast_mcp.project_store import (
+    HISTORY_ENTRY_LIMIT,
     ProjectStore,
     history_index_path,
     history_index_to_restore,
@@ -16,6 +17,110 @@ from podcast_mcp.project_store import (
     rollback_history,
     rollback_own_history,
 )
+
+
+def test_commit_skips_unchanged_history_index_and_repairs_corruption(minimal_project) -> None:
+    store = ProjectStore(minimal_project)
+    project = store.load()
+    store.commit(project)
+    index = history_index_path(project)
+    before = index.stat().st_mtime_ns
+    store.commit(project)
+    assert index.stat().st_mtime_ns == before
+    index.write_text("{broken", encoding="utf-8")
+    store.commit(project)
+    assert read_history_index(index) == project.history
+
+
+def test_commit_skips_unchanged_transcript_cache_and_repairs_missing_mirror(
+    minimal_project, monkeypatch
+) -> None:
+    from podcast_mcp.models import Transcript, TranscriptWord
+
+    store = ProjectStore(minimal_project)
+    project = store.load()
+    project.transcripts = [
+        Transcript(track_id="host", words=[TranscriptWord(text="hello", start=0, end=1)])
+    ]
+    store.commit(project)
+    cache = project.transcripts_dir() / "host.json"
+    before = cache.stat().st_mtime_ns
+    store.commit(project)
+    assert cache.stat().st_mtime_ns == before
+    cache.unlink()
+    store.commit(project)
+    assert cache.is_file()
+
+    original = ProjectStore._write_cache_if_changed
+
+    def fail_once(path, content):
+        if path == cache:
+            raise OSError("mirror failed")
+        return original(path, content)
+
+    project.transcripts[0].words[0].text = "updated"
+    monkeypatch.setattr(ProjectStore, "_write_cache_if_changed", staticmethod(fail_once))
+    with pytest.raises(OSError, match="mirror failed"):
+        store.commit(project)
+    monkeypatch.setattr(ProjectStore, "_write_cache_if_changed", staticmethod(original))
+    store.commit(project)
+    assert json.loads(cache.read_text())["words"][0]["text"] == "updated"
+
+
+def test_commit_prunes_history_after_canonical_replace(minimal_project, monkeypatch) -> None:
+    store = ProjectStore(minimal_project)
+    project = store.load()
+    index = history_index_path(project)
+    snapshots = history_snapshots_dir(index)
+    snapshots.mkdir(parents=True, exist_ok=True)
+    entries = []
+    for i in range(HISTORY_ENTRY_LIMIT // 2 + 2):
+        for prefix in ("before", "after"):
+            entry_id = f"{prefix}-{i}"
+            path = snapshots / f"{entry_id}.json"
+            path.write_text("{}")
+            entries.append(
+                HistoryEntry(id=entry_id, label=f"{prefix} edit {i}", snapshot_file=str(path))
+            )
+    project.history = ProjectHistory(cursor=len(entries) - 1, entries=entries)
+    pending = snapshots / "pending-before.json"
+    pending.write_text("{}")
+    original_save = __import__("podcast_mcp.project_store", fromlist=["save_project"]).save_project
+
+    def fail_save(*args, **kwargs):
+        raise OSError("canonical replace failed")
+
+    monkeypatch.setattr("podcast_mcp.project_store.save_project", fail_save)
+    with pytest.raises(OSError, match="canonical replace failed"):
+        store.commit(project)
+    assert len(list(snapshots.glob("*.json"))) == len(entries) + 1
+    monkeypatch.setattr("podcast_mcp.project_store.save_project", original_save)
+    project.history = ProjectHistory(cursor=len(entries) - 1, entries=entries)
+    store.commit(project)
+    kept = project.history.entries
+    assert len(kept) <= HISTORY_ENTRY_LIMIT
+    assert kept[0].label.startswith("before ")
+    assert kept[-1].label.startswith("after ")
+    assert project.history.cursor == len(kept) - 1
+    assert {p.stem for p in snapshots.glob("*.json")} == {
+        *(entry.id for entry in kept),
+        "pending-before",
+    }
+
+
+def test_history_prune_preserves_redo_tail(minimal_project) -> None:
+    store = ProjectStore(minimal_project)
+    project = store.load()
+    entries = [
+        HistoryEntry(id=str(i), label=f"step {i}", snapshot_file=f"history/snapshots/{i}.json")
+        for i in range(HISTORY_ENTRY_LIMIT + 20)
+    ]
+    project.history = ProjectHistory(cursor=5, entries=entries)
+    store.commit(project)
+    assert project.history.cursor == 0
+    assert project.history.entries[0].id == "5"
+    assert project.history.entries[-1].id == entries[-1].id
+    assert len(project.history.entries) > HISTORY_ENTRY_LIMIT
 
 
 def test_load_repairs_missing_workspace_dir(tmp_path) -> None:

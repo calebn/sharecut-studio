@@ -25,6 +25,17 @@ Each snapshot stores a **full copy** of editable v2 sections (not diffs), so und
 
 Undo/redo restores the snapshot and **`ProjectStore.commit()`** writes `episode.project.json`.
 
+History normally retains up to 400 recent snapshots. Pruning removes only the oldest
+undo entries, keeps adjacent `before …` / `after …` edit pairs together, and never
+drops redo entries. If the cursor is old and its redo tail exceeds 400 entries, history
+temporarily exceeds the limit. Explicitly pruned snapshots are removed only after the
+canonical project file is replaced, so a failed save cannot delete a referenced snapshot.
+If another writer advances the cursor and prunes a long job's checkpoint entry, that
+job's next merged save reports a history lineage conflict before reading the deleted
+snapshot; it must rerun from the saved project.
+The separate history index and transcript caches are rewritten only when their desired
+contents differ; a missing or damaged mirror is repaired on the next commit.
+
 Pipeline run logs stay on the project file and are not reverted by undo (only editable layers).
 
 History publication is ordered: a new snapshot is written completely before
@@ -94,7 +105,7 @@ See [gui-integration.md](gui-integration.md) for GUI-oriented undo and rerender 
 
 ## Branching
 
-If you undo and then make a new edit, snapshots after the current cursor are **discarded** (standard undo-stack behavior). Older snapshots remain on disk for audit but are no longer on the active branch.
+If you undo and then make a new edit, snapshots after the current cursor are **discarded** (standard undo-stack behavior). Their files can remain on disk; commits delete only snapshots explicitly pruned from the oldest undo history, avoiding interference with an in-flight mutation.
 
 ## Rendering after undo
 

@@ -11,6 +11,7 @@ from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
 from podcast_mcp.util.project_state import FileRevision, project_commit_lock, project_file_revision
 
 log = logging.getLogger(__name__)
+HISTORY_ENTRY_LIMIT = 400
 
 
 def history_index_path(project: EpisodeProject) -> Path:
@@ -137,10 +138,48 @@ class ProjectStore:
 
     def commit(self, project: EpisodeProject) -> Path:
         with project_commit_lock(project):
+            try:
+                self.adopt_history_index(project)
+            except ValueError:
+                log.warning("Repairing invalid history index from canonical project history")
+            pruned_ids = self._trim_history(project)
             self._sync_history_index_to_project(project)
             path = save_project(project, self.project_path)
+            self._remove_pruned_snapshots(project, pruned_ids)
             self._mirror_transcript_cache(project)
             return path
+
+    def _trim_history(self, project: EpisodeProject) -> set[str]:
+        """Trim only old undo entries; retain all redo and complete edit pairs."""
+        history = project.history
+        excess = len(history.entries) - HISTORY_ENTRY_LIMIT
+        if excess <= 0:
+            return set()
+        max_remove = min(excess, history.cursor)
+        start = 0
+        while start < max_remove:
+            next_start = start + 1
+            if (
+                history.entries[start].label.startswith("before ")
+                and next_start < len(history.entries)
+                and history.entries[next_start].label == f"after {history.entries[start].label[7:]}"
+            ):
+                next_start += 1
+            if next_start > max_remove:
+                break
+            start = next_start
+        if start:
+            pruned = {entry.id for entry in history.entries[:start]}
+            history.entries = history.entries[start:]
+            history.cursor -= start
+            return pruned
+        return set()
+
+    def _remove_pruned_snapshots(self, project: EpisodeProject, pruned_ids: set[str]) -> None:
+        """Only collect snapshots after the canonical project replacement has landed."""
+        index_path = history_index_path(project)
+        for entry_id in pruned_ids:
+            history_snapshot_path(index_path, entry_id).unlink(missing_ok=True)
 
     def reload(self, project: EpisodeProject) -> EpisodeProject:
         loaded = self.load()
@@ -162,22 +201,44 @@ class ProjectStore:
 
     def _sync_history_index_to_project(self, project: EpisodeProject) -> None:
         """Mirror history to ``history/index.json``; an empty one adopts the index instead."""
-        if self.adopt_history_index(project):
-            return
+        try:
+            if self.adopt_history_index(project):
+                return
+        except ValueError:
+            log.warning("Repairing invalid history index from canonical project history")
         index_path = history_index_path(project)
         if index_path.parent.exists() or not project.history.is_empty():
             index_path.parent.mkdir(parents=True, exist_ok=True)
-            write_json_atomic(index_path, project.history.model_dump(mode="json"))
+            desired = project.history.model_dump(mode="json")
+            try:
+                current = load_json_object(index_path)
+            except ValueError:
+                current = None
+            if current != desired:
+                write_json_atomic(index_path, desired)
+
+    @staticmethod
+    def _write_cache_if_changed(path: Path, content: bytes) -> None:
+        try:
+            if path.read_bytes() == content:
+                return
+        except FileNotFoundError:
+            pass
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
 
     def _mirror_transcript_cache(self, project: EpisodeProject) -> None:
         """Write-through optional caches; canonical data lives in episode.project.json."""
         combined = project.transcript_data.combined
         if combined and combined.utterances:
             out = project.transcripts_dir() / "combined.json"
-            out.parent.mkdir(parents=True, exist_ok=True)
-            out.write_text(combined.model_dump_json(indent=2, by_alias=True), encoding="utf-8")
+            self._write_cache_if_changed(
+                out, combined.model_dump_json(indent=2, by_alias=True).encode("utf-8")
+            )
         for transcript in project.transcript_data.per_track:
             if not transcript.words:
                 continue
             cache = project.transcripts_dir() / f"{transcript.track_id}.json"
-            cache.write_text(transcript.model_dump_json(indent=2, by_alias=True), encoding="utf-8")
+            self._write_cache_if_changed(
+                cache, transcript.model_dump_json(indent=2, by_alias=True).encode("utf-8")
+            )

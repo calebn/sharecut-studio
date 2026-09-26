@@ -97,12 +97,12 @@ def _run_mutation_locked(
         tid: track_render_hash(project, tid) for tid in dialogue_track_ids(project)
     }
     log_len_before = len(project.editorial.edit_log)
+    pre_mutate = _PreMutateState.capture(project)
     with project_commit_lock(project):
         checkpoint = take_history_checkpoint(store, project)
         with rolled_back_on_failure(project, checkpoint):
-            mgr.record(project, label_before)
+            mgr.record(project, label_before, snapshot=pre_mutate.editable)
     checkpoint.own_indexes.append(project.history.model_dump(mode="json"))
-    pre_mutate = _PreMutateState.capture(project)
     # Memory follows the file: the mutated state is kept only if the commit replaced it.
     with rolled_back_on_failure(
         project, checkpoint, on_not_landed=lambda: pre_mutate.restore(project)
