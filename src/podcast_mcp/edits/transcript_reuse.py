@@ -13,10 +13,6 @@ class TranscriptOverwriteRefused(RuntimeError):
     """An unattended run would replace a hand-edited transcript."""
 
 
-def transcript_has_user_edits(transcript: Transcript) -> bool:
-    return bool(transcript.user_edited)
-
-
 @dataclass
 class TranscribePlan:
     overwrite: bool
@@ -105,7 +101,7 @@ def plan_transcription(
             if current.audio_sha256 is None:
                 plan.adopted.append(job.key)
             continue
-        if transcript_has_user_edits(current):
+        if current.user_edited:
             if unattended and not allow_edited:
                 (refused_forced if matches else refused_changed).append(job.label)
                 continue

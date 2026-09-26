@@ -9,7 +9,6 @@ from podcast_mcp.edits.transcript_reuse import (
     merge_transcripts_by_key,
     plan_transcription,
     stamp_audio_identity,
-    transcript_has_user_edits,
 )
 from podcast_mcp.engines.transcribe import TranscribeJob
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
@@ -70,7 +69,6 @@ def test_overwrite_reruns_and_edited_is_refused_unattended(job):
     p = _project(_tr(audio_sha256=sha256_file(job.audio)))
     assert plan_transcription(p, [job], overwrite=True, unattended=True).run == [job]
     p.transcripts[0].user_edited = True
-    assert transcript_has_user_edits(p.transcripts[0])
     with pytest.raises(TranscriptOverwriteRefused, match="re-transcription was requested"):
         plan_transcription(p, [job], overwrite=True, unattended=True)
 
