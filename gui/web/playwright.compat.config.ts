@@ -25,6 +25,7 @@ export default defineConfig({
   // One web server and one live project fixture are shared by every test.
   fullyParallel: false,
   workers: 1,
+  retries: 0,
   // Keep the main suite's traces and workspace stamp when both runs share a job.
   outputDir: "./test-results/compat",
   projects,

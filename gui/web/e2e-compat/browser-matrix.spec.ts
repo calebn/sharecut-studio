@@ -1,4 +1,7 @@
 import { devices, expect, test } from "@playwright/test";
+import { expectPageAxeClean } from "../e2e/axe";
+import { e2eProjectPath } from "../e2e/env";
+import { hostOfflineQueueCount } from "../e2e/offlineQueue";
 import { openHostProject } from "../e2e/overlayReachability";
 import {
   createRecordRoom,
@@ -10,6 +13,7 @@ import {
   stubSyntheticMicrophone,
   syntheticMicrophoneRequested,
 } from "../e2e/syntheticMicrophone";
+import { parseTimecodeSec } from "../e2e/timecode";
 import { withBrowserPages } from "../e2e/twoBrowserPages";
 import {
   expectPaintedWaveformTile,
@@ -24,10 +28,119 @@ const { defaultBrowserType: _phoneEngine, ...phone } = devices["iPhone 13"];
 const SUBPIXEL_TOLERANCE = 1;
 
 test.describe("browser compatibility matrix", () => {
-  test("renders the playback control across browser engines", async ({
+  test("advances playback across browser engines", async ({ page }) => {
+    await openHostProject(page);
+    const play = page.getByRole("button", { name: "Play", exact: true });
+    await expect(play).toBeEnabled();
+    await page
+      .getByRole("group", { name: "Audition mode" })
+      .getByRole("button", { name: "Raw" })
+      .click();
+    const clock = page.locator("header.transport .timecode-current");
+    const initial = parseTimecodeSec(await clock.innerText());
+    await play.click();
+    await expect(page.getByRole("button", { name: "Pause" })).toBeVisible();
+    await expect
+      .poll(async () => parseTimecodeSec(await clock.innerText()))
+      .toBeGreaterThan(initial + 0.25);
+    await page.getByRole("button", { name: "Pause" }).click();
+    await expect(play).toBeVisible();
+    await expectPageAxeClean(page);
+  });
+
+  test("persists an offline comment across reload and replays its command", async ({
     page,
   }) => {
+    const commands: Array<{
+      command_id: string;
+      client_id: string;
+      client_seq: number;
+      type: string;
+    }> = [];
+    let offline = true;
+    await page.route("**/api/document/command?*", async (route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      const command = route
+        .request()
+        .postDataJSON() as (typeof commands)[number];
+      if (command.type !== "AddComment") return route.continue();
+      commands.push(command);
+      if (offline) return route.abort("failed");
+      return route.continue();
+    });
     await openHostProject(page);
+    await page
+      .getByLabel("Editor panels")
+      .getByRole("button", { name: "Comments" })
+      .click();
+    await page.getByRole("button", { name: "Comment mode" }).click();
+    await page.getByRole("slider", { name: "Comment time anchor" }).click();
+    await page.getByLabel("Author").fill("Host");
+    await page.getByPlaceholder("Feedback…").fill("Cross-browser queued note");
+    await page.getByRole("button", { name: "Post comment" }).click();
+    await expect.poll(() => commands.length).toBe(1);
+    const queuedCount = () => hostOfflineQueueCount(page, e2eProjectPath);
+    await expect.poll(queuedCount).toBe(1);
+    await page.reload();
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(
+      /aligned dialogue/i,
+    );
+    await expect.poll(queuedCount).toBe(1);
+    offline = false;
+    await page.evaluate(() => window.dispatchEvent(new Event("online")));
+    await expect.poll(() => commands.length).toBe(2);
+    expect(commands[1]).toMatchObject(commands[0]!);
+    await expect.poll(queuedCount).toBe(0);
+    await page
+      .getByLabel("Editor panels")
+      .getByRole("button", { name: "Comments" })
+      .click();
+    await expect(
+      page.getByText("Cross-browser queued note").first(),
+    ).toBeVisible();
+  });
+
+  test("reconnects the document socket after a drop", async ({ page }) => {
+    await page.addInitScript(() => {
+      const NativeWebSocket = window.WebSocket;
+      const sockets: WebSocket[] = [];
+      class TrackedWebSocket extends NativeWebSocket {
+        constructor(url: string | URL, protocols?: string | string[]) {
+          super(url, protocols);
+          if (String(url).includes("/api/document/ws")) sockets.push(this);
+        }
+      }
+      Object.defineProperty(window, "WebSocket", { value: TrackedWebSocket });
+      Object.assign(window, { __documentSockets: sockets });
+    });
+    await openHostProject(page);
+    const socketCount = () =>
+      page.evaluate(
+        () =>
+          (
+            window as unknown as Window & { __documentSockets: WebSocket[] }
+          ).__documentSockets.filter(
+            (socket) => socket.readyState === WebSocket.OPEN,
+          ).length,
+      );
+    await expect.poll(socketCount).toBe(1);
+    await page.evaluate(() =>
+      (
+        window as unknown as Window & { __documentSockets: WebSocket[] }
+      ).__documentSockets[0]?.close(),
+    );
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            () =>
+              (window as unknown as Window & { __documentSockets: WebSocket[] })
+                .__documentSockets.length,
+          ),
+        { timeout: 8_000 },
+      )
+      .toBeGreaterThan(1);
+    await expect.poll(socketCount).toBe(1);
     await expect(page.getByRole("button", { name: "Play" })).toBeEnabled();
   });
 

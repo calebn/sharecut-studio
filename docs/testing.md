@@ -468,24 +468,38 @@ settles.
 
 After the full fast Playwright suite in bundled Chromium, `frontend-e2e` runs
 the focused `gui/web/e2e-compat/` matrix (`playwright.compat.config.ts`) in
-bundled Chromium and Playwright WebKit. It covers the project shell and playback
-control, the phone listening shell under an `iPhone 13` touch profile (coarse
+bundled Chromium and Playwright WebKit. It covers fixture Raw audition playback
+time advancing and pausing (the disposable fixture has no premix), a host
+comment queued in IndexedDB across reload and replayed with the original
+command identity, and document WebSocket reconnection after a drop. It also
+covers the phone listening shell under an `iPhone 13` touch profile (coarse
 pointer, viewport-derived x/y bounds), and the recording guest's
-microphone-consent-to-level path. `e2e-compat/deep-zoom.spec.ts` stretches a disposable `aligned_dialogue` copy to a one-hour session (`e2e/deepZoom.ts` `stretchProjectToSession`) and zooms to `effectiveMaxZoomPxPerSec(3600)` (about 15 M px of content). At the end it checks, within 1 px: `scrollWidth`, the reachable scroll end, the last ruler label, tick offsets (`t × zoom`), tile placement on the 512 px grid ending at the session end, and envelope point and chunk offsets. Firefox is not in the matrix. Its layout limit (about 17.9 M px, from Gecko's `nscoord_MAX`; see [waveform.md § Deep zoom](waveform.md#deep-zoom)) comes from the engine source, is not measured, and is above `max_content_px`.
+microphone-consent-to-level path.
 
-The recording check uses `stubSyntheticMicrophone` (`gui/web/e2e/syntheticMicrophone.ts`):
+`e2e-compat/deep-zoom.spec.ts` stretches a disposable `aligned_dialogue` copy
+to a one-hour session (`e2e/deepZoom.ts` `stretchProjectToSession`) and zooms to
+`effectiveMaxZoomPxPerSec(3600)` (about 15 M px of content). At the end it
+checks, within 1 px: `scrollWidth`, the reachable scroll end, the last ruler
+label, tick offsets (`t × zoom`), tile placement on the 512 px grid ending at
+the session end, and envelope point and chunk offsets. Firefox is not in the
+matrix. Its layout limit (about 17.9 M px, from Gecko's `nscoord_MAX`; see
+[waveform.md § Deep zoom](waveform.md#deep-zoom)) comes from the engine source,
+is not measured, and is above `max_content_px`.
+
+The recording check uses `stubSyntheticMicrophone`
+(`gui/web/e2e/syntheticMicrophone.ts`):
 `getUserMedia` returns a live oscillator track, and the test polls the Level
 meter until it reads a non-zero value. Chromium keeps its native Permissions
 API; WebKit hides `navigator.permissions` so the matrix exercises Safari's
 missing-`permissions.query` branch (`src/record/micPermission.ts`). It does not
-verify native permission prompts, hardware capture, or keeper audio. Record
-rooms and E2E flags come from the shared `gui/web/e2e/recordRoom.ts` helpers.
-This keeps coverage focused on high-risk entry points without multiplying the
+verify native permission prompts, hardware capture, keeper audio, or upload.
+Record rooms and E2E flags come from the shared `gui/web/e2e/recordRoom.ts`
+helpers. This keeps coverage focused on high-risk entry points without multiplying the
 full suite across engines.
 
-The compat config pins `workers: 1` / `fullyParallel: false` (one shared web
-server and live project fixture) and writes to `test-results/compat` so the
-main run's traces survive. `playwright.config.ts`, `playwright.compat.config.ts`,
+The compat config pins `workers: 1` / `fullyParallel: false` and `retries: 0`
+(one shared web server and live project fixture) and writes to
+`test-results/compat` so the main run's traces survive. `playwright.config.ts`, `playwright.compat.config.ts`,
 `e2e-compat/`, and the shared recording helpers are type-checked through
 `gui/web/tsconfig.e2e.json` as part of `npm run typecheck`. The E2E
 TypeScript project includes every `e2e/` helper and spec as well as
