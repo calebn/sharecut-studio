@@ -532,15 +532,22 @@ def slim_python_runtime(runtime: Path) -> int:
 
 
 def write_dev_stub(binaries: Path, triple: str) -> Path:
-    """Copy the bash FOSS sidecar to the triple name when no freeze exists."""
+    """Provide every external binary expected by Tauri when no freeze exists."""
     dest = binaries / sidecar_output_name(triple)
-    if dest.is_file():
-        return dest
-    src = binaries / SIDECAR_STEM
-    if not src.is_file():
-        raise SystemExit(f"missing contributor sidecar {src}")
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(src, dest)
+    if not dest.is_file():
+        src = binaries / SIDECAR_STEM
+        if not src.is_file():
+            raise SystemExit(f"missing contributor sidecar {src}")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dest)
+    for stem in ("podcast", "podcast-mcp"):
+        cli = binaries / launcher_output_name(stem, triple)
+        if not cli.is_file():
+            cli.write_text(
+                "#!/bin/sh\necho 'Packaged CLI requires a frozen desktop build' >&2\nexit 2\n",
+                encoding="utf-8",
+            )
+            cli.chmod(0o755)
     return dest
 
 

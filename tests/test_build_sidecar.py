@@ -136,6 +136,11 @@ def test_dev_stub_copies_bash_sidecar(tmp_path: Path) -> None:
     )
     dest = tmp_path / "sharecut-sidecar-aarch64-apple-darwin"
     assert dest.is_file()
+    for stem in ("podcast", "podcast-mcp"):
+        cli = tmp_path / f"{stem}-aarch64-apple-darwin"
+        assert cli.is_file()
+        assert cli.stat().st_mode & 0o111
+        assert "requires a frozen desktop build" in cli.read_text(encoding="utf-8")
     assert dest.read_text(encoding="utf-8") == src.read_text(encoding="utf-8")
 
 
