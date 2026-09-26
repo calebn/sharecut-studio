@@ -6,6 +6,7 @@ import {
 } from "../../audio/wavHeader";
 import { errorMessage } from "../../utils/apiError";
 import { plural } from "../../utils/format";
+import type { KeeperClipRegion } from "../keeper/clipRegions";
 import { sha256Hex } from "../keeper/fingerprint";
 import {
   isKeeperPcmFormat,
@@ -44,7 +45,11 @@ export type KeeperRecoveryPlan = {
 };
 
 export type KeeperRecoveryStatus =
-  | { kind: "complete"; joinOffsetMs: number }
+  | {
+      kind: "complete";
+      joinOffsetMs: number;
+      clippingRegions?: KeeperClipRegion[];
+    }
   | { kind: "pruned" }
   /** Not finalized, and not inspected because capture may still be open. */
   | { kind: "pending" }
@@ -139,7 +144,11 @@ export async function inspectKeeperRecovery(
     };
   }
   if (meta.complete === true) {
-    return { kind: "complete", joinOffsetMs: meta.joinOffsetMs };
+    return {
+      kind: "complete",
+      joinOffsetMs: meta.joinOffsetMs,
+      clippingRegions: meta.clippingRegions,
+    };
   }
   let probe: HeaderProbe | null | undefined;
   if (meta.complete === undefined) {
@@ -147,7 +156,11 @@ export async function inspectKeeperRecovery(
     // Legacy metadata was only written after a successful close, so a missing
     // WAV was reclaimed after landing (see missingKeeperWavState), not lost.
     if (!probe || legacyFinalized(probe, meta)) {
-      return { kind: "complete", joinOffsetMs: meta.joinOffsetMs };
+      return {
+        kind: "complete",
+        joinOffsetMs: meta.joinOffsetMs,
+        clippingRegions: meta.clippingRegions,
+      };
     }
   }
   if (options.inspectPending === false) {

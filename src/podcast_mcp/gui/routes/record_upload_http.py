@@ -60,6 +60,7 @@ async def ingest_record_upload_request(
     workspace: ProjectWorkspace | None = None,
     clip_scope: str | None = None,
     kind: str | None = None,
+    clipping: str | None = None,
     before_ingest: Callable[[], None] | None = None,
 ) -> dict[str, Any] | JSONResponse:
     try:
@@ -90,6 +91,7 @@ async def ingest_record_upload_request(
             expected_parts=expected_parts,
             join_offset_ms=join_offset_ms,
             kind=parsed_kind,
+            clipping=clipping,
         )
     except RecordUploadError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

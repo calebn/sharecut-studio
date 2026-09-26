@@ -1,3 +1,4 @@
+import type { KeeperClipRegion } from "../keeper/clipRegions";
 import { keeperPcmParts, sha256Hex } from "./chunker";
 import type { RecordUploadTransport } from "./transport";
 
@@ -15,6 +16,7 @@ export async function uploadKeeperWav(args: {
   landed?: boolean;
   landFailed?: boolean;
   joinOffsetMs?: number;
+  clippingRegions?: KeeperClipRegion[];
   kind?: string;
   signal?: AbortSignal;
 }): Promise<{
@@ -65,6 +67,7 @@ export async function uploadKeeperWav(args: {
       fileSha256: final ? fileSha : undefined,
       final,
       joinOffsetMs: args.joinOffsetMs,
+      clippingRegions: final ? args.clippingRegions : undefined,
       kind: args.kind,
       expectedParts: parts.length,
       signal: args.signal,

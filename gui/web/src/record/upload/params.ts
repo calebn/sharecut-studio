@@ -1,3 +1,8 @@
+import {
+  type KeeperClipRegion,
+  serializeClipRegions,
+} from "../keeper/clipRegions";
+
 export function recordUploadSearchParams(args: {
   takeIndex: number;
   segmentIndex: number;
@@ -6,6 +11,7 @@ export function recordUploadSearchParams(args: {
   fileSha256?: string;
   final?: boolean;
   joinOffsetMs?: number;
+  clippingRegions?: KeeperClipRegion[];
   kind?: string;
   expectedParts?: number;
   extra?: Record<string, string>;
@@ -23,6 +29,9 @@ export function recordUploadSearchParams(args: {
   }
   if (args.joinOffsetMs != null) {
     q.set("join_offset_ms", String(args.joinOffsetMs));
+  }
+  if (args.clippingRegions && args.clippingRegions.length > 0) {
+    q.set("clipping", serializeClipRegions(args.clippingRegions));
   }
   if (args.kind) {
     q.set("kind", args.kind);
