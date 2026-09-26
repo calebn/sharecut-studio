@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { registerDawCommands } from "../../commands/register";
@@ -310,6 +310,50 @@ describe("PendingEditInspector", () => {
       expect(screen.getAllByText("Suggested by guest")).toHaveLength(1);
       expect(screen.queryByText("guest:suggest")).toBeNull();
       expect(screen.getByText("Cut")).toBeInTheDocument();
+    });
+
+    it("sends an untouched field's stored time, not its rounded text", async () => {
+      const user = userEvent.setup();
+      const precise = { ...guestCut, source_start: 0.1234, source_end: 2.3804 };
+      render(<PendingEditInspector edit={precise} />);
+      await user.click(screen.getByRole("button", { name: /Snap & apply/ }));
+      let args = updatePendingEdit.mock.calls[0] as unknown[];
+      expect(args[2]).toBe(0.1234);
+      expect(args[3]).toBe(2.3804);
+      const start = screen.getByLabelText("Source start");
+      await user.clear(start);
+      await user.type(start, "0:00.200");
+      await user.click(screen.getByRole("button", { name: /Snap & apply/ }));
+      args = updatePendingEdit.mock.calls[1] as unknown[];
+      expect(args[2] as number).toBeCloseTo(0.2, 9);
+      expect(args[3]).toBe(2.3804);
+    });
+
+    it("describes the time format on every nudge field", async () => {
+      const { container } = render(<PendingEditInspector edit={guestCut} />);
+      expect(screen.getByLabelText("Source start")).toHaveAccessibleDescription(
+        "m:ss.mmm or seconds",
+      );
+      expect(screen.getByLabelText("Source end")).toHaveAccessibleDescription(
+        "m:ss.mmm or seconds",
+      );
+      await expectNoA11yViolations(container);
+      cleanup();
+      render(
+        <PendingEditInspector
+          edit={{
+            ...sessionCut,
+            id: "sp1",
+            type: "split",
+            source_end: 10,
+            timeline_end: 10,
+            timeline_spans: [{ start: 10, end: 10 }],
+          }}
+        />,
+      );
+      expect(screen.getByLabelText("Cut time")).toHaveAccessibleDescription(
+        "m:ss.mmm or seconds",
+      );
     });
 
     it("accepts m:ss.mmm in the nudge fields", async () => {

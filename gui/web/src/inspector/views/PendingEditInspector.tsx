@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import {
   approveEdits,
   createComment,
@@ -69,6 +69,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   );
   const [author, setAuthor] = useState(loadCommentAuthor);
   const [askBody, setAskBody] = useState("");
+  const timeHintId = useId();
   const {
     busy: threadBusy,
     error: threadError,
@@ -133,8 +134,11 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   };
 
   const applyNudge = async () => {
-    const start = parseTimecode(startStr);
-    const end = isSplit ? start : parseTimecode(endStr);
+    // An untouched field sends the stored time, not its ms-rounded text.
+    const fieldSec = (text: string, stored: number) =>
+      text.trim() === formatTimeMs(stored) ? stored : parseTimecode(text);
+    const start = fieldSec(startStr, edit.source_start);
+    const end = isSplit ? start : fieldSec(endStr, edit.source_end);
     if (start == null || end == null) {
       setError("Times must be m:ss.mmm or seconds");
       return;
@@ -246,8 +250,12 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                     value={startStr}
                     disabled={busy}
                     aria-label="Cut time"
+                    aria-describedby={timeHintId}
                     onChange={(e) => setStartStr(e.target.value)}
                   />
+                  <span id={timeHintId} className="ui-field-hint">
+                    m:ss.mmm or seconds
+                  </span>
                   <Button disabled={busy} onClick={() => void applyNudge()}>
                     Apply
                   </Button>
@@ -286,6 +294,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                   value={startStr}
                   disabled={busy}
                   aria-label="Source start"
+                  aria-describedby={timeHintId}
                   onChange={(e) => setStartStr(e.target.value)}
                 />
                 <span>–</span>
@@ -296,8 +305,12 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                   value={endStr}
                   disabled={busy}
                   aria-label="Source end"
+                  aria-describedby={timeHintId}
                   onChange={(e) => setEndStr(e.target.value)}
                 />
+                <span id={timeHintId} className="ui-field-hint">
+                  m:ss.mmm or seconds
+                </span>
                 <Button disabled={busy} onClick={() => void applyNudge()}>
                   Snap &amp; apply
                 </Button>

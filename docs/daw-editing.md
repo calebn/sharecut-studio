@@ -82,7 +82,7 @@ Shipped:
 Shipped:
 
 - Pending Approve / Reject (inspector) + Impact **Approve/Reject all review-required**
-- `UpdatePendingEdit` — timeline edge drag (a pointer-up under `HANDLE_DRAG_MIN_PX`, 3 px net, only selects the edit) + inspector source nudge with inaudible snap; the nudge fields take `m:ss.mmm` (or plain seconds); the inspector shows the reason once in words, the type as a word (Cut / Mute / Split), and `crossfade_ms` as **Join fade** (approve applies it as fade lengths)
+- `UpdatePendingEdit` — timeline edge drag (a pointer-up under `HANDLE_DRAG_MIN_PX`, 3 px net, only selects the edit) + inspector source nudge with inaudible snap; the nudge fields take `m:ss.mmm` (or plain seconds); an untouched field sends its exact stored time; the inspector shows the reason once in words, the type as a word (Cut / Mute / Split), and `crossfade_ms` as **Join fade** (approve applies it as fade lengths)
 - `RestoreAppliedEdit` / `revert_applied_edit` — re-insert clip material from `AppliedEditRecord` source clocks for ripple/punch cuts; mute archives (`params.mute`) subtract intersecting `Clip.mute_regions` without shifting the timeline. Records without source clocks → History undo
 - Inspector Seek / Play around footers (Current / Suggested / A/B on pending)
 
@@ -125,7 +125,7 @@ Shipped:
 Shipped:
 
 - Edge handles for fade lengths on clip blocks (a drag shows the length live and clamps to the track's `fade_max_ms`, the clip length and what the other edge's fade leaves; a pointer-up under `HANDLE_DRAG_MIN_PX` (3 px net) only selects; each handle's accessible name carries its current length (the on-clip readout is visual only)); join diamond selects clip
-- Inspector: editable `fade_in_ms` / `fade_out_ms`, `join_in_mode` (fade / crossfade / cut)
+- Inspector: editable `fade_in_ms` / `fade_out_ms`, `join_in_mode` (fade / crossfade / cut) (entries clamp to the same limit; the hint says when an entry was clamped, and Apply waits until the clip's track is known)
 - Document commands `SetClipFade`, `SetJoinMode`, `ApplyFadeRecommendations` (track-scoped recommend+apply; Track inspector **Smooth all joins on this track**)
 - MCP `set_join_mode_tool`; `set_clip_fade` caps dialogue fades at `render.join_fade_max_ms`, bounds each fade to the clip length and limits fade-out to what fade-in leaves (`join_modes.clamp_clip_fades`); the project view exposes the track cap as `TrackView.fade_max_ms` (null = uncapped; same `track_fade_max_ms` resolver), and the GUI mirrors the rule (`edit/fadeLimits.ts` `clampClipFades` / `edgeFadeMaxMs`) so drags and inspector inputs clamp before sending
 - Seek join / Play across join audition footer
