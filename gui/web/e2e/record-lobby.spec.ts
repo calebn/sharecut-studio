@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
+import path from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import {
   type Browser,
@@ -16,16 +17,41 @@ import {
 import { withShareableProject } from "./shareableProject";
 import { withBrowserPages } from "./twoBrowserPages";
 
-async function hostRecordState(
+type HostRecordSnapshot = {
+  state?: string;
+  session_id: string;
+  take_index: number;
+  participants: Array<{ participant_id: string; display_name: string }>;
+};
+
+async function hostRecordSnapshot(
   host: Page,
   projectPath: string,
-): Promise<string> {
+): Promise<HostRecordSnapshot> {
   const res = await host.request.get("/api/record/state", {
     params: { path: projectPath },
   });
   expect(res.ok(), await res.text()).toBeTruthy();
-  const body = (await res.json()) as { state?: string };
-  return body.state ?? "";
+  return (await res.json()) as HostRecordSnapshot;
+}
+
+async function hostRecordState(
+  host: Page,
+  projectPath: string,
+): Promise<string> {
+  return (await hostRecordSnapshot(host, projectPath)).state ?? "";
+}
+
+async function recordParticipantId(
+  host: Page,
+  projectPath: string,
+  displayName: string,
+): Promise<string> {
+  const id = (await hostRecordSnapshot(host, projectPath)).participants.find(
+    (participant) => participant.display_name === displayName,
+  )?.participant_id;
+  expect(id, `no record participant named ${displayName}`).toBeTruthy();
+  return id as string;
 }
 
 async function ensureHostRecordCommand(
@@ -263,27 +289,13 @@ test.describe("record lobby", () => {
         await ensureHostRecordCommand(host, projectPath, "Stop", "stopped");
         await expect(guest.locator(".record-rec-label")).toHaveText("Stopped");
 
-        const stateResponse = await host.request.get("/api/record/state", {
-          params: { path: projectPath },
-        });
-        expect(stateResponse.ok(), await stateResponse.text()).toBeTruthy();
-        const state = (await stateResponse.json()) as {
-          session_id: string;
-          take_index: number;
-          participants: Array<{
-            participant_id: string;
-            display_name: string;
-          }>;
-        };
-        const guestId = state.participants.find(
-          (participant) => participant.display_name === "Ava",
-        )?.participant_id;
-        expect(guestId).toBeTruthy();
+        const state = await hostRecordSnapshot(host, projectPath);
+        const guestId = await recordParticipantId(host, projectPath, "Ava");
         await seedSparseRecoveryKeepers(
           guest,
           state.session_id,
           state.take_index,
-          guestId!,
+          guestId,
         );
         await seedSparseRecoveryKeepers(
           host,
@@ -1153,6 +1165,249 @@ test.describe("record lobby", () => {
         ).toMatchObject({ file_ack: true });
         await expect(guest.getByText("Waiting for host")).toBeVisible();
       });
+    });
+  });
+
+  test("records a remote interview end to end (US-1)", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    test.slow();
+    await withShareableProject(async (projectPath) => {
+      await withBrowserPages(
+        browser,
+        [{}, {}, {}],
+        async ([host, guest, producer]) => {
+          const project = encodeURIComponent(projectPath);
+          await markSharecutE2e(host);
+          await host.goto(`/?project=${project}&e2e=1`);
+          await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
+          const room = await createRecordRoom(host, projectPath);
+          await host.getByRole("button", { name: "Menu" }).click();
+          await host.getByRole("menuitem", { name: "Record room…" }).click();
+          const roomDlg = host.getByRole("dialog", { name: "Record room" });
+          await expect(roomDlg).toBeVisible();
+
+          await markSharecutE2e(guest);
+          await openRecordLink(guest, room.guest.token);
+          await guest.getByLabel("Display name").fill("Ava");
+          await guest.getByLabel("I am wearing headphones").check();
+          await guest.getByRole("button", { name: "Allow microphone" }).click();
+          await expect(guest.getByLabel("Level")).toBeVisible();
+          await guest.getByRole("button", { name: "Skip" }).click();
+          await guest.getByRole("button", { name: "Accept" }).click();
+          await expect(guest.getByText("Waiting for host")).toBeVisible();
+
+          await markSharecutE2e(producer);
+          await openRecordLink(producer, room.producer.token);
+          await producer.getByLabel("Display name").fill("Pat");
+          await producer.getByRole("button", { name: "Join" }).click();
+          await expect(producer.getByText("Waiting for host")).toBeVisible();
+          await expect(
+            roomDlg.getByRole("heading", { name: "Not recorded" }),
+          ).toBeVisible();
+
+          const startBtn = roomDlg.getByRole("button", {
+            name: "Start",
+            exact: true,
+          });
+          await expect(startBtn).toBeEnabled();
+          await clickHostTransport(
+            host,
+            startBtn,
+            projectPath,
+            "Start",
+            "recording",
+          );
+          await expect(guest.locator(".record-rec-label")).toHaveText("REC");
+          await expect(
+            guest.getByText("Recording locally on this device."),
+          ).toBeVisible();
+          await expect(producer.getByText("Hearing the room.")).toBeVisible({
+            timeout: 15_000,
+          });
+
+          const commentsOf = (scope: Page | Locator) =>
+            scope.getByRole("region", { name: "Live comments" });
+          await guest.evaluate(() => {
+            (document.activeElement as HTMLElement | null)?.blur();
+          });
+          await guest.keyboard.press("m");
+          await expect(
+            commentsOf(guest).getByText("You: Marker"),
+          ).toBeVisible();
+          await guest.getByLabel("Note", { exact: true }).fill("Great answer");
+          await guest.getByRole("button", { name: "Add note" }).click();
+          await expect(
+            commentsOf(guest).getByText("You: Great answer"),
+          ).toBeVisible();
+          await producer
+            .getByLabel("Note", { exact: true })
+            .fill("Producer note");
+          await producer.getByRole("button", { name: "Add note" }).click();
+          await expect(
+            commentsOf(producer).getByText("You: Producer note"),
+          ).toBeVisible();
+
+          const hostComments = commentsOf(roomDlg);
+          await expect(hostComments.getByText("Ava: Marker")).toBeVisible();
+          await expect(
+            hostComments.getByText("Ava: Great answer"),
+          ).toBeVisible();
+          await expect(
+            hostComments.getByText("Pat: Producer note"),
+          ).toBeVisible();
+          await expect(
+            commentsOf(producer).getByText("Ava: Marker"),
+          ).toBeVisible();
+          await expect(
+            commentsOf(guest).getByText(/Producer note/),
+          ).toHaveCount(0);
+
+          await expect
+            .poll(() => keeperWavBytes(guest), { timeout: 15_000 })
+            .toBeGreaterThan(44 + 48_000 * 2);
+
+          await clickHostTransport(
+            host,
+            roomDlg.getByRole("button", { name: "Stop", exact: true }),
+            projectPath,
+            "Stop",
+            "stopped",
+          );
+          await expect(guest.locator(".record-rec-label")).toHaveText(
+            "Stopped",
+          );
+          const guestId = await recordParticipantId(host, projectPath, "Ava");
+
+          await expect
+            .poll(
+              async () => {
+                const res = await host.request.get("/api/record/upload", {
+                  params: { path: projectPath },
+                });
+                if (!res.ok()) return false;
+                const body = (await res.json()) as {
+                  segments?: Array<{
+                    participant_id?: string;
+                    file_ack?: boolean;
+                  }>;
+                };
+                const segs = (body.segments ?? []).filter(
+                  (seg) => seg.participant_id === guestId,
+                );
+                return (
+                  segs.length > 0 && segs.every((seg) => seg.file_ack === true)
+                );
+              },
+              { timeout: 60_000 },
+            )
+            .toBe(true);
+          await expect(
+            guest.getByRole("button", { name: "Leave" }),
+          ).toBeEnabled();
+          const uploadList = roomDlg.getByRole("list", {
+            name: "Upload status",
+          });
+
+          expect(await keeperWavBytes(producer)).toBe(0);
+          await expect(
+            producer.getByText(
+              /Uploading your take|Uploaded; waiting to land on the host/,
+            ),
+          ).toHaveCount(0);
+
+          // The host lands automatically once every keeper is file-ACKed; click
+          // Land only if that has not happened yet.
+          const landButton = roomDlg.getByRole("button", {
+            name: "Land",
+            exact: true,
+          });
+          if (await landButton.isEnabled().catch(() => false)) {
+            await landButton.click().catch(() => undefined);
+          }
+          await expect(uploadList.getByText("Ava: landed.")).toBeVisible({
+            timeout: 60_000,
+          });
+          await expect(
+            guest.getByText(
+              "Landed on the host. The local backup is cleared automatically.",
+            ),
+          ).toBeVisible({ timeout: 30_000 });
+
+          const saved = JSON.parse(await readFile(projectPath, "utf8")) as {
+            sources: Array<{ id: string; path: string }>;
+            timeline: {
+              tracks: Array<{ id: string; label?: string }>;
+              clips: Array<{
+                track_id: string;
+                source_id: string;
+                timeline_start: number;
+                source_start: number;
+                source_end: number;
+              }>;
+            };
+            review: {
+              comments: Array<{
+                body: string;
+                author?: string;
+                timeline_start: number;
+              }>;
+            };
+          };
+          const ava = saved.timeline.tracks.find((t) => t.label === "Ava");
+          expect(ava, "landed track for Ava").toBeTruthy();
+          const avaClips = saved.timeline.clips.filter(
+            (c) => c.track_id === ava?.id,
+          );
+          expect(avaClips.length).toBeGreaterThanOrEqual(1);
+          for (const clip of avaClips) {
+            const source = saved.sources.find(
+              (src) => src.id === clip.source_id,
+            );
+            expect(source, `source ${clip.source_id}`).toBeTruthy();
+            expect(source?.path).toMatch(/^raw\//);
+            await access(
+              path.join(path.dirname(projectPath), source?.path ?? ""),
+            );
+          }
+          const takeEnd = Math.max(
+            ...avaClips.map(
+              (c) => c.timeline_start + c.source_end - c.source_start,
+            ),
+          );
+          const byBody = (body: string) =>
+            saved.review.comments.find((c) => c.body === body);
+          expect(byBody("Marker")?.author).toBe(guestId);
+          expect(byBody("Great answer")?.author).toBe(guestId);
+          for (const body of ["Marker", "Great answer", "Producer note"]) {
+            const c = byBody(body);
+            expect(c, `review comment ${body}`).toBeTruthy();
+            expect(c?.timeline_start).toBeGreaterThanOrEqual(0);
+            expect(c?.timeline_start).toBeLessThanOrEqual(takeEnd + 1);
+          }
+
+          await expect
+            .poll(
+              async () => {
+                await host.keyboard.press("Escape");
+                return roomDlg.isVisible();
+              },
+              { timeout: 30_000 },
+            )
+            .toBe(false);
+          await expect(
+            host.getByRole("button", { name: "Open track details, Ava" }),
+          ).toBeVisible();
+          await host
+            .getByRole("region", { name: "Editor panels" })
+            .getByRole("button", { name: "Comments" })
+            .click();
+          await expect(host.getByText("Great answer").first()).toBeVisible();
+          await expect(host.getByText("Producer note").first()).toBeVisible();
+        },
+      );
     });
   });
 });

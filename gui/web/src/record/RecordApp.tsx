@@ -376,7 +376,7 @@ export function RecordApp({ token }: { token: string }) {
               onRetryKeeper={keeper.error ? keeper.retry : undefined}
               hearing={monitor.hearing}
               monitorError={monitor.error}
-              upload={upload}
+              upload={producer ? undefined : upload}
               micLost={mic.lost}
               micReady={producer || mic.stream !== null}
               micPending={mic.pending}
