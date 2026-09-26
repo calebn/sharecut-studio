@@ -6,6 +6,7 @@ from typing import Any
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.inaudible_cuts import (
+    CutWordIndex,
     InaudibleCutConfig,
     _distance_to_nearest_boundary,
     _retained_word_boundaries,
@@ -48,12 +49,17 @@ def word_margin_violation_sec(
     end: float,
     *,
     config: InaudibleCutConfig | None = None,
+    word_index: CutWordIndex | None = None,
 ) -> float:
     cfg = config or InaudibleCutConfig.from_defaults()
     margin = cfg.min_word_margin_ms / 1000.0
     if margin <= 0:
         return 0.0
-    bounds = _retained_word_boundaries(project, track_id, exclude_start=start, exclude_end=end)
+    bounds = (
+        word_index.retained_view(start, end)
+        if word_index is not None
+        else _retained_word_boundaries(project, track_id, exclude_start=start, exclude_end=end)
+    )
     start_gap = margin - _distance_to_nearest_boundary(start, bounds)
     end_gap = margin - _distance_to_nearest_boundary(end, bounds)
     return max(0.0, start_gap, end_gap)
@@ -282,6 +288,7 @@ def assess_cut_risk(
     defaults: dict[str, Any] | None = None,
     cache: JumpCache | None = None,
     audio_cache: TrackAudioCache | None = None,
+    word_index: CutWordIndex | None = None,
 ) -> CutRisk:
     tighten = _tighten_cfg(defaults)
     max_score = float(tighten.get("max_cut_risk_score", 0.65))
@@ -292,7 +299,9 @@ def assess_cut_risk(
         score += 0.35
         reasons.append(f"low boundary confidence ({boundary_confidence:.2f})")
 
-    margin_violation = word_margin_violation_sec(project, track_id, start, end)
+    margin_violation = word_margin_violation_sec(
+        project, track_id, start, end, word_index=word_index
+    )
     if margin_violation > 0:
         score += min(0.35, margin_violation * 20.0)
         reasons.append(f"within word margin ({margin_violation * 1000:.0f}ms)")
@@ -332,6 +341,7 @@ def optimize_and_assess(
     force_enabled: bool | None = None,
     cache: JumpCache | None = None,
     audio_cache: TrackAudioCache | None = None,
+    word_index: CutWordIndex | None = None,
 ):
     tighten = _tighten_cfg(defaults)
     use_opt = tighten.get("inaudible_opt", True)
@@ -344,6 +354,7 @@ def optimize_and_assess(
         end,
         force_enabled=force_enabled,
         audio_cache=audio_cache,
+        word_index=word_index,
     )
     risk = assess_cut_risk(
         project,
@@ -355,5 +366,6 @@ def optimize_and_assess(
         defaults=defaults,
         cache=cache,
         audio_cache=audio_cache,
+        word_index=word_index,
     )
     return opt, risk

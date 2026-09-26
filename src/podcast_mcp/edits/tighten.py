@@ -10,10 +10,12 @@ from podcast_mcp.edits.fillers import (
     _apply_analyzed_cut,
     _collect_candidates,
     _CutCandidate,
+    _peer_speech_indexes,
     _resolve_analyzed_cuts,
     _speaker_cut_context,
     normalize_edit_mode,
 )
+from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.tighten_intensity import with_tighten_intensity
 from podcast_mcp.edits.tighten_reasons import (
     REPETITION_REASON_PREFIX,
@@ -106,18 +108,26 @@ def propose_tighten_edits(
     # analysis -- this is the dominant cost at scale, well beyond what thread-pool
     # parallelism alone can buy back. Read-only; safe to share across the pools below.
     audio_caches = build_track_audio_caches(project, {t.track_id for t in project.transcripts})
+    peer_indexes = _peer_speech_indexes(project)
     max_workers = cfg.get("performance", {}).get("max_workers")
 
     def _gather(transcript: Transcript) -> tuple[list[_CutCandidate], dict[str, int]]:
         # Per-track skip counts: each worker fills its own dict, merged below.
         counts: dict[str, int] = {}
         found = _add_acoustic_candidates(
-            _collect_candidates(transcript, cfg, project=project, skip_counts=counts),
+            _collect_candidates(
+                transcript,
+                cfg,
+                project=project,
+                skip_counts=counts,
+                peer_indexes=peer_indexes,
+            ),
             transcript,
             cfg,
             project=project,
             audio_cache=audio_caches.get(transcript.track_id),
             skip_counts=counts,
+            peer_indexes=peer_indexes,
         )
         return found, counts
 
@@ -133,6 +143,10 @@ def propose_tighten_edits(
             skip_counts[key] = skip_counts.get(key, 0) + n
 
     speaker_context = _speaker_cut_context(project) if candidates else None
+    word_indexes = {
+        track_id: CutWordIndex.build(project, track_id)
+        for track_id in {candidate.track_id for candidate in candidates}
+    }
     results = run_parallel(
         candidates,
         lambda c: _analyze_candidate(
@@ -141,6 +155,8 @@ def propose_tighten_edits(
             cfg,
             audio_cache=audio_caches.get(c.track_id),
             speaker_context=speaker_context,
+            word_index=word_indexes[c.track_id],
+            peer_indexes=peer_indexes,
         ),
         max_workers=max_workers,
     )

@@ -94,9 +94,142 @@ def _clamp(v: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, v))
 
 
+@dataclass(frozen=True)
+class CutWordIndex:
+    """Read-only transcript facts shared by candidate workers for one track."""
+
+    boundaries: tuple[tuple[float, int], ...]
+    retained: tuple[tuple[float, float, float], ...]
+    starts: tuple[float, ...]
+    first_live: tuple[int, ...]
+    first_audible: tuple[int, ...]
+    original_starts: tuple[float, ...]
+    bleed_starts: tuple[float, ...]
+    bleed_max_ends: tuple[float, ...]
+
+    @classmethod
+    def build(cls, project: EpisodeProject, track_id: str) -> CutWordIndex:
+        tr = project.transcript_for_track(track_id)
+        words = tr.words if tr is not None else []
+        boundaries = sorted(
+            (float(boundary), ordinal)
+            for i, w in enumerate(words)
+            if not w.suppressed
+            for ordinal, boundary in ((2 * i, w.start), (2 * i + 1, w.end))
+        )
+        retained = sorted(
+            (float(boundary), float(w.start), float(w.end))
+            for w in words
+            if not w.suppressed
+            for boundary in (w.start, w.end)
+        )
+        starts_with_indexes = sorted((float(w.start), i) for i, w in enumerate(words))
+        starts = tuple(start for start, _ in starts_with_indexes)
+        first_live: list[int] = [len(words)] * len(starts)
+        first_audible: list[int] = [len(words)] * len(starts)
+        live = audible = len(words)
+        for pos in range(len(starts) - 1, -1, -1):
+            i = starts_with_indexes[pos][1]
+            w = words[i]
+            if w.end > w.start:
+                live = min(live, i)
+                if not w.suppressed:
+                    audible = min(audible, i)
+            first_live[pos] = live
+            first_audible[pos] = audible
+        bleed = sorted(
+            (float(w.start), float(w.end))
+            for w in words
+            if w.audibility_status == "bleed"
+            or (w.speaker_match_track and w.speaker_match_track != track_id)
+        )
+        bleed_max_ends: list[float] = []
+        last_end = float("-inf")
+        for _start, end in bleed:
+            last_end = max(last_end, end)
+            bleed_max_ends.append(last_end)
+        return cls(
+            tuple(boundaries),
+            tuple(retained),
+            starts,
+            tuple(first_live),
+            tuple(first_audible),
+            tuple(float(w.start) for w in words),
+            tuple(start for start, _end in bleed),
+            tuple(bleed_max_ends),
+        )
+
+    def has_bleed_overlap(self, start: float, end: float) -> bool:
+        before = bisect_left(self.bleed_starts, end)
+        return before > 0 and self.bleed_max_ends[before - 1] > start
+
+    def nearest_boundary(self, t: float, max_shift: float) -> float:
+        if not self.boundaries:
+            return t
+        at = bisect_left(self.boundaries, (t, -1))
+        positions = [i for i in (at - 1, at) if 0 <= i < len(self.boundaries)]
+        candidates = [
+            self.boundaries[bisect_left(self.boundaries, (self.boundaries[i][0], -1))]
+            for i in positions
+        ]
+        if not candidates:
+            return t
+        best = min(candidates, key=lambda item: (abs(item[0] - t), item[1]))
+        return best[0] if abs(best[0] - t) <= max_shift else t
+
+    def next_start(
+        self, project: EpisodeProject, track_id: str, threshold: float, *, audible: bool = False
+    ) -> float | None:
+        pos = bisect_left(self.starts, threshold)
+        if pos >= len(self.starts):
+            return None
+        i = (self.first_audible if audible else self.first_live)[pos]
+        return self.original_starts[i] if i < len(self.original_starts) else None
+
+    def retained_view(self, exclude_start: float, exclude_end: float) -> _RetainedBoundaryView:
+        return _RetainedBoundaryView(self.retained, exclude_start, exclude_end)
+
+    def retained_boundaries(self, exclude_start: float, exclude_end: float) -> list[float]:
+        return [
+            boundary
+            for boundary, start, end in self.retained
+            if end <= exclude_start + 1e-6 or start >= exclude_end - 1e-6
+        ]
+
+
+@dataclass(frozen=True)
+class _RetainedBoundaryView:
+    records: tuple[tuple[float, float, float], ...]
+    exclude_start: float
+    exclude_end: float
+
+    def distance(self, t: float) -> float:
+        pos = bisect_left(self.records, (t, float("-inf"), float("-inf")))
+        left, right = pos - 1, pos
+        while left >= 0 or right < len(self.records):
+            left_gap = t - self.records[left][0] if left >= 0 else float("inf")
+            right_gap = self.records[right][0] - t if right < len(self.records) else float("inf")
+            use_left = left_gap <= right_gap
+            i = left if use_left else right
+            boundary, start, end = self.records[i]
+            if end <= self.exclude_start + 1e-6 or start >= self.exclude_end - 1e-6:
+                return abs(t - boundary)
+            if use_left:
+                left -= 1
+            else:
+                right += 1
+        return float("inf")
+
+
 def _nearest_word_boundary(
-    project: EpisodeProject, track_id: str, t: float, max_shift: float
+    project: EpisodeProject,
+    track_id: str,
+    t: float,
+    max_shift: float,
+    word_index: CutWordIndex | None = None,
 ) -> float:
+    if word_index is not None:
+        return word_index.nearest_boundary(t, max_shift)
     tr = project.transcript_for_track(track_id)
     if not tr or not tr.words:
         return t
@@ -117,7 +250,10 @@ def _retained_word_boundaries(
     *,
     exclude_start: float | None = None,
     exclude_end: float | None = None,
+    word_index: CutWordIndex | None = None,
 ) -> list[float]:
+    if word_index is not None and exclude_start is not None and exclude_end is not None:
+        return word_index.retained_boundaries(exclude_start, exclude_end)
     tr = project.transcript_for_track(track_id)
     if not tr:
         return []
@@ -133,7 +269,11 @@ def _retained_word_boundaries(
     return sorted(bounds)
 
 
-def _distance_to_nearest_boundary(t: float, boundaries: list[float]) -> float:
+def _distance_to_nearest_boundary(
+    t: float, boundaries: list[float] | _RetainedBoundaryView
+) -> float:
+    if isinstance(boundaries, _RetainedBoundaryView):
+        return boundaries.distance(t)
     if not boundaries:
         return float("inf")
     at = bisect_left(boundaries, t)
@@ -143,10 +283,14 @@ def _distance_to_nearest_boundary(t: float, boundaries: list[float]) -> float:
 def _enforce_word_margin(
     t: float,
     orig_t: float,
-    boundaries: list[float],
+    boundaries: list[float] | _RetainedBoundaryView,
     margin_sec: float,
     max_shift: float,
 ) -> float:
+    if isinstance(boundaries, _RetainedBoundaryView):
+        # Every retained boundary has zero distance to itself, so the legacy
+        # candidate search has no safe result when margin_sec is positive.
+        return t if margin_sec <= 0 or boundaries.distance(t) >= margin_sec else orig_t
     if margin_sec <= 0 or not boundaries:
         return t
     if _distance_to_nearest_boundary(t, boundaries) >= margin_sec:
@@ -233,8 +377,12 @@ def _rms_db_hops(
     return out
 
 
-def _next_word_start_at_or_after(project: EpisodeProject, track_id: str, t: float) -> float | None:
+def _next_word_start_at_or_after(
+    project: EpisodeProject, track_id: str, t: float, word_index: CutWordIndex | None = None
+) -> float | None:
     """Start of the first transcript word with ``start >= t``."""
+    if word_index is not None:
+        return word_index.next_start(project, track_id, t - 1e-9)
     tr = project.transcript_for_track(track_id)
     if not tr:
         return None
@@ -406,6 +554,7 @@ def _absorb_trailing_silence(
     config: InaudibleCutConfig,
     sample_rate: int = 16000,
     audio_cache: TrackAudioCache | None = None,
+    word_index: CutWordIndex | None = None,
 ) -> tuple[float, bool]:
     """Extend ``cut_end`` through quiet air before the next word, keeping a breath.
 
@@ -417,7 +566,7 @@ def _absorb_trailing_silence(
         return cut_end, False
     retain = max(0.05, float(config.absorb_trailing_silence_retain_sec))
     max_gap = max(retain + 0.05, float(config.absorb_trailing_silence_max_sec))
-    next_start = _next_word_start_at_or_after(project, track_id, cut_end)
+    next_start = _next_word_start_at_or_after(project, track_id, cut_end, word_index)
     if next_start is None:
         return cut_end, False
     gap = next_start - cut_end
@@ -446,6 +595,7 @@ def optimize_source_cut_range(
     config: InaudibleCutConfig | None = None,
     force_enabled: bool | None = None,
     audio_cache: TrackAudioCache | None = None,
+    word_index: CutWordIndex | None = None,
 ) -> OptimizedCutRange:
     cfg = config or InaudibleCutConfig.from_defaults()
     enabled = cfg.enabled if force_enabled is None else force_enabled
@@ -469,8 +619,8 @@ def optimize_source_cut_range(
     silence_absorbed = False
     src: Path | None = None
     if enabled and mode == "vocal_transcript_guided":
-        start = _nearest_word_boundary(project, track_id, start, max_shift)
-        end = _nearest_word_boundary(project, track_id, end, max_shift)
+        start = _nearest_word_boundary(project, track_id, start, max_shift, word_index)
+        end = _nearest_word_boundary(project, track_id, end, max_shift, word_index)
     if enabled:
         try:
             src = track_audio_path(project, track_id)
@@ -485,8 +635,12 @@ def optimize_source_cut_range(
         end = max(orig_end, start + 0.01)
     margin_sec = cfg.min_word_margin_ms / 1000.0
     if enabled and mode == "vocal_transcript_guided" and margin_sec > 0:
-        kept_bounds = _retained_word_boundaries(
-            project, track_id, exclude_start=orig_start, exclude_end=orig_end
+        kept_bounds = (
+            word_index.retained_view(orig_start, orig_end)
+            if word_index is not None
+            else _retained_word_boundaries(
+                project, track_id, exclude_start=orig_start, exclude_end=orig_end
+            )
         )
         start = _enforce_word_margin(start, orig_start, kept_bounds, margin_sec, max_shift)
         end = _enforce_word_margin(end, orig_end, kept_bounds, margin_sec, max_shift)
@@ -498,7 +652,7 @@ def optimize_source_cut_range(
     # that window is still hot.
     if enabled and mode == "vocal_transcript_guided" and src is not None:
         try:
-            search_until = _next_word_start_at_or_after(project, track_id, end)
+            search_until = _next_word_start_at_or_after(project, track_id, end, word_index)
             end, trailing_extended = _extend_end_past_trailing_energy(
                 src,
                 start,
@@ -520,6 +674,7 @@ def optimize_source_cut_range(
                 end,
                 config=cfg,
                 audio_cache=audio_cache,
+                word_index=word_index,
             )
         except Exception as exc:
             log.debug("Could not absorb trailing silence for %s: %s", track_id, exc)

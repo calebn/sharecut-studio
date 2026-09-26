@@ -50,6 +50,35 @@ def _project_with_transcript(words: list[TranscriptWord]) -> EpisodeProject:
     return project
 
 
+def test_peer_speech_index_matches_direct_gap_scan() -> None:
+    from podcast_mcp.edits.fillers import _peer_speaking_in_gap, _peer_speech_indexes
+
+    project = _project_with_transcript([])
+    project.tracks.append(
+        Track(
+            id="guest",
+            label="Guest",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="/tmp/ws/raw/guest.wav", duration_sec=30.0),
+        )
+    )
+    project.transcripts.append(
+        Transcript(
+            track_id="guest",
+            words=[
+                TranscriptWord(text="late", start=3.0, end=3.4),
+                TranscriptWord(text="muted", start=1.0, end=1.3, suppressed=True),
+                TranscriptWord(text="early", start=2.0, end=2.2),
+            ],
+        )
+    )
+    indexes = _peer_speech_indexes(project)
+    for start, end in ((0, 1.1), (1.5, 2.1), (2.2, 3.1), (3.4, 4.0)):
+        assert _peer_speaking_in_gap(project, "host", start, end, indexes) == (
+            _peer_speaking_in_gap(project, "host", start, end)
+        )
+
+
 def _passthrough_opt(start: float, end: float):
     from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
 
@@ -597,7 +626,7 @@ def test_periodic_phrase_restart_stays_bounded_after_proposal_coalescing(monkeyp
     project = _project_with_transcript(words)
     monkeypatch.setattr(tighten_module, "build_track_audio_caches", lambda *_args: {})
 
-    def analyze(_project, candidate, _defaults, *, audio_cache=None):
+    def analyze(_project, candidate, _defaults, *, audio_cache=None, **_context):
         return _AnalyzedCut(
             track_id=candidate.track_id,
             start=candidate.start,
