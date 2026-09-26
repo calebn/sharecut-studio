@@ -10,6 +10,7 @@ from podcast_mcp.history import HistoryManager
 from podcast_mcp.history.diff import diff_snapshots
 from podcast_mcp.history.summary import format_history_group_title, summarize_diff
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.project_merge import ConflictAdvice
 from podcast_mcp.render import render_preview_result, rerender_preview
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.project_state import project_commit_lock
@@ -124,9 +125,11 @@ class HistoryService:
                 f"re-render the preview instead of repeating the {action}"
             ) from exc
         self.ws.save_merged(
-            retry=f"the {action} is saved; re-render the preview instead of repeating the {action}",
-            undo_redo_retry="another undo or redo moved the history cursor while the "
-            "preview rendered; check history_status before re-rendering the preview",
+            advice=ConflictAdvice(
+                retry=f"the {action} is saved; re-render the preview instead of repeating the {action}",
+                undo_redo="another undo or redo moved the history cursor while the "
+                "preview rendered; check history_status before re-rendering the preview",
+            )
         )
         return {**self.status(), "preview": preview}
 

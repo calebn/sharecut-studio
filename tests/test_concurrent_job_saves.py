@@ -567,8 +567,8 @@ def test_history_move_rerender_cursor_clash_says_to_check_history_status(
 ):
     ws = _with_undoable_gain(minimal_project)
 
-    def cursor_clash(_base, _ours, _theirs, **advice):
-        raise ProjectMergeConflict([HISTORY_CURSOR_CONFLICT], **advice)
+    def cursor_clash(_base, _ours, _theirs, *, advice):
+        raise ProjectMergeConflict([HISTORY_CURSOR_CONFLICT], advice=advice)
 
     monkeypatch.setattr(workspace_mod, "merge_project_data", cursor_clash)
 
