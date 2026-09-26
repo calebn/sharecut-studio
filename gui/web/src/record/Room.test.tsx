@@ -52,6 +52,27 @@ describe("Room", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("keeps the guest REC label and dot while the host is offline", () => {
+    render(
+      <Room
+        snapshot={snapshot}
+        me={me}
+        onMute={() => undefined}
+        onLeave={() => undefined}
+        onMarker={() => undefined}
+        onSubmitNote={() => undefined}
+        note=""
+        onNote={() => undefined}
+        connected={false}
+        recordingLocally
+      />,
+    );
+    expect(screen.getByText(HOST_OFFLINE_COPY)).toBeInTheDocument();
+    expect(screen.getByText("REC")).toBeInTheDocument();
+    expect(screen.queryByText(/reconnecting/)).toBeNull();
+    expect(document.querySelector(".record-rec-dot")).not.toBeNull();
+  });
+
   it("waits for the host to resume before offering local capture retry", async () => {
     const retry = vi.fn();
     const { container } = render(
