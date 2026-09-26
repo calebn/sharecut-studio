@@ -5,7 +5,7 @@ from __future__ import annotations
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.clips_ops import abutting_pairs, clips_for_track
 from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms
-from podcast_mcp.models import ClipJoinMode, EpisodeProject, TrackRole
+from podcast_mcp.models import ClipJoinMode, EpisodeProject, Track, TrackRole
 from podcast_mcp.util.change_summary import change_summary
 from podcast_mcp.util.tracks import dialogue_track_ids, resolve_track
 
@@ -15,6 +15,16 @@ def join_fade_max_ms(defaults: dict | None = None) -> int:
     return int(cfg.get("render", {}).get("join_fade_max_ms", 40))
 
 
+def track_fade_max_ms(track: Track | None, defaults: dict | None = None) -> int | None:
+    """Longest edge fade (ms) a clip on *track* may take; ``None`` when uncapped.
+
+    Dialogue fades cap at ``render.join_fade_max_ms``; other roles are uncapped.
+    """
+    if track is None or track.role != TrackRole.DIALOGUE:
+        return None
+    return join_fade_max_ms(defaults)
+
+
 def cap_fade_ms(
     project: EpisodeProject,
     track_id: str,
@@ -22,11 +32,9 @@ def cap_fade_ms(
     defaults: dict | None = None,
 ) -> int:
     """Cap dialogue fades at render.join_fade_max_ms; leave other roles uncapped."""
-    cfg = defaults or load_defaults()
-    track = project.track_by_id(track_id)
-    if track and track.role == TrackRole.DIALOGUE:
-        return min(max(0, fade_ms), join_fade_max_ms(cfg))
-    return max(0, fade_ms)
+    cap = track_fade_max_ms(project.track_by_id(track_id), defaults)
+    fade = max(0, fade_ms)
+    return fade if cap is None else min(fade, cap)
 
 
 def set_clip_join_mode(

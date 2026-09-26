@@ -124,10 +124,10 @@ Shipped:
 
 Shipped:
 
-- Edge handles for fade lengths on clip blocks; join diamond selects clip
+- Edge handles for fade lengths on clip blocks (a drag shows the length live and clamps to the track's `fade_max_ms` and the clip length; a click under 3 px only selects); join diamond selects clip
 - Inspector: editable `fade_in_ms` / `fade_out_ms`, `join_in_mode` (fade / crossfade / cut)
 - Document commands `SetClipFade`, `SetJoinMode`, `ApplyFadeRecommendations` (track-scoped recommend+apply)
-- MCP `set_join_mode_tool`; dialogue fades capped at `render.join_fade_max_ms` via `set_clip_fade`
+- MCP `set_join_mode_tool`; dialogue fades capped at `render.join_fade_max_ms` via `set_clip_fade`; the project view exposes the cap as `TrackView.fade_max_ms` (null = uncapped) so the drag and inspector inputs clamp before sending
 - Seek join / Play across join audition footer
 
 **Done when:** changing fade ms or join mode from the inspector updates `timeline.clips` and is audible on next audition.

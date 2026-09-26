@@ -7,6 +7,7 @@ from podcast_mcp.edits.clips_ops import abutting_pairs, clips_abut, clips_for_tr
 from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms, recommend_post_pad_fade_in_ms
 from podcast_mcp.edits.edit_log import archive_decision
 from podcast_mcp.edits.filler_pacing import filler_pad_mode
+from podcast_mcp.edits.join_modes import cap_fade_ms
 from podcast_mcp.edits.mute_regions import add_source_mute
 from podcast_mcp.edits.timeline_ops import (
     insert_gap,
@@ -21,7 +22,6 @@ from podcast_mcp.models import (
     EditDecision,
     EditDecisionType,
     EpisodeProject,
-    TrackRole,
 )
 from podcast_mcp.util.review import reject_by_id
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
@@ -98,10 +98,7 @@ def apply_join_fades_from_decisions(
                     cut_kind="filler",
                     defaults=cfg,
                 )
-            track = project.track_by_id(tid)
-            if track and track.role == TrackRole.DIALOGUE:
-                max_ms = int(cfg.get("render", {}).get("join_fade_max_ms", 40))
-                fade = min(fade, max_ms)
+            fade = cap_fade_ms(project, tid, fade, cfg)
             left.fade_out_ms = max(left.fade_out_ms, fade)
             right.fade_in_ms = max(right.fade_in_ms, fade)
             right.join_in_mode = ClipJoinMode.FADE

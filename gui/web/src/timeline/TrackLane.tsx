@@ -266,6 +266,7 @@ export function TrackLaneView({
               role={track.role}
               trackLabel={track.label || track.id}
               zoomPxPerSec={zoomPxPerSec}
+              fadeMaxMs={track.fade_max_ms ?? null}
               color={laneColor(track.role, trackIndex)}
               selected={
                 selectedClipIds.includes(clip.id) ||
