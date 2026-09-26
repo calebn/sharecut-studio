@@ -130,6 +130,7 @@ describe("command bus", () => {
 
   it("registers phase-1 and phase-2 command handlers", () => {
     const ids = listRegisteredIds();
+    expect(ids).toEqual(listCatalogIds().sort());
     for (const id of [
       "transport.togglePlay",
       "transport.stop",

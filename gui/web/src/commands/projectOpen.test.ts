@@ -81,6 +81,17 @@ describe("project.open", () => {
     expect(assign).not.toHaveBeenCalled();
   });
 
+  it("navigates to a new project without dropping unrelated URL state", async () => {
+    vi.stubGlobal("location", {
+      href: "http://127.0.0.1:8765/?project=old&theme=dark",
+      assign,
+    });
+    expect((await execute("project.new")).status).toBe("ok");
+    const destination = new URL(String(assign.mock.calls[0]?.[0]));
+    expect(destination.searchParams.has("project")).toBe(false);
+    expect(destination.searchParams.get("theme")).toBe("dark");
+  });
+
   it("blocks Open before showing a picker while the guard is armed", async () => {
     vi.stubGlobal("location", {
       href: "http://127.0.0.1:8765/?project=old&sc_close_guard=host",
