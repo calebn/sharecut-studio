@@ -253,3 +253,51 @@ def test_cli_pipeline_run_realign_passes_config(tmp_path: Path, monkeypatch) -> 
     )
     assert runner.invoke(app, ["pipeline", "run", "--project", str(path)]).exit_code == 0
     assert seen == [{"align": {"realign": True}}, None]
+
+
+def _write_plans(p: EpisodeProject, offset: float, method: str = "bleed") -> None:
+    from podcast_mcp.edits.conversation_align import (
+        AlignResult,
+        ClipAlignPlan,
+        write_alignment_artifact,
+    )
+
+    write_alignment_artifact(
+        p,
+        AlignResult(
+            plans=[
+                ClipAlignPlan(track_id="host", clip_id="c0", offset_sec=0.0, method="reference"),
+                ClipAlignPlan(track_id="guest", clip_id="c1", offset_sec=offset, method=method),
+            ],
+            reference_track_id="host",
+        ),
+    )
+
+
+def test_unattended_refuses_to_waive_large_move(tmp_path: Path) -> None:
+    from podcast_mcp.edits.align_accept_status import load_status
+
+    p = _proj(tmp_path)
+    _write_plans(p, -35.6)
+    mark_align_pending(p)
+    with pytest.raises(AlignAcceptRequiredError, match="will not auto-waive") as exc:
+        require_or_waive_unattended(p, unattended=True)
+    assert "guest" in str(exc.value)
+    assert (load_status(p) or {})["status"] == "pending"
+
+
+def test_unattended_waives_small_move(tmp_path: Path) -> None:
+    p = _proj(tmp_path)
+    _write_plans(p, 0.4)
+    mark_align_pending(p)
+    assert require_or_waive_unattended(p, unattended=True) == "waived (unattended)"
+
+
+def test_status_report_lists_large_moves(tmp_path: Path) -> None:
+    from podcast_mcp.edits.align_accept_status import align_status_report
+
+    p = _proj(tmp_path)
+    _write_plans(p, 7.0)
+    report = align_status_report(p)
+    assert report["large_move_sec"] == 1.0
+    assert [m["track_id"] for m in report["large_moves"]] == ["guest"]
