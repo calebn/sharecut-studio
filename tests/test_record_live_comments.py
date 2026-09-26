@@ -14,7 +14,7 @@ from podcast_mcp.history import HistoryManager
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services import ProjectWorkspace
 from podcast_mcp.services.record import service as record_service
-from podcast_mcp.services.record.commands import RecordAuthzError, RecordCommand
+from podcast_mcp.services.record.commands import COMMAND_TYPES, RecordAuthzError, RecordCommand
 from podcast_mcp.services.record.landing import RecordLandingService
 from podcast_mcp.services.record.live_comments import (
     RECORD_LIVE_COMMENT_MAX,
@@ -769,3 +769,27 @@ def test_failed_comment_write_leaves_no_command_and_retry_applies(
     assert [r for r in svc._store.commands_after(0) if r["type"] == "Comment"] == []
     svc.submit(cmd, now_wall_ms=200_000, capabilities=caps)
     assert [c["id"] for c in svc.snapshot()["comments"]] == ["live-retry"]
+
+
+def test_every_record_command_type_journals_inside_one_write_transaction(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    """apply_fn / side_effect_fn run inside BEGIN IMMEDIATE: a write through another
+    connection would fail with 'database is locked', so every type must journal cleanly."""
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)  # Join (guest + host) and Consent
+    caps = ["join", "monitor", "comment"]
+    svc.submit(_cmd("SetMuted", payload={"muted": True}), now_wall_ms=0)
+    svc.submit(_cmd("HeadphonesAck", payload={"ok": True}), now_wall_ms=0)
+    svc.submit(_cmd("Heartbeat"), now_wall_ms=0)
+    svc.submit(_cmd("UpdateName", payload={"display_name": "Host 2"}), now_wall_ms=0)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_guest_comment(guest, "all-types", 10_000), now_wall_ms=20_000, capabilities=caps)
+    svc.submit(_cmd("Pause"), now_wall_ms=30_000)
+    svc.submit(_cmd("Resume"), now_wall_ms=40_000)
+    svc.submit(_cmd("Stop"), now_wall_ms=50_000)
+    svc.submit(_cmd("RemoveParticipant", payload={"participant_id": guest}), now_wall_ms=60_000)
+    svc.submit(_cmd("Leave"), now_wall_ms=70_000)
+    assert {row["type"] for row in svc._store.commands_after(0)} == set(COMMAND_TYPES)
