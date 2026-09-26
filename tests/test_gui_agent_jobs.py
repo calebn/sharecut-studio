@@ -39,6 +39,23 @@ def test_gui_agent_job_progress_sink_skips_without_studio_manager() -> None:
         jobs_mod._SHARED_JOBS = prior
 
 
+def test_manager_catalog_shares_live_state_and_lock() -> None:
+    """The facade and catalog must use one lock and one job identity table."""
+    mgr = PipelineJobManager()
+    assert mgr._lock is mgr._catalog._lock
+    mgr._finished_limit = 1
+    first = mgr.adopt_agent_job(tool_id="first", label="First", claim="first")
+    assert mgr._catalog.get_job(first.id) is first
+    assert mgr.add_sse_subscriber_for(first)
+    assert mgr.sse_subscriber_count() == 1
+    mgr.complete_agent_job(first, status="ok")
+    assert mgr.get_job(first.id) is first
+    second = mgr.adopt_agent_job(tool_id="second", label="Second", claim="second")
+    mgr.complete_agent_job(second, status="ok")
+    assert mgr.get_job(first.id) is None
+    assert mgr.get_job(second.id) is second
+
+
 def test_instant_tool_does_not_create_agent_job() -> None:
     mgr = PipelineJobManager()
     sink = AgentJobFanInReporter(mgr)
