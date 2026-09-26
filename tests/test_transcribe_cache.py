@@ -181,14 +181,14 @@ def _write_legacy(proj, dest):
     legacy.write_text(tr.model_dump_json(), encoding="utf-8")
 
 
-def test_legacy_cache_name_is_honoured_when_enabled(minimal_project, sample_wav, tmp_workspace):
+def test_legacy_cache_name_is_honoured_by_default(minimal_project, sample_wav, tmp_workspace):
     from unittest.mock import patch
 
     proj, dest = _host_project(minimal_project, sample_wav, tmp_workspace)
     _write_legacy(proj, dest)
     engine = TranscriptionEngine()
     with patch.object(engine, "transcribe_file") as asr:
-        out = engine.transcribe_all_dialogue(proj, language="en", legacy_cache=True)
+        out = engine.transcribe_all_dialogue(proj, language="en")
     asr.assert_not_called()
     assert out[0].words[0].text == "legacy"
     assert out[0].audio_sha256
@@ -204,9 +204,49 @@ def test_legacy_cache_ignored_with_prompt_or_when_disabled(
     engine = TranscriptionEngine()
     fresh = Transcript(track_id="", words=[TranscriptWord(text="fresh", start=0, end=0.5)])
     with patch.object(engine, "transcribe_file", return_value=fresh) as asr:
-        with_prompt = engine.transcribe_all_dialogue(
-            proj, language="en", initial_prompt="P", legacy_cache=True
-        )
-        disabled = engine.transcribe_all_dialogue(proj, language="en", legacy_cache=False)
+        with_prompt = engine.transcribe_all_dialogue(proj, language="en", initial_prompt="P")
+        disabled = engine.transcribe_all_dialogue(proj, language="en", use_cache=False)
     assert asr.call_count == 2
     assert with_prompt[0].words[0].text == disabled[0].words[0].text == "fresh"
+
+
+def test_corrupt_cache_is_a_miss_and_is_rewritten(
+    minimal_project, sample_wav, tmp_workspace, caplog
+):
+    from unittest.mock import patch
+
+    proj, dest = _host_project(minimal_project, sample_wav, tmp_workspace)
+    engine = TranscriptionEngine()
+    cache = engine.cache_path(proj, "host", dest, language="en")
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text('{"track_id": "host", "words": [', encoding="utf-8")
+    fresh = Transcript(track_id="", words=[TranscriptWord(text="fresh", start=0, end=0.5)])
+    with (
+        patch.object(engine, "transcribe_file", return_value=fresh) as asr,
+        caplog.at_level("WARNING"),
+    ):
+        out = engine.transcribe_all_dialogue(proj, language="en")
+    asr.assert_called_once()
+    assert out[0].words[0].text == "fresh"
+    assert "unreadable transcript cache" in caplog.text
+    assert (
+        Transcript.model_validate_json(cache.read_text(encoding="utf-8")).words[0].text == "fresh"
+    )
+
+
+def test_cached_audio_keys_reads_both_names_only_for_that_job(minimal_project):
+    from podcast_mcp.engines.transcribe import cached_audio_keys
+
+    proj = load_project(minimal_project)
+    tdir = proj.transcripts_dir()
+    tdir.mkdir(parents=True, exist_ok=True)
+    for name in (
+        f"host_{'1' * 16}.json",
+        f"host_{'2' * 16}_{'f' * 16}.json",
+        f"host__b_{'3' * 16}_{'f' * 16}.json",
+        "host.json",
+        "combined.json",
+    ):
+        (tdir / name).write_text("{}", encoding="utf-8")
+    assert cached_audio_keys(proj, "host") == {"1" * 16, "2" * 16}
+    assert cached_audio_keys(proj, "host__b") == {"3" * 16}

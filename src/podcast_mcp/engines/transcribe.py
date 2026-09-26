@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 import re
 from dataclasses import dataclass
@@ -20,8 +21,10 @@ from podcast_mcp.models import (
     EpisodeProject,
     TrackRole,
     Transcript,
+    TranscriptKey,
     TranscriptWord,
 )
+from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress_task
 from podcast_mcp.util.workspace_paths import resolve_under_workspace, resolve_within
@@ -31,18 +34,13 @@ from podcast_mcp.whisper_models import (
     validate_whisper_model,
 )
 
+log = logging.getLogger(__name__)
+
 
 def _cache_id_part(raw: str) -> str:
     if re.fullmatch(r"[A-Za-z0-9_-]+", raw):
         return raw
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
-
-
-TranscriptKey = tuple[str, str | None]
-
-
-def transcript_key(t: Any) -> TranscriptKey:
-    return (getattr(t, "track_id", ""), getattr(t, "source_id", None))
 
 
 @dataclass(frozen=True)
@@ -98,6 +96,14 @@ def dialogue_transcribe_jobs(project: EpisodeProject) -> list[TranscribeJob]:
     return jobs
 
 
+def track_transcribe_job(project: EpisodeProject, track_id: str) -> TranscribeJob:
+    """The primary-media job for one track (any role)."""
+    track = project.track_by_id(track_id)
+    if not track or not track.media:
+        raise ValueError(f"track {track_id} not found or has no media")
+    return TranscribeJob(track_id, None, resolve_under_workspace(project, track.media.path))
+
+
 def _info_duration(info: Any) -> float | None:
     raw = getattr(info, "duration", None)
     if isinstance(raw, (int, float)) and raw > 0:
@@ -120,7 +126,29 @@ def legacy_cache_path(project: EpisodeProject, cache_id: str, audio_sha256: str)
 def _read_cache(path: Path) -> Transcript | None:
     if not path.is_file():
         return None
-    return Transcript.model_validate(json.loads(path.read_text(encoding="utf-8")))
+    try:
+        return Transcript.model_validate(json.loads(path.read_text(encoding="utf-8")))
+    except (OSError, ValueError) as exc:
+        # json.JSONDecodeError and pydantic.ValidationError are ValueErrors.
+        log.warning("ignoring unreadable transcript cache %s: %s", path.name, exc)
+        return None
+
+
+_CACHE_AUDIO_KEY = r"_([0-9a-f]{16})(?:_[0-9a-f]{16})?\.json"
+
+
+def cached_audio_keys(project: EpisodeProject, cache_id: str) -> set[str]:
+    """16-hex audio keys of the ASR caches (new and legacy names) stored for ``cache_id``."""
+    tdir = project.transcripts_dir()
+    if not tdir.is_dir():
+        return set()
+    pattern = re.compile(re.escape(_cache_id_part(cache_id)) + _CACHE_AUDIO_KEY)
+    keys: set[str] = set()
+    for path in tdir.iterdir():
+        match = pattern.fullmatch(path.name)
+        if match:
+            keys.add(match.group(1))
+    return keys
 
 
 def flag_anomalous_asr_durations(
@@ -278,9 +306,11 @@ class TranscriptionEngine:
         initial_prompt: str | None = None,
         max_word_sec: float = DEFAULT_MAX_WORD_DURATION_SEC,
         audio_sha256: str | None = None,
-        legacy_cache: bool = False,
     ) -> Transcript:
-        """Transcribe one (track, source) job: new cache, legacy cache, then ASR."""
+        """Transcribe one job: new cache, legacy cache (no prompt only), then ASR.
+
+        use_cache=False skips both caches.
+        """
         sha = audio_sha256 or sha256_file(job.audio)
         cache = self.cache_path(
             project,
@@ -295,7 +325,7 @@ class TranscriptionEngine:
             transcript = _read_cache(cache)
             # The legacy name does not encode model or prompt, so it is only
             # trusted when no prompt shaped the words.
-            if transcript is None and legacy_cache and not initial_prompt:
+            if transcript is None and not initial_prompt:
                 transcript = _read_cache(legacy_cache_path(project, job.cache_id, sha))
         fresh = transcript is None
         if transcript is None:
@@ -313,8 +343,7 @@ class TranscriptionEngine:
             transcript.words, max_word_sec=max_word_sec, track_id=job.track_id
         )
         if fresh:
-            cache.parent.mkdir(parents=True, exist_ok=True)
-            cache.write_text(transcript.model_dump_json(indent=2), encoding="utf-8")
+            write_text_atomic(cache, transcript.model_dump_json(indent=2))
         return transcript
 
     def transcribe_track(
@@ -327,13 +356,9 @@ class TranscriptionEngine:
         initial_prompt: str | None = None,
         max_word_sec: float = DEFAULT_MAX_WORD_DURATION_SEC,
     ) -> Transcript:
-        track = project.track_by_id(track_id)
-        if not track or not track.media:
-            raise ValueError(f"track {track_id} not found or has no media")
-        audio = resolve_under_workspace(project, track.media.path)
         return self.transcribe_job(
             project,
-            TranscribeJob(track_id, None, audio),
+            track_transcribe_job(project, track_id),
             language=language,
             use_cache=use_cache,
             initial_prompt=initial_prompt,
@@ -350,7 +375,7 @@ class TranscriptionEngine:
         max_word_sec: float = DEFAULT_MAX_WORD_DURATION_SEC,
         jobs: list[TranscribeJob] | None = None,
         audio_hashes: dict[TranscriptKey, str] | None = None,
-        legacy_cache: bool = False,
+        use_cache: bool = True,
     ) -> list[Transcript]:
         job_list = dialogue_transcribe_jobs(project) if jobs is None else jobs
         hashes = audio_hashes or {}
@@ -373,7 +398,7 @@ class TranscriptionEngine:
                         initial_prompt=initial_prompt,
                         max_word_sec=max_word_sec,
                         audio_sha256=hashes.get(job.key),
-                        legacy_cache=legacy_cache,
+                        use_cache=use_cache,
                     )
                 )
                 task.advance(1, message=job.label, total=total)

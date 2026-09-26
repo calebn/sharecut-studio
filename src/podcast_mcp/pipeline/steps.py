@@ -90,12 +90,15 @@ def ingest_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSumm
 
 def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.edits.pipeline_unattended import is_unattended
-    from podcast_mcp.edits.transcript_reuse import plan_transcription, stamp_adopted_transcripts
+    from podcast_mcp.edits.transcript_reuse import (
+        merge_transcripts_by_key,
+        plan_transcription,
+        stamp_audio_identity,
+    )
     from podcast_mcp.engines.audio_audit import AnalysisPolicy
     from podcast_mcp.engines.transcribe import (
         collect_anomalous_asr_duration_flags,
         dialogue_transcribe_jobs,
-        transcript_key,
     )
     from podcast_mcp.transcript_context import load_transcript_context
 
@@ -108,8 +111,8 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         jobs,
         overwrite=overwrite,
         unattended=is_unattended(defaults=defaults),
+        allow_edited=bool(cfg.get("overwrite_edited", False)),
     )
-    stamp_adopted_transcripts(project, plan)
     for track_id in plan.overwrite_edited:
         log.warning("re-transcribing overwrites edited transcript for track %s", track_id)
 
@@ -130,16 +133,16 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
             max_word_sec=pol.max_word_audibility_sec,
             jobs=plan.run,
             audio_hashes=plan.audio_hashes,
-            legacy_cache=not overwrite,
+            use_cache=not overwrite,
         )
-        by_id = {transcript_key(t): t for t in project.transcripts}
-        for t in transcripts:
-            by_id[transcript_key(t)] = t
-        project.transcripts = list(by_id.values())
         for t in transcripts:
             t.vocabulary_revision = ctx.vocabulary_revision
+        # A correction saved to one of these transcripts during ASR is not lost: the
+        # runner's save_merged merges words as one value, so both changing them conflicts.
+        merge_transcripts_by_key(project, transcripts)
+    stamp_audio_identity(project, plan)
     job_keys = {j.key for j in jobs}
-    words = sum(len(t.words) for t in project.transcripts if transcript_key(t) in job_keys)
+    words = sum(len(t.words) for t in project.transcripts if t.key in job_keys)
     timing_flags = collect_anomalous_asr_duration_flags(
         project,
         max_word_sec=pol.max_word_audibility_sec,

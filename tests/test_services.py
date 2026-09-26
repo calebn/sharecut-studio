@@ -274,8 +274,20 @@ def test_transcript_service_export_subtitles_builds_missing_combined(minimal_pro
     eng_cls.return_value.merge_transcripts.assert_called_once_with(ws.project)
 
 
+def _host_dialogue(ws):
+    from podcast_mcp.models import MediaAsset, Track, TrackRole
+
+    ws.project.tracks = [
+        Track(
+            id="host", label="Host", role=TrackRole.DIALOGUE, media=MediaAsset(path="raw/host.wav")
+        )
+    ]
+    ws.save()
+
+
 def test_transcript_service_transcribe_all_and_combined_get(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
+    _host_dialogue(ws)
     from podcast_mcp.models import Transcript, TranscriptWord
 
     with patch("podcast_mcp.services.transcript.TranscriptionEngine") as eng_cls:
@@ -295,6 +307,7 @@ def test_transcript_service_applies_saved_vocabulary(minimal_project):
     from podcast_mcp.transcript_context import TranscriptContext
 
     ws = ProjectWorkspace.open(minimal_project)
+    _host_dialogue(ws)
     TranscriptContext(terms=["Kaczynski"], vocabulary_revision="revision-one").save(
         ws.project.workspace_path()
     )
@@ -314,14 +327,18 @@ def test_transcript_service_single_track_stamps_vocabulary_revision(minimal_proj
     from podcast_mcp.transcript_context import TranscriptContext
 
     ws = ProjectWorkspace.open(minimal_project)
+    _host_dialogue(ws)
     TranscriptContext(terms=["Kaczynski"], vocabulary_revision="revision-one").save(
         ws.project.workspace_path()
     )
     with patch("podcast_mcp.services.transcript.TranscriptionEngine") as eng_cls:
-        eng_cls.return_value.transcribe_track.return_value = Transcript(track_id="host", words=[])
+        eng_cls.return_value.transcribe_all_dialogue.return_value = [
+            Transcript(track_id="host", words=[])
+        ]
         TranscriptService(ws).transcribe("host")
         assert (
-            eng_cls.return_value.transcribe_track.call_args.kwargs["initial_prompt"] == "Kaczynski"
+            eng_cls.return_value.transcribe_all_dialogue.call_args.kwargs["initial_prompt"]
+            == "Kaczynski"
         )
     host = [t for t in ws.project.transcripts if t.track_id == "host"]
     assert [t.vocabulary_revision for t in host] == ["revision-one"]
@@ -341,14 +358,45 @@ def test_transcript_combined_get_does_not_change_unsaved_project(minimal_project
 def test_transcript_service_single_track_returns_only_processed_id(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     ws.project.transcripts = [Transcript(track_id="guest", words=[])]
-    ws.save()
+    _host_dialogue(ws)
 
     with patch("podcast_mcp.services.transcript.TranscriptionEngine") as eng_cls:
-        eng_cls.return_value.transcribe_track.return_value = Transcript(track_id="host", words=[])
+        eng_cls.return_value.transcribe_all_dialogue.return_value = [
+            Transcript(track_id="host", words=[])
+        ]
         ids = TranscriptService(ws).transcribe("host")
 
     assert ids == ["host"]
     assert [transcript.track_id for transcript in ws.project.transcripts] == ["guest", "host"]
+
+
+def test_transcript_service_keeps_other_sources_and_warns_on_edited(minimal_project, caplog):
+    ws = ProjectWorkspace.open(minimal_project)
+    _host_dialogue(ws)
+    ws.project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[TranscriptWord(text="mine", start=0, end=0.5)],
+            user_edited=True,
+        ),
+        Transcript(
+            track_id="host", source_id="b", words=[TranscriptWord(text="src", start=0, end=0.5)]
+        ),
+    ]
+    ws.save()
+    with (
+        patch("podcast_mcp.services.transcript.TranscriptionEngine") as eng_cls,
+        caplog.at_level("WARNING"),
+    ):
+        eng_cls.return_value.transcribe_all_dialogue.return_value = [
+            Transcript(track_id="host", words=[TranscriptWord(text="asr", start=0, end=0.5)])
+        ]
+        assert TranscriptService(ws).transcribe("host") == ["host"]
+    keys = {t.key: t for t in ws.project.transcripts}
+    assert set(keys) == {("host", None), ("host", "b")}
+    assert keys[("host", None)].words[0].text == "asr" and not keys[("host", None)].user_edited
+    assert keys[("host", "b")].words[0].text == "src"
+    assert "overwrites edited transcript" in caplog.text
 
 
 def test_transcript_service_export_markdown_and_vtt(minimal_project):
@@ -637,6 +685,15 @@ def test_edit_service_transcript_edits_flag_user_edited(minimal_project):
     ws.project.transcripts[0].user_edited = False
     svc.set_word_suppressed("host", 1, True)
     assert ws.project.transcripts[0].user_edited is True
+
+
+def test_edit_service_noop_edits_leave_transcript_unflagged(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    _with_words(ws)
+    svc = EditService(ws)
+    assert svc.verify_transcript("host", []) == 0
+    assert svc.apply_transcript_cleanup("host", words=[], phrases=[]) == 0
+    assert ws.project.transcripts[0].user_edited is False
 
 
 def test_edit_service_failed_edit_leaves_transcript_unflagged(minimal_project):

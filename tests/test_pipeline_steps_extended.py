@@ -831,6 +831,7 @@ def test_transcribe_tracks_second_run_reuses_and_keeps_corrections(
         first = steps.transcribe_tracks(proj, load_defaults())
     assert "1 transcribed, 0 reused" in first
     assert proj.transcripts[0].audio_sha256
+    assert proj.transcripts[0].audio_size == (tmp_workspace / "raw" / "host.wav").stat().st_size
     proj.transcripts[0].words[0].text = "the"
     with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
         second = steps.transcribe_tracks(proj, load_defaults())
@@ -858,6 +859,37 @@ def test_transcribe_tracks_honours_legacy_cache(minimal_project, sample_wav, tmp
         steps.transcribe_tracks(proj, load_defaults())
     asr.assert_not_called()
     assert proj.transcripts[0].words[0].text == "old"
+
+
+def test_transcribe_tracks_force_bypasses_asr_cache(minimal_project, sample_wav, tmp_workspace):
+    from podcast_mcp.engines import TranscriptionEngine as Engine
+    from podcast_mcp.services.pipeline_config import transcribe_run_config
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    with patch.object(Engine, "transcribe_file", side_effect=lambda *a, **k: _asr_result()) as asr:
+        steps.transcribe_tracks(proj, load_defaults())
+        assert any(proj.transcripts_dir().glob("host_*.json"))
+        summary = steps.transcribe_tracks(proj, transcribe_run_config(None, force=True))
+    assert asr.call_count == 2
+    assert "1 transcribed, 0 reused" in summary
+
+
+def test_transcribe_tracks_confirmed_overwrite_replaces_edited_in_batch(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.engines import TranscriptionEngine as Engine
+    from podcast_mcp.services.pipeline_config import transcribe_run_config
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    _edited_stale_transcript(proj)
+    defaults = {
+        **transcribe_run_config(None, force=True, overwrite_edited=True),
+        "_pipeline_unattended": True,
+    }
+    with patch.object(Engine, "transcribe_file", return_value=_asr_result()):
+        summary = steps.transcribe_tracks(proj, defaults)
+    assert "1 edited overwritten" in summary
+    assert proj.transcripts[0].words[0].text == "teh"
 
 
 def _edited_stale_transcript(proj):

@@ -6,7 +6,9 @@ from podcast_mcp.edits.transcript_correct import (
     apply_transcript_corrections,
     correct_word,
     list_low_confidence,
+    run_user_transcript_edit,
     set_word_suppressed,
+    verify_words,
 )
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
 
@@ -129,4 +131,28 @@ def test_edits_layer_corrections_do_not_flag_user_edited() -> None:
     ]
     apply_transcript_corrections(p, "host", words=[{"word_index": 0, "text": "the"}])
     assert p.transcripts[0].words[0].text == "the"
+    assert p.transcripts[0].user_edited is False
+
+
+def test_user_edit_flags_only_the_resolved_transcript() -> None:
+    p = EpisodeProject.create("tc", "/tmp")
+    p.transcripts = [
+        Transcript(track_id="host", words=[TranscriptWord(text="teh", start=0.0, end=0.5)]),
+        Transcript(
+            track_id="host",
+            source_id="b",
+            words=[TranscriptWord(text="x", start=0.0, end=0.5)],
+        ),
+    ]
+    run_user_transcript_edit(p, "host", lambda q: correct_word(q, "host", 0, "the"))
+    assert p.transcripts[0].user_edited is True
+    assert p.transcripts[1].user_edited is False
+
+
+def test_user_edit_noop_does_not_flag() -> None:
+    p = EpisodeProject.create("tc", "/tmp")
+    p.transcripts = [
+        Transcript(track_id="host", words=[TranscriptWord(text="hi", start=0.0, end=0.5)])
+    ]
+    assert run_user_transcript_edit(p, "host", lambda q: verify_words(q, "host", [])) == 0
     assert p.transcripts[0].user_edited is False

@@ -24,13 +24,14 @@ def pipeline_run(
     working set so agents and Sharecut Studio share the same visible config.
     Omit ``unattended`` to leave the working-set Batch mode unchanged.
     Existing transcripts are reused; ``force_transcribe=true`` re-runs ASR for this run
-    only (not persisted). Edited transcripts are refused when ``unattended``.
+    only (not persisted). Replacing edited transcripts is refused when ``unattended``;
+    run attended, or the user confirms with Studio Re-transcribe.
     """
     from podcast_mcp.services.pipeline_config import (
         config_store,
         merge_pipeline_config,
         skip_steps_from_enabled,
-        with_transcribe_overwrite,
+        transcribe_run_config,
     )
 
     ws = ProjectWorkspace.open(project_path)
@@ -58,7 +59,7 @@ def pipeline_run(
     if use_working_set:
         store.put(ws.path, config=config, unattended=unattended)
 
-    run_config = with_transcribe_overwrite(config) if force_transcribe else config
+    run_config = transcribe_run_config(config, force=force_transcribe)
     run_unattended = (
         bool(unattended)
         if unattended is not None

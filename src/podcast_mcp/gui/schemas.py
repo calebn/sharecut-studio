@@ -25,6 +25,9 @@ class PipelineRunRequest(BaseModel):
     use_working_set: bool = True
     # Run-only: re-run ASR over existing transcripts (never persisted).
     force_transcribe: bool = False
+    # Run-only: the user confirmed replacing hand-edited transcripts (Studio Re-transcribe);
+    # honoured only with force_transcribe, even in Batch mode. Never persisted.
+    overwrite_edited: bool = False
 
 
 class PipelineConfigPutRequest(BaseModel):

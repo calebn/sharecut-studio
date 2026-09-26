@@ -257,5 +257,6 @@ def test_mcp_pipeline_run_force_transcribe_is_run_only(tmp_path, sample_wav):
         mcp_pipeline.pipeline_run(path, only_step="ingest_tracks", force_transcribe=True)
         defaults = mock_runner.call_args.kwargs.get("defaults")
     assert defaults["transcribe"]["overwrite"] is True
+    assert defaults["transcribe"]["overwrite_edited"] is False
     working = store.get(Path(path))
     assert not ((working.config or {}).get("transcribe") or {}).get("overwrite")

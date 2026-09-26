@@ -140,6 +140,10 @@ class TranscriptWord(BaseModel):
     speaker_match_score: float | None = None
 
 
+# One transcript per (track_id, source_id) within a project.
+TranscriptKey = tuple[str, str | None]
+
+
 class Transcript(BaseModel):
     track_id: str
     language: str = "en"
@@ -151,8 +155,16 @@ class Transcript(BaseModel):
     vocabulary_revision: str | None = None
     # Full SHA-256 of the media these words were transcribed from (None = legacy/seeded).
     audio_sha256: str | None = None
-    # True once a user/agent correction, suppression or verify touched the words.
+    # Size and mtime (ns) of that media when audio_sha256 was taken; both matching skips re-hashing.
+    audio_size: int | None = None
+    audio_mtime_ns: int | None = None
+    # True once a user/agent correction, suppression or verify changed the words.
     user_edited: bool = False
+
+    @property
+    def key(self) -> TranscriptKey:
+        """Identity within a project: ``(track_id, source_id)``."""
+        return (self.track_id, self.source_id)
 
 
 class CombinedUtterance(BaseModel):

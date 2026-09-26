@@ -2703,7 +2703,8 @@ def test_api_pipeline_run_force_transcribe_is_run_only(minimal_project, monkeypa
     )
     client = TestClient(create_app())
     res = client.post(
-        "/api/pipeline/run", json={"path": str(minimal_project), "force_transcribe": True}
+        "/api/pipeline/run",
+        json={"path": str(minimal_project), "force_transcribe": True, "overwrite_edited": True},
     )
     assert res.status_code == 200
     for _ in range(100):
@@ -2711,6 +2712,8 @@ def test_api_pipeline_run_force_transcribe_is_run_only(minimal_project, monkeypa
             break
         time.sleep(0.05)
     assert seen and seen[0]["transcribe"]["overwrite"] is True
+    assert seen[0]["transcribe"]["overwrite_edited"] is True
     working = config_store().get(Path(str(minimal_project)))
     persisted = ((working.config or {}).get("transcribe") or {}) if working else {}
     assert not persisted.get("overwrite")
+    assert not persisted.get("overwrite_edited")
