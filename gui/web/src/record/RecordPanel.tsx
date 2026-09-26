@@ -144,7 +144,8 @@ export function RecordPanel({
     send: (commandType, payload, commandId) =>
       sendRecordHostCommand(commandType, payload, commandId),
   });
-  const [transportError, setTransportError] = useState<string | null>(null);
+  const transportError = useRecordHostStore((s) => s.transportError);
+  const setTransportError = useRecordHostStore((s) => s.setTransportError);
   const [hydrateError, setHydrateError] = useState<string | null>(null);
   const [transportBusy, setTransportBusy] = useState(false);
   const sink = useRecordHostStore((s) => s.keeperSink);
@@ -252,7 +253,10 @@ export function RecordPanel({
   return (
     <Dialog
       open={recordPanelOpen}
-      onClose={() => setRecordPanelOpen(false)}
+      onClose={() => {
+        setTransportError(null);
+        setRecordPanelOpen(false);
+      }}
       title="Record room"
       closeDisabled={
         uploadBlocking || micLossNeedsAttention || captureUnavailable

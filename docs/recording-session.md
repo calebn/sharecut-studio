@@ -854,7 +854,13 @@ Producers simply lose audio and reconnect.
 Non-terminal record errors from the room (`forbidden`, `invalid_state`,
 `rate_limited`, `join_first`, `malformed`, or an unknown code) show a persistent
 alert with a **Dismiss** action under the role line; `room_full` and the
-access-ended codes keep their own screens and are never dismissed. Pending live comments queue with
+access-ended codes keep their own screens and are never dismissed.
+
+On the host, a failed `record.start` / `pause` / `resume` / `stop` / `land`
+command (from the keyboard, command palette or the panel) stores its error in
+`useRecordHostStore.transportError`, announces it, and opens the Record room
+panel (unless the Share dialog is open) so the error is visible rather than
+only announced. The next command or closing the panel clears it. Pending live comments queue with
 idempotency keys and upsert on reconnect.
 
 If an OPFS write or close fails, the keeper latches a local-capture failure and
