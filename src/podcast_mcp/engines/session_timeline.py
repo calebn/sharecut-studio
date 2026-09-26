@@ -19,8 +19,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any, Protocol
 
-from podcast_mcp.edits.ranges import merge_intervals
 from podcast_mcp.models import Clip, EpisodeProject
+from podcast_mcp.util.intervals import merge_intervals
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 
 DEFAULT_MERGE_GAP_SEC = 0.15
