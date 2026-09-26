@@ -216,28 +216,42 @@ async function runDeleteClip(
   }
 }
 
-/** Keep a failed record command visible: store the error and open the Record room panel. */
+/**
+ * Keep a failed record command visible: announce it, then store it and open the
+ * Record room panel. Over the Share dialog it is only announced, so no stale
+ * error waits in the store for the next time the panel opens.
+ */
 function revealRecordFailure(reason: string): void {
-  useRecordHostStore.getState().setTransportError(reason);
   const daw = useDawStore.getState();
   daw.announceStatus(reason);
-  if (!daw.shareDialogOpen) {
-    daw.setRecordPanelOpen(true);
+  if (daw.shareDialogOpen && !daw.recordPanelOpen) {
+    return;
   }
+  useRecordHostStore.getState().setTransportError(reason);
+  daw.setRecordPanelOpen(true);
 }
 
-async function runRecordTransportCommand(
-  commandType: string,
+/** One error path for every record command: clear, run, reveal a failure. */
+async function runRecordCommand(
+  run: () => Promise<ExecuteResult>,
 ): Promise<ExecuteResult> {
   useRecordHostStore.getState().setTransportError(null);
   try {
-    await submitHostRecordTransport(commandType);
-    return { status: "ok" };
+    return await run();
   } catch (err) {
     const reason = errorMessage(err);
     revealRecordFailure(reason);
     return { status: "disabled", reason };
   }
+}
+
+function runRecordTransportCommand(
+  commandType: string,
+): Promise<ExecuteResult> {
+  return runRecordCommand(async () => {
+    await submitHostRecordTransport(commandType);
+    return { status: "ok" };
+  });
 }
 
 export function registerDawCommands(): void {
@@ -832,13 +846,12 @@ export function registerDawCommands(): void {
   registerCommand("record.pause", () => runRecordTransportCommand("Pause"));
   registerCommand("record.resume", () => runRecordTransportCommand("Resume"));
   registerCommand("record.stop", () => runRecordTransportCommand("Stop"));
-  registerCommand("record.land", async () => {
+  registerCommand("record.land", () => {
     const s = useDawStore.getState();
     if (!canManageProjects(s.projectPath)) {
       return { status: "disabled", reason: "Landing keepers is host-only" };
     }
-    useRecordHostStore.getState().setTransportError(null);
-    try {
+    return runRecordCommand(async () => {
       const result = await hostLandRecord(s.projectPath);
       const n = Array.isArray(result.clips) ? result.clips.length : 0;
       const project = await refreshProject(s.projectPath);
@@ -847,11 +860,7 @@ export function registerDawCommands(): void {
         .getState()
         .announceStatus(`Landed ${n} clip(s) on the timeline`);
       return { status: "ok" };
-    } catch (err) {
-      const reason = errorMessage(err);
-      revealRecordFailure(reason);
-      return { status: "disabled", reason };
-    }
+    });
   });
 
   registerCommand("record.marker", () => {
