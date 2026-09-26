@@ -35,7 +35,8 @@ _MISSING: Any = _Missing()
 class ProjectMergeConflict(RuntimeError):
     """Another writer changed a value this job changed too; nothing was saved."""
 
-    def __init__(self, paths: list[str]) -> None:
+    def __init__(self, paths: list[str], *, retry: str = "re-run it") -> None:
+        """``retry`` is the advice ending the message (what the caller should do next)."""
         self.paths = paths
         shown = ", ".join(paths[:5])
         if len(paths) > 5:
@@ -45,7 +46,7 @@ class ProjectMergeConflict(RuntimeError):
             if _UNDO_REDO_CONFLICTS.intersection(paths)
             else "project changed"
         )
-        super().__init__(f"{what} while this job ran, conflicting at {shown}; re-run it")
+        super().__init__(f"{what} while this job ran, conflicting at {shown}; {retry}")
 
 
 def project_merge_data(project: EpisodeProject) -> dict[str, Any]:
