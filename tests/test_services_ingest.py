@@ -283,7 +283,7 @@ def test_apply_consolidated_tracks(minimal_project: Path, sample_wav: Path) -> N
         patch("podcast_mcp.services.ingest.schedule_track_waveforms") as waveforms,
     ):
         eng_cls.return_value.probe.return_value = probe
-        track_ids = IngestService(ws).apply_consolidated_tracks(result)
+        track_ids = IngestService(ws).apply_consolidated_tracks(result).track_ids
     assert track_ids == ["host"]
     assert [call.args[1].id for call in waveforms.call_args_list] == ["host"]
     proj = load_project(minimal_project)
@@ -548,7 +548,7 @@ def test_apply_consolidated_tracks_absolute_paths(
     probe = AudioProbe(duration_sec=2.0, sample_rate=48000, channels=1)
     with patch("podcast_mcp.edits.track_media.FFmpegEngine") as eng_cls:
         eng_cls.return_value.probe.return_value = probe
-        track_ids = IngestService(ws).apply_consolidated_tracks(result)
+        track_ids = IngestService(ws).apply_consolidated_tracks(result).track_ids
     assert track_ids == ["host"]
     proj = load_project(minimal_project)
     assert str(proj.sources[0].path) == src_wav.name
@@ -587,7 +587,7 @@ def test_apply_consolidated_tracks_empty_speaker_tracks(
         cross_speaker_offsets={},
     )
     with patch("podcast_mcp.edits.track_media.FFmpegEngine"):
-        track_ids = IngestService(ws).apply_consolidated_tracks(result)
+        track_ids = IngestService(ws).apply_consolidated_tracks(result).track_ids
     assert track_ids == []
     proj = load_project(minimal_project)
     assert proj.timeline.tracks == []
@@ -655,12 +655,12 @@ def _apply_placed(
     probe = AudioProbe(duration_sec=dur, sample_rate=48000, channels=1)
     with patch("podcast_mcp.engines.ffmpeg.FFmpegEngine") as eng_cls:
         eng_cls.return_value.probe.return_value = probe
-        IngestService(ws).apply_consolidated_tracks(result)
-    return [c for c in load_project(project).clips if c.track_id == "guest"]
+        applied = IngestService(ws).apply_consolidated_tracks(result)
+    return [c for c in load_project(project).clips if c.track_id == "guest"], applied
 
 
 def test_apply_places_clip_by_session_start(minimal_project: Path, sample_wav: Path) -> None:
-    (clip,) = _apply_placed(
+    (clip,), _ = _apply_placed(
         minimal_project, sample_wav, content=0.0, session_start=4.0, trimmed=False
     )
     assert clip.source_start == 4.0
@@ -668,7 +668,7 @@ def test_apply_places_clip_by_session_start(minimal_project: Path, sample_wav: P
 
 
 def test_apply_places_clip_by_content_align(minimal_project: Path, sample_wav: Path) -> None:
-    (clip,) = _apply_placed(
+    (clip,), _ = _apply_placed(
         minimal_project, sample_wav, content=2.0, session_start=0.0, trimmed=False
     )
     assert clip.source_start == 0.0
@@ -676,7 +676,7 @@ def test_apply_places_clip_by_content_align(minimal_project: Path, sample_wav: P
 
 
 def test_apply_trimmed_extract_is_not_placed(minimal_project: Path, sample_wav: Path) -> None:
-    (clip,) = _apply_placed(
+    (clip,), _ = _apply_placed(
         minimal_project, sample_wav, content=0.0, session_start=4.0, trimmed=True
     )
     assert clip.source_start == 0.0
@@ -702,7 +702,8 @@ def test_apply_multi_source_only_primary_placed(minimal_project: Path, sample_wa
     probe = AudioProbe(duration_sec=10.0, sample_rate=48000, channels=1)
     with patch("podcast_mcp.engines.ffmpeg.FFmpegEngine") as eng_cls:
         eng_cls.return_value.probe.return_value = probe
-        IngestService(ws).apply_consolidated_tracks(result)
+        applied = IngestService(ws).apply_consolidated_tracks(result)
+    assert any("extra source(s)" in w for w in applied.warnings)
     clips = sorted(
         (c for c in load_project(minimal_project).clips if c.track_id == "guest"),
         key=lambda c: c.timeline_start,
@@ -782,3 +783,11 @@ def test_timeline_vad_and_waveform_for_late_placed_clip(
     assert calls == [(0.0, 2.0)]
     assert iv == [(4.0, 5.0)]
     assert _waveform_file_start(proj, guest) == -3.0
+
+
+def test_apply_warns_when_lead_exceeds_file(minimal_project: Path, sample_wav: Path) -> None:
+    (clip,), applied = _apply_placed(
+        minimal_project, sample_wav, content=0.0, session_start=12.0, trimmed=False
+    )
+    assert (clip.source_start, clip.timeline_start) == (0.0, 0.0)
+    assert any("trims past the end" in w for w in applied.warnings)

@@ -24,7 +24,7 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
-from podcast_mcp.services.ingest import VerifyResult
+from podcast_mcp.services.ingest import AppliedConsolidation, VerifyResult
 
 runner = CliRunner()
 
@@ -266,7 +266,9 @@ def test_ingest_consolidate_cmd(minimal_project, tmp_path, sample_wav):
     with patch("podcast_mcp.cli.ingest.IngestService") as svc_cls:
         svc = svc_cls.return_value
         svc.consolidate_to_dialogue_tracks.return_value = fake
-        svc.apply_consolidated_tracks.return_value = ["host"]
+        svc.apply_consolidated_tracks.return_value = AppliedConsolidation(
+            track_ids=["host"], warnings=["Guest: check"]
+        )
         result = runner.invoke(
             app,
             [
@@ -284,6 +286,7 @@ def test_ingest_consolidate_cmd(minimal_project, tmp_path, sample_wav):
         )
     assert result.exit_code == 0
     assert "Consolidated 1 speaker track(s)" in result.stdout
+    assert "Warning: Guest: check" in result.stderr
     assert "cross_speaker_offsets_sec" in result.stdout
     svc.consolidate_to_dialogue_tracks.assert_called_once()
     svc.apply_consolidated_tracks.assert_called_once_with(fake)

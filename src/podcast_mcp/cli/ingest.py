@@ -235,12 +235,14 @@ def ingest_consolidate_cmd(
         align_mode=align_mode,
         transcript_path=transcript,
     )
-    track_ids = svc.apply_consolidated_tracks(result)
+    applied = svc.apply_consolidated_tracks(result)
     typer.echo(
-        f"Consolidated {len(result.speaker_tracks)} speaker track(s): {', '.join(track_ids)}"
+        f"Consolidated {len(result.speaker_tracks)} speaker track(s): {', '.join(applied.track_ids)}"
     )
     for note in result.ignored_sources:
         typer.echo(f"Note: ignored extra source {note}", err=True)
+    for warning in applied.warnings:
+        typer.echo(f"Warning: {warning}", err=True)
     if result.cross_speaker_offsets:
         payload = {
             "session_start_in_file_sec": result.session_start_in_file_sec,

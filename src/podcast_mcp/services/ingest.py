@@ -77,6 +77,12 @@ class VerifyResult:
 
 
 @dataclass
+class AppliedConsolidation:
+    track_ids: list[str]
+    warnings: list[str] = field(default_factory=list)
+
+
+@dataclass
 class ImportFolderReport:
     audio_dir: str
     out_manifest: str | None
@@ -319,10 +325,13 @@ class IngestService:
             waveform_paths=waveform_paths,
         )
 
-    def apply_consolidated_tracks(self, result: ConsolidateResult) -> list[str]:
+    def apply_consolidated_tracks(self, result: ConsolidateResult) -> AppliedConsolidation:
+        warnings: list[str] = []
+
         def mutate(p) -> None:
+            warnings.clear()
             from podcast_mcp.edits.clips_ops import new_clip_id, set_track_clips
-            from podcast_mcp.edits.conversation_align import offset_to_clip_geometry
+            from podcast_mcp.edits.ingest_placement import place_ingest_sources
             from podcast_mcp.edits.track_media import (
                 media_asset_from_path,
                 refresh_timeline_duration,
@@ -380,37 +389,35 @@ class IngestService:
                 track.media = media
 
                 speaker_sources = [s for s in p.sources if s.speaker == name]
-                clips = []
-                timeline_at = 0.0
-                multi = len(speaker_sources) > 1
-                for idx, src in enumerate(speaker_sources):
+                durations: list[float] = []
+                for src in speaker_sources:
                     src_path = ws_path / src.path
                     dur = float(src.duration_sec or 0.0)
                     if dur <= 0 and src_path.is_file():
                         from podcast_mcp.engines.ffmpeg import FFmpegEngine
 
                         dur = float(FFmpegEngine().probe(src_path).duration_sec)
-                    src_start = 0.0
-                    tl_start = timeline_at if multi else 0.0
-                    if idx == 0 and not result.session_trimmed and dur > 0:
-                        # Session t=0 lands at timeline 0 (non-destructive clip trim).
-                        placement = result.cross_speaker_offsets.get(
-                            name, 0.0
-                        ) - result.session_start_in_file_sec.get(name, 0.0)
-                        src_start, _end, tl_start = offset_to_clip_geometry(
-                            placement, media_duration=dur
-                        )
-                        timeline_at = tl_start
+                    durations.append(dur)
+                placement_sec = (
+                    None
+                    if result.session_trimmed
+                    else result.cross_speaker_offsets.get(name, 0.0)
+                    - result.session_start_in_file_sec.get(name, 0.0)
+                )
+                placed = place_ingest_sources(name, durations, placement_sec=placement_sec)
+                warnings.extend(placed.warnings)
+                multi = len(speaker_sources) > 1
+                clips = []
+                for src, geo in zip(speaker_sources, placed.geometry, strict=True):
                     clip = Clip(
                         id=new_clip_id(),
                         track_id=tid,
-                        source_start=src_start,
-                        source_end=dur,
-                        timeline_start=tl_start,
+                        source_start=geo.source_start,
+                        source_end=geo.source_end,
+                        timeline_start=geo.timeline_start,
                         source_id=src.id,
                     )
                     clips.append(clip)
-                    timeline_at += dur - src_start
                     meta_key = f"{tid}:{clip.id}" if multi else name
                     align_meta[meta_key] = SpeakerIngestAlignment(
                         session_start_in_file_sec=result.session_start_in_file_sec.get(name, 0.0),
@@ -432,7 +439,9 @@ class IngestService:
         self.ws.mutate("before ingest consolidate", "after ingest consolidate", mutate)
         for track in self.ws.project.tracks:
             schedule_track_waveforms(self.ws.project, track)
-        return [t.id for t in self.ws.project.tracks]
+        return AppliedConsolidation(
+            track_ids=[t.id for t in self.ws.project.tracks], warnings=list(warnings)
+        )
 
 
 def suggest_alignment_for_manifest(
