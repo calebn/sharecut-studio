@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import sqlite3
 from typing import Any
 from uuid import uuid4
 
@@ -28,9 +29,16 @@ from podcast_mcp.services.document_sync.service import document_hub_key
 from podcast_mcp.services.session_sync.authz import authorize_client
 from podcast_mcp.services.session_sync.hub import get_hub
 from podcast_mcp.util.proxy_paths import is_relayed_request
+from podcast_mcp.util.sqlite_tx import is_sqlite_busy
 
 router = APIRouter()
 _PROJECT_BUSY = "Project is busy in another process; try again"
+_PROJECT_BUSY_CODE = "project_busy"
+
+
+def _is_project_busy(exc: BaseException) -> bool:
+    """The project file lock timed out, or the document.db write lock stayed busy."""
+    return isinstance(exc, Timeout) or is_sqlite_busy(exc)
 
 
 def _submit_ws_command(
@@ -106,8 +114,14 @@ def post_document_command(
             detail=str(exc),
             headers={"X-Sharecut-Error-Code": "transcript_refine_required"},
         ) from exc
-    except Timeout as exc:
-        raise HTTPException(status_code=503, detail=_PROJECT_BUSY) from exc
+    except (Timeout, sqlite3.OperationalError) as exc:
+        if not _is_project_busy(exc):
+            raise
+        raise HTTPException(
+            status_code=503,
+            detail=_PROJECT_BUSY,
+            headers={"X-Sharecut-Error-Code": _PROJECT_BUSY_CODE},
+        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except PermissionError as exc:
@@ -199,9 +213,11 @@ async def document_ws(
                 await websocket.send_json({"type": "Error", "detail": str(exc)})
             except (KeyError, ValueError, PermissionError) as exc:
                 await websocket.send_json({"type": "Error", "detail": str(exc)})
-            except Timeout:
+            except (Timeout, sqlite3.OperationalError) as exc:
+                if not _is_project_busy(exc):
+                    raise
                 await websocket.send_json(
-                    {"type": "Error", "detail": _PROJECT_BUSY, "code": "project_busy"}
+                    {"type": "Error", "detail": _PROJECT_BUSY, "code": _PROJECT_BUSY_CODE}
                 )
     finally:
         hub.unsubscribe(key, queue)
