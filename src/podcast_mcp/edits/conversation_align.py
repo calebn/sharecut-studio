@@ -403,7 +403,7 @@ def dialogue_align_units(
             tokens = transcript_for_clip(project, track.id, clip.source_id)
             file_dur: float | None = None
             if clip.source_id:
-                src = next((s for s in project.sources if s.id == clip.source_id), None)
+                src = project.source_by_id(clip.source_id)
                 if src and src.duration_sec is not None:
                     file_dur = float(src.duration_sec)
             if file_dur is None and track.media and track.media.duration_sec is not None:
@@ -1280,7 +1280,7 @@ def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
             if track.media and track.media.duration_sec:
                 media_dur = float(track.media.duration_sec)
             if clip.source_id:
-                src = next((s for s in project.sources if s.id == clip.source_id), None)
+                src = project.source_by_id(clip.source_id)
                 if src and src.duration_sec:
                     media_dur = float(src.duration_sec)
             src_start, src_end, tl_start = offset_to_clip_geometry(

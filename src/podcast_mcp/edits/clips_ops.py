@@ -401,7 +401,7 @@ def pin_clip_source_id(project: EpisodeProject, clip: Clip) -> None:
     Required before changing ``track_id`` so render keeps the originating file
     (``resolve_clip_audio_path`` falls back to destination ``track.media``).
     """
-    if clip.source_id and any(s.id == clip.source_id for s in project.sources):
+    if clip.source_id and project.source_by_id(clip.source_id) is not None:
         return
     track = project.track_by_id(clip.track_id)
     if track is None or track.media is None:

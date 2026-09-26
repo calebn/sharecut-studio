@@ -236,7 +236,7 @@ class TranscriptionEngine:
                 source_id = clip.source_id
                 if not source_id:
                     continue
-                src = next((s for s in project.sources if s.id == source_id), None)
+                src = project.source_by_id(source_id)
                 if src is None:
                     continue
                 path = resolve_under_workspace(project, src.path)

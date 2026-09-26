@@ -1139,7 +1139,7 @@ def _room_tone_bed_span(
     if bed_dur <= 0:
         return None
     source_id = room_tone_source_id(track_id)
-    if not any(src.id == source_id for src in project.sources):
+    if project.source_by_id(source_id) is None:
         return None
     use = min(bed_dur, duration_sec)
     if use <= 0:

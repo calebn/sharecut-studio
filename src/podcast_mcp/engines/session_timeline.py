@@ -34,7 +34,7 @@ _ClipKey = tuple[float, float, float]  # (timeline_start, source_start, source_e
 def origin_track_id_for_clip(project: EpisodeProject, clip: Clip) -> str:
     """Track whose media this clip plays (``source_id`` path, else current lane)."""
     if clip.source_id:
-        src = next((s for s in project.sources if s.id == clip.source_id), None)
+        src = project.source_by_id(clip.source_id)
         if src is not None:
             for track in project.tracks:
                 if track.media is not None and track.media.path == src.path:

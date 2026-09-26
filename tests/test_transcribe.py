@@ -237,6 +237,43 @@ def test_transcribe_all_dialogue_extra_source_and_cache(minimal_project, sample_
     engine.transcribe_file.assert_called_once()
 
 
+def test_transcribe_all_dialogue_skips_missing_extra_source(minimal_project):
+    from unittest.mock import MagicMock
+
+    from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole
+
+    proj = load_project(minimal_project)
+    proj.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav"),
+        )
+    ]
+    proj.sources = []
+    proj.clips = [
+        Clip(
+            id="missing-extra",
+            track_id="host",
+            source_start=0.0,
+            source_end=1.0,
+            timeline_start=0.0,
+            source_id="missing-source",
+        )
+    ]
+    engine = TranscriptionEngine()
+    engine.transcribe_track = MagicMock(  # type: ignore[method-assign]
+        return_value=Transcript(track_id="host", words=[])
+    )
+    engine.transcribe_file = MagicMock()  # type: ignore[method-assign]
+
+    out = engine.transcribe_all_dialogue(proj, language="en")
+
+    assert len(out) == 1
+    engine.transcribe_file.assert_not_called()
+
+
 def test_flag_anomalous_asr_durations_marks_deferred_without_clamping() -> None:
     words = [
         TranscriptWord(text="normal", start=0.0, end=0.4),
