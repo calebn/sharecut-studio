@@ -184,7 +184,10 @@ flowchart TD
    audio already written stays in the local keeper (at most the last couple of
    seconds are lost); after Stop, reopen the room link and use **Recover
    partial take**.
-7. If the saved microphone is no longer available, the lobby falls back to the
+7. If the room reports a non-terminal error (for example an action that is not
+   possible in the current state), a persistent alert explains it and offers
+   **Dismiss**; ended and full-room screens are unchanged.
+   If the saved microphone is no longer available, the lobby falls back to the
    default input, shows a notice, and resets the saved choice to Default.
    If the microphone ends involuntarily, the local keeper closes its current
    segment and a persistent warning offers **Reconnect microphone**. The room

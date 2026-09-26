@@ -6,6 +6,8 @@ import {
   RECORD_ACCESS_ENDED_REASONS,
   RECORD_ACCESS_REMOVED,
   RECORD_INVITE_CLOSED,
+  RECORD_SYNC_ERROR_FALLBACK_COPY,
+  recordSyncErrorCopy,
   useRecordSync,
 } from "./useRecordSync";
 
@@ -400,5 +402,35 @@ describe("useRecordSync", () => {
     });
     expect(got).toEqual(["p_g"]);
     stop();
+  });
+  it("maps record errors to guest copy without leaking prototype keys", () => {
+    expect(recordSyncErrorCopy(null)).toBeNull();
+    expect(recordSyncErrorCopy("room_full")).toBeNull();
+    expect(recordSyncErrorCopy(RECORD_INVITE_CLOSED)).toBeNull();
+    expect(recordSyncErrorCopy(RECORD_ACCESS_REMOVED)).toBeNull();
+    expect(recordSyncErrorCopy("invalid_state")).toContain("current state");
+    expect(recordSyncErrorCopy("constructor")).toBe(
+      RECORD_SYNC_ERROR_FALLBACK_COPY,
+    );
+  });
+
+  it("clearError drops a non-terminal error but keeps terminal ones", async () => {
+    const { result } = renderHook(() => useRecordSync("tok", "Ava"));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const ws = FakeWebSocket.instances[0];
+    await act(async () => {
+      ws.emit({ type: "Error", plane: "record", code: "rate_limited" });
+    });
+    expect(result.current.error).toBe("rate_limited");
+    act(() => result.current.clearError());
+    expect(result.current.error).toBeNull();
+    await act(async () => {
+      ws.emit({ type: "Error", plane: "record", code: RECORD_INVITE_CLOSED });
+    });
+    act(() => result.current.clearError());
+    expect(result.current.error).toBe(RECORD_INVITE_CLOSED);
   });
 });

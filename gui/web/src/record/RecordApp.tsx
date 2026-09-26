@@ -16,6 +16,7 @@ import { Lobby } from "./Lobby";
 import { MIC_SAVED_DEVICE_MISSING_COPY } from "./micPermission";
 import { useRecordMonitor } from "./monitor/useRecordMonitor";
 import { RecIndicator } from "./RecIndicator";
+import { RecordAlert } from "./RecordAlert";
 import { Room } from "./Room";
 import { loadRecordBootstrap, type RecordBootstrap } from "./recordBootstrap";
 import { OPFS_UNAVAILABLE_COPY, UPLOAD_SINK_ERROR_COPY } from "./types";
@@ -31,6 +32,7 @@ import { useRecordLiveComments } from "./useRecordLiveComments";
 import {
   isRecordAccessEnded,
   RECORD_INVITE_CLOSED,
+  recordSyncErrorCopy,
   useRecordSync,
 } from "./useRecordSync";
 import { useRoomToneCapture } from "./useRoomToneCapture";
@@ -106,11 +108,12 @@ export function RecordApp({ token }: { token: string }) {
   }, [bootstrap, episodeName, heading]);
 
   const syncName = name.trim() || (producer ? "Producer" : "Guest");
-  const { snapshot, me, send, error, connected, lease } = useRecordSync(
-    token,
-    syncName,
-    !!bootstrap && (!producer || producerJoined),
-  );
+  const { snapshot, me, send, error, clearError, connected, lease } =
+    useRecordSync(
+      token,
+      syncName,
+      !!bootstrap && (!producer || producerJoined),
+    );
   const accessEnded = isRecordAccessEnded(error);
   const inviteClosed = error === RECORD_INVITE_CLOSED;
   const liveComments = useRecordLiveComments({
@@ -351,6 +354,7 @@ export function RecordApp({ token }: { token: string }) {
   const recoveringPriorTake =
     !producer && snapshot?.state === "stopped" && me?.consented !== true;
 
+  const syncErrorCopy = recordSyncErrorCopy(error);
   const roleCopy = producer ? "You are listening only" : "You will be recorded";
 
   return (
@@ -362,6 +366,11 @@ export function RecordApp({ token }: { token: string }) {
           {episodeName ? <p className="lede">{episodeName}</p> : null}
         </header>
         <p className="record-role">{roleCopy}</p>
+        {syncErrorCopy ? (
+          <RecordAlert actionLabel="Dismiss" onAction={clearError}>
+            {syncErrorCopy}
+          </RecordAlert>
+        ) : null}
         {producer && view !== "room" ? <h2>Not recorded</h2> : null}
         <FocusPull viewKey={view}>
           {view === "room" && snapshot ? (

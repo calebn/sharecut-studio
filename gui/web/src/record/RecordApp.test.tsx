@@ -23,6 +23,7 @@ import {
   ROOM_TONE_PROMPT_COPY,
   UPLOAD_SINK_ERROR_COPY,
 } from "./types";
+import { recordSyncErrorCopy } from "./useRecordSync";
 
 const closeGuardSpy = vi.hoisted(() => vi.fn());
 vi.mock("../desktop/useDesktopCloseGuard", () => ({
@@ -101,7 +102,7 @@ class FakeSocket {
   onmessage: ((ev: { data: string }) => void) | null = null;
   onclose: ((ev: { code: number }) => void) | null = null;
   sent: string[] = [];
-  reply: "join" | "full" | "declined" = "join";
+  reply: "join" | "full" | "declined" | "invalid" = "join";
 
   send(data: string) {
     this.sent.push(data);
@@ -145,6 +146,15 @@ class FakeSocket {
           }),
         });
         return;
+      }
+      if (this.reply === "invalid") {
+        this.onmessage?.({
+          data: JSON.stringify({
+            plane: "record",
+            type: "Error",
+            code: "invalid_state",
+          }),
+        });
       }
       const consented = this.reply === "declined" ? false : null;
       const state = this.reply === "declined" ? "recording" : "lobby";
@@ -839,6 +849,25 @@ describe("RecordApp", () => {
     render(<RecordApp token="guest-tok" />);
     expect(await screen.findByText(FULL_ROOM_COPY)).toBeInTheDocument();
     expect(getUserMedia).not.toHaveBeenCalled();
+  });
+
+  it("shows a dismissible alert for a non-terminal record error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (urlOf(input).includes("/bootstrap")) {
+          return new Response(JSON.stringify(guestBootstrap), { status: 200 });
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+    stubWebSocket(sockets, "invalid");
+    const { container } = render(<RecordApp token="guest-tok" />);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(recordSyncErrorCopy("invalid_state") ?? "");
+    await expectNoA11yViolations(container);
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByRole("button", { name: "Dismiss" })).toBeNull();
   });
 
   it("routes a declined guest to the declined page while recording", async () => {
