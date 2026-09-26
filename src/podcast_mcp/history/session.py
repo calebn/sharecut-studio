@@ -19,8 +19,6 @@ from podcast_mcp.history.manager import (
     snapshot_from_project,
 )
 from podcast_mcp.history.rollback import (
-    RollbackOutcome,
-    roll_back_history,
     rolled_back_on_failure,
     take_history_checkpoint,
 )
@@ -54,8 +52,8 @@ class _PreMutateState:
         return cls(snapshot_from_project(project), project.render.model_copy(deep=True))
 
     def restore(self, project: EpisodeProject) -> None:
+        project.render = self.render  # first: apply_snapshot_to_project re-validates and can raise
         apply_snapshot_to_project(project, self.editable)
-        project.render = self.render
 
 
 def run_mutation(
@@ -103,7 +101,10 @@ def _run_mutation_locked(
             mgr.record(project, label_before)
     checkpoint.own_indexes.append(project.history.model_dump(mode="json"))
     pre_mutate = _PreMutateState.capture(project)
-    try:
+    # Memory follows the file: the mutated state is kept only if the commit replaced it.
+    with rolled_back_on_failure(
+        project, checkpoint, on_not_landed=lambda: pre_mutate.restore(project)
+    ):
         result = mutate(project)
         _record_audio_changes(
             project,
@@ -118,11 +119,6 @@ def _run_mutation_locked(
             mgr.record(project, label_after, operation=operation, params=params)
             checkpoint.start_commit(project)
             store.commit(project)
-    except BaseException:
-        # Memory follows the file: keep the mutated state only if the commit replaced it.
-        if roll_back_history(project, checkpoint) is not RollbackOutcome.LANDED:
-            pre_mutate.restore(project)
-        raise
     return result
 
 
