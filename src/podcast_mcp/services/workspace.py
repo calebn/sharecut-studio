@@ -84,6 +84,11 @@ class ProjectWorkspace:
         dropped); nested ones reuse the state already read. Commit only through this
         workspace inside it. Other processes' commits wait up to
         ``PROJECT_COMMIT_LOCK_TIMEOUT_SEC``, then raise ``filelock.Timeout``.
+
+        Adopting replaces whole sections of ``self.project`` in place (as ``save_merged``
+        does): re-fetch sub-objects inside the transaction instead of keeping references
+        taken before it, and read ``self.project`` from other threads only under
+        ``project_state_lock``.
         """
         with project_commit_lock(self.project):
             if self._transaction_depth == 0:
@@ -291,7 +296,9 @@ class ProjectWorkspace:
         """Run ``fn`` on the saved project as an undoable mutation and commit it, inside ``transaction()``.
 
         The file lock is held from the reload through the commit, so no writer in any
-        process commits in between (#213). A slow ``fn`` holds it for its whole run.
+                process commits in between (#213). A slow ``fn`` holds it for its whole run.
+        ``transaction()`` may first adopt the saved project in place: ``fn`` receives the
+        current project, so do not keep sub-object references from before the call.
         """
         with self.transaction():
             try:
