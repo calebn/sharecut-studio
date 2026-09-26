@@ -19,6 +19,12 @@ _PUBLIC_IPV4_ALLOWLIST = frozenset({"1.1.1.1", "9.9.9.9", "1.2.3.4"})
 # Any ``*.lock`` (uv, Cargo, poetry, ...) is skipped by suffix; npm's lockfile is not a .lock.
 _LOCKFILE_NAMES = frozenset({"package-lock.json"})
 _IPV4_SKIP_SUFFIXES = (".lock", ".svg", ".map", ".min.js")
+# Known server addresses, checked by exact substring on the blobs the generic scan skips
+# (lockfiles, assets, binary) so skipped file types keep the coverage they had before.
+_SERVER_IPV4_MARKERS = (
+    ("138.68." + "214.23").encode(),
+    ("216.40." + "34.41").encode(),
+)
 # Dotted quad not glued to a word or a longer dotted run (v1.2.3.4.5, SVG ``M8.5.2.1z``);
 # a sentence-final "." still matches.
 _IPV4_LITERAL = re.compile(rb"(?<!\w)(?<!\d\.)(?:\d{1,3}\.){3}\d{1,3}(?!\w|\.\d)")
@@ -49,13 +55,18 @@ def test_gitleaks_has_no_committed_ignore_baseline() -> None:
     assert not (ROOT / ".gitleaksignore").exists()
 
 
-def _public_ipv4_literals(relative: Path, content: bytes) -> list[str]:
-    """Return global IPv4 literals in a text blob that are not allowlisted."""
-    if (
+def _skips_ipv4_scan(relative: Path, content: bytes) -> bool:
+    """Lockfiles, generated assets and binary blobs are not scanned for IPv4 literals."""
+    return (
         relative.name in _LOCKFILE_NAMES
         or relative.name.endswith(_IPV4_SKIP_SUFFIXES)
         or b"\0" in content  # binary: a NUL anywhere, not only in the first 8 KiB
-    ):
+    )
+
+
+def _public_ipv4_literals(relative: Path, content: bytes) -> list[str]:
+    """Return global IPv4 literals in a text blob that are not allowlisted."""
+    if _skips_ipv4_scan(relative, content):
         return []
     found: list[str] = []
     for match in _IPV4_LITERAL.finditer(content):
@@ -72,7 +83,7 @@ def _public_ipv4_literals(relative: Path, content: bytes) -> list[str]:
 
 
 def _public_tree_violations(root: Path) -> list[str]:
-    # Public IPv4 addresses are caught generically by _public_ipv4_literals below.
+    # Public IPv4 literals are caught by _public_ipv4_literals; skipped blobs get _SERVER_IPV4_MARKERS.
     forbidden = (
         ("hound" + "stooth").encode(),
         ("digitalocean" + "spaces.com").encode(),
@@ -117,8 +128,11 @@ def _public_tree_violations(root: Path) -> list[str]:
             continue
         for literal in _public_ipv4_literals(relative, content):
             hits.append(f"{relative}: public IPv4 literal {literal}")
+        markers = forbidden
+        if _skips_ipv4_scan(relative, content):
+            markers = (*forbidden, *_SERVER_IPV4_MARKERS)
         content = content.lower()
-        for marker in forbidden:
+        for marker in markers:
             if marker.lower() in content:
                 hits.append(f"{relative}: {marker.decode()}")
 
@@ -276,3 +290,25 @@ def test_public_ipv4_literals_matches_sentence_final_and_zero_padded() -> None:
 def test_public_ipv4_literals_deduplicates() -> None:
     ip = "8.8." + "4.4"
     assert _public_ipv4_literals(Path("a.md"), f"{ip} {ip}".encode()) == [ip]
+
+
+def test_public_tree_flags_known_server_ipv4_in_skipped_blobs(tmp_path: Path) -> None:
+    _init_git_repo(tmp_path)
+    server = "138.68." + "214.23"
+    (tmp_path / "icons.svg").write_text(f"<svg>{server}</svg>\n")
+    (tmp_path / "uv.lock").write_text(f'url = "{server}"\n')
+    (tmp_path / "blob.bin").write_bytes(server.encode() + b"\0")
+    subprocess.run(["git", "add", "icons.svg", "uv.lock", "blob.bin"], cwd=tmp_path, check=True)
+    assert sorted(_public_tree_violations(tmp_path)) == [
+        f"blob.bin: {server}",
+        f"icons.svg: {server}",
+        f"uv.lock: {server}",
+    ]
+
+
+def test_public_tree_reports_known_server_ipv4_once_in_text(tmp_path: Path) -> None:
+    _init_git_repo(tmp_path)
+    server = "216.40." + "34.41"
+    (tmp_path / "notes.md").write_text(f"relay {server}\n")
+    subprocess.run(["git", "add", "notes.md"], cwd=tmp_path, check=True)
+    assert _public_tree_violations(tmp_path) == [f"notes.md: public IPv4 literal {server}"]
