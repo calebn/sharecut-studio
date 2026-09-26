@@ -49,6 +49,11 @@ export async function drainHostOfflineQueue(
       void live.then(() => requestHostDrain(projectPath));
       break;
     }
+    // A live send may have finished and dequeued it since the snapshot.
+    const current = await loadHostCommandQueue(projectPath);
+    if (!current.some((c) => c.command_id === cmd.command_id)) {
+      continue;
+    }
     try {
       const result = await submitDocumentCommand(
         projectPath,
