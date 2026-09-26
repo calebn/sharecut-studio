@@ -124,10 +124,10 @@ Shipped:
 
 Shipped:
 
-- Edge handles for fade lengths on clip blocks (a drag shows the length live and clamps to the track's `fade_max_ms` and the clip length; a pointer-up under `HANDLE_DRAG_MIN_PX` (3 px net) only selects); join diamond selects clip
+- Edge handles for fade lengths on clip blocks (a drag shows the length live and clamps to the track's `fade_max_ms`, the clip length and what the other edge's fade leaves; a pointer-up under `HANDLE_DRAG_MIN_PX` (3 px net) only selects; each handle's accessible name carries its current length (the on-clip readout is visual only)); join diamond selects clip
 - Inspector: editable `fade_in_ms` / `fade_out_ms`, `join_in_mode` (fade / crossfade / cut)
 - Document commands `SetClipFade`, `SetJoinMode`, `ApplyFadeRecommendations` (track-scoped recommend+apply; Track inspector **Smooth all joins on this track**)
-- MCP `set_join_mode_tool`; dialogue fades capped at `render.join_fade_max_ms` via `set_clip_fade`; the project view exposes the cap as `TrackView.fade_max_ms` (null = uncapped) so the drag and inspector inputs clamp before sending
+- MCP `set_join_mode_tool`; `set_clip_fade` caps dialogue fades at `render.join_fade_max_ms`, bounds each fade to the clip length and limits fade-out to what fade-in leaves (`join_modes.clamp_clip_fades`); the project view exposes the track cap as `TrackView.fade_max_ms` (null = uncapped; same `track_fade_max_ms` resolver), and the GUI mirrors the rule (`edit/fadeLimits.ts` `clampClipFades` / `edgeFadeMaxMs`) so drags and inspector inputs clamp before sending
 - Seek join / Play across join audition footer
 
 **Done when:** changing fade ms or join mode from the inspector updates `timeline.clips` and is audible on next audition.
@@ -154,8 +154,8 @@ Shipped:
 - Transcript toolbar **Annotate** (display density, orthogonal to Correct/Select): off = clean reading view; on = low-confidence underlines, Descript-style **edit-boundary** glyphs at every clip join on ProjectView `edit_boundaries` (word-aligned in the turn that precedes/contains the join), and nested **Show cut away**
 - Transcript toolbar **Correct** / **Select** toggles (host-only): neither = seek-on-click / double-click-word seek; **Correct** selects a word for ASR fix (`TranscriptWordInspector`); **Select** click/shift/drag builds a `transcriptRange` for Mod+C/X/V clipboard
 - Tooltip / `aria-label` copy for GUI chrome lives on capability rows (`tooltip` / `tooltip_pressed`) in [`contracts/capabilities.manifest.json`](../contracts/capabilities.manifest.json); generated into `gui/web/src/capabilities/copy.ts` via `make schema-export`
-- Clip **trim handles** (bottom corners): front = `source_start`, back = `source_end` via `TrimClipEdge` (ripple) with ghost waveform preview; trim/blade magnet to waveform snap ticks (quiet wash + `waveform-snap` API)
-- Join **diamonds** and transcript Annotate **¦** glyphs (both neighbors): **roll** via `RollClipJoin` — left `source_end` and right `source_start` move together; clips stay timeline-flush; pair duration unchanged
+- Clip **trim handles** (bottom corners): front = `source_start`, back = `source_end` via `TrimClipEdge` (ripple) with ghost waveform preview; trim/blade magnet to waveform snap ticks (quiet wash + `waveform-snap` API); a pointer-up under 3 px net, or a trim the snap or clamp leaves on the committed edge, saves nothing
+- Join **diamonds** and transcript Annotate **¦** glyphs (both neighbors): **roll** via `RollClipJoin` — left `source_end` and right `source_start` move together; clips stay timeline-flush; pair duration unchanged; a pointer-up under 3 px net only selects
 - Transcript boundary drag shows **ghost cutaway words** (same expand-range math as timeline ghost waveform) while restoring into the join
 - Fade handles remain distinct from trim/roll
 - Document commands `CorrectTranscriptWord`, `CorrectTranscriptPhrase`, `SetTranscriptWordSuppressed`, `TrimClipEdge`, `RollClipJoin`, `MoveClips` → `EditService`

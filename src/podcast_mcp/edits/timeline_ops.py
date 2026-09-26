@@ -674,13 +674,14 @@ def set_clip_fade(
     fade_in_ms: int,
     fade_out_ms: int,
 ) -> dict:
-    from podcast_mcp.edits.join_modes import cap_fade_ms
+    from podcast_mcp.edits.join_modes import clamp_clip_fades
 
     clip = next((c for c in project.clips if c.id == clip_id), None)
     if not clip:
         raise ValueError(f"unknown clip_id: {clip_id!r}")
-    clip.fade_in_ms = cap_fade_ms(project, clip.track_id, int(fade_in_ms))
-    clip.fade_out_ms = cap_fade_ms(project, clip.track_id, int(fade_out_ms))
+    clip.fade_in_ms, clip.fade_out_ms = clamp_clip_fades(
+        project, clip, int(fade_in_ms), int(fade_out_ms)
+    )
     return change_summary(project, operation="set_clip_fade", affected_tracks=[clip.track_id])
 
 

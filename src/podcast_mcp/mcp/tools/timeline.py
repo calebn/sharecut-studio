@@ -171,7 +171,11 @@ def set_clip_fade_tool(
     fade_in_ms: int,
     fade_out_ms: int,
 ) -> str:
-    """Set the fade-in and fade-out duration of a single clip."""
+    """Set the fade-in and fade-out duration of a single clip.
+
+    Dialogue fades cap at ``render.join_fade_max_ms``. Each fade fits in the clip, and
+    fade-out is limited to what fade-in leaves.
+    """
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).set_clip_fade(clip_id, fade_in_ms, fade_out_ms))
 
