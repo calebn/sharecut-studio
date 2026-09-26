@@ -28,6 +28,15 @@ def apply_snapshot_to_project(
     apply_editable_snapshot(project, snapshot.model_dump())
 
 
+def write_snapshot(project: EpisodeProject, snapshot: ProjectStateSnapshot, entry_id: str) -> str:
+    """Write ``snapshot`` as history entry ``entry_id``; return its workspace-relative path."""
+    path = history_snapshot_path(history_index_path(project), entry_id)
+    rel = path.relative_to(project.workspace_path()).as_posix()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(snapshot.model_dump_json(indent=2, by_alias=True), encoding="utf-8")
+    return rel
+
+
 @dataclass
 class HistoryStatus:
     cursor: int
@@ -51,18 +60,6 @@ class HistoryManager:
         index_path = history_index_path(project)
         index_path.parent.mkdir(parents=True, exist_ok=True)
         write_json_atomic(index_path, history.model_dump(mode="json"))
-
-    def _write_snapshot(
-        self,
-        project: EpisodeProject,
-        snapshot: ProjectStateSnapshot,
-        entry_id: str,
-    ) -> str:
-        path = history_snapshot_path(history_index_path(project), entry_id)
-        rel = path.relative_to(project.workspace_path()).as_posix()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(snapshot.model_dump_json(indent=2, by_alias=True), encoding="utf-8")
-        return rel
 
     def _read_snapshot(
         self,
@@ -124,7 +121,7 @@ class HistoryManager:
                 return history.entries[history.cursor]
 
         entry_id = uuid.uuid4().hex[:12]
-        rel = self._write_snapshot(project, snap, entry_id)
+        rel = write_snapshot(project, snap, entry_id)
         entry = HistoryEntry(
             id=entry_id,
             label=label,

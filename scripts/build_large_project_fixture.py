@@ -24,7 +24,7 @@ from podcast_mcp.engines.waveform_pyramid import (
     ref_slug,
     write_synthetic_pyramid,
 )
-from podcast_mcp.history.manager import snapshot_from_project
+from podcast_mcp.history.manager import snapshot_from_project, write_snapshot
 from podcast_mcp.models import load_project
 from podcast_mcp.models.episode import (
     Clip,
@@ -39,7 +39,7 @@ from podcast_mcp.models.episode import (
     TranscriptWord,
 )
 from podcast_mcp.models.history import HistoryEntry, ProjectHistory
-from podcast_mcp.project_store import ProjectStore, history_index_path, history_snapshot_path
+from podcast_mcp.project_store import ProjectStore
 from podcast_mcp.util.wav import (
     MAX_PCM_WAV_DATA_BYTES,
     PCM_SAMPLE_WIDTH_BYTES,
@@ -242,13 +242,10 @@ def _seed_history(project: EpisodeProject, steps: int) -> None:
     clip.fade_in_ms = HISTORY_FADE_MS
     faded = snapshot_from_project(project)
     clip.fade_in_ms = original
-    index_path = history_index_path(project)
-    files: dict[str, str] = {}
-    for name, snapshot in (("base", base), ("faded", faded)):
-        path = history_snapshot_path(index_path, f"benchmark-{name}")
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(snapshot.model_dump_json(indent=2, by_alias=True), encoding="utf-8")
-        files[name] = workspace_relpath(project, path)
+    files = {
+        name: write_snapshot(project, snapshot, f"benchmark-{name}")
+        for name, snapshot in (("base", base), ("faded", faded))
+    }
     states = ["base" if (steps - j) % 2 == 0 else "faded" for j in range(steps + 1)]
     started = datetime.now(UTC) - timedelta(seconds=2 * steps)
     entries: list[HistoryEntry] = []
