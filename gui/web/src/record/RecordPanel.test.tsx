@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadHostRecordState } from "../api";
@@ -613,6 +613,54 @@ describe("RecordPanel", () => {
     expect(land).toBeEnabled();
     await userEvent.click(land);
     expect(exec).toHaveBeenCalledWith("record.land", {}, { skipWhen: true });
+  });
+
+  it("leaves a producer out of the upload roster and Close gating after Stop", async () => {
+    uploadStatus.mockResolvedValue({
+      segments: [
+        {
+          take_index: 0,
+          participant_id: "p_g",
+          segment_index: 0,
+          acked_parts: [0],
+          file_ack: true,
+        },
+        {
+          take_index: 0,
+          participant_id: "p_host",
+          segment_index: 0,
+          acked_parts: [0],
+          file_ack: true,
+        },
+      ],
+    });
+    useRecordHostStore.getState().setSnapshot({
+      ...lobby,
+      state: "stopped",
+      take_index: 0,
+      start_blockers: [],
+      participants: [
+        recordParticipant({
+          participant_id: "p_host",
+          role: "host",
+          display_name: "Host",
+        }),
+        avaGuest(),
+        recordParticipant({
+          participant_id: "p_pat",
+          role: "producer",
+          display_name: "Pat",
+        }),
+      ],
+    });
+    render(<RecordPanel />);
+    expect(
+      await screen.findByText(hostUploadLine("Ava", true, 1)),
+    ).toBeInTheDocument();
+    const list = screen.getByRole("list", { name: "Upload status" });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(list).queryByText(/Pat/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Close" })).toBeEnabled();
   });
 
   describe("partial keeper recovery", () => {
