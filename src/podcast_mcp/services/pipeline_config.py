@@ -23,18 +23,7 @@ from podcast_mcp.pipeline.meta import (
     step_meta,
 )
 from podcast_mcp.pipeline.runner import ORDERED_STEP_NAMES, STEP_NAMES
-
-
-def deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
-    out = copy.deepcopy(base)
-    for key, val in override.items():
-        if key.startswith("_"):
-            continue
-        if isinstance(val, dict) and isinstance(out.get(key), dict):
-            out[key] = deep_merge(out[key], val)
-        else:
-            out[key] = copy.deepcopy(val)
-    return out
+from podcast_mcp.util.dicts import deep_merge
 
 
 def whitelist_overrides(overrides: dict[str, Any] | None) -> dict[str, Any]:
