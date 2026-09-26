@@ -1,11 +1,15 @@
 /** Plain-language names for a pending edit's type and reason code. */
 
+import { capitalize } from "./format";
+import { type TightenClass, tightenClassOfReason } from "./tightenHits";
+
 const TYPE_LABELS: Record<string, string> = {
   remove: "Cut",
   mute: "Mute",
   split: "Split",
 };
 
+// Keys mirror src/podcast_mcp/edits/edit_reasons.py; tests/test_edit_reasons.py fails when one is missing.
 const REASON_LABELS: Record<string, string> = {
   "guest:suggest": "Suggested by guest",
   "guest:suggest_split": "Split suggested by guest",
@@ -17,8 +21,17 @@ const REASON_LABELS: Record<string, string> = {
   other: "Other",
 };
 
+/** One label per tighten class; a new class in `tightenHits` fails to type-check until it has one. */
+const TIGHTEN_REASON_LABELS: Record<TightenClass, (tail: string) => string> = {
+  filler: (tail) =>
+    tail === "acoustic" ? "Filler sound" : `Filler word "${tail}"`,
+  pause: (tail) => (tail ? `Long pause (${tail})` : "Long pause"),
+  repetition: () => "Repeated word",
+  restart: () => "False start",
+};
+
 export function pendingTypeLabel(type: string): string {
-  return TYPE_LABELS[type] ?? type.charAt(0).toUpperCase() + type.slice(1);
+  return TYPE_LABELS[type] ?? capitalize(type);
 }
 
 export function pendingReasonLabel(reason: string | null | undefined): string {
@@ -35,19 +48,11 @@ export function pendingReasonLabel(reason: string | null | undefined): string {
   if (reason.startsWith("nl:utterance:")) {
     return "Agent edit (utterance)";
   }
-  const [head = "", ...rest] = reason.split(":");
-  const tail = rest.join(":");
-  if (head === "filler") {
-    return tail === "acoustic" ? "Filler sound" : `Filler word "${tail}"`;
-  }
-  if (head === "pause" && tail) {
-    return `Long pause (${tail})`;
-  }
-  if (head === "repetition") {
-    return "Repeated word";
-  }
-  if (head === "restart") {
-    return "False start";
+  const tightenClass = tightenClassOfReason(reason);
+  if (tightenClass) {
+    return TIGHTEN_REASON_LABELS[tightenClass](
+      reason.slice(tightenClass.length + 1),
+    );
   }
   return reason;
 }

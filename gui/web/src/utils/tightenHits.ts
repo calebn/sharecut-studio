@@ -29,9 +29,16 @@ export function isTightenPending(edit: PendingEditView): boolean {
   return tightenClassOf(edit) !== null;
 }
 
+/** The tighten class a reason code starts with (`filler:um` → `filler`), or null. */
+export function tightenClassOfReason(
+  reason: string | null | undefined,
+): TightenClass | null {
+  const code = reason ?? "";
+  return TIGHTEN_CLASSES.find((name) => code.startsWith(`${name}:`)) ?? null;
+}
+
 export function tightenClassOf(edit: PendingEditView): TightenClass | null {
-  const reason = edit.reason ?? "";
-  return TIGHTEN_CLASSES.find((name) => reason.startsWith(`${name}:`)) ?? null;
+  return tightenClassOfReason(edit.reason);
 }
 
 export function isHarshTightenHit(edit: PendingEditView): boolean {
