@@ -3,8 +3,12 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event, get_ident
+from typing import Literal
+
+import pytest
 
 from podcast_mcp.models import load_project
 from podcast_mcp.services.session_control import SessionControlService
@@ -760,6 +764,92 @@ def test_websocket_command_collision_keeps_connection_open(minimal_project) -> N
         ws.send_json({**command, "client_seq": 2, "payload": {"playhead_sec": 8.0}})
         recovered = receive_type(ws, "Echo")
         assert recovered["snapshot"]["playhead_sec"] == 8.0
+
+
+def test_normalize_presence_playhead_matches_transport_rule() -> None:
+    from podcast_mcp.services.session_sync.commands import (
+        normalize_presence_meta,
+        normalize_presence_playhead,
+    )
+
+    for value in (0, 2.5, -1, float("nan"), float("inf"), "x", None, True):
+        transport = {"playing": False, "playhead_sec": value, "rate": 1}
+        valid_meta = normalize_presence_meta({"transport": transport}) is not None
+        got = normalize_presence_playhead(value)
+        if value is None:
+            assert got is None
+        else:
+            assert (got is not None) == valid_meta, value
+
+
+def test_presence_and_ack_drop_invalid_playhead(minimal_project) -> None:
+    svc = SessionSyncService(load_project(minimal_project))
+
+    def send(ctype: Literal["Ack", "PresenceHeartbeat"], cid: str, value: object) -> None:
+        payload: dict[str, object] = {"playhead_sec": value}
+        if ctype == "Ack":
+            payload["acked_server_seq"] = 0
+        svc.submit(
+            SyncCommand(
+                type=ctype,
+                payload=payload,
+                client_id=cid,
+                role="viewer",
+                client_seq=next_client_seq(),
+            )
+        )
+
+    def playhead(cid: str) -> float | None:
+        return next(c["playhead_sec"] for c in svc.snapshot()["clients"] if c["client_id"] == cid)
+
+    for ctype in ("Ack", "PresenceHeartbeat"):
+        cid = f"c-{ctype}"
+        send(ctype, cid, 2.0)
+        assert playhead(cid) == 2.0
+        for bad in (-1.0, float("nan"), float("inf")):
+            send(ctype, cid, bad)
+            assert playhead(cid) == 2.0
+        fresh = f"fresh-{ctype}"
+        send(ctype, fresh, -4.0)
+        assert playhead(fresh) is None
+
+
+def test_owner_ws_presence_drops_invalid_playhead(minimal_project) -> None:
+    pytest.importorskip("fastapi")
+    from urllib.parse import quote
+
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    client = TestClient(create_app())
+    url = f"/api/session/ws?path={quote(str(minimal_project))}&client_id=ws-ph&role=viewer"
+    with client.websocket_connect(url) as ws:
+        ws.receive_json()
+        ws.send_json({"type": "Presence", "client_seq": 1, "playhead_sec": 3.0})
+        ws.send_text('{"type":"Presence","client_seq":2,"playhead_sec":NaN}')
+        ws.send_text('{"type":"Presence","client_seq":3,"playhead_sec":Infinity}')
+        ws.send_json({"type": "Ack", "client_seq": 4, "playhead_sec": -2.0})
+        ws.send_json(
+            {
+                "type": "Presence",
+                "client_seq": 5,
+                "playhead_sec": -1.0,
+                "meta": {"cursor": {"t_sec": 7.25}},
+            }
+        )
+        mine = None
+        for _ in range(50):
+            with client.websocket_connect(url.replace("ws-ph", "observer")) as obs:
+                snap = obs.receive_json()["snapshot"]
+            for c in snap.get("clients") or []:
+                if c["client_id"] == "ws-ph" and (c.get("meta") or {}).get("cursor"):
+                    mine = c
+            if mine:
+                break
+            time.sleep(0.05)
+        assert mine is not None, snap.get("clients")
+        assert mine["playhead_sec"] == 3.0
 
 
 def test_list_clients_expires_stale_presence(minimal_project) -> None:

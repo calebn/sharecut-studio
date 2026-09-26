@@ -364,7 +364,7 @@ Not ReviewApp. Prefix `/rec/` 404s a review token.
 | **Offline host (relay)** | Share/tunnel offline page |
 | **Offline edit queue** | Host and guest edits wait offline and drain on reconnect; guest structural ops demote to propose |
 | **Offline attention** | Host pending count and host/guest conflicts appear in **Needs attention**; conflicts are dismissible |
-| **Presence** | Transport **avatar stack** (follow/unfollow); ghost cursors on timeline lanes and DAW chrome (`data-presence-anchor`); unresolved anchors hidden. Follow mirrors tab/transcript/audition/selection when capable. Status-bar names on desktop/tablet; phone **More → People**. Follow banner is a dedicated shell row (guest Mix / host-only tab hints). Phone Listen = listen-along; phone Timeline = colored center needle (not a copied zoom window). Follower count only; followers do not broadcast a lagging playhead. Guests never draw their own cursor. Remote playhead ghosts are clamped to the session length and invalid positions are ignored. |
+| **Presence** | Transport **avatar stack** (follow/unfollow); ghost cursors on timeline lanes and DAW chrome (`data-presence-anchor`); unresolved anchors hidden. Follow mirrors tab/transcript/audition/selection when capable. Status-bar names on desktop/tablet; phone **More → People**. Follow banner is a dedicated shell row (guest Mix / host-only tab hints). Phone Listen = listen-along; phone Timeline = colored center needle (not a copied zoom window). Follower count only; followers do not broadcast a lagging playhead. Guests never draw their own cursor. Remote playhead ghosts are clamped to the session length and invalid positions are ignored. The server drops an invalid presence playhead and keeps the last good one. |
 
 ---
 

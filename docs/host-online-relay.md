@@ -607,7 +607,7 @@ src/podcast_mcp/
   explicit `mcp` capability on the share token. Tools are **capability-filtered** (guest
   parity), not the full host stdio MCP registry.
 - **Rate limiting**: see § Rate limiting above. Optional **Caddy `rate_limit` module** (edge IP limits) is later ops polish if that Caddy plugin is installed; the relay IP bucket already covers MVP.
-- **Presence**: guests with `view` see other participants' cursors, selection, playhead, and viewport. Session-plane WS messages echo the assigned `guest-{token}-…` `client_id` (the query string keeps the tab’s original id) so the guest never draws their own ghost. The guest DAW WebSocket accepts Presence frames only, with a 4 KiB size cap, per-connection and per-token rate limits, a malformed-frame close (`4400` after 20), mid-session share revocation re-check, and an Origin allow-list check for restricted shares. The relay `ws_presence` bucket is a coarse prefix pre-filter; the host limiter is authoritative.
+- **Presence**: guests with `view` see other participants' cursors, selection, playhead, and viewport. Session-plane WS messages echo the assigned `guest-{token}-…` `client_id` (the query string keeps the tab’s original id) so the guest never draws their own ghost. The guest DAW WebSocket accepts Presence frames only, with a 4 KiB size cap, per-connection and per-token rate limits, a malformed-frame close (`4400` after 20), mid-session share revocation re-check, and an Origin allow-list check for restricted shares. The relay `ws_presence` bucket is a coarse prefix pre-filter; the host limiter is authoritative. An invalid guest `playhead_sec` (negative, NaN, infinite) is dropped by the host and the last good one is kept; the frame is not counted as malformed.
 
 ---
 

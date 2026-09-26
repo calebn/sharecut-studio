@@ -13,6 +13,7 @@ from podcast_mcp.services.session_sync.commands import (
     SyncCommand,
     audition_mode_from_source,
     normalize_presence_meta,
+    normalize_presence_playhead,
     track_id_from_source,
 )
 from podcast_mcp.services.session_sync.hub import get_hub
@@ -133,7 +134,7 @@ class SessionSyncService:
                 command.client_id,
                 role=command.role,
                 acked_server_seq=ack_seq,
-                playhead_sec=command.payload.get("playhead_sec"),
+                playhead_sec=normalize_presence_playhead(command.payload.get("playhead_sec")),
                 label=command.payload.get("label"),
             )
             snap = self.snapshot()
@@ -231,7 +232,7 @@ class SessionSyncService:
             command.client_id,
             role=command.role,
             label=command.payload.get("label"),
-            playhead_sec=command.payload.get("playhead_sec"),
+            playhead_sec=normalize_presence_playhead(command.payload.get("playhead_sec")),
             meta=meta,
         )
         snap = self.snapshot()
