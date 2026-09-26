@@ -13,13 +13,13 @@ from podcast_mcp.edits.fillers import (
     _resolve_analyzed_cuts,
     normalize_edit_mode,
 )
+from podcast_mcp.edits.tighten_intensity import apply_tighten_intensity
 from podcast_mcp.edits.tighten_reasons import (
     REPETITION_REASON_PREFIX,
     RESTART_REASON_PREFIX,
     is_acoustic_filler_reason,
     is_review_only_reason,
 )
-from podcast_mcp.edits.tighten_intensity import apply_tighten_intensity
 from podcast_mcp.models import EditDecision, EpisodeProject, Transcript
 from podcast_mcp.util.parallel import run_parallel
 
