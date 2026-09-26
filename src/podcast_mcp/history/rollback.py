@@ -38,7 +38,11 @@ class HistoryCheckpoint:
     revision_before_commit: FileRevision | None = None
 
     def start_commit(self, project: EpisodeProject) -> None:
-        """Remember the project file revision; call under ``project_commit_lock``."""
+        """Remember the project file revision just before ``store.commit``.
+
+        Call under ``project_commit_lock``, after ``record``: a failure before this point
+        is never mistaken for a commit that landed.
+        """
         self.revision_before_commit = project_file_revision(project)
         self.commit_started = True
 

@@ -97,6 +97,7 @@ def test_render_and_document_snapshots_share_workspace_lock(minimal_project):
         "mutate",
         "mutate_interrupt",
         "record_after",
+        "record_after_index",
         "commit",
         "commit_lock_timeout",
     ],
@@ -107,6 +108,7 @@ def test_failed_mutation_rolls_back_its_history(minimal_project, monkeypatch, st
     ids_before = history_snapshot_ids(index_path)
     history_before = proj.history.model_copy(deep=True)
     original_record = HistoryManager.record
+    original_save_index = HistoryManager._save_index
 
     def mutate(p):
         if stage == "mutate":
@@ -116,6 +118,8 @@ def test_failed_mutation_rolls_back_its_history(minimal_project, monkeypatch, st
         p.edit_decisions.append(_decision("new"))
 
     def save_index(self, project):
+        if stage == "record_after_index" and project.history.entries[-1].label != "after":
+            return original_save_index(self, project)
         raise RuntimeError("boom")
 
     def record(self, project, label, **kwargs):
@@ -129,7 +133,7 @@ def test_failed_mutation_rolls_back_its_history(minimal_project, monkeypatch, st
         raise RuntimeError("boom")
 
     monkeypatch.setattr(HistoryManager, "record", record)
-    if stage == "record_before":
+    if stage in ("record_before", "record_after_index"):
         monkeypatch.setattr(HistoryManager, "_save_index", save_index)
     if stage in ("commit", "commit_lock_timeout"):
         monkeypatch.setattr(ProjectStore, "commit", commit)
@@ -300,7 +304,8 @@ def test_rollback_checks_the_commit_under_the_same_lock_hold(minimal_project, mo
     assert held == [True]
 
 
-def test_failed_record_snapshot_rolls_back_its_entry(minimal_project, monkeypatch):
+@pytest.mark.parametrize("failing", ["commit", "save_index"])
+def test_failed_record_snapshot_rolls_back_its_entry(minimal_project, monkeypatch, failing):
     path, proj, index_path = _setup(minimal_project)
     ws = ProjectWorkspace(path, proj)
     index_before = json.loads(index_path.read_text())
@@ -310,7 +315,13 @@ def test_failed_record_snapshot_rolls_back_its_entry(minimal_project, monkeypatc
     def commit(self, project):
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(ProjectStore, "commit", commit)
+    def save_index(self, project):
+        raise RuntimeError("boom")
+
+    if failing == "save_index":
+        monkeypatch.setattr(HistoryManager, "_save_index", save_index)
+    else:
+        monkeypatch.setattr(ProjectStore, "commit", commit)
     with pytest.raises(RuntimeError, match="boom"):
         ws.record_snapshot("manual", force=True)
     assert json.loads(index_path.read_text()) == index_before

@@ -215,8 +215,8 @@ def record_and_commit(
     with project_commit_lock(project):
         checkpoint = take_history_checkpoint(store, project)
         try:
-            checkpoint.start_commit(project)
             entry = HistoryManager(store.project_path).record(project, label, force=force)
+            checkpoint.start_commit(project)
             store.commit(project)
         except BaseException:
             roll_back_history(project, checkpoint)
