@@ -60,6 +60,10 @@ values for fields FFmpeg only prints once, e.g. `Crest factor`):
 
 ## High-bleed warning
 
+The full cleanup report shares decoded processed-stem RMS caches across its
+audibility, gate, and boundary analyses; each standalone analysis can still
+build its own cache.
+
 `analyze_cleanup` computes `bleed_ratio` (bleed word count / total words) per track. When
 it meets or exceeds `analysis.heuristics.bleed_ratio_warn_threshold` (default `0.2`, i.e.
 20%), the track gets a `high_bleed_warning` message and the summary line reads `HIGH

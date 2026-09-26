@@ -6,12 +6,20 @@ import numpy as np
 
 from podcast_mcp.edits.join_cost_spectral import (
     SpectralJoinDetector,
+    _mel_filterbank,
     lpc_burg,
     lpc_to_lsf,
     mfcc_vector,
     score_spectral_join,
 )
 from podcast_mcp.edits.join_detectors import DetectorHit, JoinDetector
+
+
+def test_mel_filterbank_is_shared_and_read_only() -> None:
+    first = _mel_filterbank(16000, 256)
+    assert _mel_filterbank(16000, 256) is first
+    assert not first.flags.writeable
+    assert _mel_filterbank(16000, 512) is not first
 
 
 def test_lpc_burg_stable_on_tone() -> None:

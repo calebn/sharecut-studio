@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from functools import lru_cache
 
 import numpy as np
 
@@ -109,19 +110,9 @@ def lpc_to_lsf(a: np.ndarray) -> np.ndarray:
     return out
 
 
-def mfcc_vector(frame: np.ndarray, sr: int, n_mfcc: int = 13, n_fft: int = 256) -> np.ndarray:
-    """Simple MFCC (c0..c_{n-1}) for one window."""
-    if frame.size < 8:  # pragma: no cover
-        return np.zeros(n_mfcc, dtype=np.float64)
-    n = min(n_fft, frame.size)
-    win = 0.5 - 0.5 * np.cos(2 * np.pi * np.arange(n) / max(n - 1, 1))
-    x = frame[:n].astype(np.float64) * win
-    if n < n_fft:  # pragma: no cover
-        pad = np.zeros(n_fft, dtype=np.float64)
-        pad[:n] = x
-        x = pad
-    mag = np.abs(np.fft.rfft(x))
-    # Mel filterbank
+@lru_cache(maxsize=16)
+def _mel_filterbank(sr: int, n_fft: int) -> np.ndarray:
+    """Return a read-only filterbank shared by same-rate join windows."""
     n_mels = 26
 
     def hz_to_mel(f: float) -> float:
@@ -144,7 +135,23 @@ def mfcc_vector(frame: np.ndarray, sr: int, n_mfcc: int = 13, n_fft: int = 256) 
             fb[i, j] = (j - left) / (center - left)
         for j in range(center, min(right, fb.shape[1])):
             fb[i, j] = (right - j) / (right - center)
-    mel = fb @ mag
+    fb.flags.writeable = False
+    return fb
+
+
+def mfcc_vector(frame: np.ndarray, sr: int, n_mfcc: int = 13, n_fft: int = 256) -> np.ndarray:
+    """Simple MFCC (c0..c_{n-1}) for one window."""
+    if frame.size < 8:  # pragma: no cover
+        return np.zeros(n_mfcc, dtype=np.float64)
+    n = min(n_fft, frame.size)
+    win = 0.5 - 0.5 * np.cos(2 * np.pi * np.arange(n) / max(n - 1, 1))
+    x = frame[:n].astype(np.float64) * win
+    if n < n_fft:  # pragma: no cover
+        pad = np.zeros(n_fft, dtype=np.float64)
+        pad[:n] = x
+        x = pad
+    mag = np.abs(np.fft.rfft(x))
+    mel = _mel_filterbank(sr, n_fft) @ mag
     log_mel = np.log(mel + 1e-10)
     mfcc = np.empty(n_mfcc, dtype=np.float64)
     n_m = log_mel.size

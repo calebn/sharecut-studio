@@ -390,10 +390,15 @@ def _apply_calibration(
     reasons: list[str],
     samples: np.ndarray,
     cfg: JoinContinuityConfig,
+    *,
+    natural_p95: float | None = None,
+    baseline_ready: bool = False,
 ) -> tuple[float, bool, float | None]:
     if not cfg.calibrate:
         return risk, False, None
-    natural = _natural_baseline_p95(samples, cfg.sample_rate, cfg)
+    natural = (
+        natural_p95 if baseline_ready else _natural_baseline_p95(samples, cfg.sample_rate, cfg)
+    )
     if natural is None:
         return risk, False, None
     gate = natural * cfg.calibrate_margin
@@ -544,9 +549,13 @@ def _finalize(
     extra_reasons: list[str] | None = None,
     neural: dict[str, Any] | None = None,
     artifacts_dir: Path | None = None,
+    natural_p95: float | None = None,
+    baseline_ready: bool = False,
 ) -> JoinContinuityReport:
     reasons: list[str] = list(extra_reasons or [])
-    risk, calibrated, natural = _apply_calibration(risk, reasons, samples, cfg)
+    risk, calibrated, natural = _apply_calibration(
+        risk, reasons, samples, cfg, natural_p95=natural_p95, baseline_ready=baseline_ready
+    )
     verdict, vreasons, risk = _verdict(risk, cfg, hits)
     reasons.extend(vreasons)
     for h in hits:
@@ -580,11 +589,30 @@ def assess_existing_join(
     config: JoinContinuityConfig | None = None,
     defaults: dict[str, Any] | None = None,
 ) -> JoinContinuityReport:
+    return _assess_existing_join(
+        project, track_id, join_sec, timebase=timebase, config=config, defaults=defaults
+    )
+
+
+def _assess_existing_join(
+    project: EpisodeProject,
+    track_id: str,
+    join_sec: float,
+    *,
+    timebase: Literal["source", "timeline"],
+    config: JoinContinuityConfig | None,
+    defaults: dict[str, Any] | None,
+    samples: np.ndarray | None = None,
+    natural_p95: float | None = None,
+    baseline_ready: bool = False,
+    timeline: SessionTimeline | None = None,
+) -> JoinContinuityReport:
     cfg = config or JoinContinuityConfig.from_defaults(defaults)
-    samples = _resolve_source_samples(project, track_id, cfg.sample_rate)
+    if samples is None:
+        samples = _resolve_source_samples(project, track_id, cfg.sample_rate)
     src_join = float(join_sec)
     if timebase == "timeline":
-        st = SessionTimeline(project)
+        st = timeline or SessionTimeline(project)
         mapped = st.timeline_to_source(track_id, TimelineSec(join_sec))
         if mapped is None:
             raise ValueError(f"timeline join {join_sec} falls in a gap on track {track_id!r}")
@@ -620,6 +648,8 @@ def assess_existing_join(
         cfg=cfg,
         neural=neural_info,
         artifacts_dir=project.artifacts_dir(),
+        natural_p95=natural_p95,
+        baseline_ready=baseline_ready,
     )
 
 
@@ -680,19 +710,37 @@ def assess_project_joins(
     tids = [track_id] if track_id else dialogue_track_ids(project)
     reports: list[dict[str, Any]] = []
     worst: dict[str, Any] | None = None
+    timeline = SessionTimeline(project)
     for tid in tids:
         clips = sorted(
             (c for c in project.timeline.clips if c.track_id == tid),
             key=lambda c: c.timeline_start,
         )
-        for i in range(1, len(clips)):
-            prev, cur = clips[i - 1], clips[i]
+        joins = [
+            (clips[i - 1], clips[i])
+            for i in range(1, len(clips))
+            if abs(float(clips[i].source_start) - float(clips[i - 1].source_end)) >= 1e-4
+        ]
+        if not joins:
+            continue
+        samples = _resolve_source_samples(project, tid, cfg.sample_rate)
+        natural_p95 = (
+            _natural_baseline_p95(samples, cfg.sample_rate, cfg) if cfg.calibrate else None
+        )
+        for prev, cur in joins:
             join_t = float(cur.timeline_start)
             gap = abs(float(cur.source_start) - float(prev.source_end))
-            if gap < 1e-4:  # pragma: no cover - abutting clips skipped
-                continue
-            rep = assess_existing_join(
-                project, tid, join_t, timebase="timeline", config=cfg, defaults=defaults
+            rep = _assess_existing_join(
+                project,
+                tid,
+                join_t,
+                timebase="timeline",
+                config=cfg,
+                defaults=defaults,
+                samples=samples,
+                natural_p95=natural_p95,
+                baseline_ready=True,
+                timeline=timeline,
             )
             d = rep.to_dict()
             d["source_gap_sec"] = round(gap, 4)

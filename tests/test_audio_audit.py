@@ -1054,6 +1054,35 @@ def test_analyze_cleanup_summary_no_issues(tmp_path: Path):
     assert report["summary"] == "No significant cleanup issues detected."
 
 
+def test_analyze_cleanup_shares_cache_set(tmp_path: Path, monkeypatch):
+    from podcast_mcp.engines import audio_audit as aa
+
+    project = EpisodeProject.create("ep", str(tmp_path))
+    project.timeline.tracks = [
+        Track(id="host", label="Host", role=TrackRole.DIALOGUE, speaker="Host")
+    ]
+    shared = aa.TrackRmsCacheSet()
+    builds = []
+    seen = []
+    monkeypatch.setattr(aa, "build_track_rms_caches", lambda _: builds.append(1) or shared)
+
+    def record(*args, **kwargs):
+        seen.append(kwargs["caches"])
+        return []
+
+    def record_gate(*args, **kwargs):
+        seen.append(kwargs["caches"])
+        return {"risk": "none"}
+
+    monkeypatch.setattr(aa, "analyze_gate_overreach", record_gate)
+    monkeypatch.setattr(aa, "list_low_audibility_words", record)
+    monkeypatch.setattr(aa, "list_flagged_words", record)
+    monkeypatch.setattr(aa, "recommend_boundary_fades", record)
+    aa.analyze_cleanup(project)
+    assert len(builds) == 1
+    assert seen == [shared] * 4
+
+
 def test_rms_db_edge_cases(monkeypatch):
     from podcast_mcp.engines import audio_audit as aa
     from podcast_mcp.util.dsp import rms_db

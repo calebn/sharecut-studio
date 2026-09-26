@@ -204,6 +204,9 @@ track's raw source audio once for each required sample rate up front
 analysis. Each later cached window read is an in-memory NumPy slice. The
 `engines/audio_audit.py::TrackRmsCache` applies the same pattern to processed
 stems; `analyze_gate_overreach` also caches raw-audio reads.
+The full cleanup report passes one processed-stem cache set through its
+subanalyses, and the project join sweep shares source decode and calibration
+per track while checking each join with a bounded high-rate window.
 
 Measured on a real 65-minute, 2-track episode (`analyze_fillers_pauses`, 181 final
 decisions, byte-identical output across all variants):

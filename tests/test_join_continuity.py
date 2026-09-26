@@ -215,6 +215,39 @@ def test_assess_proposed_cut_and_project_joins(minimal_project: Path, sample_wav
     assert "disclaimer" in sweep
 
 
+def test_project_join_sweep_shares_decode_and_baseline(
+    minimal_project: Path, sample_wav: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.edits import join_continuity as jc
+
+    project = _tiny_project(minimal_project, sample_wav)
+    project.clips.append(
+        Clip(id="c3", track_id="host", source_start=1.6, source_end=1.9, timeline_start=1.0)
+    )
+    cfg = _cfg(calibrate=True, neural=False)
+    individual = [
+        jc.assess_existing_join(project, "host", t, config=cfg).to_dict() for t in (0.5, 1.0)
+    ]
+    counts = {"decode": 0, "baseline": 0}
+    decode = jc._resolve_source_samples
+    baseline = jc._natural_baseline_p95
+
+    def counted_decode(*args, **kwargs):
+        counts["decode"] += 1
+        return decode(*args, **kwargs)
+
+    def counted_baseline(*args, **kwargs):
+        counts["baseline"] += 1
+        return baseline(*args, **kwargs)
+
+    monkeypatch.setattr(jc, "_resolve_source_samples", counted_decode)
+    monkeypatch.setattr(jc, "_natural_baseline_p95", counted_baseline)
+    sweep = jc.assess_project_joins(project, track_id="host", config=cfg)
+    assert counts == {"decode": 1, "baseline": 1}
+    for actual, expected in zip(sweep["joins"], individual, strict=True):
+        assert {k: v for k, v in actual.items() if k != "source_gap_sec"} == expected
+
+
 def test_assess_proposed_cut_rejects_inverted(minimal_project: Path) -> None:
     project = load_project(minimal_project)
     with pytest.raises(ValueError, match="cut_end"):
