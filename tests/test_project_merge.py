@@ -224,6 +224,12 @@ def test_lineage_conflict_message_names_the_undo():
     assert str(ProjectMergeConflict(["tracks[host].gain_db"])).startswith("project changed")
 
 
+def test_conflict_message_ends_with_the_retry_advice():
+    msg = str(ProjectMergeConflict(["tracks[host].gain_db"], retry="re-render the preview"))
+    assert msg.endswith("conflicting at tracks[host].gain_db; re-render the preview")
+    assert "re-run it" not in msg
+
+
 def test_history_cursor_moved_both_ways_conflicts_as_undo_redo(tmp_path):
     base = _base(tmp_path)
     base["history"] = {
