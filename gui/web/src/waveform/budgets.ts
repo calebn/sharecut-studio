@@ -49,8 +49,9 @@ export const RASTER_JOBS_OUTSTANDING = 4;
 export const RASTER_WORKER_RESTARTS = 2;
 
 /**
- * Finished tiles after a crash that re-arm the restart budget, so crashes
- * spread over a long session do not add up to backend `none`.
+ * Finished tiles after a crash that re-arm the restart budget and forget the
+ * crash charges on keys not yet retired, so crashes spread over a long
+ * session neither add up to backend `none` nor retire an innocent tile.
  */
 export const RASTER_RESTART_REARM_TILES = 64;
 
