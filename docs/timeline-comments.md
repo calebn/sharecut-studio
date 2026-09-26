@@ -115,6 +115,9 @@ no public version. The review root must be owned and not group/world writable be
 any media write; staging directories are mode 0700, output files are created with
 no-follow, exclusive descriptor-relative opens, and an active stage holds a directory
 lease until promotion or cleanup.
+Direct `stage_version` callers must supply `on_media_created(path, identity)` so they
+can promote or discard that private stage; `ReviewService.publish` and `publish_version`
+provide this callback automatically.
 
 Generation and persistence failure cleanup use the directory identity recorded at
 staging creation and quarantine with descriptor-relative
