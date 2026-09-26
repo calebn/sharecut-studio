@@ -13,13 +13,19 @@ import pytest
 from podcast_mcp import project_store as project_store_mod
 from podcast_mcp.history import HistoryManager
 from podcast_mcp.history import rollback as rollback_mod
+from podcast_mcp.history import session as session_mod
+from podcast_mcp.history.rollback import RollbackOutcome, take_history_checkpoint
 from podcast_mcp.history.session import run_mutation
 from podcast_mcp.models import EditDecision, EditDecisionType, load_project
 from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.project_io import open_project
 from podcast_mcp.project_store import ProjectStore, history_index_path, history_snapshot_ids
 from podcast_mcp.services.workspace import ProjectWorkspace
-from podcast_mcp.util.project_state import project_state_lock, snapshot_project
+from podcast_mcp.util.project_state import (
+    project_commit_lock,
+    project_state_lock,
+    snapshot_project,
+)
 
 
 def _decision(id_: str) -> EditDecision:
@@ -379,3 +385,22 @@ def test_rolled_back_on_failure_rolls_back_and_reraises(minimal_project, monkeyp
     with rollback_mod.rolled_back_on_failure(proj, checkpoint):
         pass
     assert len(calls) == 1
+
+
+def test_roll_back_history_returns_restored_and_landed(minimal_project):
+    path, proj, _index_path = _setup(minimal_project)
+    store = ProjectStore(path)
+    history_before = proj.history.model_copy(deep=True)
+    with project_commit_lock(proj):
+        checkpoint = take_history_checkpoint(store, proj)
+        HistoryManager(path).record(proj, "x")
+    assert rollback_mod.roll_back_history(proj, checkpoint) is RollbackOutcome.RESTORED
+    assert proj.history == history_before
+
+    with project_commit_lock(proj):
+        checkpoint = take_history_checkpoint(store, proj)
+        HistoryManager(path).record(proj, "y")
+        checkpoint.start_commit(proj)
+        store.commit(proj)
+    assert rollback_mod.roll_back_history(proj, checkpoint) is RollbackOutcome.LANDED
+    assert proj.history.entries[-1].label == "y"
