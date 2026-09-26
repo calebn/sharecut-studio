@@ -1446,6 +1446,26 @@ class AgentJobFanInReporter:
 _SHARED_JOBS: PipelineJobManager | None = None
 
 
+def guest_render_job(job: PipelineJob | None, project_path: Path) -> dict[str, Any] | None:
+    """Expose only safe status for a render belonging to this guest project."""
+    if (
+        job is None
+        or job.kind != "render_preview"
+        or Path(job.project_path).resolve() != project_path.resolve()
+    ):
+        return None
+    snap = job.snapshot()
+    status = snap["status"]
+    return {
+        "id": job.id,
+        "status": status,
+        "current": snap["current"],
+        "total": snap["total"],
+        "message": "Rendering preview" if status in _LIVE_STATUSES else None,
+        "error": "Render preview failed" if status == "error" else None,
+    }
+
+
 def shared_job_manager(*, reset: bool = False) -> PipelineJobManager:
     """Process-wide job manager so host GUI and guest MCP share one render lock.
 

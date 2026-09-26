@@ -372,7 +372,8 @@ Keyboard **`=` / `+` / `-` / `\`** (zoom in / out / fit) require **`timelineFocu
 | `POST /api/pipeline/cancel` | Cancel running job between steps |
 | `POST /api/pipeline/render-preview` | Start render-preview job (stems + premix) |
 | `GET /api/pipeline/events` | SSE progress for the active/last job |
-| `POST /api/review/{token}/daw/render-preview` | Guest Docs Editor (`edit`) — same `PipelineJobManager` as host (wait or 409); paths sanitized |
+| `POST /api/review/{token}/daw/render-preview` | Guest Docs Editor (`edit`) — starts a `PipelineJobManager` render and returns 202 with a job ID (409 if busy) |
+| `GET /api/review/{token}/daw/render-preview/{job_id}` | Guest Docs Editor (`edit`) — polls status for this share's project; paths sanitized |
 | `POST /api/comments` | Create timeline comment (`CommentCreateRequest`) |
 | `PATCH /api/comments/{id}` | Resolve or update body |
 | `POST /api/comments/{id}/actions/{action_id}/done` | Check/uncheck action item with `by` |

@@ -615,21 +615,30 @@ def test_guest_render_preview_strips_host_paths(monkeypatch):
     )
 
     class FakeJob:
+        id = "render-1"
+        kind = "render_preview"
+        project_path = "/tmp/episode.project.json"
         status = "ok"
         error = None
 
+        def snapshot(self):
+            return {"status": "ok", "current": 1, "total": 1}
+
     class FakeJobs:
         def start_render_preview(self, _path):
+            return FakeJob()
+
+        def get_job(self, _id):
             return FakeJob()
 
     monkeypatch.setattr(
         "podcast_mcp.gui.jobs.shared_job_manager",
         lambda: FakeJobs(),
     )
-    out = rt.guest_render_preview(rerender=True)
-    assert out["ok"] is True
-    assert "path" not in out
-    assert "premix_path" not in out
+    out = rt.guest_render_preview()
+    assert out["job"]["id"] == "render-1"
+    assert "path" not in str(out)
+    assert rt.guest_render_preview_job("render-1")["job"]["status"] == "ok"
 
 
 def test_guest_render_preview_requires_opt_in(monkeypatch):
@@ -686,8 +695,14 @@ def test_guest_render_preview_non_dict_ok(monkeypatch):
     )
 
     class FakeJob:
+        id = "render-1"
+        kind = "render_preview"
+        project_path = "/tmp/episode.project.json"
         status = "ok"
         error = None
+
+        def snapshot(self):
+            return {"status": "ok", "current": 1, "total": 1}
 
     class FakeJobs:
         def start_render_preview(self, _path):
@@ -697,7 +712,16 @@ def test_guest_render_preview_non_dict_ok(monkeypatch):
         "podcast_mcp.gui.jobs.shared_job_manager",
         lambda: FakeJobs(),
     )
-    assert rt.guest_render_preview() == {"ok": True}
+    assert rt.guest_render_preview() == {
+        "job": {
+            "id": "render-1",
+            "status": "ok",
+            "current": 1,
+            "total": 1,
+            "message": None,
+            "error": None,
+        }
+    }
 
 
 def test_guest_get_session_presence_requires_view(minimal_project, monkeypatch):

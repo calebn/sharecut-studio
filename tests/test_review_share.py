@@ -665,11 +665,22 @@ def test_guest_render_preview_requires_edit(
         capabilities=["play", "view", "edit"],
     )["token"]
     ok = client.post(f"/api/review/{edit_tok}/daw/render-preview")
-    assert ok.status_code == 200
-    assert ok.json()["ok"] is True
-    assert ok.json()["render"]["ok"] is True
-    assert "path" not in ok.json()["render"]
-    assert calls == [True]
+    assert ok.status_code == 202
+    job_id = ok.json()["job"]["id"]
+    status = client.get(f"/api/review/{edit_tok}/daw/render-preview/{job_id}")
+    assert status.status_code == 200
+    assert status.json()["job"]["status"] in {"queued", "running", "ok"}
+    assert "project_path" not in status.json()["job"]
+    assert "path" not in str(status.json())
+    assert client.get(f"/api/review/{view_tok}/daw/render-preview/{job_id}").status_code == 403
+    from types import SimpleNamespace
+
+    other_job = SimpleNamespace(
+        kind="render_preview",
+        project_path="/another/episode.project.json",
+    )
+    monkeypatch.setattr(client.app.state.jobs, "get_job", lambda _id: other_job)
+    assert client.get(f"/api/review/{edit_tok}/daw/render-preview/{job_id}").status_code == 404
 
 
 def test_guest_render_preview_disabled_by_default(
@@ -693,6 +704,49 @@ def test_guest_render_preview_disabled_by_default(
     denied = client.post(f"/api/review/{edit_tok}/daw/render-preview")
     assert denied.status_code == 403
     assert "PODCAST_GUEST_RENDER" in denied.json()["detail"]
+
+
+def test_guest_render_preview_returns_before_render_finishes(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+) -> None:
+    pytest.importorskip("fastapi")
+    import threading
+
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.services.review import ReviewService
+    from podcast_mcp.services.share import ShareService
+
+    monkeypatch.setenv("PODCAST_GUEST_RENDER", "1")
+    ws = _seed_premix(minimal_project, sample_wav)
+    ver = ReviewService(ws).publish(label="RenderAsync")
+    token = ShareService(ws).create(
+        review_version_id=ver["id"], capabilities=["play", "view", "edit"]
+    )["token"]
+    started = threading.Event()
+    release = threading.Event()
+
+    def slow_preview(self, *, rerender=True, progress=None):
+        started.set()
+        release.wait(timeout=5)
+        return {"ok": True}
+
+    monkeypatch.setattr(
+        "podcast_mcp.services.pipeline.PipelineService.render_preview", slow_preview
+    )
+    client = TestClient(create_app())
+    try:
+        response = client.post(f"/api/review/{token}/daw/render-preview")
+        assert response.status_code == 202
+        assert response.json()["job"]["id"]
+        assert started.wait(timeout=5)
+        status = client.get(
+            f"/api/review/{token}/daw/render-preview/{response.json()['job']['id']}"
+        )
+        assert status.json()["job"]["status"] == "running"
+    finally:
+        release.set()
 
 
 def test_guest_render_preview_conflict_when_host_job_running(

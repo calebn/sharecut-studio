@@ -186,7 +186,7 @@ export async function cancelPipelineRun(
   return data.job;
 }
 
-/** Host: async job. Guest edit share: sync rebuild on host. */
+/** Host: async job. Guest edit share: poll its token-scoped render job. */
 export async function startRenderPreview(
   projectPath: string,
 ): Promise<
@@ -200,15 +200,27 @@ export async function startRenderPreview(
     if (!res.ok) {
       throw new Error(await readApiError(res));
     }
-    const data = (await res.json()) as {
-      ok?: boolean;
-      render?: { ok?: boolean };
-    };
-    const ok = data.ok !== false && data.render?.ok !== false;
-    if (!ok) {
-      throw new Error("Render preview failed");
+    const data = (await res.json()) as { job: { id: string } };
+    const deadline = Date.now() + 600_000;
+    while (Date.now() < deadline) {
+      const statusRes = await fetch(
+        `${reviewApiBase(token)}/daw/render-preview/${encodeURIComponent(data.job.id)}`,
+      );
+      if (!statusRes.ok) {
+        throw new Error(await readApiError(statusRes));
+      }
+      const status = (await statusRes.json()) as {
+        job: { status: string; error: string | null };
+      };
+      if (status.job.status === "ok") {
+        return { mode: "sync", ok: true };
+      }
+      if (status.job.status === "error" || status.job.status === "cancelled") {
+        throw new Error(status.job.error ?? "Render preview failed");
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
-    return { mode: "sync", ok: true };
+    throw new Error("Timed out waiting for render preview");
   }
   const res = await hostFetch("/api/pipeline/render-preview", {
     method: "POST",

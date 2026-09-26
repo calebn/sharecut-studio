@@ -79,7 +79,11 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
     ),
     ("POST", "/api/review/{token}/daw/render-preview"): (
         "edit",
-        "Rebuild stems/premix (opt-in PODCAST_GUEST_RENDER)",
+        "Start stem/premix render job (opt-in PODCAST_GUEST_RENDER)",
+    ),
+    ("GET", "/api/review/{token}/daw/render-preview/{job_id}"): (
+        "edit",
+        "Read project-scoped render job status (no host paths)",
     ),
     ("POST", "/api/review/{token}/daw/document/command"): (
         "view + command allowlist",
@@ -154,6 +158,7 @@ _ROUTE_AGENT: dict[tuple[str, str], str] = {
         "http-only: Sharecut Studio proxy chunks; not a named MCP tool"
     ),
     ("POST", "/api/review/{token}/daw/render-preview"): "guest_render_preview",
+    ("GET", "/api/review/{token}/daw/render-preview/{job_id}"): "guest_render_preview_job",
     ("POST", "/api/review/{token}/daw/document/command"): "guest_submit_document_command",
     ("POST", "/api/review/{token}/daw/media/upload"): "guest_upload_media",
     ("POST", "/api/review/{token}/comments"): "guest_add_comment",

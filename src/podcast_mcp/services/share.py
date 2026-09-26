@@ -640,22 +640,6 @@ def drop_absolute_path_strings(obj: Any) -> Any:
 _drop_absolute_path_strings = drop_absolute_path_strings
 
 
-_GUEST_RENDER_PATH_KEYS = frozenset(
-    {
-        "path",
-        "premix_path",
-        "stem_paths",
-        "project_path",
-        "workspace_dir",
-    }
-)
-
-
-def sanitize_guest_render_preview(info: dict[str, Any]) -> dict[str, Any]:
-    """Drop host-local filesystem paths from a render_preview result."""
-    return {k: v for k, v in info.items() if k not in _GUEST_RENDER_PATH_KEYS}
-
-
 def share_project_view(token: str) -> dict[str, Any]:
     row, ws = open_share_workspace(token)
     project = ws.project
