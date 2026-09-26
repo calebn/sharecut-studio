@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import ctypes
 import errno
+import hashlib
 import json
 import logging
 import os
+import secrets
 import shutil
 import stat
 import sys
@@ -25,7 +27,7 @@ from podcast_mcp.engines.play_audit import (
     premix_path,
     read_mastered_hash,
 )
-from podcast_mcp.models import EpisodeProject, ReviewMixVersion, load_project
+from podcast_mcp.models import EpisodeProject, ReviewMixVersion
 from podcast_mcp.util.datetime_utils import now_iso as _now_iso
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.project_state import project_commit_lock
@@ -54,6 +56,7 @@ _SAFE_FAILED_CLEANUP_SUPPORTED = (
 REVIEW_ARTIFACTS_RELDIR = "artifacts/review"
 
 DirectoryIdentity = tuple[int, int]
+
 
 _QUARANTINE_PREFIX = ".failed-review-"
 _QUARANTINE_ENTRY = "media"
@@ -114,16 +117,46 @@ def _rename_noreplace(src: str, dst: str, root_fd: int) -> None:
         raise OSError(code, os.strerror(code), dst)
 
 
-def promote_staged_version(staging_dir: Path, identity: DirectoryIdentity, version_id: str) -> Path:
+def promote_staged_version(
+    staging_dir: Path,
+    identity: DirectoryIdentity,
+    version_id: str,
+    *,
+    expected_hash: str | None = None,
+) -> Path:
     """Publish complete media with one no-replace rename under the caller's commit lock."""
     if not _SAFE_FAILED_CLEANUP_SUPPORTED:
         raise OSError(errno.ENOTSUP, "safe review publication requires directory descriptors")
     root_fd = _open_pinned_dir(staging_dir.parent)
     try:
+        root_stat = os.fstat(root_fd)
+        if root_stat.st_uid != os.geteuid() or root_stat.st_mode & 0o022:
+            raise PermissionError("review artifacts directory must be owned and private")
         current = os.stat(staging_dir.name, dir_fd=root_fd, follow_symlinks=False)
         if not _is_created_dir(current, identity):
             raise RuntimeError("review staging directory changed before publication")
         _rename_noreplace(staging_dir.name, version_id, root_fd)
+        promoted_fd = _open_pinned_dir(version_id, dir_fd=root_fd)
+        try:
+            promoted = os.fstat(promoted_fd)
+            current = os.stat(version_id, dir_fd=root_fd, follow_symlinks=False)
+            if not _is_created_dir(promoted, identity) or not _is_created_dir(current, identity):
+                raise RuntimeError("review staging directory changed during publication")
+            if expected_hash is not None:
+                media_fd = os.open("mix.wav", os.O_RDONLY | os.O_NOFOLLOW, dir_fd=promoted_fd)
+                try:
+                    media_stat = os.fstat(media_fd)
+                    if not stat.S_ISREG(media_stat.st_mode):
+                        raise RuntimeError("review mix changed during publication")
+                    digest = hashlib.sha256()
+                    while chunk := os.read(media_fd, 1024 * 1024):
+                        digest.update(chunk)
+                    if digest.hexdigest() != expected_hash:
+                        raise RuntimeError("review mix changed during publication")
+                finally:
+                    os.close(media_fd)
+        finally:
+            os.close(promoted_fd)
         return staging_dir.with_name(version_id)
     finally:
         os.close(root_fd)
@@ -275,13 +308,9 @@ def _clean_stale_mp3_temps(version_dir: Path) -> None:
 def clean_created_version(
     version_dir: Path, identity: DirectoryIdentity, *, project: EpisodeProject | None = None
 ) -> None:
-    """Clean one created directory under the same file lock as project commits."""
+    """Clean by identity; acquire the project lock when the caller supplies its project."""
     if project is None:
-        project_path = version_dir.parent.parent.parent / "episode.project.json"
-        if project_path.is_file():
-            project = load_project(project_path)
-    if project is None:
-        # Standalone test directories have no project transaction to coordinate with.
+        # Callers either own the commit lock or are cleaning a private stage.
         _clean_created_version_locked(version_dir, identity)
     else:
         with project_commit_lock(project):
@@ -296,6 +325,7 @@ def _clean_created_version_locked(version_dir: Path, identity: DirectoryIdentity
     root_fd: int | None = None
     quarantine_fd: int | None = None
     quarantine: Path | None = None
+    media_moved = False
     try:
         root_fd = _open_pinned_dir(root)
         public = version_dir.name
@@ -312,7 +342,21 @@ def _clean_created_version_locked(version_dir: Path, identity: DirectoryIdentity
         quarantine = root / quarantine_name
         quarantine_fd = _open_pinned_dir(quarantine_name, dir_fd=root_fd)
         moved = _QUARANTINE_ENTRY
+        marker = {"name": version_dir.name, "dev": identity[0], "ino": identity[1]}
+        marker_fd = os.open(
+            _CLEANUP_MARKER,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            0o600,
+            dir_fd=quarantine_fd,
+        )
+        try:
+            payload = json.dumps(marker).encode()
+            if os.write(marker_fd, payload) != len(payload):
+                raise OSError(errno.EIO, "incomplete review cleanup marker")
+        finally:
+            os.close(marker_fd)
         os.rename(public, moved, src_dir_fd=root_fd, dst_dir_fd=quarantine_fd)
+        media_moved = True
         after = os.stat(moved, dir_fd=quarantine_fd, follow_symlinks=False)
         if not _is_created_dir(after, identity):
             with suppress(OSError):
@@ -323,20 +367,12 @@ def _clean_created_version_locked(version_dir: Path, identity: DirectoryIdentity
                 "Review version directory changed during quarantine; keeping %s", quarantine
             )
             return
-        marker = {"name": version_dir.name, "dev": identity[0], "ino": identity[1]}
-        marker_fd = os.open(
-            _CLEANUP_MARKER,
-            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
-            0o600,
-            dir_fd=quarantine_fd,
-        )
-        try:
-            os.write(marker_fd, json.dumps(marker).encode())
-        finally:
-            os.close(marker_fd)
         shutil.rmtree(moved, dir_fd=quarantine_fd)
         os.unlink(_CLEANUP_MARKER, dir_fd=quarantine_fd)
     finally:
+        if quarantine_fd is not None and not media_moved:
+            with suppress(OSError):
+                os.unlink(_CLEANUP_MARKER, dir_fd=quarantine_fd)
         for fd in (quarantine_fd,):
             if fd is not None:
                 try:
@@ -357,65 +393,86 @@ def _clean_created_version_locked(version_dir: Path, identity: DirectoryIdentity
 
 
 def sweep_stale_quarantines(project: EpisodeProject) -> None:
-    """Bound cleanup to old quarantines carrying a matching ownership record."""
+    """Collect aged private media without holding the project commit lock."""
     if not _SAFE_FAILED_CLEANUP_SUPPORTED:
         return
     root = review_artifacts_dir(project)
     if not root.is_dir():
         return
-    with project_commit_lock(project):
-        root_fd = _open_pinned_dir(root.resolve(strict=True))
-        try:
-            inspected = 0
-            with os.scandir(root_fd) as entries:
-                for entry in entries:
-                    if inspected >= _STALE_QUARANTINE_LIMIT:
-                        break
-                    if not entry.name.startswith(_QUARANTINE_PREFIX):
+    root_fd = _open_pinned_dir(root.resolve(strict=True))
+    try:
+        root_stat = os.fstat(root_fd)
+        # An untrusted writer must not be able to forge cleanup authority.
+        if root_stat.st_uid != os.geteuid() or root_stat.st_mode & 0o022:
+            return
+        # Enumeration is outside the commit lock. Random rotation prevents a
+        # fresh prefix from starving later eligible entries across CLI processes.
+        with os.scandir(root_fd) as entries:
+            names = sorted(
+                entry.name
+                for entry in entries
+                if entry.name.startswith((_QUARANTINE_PREFIX, _STAGING_PREFIX))
+            )
+        if not names:
+            return
+        offset = secrets.randbelow(len(names))
+        selected = (names[offset:] + names[:offset])[:_STALE_QUARANTINE_LIMIT]
+        for name in selected:
+            quarantine_fd: int | None = None
+            try:
+                quarantine_fd = _open_pinned_dir(name, dir_fd=root_fd)
+                dir_stat = os.fstat(quarantine_fd)
+                current = os.stat(name, dir_fd=root_fd, follow_symlinks=False)
+                if (
+                    not _is_created_dir(current, _dir_identity(dir_stat))
+                    or dir_stat.st_uid != os.geteuid()
+                    or dir_stat.st_mode & 0o022
+                ):
+                    continue
+                if name.startswith(_STAGING_PREFIX):
+                    if dir_stat.st_mtime > time.time() - _STALE_QUARANTINE_AGE_SECONDS:
                         continue
-                    inspected += 1
-                    quarantine_fd: int | None = None
-                    try:
-                        quarantine_fd = _open_pinned_dir(entry.name, dir_fd=root_fd)
-                        with os.scandir(quarantine_fd) as contents:
-                            if {item.name for item in contents} != {
-                                _CLEANUP_MARKER,
-                                _QUARANTINE_ENTRY,
-                            }:
-                                continue
-                        marker_stat = os.stat(
-                            _CLEANUP_MARKER, dir_fd=quarantine_fd, follow_symlinks=False
-                        )
-                        if not stat.S_ISREG(marker_stat.st_mode) or marker_stat.st_mtime > (
-                            time.time() - _STALE_QUARANTINE_AGE_SECONDS
-                        ):
-                            continue
-                        marker_fd = os.open(
-                            _CLEANUP_MARKER, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=quarantine_fd
-                        )
-                        try:
-                            marker = json.loads(os.read(marker_fd, 512))
-                        finally:
-                            os.close(marker_fd)
-                        media_stat = os.stat(
-                            _QUARANTINE_ENTRY, dir_fd=quarantine_fd, follow_symlinks=False
-                        )
-                        if not _is_created_dir(
-                            media_stat, (marker["dev"], marker["ino"])
-                        ) or not isinstance(marker["name"], str):
-                            continue
-                        shutil.rmtree(_QUARANTINE_ENTRY, dir_fd=quarantine_fd)
-                        os.unlink(_CLEANUP_MARKER, dir_fd=quarantine_fd)
-                        os.rmdir(entry.name, dir_fd=root_fd)
-                    except (OSError, ValueError, KeyError, TypeError):
-                        log.warning(
-                            "Keeping unsafe review quarantine %s", entry.name, exc_info=True
-                        )
-                    finally:
-                        if quarantine_fd is not None:
-                            os.close(quarantine_fd)
-        finally:
-            os.close(root_fd)
+                    # Stage names are private and never referenced by a committed project.
+                    _clean_created_version_locked(root / name, _dir_identity(dir_stat))
+                    continue
+                with os.scandir(quarantine_fd) as contents:
+                    if {item.name for item in contents} != {
+                        _CLEANUP_MARKER,
+                        _QUARANTINE_ENTRY,
+                    }:
+                        continue
+                marker_stat = os.stat(_CLEANUP_MARKER, dir_fd=quarantine_fd, follow_symlinks=False)
+                if (
+                    not stat.S_ISREG(marker_stat.st_mode)
+                    or marker_stat.st_uid != os.geteuid()
+                    or marker_stat.st_mode & 0o077
+                    or marker_stat.st_mtime > time.time() - _STALE_QUARANTINE_AGE_SECONDS
+                ):
+                    continue
+                marker_fd = os.open(
+                    _CLEANUP_MARKER, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=quarantine_fd
+                )
+                try:
+                    marker = json.loads(os.read(marker_fd, 512))
+                finally:
+                    os.close(marker_fd)
+                media_stat = os.stat(_QUARANTINE_ENTRY, dir_fd=quarantine_fd, follow_symlinks=False)
+                if (
+                    not _is_created_dir(media_stat, (marker["dev"], marker["ino"]))
+                    or media_stat.st_uid != os.geteuid()
+                    or not isinstance(marker["name"], str)
+                ):
+                    continue
+                shutil.rmtree(_QUARANTINE_ENTRY, dir_fd=quarantine_fd)
+                os.unlink(_CLEANUP_MARKER, dir_fd=quarantine_fd)
+                os.rmdir(name, dir_fd=root_fd)
+            except (OSError, ValueError, KeyError, TypeError):
+                log.warning("Keeping unsafe review quarantine %s", name, exc_info=True)
+            finally:
+                if quarantine_fd is not None:
+                    os.close(quarantine_fd)
+    finally:
+        os.close(root_fd)
 
 
 def discard_created_version(
@@ -493,6 +550,8 @@ def stage_version(
     text = (label or "").strip()
     if not text:
         raise ValueError("label is required")
+    if not _SAFE_FAILED_CLEANUP_SUPPORTED:
+        raise OSError(errno.ENOTSUP, "safe review publication requires directory descriptors")
     src, source = resolve_source_mix(project, prefer=prefer)
     vid = _new_id()
     rel = f"{REVIEW_ARTIFACTS_RELDIR}/{vid}/mix.wav"
@@ -502,11 +561,36 @@ def stage_version(
     resolved_root = review_root.resolve(strict=True)
     version_dir = resolved_root / f"{_STAGING_PREFIX}{uuid.uuid4().hex}"
     root_fd = _open_pinned_dir(resolved_root)
+    initial_identity: DirectoryIdentity
     try:
         os.mkdir(version_dir.name, dir_fd=root_fd)
+        try:
+            initial_identity = _dir_identity(
+                os.stat(version_dir.name, dir_fd=root_fd, follow_symlinks=False)
+            )
+        except OSError:
+            # A transient metadata failure after mkdir must still leave an identity
+            # for immediate cleanup. If opening fails too, the age-gated sweep owns it.
+            try:
+                stage_fd = _open_pinned_dir(version_dir.name, dir_fd=root_fd)
+            except OSError:
+                log.warning(
+                    "Could not identify new review stage %s; keeping for sweep", version_dir
+                )
+                raise
+            try:
+                initial_identity = _dir_identity(os.fstat(stage_fd))
+            finally:
+                os.close(stage_fd)
     finally:
         os.close(root_fd)
-    created_identity = _created_dir_identity(version_dir)
+    try:
+        created_identity = _created_dir_identity(version_dir)
+        if created_identity != initial_identity:
+            raise RuntimeError("review staging directory changed during creation")
+    except BaseException:
+        discard_created_version(version_dir, initial_identity)
+        raise
     dest = version_dir / "mix.wav"
     mp3_rel = f"{REVIEW_ARTIFACTS_RELDIR}/{vid}/mix.mp3"
     mp3_path = version_dir / "mix.mp3"
@@ -528,7 +612,7 @@ def stage_version(
         if review_root.resolve(strict=True) != resolved_root:
             raise RuntimeError("review artifacts directory changed during publication")
     except BaseException:
-        discard_created_version(version_dir, created_identity, project=project)
+        discard_created_version(version_dir, created_identity)
         raise
     return ver
 
@@ -571,15 +655,18 @@ def publish_version(
 
     ver = stage_version(project, label=label, prefer=prefer, eng=eng, on_media_created=remember)
     assert created is not None
-    from podcast_mcp.util.project_state import project_commit_lock
-
-    with project_commit_lock(project):
-        try:
-            promote_staged_version(created[0], created[1], ver.id)
-        except BaseException:
-            discard_created_version(created[0], created[1], project=project)
-            raise
-        return attach_version(project, ver, set_active=set_active)
+    try:
+        with project_commit_lock(project):
+            try:
+                promote_staged_version(created[0], created[1], ver.id, expected_hash=ver.sha256)
+                return attach_version(project, ver, set_active=set_active)
+            except BaseException:
+                discard_created_version(created[0], created[1])
+                discard_created_version(created[0].with_name(ver.id), created[1])
+                raise
+    except BaseException:
+        discard_created_version(created[0], created[1])
+        raise
 
 
 def set_active_version(

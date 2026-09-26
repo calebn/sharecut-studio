@@ -74,7 +74,14 @@ class ReviewService:
             try:
                 with project_commit_lock(project):
                     assert recorded is not None
-                    public = promote_staged_version(recorded[0], recorded[1], ver.id)
+                    try:
+                        public = promote_staged_version(
+                            recorded[0], recorded[1], ver.id, expected_hash=ver.sha256
+                        )
+                    except BaseException:
+                        discard_created_version(recorded[0], recorded[1])
+                        discard_created_version(recorded[0].with_name(ver.id), recorded[1])
+                        raise
                     # run_mutation's rollback restores this same payload: this read raises on
                     # an unreadable index (test_publish_removes_staged_media_when_history_read_fails),
                     # so publish never reaches history_index_to_restore's fallback payload. If
@@ -106,7 +113,9 @@ class ReviewService:
                 # Lock timeout, lock-file I/O, or an unreadable history index: nothing
                 # references the staged version yet, so remove its media here.
                 if not mutation_started and recorded is not None:
-                    discard_created_version(public or recorded[0], recorded[1], project=project)
+                    discard_created_version(recorded[0], recorded[1])
+                    if public is not None:
+                        discard_created_version(public, recorded[1], project=project)
                 raise
 
     def _clean_uncommitted_media(
@@ -134,7 +143,7 @@ class ReviewService:
                     "Review history changed during failed publication; keeping %s", created_dir
                 )
                 return
-            clean_created_version(created_dir, identity, project=persisted)
+            clean_created_version(created_dir, identity)
         except BaseException:
             log.warning("Could not clean uncommitted review version %s", created_dir, exc_info=True)
 
