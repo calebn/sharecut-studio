@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -9,14 +10,16 @@ from typing import Any, Literal
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.conversation_align import (
     LOCKED_METHODS,
+    REFERENCE_METHOD,
     UNCONFIRMED_HOLD,
     align_artifact_path,
     alignment_fingerprint,
+    clip_drift_rows,
     large_move_sec_from_defaults,
 )
 from podcast_mcp.edits.pipeline_unattended import is_unattended
 from podcast_mcp.engines.session_timeline import SessionTimeline
-from podcast_mcp.models import EpisodeProject, TrackRole
+from podcast_mcp.models import Clip, EpisodeProject, TrackRole
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
 from podcast_mcp.util.workspace_paths import workspace_relpath
 
@@ -64,6 +67,7 @@ def write_status(
     source: AlignSource,
     notes: str | None = None,
     fingerprint: str | None = None,
+    accepted_drift: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     fp = fingerprint if fingerprint is not None else alignment_fingerprint(project)
     payload: dict[str, Any] = {
@@ -73,6 +77,8 @@ def write_status(
         "notes": notes or "",
         "align_fingerprint": fp,
     }
+    if accepted_drift is not None:
+        payload["accepted_drift"] = accepted_drift
     _write_status(project, payload)
     return payload
 
@@ -97,7 +103,13 @@ def mark_align_done(
     source: AlignSource = "agent",
     notes: str | None = None,
 ) -> dict[str, Any]:
-    return write_status(project, status="done", source=source, notes=notes)
+    return write_status(
+        project,
+        status="done",
+        source=source,
+        notes=notes,
+        accepted_drift=_current_drift_rows(project),
+    )
 
 
 def mark_align_waived(
@@ -109,7 +121,13 @@ def mark_align_waived(
     reason = (reason or "").strip()
     if not reason:
         raise ValueError("align waive requires a non-empty reason")
-    return write_status(project, status="waived", source=source, notes=reason)
+    return write_status(
+        project,
+        status="waived",
+        source=source,
+        notes=reason,
+        accepted_drift=None if source == "unattended" else _current_drift_rows(project),
+    )
 
 
 def status_is_clear_payload(
@@ -165,7 +183,7 @@ def _plan_move_sec(p: dict[str, Any]) -> float:
 
 def large_align_moves(plans: list[dict[str, Any]], *, threshold: float) -> list[dict[str, Any]]:
     """Unlocked plan rows whose move (or held candidate) exceeds ``threshold`` seconds."""
-    skip = LOCKED_METHODS | {"reference"}
+    skip = LOCKED_METHODS | {REFERENCE_METHOD}
     return [p for p in plans if p.get("method") not in skip and abs(_plan_move_sec(p)) > threshold]
 
 
@@ -214,19 +232,30 @@ def align_status_report(
     }
 
 
-def _accept_state(project: EpisodeProject) -> tuple[bool, str]:
-    """(accepted by a person, phrase completing 'and the alignment ...' for QC messages)."""
+@dataclass(frozen=True)
+class _AcceptState:
+    """Whether a person accepted the current alignment (export QC)."""
+
+    accepted: bool  # a person's accept matches the current fingerprint
+    reason: str  # completes "and the alignment ..." when not accepted
+    person_rows: list[dict[str, Any]] | None  # clip drift a person accepted (even stale)
+
+
+def _accept_state(project: EpisodeProject) -> _AcceptState:
     data = load_status(project)
     if data is None:
-        return False, "was not accepted by a person (align status: missing)"
+        return _AcceptState(False, "was not accepted by a person (align status: missing)", None)
     status = data.get("status")
     if status == "waived" and data.get("source") == "unattended":
-        return False, "was not accepted by a person (align status: waived by unattended)"
+        return _AcceptState(
+            False, "was not accepted by a person (align status: waived by unattended)", None
+        )
+    if status not in ("done", "waived"):
+        return _AcceptState(False, f"was not accepted by a person (align status: {status})", None)
+    rows = list(data.get("accepted_drift") or [])
     if status_is_clear_payload(data, fingerprint=alignment_fingerprint(project)):
-        return True, ""
-    if status in ("done", "waived"):
-        return False, f"accept is stale (alignment changed since `align {status}`)"
-    return False, f"was not accepted by a person (align status: {status})"
+        return _AcceptState(True, "", rows)
+    return _AcceptState(False, f"accept is stale (alignment changed since `align {status}`)", rows)
 
 
 def _drift_checkable(payload: dict[str, Any] | None) -> bool:
@@ -237,37 +266,98 @@ def _drift_checkable(payload: dict[str, Any] | None) -> bool:
     )
 
 
+def _current_drift_rows(project: EpisodeProject) -> list[dict[str, Any]]:
+    """Per-clip relative drift now, recorded when a person accepts (empty when uncheckable)."""
+    payload = load_align_artifact(project)
+    if payload is None or not _drift_checkable(payload):
+        return []
+    return clip_drift_rows(project, str(payload["reference_track_id"]))
+
+
+def _placement_rows(rows: list[dict[str, Any]], clip: Clip) -> list[dict[str, Any]]:
+    """Rows for ``clip``: its own id, or the same source with an overlapping range (split pieces)."""
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        if r.get("clip_id") == clip.id:
+            out.append(r)
+            continue
+        if r.get("source_start") is None or r.get("source_end") is None:
+            continue
+        overlap = min(float(r["source_end"]), clip.source_end) - max(
+            float(r["source_start"]), clip.source_start
+        )
+        if r.get("source_id") == clip.source_id and overlap > 1e-6:
+            out.append(r)
+    return out
+
+
+def _still_placed(row: dict[str, Any], rel: float, threshold: float) -> bool:
+    """True while ``rel`` is within ``threshold`` of the relative drift the row recorded."""
+    if row.get("rel_drift_sec") is not None:
+        expected = float(row["rel_drift_sec"])
+    else:  # artifact written before rel_drift_sec: the lock's offset
+        expected = -float(row.get("offset_sec") or 0.0)
+    return abs(rel - expected) <= threshold
+
+
 def _unexplained_drift(
-    project: EpisodeProject, payload: dict[str, Any], *, threshold: float
+    project: EpisodeProject,
+    payload: dict[str, Any],
+    *,
+    threshold: float,
+    accepted_rows: list[dict[str, Any]],
 ) -> tuple[dict[str, float], dict[str, float]]:
     """(max |relative drift| per non-reference dialogue track, tracks whose drift needs a person).
 
-    A locked (hold/manual) clip is exempt while it still sits where align locked it
-    (relative drift within ``threshold`` of ``-offset_sec``); moved after align, it counts.
+    A clip is exempt while it, or the clip it was split from, still sits where align
+    locked it (hold/manual) or where a person accepted it (``accepted_rows``): its
+    relative drift within ``threshold`` of the recorded one. Moved since, it counts.
     """
     ref_id = str(payload["reference_track_id"])
-    rows = {(str(p.get("track_id")), str(p.get("clip_id"))): p for p in payload.get("plans") or []}
+    locked = [p for p in payload.get("plans") or [] if p.get("method") in LOCKED_METHODS]
     st = SessionTimeline(project)
     tracks: dict[str, float] = {}
     flagged: dict[str, float] = {}
     for t in project.tracks:
         if t.role != TrackRole.DIALOGUE or t.id == ref_id:
             continue
+        rows = [r for r in (*locked, *accepted_rows) if str(r.get("track_id")) == t.id]
         worst = 0.0
         for clip in clips_for_track(project, t.id):
             rel = st.clip_relative_drift(clip, ref_id)
             worst = max(worst, abs(rel))
-            row = rows.get((t.id, clip.id))
-            if (
-                row is not None
-                and row.get("method") in LOCKED_METHODS
-                and abs(rel + float(row.get("offset_sec") or 0.0)) <= threshold
+            if abs(rel) <= threshold or any(
+                _still_placed(r, rel, threshold) for r in _placement_rows(rows, clip)
             ):
                 continue
-            if abs(rel) > threshold:
-                flagged[t.id] = max(flagged.get(t.id, 0.0), abs(rel))
+            flagged[t.id] = max(flagged.get(t.id, 0.0), abs(rel))
         tracks[t.id] = round(worst, 3)
     return tracks, flagged
+
+
+@dataclass(frozen=True)
+class _AlignFindings:
+    """What still needs a person; the unattended gate and export QC only format these."""
+
+    moves: list[dict[str, Any]]  # plan rows above threshold, incl. unconfirmed_hold candidates
+    drift: dict[str, float]  # track -> worst relative drift no lock or accept explains
+    tracks: dict[str, float]  # track -> worst relative drift (report)
+
+
+def _align_findings(
+    project: EpisodeProject,
+    payload: dict[str, Any] | None,
+    *,
+    threshold: float,
+    person_rows: list[dict[str, Any]] | None,
+) -> _AlignFindings:
+    moves = large_align_moves(list((payload or {}).get("plans") or []), threshold=threshold)
+    if payload is None or not _drift_checkable(payload):
+        return _AlignFindings(moves=moves, drift={}, tracks={})
+    tracks, drift = _unexplained_drift(
+        project, payload, threshold=threshold, accepted_rows=person_rows or []
+    )
+    return _AlignFindings(moves=moves, drift=drift, tracks=tracks)
 
 
 def alignment_drift_report(
@@ -279,10 +369,12 @@ def alignment_drift_report(
 
     Ripple cuts shift every track alike and cancel out. A clip sitting more than
     the align threshold off the reference clock is an issue when no person accepted
-    the alignment (missing, pending, waived by unattended, or a stale accept). A locked
-    clip is exempt only while it still sits where align locked it. An unaccepted
-    ``unconfirmed_hold`` candidate above the threshold and an unreadable align artifact
-    are issues too. All are warnings when ``align.accept.mode`` is ``off``.
+    the alignment (missing, pending, waived by unattended), or when it moved more than
+    the threshold since a person's now-stale accept. A locked clip, and each split piece
+    of it, is exempt only while it still sits where align locked it. An
+    ``unconfirmed_hold`` candidate above the threshold that no person accepted and an
+    unreadable align artifact are issues too. All are warnings when
+    ``align.accept.mode`` is ``off``.
     """
     payload, err = _align_artifact_or_error(project)
     threshold = align_threshold_sec(payload, defaults)
@@ -297,30 +389,31 @@ def alignment_drift_report(
             "warnings": errs if mode == "off" else [],
         }
     ref_id = str(payload["reference_track_id"])
-    accepted, reason = _accept_state(project)
-    tracks, flagged = _unexplained_drift(project, payload, threshold=threshold)
+    state = _accept_state(project)
+    found = _align_findings(project, payload, threshold=threshold, person_rows=state.person_rows)
     findings: list[str] = []
-    if not accepted:
+    if not state.accepted:
         findings = [
             f"Track '{tid}' sits {rel:.1f}s off the reference clock ('{ref_id}') and the "
-            f"alignment {reason}. Listen with `play --compare`, fix with `move_clips`, then "
-            "`podcast align done`, or re-run align_tracks."
-            for tid, rel in flagged.items()
+            f"alignment {state.reason}. Listen with `play --compare`, fix with `move_clips`, "
+            "then `podcast align done`, or re-run align_tracks."
+            for tid, rel in found.drift.items()
         ]
-        findings += [
-            f"Track '{p.get('track_id')}' clip '{p.get('clip_id')}' has an unconfirmed "
-            f"{_plan_move_sec(p):+.1f}s align candidate held at 0 and the alignment {reason}. "
-            "Listen with `play --compare`, nudge with `move_clips` if it is real, then "
-            "`podcast align done`."
-            for p in large_align_moves(list(payload.get("plans") or []), threshold=threshold)
-            if p.get("method") == UNCONFIRMED_HOLD
-        ]
+        if state.person_rows is None:
+            findings += [
+                f"Track '{p.get('track_id')}' clip '{p.get('clip_id')}' has an unconfirmed "
+                f"{_plan_move_sec(p):+.1f}s align candidate held at 0 and the alignment "
+                f"{state.reason}. Listen with `play --compare`, nudge with `move_clips` if it "
+                "is real, then `podcast align done`."
+                for p in found.moves
+                if p.get("method") == UNCONFIRMED_HOLD
+            ]
     return {
         "checked": True,
         "threshold_sec": threshold,
-        "accepted": accepted,
+        "accepted": state.accepted,
         "reference_track_id": ref_id,
-        "tracks": tracks,
+        "tracks": found.tracks,
         "issues": [] if mode == "off" else findings,
         "warnings": findings if mode == "off" else [],
     }
@@ -335,7 +428,8 @@ def require_or_waive_unattended(
     """Pipeline gate: return summary, or raise if interactive + pending.
 
     Unattended runs auto-waive only when no plan move (or held candidate) and no
-    unlocked clip's current drift exceeds the threshold, the same predicate export QC uses.
+    unlocked clip's current drift exceeds the threshold: :func:`_align_findings`, the
+    same findings export QC formats, without a person's accept to lean on.
     """
     mode = align_mode_from_defaults(defaults)
     if mode == "off":
@@ -351,18 +445,17 @@ def require_or_waive_unattended(
         if err:
             raise AlignAcceptRequiredError(f"{err} {GATE_HINT}")
         threshold = align_threshold_sec(payload, defaults)
-        large = large_align_moves(list((payload or {}).get("plans") or []), threshold=threshold)
+        found = _align_findings(project, payload, threshold=threshold, person_rows=None)
+        named = {str(p.get("track_id")) for p in found.moves}
         listing = [
-            f"{p.get('track_id')} {_plan_move_sec(p):+.2f}s ({p.get('method')})" for p in large
+            f"{p.get('track_id')} {_plan_move_sec(p):+.2f}s ({p.get('method')})"
+            for p in found.moves
         ]
-        if payload is not None and _drift_checkable(payload):
-            named = {str(p.get("track_id")) for p in large}
-            _tracks, flagged = _unexplained_drift(project, payload, threshold=threshold)
-            listing += [
-                f"{tid} {rel:.2f}s off the reference"
-                for tid, rel in flagged.items()
-                if tid not in named
-            ]
+        listing += [
+            f"{tid} {rel:.2f}s off the reference"
+            for tid, rel in found.drift.items()
+            if tid not in named
+        ]
         if listing:
             raise AlignAcceptRequiredError(
                 f"Unattended run will not auto-waive align move(s) above {threshold:.1f}s: "

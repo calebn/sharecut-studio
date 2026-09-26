@@ -1614,3 +1614,49 @@ def test_confirm_large_move_sign_with_real_xcorr(tmp_path: Path, true_offset: fl
     assert out.acoustic_confirmed is True
     assert out.method == "bleed"
     assert out.offset_sec == pytest.approx(true_offset, abs=0.01)
+
+
+def test_ingest_alignment_meta_key_uses_clip_key_for_shared_label(tmp_path: Path) -> None:
+    from podcast_mcp.edits.conversation_align import ingest_alignment_meta_key
+
+    p = _project(tmp_path, [("host", 100.0, []), ("guest", 90.0, []), ("guest2", 80.0, [])])
+    guest = next(t for t in p.tracks if t.id == "guest")
+    gclip = next(c for c in p.clips if c.track_id == "guest")
+    assert ingest_alignment_meta_key(p, guest, gclip, multi_clip=False) == "Guest"
+    assert ingest_alignment_meta_key(p, guest, gclip, multi_clip=True) == "guest:clip_guest"
+    next(t for t in p.tracks if t.id == "guest2").speaker = "Guest"
+    key = ingest_alignment_meta_key(p, guest, gclip, multi_clip=False)
+    assert key == "guest:clip_guest"
+    p.meta.ingest_alignment = {key: SpeakerIngestAlignment(align_method="manual")}
+    manual = [pl.track_id for pl in plan_conversation_alignment(p).plans if pl.method == "manual"]
+    assert manual == ["guest"]
+
+
+def test_manual_lock_offset_uses_overlapping_reference_clip(tmp_path: Path) -> None:
+    p = _project(tmp_path, [("host", 100.0, []), ("guest", 90.0, [])])
+    p.clips.append(
+        Clip(
+            id="clip_host2",
+            track_id="host",
+            source_start=0.0,
+            source_end=100.0,
+            timeline_start=100.0,
+        )
+    )
+    next(c for c in p.clips if c.track_id == "guest").timeline_start = 120.0
+    p.meta.ingest_alignment = {"Guest": SpeakerIngestAlignment(align_method="manual")}
+    guest = next(pl for pl in plan_conversation_alignment(p).plans if pl.track_id == "guest")
+    assert guest.method == "manual"
+    assert guest.offset_sec == pytest.approx(20.0)
+
+
+def test_write_alignment_artifact_records_clip_placement(tmp_path: Path) -> None:
+    import json
+
+    proj = _project(tmp_path, [("host", 10.0, []), ("guest", 10.0, [])])
+    next(c for c in proj.clips if c.track_id == "guest").timeline_start = 2.0
+    plan = ClipAlignPlan(track_id="guest", clip_id="clip_guest", offset_sec=2.0, method="hold")
+    result = AlignResult(plans=[plan], reference_track_id="host")
+    row = json.loads(write_alignment_artifact(proj, result).read_text())["plans"][0]
+    assert (row["source_id"], row["source_start"], row["source_end"]) == (None, 0.0, 10.0)
+    assert row["rel_drift_sec"] == pytest.approx(-2.0)
