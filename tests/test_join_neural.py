@@ -10,6 +10,7 @@ from podcast_mcp.edits.join_continuity import (
     JoinContinuityConfig,
     assess_existing_join,
 )
+from podcast_mcp.edits.join_detectors import DetectorHit, JoinDetector
 from podcast_mcp.models import (
     Clip,
     MediaAsset,
@@ -24,6 +25,24 @@ def test_joinqc_unavailable_returns_none() -> None:
     with patch.object(join_neural, "joinqc_available", return_value=False):
         assert join_neural.nisqa_discontinuity_delta(None, "t", 1.0) is None  # type: ignore[arg-type]
         assert join_neural.wavlm_continuity_z(None, "t", 1.0) is None  # type: ignore[arg-type]
+
+
+def test_neural_adapter_handles_missing_and_weighted_outputs() -> None:
+    weights = {"nisqa_discontinuity": 1.2, "wavlm_continuity": 1.4}
+    absent: JoinDetector = join_neural.NeuralJoinDetector(None, None, weights)
+    assert absent.detect() == []
+
+    nisqa = {"discontinuity_delta": 0.8, "backend": "spectral_proxy"}
+    wavlm = {"z": 6.0}
+    detector: JoinDetector = join_neural.NeuralJoinDetector(nisqa, wavlm, weights)
+    hits = detector.detect()
+    assert all(isinstance(hit, DetectorHit) for hit in hits)
+    assert [(hit.name, hit.score, hit.weight) for hit in hits] == [
+        ("nisqa_discontinuity", 0.8, 1.2),
+        ("wavlm_continuity", 1.0, 1.4),
+    ]
+    assert hits[0].detail is nisqa
+    assert hits[1].detail is wavlm
 
 
 def test_assess_existing_join_without_neural(minimal_project: Path, sample_wav: Path) -> None:

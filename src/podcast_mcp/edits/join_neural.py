@@ -7,10 +7,13 @@ Neural hits may only elevate risk (caller fuses with weight ≥ 0).
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 
+from podcast_mcp.edits.join_detectors import DetectorHit
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.dsp import linear_rms
 from podcast_mcp.util.tracks import track_audio_path
@@ -20,6 +23,39 @@ log = logging.getLogger(__name__)
 _WAVLM_MODEL = None
 _WAVLM_PROCESSOR = None
 _WAVLM_REVISION = "efa81aae7ff777e464159e0f877d54eac5b84f81"
+
+
+@dataclass(frozen=True)
+class NeuralJoinDetector:
+    """Adapt optional model dictionaries to weighted join detector hits."""
+
+    nisqa: dict[str, Any] | None
+    wavlm: dict[str, Any] | None
+    weights: Mapping[str, float]
+
+    def detect(self) -> list[DetectorHit]:
+        hits: list[DetectorHit] = []
+        if self.nisqa is not None:
+            delta = float(self.nisqa.get("discontinuity_delta", 0.0))
+            hits.append(
+                DetectorHit(
+                    "nisqa_discontinuity",
+                    float(max(0.0, min(1.0, delta / 1.0))),
+                    self.weights["nisqa_discontinuity"],
+                    self.nisqa,
+                )
+            )
+        if self.wavlm is not None:
+            z = float(self.wavlm.get("z", 0.0))
+            hits.append(
+                DetectorHit(
+                    "wavlm_continuity",
+                    float(max(0.0, min(1.0, (z - 2.0) / 4.0))),
+                    self.weights["wavlm_continuity"],
+                    self.wavlm,
+                )
+            )
+        return hits
 
 
 def joinqc_available() -> bool:

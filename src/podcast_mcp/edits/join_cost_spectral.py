@@ -12,10 +12,12 @@ These scores are 0..1 “badness” proxies for fusion into join_continuity.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 import numpy as np
 
+from podcast_mcp.edits.join_detectors import DetectorHit
 from podcast_mcp.util.dsp import clamp01
 
 _clamp01 = clamp01
@@ -189,6 +191,28 @@ class SpectralJoinScores:
     lsf: float
     mca: float
     weighted: float
+
+
+@dataclass(frozen=True)
+class SpectralJoinDetector:
+    """Adapt spectral measurements to the shared weighted-hit contract."""
+
+    left: np.ndarray
+    right: np.ndarray
+    sample_rate: int
+    weights: Mapping[str, float]
+
+    def detect(self) -> list[DetectorHit]:
+        scores = score_spectral_join(self.left, self.right, sample_rate=self.sample_rate)
+        return [
+            DetectorHit(name, value, self.weights[name], {"score": round(value, 4)})
+            for name, value in (
+                ("mfcc_join_cost", scores.mfcc),
+                ("lsf_mahalanobis", scores.lsf),
+                ("mca_join_cost", scores.mca),
+                ("weighted_spectral_join", scores.weighted),
+            )
+        ]
 
 
 def score_spectral_join(
