@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { keeperAudioConstraints } from "./keeper/constraints";
 import { useMicStream } from "./useMicStream";
@@ -228,6 +228,91 @@ describe("useMicStream", () => {
     expect(gum).toHaveBeenNthCalledWith(2, keeperAudioConstraints());
     expect(result.current.fellBackFrom).toBe("dead-id");
     expect(result.current.error).toBeNull();
+  });
+
+  describe("after a stale saved id fell back", () => {
+    const makeStream = () => {
+      const track = {
+        stop: vi.fn(),
+        getSettings: () => ({
+          echoCancellation: false,
+          autoGainControl: false,
+          noiseSuppression: false,
+        }),
+      };
+      return { getTracks: () => [track], getAudioTracks: () => [track] };
+    };
+    const staleError = () => {
+      const stale = new Error("no such device");
+      stale.name = "OverconstrainedError";
+      return stale;
+    };
+
+    it("retries straight on the default input", async () => {
+      const gum = vi
+        .fn()
+        .mockRejectedValueOnce(staleError())
+        .mockResolvedValueOnce(makeStream())
+        .mockResolvedValueOnce(makeStream());
+      vi.stubGlobal("navigator", {
+        mediaDevices: {
+          getUserMedia: gum,
+          enumerateDevices: vi.fn(async () => []),
+        },
+      });
+      const { result } = renderHook(() => useMicStream(true, "dead-id"));
+      await waitFor(() => expect(result.current.stream).toBeTruthy());
+      act(() => result.current.retry());
+      await waitFor(() => expect(gum).toHaveBeenCalledTimes(3));
+      expect(gum).toHaveBeenNthCalledWith(3, keeperAudioConstraints());
+      await waitFor(() => expect(result.current.stream).toBeTruthy());
+      expect(result.current.fellBackFrom).toBe("dead-id");
+    });
+
+    it("keeps the fallback when a later Retry fails", async () => {
+      const denied = new Error("blocked");
+      denied.name = "NotAllowedError";
+      const gum = vi
+        .fn()
+        .mockRejectedValueOnce(staleError())
+        .mockResolvedValueOnce(makeStream())
+        .mockRejectedValueOnce(denied);
+      vi.stubGlobal("navigator", {
+        mediaDevices: {
+          getUserMedia: gum,
+          enumerateDevices: vi.fn(async () => []),
+        },
+      });
+      const { result } = renderHook(() => useMicStream(true, "dead-id"));
+      await waitFor(() => expect(result.current.stream).toBeTruthy());
+      act(() => result.current.retry());
+      await waitFor(() =>
+        expect(result.current.errorName).toBe("NotAllowedError"),
+      );
+      expect(result.current.fellBackFrom).toBe("dead-id");
+    });
+
+    it("tries the saved id again once it is listed", async () => {
+      const gum = vi
+        .fn()
+        .mockRejectedValueOnce(staleError())
+        .mockResolvedValueOnce(makeStream())
+        .mockResolvedValueOnce(makeStream());
+      vi.stubGlobal("navigator", {
+        mediaDevices: {
+          getUserMedia: gum,
+          enumerateDevices: vi.fn(async () => [
+            { kind: "audioinput", deviceId: "dead-id", label: "USB" },
+          ]),
+        },
+      });
+      const { result } = renderHook(() => useMicStream(true, "dead-id"));
+      await waitFor(() => expect(result.current.devices).toHaveLength(1));
+      act(() => result.current.retry());
+      await waitFor(() => expect(gum).toHaveBeenCalledTimes(3));
+      expect(gum).toHaveBeenNthCalledWith(3, keeperAudioConstraints("dead-id"));
+      await waitFor(() => expect(result.current.fellBackFrom).toBeNull());
+    });
   });
 
   it("does not fall back when the microphone is blocked", async () => {
