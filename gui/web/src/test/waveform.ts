@@ -73,8 +73,11 @@ export function doneMsg(
 
 export const MEDIA_HASH = "a1".repeat(10);
 
-/** 60 s of 48 kHz media: levels of 64·4^ℓ frames per bin. */
-export function readyEntry(key = MEDIA_HASH): ReadyEntry {
+/** 60 s of 48 kHz media: levels of 64·4^ℓ frames per bin; `over` replaces fields. */
+export function readyEntry(
+  key = MEDIA_HASH,
+  over: Partial<ReadyEntry> = {},
+): ReadyEntry {
   const total = 48000 * 60;
   const levels = [0, 1, 2, 3, 4, 5].map((l) => {
     const spp = 64 * 4 ** l;
@@ -90,6 +93,7 @@ export function readyEntry(key = MEDIA_HASH): ReadyEntry {
     level_factor: 4,
     bins_per_tile: 4096,
     levels,
+    ...over,
   };
 }
 

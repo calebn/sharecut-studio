@@ -7,6 +7,7 @@ import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject, sampleComment } from "../test/fixtures";
 import { stubRaf } from "../test/raf";
+import { readyEntry } from "../test/waveform";
 import type { ClipRow, ProjectView } from "../types/project";
 import {
   COMPACT_LANE_HEIGHT,
@@ -662,17 +663,9 @@ describe("TimelineView render isolation", () => {
     vi.stubGlobal("ResizeObserver", RecordingResizeObserver);
     stubElementSize(800, 600);
     // Every clip's layer holds a ready pyramid, as in a loaded session.
-    waveStatus.entry = {
-      status: "ready",
-      key: "c3".repeat(10),
-      sample_rate: 48000,
-      channels: 1,
-      total_frames: 48000 * 60,
-      base_spp: 64,
-      level_factor: 4,
-      bins_per_tile: 4096,
+    waveStatus.entry = readyEntry("c3".repeat(10), {
       levels: [{ spp: 64, bins: 45000 }],
-    };
+    });
     useDawStore.getState().hydrate("/tmp/p.json", project());
     useDawStore.setState({
       userZoomed: true,
