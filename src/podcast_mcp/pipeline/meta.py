@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from podcast_mcp.edits.tighten_intensity import DEFAULT_TIGHTEN_INTENSITY, TIGHTEN_INTENSITIES
 from podcast_mcp.pipeline.runner import ORDERED_STEP_NAMES
 from podcast_mcp.whisper_models import DEFAULT_WHISPER_MODEL, WHISPER_SIZE_ENUM
 
@@ -450,6 +451,21 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         group="common",
         section="tighten",
         affects=("analyze_fillers_pauses", "tighten_from_transcript"),
+    ),
+    ParamField(
+        path="tighten.intensity",
+        label="Tighten intensity",
+        description=(
+            "light = clear um/uh only, keep at least 0.5 s of every pause; medium = "
+            "defaults; aggressive = isolated fillers, borderline discourse markers, "
+            "0.3 s solo pauses. light/aggressive override the tighten keys they name."
+        ),
+        type="enum",
+        default=DEFAULT_TIGHTEN_INTENSITY,
+        enum=TIGHTEN_INTENSITIES,
+        group="common",
+        section="tighten",
+        affects=("analyze_fillers_pauses",),
     ),
     ParamField(
         path="tighten.max_pause_sec",

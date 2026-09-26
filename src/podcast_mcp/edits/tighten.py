@@ -19,6 +19,7 @@ from podcast_mcp.edits.tighten_reasons import (
     is_acoustic_filler_reason,
     is_review_only_reason,
 )
+from podcast_mcp.edits.tighten_intensity import apply_tighten_intensity
 from podcast_mcp.models import EditDecision, EpisodeProject, Transcript
 from podcast_mcp.util.parallel import run_parallel
 
@@ -81,9 +82,15 @@ def propose_tighten_edits(
     *,
     replace_existing: bool = True,
     edit_mode: str | None = None,
+    intensity: str | None = None,
 ) -> TightenProposal:
+    """Propose tighten decisions (never applies).
+
+    ``intensity`` (light/medium/aggressive) overrides ``tighten.intensity``; see
+    :mod:`podcast_mcp.edits.tighten_intensity`.
+    """
     cfg = dict(defaults)
-    tighten = dict(cfg.get("tighten") or {})
+    tighten = apply_tighten_intensity(dict(cfg.get("tighten") or {}), intensity)
     if edit_mode is not None:
         tighten["edit_mode"] = normalize_edit_mode(edit_mode)
     cfg["tighten"] = tighten
