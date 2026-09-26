@@ -498,7 +498,11 @@ OverconstrainedError on the exact deviceId), any acquisition (first open, Retry
 or reconnect) tries the default available input once. The lobby then shows
 "Your saved microphone isn't available, so the default input is in use.", the
 select shows Default, and the saved `record:<token>:mic` id is reset without
-re-opening the stream, so Retry no longer loops on a dead id. Blocked-permission
+re-opening the stream. The fallback is latched in `useMicStream`
+(`fellBackFrom`): while the dead id is not in the enumerated input list, later
+Retry or reconnect attempts open the default input directly (one
+`getUserMedia` call), and a failed Retry keeps the notice. Once the device is
+listed again, the next acquisition tries it first. Blocked-permission
 errors never fall back. A successful
 reacquisition opens the next segment at the current recording-clock offset,
 extrapolated from the last room snapshot when the stream changes. Keeper gate
@@ -854,16 +858,22 @@ Producers simply lose audio and reconnect.
 Non-terminal record errors from the room (`forbidden`, `invalid_state`,
 `rate_limited`, `join_first`, `malformed`, or an unknown code) show a persistent
 alert with a **Dismiss** action under the role line; `room_full` and the
-access-ended codes keep their own screens and are never dismissed.
+access-ended codes keep their own screens and are never dismissed. A later
+non-terminal code (for example the heartbeat's `join_first` after
+`room_full`) never replaces a terminal one.
 
-On the host, a failed `record.start` / `pause` / `resume` / `stop` / `land`
-command (from the keyboard, command palette or the panel) stores its error in
-`useRecordHostStore.transportError`, announces it, and opens the Record room
-panel (unless the Share dialog is open) so the error is visible rather than
-only announced. The next command or closing the panel clears it.
+On the host, every failed `record.start` / `pause` / `resume` / `stop` /
+`land` command (from the keyboard, command palette or the panel buttons, which
+run the same commands) is announced, stored in
+`useRecordHostStore.transportError`, and shown in the Record room panel, which
+opens so the error is visible rather than only announced. Over the Share
+dialog the failure is only announced and nothing is stored. The next record
+command clears it, and the panel clears it whenever it closes (by any route,
+including **Copy links…**) or the project changes.
 
-If the host record WebSocket drops while a take is recording or paused
-(`useRecordHostStore.connected` false), the transport chip reads
+If the host record WebSocket drops after it has connected, while a take is
+recording or paused (`useRecordHostStore.dropped`; not before the first
+connect or after an intentional teardown), the transport chip reads
 "REC (reconnecting)" with no live dot, its aria-label becomes "Record room
 reconnecting. Open record panel", and the Record room panel shows "Lost
 connection to the record room. Reconnecting…". Capture-health labels (failed,

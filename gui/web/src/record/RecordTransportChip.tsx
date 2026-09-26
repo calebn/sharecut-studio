@@ -8,13 +8,13 @@ export function RecordTransportChip() {
   const clockId = useId();
   const snapshot = useRecordHostStore((s) => s.snapshot);
   const captureHealth = useRecordHostStore((s) => s.captureHealth);
-  const connected = useRecordHostStore((s) => s.connected);
+  const dropped = useRecordHostStore((s) => s.dropped);
   if (!snapshot || snapshot.state === "lobby") {
     return null;
   }
 
   const live = snapshot.state === "recording" || snapshot.state === "paused";
-  const offline = !connected && live;
+  const offline = dropped && live;
   const label =
     snapshot.state === "recording"
       ? captureHealth

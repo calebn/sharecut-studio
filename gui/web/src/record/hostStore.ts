@@ -5,6 +5,8 @@ import type { CaptureHealth, RecordSnapshot } from "./types";
 type RecordHostState = {
   snapshot: RecordSnapshot | null;
   connected: boolean;
+  /** The record socket was open and has since closed (a drop, not the first connect). */
+  dropped: boolean;
   startPending: boolean;
   /** Last failed host record command (transport or land); shown in the Record room panel. */
   transportError: string | null;
@@ -16,6 +18,8 @@ type RecordHostState = {
   setKeeperStorage: (sink: ByteSink | null, error: string | null) => void;
   setSnapshot: (snap: RecordSnapshot | null) => void;
   setConnected: (connected: boolean) => void;
+  /** The socket was torn down on purpose (project switch, disable): not a drop. */
+  resetConnection: () => void;
   beginStart: () => void;
   finishStartRisk: (verified: boolean) => void;
 };
@@ -23,6 +27,7 @@ type RecordHostState = {
 export const useRecordHostStore = create<RecordHostState>((set) => ({
   snapshot: null,
   connected: false,
+  dropped: false,
   startPending: false,
   transportError: null,
   setTransportError: (transportError) => set({ transportError }),
@@ -33,7 +38,12 @@ export const useRecordHostStore = create<RecordHostState>((set) => ({
   setKeeperStorage: (keeperSink, keeperStorageError) =>
     set({ keeperSink, keeperStorageError }),
   setSnapshot: (snapshot) => set({ snapshot }),
-  setConnected: (connected) => set({ connected }),
+  setConnected: (connected) =>
+    set((state) => ({
+      connected,
+      dropped: connected ? false : state.connected || state.dropped,
+    })),
+  resetConnection: () => set({ connected: false, dropped: false }),
   beginStart: () => set({ startPending: true }),
   finishStartRisk: (verified) =>
     set((state) => ({
