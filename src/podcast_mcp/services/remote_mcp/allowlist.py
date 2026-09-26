@@ -71,6 +71,7 @@ EDIT_TOOLS: frozenset[str] = frozenset(
         "guest_submit_document_command",
         "guest_render_preview",
         "guest_upload_media",
+        "guest_render_preview_job",
     }
 )
 

@@ -270,12 +270,10 @@ def guest_submit_document_command(**kwargs: Any) -> dict[str, Any]:
     return result
 
 
-def guest_render_preview(rerender: bool = True) -> dict[str, Any]:
+def guest_render_preview() -> dict[str, Any]:
     """Rebuild stems/premix (requires ``edit`` + ``PODCAST_GUEST_RENDER=1``)."""
-    del rerender  # job manager always rebuilds; kept for API compatibility
     _require_tool("guest_render_preview")
-    from podcast_mcp.gui.jobs import shared_job_manager
-    from podcast_mcp.services.share import sanitize_guest_render_preview
+    from podcast_mcp.gui.jobs import guest_render_job, shared_job_manager
     from podcast_mcp.util.guest_render import require_guest_render
 
     require_guest_render()
@@ -283,29 +281,22 @@ def guest_render_preview(rerender: bool = True) -> dict[str, Any]:
     jobs = shared_job_manager()
     # RuntimeError (busy lock) propagates as MCP -32000, not caps deny (-32003).
     job = jobs.start_render_preview(ctx.workspace.path)
-    import time
+    projected = guest_render_job(job, ctx.workspace.path)
+    if projected is None:
+        raise RuntimeError("Render preview job unavailable")
+    return {"job": projected}
 
-    from podcast_mcp.util.progress import current_progress
 
-    deadline = time.monotonic() + 600.0
-    progress = current_progress()
-    last_snap: tuple[Any, ...] | None = None
-    while job.status in ("queued", "running"):
-        if time.monotonic() > deadline:
-            raise TimeoutError("Timed out waiting for render preview")
-        snap = (job.status, job.message, job.current, job.total)
-        if snap != last_snap:
-            last_snap = snap
-            progress.update(
-                "guest_render_preview",
-                int(job.current or 0),
-                total=job.total,
-                message=job.message or "Rendering preview",
-            )
-        time.sleep(0.05)
-    if job.status != "ok":
-        raise RuntimeError(job.error or "Render preview failed")
-    return sanitize_guest_render_preview({"ok": True})
+def guest_render_preview_job(job_id: str) -> dict[str, Any]:
+    """Read a guest render job scoped to the current edit share."""
+    _require_tool("guest_render_preview_job")
+    from podcast_mcp.gui.jobs import guest_render_job, shared_job_manager
+
+    ctx = get_remote_mcp_context()
+    job = guest_render_job(shared_job_manager().get_job(job_id), ctx.workspace.path)
+    if job is None:
+        raise LookupError("Render preview job not found")
+    return {"job": job}
 
 
 TOOL_HANDLERS: dict[str, Any] = {
@@ -326,6 +317,7 @@ TOOL_HANDLERS: dict[str, Any] = {
     "guest_set_action_done": guest_set_action_done,
     "guest_submit_document_command": guest_submit_document_command,
     "guest_render_preview": guest_render_preview,
+    "guest_render_preview_job": guest_render_preview_job,
     "guest_upload_media": guest_upload_media,
 }
 
@@ -358,9 +350,8 @@ TOOL_DESCRIPTIONS: dict[str, str] = {
     "guest_submit_document_command": (
         "Submit a suggest/edit document command (ApproveEdits, SuggestPendingEdit, …)."
     ),
-    "guest_render_preview": (
-        "Rebuild stems and mix preview (requires edit). Host CPU; same as render_preview."
-    ),
+    "guest_render_preview": ("Start a render job and return its ID immediately (requires edit)."),
+    "guest_render_preview_job": "Get status of a render job for this edit share's project.",
     "guest_upload_media": (
         "Chunked audio upload into host raw/ (requires edit). Same as POST …/daw/media/upload."
     ),
@@ -438,11 +429,10 @@ def tool_input_schema(name: str) -> dict[str, Any]:
             "required": ["comment_id", "action_id"],
         },
         "guest_submit_document_command": document_command_json_schema(),
-        "guest_render_preview": {
+        "guest_render_preview_job": {
             "type": "object",
-            "properties": {
-                "rerender": {"type": "boolean", "default": True},
-            },
+            "properties": {"job_id": {"type": "string"}},
+            "required": ["job_id"],
         },
         "guest_upload_media": {
             "type": "object",

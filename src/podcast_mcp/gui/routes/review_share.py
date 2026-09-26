@@ -8,7 +8,6 @@ import json
 import logging
 import re
 import secrets
-import time
 from typing import Any
 from urllib.parse import urlparse
 
@@ -63,7 +62,6 @@ from podcast_mcp.services.share import (
     require_share_cap,
     resolve_share_audio_redirect,
     sanitize_guest_document_event,
-    sanitize_guest_render_preview,
     sanitize_guest_session_event,
     sanitize_guest_session_snapshot,
     share_add_comment,
@@ -459,7 +457,7 @@ def get_daw_proxy_chunk(token: str, track_id: str, proxy_hash: str, chunk_idx: i
     )
 
 
-@router.post("/api/review/{token}/daw/render-preview")
+@router.post("/api/review/{token}/daw/render-preview", status_code=202)
 def post_daw_render_preview(token: str, request: Request) -> dict[str, Any]:
     """Docs Editor (``edit``) may rebuild stems/premix on the host project.
 
@@ -467,6 +465,7 @@ def post_daw_render_preview(token: str, request: Request) -> dict[str, Any]:
     lock as the host GUI so concurrent host/guest renders cannot race.
     """
 
+    from podcast_mcp.gui.jobs import guest_render_job
     from podcast_mcp.util.guest_render import require_guest_render
 
     _check_token(token)
@@ -485,20 +484,29 @@ def post_daw_render_preview(token: str, request: Request) -> dict[str, Any]:
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
-    # Sync wait - guest clients expect a completed rebuild in one request.
-    deadline = time.monotonic() + 600.0
-    while job.status in ("queued", "running"):
-        if time.monotonic() > deadline:
-            raise HTTPException(status_code=504, detail="Timed out waiting for render preview")
-        time.sleep(0.05)
+    projected = guest_render_job(job, ws.path)
+    if projected is None:
+        raise HTTPException(status_code=500, detail="Render preview job unavailable")
+    return {"job": projected}
 
-    if job.status != "ok":
-        raise HTTPException(
-            status_code=500,
-            detail=job.error or "Render preview failed",
-        )
-    # Paths stay on the host; guests only need success.
-    return {"ok": True, "render": sanitize_guest_render_preview({"ok": True})}
+
+@router.get("/api/review/{token}/daw/render-preview/{job_id}")
+def get_daw_render_preview(token: str, job_id: str, request: Request) -> dict[str, Any]:
+    """Poll a render belonging to this edit share's project."""
+    from podcast_mcp.gui.jobs import guest_render_job
+
+    _check_token(token)
+    _rate_limit(token, "read")
+    try:
+        _row, ws = require_share_cap(token, CAP_EDIT)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except Exception as exc:
+        raise _map_share_exc(exc) from exc
+    job = guest_render_job(request.app.state.jobs.get_job(job_id), ws.path)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Render preview job not found")
+    return {"job": job}
 
 
 @router.post("/api/review/{token}/daw/document/command")

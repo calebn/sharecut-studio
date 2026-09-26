@@ -231,7 +231,8 @@ All under `/api/review/{token}/…` (proxied by the relay; **no** `?project=` pa
 | `GET /api/rec/{token}/upload` | record `join` | Own keeper chunk ACK status (lease required; host removal revokes it and returns 403 `invalid lease`) |
 | `POST /api/rec/{token}/upload` | record `join` | Keeper PCM parts (5 MB / 30 s); resume on the same token. Keeper parts only for takes the participant consented to; `kind=room_tone` only while consented (403 `consent required`). Host removal revokes the lease (403 `invalid lease`). Not `…/daw/media/upload`. |
 | `DELETE /api/rec/{token}/upload` | record `join` | Revoke an ACK'd room-tone bed (`kind=room_tone`) |
-| `POST …/daw/render-preview` | `edit` | Rebuild stems/premix via the same `PipelineJobManager` lock as the host GUI (waits for the job; **409** if another pipeline/render job is already running). Response strips host filesystem paths. |
+| `POST …/daw/render-preview` | `edit` | Start a stem/premix render via the host `PipelineJobManager` lock. Returns **202** with a job ID immediately; **409** if the slot is busy. |
+| `GET …/daw/render-preview/{job_id}` | `edit` | Read a job's status for this share's project. Response includes only safe progress fields, with no host paths. |
 | `GET …/audio` | `play` | ReviewApp frozen mix — prefers `mix.mp3`; **302** to an object-store presigned URL when configured |
 | `POST …/comments` | `comment` | Timeline comment (body max **8000** chars) |
 | `POST …/comments/{id}/replies` | `reply` | Reply (same body max) |
@@ -300,7 +301,7 @@ Revoke deletes the object when no other active shares reference that version.
 - Guests never receive absolute host paths (`project_path`, `workspace_dir`, `media_path` stripped; history omitted). Session-plane snapshots do not store host `wav` paths; guest WS still drops leftover path fields. Episode JSON persists `workspace_dir` as `"."` and workspace-relative media paths only.
 - The share API is a **token-scoped facade** over `ShareService` + `DocumentSyncService` — guests never supply a project path. MCP and HTTP use the same document sanitizer.
 - Capability checks are enforced on the **host**; the relay is a pass-through. Tunnel registration never defaults missing caps to all capabilities. The relay refuses to remap a live token owned by another host and allowlists response headers (drops `Set-Cookie`).
-- Guest `render_preview` (HTTP + MCP) is **opt-in** (`PODCAST_GUEST_RENDER=1`); default off so editor shares cannot burn host FFmpeg silently. MCP render uses the shared job lock and mutate rate class.
+- Guest `render_preview` (HTTP + MCP) is **opt-in** (`PODCAST_GUEST_RENDER=1`); default off so editor shares cannot burn host FFmpeg silently. Starts use the shared job lock and mutate rate class; status reads use the read rate class. MCP `guest_render_preview_job` polls by job ID.
 - Guest uploads are probed with FFmpeg `-protocol_whitelist file,crypto,data`. Chunk uploads cap `total_chunks`, sweep stale `.uploads/`, and enforce a pending-bytes quota.
 - Restricted / guest accounts are **fail-closed**: `/auth` is not mounted and Restricted minting is refused unless `PODCAST_SHARE_ACCOUNTS=1` (stub testing only). Leftover Restricted tokens stay 401 via `ShareIdentityMiddleware`; Restricted share HTML never embeds object-store/OG audio.
 - Loopback GUI is a **privileged local RPC**. Host/Origin binding rejects DNS-rebind forged `Host` headers on host APIs (`/api/project/*`, pipeline, media, document, session, comments).
@@ -382,7 +383,7 @@ Do not put `guest_*` names in the host manifest MCP column. Share agents never c
 | `+comment` / `reply` | `guest_add_comment`, `guest_add_reply` |
 | `+action` | `guest_set_action_done` |
 | `+suggest` / `+edit` | `guest_submit_document_command` (same allowlists as `authorize_document_command`) |
-| `+edit` only | `guest_render_preview` (rebuild stems/mix preview on host); `guest_upload_media` (HTTP twin: `POST …/daw/media/upload`) |
+| `+edit` only | `guest_render_preview` (start render job), `guest_render_preview_job` (read status); `guest_upload_media` (HTTP twin: `POST …/daw/media/upload`) |
 | without `mcp` | Relay/host **403** |
 | record `join` / `monitor` | **no MCP** — `/rec/{token}` lobby; `join` also unlocks `GET`/`POST`/`DELETE /api/rec/{token}/upload` |
 | record `monitor` WS | **no MCP by design** — `WS /api/rec/{token}/ws` (record room / live comments / WebRTC signal). Record MCP twins remain a product decision, not a missing-twin bug. Parity CI (`check_share_http_mcp_parity`) requires a curated `http-only:` note. |

@@ -27,7 +27,7 @@ Host product surfaces (GUI / keys / host MCP / skills): [Capabilities](#/capabil
 | `+comment` / `reply` | `guest_add_comment`, `guest_add_reply` |
 | `+action` | `guest_set_action_done` |
 | `+suggest` / `+edit` | `guest_submit_document_command` |
-| `+edit` only | `guest_render_preview`, `guest_upload_media` |
+| `+edit` only | `guest_render_preview`, `guest_render_preview_job`, `guest_upload_media` |
 
 <!-- /remote-mcp-tools:generated -->
 
