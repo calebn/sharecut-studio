@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import sqlite3
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
+from sqlite_helpers import FailingConnection
 
 from podcast_mcp.services.session_sync.log import SyncStore
 
@@ -213,3 +215,32 @@ def test_mutate_snapshot_is_one_write_transaction(tmp_path: Path) -> None:
     assert (snapshot["server_seq"], snapshot["field"], snapshot["n"]) == (2, "mine", 2)
     a.close()
     b.close()
+
+
+def test_failed_commit_rolls_back_and_the_next_write_commits(tmp_path: Path) -> None:
+    db_path = tmp_path / "sync.db"
+    store = SyncStore(db_path, table_prefix="record_")
+    real = store._conn
+    store._conn = FailingConnection(real, "COMMIT")  # type: ignore[assignment]
+    try:
+        with pytest.raises(sqlite3.OperationalError):
+            _record_append(store, "lost", 1, _count_apply)
+    finally:
+        store._conn = real
+    assert not real.in_transaction
+    _record_append(store, "kept", 2, _count_apply)
+    other = SyncStore(db_path, table_prefix="record_")
+    try:
+        assert [r["command_id"] for r in other.commands_after(0)] == ["kept"]
+    finally:
+        other.close()
+    store.close()
+
+
+def test_nested_write_transaction_joins_the_outer_one(tmp_path: Path) -> None:
+    store = SyncStore(tmp_path / "sync.db", table_prefix="record_")
+    with pytest.raises(RuntimeError), store.write_transaction():
+        _record_append(store, "inner", 1, _count_apply)
+        raise RuntimeError("outer failed")
+    assert store.commands_after(0) == []
+    store.close()

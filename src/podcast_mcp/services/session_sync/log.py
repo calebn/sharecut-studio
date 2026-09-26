@@ -14,6 +14,7 @@ from typing import Any
 
 from podcast_mcp.services.session_sync.commands import presence_color_index
 from podcast_mcp.services.session_sync.sqlite import connect_session_db
+from podcast_mcp.util.sqlite_tx import immediate_transaction
 
 _TABLE_PREFIX_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -191,6 +192,7 @@ class SyncStore:
         self._p = _validate_table_prefix(table_prefix)
         self._sql = _sql_bundle(self._p)
         self._lock = threading.RLock()
+        self._tx_depth = 0
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = connect_session_db(db_path)
         self._client_generation: dict[str, int] = {}
@@ -233,18 +235,38 @@ class SyncStore:
     def _write_transaction(self) -> Iterator[None]:
         """``BEGIN IMMEDIATE`` on this connection: one writer across every connection to the file.
 
-        Re-entrant: inside an open transaction it just runs the body.
+        Callers hold ``self._lock``. Re-entrant through a depth count this store owns (not
+        ``in_transaction``): a nested call joins the outer transaction. A failed body or
+        ``COMMIT`` rolls back (``immediate_transaction``), so the cached connection never
+        stays inside an open transaction.
+
+        Lock order: take a project lock (``ProjectWorkspace.transaction()`` /
+        ``project_commit_lock``) before this, never inside it.
         """
-        if self._conn.in_transaction:
-            yield
+        if self._tx_depth:
+            self._tx_depth += 1
+            try:
+                yield
+            finally:
+                self._tx_depth -= 1
             return
-        self._conn.execute("BEGIN IMMEDIATE")
-        try:
+        with immediate_transaction(self._conn):
+            self._tx_depth = 1
+            try:
+                yield
+            finally:
+                self._tx_depth = 0
+
+    @contextmanager
+    def write_transaction(self) -> Iterator[None]:
+        """Hold this store's lock and one ``BEGIN IMMEDIATE`` across the body.
+
+        Store writes inside (``append_and_apply``, ``mutate_snapshot``, ``reset``) join it.
+        Lock order: take a project lock (``ProjectWorkspace.transaction()`` /
+        ``project_commit_lock``) before this, never inside it.
+        """
+        with self._lock, self._write_transaction():
             yield
-        except BaseException:
-            self._conn.execute("ROLLBACK")
-            raise
-        self._conn.execute("COMMIT")
 
     def reset(
         self,
@@ -427,6 +449,12 @@ class SyncStore:
 
         Serializes every connection to the database file (other processes included); an
         exception rolls back the command row too, so a retry applies it.
+        ``apply_fn``, ``side_effect_fn`` (and ``reset``'s ``guard`` / ``mutate_snapshot``'s
+        mutator) run inside this write transaction: they must not take a project lock.
+        ``apply_fn`` and ``side_effect_fn`` must write only through the connection
+        ``side_effect_fn`` receives, never through another connection to this file. That
+        write would wait on this writer until the busy timeout and fail with
+        ``database is locked``.
         Returns ``(row, snapshot, idempotent)``.
         """
         with self._lock, self._write_transaction():
