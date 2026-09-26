@@ -387,8 +387,9 @@ Revocation stops new requests only.
     reload (`requestRaster` refuses it and `hasRaster` is true), so a poison
     tile cannot loop. A key in flight at repeated crashes is retired the same
     way, so a poison tile cannot spend the restart budget. A worker that cannot
-    be constructed means `none` at once. The listener sets use `listenerSet.ts`
-    (emit over a snapshot).
+    be constructed means `none` at once. The listener sets here and the ready listeners in `statusStore.ts`
+    use `listenerSet.ts` (emit over a snapshot; a listener that throws is
+    rethrown in a microtask and does not stop the others).
   - `bitmapCache.ts` holds the finished bitmaps and calls `close()` on
     every one it evicts. While a tile's exact bitmap is pending, it offers
     the nearest-zoom bitmap that overlaps as a stand-in. A bitmap rendered

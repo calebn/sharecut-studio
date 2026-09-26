@@ -1,6 +1,7 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { loadWaveformStatus } from "../api";
 import { isClientRejection, isRetryLater } from "../utils/apiError";
+import { listenerSet } from "./listenerSet";
 import {
   isReady,
   type ReadyEntry,
@@ -49,7 +50,7 @@ type ReadyListener = (
 ) => void;
 
 const pollers = new Map<string, Poller>();
-const readyListeners = new Set<ReadyListener>();
+const readyListeners = listenerSet<Parameters<ReadyListener>>();
 
 function pollerKey(projectPath: string, kind: WaveformKind): string {
   return `${kind}\u0000${projectPath}`;
@@ -96,9 +97,7 @@ function applyStatus(poller: Poller, status: WaveformStatus): boolean {
       entry.status === "ready" &&
       (prev?.status !== "ready" || prev.key !== entry.key)
     ) {
-      for (const fn of readyListeners) {
-        fn(poller.projectPath, ref, entry);
-      }
+      readyListeners.emit(poller.projectPath, ref, entry);
     }
   }
   if (next.size !== poller.entries.size) {
@@ -265,8 +264,7 @@ export function noteWaveformTileMissing(
 
 /** Called when a ref becomes ready (or ready under a new key). */
 export function onWaveformReady(listener: ReadyListener): () => void {
-  readyListeners.add(listener);
-  return () => readyListeners.delete(listener);
+  return readyListeners.subscribe(listener);
 }
 
 /** Stop and forget every poller (a project switch, tests). */
