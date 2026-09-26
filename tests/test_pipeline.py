@@ -123,3 +123,27 @@ def test_runner_keeps_the_step_when_the_file_was_saved_before_the_error(
             proj, only_step="master_loudness", on_step_complete=save_then_fail
         )
     assert proj.last_completed_step == "master_loudness"
+
+
+def test_runner_unmarks_the_step_when_the_project_file_cannot_be_stated(
+    minimal_project, monkeypatch
+):
+    from podcast_mcp import project_store as project_store_mod
+
+    proj = load_project(minimal_project)
+    proj.last_completed_step = "merge_transcript"
+    monkeypatch.setitem(runner_mod._STEP_MAP, "master_loudness", lambda _p, _d: "")
+
+    def revision(_project):
+        raise OSError("stat failed")
+
+    def save_then_fail(_step: str) -> None:
+        save_project(proj, minimal_project)
+        monkeypatch.setattr(project_store_mod, "project_file_revision", revision)
+        raise OSError("cache")
+
+    with pytest.raises(OSError, match="cache"):
+        PipelineRunner(defaults={}).run(
+            proj, only_step="master_loudness", on_step_complete=save_then_fail
+        )
+    assert proj.last_completed_step == "merge_transcript"
