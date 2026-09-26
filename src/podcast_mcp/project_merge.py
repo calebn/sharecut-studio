@@ -35,18 +35,22 @@ _MISSING: Any = _Missing()
 class ProjectMergeConflict(RuntimeError):
     """Another writer changed a value this job changed too; nothing was saved."""
 
-    def __init__(self, paths: list[str], *, retry: str = "re-run it") -> None:
-        """``retry`` is the advice ending the message (what the caller should do next)."""
+    def __init__(
+        self, paths: list[str], *, retry: str = "re-run it", undo_redo_retry: str | None = None
+    ) -> None:
+        """``retry`` is the advice ending the message (what the caller should do next).
+
+        ``undo_redo_retry``, when given, replaces it for an undo/redo conflict
+        (``history.lineage`` / ``history.cursor``).
+        """
         self.paths = paths
         shown = ", ".join(paths[:5])
         if len(paths) > 5:
             shown += f" and {len(paths) - 5} more"
-        what = (
-            "an undo or redo changed the project"
-            if _UNDO_REDO_CONFLICTS.intersection(paths)
-            else "project changed"
-        )
-        super().__init__(f"{what} while this job ran, conflicting at {shown}; {retry}")
+        undo_redo = bool(_UNDO_REDO_CONFLICTS.intersection(paths))
+        what = "an undo or redo changed the project" if undo_redo else "project changed"
+        advice = undo_redo_retry if undo_redo and undo_redo_retry is not None else retry
+        super().__init__(f"{what} while this job ran, conflicting at {shown}; {advice}")
 
 
 def project_merge_data(project: EpisodeProject) -> dict[str, Any]:
@@ -55,9 +59,17 @@ def project_merge_data(project: EpisodeProject) -> dict[str, Any]:
 
 
 def merge_project_data(
-    base: dict[str, Any], ours: dict[str, Any], theirs: dict[str, Any]
+    base: dict[str, Any],
+    ours: dict[str, Any],
+    theirs: dict[str, Any],
+    *,
+    retry: str = "re-run it",
+    undo_redo_retry: str | None = None,
 ) -> dict[str, Any]:
-    """Merge ``ours`` and ``theirs``, both changed from ``base``; raise on a conflict."""
+    """Merge ``ours`` and ``theirs``, both changed from ``base``; raise on a conflict.
+
+    ``retry`` / ``undo_redo_retry`` end the ``ProjectMergeConflict`` message.
+    """
     conflicts: list[str] = []
     rest = [{k: v for k, v in side.items() if k != _HISTORY} for side in (base, ours, theirs)]
     merged = _merge(rest[0], rest[1], rest[2], "", conflicts)
@@ -65,7 +77,7 @@ def merge_project_data(
         base.get(_HISTORY) or {}, ours.get(_HISTORY) or {}, theirs.get(_HISTORY) or {}, conflicts
     )
     if conflicts:
-        raise ProjectMergeConflict(conflicts)
+        raise ProjectMergeConflict(conflicts, retry=retry, undo_redo_retry=undo_redo_retry)
     merged[_HISTORY] = history
     return merged
 

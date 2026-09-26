@@ -230,6 +230,27 @@ def test_conflict_message_ends_with_the_retry_advice():
     assert "re-run it" not in msg
 
 
+def test_undo_redo_retry_replaces_the_advice_only_for_undo_redo_conflicts():
+    kwargs = {"retry": "re-render", "undo_redo_retry": "check history_status"}
+    assert str(ProjectMergeConflict(["history.cursor"], **kwargs)).endswith(
+        "; check history_status"
+    )
+    assert str(ProjectMergeConflict(["history.lineage"], **kwargs)).endswith(
+        "; check history_status"
+    )
+    assert str(ProjectMergeConflict(["tracks[host].gain_db"], **kwargs)).endswith("; re-render")
+    assert str(ProjectMergeConflict(["history.cursor"], retry="re-render")).endswith("; re-render")
+
+
+def test_merge_project_data_puts_the_retry_advice_on_its_conflict(tmp_path):
+    base = _base(tmp_path)
+    ours, theirs = copy.deepcopy(base), copy.deepcopy(base)
+    _track(ours, "host")["gain_db"] = 2.0
+    _track(theirs, "host")["gain_db"] = 5.0
+    with pytest.raises(ProjectMergeConflict, match=r"; re-render the preview$"):
+        merge_project_data(base, ours, theirs, retry="re-render the preview")
+
+
 def test_history_cursor_moved_both_ways_conflicts_as_undo_redo(tmp_path):
     base = _base(tmp_path)
     base["history"] = {

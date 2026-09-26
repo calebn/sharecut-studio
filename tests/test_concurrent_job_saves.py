@@ -389,7 +389,7 @@ def test_save_merged_invalid_merge_rolls_back_history(minimal_project, monkeypat
     monkeypatch.setattr(
         workspace_mod,
         "merge_project_data",
-        lambda _base, _ours, theirs: {**theirs, "history": 5},
+        lambda _base, _ours, theirs, **_advice: {**theirs, "history": 5},
     )
     with pytest.raises(ProjectMergeConflict, match="merged project is invalid"):
         ws.save_merged(history_label="after step")
