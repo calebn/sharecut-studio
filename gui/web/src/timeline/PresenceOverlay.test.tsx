@@ -76,6 +76,42 @@ describe("PresenceOverlayView", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("clamps remote playhead ghosts to the session length", () => {
+    useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+    const project = minimalProject();
+    const { container } = render(
+      <PresenceOverlayView
+        clients={[
+          { client_id: "me", role: "viewer" },
+          { client_id: "far", role: "viewer", playhead_sec: 1e9 },
+          { client_id: "neg", role: "viewer", playhead_sec: -5 },
+          {
+            client_id: "nan",
+            role: "viewer",
+            meta: {
+              transport: {
+                playing: false,
+                playhead_sec: Number.NaN,
+                rate: 1,
+              },
+            },
+          },
+        ]}
+        localClientId="me"
+        zoomPxPerSec={10}
+        height={72}
+        tracks={hostTracks}
+        clipsByTrack={project.clips.tracks}
+      />,
+    );
+    const lefts = Array.from(
+      container.querySelectorAll<HTMLElement>(".presence-playhead"),
+    ).map((el) => el.style.left);
+    expect(lefts).toHaveLength(2);
+    expect(lefts).toContain("600px");
+    expect(lefts.some((l) => l === "0px" || l === "0")).toBe(true);
+  });
+
   it("omits the followed client playhead when asked", () => {
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     const project = minimalProject();
