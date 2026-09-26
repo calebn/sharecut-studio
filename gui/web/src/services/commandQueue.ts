@@ -44,6 +44,13 @@ interface HostCommandBody {
   };
 }
 
+function queuedResult(
+  command_id: string,
+  client_seq: number,
+): Record<string, unknown> {
+  return { ok: true, queued: true, command_id, client_seq };
+}
+
 export async function submitQueuedDocumentCommand(
   projectPath: string,
   type: string,
@@ -99,7 +106,7 @@ export async function submitQueuedDocumentCommand(
       if (opts?.replaying) {
         throw err;
       }
-      return { ok: true, queued: true, command_id, client_seq };
+      return queuedResult(command_id, client_seq);
     }
     if (!res.ok) {
       const failure = await readApiFailure(res);
@@ -232,7 +239,7 @@ async function submitHostDocumentCommand(
     if (!head) {
       // Nothing in this call will send it, so make sure a drain does.
       requestDrain(projectPath);
-      return { ok: true, queued: true, command_id, client_seq };
+      return queuedResult(command_id, client_seq);
     }
     bodyBase = { ...bodyBase, payload: head.payload };
   }
@@ -244,7 +251,7 @@ async function submitHostDocumentCommand(
     });
   } catch (err) {
     if (enqueueResult.persisted) {
-      return { ok: true, queued: true, command_id, client_seq };
+      return queuedResult(command_id, client_seq);
     }
     throw err;
   }
@@ -271,7 +278,7 @@ async function submitHostDocumentCommand(
       }
     }
     if (res.status >= 500 && enqueueResult.persisted) {
-      return { ok: true, queued: true, command_id, client_seq };
+      return queuedResult(command_id, client_seq);
     }
     throw failure;
   }
