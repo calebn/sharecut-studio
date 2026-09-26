@@ -7,7 +7,7 @@ from podcast_mcp.edits.bleed_text_match import suppress_overlap_text_matches
 from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.engines.audio_audit import AnalysisPolicy, compute_word_audibility_map
 from podcast_mcp.engines.reconciliation_state import mark_reconciliation_fresh
-from podcast_mcp.models import EpisodeProject
+from podcast_mcp.models import EpisodeProject, Transcript
 from podcast_mcp.util.progress import (
     ProgressReporter,
     resolve_progress_task,
@@ -50,6 +50,71 @@ def _in_time_window(
     return not (end_sec is not None and start >= end_sec)
 
 
+def _reconcile_word(
+    tr: Transcript,
+    i: int,
+    row: dict[str, Any],
+    result: ReconciliationResult,
+    *,
+    update_status: bool,
+    apply_suppression: bool,
+    start_sec: float | None,
+    end_sec: float | None,
+) -> None:
+    w = tr.words[i]
+    status = row["audibility_status"]
+    dominant = row.get("dominant_track")
+    in_window = _in_time_window(w.start, start_sec=start_sec, end_sec=end_sec)
+
+    if in_window and (w.audibility_status != status or w.dominant_track != dominant):
+        result.status_updates += 1
+
+    if update_status and in_window:
+        tr.words[i] = w.model_copy(
+            update={
+                "audibility_status": status,
+                "dominant_track": dominant,
+            }
+        )
+        w = tr.words[i]
+
+    if _should_suppress(status) and not w.suppressed and in_window:
+        entry = {
+            "track_id": tr.track_id,
+            "word_index": i,
+            "text": w.text,
+            "start": w.start,
+            "end": w.end,
+            "audibility_status": status,
+            "dominant_track": dominant,
+            "reason": row.get("reason"),
+        }
+        result.suppress.append(entry)
+        if status == "bleed" and dominant:
+            result.reattribute.append(
+                {
+                    **entry,
+                    "attributed_to_track": dominant,
+                }
+            )
+        if apply_suppression:
+            tr.words[i] = tr.words[i].model_copy(update={"suppressed": True})
+
+    elif not _should_suppress(status) and w.suppressed and in_window:
+        result.unsuppress.append(
+            {
+                "track_id": tr.track_id,
+                "word_index": i,
+                "text": w.text,
+                "start": w.start,
+                "end": w.end,
+                "audibility_status": status,
+            }
+        )
+        if apply_suppression:
+            tr.words[i] = tr.words[i].model_copy(update={"suppressed": False})
+
+
 def reconcile_transcript(
     project: EpisodeProject,
     *,
@@ -83,62 +148,21 @@ def reconcile_transcript(
         for tr in project.transcripts:
             if track_id and tr.track_id != track_id:
                 continue
-            for i, w in enumerate(tr.words):
+            for i in range(len(tr.words)):
                 row = by_key.get((tr.track_id, i))
                 if not row:
                     continue
 
-                status = row["audibility_status"]
-                dominant = row.get("dominant_track")
-                in_window = _in_time_window(w.start, start_sec=start_sec, end_sec=end_sec)
-
-                if in_window and (w.audibility_status != status or w.dominant_track != dominant):
-                    result.status_updates += 1
-
-                if update_status and in_window:
-                    tr.words[i] = w.model_copy(
-                        update={
-                            "audibility_status": status,
-                            "dominant_track": dominant,
-                        }
-                    )
-                    w = tr.words[i]
-
-                if _should_suppress(status) and not w.suppressed and in_window:
-                    entry = {
-                        "track_id": tr.track_id,
-                        "word_index": i,
-                        "text": w.text,
-                        "start": w.start,
-                        "end": w.end,
-                        "audibility_status": status,
-                        "dominant_track": dominant,
-                        "reason": row.get("reason"),
-                    }
-                    result.suppress.append(entry)
-                    if status == "bleed" and dominant:
-                        result.reattribute.append(
-                            {
-                                **entry,
-                                "attributed_to_track": dominant,
-                            }
-                        )
-                    if apply_suppression:
-                        tr.words[i] = tr.words[i].model_copy(update={"suppressed": True})
-
-                elif not _should_suppress(status) and w.suppressed and in_window:
-                    result.unsuppress.append(
-                        {
-                            "track_id": tr.track_id,
-                            "word_index": i,
-                            "text": w.text,
-                            "start": w.start,
-                            "end": w.end,
-                            "audibility_status": status,
-                        }
-                    )
-                    if apply_suppression:
-                        tr.words[i] = tr.words[i].model_copy(update={"suppressed": False})
+                _reconcile_word(
+                    tr,
+                    i,
+                    row,
+                    result,
+                    update_status=update_status,
+                    apply_suppression=apply_suppression,
+                    start_sec=start_sec,
+                    end_sec=end_sec,
+                )
 
         if pol.bleed_text_match_enabled and apply_suppression:
             task.set_phase("text_match", "Matching bleed text…")

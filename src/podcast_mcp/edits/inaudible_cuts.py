@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,6 +17,7 @@ from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import track_audio_path
 
 CutMode = Literal["vocal_transcript_guided", "waveform_only"]
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -269,7 +271,8 @@ def _quietest_hop_end(
                 duration_sec=look_dur,
                 sample_rate=sample_rate,
             )
-    except Exception:
+    except Exception as exc:
+        log.debug("Could not inspect trailing audio near %.3fs: %s", cut_end, exc)
         return None
     if samples.size < 8:
         return None
@@ -379,7 +382,8 @@ def _region_is_quiet(
                 duration_sec=end - start,
                 sample_rate=sample_rate,
             )
-    except Exception:
+    except Exception as exc:
+        log.debug("Could not inspect quiet audio from %.3fs to %.3fs: %s", start, end, exc)
         return False
     if samples.size < 8:
         return False
@@ -468,7 +472,8 @@ def optimize_source_cut_range(
             src = track_audio_path(project, track_id)
             start = _snap_boundary_to_waveform(src, start, config=cfg, audio_cache=audio_cache)
             end = _snap_boundary_to_waveform(src, end, config=cfg, audio_cache=audio_cache)
-        except Exception:
+        except Exception as exc:
+            log.debug("Could not snap cut boundaries for %s: %s", track_id, exc)
             src = None
     start = _clamp(start, max(0.0, orig_start - max_shift), orig_start + max_shift)
     end = _clamp(end, max(start + 0.001, orig_end - max_shift), orig_end + max_shift)
@@ -498,7 +503,8 @@ def optimize_source_cut_range(
                 audio_cache=audio_cache,
                 search_until=search_until,
             )
-        except Exception:
+        except Exception as exc:
+            log.debug("Could not extend trailing energy for %s: %s", track_id, exc)
             trailing_extended = False
         if end <= start + 1e-4:
             end = max(orig_end, start + 0.01)
@@ -511,7 +517,8 @@ def optimize_source_cut_range(
                 config=cfg,
                 audio_cache=audio_cache,
             )
-        except Exception:
+        except Exception as exc:
+            log.debug("Could not absorb trailing silence for %s: %s", track_id, exc)
             silence_absorbed = False
         if end <= start + 1e-4:
             end = max(orig_end, start + 0.01)

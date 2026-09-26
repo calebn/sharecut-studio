@@ -19,6 +19,7 @@ from podcast_mcp.models import (
     EditDecisionType,
     EpisodeProject,
     ProcessingChain,
+    ProcessingEffect,
     Track,
 )
 from podcast_mcp.util.binaries import resolve_ffmpeg, resolve_ffprobe
@@ -44,6 +45,53 @@ def _escape_filter_value(value: str) -> str:
     Windows drive-letter separator) or `'`/`\\`.
     """
     return value.replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
+
+
+def _compressor_filter(params: dict[str, Any]) -> str:
+    rendered = (
+        f"acompressor=threshold={params.get('threshold_db', -18)}dB"
+        f":ratio={params.get('ratio', 3)}"
+        f":attack={params.get('attack_ms', 15)}"
+        f":release={params.get('release_ms', 150)}"
+    )
+    makeup = float(params.get("makeup_db", 0))
+    return f"{rendered}:makeup={makeup}" if makeup != 0.0 else rendered
+
+
+def _effect_filter(fx: ProcessingEffect) -> str | None:
+    """Format one supported processing effect; preserve order in the caller."""
+    p = fx.params
+    match fx.effect:
+        case "highpass":
+            return f"highpass=f={int(p.get('frequency', 80))}"
+        case "acompressor":
+            return _compressor_filter(p)
+        case "loudnorm":
+            return f"loudnorm=I={p.get('integrated_lufs', -16)}:TP={p.get('true_peak_db', -1.5)}:LRA=11"
+        case "afftdn":
+            return f"afftdn=nr={p.get('nr', 12)}:nf={p.get('nf', -25)}"
+        case "arnndn":
+            return (
+                f"arnndn=m={_escape_filter_value(p.get('model') or str(resolve_rnnoise_model()))}"
+            )
+        case "bandreject":
+            return f"bandreject=f={p.get('f', 6500)}:width_type=h:w={p.get('w', 3000)}"
+        case "deesser":
+            return f"deesser=i={p.get('intensity', 0.5)}:f={p.get('frequency', 0.5)}"
+        case "agate":
+            return (
+                f"agate=threshold={p.get('threshold_db', -30)}dB"
+                f":range={p.get('range_db', -20)}dB"
+                f":attack={p.get('attack_ms', 5)}"
+                f":release={p.get('release_ms', 50)}"
+            )
+        case "equalizer":
+            return (
+                f"equalizer=f={p.get('f', 1000)}:t={p.get('t', 'q')}"
+                f":w={p.get('w', 1.0)}:g={p.get('g', 0)}"
+            )
+        case _:
+            return None
 
 
 def _concat_list_entry(path: Path) -> str:
@@ -441,54 +489,10 @@ class FFmpegEngine:
         filters: list[str] = []
         if chain:
             for fx in chain.effects:
-                if fx.bypass:
-                    continue
-                if fx.effect == "highpass":
-                    f = int(fx.params.get("frequency", 80))
-                    filters.append(f"highpass=f={f}")
-                elif fx.effect == "acompressor":
-                    t = fx.params.get("threshold_db", -18)
-                    r = fx.params.get("ratio", 3)
-                    attack = fx.params.get("attack_ms", 15)
-                    release = fx.params.get("release_ms", 150)
-                    makeup = fx.params.get("makeup_db", 0)
-                    filt = (
-                        f"acompressor=threshold={t}dB:ratio={r}:attack={attack}:release={release}"
-                    )
-                    if float(makeup) != 0.0:
-                        filt = f"{filt}:makeup={float(makeup)}"
-                    filters.append(filt)
-                elif fx.effect == "loudnorm":
-                    i = fx.params.get("integrated_lufs", -16)
-                    tp = fx.params.get("true_peak_db", -1.5)
-                    filters.append(f"loudnorm=I={i}:TP={tp}:LRA=11")
-                elif fx.effect == "afftdn":
-                    nr = fx.params.get("nr", 12)
-                    nf = fx.params.get("nf", -25)
-                    filters.append(f"afftdn=nr={nr}:nf={nf}")
-                elif fx.effect == "arnndn":
-                    model = fx.params.get("model") or str(resolve_rnnoise_model())
-                    filters.append(f"arnndn=m={_escape_filter_value(model)}")
-                elif fx.effect == "bandreject":
-                    f = fx.params.get("f", 6500)
-                    w = fx.params.get("w", 3000)
-                    filters.append(f"bandreject=f={f}:width_type=h:w={w}")
-                elif fx.effect == "deesser":
-                    i = fx.params.get("intensity", 0.5)
-                    freq = fx.params.get("frequency", 0.5)
-                    filters.append(f"deesser=i={i}:f={freq}")
-                elif fx.effect == "agate":
-                    t = fx.params.get("threshold_db", -30)
-                    r = fx.params.get("range_db", -20)
-                    a = fx.params.get("attack_ms", 5)
-                    rel = fx.params.get("release_ms", 50)
-                    filters.append(f"agate=threshold={t}dB:range={r}dB:attack={a}:release={rel}")
-                elif fx.effect == "equalizer":
-                    f = fx.params.get("f", 1000)
-                    t = fx.params.get("t", "q")
-                    w = fx.params.get("w", 1.0)
-                    g = fx.params.get("g", 0)
-                    filters.append(f"equalizer=f={f}:t={t}:w={w}:g={g}")
+                if not fx.bypass:
+                    rendered = _effect_filter(fx)
+                    if rendered is not None:
+                        filters.append(rendered)
         if envelope and envelope.points:
             expr = self._volume_expression(envelope)
             filters.append(f"volume=enable='between(t,0,1e6)':volume='{expr}'")
