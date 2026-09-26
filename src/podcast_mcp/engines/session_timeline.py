@@ -373,6 +373,22 @@ class SessionTimeline:
             default=0.0,
         )
 
+    def max_relative_drift(self, track_id: str, reference_track_id: str) -> float:
+        """Largest |drift(track) - drift(reference)| at the track's clip midpoints.
+
+        Ripple cuts shift every track alike and cancel out; what remains is the
+        track's offset from the reference clock (alignment).
+        """
+        idx = self._index(track_id)
+        if idx is None or not idx.by_timeline:
+            return 0.0
+        worst = 0.0
+        for span in idx.by_timeline:
+            mid = TimelineSec((span.timeline_start + span.timeline_end) / 2.0)
+            rel = self.drift_at(track_id, mid) - self.drift_at(reference_track_id, mid)
+            worst = max(worst, abs(rel))
+        return worst
+
 
 _DRIFT_WARN_SEC = 1.0
 

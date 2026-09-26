@@ -301,3 +301,112 @@ def test_status_report_lists_large_moves(tmp_path: Path) -> None:
     report = align_status_report(p)
     assert report["large_move_sec"] == 1.0
     assert [m["track_id"] for m in report["large_moves"]] == ["guest"]
+
+
+def _two_track(tmp_path: Path, guest_start: float = 35.6) -> EpisodeProject:
+    p = EpisodeProject(meta=ProjectMeta(name="g2", workspace_dir=str(tmp_path)))
+    for tid in ("host", "guest"):
+        p.tracks.append(
+            Track(
+                id=tid,
+                label=tid.title(),
+                role=TrackRole.DIALOGUE,
+                media=MediaAsset(path=f"raw/{tid}.wav", duration_sec=100.0),
+            )
+        )
+        p.clips.append(
+            Clip(
+                id=f"clip_{tid}",
+                track_id=tid,
+                source_start=0.0,
+                source_end=100.0,
+                timeline_start=guest_start if tid == "guest" else 0.0,
+            )
+        )
+    return p
+
+
+def _write_two_track_plans(p: EpisodeProject, method: str = "bleed") -> None:
+    from podcast_mcp.edits.conversation_align import (
+        AlignResult,
+        ClipAlignPlan,
+        write_alignment_artifact,
+    )
+
+    write_alignment_artifact(
+        p,
+        AlignResult(
+            plans=[
+                ClipAlignPlan(
+                    track_id="host", clip_id="clip_host", offset_sec=0.0, method="reference"
+                ),
+                ClipAlignPlan(
+                    track_id="guest", clip_id="clip_guest", offset_sec=35.6, method=method
+                ),
+            ],
+            reference_track_id="host",
+        ),
+    )
+
+
+def test_drift_report_unchecked_without_artifact(tmp_path: Path) -> None:
+    from podcast_mcp.edits.align_accept_status import alignment_drift_report
+
+    report = alignment_drift_report(_two_track(tmp_path))
+    assert report["checked"] is False
+    assert report["issues"] == []
+
+
+def test_drift_report_issue_when_waived_unattended(tmp_path: Path) -> None:
+    from podcast_mcp.edits.align_accept_status import alignment_drift_report, write_status
+
+    p = _two_track(tmp_path)
+    _write_two_track_plans(p)
+    write_status(p, status="waived", source="unattended")
+    report = alignment_drift_report(p)
+    assert report["checked"] is True
+    assert len(report["issues"]) == 1
+    assert "guest" in report["issues"][0]
+    assert "waived by unattended" in report["issues"][0]
+
+
+def test_drift_report_clear_when_done(tmp_path: Path) -> None:
+    from podcast_mcp.edits.align_accept_status import alignment_drift_report
+
+    p = _two_track(tmp_path)
+    _write_two_track_plans(p)
+    mark_align_done(p)
+    report = alignment_drift_report(p)
+    assert report["issues"] == []
+    assert report["accepted"] is True
+    assert report["tracks"]["guest"] == pytest.approx(35.6, abs=0.01)
+
+
+def test_drift_report_skips_locked_tracks(tmp_path: Path) -> None:
+    from podcast_mcp.edits.align_accept_status import alignment_drift_report
+
+    p = _two_track(tmp_path)
+    _write_two_track_plans(p, method="hold")
+    assert alignment_drift_report(p)["issues"] == []
+
+
+def test_drift_report_warning_when_mode_off(tmp_path: Path) -> None:
+    from podcast_mcp.edits.align_accept_status import alignment_drift_report
+
+    p = _two_track(tmp_path)
+    _write_two_track_plans(p)
+    report = alignment_drift_report(p, defaults={"align": {"accept": {"mode": "off"}}})
+    assert report["issues"] == []
+    assert len(report["warnings"]) == 1
+
+
+def test_write_export_qc_reports_alignment_issue(tmp_path: Path) -> None:
+    from podcast_mcp.pipeline import steps
+
+    p = _two_track(tmp_path)
+    _write_two_track_plans(p)
+    mark_align_pending(p)
+    qc = steps.write_export_qc(p)
+    assert qc["alignment"]["checked"] is True
+    assert any("off the reference clock" in i for i in qc["issues"])
+    assert qc["ok"] is False
