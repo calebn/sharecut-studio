@@ -40,6 +40,8 @@ alert roles on the caller's content so each screen retains its own semantics.
 
 `src/api.ts` is the stable named export facade used by components and tests. Domain adapters live in `src/api/`: project and media, waveform, document edits, pipeline and export jobs, shares and recording, bootstrap and diagnostics, comments, and session media. Internal adapters import each other directly rather than importing the facade. Document commands pass through `src/services/commandQueue.ts` and `src/api/documentTransport.ts` so host and guest queue semantics stay shared.
 
+`src/commands/register.ts` is the stable DAW command registration facade. It calls focused registrars for navigation, editing, view, history, host operations, and project/media in the original order. Each registrar adds handlers to the one map in `src/commands/execute.ts`; `src/keymap/listener.ts` remains the only window shortcut listener. The track/clip mutation queue is shared through `src/commands/trackMutation.ts`. Keep browser actions and asynchronous guards with their owning registrar, and preserve the facade's blade runner and test reset exports.
+
 ## Testing
 
 | Kind | Where | Notes |
