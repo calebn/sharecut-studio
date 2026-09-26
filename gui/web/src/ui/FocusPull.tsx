@@ -1,4 +1,5 @@
-import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import { memo, type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import { listFocusable } from "./useDialogModal";
 
 type Props = {
   /** Change this value to transition to the next view. */
@@ -19,6 +20,13 @@ type Transition = {
   incomingChildren: ReactNode;
   entering: boolean;
 };
+
+const ViewContent = memo(
+  function ViewContent({ children }: { children: ReactNode; freeze: boolean }) {
+    return children;
+  },
+  (previous, next) => next.freeze || previous.children === next.children,
+);
 
 /**
  * Focus-pull view transition: outgoing content fades and blurs for
@@ -60,13 +68,13 @@ export function FocusPull({ viewKey, children, className }: Props) {
         }
       } else {
         displayedChildren.current = children;
-        setDisplayed({ key: viewKey, children });
       }
       return;
     }
 
     if (current && !current.entering && viewKey === current.outgoingKey) {
       clearTimers();
+      focusNext.current = false;
       displayedChildren.current = children;
       transitionRef.current = null;
       setDisplayed({ key: viewKey, children });
@@ -115,16 +123,22 @@ export function FocusPull({ viewKey, children, className }: Props) {
     exitDeadline.current = Date.now() + exitDelay;
     timers.current.push(
       window.setTimeout(() => {
-        const entering = { ...next, entering: true };
+        const latest = transitionRef.current;
+        if (!latest) return;
+        const entering = { ...latest, entering: true };
         transitionRef.current = entering;
         setTransition(entering);
         timers.current.push(
           window.setTimeout(() => {
-            displayedKey.current = viewKey;
-            displayedChildren.current =
-              transitionRef.current?.incomingChildren ?? children;
+            const finished = transitionRef.current;
+            if (!finished) return;
+            displayedKey.current = finished.incomingKey;
+            displayedChildren.current = finished.incomingChildren;
             transitionRef.current = null;
-            setDisplayed({ key: viewKey, children: displayedChildren.current });
+            setDisplayed({
+              key: finished.incomingKey,
+              children: finished.incomingChildren,
+            });
             setTransition(null);
             timers.current = [];
           }, FOCUS_PULL_ENTER_MS),
@@ -157,12 +171,18 @@ export function FocusPull({ viewKey, children, className }: Props) {
 
   useLayoutEffect(() => {
     if (!focusNext.current || (transition && !transition.entering)) return;
+    const active = document.activeElement;
+    if (active !== document.body && !root.current?.contains(active)) {
+      focusNext.current = false;
+      return;
+    }
     const slot = root.current?.querySelector(
       transition ? ".focus-pull-enter" : ".focus-pull-current",
     );
-    const target = slot?.querySelector<HTMLElement>(
-      '[autofocus]:not(:disabled), button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])',
-    );
+    const focusable = slot instanceof HTMLElement ? listFocusable(slot) : [];
+    const target =
+      focusable.find((element) => element.hasAttribute("autofocus")) ??
+      focusable[0];
     (target ?? (slot as HTMLElement | null))?.focus();
     focusNext.current = false;
   }, [transition, displayed.key]);
@@ -174,7 +194,7 @@ export function FocusPull({ viewKey, children, className }: Props) {
       <div className={rootClassName} ref={root}>
         {/* Inert while it fades: a quick second tap can't land on it. */}
         <div className="focus-pull-exit" inert key={transition.outgoingKey}>
-          {transition.outgoingChildren}
+          <ViewContent freeze>{transition.outgoingChildren}</ViewContent>
         </div>
         <div
           className={
@@ -183,9 +203,11 @@ export function FocusPull({ viewKey, children, className }: Props) {
           key={transition.incomingKey}
           tabIndex={-1}
         >
-          {viewKey === transition.incomingKey
-            ? children
-            : transition.incomingChildren}
+          <ViewContent freeze={viewKey !== transition.incomingKey}>
+            {viewKey === transition.incomingKey
+              ? children
+              : transition.incomingChildren}
+          </ViewContent>
         </div>
       </div>
     );
@@ -194,7 +216,9 @@ export function FocusPull({ viewKey, children, className }: Props) {
   return (
     <div className={rootClassName} ref={root}>
       <div className="focus-pull-current" key={displayed.key} tabIndex={-1}>
-        {viewKey === displayed.key ? children : displayed.children}
+        <ViewContent freeze={viewKey !== displayed.key}>
+          {viewKey === displayed.key ? children : displayed.children}
+        </ViewContent>
       </div>
     </div>
   );

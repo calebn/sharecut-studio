@@ -102,7 +102,9 @@ immediately. The reduced-motion media rule shows the destination at once, and
 the component skips the timers when that preference is active. Switching to
 reduced motion during a transition completes it immediately. If focus was in
 the outgoing view, it moves to the incoming view when that view becomes
-visible.
+visible, using the first visible, non-inert control. An exit canceled by
+returning to the original view keeps its focus, and focus moved outside the
+view during an exit stays outside.
 
 ## Surface ladder
 
