@@ -21,12 +21,13 @@ description: >-
    Pass `config_json`, `enabled_steps_json`, and/or `unattended`. Enabling a step expands `depends_on`. `reset=true` restores yaml defaults.
 4. **Run** — `pipeline_run(project_path, unattended=..., use_working_set=true)`  
    Or pass `config_json` / `skip_steps_json` explicitly. GUI Batch mode = `unattended=true` (waive align + refine gates when their modes are `waive_unattended`). Leave-gates = `unattended=false`; if align or refine blocks, clear that gate then resume `--from` the next step.
+   To re-score locked align stems (`hold`/`manual`), pass `config_json='{"align": {"realign": true}}'` (MCP equivalent of CLI `--realign`).
 
 ## Modes
 
 | Mode | `unattended` | Behavior |
 |------|--------------|----------|
-| Batch | `true` | Waive `require_align_accept` and refine gates when mode is `waive_unattended` (scorer still ran) |
+| Batch | `true` | Waive `require_align_accept` (small moves only: it stops on a move, held candidate or unlocked drift above `align.large_move_sec`) and refine gates when mode is `waive_unattended` (scorer still ran) |
 | Leave gates | `false` | Gates can block; agent/human clears align (`podcast align done`) / refine, then resume |
 
 Align params live under `align.*` (accept mode, max offset, bleed/gap knobs). Uncheck

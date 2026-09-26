@@ -250,7 +250,7 @@ requires HTTP 200 and host setup still waits for `networkidle`.
 | Pipeline steps / runner | `test_pipeline.py`, `test_pipeline_steps.py`, `test_runner.py` |
 | CLI | `test_cli.py` |
 | MCP tool handlers | `test_mcp_tools.py` |
-| Config / defaults | `test_config.py` |
+| Config / defaults | `test_config.py`; `test_pipeline_config.py` asserts every `ParamField.default` equals `.agents/defaults/pipeline.yaml`, and that the align module constants match it |
 | History / undo-redo | `test_history.py` |
 | Source↔timeline mapping | `test_session_timeline.py`, `test_timebase_regression.py` |
 | Timebase architecture guards / conformance | `test_timebase_guards.py`, `test_time_conformance.py` |

@@ -323,7 +323,14 @@ def test_clip_source_to_timeline_shift() -> None:
     )
 
 
-def test_max_relative_drift_ignores_shared_ripple(tmp_path) -> None:
+def _max_rel(p: EpisodeProject, tid: str, ref: str) -> float:
+    st = SessionTimeline(p)
+    return max(
+        (abs(st.clip_relative_drift(c, ref)) for c in p.clips if c.track_id == tid), default=0.0
+    )
+
+
+def test_clip_relative_drift_ignores_shared_ripple(tmp_path) -> None:
     def build(guest_shift: float) -> EpisodeProject:
         p = EpisodeProject.create("rel_drift", str(tmp_path / f"ws{guest_shift}"))
         p.timeline.tracks = [
@@ -354,14 +361,50 @@ def test_max_relative_drift_ignores_shared_ripple(tmp_path) -> None:
         p.timeline.clips = clips
         return p
 
-    aligned = SessionTimeline(build(0.0))
-    assert aligned.max_relative_drift("guest", "host") == pytest.approx(0.0)
+    assert _max_rel(build(0.0), "guest", "host") == pytest.approx(0.0)
     # A pure offset (no ripple around it) shows up in full.
     flat = build(35.6)
     flat.timeline.clips = [
         Clip(id="h", track_id="host", source_start=0.0, source_end=100.0, timeline_start=0.0),
         Clip(id="g", track_id="guest", source_start=0.0, source_end=100.0, timeline_start=35.6),
     ]
-    shifted = SessionTimeline(flat)
-    assert shifted.max_relative_drift("guest", "host") == pytest.approx(35.6, abs=0.01)
-    assert SessionTimeline(build(0.0)).max_relative_drift("nope", "host") == 0.0
+    assert _max_rel(flat, "guest", "host") == pytest.approx(35.6, abs=0.01)
+    assert _max_rel(build(0.0), "nope", "host") == 0.0
+
+
+def _drift_project(tmp_path, name: str, host: list[Clip], guest: list[Clip]) -> EpisodeProject:
+    p = EpisodeProject.create(name, str(tmp_path / name))
+    p.timeline.tracks = [
+        Track(id=t, label=t, media=MediaAsset(path=f"raw/{t}.wav", duration_sec=300.0))
+        for t in ("host", "guest")
+    ]
+    p.timeline.clips = [*host, *guest]
+    return p
+
+
+def test_clip_relative_drift_sees_reference_edit_inside_clip(tmp_path) -> None:
+    g = Clip(id="g", track_id="guest", source_start=0, source_end=98, timeline_start=0)
+    p = _drift_project(
+        tmp_path,
+        "inside",
+        [
+            Clip(id="h1", track_id="host", source_start=0, source_end=80, timeline_start=0),
+            Clip(id="h2", track_id="host", source_start=82, source_end=100, timeline_start=80),
+        ],
+        [g],
+    )
+    assert abs(SessionTimeline(p).clip_relative_drift(g, "host")) == pytest.approx(2.0, abs=1e-6)
+
+
+def test_clip_relative_drift_ignores_sliver(tmp_path) -> None:
+    g = Clip(id="g", track_id="guest", source_start=0, source_end=60.02, timeline_start=0)
+    p = _drift_project(
+        tmp_path,
+        "sliver",
+        [
+            Clip(id="h1", track_id="host", source_start=0, source_end=60, timeline_start=0),
+            Clip(id="h2", track_id="host", source_start=90, source_end=300, timeline_start=60),
+        ],
+        [g],
+    )
+    assert SessionTimeline(p).clip_relative_drift(g, "host") == pytest.approx(0.0)

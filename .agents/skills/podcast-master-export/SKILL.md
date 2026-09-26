@@ -62,7 +62,7 @@ pipeline) and before telling the user the episode is ready.** If `ok` is `false`
   [podcast-transcript-reconcile](../podcast-transcript-reconcile/SKILL.md).
 - A `master_qc` issue — see the loudness QC section above.
 - Unmapped transcript words in `timebase.issues` — wrong clock or cut-away words.
-- An `alignment` issue - a track sits more than `align.large_move_sec` off the reference clock and no person accepted the alignment (`podcast-align-audio`: listen, nudge, `align done`).
+- An `alignment` issue - a clip sits more than the align threshold off the reference clock, an `unconfirmed_hold` candidate is still pending, or the align artifact is unreadable, and no person accepted the alignment (or the accept went stale). Use `podcast-align-audio`: listen, nudge, `align done`.
 
 Plain source/timeline **drift** after edits is expected; it appears under `warnings` /
 `timebase.warnings` and does **not** flip `ok` by itself. Relative align drift above

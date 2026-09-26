@@ -31,13 +31,15 @@ Transcript quality runs **before** focus/tighten so search and narrative edits u
 After ASR (while bleed phrases still exist in the transcript), **`align_tracks`**
 places each whole-file dialogue clip on one session clock:
 
-0. **Locks first** - equal-duration stems (within ~50 ms of the reference, `same_length_prior`) are held at identity as method `hold`; a manifest-pinned offset (`meta.ingest_alignment[*].align_method == "manual"`) is kept as method `manual`. Locked clips keep their geometry exactly (splits, ripples, ingest placement). Only `align.realign: true` (GUI/MCP config, or `podcast pipeline run --realign`) re-scores them.
-1. **Bleed n-grams** - same phrase on two+ tracks gives a weighted-median Δt. Bleed counts only when at least `align.min_bleed_matches` (5) n-grams cluster **and** carry at least `align.bleed_min_share` (0.3) of the weighted matches; n-grams made only of filler/stopwords ("i don't know") count 0.2x, and repeated phrases are down-weighted by their multiplicity. Sub-second Δt (`align.bleed_identity_sec`) is confirmed with waveform xcorr before apply; identity only when acoustic lag is ~0.
+0. **Locks first** - when every dialogue stem has the same duration (within ~50 ms; the Analyze `pre_aligned` case) each stem is held as method `hold` (a lone same-length clip in a mixed set only gets the soft `same_length_prior`); a manifest-pinned offset (the clip's own `track_id:clip_id` entry in `meta.ingest_alignment`, or the speaker-label entry when that label is unique among dialogue tracks, with `align_method: "manual"`) is kept as method `manual`, and the plan records the offset that placement represents. Locked clips keep their geometry exactly (splits, ripples, ingest placement); a `hold` clip that is not co-timed with the reference is rebased onto the reference lead-in first. Only `align.realign: true` (GUI Pipeline pane, MCP `config_json='{"align": {"realign": true}}'`, or `podcast pipeline run --realign`) re-scores them.
+1. **Bleed n-grams** - same phrase on two+ tracks gives a weighted-median Δt. Bleed counts only when at least `align.min_bleed_matches` (5) n-grams cluster **and** carry at least `align.bleed_min_share` (0.3) of the weighted matches; n-grams made only of filler/stopwords ("i don't know") count 0.2x, and repeated phrases are down-weighted by their multiplicity. Sub-second Δt (`align.bleed_identity_sec`) is confirmed with waveform xcorr before apply; identity only when acoustic lag is ~0. `align.bleed_identity_sec` is capped at `align.large_move_sec`.
 2. Else **own-speech / VAD gaps** - occupancy excludes bleed copies and stretched ASR words; N-way union; hierarchical coarse-to-fine sweep over a bound from the longest dialogue file (`align.max_offset_sec: 0` = auto). Applied when confident about a multi-second move (not search-wall). Local **silence-midpoint** refine (±2s, capped to ~0.3s drift) polishes the peak.
 3. Else **late-join occupancy** - after leading file silence, park the first real speech island in a host silence long enough to hold it (silence-mid minus utterance center, or silence start if mid would overhang). Apply only when turn-taking **clearly beats identity**. Method `gaps_late`; then the same local silence-mid refine. Sparse one-off bleed bigrams are for human/agent diagnosis, not the default clock.
 4. **Weak hold** - when gaps and late-join are not confident, `weak_hold` at 0.
 
-**Large moves:** any candidate above `align.large_move_sec` (1.0 s) must be confirmed by waveform xcorr (at least 3 windows, peak at least `align.large_move_min_peak`, residual within `align.acoustic_agree_sec`). Unconfirmed candidates are held at 0 as `unconfirmed_hold`; the candidate stays in the artifact (`candidate_offset_sec`, `acoustic_confirmed`) and the step summary so a person can listen and nudge.
+**Upgrading from earlier releases:** `align.min_bleed_matches` rose from 2 to 5, and bleed now also needs `align.bleed_min_share`. Re-running align on an existing project can fall through to gaps/late-join or a hold where it used to take a bleed clock. To restore the old bleed trust for a project, set `align.min_bleed_matches: 2` and `align.bleed_min_share: 0`.
+
+**Large moves:** any candidate above `align.large_move_sec` (1.0 s) must be confirmed by waveform xcorr (at least 3 windows, peak at least `align.large_move_min_peak`, residual within `align.acoustic_agree_sec`). Unconfirmed candidates are held at 0 as `unconfirmed_hold`; the candidate stays in the artifact (`candidate_offset_sec`, `acoustic_confirmed`) and the step summary so a person can listen and nudge. The artifact records the `large_move_sec` the scorer ran with; `align status` / `align brief`, the unattended gate and export QC all use that value (falling back to config), so a per-run override is honoured everywhere.
 
 Writes `meta.ingest_alignment`, clip geometry, and `artifacts/alignment/conversation_align.json`.
 Does **not** blade/split one WAV into multiple clips. Several raw files per speaker stay
@@ -45,7 +47,7 @@ several whole clips (`source_id`).
 
 **`require_align_accept`** blocks later steps until `podcast align done` / waive. Unattended /
 `PODCAST_BATCH=1` with `align.accept.mode: waive_unattended` keeps the scorer result and
-auto-waives (it does **not** skip the scorer). It never auto-waives a move above `align.large_move_sec`: the gate stops and names the tracks so a person listens first. Uncheck **Align tracks** in the Pipeline
+auto-waives (it does **not** skip the scorer). It never auto-waives a move above `align.large_move_sec`, including an `unconfirmed_hold` candidate above it: the gate stops and names the tracks so a person listens first. It also stops when an unlocked clip's current placement sits more than that off the reference, which is the same check export QC runs, so an unattended run the gate waived passes the `alignment` QC unless the clips are edited later. An unreadable align artifact stops it too. Uncheck **Align tracks** in the Pipeline
 pane when files are unrelated segments — the gate cascade-disables with it.
 `merge_transcript` still depends only on `transcribe_tracks` so skipping align does not
 disable ASR.
@@ -54,7 +56,7 @@ disable ASR.
 piecewise sync); mixdown/stereo “everyone on one track”; Whisper silence hallucinations
 beyond treating sparse own-speech as weak occupancy.
 
-`export_qc.json` includes an `alignment` block: relative track-vs-reference drift above `align.large_move_sec` on an unlocked track that no person accepted (missing/pending/stale, or waived by `unattended`) is an issue (`ok: false`; a warning when `align.accept.mode: off`).
+`export_qc.json` includes an `alignment` block. Each dialogue clip's relative drift from the reference is measured on every stretch between reference edits (slivers under 1 s ignored), so ripple cuts cancel out. Drift above the threshold is an issue when no person accepted the alignment: missing, pending, waived by `unattended`, or a stale accept, which the message calls out. A locked (`hold`/`manual`) clip is exempt only while it still sits where align locked it. An unaccepted `unconfirmed_hold` candidate above the threshold and an unreadable align artifact are issues too. All of these are warnings when `align.accept.mode: off`.
 
 CLI/MCP: `podcast align status|brief|done|waive` / `align_*_tool`. Skill: **podcast-align-audio**.
 
