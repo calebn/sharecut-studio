@@ -19,6 +19,29 @@ describe("layoutMode store", () => {
     expect(st().activeTab).toBe("impact");
   });
 
+  it("opening a tab from the timeline layout restores the default layout", () => {
+    const st = () => useDawStore.getState();
+    st().hydrate("/tmp/p.json", minimalProject());
+    st().setLayoutMode("timeline");
+    st().setActiveTab("history");
+    expect(st().layoutMode).toBe("default");
+    expect(st().activeTab).toBe("history");
+    st().setLayoutMode("text");
+    st().setActiveTab("impact");
+    expect(st().layoutMode).toBe("text");
+    st().setLayoutMode("default");
+  });
+
+  it("entering the phone shell resets the layout", () => {
+    const st = () => useDawStore.getState();
+    st().setShellBreakpoint("desktop");
+    st().setLayoutMode("timeline");
+    st().setShellBreakpoint("phone");
+    expect(st().layoutMode).toBe("default");
+    st().setShellBreakpoint("desktop");
+    expect(st().layoutMode).toBe("default");
+  });
+
   it("sets mobile mode and more destination", () => {
     useDawStore.getState().setMobileMode("more");
     useDawStore.getState().setMoreDestination("impact");

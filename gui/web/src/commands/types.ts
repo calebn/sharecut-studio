@@ -15,6 +15,7 @@ export type CommandCategory =
 /** Typed when-clause predicates (no string DSL in Phase 1). */
 export type ContextPredicateId =
   | "always"
+  | "layoutShell"
   | "layoutFocused"
   | "timelineFocused"
   | "commentMode"

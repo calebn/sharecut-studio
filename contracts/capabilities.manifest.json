@@ -411,7 +411,7 @@
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
-        "always"
+        "layoutShell"
       ],
       "surfaces": {
         "command": "layout.default",
@@ -433,7 +433,7 @@
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
-        "always"
+        "layoutShell"
       ],
       "surfaces": {
         "command": "layout.timeline",
@@ -455,7 +455,7 @@
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
-        "always"
+        "layoutShell"
       ],
       "surfaces": {
         "command": "layout.text",
@@ -477,7 +477,7 @@
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
-        "always"
+        "layoutShell"
       ],
       "surfaces": {
         "command": "layout.review",

@@ -284,7 +284,13 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       }
       return { selectedClipIds: [clipId], selection: asClip };
     }),
-  setActiveTab: (activeTab) => set({ activeTab }),
+  // The timeline layout hides the bottom tabs: opening a tab there restores
+  // the default layout so the requested panel is actually on screen.
+  setActiveTab: (activeTab) =>
+    set((s) => ({
+      activeTab,
+      ...(s.layoutMode === "timeline" ? { layoutMode: "default" as LayoutMode } : {}),
+    })),
   setTranscriptFollowPlayhead: (transcriptFollowPlayhead) =>
     set({ transcriptFollowPlayhead }),
   toggleTranscriptFollowPlayhead: () =>
@@ -420,7 +426,11 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
   setBladeConfirmSec: (bladeConfirmSec: number | null) =>
     set({ bladeConfirmSec }),
   setShellBreakpoint: (shellBreakpoint) => {
-    set({ shellBreakpoint });
+    set({
+      shellBreakpoint,
+      // The phone shell has no layouts: never carry one into it or back out.
+      ...(shellBreakpoint === "phone" ? { layoutMode: "default" as LayoutMode } : {}),
+    });
     // Re-derive from the live timeline: a registered scrollport that measures
     // 0 (a remount mid shell switch) and no timeline at all both store the
     // new shell's estimate, never the previous shell's.
