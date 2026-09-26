@@ -112,6 +112,31 @@ test.describe("Sharecut Studio mobile smoke", () => {
     );
   });
 
+  test("selection More offers live commands in an accessible phone sheet", async ({
+    page,
+  }) => {
+    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await openPhoneTimeline(page);
+
+    await page.locator(".lane-row .clip-block").first().click();
+    const sheet = page.getByRole("dialog", { name: "Inspector" });
+    await expect(sheet).toBeVisible();
+    await expect(sheet.getByRole("button", { name: "Copy" })).toBeVisible();
+    await expect(sheet.getByRole("button", { name: "Cut" })).toBeVisible();
+    await expectPageAxeClean(page);
+
+    await sheet.getByRole("button", { name: "Close" }).click();
+    await page.locator(".track-header-open").first().click();
+    await expect(sheet).toBeVisible();
+    await expect(
+      sheet.getByRole("button", { name: "Move track down" }),
+    ).toBeVisible();
+    await expect(
+      sheet.getByRole("button", { name: "Move track up" }),
+    ).toHaveCount(0);
+    await expectPageAxeClean(page);
+  });
+
   test.describe("fixed playhead at fit zoom (#385)", () => {
     test.use({ viewport: { width: 375, height: 812 } });
 

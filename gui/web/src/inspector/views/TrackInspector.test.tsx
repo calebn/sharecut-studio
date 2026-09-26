@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands, execute } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
+import { expectNoA11yViolations } from "../../test/a11y";
 import { minimalProject } from "../../test/fixtures";
 import type { TrackView } from "../../types/project";
 import { TrackInspector } from "./TrackInspector";
@@ -39,6 +40,18 @@ describe("TrackInspector", () => {
 
   afterEach(() => {
     clearRegisteredCommands();
+  });
+
+  it("names its native fields and is axe-clean", async () => {
+    const { container } = render(
+      <TrackInspector track={hostTrack} effects={[]} />,
+    );
+    expect(screen.getByRole("textbox", { name: "Track label" })).toBeVisible();
+    expect(
+      screen.getByRole("textbox", { name: "Track speaker" }),
+    ).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "Track role" })).toBeVisible();
+    await expectNoA11yViolations(container);
   });
 
   it("applies SetTrackMeta locally before the command resolves and reverts on failure", async () => {
