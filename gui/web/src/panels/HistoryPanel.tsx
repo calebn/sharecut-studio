@@ -2,13 +2,13 @@ import {
   Fragment,
   type ReactNode,
   useCallback,
-  useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
 import { loadHistoryDiff } from "../api";
 import { execute } from "../commands/execute";
+import { useLatestRequest } from "../hooks/useLatestRequest";
 import { useProjectMutation } from "../hooks/useProjectMutation";
 import { useVirtualRows } from "../hooks/useVirtualRows";
 import { useDaw } from "../state/useDaw";
@@ -36,14 +36,8 @@ export function HistoryPanel() {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [showRaw, setShowRaw] = useState(false);
   const [loading, setLoading] = useState(false);
-  /** Bumped per diff request; only the latest request may apply its result. */
-  const diffRequestRef = useRef(0);
-  useEffect(() => {
-    const requests = diffRequestRef;
-    return () => {
-      requests.current += 1;
-    };
-  }, []);
+  /** Only the latest diff request may apply its result. */
+  const diffRequest = useLatestRequest();
 
   const listRef = useRef<HTMLDivElement>(null);
   const [focusedKey, setFocusedKey] = useState<string | null>(null);
@@ -87,7 +81,7 @@ export function HistoryPanel() {
         {},
         { skipWhen: true },
       );
-      diffRequestRef.current += 1;
+      diffRequest.invalidate();
       setDiff(null);
       setSelectedKey(null);
       setLoading(false);
@@ -99,26 +93,25 @@ export function HistoryPanel() {
     beforeIndex: number,
     afterIndex: number,
   ) => {
-    diffRequestRef.current += 1;
-    const request = diffRequestRef.current;
+    const request = diffRequest.begin();
     setSelectedKey(key);
     setLoading(true);
     setError(null);
     try {
       const d = await loadHistoryDiff(projectPath, beforeIndex, afterIndex);
-      if (request !== diffRequestRef.current) {
+      if (!diffRequest.isCurrent(request)) {
         return;
       }
       setDiff(d);
       setShowRaw(false);
     } catch (e) {
-      if (request !== diffRequestRef.current) {
+      if (!diffRequest.isCurrent(request)) {
         return;
       }
       setDiff(null);
       setError(errorMessage(e, "Could not load the history diff"));
     } finally {
-      if (request === diffRequestRef.current) {
+      if (diffRequest.isCurrent(request)) {
         setLoading(false);
       }
     }
