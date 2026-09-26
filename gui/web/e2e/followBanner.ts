@@ -46,7 +46,10 @@ export async function followUntilBannerVisible(
 ): Promise<void> {
   await openMenu();
   const menuItems = follower.getByRole("menuitem", { name: /Follow/ });
-  const isCompactShell = (follower.viewportSize()?.width ?? 0) < 768;
+  // Tablet and phone shells collapse the transport: peers are in the menu's
+  // People section. Only the desktop shell shows the avatar stack.
+  const isCompactShell =
+    (await follower.locator(".daw-shell--desktop").count()) === 0;
   if (isCompactShell) {
     // Collapsed shells (tablet/phone menu) list peers in the People section.
     await expect(menuItems.first()).toBeVisible({ timeout: 15_000 });

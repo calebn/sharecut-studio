@@ -7,7 +7,7 @@ import {
 } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { clickHTMLElement } from "./domClick";
-import { waitForFollowBanner } from "./followBanner";
+import { followUntilBannerVisible, waitForFollowBanner } from "./followBanner";
 import { withShareableProject } from "./shareableProject";
 import { openGuestShare, openHostShare } from "./shareNavigation";
 import { withTwoBrowserPages } from "./twoBrowserPages";
@@ -110,26 +110,6 @@ async function expectGuestListeningInMix(page: Page): Promise<void> {
   await expect(fx).toBeDisabled();
   await expect(raw).toBeDisabled();
   await expect(fx).not.toHaveAttribute("aria-pressed", "true");
-}
-
-async function followUntilBannerVisible(
-  follower: Page,
-  openMenu: () => Promise<void>,
-): Promise<void> {
-  await openMenu();
-  const people = follower.getByRole("menuitem", { name: /Follow/ });
-  await expect(people.first()).toBeVisible({ timeout: 15_000 });
-  const n = await people.count();
-  for (let i = 0; i < n; i++) {
-    if (i > 0) {
-      await openMenu();
-    }
-    await clickHTMLElement(people.nth(i));
-    if (await waitForFollowBanner(follower)) {
-      return;
-    }
-  }
-  throw new Error("no Follow peer showed a banner");
 }
 
 async function followMenuPeerUntilPlayheadMoves(
