@@ -135,4 +135,48 @@ describe("useTightenIntensityConfig", () => {
     expect(putPipelineConfig).not.toHaveBeenCalled();
     expect(currentTightenIntensity(result.current.cfg)).toBe("aggressive");
   });
+
+  it("fetchFresh clears a stale save error", async () => {
+    vi.mocked(loadPipelineConfig).mockResolvedValue(cfgWith("medium"));
+    vi.mocked(putPipelineConfig).mockRejectedValueOnce(
+      new Error("save failed"),
+    );
+    const { result } = renderHook(
+      ({ path, enabled }: Props) => useTightenIntensityConfig(path, enabled),
+      { initialProps: { path: "/a.json", enabled: true } },
+    );
+    await waitFor(() => expect(result.current.cfg).not.toBeNull());
+    await act(async () => {
+      await result.current.setIntensity("light");
+    });
+    expect(result.current.saveError).toContain("save failed");
+    await act(async () => {
+      await result.current.fetchFresh();
+    });
+    expect(result.current.saveError).toBeNull();
+  });
+
+  it("fetchFresh releases saving when it supersedes an in-flight save", async () => {
+    const put = deferred<PipelineConfigResponse>();
+    vi.mocked(loadPipelineConfig).mockResolvedValue(cfgWith("medium"));
+    vi.mocked(putPipelineConfig).mockImplementation(() => put.promise);
+    const { result } = renderHook(
+      ({ path, enabled }: Props) => useTightenIntensityConfig(path, enabled),
+      { initialProps: { path: "/a.json", enabled: true } },
+    );
+    await waitFor(() => expect(result.current.cfg).not.toBeNull());
+    act(() => {
+      void result.current.setIntensity("light");
+    });
+    await waitFor(() => expect(putPipelineConfig).toHaveBeenCalled());
+    expect(result.current.saving).toBe(true);
+    await act(async () => {
+      await result.current.fetchFresh();
+    });
+    expect(result.current.saving).toBe(false);
+    await act(async () => {
+      put.resolve(cfgWith("light"));
+    });
+    expect(result.current.saving).toBe(false);
+  });
 });
