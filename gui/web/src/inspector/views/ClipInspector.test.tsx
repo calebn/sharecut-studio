@@ -66,4 +66,16 @@ describe("ClipInspector fades", () => {
     await applyFades("500");
     expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c1", 200, 0);
   });
+
+  it("no longer offers a track-wide fade button", () => {
+    useDawStore
+      .getState()
+      .hydrate("/tmp/ep.json", minimalProject({ tracks: [sampleTrack()] }));
+    render(<ClipInspector clip={clip} />);
+    expect(
+      screen.queryByRole("button", {
+        name: /recommended fades|smooth all joins/i,
+      }),
+    ).toBeNull();
+  });
 });

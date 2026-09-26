@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
-import { setEffectBypass, setTrackMetaCommand } from "../../api";
+import {
+  applyFadeRecommendations,
+  setEffectBypass,
+  setTrackMetaCommand,
+} from "../../api";
 import { execute } from "../../commands/execute";
 import { currentDocumentSeq } from "../../document/cursor";
 import { revertOptimisticIfUnchanged } from "../../document/optimisticRevert";
@@ -70,6 +74,12 @@ export function TrackInspector({
   const toggleBypass = async (index: number, bypass: boolean) => {
     await run(async () => {
       await setEffectBypass(projectPath, track.id, index, bypass);
+    });
+  };
+
+  const smoothJoins = async () => {
+    await run(async () => {
+      await applyFadeRecommendations(projectPath, track.id);
     });
   };
 
@@ -157,6 +167,17 @@ export function TrackInspector({
           the selected point in the inspector.
         </p>
       </div>
+      {editable ? (
+        <div className="modifier-footer-actions">
+          <Button
+            disabled={busy}
+            title="Apply the recommended fade at every join on this track"
+            onClick={() => void smoothJoins()}
+          >
+            Smooth all joins on this track
+          </Button>
+        </div>
+      ) : null}
       {mayIngest ? (
         <>
           <DefinitionList>

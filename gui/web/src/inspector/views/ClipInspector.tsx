@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { applyFadeRecommendations, setClipFade, setJoinMode } from "../../api";
+import { setClipFade, setJoinMode } from "../../api";
 import { execute } from "../../commands/execute";
 import { clampFadeMs, maxFadeMs } from "../../edit/fadeLimits";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
@@ -82,12 +82,6 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
     });
   };
 
-  const applyRecommended = async () => {
-    await run(async () => {
-      await applyFadeRecommendations(projectPath, clip.track_id);
-    });
-  };
-
   const runDelete = async (ripple: boolean) => {
     await run(async () => {
       const result = await execute(
@@ -108,14 +102,6 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
   const joinSec = clip.timeline_start;
 
   const primaryActions = [];
-  if (editable) {
-    primaryActions.push({
-      label: "Apply recommended fades",
-      variant: "primary" as const,
-      disabled: busy,
-      onClick: () => void applyRecommended(),
-    });
-  }
   if (canStructural) {
     primaryActions.push(
       {
