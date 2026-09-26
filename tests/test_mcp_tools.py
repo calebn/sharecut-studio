@@ -703,6 +703,17 @@ def test_export_transcript_mcp(tmp_path):
     assert out.endswith(".md")
 
 
+def test_history_undo_mcp_surfaces_merge_conflict(minimal_project):
+    from podcast_mcp.project_merge import ProjectMergeConflict
+
+    with patch("podcast_mcp.mcp.tools.history.HistoryService") as svc:
+        svc.return_value.undo.side_effect = ProjectMergeConflict(
+            ["tracks[host].gain_db"], retry="re-render the preview"
+        )
+        with pytest.raises(ProjectMergeConflict, match="re-render the preview"):
+            mcp_server.history_undo(str(minimal_project), rerender=True)
+
+
 def test_render_final_mcp_surfaces_merge_conflict(minimal_project):
     from podcast_mcp.project_merge import ProjectMergeConflict
 

@@ -7,9 +7,13 @@ import typer
 
 from podcast_mcp.cli.timed import timed_command
 from podcast_mcp.history import HistoryManager
-from podcast_mcp.services import HistoryService, ProjectWorkspace
+from podcast_mcp.project_merge import ProjectMergeConflict
+from podcast_mcp.services import HistoryRerenderError, HistoryService, ProjectWorkspace
 
 history_app = typer.Typer(help="Undo/redo snapshot history (non-destructive edits).")
+
+# A history move with --rerender fails with these after the move is saved; print the advice.
+_MOVE_ERRORS = (ValueError, ProjectMergeConflict, HistoryRerenderError)
 
 
 @history_app.command("list")
@@ -37,7 +41,7 @@ def history_goto(
     ws = ProjectWorkspace.open(project)
     try:
         status = HistoryService(ws).goto(index, rerender=rerender)
-    except ValueError as exc:
+    except _MOVE_ERRORS as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
     typer.echo(
@@ -82,7 +86,7 @@ def undo_cmd(
     try:
         HistoryService(ws).undo(rerender=rerender)
         status = HistoryManager(ws.path).status(ws.project)
-    except ValueError as exc:
+    except _MOVE_ERRORS as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
     typer.echo(
@@ -100,7 +104,7 @@ def redo_cmd(
     try:
         HistoryService(ws).redo(rerender=rerender)
         status = HistoryManager(ws.path).status(ws.project)
-    except ValueError as exc:
+    except _MOVE_ERRORS as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
     typer.echo(

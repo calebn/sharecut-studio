@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from unittest.mock import patch
 
+import pytest
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.history import history_app
@@ -10,6 +11,8 @@ from podcast_mcp.cli.main import app
 from podcast_mcp.cli.speaker import speaker_app
 from podcast_mcp.cli.transcript_cmd import transcript_app
 from podcast_mcp.models import CombinedTranscript, CombinedUtterance, load_project, save_project
+from podcast_mcp.project_merge import ProjectMergeConflict
+from podcast_mcp.services import HistoryRerenderError
 
 runner = CliRunner()
 
@@ -49,6 +52,33 @@ def test_history_diff_cli(tmp_path):
     assert result.exit_code == 0
     data = json.loads(result.stdout)
     assert "diff" in data
+
+
+@pytest.mark.parametrize(
+    ("cli", "argv", "method"),
+    [
+        (app, ["undo"], "undo"),
+        (app, ["redo"], "redo"),
+        (history_app, ["goto", "--index", "0"], "goto"),
+    ],
+)
+@pytest.mark.parametrize(
+    "error",
+    [
+        ProjectMergeConflict(
+            ["tracks[host].gain_db"], retry="re-render the preview instead of repeating it"
+        ),
+        HistoryRerenderError("re-render the preview instead of repeating it"),
+    ],
+)
+def test_history_move_rerender_failure_prints_the_advice(tmp_path, cli, argv, method, error):
+    project = _init_project(tmp_path)
+    with patch("podcast_mcp.cli.history.HistoryService") as svc:
+        getattr(svc.return_value, method).side_effect = error
+        result = runner.invoke(cli, [*argv, "--project", str(project), "--rerender"])
+    assert result.exit_code == 1
+    assert "re-render the preview instead of repeating it" in result.stderr
+    assert "Traceback" not in result.output
 
 
 def test_history_undo_redo_status(tmp_path):
