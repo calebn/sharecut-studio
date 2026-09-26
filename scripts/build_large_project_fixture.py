@@ -15,7 +15,7 @@ import argparse
 import math
 import shutil
 import tempfile
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from podcast_mcp.engines.waveform_pyramid import (
@@ -24,6 +24,7 @@ from podcast_mcp.engines.waveform_pyramid import (
     ref_slug,
     write_synthetic_pyramid,
 )
+from podcast_mcp.history.manager import snapshot_from_project
 from podcast_mcp.models import load_project
 from podcast_mcp.models.episode import (
     Clip,
@@ -37,8 +38,8 @@ from podcast_mcp.models.episode import (
     Transcript,
     TranscriptWord,
 )
-from podcast_mcp.models.history import ProjectHistory
-from podcast_mcp.project_store import ProjectStore
+from podcast_mcp.models.history import HistoryEntry, ProjectHistory
+from podcast_mcp.project_store import ProjectStore, history_index_path, history_snapshot_path
 from podcast_mcp.util.wav import (
     MAX_PCM_WAV_DATA_BYTES,
     PCM_SAMPLE_WIDTH_BYTES,
@@ -63,6 +64,11 @@ WAVEFORM_MODES = ("synthetic", "silent")
 UTTERANCE_FILL = 0.55
 # Timestamps are stored at millisecond precision; spans must survive rounding.
 MIN_SPAN_SEC = 0.002
+# Each step is a before/after pair (two entries) toggling the first clip's fade-in.
+DEFAULT_HISTORY_STEPS = 500
+HISTORY_LABEL = "benchmark fade toggle"
+HISTORY_OPERATION = "benchmark_fade_toggle"
+HISTORY_FADE_MS = 10
 
 
 def _ms(value: float) -> float:
@@ -80,6 +86,7 @@ def _validate(
     utterance_count: int,
     track_count: int = DEFAULT_TRACKS,
     waveform: str = "synthetic",
+    history_steps: int = DEFAULT_HISTORY_STEPS,
 ) -> int:
     """Reject bad arguments before touching the filesystem; return the frame count."""
     if output.resolve().is_relative_to(FIXTURES_ROOT.resolve()):
@@ -94,6 +101,8 @@ def _validate(
         raise ValueError(f"track count must be at least {len(TRACKS)}")
     if waveform not in WAVEFORM_MODES:
         raise ValueError(f"waveform must be one of {', '.join(WAVEFORM_MODES)}")
+    if history_steps < 0:
+        raise ValueError("history steps must be zero or more")
     if clip_count % track_count:
         raise ValueError("clip count must be divisible by the track count")
     frames = round(duration * SAMPLE_RATE)
@@ -218,6 +227,47 @@ def _write_waveform(
     )
 
 
+def _seed_history(project: EpisodeProject, steps: int) -> None:
+    """Seed ``steps`` before/after pairs sharing two full-size snapshot files.
+
+    The snapshots differ only in the first clip's ``fade_in_ms``; the chain ends
+    on the base state so the project file matches the cursor.
+    """
+    if steps == 0:
+        project.history = ProjectHistory()
+        return
+    clip = project.timeline.clips[0]
+    original = clip.fade_in_ms
+    base = snapshot_from_project(project)
+    clip.fade_in_ms = HISTORY_FADE_MS
+    faded = snapshot_from_project(project)
+    clip.fade_in_ms = original
+    index_path = history_index_path(project)
+    files: dict[str, str] = {}
+    for name, snapshot in (("base", base), ("faded", faded)):
+        path = history_snapshot_path(index_path, f"benchmark-{name}")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(snapshot.model_dump_json(indent=2, by_alias=True), encoding="utf-8")
+        files[name] = workspace_relpath(project, path)
+    states = ["base" if (steps - j) % 2 == 0 else "faded" for j in range(steps + 1)]
+    started = datetime.now(UTC) - timedelta(seconds=2 * steps)
+    entries: list[HistoryEntry] = []
+    for step in range(steps):
+        params = {"track_id": clip.track_id, "fade_ms": HISTORY_FADE_MS, "step": step}
+        for phase, state in (("before", states[step]), ("after", states[step + 1])):
+            entries.append(
+                HistoryEntry(
+                    id=f"benchmark-{len(entries):06d}",
+                    label=f"{phase} {HISTORY_LABEL}",
+                    created_at=(started + timedelta(seconds=len(entries))).isoformat(),
+                    snapshot_file=files[state],
+                    operation=HISTORY_OPERATION,
+                    params=params,
+                )
+            )
+    project.history = ProjectHistory(cursor=len(entries) - 1, entries=entries)
+
+
 def _write_tree(
     staging: Path,
     project: EpisodeProject,
@@ -225,8 +275,10 @@ def _write_tree(
     *,
     track_ids: tuple[str, ...] = TRACKS,
     waveform: str = "synthetic",
+    history_steps: int = 0,
 ) -> None:
     project.meta.workspace_dir = str(staging)
+    _seed_history(project, history_steps)
     ProjectStore(staging / "episode.project.json").commit(project)
     for folder in ("raw", "sources"):
         (staging / folder).mkdir()
@@ -249,13 +301,16 @@ def build_project(
     utterance_count: int = DEFAULT_UTTERANCES,
     track_count: int = DEFAULT_TRACKS,
     waveform: str = "synthetic",
+    history_steps: int = DEFAULT_HISTORY_STEPS,
 ) -> Path:
     """Write a valid project with unique clips and alternating speaker turns.
 
     The tree is built in a sibling staging directory and renamed into place, so
     a failure never leaves a partial ``output`` behind.
     """
-    frames = _validate(output, duration, clip_count, utterance_count, track_count, waveform)
+    frames = _validate(
+        output, duration, clip_count, utterance_count, track_count, waveform, history_steps
+    )
     duration_sec = frames / SAMPLE_RATE
     track_ids = _track_ids(track_count)
     project = load_project(SOURCE_FIXTURE / "episode.project.json")
@@ -265,7 +320,14 @@ def build_project(
     final.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=f".{final.name}.", dir=final.parent))
     try:
-        _write_tree(staging, project, frames, track_ids=track_ids, waveform=waveform)
+        _write_tree(
+            staging,
+            project,
+            frames,
+            track_ids=track_ids,
+            waveform=waveform,
+            history_steps=history_steps,
+        )
         staging.rename(final)
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
@@ -291,6 +353,12 @@ def main() -> None:
         default="synthetic",
         help="per-track .wfpk: speech-like envelope or all-zero",
     )
+    parser.add_argument(
+        "--history",
+        type=int,
+        default=DEFAULT_HISTORY_STEPS,
+        help="history steps (two entries each); 0 leaves the history empty",
+    )
     args = parser.parse_args()
     print(
         build_project(
@@ -300,6 +368,7 @@ def main() -> None:
             utterance_count=args.utterances,
             track_count=args.tracks,
             waveform=args.waveform,
+            history_steps=args.history,
         )
     )
 
