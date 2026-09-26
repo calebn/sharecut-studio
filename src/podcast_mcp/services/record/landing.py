@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 import threading
 import wave
-from collections.abc import Callable, Mapping
-from contextlib import suppress
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any
 
@@ -58,6 +58,7 @@ from podcast_mcp.services.record.upload import (
 from podcast_mcp.services.waveform import schedule_track_waveforms
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.atomic_json import copy_file_atomic
+from podcast_mcp.util.file_locks import shared_file_lock
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.progress import resolve_progress_task
 from podcast_mcp.util.project_state import project_state_lock
@@ -86,6 +87,15 @@ def release_session_land_lock(session_id: str) -> None:
         if lock is None or lock.locked():
             return
         _LAND_LOCKS.pop(session_id, None)
+
+
+def record_land_lock_path(workspace_dir: Path, session_id: str) -> Path:
+    """Cross-process land/discard lock for one room (only coordinates, stores nothing).
+
+    Per session, like the in-process lock, so overlapping rooms in one workspace do not
+    block each other.
+    """
+    return workspace_dir / "artifacts" / "record" / f"land-{session_id}.lock"
 
 
 class RecordLandingError(ValueError):
@@ -310,6 +320,22 @@ class RecordLandingService:
     def _comments(self) -> RecordLiveCommentStore:
         return live_comment_store_for(self.workspace.project)
 
+    @contextmanager
+    def _land_guard(self) -> Iterator[None]:
+        """Serialize land and discard for this room across threads and processes.
+
+        The session lock orders threads. The workspace file lock orders processes
+        (GUI ACK auto-land vs. a CLI or MCP ``record land``), so each land's re-read
+        of the saved project sees the previous land's commit and landed marks (#503).
+        """
+        with _session_land_lock(self.session_id):
+            file_lock = shared_file_lock(
+                record_land_lock_path(self.workspace.project.workspace_path(), self.session_id),
+                timeout=-1,
+            )
+            with file_lock.acquire():
+                yield
+
     def _snapshot(self) -> RecordSnapshot:
         return RecordSnapshot.model_validate(self._room.snapshot())
 
@@ -327,7 +353,7 @@ class RecordLandingService:
         unsaved edits on ``workspace.project`` are discarded and the land commits on
         the saved copy. Callers open a request-scoped ``ProjectWorkspace`` (#503).
         """
-        with _session_land_lock(self.session_id):
+        with self._land_guard():
             try:
                 return self._land_locked(align=align, drift_ms=drift_ms)
             except Exception:
@@ -708,7 +734,7 @@ class RecordLandingService:
         project, so unsaved edits on ``workspace.project`` are discarded.
         """
         take = parse_upload_index(take_index, name="take_index")
-        with _session_land_lock(self.session_id):
+        with self._land_guard():
             return self._delete_take_locked(take)
 
     def _delete_take_locked(self, take: int) -> dict[str, Any]:
