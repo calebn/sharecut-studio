@@ -12,7 +12,7 @@ import type { ContextPredicateId } from "./types";
 export type CommandContext = {
   timelineFocused: boolean;
   transcriptFocused: boolean;
-  layoutFocused: boolean;
+  editorFocused: boolean;
   commentMode: boolean;
   canSuggestStructural: boolean;
   canApplyPass12: boolean;
@@ -54,7 +54,7 @@ export function buildCommandContext(): CommandContext {
   return {
     timelineFocused: s.timelineFocused,
     transcriptFocused,
-    layoutFocused: s.timelineFocused || transcriptFocused,
+    editorFocused: s.timelineFocused || transcriptFocused,
     commentMode: s.commentMode,
     canSuggestStructural: canSuggestStructural(
       s.projectPath,
@@ -123,8 +123,8 @@ export function evaluateWhen(
       return ctx.shellBreakpoint !== "phone"
         ? { ok: true }
         : { ok: false, reason: "Layouts need the desktop or tablet shell" };
-    case "layoutFocused":
-      return ctx.layoutFocused
+    case "editorFocused":
+      return ctx.editorFocused
         ? { ok: true }
         : { ok: false, reason: "Timeline or transcript not focused" };
     case "timelineFocused":

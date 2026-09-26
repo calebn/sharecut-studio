@@ -336,12 +336,12 @@ describe("command governance", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("evaluateWhen layoutFocused matches buildCommandContext", () => {
+  it("evaluateWhen editorFocused matches buildCommandContext", () => {
     useDawStore.setState({ timelineFocused: false, activeTab: "history" });
     const ctx = buildCommandContext();
-    expect(evaluateWhen("layoutFocused", ctx).ok).toBe(false);
+    expect(evaluateWhen("editorFocused", ctx).ok).toBe(false);
     useDawStore.setState({ timelineFocused: true });
-    expect(evaluateWhen("layoutFocused", buildCommandContext()).ok).toBe(true);
+    expect(evaluateWhen("editorFocused", buildCommandContext()).ok).toBe(true);
   });
 
   it("Shift+ArrowUp matches amp zoom and not track.moveUp", () => {

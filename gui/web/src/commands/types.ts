@@ -16,7 +16,7 @@ export type CommandCategory =
 export type ContextPredicateId =
   | "always"
   | "layoutShell"
-  | "layoutFocused"
+  | "editorFocused"
   | "timelineFocused"
   | "commentMode"
   | "canSuggestStructural"
