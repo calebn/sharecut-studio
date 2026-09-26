@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import tempfile
+import wave
 from pathlib import Path
 from typing import Any
 
@@ -149,22 +151,53 @@ def _apply_gate(
     n = samples.size
     if n == 0:
         return samples
-    t = np.arange(n, dtype=np.float64) / sample_rate + timeline_start
     env = np.zeros(n, dtype=np.float32)
     fade = int(fade_sec * sample_rate)
     for s, e in intervals:
-        mask = (t >= s) & (t < e)
-        if not mask.any():
+        i0 = max(0, min(n, math.ceil((s - timeline_start) * sample_rate)))
+        i1 = max(i0, min(n, math.ceil((e - timeline_start) * sample_rate)))
+        if i0 == i1:
             continue
-        idx = np.where(mask)[0]
-        env[idx] = 1.0
+        env[i0:i1] = 1.0
         if fade > 0:
-            i0, i1 = int(idx[0]), int(idx[-1]) + 1
             up = min(fade, i1 - i0)
             env[i0 : i0 + up] *= np.linspace(0, 1, up, dtype=np.float32)
             dn = min(fade, i1 - i0)
             env[i1 - dn : i1] *= np.linspace(1, 0, dn, dtype=np.float32)
     return samples * env
+
+
+def _gate_pcm_chunk(
+    raw: bytes,
+    intervals: list[tuple[float, float]],
+    *,
+    first_frame: int,
+    sample_rate: int,
+) -> bytes:
+    """Gate one PCM16 chunk using fade positions on the whole stem clock."""
+    samples = np.frombuffer(raw, dtype="<i2")
+    env = np.zeros(samples.size, dtype=np.float32)
+    last_frame = first_frame + samples.size
+    fade = int(GATE_FADE_SEC * sample_rate)
+    for start, end in intervals:
+        lo = math.ceil(start * sample_rate)
+        hi = math.ceil(end * sample_rate)
+        a, b = max(lo, first_frame), min(hi, last_frame)
+        if b <= a:
+            continue
+        positions = np.arange(a, b, dtype=np.int64)
+        gain = np.ones(b - a, dtype=np.float32)
+        if fade:
+            width = min(fade, hi - lo)
+            if width > 1:
+                up = positions < lo + width
+                gain[up] *= (positions[up] - lo) / (width - 1)
+                down = positions >= hi - width
+                gain[down] *= (hi - 1 - positions[down]) / (width - 1)
+            elif width == 1:
+                gain[:] = 0.0
+        env[a - first_frame : b - first_frame] = gain
+    return (samples.astype(np.float32) * env).astype("<i2").tobytes()
 
 
 def _write_wav(
@@ -250,16 +283,68 @@ def gate_stem_window(
     win_end: float,
 ) -> Path:
     """Gate only ``[win_start, win_end)``; audio outside the window is unchanged."""
-    seg = _load_segment(stem_path, 0.0, duration_sec)
-    if seg.size == 0:
-        _write_wav(seg, output_path)
+    if stem_path.resolve() == output_path.resolve():
+        with tempfile.NamedTemporaryFile(
+            suffix=".wav", dir=output_path.parent, delete=False
+        ) as temporary:
+            temporary_path = Path(temporary.name)
+        try:
+            gate_stem_window(
+                stem_path,
+                intervals,
+                temporary_path,
+                duration_sec=duration_sec,
+                win_start=win_start,
+                win_end=win_end,
+            )
+            temporary_path.replace(output_path)
+        finally:
+            temporary_path.unlink(missing_ok=True)
         return output_path
-
     win_start = max(0.0, win_start)
     win_end = min(duration_sec, win_end)
     if win_end <= win_start:
         if stem_path.resolve() != output_path.resolve():
             output_path.write_bytes(stem_path.read_bytes())
+        return output_path
+
+    try:
+        with wave.open(str(stem_path), "rb") as source:
+            if (
+                source.getnchannels() == 1
+                and source.getsampwidth() == 2
+                and source.getcomptype() == "NONE"
+            ):
+                rate = source.getframerate()
+                first = max(0, min(source.getnframes(), round(win_start * rate)))
+                last = max(first, min(source.getnframes(), round(win_end * rate)))
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                with wave.open(str(output_path), "wb") as target:
+                    target.setparams(source.getparams())
+                    frame = 0
+                    while frame < source.getnframes():
+                        count = min(rate, source.getnframes() - frame)
+                        raw = source.readframes(count)
+                        left = max(0, first - frame)
+                        right = min(count, last - frame)
+                        if right > left:
+                            gated_chunk = _gate_pcm_chunk(
+                                raw[left * 2 : right * 2],
+                                intervals,
+                                first_frame=frame + left,
+                                sample_rate=rate,
+                            )
+                            raw = raw[: left * 2] + gated_chunk + raw[right * 2 :]
+                        target.writeframesraw(raw)
+                        frame += count
+                return output_path
+    except (EOFError, wave.Error):
+        pass
+
+    # Non-PCM stems retain the legacy conversion path.
+    seg = _load_segment(stem_path, 0.0, duration_sec)
+    if seg.size == 0:
+        _write_wav(seg, output_path)
         return output_path
 
     gated = _apply_gate(seg.copy(), intervals, timeline_start=0.0)
