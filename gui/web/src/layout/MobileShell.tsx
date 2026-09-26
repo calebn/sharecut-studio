@@ -423,7 +423,7 @@ export function MobileShellView({
         {statusAnnouncement}
       </span>
       {mobileMode !== "listen" ? (
-        <div ref={transportFocusRef}>
+        <div ref={transportFocusRef} className="daw-shell-transport">
           <TransportBar compact showFit showRecordingChip={false} />
         </div>
       ) : null}

@@ -193,7 +193,7 @@ export function StudioShellView({
         <GuestAttentionBanner />
       </div>
       <FollowBanner />
-      <div ref={transportFocusRef}>
+      <div ref={transportFocusRef} className="daw-shell-transport">
         <TransportBar compact={shell === "tablet"} />
       </div>
       <main

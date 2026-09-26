@@ -82,6 +82,18 @@ describe("MobileShell", () => {
     await expectNoA11yViolations(nav);
   });
 
+  it("places the transport wrapper in the shell grid outside Listen", () => {
+    useDawStore.getState().setMobileMode("timeline");
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <MobileShell />
+      </DawProvider>,
+    );
+    expect(
+      container.querySelector(".daw-shell > .daw-shell-transport"),
+    ).toBeTruthy();
+  });
+
   it("shows recording status in Listen mode without a header transport", async () => {
     useRecordHostStore
       .getState()

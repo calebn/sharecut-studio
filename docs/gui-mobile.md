@@ -181,6 +181,8 @@ Bottom tabs default to ~40–45% of space below transport/status, capped so the 
 
 Keyboard: `1` default, `2` timeline, `3` text, `4` review (when timeline focused, not in inputs). Pane **Focus** toggles on timeline chrome, transcript toolbar, and Comments tab call the same `focus.*` commands.
 
+The shell grid uses named areas (`banners / follow / transport / main / tabs / status`); modes only resize the `main` and `tabs` tracks, so banners, transport and status rows never move (`layout/shellGrid.test.ts`).
+
 ## Interaction principles
 
 1. One job per phone screen (no timeline + full transcript + inspector).

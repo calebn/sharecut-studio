@@ -288,6 +288,8 @@ flowchart TB
 | text | `3` | Expand transcript; shrink timeline |
 | review | `4` | Comments-forward + mix-oriented chrome |
 
+Every mode keeps the banner, transport and status rows; only the timeline and bottom-tab areas resize.
+
 ---
 
 ## Guest / share (`/r/{token}`)

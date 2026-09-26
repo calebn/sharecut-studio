@@ -1,9 +1,23 @@
 /* Shell layout, transport, tabs, track headers */
+/* Named rows: banner rows are always present and `auto` (0 when empty), so a
+ * layout or a banner never shifts another child. Layouts change only
+ * --shell-main-row / --shell-tabs-row (responsive.css). */
 .daw-shell {
+  --shell-main-row: minmax(0, 1fr);
+  --shell-tabs-row: var(--tabs-height);
+
   display: grid;
-  grid-template-rows: var(--transport-height) minmax(0, 1fr) var(--tabs-height) var(
-      --status-height
-    );
+  grid-template-areas:
+    "banners"
+    "follow"
+    "transport"
+    "main"
+    "tabs"
+    "status";
+  grid-template-rows:
+    auto auto var(--transport-height) var(--shell-main-row)
+    var(--shell-tabs-row) var(--status-height);
+  grid-template-columns: minmax(0, 1fr);
   height: 100%;
   height: 100dvh;
   max-height: 100dvh;
@@ -14,29 +28,37 @@
   container: app / size;
 }
 
-.daw-shell-guest,
-.daw-shell--attention {
-  grid-template-rows: auto var(--transport-height) 1fr var(--tabs-height) var(
-      --status-height
-    );
+.daw-shell > .daw-shell-banners {
+  grid-area: banners;
+}
+
+.daw-shell > .follow-banner {
+  grid-area: follow;
+}
+
+.daw-shell > .daw-shell-transport {
+  grid-area: transport;
+}
+
+.daw-shell > main {
+  grid-area: main;
+}
+
+.daw-shell > .bottom-tabs {
+  grid-area: tabs;
+}
+
+.daw-shell > .status-bar {
+  grid-area: status;
+}
+
+.daw-shell > .mobile-nav {
+  grid-area: nav;
 }
 
 .daw-shell-banners {
   display: flex;
   flex-direction: column;
-}
-
-.daw-shell--following {
-  grid-template-rows:
-    auto var(--transport-height) minmax(0, 1fr) var(--tabs-height)
-    var(--status-height);
-}
-
-.daw-shell-guest.daw-shell--following,
-.daw-shell--attention.daw-shell--following {
-  grid-template-rows:
-    auto auto var(--transport-height) minmax(0, 1fr) var(--tabs-height)
-    var(--status-height);
 }
 
 .guest-banner {

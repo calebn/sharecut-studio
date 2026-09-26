@@ -181,6 +181,8 @@ Phone (`<768`), tablet (`768–1100`), and desktop (`>1100`) share domain compon
 
 Host and guest shells reserve a banner row for offline command attention on all three sizes. Host pending edits remain visible there until replay; host and guest 409 conflicts appear in the same **Needs attention** list and can be dismissed. The guest share-mode label stays guest-only.
 
+The desktop/tablet shell is a single-column grid with named areas `banners / follow / transport / main / tabs / status`; the phone shell uses `banners / follow / transport / main / nav`. Banner rows are always `auto` (0 when empty), and layouts change only the `main` / `tabs` track sizes, so a banner or layout never shifts another child. Guarded by `gui/web/src/layout/shellGrid.test.ts`.
+
 ### Live project reload
 
 The viewer polls `GET /api/project/meta` (~1.5s; includes document `server_seq`). When `mtime_ns` / `size` change and local seq is behind, it re-fetches `GET /api/project?phase=shell` and merges into the timeline **without a browser refresh**. Playhead, zoom, and selection are preserved. JSON responses are gzip-compressed (`GZipMiddleware`); document WebSocket uses permessage-deflate (`ws_per_message_deflate=True` on uvicorn). Do not gzip audio `FileResponse`.
