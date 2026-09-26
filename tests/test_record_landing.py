@@ -3908,6 +3908,35 @@ def test_purge_waits_for_in_flight_land_lock(minimal_project, sample_wav):
     assert uploader.land_rollbacks(session_id=sid) == []
 
 
+def test_crash_before_deferral_leaves_stale_registration(minimal_project, sample_wav, monkeypatch):
+    """Documented window: a crash after the record_land commit but before the deferral
+    loses the rollback; a later land neither retries nor reports it."""
+    from podcast_mcp.services.record.landing import record_source_id
+
+    ws, uploader, sid, guest, _track_id, _orig = _two_segment_room_with_stale_seg0(
+        minimal_project, sample_wav, monkeypatch
+    )
+    original = RecordLandingService._rollback_or_defer
+    crashed = {"on": True}
+
+    def crash(self, stale):
+        if crashed["on"]:
+            return  # the process died right after the record_land commit
+        original(self, stale)
+
+    monkeypatch.setattr(RecordLandingService, "_rollback_or_defer", crash)
+    RecordLandingService(ws).land(align=lambda _p: None)
+    crashed["on"] = False
+    stale_source_id = record_source_id(sid, 0, guest, 0)
+
+    result = RecordLandingService(ws).land(align=lambda _p: None)
+    assert result["deferred_rollbacks_pending"] == 0
+    assert uploader.land_rollbacks(session_id=sid) == []
+    for project in (ws.project, load_project(minimal_project)):
+        assert any(s.id == stale_source_id for s in project.sources)
+    assert not any("stale ACK rollback" in label for label in _history_labels(ws))
+
+
 def test_retried_rollback_after_media_repair_restores_prior_media(
     minimal_project, sample_wav, monkeypatch
 ):
