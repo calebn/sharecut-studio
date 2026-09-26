@@ -2,8 +2,8 @@
 
 ``medium`` is the shipped ``tighten`` block unchanged. ``light`` and ``aggressive``
 override only the keys they name (nested dicts merge), and only where the config
-still holds the shipped value, so a key the user tuned wins. A preset is plain config:
-no model calls, same proposals for the same transcript. See
+still holds the ``load_defaults()`` value, so a key the working set tuned wins (edits to
+the defaults file itself move the baseline). A preset is plain config: no model calls, same proposals for the same transcript. See
 docs/filler-cut-quality.md § Intensity presets.
 """
 
