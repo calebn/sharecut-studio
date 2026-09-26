@@ -33,7 +33,19 @@ def pipeline_run(
         "--realign",
         help="Re-score locked stems in align_tracks (equal length / manifest-pinned offsets)",
     ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Re-run ASR even when transcripts exist (edited ones need an attended run)",
+    ),
 ) -> None:
+    from podcast_mcp.services.pipeline_config import with_transcribe_overwrite
+
+    config = (
+        with_transcribe_overwrite({"align": {"realign": True}} if realign else None)
+        if force
+        else ({"align": {"realign": True}} if realign else None)
+    )
     ws = ProjectWorkspace.open(project)
     skip_steps = [s.strip() for s in skip.split(",") if s.strip()] if skip else None
     step = PipelineService(ws).run(
@@ -42,7 +54,7 @@ def pipeline_run(
         skip_steps=skip_steps,
         progress=get_progress(),
         unattended=unattended,
-        config={"align": {"realign": True}} if realign else None,
+        config=config,
     )
     typer.echo(f"Pipeline complete. Last step: {step}")
 

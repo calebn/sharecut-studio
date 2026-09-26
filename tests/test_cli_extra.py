@@ -393,3 +393,13 @@ def test_transcript_context_set_reports_busy_lock(tmp_path, monkeypatch):
     )
     assert result.exit_code == 1
     assert "busy" in result.output
+
+
+def test_pipeline_run_force_sets_run_only_overwrite(tmp_path, sample_wav):
+    project = _init_project(tmp_path)
+    with patch("podcast_mcp.cli.pipeline.PipelineService.run", return_value="done") as run:
+        assert runner.invoke(app, ["pipeline", "run", "--project", str(project)]).exit_code == 0
+        assert run.call_args.kwargs["config"] is None
+        result = runner.invoke(app, ["pipeline", "run", "--project", str(project), "--force"])
+    assert result.exit_code == 0
+    assert run.call_args.kwargs["config"]["transcribe"]["overwrite"] is True

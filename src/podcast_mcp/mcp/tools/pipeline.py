@@ -16,17 +16,21 @@ def pipeline_run(
     skip_steps_json: str | None = None,
     config_json: str | None = None,
     use_working_set: bool = True,
+    force_transcribe: bool = False,
 ) -> str:
     """Run the production pipeline. Optional skip_steps_json / config_json override yaml.
 
     When use_working_set is true (default), also reads/writes the GUI session
     working set so agents and Sharecut Studio share the same visible config.
     Omit ``unattended`` to leave the working-set Batch mode unchanged.
+    Existing transcripts are reused; ``force_transcribe=true`` re-runs ASR for this run
+    only (not persisted). Edited transcripts are refused when ``unattended``.
     """
     from podcast_mcp.services.pipeline_config import (
         config_store,
         merge_pipeline_config,
         skip_steps_from_enabled,
+        with_transcribe_overwrite,
     )
 
     ws = ProjectWorkspace.open(project_path)
@@ -54,6 +58,7 @@ def pipeline_run(
     if use_working_set:
         store.put(ws.path, config=config, unattended=unattended)
 
+    run_config = with_transcribe_overwrite(config) if force_transcribe else config
     run_unattended = (
         bool(unattended)
         if unattended is not None
@@ -69,7 +74,7 @@ def pipeline_run(
             only_step=only_step,
             skip_steps=skip_steps,
             unattended=run_unattended,
-            config=config,
+            config=run_config,
         )
         jobs.wait(job)
         if job.status == "error":
@@ -83,7 +88,7 @@ def pipeline_run(
         only_step=only_step,
         skip_steps=skip_steps,
         unattended=run_unattended,
-        config=config,
+        config=run_config,
     )
     return f"Completed through {step}"
 

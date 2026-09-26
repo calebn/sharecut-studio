@@ -813,3 +813,94 @@ def test_transcribe_tracks_keeps_old_revision_on_rows_not_rerun(
         steps.transcribe_tracks(proj, load_defaults())
     revisions = {t.track_id: t.vocabulary_revision for t in proj.transcripts}
     assert revisions == {"guest": "revision-zero", "host": "revision-one"}
+
+
+def _asr_result():
+    from podcast_mcp.models import Transcript, TranscriptWord
+
+    return Transcript(track_id="", words=[TranscriptWord(text="teh", start=0.0, end=0.5)])
+
+
+def test_transcribe_tracks_second_run_reuses_and_keeps_corrections(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.engines import TranscriptionEngine as Engine
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    with patch.object(Engine, "transcribe_file", return_value=_asr_result()):
+        first = steps.transcribe_tracks(proj, load_defaults())
+    assert "1 transcribed, 0 reused" in first
+    assert proj.transcripts[0].audio_sha256
+    proj.transcripts[0].words[0].text = "the"
+    with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
+        second = steps.transcribe_tracks(proj, load_defaults())
+    eng_cls.assert_not_called()
+    assert "0 transcribed, 1 reused" in second
+    assert proj.transcripts[0].words[0].text == "the"
+
+
+def test_transcribe_tracks_honours_legacy_cache(minimal_project, sample_wav, tmp_workspace):
+    from podcast_mcp.engines import TranscriptionEngine as Engine
+    from podcast_mcp.engines.transcribe import legacy_cache_path
+    from podcast_mcp.models import Transcript, TranscriptWord
+    from podcast_mcp.util.hashing import sha256_file
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    legacy = legacy_cache_path(proj, "host", sha256_file(tmp_workspace / "raw" / "host.wav"))
+    legacy.parent.mkdir(parents=True, exist_ok=True)
+    legacy.write_text(
+        Transcript(
+            track_id="host", words=[TranscriptWord(text="old", start=0, end=0.5)]
+        ).model_dump_json(),
+        encoding="utf-8",
+    )
+    with patch.object(Engine, "transcribe_file") as asr:
+        steps.transcribe_tracks(proj, load_defaults())
+    asr.assert_not_called()
+    assert proj.transcripts[0].words[0].text == "old"
+
+
+def _edited_stale_transcript(proj):
+    from podcast_mcp.models import Transcript, TranscriptWord
+
+    proj.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[TranscriptWord(text="mine", start=0, end=0.5)],
+            audio_sha256="0" * 64,
+            user_edited=True,
+        )
+    ]
+
+
+def test_transcribe_tracks_refuses_edited_overwrite_unattended(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.edits.transcript_reuse import TranscriptOverwriteRefused
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    _edited_stale_transcript(proj)
+    defaults = {**load_defaults(), "_pipeline_unattended": True}
+    with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
+        with pytest.raises(TranscriptOverwriteRefused):
+            steps.transcribe_tracks(proj, defaults)
+    eng_cls.assert_not_called()
+    assert proj.transcripts[0].words[0].text == "mine"
+
+
+def test_transcribe_tracks_attended_overwrite_warns(
+    minimal_project, sample_wav, tmp_workspace, caplog, monkeypatch
+):
+    from podcast_mcp.engines import TranscriptionEngine as Engine
+
+    monkeypatch.delenv("PODCAST_BATCH", raising=False)
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    _edited_stale_transcript(proj)
+    with (
+        patch.object(Engine, "transcribe_file", return_value=_asr_result()),
+        caplog.at_level("WARNING"),
+    ):
+        summary = steps.transcribe_tracks(proj, load_defaults())
+    assert "1 edited overwritten" in summary
+    assert "overwrites edited transcript" in caplog.text
+    assert proj.transcripts[0].words[0].text == "teh"

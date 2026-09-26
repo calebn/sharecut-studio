@@ -3,7 +3,7 @@
 Default step order (see [transcript-workflow.md](transcript-workflow.md) for transcript layers):
 
 1. `ingest_tracks` — Probe audio, validate paths
-2. `transcribe_tracks` — faster-whisper per dialogue track (and per extra source file)
+2. `transcribe_tracks` — faster-whisper per dialogue track (and per extra source file). **Reuses** any stored transcript whose `audio_sha256` matches the media (legacy/seeded transcripts with words but no hash are adopted and stamped); ASR runs only for missing transcripts, changed audio, or `transcribe.overwrite: true` (CLI `--force`, MCP/GUI `force_transcribe`, Studio Re-transcribe). Replacing a hand-edited transcript (`user_edited`) is refused in unattended runs (`TranscriptOverwriteRefused`) and overwritten with a warning plus "N edited overwritten" in attended runs. Each ASR run reports `transcribe_audio` progress in audio seconds
 3. `align_tracks` — Conversation-clock placement (bleed phrases / own-speech gaps); default on; uncheck for unrelated clips
 4. `require_align_accept` — Gate until align done/waived (`align.accept.mode`; auto-waive with `--unattended`, but never moves above `align.large_move_sec`)
 5. `merge_transcript` — Combined time-ordered script
@@ -69,7 +69,7 @@ Sharecut Studio Pipeline pane and MCP tools share a **working set** of enabled s
 - `GET`/`PUT` config and `POST` analyze — see [gui-integration.md](gui-integration.md) § Pipeline tab
 - Config payload includes `whisper_models` with per-model `cached`; GUI `transcribe.model` is a catalog picker that confirms before downloading via bootstrap (whisper-only). Pipeline `components.whisper.ok` requires the selected weights on disk. Pipeline **Run** (GUI/MCP/CLI) fails fast if `transcribe_tracks` would run and weights are missing — it never Hugging Face–pulls; use bootstrap or the picker Dialog to download.
 - MCP: `pipeline_get_config_tool`, `pipeline_set_config_tool`, `pipeline_analyze_tool`, then `pipeline_run` (skill **podcast-pipeline-tune**)
-- CLI: `podcast pipeline run --unattended`, optional `--skip a,b,c`, and `--realign` (re-score equal-length / manifest-pinned stems in `align_tracks`)
+- CLI: `podcast pipeline run --unattended`, optional `--skip a,b,c`, `--realign` (re-score equal-length / manifest-pinned stems in `align_tracks`), and `--force` (re-runs ASR over existing transcripts for that run only; `transcribe.overwrite` in the advanced group is the persisted equivalent; `force_transcribe` on `pipeline_run` / `POST /api/pipeline/run` is run-only and never saved to the working set)
 - Enabling a step expands `depends_on`; missing FFmpeg/whisper/rnnoise show as component badges (bootstrap CTAs)
 - **Analyze** proposes static knobs from diagnostics (hum, noise floor, gate, bleed, clipping, pre-aligned equal-duration dialogue); any gate-overreach finding always proposes a milder `effects.gate` (-6 dB threshold, applied once per Analyze call regardless of how many tracks are flagged), seeded from the resolved `gate` preset when the working set has none (see [audio-engineering.md](audio-engineering.md#effect-presets-source-of-truth)); loudness measure→target still happens inside balance/master at run time
 

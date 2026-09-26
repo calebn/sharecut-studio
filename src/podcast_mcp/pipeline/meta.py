@@ -263,6 +263,19 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         affects=("transcribe_tracks",),
     ),
     ParamField(
+        path="transcribe.overwrite",
+        label="Re-transcribe existing",
+        description=(
+            "Re-run ASR even when a transcript exists. Off reuses stored transcripts and "
+            "keeps hand edits; changed audio always re-transcribes."
+        ),
+        type="boolean",
+        default=False,
+        group="advanced",
+        section="transcribe",
+        affects=("transcribe_tracks",),
+    ),
+    ParamField(
         path="analysis.transcript_refine.mode",
         label="Refine gate mode",
         description="require = always block; waive_unattended = auto-waive in batch; off = skip gate.",

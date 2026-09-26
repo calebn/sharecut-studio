@@ -89,4 +89,4 @@ Remote tracks often **bleed** the other speaker. Both waveforms can be "hot" at 
 
 ## After alignment changes
 
-Re-transcribe dialogue tracks; old word timestamps do not move with new trims.
+Re-transcribe dialogue tracks; old word timestamps do not move with new trims. Changed audio (different `audio_sha256`) re-transcribes automatically; otherwise force it with `--force` / `force_transcribe`.
