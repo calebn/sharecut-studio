@@ -6,6 +6,7 @@ results always require review; ASR-free VAD commonly labels breaths and noise.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -125,6 +126,9 @@ def find_voiced_gap_runs(
     max_run_sec: float = MAX_RUN_SEC_CEIL,
     max_frames: int = MAX_FRAMES_CEIL,
     vad_backend: str = "heuristic",
+    defaults: dict[str, Any] | None = None,
+    speech_reference_rms: float | None = None,
+    on_breath_rejected: Callable[[], None] | None = None,
 ) -> list[AcousticGapRun]:
     """Find short voiced runs wholly inside one inter-word gap.
 
@@ -168,10 +172,18 @@ def find_voiced_gap_runs(
         run_samples = cache.window(start, end)
         if (
             classify_breath_samples(
-                run_samples, start, sample_rate=sr, vad_backend=vad_backend, candidate_run=True
+                run_samples,
+                start,
+                sample_rate=sr,
+                vad_backend=vad_backend,
+                defaults=defaults,
+                candidate_run=True,
+                speech_reference_rms=speech_reference_rms,
             )
             is not None
         ):
+            if on_breath_rejected is not None:
+                on_breath_rejected()
             continue
         confidence = (float(np.mean(levels[i:j])) - floor) / 24.0
         runs.append(

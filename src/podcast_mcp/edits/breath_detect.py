@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -10,6 +12,11 @@ from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.util.dsp import bool_runs, db_to_amplitude
 from podcast_mcp.util.tracks import track_audio_path
+
+if TYPE_CHECKING:
+    from podcast_mcp.engines.vad_silero import SileroVAD
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -20,7 +27,11 @@ class BreathSpan:
 
 
 def _breath_cfg(defaults: dict | None) -> dict:
-    cfg = (defaults or load_defaults()).get("tighten", {}).get("breath_handling", {})
+    cfg = (
+        (defaults if defaults is not None else load_defaults())
+        .get("tighten", {})
+        .get("breath_handling", {})
+    )
     return {
         "enabled": bool(cfg.get("enabled", True)),
         "search_before_ms": int(cfg.get("search_before_ms", 400)),
@@ -99,6 +110,7 @@ def _find_breath_in_window_silero(
     *,
     min_duration_sec: float,
     max_duration_sec: float,
+    vad: SileroVAD | None = None,
 ) -> BreathSpan | None:
     """Locate a breath as a dip in Silero VAD speech-probability.
 
@@ -109,7 +121,8 @@ def _find_breath_in_window_silero(
     """
     from podcast_mcp.engines.vad_silero import SileroVAD, get_shared_vad
 
-    vad = get_shared_vad()
+    if vad is None:
+        vad = get_shared_vad()
     if vad is None:
         return None
     probs = vad.speech_probs(samples)
@@ -132,6 +145,7 @@ def classify_breath_samples(
     min_duration_sec: float = 0.08,
     max_duration_sec: float = 0.45,
     candidate_run: bool = False,
+    speech_reference_rms: float | None = None,
 ) -> BreathSpan | None:
     """Classify a bounded sample window using the shared breath detectors.
 
@@ -140,27 +154,44 @@ def classify_breath_samples(
     """
     if vad_backend == "silero" and sample_rate == 16000:
         from podcast_mcp.engines.vad_silero import get_shared_vad
-        from podcast_mcp.engines.vad_silero import is_available as silero_available
 
-        # Model construction can fail even when the package and ONNX file exist.
-        if silero_available() and get_shared_vad() is not None:
-            return _find_breath_in_window_silero(
-                samples,
-                window_start,
-                min_duration_sec=min_duration_sec,
-                max_duration_sec=max_duration_sec,
-            )
+        # Model construction or inference can fail after the package check.
+        try:
+            vad = get_shared_vad()
+            if vad is not None:
+                return _find_breath_in_window_silero(
+                    samples,
+                    window_start,
+                    min_duration_sec=min_duration_sec,
+                    max_duration_sec=max_duration_sec,
+                    vad=vad,
+                )
+        except Exception:
+            log.debug("Silero breath inference failed; using RMS heuristic", exc_info=True)
 
-    heuristics = (defaults or load_defaults()).get("analysis", {}).get("heuristics", {})
+    heuristics = (
+        (defaults if defaults is not None else load_defaults())
+        .get("analysis", {})
+        .get("heuristics", {})
+    )
     audibility_db = float(heuristics.get("audibility_rms_db", -42.0))
-    noise_floor = db_to_amplitude(audibility_db)
-    speech_rms = noise_floor * 8.0
+    if candidate_run:
+        if speech_reference_rms is None or not np.isfinite(speech_reference_rms):
+            return None
+        speech_rms = speech_reference_rms
+        noise_floor = speech_reference_rms * 0.01
+    else:
+        noise_floor = db_to_amplitude(audibility_db)
+        speech_rms = noise_floor * 8.0
     # The percentile fallback in the adjacent-cut scanner deliberately widens
     # its band in loud windows. For a window wholly inside an acoustic run,
     # that would mislabel ordinary speech as breath; its RMS must remain below
     # the speech boundary before the shape scan is useful.
-    if candidate_run and samples.size and float(np.sqrt(np.mean(samples**2))) > speech_rms * 0.45:
-        return None
+    if candidate_run:
+        if not samples.size or not np.all(np.isfinite(samples)):
+            return None
+        if float(np.sqrt(np.mean(samples**2))) > speech_rms * 0.45:
+            return None
     return _find_breath_in_window(
         samples,
         window_start,

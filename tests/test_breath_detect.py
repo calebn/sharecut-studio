@@ -339,6 +339,32 @@ def test_sample_classifier_does_not_fallback_after_valid_silero_no_breath() -> N
     heuristic.assert_not_called()
 
 
+def test_sample_classifier_looks_up_silero_once_and_falls_back_on_inference_error() -> None:
+    from podcast_mcp.edits.breath_detect import classify_breath_samples
+
+    vad = _fake_silero_vad([])
+    vad.speech_probs.side_effect = RuntimeError("inference failed")
+    with (
+        patch("podcast_mcp.engines.vad_silero.get_shared_vad", return_value=vad) as lookup,
+        patch("podcast_mcp.edits.breath_detect._find_breath_in_window") as heuristic,
+    ):
+        classify_breath_samples(
+            np.zeros(1600, dtype=np.float32), 1.0, sample_rate=16000, vad_backend="silero"
+        )
+
+    lookup.assert_called_once()
+    heuristic.assert_called_once()
+
+
+def test_explicit_empty_defaults_do_not_reload_configuration() -> None:
+    from podcast_mcp.edits.breath_detect import classify_breath_samples
+
+    with patch("podcast_mcp.edits.breath_detect.load_defaults", side_effect=AssertionError):
+        classify_breath_samples(
+            np.zeros(1600, dtype=np.float32), 1.0, sample_rate=16000, defaults={}
+        )
+
+
 def test_detect_adjacent_breath_falls_back_to_heuristic_when_silero_unavailable():
     from podcast_mcp.edits.breath_detect import detect_adjacent_breath
     from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, Track, TrackRole
