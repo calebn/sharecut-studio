@@ -10,6 +10,7 @@ landing learns, after the commit, that the row it registered is stale (#366).
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 
 from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, SourceRecording
@@ -61,14 +62,65 @@ def capture_prior(
     )
 
 
-def _media_from_remaining_clip(project: EpisodeProject, track_id: str) -> MediaAsset | None:
-    """The earliest remaining clip's source, as a track-level ``MediaAsset`` fallback."""
+def prior_to_json(prior: PriorRegistration) -> str:
+    """Serialize *prior* so a failed rollback can be retried after a restart."""
+    return json.dumps(
+        {
+            "track_id": prior.track_id,
+            "source_id": prior.source_id,
+            "rel": prior.rel,
+            "room_tone": prior.room_tone,
+            "track_existed": prior.track_existed,
+            "source": prior.source.model_dump(mode="json") if prior.source else None,
+            "clip": prior.clip.model_dump(mode="json") if prior.clip else None,
+            "media": prior.media.model_dump(mode="json") if prior.media else None,
+        }
+    )
+
+
+def prior_from_json(raw: str) -> PriorRegistration:
+    """Inverse of :func:`prior_to_json`; raises ``ValueError`` on unreadable input."""
+    try:
+        data = json.loads(raw)
+        source = data["source"]
+        clip = data["clip"]
+        media = data["media"]
+        return PriorRegistration(
+            track_id=str(data["track_id"]),
+            source_id=str(data["source_id"]),
+            rel=str(data["rel"]),
+            room_tone=bool(data["room_tone"]),
+            track_existed=bool(data["track_existed"]),
+            source=SourceRecording.model_validate(source) if source is not None else None,
+            clip=Clip.model_validate(clip) if clip is not None else None,
+            media=MediaAsset.model_validate(media) if media is not None else None,
+        )
+    except (KeyError, TypeError, AttributeError) as exc:
+        raise ValueError(f"unreadable prior registration: {exc}") from exc
+
+
+def registration_present(project: EpisodeProject, prior: PriorRegistration) -> bool:
+    """True while ``project`` still registers *prior*'s stale raw path for its source."""
+    current = project.source_by_id(prior.source_id)
+    return current is not None and current.path == prior.rel
+
+
+def media_from_remaining_clip(
+    project: EpisodeProject,
+    track_id: str,
+    *,
+    skip_source_ids: frozenset[str] | set[str] = frozenset(),
+) -> MediaAsset | None:
+    """The earliest remaining clip's source, as a track-level ``MediaAsset`` fallback.
+
+    Clips whose source is in *skip_source_ids* (stale keeper registrations) are ignored.
+    """
     remaining = sorted(
         (clip for clip in project.clips if clip.track_id == track_id),
         key=lambda clip: clip.timeline_start,
     )
     for clip in remaining:
-        if clip.source_id is None:
+        if clip.source_id is None or clip.source_id in skip_source_ids:
             continue
         src = project.source_by_id(clip.source_id)
         if src is not None:
@@ -91,8 +143,7 @@ def revert_registration(project: EpisodeProject, prior: PriorRegistration) -> bo
     the on-disk bed still holds the stale bytes (``RecordLandingService._rollback_stale``
     does). Raw files are never deleted here; history references them.
     """
-    current_source = project.source_by_id(prior.source_id)
-    if current_source is None or current_source.path != prior.rel:
+    if not registration_present(project, prior):
         return False
 
     prior_source = prior.source
@@ -143,7 +194,7 @@ def revert_registration(project: EpisodeProject, prior: PriorRegistration) -> bo
         if track.media is not None and track.media.path == prior.rel:
             track.media = prior_media
             if track.media is None:
-                track.media = _media_from_remaining_clip(project, prior.track_id)
+                track.media = media_from_remaining_clip(project, prior.track_id)
 
     if (
         not prior.track_existed

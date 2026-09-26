@@ -2,8 +2,18 @@
 
 from __future__ import annotations
 
+import pytest
+
 from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, SourceRecording, Track, TrackRole
-from podcast_mcp.services.record.landing_rollback import capture_prior, revert_registration
+from podcast_mcp.services.record.landing_rollback import (
+    PriorRegistration,
+    capture_prior,
+    media_from_remaining_clip,
+    prior_from_json,
+    prior_to_json,
+    registration_present,
+    revert_registration,
+)
 
 
 def _project() -> EpisodeProject:
@@ -197,3 +207,70 @@ def test_revert_falls_back_to_remaining_clip_for_media():
     assert track is not None
     assert track.media is not None
     assert track.media.path == "raw/kept.wav"
+
+
+def test_prior_json_round_trips_populated_and_empty():
+    project = _project()
+    project.tracks.append(
+        Track(
+            id="t1",
+            label="Ava",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/a.wav", duration_sec=5.0),
+        )
+    )
+    project.sources.append(SourceRecording(id="rec-1", path="raw/a.wav", duration_sec=5.0))
+    project.clips.append(
+        Clip(
+            id="c1",
+            track_id="t1",
+            source_start=0.0,
+            source_end=5.0,
+            timeline_start=0.0,
+            source_id="rec-1",
+        )
+    )
+    full = capture_prior(
+        project, track_id="t1", source_id="rec-1", rel="raw/b.wav", room_tone=False
+    )
+    assert prior_from_json(prior_to_json(full)) == full
+    empty = capture_prior(project, track_id="tx", source_id="nope", rel="raw/c.wav", room_tone=True)
+    assert empty.source is None and empty.clip is None and empty.media is None
+    assert prior_from_json(prior_to_json(empty)) == empty
+
+
+@pytest.mark.parametrize("raw", ["not json", "{}", "[]", '{"track_id": 1}'])
+def test_prior_from_json_rejects_garbage(raw):
+    with pytest.raises(ValueError):
+        prior_from_json(raw)
+
+
+def test_registration_present_tracks_source_path():
+    project = _project()
+    prior = PriorRegistration("t1", "rec-1", "raw/x.wav", False, True, None, None, None)
+    assert registration_present(project, prior) is False
+    project.sources.append(SourceRecording(id="rec-1", path="raw/x.wav"))
+    assert registration_present(project, prior) is True
+    project.sources[0].path = "raw/y.wav"
+    assert registration_present(project, prior) is False
+
+
+def test_media_from_remaining_clip_skips_stale_sources():
+    project = _project()
+    for i, sid in enumerate(("rec-a", "rec-b")):
+        project.sources.append(SourceRecording(id=sid, path=f"raw/{sid}.wav", duration_sec=1.0))
+        project.clips.append(
+            Clip(
+                id=f"c{i}",
+                track_id="t1",
+                source_start=0.0,
+                source_end=1.0,
+                timeline_start=float(i),
+                source_id=sid,
+            )
+        )
+    first = media_from_remaining_clip(project, "t1")
+    assert first is not None and first.path == "raw/rec-a.wav"
+    skipped = media_from_remaining_clip(project, "t1", skip_source_ids=frozenset({"rec-a"}))
+    assert skipped is not None and skipped.path == "raw/rec-b.wav"
+    assert media_from_remaining_clip(project, "t1", skip_source_ids={"rec-a", "rec-b"}) is None
