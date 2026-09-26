@@ -1,14 +1,10 @@
 import { useEffect, useId, useMemo, useState } from "react";
-import {
-  loadPipelineConfig,
-  putPipelineConfig,
-  startPipelineRun,
-} from "../api";
+import { startPipelineRun } from "../api";
 import { execute } from "../commands/execute";
+import { useTightenIntensityConfig } from "../hooks/useTightenIntensityConfig";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
-import type { PipelineConfigResponse } from "../types/pipeline";
 import {
   Button,
   CommandButton,
@@ -19,7 +15,6 @@ import {
   ToggleButton,
 } from "../ui";
 import { errorMessage } from "../utils/apiError";
-import { setByPath } from "../utils/configPath";
 import { isPipelineSlotBusy } from "../utils/pipeline";
 import {
   applyAllSummary,
@@ -32,7 +27,8 @@ import {
 } from "../utils/tightenHits";
 import {
   currentTightenIntensity,
-  TIGHTEN_INTENSITY_PATH,
+  findHitsConfirm,
+  findHitsRunError,
   tightenIntensityLabel,
   tightenIntensityOptions,
   tightenProposeRunOptions,
@@ -52,6 +48,9 @@ const BADGE_LABEL: Record<string, string> = {
   review: "Review",
   ok: "OK",
 };
+
+/** Find hits request this panel started, scoped to the project it ran on. */
+type FindRun = { path: string; jobId: string | null; error: string | null };
 
 export function TightenPanel() {
   const {
@@ -89,71 +88,56 @@ export function TightenPanel() {
   const [harshOnly, setHarshOnly] = useState(false);
   const [query, setQuery] = useState("");
   const [avoidHarsh, setAvoidHarsh] = useState(true);
-  const [pipelineCfg, setPipelineCfg] = useState<PipelineConfigResponse | null>(
-    null,
-  );
   const [proposing, setProposing] = useState(false);
-  const [proposeError, setProposeError] = useState<string | null>(null);
+  const [findRun, setFindRun] = useState<FindRun | null>(null);
 
   const canApply = canApplyPass12(projectPath, guestMode, shareCapabilities);
-  useEffect(() => {
-    if (!canApply) {
-      return;
-    }
-    let cancelled = false;
-    void loadPipelineConfig(projectPath)
-      .then((cfg) => {
-        if (!cancelled) setPipelineCfg(cfg);
-      })
-      .catch((e) => {
-        if (!cancelled) setProposeError(errorMessage(e));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [canApply, projectPath]);
+  const intensityCfg = useTightenIntensityConfig(projectPath, canApply);
+  const pipelineCfg = intensityCfg.cfg;
   const intensityOptions = tightenIntensityOptions(pipelineCfg);
   const intensity = currentTightenIntensity(pipelineCfg);
   const pipelineBusy =
     isPipelineSlotBusy(activityJob) || isPipelineSlotBusy(pipelineJob);
-  const findDisabled =
-    !canApply || !pipelineCfg || !intensity || proposing || pipelineBusy;
-
-  async function onIntensityChange(value: string) {
-    if (!pipelineCfg) return;
-    const snapshot = pipelineCfg;
-    const nextConfig = setByPath(
-      pipelineCfg.config,
-      TIGHTEN_INTENSITY_PATH,
-      value,
-    );
-    setPipelineCfg({ ...pipelineCfg, config: nextConfig });
-    setProposeError(null);
-    try {
-      setPipelineCfg(
-        await putPipelineConfig(projectPath, { config: nextConfig }),
-      );
-    } catch (e) {
-      setPipelineCfg(snapshot);
-      setProposeError(errorMessage(e));
-    }
-  }
+  const intensityDisabled =
+    !canApply ||
+    !pipelineCfg ||
+    proposing ||
+    intensityCfg.saving ||
+    pipelineBusy;
+  const findDisabled = intensityDisabled || !intensity;
+  const currentRun = findRun?.path === projectPath ? findRun : null;
+  const toolbarError =
+    intensityCfg.saveError ??
+    currentRun?.error ??
+    findHitsRunError(currentRun?.jobId ?? null, pipelineJob);
 
   async function onFindHits() {
-    if (!pipelineCfg || !intensity) return;
+    if (!intensity) return;
+    const confirmText = findHitsConfirm(hits.length);
+    if (
+      confirmText &&
+      typeof window !== "undefined" &&
+      !window.confirm(confirmText)
+    ) {
+      return;
+    }
+    const path = projectPath;
+    const tier = intensity;
     setProposing(true);
-    setProposeError(null);
+    setFindRun({ path, jobId: null, error: null });
     try {
+      const fresh = await intensityCfg.fetchFresh();
+      if (!fresh) return;
       const job = await startPipelineRun(
-        projectPath,
-        tightenProposeRunOptions(pipelineCfg, intensity),
+        path,
+        tightenProposeRunOptions(fresh, tier),
       );
+      if (useDawStore.getState().projectPath !== path) return;
       setPipelineJob(job);
-      announceStatus(
-        `Finding tighten hits (${tightenIntensityLabel(intensity)})…`,
-      );
+      setFindRun({ path, jobId: job.id, error: null });
+      announceStatus(`Finding tighten hits (${tightenIntensityLabel(tier)})…`);
     } catch (e) {
-      setProposeError(errorMessage(e));
+      setFindRun({ path, jobId: null, error: errorMessage(e) });
     } finally {
       setProposing(false);
     }
@@ -262,8 +246,8 @@ export function TightenPanel() {
           <select
             id={intensityId}
             value={intensity ?? ""}
-            disabled={!pipelineCfg || !canApply || proposing}
-            onChange={(e) => void onIntensityChange(e.target.value)}
+            disabled={intensityDisabled}
+            onChange={(e) => void intensityCfg.setIntensity(e.target.value)}
           >
             {intensityOptions.map((opt) => (
               <option key={opt} value={opt}>
@@ -275,13 +259,21 @@ export function TightenPanel() {
         <Button
           onClick={() => void onFindHits()}
           disabled={findDisabled}
-          aria-describedby={proposeError ? proposeErrorId : undefined}
+          aria-describedby={toolbarError ? proposeErrorId : undefined}
         >
           {proposing ? "Starting…" : "Find hits"}
         </Button>
         <div id={proposeErrorId}>
-          <InlineError message={proposeError} />
+          <InlineError message={toolbarError} />
         </div>
+        {intensityCfg.loadError ? (
+          <>
+            <InlineError
+              message={`Could not load tighten settings: ${intensityCfg.loadError}`}
+            />
+            <Button onClick={intensityCfg.reload}>Retry</Button>
+          </>
+        ) : null}
       </div>
 
       <div className="tighten-bulk">
