@@ -116,12 +116,19 @@ export async function joinAsProducer(
   await expect(page.getByText("Waiting for host")).toBeVisible();
 }
 
-/** Wait until each participant's keeper segments 0..n-1 are all file-ACKed on the host. */
+/**
+ * Wait until each participant's keeper segments 0..n-1 in `takeIndex` are all
+ * file-ACKed on the host. Pass only recorded participants (host, guests). A
+ * producer or anyone who never opened a keeper has no rows and times out.
+ */
 export async function waitForSegmentsAcked(
   host: Page,
   projectPath: string,
   participantIds: string[],
-  timeout = 60_000,
+  {
+    takeIndex = 0,
+    timeout = 60_000,
+  }: { takeIndex?: number; timeout?: number } = {},
 ): Promise<void> {
   await expect
     .poll(
@@ -133,26 +140,31 @@ export async function waitForSegmentsAcked(
         const body = (await res.json()) as {
           segments?: Array<{
             participant_id?: string;
+            take_index?: number;
             segment_index?: number;
             file_ack?: boolean;
           }>;
         };
-        const waiting = participantIds.filter((pid) => {
+        const waiting = participantIds.flatMap((pid) => {
           const segs = (body.segments ?? []).filter(
-            (seg) => seg.participant_id === pid,
+            (seg) => seg.participant_id === pid && seg.take_index === takeIndex,
           );
+          if (segs.length === 0)
+            return [`${pid}: no segments in take ${takeIndex}`];
           const indexes = segs
             .map((seg) => seg.segment_index ?? -1)
             .sort((x, y) => x - y);
-          return (
-            segs.length === 0 ||
-            indexes.some((index, i) => index !== i) ||
-            segs.some((seg) => seg.file_ack !== true)
-          );
+          if (indexes.some((index, i) => index !== i)) {
+            return [`${pid}: segment gap ${indexes.join(",")}`];
+          }
+          if (segs.some((seg) => seg.file_ack !== true)) {
+            return [`${pid}: not file-ACKed`];
+          }
+          return [];
         });
         return waiting.length === 0
           ? "acked"
-          : `waiting for ${waiting.join(", ")}`;
+          : `waiting for ${waiting.join("; ")}`;
       },
       { timeout },
     )
