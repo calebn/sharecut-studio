@@ -227,3 +227,29 @@ def test_atomic_json_unreadable_and_workspace_relpath_fallback(tmp_path: Path) -
         load_json_object(folder)
     outside = Path("/tmp/podcast-mcp-outside.json")
     assert workspace_relpath(p, outside) == str(outside)
+
+
+def test_cli_pipeline_run_realign_passes_config(tmp_path: Path, monkeypatch) -> None:
+    from typer.testing import CliRunner
+
+    from podcast_mcp.cli.main import app
+    from podcast_mcp.services import PipelineService
+
+    seen: list[dict | None] = []
+
+    def fake_run(self, **kwargs):  # type: ignore[no-untyped-def]
+        seen.append(kwargs.get("config"))
+        return "done"
+
+    monkeypatch.setattr(PipelineService, "run", fake_run)
+    proj = _proj(tmp_path)
+    path = tmp_path / "episode.project.json"
+    from podcast_mcp.models.episode import save_project
+
+    save_project(proj, path)
+    runner = CliRunner()
+    assert (
+        runner.invoke(app, ["pipeline", "run", "--project", str(path), "--realign"]).exit_code == 0
+    )
+    assert runner.invoke(app, ["pipeline", "run", "--project", str(path)]).exit_code == 0
+    assert seen == [{"align": {"realign": True}}, None]

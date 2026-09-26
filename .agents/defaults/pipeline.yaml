@@ -202,6 +202,8 @@ align:
   max_offset_sec: 0
   coarse_step_sec: 0.5
   fine_step_sec: 0.02
+  # Equal-length stems and manifest-pinned offsets are locked at their placement; true re-scores them.
+  realign: false
   bleed_ngram: 3
   # Clustered bleed matches needed to trust the bleed clock.
   min_bleed_matches: 5
