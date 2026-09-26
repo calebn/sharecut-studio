@@ -95,7 +95,13 @@ class ProjectWorkspace:
             self._merge_base = project_merge_data(saved)
             return self.project
 
-    def save_merged(self, history_label: str | None = None) -> None:
+    def save_merged(
+        self,
+        history_label: str | None = None,
+        *,
+        retry: str = "re-run it",
+        undo_redo_retry: str | None = None,
+    ) -> None:
         """Commit this workspace's changes since ``checkpoint`` on top of the saved file.
 
         ``history_label`` first records this job's state as an undo entry (a pipeline
@@ -103,7 +109,8 @@ class ProjectWorkspace:
         checkpoint is merged in, recorded as ``after merging concurrent edits`` and adopted
         in place (later steps see it). Raises ``ProjectMergeConflict``, saving nothing,
         when both changed one value, or (``history.lineage``) when one side undid/redid
-        past the checkpoint state while the other recorded history.
+        past the checkpoint state while the other recorded history. ``retry`` ends that message
+        (what the caller should do next); ``undo_redo_retry`` replaces it for an undo/redo conflict.
 
         Nothing is adopted until the commit lands: on a conflict or a failed commit,
         ``history/index.json`` and ``self.project.history`` are put back and snapshot files
@@ -134,7 +141,7 @@ class ProjectWorkspace:
                 history_before = self.project.history.model_copy(deep=True)
                 to_save: EpisodeProject | None = None
                 try:
-                    to_save = self._merged_with(saved, history_label)
+                    to_save = self._merged_with(saved, history_label, retry, undo_redo_retry)
                     self._store.commit(to_save)
                 except BaseException:
                     self._recover_failed_save(
@@ -185,7 +192,13 @@ class ProjectWorkspace:
         except Exception:
             log.warning("Could not roll back %s after a failed save", index_path, exc_info=True)
 
-    def _merged_with(self, saved: dict[str, Any], history_label: str | None) -> EpisodeProject:
+    def _merged_with(
+        self,
+        saved: dict[str, Any],
+        history_label: str | None,
+        retry: str,
+        undo_redo_retry: str | None,
+    ) -> EpisodeProject:
         """The project to commit: ``self.project`` or, when the file moved, a merged copy.
 
         Records history on it but never adopts a merge into ``self.project``;
@@ -197,11 +210,19 @@ class ProjectWorkspace:
             mgr.record(self.project, history_label)
         if saved == self._merge_base:
             return self.project
-        merged = merge_project_data(self._merge_base, project_merge_data(self.project), saved)
+        merged = merge_project_data(
+            self._merge_base,
+            project_merge_data(self.project),
+            saved,
+            retry=retry,
+            undo_redo_retry=undo_redo_retry,
+        )
         try:
             adopted = EpisodeProject.model_validate(merged)
         except ValidationError as exc:
-            raise ProjectMergeConflict(["(merged project is invalid)"]) from exc
+            raise ProjectMergeConflict(
+                ["(merged project is invalid)"], retry=retry, undo_redo_retry=undo_redo_retry
+            ) from exc
         mgr.record(adopted, MERGED_HISTORY_LABEL)
         return adopted
 
