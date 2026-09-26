@@ -58,3 +58,14 @@ def test_split_clip_tool_uses_document_plane(tmp_path, sample_wav):
     svc = DocumentSyncService.open(path)
     rows = svc.store.commands_after(0)
     assert any(r["type"] == "SplitAtTime" for r in rows)
+
+
+def test_host_document_commands_use_server_assigned_sequences(tmp_path):
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    body = {"author": "a", "timeline_start": 1.0}
+    one = submit_host_document_command(path, "AddComment", {**body, "body": "one"})
+    two = submit_host_document_command(path, "AddComment", {**body, "body": "two"})
+    assert one["ok"] and two["ok"]
+    assert one["command"]["client_seq"] < 0
+    assert one["command"]["client_seq"] != two["command"]["client_seq"]
+    assert len(load_project(Path(path)).comments) == 2

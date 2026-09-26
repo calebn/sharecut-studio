@@ -243,3 +243,45 @@ def test_document_commands_from_two_processes_keep_every_edit(minimal_project):
     seqs = [r["server_seq"] for r in rows]
     assert seqs == sorted(set(seqs))
     assert {r["payload"]["body"] for r in rows} == bodies
+
+
+def _child_submit_one(path, body, start, results) -> None:
+    svc = DocumentSyncService.open(path)
+    start.wait(60)
+    try:
+        svc.submit(
+            DocumentCommand(
+                type="AddComment",
+                payload={"body": body, "author": "x", "timeline_start": 1.0},
+                client_id="shared",
+                role="viewer",
+                client_seq=1,
+            )
+        )
+        results.put("ok")
+    except Exception as exc:
+        results.put(type(exc).__name__)
+
+
+def test_same_sequence_race_across_processes_journals_only_the_applied_edit(minimal_project):
+    start, results = _CTX.Event(), _CTX.Queue()
+    children = [
+        _CTX.Process(target=_child_submit_one, args=(str(minimal_project), body, start, results))
+        for body in ("left", "right")
+    ]
+    for child in children:
+        child.start()
+    start.set()
+    for child in children:
+        child.join(120)
+    outcomes = sorted(results.get(timeout=10) for _ in children)
+    assert outcomes == ["DocumentSequenceConflictError", "ok"]
+    project = load_project(minimal_project)
+    assert len(project.comments) == 1
+    store = SyncStore(document_db_path(project))
+    try:
+        rows = store.commands_after(0)
+    finally:
+        store.close()
+    assert len(rows) == 1
+    assert rows[0]["payload"]["body"] == project.comments[0].body

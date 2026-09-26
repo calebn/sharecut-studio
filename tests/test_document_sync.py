@@ -5,7 +5,10 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import pytest
+from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
+from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import (
     AutomationEnvelope,
     AutomationPoint,
@@ -20,7 +23,10 @@ from podcast_mcp.project_merge import ProjectMergeConflict
 from podcast_mcp.services import ProjectWorkspace
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
-from podcast_mcp.services.document_sync.errors import DocumentConflictError
+from podcast_mcp.services.document_sync.errors import (
+    DocumentConflictError,
+    DocumentSequenceConflictError,
+)
 from podcast_mcp.services.document_sync.handlers import apply_command
 from podcast_mcp.services.document_sync.payloads import parse_document_command, validate_payload
 from podcast_mcp.services.history import HistoryService
@@ -1326,3 +1332,105 @@ def test_document_set_envelope_caps_point_lists():
         payload = {"track_id": "host", "points": [], "expected_points": [], key: too_many}
         with pytest.raises(ValueError, match="at most"):
             validate_payload("SetEnvelope", payload)
+
+
+def _comment(body, *, seq=1, client_id="c1", command_id=None):
+    kwargs = {"command_id": command_id} if command_id else {}
+    return DocumentCommand(
+        type="AddComment",
+        payload={"body": body, "author": "viewer", "timeline_start": 2.5},
+        client_id=client_id,
+        role="viewer",
+        client_seq=seq,
+        **kwargs,
+    )
+
+
+def _journal(svc):
+    return svc.store.commands_after(0)
+
+
+def test_legacy_retry_with_a_new_command_id_is_idempotent(minimal_project):
+    svc = DocumentSyncService.open(minimal_project)
+    assert svc.submit(_comment("same"))["ok"]
+    again = svc.submit(_comment("same"))  # new command_id, same client_seq and payload
+    assert again["idempotent"] is True
+    assert len(again["snapshot"]["comments"]) == 1
+    assert len(_journal(svc)) == 1
+
+
+def test_same_sequence_with_a_different_edit_is_a_conflict(minimal_project):
+    svc = DocumentSyncService.open(minimal_project)
+    svc.submit(_comment("first"))
+    with pytest.raises(DocumentSequenceConflictError):
+        svc.submit(_comment("second"))
+    assert len(svc.ws.reload().comments) == 1
+    assert len(_journal(svc)) == 1
+
+
+def test_reused_command_id_with_a_different_edit_is_a_conflict(minimal_project):
+    svc = DocumentSyncService.open(minimal_project)
+    svc.submit(_comment("first", seq=1, command_id="fixed"))
+    with pytest.raises(DocumentSequenceConflictError):
+        svc.submit(_comment("second", seq=2, command_id="fixed"))
+    assert len(_journal(svc)) == 1
+
+
+def test_server_assigned_sequences_never_collide(minimal_project):
+    svc = DocumentSyncService.open(minimal_project)
+    first = _comment("one", seq=None)
+    second = _comment("two", seq=None)
+    a = svc.submit(first)
+    b = svc.submit(second)
+    assert a["command"]["client_seq"] == -1
+    assert b["command"]["client_seq"] == -2
+    assert svc.submit(first)["idempotent"] is True
+    assert len(_journal(svc)) == 2
+
+
+def test_http_reused_sequence_returns_409(minimal_project):
+    client = TestClient(create_app())
+    path = str(minimal_project)
+
+    def post(body):
+        return client.post(
+            "/api/document/command",
+            params={"path": path},
+            json={
+                "type": "AddComment",
+                "payload": {"body": body, "author": "v", "timeline_start": 1.0},
+                "client_id": "v1",
+                "role": "viewer",
+                "client_seq": 1,
+            },
+        )
+
+    assert post("first").status_code == 200
+    second = post("second")
+    assert second.status_code == 409
+    assert second.json()["detail"]["conflict"] is True
+
+
+def test_explicit_client_seq_must_be_positive():
+    with pytest.raises(ValidationError):
+        parse_document_command(
+            {
+                "type": "AddComment",
+                "payload": {"body": "x", "author": "a", "timeline_start": 1.0},
+                "client_id": "c",
+                "client_seq": 0,
+            }
+        )
+
+
+def test_submit_refuses_a_journal_row_claimed_outside_the_transaction(minimal_project):
+    svc = DocumentSyncService.open(minimal_project)
+    svc.submit(_comment("first"))
+    with (
+        patch(
+            "podcast_mcp.services.document_sync.service.existing_document_command",
+            return_value=None,
+        ),
+        pytest.raises(RuntimeError),
+    ):
+        svc.submit(_comment("first"))

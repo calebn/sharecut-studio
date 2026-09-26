@@ -254,7 +254,6 @@ def guest_submit_document_command(**kwargs: Any) -> dict[str, Any]:
 
     data = dict(kwargs)
     data.setdefault("client_id", "remote-mcp")
-    data.setdefault("client_seq", 1)
     data.setdefault("role", "guest")
     if "payload" not in data:
         data["payload"] = {}
