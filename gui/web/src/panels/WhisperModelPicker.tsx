@@ -13,6 +13,8 @@ export type WhisperDownloadRequest = {
   modelId: string;
   reason: WhisperDownloadReason;
   previousId?: string;
+  /** Re-transcribe only: the user confirmed replacing hand-edited transcripts. */
+  overwriteEdited?: boolean;
 };
 
 function optionLabel(model: WhisperModelChoice): string {

@@ -62,7 +62,7 @@ export function TranscriptVocabularyEditor({
 }: {
   projectPath: string;
   busy: boolean;
-  onRetranscribe: () => void;
+  onRetranscribe: (overwriteEdited: boolean) => void;
   refreshKey: string;
 }) {
   const [saved, setSaved] = useState<TranscriptVocabulary | null>(null);
@@ -181,6 +181,23 @@ export function TranscriptVocabularyEditor({
     }
   };
 
+  const retranscribe = () => {
+    const edited = saved?.edited_tracks ?? [];
+    if (edited.length === 0) {
+      onRetranscribe(false);
+      return;
+    }
+    const count =
+      edited.length === 1 ? "1 track has" : `${edited.length} tracks have`;
+    if (
+      window.confirm(
+        `${count} hand-edited transcripts that Re-transcribe will replace: ${edited.join(", ")}. Replace them?`,
+      )
+    ) {
+      onRetranscribe(true);
+    }
+  };
+
   return (
     <section
       className="pipeline-vocabulary"
@@ -257,7 +274,7 @@ export function TranscriptVocabularyEditor({
       {saved?.needs_retranscription && (
         <p role="status">
           Transcript needs re-transcription to use this vocabulary.{" "}
-          <Button disabled={busy || saving || changed} onClick={onRetranscribe}>
+          <Button disabled={busy || saving || changed} onClick={retranscribe}>
             Re-transcribe
           </Button>
         </p>

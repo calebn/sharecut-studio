@@ -57,7 +57,7 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 | **Pending edit** | Suggested remove/mute not yet approved | `editorial.edit_decisions` | Impact (host), Tighten (host filler/pause/repetition/restart), edit overlay, inspector |
 | **Applied edit** | Committed cut provenance | `editorial.edit_log` | Impact/history context, “why was this cut?” |
 | **Transcript word** | Timed text + confidence / suppress | `transcripts.per_track[].words[]` | Text mode, word inspector |
-| **Edited transcript** | A transcript whose words a person or agent corrected, suppressed or verified through an edit tool (automated passes do not count); re-transcribing it is protected | `transcripts.per_track[].user_edited`, `audio_sha256`, `audio_size`, `audio_mtime_ns` | Text mode, Re-transcribe |
+| **Edited transcript** | A transcript whose words a person or agent corrected, suppressed or verified through an edit tool (automated passes do not count); re-transcribing it is protected (Studio Re-transcribe names edited tracks and asks first) | `transcripts.per_track[].user_edited`, `audio_sha256`, `audio_size`, `audio_mtime_ns` | Text mode, Re-transcribe |
 | **Combined transcript** | Utterance stream for search/NL | `transcripts.combined` | Search / agent; export captions |
 | **Transcription vocabulary** | Names and terms used for Whisper; Re-transcribe (forces ASR; normal runs reuse transcripts) when any transcript was produced with a different saved revision | `transcript_context.yaml` revision + `transcripts.per_track[].vocabulary_revision` | Pipeline vocabulary editor |
 | **FX chain** | Per-track cleanup/EQ/etc. | `mix.processing_chains` | Track FX, audition FX vs Raw |

@@ -202,6 +202,20 @@ def test_vocabulary_needs_retranscription_only_for_mismatched_transcripts(
     assert svc.get_vocabulary()["needs_retranscription"] is True
 
 
+def test_vocabulary_lists_edited_tracks_once(minimal_project: Path) -> None:
+    from podcast_mcp.models import Transcript
+    from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
+    from podcast_mcp.services.workspace import ProjectWorkspace
+
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.project.transcripts = [
+        Transcript(track_id="host", words=[], user_edited=True),
+        Transcript(track_id="host", source_id="b", words=[], user_edited=True),
+        Transcript(track_id="guest", words=[]),
+    ]
+    assert TranscriptPrecorrectService(ws).get_vocabulary()["edited_tracks"] == ["host"]
+
+
 def test_vocabulary_save_rejects_stale_base_revision(minimal_project: Path) -> None:
     from podcast_mcp.services.transcript_precorrect import (
         TranscriptPrecorrectService,

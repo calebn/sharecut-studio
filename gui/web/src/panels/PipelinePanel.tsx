@@ -181,6 +181,7 @@ function pipelineRunOptions(
   cfg: PipelineConfigResponse,
   selection: { fromStep: string; onlyStep: string },
   retranscribe: boolean,
+  overwriteEdited: boolean,
 ): NonNullable<Parameters<typeof startPipelineRun>[1]> {
   return {
     fromStep: retranscribe ? TRANSCRIBE_STEP : selection.fromStep || undefined,
@@ -192,7 +193,7 @@ function pipelineRunOptions(
     config: cfg.config,
     useWorkingSet: true,
     forceTranscribe: retranscribe,
-    overwriteEdited: retranscribe,
+    overwriteEdited: retranscribe && overwriteEdited,
   };
 }
 
@@ -426,7 +427,7 @@ export function PipelinePanel() {
     }
   };
 
-  const onRun = async (retranscribe = false) => {
+  const onRun = async (retranscribe = false, overwriteEdited = false) => {
     if (!cfg) {
       return;
     }
@@ -436,6 +437,7 @@ export function PipelinePanel() {
         setWhisperPending({
           modelId,
           reason: retranscribe ? "retranscribe" : "run",
+          overwriteEdited,
         });
         return;
       }
@@ -445,7 +447,12 @@ export function PipelinePanel() {
     try {
       const job = await startPipelineRun(
         projectPath,
-        pipelineRunOptions(cfg, { fromStep, onlyStep }, retranscribe),
+        pipelineRunOptions(
+          cfg,
+          { fromStep, onlyStep },
+          retranscribe,
+          overwriteEdited,
+        ),
       );
       setPipelineJob(job);
       setActiveTab("pipeline");
@@ -464,6 +471,7 @@ export function PipelinePanel() {
 
   const onWhisperDownloaded = async (modelId: string) => {
     const reason = whisperPending?.reason;
+    const overwriteEdited = whisperPending?.overwriteEdited ?? false;
     setWhisperPending(null);
     try {
       await onParamChange(TRANSCRIBE_MODEL_PATH, modelId);
@@ -482,6 +490,7 @@ export function PipelinePanel() {
               next,
               { fromStep, onlyStep },
               reason === "retranscribe",
+              overwriteEdited,
             ),
           );
           setPipelineJob(job);
@@ -598,7 +607,7 @@ export function PipelinePanel() {
         key={projectPath}
         projectPath={projectPath}
         busy={running || starting}
-        onRetranscribe={() => void onRun(true)}
+        onRetranscribe={(overwriteEdited) => void onRun(true, overwriteEdited)}
         refreshKey={
           pipelineJob && !isPipelineRunning(pipelineJob)
             ? `${pipelineJob.id}:${pipelineJob.status}`
