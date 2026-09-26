@@ -612,6 +612,9 @@ def test_transcribe_overwrite_param_and_run_only_helper() -> None:
     assert transcribe_run_config({"a": 1}, force=False) == {"a": 1}
     assert transcribe_run_config(None, force=False) is None
     assert transcribe_run_config(None, force=True)["transcribe"]["overwrite_edited"] is False
+    # overwrite_edited is a confirmation for a forced run only; alone it changes nothing.
+    assert transcribe_run_config({"a": 1}, force=False, overwrite_edited=True) == {"a": 1}
+    assert transcribe_run_config(None, force=False, overwrite_edited=True) is None
     confirmed = transcribe_run_config(None, force=True, overwrite_edited=True)
     assert confirmed["transcribe"]["overwrite_edited"] is True
     assert load_defaults()["transcribe"]["overwrite"] is False
