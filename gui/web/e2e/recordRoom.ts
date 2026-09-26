@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { expect, type Page } from "@playwright/test";
 
 /** Record-share room as returned by `POST /api/shares/record`. */
@@ -38,4 +39,147 @@ export function recordLinkPath(token: string): string {
 /** Navigate a guest or producer page to its record link. */
 export async function openRecordLink(page: Page, token: string): Promise<void> {
   await page.goto(recordLinkPath(token));
+}
+
+export type HostRecordSnapshot = {
+  state?: string;
+  session_id: string;
+  take_index: number;
+  recording_ms: number;
+  participants: Array<{ participant_id: string; display_name: string }>;
+  comments?: Array<{
+    id: string;
+    body: string;
+    author: string;
+    recording_ms: number;
+  }>;
+};
+
+export async function hostRecordSnapshot(
+  host: Page,
+  projectPath: string,
+): Promise<HostRecordSnapshot> {
+  const res = await host.request.get("/api/record/state", {
+    params: { path: projectPath },
+  });
+  expect(res.ok(), await res.text()).toBeTruthy();
+  return (await res.json()) as HostRecordSnapshot;
+}
+
+export async function hostRecordState(
+  host: Page,
+  projectPath: string,
+): Promise<string> {
+  return (await hostRecordSnapshot(host, projectPath)).state ?? "";
+}
+
+export async function recordParticipantId(
+  host: Page,
+  projectPath: string,
+  displayName: string,
+): Promise<string> {
+  const id = (await hostRecordSnapshot(host, projectPath)).participants.find(
+    (participant) => participant.display_name === displayName,
+  )?.participant_id;
+  expect(id, `no record participant named ${displayName}`).toBeTruthy();
+  return id as string;
+}
+
+/** Participant id of the host keeper (services/record/state.py). */
+export const HOST_PARTICIPANT_ID = "p_host";
+
+/** Join a record link as a guest: name, headphones, mic, skip room tone, Accept. */
+export async function joinAsGuest(
+  page: Page,
+  token: string,
+  name: string,
+): Promise<void> {
+  await openRecordLink(page, token);
+  await page.getByLabel("Display name").fill(name);
+  await page.getByLabel("I am wearing headphones").check();
+  await page.getByRole("button", { name: "Allow microphone" }).click();
+  await expect(page.getByLabel("Level")).toBeVisible();
+  await page.getByRole("button", { name: "Skip" }).click();
+  await page.getByRole("button", { name: "Accept" }).click();
+  await expect(page.getByText("Waiting for host")).toBeVisible();
+}
+
+/** Join a record link as a listen-only producer. */
+export async function joinAsProducer(
+  page: Page,
+  token: string,
+  name: string,
+): Promise<void> {
+  await openRecordLink(page, token);
+  await page.getByLabel("Display name").fill(name);
+  await page.getByRole("button", { name: "Join" }).click();
+  await expect(page.getByText("Waiting for host")).toBeVisible();
+}
+
+/** Wait until each participant's keeper segments 0..n-1 are all file-ACKed on the host. */
+export async function waitForSegmentsAcked(
+  host: Page,
+  projectPath: string,
+  participantIds: string[],
+  timeout = 60_000,
+): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        const res = await host.request.get("/api/record/upload", {
+          params: { path: projectPath },
+        });
+        if (!res.ok()) return `upload status ${res.status()}`;
+        const body = (await res.json()) as {
+          segments?: Array<{
+            participant_id?: string;
+            segment_index?: number;
+            file_ack?: boolean;
+          }>;
+        };
+        const waiting = participantIds.filter((pid) => {
+          const segs = (body.segments ?? []).filter(
+            (seg) => seg.participant_id === pid,
+          );
+          const indexes = segs
+            .map((seg) => seg.segment_index ?? -1)
+            .sort((x, y) => x - y);
+          return (
+            segs.length === 0 ||
+            indexes.some((index, i) => index !== i) ||
+            segs.some((seg) => seg.file_ack !== true)
+          );
+        });
+        return waiting.length === 0
+          ? "acked"
+          : `waiting for ${waiting.join(", ")}`;
+      },
+      { timeout },
+    )
+    .toBe("acked");
+}
+
+/** Landed project JSON (the fields record specs read). */
+export type SavedRecordProject = {
+  sources: Array<{ id: string; path: string }>;
+  timeline: {
+    tracks: Array<{ id: string; label?: string }>;
+    clips: Array<{
+      track_id: string;
+      source_id: string;
+      timeline_start: number;
+      source_start: number;
+      source_end: number;
+    }>;
+  };
+  review?: {
+    comments: Array<{ body: string; author?: string; timeline_start: number }>;
+  };
+};
+
+/** Read the project JSON the host GUI saved in the disposable workspace. */
+export async function readSavedProject(
+  projectPath: string,
+): Promise<SavedRecordProject> {
+  return JSON.parse(await readFile(projectPath, "utf8")) as SavedRecordProject;
 }
