@@ -458,6 +458,18 @@ def pick_reference_track(tracks: list[Track]) -> Track:
     return with_dur[0][0]
 
 
+def equal_duration_dialogue(project: EpisodeProject) -> tuple[list[str], float] | None:
+    """Track ids + duration when every dialogue file shares one length (likely pre-aligned)."""
+    units = dialogue_align_units(project)
+    track_ids = sorted({t.id for t, _c, _tok, _d in units})
+    if len(track_ids) < 2:
+        return None
+    durs = [d for _t, _c, _tok, d in units]
+    if not all(durations_match(durs[0], d) for d in durs[1:]):
+        return None
+    return track_ids, durs[0]
+
+
 def _manifest_pinned(project: EpisodeProject, track: Track) -> bool:
     """True when ingest recorded a manually pinned offset for this track."""
     meta = project.meta.ingest_alignment or {}
