@@ -888,14 +888,20 @@ def _confirm_large_move(
         acoustic = confirm_fn(ref_audio or Path("ref"), src_audio or Path("src"), candidate)
         why = acoustic.detail if acoustic is not None else "no correlated window"
     elif ref_audio is not None and src_audio is not None:
-        acoustic = acoustic_clip_offset(
-            ref_audio,
-            src_audio,
-            source_shift_sec=candidate,
-            min_peak=min_peak,
-            cancel_check=cancel_check,
-        )
-        why = acoustic.detail if acoustic is not None else "no correlated window"
+        try:
+            acoustic = acoustic_clip_offset(
+                ref_audio,
+                src_audio,
+                source_shift_sec=candidate,
+                min_peak=min_peak,
+                cancel_check=cancel_check,
+            )
+        except RuntimeError as exc:
+            if not str(exc).startswith("acoustic confirm failed: could not decode any window"):
+                raise
+            why = str(exc)
+        else:
+            why = acoustic.detail if acoustic is not None else "no correlated window"
     else:
         why = "no audio to cross-correlate"
 
@@ -1610,14 +1616,20 @@ def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
             )
             if (
                 plan.method in (REFERENCE_METHOD, "manual")
-                or (plan.method == "hold" and _co_timed(clip, ref_clips))
+                or (
+                    plan.method == "hold"
+                    and (
+                        _co_timed(clip, ref_clips)
+                        or abs(clip.source_start) > 1e-9
+                        or abs(clip.timeline_start) > 1e-9
+                    )
+                )
                 or abs(plan.offset_sec + ref_shift) < 1e-9
             ):
                 # Identity: reference clips (incl. sequential extras), manifest-pinned clips,
-                # held clips already co-timed with a reference clip (splits and ripples
-                # stay) and guests whose rebased offset is zero keep their placement.
-                # Other offset-0 guests, incl. a hold off the reference lead-in, are
-                # rebased onto the reference lead-in.
+                # held clips with existing placement (including a prior nudge), and
+                # guests whose rebased offset is zero keep their placement. A virgin
+                # identity hold is rebased onto the reference lead-in once.
                 src_start = clip.source_start
                 src_end = clip.source_end
                 tl_start = clip.timeline_start

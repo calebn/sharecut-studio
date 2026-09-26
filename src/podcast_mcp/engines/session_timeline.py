@@ -360,8 +360,8 @@ class SessionTimeline:
         idx = self._index(track_id)
         if idx is None or not idx.by_timeline:
             return 0.0
-        preceding = [s for s in idx.by_timeline if s.timeline_start <= float(tl_sec)]
-        span = preceding[-1] if preceding else idx.by_timeline[0]
+        prior = bisect_right(idx.timeline_starts, float(tl_sec)) - 1
+        span = idx.by_timeline[max(0, prior)]
         return -clip_source_to_timeline_shift(span)
 
     def max_drift(self, track_id: str) -> float:
@@ -387,7 +387,7 @@ class SessionTimeline:
         edges = {start, end}
         ref_idx = self._index(reference_track_id)
         if ref_idx is not None:
-            for span in ref_idx.by_timeline:
+            for span in _candidates_timeline(ref_idx, start, end):
                 for b in (span.timeline_start, span.timeline_end):
                     if start < b < end:
                         edges.add(b)
