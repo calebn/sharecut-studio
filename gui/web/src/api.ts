@@ -1263,6 +1263,8 @@ export type TranscriptVocabulary = {
   guest_names: string[];
   revision: string | null;
   needs_retranscription: boolean;
+  /** Track ids with hand-edited transcripts; Re-transcribe asks before replacing them. */
+  edited_tracks: string[];
 };
 
 export async function loadTranscriptVocabulary(

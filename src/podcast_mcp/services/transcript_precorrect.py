@@ -96,6 +96,10 @@ class TranscriptPrecorrectService:
                 t.vocabulary_revision != ctx.vocabulary_revision
                 for t in self.ws.project.transcripts
             ),
+            # Studio Re-transcribe names these and asks before replacing their hand edits.
+            "edited_tracks": list(
+                dict.fromkeys(t.track_id for t in self.ws.project.transcripts if t.user_edited)
+            ),
         }
 
     def set_vocabulary(

@@ -215,7 +215,7 @@ describe("PipelinePanel", () => {
         fromStep: "transcribe_tracks",
         enabledSteps: expect.arrayContaining(["transcribe_tracks"]),
         forceTranscribe: true,
-        overwriteEdited: true,
+        overwriteEdited: false,
       }),
     );
   });
@@ -233,12 +233,14 @@ describe("PipelinePanel", () => {
       guest_names: [],
       revision: "r1",
       needs_retranscription: false,
+      edited_tracks: [],
     });
     saveTranscriptVocabulary.mockImplementation(async (_path, value) => ({
       terms: value.terms,
       guest_names: value.guest_names,
       revision: "r2",
       needs_retranscription: true,
+      edited_tracks: [],
     }));
     putPipelineConfig.mockImplementation(async (_path, body) => ({
       ...structuredClone(baseConfig),
@@ -483,6 +485,7 @@ describe("PipelinePanel", () => {
 
   it("downloads Whisper before re-transcribing when the model is missing", async () => {
     const user = userEvent.setup();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
     const bootJob = {
       id: "boot1",
       kind: "bootstrap",
@@ -514,6 +517,7 @@ describe("PipelinePanel", () => {
       guest_names: [],
       revision: "r1",
       needs_retranscription: true,
+      edited_tracks: ["host"],
     });
     render(<PipelinePanel />);
     await user.click(
@@ -535,6 +539,8 @@ describe("PipelinePanel", () => {
         }),
       ),
     );
+    expect(window.confirm).toHaveBeenCalledOnce();
+    vi.mocked(window.confirm).mockRestore();
   });
 
   it("shows alignment leave-gate waiting copy", async () => {
