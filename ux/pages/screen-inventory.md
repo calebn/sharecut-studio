@@ -288,7 +288,7 @@ flowchart TB
 | text (**Maximize transcript**) | `Mod+3` | Expand transcript; shrink timeline |
 | review (**Review layout**) | `Mod+4` | Comments-forward + mix-oriented chrome |
 
-The transport layout control maximizes/restores, and a "… · Restore" chip in the transport leaves any non-default layout. Every layout keeps the banner, transport and status rows; only the timeline and bottom-tab areas resize.
+The transport layout control maximizes/restores, and a "… · Restore" chip in the transport leaves any non-default layout. Every layout keeps the banner, transport and status rows (geometry covered by `gui/web/e2e/layout-modes.spec.ts`); only the timeline and bottom-tab areas resize.
 
 ---
 
