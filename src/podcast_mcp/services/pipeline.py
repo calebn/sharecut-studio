@@ -93,13 +93,12 @@ class PipelineService:
             def mutate(p) -> dict:
                 return rerender_preview(p, progress=progress)
 
+            # mutate() re-reads the saved project under the cross-process lock, so Refresh renders it.
             info = self.ws.mutate(
                 "before render preview",
                 "after render preview",
                 mutate,
                 operation="render_preview",
-                # Refresh renders and commits the saved project, not the copy this job opened.
-                reload_first=True,
             )
             return info
         return json.loads(render_preview_result(self.ws.project, rerender=False))

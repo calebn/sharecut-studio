@@ -13,7 +13,6 @@ from podcast_mcp.models import EpisodeProject
 from podcast_mcp.project_merge import ConflictAdvice, ProjectMergeConflict
 from podcast_mcp.render import render_preview_result, rerender_preview
 from podcast_mcp.services.workspace import ProjectWorkspace
-from podcast_mcp.util.project_state import project_commit_lock
 from podcast_mcp.util.tracks import dialogue_track_ids
 
 
@@ -103,7 +102,7 @@ class HistoryService:
     ) -> dict:
         """Commit a history move with its stale marks; optionally re-render the preview.
 
-        The move and its stale marks are saved in one step under ``project_commit_lock``,
+        The move and its stale marks are saved in one step inside ``ProjectWorkspace.transaction()``,
         so no other writer commits between them and is overwritten. A render takes
         seconds, so it runs between ``checkpoint()`` and ``save_merged()``: an edit another
         request commits meanwhile is merged in, not overwritten (#493). If the render or
@@ -113,8 +112,7 @@ class HistoryService:
         Returns ``status()`` read after the save. When a concurrent edit was merged in,
         its cursor is the ``after merging concurrent edits`` entry, not the move's target.
         """
-        project = self.ws.project
-        with project_commit_lock(project):
+        with self.ws.transaction() as project:
             move(project)
             mark_reconciliation_stale(project)
             invalidate_stem_hashes(project)
@@ -122,8 +120,8 @@ class HistoryService:
             self.ws.save()
         if not rerender:
             return self.status()
-        # save() cleared the loaded-file signature, so checkpoint() adopts the saved file:
-        # the stale marks are part of the merge base, not changes this render made.
+        # save() recorded the revision it wrote, so checkpoint() keeps this copy (equal to the
+        # saved file) and uses that file, stale marks included, as the merge base.
         project = self.ws.checkpoint()
         try:
             rerender_preview(project)

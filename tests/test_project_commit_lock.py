@@ -14,7 +14,11 @@ from podcast_mcp.edits import review_versions
 from podcast_mcp.history import HistoryManager
 from podcast_mcp.models import load_project
 from podcast_mcp.project_store import ProjectStore
-from podcast_mcp.services import ProjectWorkspace, ReviewService
+from podcast_mcp.services import CommentService, ProjectWorkspace, ReviewService
+from podcast_mcp.services.document_sync import DocumentSyncService
+from podcast_mcp.services.document_sync.commands import DocumentCommand
+from podcast_mcp.services.document_sync.service import document_db_path
+from podcast_mcp.services.session_sync.log import SyncStore
 from podcast_mcp.util import project_state
 from podcast_mcp.util.project_state import project_commit_lock, project_commit_lock_path
 
@@ -163,3 +167,79 @@ def test_failed_publication_cleanup_is_not_raced_by_history_goto(minimal_project
         assert (Path(persisted.workspace_dir) / ver.audio_relpath).is_file()
     review_root = art / "review"
     assert sorted(p.name for p in review_root.iterdir()) == sorted(kept_ids)
+
+
+def _child_add_comment(path, body) -> None:
+    CommentService(ProjectWorkspace.open(path)).add(body=body, author="child", timeline_start=1.0)
+
+
+def _child_submit_comments(path, client_id, start, count) -> None:
+    svc = DocumentSyncService.open(path)
+    start.wait(60)
+    for seq in range(1, count + 1):
+        svc.submit(
+            DocumentCommand(
+                type="AddComment",
+                payload={"body": f"{client_id}-{seq}", "author": client_id, "timeline_start": 1.0},
+                client_id=client_id,
+                role="viewer",
+                client_seq=seq,
+            )
+        )
+
+
+def test_mutate_takes_the_lock_before_running_the_mutation(minimal_project, monkeypatch):
+    project = load_project(minimal_project)
+    lock_path = project_commit_lock_path(project)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    ws = ProjectWorkspace.open(minimal_project)
+    monkeypatch.setattr(project_state, "PROJECT_COMMIT_LOCK_TIMEOUT_SEC", 0.3)
+    ready, release = _CTX.Event(), _CTX.Event()
+    holder = _CTX.Process(target=_hold_lock, args=(str(lock_path), ready, release))
+    holder.start()
+    try:
+        assert ready.wait(60)
+        called: list[int] = []
+        with pytest.raises(Timeout):
+            ws.mutate("b", "a", lambda _p: called.append(1))
+        assert called == []
+    finally:
+        release.set()
+        holder.join(60)
+    assert load_project(minimal_project).comments == []
+
+
+def test_stale_workspace_keeps_a_commit_from_another_process(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    child = _CTX.Process(target=_child_add_comment, args=(str(minimal_project), "theirs"))
+    child.start()
+    child.join(60)
+    assert child.exitcode == 0
+    CommentService(ws).add(body="ours", author="me", timeline_start=1.0)
+    assert {c.body for c in load_project(minimal_project).comments} == {"theirs", "ours"}
+
+
+def test_document_commands_from_two_processes_keep_every_edit(minimal_project):
+    start = _CTX.Event()
+    children = [
+        _CTX.Process(target=_child_submit_comments, args=(str(minimal_project), cid, start, 5))
+        for cid in ("a", "b")
+    ]
+    for child in children:
+        child.start()
+    start.set()
+    for child in children:
+        child.join(120)
+        assert child.exitcode == 0
+    project = load_project(minimal_project)
+    bodies = {c.body for c in project.comments}
+    assert len(project.comments) == 10
+    store = SyncStore(document_db_path(project))
+    try:
+        rows = store.commands_after(0)
+    finally:
+        store.close()
+    assert len(rows) == 10
+    seqs = [r["server_seq"] for r in rows]
+    assert seqs == sorted(set(seqs))
+    assert {r["payload"]["body"] for r in rows} == bodies

@@ -346,9 +346,9 @@ class RecordLandingService:
         self._bound_room: RecordSessionService | None = None
         self._bound_upload: RecordUploadService | None = None
 
-    # Bound to the current ``workspace.project``: ``reload()`` and
-    # ``mutate(reload_first=True)`` replace that object during a land (#503), so the
-    # services are rebuilt only when the project object changes.
+    # Bound to the current ``workspace.project``: ``reload()``
+    # replaces that object during a land (#503); ``mutate()`` adopts a newer saved project in
+    # place. The services are rebuilt only when the project object changes.
     def _rebind(self) -> EpisodeProject:
         project = self.workspace.project
         if project is not self._bound_project:
@@ -412,11 +412,11 @@ class RecordLandingService:
     ) -> dict[str, Any]:
         """Land every file-ACKed keeper, room-tone bed and live comment of this room.
 
-        Land re-reads the saved project first (``workspace.reload()``, then
-        ``mutate(reload_first=True)``), so the workspace must hold no unsaved edits.
-        Once the file has changed since this workspace loaded or last committed it,
-        unsaved edits on ``workspace.project`` are discarded and the land commits on
-        the saved copy. Callers open a request-scoped ``ProjectWorkspace`` (#503).
+        Land re-reads the saved project first (``workspace.reload()``; ``mutate()``
+        re-reads under the cross-process lock), so the workspace must hold no unsaved
+        edits. Unsaved edits on ``workspace.project`` are discarded only when another
+        writer committed since this workspace loaded or last committed, and the land
+        commits on the saved copy. Callers open a request-scoped ``ProjectWorkspace`` (#503).
         """
         with self._land_guard():
             try:
@@ -614,7 +614,7 @@ class RecordLandingService:
                 "drift": drift_rows,
             }
 
-        # ``mutate`` runs on the project that ``reload_first`` re-reads under the
+        # ``mutate`` runs on the project it re-reads under the cross-process
         # project lock. It can be newer than the copy planned from above when a
         # non-land writer (edit, share, comment) committed meanwhile. Land and
         # discard are serialized by the session land lock, other writers are not.
@@ -740,7 +740,6 @@ class RecordLandingService:
                     mutate,
                     operation="record_land",
                     params={"session_id": self.session_id},
-                    reload_first=True,
                 )
             except Exception:
                 for item in copied + room_tone_copied:
@@ -838,7 +837,6 @@ class RecordLandingService:
             mutate,
             operation="record_discard_take",
             params={"take_index": take},
-            reload_first=True,
         )
         self._upload.tombstone_take(self.session_id, take)
         self._comments.delete_take(self.session_id, take)
@@ -984,7 +982,6 @@ class RecordLandingService:
             mutate,
             operation="record_land_rollback",
             params={"session_id": self.session_id, "superseded": superseded},
-            reload_first=True,
         )
 
     def _gate_acked(

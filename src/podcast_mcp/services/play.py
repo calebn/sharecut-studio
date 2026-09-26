@@ -42,7 +42,7 @@ from podcast_mcp.services.session_sync.viewer import publish_agent_play
 from podcast_mcp.services.waveform import schedule_stem_waveforms
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.process import run
-from podcast_mcp.util.project_state import project_state_lock, snapshot_project
+from podcast_mcp.util.project_state import project_commit_lock, snapshot_project
 from podcast_mcp.util.tracks import track_audio_path
 
 # Full-stem rebuild on --rerender is only worth it for long windows. Short
@@ -476,7 +476,7 @@ class PlayService:
         out.parent.mkdir(parents=True, exist_ok=True)
         FFmpegEngine().render_dialogue_track(render_project, track, out, self._defaults)
         write_stem_hash(render_project, track_id, clear_invalidations=False)
-        with project_state_lock(self.project):
+        with project_commit_lock(self.project):
             store = ProjectStore(self.ws.path)
             stored_project = store.load()
             if track_render_hash(stored_project, track_id) == track_render_hash(

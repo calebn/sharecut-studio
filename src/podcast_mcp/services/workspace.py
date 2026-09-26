@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -49,6 +50,7 @@ class ProjectWorkspace:
         self._store = ProjectStore(path)
         self._loaded_file_signature: FileRevision | None = None
         self._merge_base: dict[str, Any] | None = None
+        self._transaction_depth = 0
 
     @classmethod
     def open(cls, project_path: Path | str) -> ProjectWorkspace:
@@ -72,12 +74,48 @@ class ProjectWorkspace:
             )
             return self.project
 
+    @contextmanager
+    def transaction(self) -> Iterator[EpisodeProject]:
+        """Serialize reload -> mutate -> commit on this workspace across threads and processes (#213).
+
+        Holds ``project_commit_lock`` (in-process state lock, then the per-workspace file
+        lock). The outermost transaction first adopts the saved project in place when the
+        file changed since this workspace loaded or committed it (unsaved edits are then
+        dropped); nested ones reuse the state already read. Commit only through this
+        workspace inside it. Other processes' commits wait up to
+        ``PROJECT_COMMIT_LOCK_TIMEOUT_SEC``, then raise ``filelock.Timeout``.
+        """
+        with project_commit_lock(self.project):
+            if self._transaction_depth == 0:
+                self._adopt_saved_if_changed_locked()
+            self._transaction_depth += 1
+            try:
+                yield self.project
+            finally:
+                self._transaction_depth -= 1
+
+    def _adopt_saved_if_changed_locked(self) -> None:
+        """Under ``project_commit_lock``: adopt the saved file in place if another writer moved it."""
+        try:
+            signature = file_revision(self.path)
+        except FileNotFoundError:
+            return  # nothing saved yet
+        if signature == self._loaded_file_signature:
+            return
+        _adopt_project_state(self.project, self._store.load())
+        # Writers are excluded by the lock, so this revision is exact.
+        self._loaded_file_signature = signature
+
     def save(self) -> None:
-        with project_state_lock(self.project):
-            self._store.commit(self.project)
-            # A separate process may replace the file as this commit finishes.
-            # Re-read once before trusting a revision for this in-memory model.
-            self._loaded_file_signature = None
+        """Commit ``self.project`` as is. Read-modify-save callers wrap this in ``transaction()``."""
+        with project_commit_lock(self.project):
+            try:
+                self._store.commit(self.project)
+            except BaseException:
+                self._loaded_file_signature = None
+                raise
+            # Inside the lock no other writer can replace the file: this revision is exact.
+            self._loaded_file_signature = project_file_revision(self.project)
 
     def checkpoint(self) -> EpisodeProject:
         """Reload the saved project and remember it as the base ``save_merged`` merges onto.
@@ -139,9 +177,9 @@ class ProjectWorkspace:
         one raised. An unreadable index is restored from the saved project's history.
 
         Assumes every writer of ``episode.project.json`` and ``history/`` holds
-        ``project_commit_lock``, as every in-tree writer does: the "file replaced, so
-        adopt" check and the snapshot cleanup would misread a writer outside it, such as
-        another process (#213).
+        ``project_commit_lock``, as every in-tree writer does in every process
+        (``transaction()``, ``save()``, ``HistoryManager``): the "file replaced, so
+        adopt" check and the snapshot cleanup would misread a writer outside it.
 
         The merge replaces whole sections (``tracks``, ``pipeline_runs``, ``render``, ...)
         on ``self.project`` in place: re-fetch sub-objects after this call instead of
@@ -249,20 +287,15 @@ class ProjectWorkspace:
         *,
         operation: str | None = None,
         params: dict | None = None,
-        reload_first: bool = False,
     ) -> T:
-        """Run ``fn`` on the project as an undoable mutation and commit it.
+        """Run ``fn`` on the saved project as an undoable mutation and commit it, inside ``transaction()``.
 
-        ``reload_first`` re-reads the saved project first when the file changed since
-        this workspace loaded it. Unsaved edits on ``self.project`` are then discarded,
-        and anything still holding the old ``self.project`` object keeps a detached copy.
+        The file lock is held from the reload through the commit, so no writer in any
+        process commits in between (#213). A slow ``fn`` holds it for its whole run.
         """
-        with project_state_lock(self.project):
-            if reload_first:
-                # Mutate the saved project: this copy may predate another request's commit.
-                self.reload()
+        with self.transaction():
             try:
-                return run_mutation(
+                result = run_mutation(
                     self.path,
                     self.project,
                     label_before,
@@ -271,19 +304,23 @@ class ProjectWorkspace:
                     operation=operation,
                     params=params,
                 )
-            finally:
-                # Even a failed save may have changed the in-memory project,
-                # so the next reload reads the file instead of trusting it.
+            except BaseException:
+                # A failed save may have changed the in-memory project or the file.
                 self._loaded_file_signature = None
+                raise
+            self._loaded_file_signature = project_file_revision(self.project)
+            return result
 
     def record_snapshot(self, label: str, *, force: bool = False) -> str:
         """Record ``label`` as a history entry and commit it; a failure rolls the entry back."""
-        with project_state_lock(self.project):
+        with self.transaction():
             try:
                 entry = record_and_commit(self._store, self.project, label, force=force)
-            finally:
+            except BaseException:
                 # A failed commit may still have replaced the file; re-read before trusting it.
                 self._loaded_file_signature = None
+                raise
+            self._loaded_file_signature = project_file_revision(self.project)
         return f"{entry.id}: {entry.label}"
 
     @staticmethod
