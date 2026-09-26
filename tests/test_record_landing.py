@@ -2996,6 +2996,20 @@ def test_rollback_failure_keeps_confirmed_land(minimal_project, sample_wav, monk
     assert segments[0]["landed"] is False
     assert "stale ACK rollback failed" in caplog.text
 
+    seg1_rel = next(s.path for s in ws.project.sources if s.id == kept_source_id)
+    stale_source_id = record_source_id(room["session_id"], 0, guest, 0)
+    assert track.media is not None and track.media.path == seg1_rel
+    assert load_project(minimal_project).track_by_id(track_id).media.path == seg1_rel
+    assert any(s.id == stale_source_id for s in ws.project.sources)
+    assert len(uploader.land_rollbacks(session_id=room["session_id"])) == 1
+    assert any("media repair" in e["label"] for e in HistoryService(ws).list_entries()["entries"])
+
+    caplog.clear()
+    with caplog.at_level(logging.ERROR, logger="podcast_mcp.services.record.landing"):
+        RecordLandingService(ws).land(align=lambda _p: None)
+    assert "deferred stale ACK rollback failed" in caplog.text
+    assert len(uploader.land_rollbacks(session_id=room["session_id"])) == 1
+
 
 @pytest.mark.parametrize("mode", ["reack", "revoke"])
 def test_room_tone_race_during_project_commit_rolls_back_stale_bed(
@@ -3495,3 +3509,208 @@ def test_land_hashes_each_keeper_once_outside_the_project_locks(
     assert not any(file_held for _, file_held in observed)
     assert waits
     assert max(waits) < 0.5
+
+
+def _fail_rollback_once(monkeypatch, *, times: int = 1):
+    """Make the first *times* ``_rollback_stale`` calls raise, then delegate."""
+    original = RecordLandingService._rollback_stale
+    calls = {"n": 0}
+
+    def flaky(self, stale):
+        calls["n"] += 1
+        if calls["n"] <= times:
+            raise RuntimeError("rollback write failed")
+        return original(self, stale)
+
+    monkeypatch.setattr(RecordLandingService, "_rollback_stale", flaky)
+    return calls
+
+
+def _history_labels(ws) -> list[str]:
+    return [e["label"] for e in HistoryService(ws).list_entries()["entries"]]
+
+
+def _two_segment_room_with_stale_seg0(minimal_project, sample_wav, monkeypatch):
+    from podcast_mcp.edits.track_ids import slug_track_id
+    from podcast_mcp.services.record.landing import record_source_id
+
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=2_000)
+    uploader = RecordUploadService(ws.project)
+    sid = room["session_id"]
+    _ack(uploader, session_id=sid, take=0, pid=guest, segment=0, join_offset_ms=0)
+    _ack(uploader, session_id=sid, take=0, pid=guest, segment=1, join_offset_ms=500)
+    original_hash = uploader.status(session_id=sid)["segments"][0]["file_sha256"]
+    kept_source_id = record_source_id(sid, 0, guest, 1)
+
+    def race():
+        uploader._store.mark_file(
+            session_id=sid,
+            take_index=0,
+            participant_id=guest,
+            segment_index=0,
+            file_sha256="f" * 64,
+            byte_length=480,
+        )
+
+    _race_on_commit(
+        monkeypatch,
+        when=lambda project: any(src.id == kept_source_id for src in project.sources),
+        race=race,
+    )
+    return ws, uploader, sid, guest, slug_track_id(guest), original_hash
+
+
+def test_failed_keeper_rollback_is_retried_before_next_land(
+    minimal_project, sample_wav, monkeypatch
+):
+    from podcast_mcp.services.record.landing import record_source_id
+
+    ws, uploader, sid, guest, track_id, _orig = _two_segment_room_with_stale_seg0(
+        minimal_project, sample_wav, monkeypatch
+    )
+    _fail_rollback_once(monkeypatch)
+    RecordLandingService(ws).land(align=lambda _p: None)
+    stale_source_id = record_source_id(sid, 0, guest, 0)
+    stale_rel = next(s.path for s in ws.project.sources if s.id == stale_source_id)
+    assert len(uploader.land_rollbacks(session_id=sid)) == 1
+
+    # A real re-ACK: new acked bytes and their hash.
+    new_pcm = b"\x01\x00" * 300
+    new_wav = pcm_wav_header(len(new_pcm)) + new_pcm
+    uploader.acked_wav(sid, 0, guest, 0).write_bytes(new_wav)
+    uploader._store.mark_file(
+        session_id=sid,
+        take_index=0,
+        participant_id=guest,
+        segment_index=0,
+        file_sha256=sha256_hex(new_wav),
+        byte_length=len(new_wav),
+    )
+    RecordLandingService(ws).land(align=lambda _p: None)
+
+    assert any("stale ACK rollback" in label for label in _history_labels(ws))
+    assert uploader.land_rollbacks(session_id=sid) == []
+    new_rel = next(s.path for s in ws.project.sources if s.id == stale_source_id)
+    assert new_rel != stale_rel
+    kept_rel = next(
+        s.path for s in ws.project.sources if s.id == record_source_id(sid, 0, guest, 1)
+    )
+    track = ws.project.track_by_id(track_id)
+    assert track is not None and track.media is not None
+    assert track.media.path == kept_rel
+    assert (Path(ws.project.workspace_dir) / stale_rel).is_file()
+
+
+@pytest.mark.parametrize("mode", ["reack", "revoke"])
+def test_failed_room_tone_rollback_is_retried_on_next_land(
+    minimal_project, sample_wav, monkeypatch, mode
+):
+    from podcast_mcp.edits.timeline_ops import room_tone_source_id
+    from podcast_mcp.edits.track_ids import slug_track_id
+    from podcast_mcp.services.record.upload import ROOM_TONE_TAKE_INDEX
+
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    _svc, guest = _consent_room(ws, room)
+    uploader = RecordUploadService(ws.project)
+    pcm, digest, file_hash = _pcm(480)
+    uploader.ingest_part(
+        session_id=room["session_id"],
+        take_index=0,
+        participant_id=guest,
+        segment_index=0,
+        part_seq=0,
+        data=pcm,
+        digest=digest,
+        file_sha256=file_hash,
+        final=True,
+        kind="room_tone",
+    )
+    track_id = slug_track_id(guest)
+    source_id = room_tone_source_id(track_id)
+
+    def race():
+        if mode == "reack":
+            uploader._store.mark_file(
+                session_id=room["session_id"],
+                take_index=ROOM_TONE_TAKE_INDEX,
+                participant_id=guest,
+                segment_index=0,
+                file_sha256="f" * 64,
+                byte_length=480,
+            )
+        else:
+            uploader.revoke_room_tone(room["session_id"], guest)
+
+    _race_on_commit(
+        monkeypatch,
+        when=lambda project: any(src.id == source_id for src in project.sources),
+        race=race,
+    )
+    _fail_rollback_once(monkeypatch)
+
+    RecordLandingService(ws).land(align=lambda _p: None)
+    assert any(src.id == source_id for src in ws.project.sources)
+    assert len(uploader.land_rollbacks(session_id=room["session_id"])) == 1
+
+    RecordLandingService(ws).land(align=lambda _p: None)
+    for project in (ws.project, load_project(minimal_project)):
+        assert not any(src.id == source_id for src in project.sources)
+        track = project.track_by_id(track_id)
+        assert track is None or track.room_tone is None
+    assert uploader.land_rollbacks(session_id=room["session_id"]) == []
+
+
+def test_deferred_rollback_dropped_when_generation_current_again(
+    minimal_project, sample_wav, monkeypatch
+):
+    ws, uploader, sid, guest, _track_id, original_hash = _two_segment_room_with_stale_seg0(
+        minimal_project, sample_wav, monkeypatch
+    )
+    _fail_rollback_once(monkeypatch)
+    RecordLandingService(ws).land(align=lambda _p: None)
+    assert len(uploader.land_rollbacks(session_id=sid)) == 1
+
+    uploader._store.mark_file(
+        session_id=sid,
+        take_index=0,
+        participant_id=guest,
+        segment_index=0,
+        file_sha256=original_hash,
+        byte_length=480,
+    )
+    before = _history_labels(ws)
+    RecordLandingService(ws).land(align=lambda _p: None)
+    assert uploader.land_rollbacks(session_id=sid) == []
+    new = _history_labels(ws)[len(before) :]
+    assert not any("stale ACK rollback" in label for label in new)
+
+
+def test_unreadable_deferred_rollback_is_dropped(minimal_project, sample_wav, caplog):
+    import logging
+
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    sid = room["session_id"]
+    uploader = RecordUploadService(ws.project)
+    uploader.defer_land_rollback(
+        session_id=sid,
+        take_index=0,
+        participant_id="p_guest",
+        segment_index=0,
+        file_sha256="a" * 64,
+        raw_rel="raw/x.wav",
+        raw_revision=[1, 2, 3, 4],
+        prior_json="garbage",
+    )
+    with caplog.at_level(logging.WARNING, logger="podcast_mcp.services.record.landing"):
+        RecordLandingService(ws).land(align=lambda _p: None)
+    assert "dropped unreadable deferred rollback" in caplog.text
+    assert uploader.land_rollbacks(session_id=sid) == []
