@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits import (
@@ -98,7 +99,7 @@ from podcast_mcp.edits.transcript_correct import (
     correct_phrase,
     correct_word,
     list_low_confidence,
-    mark_transcript_user_edited,
+    run_user_transcript_edit,
     set_word_suppressed,
     verify_words,
 )
@@ -128,22 +129,23 @@ from podcast_mcp.effects.presets import (
     set_effect_bypass,
 )
 from podcast_mcp.engines.render_status import render_status_report
-from podcast_mcp.models import EditDecision
+from podcast_mcp.models import EditDecision, EpisodeProject
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.progress import ProgressReporter
 from podcast_mcp.util.timeline_zoom import snap_tick_decimals
 from podcast_mcp.util.tracks import resolve_track
 
 log = logging.getLogger(__name__)
+T = TypeVar("T")
 
 
-def _user_transcript_edit(track_id: str, fn):
-    """Run a transcript edit, then flag the track's transcript as user-edited."""
+def _user_transcript_edit(
+    track_id: str, fn: Callable[[EpisodeProject], T]
+) -> Callable[[EpisodeProject], T]:
+    """``ws.mutate`` callback: run ``fn`` as a user edit of ``track_id``'s transcript."""
 
-    def run(p):
-        result = fn(p)
-        mark_transcript_user_edited(p, track_id)
-        return result
+    def run(p: EpisodeProject) -> T:
+        return run_user_transcript_edit(p, track_id, fn)
 
     return run
 

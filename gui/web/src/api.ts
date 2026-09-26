@@ -1306,6 +1306,7 @@ export async function startPipelineRun(
     config?: Record<string, unknown>;
     useWorkingSet?: boolean;
     forceTranscribe?: boolean;
+    overwriteEdited?: boolean;
   },
 ): Promise<PipelineJobSnapshot> {
   if (isShareProjectKey(projectPath)) {
@@ -1324,6 +1325,7 @@ export async function startPipelineRun(
       config: opts?.config ?? null,
       use_working_set: opts?.useWorkingSet ?? true,
       force_transcribe: opts?.forceTranscribe ?? false,
+      overwrite_edited: opts?.overwriteEdited ?? false,
     }),
   });
   if (!res.ok) {

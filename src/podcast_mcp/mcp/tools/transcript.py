@@ -13,7 +13,12 @@ from podcast_mcp.util.progress import resolve_progress
 
 
 def transcribe_track(project_path: str, track_id: str | None = None) -> str:
-    """Transcribe one track, or all dialogue tracks when track_id is omitted, into word-level timestamps."""
+    """Re-transcribe one track, or all dialogue tracks when track_id is omitted, into word-level timestamps.
+
+    Replaces only those transcripts (others and extra-source transcripts are kept) and
+    warns when it replaces a hand-edited one; the pipeline's transcribe_tracks step
+    reuses existing transcripts instead.
+    """
     ws = ProjectWorkspace.open(project_path)
     ids = TranscriptService(ws).transcribe(track_id)
     return to_json(ids)

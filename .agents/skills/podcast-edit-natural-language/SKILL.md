@@ -38,7 +38,7 @@ Filler / hesitation pacing (`tighten.min_gap_after_filler_sec`, `filler_room_ton
 ## Workflow
 
 1. Ensure project path and dialogue tracks exist.
-2. `transcribe_track` if transcripts are empty.
+2. `transcribe_track` if transcripts are empty (it re-transcribes and replaces edited transcripts with a warning; prefer the pipeline's reuse otherwise).
 3. If transcripts are raw ASR, run **podcast-transcript-workflow** through the
    refine gate before searching for cuts (reconcile → precorrect → refine →
    `transcript_refine_done_tool`). Focus/tighten/NL tools raise while refine is pending.

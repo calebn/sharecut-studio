@@ -192,6 +192,7 @@ function pipelineRunOptions(
     config: cfg.config,
     useWorkingSet: true,
     forceTranscribe: retranscribe,
+    overwriteEdited: retranscribe,
   };
 }
 

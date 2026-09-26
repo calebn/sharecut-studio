@@ -1,15 +1,32 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import TypeVar
+
 from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.models import EpisodeProject, TranscriptWord
 from podcast_mcp.util.text import has_meaningful_text
 
+T = TypeVar("T")
 
-def mark_transcript_user_edited(project: EpisodeProject, track_id: str) -> None:
-    """Flag a track's transcript(s) as hand-edited so re-transcription protects them."""
-    for tr in project.transcripts:
-        if tr.track_id == track_id:
-            tr.user_edited = True
+
+def run_user_transcript_edit(
+    project: EpisodeProject, track_id: str, edit: Callable[[EpisodeProject], T]
+) -> T:
+    """Run a person's or agent's edit on ``track_id``'s transcript and flag it ``user_edited``.
+
+    Flags only the transcript the edit functions resolve (``transcript_for_track``) and only
+    when its words changed. Automated passes (precorrect, reconcile, speaker attribution,
+    audio-quality and bleed suppression) call the edit functions directly and stay unflagged:
+    re-running the pipeline re-derives them.
+    """
+    tr = project.transcript_for_track(track_id)
+    before = list(tr.words) if tr is not None else []
+    result = edit(project)
+    after = project.transcript_for_track(track_id)
+    if after is not None and after.words != before:
+        after.user_edited = True
+    return result
 
 
 def correct_word(

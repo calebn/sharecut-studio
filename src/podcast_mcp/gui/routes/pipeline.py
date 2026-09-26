@@ -25,7 +25,7 @@ from podcast_mcp.services.pipeline_config import (
     merge_pipeline_config,
     skip_steps_from_enabled,
     suggest_pipeline_tuning,
-    with_transcribe_overwrite,
+    transcribe_run_config,
 )
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.whisper_models import WhisperWeightsMissingError
@@ -152,7 +152,9 @@ def pipeline_run(
             unattended=unattended,
         )
 
-    run_config = with_transcribe_overwrite(config) if req.force_transcribe else config
+    run_config = transcribe_run_config(
+        config, force=req.force_transcribe, overwrite_edited=req.overwrite_edited
+    )
     try:
         ensure_whisper_cached_for_run(
             config=run_config,

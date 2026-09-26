@@ -669,3 +669,35 @@ def test_history_rerender_errors_are_the_saved_move_errors():
     from podcast_mcp.services import HISTORY_RERENDER_ERRORS
 
     assert set(HISTORY_RERENDER_ERRORS) == {ProjectMergeConflict, HistoryRerenderError}
+
+
+def test_transcribe_step_conflicts_with_a_correction_saved_during_asr(minimal_project, monkeypatch):
+    from podcast_mcp.engines import TranscriptionEngine
+    from podcast_mcp.models import Transcript, TranscriptWord
+    from podcast_mcp.services import EditService
+    from podcast_mcp.services.pipeline_config import transcribe_run_config
+
+    ws = _two_tracks(minimal_project)
+    ws.project.transcripts = [
+        Transcript(track_id=tid, words=[TranscriptWord(text="teh", start=0.0, end=0.5)])
+        for tid in ("host", "guest")
+    ]
+    ws.save()
+
+    def asr_while_studio_corrects(self, audio_path, **_kw):
+        EditService(ProjectWorkspace.open(minimal_project)).correct_word("host", 0, "the")
+        return Transcript(track_id="", words=[TranscriptWord(text="tea", start=0.0, end=0.5)])
+
+    monkeypatch.setattr(TranscriptionEngine, "transcribe_file", asr_while_studio_corrects)
+    monkeypatch.setattr(
+        "podcast_mcp.services.pipeline_config.ensure_whisper_cached_for_run", lambda **_: None
+    )
+    monkeypatch.delenv("PODCAST_BATCH", raising=False)
+    with pytest.raises(ProjectMergeConflict):
+        PipelineService(ws).run(
+            only_step="transcribe_tracks", config=transcribe_run_config(None, force=True)
+        )
+    host = load_project(minimal_project).transcript_for_track("host")
+    assert host is not None
+    assert host.words[0].text == "the"
+    assert host.user_edited is True

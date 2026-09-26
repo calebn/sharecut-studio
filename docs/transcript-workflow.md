@@ -98,19 +98,37 @@ steps. Each transcript stores the vocabulary revision it was produced with. Stud
 asks for re-transcription when any transcript differs from the revision in
 `transcript_context.yaml`: single-track runs update only that track, a concurrent
 edit stays stale, and a project without transcripts never asks. ASR caches
-include model, language, and prompt. The pipeline step also reads an older
+include model, language, and prompt. ASR also reads an older
 `transcripts/{track}_{audio}.json` cache (which does not encode model or prompt)
-when the new-name cache misses, no overwrite was requested, and no prompt is set;
+when the new-name cache misses, caches are in use (not forced), and no prompt is set;
 it never migrates or rewrites that file. The prompt
 has a 400-character limit by default, and Studio rejects terms that would be
 truncated. This changes future ASR output, not existing transcript words.
 
 **Reuse policy:** `transcribe_tracks` never re-runs ASR over a transcript that
 already exists for the same audio. Studio's **Re-transcribe** (`force_transcribe`),
-CLI `--force`, or `transcribe.overwrite: true` replace it explicitly; changed
+CLI `--force`, or `transcribe.overwrite: true` replace it explicitly; forcing skips
+the ASR disk cache (both cache names) and re-runs Whisper. Changed
 media re-transcribes automatically. Transcripts edited through `correct_word`,
 `correct_phrase`, `set_word_suppressed`, `verify_transcript` or transcript cleanup
-are flagged `user_edited` and are refused (not overwritten) in unattended runs.
+are flagged `user_edited`. An unattended (Batch) run refuses to replace one, before
+any ASR, both when overwrite was requested and when its audio changed (its word
+times are stale); the error names each track and reason. Run attended to replace
+them with a warning, or use Studio Re-transcribe.
+
+**What counts as an edit:** `user_edited` is set by `EditService` (`correct_word`,
+`correct_phrase`, `set_word_suppressed`, `verify_transcript`, transcript cleanup),
+which MCP tools, CLI `podcast transcript correct` and Studio document commands all
+use, and only when the words actually changed. Automated passes stay unmarked on
+purpose because re-running the pipeline re-derives them: precorrect (glossary and
+cross-track), reconciliation, speaker attribution, audio-quality and bleed
+suppression, and transcript sync. Editing `episode.project.json` by hand is not
+detected; set `"user_edited": true` on that transcript to protect it.
+
+CLI `podcast transcribe` and MCP `transcribe_track` are the explicit re-transcribe
+path: they run ASR even when a transcript exists (the ASR disk cache still counts),
+replace only the transcripts they produce, keeping other tracks and extra-source
+transcripts, and log a warning when they replace a `user_edited` one.
 
 Set context before transcribe when possible:
 

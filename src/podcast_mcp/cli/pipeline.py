@@ -39,13 +39,9 @@ def pipeline_run(
         help="Re-run ASR even when transcripts exist (edited ones need an attended run)",
     ),
 ) -> None:
-    from podcast_mcp.services.pipeline_config import with_transcribe_overwrite
+    from podcast_mcp.services.pipeline_config import transcribe_run_config
 
-    config = (
-        with_transcribe_overwrite({"align": {"realign": True}} if realign else None)
-        if force
-        else ({"align": {"realign": True}} if realign else None)
-    )
+    config = transcribe_run_config({"align": {"realign": True}} if realign else None, force=force)
     ws = ProjectWorkspace.open(project)
     skip_steps = [s.strip() for s in skip.split(",") if s.strip()] if skip else None
     step = PipelineService(ws).run(

@@ -25,8 +25,6 @@ from podcast_mcp.pipeline.meta import (
 from podcast_mcp.pipeline.runner import ORDERED_STEP_NAMES, STEP_NAMES
 from podcast_mcp.util.dicts import deep_merge
 
-TRANSCRIBE_OVERWRITE_OVERRIDE: dict[str, Any] = {"transcribe": {"overwrite": True}}
-
 
 def whitelist_overrides(overrides: dict[str, Any] | None) -> dict[str, Any]:
     if not overrides:
@@ -43,9 +41,21 @@ def merge_pipeline_config(
     return deep_merge(root, whitelist_overrides(overrides))
 
 
-def with_transcribe_overwrite(config: dict[str, Any] | None) -> dict[str, Any]:
-    """Run-only config that forces ASR to overwrite existing transcripts (never persisted)."""
-    return deep_merge(merge_pipeline_config(config), copy.deepcopy(TRANSCRIBE_OVERWRITE_OVERRIDE))
+def transcribe_run_config(
+    config: dict[str, Any] | None,
+    *,
+    force: bool,
+    overwrite_edited: bool = False,
+) -> dict[str, Any] | None:
+    """Run-only config for one pipeline run (never persisted); ``config`` unchanged unless ``force``.
+
+    ``force`` re-runs ASR over existing transcripts. ``overwrite_edited`` also replaces
+    hand-edited ones in Batch mode: only for an explicit user confirmation (Studio Re-transcribe).
+    """
+    if not force:
+        return config
+    override = {"transcribe": {"overwrite": True, "overwrite_edited": overwrite_edited}}
+    return deep_merge(merge_pipeline_config(config), override)
 
 
 def default_enabled_steps(config: dict[str, Any] | None = None) -> list[str]:

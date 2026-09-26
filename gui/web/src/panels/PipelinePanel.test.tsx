@@ -215,6 +215,7 @@ describe("PipelinePanel", () => {
         fromStep: "transcribe_tracks",
         enabledSteps: expect.arrayContaining(["transcribe_tracks"]),
         forceTranscribe: true,
+        overwriteEdited: true,
       }),
     );
   });
@@ -275,6 +276,7 @@ describe("PipelinePanel", () => {
     });
     expect(startPipelineRun.mock.calls[0][1].unattended).toBe(true);
     expect(startPipelineRun.mock.calls[0][1].forceTranscribe).toBe(false);
+    expect(startPipelineRun.mock.calls[0][1].overwriteEdited).toBe(false);
     expect(startPipelineRun.mock.calls[0][1].enabledSteps).toContain(
       "balance_tracks",
     );
@@ -527,6 +529,8 @@ describe("PipelinePanel", () => {
         "/tmp/ep.project.json",
         expect.objectContaining({
           fromStep: "transcribe_tracks",
+          forceTranscribe: true,
+          overwriteEdited: true,
           enabledSteps: expect.arrayContaining(["transcribe_tracks"]),
         }),
       ),
