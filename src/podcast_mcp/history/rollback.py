@@ -6,6 +6,7 @@ import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,15 @@ from podcast_mcp.util.project_state import (
 )
 
 log = logging.getLogger(__name__)
+
+
+class RollbackOutcome(StrEnum):
+    """What ``roll_back_history`` found and did after a failed record/commit step."""
+
+    LANDED = "landed"  # the commit replaced the project file: history kept, memory matches it
+    UNKNOWN = "unknown"  # the project file could not be stat'ed: memory restored, disk kept
+    RESTORED = "restored"  # index, snapshots and memory are back at the checkpoint
+    KEPT = "kept"  # another writer recorded on top, or the rollback failed: memory adopts disk
 
 
 @dataclass
@@ -61,7 +71,7 @@ def take_history_checkpoint(store: ProjectStore, project: EpisodeProject) -> His
     )
 
 
-def roll_back_history(project: EpisodeProject, checkpoint: HistoryCheckpoint) -> None:
+def roll_back_history(project: EpisodeProject, checkpoint: HistoryCheckpoint) -> RollbackOutcome:
     """Undo the history recorded since ``checkpoint`` after a failure (best effort).
 
     One ``project_commit_lock`` hold covers the "did the commit land" check and the
@@ -69,15 +79,20 @@ def roll_back_history(project: EpisodeProject, checkpoint: HistoryCheckpoint) ->
     cannot be stat'ed. When another writer recorded on top, or the rollback itself fails,
     the index on disk is kept and ``project.history`` adopts it, so the next commit does not
     overwrite it. The caller re-raises the original error; failures here are only logged.
+    Returns what it found; callers keep other in-memory state only on LANDED.
     """
     try:
         with project_commit_lock(project):
-            _roll_back_locked(project, checkpoint)
+            return _roll_back_locked(project, checkpoint)
     except Exception:
         log.warning(
             "Could not roll back %s after a failed mutation", checkpoint.index_path, exc_info=True
         )
         project.history = _history_on_disk(checkpoint)
+        # Best effort without the lock: another writer may have replaced the file since.
+        if _commit_landed(project, checkpoint):
+            return RollbackOutcome.LANDED
+        return RollbackOutcome.KEPT
 
 
 @contextmanager
@@ -96,28 +111,32 @@ def rolled_back_on_failure(
         raise
 
 
-def _roll_back_locked(project: EpisodeProject, checkpoint: HistoryCheckpoint) -> None:
-    landed = (
-        commit_landed(project, checkpoint.revision_before_commit)
-        if checkpoint.commit_started
-        else False
-    )
+def _commit_landed(project: EpisodeProject, checkpoint: HistoryCheckpoint) -> bool | None:
+    """Whether the checkpoint's commit replaced the project file (``None``: unknown)."""
+    if not checkpoint.commit_started:
+        return False
+    return commit_landed(project, checkpoint.revision_before_commit)
+
+
+def _roll_back_locked(project: EpisodeProject, checkpoint: HistoryCheckpoint) -> RollbackOutcome:
+    landed = _commit_landed(project, checkpoint)
     if landed:
-        return
+        return RollbackOutcome.LANDED
     if landed is None:
         project.history = checkpoint.history_before
         log.warning(
             "Leaving %s and its snapshots in place after a failed mutation", checkpoint.index_path
         )
-        return
+        return RollbackOutcome.UNKNOWN
     before_ids = {entry.id for entry in checkpoint.history_before.entries}
     own_ids = [entry.id for entry in project.history.entries if entry.id not in before_ids]
     own_indexes = [*checkpoint.own_indexes, project.history.model_dump(mode="json")]
     if rollback_own_history(checkpoint.index_path, checkpoint.index_before, own_indexes, own_ids):
         project.history = checkpoint.history_before
-        return
+        return RollbackOutcome.RESTORED
     log.warning("%s changed during a failed mutation; keeping its entries", checkpoint.index_path)
     project.history = _history_on_disk(checkpoint)
+    return RollbackOutcome.KEPT
 
 
 def _history_on_disk(checkpoint: HistoryCheckpoint) -> ProjectHistory:
