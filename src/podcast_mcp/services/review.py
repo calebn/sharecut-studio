@@ -71,6 +71,11 @@ class ReviewService:
             mutation_started = False
             try:
                 with project_commit_lock(project):
+                    # run_mutation's rollback restores this same payload: this read raises on
+                    # an unreadable index (test_publish_removes_staged_media_when_history_read_fails),
+                    # so publish never reaches history_index_to_restore's fallback payload. If
+                    # publish ever tolerates a corrupt index, capture this with
+                    # history_index_to_restore instead, or the media cleanup below never runs.
                     history_before = load_json_object(index_path)
 
                     # attach_version only touches project.review, so the audio fingerprint
@@ -112,6 +117,8 @@ class ReviewService:
 
         ``run_mutation`` already rolled back the history entries; the media is kept when
         the index is not back to ``history_before`` (another writer recorded on top).
+        ``history_before`` must be the payload ``run_mutation``'s checkpoint restores (see
+        ``publish``).
         """
         try:
             persisted = load_project(self.ws.path)

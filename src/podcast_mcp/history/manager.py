@@ -5,6 +5,7 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
+from podcast_mcp.history.rollback import roll_back_history, take_history_checkpoint
 from podcast_mcp.models.episode import EpisodeProject
 from podcast_mcp.models.history import HistoryEntry, ProjectHistory, ProjectStateSnapshot
 from podcast_mcp.models.project_format import apply_editable_snapshot, snapshot_editable_state
@@ -201,11 +202,23 @@ def record_if_changed(
     force: bool = False,
 ) -> HistoryEntry:
     store = ProjectStore(project_path)
-    project = store.load()
-    mgr = HistoryManager(project_path)
-    # record() and commit() each take the re-entrant lock; this outer hold makes
-    # record + commit one cross-process step so no other commit lands between them.
+    return record_and_commit(store, store.load(), label, force=force)
+
+
+def record_and_commit(
+    store: ProjectStore, project: EpisodeProject, label: str, *, force: bool = False
+) -> HistoryEntry:
+    """Record ``label`` and commit ``project`` as one locked step.
+
+    A failure rolls the new entry back (``history.rollback.roll_back_history``).
+    """
     with project_commit_lock(project):
-        entry = mgr.record(project, label, force=force)
-        store.commit(project)
-    return entry
+        checkpoint = take_history_checkpoint(store, project)
+        try:
+            checkpoint.start_commit(project)
+            entry = HistoryManager(store.project_path).record(project, label, force=force)
+            store.commit(project)
+        except BaseException:
+            roll_back_history(project, checkpoint)
+            raise
+        return entry
