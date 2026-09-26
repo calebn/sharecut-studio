@@ -88,6 +88,7 @@ describe("PresenceOverlayView", () => {
           {
             client_id: "nan",
             role: "viewer",
+            playhead_sec: 12,
             meta: {
               transport: {
                 playing: false,
@@ -107,8 +108,9 @@ describe("PresenceOverlayView", () => {
     const lefts = Array.from(
       container.querySelectorAll<HTMLElement>(".presence-playhead"),
     ).map((el) => el.style.left);
-    expect(lefts).toHaveLength(2);
+    expect(lefts).toHaveLength(3);
     expect(lefts).toContain("600px");
+    expect(lefts).toContain("120px");
     expect(lefts.some((l) => l === "0px" || l === "0")).toBe(true);
   });
 

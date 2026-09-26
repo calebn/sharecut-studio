@@ -17,6 +17,16 @@ import { clampZoomPxPerSec } from "../utils/zoom";
 
 export { serverNowMs } from "./clock";
 
+/**
+ * Clamp a session time to `[0, durationSec]`. The upper clamp is skipped
+ * while the duration is unknown (not finite, e.g. before the project loads).
+ */
+export function clampToSession(raw: number, durationSec: number): number {
+  return Number.isFinite(durationSec)
+    ? Math.max(0, Math.min(durationSec, raw))
+    : Math.max(0, raw);
+}
+
 export function expectedPlayheadSec(
   t: PresenceTransport,
   serverNowMs: number,
@@ -32,23 +42,22 @@ export function expectedPlayheadSec(
   if (!Number.isFinite(raw)) {
     return Number.NaN;
   }
-  return Math.max(0, Math.min(durationSec, raw));
+  return clampToSession(raw, durationSec);
 }
 
-/** Remote playhead ghost position, clamped to the session; null when unusable. */
+/**
+ * Remote playhead ghost position: the first finite of
+ * `meta.transport.playhead_sec` and top-level `playhead_sec`, clamped to the
+ * session; null when neither is usable.
+ */
 export function remotePlayheadSec(
   client: Pick<SessionClient, "playhead_sec" | "meta">,
   durationSec: number,
 ): number | null {
-  const raw =
-    client.meta?.transport?.playhead_sec ?? client.playhead_sec ?? null;
-  if (raw == null || !Number.isFinite(raw)) {
-    return null;
-  }
-  const floored = Math.max(0, raw);
-  return Number.isFinite(durationSec) && durationSec > 0
-    ? Math.min(durationSec, floored)
-    : floored;
+  const raw = [client.meta?.transport?.playhead_sec, client.playhead_sec].find(
+    (v): v is number => typeof v === "number" && Number.isFinite(v),
+  );
+  return raw === undefined ? null : clampToSession(raw, durationSec);
 }
 
 export type Correction =
