@@ -47,6 +47,28 @@ _DISCOURSE_PAUSE_SEC_MAX = 5.0
 _LexiconHit = tuple[int, int, str]
 
 
+@dataclass(frozen=True)
+class _SpeakerCutContext:
+    config: Any
+    profiles: dict[str, Any]
+
+
+def _speaker_cut_context(project: EpisodeProject) -> _SpeakerCutContext | None:
+    """Take one profile/config snapshot before candidate analysis starts."""
+    try:
+        from podcast_mcp.engines.speaker_id import load_all_profiles
+        from podcast_mcp.transcript_context import load_transcript_context
+
+        profiles = load_all_profiles(project)
+        if not profiles:
+            return _SpeakerCutContext(None, {})
+        config = load_transcript_context(project.workspace_path()).speaker_id
+        return _SpeakerCutContext(config, profiles)
+    except Exception as exc:
+        log.debug("speaker bleed cut guard skipped: %s", exc, exc_info=True)
+        return _SpeakerCutContext(None, {})
+
+
 def _word_not_owner(word: TranscriptWord, track_id: str) -> bool:
     """True when ``word`` is bleed or speaker-matched to another track."""
     if word.audibility_status == "bleed":
@@ -59,6 +81,8 @@ def _cut_span_is_bleed_not_owner(
     track_id: str,
     start: float,
     end: float,
+    *,
+    speaker_context: _SpeakerCutContext | None = None,
 ) -> bool:
     tr = project.transcript_for_track(track_id)
     if tr:
@@ -68,16 +92,14 @@ def _cut_span_is_bleed_not_owner(
             if _word_not_owner(w, track_id):
                 return True
     try:
-        from podcast_mcp.engines.speaker_id import (
-            assess_speaker_cut_role,
-            load_all_profiles,
-        )
-        from podcast_mcp.transcript_context import load_transcript_context
+        from podcast_mcp.engines.speaker_id import assess_speaker_cut_role
 
-        if not load_all_profiles(project):
+        context = speaker_context if speaker_context is not None else _speaker_cut_context(project)
+        if context is None or not context.profiles:
             return False
-        ctx = load_transcript_context(project.workspace_path())
-        role = assess_speaker_cut_role(project, track_id, start, end, ctx.speaker_id)
+        role = assess_speaker_cut_role(
+            project, track_id, start, end, context.config, profiles=context.profiles
+        )
         return bool(role and role.get("role") == "bleed")
     except Exception as exc:
         log.debug("speaker bleed cut guard skipped: %s", exc, exc_info=True)
@@ -991,6 +1013,7 @@ def _analyze_candidate(
     defaults: dict[str, Any],
     *,
     audio_cache: TrackAudioCache | None = None,
+    speaker_context: _SpeakerCutContext | None = None,
 ) -> _AnalyzedCut | None:
     """Waveform-optimize, risk-assess, and fade-size one candidate. Read-only w.r.t.
     project (no mutation) -- safe to call from multiple threads concurrently, as
@@ -1032,7 +1055,9 @@ def _analyze_candidate(
         return None
     cut_start, cut_end = extended
 
-    if _cut_span_is_bleed_not_owner(project, track_id, cut_start, cut_end):
+    if _cut_span_is_bleed_not_owner(
+        project, track_id, cut_start, cut_end, speaker_context=speaker_context
+    ):
         return None
 
     paced = apply_filler_pacing(
@@ -1246,8 +1271,15 @@ def analyze_fillers_and_pauses(
         audio_cache=audio_cache,
         skip_counts=skip_counts,
     )
+    speaker_context = _speaker_cut_context(project) if candidates else None
     results = [
-        _analyze_candidate(project, candidate, defaults, audio_cache=audio_cache)
+        _analyze_candidate(
+            project,
+            candidate,
+            defaults,
+            audio_cache=audio_cache,
+            speaker_context=speaker_context,
+        )
         for candidate in candidates
     ]
     resolved = _resolve_analyzed_cuts(

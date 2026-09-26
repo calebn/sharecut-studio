@@ -11,6 +11,7 @@ from podcast_mcp.edits.fillers import (
     _collect_candidates,
     _CutCandidate,
     _resolve_analyzed_cuts,
+    _speaker_cut_context,
     normalize_edit_mode,
 )
 from podcast_mcp.edits.tighten_intensity import with_tighten_intensity
@@ -131,9 +132,16 @@ def propose_tighten_edits(
         for key, n in counts.items():
             skip_counts[key] = skip_counts.get(key, 0) + n
 
+    speaker_context = _speaker_cut_context(project) if candidates else None
     results = run_parallel(
         candidates,
-        lambda c: _analyze_candidate(project, c, cfg, audio_cache=audio_caches.get(c.track_id)),
+        lambda c: _analyze_candidate(
+            project,
+            c,
+            cfg,
+            audio_cache=audio_caches.get(c.track_id),
+            speaker_context=speaker_context,
+        ),
         max_workers=max_workers,
     )
     resolved = _resolve_analyzed_cuts(

@@ -314,6 +314,34 @@ def test_cut_span_not_bleed_when_speaker_role_own() -> None:
         assert _cut_span_is_bleed_not_owner(project, "host", 1.0, 1.3) is False
 
 
+def test_shared_speaker_cut_context_loads_profiles_once_for_candidates() -> None:
+    from podcast_mcp.edits.fillers import _speaker_cut_context
+
+    project = EpisodeProject.create("x", "/tmp/x")
+    with (
+        patch(
+            "podcast_mcp.engines.speaker_id.load_all_profiles", return_value={"host": object()}
+        ) as load_profiles,
+        patch("podcast_mcp.transcript_context.load_transcript_context") as load_context,
+        patch(
+            "podcast_mcp.engines.speaker_id.assess_speaker_cut_role",
+            side_effect=[{"role": "own"}, {"role": "bleed"}],
+        ) as assess,
+    ):
+        context = _speaker_cut_context(project)
+        assert context is not None
+        assert (
+            _cut_span_is_bleed_not_owner(project, "host", 1.0, 1.3, speaker_context=context)
+            is False
+        )
+        assert (
+            _cut_span_is_bleed_not_owner(project, "host", 2.0, 2.3, speaker_context=context) is True
+        )
+    load_profiles.assert_called_once()
+    load_context.assert_called_once()
+    assert assess.call_count == 2
+
+
 def test_cut_span_bleed_from_speaker_match_metadata() -> None:
     project = EpisodeProject.create("x", "/tmp/x")
     project.tracks = [
