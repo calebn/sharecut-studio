@@ -383,7 +383,7 @@ export function TranscriptPanel() {
     virtualized,
     items: virtualItems,
     totalSize,
-    measureElement,
+    slotProps,
   } = useVirtualTurns(listRef, turns, pinnedTurns);
   const renderList = virtualized
     ? virtualItems.map((virtualItem) => ({
@@ -754,20 +754,7 @@ export function TranscriptPanel() {
             <div
               key={turnKey(turn)}
               className={`utterance-turn${turnHasActive ? " active" : ""}${turnAllUnmapped ? " unmapped" : ""}`}
-              ref={virtualItem ? measureElement : undefined}
-              style={
-                virtualItem
-                  ? { transform: `translateY(${virtualItem.start}px)` }
-                  : undefined
-              }
-              {...(virtualItem
-                ? {
-                    role: "listitem",
-                    "aria-setsize": turns.length,
-                    "aria-posinset": turnIndex + 1,
-                  }
-                : {})}
-              data-index={virtualItem?.index}
+              {...(virtualItem ? slotProps(virtualItem) : {})}
               data-turn-index={turnIndex}
               {...presenceAnchorProps(
                 presenceAnchor("transcript", "turn", turnIndex),

@@ -11,7 +11,8 @@ import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
-import type { HistoryGroup } from "../types/project";
+import type { HistoryDiff, HistoryGroup } from "../types/project";
+import { historyGroupKey } from "../utils/historyGroupKey";
 import { HistoryPanel } from "./HistoryPanel";
 
 vi.mock("../api", async (importOriginal) => ({
@@ -26,11 +27,35 @@ function historyProject(count: number) {
     title: `edit ${i}`,
     before_index: 2 * i,
     after_index: 2 * i + 1,
+    before_id: `before-${i}`,
+    after_id: `after-${i}`,
   }));
   return minimalProject({
     history: { cursor: 0, can_undo: true, can_redo: false, groups },
   });
 }
+
+const rowAt = (container: HTMLElement, index: number) =>
+  container.querySelector<HTMLElement>(`[data-history-index="${index}"]`);
+
+describe("historyGroupKey", () => {
+  it("keys on entry ids and falls back to indexes", () => {
+    expect(
+      historyGroupKey(
+        { kind: "mutation", before_index: 0, after_index: 1, after_id: "x" },
+        0,
+      ),
+    ).toBe("m-x");
+    expect(
+      historyGroupKey({ kind: "mutation", before_index: 0, after_index: 1 }, 0),
+    ).toBe("m-0-1");
+    expect(historyGroupKey({ kind: "snapshot", index: 3, id: "s1" }, 0)).toBe(
+      "s-s1",
+    );
+    expect(historyGroupKey({ kind: "snapshot", index: 3 }, 0)).toBe("s-3");
+    expect(historyGroupKey({ kind: "snapshot" }, 7)).toBe("s-7");
+  });
+});
 
 describe("HistoryPanel", () => {
   beforeEach(() => {
@@ -51,6 +76,9 @@ describe("HistoryPanel", () => {
       </DawProvider>,
     );
     expect(screen.getByText("Loading history…")).toBeTruthy();
+    expect(
+      screen.getByText("Loading history…").closest(".history-list"),
+    ).toBeNull();
     expect(screen.queryByText(/0 steps/)).toBeNull();
     expect(document.querySelector(".history-list")).toHaveAttribute(
       "aria-busy",
@@ -60,6 +88,86 @@ describe("HistoryPanel", () => {
 });
 
 describe("HistoryPanel list", () => {
+  beforeEach(() => {
+    useDawStore.getState().hydrate("/tmp/p.json", null);
+  });
+
+  afterEach(() => {
+    vi.mocked(loadHistoryDiff).mockReset();
+  });
+
+  function deferredDiffs() {
+    const resolvers: ((d: HistoryDiff) => void)[] = [];
+    vi.mocked(loadHistoryDiff).mockImplementation(
+      () => new Promise<HistoryDiff>((resolve) => resolvers.push(resolve)),
+    );
+    return resolvers;
+  }
+  const diffOf = (line: string) =>
+    ({ summary: [line], diff: {}, to_label: `after step of ${line}` }) as never;
+  const renderList = () =>
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={historyProject(5)}>
+        <HistoryPanel />
+      </DawProvider>,
+    );
+
+  it("ignores an older diff that resolves after the latest one", async () => {
+    const resolvers = deferredDiffs();
+    const { container } = renderList();
+    fireEvent.click(rowAt(container, 0)!);
+    fireEvent.click(rowAt(container, 1)!);
+    await waitFor(() => expect(resolvers).toHaveLength(2));
+    await act(async () => resolvers[1]!(diffOf("second")));
+    expect(await screen.findByText("second")).toBeTruthy();
+    await act(async () => resolvers[0]!(diffOf("first")));
+    expect(screen.queryByText("first")).toBeNull();
+    expect(screen.getByText("second")).toBeTruthy();
+    expect(rowAt(container, 1)!.classList.contains("selected")).toBe(true);
+  });
+
+  it("stays loading until the latest diff resolves", async () => {
+    const resolvers = deferredDiffs();
+    const { container } = renderList();
+    fireEvent.click(rowAt(container, 0)!);
+    fireEvent.click(rowAt(container, 1)!);
+    await waitFor(() => expect(resolvers).toHaveLength(2));
+    await act(async () => resolvers[0]!(diffOf("first")));
+    expect(screen.getByText("Loading…")).toBeTruthy();
+    expect(screen.queryByText("first")).toBeNull();
+    await act(async () => resolvers[1]!(diffOf("second")));
+    expect(await screen.findByText("second")).toBeTruthy();
+  });
+
+  it("shows a failed diff load as an inline error", async () => {
+    vi.mocked(loadHistoryDiff).mockRejectedValueOnce(
+      new Error("diff exploded"),
+    );
+    const { container } = renderList();
+    fireEvent.click(rowAt(container, 0)!);
+    expect(await screen.findByText("diff exploded")).toBeTruthy();
+    expect(container.querySelector(".history-diff")).toBeNull();
+  });
+
+  it("drops the diff when the selected step leaves the history", async () => {
+    vi.mocked(loadHistoryDiff).mockResolvedValue(diffOf("fade changed"));
+    const { container } = renderList();
+    fireEvent.click(rowAt(container, 2)!);
+    await screen.findByText("fade changed");
+    act(() => {
+      const project = useDawStore.getState().project!;
+      const groups = project.history.groups.map((g, i) =>
+        i === 2 ? { ...g, after_id: "replaced", title: "new edit" } : g,
+      );
+      useDawStore
+        .getState()
+        .setProject({ ...project, history: { ...project.history, groups } });
+    });
+    expect(screen.queryByText("fade changed")).toBeNull();
+    expect(container.querySelector(".history-row.selected")).toBeNull();
+    expect(container.querySelector(".history-diff")).toBeNull();
+  });
+
   it("renders a short list flat", () => {
     const { container } = render(
       <DawProvider projectPath="/tmp/p.json" initialProject={historyProject(5)}>
@@ -126,8 +234,6 @@ describe("HistoryPanel virtualization", () => {
         <HistoryPanel />
       </DawProvider>,
     );
-  const rowAt = (container: HTMLElement, index: number) =>
-    container.querySelector<HTMLElement>(`[data-history-index="${index}"]`);
 
   it("renders a bounded, labelled list of steps", async () => {
     const { container } = renderPanel();
@@ -144,6 +250,39 @@ describe("HistoryPanel virtualization", () => {
     expect(slot?.getAttribute("aria-setsize")).toBe("1000");
     expect(slot?.getAttribute("aria-posinset")).toBe("1");
     await expectNoA11yViolations(container);
+  });
+
+  it("keeps the focused row mounted and focused when groups shift", async () => {
+    const { container } = renderPanel();
+    act(() => rowAt(container, 0)!.focus());
+    act(() => {
+      container.querySelector<HTMLElement>(".history-list")!.scrollTop =
+        36 * 1000;
+    });
+    await waitFor(() => expect(rowAt(container, 999)).toBeTruthy());
+    expect(rowAt(container, 0)).toBe(document.activeElement);
+    act(() => {
+      const project = useDawStore.getState().project!;
+      const added: HistoryGroup = {
+        kind: "mutation",
+        title: "new edit",
+        before_index: 2000,
+        after_index: 2001,
+        after_id: "after-new",
+      };
+      useDawStore.getState().setProject({
+        ...project,
+        history: {
+          ...project.history,
+          groups: [added, ...project.history.groups],
+        },
+      });
+    });
+    await waitFor(() => expect(rowAt(container, 1)).toBeTruthy());
+    expect(document.activeElement?.textContent).toContain("edit 0");
+    expect(document.activeElement?.getAttribute("data-history-index")).toBe(
+      "1",
+    );
   });
 
   it("keeps the selected row mounted after scrolling away", async () => {

@@ -1,8 +1,10 @@
-import { describe, expect, it } from "vitest";
+import type { VirtualItem } from "@tanstack/react-virtual";
+import { describe, expect, it, vi } from "vitest";
 import {
   nextVirtualized,
   VIRTUALIZE_OFF_ROWS,
   VIRTUALIZE_ON_ROWS,
+  virtualRowSlotProps,
   withPinnedIndexes,
 } from "./useVirtualRows";
 
@@ -28,5 +30,27 @@ describe("withPinnedIndexes", () => {
     expect(withPinnedIndexes(range, [90, 2, 90, -1, 100])).toEqual([
       2, 9, 10, 11, 12, 13, 90,
     ]);
+  });
+});
+
+describe("virtualRowSlotProps", () => {
+  it("wires list-item ARIA, measurement, and position", () => {
+    const measure = vi.fn();
+    const item = {
+      index: 4,
+      start: 120,
+      end: 156,
+      size: 36,
+      key: "k",
+      lane: 0,
+    } as VirtualItem;
+    expect(virtualRowSlotProps(item, 10, measure)).toEqual({
+      role: "listitem",
+      "aria-setsize": 10,
+      "aria-posinset": 5,
+      "data-index": 4,
+      ref: measure,
+      style: { transform: "translateY(120px)" },
+    });
   });
 });

@@ -2,6 +2,7 @@ import {
   Fragment,
   type ReactNode,
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -13,17 +14,12 @@ import { useVirtualRows } from "../hooks/useVirtualRows";
 import { useDaw } from "../state/useDaw";
 import type { HistoryDiff, HistoryGroup } from "../types/project";
 import { Button, InlineError } from "../ui";
+import { errorMessage } from "../utils/apiError";
 import { plural } from "../utils/format";
+import { historyGroupKey } from "../utils/historyGroupKey";
 
 function groupTitle(g: HistoryGroup): string {
   return g.title ?? g.label ?? g.operation ?? "snapshot";
-}
-
-/** Stable row key: mutation pairs by index pair, snapshots by index. */
-function historyGroupKey(g: HistoryGroup, i: number): string {
-  return g.kind === "mutation"
-    ? `m-${g.before_index}-${g.after_index}`
-    : `s-${g.index ?? i}`;
 }
 
 /** Initial history row height (rem) before measurement. */
@@ -35,19 +31,33 @@ export function HistoryPanel() {
     project: s.project,
     projectPath: s.projectPath,
   }));
-  const { busy, error, run } = useProjectMutation();
+  const { busy, error, run, setError } = useProjectMutation();
   const [diff, setDiff] = useState<HistoryDiff | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [showRaw, setShowRaw] = useState(false);
   const [loading, setLoading] = useState(false);
+  /** Bumped per diff request; only the latest request may apply its result. */
+  const diffRequestRef = useRef(0);
+  useEffect(() => {
+    const requests = diffRequestRef;
+    return () => {
+      requests.current += 1;
+    };
+  }, []);
 
   const listRef = useRef<HTMLDivElement>(null);
-  const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
+  const [focusedKey, setFocusedKey] = useState<string | null>(null);
   const groups = project?.history.groups ?? EMPTY_GROUPS;
   const keys = useMemo(() => groups.map(historyGroupKey), [groups]);
   const selectedIndex = selectedKey === null ? -1 : keys.indexOf(selectedKey);
+  const focusedIndex = focusedKey === null ? -1 : keys.indexOf(focusedKey);
+  /** The selected step left `groups` (redo tail dropped, history reloaded). */
+  const selectionStale = selectedKey !== null && selectedIndex === -1;
+  const shownDiff = selectionStale ? null : diff;
+  const diffLoading = loading && !selectionStale;
+  // Pinned rows: the selected and the focused step.
   const pinned = useMemo(
-    () => [selectedIndex, focusedIndex ?? -1].filter((index) => index >= 0),
+    () => [selectedIndex, focusedIndex].filter((index) => index >= 0),
     [selectedIndex, focusedIndex],
   );
   const getItemKey = useCallback((i: number) => keys[i] ?? i, [keys]);
@@ -55,7 +65,7 @@ export function HistoryPanel() {
     virtualized,
     items: virtualItems,
     totalSize,
-    measureElement,
+    slotProps,
   } = useVirtualRows(listRef, {
     count: groups.length,
     getItemKey,
@@ -77,9 +87,41 @@ export function HistoryPanel() {
         {},
         { skipWhen: true },
       );
+      diffRequestRef.current += 1;
       setDiff(null);
       setSelectedKey(null);
+      setLoading(false);
     });
+  };
+
+  const openDiff = async (
+    key: string,
+    beforeIndex: number,
+    afterIndex: number,
+  ) => {
+    diffRequestRef.current += 1;
+    const request = diffRequestRef.current;
+    setSelectedKey(key);
+    setLoading(true);
+    setError(null);
+    try {
+      const d = await loadHistoryDiff(projectPath, beforeIndex, afterIndex);
+      if (request !== diffRequestRef.current) {
+        return;
+      }
+      setDiff(d);
+      setShowRaw(false);
+    } catch (e) {
+      if (request !== diffRequestRef.current) {
+        return;
+      }
+      setDiff(null);
+      setError(errorMessage(e, "Could not load the history diff"));
+    } finally {
+      if (request === diffRequestRef.current) {
+        setLoading(false);
+      }
+    }
   };
 
   const renderRow = (g: HistoryGroup, i: number): ReactNode => {
@@ -105,27 +147,11 @@ export function HistoryPanel() {
       return (
         <button
           data-history-index={i}
-          onFocus={() => setFocusedIndex(i)}
-          onBlur={() => setFocusedIndex(null)}
+          onFocus={() => setFocusedKey(key)}
+          onBlur={() => setFocusedKey(null)}
           type="button"
           className={rowClass}
-          onClick={() => {
-            void (async () => {
-              setSelectedKey(key);
-              setLoading(true);
-              try {
-                const d = await loadHistoryDiff(
-                  projectPath,
-                  g.before_index!,
-                  g.after_index!,
-                );
-                setDiff(d);
-                setShowRaw(false);
-              } finally {
-                setLoading(false);
-              }
-            })();
-          }}
+          onClick={() => void openDiff(key, g.before_index!, g.after_index!)}
         >
           {rowBody}
         </button>
@@ -164,6 +190,9 @@ export function HistoryPanel() {
         </div>
         <InlineError message={error} />
       </div>
+      {!historyHydrated ? (
+        <p className="transcript-meta">Loading history…</p>
+      ) : null}
       <div
         ref={listRef}
         className={`history-list${virtualized ? " is-virtualized" : ""}`}
@@ -172,9 +201,6 @@ export function HistoryPanel() {
           ? { role: "list", "aria-label": `History, ${groups.length} steps` }
           : {})}
       >
-        {!historyHydrated ? (
-          <p className="transcript-meta">Loading history…</p>
-        ) : null}
         {virtualized ? (
           <>
             <div
@@ -186,12 +212,7 @@ export function HistoryPanel() {
               <div
                 key={item.key}
                 className="history-row-slot"
-                role="listitem"
-                aria-setsize={groups.length}
-                aria-posinset={item.index + 1}
-                data-index={item.index}
-                ref={measureElement}
-                style={{ transform: `translateY(${item.start}px)` }}
+                {...slotProps(item)}
               >
                 {renderRow(groups[item.index]!, item.index)}
               </div>
@@ -203,15 +224,15 @@ export function HistoryPanel() {
           ))
         )}
       </div>
-      {(diff || loading) && (
+      {(shownDiff || diffLoading) && (
         <div className="history-diff">
           <div className="history-diff-header">
             <strong>
-              {loading
+              {diffLoading
                 ? "Loading…"
-                : (diff?.to_label?.replace(/^after\s+/, "") ?? "Diff")}
+                : (shownDiff?.to_label?.replace(/^after\s+/, "") ?? "Diff")}
             </strong>
-            {diff && (
+            {shownDiff && (
               <Button
                 className="transcript-follow-btn"
                 onClick={() => setShowRaw((v) => !v)}
@@ -220,19 +241,19 @@ export function HistoryPanel() {
               </Button>
             )}
           </div>
-          {diff && !showRaw && (
+          {shownDiff && !showRaw && (
             <ul className="history-summary">
-              {(diff.summary?.length
-                ? diff.summary
+              {(shownDiff.summary?.length
+                ? shownDiff.summary
                 : ["No summary available"]
               ).map((line, i) => (
                 <li key={`${line}-${i}`}>{line}</li>
               ))}
             </ul>
           )}
-          {diff && showRaw && (
+          {shownDiff && showRaw && (
             <pre className="history-raw">
-              {JSON.stringify(diff.diff, null, 2)}
+              {JSON.stringify(shownDiff.diff, null, 2)}
             </pre>
           )}
         </div>
