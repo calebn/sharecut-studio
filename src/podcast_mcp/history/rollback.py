@@ -16,9 +16,9 @@ from podcast_mcp.project_store import (
     commit_landed,
     history_index_path,
     history_index_to_restore,
+    read_history_index,
     rollback_own_history,
 )
-from podcast_mcp.util.atomic_json import load_json_object
 from podcast_mcp.util.project_state import (
     FileRevision,
     project_commit_lock,
@@ -123,13 +123,12 @@ def _roll_back_locked(project: EpisodeProject, checkpoint: HistoryCheckpoint) ->
 def _history_on_disk(checkpoint: HistoryCheckpoint) -> ProjectHistory:
     """``history/index.json`` as read now; ``history_before`` when absent or unreadable."""
     try:
-        data = load_json_object(checkpoint.index_path)
-        if data is not None:
-            return ProjectHistory.model_validate(data)
+        history = read_history_index(checkpoint.index_path)
     except ValueError:  # includes pydantic.ValidationError
         log.warning(
             "Unreadable %s; keeping the history from before the failure",
             checkpoint.index_path,
             exc_info=True,
         )
-    return checkpoint.history_before
+        return checkpoint.history_before
+    return checkpoint.history_before if history is None else history

@@ -2,12 +2,17 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from podcast_mcp.models import EpisodeProject, save_project
+from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.project_store import (
     ProjectStore,
+    history_index_path,
     history_index_to_restore,
     history_snapshot_ids,
     history_snapshots_dir,
+    read_history_index,
     rollback_history,
     rollback_own_history,
 )
@@ -119,3 +124,28 @@ def test_history_index_to_restore_missing_and_unreadable(tmp_path, caplog) -> No
     with caplog.at_level("WARNING"):
         assert history_index_to_restore(index_path, fallback) == fallback.model_dump(mode="json")
     assert "Unreadable" in caplog.text
+
+
+def test_read_history_index_missing_valid_and_corrupt(tmp_path) -> None:
+    index_path = tmp_path / "history" / "index.json"
+    assert read_history_index(index_path) is None
+    index_path.parent.mkdir(parents=True)
+    index_path.write_text(json.dumps(ProjectHistory().model_dump(mode="json")))
+    assert read_history_index(index_path) == ProjectHistory()
+    index_path.write_text("{not json")
+    with pytest.raises(ValueError):
+        read_history_index(index_path)
+    index_path.write_text(json.dumps({"entries": "nope"}))
+    with pytest.raises(ValueError):
+        read_history_index(index_path)
+
+
+def test_adopt_history_index_raises_on_a_corrupt_index(tmp_path) -> None:
+    project = EpisodeProject.create("p", str(tmp_path))
+    path = tmp_path / "episode.project.json"
+    save_project(project, path)
+    index_path = history_index_path(project)
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    index_path.write_text("{not json")
+    with pytest.raises(ValueError):
+        ProjectStore(path).adopt_history_index(project)
