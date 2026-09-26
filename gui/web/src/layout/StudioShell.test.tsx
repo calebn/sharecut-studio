@@ -122,7 +122,7 @@ describe("StudioShell tablet peek", () => {
     const shell = container.querySelector(".daw-shell");
     expect(shell).toHaveClass("daw-shell--layout-timeline");
     const transport = container.querySelector(".daw-shell-transport");
-    const restore = screen.getByRole("button", { name: /Restore/ });
+    const restore = screen.getByRole("button", { name: "Restore" });
     expect(transport?.contains(restore)).toBe(true);
     expect(container.querySelector("main")?.contains(restore)).toBe(false);
     expect(container.querySelector(".bottom-tabs")?.contains(restore)).toBe(

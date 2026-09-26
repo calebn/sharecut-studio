@@ -4,7 +4,11 @@ import { FEATURE_SHARE_UI_MENU } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
 import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
 import { type ThemePreference, useTheme } from "../hooks/useTheme";
-import { ariaKeyShortcutsFor, displayShortcutFor } from "../keymap/registry";
+import {
+  ariaKeyShortcutsFor,
+  displayShortcutFor,
+  titleWithShortcut,
+} from "../keymap/registry";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { RecordTransportChip } from "../record/RecordTransportChip";
 import {
@@ -267,7 +271,7 @@ export function TransportBar({
                 quiet
                 role="menuitemradio"
                 pressed={layoutMode === m.id}
-                title={`${m.menuLabel} (${displayShortcutFor(m.command) ?? ""})`}
+                title={titleWithShortcut(m.menuLabel, m.command)}
                 aria-keyshortcuts={ariaKeyShortcutsFor(m.command)}
                 onClick={() => {
                   close();
