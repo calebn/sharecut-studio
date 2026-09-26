@@ -94,3 +94,16 @@ def test_load_defaults_rereads_a_changed_file_and_copies_per_caller(tmp_path, mo
     st = cfg.stat()
     os.utime(cfg, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
     assert load_defaults()["render"]["join_fade_max_ms"] == 30
+
+
+def test_load_defaults_rereads_a_same_size_edit_with_unchanged_mtime(tmp_path, monkeypatch):
+    monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
+    cfg = tmp_path / "pipeline.yaml"
+    cfg.write_text("render:\n  join_fade_max_ms: 40\n", encoding="utf-8")
+    monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(cfg))
+    st = cfg.stat()
+    assert load_defaults()["render"]["join_fade_max_ms"] == 40
+    cfg.write_text("render:\n  join_fade_max_ms: 45\n", encoding="utf-8")
+    os.utime(cfg, ns=(st.st_atime_ns, st.st_mtime_ns))
+    assert cfg.stat().st_size == st.st_size
+    assert load_defaults()["render"]["join_fade_max_ms"] == 45
