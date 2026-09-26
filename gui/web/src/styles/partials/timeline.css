@@ -150,8 +150,8 @@
   margin-left: -1px; /* the clip border, as .clip-waveform */
   z-index: 2;
   pointer-events: none;
-  background: var(--clipping-region);
-  box-shadow: inset 0 0.125rem 0 var(--clipping-marker);
+  background: var(--clipping-tint);
+  box-shadow: var(--clipping-edges);
 }
 
 .clip-waveform-snap {
