@@ -295,7 +295,8 @@ def context_to_dict(ctx: TranscriptContext) -> dict[str, Any]:
 def load_transcript_context(workspace: Path) -> TranscriptContext:
     merged: dict[str, Any] = _load_yaml(_GLOBAL_DEFAULTS_PATH)
     show_path = workspace / "show_glossary.yaml"
-    merged = deep_merge(merged, _load_yaml(show_path))
+    # Context YAML keeps `_`-prefixed keys (e.g. free-form `transcribe` extras).
+    merged = deep_merge(merged, _load_yaml(show_path), skip_private=False)
     episode_path = workspace / "transcript_context.yaml"
-    merged = deep_merge(merged, _load_yaml(episode_path))
+    merged = deep_merge(merged, _load_yaml(episode_path), skip_private=False)
     return context_from_dict(merged)

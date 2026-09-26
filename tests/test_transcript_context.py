@@ -95,6 +95,15 @@ def test_load_transcript_context_merges_nested_speaker_id(tmp_path: Path) -> Non
     assert ctx.speaker_id.mode == "auto"
 
 
+def test_load_transcript_context_keeps_underscore_transcribe_keys(tmp_path: Path) -> None:
+    (tmp_path / "show_glossary.yaml").write_text(
+        yaml.safe_dump({"transcribe": {"_vendor_hint": "x"}}),
+        encoding="utf-8",
+    )
+    ctx = load_transcript_context(tmp_path)
+    assert ctx.transcribe.get("_vendor_hint") == "x"
+
+
 def test_replacements_sorted_longest_first() -> None:
     ctx = context_from_dict(
         {

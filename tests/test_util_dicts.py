@@ -12,6 +12,11 @@ def test_deep_merge_skips_underscore_keys() -> None:
     assert deep_merge({"a": 1}, {"_note": "x", "b": 2}) == {"a": 1, "b": 2}
 
 
+def test_deep_merge_keeps_underscore_keys_when_not_skipping() -> None:
+    out = deep_merge({"a": {"x": 1}}, {"_note": "x", "a": {"_y": 2}}, skip_private=False)
+    assert out == {"_note": "x", "a": {"x": 1, "_y": 2}}
+
+
 def test_deep_merge_does_not_alias_override() -> None:
     override = {"items": [1]}
     out = deep_merge({}, override)
