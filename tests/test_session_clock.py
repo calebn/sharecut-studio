@@ -115,3 +115,9 @@ speakers:
         align_mode="audio",
     )
     assert result.session_start_in_file_sec["Guest"] >= 2.0
+
+
+def test_first_speech_onset_past_eof_returns_none(tmp_path: Path) -> None:
+    clip = tmp_path / "short.wav"
+    _tone(clip, duration=1.0)
+    assert first_speech_onset_sec(clip, search_start_sec=60.0, search_end_sec=120.0) is None

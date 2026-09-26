@@ -408,3 +408,24 @@ def test_consolidate_deletes_partial_outs_on_failure(
                 analysis_duration_sec=1.5,
             )
     assert list(out_dir.glob("*.wav")) == []
+
+
+def test_consolidate_short_files_default_analysis_start(tmp_path: Path, sample_wav: Path) -> None:
+    audio_dir, manifest = _two_speaker_manifest(tmp_path, sample_wav)
+    result = consolidate_speakers(manifest, audio_dir, tmp_path / "raw")
+    assert set(result.speaker_tracks) == {"Ref", "Guest"}
+    assert result.session_trimmed is False
+
+
+def test_cross_speaker_reference_follows_manifest(tmp_path: Path, sample_wav: Path) -> None:
+    audio_dir, manifest = _two_speaker_manifest(tmp_path, sample_wav)
+    manifest.session.reference_speaker = "Guest"
+    seen: list[str] = []
+
+    def fake(groups, **_kw):
+        seen.extend(n for n, _ in groups)
+        return {}
+
+    with patch("podcast_mcp.ingest.consolidate.cross_speaker_offsets", fake):
+        consolidate_speakers(manifest, audio_dir, tmp_path / "raw", analysis_start_sec=0.0)
+    assert seen[0] == "Guest"

@@ -21,12 +21,17 @@ def first_speech_onset_sec(
         search_end_sec = search_start_sec + 600.0
     t = max(0.0, search_start_sec)
     while t < search_end_sec:
-        window = load_mono_window(
-            path,
-            start_sec=t,
-            duration_sec=chunk_sec,
-            sample_rate=sample_rate,
-        )
+        try:
+            window = load_mono_window(
+                path,
+                start_sec=t,
+                duration_sec=chunk_sec,
+                sample_rate=sample_rate,
+            )
+        except ValueError:
+            return None
+        if window.size == 0:
+            return None
         if float(np.sqrt(np.mean(window**2))) >= rms_threshold:
             return t
         t += chunk_sec

@@ -155,3 +155,17 @@ def test_xcorr_lag_window_matches_full_correlate() -> None:
     expected = full[expected_center - max_lag : expected_center + max_lag + 1]
     assert center == max_lag
     assert np.allclose(window, expected, atol=1e-6)
+
+
+def test_cross_speaker_offsets_short_file_is_zero_peak(tmp_path: Path) -> None:
+    ref = tmp_path / "ref.wav"
+    other = tmp_path / "other.wav"
+    _nonperiodic_wav(ref, duration_sec=2.0)
+    _nonperiodic_wav(other, duration_sec=2.0)
+    results = cross_speaker_offsets(
+        [("Ref", [ref]), ("Guest", [other])],
+        analysis_start_sec=60.0,
+        analysis_duration_sec=5.0,
+    )
+    assert results["Guest"].correlation_peak == 0.0
+    assert results["Guest"].offset_sec == 0.0

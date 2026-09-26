@@ -621,3 +621,90 @@ speakers:
     assert "session_start_in_file_sec: 5.0" in snippet
     assert "session_offset_sec: 0.2" in snippet
     assert "session_start_in_file_sec" not in snippet.split("Ref")[1].split("Guest")[0]
+
+
+def _apply_placed(
+    project: Path,
+    sample_wav: Path,
+    *,
+    content: float,
+    session_start: float,
+    trimmed: bool,
+    dur: float = 10.0,
+):
+    ws = ProjectWorkspace.open(project)
+    ws_path = ws.project.workspace_path()
+    wav = ws_path / "raw" / "guest.wav"
+    wav.write_bytes(sample_wav.read_bytes())
+    result = ConsolidateResult(
+        speaker_tracks={"Guest": wav},
+        alignments=[
+            SpeakerAlignment(
+                name="Guest",
+                reference=wav,
+                sources=[
+                    AlignmentResult(reference=wav, source=wav, offset_sec=0.0, correlation_peak=1.0)
+                ],
+            )
+        ],
+        cross_speaker_offsets={"Guest": content},
+        session_start_in_file_sec={"Guest": session_start},
+        cross_speaker_align_method={"Guest": "audio"},
+        session_trimmed=trimmed,
+    )
+    probe = AudioProbe(duration_sec=dur, sample_rate=48000, channels=1)
+    with patch("podcast_mcp.engines.ffmpeg.FFmpegEngine") as eng_cls:
+        eng_cls.return_value.probe.return_value = probe
+        IngestService(ws).apply_consolidated_tracks(result)
+    return [c for c in load_project(project).clips if c.track_id == "guest"]
+
+
+def test_apply_places_clip_by_session_start(minimal_project: Path, sample_wav: Path) -> None:
+    (clip,) = _apply_placed(
+        minimal_project, sample_wav, content=0.0, session_start=4.0, trimmed=False
+    )
+    assert clip.source_start == 4.0
+    assert clip.timeline_start == 0.0
+
+
+def test_apply_places_clip_by_content_align(minimal_project: Path, sample_wav: Path) -> None:
+    (clip,) = _apply_placed(
+        minimal_project, sample_wav, content=2.0, session_start=0.0, trimmed=False
+    )
+    assert clip.source_start == 0.0
+    assert clip.timeline_start == 2.0
+
+
+def test_apply_trimmed_extract_is_not_placed(minimal_project: Path, sample_wav: Path) -> None:
+    (clip,) = _apply_placed(
+        minimal_project, sample_wav, content=0.0, session_start=4.0, trimmed=True
+    )
+    assert clip.source_start == 0.0
+    assert clip.timeline_start == 0.0
+
+
+def test_apply_multi_source_only_primary_placed(minimal_project: Path, sample_wav: Path) -> None:
+    ws = ProjectWorkspace.open(minimal_project)
+    ws_path = ws.project.workspace_path()
+    wav_a = ws_path / "raw" / "guest_a.wav"
+    wav_b = ws_path / "raw" / "guest_b.wav"
+    wav_a.write_bytes(sample_wav.read_bytes())
+    wav_b.write_bytes(sample_wav.read_bytes())
+    ar = AlignmentResult(reference=wav_a, source=wav_a, offset_sec=0.0, correlation_peak=1.0)
+    ar_b = AlignmentResult(reference=wav_a, source=wav_b, offset_sec=0.0, correlation_peak=1.0)
+    result = ConsolidateResult(
+        speaker_tracks={"Guest": wav_a},
+        alignments=[SpeakerAlignment(name="Guest", reference=wav_a, sources=[ar, ar_b])],
+        cross_speaker_offsets={"Guest": 0.0},
+        session_start_in_file_sec={"Guest": 4.0},
+        cross_speaker_align_method={"Guest": "audio"},
+    )
+    probe = AudioProbe(duration_sec=10.0, sample_rate=48000, channels=1)
+    with patch("podcast_mcp.engines.ffmpeg.FFmpegEngine") as eng_cls:
+        eng_cls.return_value.probe.return_value = probe
+        IngestService(ws).apply_consolidated_tracks(result)
+    clips = sorted(
+        (c for c in load_project(minimal_project).clips if c.track_id == "guest"),
+        key=lambda c: c.timeline_start,
+    )
+    assert [(c.source_start, c.timeline_start) for c in clips] == [(4.0, 0.0), (0.0, 6.0)]
