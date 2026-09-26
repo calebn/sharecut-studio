@@ -168,7 +168,7 @@ Waveform PNGs under `artifacts/alignment/` (`showwavespic` via ffmpeg) show whet
 
 - **`sources`** — one raw file per speaker
 - **`timeline.tracks`** / **`timeline.clips`** — one dialogue track per speaker; untrimmed clips carry the session placement (`source_start`, `timeline_start`)
-- **`meta.ingest_alignment`** — per-speaker (or `track_id:clip_id` when a speaker has several whole-file clips) `session_start_in_file_sec`, `content_align_sec`, `align_method`
+- **`meta.ingest_alignment`** — per-speaker (or `track_id:clip_id` when a speaker has several whole-file clips or another dialogue track shares the speaker label; ingest and align share `ingest_alignment_meta_key`) `session_start_in_file_sec`, `content_align_sec`, `align_method`
 
 ## MCP tools
 
