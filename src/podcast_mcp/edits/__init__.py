@@ -18,6 +18,7 @@ from podcast_mcp.edits.tighten_intensity import (
     TIGHTEN_INTENSITIES,
     apply_tighten_intensity,
     normalize_tighten_intensity,
+    with_tighten_intensity,
 )
 from podcast_mcp.edits.transcript_cuts import (
     apply_edit_plan,
@@ -53,4 +54,5 @@ __all__ = [
     "reject_edits",
     "search_transcript",
     "update_pending_edit",
+    "with_tighten_intensity",
 ]

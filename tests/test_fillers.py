@@ -1808,3 +1808,24 @@ def test_propose_tighten_edits_resolves_intensity(monkeypatch):
     with pytest.raises(ValueError):
         tighten_module.propose_tighten_edits(project, {"tighten": {}}, intensity="bogus")
     assert project.edit_decisions == before
+
+
+def test_analyze_fillers_and_pauses_resolves_intensity(monkeypatch):
+    from podcast_mcp.edits import fillers as fillers_module
+
+    project = _project_with_transcript([TranscriptWord(text="hi", start=0.0, end=0.2)])
+    seen: list[dict] = []
+
+    def fake_collect(_transcript, defaults, **_kwargs):
+        seen.append(defaults["tighten"])
+        return []
+
+    monkeypatch.setattr(fillers_module, "build_track_audio_caches", lambda *_a: {})
+    monkeypatch.setattr(fillers_module, "_add_acoustic_candidates", lambda cands, *_a, **_k: cands)
+    monkeypatch.setattr(fillers_module, "_collect_candidates", fake_collect)
+
+    fillers_module.analyze_fillers_and_pauses(
+        project, project.transcripts[0], {"tighten": {"intensity": "light"}}
+    )
+    assert seen[-1]["max_pause_sec"] == 2.0
+    assert seen[-1]["intensity"] == "light"

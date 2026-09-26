@@ -104,3 +104,10 @@ def apply_tighten_intensity(
     out = deep_merge(tighten, preset)
     out["intensity"] = name
     return out
+
+
+def with_tighten_intensity(defaults: dict[str, Any], intensity: object = None) -> dict[str, Any]:
+    """Shallow copy of pipeline ``defaults`` whose ``tighten`` block has the preset applied."""
+    cfg = dict(defaults)
+    cfg["tighten"] = apply_tighten_intensity(dict(defaults.get("tighten") or {}), intensity)
+    return cfg

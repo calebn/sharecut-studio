@@ -18,6 +18,7 @@ from podcast_mcp.edits.cut_quality import (
     recommend_cut_fade_ms,
 )
 from podcast_mcp.edits.filler_pacing import apply_filler_pacing
+from podcast_mcp.edits.tighten_intensity import with_tighten_intensity
 from podcast_mcp.edits.tighten_reasons import ACOUSTIC_FILLER_REASON
 from podcast_mcp.edits.transcript_cuts import append_remove_decision
 from podcast_mcp.models import (
@@ -1184,7 +1185,10 @@ def analyze_fillers_and_pauses(
     Still builds a decode-once audio cache for this one track (see
     edits/audio_cache.py) so direct callers get the same speedup as the pipeline
     path, just without cross-track parallelism.
+
+    Resolves ``tighten.intensity`` the same way (:func:`~podcast_mcp.edits.tighten_intensity.with_tighten_intensity`).
     """
+    defaults = with_tighten_intensity(defaults)
     candidates = _collect_candidates(transcript, defaults, project=project, skip_counts=skip_counts)
     acoustic_enabled = AcousticGapConfig.from_tighten(defaults.get("tighten")).enabled
     audio_caches = (

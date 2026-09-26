@@ -138,3 +138,25 @@ def test_analyze_fillers_summary_counts_discourse_skips(minimal_project):
     summary = steps.analyze_fillers_pauses(proj, defaults)
     assert "2 discourse kept" in (summary or "")
     assert not any((e.reason or "").startswith("filler:like") for e in proj.edit_decisions)
+
+
+def test_analyze_fillers_step_honours_config_intensity(minimal_project):
+    def hits(intensity: str) -> list[str]:
+        proj = load_project(minimal_project)
+        proj.transcripts = [
+            Transcript(
+                track_id="host",
+                words=[
+                    TranscriptWord(text="hello", start=0.0, end=0.3, confidence=0.95),
+                    TranscriptWord(text="world", start=1.8, end=2.1, confidence=0.95),
+                ],
+            )
+        ]
+        defaults = load_defaults()
+        defaults["tighten"]["enabled"] = True
+        defaults["tighten"]["intensity"] = intensity
+        steps.analyze_fillers_pauses(proj, defaults)
+        return [e.reason or "" for e in proj.edit_decisions]
+
+    assert any(r.startswith("pause:") for r in hits("medium"))
+    assert not any(r.startswith("pause:") for r in hits("light"))
