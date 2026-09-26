@@ -396,6 +396,11 @@ does not assert the transient `Recording room tone…` copy, which can be missed
 under full-suite scheduling. Upload is consent-gated, so Accept is the earliest
 point at which the request can occur.
 
+The US-1 scenario waits for at least 1 s of keeper PCM before Stop, polls the
+upload API until every segment is file-ACKed before landing, and reads the landed
+project JSON from the disposable workspace. It retries Escape to close the room
+dialog because close stays disabled while the host keeper is uploading.
+
 | Job | What |
 |-----|------|
 | `pytest` | `ruff check` + `ruff format --check` + `bandit` + `vulture` + `deptry` + `mypy` + `pytest -n auto -m "not e2e_slow and not e2e_real"` (Python coverage gate) |

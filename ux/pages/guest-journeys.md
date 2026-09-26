@@ -317,6 +317,8 @@ never reported landed; its earlier project registration is rolled back instead. 
 write itself fails, a re-upload is fixed on the next land, but a revoked bed stays registered until
 the host removes it or undoes the land.
 
+**Automated check:** the Playwright US-1 scenario (`gui/web/e2e/record-lobby.spec.ts`, "records a remote interview end to end") walks this journey in three browsers.
+
 ---
 
 ## 7. Produce a recording session (lobby + silent mix-minus)
