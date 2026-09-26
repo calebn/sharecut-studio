@@ -123,11 +123,22 @@ def _set_mute_solo(payload: dict[str, Any], set_f: Callable[[str, Any], None]) -
 
 def _play_os_audio(payload: dict[str, Any], set_f: Callable[[str, Any], None]) -> None:
     # Speakers play OS audio - DAW seeks/highlights only.
+    _materialize_playback(payload, set_f, is_playing=False, dry_run=False)
+
+
+def _materialize_playback(
+    payload: dict[str, Any],
+    set_f: Callable[[str, Any], None],
+    *,
+    is_playing: bool,
+    dry_run: bool,
+) -> None:
+    """Apply shared playback fields in their stable command sequence."""
     start = float(payload["timeline_start_sec"])
     end = float(payload["timeline_end_sec"])
     source = payload.get("source")
     set_f("playhead_sec", start)
-    set_f("is_playing", False)
+    set_f("is_playing", is_playing)
     set_f("region", {"start_sec": start, "end_sec": end})
     set_f("source", source)
     set_f("audition_mode", audition_mode_from_source(source))
@@ -138,7 +149,7 @@ def _play_os_audio(payload: dict[str, Any], set_f: Callable[[str, Any], None]) -
     set_f("query", payload.get("query"))
     set_f("match_index", payload.get("match_index"))
     set_f("tier", payload.get("tier"))
-    set_f("dry_run", False)
+    set_f("dry_run", dry_run)
     # Host play resolves wav locally from source/region; never persist paths.
     set_f("wav", None)
     set_f("compare_segments", None)
@@ -147,26 +158,7 @@ def _play_os_audio(payload: dict[str, Any], set_f: Callable[[str, Any], None]) -
 
 
 def _audition_in_viewer(payload: dict[str, Any], set_f: Callable[[str, Any], None]) -> None:
-    start = float(payload["timeline_start_sec"])
-    end = float(payload["timeline_end_sec"])
-    source = payload.get("source")
-    set_f("playhead_sec", start)
-    set_f("is_playing", True)
-    set_f("region", {"start_sec": start, "end_sec": end})
-    set_f("source", source)
-    set_f("audition_mode", audition_mode_from_source(source))
-    tid = payload.get("track_id") or track_id_from_source(source)
-    set_f("track_id", tid)
-    set_f("solo_tracks", {tid: True} if tid else {})
-    set_f("viewer_mute", {})
-    set_f("query", payload.get("query"))
-    set_f("match_index", payload.get("match_index"))
-    set_f("tier", payload.get("tier"))
-    set_f("dry_run", True)
-    set_f("wav", None)
-    set_f("compare_segments", None)
-    if "selection" in payload:
-        set_f("selection", payload.get("selection"))
+    _materialize_playback(payload, set_f, is_playing=True, dry_run=True)
 
 
 _COMMAND_HANDLERS: dict[str, Callable[[dict[str, Any], Callable[[str, Any], None]], None]] = {

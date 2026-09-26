@@ -26,6 +26,8 @@ returns a stable "host offline" page to guests.
 `podcast tunnel` reconnects automatically after relay or network blips (exponential
 backoff, re-hello + re-register shares). Guests see offline only while the tunnel
 is down; once it reconnects, share URLs work again without restarting the CLI.
+Each disconnected session closes its stream queues and waits for its local HTTP
+and WebSocket proxy tasks to stop before the local HTTP client closes.
 
 ---
 

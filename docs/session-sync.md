@@ -32,6 +32,8 @@ Client ──submit(command)──► SessionSyncService
 
 **`PlayOsAudio`** (real `podcast play` / MCP play with speakers): seek + highlight only — `is_playing=false` so the browser does not double-play.  
 **`AuditionInViewer`** (`dry_run=true`): region + browser transport.
+Both playback commands materialize the same ordered field set; only `is_playing`
+and `dry_run` differ. This preserves per-field sequence metadata for clients.
 
 Agent/CLI convenience commands keep stable client IDs, and the session SQLite log
 allocates their next negative `client_seq` in the insert statement. Separate CLI

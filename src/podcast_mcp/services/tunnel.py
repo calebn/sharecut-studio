@@ -374,15 +374,16 @@ class TunnelClient:
 
                 up = asyncio.create_task(_to_relay())
                 down = asyncio.create_task(_to_local())
-                done, pending = await asyncio.wait({up, down}, return_when=asyncio.FIRST_COMPLETED)
-                for t in pending:
-                    t.cancel()
-                for t in done | pending:
-                    with contextlib.suppress(asyncio.CancelledError, Exception):
-                        await t
-                if up in done:
-                    close_code = int(getattr(local_ws, "close_code", None) or 1000)
-                    close_reason = str(getattr(local_ws, "close_reason", None) or "")
+                try:
+                    done, _ = await asyncio.wait({up, down}, return_when=asyncio.FIRST_COMPLETED)
+                    if up in done:
+                        close_code = int(getattr(local_ws, "close_code", None) or 1000)
+                        close_reason = str(getattr(local_ws, "close_reason", None) or "")
+                finally:
+                    for task in (up, down):
+                        if not task.done():
+                            task.cancel()
+                    await asyncio.gather(up, down, return_exceptions=True)
         except Exception as exc:
             log.warning("Guest WS proxy error for %s: %s", url, exc)
         finally:
@@ -438,33 +439,46 @@ class TunnelClient:
     async def _serve_messages(self, ws: Any, http_client: Any, send: Any) -> None:
         tasks: set[asyncio.Task[None]] = set()
         ws_streams: dict[str, asyncio.Queue[str | None]] = {}
-        while True:
-            raw = json.loads(await ws.recv())
-            mtype = raw.get("type")
-            task: asyncio.Task[None] | None = None
-            if mtype == "http":
-                task = asyncio.create_task(self._proxy_http(http_client, raw, send=send))
-            elif mtype == "ws_open":
-                task = asyncio.create_task(self._proxy_ws(raw, send=send, streams=ws_streams))
-            elif mtype in ("ws_data", "ws_close"):
-                stream_id = str(raw.get("id") or "")
-                q = (
-                    ws_streams.pop(stream_id, None)
-                    if mtype == "ws_close"
-                    else ws_streams.get(stream_id)
-                )
-                if q is not None:
-                    with contextlib.suppress(Exception):  # pragma: no cover
-                        q.put_nowait(None if mtype == "ws_close" else str(raw.get("text") or ""))
-            elif mtype == "ping":
-                await send(msg("pong"))
-            elif mtype == "error":
-                log.error("Relay error: %s", raw.get("detail"))
-            else:
-                log.debug("Unhandled relay message type: %s", mtype)
-            if task is not None:
-                tasks.add(task)
-                task.add_done_callback(tasks.discard)
+        try:
+            while True:
+                raw = json.loads(await ws.recv())
+                mtype = raw.get("type")
+                task: asyncio.Task[None] | None = None
+                if mtype == "http":
+                    task = asyncio.create_task(self._proxy_http(http_client, raw, send=send))
+                elif mtype == "ws_open":
+                    task = asyncio.create_task(self._proxy_ws(raw, send=send, streams=ws_streams))
+                elif mtype in ("ws_data", "ws_close"):
+                    stream_id = str(raw.get("id") or "")
+                    q = (
+                        ws_streams.pop(stream_id, None)
+                        if mtype == "ws_close"
+                        else ws_streams.get(stream_id)
+                    )
+                    if q is not None:
+                        with contextlib.suppress(Exception):  # pragma: no cover
+                            q.put_nowait(
+                                None if mtype == "ws_close" else str(raw.get("text") or "")
+                            )
+                elif mtype == "ping":
+                    await send(msg("pong"))
+                elif mtype == "error":
+                    log.error("Relay error: %s", raw.get("detail"))
+                else:
+                    log.debug("Unhandled relay message type: %s", mtype)
+                if task is not None:
+                    tasks.add(task)
+                    task.add_done_callback(tasks.discard)
+        finally:
+            for queue in ws_streams.values():
+                if queue.full():
+                    queue.get_nowait()
+                queue.put_nowait(None)
+            ws_streams.clear()
+            for task in tasks:
+                task.cancel()
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
 
     async def run(
         self,
