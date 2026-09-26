@@ -31,12 +31,26 @@ export function transcriptWordRange(
   trackId: string,
   startWordIndex: number,
   endWordIndex: number,
-): { start: number; end: number; text: string } | null {
+): { start: number; end: number; text: string } | null;
+export function transcriptWordRange(
+  project: ProjectView | null,
+  trackId: string,
+  startWordIndex: number,
+  endWordIndex: number,
+  options: { boundsOnly: true },
+): { start: number; end: number } | null;
+export function transcriptWordRange(
+  project: ProjectView | null,
+  trackId: string,
+  startWordIndex: number,
+  endWordIndex: number,
+  options?: { boundsOnly: true },
+): { start: number; end: number; text?: string } | null {
   const lo = Math.min(startWordIndex, endWordIndex);
   const hi = Math.max(startWordIndex, endWordIndex);
   let start = Number.POSITIVE_INFINITY;
   let end = Number.NEGATIVE_INFINITY;
-  const texts: string[] = [];
+  const texts: string[] | null = options?.boundsOnly ? null : [];
   for (const utterance of project?.transcript?.utterances ?? []) {
     if (utterance.track_id !== trackId) {
       continue;
@@ -48,13 +62,15 @@ export function transcriptWordRange(
       }
       start = Math.min(start, word.timeline_start ?? word.start);
       end = Math.max(end, word.timeline_end ?? word.end);
-      texts.push(word.text);
+      if (texts) {
+        texts.push(word.text);
+      }
     }
   }
   if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) {
     return null;
   }
-  return { start, end, text: texts.join(" ") };
+  return texts ? { start, end, text: texts.join(" ") } : { start, end };
 }
 
 /** Timeline intervals for a mapped utterance; empty when cut away / unmapped. */

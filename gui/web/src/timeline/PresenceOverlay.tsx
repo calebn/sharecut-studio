@@ -110,6 +110,7 @@ function transcriptWordBox(
     sel.kind === "transcriptRange"
       ? (sel.word_end ?? sel.word_index)
       : sel.word_index,
+    { boundsOnly: true },
   );
   if (!span) {
     return null;
