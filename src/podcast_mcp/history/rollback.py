@@ -75,11 +75,13 @@ def roll_back_history(project: EpisodeProject, checkpoint: HistoryCheckpoint) ->
     """Undo the history recorded since ``checkpoint`` after a failure (best effort).
 
     One ``project_commit_lock`` hold covers the "did the commit land" check and the
-    rollback. Kept when the commit landed; only memory is restored when the project file
-    cannot be stat'ed. When another writer recorded on top, or the rollback itself fails,
-    the index on disk is kept and ``project.history`` adopts it, so the next commit does not
-    overwrite it. The caller re-raises the original error; failures here are only logged.
-    Returns what it found; callers keep other in-memory state only on LANDED.
+    rollback. Kept when the commit landed; only ``project.history`` is restored when the
+    project file cannot be stat'ed. When another writer recorded on top, or the rollback
+    itself fails, the index on disk is kept and ``project.history`` adopts it, so the next
+    commit does not overwrite it. Without the lock a changed file revision may be another
+    writer's commit, so that path reports ``UNKNOWN``, never ``LANDED``. The caller re-raises
+    the original error; failures here are only logged. Returns what it found; the caller
+    decides what other in-memory state to keep.
     """
     try:
         with project_commit_lock(project):
@@ -89,10 +91,9 @@ def roll_back_history(project: EpisodeProject, checkpoint: HistoryCheckpoint) ->
             "Could not roll back %s after a failed mutation", checkpoint.index_path, exc_info=True
         )
         project.history = _history_on_disk(checkpoint)
-        # Best effort without the lock: another writer may have replaced the file since.
-        if _commit_landed(project, checkpoint):
-            return RollbackOutcome.LANDED
-        return RollbackOutcome.KEPT
+        # Without the lock a changed revision may be another writer's commit, not this one.
+        landed = _commit_landed(project, checkpoint)
+        return RollbackOutcome.KEPT if landed is False else RollbackOutcome.UNKNOWN
 
 
 @contextmanager
