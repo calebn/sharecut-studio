@@ -1,6 +1,7 @@
 import { Button } from "../ui";
 import { LiveComments } from "./LiveComments";
 import { MicLossNotice } from "./MicLossNotice";
+import { MicMeter } from "./MicMeter";
 import { NoAudioNotice } from "./NoAudioNotice";
 import { RecIndicator } from "./RecIndicator";
 import { Roster } from "./Roster";
@@ -47,6 +48,8 @@ type Props = {
   onRetryMic?: () => void;
   onResumeUpload?: () => void;
   keeperActions?: KeeperRecoveryActions;
+  /** Own mic stream for the level meter; null hides it. */
+  stream?: MediaStream | null;
 };
 
 export function Room({
@@ -75,6 +78,7 @@ export function Room({
   onRetryMic,
   onResumeUpload,
   keeperActions,
+  stream = null,
 }: Props) {
   const hostOffline =
     !connected &&
@@ -144,6 +148,9 @@ export function Room({
           />
         ) : null}
       </div>
+      {me && me.role !== "producer" ? (
+        <MicMeter stream={stream} label="Your mic level" />
+      ) : null}
       <Roster participants={snapshot.participants} />
       {onMarker && onSubmitNote && onNote ? (
         <LiveComments

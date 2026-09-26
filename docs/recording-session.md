@@ -680,9 +680,10 @@ The reusable peak meter hook shares one metering `AudioContext`, one worklet
 module load, and one animation-frame scheduler across concurrent mic meters.
 Each mic keeps its own worklet node, peak hold, and clip latch; the context
 closes when the last meter leaves. The keeper capture graph remains separate
-because it owns its sample rate and recording lifetime. The current lobby
-still uses its existing RMS display; wiring the peak meter into record
-surfaces is tracked in #174.
+because it owns its sample rate and recording lifetime. Each person sees only
+**their own** input meter (device check, guest room, host Record room panel):
+a peak meter with a latching clip LED and headroom guidance. It measures
+**sample peak only**; Sharecut does not detect inter-sample (true) peaks (#174).
 Safari has no `permissions.query({name:"microphone"})`; Chromium can
 pre-detect `denied`. After the mic is granted, recorded clients see an optional
 **Record 3 seconds of room tone** step (skip allowed) that uses keeper

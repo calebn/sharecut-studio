@@ -13,6 +13,18 @@ import {
   MIC_UNAVAILABLE_COPY,
 } from "./micPermission";
 
+vi.mock("./useInputPeakDb", () => ({
+  useInputPeakDb: () => ({
+    levelDb: -30,
+    peakHoldDb: -30,
+    clipped: false,
+    suspended: false,
+    clearClip: () => undefined,
+    latchClip: () => undefined,
+    resume: () => undefined,
+  }),
+}));
+
 const base = {
   headphonesOk: true,
   deviceId: "",
@@ -157,13 +169,30 @@ describe("DeviceCheck", () => {
       <DeviceCheck
         {...base}
         permission="granted"
+        stream={{} as MediaStream}
         onAllow={() => undefined}
         onRetry={() => undefined}
       />,
     );
-    expect(screen.getByLabelText("Level")).toBeInTheDocument();
+    expect(screen.getByRole("meter", { name: "Level" })).toBeInTheDocument();
     expect(screen.getByLabelText("Input")).toHaveFocus();
     expect(screen.queryByRole("button", { name: MIC_ALLOW_LABEL })).toBeNull();
     await expectNoA11yViolations(container);
+  });
+
+  it("does not build its own AudioContext for the level", () => {
+    const ctor = vi.fn();
+    vi.stubGlobal("AudioContext", ctor);
+    render(
+      <DeviceCheck
+        {...base}
+        permission="granted"
+        stream={{} as MediaStream}
+        onAllow={() => undefined}
+        onRetry={() => undefined}
+      />,
+    );
+    expect(ctor).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
   });
 });

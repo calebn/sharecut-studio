@@ -82,6 +82,11 @@ vi.mock("./keeper/store", async (importOriginal) => {
   };
 });
 
+vi.mock("./MicMeter", () => ({
+  MicMeter: ({ stream, label }: { stream: unknown; label: string }) =>
+    stream ? <div data-testid="mic-meter">{label}</div> : null,
+}));
+
 const uploadStatus = vi.fn(async () => ({ segments: [] as Array<unknown> }));
 
 vi.mock("../api", () => ({
@@ -198,6 +203,13 @@ describe("RecordPanel", () => {
     expect(dialog).toHaveTextContent("REC");
     expect(dialog).not.toHaveTextContent("REC: local capture failed");
     expect(screen.getByRole("button", { name: "Close" })).toBeEnabled();
+  });
+
+  it("shows your own mic meter while the panel is open", async () => {
+    render(<RecordPanel stream={{} as MediaStream} />);
+    expect(await screen.findByTestId("mic-meter")).toHaveTextContent(
+      "Your mic level",
+    );
   });
 
   it("lets Copy links replace the held record panel and reopens it afterward", async () => {

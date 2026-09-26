@@ -273,3 +273,8 @@ export function captureAttention(
   const capture = health === "silent" && suppressSilent ? null : health;
   return { capture, noAudio: state === "recording" && capture === "silent" };
 }
+
+export const HEADROOM_HINT_COPY =
+  "Peaks should stay in the green. Record with headroom: you can always turn it up later, you cannot unclip.";
+export const METER_CLIPPED_COPY =
+  "Your mic clipped. Move back or lower your input gain.";
