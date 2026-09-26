@@ -199,6 +199,11 @@
     var(--color-accent) 28%,
     transparent
   );
+  --color-clipping-region: color-mix(
+    in srgb,
+    var(--color-danger) 40%,
+    transparent
+  );
   --color-applied-edit: color-mix(
     in srgb,
     var(--color-warning) 35%,
@@ -525,6 +530,11 @@
     --color-pending-mute: color-mix(
       in srgb,
       var(--color-accent) 28%,
+      transparent
+    );
+    --color-clipping-region: color-mix(
+      in srgb,
+      var(--color-danger) 40%,
       transparent
     );
     --color-applied-edit: color-mix(
