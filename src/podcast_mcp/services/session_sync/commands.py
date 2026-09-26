@@ -278,7 +278,11 @@ def normalize_presence_meta(raw: Any, *, guest: bool = False) -> dict[str, Any] 
 
 
 def normalize_presence_playhead(raw: Any) -> float | None:
-    """Validate a top-level presence playhead. Returns None when invalid (never raise)."""
+    """Validate a playhead with the ``PresenceSec`` rule. Returns None when invalid (never raise).
+
+    ``SyncStore.touch_client`` treats None as "no change", so an invalid value keeps the
+    client's last good playhead (its ghost stays put) instead of clearing it.
+    """
     if raw is None:
         return None
     try:
