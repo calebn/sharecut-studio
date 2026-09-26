@@ -65,6 +65,30 @@ export function isRecordAccessEnded(
   );
 }
 
+export const RECORD_ROOM_FULL = "room_full";
+
+const RECORD_SYNC_ERROR_COPY = new Map<string, string>([
+  ["forbidden", "The host's room doesn't allow that action."],
+  ["invalid_state", "That isn't possible in the room's current state."],
+  ["rate_limited", "Too many requests. Wait a moment and try again."],
+  ["join_first", "Still joining the room. Try again in a moment."],
+  ["malformed", "The room sent a message this page couldn't read."],
+]);
+export const RECORD_SYNC_ERROR_FALLBACK_COPY =
+  "The record room reported a problem.";
+
+function isTerminalRecordError(error: string): boolean {
+  return error === RECORD_ROOM_FULL || isRecordAccessEnded(error);
+}
+
+/** Guest-facing copy for a non-terminal record error; null when none applies or a terminal screen owns it. */
+export function recordSyncErrorCopy(error: string | null): string | null {
+  if (error === null || isTerminalRecordError(error)) {
+    return null;
+  }
+  return RECORD_SYNC_ERROR_COPY.get(error) ?? RECORD_SYNC_ERROR_FALLBACK_COPY;
+}
+
 export function useRecordSync(
   token: string,
   displayName: string,
@@ -257,7 +281,13 @@ export function useRecordSync(
     };
   }, [token, enabled]);
 
+  const clearError = useCallback(() => {
+    setError((current) =>
+      current !== null && isTerminalRecordError(current) ? current : null,
+    );
+  }, []);
+
   const me =
     snapshot?.participants.find((p) => p.participant_id === meId) ?? null;
-  return { snapshot, me, send, error, connected, lease };
+  return { snapshot, me, send, error, clearError, connected, lease };
 }
