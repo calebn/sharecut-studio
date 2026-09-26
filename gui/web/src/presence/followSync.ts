@@ -10,6 +10,7 @@ import type {
   PresenceTransport,
   PresenceUi,
   PresenceViewport,
+  SessionClient,
 } from "../types/session";
 import { MIN_VIEWPORT_SPAN_SEC } from "../utils/timelineZoom.generated";
 import { clampZoomPxPerSec } from "../utils/zoom";
@@ -32,6 +33,22 @@ export function expectedPlayheadSec(
     return Number.NaN;
   }
   return Math.max(0, Math.min(durationSec, raw));
+}
+
+/** Remote playhead ghost position, clamped to the session; null when unusable. */
+export function remotePlayheadSec(
+  client: Pick<SessionClient, "playhead_sec" | "meta">,
+  durationSec: number,
+): number | null {
+  const raw =
+    client.meta?.transport?.playhead_sec ?? client.playhead_sec ?? null;
+  if (raw == null || !Number.isFinite(raw)) {
+    return null;
+  }
+  const floored = Math.max(0, raw);
+  return Number.isFinite(durationSec) && durationSec > 0
+    ? Math.min(durationSec, floored)
+    : floored;
 }
 
 export type Correction =

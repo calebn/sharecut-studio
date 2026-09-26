@@ -240,6 +240,7 @@ export function PresenceOverlayView({
 }: Props) {
   const offsetMs = useDawStore((s) => s.serverClockOffsetMs);
   const project = useDawStore((s) => s.project);
+  const durationSec = project?.timeline_duration_sec ?? Number.NaN;
   const now = serverNowMs(offsetMs);
   const others = remotePresenceClients(clients, localClientId, now);
   usePresenceAnnouncer(clients, localClientId);
@@ -301,8 +302,7 @@ export function PresenceOverlayView({
       {others.map((c) => {
         const color = presenceColorVar(c.meta?.color_index);
         const name = rosterDisplayName(c);
-        const playhead =
-          c.meta?.transport?.playhead_sec ?? c.playhead_sec ?? null;
+        const playhead = remotePlayheadSec(c, durationSec);
         const box = selectionBox(
           clipsByTrack,
           tracks,

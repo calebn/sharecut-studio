@@ -9,6 +9,7 @@ import {
   type NudgeClock,
   planCorrection,
   planFollowUi,
+  remotePlayheadSec,
   remotePresenceClients,
   resolveFollowTarget,
   viewportToZoomScroll,
@@ -17,6 +18,21 @@ import {
 } from "./followSync";
 
 describe("followSync", () => {
+  it("clamps remote playhead ghosts", () => {
+    const t = (v: number) => ({
+      meta: { transport: { playing: false, playhead_sec: v, rate: 1 } },
+    });
+    expect(remotePlayheadSec({ playhead_sec: 5 }, 60)).toBe(5);
+    expect(remotePlayheadSec({ playhead_sec: 5, ...t(7) }, 60)).toBe(7);
+    expect(remotePlayheadSec(t(1e9), 60)).toBe(60);
+    expect(remotePlayheadSec(t(-3), 60)).toBe(0);
+    expect(remotePlayheadSec(t(Number.NaN), 60)).toBeNull();
+    expect(remotePlayheadSec({ playhead_sec: Infinity }, 60)).toBeNull();
+    expect(remotePlayheadSec({}, 60)).toBeNull();
+    expect(remotePlayheadSec({ playhead_sec: 500 }, Number.NaN)).toBe(500);
+    expect(remotePlayheadSec({ playhead_sec: -2 }, Number.NaN)).toBe(0);
+  });
+
   it("extrapolates a playing playhead and clamps", () => {
     const t = {
       playing: true,
