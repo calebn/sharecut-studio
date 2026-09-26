@@ -81,6 +81,14 @@ function isTerminalRecordError(error: string): boolean {
   return error === RECORD_ROOM_FULL || isRecordAccessEnded(error);
 }
 
+/** A terminal error keeps its screen: a later non-terminal code or a dismiss cannot replace it. */
+function keepTerminalRecordError(
+  current: string | null,
+  next: string | null,
+): string | null {
+  return current !== null && isTerminalRecordError(current) ? current : next;
+}
+
 /** Guest-facing copy for a non-terminal record error; null when none applies or a terminal screen owns it. */
 export function recordSyncErrorCopy(error: string | null): string | null {
   if (error === null || isTerminalRecordError(error)) {
@@ -227,11 +235,14 @@ export function useRecordSync(
               if (!joined) {
                 endAccess(RECORD_ACCESS_REMOVED, thisSocket);
               } else {
-                setError("forbidden");
+                setError((current) =>
+                  keepTerminalRecordError(current, "forbidden"),
+                );
               }
               return;
             }
-            setError(msg.code || msg.detail || "error");
+            const next = msg.code || msg.detail || "error";
+            setError((current) => keepTerminalRecordError(current, next));
             return;
           }
           if (msg.type === "Echo" && msg.participant_id && msg.lease) {
@@ -248,7 +259,7 @@ export function useRecordSync(
             setSnapshot(msg.snapshot);
           }
         } catch {
-          setError("malformed");
+          setError((current) => keepTerminalRecordError(current, "malformed"));
         }
       };
       socket.onclose = (event) => {
@@ -282,9 +293,7 @@ export function useRecordSync(
   }, [token, enabled]);
 
   const clearError = useCallback(() => {
-    setError((current) =>
-      current !== null && isTerminalRecordError(current) ? current : null,
-    );
+    setError((current) => keepTerminalRecordError(current, null));
   }, []);
 
   const me =

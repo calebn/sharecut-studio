@@ -433,4 +433,20 @@ describe("useRecordSync", () => {
     act(() => result.current.clearError());
     expect(result.current.error).toBe(RECORD_INVITE_CLOSED);
   });
+
+  it("keeps room_full when a later non-terminal error arrives", async () => {
+    const { result } = renderHook(() => useRecordSync("tok", "Ava"));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const ws = FakeWebSocket.instances[0];
+    await act(async () => {
+      ws.emit({ type: "Error", plane: "record", code: "room_full" });
+    });
+    await act(async () => {
+      ws.emit({ type: "Error", plane: "record", code: "join_first" });
+    });
+    expect(result.current.error).toBe("room_full");
+  });
 });
