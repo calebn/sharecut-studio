@@ -350,8 +350,15 @@ class LandRollbackKey:
         )
 
 
-_ROLLBACK_KEY_WHERE = (
-    "session_id = ? AND take_index = ? AND participant_id = ? "
+# Complete literal statements (no interpolation) so Bandit B608 stays clean; the
+# placeholders take ``LandRollbackKey.params()`` in order.
+_DELETE_LAND_ROLLBACK_SQL = (
+    "DELETE FROM record_land_rollbacks WHERE session_id = ? AND take_index = ? "
+    "AND participant_id = ? AND segment_index = ? AND file_sha256 = ?"
+)
+_NOTE_LAND_ROLLBACK_FAILURE_SQL = (
+    "UPDATE record_land_rollbacks SET attempts = attempts + 1, retry_after_ns = ? "
+    "WHERE session_id = ? AND take_index = ? AND participant_id = ? "
     "AND segment_index = ? AND file_sha256 = ?"
 )
 
@@ -888,22 +895,12 @@ class RecordUploadStore:
 
     def clear_land_rollback(self, key: LandRollbackKey) -> None:
         with self._lock:
-            self._conn.execute(
-                f"DELETE FROM record_land_rollbacks WHERE {_ROLLBACK_KEY_WHERE}",
-                key.params(),
-            )
+            self._conn.execute(_DELETE_LAND_ROLLBACK_SQL, key.params())
 
     def note_land_rollback_failure(self, key: LandRollbackKey, *, retry_after_ns: int) -> None:
         """Count a failed retry and hold the row back until *retry_after_ns*."""
         with self._lock:
-            self._conn.execute(
-                f"""
-                UPDATE record_land_rollbacks
-                SET attempts = attempts + 1, retry_after_ns = ?
-                WHERE {_ROLLBACK_KEY_WHERE}
-                """,
-                (retry_after_ns, *key.params()),
-            )
+            self._conn.execute(_NOTE_LAND_ROLLBACK_FAILURE_SQL, (retry_after_ns, *key.params()))
 
     def clear_session_land_rollbacks(self, session_id: str) -> int:
         """Drop every deferred rollback of a room; returns how many rows were removed."""
