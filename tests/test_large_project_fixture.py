@@ -21,7 +21,12 @@ def _load_fixture_builder() -> ModuleType:
 
 
 def _assert_benchmark_shape(
-    project_path: Path, *, duration: int, clip_count: int, utterance_count: int
+    project_path: Path,
+    *,
+    duration: int,
+    clip_count: int,
+    utterance_count: int,
+    history_steps: int | None = None,
 ) -> None:
     raw = json.loads(project_path.read_text(encoding="utf-8"))
     jsonschema.validate(instance=raw, schema=json.loads(SCHEMA.read_text(encoding="utf-8")))
@@ -32,6 +37,8 @@ def _assert_benchmark_shape(
     assert project.render.last_completed_step is None
     assert project.render.pipeline_runs == []
     assert project.meta.created_at != "2026-05-23T08:13:47.933166+00:00"
+    if history_steps is not None:
+        assert len(project.history.entries) == 2 * history_steps
 
     clips = project.timeline.clips
     words = [word for track in project.transcript_data.per_track for word in track.words]
@@ -108,6 +115,7 @@ def test_large_project_fixture_default_two_hour_shape(tmp_path):
         duration=builder.DEFAULT_DURATION,
         clip_count=builder.DEFAULT_CLIPS,
         utterance_count=builder.DEFAULT_UTTERANCES,
+        history_steps=builder.DEFAULT_HISTORY_STEPS,
     )
 
 
@@ -125,6 +133,7 @@ def test_large_project_fixture_default_two_hour_shape(tmp_path):
         ({"track_count": 1}, "at least 2"),
         ({"waveform": "loud"}, "waveform must be"),
         ({"clip_count": 4, "track_count": 3}, "divisible"),
+        ({"history_steps": -1}, "history steps"),
     ],
 )
 def test_large_project_fixture_rejects_invalid_arguments(tmp_path, kwargs, match):
@@ -201,3 +210,44 @@ def test_large_project_fixture_silent_waveforms(tmp_path):
     for path in _pyramids(project_path.parent).values():
         meta = read_meta(path)
         assert not any(read_bins(path, meta, 0, 0, meta.levels[0].bins))
+
+
+def test_large_project_fixture_seeds_shared_snapshot_history(tmp_path):
+    from podcast_mcp.history.diff import diff_snapshots
+    from podcast_mcp.history.manager import HistoryManager, snapshot_from_project
+    from podcast_mcp.services.history import _group_history_entries
+
+    project_path = _load_fixture_builder().build_project(
+        tmp_path / "hist", duration=10, clip_count=4, utterance_count=8, history_steps=3
+    )
+    project = load_project(project_path)
+    history = project.history
+    assert len(history.entries) == 6
+    assert history.cursor == 5
+    assert [e.label.split(" ")[0] for e in history.entries] == ["before", "after"] * 3
+    files = {e.snapshot_file for e in history.entries}
+    assert len(files) == 2
+    assert all((project_path.parent / rel).is_file() for rel in files)
+    assert (project_path.parent / "history" / "index.json").is_file()
+    assert project.timeline.clips[0].fade_in_ms == 0
+    cursor_file = project_path.parent / history.entries[history.cursor].snapshot_file
+    assert json.loads(cursor_file.read_text(encoding="utf-8")) == json.loads(
+        snapshot_from_project(project).model_dump_json(by_alias=True)
+    )
+    assert len(_group_history_entries(history.entries)) == 3
+
+    manager = HistoryManager(project_path)
+    snaps = [manager._read_snapshot(project, e) for e in history.entries[:2]]
+    assert diff_snapshots(snaps[0], snaps[1])
+    status = manager.undo(project)
+    assert status.cursor == 4
+    assert project.history.can_redo()
+    assert project.timeline.clips[0].fade_in_ms == 10
+
+
+def test_large_project_fixture_zero_history_steps_is_empty(tmp_path):
+    project_path = _load_fixture_builder().build_project(
+        tmp_path / "nohist", duration=10, clip_count=2, utterance_count=2, history_steps=0
+    )
+    assert load_project(project_path).history.is_empty()
+    assert not (project_path.parent / "history").exists()

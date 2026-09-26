@@ -342,7 +342,11 @@ DAW_E2E_PROJECT="$tmp_dir/project/episode.project.json" \
 transcripts; `--clips` must divide evenly). `--waveform synthetic|silent`
 (default `synthetic`) writes each track's `.wfpk` pyramid under the key the
 viewer asks for, without decoding: a speech-like envelope, or all zeros. The
-sparse WAVs are silent either way.
+sparse WAVs are silent either way. `--history N` (default 500) seeds N
+before/after pairs (2N entries, 1,000 by default) that toggle the first clip's
+fade-in and share two full-size snapshot files (`history/snapshots/benchmark-base.json`
+and `benchmark-faded.json`), so undo, redo, and diff use real snapshots without
+1,000 copies on disk; `--history 0` leaves the history empty.
 
 Keep the `large-project.spec.ts` file filter: `DAW_E2E_PROJECT` applies to the
 whole Playwright run, so every other spec would otherwise run against the
@@ -372,9 +376,7 @@ node count, and the post-GC Chromium heap from CDP. Those measurements are
 diagnostic only and have no machine-dependent timing threshold; the spec raises
 its own test and `expect` timeouts only to bound a hung run. The GUI writes
 `sync.db` and history into the generated project while it runs, so build a
-fresh one per measurement (the `trap` above deletes it). The history fixture is
-currently empty, so a many-entry history profile and long-duration memory
-tracking remain follow-ups ([ROADMAP.md](../ROADMAP.md) § Follow-up).
+fresh one per measurement (the `trap` above deletes it).
 
 `make test` builds a two-minute fixture; the full two-hour shape is checked by
 `test_large_project_fixture_default_two_hour_shape` under the `e2e_real`
