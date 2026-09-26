@@ -23,6 +23,8 @@ from typing import Any, Protocol, runtime_checkable
 
 from coolname import generate_slug
 
+from podcast_mcp.util.sqlite_tx import immediate_transaction
+
 # Invariant for agents / scale: public /r/{token} and /rec/{token} IDs must not
 # collide across hosts once a relay-owned registry exists. This flag documents
 # the contract.
@@ -179,16 +181,6 @@ class SqliteShareRegistry:
         with self._lock:
             self._conn.close()
 
-    def _begin_immediate(self) -> None:
-        self._conn.execute("BEGIN IMMEDIATE")
-
-    def _commit(self) -> None:
-        self._conn.execute("COMMIT")
-
-    def _rollback(self) -> None:
-        with self._lock, contextlib.suppress(sqlite3.Error):
-            self._conn.execute("ROLLBACK")
-
     def _purge_expired_cooldown_unlocked(self, now: datetime) -> int:
         ts = _iso(now)
         cur = self._conn.execute(
@@ -212,29 +204,17 @@ class SqliteShareRegistry:
     def purge_expired_cooldown(self, *, now: datetime | None = None) -> int:
         """Drop cooldown rows whose reserved_until has passed. Returns count."""
         moment = now or _now()
-        with self._lock:
-            self._begin_immediate()
-            try:
-                n = self._purge_expired_cooldown_unlocked(moment)
-                self._commit()
-                return n
-            except Exception:
-                self._rollback()
-                raise
+        with self._lock, immediate_transaction(self._conn):
+            n = self._purge_expired_cooldown_unlocked(moment)
+            return n
 
     def is_reserved(self, token: str, *, now: datetime | None = None) -> bool:
         """True if token is active or still in cooldown."""
         moment = now or _now()
-        with self._lock:
-            self._begin_immediate()
-            try:
-                self._purge_expired_cooldown_unlocked(moment)
-                reserved = self._is_reserved_unlocked(token, moment)
-                self._commit()
-                return reserved
-            except Exception:
-                self._rollback()
-                raise
+        with self._lock, immediate_transaction(self._conn):
+            self._purge_expired_cooldown_unlocked(moment)
+            reserved = self._is_reserved_unlocked(token, moment)
+            return reserved
 
     def get_active(self, token: str) -> dict[str, Any] | None:
         with self._lock:
@@ -257,52 +237,40 @@ class SqliteShareRegistry:
             raise ValueError(f"unknown share kind {kind!r}")
         role = share.get("role")
         session_id = share.get("session_id")
-        with self._lock:
-            self._begin_immediate()
+        with self._lock, immediate_transaction(self._conn):
+            self._purge_expired_cooldown_unlocked(now)
+            if self._is_reserved_unlocked(token, now):
+                raise ValueError(f"share token already reserved: {token}")
             try:
-                self._purge_expired_cooldown_unlocked(now)
-                if self._is_reserved_unlocked(token, now):
-                    raise ValueError(f"share token already reserved: {token}")
-                try:
-                    self._conn.execute(
-                        """
-                        INSERT INTO active_shares (
-                          token, project_workspace, review_version_id,
-                          created_at, last_used_at, expires_at, capabilities,
-                          kind, role, session_id
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """,
-                        (
-                            token,
-                            str(share["project_workspace"]),
-                            str(share["review_version_id"]),
-                            created,
-                            last_used,
-                            share.get("expires_at"),
-                            json.dumps(caps),
-                            kind,
-                            None if role is None else str(role),
-                            None if session_id is None else str(session_id),
-                        ),
-                    )
-                except sqlite3.IntegrityError as exc:
-                    raise ValueError(f"share token already reserved: {token}") from exc
-                self._commit()
-            except Exception:
-                self._rollback()
-                raise
+                self._conn.execute(
+                    """
+                    INSERT INTO active_shares (
+                      token, project_workspace, review_version_id,
+                      created_at, last_used_at, expires_at, capabilities,
+                      kind, role, session_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        token,
+                        str(share["project_workspace"]),
+                        str(share["review_version_id"]),
+                        created,
+                        last_used,
+                        share.get("expires_at"),
+                        json.dumps(caps),
+                        kind,
+                        None if role is None else str(role),
+                        None if session_id is None else str(session_id),
+                    ),
+                )
+            except sqlite3.IntegrityError as exc:
+                raise ValueError(f"share token already reserved: {token}") from exc
 
     def release_claim(self, token: str) -> bool:
         """Drop an active claim without cooldown (create rollback)."""
-        with self._lock:
-            self._begin_immediate()
-            try:
-                cur = self._conn.execute("DELETE FROM active_shares WHERE token = ?", (token,))
-                self._commit()
-                return int(cur.rowcount or 0) > 0
-            except Exception:
-                self._rollback()
-                raise
+        with self._lock, immediate_transaction(self._conn):
+            cur = self._conn.execute("DELETE FROM active_shares WHERE token = ?", (token,))
+            return int(cur.rowcount or 0) > 0
 
     def upsert_active_metadata(self, row: dict[str, Any]) -> None:
         """Refresh active-row fields from the project sidecar (no-op if missing)."""
@@ -378,42 +346,35 @@ class SqliteShareRegistry:
     ) -> bool:
         """Move active → cooldown. Returns False if token was not active."""
         moment = now or _now()
-        with self._lock:
-            self._begin_immediate()
-            try:
-                row = self._conn.execute(
-                    "SELECT * FROM active_shares WHERE token = ?", (token,)
-                ).fetchone()
-                if row is None:
-                    self._commit()
-                    return False
-                last_used = _parse_iso(row["last_used_at"]) or moment
-                reserved_until = last_used + timedelta(days=cooldown_days)
-                self._conn.execute("DELETE FROM active_shares WHERE token = ?", (token,))
-                self._conn.execute(
-                    """
-                    INSERT INTO cooldown_shares (
-                      token, last_used_at, reserved_until, reason, project_workspace
-                    ) VALUES (?, ?, ?, ?, ?)
-                    ON CONFLICT(token) DO UPDATE SET
-                      last_used_at = excluded.last_used_at,
-                      reserved_until = excluded.reserved_until,
-                      reason = excluded.reason,
-                      project_workspace = excluded.project_workspace
-                    """,
-                    (
-                        token,
-                        _iso(last_used),
-                        _iso(reserved_until),
-                        reason,
-                        row["project_workspace"],
-                    ),
-                )
-                self._commit()
-                return True
-            except Exception:
-                self._rollback()
-                raise
+        with self._lock, immediate_transaction(self._conn):
+            row = self._conn.execute(
+                "SELECT * FROM active_shares WHERE token = ?", (token,)
+            ).fetchone()
+            if row is None:
+                return False
+            last_used = _parse_iso(row["last_used_at"]) or moment
+            reserved_until = last_used + timedelta(days=cooldown_days)
+            self._conn.execute("DELETE FROM active_shares WHERE token = ?", (token,))
+            self._conn.execute(
+                """
+                INSERT INTO cooldown_shares (
+                  token, last_used_at, reserved_until, reason, project_workspace
+                ) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(token) DO UPDATE SET
+                  last_used_at = excluded.last_used_at,
+                  reserved_until = excluded.reserved_until,
+                  reason = excluded.reason,
+                  project_workspace = excluded.project_workspace
+                """,
+                (
+                    token,
+                    _iso(last_used),
+                    _iso(reserved_until),
+                    reason,
+                    row["project_workspace"],
+                ),
+            )
+            return True
 
     def backup_to(self, dest: Path) -> Path:
         """Copy the registry via sqlite online backup (WAL-safe). Returns dest."""
