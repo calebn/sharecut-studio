@@ -321,8 +321,8 @@ sample-count vs recording-clock duration (`drift_ms`; unknown is `null`).
 post-transcribe `align_tracks` hint. Live comments and Markers land as ordinary timeline comments.
 A keeper or room-tone bed that gets re-uploaded or revoked while landing is registering it is
 never reported landed; its earlier project registration is rolled back instead. If that rollback
-write itself fails, a re-upload is fixed on the next land, but a revoked bed stays registered until
-the host removes it or undoes the land. Overlapping lands (an ACK auto-land and a Land click) each re-read the saved project first, so neither drops the clips or live comments the other landed.
+write itself fails, it is saved and retried automatically on the next land, and the track's media is
+moved off the stale file meanwhile. Overlapping lands (an ACK auto-land and a Land click) each re-read the saved project first, so neither drops the clips or live comments the other landed.
 
 **Automated check:** the Playwright US-1 scenario (`gui/web/e2e/record-lobby.spec.ts`, "records a remote interview end to end") walks this journey in three browsers.
 

@@ -320,6 +320,7 @@ Record rooms reuse this sqlite file — **no new DB, no sidecar JSON.** Spec:
 | WebRTC Signal | Ephemeral hub event `{type:"Signal"}`. Not stored. |
 | Local keeper WAV | Guest/host origin-private OPFS (`Sharecut Recordings/…`). Not sqlite. |
 | Chunk ACK | `record_upload_parts` / `record_upload_files` in this DB (`join_offset_ms`, `clipping_regions` JSON `[[start_ms,end_ms],...]` and `clipping_truncated` from the final part, `landed_ns`); part files under `artifacts/record/`; landing copies ACK'd WAV into `raw/` + clips. |
+| Deferred land rollbacks | `record_land_rollbacks` in this DB (`raw_rel`, `raw_revision` JSON, `prior_json`, `deferred_ns`; keyed by session, take, participant, segment, stale `file_sha256`) | A stale-ACK rollback that failed is stored here first and retried at the start of the next `land()` / `delete_take`; rows are cleared once it commits or is moot. |
 | Live comments | `record_live_comments` in this DB (PK `session_id, comment_id`); snapshot attaches unlanded rows; landing writes `review.comments[]` |
 | Write atomicity | Append, apply, snapshot write and the `Comment` live-comment row run in one `BEGIN IMMEDIATE` on the record store's connection, so independent connections (other processes) serialize and a failed apply leaves no command row |
 
