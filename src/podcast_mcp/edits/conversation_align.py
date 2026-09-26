@@ -6,6 +6,7 @@ split media — one raw file remains one clip.
 
 from __future__ import annotations
 
+import collections
 import hashlib
 import itertools
 import logging
@@ -44,7 +45,17 @@ from podcast_mcp.util.wer import normalize_token
 log = logging.getLogger(__name__)
 
 DURATION_EPS_SEC = 0.05  # same_length only when durations match within probe noise
-MIN_BLEED_MATCHES = 2
+MIN_BLEED_MATCHES = 5
+BLEED_MIN_SHARE = 0.3  # weighted share of matched n-grams that must agree
+COMMON_NGRAM_WEIGHT = 0.2  # n-grams made only of filler/stopwords count less
+COMMON_BLEED_WORDS = frozenset(
+    {
+        "i", "i'm", "you", "know", "yeah", "yes", "no", "don't", "dont", "the", "a", "an",
+        "and", "it", "it's", "that", "like", "so", "um", "uh", "right", "okay", "ok", "oh",
+        "well", "mean", "just", "is", "was", "to", "of", "in", "we", "think", "really",
+        "what", "do", "not", "but", "this", "be", "have", "sure", "mm", "hmm", "mhm",
+    }
+)  # fmt: skip
 BLEED_AGREE_SEC = 0.75
 BLEED_IDENTITY_SEC = 1.0  # |bleed| below this → acoustic confirm (not blind identity)
 ACOUSTIC_MIN_PEAK = 0.05
@@ -191,6 +202,21 @@ def own_speech_tokens(
     return [w for i, w in enumerate(tokens) if keep[i]]
 
 
+def _is_common_ngram(gram: str) -> bool:
+    return all(tok in COMMON_BLEED_WORDS for tok in gram.split())
+
+
+def _weighted_median(values: list[float], weights: list[float]) -> float:
+    pairs = sorted(zip(values, weights, strict=True))
+    half = sum(w for _v, w in pairs) / 2.0
+    acc = 0.0
+    for v, w in pairs:
+        acc += w
+        if acc >= half:
+            return float(v)
+    return float(pairs[-1][0])
+
+
 def bleed_phrase_offsets(
     reference: list[WordToken],
     source: list[WordToken],
@@ -199,6 +225,7 @@ def bleed_phrase_offsets(
     min_confidence: float = 0.5,
     agree_sec: float = BLEED_AGREE_SEC,
     min_matches: int = MIN_BLEED_MATCHES,
+    min_share: float = BLEED_MIN_SHARE,
 ) -> tuple[float | None, list[float], str | None]:
     """Return (median_offset, clustered_offsets, detail) when bleed n-grams agree.
 
@@ -207,6 +234,11 @@ def bleed_phrase_offsets(
 
     Pairing: unique (one hit) n-grams form a provisional median; each ref match
     then picks the source hit nearest that median (not always ``hits[0]``).
+
+    Agreement rule: at least ``min_matches`` matches must cluster within
+    ``agree_sec`` of the weighted median **and** carry at least ``min_share`` of
+    the total weight. Weight is ``1/(ref_count*src_count)`` per n-gram, times
+    ``COMMON_NGRAM_WEIGHT`` for filler-only n-grams ("i don't know").
     """
     ref_parts = [
         (normalize_token(w.text), w.start, w.end)
@@ -226,9 +258,11 @@ def bleed_phrase_offsets(
         gram = " ".join(p[0] for p in src_parts[i : i + n])
         src_index.setdefault(gram, []).append((src_parts[i][1], src_parts[i + n - 1][2]))
 
+    ref_counts: collections.Counter[str] = collections.Counter()
     matches: list[tuple[str, float, list[tuple[float, float]]]] = []
     for i in range(len(ref_parts) - n + 1):
         gram = " ".join(p[0] for p in ref_parts[i : i + n])
+        ref_counts[gram] += 1
         hits = src_index.get(gram)
         if not hits:
             continue
@@ -244,23 +278,38 @@ def bleed_phrase_offsets(
     seed = float(statistics.median(provisional)) if provisional else 0.0
 
     deltas: list[float] = []
+    weights: list[float] = []
     samples: list[str] = []
     for gram, ref_start, hits in matches:
         best_hit = min(hits, key=lambda h: abs((ref_start - h[0]) - seed))
         delta = ref_start - best_hit[0]
         deltas.append(delta)
+        w = 1.0 / (ref_counts[gram] * len(hits))
+        weights.append(w * COMMON_NGRAM_WEIGHT if _is_common_ngram(gram) else w)
         if len(samples) < 5:
             samples.append(f"'{gram}' Δ={delta:+.2f}s")
 
     if len(deltas) < min_matches:
         return None, deltas, None
 
-    med = float(statistics.median(deltas))
-    clustered = [d for d in deltas if abs(d - med) <= agree_sec]
-    if len(clustered) < min_matches:
-        return None, deltas, None
-    med = float(statistics.median(clustered))
-    detail = f"{len(clustered)}/{len(deltas)} bleed n-grams; " + "; ".join(samples)
+    center = _weighted_median(deltas, weights)
+    keep = [i for i, d in enumerate(deltas) if abs(d - center) <= agree_sec]
+    clustered = [deltas[i] for i in keep]
+    total_w = sum(weights) or 1.0
+    share = sum(weights[i] for i in keep) / total_w
+    if len(clustered) < min_matches or share < min_share:
+        return (
+            None,
+            deltas,
+            (
+                f"bleed rejected: {len(clustered)}/{len(deltas)} n-grams agree "
+                f"(weighted share {share:.0%}; need >= {min_matches} and >= {min_share:.0%})"
+            ),
+        )
+    med = _weighted_median(clustered, [weights[i] for i in keep])
+    detail = f"{len(clustered)}/{len(deltas)} bleed n-grams (share {share:.0%}); " + "; ".join(
+        samples
+    )
     return med, clustered, detail
 
 
@@ -958,6 +1007,7 @@ def _score_one_clip(
     prev_plan: ClipAlignPlan | None = None,
     cancel_check: Callable[[], bool] | None = None,
     bleed_ref_tokens: list[WordToken] | None = None,
+    min_bleed_share: float = BLEED_MIN_SHARE,
 ) -> ClipAlignPlan:
     own_iv = _own_speech_intervals(
         tokens,
@@ -975,6 +1025,7 @@ def _score_one_clip(
         tokens,
         n=ngram_n,
         min_matches=min_bleed,
+        min_share=min_bleed_share,
     )
 
     def _plan(
@@ -984,6 +1035,8 @@ def _score_one_clip(
         detail: str,
         gap_offset: float | None = None,
     ) -> ClipAlignPlan:
+        if bleed_off is None and bleed_detail:
+            detail = f"{detail}; {bleed_detail}"
         return ClipAlignPlan(
             track_id="",
             clip_id="",
@@ -1110,6 +1163,7 @@ def plan_conversation_alignment(
     fine_step = float(cfg.get("fine_step_sec", 0.02))
     ngram_n = int(cfg.get("bleed_ngram", NGRAM_N))
     min_bleed = int(cfg.get("min_bleed_matches", MIN_BLEED_MATCHES))
+    min_bleed_share = float(cfg.get("bleed_min_share", BLEED_MIN_SHARE))
     bleed_identity_sec = float(cfg.get("bleed_identity_sec", BLEED_IDENTITY_SEC))
     acoustic_min_peak = float(cfg.get("acoustic_min_peak", ACOUSTIC_MIN_PEAK))
     acoustic_floor_sec = float(cfg.get("acoustic_floor_sec", ACOUSTIC_FLOOR_SEC))
@@ -1216,6 +1270,7 @@ def plan_conversation_alignment(
                     prev_plan=offsets.get((track.id, clip.id)),
                     cancel_check=cancel_check,
                     bleed_ref_tokens=ref_tokens,
+                    min_bleed_share=min_bleed_share,
                 )
                 scored.track_id = track.id
                 scored.clip_id = clip.id
