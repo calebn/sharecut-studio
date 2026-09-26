@@ -139,6 +139,86 @@ describe("HelpDialog", () => {
     );
     expect(await screen.findByText("disk full")).toBeInTheDocument();
   });
+
+  it("submits one bundle once and resets publication for a new bundle", async () => {
+    const user = userEvent.setup();
+    const result = (name: string): DiagnosticsBundleResult => ({
+      path: `/tmp/${name}`,
+      filename: name,
+      support_url: "https://support.example.test",
+      size_bytes: 12,
+      files: ["report.json", "README.txt"],
+      app_version: "1.0",
+      created_at: "2026-09-26T00:00:00Z",
+    });
+    createMock
+      .mockResolvedValueOnce(result("report-a.zip"))
+      .mockResolvedValueOnce(result("report-b.zip"));
+    submitMock
+      .mockResolvedValueOnce({
+        status: "queued",
+        status_url: "https://relay.test/api/reports/a",
+      })
+      .mockResolvedValueOnce({
+        status: "queued",
+        status_url: "https://relay.test/api/reports/b",
+      });
+    vi.mocked(fetchDiagnosticsReportStatus).mockImplementation(async (url) =>
+      url.endsWith("/a")
+        ? {
+            status: "published",
+            issue_url: "https://github.com/example/issues/1",
+          }
+        : { status: "queued", issue_url: null },
+    );
+    render(<HelpDialog open onClose={() => undefined} />);
+    await user.click(
+      screen.getByRole("button", { name: "Create diagnostics bundle" }),
+    );
+    await screen.findByText(/report-a.zip/);
+    await user.type(
+      screen.getByLabelText("Describe the problem"),
+      "Episode cannot open",
+    );
+    await user.click(screen.getByRole("checkbox"));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Submit report" }),
+      ).toBeEnabled(),
+    );
+    await user.click(screen.getByRole("button", { name: "Submit report" }));
+    expect(
+      await screen.findByRole("link", { name: "Open published issue" }),
+    ).toHaveAttribute("href", "https://github.com/example/issues/1");
+    expect(
+      screen.getByRole("button", { name: "Submit report" }),
+    ).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Submit report" }));
+    expect(submitMock).toHaveBeenCalledTimes(1);
+    await user.click(
+      screen.getByRole("button", { name: "Create diagnostics bundle" }),
+    );
+    await screen.findByText(/report-b.zip/);
+    expect(
+      screen.queryByRole("link", { name: "Open published issue" }),
+    ).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Submit report" }),
+      ).toBeEnabled(),
+    );
+    await user.click(screen.getByRole("button", { name: "Submit report" }));
+    await waitFor(() => expect(submitMock).toHaveBeenCalledTimes(2));
+    expect(
+      screen.getByRole("link", { name: "Check publication status" }),
+    ).toHaveAttribute("href", "https://relay.test/api/reports/b");
+    expect(vi.mocked(fetchDiagnosticsReportStatus)).toHaveBeenCalledWith(
+      "https://relay.test/api/reports/b",
+    );
+    expect(
+      screen.queryByRole("link", { name: "Open published issue" }),
+    ).not.toBeInTheDocument();
+  });
 });
 
 describe("HelpDialog fallback", () => {

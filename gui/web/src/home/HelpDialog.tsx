@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createDiagnosticsBundle,
   type DiagnosticsBundleResult,
@@ -21,6 +21,9 @@ export function HelpDialog({ open, onClose }: Props) {
   const [description, setDescription] = useState("");
   const [consent, setConsent] = useState(false);
   const [submitted, setSubmitted] = useState<string | null>(null);
+  const submitting = useRef(false);
+  const activeReportUrl = useRef<string | null>(null);
+  const [reportStatus, setReportStatus] = useState<string | null>(null);
   const [reportAvailable, setReportAvailable] = useState(false);
   const [issueUrl, setIssueUrl] = useState<string | null>(null);
   const [supportUrl, setSupportUrl] = useState<string | null>(null);
@@ -33,6 +36,9 @@ export function HelpDialog({ open, onClose }: Props) {
       setDescription("");
       setConsent(false);
       setSubmitted(null);
+      submitting.current = false;
+      activeReportUrl.current = null;
+      setReportStatus(null);
       setIssueUrl(null);
       return;
     }
@@ -53,13 +59,15 @@ export function HelpDialog({ open, onClose }: Props) {
   }, [open]);
 
   useEffect(() => {
-    if (!open || !submitted || issueUrl) return;
+    if (!open || !submitted || issueUrl || reportStatus === "failed") return;
     let cancelled = false;
     const check = () => {
       void fetchDiagnosticsReportStatus(submitted)
         .then((result) => {
-          if (!cancelled && result.status === "published")
-            setIssueUrl(result.issue_url);
+          if (!cancelled && activeReportUrl.current === submitted) {
+            setReportStatus(result.status);
+            if (result.status === "published") setIssueUrl(result.issue_url);
+          }
         })
         .catch(() => {
           /* keep the status link available */
@@ -71,9 +79,15 @@ export function HelpDialog({ open, onClose }: Props) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [open, submitted, issueUrl]);
+  }, [open, submitted, issueUrl, reportStatus]);
 
   const onCreate = useCallback(async () => {
+    submitting.current = false;
+    activeReportUrl.current = null;
+    setSubmitted(null);
+    setReportStatus(null);
+    setIssueUrl(null);
+    setBundle(null);
     setBusy(true);
     setError(null);
     try {
@@ -96,22 +110,28 @@ export function HelpDialog({ open, onClose }: Props) {
   }, [open]);
 
   const onSubmit = useCallback(async () => {
-    if (!bundle || !consent) return;
+    if (!bundle || !consent || submitted || submitting.current) return;
+    submitting.current = true;
     setBusy(true);
     setError(null);
+    setReportStatus(null);
+    setIssueUrl(null);
     try {
       const result = await submitDiagnosticsReport({
         filename: bundle.filename,
         description,
         consent,
       });
+      activeReportUrl.current = result.status_url;
       setSubmitted(result.status_url);
+      setReportStatus("queued");
     } catch (err) {
       setError(errorMessage(err));
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
-  }, [bundle, consent, description]);
+  }, [bundle, consent, description, submitted]);
 
   const issueHref = bundle?.support_url ?? supportUrl;
   const fallbackHref =
@@ -174,7 +194,12 @@ export function HelpDialog({ open, onClose }: Props) {
             {reportAvailable ? (
               <Button
                 type="button"
-                disabled={busy || !consent || description.trim().length < 10}
+                disabled={
+                  busy ||
+                  !!submitted ||
+                  !consent ||
+                  description.trim().length < 10
+                }
                 onClick={() => void onSubmit()}
               >
                 {busy ? "Submitting…" : "Submit report"}
@@ -182,7 +207,11 @@ export function HelpDialog({ open, onClose }: Props) {
             ) : null}
             {submitted ? (
               <p>
-                Report queued for publication.{" "}
+                {reportStatus === "failed"
+                  ? "Report publication failed. Download the ZIP and contact support. "
+                  : reportStatus === "publish_uncertain"
+                    ? "Publication needs operator review; check status later. "
+                    : "Report queued for publication. "}
                 <a href={submitted} target="_blank" rel="noreferrer">
                   Check publication status
                 </a>

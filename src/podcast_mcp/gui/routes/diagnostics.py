@@ -57,22 +57,23 @@ def _job_snapshots(request: Request) -> list[dict[str, Any]]:
     return mgr.recent_snapshots(limit=10)
 
 
+def _bundle_registry_unlocked(request: Request) -> dict[str, str]:
+    """Initialize registry while the caller holds ``_BUNDLES_LOCK``."""
+    registry = getattr(request.app.state, "diagnostics_bundles", None)
+    if not isinstance(registry, dict):
+        registry = {}
+        request.app.state.diagnostics_bundles = registry
+    return registry
+
+
 def _bundle_registry(request: Request) -> dict[str, str]:
     with _BUNDLES_LOCK:
-        registry = getattr(request.app.state, "diagnostics_bundles", None)
-        if not isinstance(registry, dict):
-            registry = {}
-            request.app.state.diagnostics_bundles = registry
-        return registry
+        return _bundle_registry_unlocked(request)
 
 
 def _register_bundle(request: Request, filename: str, directory: Path) -> None:
     with _BUNDLES_LOCK:
-        registry = getattr(request.app.state, "diagnostics_bundles", None)
-        if not isinstance(registry, dict):
-            registry = {}
-            request.app.state.diagnostics_bundles = registry
-        registry[filename] = str(directory)
+        _bundle_registry_unlocked(request)[filename] = str(directory)
 
 
 def _load_project(request: Request, path: str | None):

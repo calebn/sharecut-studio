@@ -11,6 +11,7 @@ from dataclasses import dataclass
 MAX_BUNDLE_BYTES = 5 * 1024 * 1024
 MAX_EXPANDED_BYTES = 8 * 1024 * 1024
 MAX_MEMBERS = 34
+MAX_APP_VERSION_LENGTH = 80
 
 
 @dataclass(frozen=True)
@@ -38,10 +39,11 @@ def validate_diagnostics_bundle(data: bytes) -> BundlePreview:
                 name = member.filename
                 mode = (member.external_attr >> 16) & 0xFFFF
                 if (
-                    not name.isascii()
+                    not name.isprintable()
+                    or len(name) > 255
                     or "/" in name
                     or "\\" in name
-                    or name.startswith(".")
+                    or name.startswith("..")
                     or (name not in {"report.json", "README.txt"} and not name.endswith(".log"))
                     or member.is_dir()
                     or (mode and stat.S_IFMT(mode) not in (0, stat.S_IFREG))
@@ -58,6 +60,9 @@ def validate_diagnostics_bundle(data: bytes) -> BundlePreview:
             report = json.loads(report_data)
             if not isinstance(report, dict) or not isinstance(report.get("app_version"), str):
                 raise ValueError("invalid diagnostics report")
+            version = report["app_version"]
+            if not version or len(version) > MAX_APP_VERSION_LENGTH or not version.isprintable():
+                raise ValueError("invalid diagnostics app version")
             if not isinstance(report.get("created_at"), str):
                 raise ValueError("invalid diagnostics timestamp")
             for member in members:
