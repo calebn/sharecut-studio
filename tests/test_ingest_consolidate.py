@@ -89,8 +89,6 @@ def test_consolidate_manual_session_start_in_file(
             manifest,
             audio_dir,
             out_dir,
-            extract_start_sec=0.0,
-            extract_duration_sec=1.0,
             align_mode="audio",
         )
     assert result.session_start_in_file_sec["Guest"] == 3.0
@@ -440,6 +438,17 @@ def test_consolidate_extract_start_alone_trims_to_eof(tmp_path: Path, sample_wav
     assert result.session_trimmed is True
     dur = FFmpegEngine().probe(result.speaker_tracks["Ref"]).duration_sec
     assert abs(dur - 1.5) < 0.1
+
+
+def test_consolidate_extract_start_past_eof_raises(tmp_path: Path, sample_wav: Path) -> None:
+    audio_dir, manifest = _two_speaker_manifest(tmp_path, sample_wav)
+    with (
+        patch("podcast_mcp.ingest.consolidate.cross_speaker_offsets", return_value={}),
+        pytest.raises(ValueError, match="past its end"),
+    ):
+        consolidate_speakers(
+            manifest, audio_dir, tmp_path / "raw", extract_start_sec=5.0, align_mode="audio"
+        )
 
 
 def test_alignment_report_labels_manifest_reference(tmp_path: Path, sample_wav: Path) -> None:
