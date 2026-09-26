@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -45,8 +47,25 @@ def test_commit_skips_unchanged_transcript_cache_and_repairs_missing_mirror(
     store.commit(project)
     cache = project.transcripts_dir() / "host.json"
     before = cache.stat().st_mtime_ns
-    store.commit(project)
+    original_read = Path.read_bytes
+
+    def no_cache_read(path):
+        if path == cache:
+            raise AssertionError("unchanged transcript cache was read")
+        return original_read(path)
+
+    with (
+        patch(
+            "podcast_mcp.models.Transcript.model_dump_json",
+            side_effect=AssertionError("serialized"),
+        ),
+        patch.object(Path, "read_bytes", no_cache_read),
+    ):
+        store.commit(project)
     assert cache.stat().st_mtime_ns == before
+    cache.write_text("{broken", encoding="utf-8")
+    store.commit(project)
+    assert json.loads(cache.read_text())["words"][0]["text"] == "hello"
     cache.unlink()
     store.commit(project)
     assert cache.is_file()
@@ -65,6 +84,21 @@ def test_commit_skips_unchanged_transcript_cache_and_repairs_missing_mirror(
     monkeypatch.setattr(ProjectStore, "_write_cache_if_changed", staticmethod(original))
     store.commit(project)
     assert json.loads(cache.read_text())["words"][0]["text"] == "updated"
+
+
+def test_first_commit_repairs_preexisting_transcript_cache(minimal_project) -> None:
+    from podcast_mcp.models import Transcript, TranscriptWord
+
+    store = ProjectStore(minimal_project)
+    project = store.load()
+    project.transcripts = [
+        Transcript(track_id="host", words=[TranscriptWord(text="fresh", start=0, end=1)])
+    ]
+    cache = project.transcripts_dir() / "host.json"
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text("{stale", encoding="utf-8")
+    store.commit(project)
+    assert json.loads(cache.read_text())["words"][0]["text"] == "fresh"
 
 
 def test_commit_prunes_history_after_canonical_replace(minimal_project, monkeypatch) -> None:
