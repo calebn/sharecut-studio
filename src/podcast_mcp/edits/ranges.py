@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+# Tolerance (seconds) for span edge comparisons: touching spans do not overlap.
+SPAN_EPS_S = 1e-9
+
 
 def merge_timeline_ranges(
     ranges: list[tuple[float, float]],
@@ -29,12 +32,12 @@ def subtract_ranges_from_intervals(
             continue
         next_segments: list[tuple[float, float]] = []
         for s, e in segments:
-            if re <= s + 1e-9 or rs >= e - 1e-9:
+            if re <= s + SPAN_EPS_S or rs >= e - SPAN_EPS_S:
                 next_segments.append((s, e))
             else:
-                if s < rs - 1e-9:
+                if s < rs - SPAN_EPS_S:
                     next_segments.append((s, min(rs, e)))
-                if re < e - 1e-9:
+                if re < e - SPAN_EPS_S:
                     next_segments.append((max(re, s), e))
         segments = next_segments
     return segments
@@ -46,7 +49,7 @@ def overlaps_remove_range(
     removes: list[tuple[float, float]],
 ) -> bool:
     for rs, re in removes:
-        if end <= rs + 1e-9 or start >= re - 1e-9:
+        if end <= rs + SPAN_EPS_S or start >= re - SPAN_EPS_S:
             continue
         return True
     return False
@@ -60,6 +63,6 @@ def clamp_spans(
     for start, end in spans:
         s = max(float(start), float(lo))
         e = min(float(end), float(hi))
-        if e > s + 1e-9:
+        if e > s + SPAN_EPS_S:
             out.append((s, e))
     return out
