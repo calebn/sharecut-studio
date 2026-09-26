@@ -1,11 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
+import { buildCommandContext } from "../commands/context";
 import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
-import { minimalProject } from "../test/fixtures";
+import { minimalProject, sampleTrack } from "../test/fixtures";
 import { RelatedCommands } from "./RelatedCommands";
 import {
   moreCommandsFor,
@@ -45,12 +46,6 @@ describe("relatedCommandsFor", () => {
       }),
     ).toEqual([]);
   });
-
-  it("keeps overflow separate and empty until a safe action exists", () => {
-    expect(moreCommandsFor({ kind: "clip", id: "c1", trackId: "t1" })).toEqual(
-      [],
-    );
-  });
 });
 
 describe("RelatedCommands", () => {
@@ -60,6 +55,7 @@ describe("RelatedCommands", () => {
     useDawStore.getState().hydrate(
       "/tmp/p.json",
       minimalProject({
+        tracks: [sampleTrack({ id: "t1" }), sampleTrack({ id: "t2" })],
         clips: {
           tracks: {
             t1: [
@@ -96,9 +92,7 @@ describe("RelatedCommands", () => {
     expect(screen.getByRole("button", { name: "Copy" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /delete/i })).toBeNull();
     expect(screen.getByText("More")).toBeInTheDocument();
-    expect(
-      screen.getByText("No additional actions for this selection."),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cut" })).toBeInTheDocument();
   });
 
   it("runs the contextual command through the shared bus", async () => {
@@ -116,12 +110,83 @@ describe("RelatedCommands", () => {
   });
 
   it("keeps a truthful More zone for selections without a related command", () => {
-    render(<RelatedCommands selection={{ kind: "track", trackId: "t1" }} />);
+    const selection = { kind: "comment" as const, id: "note" };
+    useDawStore.getState().setSelection(selection);
+    render(<RelatedCommands selection={selection} />);
     expect(screen.queryByText("You might also want…")).toBeNull();
     expect(screen.getByText("More")).toBeInTheDocument();
     expect(
       screen.getByText("No additional actions for this selection."),
     ).toBeInTheDocument();
+  });
+
+  it("offers only available track directions and updates after selection changes", () => {
+    const first = { kind: "track" as const, trackId: "t1" };
+    useDawStore.getState().setSelection(first);
+    const { rerender } = render(<RelatedCommands selection={first} />);
+    expect(screen.queryByRole("button", { name: "Move track up" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Move track down" }),
+    ).toBeEnabled();
+
+    const last = { kind: "track" as const, trackId: "t2" };
+    useDawStore.getState().setSelection(last);
+    rerender(<RelatedCommands selection={last} />);
+    expect(screen.getByRole("button", { name: "Move track up" })).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "Move track down" }),
+    ).toBeNull();
+  });
+
+  it("hides edits from view guests, then shows them when edit is granted", () => {
+    useDawStore.setState({
+      projectPath: "share:token",
+      guestMode: "view",
+      shareCapabilities: ["view"],
+    });
+    const selection = { kind: "clip" as const, id: "c1", trackId: "t1" };
+    const { rerender } = render(<RelatedCommands selection={selection} />);
+    expect(screen.queryByRole("button", { name: "Cut" })).toBeNull();
+
+    useDawStore.setState({ shareCapabilities: ["view", "edit"] });
+    rerender(<RelatedCommands selection={selection} />);
+    expect(screen.getByRole("button", { name: "Cut" })).toBeEnabled();
+  });
+
+  it("does not offer track reordering to a view guest", () => {
+    useDawStore.setState({
+      projectPath: "share:token",
+      guestMode: "view",
+      shareCapabilities: ["view"],
+    });
+    const selection = { kind: "track" as const, trackId: "t1" };
+    useDawStore.getState().setSelection(selection);
+    render(<RelatedCommands selection={selection} />);
+    expect(screen.queryByRole("button", { name: /move track/i })).toBeNull();
+    expect(
+      screen.getByText("No additional actions for this selection."),
+    ).toBeInTheDocument();
+  });
+
+  it("rejects stale or missing selections in overflow", () => {
+    const selection = { kind: "clip" as const, id: "c1", trackId: "t1" };
+    const project = useDawStore.getState().project;
+    expect(
+      moreCommandsFor(
+        selection,
+        { kind: "clip", id: "other", trackId: "t1" },
+        project,
+        buildCommandContext(),
+      ),
+    ).toEqual([]);
+    expect(
+      moreCommandsFor(
+        { kind: "clip", id: "missing", trackId: "t1" },
+        { kind: "clip", id: "missing", trackId: "t1" },
+        project,
+        buildCommandContext(),
+      ),
+    ).toEqual([]);
   });
 
   it("is axe-clean", async () => {

@@ -27,7 +27,7 @@ The selection sheet groups actions in this order:
 
 1. **Details** — the inspector for what you selected
 2. **You might also want…** — related commands when available
-3. **More** — additional actions, or a message when none are available
+3. **More** — available clip Cut or track Move up/down actions, or a message when none are available
 
 Tap outside the sheet or Close to dismiss it. Audition modes and export controls
 are in the compact transport Menu on Timeline, Text, or More.
