@@ -198,3 +198,8 @@ Focus/tighten/NL service entry points also call the same assert so agents cannot
 **Reconciliation stale** — Run `assemble_timeline` or `render_preview` after FX/edits; pass 2 reconcile runs automatically in full pipeline.
 
 **Optional second precorrect** — Only if FX materially changes cross-track overlap text; not part of default pipeline.
+
+The home-speaker gate and track enrollment reuse one bounded PCM WAV reader per
+track. Each window keeps the same frame rounding and resampling as the standard
+decoder, without loading the whole stem. The gate indexes bleed windows while
+retaining the first window in scan order when several overlap a word.

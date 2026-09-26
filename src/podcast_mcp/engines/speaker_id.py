@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import logging
+import wave
+from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
@@ -10,7 +12,12 @@ import numpy as np
 
 log = logging.getLogger(__name__)
 
-from podcast_mcp.engines.align import load_mono_window
+from podcast_mcp.engines.align import (
+    _MAX_WAV_CHANNELS,
+    _MAX_WAV_RATE,
+    load_mono_window,
+    read_open_wav_mono_window,
+)
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
 from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.transcript_context import SpeakerIdConfig, TranscriptContext
@@ -407,18 +414,18 @@ def enroll_track(
 
     total = 0.0
     embeddings: list[np.ndarray] = []
-    for start, end in windows:
-        if total >= cfg.min_enrollment_sec:
-            break
-        dur = min(end - start, cfg.min_enrollment_sec - total)
-        samples = load_mono_window(
-            path,
-            start_sec=start,
-            duration_sec=dur,
-            sample_rate=cfg.sample_rate,
-        )
-        embeddings.append(backend.embed(samples, cfg.sample_rate))
-        total += dur
+    reader = _WavWindowReader.open(path)
+    try:
+        for start, end in windows:
+            if total >= cfg.min_enrollment_sec:
+                break
+            dur = min(end - start, cfg.min_enrollment_sec - total)
+            samples = _read_window(path, start, dur, cfg.sample_rate, reader)
+            embeddings.append(backend.embed(samples, cfg.sample_rate))
+            total += dur
+    finally:
+        if reader is not None:
+            reader.close()
 
     if not embeddings:
         return None
@@ -510,11 +517,60 @@ def _rank_scores(
     return scores, best_id, best_score - second, best_home
 
 
+class _WavWindowReader:
+    """One bounded PCM reader per serial track operation."""
+
+    def __init__(self, stack: ExitStack, wf: wave.Wave_read) -> None:
+        self._stack = stack
+        self._wf = wf
+
+    @classmethod
+    def open(cls, path: Path) -> _WavWindowReader | None:
+        stack = ExitStack()
+        try:
+            fh = stack.enter_context(path.open("rb"))
+            wf = stack.enter_context(wave.Wave_read(fh))
+            if (
+                wf.getframerate() <= 0
+                or wf.getnframes() <= 0
+                or wf.getframerate() > _MAX_WAV_RATE
+                or wf.getnchannels() > _MAX_WAV_CHANNELS
+                or wf.getsampwidth() not in (1, 2, 4)
+                or wf.getcomptype() != "NONE"
+            ):
+                stack.close()
+                return None
+            return cls(stack, wf)
+        except (OSError, wave.Error):
+            stack.close()
+            return None
+
+    def close(self) -> None:
+        self._stack.close()
+
+    def window(self, start_sec: float, duration_sec: float, out_rate: int) -> np.ndarray:
+        samples, _bytes_read = read_open_wav_mono_window(
+            self._wf, start_sec=start_sec, duration_sec=duration_sec, out_rate=out_rate
+        )
+        return np.asarray(samples, dtype=np.float32)
+
+
+def _read_window(
+    path: Path, start: float, duration: float, rate: int, reader: _WavWindowReader | None
+) -> np.ndarray:
+    if reader is not None:
+        samples = reader.window(start, duration, rate)
+        if samples.size:
+            return samples
+    return load_mono_window(path, start_sec=start, duration_sec=duration, sample_rate=rate)
+
+
 def _decode_window_samples(
     path: Path,
     start_sec: float,
     end_sec: float,
     cfg: SpeakerIdConfig,
+    snapshot: _WavWindowReader | None = None,
 ) -> np.ndarray:
     span = max(0.0, end_sec - start_sec)
     target_dur = max(cfg.min_window_sec, span)
@@ -525,12 +581,7 @@ def _decode_window_samples(
         center = (start_sec + end_sec) / 2.0
         decode_start = max(0.0, center - target_dur / 2.0)
         decode_dur = target_dur
-    return load_mono_window(
-        path,
-        start_sec=decode_start,
-        duration_sec=decode_dur,
-        sample_rate=cfg.sample_rate,
-    )
+    return _read_window(path, decode_start, decode_dur, cfg.sample_rate, snapshot)
 
 
 def score_window(
@@ -541,11 +592,13 @@ def score_window(
     cfg: SpeakerIdConfig,
     backend: SpeakerBackend,
     profiles: dict[str, SpeakerProfile] | None = None,
+    *,
+    snapshot: _WavWindowReader | None = None,
 ) -> WindowScore | None:
     path = _stem_path(project, track_id)
     if path is None:
         return None
-    samples = _decode_window_samples(path, start_sec, end_sec, cfg)
+    samples = _decode_window_samples(path, start_sec, end_sec, cfg, snapshot)
     emb = backend.embed(samples, cfg.sample_rate)
     profs = profiles if profiles is not None else load_all_profiles(project)
     if not profs and profiles is None:
@@ -815,10 +868,30 @@ def _speech_regions(project: EpisodeProject, track_id: str) -> list[tuple[float,
     return merged
 
 
-def _word_overlaps_window(
-    word_start: float, word_end: float, win_start: float, win_end: float
-) -> bool:
-    return word_end > win_start and word_start < win_end
+class _FirstBleedWindowIndex:
+    """Find the first appended overlapping bleed window without a full scan."""
+
+    def __init__(self, hits: list[tuple[float, float, WindowScore]]) -> None:
+        self.hits = hits
+        self.size = 1 << (max(len(hits), 1) - 1).bit_length()
+        self.min_start = [float("inf")] * (2 * self.size)
+        self.max_end = [float("-inf")] * (2 * self.size)
+        for i, (start, end, _score) in enumerate(hits):
+            self.min_start[self.size + i] = start
+            self.max_end[self.size + i] = end
+        for i in range(self.size - 1, 0, -1):
+            self.min_start[i] = min(self.min_start[2 * i], self.min_start[2 * i + 1])
+            self.max_end[i] = max(self.max_end[2 * i], self.max_end[2 * i + 1])
+
+    def first(self, start: float, end: float) -> WindowScore | None:
+        def visit(node: int) -> WindowScore | None:
+            if self.min_start[node] >= end or self.max_end[node] <= start:
+                return None
+            if node >= self.size:
+                return self.hits[node - self.size][2]
+            return visit(node * 2) or visit(node * 2 + 1)
+
+        return visit(1)
 
 
 def label_track_home_speaker(
@@ -858,48 +931,57 @@ def label_track_home_speaker(
                 task.advance(1, total=len(targets))
                 continue
 
-            bleed_hits: list[tuple[float, float, WindowScore]] = []
-            for region_start, region_end in _speech_regions(project, tid):
-                cursor = region_start
-                while cursor < region_end:
-                    win_end = min(cursor + gate_win, region_end)
-                    if win_end - cursor < cfg.min_window_sec * 0.5:
-                        break
-                    ws = score_window(
-                        project,
-                        tid,
-                        cursor,
-                        win_end,
-                        cfg,
-                        backend,
-                        profiles=profiles,
-                    )
-                    role, _ = _classify_role(ws, tid, cfg)
-                    if ws and role == "own" and ws.best_identity:
-                        winning_identities.add(ws.best_identity)
-                    if ws and role == "bleed":
-                        bleed_hits.append((cursor, win_end, ws))
-                    cursor += gate_hop
+            stem = _stem_path(project, tid)
+            snapshot = _WavWindowReader.open(stem) if stem is not None else None
+
+            try:
+                bleed_hits: list[tuple[float, float, WindowScore]] = []
+                for region_start, region_end in _speech_regions(project, tid):
+                    cursor = region_start
+                    while cursor < region_end:
+                        win_end = min(cursor + gate_win, region_end)
+                        if win_end - cursor < cfg.min_window_sec * 0.5:
+                            break
+                        ws = score_window(
+                            project,
+                            tid,
+                            cursor,
+                            win_end,
+                            cfg,
+                            backend,
+                            profiles=profiles,
+                            snapshot=snapshot,
+                        )
+                        role, _ = _classify_role(ws, tid, cfg)
+                        if ws and role == "own" and ws.best_identity:
+                            winning_identities.add(ws.best_identity)
+                        if ws and role == "bleed":
+                            bleed_hits.append((cursor, win_end, ws))
+                        cursor += gate_hop
+
+            finally:
+                if snapshot is not None:
+                    snapshot.close()
 
             track_would = 0
             track_done = 0
+            bleed_index = _FirstBleedWindowIndex(bleed_hits)
             for i, w in enumerate(tr.words):
-                for win_start, win_end, ws in bleed_hits:
-                    if not _word_overlaps_window(w.start, w.end, win_start, win_end):
-                        continue
-                    track_would += 1
-                    if not dry_run:
-                        tr.words[i] = w.model_copy(
-                            update={
-                                "speaker_match_track": ws.best_track_id,
-                                "speaker_match_score": round(
-                                    ws.scores.get(ws.best_identity or "", 0), 4
-                                ),
-                                "suppressed": True,
-                            }
-                        )
-                        track_done += 1
-                    break
+                ws = bleed_index.first(w.start, w.end)
+                if ws is None:
+                    continue
+                track_would += 1
+                if not dry_run:
+                    tr.words[i] = w.model_copy(
+                        update={
+                            "speaker_match_track": ws.best_track_id,
+                            "speaker_match_score": round(
+                                ws.scores.get(ws.best_identity or "", 0), 4
+                            ),
+                            "suppressed": True,
+                        }
+                    )
+                    track_done += 1
 
             would_suppress += track_would
             suppressed += track_done
