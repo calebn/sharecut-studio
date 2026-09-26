@@ -5,7 +5,8 @@ use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitStatus};
+#[cfg(test)]
+use std::process::Command;
 
 pub const INSTALL_MENU_ID: &str = "native-cli-install";
 pub const REMOVE_MENU_ID: &str = "native-cli-remove";
@@ -25,16 +26,15 @@ pub fn appimage_command(
     Some((launcher, args.collect()))
 }
 
-pub fn run_appimage_command(
-    exe: &Path,
-    launcher: &str,
-    args: &[OsString],
-) -> io::Result<ExitStatus> {
+#[cfg(target_os = "linux")]
+pub fn run_appimage_command(exe: &Path, launcher: &str, args: &[OsString]) -> io::Result<()> {
+    use std::os::unix::process::CommandExt;
+    use std::process::Command;
     let dir = exe
         .parent()
         .ok_or_else(|| io::Error::other("app binary has no parent"))?;
-    // Command inherits the terminal's cwd, stdin, stdout, stderr, and environment.
-    Command::new(dir.join(launcher)).args(args).status()
+    // exec keeps the AppImage PID, terminal streams, cwd, environment, and signals.
+    Err(Command::new(dir.join(launcher)).args(args).exec())
 }
 
 #[cfg(unix)]
@@ -85,6 +85,12 @@ fn wrapper_matches(path: &Path, expected: &[u8]) -> io::Result<bool> {
 }
 
 #[cfg(unix)]
+fn wrapper_executable(path: &Path) -> io::Result<bool> {
+    use std::os::unix::fs::PermissionsExt;
+    Ok(fs::metadata(path)?.permissions().mode() & 0o111 != 0)
+}
+
+#[cfg(unix)]
 pub fn install_appimage(bin: &Path, wrappers: &[(String, Vec<u8>); 2]) -> io::Result<()> {
     use std::os::unix::fs::OpenOptionsExt;
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -102,14 +108,21 @@ pub fn install_appimage(bin: &Path, wrappers: &[(String, Vec<u8>); 2]) -> io::Re
                     ),
                 ));
             }
-            Ok(_) => {}
+            Ok(_) => {
+                if !wrapper_executable(&path)? {
+                    return Err(io::Error::new(
+                        io::ErrorKind::PermissionDenied,
+                        format!("{} is this app's wrapper but is not executable; restore its execute permission", path.display()),
+                    ));
+                }
+            }
             Err(err) if err.kind() == io::ErrorKind::NotFound => {}
             Err(err) => return Err(err),
         }
     }
     for (name, content) in wrappers {
         let path = bin.join(name);
-        if wrapper_matches(&path, content)? {
+        if wrapper_matches(&path, content)? && wrapper_executable(&path)? {
             continue;
         }
         let temp = bin.join(format!(
@@ -242,13 +255,13 @@ pub fn install(bin: &Path, launchers: &[(String, PathBuf); 2]) -> io::Result<()>
 /// Remove only links whose literal destination is a packaged launcher next to
 /// this running app. A missing link is already removed.
 pub fn remove(bin: &Path, launchers: &[(String, PathBuf); 2]) -> io::Result<()> {
+    // Validate both entries before changing either one. This is best effort
+    // against concurrent changes in the user's writable bin directory.
     for (name, target) in launchers {
         let link = bin.join(name);
         match fs::symlink_metadata(&link) {
             Ok(metadata) if metadata.file_type().is_symlink() => {
-                if existing_link_matches(&link, target)? {
-                    fs::remove_file(&link)?;
-                } else {
+                if !existing_link_matches(&link, target)? {
                     return Err(io::Error::new(
                         io::ErrorKind::PermissionDenied,
                         format!("{} points elsewhere; it was left alone", link.display()),
@@ -266,6 +279,12 @@ pub fn remove(bin: &Path, launchers: &[(String, PathBuf); 2]) -> io::Result<()> 
             }
             Err(err) if err.kind() == io::ErrorKind::NotFound => {}
             Err(err) => return Err(err),
+        }
+    }
+    for (name, target) in launchers {
+        let link = bin.join(name);
+        if existing_link_matches(&link, target)? {
+            fs::remove_file(&link)?;
         }
     }
     Ok(())
@@ -316,6 +335,28 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn mixed_link_ownership_leaves_both_entries_untouched() {
+        let root = std::env::temp_dir().join(format!("sharecut-cli-mixed-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("bin")).unwrap();
+        let launchers = [
+            ("podcast".into(), root.join("owned")),
+            ("podcast-mcp".into(), root.join("other-owned")),
+        ];
+        let bin = root.join("bin");
+        std::os::unix::fs::symlink(&launchers[0].1, bin.join("podcast")).unwrap();
+        fs::write(bin.join("podcast-mcp"), b"foreign").unwrap();
+        assert_eq!(
+            remove(&bin, &launchers).unwrap_err().kind(),
+            io::ErrorKind::PermissionDenied
+        );
+        assert_eq!(fs::read_link(bin.join("podcast")).unwrap(), launchers[0].1);
+        assert_eq!(fs::read(bin.join("podcast-mcp")).unwrap(), b"foreign");
+        fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn path_uses_whole_entries() {
         let bin = Path::new("/home/test/.local/bin");
@@ -359,6 +400,12 @@ mod tests {
             .contains("Sharecut'\\''s Studio.AppImage' --cli \"$@\""));
         let bin = root.join("bin");
         install_appimage(&bin, &wrappers).unwrap();
+        install_appimage(&bin, &wrappers).unwrap();
+        fs::set_permissions(bin.join("podcast"), fs::Permissions::from_mode(0o644)).unwrap();
+        let err = install_appimage(&bin, &wrappers).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
+        assert!(err.to_string().contains("not executable"));
+        fs::set_permissions(bin.join("podcast"), fs::Permissions::from_mode(0o755)).unwrap();
         install_appimage(&bin, &wrappers).unwrap();
         assert_eq!(fs::read(bin.join("podcast")).unwrap(), wrappers[0].1);
         assert_eq!(fs::read_dir(&bin).unwrap().count(), 2);
