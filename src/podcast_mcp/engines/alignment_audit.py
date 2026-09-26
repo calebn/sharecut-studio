@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from podcast_mcp.engines.align import load_mono_window
+from podcast_mcp.engines.align import AudioWindowUnavailableError, load_mono_window
 from podcast_mcp.engines.ffmpeg import FFmpegEngine, PlacedSegment
 from podcast_mcp.engines.session_clock import file_time_for_session
 from podcast_mcp.engines.transcript_align import (
@@ -62,7 +62,7 @@ def vad_speech_intervals(
                 duration_sec=min(chunk_sec, start_sec + duration_sec - t),
                 sample_rate=sample_rate,
             )
-        except ValueError:
+        except AudioWindowUnavailableError:
             # Past EOF on short files: retain prior speech and stop decoding. (#146)
             break
         if window.size == 0:

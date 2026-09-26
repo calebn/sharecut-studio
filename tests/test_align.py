@@ -2,10 +2,15 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from unittest.mock import patch
+
+import pytest
 
 from podcast_mcp.engines.align import (
+    AudioWindowUnavailableError,
     cross_speaker_offsets,
     estimate_offset_sec,
+    load_mono_window,
 )
 from podcast_mcp.ingest.consolidate import alignment_report, consolidate_speakers
 from podcast_mcp.ingest.manifest import IngestManifest
@@ -169,3 +174,21 @@ def test_cross_speaker_offsets_short_file_is_zero_peak(tmp_path: Path) -> None:
     )
     assert results["Guest"].correlation_peak == 0.0
     assert results["Guest"].offset_sec == 0.0
+
+
+def test_load_mono_window_past_eof_raises_typed_error(tmp_path: Path) -> None:
+    wav = tmp_path / "short.wav"
+    _nonperiodic_wav(wav, duration_sec=2.0)
+    with pytest.raises(AudioWindowUnavailableError):
+        load_mono_window(wav, start_sec=60.0, duration_sec=5.0)
+
+
+def test_cross_speaker_offsets_propagates_other_value_errors(tmp_path: Path) -> None:
+    with (
+        patch("podcast_mcp.engines.align.estimate_offset_sec", side_effect=ValueError("boom")),
+        pytest.raises(ValueError, match="boom"),
+    ):
+        cross_speaker_offsets(
+            [("Ref", [tmp_path / "a.wav"]), ("Guest", [tmp_path / "b.wav"])],
+            analysis_start_sec=0.0,
+        )
