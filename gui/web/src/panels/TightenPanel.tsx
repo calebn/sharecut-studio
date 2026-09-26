@@ -1,16 +1,26 @@
 import { useEffect, useId, useMemo, useState } from "react";
+import {
+  loadPipelineConfig,
+  putPipelineConfig,
+  startPipelineRun,
+} from "../api";
 import { execute } from "../commands/execute";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
+import type { PipelineConfigResponse } from "../types/pipeline";
 import {
   Button,
   CommandButton,
   EmptyState,
   Field,
+  InlineError,
   SegmentedControl,
   ToggleButton,
 } from "../ui";
+import { errorMessage } from "../utils/apiError";
+import { setByPath } from "../utils/configPath";
+import { isPipelineSlotBusy } from "../utils/pipeline";
 import {
   applyAllSummary,
   eligibleApplyAllIds,
@@ -20,6 +30,13 @@ import {
   tightenHitCanGoTo,
   tightenHitCanPreview,
 } from "../utils/tightenHits";
+import {
+  currentTightenIntensity,
+  TIGHTEN_INTENSITY_PATH,
+  tightenIntensityLabel,
+  tightenIntensityOptions,
+  tightenProposeRunOptions,
+} from "../utils/tightenIntensity";
 import { formatTimeShort } from "../utils/time";
 
 const CLASS_FILTERS: { id: "all" | TightenClass; label: string }[] = [
@@ -37,14 +54,27 @@ const BADGE_LABEL: Record<string, string> = {
 };
 
 export function TightenPanel() {
-  const { project, projectPath, guestMode, shareCapabilities, selection } =
-    useDaw((s) => ({
-      project: s.project,
-      projectPath: s.projectPath,
-      guestMode: s.guestMode,
-      shareCapabilities: s.shareCapabilities,
-      selection: s.selection,
-    }));
+  const {
+    project,
+    projectPath,
+    guestMode,
+    shareCapabilities,
+    selection,
+    pipelineJob,
+    activityJob,
+    setPipelineJob,
+    announceStatus,
+  } = useDaw((s) => ({
+    project: s.project,
+    projectPath: s.projectPath,
+    guestMode: s.guestMode,
+    shareCapabilities: s.shareCapabilities,
+    selection: s.selection,
+    pipelineJob: s.pipelineJob,
+    activityJob: s.activityJob,
+    setPipelineJob: s.setPipelineJob,
+    announceStatus: s.announceStatus,
+  }));
   const headingId = useId();
   const searchId = useId();
   const trackId = useId();
@@ -52,13 +82,83 @@ export function TightenPanel() {
   const avoidHarshId = useId();
   const statusId = useId();
   const applyAllHintId = useId();
+  const intensityId = useId();
+  const proposeErrorId = useId();
   const [classFilter, setClassFilter] = useState<"all" | TightenClass>("all");
   const [trackFilter, setTrackFilter] = useState("");
   const [harshOnly, setHarshOnly] = useState(false);
   const [query, setQuery] = useState("");
   const [avoidHarsh, setAvoidHarsh] = useState(true);
+  const [pipelineCfg, setPipelineCfg] = useState<PipelineConfigResponse | null>(
+    null,
+  );
+  const [proposing, setProposing] = useState(false);
+  const [proposeError, setProposeError] = useState<string | null>(null);
 
   const canApply = canApplyPass12(projectPath, guestMode, shareCapabilities);
+  useEffect(() => {
+    if (!canApply) {
+      return;
+    }
+    let cancelled = false;
+    void loadPipelineConfig(projectPath)
+      .then((cfg) => {
+        if (!cancelled) setPipelineCfg(cfg);
+      })
+      .catch((e) => {
+        if (!cancelled) setProposeError(errorMessage(e));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canApply, projectPath]);
+  const intensityOptions = tightenIntensityOptions(pipelineCfg);
+  const intensity = currentTightenIntensity(pipelineCfg);
+  const pipelineBusy =
+    isPipelineSlotBusy(activityJob) || isPipelineSlotBusy(pipelineJob);
+  const findDisabled =
+    !canApply || !pipelineCfg || !intensity || proposing || pipelineBusy;
+
+  async function onIntensityChange(value: string) {
+    if (!pipelineCfg) return;
+    const snapshot = pipelineCfg;
+    const nextConfig = setByPath(
+      pipelineCfg.config,
+      TIGHTEN_INTENSITY_PATH,
+      value,
+    );
+    setPipelineCfg({ ...pipelineCfg, config: nextConfig });
+    setProposeError(null);
+    try {
+      setPipelineCfg(
+        await putPipelineConfig(projectPath, { config: nextConfig }),
+      );
+    } catch (e) {
+      setPipelineCfg(snapshot);
+      setProposeError(errorMessage(e));
+    }
+  }
+
+  async function onFindHits() {
+    if (!pipelineCfg || !intensity) return;
+    setProposing(true);
+    setProposeError(null);
+    try {
+      const job = await startPipelineRun(
+        projectPath,
+        tightenProposeRunOptions(pipelineCfg, intensity),
+      );
+      setPipelineJob(job);
+      announceStatus(
+        `Finding tighten hits (${tightenIntensityLabel(intensity)})…`,
+      );
+    } catch (e) {
+      setProposeError(errorMessage(e));
+    } finally {
+      setProposing(false);
+    }
+  }
+
   const hits = useMemo(
     () => listTightenHits(project?.pending_edits, project?.transcript ?? null),
     [project?.pending_edits, project?.transcript],
@@ -156,6 +256,33 @@ export function TightenPanel() {
           Harsh cuts only
         </label>
       </header>
+
+      <div className="tighten-toolbar">
+        <Field label="Intensity" htmlFor={intensityId}>
+          <select
+            id={intensityId}
+            value={intensity ?? ""}
+            disabled={!pipelineCfg || !canApply || proposing}
+            onChange={(e) => void onIntensityChange(e.target.value)}
+          >
+            {intensityOptions.map((opt) => (
+              <option key={opt} value={opt}>
+                {tightenIntensityLabel(opt)}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Button
+          onClick={() => void onFindHits()}
+          disabled={findDisabled}
+          aria-describedby={proposeError ? proposeErrorId : undefined}
+        >
+          {proposing ? "Starting…" : "Find hits"}
+        </Button>
+        <div id={proposeErrorId}>
+          <InlineError message={proposeError} />
+        </div>
+      </div>
 
       <div className="tighten-bulk">
         <label className="tighten-check" htmlFor={avoidHarshId}>
