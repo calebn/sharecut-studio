@@ -10,7 +10,7 @@ from podcast_mcp.history import HistoryManager
 from podcast_mcp.history.diff import diff_snapshots
 from podcast_mcp.history.summary import format_history_group_title, summarize_diff
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.project_merge import ConflictAdvice
+from podcast_mcp.project_merge import ConflictAdvice, ProjectMergeConflict
 from podcast_mcp.render import render_preview_result, rerender_preview
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.project_state import project_commit_lock
@@ -73,6 +73,15 @@ def _group_history_entries(entries: list) -> list[dict]:
 
 class HistoryRerenderError(RuntimeError):
     """A history move was saved, but re-rendering its preview failed."""
+
+
+# A history move with ``rerender=True`` raises these after the move is saved; their
+# message says to re-render the preview, not to repeat the move. Adapters map them to
+# a user-facing error (CLI exit 1, document-plane 409).
+HISTORY_RERENDER_ERRORS: tuple[type[RuntimeError], ...] = (
+    ProjectMergeConflict,
+    HistoryRerenderError,
+)
 
 
 class HistoryService:

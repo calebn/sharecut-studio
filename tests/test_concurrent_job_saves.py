@@ -638,3 +638,9 @@ def test_history_move_saves_its_stale_marks_before_another_commit(minimal_projec
     assert saved.track_by_id("guest").gain_db == 0.0
     assert saved.track_by_id("host").fader_db == -6.0
     _index_matches_file(minimal_project)
+
+
+def test_history_rerender_errors_are_the_saved_move_errors():
+    from podcast_mcp.services import HISTORY_RERENDER_ERRORS
+
+    assert set(HISTORY_RERENDER_ERRORS) == {ProjectMergeConflict, HistoryRerenderError}
