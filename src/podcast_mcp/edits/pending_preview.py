@@ -65,26 +65,8 @@ def preview_window_for_edit(
 ) -> PendingPreviewWindow:
     tl_start, tl_end, mappable = _timeline_span(project, edit)
     type_val = edit.type.value if hasattr(edit.type, "value") else str(edit.type)
-    can_skip = (
-        type_val == EditDecisionType.REMOVE.value
-        and (edit.scope or "session") == "session"
-        and mappable
-        and tl_end - tl_start > 0.02
-    )
-    skip_reason: str | None = None
-    if not can_skip:
-        if type_val == EditDecisionType.SPLIT.value:
-            skip_reason = SKIP_REASON_SPLIT
-        elif type_val == EditDecisionType.MUTE.value:
-            skip_reason = SKIP_REASON_MUTE
-        elif (edit.scope or "session") == "track":
-            skip_reason = SKIP_REASON_TRACK
-        elif not mappable:
-            skip_reason = SKIP_REASON_UNMAPPED
-        elif tl_end - tl_start <= 0.02:
-            skip_reason = SKIP_REASON_TOO_SHORT
-        else:
-            skip_reason = SKIP_REASON_SESSION_ONLY
+    skip_reason = _skip_reason(type_val, edit.scope or "session", mappable, tl_end - tl_start)
+    can_skip = skip_reason is None
     play_start = max(0.0, tl_start - pad_sec)
     play_end = max(play_start + 0.05, tl_end + pad_sec)
     return PendingPreviewWindow(
@@ -96,3 +78,20 @@ def preview_window_for_edit(
         can_skip=can_skip,
         skip_reason=skip_reason,
     )
+
+
+def _skip_reason(type_val: str, scope: str, mappable: bool, duration: float) -> str | None:
+    """Keep the public preview's skip decision and explanation in one place."""
+    if type_val == EditDecisionType.SPLIT.value:
+        return SKIP_REASON_SPLIT
+    if type_val == EditDecisionType.MUTE.value:
+        return SKIP_REASON_MUTE
+    if scope == "track":
+        return SKIP_REASON_TRACK
+    if not mappable:
+        return SKIP_REASON_UNMAPPED
+    if duration <= 0.02:
+        return SKIP_REASON_TOO_SHORT
+    if type_val != EditDecisionType.REMOVE.value or scope != "session":
+        return SKIP_REASON_SESSION_ONLY
+    return None

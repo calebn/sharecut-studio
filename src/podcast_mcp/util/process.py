@@ -34,6 +34,12 @@ def run(
     stderr: Any = None,
     start_new_session: bool = False,
 ) -> subprocess.CompletedProcess[Any]:
+    """Run argv with subprocess-compatible options.
+
+    ``check`` controls nonzero-exit exceptions, ``capture_output`` pipes both
+    streams, and ``text`` chooses decoded text rather than bytes. These booleans
+    deliberately match :func:`subprocess.run` at existing call sites.
+    """
     if not isinstance(argv, (list, tuple)):
         raise TypeError("argv must be a list or tuple (no shell strings)")
     if not argv:
