@@ -13,7 +13,7 @@ guarantee - disclaimer on every report.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Literal
 
@@ -25,7 +25,8 @@ from podcast_mcp.edits.audio_cache import (
     TrackAudioCache,
     build_track_audio_caches,
 )
-from podcast_mcp.edits.join_cost_spectral import score_spectral_join
+from podcast_mcp.edits.join_cost_spectral import SpectralJoinDetector
+from podcast_mcp.edits.join_detectors import DetectorHit, JoinDetector
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.dsp import autocorr_peak, clamp01, linear_rms, rms_db
@@ -104,22 +105,6 @@ class JoinContinuityConfig:
             weight_nisqa=float(cfg.get("weight_nisqa", 1.4)),
             weight_wavlm=float(cfg.get("weight_wavlm", 1.4)),
         )
-
-
-@dataclass
-class DetectorHit:
-    name: str
-    score: float
-    weight: float
-    detail: dict[str, Any] = field(default_factory=dict)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "name": self.name,
-            "score": round(self.score, 4),
-            "weight": round(self.weight, 4),
-            "detail": self.detail,
-        }
 
 
 @dataclass
@@ -289,24 +274,18 @@ def score_splice_samples(
             DetectorHit("spectral_flux", 0.5, config.weight_spectral_flux, {"error": "short"})
         )
 
-    spec = score_spectral_join(left, right, sample_rate=sample_rate)
-    hits.append(
-        DetectorHit("mfcc_join_cost", spec.mfcc, config.weight_mfcc, {"score": round(spec.mfcc, 4)})
+    spectral: JoinDetector = SpectralJoinDetector(
+        left,
+        right,
+        sample_rate,
+        {
+            "mfcc_join_cost": config.weight_mfcc,
+            "lsf_mahalanobis": config.weight_lsf,
+            "mca_join_cost": config.weight_mca,
+            "weighted_spectral_join": config.weight_weighted_spectral,
+        },
     )
-    hits.append(
-        DetectorHit("lsf_mahalanobis", spec.lsf, config.weight_lsf, {"score": round(spec.lsf, 4)})
-    )
-    hits.append(
-        DetectorHit("mca_join_cost", spec.mca, config.weight_mca, {"score": round(spec.mca, 4)})
-    )
-    hits.append(
-        DetectorHit(
-            "weighted_spectral_join",
-            spec.weighted,
-            config.weight_weighted_spectral,
-            {"score": round(spec.weighted, 4)},
-        )
-    )
+    hits.extend(spectral.detect())
 
     def floor_db(x: np.ndarray) -> float:
         hop = max(1, int(0.01 * sample_rate))
@@ -515,6 +494,7 @@ def _maybe_neural(
         return hits, neural_out
     try:
         from podcast_mcp.edits.join_neural import (
+            NeuralJoinDetector,
             nisqa_discontinuity_delta,
             wavlm_continuity_z,
         )
@@ -526,26 +506,12 @@ def _maybe_neural(
     neural_out["available"] = nisqa is not None or wavlm is not None
     neural_out["nisqa"] = nisqa
     neural_out["wavlm"] = wavlm
-    if nisqa is not None:
-        delta = float(nisqa.get("discontinuity_delta", 0.0))
-        hits.append(
-            DetectorHit(
-                "nisqa_discontinuity",
-                _clamp01(delta / 1.0),
-                cfg.weight_nisqa,
-                nisqa,
-            )
-        )
-    if wavlm is not None:
-        z = float(wavlm.get("z", 0.0))
-        hits.append(
-            DetectorHit(
-                "wavlm_continuity",
-                _clamp01((z - 2.0) / 4.0),
-                cfg.weight_wavlm,
-                wavlm,
-            )
-        )
+    neural: JoinDetector = NeuralJoinDetector(
+        nisqa,
+        wavlm,
+        {"nisqa_discontinuity": cfg.weight_nisqa, "wavlm_continuity": cfg.weight_wavlm},
+    )
+    hits.extend(neural.detect())
     return hits, neural_out
 
 

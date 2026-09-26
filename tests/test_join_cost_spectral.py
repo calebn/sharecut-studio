@@ -5,11 +5,13 @@ from __future__ import annotations
 import numpy as np
 
 from podcast_mcp.edits.join_cost_spectral import (
+    SpectralJoinDetector,
     lpc_burg,
     lpc_to_lsf,
     mfcc_vector,
     score_spectral_join,
 )
+from podcast_mcp.edits.join_detectors import DetectorHit, JoinDetector
 
 
 def test_lpc_burg_stable_on_tone() -> None:
@@ -71,3 +73,23 @@ def test_lsf_fires_on_formant_ish_mismatch() -> None:
     right = np.random.default_rng(3).normal(0, 0.35, n)
     s = score_spectral_join(left, right, sample_rate=sr)
     assert s.lsf > 0.15
+
+
+def test_spectral_adapter_preserves_scores_and_weights() -> None:
+    samples = np.random.default_rng(4).normal(0, 0.1, 800)
+    scores = score_spectral_join(samples, samples, sample_rate=16000)
+    weights = {
+        "mfcc_join_cost": 0.6,
+        "lsf_mahalanobis": 0.7,
+        "mca_join_cost": 0.8,
+        "weighted_spectral_join": 0.9,
+    }
+    detector: JoinDetector = SpectralJoinDetector(samples, samples, 16000, weights)
+    hits = detector.detect()
+    assert all(isinstance(hit, DetectorHit) for hit in hits)
+    assert [(hit.name, hit.score, hit.weight) for hit in hits] == [
+        ("mfcc_join_cost", scores.mfcc, 0.6),
+        ("lsf_mahalanobis", scores.lsf, 0.7),
+        ("mca_join_cost", scores.mca, 0.8),
+        ("weighted_spectral_join", scores.weighted, 0.9),
+    ]

@@ -120,6 +120,10 @@ costs (Vepa & King), noise floor, F0, onset, bicoherence proxy, late-energy /
 RIR proxy. Optional neural layer (`joinqc` extra: NISQA discontinuity + WavLM
 continuity) may only elevate risk. Explicit A/B labels → numpy ranker; tighten
 gate (`tighten.join_continuity_gate`) skips proposed cuts with verdict `fail`.
+The spectral and optional neural scorers keep their native score formats;
+adapters implement `JoinDetector.detect()` and return weighted `DetectorHit`
+values to the fusion step. This keeps detector policy in one place while the
+published report format stays stable.
 
 Every report includes a disclaimer — not PEAQ/POLQA and not a human-ear guarantee.
 Fusion rule of thumb: ≥2 detectors with score ≥ 0.65 → at least `review`.
