@@ -844,7 +844,11 @@ def test_land_on_stale_workspace_keeps_earlier_land(
     first = RecordLandingService(ws).land(align=lambda _p: None)
     assert [row["id"] for row in first["comments"]] == ["live-host-marker"]
     _ack(uploader, session_id=room["session_id"], take=0, pid=guest, segment=0, join_offset_ms=0)
-    second = RecordLandingService(stale).land(align=lambda _p: None)
+    before = stale.project
+    lander = RecordLandingService(stale)
+    second = lander.land(align=lambda _p: None)
+    assert stale.project is not before  # the land re-read the saved project
+    assert lander._room.project is stale.project
     assert [clip["participant_id"] for clip in second["clips"]] == [guest]
     saved = load_project(minimal_project)
     assert [comment.id for comment in saved.comments] == ["live-host-marker"]

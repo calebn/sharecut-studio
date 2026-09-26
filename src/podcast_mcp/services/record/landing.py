@@ -36,6 +36,7 @@ from podcast_mcp.services.record.landing_rollback import (
 )
 from podcast_mcp.services.record.live_comments import (
     LIVE_COMMENT_ID_PREFIX,
+    RecordLiveCommentStore,
     live_comment_store_for,
 )
 from podcast_mcp.services.record.service import RecordSessionService
@@ -293,9 +294,21 @@ class RecordLandingService:
         if not session_id:
             raise FileNotFoundError("no active record room")
         self.session_id = parse_session_id(session_id)
-        self._room = RecordSessionService(workspace.project, session_id=self.session_id)
-        self._upload = RecordUploadService(workspace.project)
-        self._comments = live_comment_store_for(workspace.project)
+
+    # Built from the current ``workspace.project`` on every use: ``reload()`` and
+    # ``mutate(reload_first=True)`` replace that object during a land (#503). The
+    # underlying sqlite stores are cached per workspace path, so this is cheap.
+    @property
+    def _room(self) -> RecordSessionService:
+        return RecordSessionService(self.workspace.project, session_id=self.session_id)
+
+    @property
+    def _upload(self) -> RecordUploadService:
+        return RecordUploadService(self.workspace.project)
+
+    @property
+    def _comments(self) -> RecordLiveCommentStore:
+        return live_comment_store_for(self.workspace.project)
 
     def _snapshot(self) -> RecordSnapshot:
         return RecordSnapshot.model_validate(self._room.snapshot())
