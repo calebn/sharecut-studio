@@ -410,6 +410,12 @@ describe("RecordApp", () => {
     );
     const { container } = render(<RecordApp token="guest-tok" />);
     await screen.findByText(CONSENT_COPY);
+    await userEvent.click(
+      screen.getByRole("button", { name: MIC_ALLOW_LABEL }),
+    );
+    const deviceSelect = await screen.findByRole("combobox", { name: "Input" });
+    deviceSelect.focus();
+    expect(document.activeElement).toBe(deviceSelect);
 
     sockets[0]?.onmessage?.({
       data: JSON.stringify({
@@ -426,7 +432,16 @@ describe("RecordApp", () => {
     expect(container.querySelector(".focus-pull-exit")?.textContent).toContain(
       CONSENT_COPY,
     );
+    expect(container.querySelector(".focus-pull-exit select")).toBe(
+      deviceSelect,
+    );
     expect(container.querySelector(".focus-pull-pending")).not.toBeNull();
+    await waitFor(() => {
+      const room = container.querySelector(
+        ".focus-pull-enter, .focus-pull-current",
+      );
+      expect(room?.contains(document.activeElement)).toBe(true);
+    });
   });
 
   it("shows producer copy without a microphone prompt", async () => {

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { act, render } from "@testing-library/react";
+import { useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { SRC_ROOT } from "../test/sourceFiles";
@@ -13,6 +14,7 @@ import {
 describe("FocusPull", () => {
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   it("times the swap with the motion tokens the CSS animates on", () => {
@@ -115,6 +117,257 @@ describe("FocusPull", () => {
     });
     expect(container.textContent).toBe("Finished content");
     expect(container.textContent).not.toContain("Room content");
+  });
+
+  it("keeps both views mounted once as their slots change phase", async () => {
+    vi.useFakeTimers();
+    const mounts = vi.fn();
+    const unmounts = vi.fn();
+    function View({ name }: { name: string }) {
+      useEffect(() => {
+        mounts(name);
+        return () => unmounts(name);
+      }, [name]);
+      return <button type="button">{name}</button>;
+    }
+    const { container, rerender } = render(
+      <FocusPull viewKey="lobby">
+        <View name="lobby" />
+      </FocusPull>,
+    );
+    const lobby = container.querySelector("button");
+    rerender(
+      <FocusPull viewKey="room">
+        <View name="room" />
+      </FocusPull>,
+    );
+    expect(container.querySelector(".focus-pull-exit button")).toBe(lobby);
+    const room = container.querySelector<HTMLButtonElement>(
+      ".focus-pull-pending button",
+    );
+    expect(mounts.mock.calls).toEqual([["lobby"], ["room"]]);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(FOCUS_PULL_EXIT_MS);
+    });
+    expect(container.querySelector(".focus-pull-enter button")).toBe(room);
+    room?.focus();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(FOCUS_PULL_ENTER_MS);
+    });
+    expect(container.querySelector(".focus-pull-current button")).toBe(room);
+    expect(document.activeElement).toBe(room);
+    expect(mounts.mock.calls).toEqual([["lobby"], ["room"]]);
+    expect(unmounts.mock.calls).toEqual([["lobby"]]);
+  });
+
+  it("keeps the first exit deadline when the destination changes", async () => {
+    vi.useFakeTimers();
+    const { container, rerender } = render(
+      <FocusPull viewKey="a">
+        <p>A</p>
+      </FocusPull>,
+    );
+    rerender(
+      <FocusPull viewKey="b">
+        <p>B</p>
+      </FocusPull>,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(FOCUS_PULL_EXIT_MS - 1);
+    });
+    const outgoing = container.querySelector(".focus-pull-exit");
+    rerender(
+      <FocusPull viewKey="c">
+        <p>C</p>
+      </FocusPull>,
+    );
+    expect(container.querySelector(".focus-pull-exit")).toBe(outgoing);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(container.querySelector(".focus-pull-enter")?.textContent).toBe("C");
+    expect(container.textContent).not.toContain("B");
+  });
+
+  it("updates incoming content without resetting the exit clock", async () => {
+    vi.useFakeTimers();
+    const { container, rerender } = render(
+      <FocusPull viewKey="a">
+        <p>A</p>
+      </FocusPull>,
+    );
+    rerender(
+      <FocusPull viewKey="b">
+        <p>B one</p>
+      </FocusPull>,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(FOCUS_PULL_EXIT_MS - 1);
+    });
+    rerender(
+      <FocusPull viewKey="b">
+        <p>B two</p>
+      </FocusPull>,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(container.querySelector(".focus-pull-enter")?.textContent).toBe(
+      "B two",
+    );
+  });
+
+  it("cancels the exit when the original view returns", () => {
+    vi.useFakeTimers();
+    const { container, rerender } = render(
+      <FocusPull viewKey="a">
+        <p>A</p>
+      </FocusPull>,
+    );
+    const original = container.querySelector(".focus-pull-current");
+    rerender(
+      <FocusPull viewKey="b">
+        <p>B</p>
+      </FocusPull>,
+    );
+    rerender(
+      <FocusPull viewKey="a">
+        <p>A updated</p>
+      </FocusPull>,
+    );
+    expect(container.querySelector(".focus-pull-current")).toBe(original);
+    expect(container.textContent).toBe("A updated");
+    expect(container.querySelector(".focus-pull-pending")).toBeNull();
+  });
+
+  it("promotes the entering view on interruption and clears timers on unmount", async () => {
+    vi.useFakeTimers();
+    const { container, rerender, unmount } = render(
+      <FocusPull viewKey="a">
+        <p>A</p>
+      </FocusPull>,
+    );
+    rerender(
+      <FocusPull viewKey="b">
+        <p>B</p>
+      </FocusPull>,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(FOCUS_PULL_EXIT_MS);
+    });
+    const b = container.querySelector(".focus-pull-enter");
+    rerender(
+      <FocusPull viewKey="c">
+        <p>C</p>
+      </FocusPull>,
+    );
+    expect(container.querySelector(".focus-pull-exit")).toBe(b);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(container.querySelector(".focus-pull-enter")?.textContent).toBe("C");
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("moves focus to the entering view when the outgoing view held it", async () => {
+    vi.useFakeTimers();
+    const { container, rerender } = render(
+      <FocusPull viewKey="a">
+        <button type="button">A</button>
+      </FocusPull>,
+    );
+    container.querySelector("button")?.focus();
+    rerender(
+      <FocusPull viewKey="b">
+        <button type="button">B</button>
+      </FocusPull>,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(FOCUS_PULL_EXIT_MS);
+    });
+    const b = container.querySelector(".focus-pull-enter button");
+    expect(document.activeElement).toBe(b);
+    rerender(
+      <FocusPull viewKey="c">
+        <button type="button">C</button>
+      </FocusPull>,
+    );
+    expect(container.querySelector(".focus-pull-exit button")).toBe(b);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(document.activeElement).toBe(
+      container.querySelector(".focus-pull-enter button"),
+    );
+  });
+
+  it("cuts immediately under reduced motion without leaving timers", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("matchMedia", () => ({ matches: true }));
+    const { container, rerender } = render(
+      <FocusPull viewKey="a">
+        <button type="button">A</button>
+      </FocusPull>,
+    );
+    container.querySelector("button")?.focus();
+    const setTimeout = vi.spyOn(window, "setTimeout");
+    rerender(
+      <FocusPull viewKey="b">
+        <button type="button">B</button>
+      </FocusPull>,
+    );
+    expect(container.querySelector(".focus-pull-current")?.textContent).toBe(
+      "B",
+    );
+    expect(document.activeElement?.textContent).toBe("B");
+    expect(
+      setTimeout.mock.calls.some(
+        ([, delay]) =>
+          delay === FOCUS_PULL_EXIT_MS || delay === FOCUS_PULL_ENTER_MS,
+      ),
+    ).toBe(false);
+  });
+
+  it("finishes an active transition when reduced motion turns on", () => {
+    vi.useFakeTimers();
+    let onChange: ((event: { matches: boolean }) => void) | undefined;
+    const removeEventListener = vi.fn();
+    vi.stubGlobal("matchMedia", () => ({
+      matches: false,
+      addEventListener: (_: string, listener: typeof onChange) => {
+        onChange = listener;
+      },
+      removeEventListener,
+    }));
+    const { container, rerender, unmount } = render(
+      <FocusPull viewKey="a">
+        <button type="button">A</button>
+      </FocusPull>,
+    );
+    container.querySelector("button")?.focus();
+    rerender(
+      <FocusPull viewKey="b">
+        <button type="button">B</button>
+      </FocusPull>,
+    );
+    act(() => onChange?.({ matches: true }));
+    expect(container.querySelector(".focus-pull-current")?.textContent).toBe(
+      "B",
+    );
+    expect(document.activeElement?.textContent).toBe("B");
+    unmount();
+    expect(removeEventListener).toHaveBeenCalledWith("change", onChange);
+  });
+
+  it("shows the destination immediately under reduced motion", () => {
+    const ui = readFileSync(join(SRC_ROOT, "styles/partials/ui.css"), "utf8");
+    expect(ui).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?\.focus-pull-exit\s*\{\s*display:\s*none/s,
+    );
+    expect(ui).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.focus-pull-pending,[\s\S]*?\.focus-pull-enter\s*\{[^}]*visibility:\s*visible/s,
+    );
   });
 
   it("is axe-clean", async () => {
