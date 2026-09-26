@@ -5,7 +5,13 @@ from collections.abc import Collection, Iterable
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.models import EpisodeProject, load_project, project_file_path, save_project
+from podcast_mcp.models import (
+    EpisodeProject,
+    TranscriptsSection,
+    load_project,
+    project_file_path,
+    save_project,
+)
 from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
 from podcast_mcp.util.project_state import FileRevision, project_commit_lock, project_file_revision
@@ -130,6 +136,8 @@ class ProjectStore:
         self.project_path = Path(project_path).expanduser().resolve()
         if self.project_path.is_dir():
             self.project_path = project_file_path(self.project_path)
+        self._mirrored_transcripts: TranscriptsSection | None = None
+        self._mirrored_cache_signatures: dict[Path, tuple[int, ...]] | None = None
 
     def load(self) -> EpisodeProject:
         project = load_project(self.project_path)
@@ -227,8 +235,46 @@ class ProjectStore:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
 
+    @staticmethod
+    def _transcript_cache_paths(project: EpisodeProject) -> list[Path]:
+        directory = project.transcripts_dir()
+        paths = []
+        combined = project.transcript_data.combined
+        if combined and combined.utterances:
+            paths.append(directory / "combined.json")
+        paths.extend(
+            directory / f"{transcript.track_id}.json"
+            for transcript in project.transcript_data.per_track
+            if transcript.words
+        )
+        return paths
+
+    @staticmethod
+    def _cache_signatures(paths: list[Path]) -> dict[Path, tuple[int, ...]] | None:
+        signatures: dict[Path, tuple[int, ...]] = {}
+        for path in paths:
+            try:
+                stat = path.stat()
+            except OSError:
+                return None
+            signatures[path] = (
+                stat.st_dev,
+                stat.st_ino,
+                stat.st_size,
+                stat.st_mtime_ns,
+                stat.st_ctime_ns,
+            )
+        return signatures
+
     def _mirror_transcript_cache(self, project: EpisodeProject) -> None:
         """Write-through optional caches; canonical data lives in episode.project.json."""
+        paths = self._transcript_cache_paths(project)
+        if (
+            self._mirrored_transcripts is not None
+            and project.transcript_data == self._mirrored_transcripts
+            and self._cache_signatures(paths) == self._mirrored_cache_signatures
+        ):
+            return
         combined = project.transcript_data.combined
         if combined and combined.utterances:
             out = project.transcripts_dir() / "combined.json"
@@ -242,3 +288,8 @@ class ProjectStore:
             self._write_cache_if_changed(
                 cache, transcript.model_dump_json(indent=2, by_alias=True).encode("utf-8")
             )
+        signatures = self._cache_signatures(paths)
+        self._mirrored_transcripts = (
+            project.transcript_data.model_copy(deep=True) if signatures is not None else None
+        )
+        self._mirrored_cache_signatures = signatures
