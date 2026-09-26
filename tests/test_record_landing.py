@@ -3876,6 +3876,36 @@ def test_purge_session_land_rollbacks_swallows_store_errors(
     monkeypatch.setattr(RecordUploadService, "clear_session_land_rollbacks", boom)
     purge_session_land_rollbacks(ws.project, "s1")
     assert "could not purge deferred land rollbacks" in caplog.text
+    assert "undo the record_land step through history" in caplog.text
+
+
+def test_purge_waits_for_in_flight_land_lock(minimal_project, sample_wav):
+    """A land still holding the room's land lock defers its rows before the purge runs."""
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    sid = "s1"
+    uploader = RecordUploadService(ws.project)
+    other = FileLock(
+        str(record_land_lock_path(ws.project.workspace_path(), sid)), thread_local=False
+    )
+    other.acquire()
+    worker = threading.Thread(target=lambda: purge_session_land_rollbacks(ws.project, sid))
+    try:
+        worker.start()
+        worker.join(timeout=0.5)
+        assert worker.is_alive()
+        # The in-flight land defers after the revoke, while the purge waits.
+        uploader.defer_land_rollback(
+            LandRollbackKey(sid, 0, "p_guest", 0, "a" * 64),
+            raw_rel="raw/x.wav",
+            raw_revision=[],
+            prior_json="{}",
+        )
+    finally:
+        other.release()
+    worker.join(timeout=10)
+    assert not worker.is_alive()
+    assert uploader.land_rollbacks(session_id=sid) == []
 
 
 def test_retried_rollback_after_media_repair_restores_prior_media(
