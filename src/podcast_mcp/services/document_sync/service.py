@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import threading
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,7 @@ from typing import Any
 from podcast_mcp.edits.comments import comments_for_view
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.services.document_sync.commands import DocumentCommand
+from podcast_mcp.services.document_sync.errors import DocumentSequenceConflictError
 from podcast_mcp.services.document_sync.handlers import apply_command
 from podcast_mcp.services.document_sync.projection_types import (
     ViewProjection,
@@ -33,13 +35,12 @@ def document_hub_key(project: EpisodeProject) -> str:
 
 
 def document_submit_lock(project: EpisodeProject) -> threading.RLock:
-    """Return the per-workspace lock for document mutations and related saves.
+    """Return the in-process read lock for document snapshots.
 
-    ``document_snapshot`` acquires this lock so hello WS / comments GET cannot
-    tear ``server_seq`` vs history against a concurrent ``submit``. Services
-    that reload and save the same project outside document commands must use it
-    too, so they cannot overwrite a document mutation with a stale workspace.
-    The lock is reentrant for callers such as ``submit`` that take snapshots.
+    ``document_snapshot``, ``dump_projection_locked`` and ``publish_document_changed``
+    acquire it so hello WS / comments GET cannot tear ``server_seq`` vs history
+    against a concurrent ``submit``. Writers use ``ProjectWorkspace.transaction()``,
+    which also excludes other processes. The lock is reentrant.
     """
     return project_state_lock(project)
 
@@ -80,6 +81,43 @@ def _history_wire(hist: dict[str, Any]) -> dict[str, Any]:
         "can_redo": hist["can_redo"],
         "groups": hist["groups"],
     }
+
+
+def _edit_key(command_type: str, payload: dict[str, Any]) -> str:
+    """What a command does: type + payload without the ``result`` the journal stores."""
+    body = {key: value for key, value in payload.items() if key != "result"}
+    return json.dumps(
+        {"type": command_type, "payload": body}, sort_keys=True, separators=(",", ":")
+    )
+
+
+def _same_edit(row: dict[str, Any], command: DocumentCommand) -> bool:
+    return _edit_key(str(row["type"]), dict(row["payload"])) == _edit_key(
+        command.type, command.payload
+    )
+
+
+def existing_document_command(store: SyncStore, command: DocumentCommand) -> dict[str, Any] | None:
+    """The journal row a retry of ``command`` names, or None for a new edit (#377).
+
+    Explicit ``client_seq``: the row at ``(client_id, client_seq)`` is a retry when it has
+    the same ``command_id`` or (older clients mint a new id per attempt) the same type and
+    payload; any other edit there raises ``DocumentSequenceConflictError``. A ``command_id``
+    already journaled under another sequence must name the same edit too.
+    """
+    if command.client_seq is not None:
+        row = store.find_by_client_seq(command.client_id, command.client_seq)
+        if row is not None:
+            if row["command_id"] != command.command_id and not _same_edit(row, command):
+                raise DocumentSequenceConflictError(
+                    f"client_seq {command.client_seq} of {command.client_id!r} already names a "
+                    "different edit; send a new edit with a new client_seq"
+                )
+            return row
+    row = store.find_by_command_id(command.command_id)
+    if row is not None and not _same_edit(row, command):
+        raise DocumentSequenceConflictError("command_id already names a different edit")
+    return row
 
 
 class DocumentSyncService:
@@ -144,15 +182,21 @@ class DocumentSyncService:
 
         store = self.store
         event: dict[str, Any] | None = None
-        with document_submit_lock(self.project):
-            existing = store.find_by_client_seq(command.client_id, command.client_seq)
-            if existing is None:
-                existing = store.find_by_command_id(command.command_id)
-            from podcast_mcp.services.document_sync.projections import (
-                projection_for_command,
-            )
+        from podcast_mcp.services.document_sync.projections import projection_for_command
 
-            snap_proj = projection_for_command(command.type).value
+        if command.type == "SetEnvelope":
+            from podcast_mcp.services.document_sync.payloads import validate_payload
+
+            # Normalize first so a retry compares the stored payload.
+            command.payload = validate_payload(command.type, command.payload)
+        snap_proj = projection_for_command(command.type).value
+        # One cross-process step (#213, #377): retry check, project mutation, journal row.
+        # No writer in any process commits the project or claims this sequence in between,
+        # so a rejected command never leaves an unlogged edit. Undo/redo with rerender
+        # holds the lock for its render.
+        with self.ws.transaction():
+            self.project = self.ws.project
+            existing = existing_document_command(store, command)
             if existing is not None:
                 return {
                     "ok": True,
@@ -163,20 +207,12 @@ class DocumentSyncService:
                     "idempotent": True,
                 }
 
-            # Apply on the saved project: another request may have committed
-            # since this service opened it, and committing a stale copy would
-            # drop that change.
-            self.project = self.ws.reload()
-            if command.type == "SetEnvelope":
-                from podcast_mcp.services.document_sync.payloads import validate_payload
-
-                command.payload = validate_payload(command.type, command.payload)
             result_payload = self._apply(
                 command,
                 capabilities=capabilities,
                 structural_mode=structural_mode,
             )
-            row = store.append_command(
+            row, _snap, claimed = store.append_and_apply(
                 command_id=command.command_id,
                 client_id=command.client_id,
                 client_seq=command.client_seq,
@@ -184,13 +220,18 @@ class DocumentSyncService:
                 type=command.type,
                 payload={**command.payload, "result": result_payload},
                 causation_id=command.causation_id,
+                apply_fn=lambda _snap, appended: {
+                    "server_seq": int(appended["server_seq"]),
+                    "last_command_id": appended["command_id"],
+                    "last_type": appended["type"],
+                },
+                empty_snap_fn=lambda: {"server_seq": 0},
             )
-            snap_data = {
-                "server_seq": int(row["server_seq"]),
-                "last_command_id": command.command_id,
-                "last_type": command.type,
-            }
-            store.put_snapshot(int(row["server_seq"]), snap_data)
+            if claimed:
+                # Only a writer outside ``transaction()`` could claim it between check and append.
+                raise RuntimeError(
+                    "document journal row was claimed outside the project transaction"
+                )
             try:
                 api_snap = self.document_snapshot(projection=snap_proj)
             except Exception:

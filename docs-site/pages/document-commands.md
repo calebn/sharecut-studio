@@ -2,7 +2,7 @@
 
 Typed document-plane commands shared by host GUI, guest share HTTP, document WebSocket, and MCP.
 
-Envelope fields on every command: `client_id`, `client_seq`, optional `role`, `command_id`, `causation_id`, `token`, `structural_mode`.
+Envelope fields on every command: `client_id`, `client_seq` (optional, >= 1; omit to let the server assign one), optional `role`, `command_id`, `causation_id`, `token`, `structural_mode`. A retry repeats the `command_id` (or the same type and payload) on the same `client_seq` and returns `idempotent`; a different edit on a used `client_seq` is a 409 conflict.
 
 Which product surfaces expose related workflows: [Capabilities](#/capabilities).
 

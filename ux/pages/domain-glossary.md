@@ -72,7 +72,7 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 | **Share token** | Guest access + capabilities | relay / review routes (pass-through; audio/media may transit, not stored on the relay; object storage stores mix/proxy when configured) | ReviewApp or Sharecut Studio guest |
 | **Guest banner** | Labels Sharecut Studio share mode | share bootstrap `guest_mode` | Top of Sharecut Studio guest / phone shell |
 | **Proxy media** | Guest listen chunks (MP3) | `timeline.tracks[].proxy` + CDN/local URLs | Guest transport |
-| **Offline edit queue** | Host or guest commands waiting for reconnect | browser storage `host-queue:{projectPath}` / `queue:{token}` | Host pending count → Needs attention; conflicts → Needs attention |
+| **Offline edit queue** | Host or guest commands waiting for reconnect | browser storage `host-queue:{projectPath}` / `queue:{token}` | Host pending count → Needs attention; conflicts → Needs attention; each replay keeps its command id and sequence, and a different edit reusing a sequence comes back as a conflict in Needs attention |
 | **Needs attention** | Host pending edits and host/guest conflict list | browser storage `host-queue-count:{projectPath}`, `host-conflicts:{projectPath}` / `conflicts:{token}` | Attention banner in host or guest shell |
 | **Presence** | Connected viewers/agents | session `clients[]` | Transport avatar stack, ghost cursors, status bar names, phone More → People |
 | **Remote MCP URL** | Agent entry for a share | share row `mcp_url` → `{base}/mcp/{token}/mcp` | External MCP clients only |

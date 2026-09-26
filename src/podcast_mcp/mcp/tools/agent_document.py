@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from typing import Any
-from uuid import uuid4
 
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import (
@@ -30,6 +29,6 @@ def submit_host_document_command(
         payload=validated,
         client_id=client_id,
         role="agent",
-        client_seq=int(uuid4().int % 1_000_000_000) + 1,
+        client_seq=None,  # server-assigned: separate CLI/MCP processes never collide
     )
     return svc.submit(cmd)

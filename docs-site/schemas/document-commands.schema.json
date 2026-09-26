@@ -19,8 +19,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -81,7 +90,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "AddActionCommand",
@@ -124,8 +132,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -186,7 +203,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "AddChapterCommand",
@@ -229,8 +245,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -291,7 +316,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "AddCommentCommand",
@@ -394,8 +418,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -456,7 +489,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "AddReplyCommand",
@@ -505,8 +537,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -567,7 +608,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "AddSocialClipCommand",
@@ -627,8 +667,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -688,8 +737,7 @@
         }
       },
       "required": [
-        "client_id",
-        "client_seq"
+        "client_id"
       ],
       "title": "AddTrackCommand",
       "type": "object"
@@ -767,8 +815,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -828,8 +885,7 @@
         }
       },
       "required": [
-        "client_id",
-        "client_seq"
+        "client_id"
       ],
       "title": "ApplyFadeRecommendationsCommand",
       "type": "object"
@@ -871,8 +927,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -933,7 +998,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "ApproveEditsCommand",
@@ -1007,8 +1071,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -1069,7 +1142,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "CorrectTranscriptPhraseCommand",
@@ -1122,8 +1194,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -1184,7 +1265,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "CorrectTranscriptWordCommand",
@@ -1234,8 +1314,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -1296,7 +1385,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "DeleteChapterCommand",
@@ -1339,8 +1427,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -1401,7 +1498,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "DeleteClipCommand",
@@ -1471,8 +1567,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -1533,7 +1638,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "DeleteCommentCommand",
@@ -1571,8 +1675,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -1633,7 +1746,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "DeleteSocialClipCommand",
@@ -1671,8 +1783,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -1733,7 +1854,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "DuplicateSegmentCommand",
@@ -1829,8 +1949,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -1891,7 +2020,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "MoveClipsCommand",
@@ -1933,8 +2061,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -1995,7 +2132,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "MoveSegmentCommand",
@@ -2087,8 +2223,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -2149,7 +2294,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "PasteSegmentCommand",
@@ -2207,8 +2351,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -2268,8 +2421,7 @@
         }
       },
       "required": [
-        "client_id",
-        "client_seq"
+        "client_id"
       ],
       "title": "RedoHistoryCommand",
       "type": "object"
@@ -2304,8 +2456,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -2366,7 +2527,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "RejectEditsCommand",
@@ -2407,8 +2567,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -2469,7 +2638,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "RemoveTrackCommand",
@@ -2507,8 +2675,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -2569,7 +2746,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "ReorderTrackCommand",
@@ -2612,8 +2788,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -2674,7 +2859,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "ResolveCommentCommand",
@@ -2722,8 +2906,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -2784,7 +2977,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "RestoreAppliedEditCommand",
@@ -2822,8 +3014,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -2884,7 +3085,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "RippleDeleteClipCommand",
@@ -2954,8 +3154,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -3016,7 +3225,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "RippleDeleteRangeCommand",
@@ -3059,8 +3267,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -3121,7 +3338,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "RollClipJoinCommand",
@@ -3169,8 +3385,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -3231,7 +3456,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "SetActionDoneCommand",
@@ -3284,8 +3508,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -3346,7 +3579,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "SetClipFadeCommand",
@@ -3394,8 +3626,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -3456,7 +3697,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "SetEffectBypassCommand",
@@ -3504,8 +3744,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -3566,7 +3815,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "SetEnvelopeCommand",
@@ -3621,8 +3869,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -3683,7 +3940,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "SetJoinModeCommand",
@@ -3738,8 +3994,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -3800,7 +4065,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "SetTrackFaderCommand",
@@ -3845,8 +4109,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -3907,7 +4180,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "SetTrackMediaCommand",
@@ -3950,8 +4222,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -4012,7 +4293,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "SetTrackMetaCommand",
@@ -4086,8 +4366,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -4148,7 +4437,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "SetTrackMuteCommand",
@@ -4191,8 +4479,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -4253,7 +4550,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "SetTranscriptWordSuppressedCommand",
@@ -4301,8 +4597,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -4363,7 +4668,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "SplitAtTimeCommand",
@@ -4428,8 +4732,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -4490,7 +4803,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "SuggestPendingEditCommand",
@@ -4559,8 +4871,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -4621,7 +4942,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "TrimClipEdgeCommand",
@@ -4679,8 +4999,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -4740,8 +5069,7 @@
         }
       },
       "required": [
-        "client_id",
-        "client_seq"
+        "client_id"
       ],
       "title": "UndoHistoryCommand",
       "type": "object"
@@ -4776,8 +5104,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -4838,7 +5175,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "UpdateChapterCommand",
@@ -4891,8 +5227,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -4953,7 +5298,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "UpdateCommentCommand",
@@ -5043,8 +5387,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -5105,7 +5458,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "UpdatePendingEditCommand",
@@ -5173,8 +5525,17 @@
           "type": "string"
         },
         "client_seq": {
-          "title": "Client Seq",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
         },
         "command_id": {
           "anyOf": [
@@ -5235,7 +5596,6 @@
       },
       "required": [
         "client_id",
-        "client_seq",
         "payload"
       ],
       "title": "UpdateSocialClipCommand",

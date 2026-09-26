@@ -37,7 +37,6 @@ def _submit_ws_command(
     *,
     client_id: str,
     role: str,
-    seq: int,
 ) -> dict[str, Any]:
     cmd = parse_document_command(
         {
@@ -45,7 +44,7 @@ def _submit_ws_command(
             "payload": msg.get("payload") or {},
             "client_id": client_id,
             "role": role,
-            "client_seq": int(msg.get("client_seq") or seq - 1),
+            "client_seq": msg.get("client_seq"),
             "command_id": msg.get("command_id") or uuid4().hex,
             "structural_mode": msg.get("structural_mode"),
         }
@@ -167,7 +166,6 @@ async def document_ws(
                 await websocket.send_json(event)
 
         hub_task = asyncio.create_task(_pump_hub())
-        seq = 1
         while True:
             try:
                 raw_msg = await websocket.receive_text()
@@ -188,10 +186,9 @@ async def document_ws(
                 await websocket.send_json({"type": "Error", "detail": again.reason or "forbidden"})
                 await websocket.close(code=4403, reason=(again.reason or "forbidden")[:120])
                 break
-            seq += 1
             try:
                 result = await run_in_threadpool(
-                    _submit_ws_command, svc, msg, client_id=client_id, role=role, seq=seq
+                    _submit_ws_command, svc, msg, client_id=client_id, role=role
                 )
                 await websocket.send_json({**result, "type": "Echo"})
             except ValidationError as exc:

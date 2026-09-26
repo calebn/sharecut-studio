@@ -7,3 +7,7 @@ class DocumentConflictError(ValueError):
     def __init__(self, message: str) -> None:
         super().__init__(message)
         self.conflict = True
+
+
+class DocumentSequenceConflictError(DocumentConflictError):
+    """``(client_id, client_seq)`` or ``command_id`` already names a different edit (#377)."""

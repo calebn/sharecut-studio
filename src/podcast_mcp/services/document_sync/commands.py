@@ -63,7 +63,9 @@ class DocumentCommand:
     payload: dict[str, Any]
     client_id: str
     role: ClientRole
-    client_seq: int
+    client_seq: (
+        int | None
+    )  # None: the server assigns a negative sequence (host MCP/CLI, remote MCP)
     command_id: str = field(default_factory=lambda: uuid4().hex)
     causation_id: str | None = None
 

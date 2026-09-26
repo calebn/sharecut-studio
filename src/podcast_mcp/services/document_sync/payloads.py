@@ -31,7 +31,7 @@ class ExpectedEnvelopePoint(EnvelopePoint):
     id: str = Field(min_length=1)
 
 
-# Bounds the O(n) baseline comparison that runs under ``document_submit_lock``.
+# Bounds the O(n) baseline comparison that runs inside the document transaction.
 ENVELOPE_POINTS_MAX = 10_000
 
 
@@ -346,7 +346,7 @@ class DocumentCommandEnvelope(BaseModel):
     """Shared wire fields for host/guest document command POST and MCP submit."""
 
     client_id: str
-    client_seq: int
+    client_seq: int | None = Field(default=None, ge=1)  # omit for a server-assigned sequence
     role: ClientRole = "viewer"
     command_id: str | None = None
     causation_id: str | None = None
@@ -678,8 +678,6 @@ def parse_document_command(
         merged["payload"] = {}
     if "client_id" not in merged:
         merged["client_id"] = "anonymous"
-    if "client_seq" not in merged:
-        merged["client_seq"] = 1
     body = parse_document_command_body(merged)
     return document_command_from_body(body)
 

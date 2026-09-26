@@ -48,8 +48,9 @@ can silently replay the historical command; the caller must use a fresh
 positive sequence. This compatibility rule preserves existing command rows and
 server sequence order. Old positive generated rows remain in their original
 range, so clients that reuse those keys must handle this explicit collision.
-The session authority enables this check only for session commands; record and
-document command planes retain their existing retry contracts. The session
+The session authority enables this check only for session commands; the record
+plane keeps its own retry contract, and document commands follow
+[Command identity and retries](#command-identity-and-retries). The session
 WebSocket reports such collisions as `Error` frames with
 `code=client_seq_conflict` and stays open for a corrected command.
 
@@ -192,6 +193,16 @@ Every GUI surface is classified once as **Look**, **Hear**, or **Do** (`presence
 | `POST /api/document/command` | Typed commands (see table below) |
 | `WS /api/document/ws` | Hello shell `Snapshot`, then fanout `Applied` |
 
+### Command identity and retries
+
+An explicit `client_seq` (>= 1) plus `client_id` names one edit (#377).
+
+- **Retry:** a command is a retry when it has the same `command_id`, or the same `type` and normalized `payload` (older clients send a new `command_id` per attempt). A retry returns the journaled row with `idempotent: true` and applies nothing.
+- **Conflict:** a different edit on a used `(client_id, client_seq)`, or a reused `command_id` with a different edit, raises `DocumentSequenceConflictError`: HTTP 409 with `detail.conflict`, or a WS `Error`. The client sends the new edit with a new sequence.
+- **Server-assigned:** omit `client_seq` (`null`) and the server assigns a negative sequence, starting at -1 per client. The host MCP/CLI helper, remote MCP guests and WS messages without `client_seq` use this, so separate processes never collide.
+- **Offline queue:** replays keep their `command_id` and `client_seq`.
+- **Migration:** no `document.db` change. Legacy rows are compared without their stored `result`; old random positive MCP sequences stay as they are.
+
 ### Document command types
 
 Handlers live in `services/document_sync/handlers/` (registry in `__init__.py`).
@@ -294,7 +305,7 @@ Phases 1–2 run the authority inside `podcast gui` (localhost). Remote humans a
 
 ## Document plane
 
-`DocumentSyncService` + `document.db` + handler registry. Broader OT/CRDT concurrent cut editing remains out of scope. Passes 0–8 shipped history through markers, full-project WS fanout, agent selection, MCP notify, blade/delete, and track/media ingest — see [daw-editing.md](daw-editing.md) and [ROADMAP.md § Follow-up](../ROADMAP.md#follow-up) for remaining polish.
+`DocumentSyncService` + `document.db` + handler registry. Each `submit` is one `ProjectWorkspace.transaction()` (#213): retry check, apply, and the journal row plus snapshot in one sqlite transaction, so no writer in any process commits between them and a rejected command leaves no unlogged edit. Hub fanout is still in-process only: another process's tabs resync on their next snapshot. Broader OT/CRDT concurrent cut editing remains out of scope. Passes 0–8 shipped history through markers, full-project WS fanout, agent selection, MCP notify, blade/delete, and track/media ingest — see [daw-editing.md](daw-editing.md) and [ROADMAP.md § Follow-up](../ROADMAP.md#follow-up) for remaining polish.
 
 ## Recording session
 

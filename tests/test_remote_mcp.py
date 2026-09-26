@@ -720,3 +720,22 @@ def test_guest_get_session_presence_requires_view(minimal_project, monkeypatch):
             rt.guest_get_session_presence()
     finally:
         clear_remote_mcp_context()
+
+
+def test_guest_submit_without_client_seq_applies_each_command(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "edit", "mcp"], label="seq")
+    for _ in range(2):
+        out = _call(
+            share["token"],
+            "guest_submit_document_command",
+            {"type": "ApproveEdits", "payload": {"ids": []}},
+        )
+        assert "error" not in out, out
+        assert not json.loads(out["result"]["content"][0]["text"]).get("idempotent")
+    from podcast_mcp.services.document_sync import DocumentSyncService
+
+    rows = DocumentSyncService.open(minimal_project).store.commands_after(0)
+    assert [r["client_seq"] for r in rows] == [-1, -2]
