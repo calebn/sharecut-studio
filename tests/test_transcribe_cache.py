@@ -153,3 +153,60 @@ def test_transcribe_track_absolute_audio_path(minimal_project, sample_wav, tmp_w
         result = engine.transcribe_track(proj, "host", use_cache=False)
     assert result.words[0].text == "abs"
     assert transcribe.call_args.args[0] == dest.resolve()
+
+
+def _host_project(minimal_project, sample_wav, tmp_workspace):
+    from podcast_mcp.models import MediaAsset, Track, TrackRole, save_project
+
+    proj = load_project(minimal_project)
+    (tmp_workspace / "raw").mkdir(exist_ok=True)
+    dest = tmp_workspace / "raw" / "host.wav"
+    dest.write_bytes(sample_wav.read_bytes())
+    proj.tracks.append(
+        Track(
+            id="host", label="Host", role=TrackRole.DIALOGUE, media=MediaAsset(path="raw/host.wav")
+        )
+    )
+    save_project(proj, minimal_project)
+    return load_project(minimal_project), dest
+
+
+def _write_legacy(proj, dest):
+    from podcast_mcp.engines.transcribe import legacy_cache_path
+    from podcast_mcp.util.hashing import sha256_file
+
+    legacy = legacy_cache_path(proj, "host", sha256_file(dest))
+    legacy.parent.mkdir(parents=True, exist_ok=True)
+    tr = Transcript(track_id="host", words=[TranscriptWord(text="legacy", start=0, end=0.5)])
+    legacy.write_text(tr.model_dump_json(), encoding="utf-8")
+
+
+def test_legacy_cache_name_is_honoured_when_enabled(minimal_project, sample_wav, tmp_workspace):
+    from unittest.mock import patch
+
+    proj, dest = _host_project(minimal_project, sample_wav, tmp_workspace)
+    _write_legacy(proj, dest)
+    engine = TranscriptionEngine()
+    with patch.object(engine, "transcribe_file") as asr:
+        out = engine.transcribe_all_dialogue(proj, language="en", legacy_cache=True)
+    asr.assert_not_called()
+    assert out[0].words[0].text == "legacy"
+    assert out[0].audio_sha256
+
+
+def test_legacy_cache_ignored_with_prompt_or_when_disabled(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from unittest.mock import patch
+
+    proj, dest = _host_project(minimal_project, sample_wav, tmp_workspace)
+    _write_legacy(proj, dest)
+    engine = TranscriptionEngine()
+    fresh = Transcript(track_id="", words=[TranscriptWord(text="fresh", start=0, end=0.5)])
+    with patch.object(engine, "transcribe_file", return_value=fresh) as asr:
+        with_prompt = engine.transcribe_all_dialogue(
+            proj, language="en", initial_prompt="P", legacy_cache=True
+        )
+        disabled = engine.transcribe_all_dialogue(proj, language="en", legacy_cache=False)
+    assert asr.call_count == 2
+    assert with_prompt[0].words[0].text == disabled[0].words[0].text == "fresh"

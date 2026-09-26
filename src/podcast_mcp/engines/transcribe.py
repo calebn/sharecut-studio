@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +36,91 @@ def _cache_id_part(raw: str) -> str:
     if re.fullmatch(r"[A-Za-z0-9_-]+", raw):
         return raw
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+
+TranscriptKey = tuple[str, str | None]
+
+
+def transcript_key(t: Any) -> TranscriptKey:
+    return (getattr(t, "track_id", ""), getattr(t, "source_id", None))
+
+
+@dataclass(frozen=True)
+class TranscribeJob:
+    track_id: str
+    source_id: str | None
+    audio: Path
+
+    @property
+    def key(self) -> TranscriptKey:
+        return (self.track_id, self.source_id)
+
+    @property
+    def cache_id(self) -> str:
+        if self.source_id is None:
+            return self.track_id
+        return f"{self.track_id}__{self.source_id}"
+
+    @property
+    def label(self) -> str:
+        if self.source_id is None:
+            return f"Track {self.track_id}"
+        return f"Track {self.track_id} source {self.source_id}"
+
+
+def dialogue_transcribe_jobs(project: EpisodeProject) -> list[TranscribeJob]:
+    """Primary track media first, then extra whole-file clip sources, deduplicated."""
+    dialogue = [t for t in project.tracks if t.role == TrackRole.DIALOGUE and t.media]
+    primary_jobs: list[TranscribeJob] = []
+    extra_jobs: list[TranscribeJob] = []
+    for track in dialogue:
+        media = track.media
+        if media is None:
+            continue
+        primary = resolve_under_workspace(project, media.path)
+        primary_jobs.append(TranscribeJob(track.id, None, primary))
+        for clip in project.clips:
+            source_id = clip.source_id
+            if clip.track_id != track.id or not source_id:
+                continue
+            src = project.source_by_id(source_id)
+            if src is None:
+                continue
+            path = resolve_under_workspace(project, src.path)
+            if path != primary and path.is_file():
+                extra_jobs.append(TranscribeJob(track.id, source_id, path))
+    seen: set[TranscriptKey] = set()
+    jobs: list[TranscribeJob] = []
+    for job in [*primary_jobs, *extra_jobs]:
+        if job.key not in seen:
+            seen.add(job.key)
+            jobs.append(job)
+    return jobs
+
+
+def _info_duration(info: Any) -> float | None:
+    raw = getattr(info, "duration", None)
+    if isinstance(raw, (int, float)) and raw > 0:
+        return float(raw)
+    return None
+
+
+def _cache_file(project: EpisodeProject, cache_id: str, name: str) -> Path:
+    try:
+        return resolve_within(project.transcripts_dir(), name)
+    except ValueError:
+        raise ValueError(f"transcript cache escaped transcripts dir: {cache_id}") from None
+
+
+def legacy_cache_path(project: EpisodeProject, cache_id: str, audio_sha256: str) -> Path:
+    """Pre-model/prompt cache name ``{id}_{audio16}.json`` (read-only fallback)."""
+    return _cache_file(project, cache_id, f"{_cache_id_part(cache_id)}_{audio_sha256[:16]}.json")
+
+
+def _read_cache(path: Path) -> Transcript | None:
+    if not path.is_file():
+        return None
+    return Transcript.model_validate(json.loads(path.read_text(encoding="utf-8")))
 
 
 def flag_anomalous_asr_durations(
@@ -119,18 +206,16 @@ class TranscriptionEngine:
         *,
         language: str | None = None,
         initial_prompt: str | None = None,
+        audio_sha256: str | None = None,
     ) -> Path:
-        audio_key = sha256_file(audio_path)[:16]
+        audio_key = (audio_sha256 or sha256_file(audio_path))[:16]
         inputs = json.dumps(
             {"model": self.model_size, "language": language, "initial_prompt": initial_prompt},
             sort_keys=True,
         )
         inputs_key = hashlib.sha256(inputs.encode()).hexdigest()[:16]
         name = f"{_cache_id_part(track_id)}_{audio_key}_{inputs_key}.json"
-        try:
-            return resolve_within(project.transcripts_dir(), name)
-        except ValueError:
-            raise ValueError(f"transcript cache escaped transcripts dir: {track_id}") from None
+        return _cache_file(project, track_id, name)
 
     def transcribe_file(
         self,
@@ -139,6 +224,7 @@ class TranscriptionEngine:
         *,
         initial_prompt: str | None = None,
         max_word_sec: float = DEFAULT_MAX_WORD_DURATION_SEC,
+        progress_label: str | None = None,
     ) -> Transcript:
         model = self._get_model()
         kwargs: dict = {
@@ -147,31 +233,89 @@ class TranscriptionEngine:
         }
         if initial_prompt:
             kwargs["initial_prompt"] = initial_prompt
-        segments, _ = model.transcribe(str(audio_path), **kwargs)
+        segments, info = model.transcribe(str(audio_path), **kwargs)
+        duration = _info_duration(info)
+        total = math.ceil(duration) if duration else None
+        label = progress_label or audio_path.name
         words: list[TranscriptWord] = []
-        for segment in segments:
-            if segment.words:
-                for w in segment.words:
-                    words.append(
-                        TranscriptWord(
-                            text=(w.word or "").strip(),
-                            start=float(w.start),
-                            end=float(w.end),
-                            confidence=getattr(w, "probability", None),
+        with resolve_progress_task(
+            "transcribe_audio", f"Transcribing {label}", total=total
+        ) as task:
+            for segment in segments:
+                if segment.words:
+                    for w in segment.words:
+                        words.append(
+                            TranscriptWord(
+                                text=(w.word or "").strip(),
+                                start=float(w.start),
+                                end=float(w.end),
+                                confidence=getattr(w, "probability", None),
+                            )
                         )
-                    )
-            else:
-                text = (segment.text or "").strip()
-                if text:
-                    words.append(
-                        TranscriptWord(
-                            text=text,
-                            start=float(segment.start),
-                            end=float(segment.end),
+                else:
+                    text = (segment.text or "").strip()
+                    if text:
+                        words.append(
+                            TranscriptWord(
+                                text=text,
+                                start=float(segment.start),
+                                end=float(segment.end),
+                            )
                         )
-                    )
+                if total is not None and duration:
+                    done = int(min(float(segment.end), duration))
+                    task.advance_to(done, message=f"{label}: {done}s of {total}s", total=total)
         flag_anomalous_asr_durations(words, max_word_sec=max_word_sec)
         return Transcript(track_id="", language=language or "en", words=words)
+
+    def transcribe_job(
+        self,
+        project: EpisodeProject,
+        job: TranscribeJob,
+        language: str | None = None,
+        use_cache: bool = True,
+        *,
+        initial_prompt: str | None = None,
+        max_word_sec: float = DEFAULT_MAX_WORD_DURATION_SEC,
+        audio_sha256: str | None = None,
+        legacy_cache: bool = False,
+    ) -> Transcript:
+        """Transcribe one (track, source) job: new cache, legacy cache, then ASR."""
+        sha = audio_sha256 or sha256_file(job.audio)
+        cache = self.cache_path(
+            project,
+            job.cache_id,
+            job.audio,
+            language=language,
+            initial_prompt=initial_prompt,
+            audio_sha256=sha,
+        )
+        transcript: Transcript | None = None
+        if use_cache:
+            transcript = _read_cache(cache)
+            # The legacy name does not encode model or prompt, so it is only
+            # trusted when no prompt shaped the words.
+            if transcript is None and legacy_cache and not initial_prompt:
+                transcript = _read_cache(legacy_cache_path(project, job.cache_id, sha))
+        fresh = transcript is None
+        if transcript is None:
+            transcript = self.transcribe_file(
+                job.audio,
+                language=language,
+                initial_prompt=initial_prompt,
+                max_word_sec=max_word_sec,
+                progress_label=job.label,
+            )
+        transcript.track_id = job.track_id
+        transcript.source_id = job.source_id
+        transcript.audio_sha256 = sha
+        flag_anomalous_asr_durations(
+            transcript.words, max_word_sec=max_word_sec, track_id=job.track_id
+        )
+        if fresh:
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            cache.write_text(transcript.model_dump_json(indent=2), encoding="utf-8")
+        return transcript
 
     def transcribe_track(
         self,
@@ -187,32 +331,14 @@ class TranscriptionEngine:
         if not track or not track.media:
             raise ValueError(f"track {track_id} not found or has no media")
         audio = resolve_under_workspace(project, track.media.path)
-        cache = self.cache_path(
-            project, track_id, audio, language=language, initial_prompt=initial_prompt
-        )
-        if use_cache and cache.is_file():
-            data = json.loads(cache.read_text(encoding="utf-8"))
-            t = Transcript.model_validate(data)
-            t.track_id = track_id
-            # Re-flag on cache load so older caches still get deferred marks.
-            flag_anomalous_asr_durations(
-                t.words,
-                max_word_sec=max_word_sec,
-                track_id=track_id,
-            )
-            return t
-
-        defaults_lang = language
-        transcript = self.transcribe_file(
-            audio,
-            language=defaults_lang,
+        return self.transcribe_job(
+            project,
+            TranscribeJob(track_id, None, audio),
+            language=language,
+            use_cache=use_cache,
             initial_prompt=initial_prompt,
             max_word_sec=max_word_sec,
         )
-        transcript.track_id = track_id
-        cache.parent.mkdir(parents=True, exist_ok=True)
-        cache.write_text(transcript.model_dump_json(indent=2), encoding="utf-8")
-        return transcript
 
     def transcribe_all_dialogue(
         self,
@@ -222,30 +348,13 @@ class TranscriptionEngine:
         initial_prompt: str | None = None,
         progress: ProgressReporter | None = None,
         max_word_sec: float = DEFAULT_MAX_WORD_DURATION_SEC,
+        jobs: list[TranscribeJob] | None = None,
+        audio_hashes: dict[TranscriptKey, str] | None = None,
+        legacy_cache: bool = False,
     ) -> list[Transcript]:
-        dialogue = [t for t in project.tracks if t.role == TrackRole.DIALOGUE and t.media]
-        # Extra whole-file sources on dialogue tracks (source_id clips).
-        extra_jobs: list[tuple[str, str, Path]] = []
-        for track in dialogue:
-            media = track.media
-            if media is None:
-                continue
-            clips = [c for c in project.clips if c.track_id == track.id and c.source_id]
-            primary = resolve_under_workspace(project, media.path)
-            for clip in clips:
-                source_id = clip.source_id
-                if not source_id:
-                    continue
-                src = project.source_by_id(source_id)
-                if src is None:
-                    continue
-                path = resolve_under_workspace(project, src.path)
-                if path == primary:
-                    continue
-                if path.is_file():
-                    extra_jobs.append((track.id, source_id, path))
-
-        total = max(len(dialogue) + len(extra_jobs), 1)
+        job_list = dialogue_transcribe_jobs(project) if jobs is None else jobs
+        hashes = audio_hashes or {}
+        total = max(len(job_list), 1)
         results: list[Transcript] = []
         with resolve_progress_task(
             "transcribe",
@@ -254,53 +363,20 @@ class TranscriptionEngine:
             prefer_parent=True,
             progress=progress,
         ) as task:
-            for track in dialogue:
-                task.set_phase("track", f"Track {track.id}")
-                t = self.transcribe_track(
-                    project,
-                    track.id,
-                    language=language,
-                    initial_prompt=initial_prompt,
-                    max_word_sec=max_word_sec,
-                )
-                results.append(t)
-                task.advance(1, message=f"Track {track.id}", total=total)
-
-            for track_id, source_id, audio in extra_jobs:
-                task.set_phase("source", f"Track {track_id} source {source_id}")
-                cache = self.cache_path(
-                    project,
-                    f"{track_id}__{source_id}",
-                    audio,
-                    language=language,
-                    initial_prompt=initial_prompt,
-                )
-                if cache.is_file():
-                    data = json.loads(cache.read_text(encoding="utf-8"))
-                    t = Transcript.model_validate(data)
-                else:
-                    t = self.transcribe_file(
-                        audio,
+            for job in job_list:
+                task.set_phase("track" if job.source_id is None else "source", job.label)
+                results.append(
+                    self.transcribe_job(
+                        project,
+                        job,
                         language=language,
                         initial_prompt=initial_prompt,
                         max_word_sec=max_word_sec,
+                        audio_sha256=hashes.get(job.key),
+                        legacy_cache=legacy_cache,
                     )
-                    cache.parent.mkdir(parents=True, exist_ok=True)
-                    cache.write_text(t.model_dump_json(indent=2), encoding="utf-8")
-                t.track_id = track_id
-                t.source_id = source_id
-                flag_anomalous_asr_durations(
-                    t.words,
-                    max_word_sec=max_word_sec,
-                    track_id=track_id,
                 )
-                results.append(t)
-                task.advance(
-                    1,
-                    message=f"Track {track_id} source {source_id}",
-                    total=total,
-                )
-
+                task.advance(1, message=job.label, total=total)
         return results
 
     def merge_transcripts(self, project: EpisodeProject) -> CombinedTranscript:

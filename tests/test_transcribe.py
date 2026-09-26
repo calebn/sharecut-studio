@@ -177,7 +177,7 @@ def test_transcribe_all_dialogue_reports_progress(minimal_project, sample_wav):
         track_id="host",
         words=[TranscriptWord(text="hi", start=0.0, end=0.1)],
     )
-    engine.transcribe_track = MagicMock(return_value=fake)  # type: ignore[method-assign]
+    engine.transcribe_file = MagicMock(return_value=fake)  # type: ignore[method-assign]
     progress = MagicMock(wraps=NullProgress())
     out = engine.transcribe_all_dialogue(proj, language="en", progress=progress)
     assert out and out[0].words[0].text == "hi"
@@ -217,24 +217,17 @@ def test_transcribe_all_dialogue_extra_source_and_cache(minimal_project, sample_
         )
     ]
     engine = TranscriptionEngine()
-    engine.transcribe_track = MagicMock(  # type: ignore[method-assign]
-        return_value=Transcript(
-            track_id="host",
-            words=[TranscriptWord(text="hi", start=0.0, end=0.1)],
-        )
-    )
-    extra = Transcript(
-        track_id="host",
-        words=[TranscriptWord(text="extra", start=0.0, end=0.1)],
-    )
-    engine.transcribe_file = MagicMock(return_value=extra)  # type: ignore[method-assign]
+    primary = Transcript(track_id="host", words=[TranscriptWord(text="hi", start=0.0, end=0.1)])
+    extra = Transcript(track_id="host", words=[TranscriptWord(text="extra", start=0.0, end=0.1)])
+    engine.transcribe_file = MagicMock(side_effect=[primary, extra])  # type: ignore[method-assign]
     out = engine.transcribe_all_dialogue(proj, language="en")
     assert len(out) == 2
     assert out[1].source_id == "host_b"
-    engine.transcribe_file.assert_called_once()
+    assert out[0].audio_sha256 and out[1].audio_sha256
+    assert engine.transcribe_file.call_count == 2
     again = engine.transcribe_all_dialogue(proj, language="en")
     assert again[1].source_id == "host_b"
-    engine.transcribe_file.assert_called_once()
+    assert engine.transcribe_file.call_count == 2
 
 
 def test_transcribe_all_dialogue_skips_missing_extra_source(minimal_project):
@@ -252,6 +245,9 @@ def test_transcribe_all_dialogue_skips_missing_extra_source(minimal_project):
         )
     ]
     proj.sources = []
+    host = Path(proj.workspace_dir) / "raw" / "host.wav"
+    host.parent.mkdir(parents=True, exist_ok=True)
+    host.write_bytes(b"audio")
     proj.clips = [
         Clip(
             id="missing-extra",
@@ -263,15 +259,14 @@ def test_transcribe_all_dialogue_skips_missing_extra_source(minimal_project):
         )
     ]
     engine = TranscriptionEngine()
-    engine.transcribe_track = MagicMock(  # type: ignore[method-assign]
+    engine.transcribe_file = MagicMock(  # type: ignore[method-assign]
         return_value=Transcript(track_id="host", words=[])
     )
-    engine.transcribe_file = MagicMock()  # type: ignore[method-assign]
 
     out = engine.transcribe_all_dialogue(proj, language="en")
 
     assert len(out) == 1
-    engine.transcribe_file.assert_not_called()
+    engine.transcribe_file.assert_called_once()
 
 
 def test_flag_anomalous_asr_durations_marks_deferred_without_clamping() -> None:
@@ -356,3 +351,77 @@ def test_transcribe_track_rejects_workspace_escape(minimal_project, tmp_path, sa
     engine = TranscriptionEngine()
     with pytest.raises(ValueError, match="under workspace"):
         engine.transcribe_track(load_project(minimal_project), "host")
+
+
+def _dialogue_project(minimal_project, sample_wav, extra: bool = False):
+    from podcast_mcp.models import Clip, MediaAsset, SourceRecording, Track, TrackRole
+
+    proj = load_project(minimal_project)
+    raw = Path(proj.workspace_dir) / "raw"
+    raw.mkdir(parents=True, exist_ok=True)
+    (raw / "host.wav").write_bytes(sample_wav.read_bytes())
+    proj.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav"),
+        )
+    ]
+    if extra:
+        (raw / "b.wav").write_bytes(b"other")
+        proj.sources = [SourceRecording(id="b", path="raw/b.wav", speaker="H", duration_sec=1.0)]
+        clip = dict(track_id="host", source_start=0.0, source_end=1.0, source_id="b")
+        proj.clips = [
+            Clip(id="c1", timeline_start=0.0, **clip),
+            Clip(id="c2", timeline_start=1.0, **clip),
+        ]
+    return proj
+
+
+def test_dialogue_transcribe_jobs_orders_primary_first_and_dedups(minimal_project, sample_wav):
+    from podcast_mcp.engines.transcribe import dialogue_transcribe_jobs
+
+    proj = _dialogue_project(minimal_project, sample_wav, extra=True)
+    jobs = dialogue_transcribe_jobs(proj)
+    assert [j.key for j in jobs] == [("host", None), ("host", "b")]
+    assert jobs[1].cache_id == "host__b"
+    assert jobs[1].label == "Track host source b"
+
+
+def test_transcribe_file_reports_segment_progress(sample_wav):
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock, patch
+
+    from podcast_mcp.util.progress import RecordingProgress, bind_progress
+
+    rec = RecordingProgress()
+    segs = [
+        SimpleNamespace(text="a", start=0.0, end=4.0, words=None),
+        SimpleNamespace(text="b", start=4.0, end=9.0, words=None),
+    ]
+    engine = TranscriptionEngine()
+    model = MagicMock()
+    model.transcribe.return_value = (segs, SimpleNamespace(duration=10.0))
+    with patch.object(engine, "_get_model", return_value=model), bind_progress(rec):
+        engine.transcribe_file(sample_wav, language="en")
+    starts = [e for e in rec.events if e.kind == "start" and e.task_id == "transcribe_audio"]
+    assert starts and starts[0].total == 10
+    updates = [
+        e.current for e in rec.events if e.kind == "update" and e.task_id == "transcribe_audio"
+    ]
+    assert 4 in updates and 9 in updates
+
+
+def test_transcribe_all_dialogue_stamps_audio_hash(minimal_project, sample_wav):
+    from unittest.mock import MagicMock
+
+    from podcast_mcp.util.hashing import sha256_file
+
+    proj = _dialogue_project(minimal_project, sample_wav)
+    engine = TranscriptionEngine()
+    engine.transcribe_file = MagicMock(  # type: ignore[method-assign]
+        return_value=Transcript(track_id="", words=[])
+    )
+    out = engine.transcribe_all_dialogue(proj, language="en")
+    assert out[0].audio_sha256 == sha256_file(Path(proj.workspace_dir) / "raw" / "host.wav")

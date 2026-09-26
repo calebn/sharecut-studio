@@ -98,9 +98,10 @@ steps. Each transcript stores the vocabulary revision it was produced with. Stud
 asks for re-transcription when any transcript differs from the revision in
 `transcript_context.yaml`: single-track runs update only that track, a concurrent
 edit stays stale, and a project without transcripts never asks. ASR caches
-include model, language, and prompt. Because the cache name changed, the first
-transcription after upgrading re-runs Whisper once per track; older
-`transcripts/{track}_{audio}.json` files are no longer read. The prompt
+include model, language, and prompt. The pipeline step also reads an older
+`transcripts/{track}_{audio}.json` cache (which does not encode model or prompt)
+when the new-name cache misses, no overwrite was requested, and no prompt is set;
+it never migrates or rewrites that file. The prompt
 has a 400-character limit by default, and Studio rejects terms that would be
 truncated. This changes future ASR output, not existing transcript words.
 
