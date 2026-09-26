@@ -126,6 +126,10 @@ The spectral and optional neural scorers keep their native score formats;
 adapters implement `JoinDetector.detect()` and return weighted `DetectorHit`
 values to the fusion step. This keeps detector policy in one place while the
 published report format stays stable.
+The project join sweep reuses each track's decoded waveform and natural-join
+calibration across its joins. Individual join scoring retains the same results;
+the high-rate click check still reads only a short window around each join.
+MFCC scoring shares an immutable mel filterbank for equal sample rates and FFT sizes.
 
 Every report includes a disclaimer — not PEAQ/POLQA and not a human-ear guarantee.
 Fusion rule of thumb: ≥2 detectors with score ≥ 0.65 → at least `review`.

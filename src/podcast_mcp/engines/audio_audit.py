@@ -398,13 +398,14 @@ def compute_word_audibility_map(
     track_id: str | None = None,
     policy: AnalysisPolicy | None = None,
     progress: ProgressReporter | None = None,
+    caches: TrackRmsCacheSet | None = None,
 ) -> list[dict[str, Any]]:
     """Per-word audibility across all dialogue tracks at each word's timeline window."""
     pol = policy or AnalysisPolicy.from_defaults()
     if pol.transcript_mode == "off":
         return []
 
-    caches = build_track_rms_caches(project)
+    caches = caches if caches is not None else build_track_rms_caches(project)
     st = SessionTimeline(project)
     out: list[dict[str, Any]] = []
     all_tracks = dialogue_track_ids(project)
@@ -548,11 +549,12 @@ def list_flagged_words(
     track_id: str | None = None,
     policy: AnalysisPolicy | None = None,
     progress: ProgressReporter | None = None,
+    caches: TrackRmsCacheSet | None = None,
 ) -> list[dict[str, Any]]:
     return [
         row
         for row in compute_word_audibility_map(
-            project, track_id=track_id, policy=policy, progress=progress
+            project, track_id=track_id, policy=policy, progress=progress, caches=caches
         )
         if row["audibility_status"] in ("inaudible", "bleed")
     ]
@@ -571,11 +573,12 @@ def list_low_audibility_words(
     policy: AnalysisPolicy | None = None,
     track_id: str | None = None,
     progress: ProgressReporter | None = None,
+    caches: TrackRmsCacheSet | None = None,
 ) -> list[dict[str, Any]]:
     """Flag transcript words whose timeline windows are below audibility threshold."""
 
     pol = policy or AnalysisPolicy.from_defaults()
-    caches = build_track_rms_caches(project)
+    caches = caches if caches is not None else build_track_rms_caches(project)
     st = SessionTimeline(project)
     out: list[dict[str, Any]] = []
     tracks = [track_id] if track_id else dialogue_track_ids(project)
@@ -655,6 +658,7 @@ def analyze_gate_overreach(
     *,
     policy: AnalysisPolicy | None = None,
     progress: ProgressReporter | None = None,
+    caches: TrackRmsCacheSet | None = None,
 ) -> dict[str, Any]:
     """Detect likely gate clipping on syllable onsets/offsets."""
     pol = policy or AnalysisPolicy.from_defaults()
@@ -682,7 +686,9 @@ def analyze_gate_overreach(
     proc = _processed_track_path(project, track_id)
     proc_cache = None
     if proc is not None:
-        proc_cache = TrackRmsCache.from_timeline_stem(proc)
+        proc_cache = caches.get(track_id) if caches is not None else None
+        if proc_cache is None:
+            proc_cache = TrackRmsCache.from_timeline_stem(proc)
 
     raw_path: Path | None
     try:
@@ -805,6 +811,7 @@ def recommend_boundary_fades(
     *,
     policy: AnalysisPolicy | None = None,
     track_id: str | None = None,
+    caches: TrackRmsCacheSet | None = None,
 ) -> list[dict[str, Any]]:
     """Recommend clip fades where joins have large level jumps or no fades."""
     # Deferred: edits/clips_ops.py sits behind the edits package __init__, which
@@ -832,10 +839,13 @@ def recommend_boundary_fades(
         # changes path) -- decode it once instead of spawning an ffmpeg subprocess
         # per clip join below. Falls back to per-call reads if decoding fails.
         join_cache: TrackRmsCache | None = None
-        with contextlib.suppress(Exception):
-            join_cache = TrackRmsCache.from_timeline_stem(
-                audio_path if use_timeline and audio_path else track_audio_path(project, tid)
-            )
+        if use_timeline and caches is not None:
+            join_cache = caches.get(tid)
+        if join_cache is None:
+            with contextlib.suppress(Exception):
+                join_cache = TrackRmsCache.from_timeline_stem(
+                    audio_path if use_timeline and audio_path else track_audio_path(project, tid)
+                )
 
         for i in range(len(clips) - 1):
             left, right = clips[i], clips[i + 1]
@@ -927,6 +937,7 @@ def analyze_cleanup(
 
     pol = policy or AnalysisPolicy.from_defaults()
     tracks = [track_id] if track_id else dialogue_track_ids(project)
+    caches = build_track_rms_caches(project)
     per_track: list[dict[str, Any]] = []
 
     with resolve_progress_task(
@@ -941,10 +952,12 @@ def analyze_cleanup(
             if not track or track.role != TrackRole.DIALOGUE:
                 task.advance(1, total=len(tracks), message=f"track {tid}")
                 continue
-            gate = analyze_gate_overreach(project, tid, policy=pol, progress=None)
-            low_aud = list_low_audibility_words(project, policy=pol, track_id=tid, progress=None)
+            gate = analyze_gate_overreach(project, tid, policy=pol, progress=None, caches=caches)
+            low_aud = list_low_audibility_words(
+                project, policy=pol, track_id=tid, progress=None, caches=caches
+            )
             flagged = (
-                list_flagged_words(project, policy=pol, track_id=tid, progress=None)
+                list_flagged_words(project, policy=pol, track_id=tid, progress=None, caches=caches)
                 if pol.transcript_mode != "off"
                 else []
             )
@@ -952,7 +965,7 @@ def analyze_cleanup(
             tr_for_ratio = project.transcript_for_track(tid)
             total_words = len(tr_for_ratio.words) if tr_for_ratio else 0
             bleed_ratio = round(len(bleed) / total_words, 3) if total_words else None
-            fades = recommend_boundary_fades(project, policy=pol, track_id=tid)
+            fades = recommend_boundary_fades(project, policy=pol, track_id=tid, caches=caches)
             chain = next((c for c in project.processing_chains if c.track_id == tid), None)
             effects = [e.effect for e in chain.effects] if chain else []
 
