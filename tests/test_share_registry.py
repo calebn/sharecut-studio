@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Thread
 from unittest.mock import patch
 
 import pytest
+from sqlite_helpers import FailingConnection
 
 from podcast_mcp.edits.review_shares import (
     create_share,
@@ -912,3 +914,27 @@ def test_revoke_object_store_cleanup_warning(
     monkeypatch.setattr("podcast_mcp.services.proxy_media.delete_all_proxies_if_unused", _boom)
     out = ShareService(ws).revoke(share["token"])
     assert out["revoked"] is True
+
+
+def test_failed_commit_rolls_back_release_claim(registry: SqliteShareRegistry):
+    now = datetime.now(UTC)
+    registry.claim_active(
+        {
+            "token": "commit-fail-token",
+            "project_workspace": "/tmp/ws",
+            "review_version_id": "v1",
+            "created_at": _iso(now),
+            "last_used_at": _iso(now),
+            "capabilities": ["play"],
+        }
+    )
+    real = registry._conn
+    registry._conn = FailingConnection(real, "COMMIT")  # type: ignore[assignment]
+    try:
+        with pytest.raises(sqlite3.OperationalError):
+            registry.release_claim("commit-fail-token")
+    finally:
+        registry._conn = real
+    assert not real.in_transaction
+    assert registry.get_active("commit-fail-token") is not None
+    assert registry.release_claim("commit-fail-token") is True
