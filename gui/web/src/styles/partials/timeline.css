@@ -259,6 +259,28 @@
   left: auto;
 }
 
+.fade-readout {
+  position: absolute;
+  top: 0;
+  z-index: 5;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-xs);
+  background: var(--color-overlay-black-75);
+  color: var(--color-clip-label);
+  font-size: var(--font-size-micro);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.fade-readout.in {
+  left: 0;
+}
+
+.fade-readout.out {
+  right: 0;
+}
+
 .trim-handle {
   position: absolute;
   bottom: 0;

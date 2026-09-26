@@ -369,3 +369,30 @@ def test_document_server_seq_oserror() -> None:
         side_effect=OSError("nope"),
     ):
         assert document_server_seq("/missing.json") == 0
+
+
+def test_track_views_expose_fade_cap(minimal_project, monkeypatch) -> None:
+    from podcast_mcp.gui.assembler import build_track_views
+    from podcast_mcp.models import MediaAsset, Track, TrackRole
+
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.project.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=10.0),
+        ),
+        Track(
+            id="bed",
+            label="Bed",
+            role=TrackRole.MUSIC,
+            media=MediaAsset(path="raw/bed.wav", duration_sec=10.0),
+        ),
+    ]
+    monkeypatch.setattr(
+        "podcast_mcp.gui.assembler.load_defaults",
+        lambda: {"render": {"join_fade_max_ms": 25}},
+    )
+    caps = {t.id: t.fade_max_ms for t in build_track_views(ws)}
+    assert caps == {"host": 25, "bed": None}

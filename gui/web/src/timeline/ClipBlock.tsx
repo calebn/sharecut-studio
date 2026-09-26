@@ -19,6 +19,8 @@ import {
   MOVE_THRESHOLD_PX,
   waveformTicksToTimeline,
 } from "../edit/clipMove";
+import { isHandleDrag } from "../edit/dragThreshold";
+import { clampFadeMs, maxFadeMs } from "../edit/fadeLimits";
 import { useSnapTicks } from "../hooks/useSnapTicks";
 import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -38,6 +40,8 @@ interface ClipBlockProps {
    *  narrow to name the lane (phone). */
   trackLabel?: string;
   zoomPxPerSec: number;
+  /** The server's edge-fade cap for this track (TrackView.fade_max_ms). */
+  fadeMaxMs?: number | null;
   color: string;
   selected: boolean;
   /** Media the clip draws (`waveform/mediaRef.clipMediaRef`). */
@@ -197,6 +201,7 @@ export function ClipBlockView({
   role,
   trackLabel,
   zoomPxPerSec,
+  fadeMaxMs = null,
   color,
   selected,
   mediaRef,
@@ -227,7 +232,9 @@ export function ClipBlockView({
   const bodyRef = useRef<BodyDrag | null>(null);
   const bodyMovedRef = useRef(false);
   const pointerHandledRef = useRef(false);
+  const fadeLimitMs = maxFadeMs(clip.source_end - clip.source_start, fadeMaxMs);
   const [fadePreview, setFadePreview] = useState<{
+    edge: FadeEdge;
     inMs: number;
     outMs: number;
   } | null>(null);
@@ -311,17 +318,20 @@ export function ClipBlockView({
     let nextIn = state.baseIn;
     let nextOut = state.baseOut;
     if (state.edge === "in") {
-      nextIn = Math.max(0, Math.round(state.baseIn + dxMs));
+      nextIn = clampFadeMs(state.baseIn + dxMs, fadeLimitMs);
     } else {
-      nextOut = Math.max(0, Math.round(state.baseOut - dxMs));
+      nextOut = clampFadeMs(state.baseOut - dxMs, fadeLimitMs);
     }
     try {
-      await setClipFade(
-        useDawStore.getState().projectPath,
-        clip.id,
-        nextIn,
-        nextOut,
-      );
+      // A click (under the drag threshold) only selects; no undo entry.
+      if (isHandleDrag(state.originX, clientX)) {
+        await setClipFade(
+          useDawStore.getState().projectPath,
+          clip.id,
+          nextIn,
+          nextOut,
+        );
+      }
     } finally {
       dragRef.current = null;
       setFadePreview(null);
@@ -400,7 +410,11 @@ export function ClipBlockView({
       baseIn: clip.fade_in_ms,
       baseOut: clip.fade_out_ms,
     };
-    setFadePreview({ inMs: clip.fade_in_ms, outMs: clip.fade_out_ms });
+    setFadePreview({
+      edge,
+      inMs: clip.fade_in_ms,
+      outMs: clip.fade_out_ms,
+    });
     onSelect(clip.id);
   };
 
@@ -473,13 +487,15 @@ export function ClipBlockView({
       const dxMs = ((e.clientX - d.originX) / zoomPxPerSec) * 1000;
       if (d.edge === "in") {
         setFadePreview({
-          inMs: Math.max(0, Math.round(d.baseIn + dxMs)),
+          edge: "in",
+          inMs: clampFadeMs(d.baseIn + dxMs, fadeLimitMs),
           outMs: d.baseOut,
         });
       } else {
         setFadePreview({
+          edge: "out",
           inMs: d.baseIn,
-          outMs: Math.max(0, Math.round(d.baseOut - dxMs)),
+          outMs: clampFadeMs(d.baseOut - dxMs, fadeLimitMs),
         });
       }
       return;
@@ -751,6 +767,11 @@ export function ClipBlockView({
           )}
         </span>
       )}
+      {fadePreview ? (
+        <span className={`fade-readout ${fadePreview.edge}`} aria-hidden="true">
+          {fadePreview.edge === "in" ? fadePreview.inMs : fadePreview.outMs} ms
+        </span>
+      ) : null}
       {showHandles && fadeInMs === 0 && (
         <button
           type="button"
