@@ -74,7 +74,9 @@ cache files or the mutable checkout, so staged public contents are the tested bo
 It also fails on any **public** (globally routable) IPv4 literal in a text blob, including
 sentence-final and zero-padded forms. Private, loopback and documentation ranges
 (`203.0.113.0/24` etc.) pass. Binary blobs, `*.lock` / `package-lock.json` (version tuples) and
-`.svg` / `.map` / `.min.js` assets (compact path data) are skipped. The three fixture addresses in
+`.svg` / `.map` / `.min.js` assets (compact path data) are skipped.
+Skipped blobs are still checked by exact substring for the known server addresses in
+`_SERVER_IPV4_MARKERS`. The three fixture addresses in
 `_PUBLIC_IPV4_ALLOWLIST` (two public resolvers and the `1.2.3.4` placeholder) are allowed. The
 scan covers dotted-quad IPv4 only, not IPv6 or decimal/hex-encoded addresses; it guards against
 accidental leaks, not deliberate obfuscation. On a false positive, rewrite the value (use a
