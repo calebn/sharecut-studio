@@ -47,7 +47,7 @@ several whole clips (`source_id`).
 
 **`require_align_accept`** blocks later steps until `podcast align done` / waive. Unattended /
 `PODCAST_BATCH=1` with `align.accept.mode: waive_unattended` keeps the scorer result and
-auto-waives (it does **not** skip the scorer). It never auto-waives a move above `align.large_move_sec`, including an `unconfirmed_hold` candidate above it: the gate stops and names the tracks so a person listens first. It also stops when an unlocked clip's current placement sits more than that off the reference, which is the same check export QC runs, so an unattended run the gate waived passes the `alignment` QC unless the clips are edited later. An unreadable align artifact stops it too. Uncheck **Align tracks** in the Pipeline
+auto-waives (it does **not** skip the scorer). The waiver records the current alignment plan digest without granting a human drift exemption. It never auto-waives a move above `align.large_move_sec`, including an `unconfirmed_hold` candidate above it: the gate stops and names the tracks so a person listens first. It also stops when an unlocked clip's current placement sits more than that off the reference, which is the same check export QC runs, so an unattended run the gate waived passes the `alignment` QC unless the clips are edited later. If an accepted artifact is missing or unreadable, the gate and export QC fail until alignment is rerun and reviewed. Uncheck **Align tracks** in the Pipeline
 pane when files are unrelated segments — the gate cascade-disables with it.
 `merge_transcript` still depends only on `transcribe_tracks` so skipping align does not
 disable ASR.

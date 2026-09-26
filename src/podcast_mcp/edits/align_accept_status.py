@@ -82,6 +82,7 @@ def write_status(
     }
     if accepted_drift is not None:
         payload["accepted_drift"] = accepted_drift
+    if status in ("done", "waived"):
         artifact = load_align_artifact(project)
         if artifact is not None:
             payload["accepted_plan_digest"] = _plan_digest(artifact)
@@ -195,8 +196,13 @@ def _plan_digest(payload: dict[str, Any]) -> str:
 
 
 def _accept_covers_current_artifact(project: EpisodeProject, data: dict[str, Any] | None) -> bool:
-    artifact = load_align_artifact(project)
-    return artifact is None or (data or {}).get("accepted_plan_digest") == _plan_digest(artifact)
+    artifact, err = _align_artifact_or_error(project)
+    if err:
+        return False
+    digest = (data or {}).get("accepted_plan_digest")
+    if artifact is None:
+        return digest is None  # old status written when no artifact existed
+    return digest == _plan_digest(artifact)
 
 
 def large_align_moves(plans: list[dict[str, Any]], *, threshold: float) -> list[dict[str, Any]]:
@@ -453,6 +459,10 @@ def alignment_drift_report(
     mode = align_mode_from_defaults(defaults)
     if err or payload is None or not _drift_checkable(payload):
         errs = [err] if err else []
+        if payload is None and not err and (load_status(project) or {}).get("accepted_plan_digest"):
+            errs.append(
+                "Accepted align artifact is missing; re-run align_tracks and review alignment."
+            )
         return {
             "checked": False,
             "threshold_sec": threshold,
@@ -525,6 +535,10 @@ def require_or_waive_unattended(
         payload, err = _align_artifact_or_error(project)
         if err:
             raise AlignAcceptRequiredError(f"{err} {GATE_HINT}")
+        if payload is None and (data or {}).get("accepted_plan_digest"):
+            raise AlignAcceptRequiredError(
+                f"Accepted align artifact is missing; re-run align_tracks. {GATE_HINT}"
+            )
         threshold = align_threshold_sec(payload, defaults)
         found = _align_findings(project, payload, threshold=threshold, person_rows=None)
         named = {str(p.get("track_id")) for p in found.moves}
