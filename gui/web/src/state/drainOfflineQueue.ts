@@ -1,7 +1,7 @@
 import { submitDocumentCommand } from "../api";
 import { shareProjectKey } from "../shareMode";
 import { isClientRejection, isRetryLater } from "../utils/apiError";
-import { isHostSendInFlight } from "./hostSendOrder";
+import { hostSendDone } from "./hostSendOrder";
 import {
   loadCommandQueue,
   loadHostCommandQueue,
@@ -43,7 +43,10 @@ export async function drainHostOfflineQueue(
   const completed: string[] = [];
   for (const cmd of queue) {
     // This tab is still POSTing it live: replaying now would send it twice.
-    if (isHostSendInFlight(projectPath, cmd.command_id)) {
+    // Stop to keep order, and drain again once that send settles.
+    const live = hostSendDone(projectPath, cmd.command_id);
+    if (live) {
+      void live.then(() => requestHostDrain(projectPath));
       break;
     }
     try {
@@ -74,4 +77,34 @@ export async function drainHostOfflineQueue(
   }
   // One persisted update replaces N full-array rewrites on a long replay.
   await removeHostQueuedCommands(projectPath, completed);
+}
+
+const hostDrainRuns = new Map<
+  string,
+  { again: boolean; done: Promise<void> }
+>();
+
+/**
+ * Drain the host queue now, or once more after the drain in progress, so a
+ * request made mid-drain is never lost. Never rejects.
+ */
+export function requestHostDrain(projectPath: string): Promise<void> {
+  const running = hostDrainRuns.get(projectPath);
+  if (running) {
+    running.again = true;
+    return running.done;
+  }
+  const run = { again: false, done: Promise.resolve() };
+  hostDrainRuns.set(projectPath, run);
+  run.done = (async () => {
+    try {
+      do {
+        run.again = false;
+        await drainHostOfflineQueue(projectPath).catch(() => undefined);
+      } while (run.again);
+    } finally {
+      hostDrainRuns.delete(projectPath);
+    }
+  })();
+  return run.done;
 }

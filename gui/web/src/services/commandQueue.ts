@@ -7,7 +7,12 @@ import {
 import { applyDocumentResult } from "../document/applyDocumentUpdate";
 import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
-import { beginHostSend, type HostSend } from "../state/hostSendOrder";
+import {
+  beginHostSend,
+  HOST_SEND_WAIT_MS,
+  type HostSend,
+} from "../state/hostSendOrder";
+import type { QueuedCommand } from "../state/offlineStore";
 import { isRetryLater, readApiFailure } from "../utils/apiError";
 import {
   documentClientId,
@@ -146,18 +151,31 @@ export async function submitQueuedDocumentCommand(
   }
 }
 
-/** After this tab's earlier sends finish, the queued record if it is now first. */
+/** Ask the host drain to run, or run once more, for this project. */
+function requestDrain(projectPath: string): void {
+  void import("../state/drainOfflineQueue")
+    .then(({ requestHostDrain }) => requestHostDrain(projectPath))
+    .catch(() => undefined);
+}
+
+/**
+ * Wait (at most HOST_SEND_WAIT_MS) for this tab's earlier sends, then return
+ * this command's persisted record if it is now the queue head. Null keeps it
+ * queued; the caller then requests a drain.
+ */
 async function queueHeadAfterEarlierSends(
-  projectPath: string,
+  loadQueue: () => Promise<QueuedCommand[]>,
   commandId: string,
-  earlier: Promise<void>,
-): Promise<{ payload: Record<string, unknown> } | null> {
-  await earlier;
+  send: HostSend,
+): Promise<QueuedCommand | null> {
+  if (!(await send.earlierWithin(HOST_SEND_WAIT_MS))) {
+    return null;
+  }
   try {
-    const { loadHostCommandQueue } = await import("../state/offlineStore");
-    const queue = await loadHostCommandQueue(projectPath);
+    const queue = await loadQueue();
     return queue[0]?.command_id === commandId ? queue[0] : null;
   } catch {
+    // Unreadable queue: stay queued to keep order; the drain retries it.
     return null;
   }
 }
@@ -205,9 +223,15 @@ async function submitHostDocumentCommand(
     // A predecessor that is this tab's own live send is not an offline edit:
     // wait for it, then send this command if nothing older remains.
     const head = send
-      ? await queueHeadAfterEarlierSends(projectPath, command_id, send.earlier)
+      ? await queueHeadAfterEarlierSends(
+          () => hostQueue.loadHostCommandQueue(projectPath),
+          command_id,
+          send,
+        )
       : null;
     if (!head) {
+      // Nothing in this call will send it, so make sure a drain does.
+      requestDrain(projectPath);
       return { ok: true, queued: true, command_id, client_seq };
     }
     bodyBase = { ...bodyBase, payload: head.payload };

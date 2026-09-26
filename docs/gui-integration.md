@@ -163,7 +163,7 @@ The waiver route is host-origin protected and serializes its project save with
 document commands.
 
 An Approve click made while another live host command from the same tab is still
-in flight waits for that send and then posts, so the typed 409 always reaches the
+in flight waits for that send (up to 5 s, `HOST_SEND_WAIT_MS`) and then posts, so the typed 409 always reaches the
 inspector (rather than resolving as a silent `queued` success that later replays
 as a raw banner conflict).
 

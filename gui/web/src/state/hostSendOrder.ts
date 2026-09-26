@@ -5,6 +5,7 @@
  * it only after the response. A second live command therefore sees the first
  * as a queue predecessor even though nothing is offline. This registry lets it
  * tell its own tab's in-flight send apart from real leftovers.
+ * Per tab only: another tab's in-flight record looks like an offline leftover, and the caller requests a drain.
  */
 interface Send {
   commandId: string;
@@ -13,9 +14,17 @@ interface Send {
 
 const sends = new Map<string, Send[]>();
 
+/** How long a live host command waits behind this tab's earlier sends before it stays queued for the drain. */
+export const HOST_SEND_WAIT_MS = 5_000;
+
 export interface HostSend {
-  /** Settles once every send begun earlier for this project has finished. */
+  /**
+   * Settles once every send begun earlier for this project has finished (all of
+   * them, not only queue records ahead; the host queue is a single FIFO).
+   */
   earlier: Promise<void>;
+  /** True once every earlier send finished, false if `ms` passes first. */
+  earlierWithin: (ms: number) => Promise<boolean>;
   /** Mark this send finished (call from a finally block). */
   finish: () => void;
 }
@@ -34,6 +43,15 @@ export function beginHostSend(
   sends.set(projectPath, [...list, entry]);
   return {
     earlier,
+    earlierWithin: (ms) => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const timedOut = new Promise<boolean>((resolve) => {
+        timer = setTimeout(() => resolve(false), ms);
+      });
+      return Promise.race([earlier.then(() => true), timedOut]).finally(() =>
+        clearTimeout(timer),
+      );
+    },
     finish: () => {
       const rest = (sends.get(projectPath) ?? []).filter((s) => s !== entry);
       if (rest.length > 0) sends.set(projectPath, rest);
@@ -43,9 +61,13 @@ export function beginHostSend(
   };
 }
 
-export function isHostSendInFlight(
+/** This tab's in-flight live send of `commandId`, settling when it finishes; null if none. */
+export function hostSendDone(
   projectPath: string,
   commandId: string,
-): boolean {
-  return (sends.get(projectPath) ?? []).some((s) => s.commandId === commandId);
+): Promise<void> | null {
+  return (
+    (sends.get(projectPath) ?? []).find((s) => s.commandId === commandId)
+      ?.done ?? null
+  );
 }
