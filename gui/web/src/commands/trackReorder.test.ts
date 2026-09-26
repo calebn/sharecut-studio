@@ -202,6 +202,40 @@ describe("track.reorder / moveUp / moveDown", () => {
     expect(api.reorderTrackCommand).not.toHaveBeenCalled();
   });
 
+  it.each(["track.moveUp", "track.moveDown"])(
+    "disables queued %s when the inspector selection changes",
+    async (command) => {
+      const pending = execute(command, {}, { skipWhen: true });
+      useDawStore.setState({ selection: { kind: "track", trackId: "c" } });
+      expect((await pending).status).toBe("disabled");
+      expect(api.reorderTrackCommand).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["track.moveUp", "track.moveDown"])(
+    "disables queued %s when a new project reuses the track ID",
+    async (command) => {
+      const pending = execute(command, {}, { skipWhen: true });
+      useDawStore.setState({
+        projectPath: "/tmp/other-ep",
+        project: threeTracks(),
+        selection: { kind: "track", trackId: "b" },
+      });
+      expect((await pending).status).toBe("disabled");
+      expect(api.reorderTrackCommand).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["track.moveUp", "track.moveDown"])(
+    "disables %s when explicit track ID differs from the inspector selection",
+    async (command) => {
+      expect(
+        (await execute(command, { trackId: "c" }, { skipWhen: true })).status,
+      ).toBe("disabled");
+      expect(api.reorderTrackCommand).not.toHaveBeenCalled();
+    },
+  );
+
   it("maps ArrowUp/Down when track inspector selected", () => {
     const up = matchKeymapCommands({
       key: "ArrowUp",
