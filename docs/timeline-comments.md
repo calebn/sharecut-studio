@@ -109,8 +109,12 @@ media directory to `{id}` with a no-replace rename, then records the version. Li
 systems fail closed. **Review publishing is unavailable on Windows through CLI, MCP,
 and share flows** until a Windows implementation can provide equivalent descriptor-safe
 cleanup and atomic no-replace promotion. An existing destination is never overwritten.
-The promoted directory identity and WAV hash are verified before attach. A failed copy
-or encode leaves no public version.
+The staged WAV is hashed through a pinned descriptor before the commit lock, and its
+file identity is checked after promotion before attach. A failed copy or encode leaves
+no public version. The review root must be owned and not group/world writable before
+any media write; staging directories are mode 0700, output files are created with
+no-follow, exclusive descriptor-relative opens, and an active stage holds a directory
+lease until promotion or cleanup.
 
 Generation and persistence failure cleanup use the directory identity recorded at
 staging creation and quarantine with descriptor-relative
@@ -118,12 +122,14 @@ operations. A replacement before the first identity check is retained. If replac
 lands between the check and quarantine rename, cleanup tries an atomic no-replace restore
 to the public name. If that name is occupied or restoration fails, the replacement stays
 in `.failed-review-*` for inspection. Cleanup never overwrites or deletes it.
-Quarantines with a trusted ownership marker and directory identity, and private
-staging directories, become eligible for cleanup after 24 hours. Each publish scans
-private names outside the commit lock and inspects at most 32 randomly rotated
-candidates, so old entries can be reached across separate CLI runs. This scan costs
-more as the review directory grows. Legacy, mismatched, untrusted, and partially
-removed quarantines stay for manual inspection.
+Quarantines with a trusted ownership marker and directory identity, and inactive
+private staging directories, become eligible for cleanup after 24 hours. Before taking
+the in-process state or cross-process commit lock, each publish streams the directory,
+keeps only the 32 oldest eligible candidates in memory, and deletes at most 32.
+Enumeration and eligibility checks still take O(N) time in the number of review entries;
+they do not block edits through either project lock. Active stages are skipped even if
+their directory mtime is old. Legacy, mismatched, untrusted, and partially removed
+quarantines stay for manual inspection.
 
 The review root is resolved once before staging so symlink retargeting cannot redirect
 cleanup. A saved version retains its media even if a later write reports an error.

@@ -8,6 +8,7 @@ from typing import Any
 
 from podcast_mcp.edits.review_versions import (
     DirectoryIdentity,
+    MediaIdentity,
     attach_version,
     clean_created_version,
     discard_created_version,
@@ -16,6 +17,7 @@ from podcast_mcp.edits.review_versions import (
     promote_staged_version,
     set_active_version,
     stage_version,
+    sweep_stale_quarantines,
     version_audio_path,
 )
 from podcast_mcp.models import load_project
@@ -55,28 +57,39 @@ class ReviewService:
         project = self.ws.project
         index_path = history_index_path(project)
         created: tuple[Path, DirectoryIdentity] | None = None
+        media_identity: MediaIdentity | None = None
         public: Path | None = None
 
         def remember_media(path: Path, identity: DirectoryIdentity) -> None:
             nonlocal created
             created = (path, identity)
 
+        def remember_ready(identity: MediaIdentity) -> None:
+            nonlocal media_identity
+            media_identity = identity
+
+        sweep_stale_quarantines(project)
         with project_state_lock(project):
             # Media creation (copy + MP3) stays outside the cross-process file lock, but
             # inside the in-process state lock: other threads on this workspace (mutations,
             # render snapshots, GUI requests) wait for the encode, which keeps stage +
             # attach atomic within this process.
             ver = stage_version(
-                project, label=label, prefer=prefer, on_media_created=remember_media
+                project,
+                label=label,
+                prefer=prefer,
+                on_media_created=remember_media,
+                on_media_ready=remember_ready,
             )
             recorded = created
             mutation_started = False
             try:
                 with project_commit_lock(project):
                     assert recorded is not None
+                    assert media_identity is not None
                     try:
                         public = promote_staged_version(
-                            recorded[0], recorded[1], ver.id, expected_hash=ver.sha256
+                            recorded[0], recorded[1], ver.id, expected_media=media_identity
                         )
                     except BaseException:
                         discard_created_version(recorded[0], recorded[1])
