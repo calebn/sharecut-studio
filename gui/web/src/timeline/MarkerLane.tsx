@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { updateChapter, updateSocialClip } from "../api";
+import { HANDLE_DRAG_MIN_PX } from "../edit/dragThreshold";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { isShareProjectKey } from "../shareMode";
 import { useDaw } from "../state/useDaw";
@@ -16,8 +17,6 @@ import type { MarkerRows } from "./timelineMetrics";
 /** Point markers are row-square; center them on their time. */
 const MARKER_HALF = MARKER_ROW_HEIGHT / 2;
 const NO_FLAGS: readonly ClippingFlag[] = [];
-/** A social-clip drag shorter than this (px) is a click, not a move. */
-const SOCIAL_DRAG_MIN_PX = 3;
 
 /**
  * One presence anchor per row: rows collapse with each viewer's layer
@@ -245,7 +244,7 @@ export function MarkerLane({
                     const { mode, originStart, originEnd, id } =
                       socialDrag.current;
                     socialDrag.current = null;
-                    if (Math.abs(dx) * zoomPxPerSec < SOCIAL_DRAG_MIN_PX) {
+                    if (Math.abs(dx) * zoomPxPerSec < HANDLE_DRAG_MIN_PX) {
                       return;
                     }
                     let start = originStart;
