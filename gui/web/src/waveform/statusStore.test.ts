@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WaveformFetchError } from "../api";
+import { readyEntry } from "../test/waveform";
 import type { WaveformStatus } from "./types";
 
 const loads = vi.hoisted(
@@ -41,17 +42,8 @@ const {
 
 const P = "/tmp/p.json";
 
-const ready = (key: string) => ({
-  status: "ready" as const,
-  key,
-  sample_rate: 48000,
-  channels: 1,
-  total_frames: 48000,
-  base_spp: 64,
-  level_factor: 4,
-  bins_per_tile: 4096,
-  levels: [{ spp: 64, bins: 750 }],
-});
+const ready = (key: string) =>
+  readyEntry(key, { total_frames: 48000, levels: [{ spp: 64, bins: 750 }] });
 
 function status(media: WaveformStatus["media"]): WaveformStatus {
   return { format_version: 1, media };
