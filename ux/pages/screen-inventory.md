@@ -13,12 +13,22 @@ Per-surface **display schemas**: what regions exist, what data they show, empty/
 | | |
 |--|--|
 | **Purpose** | Create a new episode workspace or open an existing `episode.project.json` on the host |
-| **Primary actions** | New project… · Open project… · **Browse…** (OS file dialog via the local engine) · paste path · **Connect agent…** · **Help** (create a sanitized diagnostics zip; attach it to a GitHub issue — nothing is uploaded; local **Creating…** busy, not StatusBar) |
+| **Primary actions** | New project… · Open project… · **Browse…** (OS file dialog via the local engine) · paste path · **Connect agent…** · **Help** (create and preview a sanitized diagnostics zip; optionally submit a public report after consent, or open a prefilled GitHub issue and attach the local zip; local **Creating…** busy, not StatusBar) |
 | **Data shown** | Episode name + workspace directory (New); path to `episode.project.json` (Open) |
 | **Empty / error** | Missing OS dialog tool → keep paste field + alert; wrong filename → server error |
 | **Out of scope** | Guests / share tokens; uploading project JSON as a browser File |
 
 ---
+
+## Help report flow (Home and Studio host)
+
+Help creates a local diagnostics ZIP, then shows its path, size, file list, and
+app version before any upload. The user writes a description and, when a report
+relay is configured, explicitly accepts that the description and ZIP become
+public. The ZIP link lasts 30 days. Submit shows queued status, then the
+published issue link when available. Open support pre-fills the GitHub bug form
+with the description and version for the self-hosted/manual path; the user
+attaches the local ZIP there. Guests never see these controls.
 
 ## Information architecture
 

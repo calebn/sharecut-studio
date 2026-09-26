@@ -10,7 +10,7 @@ body:
         Attachments on this issue are public. Minted shares may transit the relay; that
         is unrelated to GitHub attachments.
 
-        Create a sanitized diagnostics zip with **Home → Help → Create diagnostics bundle** or `podcast doctor --bundle`. Nothing is uploaded automatically; attach the zip here if you have one.
+        Create and preview a sanitized diagnostics zip with **Home → Help → Create diagnostics bundle** or `podcast doctor --bundle`. Nothing is uploaded on creation. Help can submit after explicit consent when a relay is configured; otherwise attach the local zip here if you have one. Attachments and relay ZIP links are public (relay links expire after 30 days).
   - type: checkboxes
     id: diagnostics
     attributes:

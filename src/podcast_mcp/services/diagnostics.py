@@ -25,12 +25,12 @@ from podcast_mcp.distribution import runtime_distribution_metadata
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.services.bootstrap import component_status
 from podcast_mcp.services.doctor import ffmpeg_probe_info, python_runtime_info, run_doctor_checks
+from podcast_mcp.util.diagnostics_bundle_contract import MAX_BUNDLE_BYTES
 from podcast_mcp.util.model_assets import rnnoise_model_path
 from podcast_mcp.util.progress import resolve_progress_task
 from podcast_mcp.util.redact import sanitize
 from podcast_mcp.whisper_models import resolve_whisper_model, whisper_model_is_cached
 
-MAX_BUNDLE_BYTES = 5 * 1024 * 1024
 LOG_TAIL_LINES = 500
 LOG_TAIL_MAX_BYTES = 256 * 1024
 MAX_LOG_FILES = 32
@@ -75,7 +75,7 @@ _BOOL_VALUES = frozenset({"0", "1", "true", "false", "yes", "no", "on", "off"})
 _README = """Sharecut Studio diagnostics bundle
 =================================
 
-This zip was created on your machine. Nothing was uploaded.
+This zip was created on your machine. Creation does not upload it.
 
 Contents
 --------
@@ -88,11 +88,13 @@ Not included
 Audio, transcripts, episode.project.json, shares.json, sync.db, relay.yaml,
 or share tokens.
 
-How to attach
+How to report
 -------------
-1. Attach this zip to a support request (Help → Open support, or
-   `podcast doctor --bundle` prints the configured support URL).
-2. Do not attach episode audio or project JSON.
+1. In Help, preview the zip, describe the problem, and explicitly consent
+   before submitting when a report relay is configured. The zip and description
+   become public.
+2. Otherwise attach this zip to a support request (Help → Open support).
+3. Do not attach episode audio or project JSON.
 """
 
 

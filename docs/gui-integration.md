@@ -384,6 +384,8 @@ Keyboard **`=` / `+` / `-` / `\`** (zoom in / out / fit) require **`timelineFocu
 | `POST /api/record/upload` | Host `p_host` keeper chunks (5 MB part cap) |
 | `POST /api/diagnostics/bundle` | Host-only sanitized diagnostics zip (`DiagnosticsService`; default `~/Downloads`; unique nonce in the filename) |
 | `GET /api/diagnostics/bundle/{name}` | Download a zip registered by this Studio session (filename allowlist; not a scan of `~/Downloads`) |
+| `POST /api/diagnostics/submit` | Host-only consented report submission; forwards only a bundle registered by this Studio process to `PODCAST_REPORT_RELAY_URL` |
+| `GET /api/diagnostics/report-status` | Host-only polling of a status URL returned by a submission in this Studio process |
 | `GET /api/diagnostics` | Public distribution metadata (`support_url`, `privacy_url`, `repository_url`, optional `release_manifest_url`) for Help and other product links |
 
 `ProjectView.comments` lists all timeline comments for markers + Comments tab.

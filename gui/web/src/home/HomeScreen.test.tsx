@@ -41,6 +41,7 @@ describe("HomeScreen", () => {
     pickMock.mockReset();
     metaMock.mockReset();
     metaMock.mockResolvedValue({
+      report_available: false,
       support_url: "https://support.example.test",
       privacy_url: "https://privacy.example.test",
       repository_url: "https://code.example.test/sharecut",

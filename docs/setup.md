@@ -440,7 +440,7 @@ podcast review share --project episode.project.json --version <id> \
 
 ## Troubleshooting
 
-If Sharecut Studio or `podcast` misbehaves, create a **sanitized diagnostics zip** on your machine and attach it to a support request. Nothing is uploaded automatically — there is **no telemetry**. Opt-in automatic submission to the configured support provider is Follow-up; crash-time phone-home is not planned.
+If Sharecut Studio or `podcast` misbehaves, create a **sanitized diagnostics zip** on your machine. Nothing is uploaded when the zip is created, and there is **no telemetry**. Home and Studio Help can preview the files and submit the zip with a description after explicit consent when `PODCAST_REPORT_RELAY_URL` points to a configured relay. The description and ZIP link become public; the relay keeps the ZIP for 30 days. Self-hosted installations can keep using Open support and attach the local zip manually.
 
 ```bash
 podcast doctor --bundle            # writes ~/Downloads/sharecut-diagnostics-<UTC>-<nonce>.zip
@@ -448,7 +448,7 @@ podcast doctor --bundle --out DIR  # optional output directory
 # prints the zip path and configured support URL; `--open` opens it in a browser
 ```
 
-In the app: **Home → Help → Create diagnostics bundle**. The dialog shows the zip path (reveal it in your file manager) and **Open support**.
+In the app: **Home → Help → Create diagnostics bundle**. The dialog shows the zip path, size, file list, and version. Add a description and approve the public upload to **Submit report**, or reveal the zip in your file manager and use **Open support**.
 
 The zip includes doctor results, versions, a sidecar log tail, and counts (tracks/clips/decisions/comments) — not audio, transcripts, project JSON, share tokens, or `shares.json` / `sync.db`. Guests / share links cannot create a bundle (host-only).
 

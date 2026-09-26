@@ -1,7 +1,9 @@
 (relay_api) {
 	@relay path /healthz /llms.txt /tunnel /r/* /rec/* /api* /mcp* /auth*
 	handle @relay {
-		reverse_proxy podcast-relay:8081
+		reverse_proxy podcast-relay:8081 {
+            header_up X-Forwarded-For {remote_host}
+        }
 	}
 }
 

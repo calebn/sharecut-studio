@@ -23,6 +23,7 @@ COPY src/podcast_mcp/util/rate_limit.py podcast_mcp/util/rate_limit.py
 COPY src/podcast_mcp/util/body_limits.py podcast_mcp/util/body_limits.py
 COPY src/podcast_mcp/util/proxy_paths.py podcast_mcp/util/proxy_paths.py
 COPY src/podcast_mcp/util/ws_limits.py podcast_mcp/util/ws_limits.py
+COPY src/podcast_mcp/util/diagnostics_bundle_contract.py podcast_mcp/util/diagnostics_bundle_contract.py
 COPY src/podcast_relay/ podcast_relay/
 COPY deploy/relay/VERSION podcast_relay/VERSION
 

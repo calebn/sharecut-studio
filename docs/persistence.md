@@ -86,3 +86,16 @@ flight.
 `ReviewService.publish` checks the canonical project after a late persistence
 error: an uncommitted version has its new history entries and media removed,
 while a version already saved in the project retains both.
+
+## Public diagnostics reports (relay)
+
+A configured public relay stores consented diagnostics reports under
+`PODCAST_REPORT_STORE`. `reports.sqlite3` records opaque report IDs, source IP,
+UTC intake day, description, issue URL, and publisher queue state. ZIPs live in
+`bundles/<opaque-id>.zip` on the same persistent volume. The relay writes and
+fsyncs a ZIP before committing its queued row; SQLite `BEGIN IMMEDIATE`
+serializes the daily global and per-IP admission caps across workers. The
+background publisher retries GitHub failures with capped backoff. Both status
+and public ZIP access expire after 30 days, and the publisher deletes expired
+rows/files. Keep the volume private and durable; only opaque ZIP links are
+public. The GitHub token stays in the relay environment, never in report rows.
