@@ -1426,6 +1426,36 @@ def test_discard_drops_empty_track_and_repeat_keeps_landed(
     assert ws.project.track_by_id(slug_of(guest)) is None
 
 
+def test_discard_reloads_the_project_once(minimal_project, sample_wav, tmp_workspace, monkeypatch):
+    """Discard's own reload_first covers the follow-up land, so no second re-read (#503)."""
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=1_000)
+    _ack(
+        RecordUploadService(ws.project),
+        session_id=room["session_id"],
+        take=0,
+        pid=guest,
+        segment=0,
+        join_offset_ms=0,
+    )
+    RecordLandingService(ws).land(align=lambda _p: None)
+    calls = {"n": 0}
+    original = ws.reload
+
+    def counting():
+        calls["n"] += 1
+        return original()
+
+    monkeypatch.setattr(ws, "reload", counting)
+    RecordLandingService(ws).delete_take(0)
+    assert calls["n"] == 1
+    assert ws.project.track_by_id(slug_of(guest)) is None
+
+
 def test_guest_ack_hides_other_participant_clips(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
