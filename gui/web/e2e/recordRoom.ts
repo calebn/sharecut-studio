@@ -178,7 +178,7 @@ export type SavedRecordProject = {
     tracks: Array<{ id: string; label?: string }>;
     clips: Array<{
       track_id: string;
-      source_id: string;
+      source_id: string | null;
       timeline_start: number;
       source_start: number;
       source_end: number;

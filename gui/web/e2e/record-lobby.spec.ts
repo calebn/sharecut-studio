@@ -1338,7 +1338,7 @@ test.describe("record lobby", () => {
             .poll(
               async () =>
                 (await readSavedProject(projectPath)).timeline.clips.filter(
-                  (c) => c.source_id.startsWith(hostSourcePrefix),
+                  (c) => c.source_id?.startsWith(hostSourcePrefix) ?? false,
                 ).length,
               { timeout: 15_000 },
             )
@@ -1350,8 +1350,8 @@ test.describe("record lobby", () => {
             (c) => c.track_id === ava?.id,
           );
           expect(avaClips.length).toBeGreaterThanOrEqual(1);
-          const hostClips = saved.timeline.clips.filter((c) =>
-            c.source_id.startsWith(hostSourcePrefix),
+          const hostClips = saved.timeline.clips.filter(
+            (c) => c.source_id?.startsWith(hostSourcePrefix) ?? false,
           );
           expect(hostClips.length).toBeGreaterThanOrEqual(1);
           for (const clip of [...avaClips, ...hostClips]) {
