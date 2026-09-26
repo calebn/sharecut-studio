@@ -7,6 +7,7 @@ part of each span a clip still shows, so flags follow cuts, trims and moves.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable
 
 from podcast_mcp.edits.ranges import clamp_spans
@@ -17,17 +18,12 @@ def clipping_regions_from_ms(
     spans: Iterable[Iterable[int]] | None, duration_s: float | None
 ) -> list[SourceClippingRegion]:
     """Segment-relative ``[start_ms, end_ms]`` pairs as source spans clamped to the file."""
-    out: list[SourceClippingRegion] = []
-    limit = float(duration_s) if duration_s is not None else None
-    for span in spans or []:
-        start_ms, end_ms = list(span)
-        start = max(0.0, start_ms / 1000.0)
-        end = end_ms / 1000.0
-        if limit is not None:
-            end = min(end, limit)
-        if end > start + 1e-9:
-            out.append(SourceClippingRegion(start_s=start, end_s=end))
-    return out
+    limit = float(duration_s) if duration_s is not None else math.inf
+    spans_s = (
+        (start_ms / 1000.0, end_ms / 1000.0)
+        for start_ms, end_ms in (list(span) for span in spans or [])
+    )
+    return [SourceClippingRegion(start_s=s, end_s=e) for s, e in clamp_spans(spans_s, 0.0, limit)]
 
 
 def clip_clipping_payload(
