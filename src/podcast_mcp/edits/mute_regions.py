@@ -6,7 +6,7 @@ honours the list with ≤5 ms fades into silence so timeline length is unchanged
 
 from __future__ import annotations
 
-from podcast_mcp.edits.ranges import subtract_ranges_from_intervals
+from podcast_mcp.edits.ranges import clamp_spans, subtract_ranges_from_intervals
 from podcast_mcp.models import Clip, ClipMuteRegion
 
 MUTE_FADE_SEC = 0.005
@@ -18,13 +18,8 @@ def intersect_mute_regions(
     src_end: float,
 ) -> list[ClipMuteRegion]:
     """Keep the overlap of ``regions`` with ``[src_start, src_end)``."""
-    out: list[ClipMuteRegion] = []
-    for region in regions:
-        start = max(float(region.start_s), float(src_start))
-        end = min(float(region.end_s), float(src_end))
-        if end > start + 1e-9:
-            out.append(ClipMuteRegion(start_s=start, end_s=end))
-    return merge_mute_regions(out)
+    clamped = clamp_spans(((r.start_s, r.end_s) for r in regions), src_start, src_end)
+    return merge_mute_regions([ClipMuteRegion(start_s=s, end_s=e) for s, e in clamped])
 
 
 def merge_mute_regions(regions: list[ClipMuteRegion]) -> list[ClipMuteRegion]:
