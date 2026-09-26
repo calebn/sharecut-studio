@@ -154,18 +154,16 @@ metadata and active selection after publishing and switching versions, and that 
 checks both premix and mastered sources: frozen WAV bytes and SHA-256 match the
 source, and the saved MP3 decodes fully with FFmpeg. Pass `capabilities=[]` to
 test the default capability fallback, or leave it unset for all capabilities.
-The same file fault-injects MP3 export failure to check that the new version directory is
-removed without changing existing review media or the source mix, and checks that a generated
-ID collision does not overwrite an existing directory. Additional fault injection covers
-interruption, retargeting a symlinked review root during failure cleanup, directory replacement
-during both generation and persistence failure cleanup (pinned and path-based), replacement before
-the service callback records its identity, failure of the identity read, and the service's
-persisted-state contract. Direct `clean_created_version` tests cover replacement before the first
-identity check, a version directory that is already gone (a silent no-op), quarantine creation
-and open failures, a failing descriptor `close` (the other descriptor is still closed and the
-empty quarantine removed), and `rmtree` failing mid-cleanup (the
-quarantine is kept and the original publish error still surfaces, including when cleanup raises
-a non-`OSError`).
+`test_review_versions.py` fault-injects MP3 export and persistence failures, no-replace
+promotion collisions, staging identity failures, and failed cleanup. Its direct cleanup
+cases cover replacement before and during quarantine, descriptor failures, missing
+directories, and a retained quarantine when removal fails. The stale quarantine sweep
+requires a matching ownership marker and identity and is bounded by age and entry count.
+Subprocess tests race promotion and quarantine against an independent writer. Sweep tests
+keep fresh and symlinked entries, enforce the 32-entry cap, and retarget an ancestor
+symlink during root-relative quarantine creation. An identity-read failure retains only
+a private stage.
+Unsupported descriptor platforms fail closed before public promotion.
 
 Tests that need object storage mock `load_object_store_config` / `ObjectStoreClient` explicitly (see `tests/test_review_media_object_store.py`).
 

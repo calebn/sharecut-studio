@@ -13,6 +13,7 @@ from podcast_mcp.edits.review_versions import (
     discard_created_version,
     get_version,
     list_versions,
+    promote_staged_version,
     set_active_version,
     stage_version,
     version_audio_path,
@@ -54,6 +55,7 @@ class ReviewService:
         project = self.ws.project
         index_path = history_index_path(project)
         created: tuple[Path, DirectoryIdentity] | None = None
+        public: Path | None = None
 
         def remember_media(path: Path, identity: DirectoryIdentity) -> None:
             nonlocal created
@@ -71,6 +73,8 @@ class ReviewService:
             mutation_started = False
             try:
                 with project_commit_lock(project):
+                    assert recorded is not None
+                    public = promote_staged_version(recorded[0], recorded[1], ver.id)
                     # run_mutation's rollback restores this same payload: this read raises on
                     # an unreadable index (test_publish_removes_staged_media_when_history_read_fails),
                     # so publish never reaches history_index_to_restore's fallback payload. If
@@ -93,16 +97,16 @@ class ReviewService:
                             mutate,
                         )
                     except BaseException:
-                        if recorded is not None:
+                        if recorded is not None and public is not None:
                             self._clean_uncommitted_media(
-                                ver.id, recorded[0], recorded[1], index_path, history_before
+                                ver.id, public, recorded[1], index_path, history_before
                             )
                         raise
             except BaseException:
                 # Lock timeout, lock-file I/O, or an unreadable history index: nothing
                 # references the staged version yet, so remove its media here.
                 if not mutation_started and recorded is not None:
-                    discard_created_version(recorded[0], recorded[1])
+                    discard_created_version(public or recorded[0], recorded[1], project=project)
                 raise
 
     def _clean_uncommitted_media(
@@ -130,7 +134,7 @@ class ReviewService:
                     "Review history changed during failed publication; keeping %s", created_dir
                 )
                 return
-            clean_created_version(created_dir, identity)
+            clean_created_version(created_dir, identity, project=persisted)
         except BaseException:
             log.warning("Could not clean uncommitted review version %s", created_dir, exc_info=True)
 

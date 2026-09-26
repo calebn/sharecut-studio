@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import os
 import shutil
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -16,7 +18,6 @@ from podcast_mcp.edits import review_versions
 from podcast_mcp.edits.comments import add_comment
 from podcast_mcp.edits.review_versions import (
     REVIEW_ARTIFACTS_RELDIR,
-    attach_version,
     discard_created_version,
     encode_version_mp3,
     get_version,
@@ -125,7 +126,8 @@ def test_failed_mp3_publish_removes_only_new_version(minimal_project, sample_wav
 
     class FailingEngine:
         def export_mp3(self, wav, mp3, *, bitrate_kbps):
-            assert wav == review_root / "failed-pub" / "mix.wav"
+            assert wav.parent.name.startswith(review_versions._STAGING_PREFIX)
+            assert wav.name == "mix.wav"
             assert wav.read_bytes() == source.read_bytes()
             mp3.write_bytes(b"partial mp3")
             raise RuntimeError("encode failed")
@@ -364,6 +366,11 @@ requires_safe_failed_cleanup = pytest.mark.skipif(
 )
 
 
+def test_safe_failed_cleanup_requires_root_relative_mkdir():
+    if os.mkdir not in os.supports_dir_fd:
+        assert not review_versions._SAFE_FAILED_CLEANUP_SUPPORTED
+
+
 def _fail_publication(stage, project, project_path, monkeypatch):
     """Run a publication that fails at *stage* ("generation" or "persistence")."""
     if stage == "generation":
@@ -389,184 +396,237 @@ def _fail_publication(stage, project, project_path, monkeypatch):
         ReviewService(ProjectWorkspace.open(project_path)).publish(label="new")
 
 
-@pytest.mark.parametrize("stage", ["generation", "persistence"])
-@pytest.mark.parametrize("pinned", [pytest.param(True, marks=requires_safe_failed_cleanup), False])
-def test_failed_publish_does_not_delete_replacement_directory(
-    minimal_project, sample_wav, monkeypatch, stage, pinned
-):
-    monkeypatch.setattr(review_versions, "_SAFE_FAILED_CLEANUP_SUPPORTED", pinned)
-    project = load_project(minimal_project)
-    art = Path(project.workspace_dir) / "artifacts"
-    art.mkdir(parents=True, exist_ok=True)
-    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
-    review_root = art / "review"
-    version_dir = review_root / "race"
-    moved_original = review_root / "race-original"
-    existing = review_root / "existing"
-    existing.mkdir(parents=True)
-    existing_mix = existing / "mix.wav"
-    existing_mix.write_bytes(b"existing")
-    monkeypatch.setattr(review_versions, "_new_id", lambda: "race")
-    original_rename = os.rename
-    raced = False
+def test_failed_publish_keeps_replacement_during_quarantine(tmp_path, monkeypatch):
+    version_dir, identity = _created_version_dir(tmp_path)
+    original = version_dir.with_name("original")
+    real_rename = os.rename
 
-    def replace_before_quarantine(src, dst, *args, **kwargs):
-        nonlocal raced
-        is_target = (
-            Path(os.fspath(src)).name == "race"
-            and Path(os.fspath(dst)).name == review_versions._QUARANTINE_ENTRY
-        )
-        if is_target and not raced:
-            raced = True
-            original_rename(version_dir, moved_original)
+    def race(src, dst, *args, **kwargs):
+        if src == version_dir.name and dst == review_versions._QUARANTINE_ENTRY:
+            real_rename(version_dir, original)
             version_dir.mkdir()
             (version_dir / "mix.wav").write_bytes(b"replacement")
-        return original_rename(src, dst, *args, **kwargs)
+        return real_rename(src, dst, *args, **kwargs)
 
-    monkeypatch.setattr(os, "rename", replace_before_quarantine)
-    _fail_publication(stage, project, minimal_project, monkeypatch)
-
-    assert raced, "quarantine rename was not intercepted; update the race hook"
-    assert (moved_original / "mix.wav").read_bytes() == sample_wav.read_bytes()
-    assert existing_mix.read_bytes() == b"existing"
-    quarantine = list(
-        review_root.glob(
-            f"{review_versions._QUARANTINE_PREFIX}*/{review_versions._QUARANTINE_ENTRY}/mix.wav"
-        )
-    )
-    assert len(quarantine) == 1
-    assert quarantine[0].read_bytes() == b"replacement"
-    assert load_project(minimal_project).review.versions == []
+    monkeypatch.setattr(os, "rename", race)
+    review_versions.clean_created_version(version_dir, identity)
+    assert (original / "mix.wav").read_bytes() == b"partial"
+    assert (version_dir / "mix.wav").read_bytes() == b"replacement"
+    assert not list(version_dir.parent.glob(".failed-review-*/media"))
 
 
-@pytest.mark.parametrize("stage", ["generation", "persistence"])
-def test_failed_publish_cleans_up_without_descriptor_relative_ops(
-    minimal_project, sample_wav, monkeypatch, stage
+def test_publication_fails_closed_without_safe_directory_operations(
+    minimal_project, sample_wav, monkeypatch
 ):
+    _, art = _premix_project(minimal_project, sample_wav, monkeypatch)
     monkeypatch.setattr(review_versions, "_SAFE_FAILED_CLEANUP_SUPPORTED", False)
-    project = load_project(minimal_project)
-    art = Path(project.workspace_dir) / "artifacts"
-    art.mkdir(parents=True, exist_ok=True)
-    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
-    review_root = art / "review"
-    existing = review_root / "existing"
-    existing.mkdir(parents=True)
-    (existing / "mix.wav").write_bytes(b"existing")
-    monkeypatch.setattr(review_versions, "_new_id", lambda: "fallback")
-    _fail_publication(stage, project, minimal_project, monkeypatch)
-
-    assert not (review_root / "fallback").exists()
-    assert not list(review_root.glob(".failed-review-*"))
-    assert (existing / "mix.wav").read_bytes() == b"existing"
-    assert load_project(minimal_project).review.versions == []
-
-
-def test_service_cleanup_uses_identity_recorded_at_creation(
-    minimal_project, sample_wav, monkeypatch
-):
-    from podcast_mcp.services import review as review_service
-
-    project = load_project(minimal_project)
-    art = Path(project.workspace_dir) / "artifacts"
-    art.mkdir(parents=True, exist_ok=True)
-    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
-    review_root = art / "review"
-    monkeypatch.setattr(review_versions, "_new_id", lambda: "swap")
-    real_publish = review_service.stage_version
-
-    def swapping_publish(p, *, on_media_created=None, **kwargs):
-        def swap_then_notify(path, identity):
-            path.rename(review_root / "swapped-original")
-            path.mkdir()
-            (path / "replacement.txt").write_bytes(b"replacement")
-            if on_media_created is not None:
-                on_media_created(path, identity)
-
-        return real_publish(p, on_media_created=swap_then_notify, **kwargs)
-
-    monkeypatch.setattr(review_service, "stage_version", swapping_publish)
-    monkeypatch.setattr(
-        review_versions.FFmpegEngine,
-        "export_mp3",
-        lambda self, wav, mp3, *, bitrate_kbps: mp3.write_bytes(b"encoded"),
-    )
-
-    def fail_commit(self, project):
-        raise RuntimeError("commit failed")
-
-    monkeypatch.setattr(ProjectStore, "commit", fail_commit)
-    with pytest.raises(RuntimeError, match="commit failed"):
+    with pytest.raises(OSError, match="safe review publication"):
         ReviewService(ProjectWorkspace.open(minimal_project)).publish(label="new")
-
-    assert (review_root / "swap" / "replacement.txt").read_bytes() == b"replacement"
-    assert (review_root / "swapped-original").is_dir()
-    assert not list(review_root.glob(".failed-review-*"))
+    assert not list((art / "review").glob("[!.]*"))
     assert load_project(minimal_project).review.versions == []
 
 
-def test_publish_identity_failure_removes_empty_version_dir(
-    minimal_project, sample_wav, monkeypatch
-):
-    project = load_project(minimal_project)
-    art = Path(project.workspace_dir) / "artifacts"
-    art.mkdir(parents=True, exist_ok=True)
-    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
-    monkeypatch.setattr(review_versions, "_new_id", lambda: "stat-fail")
-    original_stat = Path.stat
-
-    def failing_stat(self, *args, **kwargs):
-        if self.name == "stat-fail":
-            raise OSError("stat failed")
-        return original_stat(self, *args, **kwargs)
-
-    monkeypatch.setattr(Path, "stat", failing_stat)
-    with pytest.raises(OSError, match="stat failed"):
-        publish_version(project, label="new")
-    assert not os.path.lexists(art / "review" / "stat-fail")
-    assert load_project(minimal_project).review.versions == []
-
-
-def test_failed_publish_cleanup_error_preserves_original_error(
-    minimal_project, sample_wav, monkeypatch
-):
-    project = load_project(minimal_project)
-    art = Path(project.workspace_dir) / "artifacts"
-    art.mkdir(parents=True, exist_ok=True)
-    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
-    monkeypatch.setattr(review_versions, "_new_id", lambda: "cleanup-bug")
-
-    def broken_cleanup(version_dir, identity):
-        raise ValueError("cleanup bug")
-
-    monkeypatch.setattr(review_versions, "clean_created_version", broken_cleanup)
-    _fail_publication("generation", project, minimal_project, monkeypatch)
-
-    assert (art / "review" / "cleanup-bug").is_dir()
-    assert load_project(minimal_project).review.versions == []
-
-
-@pytest.mark.parametrize("pinned", [pytest.param(True, marks=requires_safe_failed_cleanup), False])
 def test_failed_publish_keeps_quarantine_when_rmtree_fails(
-    minimal_project, sample_wav, monkeypatch, pinned
+    minimal_project, sample_wav, monkeypatch
 ):
-    monkeypatch.setattr(review_versions, "_SAFE_FAILED_CLEANUP_SUPPORTED", pinned)
-    project = load_project(minimal_project)
-    art = Path(project.workspace_dir) / "artifacts"
-    art.mkdir(parents=True, exist_ok=True)
-    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
-    monkeypatch.setattr(review_versions, "_new_id", lambda: "rmtree-fail")
+    project, art = _premix_project(minimal_project, sample_wav, monkeypatch)
 
     def fail_rmtree(*args, **kwargs):
         raise OSError("rmtree failed")
 
     monkeypatch.setattr(review_versions.shutil, "rmtree", fail_rmtree)
     _fail_publication("generation", project, minimal_project, monkeypatch)
-
-    review_root = art / "review"
-    assert not (review_root / "rmtree-fail").exists()
-    kept = list(review_root.glob(".failed-review-*/media/mix.wav"))
+    kept = list((art / "review").glob(".failed-review-*/media/mix.wav"))
     assert len(kept) == 1
     assert load_project(minimal_project).review.versions == []
+
+
+@requires_safe_failed_cleanup
+def test_stale_quarantine_sweep_requires_marker_identity_and_age(
+    minimal_project, sample_wav, monkeypatch
+):
+    project, art = _premix_project(minimal_project, sample_wav, monkeypatch)
+    review_root = art / "review"
+    review_root.mkdir()
+    created = review_root / "created"
+    created.mkdir()
+    (created / "mix.wav").write_bytes(b"partial")
+    identity = review_versions._dir_identity(created.stat(follow_symlinks=False))
+    real_rmtree = shutil.rmtree
+    monkeypatch.setattr(
+        review_versions.shutil, "rmtree", lambda *a, **kw: (_ for _ in ()).throw(OSError("busy"))
+    )
+    with pytest.raises(OSError, match="busy"):
+        review_versions.clean_created_version(created, identity, project=project)
+    monkeypatch.setattr(review_versions.shutil, "rmtree", real_rmtree)
+    quarantine = next(review_root.glob(".failed-review-*"))
+    marker = quarantine / review_versions._CLEANUP_MARKER
+    old = time.time() - review_versions._STALE_QUARANTINE_AGE_SECONDS - 1
+    os.utime(marker, (old, old))
+    legacy = review_root / ".failed-review-legacy"
+    (legacy / "media").mkdir(parents=True)
+    review_versions.sweep_stale_quarantines(project)
+    assert not quarantine.exists()
+    assert legacy.is_dir()
+
+
+def _marked_quarantine(review_root, name, *, stale):
+    quarantine = review_root / name
+    media = quarantine / "media"
+    media.mkdir(parents=True)
+    (media / "mix.wav").write_bytes(b"partial")
+    identity = review_versions._dir_identity(media.stat(follow_symlinks=False))
+    marker = quarantine / review_versions._CLEANUP_MARKER
+    marker.write_text(json.dumps({"name": "created", "dev": identity[0], "ino": identity[1]}))
+    if stale:
+        old = time.time() - review_versions._STALE_QUARANTINE_AGE_SECONDS - 1
+        os.utime(marker, (old, old))
+    return quarantine
+
+
+@requires_safe_failed_cleanup
+def test_quarantine_sweep_keeps_fresh_and_symlink_entries(minimal_project, sample_wav, monkeypatch):
+    project, art = _premix_project(minimal_project, sample_wav, monkeypatch)
+    root = art / "review"
+    root.mkdir()
+    fresh = _marked_quarantine(root, ".failed-review-fresh", stale=False)
+    outside = art / "outside"
+    outside.mkdir()
+    symlink = root / ".failed-review-link"
+    symlink.symlink_to(outside, target_is_directory=True)
+    review_versions.sweep_stale_quarantines(project)
+    assert (fresh / "media" / "mix.wav").is_file()
+    assert symlink.is_symlink()
+    assert outside.is_dir()
+
+
+@requires_safe_failed_cleanup
+def test_quarantine_sweep_inspects_at_most_32_entries(minimal_project, sample_wav, monkeypatch):
+    project, art = _premix_project(minimal_project, sample_wav, monkeypatch)
+    root = art / "review"
+    root.mkdir()
+    entries = [
+        _marked_quarantine(root, f".failed-review-{i:02}", stale=True)
+        for i in range(review_versions._STALE_QUARANTINE_LIMIT + 1)
+    ]
+    review_versions.sweep_stale_quarantines(project)
+    assert sum(not entry.exists() for entry in entries) <= review_versions._STALE_QUARANTINE_LIMIT
+    assert any(entry.exists() for entry in entries)
+
+
+@requires_safe_failed_cleanup
+def test_quarantine_creation_stays_in_pinned_root_after_symlink_retarget(tmp_path, monkeypatch):
+    pinned = tmp_path / "pinned" / "review"
+    other = tmp_path / "other" / "review"
+    pinned.mkdir(parents=True)
+    other.mkdir(parents=True)
+    link = tmp_path / "workspace"
+    link.symlink_to(pinned.parent, target_is_directory=True)
+    version_dir = link / "review" / "created"
+    version_dir.mkdir()
+    (version_dir / "mix.wav").write_bytes(b"partial")
+    identity = review_versions._dir_identity(version_dir.stat(follow_symlinks=False))
+    real_mkdir = os.mkdir
+
+    def retarget_before_mkdir(path, *args, **kwargs):
+        if str(path).startswith(review_versions._QUARANTINE_PREFIX):
+            link.unlink()
+            link.symlink_to(other.parent, target_is_directory=True)
+            result = real_mkdir(path, *args, **kwargs)
+            assert (pinned / path).is_dir()
+            assert not (other / path).exists()
+            return result
+        return real_mkdir(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "mkdir", retarget_before_mkdir)
+    review_versions.clean_created_version(version_dir, identity)
+    assert not (pinned / "created").exists()
+    assert not list(other.glob(".failed-review-*"))
+    assert not list(pinned.glob(".failed-review-*"))
+
+
+def test_public_directory_invisible_during_encode(minimal_project, sample_wav, monkeypatch):
+    project, art = _premix_project(minimal_project, sample_wav, monkeypatch)
+    monkeypatch.setattr(review_versions, "_new_id", lambda: "invisible")
+
+    class InspectingEngine:
+        def export_mp3(self, wav, mp3, *, bitrate_kbps):
+            assert wav.parent.name.startswith(review_versions._STAGING_PREFIX)
+            assert not (art / "review" / "invisible").exists()
+            mp3.write_bytes(b"encoded")
+
+    publish_version(project, label="ready", eng=InspectingEngine())
+    assert (art / "review" / "invisible" / "mix.mp3").read_bytes() == b"encoded"
+
+
+def test_other_process_claims_public_name_before_promotion(
+    minimal_project, sample_wav, monkeypatch
+):
+    project, art = _premix_project(minimal_project, sample_wav, monkeypatch)
+    monkeypatch.setattr(review_versions, "_new_id", lambda: "claimed")
+    real_promote = review_versions._rename_noreplace
+
+    def claim_then_promote(src, dst, root_fd):
+        subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from pathlib import Path; import sys; p=Path(sys.argv[1]); "
+                "p.mkdir(); (p/'mix.wav').write_bytes(b'other process')",
+                str(art / "review" / dst),
+            ],
+            check=True,
+        )
+        real_promote(src, dst, root_fd)
+
+    monkeypatch.setattr(review_versions, "_rename_noreplace", claim_then_promote)
+    with pytest.raises(FileExistsError):
+        publish_version(project, label="race")
+    assert (art / "review" / "claimed" / "mix.wav").read_bytes() == b"other process"
+    assert not list((art / "review").glob(".staging-review-*"))
+
+
+def test_other_process_replaces_name_during_quarantine(tmp_path, monkeypatch):
+    version_dir, identity = _created_version_dir(tmp_path)
+    original = version_dir.with_name("original")
+    real_rename = os.rename
+
+    def replace_then_quarantine(src, dst, *args, **kwargs):
+        if src == version_dir.name and dst == review_versions._QUARANTINE_ENTRY:
+            subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    "from pathlib import Path; import sys; a=Path(sys.argv[1]); "
+                    "a.rename(sys.argv[2]); a.mkdir(); "
+                    "(a/'mix.wav').write_bytes(b'other process')",
+                    str(version_dir),
+                    str(original),
+                ],
+                check=True,
+            )
+        return real_rename(src, dst, *args, **kwargs)
+
+    monkeypatch.setattr(os, "rename", replace_then_quarantine)
+    review_versions.clean_created_version(version_dir, identity)
+    assert (version_dir / "mix.wav").read_bytes() == b"other process"
+    assert (original / "mix.wav").read_bytes() == b"partial"
+
+
+def test_staging_identity_failure_never_exposes_public_version(
+    minimal_project, sample_wav, monkeypatch
+):
+    project, art = _premix_project(minimal_project, sample_wav, monkeypatch)
+    monkeypatch.setattr(review_versions, "_new_id", lambda: "identity-failed")
+    monkeypatch.setattr(
+        review_versions,
+        "_created_dir_identity",
+        lambda path: (_ for _ in ()).throw(OSError("identity read failed")),
+    )
+    with pytest.raises(OSError, match="identity read failed"):
+        publish_version(project, label="new")
+    assert not (art / "review" / "identity-failed").exists()
+    assert len(list((art / "review").glob(".staging-review-*"))) == 1
 
 
 def _created_version_dir(tmp_path):
@@ -595,11 +655,15 @@ def test_clean_created_version_keeps_directory_replaced_before_check(tmp_path, m
 def test_clean_created_version_mkdtemp_failure_keeps_directory(tmp_path, monkeypatch):
     version_dir, identity = _created_version_dir(tmp_path)
 
-    def fail_mkdtemp(*args, **kwargs):
-        raise OSError("mkdtemp failed")
+    real_mkdir = os.mkdir
 
-    monkeypatch.setattr(review_versions.tempfile, "mkdtemp", fail_mkdtemp)
-    with pytest.raises(OSError, match="mkdtemp failed"):
+    def fail_mkdir(path, *args, **kwargs):
+        if str(path).startswith(review_versions._QUARANTINE_PREFIX):
+            raise OSError("quarantine mkdir failed")
+        return real_mkdir(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "mkdir", fail_mkdir)
+    with pytest.raises(OSError, match="quarantine mkdir failed"):
         review_versions.clean_created_version(version_dir, identity)
     assert (version_dir / "mix.wav").read_bytes() == b"partial"
 
@@ -621,9 +685,8 @@ def test_clean_created_version_quarantine_open_failure_keeps_directory(tmp_path,
     assert not list(version_dir.parent.glob(".failed-review-*"))
 
 
-@pytest.mark.parametrize("pinned", [pytest.param(True, marks=requires_safe_failed_cleanup), False])
-def test_clean_created_version_missing_directory_is_noop(tmp_path, monkeypatch, caplog, pinned):
-    monkeypatch.setattr(review_versions, "_SAFE_FAILED_CLEANUP_SUPPORTED", pinned)
+@requires_safe_failed_cleanup
+def test_clean_created_version_missing_directory_is_noop(tmp_path, caplog):
     version_dir, identity = _created_version_dir(tmp_path)
     shutil.rmtree(version_dir)
 
@@ -1270,20 +1333,23 @@ def test_stage_version_creates_media_without_touching_project(
     minimal_project, sample_wav, monkeypatch
 ):
     project, art = _premix_project(minimal_project, sample_wav, monkeypatch)
-    ver = stage_version(project, label="staged")
-    assert (art / "review" / ver.id / "mix.wav").is_file()
+    created = []
+    ver = stage_version(
+        project, label="staged", on_media_created=lambda p, i: created.append((p, i))
+    )
+    assert created[0][0].name.startswith(review_versions._STAGING_PREFIX)
+    assert (created[0][0] / "mix.wav").is_file()
+    assert not (art / "review" / ver.id).exists()
     assert project.review.versions == []
     assert project.review.active_version_id is None
 
 
 def test_attach_version_appends_and_optionally_activates(minimal_project, sample_wav, monkeypatch):
     project, _ = _premix_project(minimal_project, sample_wav, monkeypatch)
-    first = stage_version(project, label="a")
-    attach_version(project, first, set_active=False)
+    first = publish_version(project, label="a", set_active=False)
     assert [v.id for v in project.review.versions] == [first.id]
     assert project.review.active_version_id is None
-    second = stage_version(project, label="b")
-    attach_version(project, second)
+    second = publish_version(project, label="b")
     assert project.review.active_version_id == second.id
 
 
@@ -1323,7 +1389,7 @@ def test_attach_version_leaves_audio_fingerprint_unchanged(
 
     project, _ = _premix_project(minimal_project, sample_wav, monkeypatch)
     before = audio_state_fingerprint(project)
-    attach_version(project, stage_version(project, label="a"))
+    publish_version(project, label="a")
     assert audio_state_fingerprint(project) == before
 
 

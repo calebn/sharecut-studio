@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import ctypes
+import errno
+import json
 import logging
 import os
 import shutil
 import stat
+import sys
 import tempfile
 import time
 import uuid
 from collections.abc import Callable
+from contextlib import suppress
 from pathlib import Path
 
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
@@ -20,9 +25,10 @@ from podcast_mcp.engines.play_audit import (
     premix_path,
     read_mastered_hash,
 )
-from podcast_mcp.models import EpisodeProject, ReviewMixVersion
+from podcast_mcp.models import EpisodeProject, ReviewMixVersion, load_project
 from podcast_mcp.util.datetime_utils import now_iso as _now_iso
 from podcast_mcp.util.hashing import sha256_file
+from podcast_mcp.util.project_state import project_commit_lock
 from podcast_mcp.util.workspace_paths import resolve_within
 
 log = logging.getLogger(__name__)
@@ -41,6 +47,7 @@ _SAFE_STALE_CLEANUP_SUPPORTED = (
 _SAFE_FAILED_CLEANUP_SUPPORTED = (
     _SAFE_STALE_CLEANUP_SUPPORTED
     and os.rename in os.supports_dir_fd
+    and os.mkdir in os.supports_dir_fd
     and os.rmdir in os.supports_dir_fd
     and shutil.rmtree.avoids_symlink_attacks
 )
@@ -50,6 +57,10 @@ DirectoryIdentity = tuple[int, int]
 
 _QUARANTINE_PREFIX = ".failed-review-"
 _QUARANTINE_ENTRY = "media"
+_STAGING_PREFIX = ".staging-review-"
+_CLEANUP_MARKER = ".failed-review-owner"
+_STALE_QUARANTINE_AGE_SECONDS = 24 * 60 * 60
+_STALE_QUARANTINE_LIMIT = 32
 
 
 def _dir_identity(metadata: os.stat_result) -> DirectoryIdentity:
@@ -67,15 +78,55 @@ def _open_pinned_dir(path: str | Path, *, dir_fd: int | None = None) -> int:
 
 
 def _created_dir_identity(version_dir: Path) -> DirectoryIdentity:
-    """Record the identity of a just-created directory; remove it if the read fails."""
+    """Record the identity through a pinned descriptor before media is written."""
+    root_fd = _open_pinned_dir(version_dir.parent)
     try:
-        return _dir_identity(version_dir.stat(follow_symlinks=False))
-    except BaseException:
+        staging_fd = _open_pinned_dir(version_dir.name, dir_fd=root_fd)
         try:
-            version_dir.rmdir()
-        except OSError:
-            log.warning("Could not remove review version directory %s", version_dir)
-        raise
+            identity = _dir_identity(os.fstat(staging_fd))
+            current = os.stat(version_dir.name, dir_fd=root_fd, follow_symlinks=False)
+            if not _is_created_dir(current, identity):
+                raise RuntimeError("review staging directory changed during identity read")
+            return identity
+        finally:
+            os.close(staging_fd)
+    finally:
+        os.close(root_fd)
+
+
+def _rename_noreplace(src: str, dst: str, root_fd: int) -> None:
+    """Atomically promote or restore a directory without replacing its destination."""
+    libc = ctypes.CDLL(None, use_errno=True)
+    if sys.platform.startswith("linux"):
+        operation = getattr(libc, "renameat2", None)
+        if operation is None:
+            raise OSError(errno.ENOTSUP, "atomic no-replace rename is unavailable")
+        result = operation(root_fd, os.fsencode(src), root_fd, os.fsencode(dst), 1)
+    elif sys.platform == "darwin":
+        operation = getattr(libc, "renameatx_np", None)
+        if operation is None:
+            raise OSError(errno.ENOTSUP, "atomic no-replace rename is unavailable")
+        result = operation(root_fd, os.fsencode(src), root_fd, os.fsencode(dst), 4)
+    else:
+        raise OSError(errno.ENOTSUP, "atomic no-replace rename is unavailable")
+    if result != 0:
+        code = ctypes.get_errno()
+        raise OSError(code, os.strerror(code), dst)
+
+
+def promote_staged_version(staging_dir: Path, identity: DirectoryIdentity, version_id: str) -> Path:
+    """Publish complete media with one no-replace rename under the caller's commit lock."""
+    if not _SAFE_FAILED_CLEANUP_SUPPORTED:
+        raise OSError(errno.ENOTSUP, "safe review publication requires directory descriptors")
+    root_fd = _open_pinned_dir(staging_dir.parent)
+    try:
+        current = os.stat(staging_dir.name, dir_fd=root_fd, follow_symlinks=False)
+        if not _is_created_dir(current, identity):
+            raise RuntimeError("review staging directory changed before publication")
+        _rename_noreplace(staging_dir.name, version_id, root_fd)
+        return staging_dir.with_name(version_id)
+    finally:
+        os.close(root_fd)
 
 
 def _new_id() -> str:
@@ -221,25 +272,33 @@ def _clean_stale_mp3_temps(version_dir: Path) -> None:
             os.close(directory_fd)
 
 
-def clean_created_version(version_dir: Path, identity: DirectoryIdentity) -> None:
-    """Quarantine one exclusively created directory before removing its contents.
+def clean_created_version(
+    version_dir: Path, identity: DirectoryIdentity, *, project: EpisodeProject | None = None
+) -> None:
+    """Clean one created directory under the same file lock as project commits."""
+    if project is None:
+        project_path = version_dir.parent.parent.parent / "episode.project.json"
+        if project_path.is_file():
+            project = load_project(project_path)
+    if project is None:
+        # Standalone test directories have no project transaction to coordinate with.
+        _clean_created_version_locked(version_dir, identity)
+    else:
+        with project_commit_lock(project):
+            _clean_created_version_locked(version_dir, identity)
 
-    A mismatch before the move leaves the public directory in place. A replacement
-    that lands between that check and the rename is moved into the quarantine and
-    kept there: it is not restored (that needs a no-replace rename) and not deleted.
-    Where descriptor-relative operations exist the root and quarantine are pinned by
-    fd; otherwise the same identity-checked quarantine runs on resolved paths.
-    A version directory that is already gone counts as nothing to clean.
-    """
-    pinned = _SAFE_FAILED_CLEANUP_SUPPORTED
+
+def _clean_created_version_locked(version_dir: Path, identity: DirectoryIdentity) -> None:
+    if not _SAFE_FAILED_CLEANUP_SUPPORTED:
+        log.warning("Safe review cleanup is unavailable; keeping %s", version_dir)
+        return
     root = version_dir.parent
     root_fd: int | None = None
     quarantine_fd: int | None = None
     quarantine: Path | None = None
     try:
-        if pinned:
-            root_fd = _open_pinned_dir(root)
-        public: str | Path = version_dir.name if pinned else version_dir
+        root_fd = _open_pinned_dir(root)
+        public = version_dir.name
         try:
             current = os.stat(public, dir_fd=root_fd, follow_symlinks=False)
         except FileNotFoundError:
@@ -248,40 +307,126 @@ def clean_created_version(version_dir: Path, identity: DirectoryIdentity) -> Non
         if not _is_created_dir(current, identity):
             log.warning("Review version directory changed; keeping %s", version_dir)
             return
-        quarantine = Path(tempfile.mkdtemp(prefix=_QUARANTINE_PREFIX, dir=root))
-        if pinned:
-            quarantine_fd = _open_pinned_dir(quarantine)
-        moved: str | Path = _QUARANTINE_ENTRY if pinned else quarantine / _QUARANTINE_ENTRY
+        quarantine_name = f"{_QUARANTINE_PREFIX}{uuid.uuid4().hex}"
+        os.mkdir(quarantine_name, dir_fd=root_fd)
+        quarantine = root / quarantine_name
+        quarantine_fd = _open_pinned_dir(quarantine_name, dir_fd=root_fd)
+        moved = _QUARANTINE_ENTRY
         os.rename(public, moved, src_dir_fd=root_fd, dst_dir_fd=quarantine_fd)
         after = os.stat(moved, dir_fd=quarantine_fd, follow_symlinks=False)
         if not _is_created_dir(after, identity):
+            with suppress(OSError):
+                # Return a replacement to its public name only when vacant. Never
+                # overwrite the directory another writer may have placed there.
+                _rename_noreplace(f"{quarantine_name}/{_QUARANTINE_ENTRY}", public, root_fd)
             log.warning(
                 "Review version directory changed during quarantine; keeping %s", quarantine
             )
             return
+        marker = {"name": version_dir.name, "dev": identity[0], "ino": identity[1]}
+        marker_fd = os.open(
+            _CLEANUP_MARKER,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            0o600,
+            dir_fd=quarantine_fd,
+        )
+        try:
+            os.write(marker_fd, json.dumps(marker).encode())
+        finally:
+            os.close(marker_fd)
         shutil.rmtree(moved, dir_fd=quarantine_fd)
+        os.unlink(_CLEANUP_MARKER, dir_fd=quarantine_fd)
     finally:
-        for fd in (quarantine_fd, root_fd):
+        for fd in (quarantine_fd,):
             if fd is not None:
                 try:
                     os.close(fd)
                 except OSError:
                     log.warning("Could not close review cleanup descriptor %d", fd, exc_info=True)
-        if quarantine is not None:
+        if quarantine is not None and root_fd is not None:
             try:
-                quarantine.rmdir()
+                os.rmdir(quarantine.name, dir_fd=root_fd)
             except OSError:
                 # A changed directory or failed removal stays available for inspection.
                 log.warning("Keeping failed review quarantine %s", quarantine)
+        if root_fd is not None:
+            try:
+                os.close(root_fd)
+            except OSError:
+                log.warning("Could not close review cleanup descriptor %d", root_fd, exc_info=True)
 
 
-def discard_created_version(version_dir: Path, identity: DirectoryIdentity) -> None:
+def sweep_stale_quarantines(project: EpisodeProject) -> None:
+    """Bound cleanup to old quarantines carrying a matching ownership record."""
+    if not _SAFE_FAILED_CLEANUP_SUPPORTED:
+        return
+    root = review_artifacts_dir(project)
+    if not root.is_dir():
+        return
+    with project_commit_lock(project):
+        root_fd = _open_pinned_dir(root.resolve(strict=True))
+        try:
+            inspected = 0
+            with os.scandir(root_fd) as entries:
+                for entry in entries:
+                    if inspected >= _STALE_QUARANTINE_LIMIT:
+                        break
+                    if not entry.name.startswith(_QUARANTINE_PREFIX):
+                        continue
+                    inspected += 1
+                    quarantine_fd: int | None = None
+                    try:
+                        quarantine_fd = _open_pinned_dir(entry.name, dir_fd=root_fd)
+                        with os.scandir(quarantine_fd) as contents:
+                            if {item.name for item in contents} != {
+                                _CLEANUP_MARKER,
+                                _QUARANTINE_ENTRY,
+                            }:
+                                continue
+                        marker_stat = os.stat(
+                            _CLEANUP_MARKER, dir_fd=quarantine_fd, follow_symlinks=False
+                        )
+                        if not stat.S_ISREG(marker_stat.st_mode) or marker_stat.st_mtime > (
+                            time.time() - _STALE_QUARANTINE_AGE_SECONDS
+                        ):
+                            continue
+                        marker_fd = os.open(
+                            _CLEANUP_MARKER, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=quarantine_fd
+                        )
+                        try:
+                            marker = json.loads(os.read(marker_fd, 512))
+                        finally:
+                            os.close(marker_fd)
+                        media_stat = os.stat(
+                            _QUARANTINE_ENTRY, dir_fd=quarantine_fd, follow_symlinks=False
+                        )
+                        if not _is_created_dir(
+                            media_stat, (marker["dev"], marker["ino"])
+                        ) or not isinstance(marker["name"], str):
+                            continue
+                        shutil.rmtree(_QUARANTINE_ENTRY, dir_fd=quarantine_fd)
+                        os.unlink(_CLEANUP_MARKER, dir_fd=quarantine_fd)
+                        os.rmdir(entry.name, dir_fd=root_fd)
+                    except (OSError, ValueError, KeyError, TypeError):
+                        log.warning(
+                            "Keeping unsafe review quarantine %s", entry.name, exc_info=True
+                        )
+                    finally:
+                        if quarantine_fd is not None:
+                            os.close(quarantine_fd)
+        finally:
+            os.close(root_fd)
+
+
+def discard_created_version(
+    version_dir: Path, identity: DirectoryIdentity, *, project: EpisodeProject | None = None
+) -> None:
     """Best-effort ``clean_created_version`` for error paths; logs a failure, never raises.
 
     Callers are already propagating an error, so a cleanup failure must not mask it.
     """
     try:
-        clean_created_version(version_dir, identity)
+        clean_created_version(version_dir, identity, project=project)
     except BaseException:
         log.warning("Could not remove review version directory %s", version_dir, exc_info=True)
 
@@ -338,7 +483,7 @@ def stage_version(
     eng: FFmpegEngine | None = None,
     on_media_created: Callable[[Path, DirectoryIdentity], None] | None = None,
 ) -> ReviewMixVersion:
-    """Copy current premix/mastered into artifacts/review/{id}/mix.wav (+ mix.mp3).
+    """Copy current premix/mastered into private staging (+ mix.mp3).
 
     Creates media only; ``project.review`` is untouched until ``attach_version``.
 
@@ -353,9 +498,14 @@ def stage_version(
     rel = f"{REVIEW_ARTIFACTS_RELDIR}/{vid}/mix.wav"
     review_root = review_artifacts_dir(project)
     review_root.mkdir(parents=True, exist_ok=True)
+    sweep_stale_quarantines(project)
     resolved_root = review_root.resolve(strict=True)
-    version_dir = resolved_root / vid
-    version_dir.mkdir(parents=True, exist_ok=False)
+    version_dir = resolved_root / f"{_STAGING_PREFIX}{uuid.uuid4().hex}"
+    root_fd = _open_pinned_dir(resolved_root)
+    try:
+        os.mkdir(version_dir.name, dir_fd=root_fd)
+    finally:
+        os.close(root_fd)
     created_identity = _created_dir_identity(version_dir)
     dest = version_dir / "mix.wav"
     mp3_rel = f"{REVIEW_ARTIFACTS_RELDIR}/{vid}/mix.mp3"
@@ -378,7 +528,7 @@ def stage_version(
         if review_root.resolve(strict=True) != resolved_root:
             raise RuntimeError("review artifacts directory changed during publication")
     except BaseException:
-        discard_created_version(version_dir, created_identity)
+        discard_created_version(version_dir, created_identity, project=project)
         raise
     return ver
 
@@ -386,7 +536,10 @@ def stage_version(
 def attach_version(
     project: EpisodeProject, ver: ReviewMixVersion, *, set_active: bool = True
 ) -> ReviewMixVersion:
-    """Record a staged version on the project (and optionally make it active)."""
+    """Record an already-promoted version on the project."""
+    audio = review_artifacts_dir(project) / ver.id / "mix.wav"
+    if not audio.is_file():
+        raise FileNotFoundError(f"review version has not been promoted: {ver.id}")
     project.review.versions.append(ver)
     if set_active:
         project.review.active_version_id = ver.id
@@ -408,10 +561,25 @@ def publish_version(
     Services call ``stage_version`` outside ``project_commit_lock`` and
     ``attach_version`` inside the commit (see ``ReviewService.publish``).
     """
-    ver = stage_version(
-        project, label=label, prefer=prefer, eng=eng, on_media_created=on_media_created
-    )
-    return attach_version(project, ver, set_active=set_active)
+    created: tuple[Path, DirectoryIdentity] | None = None
+
+    def remember(path: Path, identity: DirectoryIdentity) -> None:
+        nonlocal created
+        created = (path, identity)
+        if on_media_created is not None:
+            on_media_created(path, identity)
+
+    ver = stage_version(project, label=label, prefer=prefer, eng=eng, on_media_created=remember)
+    assert created is not None
+    from podcast_mcp.util.project_state import project_commit_lock
+
+    with project_commit_lock(project):
+        try:
+            promote_staged_version(created[0], created[1], ver.id)
+        except BaseException:
+            discard_created_version(created[0], created[1], project=project)
+            raise
+        return attach_version(project, ver, set_active=set_active)
 
 
 def set_active_version(
