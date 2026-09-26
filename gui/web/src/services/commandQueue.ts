@@ -7,6 +7,7 @@ import {
 import { applyDocumentResult } from "../document/applyDocumentUpdate";
 import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { beginHostSend, type HostSend } from "../state/hostSendOrder";
 import { isRetryLater, readApiFailure } from "../utils/apiError";
 import {
   documentClientId,
@@ -14,18 +15,35 @@ import {
   nextDocumentClientSeq,
 } from "../utils/documentClient";
 
+export type DocumentCommandOptions = {
+  command_id?: string;
+  client_seq?: number;
+  structural_mode?: "propose" | "apply";
+  offline?: boolean;
+  replaying?: boolean;
+  client_id?: string;
+};
+
+interface HostCommandBody {
+  command_id: string;
+  client_seq: number;
+  type: string;
+  payload: Record<string, unknown>;
+  bodyBase: {
+    client_id: string;
+    client_seq: number;
+    command_id: string;
+    type: string;
+    payload: Record<string, unknown>;
+    structural_mode?: "propose" | "apply";
+  };
+}
+
 export async function submitQueuedDocumentCommand(
   projectPath: string,
   type: string,
   payload: Record<string, unknown> = {},
-  opts?: {
-    command_id?: string;
-    client_seq?: number;
-    structural_mode?: "propose" | "apply";
-    offline?: boolean;
-    replaying?: boolean;
-    client_id?: string;
-  },
+  opts?: DocumentCommandOptions,
 ): Promise<Record<string, unknown>> {
   const command_id = opts?.command_id ?? newCommandId();
   const client_seq = opts?.client_seq ?? nextDocumentClientSeq();
@@ -110,6 +128,48 @@ export async function submitQueuedDocumentCommand(
     }
     return data;
   }
+  const hostBody: HostCommandBody = {
+    command_id,
+    client_seq,
+    type,
+    payload,
+    bodyBase,
+  };
+  if (opts?.replaying) {
+    return submitHostDocumentCommand(projectPath, hostBody, opts, null);
+  }
+  const send = beginHostSend(projectPath, command_id);
+  try {
+    return await submitHostDocumentCommand(projectPath, hostBody, opts, send);
+  } finally {
+    send.finish();
+  }
+}
+
+/** After this tab's earlier sends finish, the queued record if it is now first. */
+async function queueHeadAfterEarlierSends(
+  projectPath: string,
+  commandId: string,
+  earlier: Promise<void>,
+): Promise<{ payload: Record<string, unknown> } | null> {
+  await earlier;
+  try {
+    const { loadHostCommandQueue } = await import("../state/offlineStore");
+    const queue = await loadHostCommandQueue(projectPath);
+    return queue[0]?.command_id === commandId ? queue[0] : null;
+  } catch {
+    return null;
+  }
+}
+
+async function submitHostDocumentCommand(
+  projectPath: string,
+  body: HostCommandBody,
+  opts: DocumentCommandOptions | undefined,
+  send: HostSend | null,
+): Promise<Record<string, unknown>> {
+  const { command_id, client_seq, type, payload } = body;
+  let bodyBase = body.bodyBase;
   const hostQueue = await import("../state/offlineStore");
   let enqueueResult = { persisted: false, hadPredecessor: false };
   if (opts?.replaying) {
@@ -142,7 +202,15 @@ export async function submitQueuedDocumentCommand(
     }
   }
   if (enqueueResult.hadPredecessor && !opts?.replaying) {
-    return { ok: true, queued: true, command_id, client_seq };
+    // A predecessor that is this tab's own live send is not an offline edit:
+    // wait for it, then send this command if nothing older remains.
+    const head = send
+      ? await queueHeadAfterEarlierSends(projectPath, command_id, send.earlier)
+      : null;
+    if (!head) {
+      return { ok: true, queued: true, command_id, client_seq };
+    }
+    bodyBase = { ...bodyBase, payload: head.payload };
   }
   let res: Response;
   try {

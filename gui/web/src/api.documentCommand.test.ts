@@ -69,6 +69,118 @@ describe("host document command queue", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  describe("live sends behind this tab's in-flight send", () => {
+    const path = "/tmp/episode.project.json";
+    const refine409 = () =>
+      new Response(JSON.stringify({ detail: "Refine required" }), {
+        status: 409,
+        headers: { "X-Sharecut-Error-Code": "transcript_refine_required" },
+      });
+
+    it("surfaces the typed 409 when the command waits behind an in-flight send", async () => {
+      let releaseFirst!: () => void;
+      const fetchSpy = vi
+        .fn()
+        .mockImplementationOnce(
+          () =>
+            new Promise<Response>((resolve) => {
+              releaseFirst = () => resolve(new Response("{}", { status: 200 }));
+            }),
+        )
+        .mockImplementationOnce(async () => refine409());
+      vi.stubGlobal("fetch", fetchSpy);
+      enqueueHostCommand
+        .mockReset()
+        .mockImplementation(
+          async (_path: string, cmd: { command_id: string }) => ({
+            persisted: true,
+            hadPredecessor: cmd.command_id === "second",
+          }),
+        );
+      loadHostCommandQueue.mockResolvedValue([
+        { command_id: "second", payload: { ids: ["a"] } },
+      ]);
+      const { submitDocumentCommand } = await import("./api");
+      const first = submitDocumentCommand(
+        path,
+        "SetTrackMeta",
+        {},
+        {
+          command_id: "first",
+        },
+      );
+      await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+      const second = submitDocumentCommand(
+        path,
+        "ApproveEdits",
+        { ids: ["a"] },
+        {
+          command_id: "second",
+        },
+      );
+      const assertion = expect(second).rejects.toMatchObject({
+        code: "transcript_refine_required",
+      });
+      await new Promise((r) => setTimeout(r, 20));
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      releaseFirst();
+      await first;
+      await assertion;
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it("stays queued behind real leftovers", async () => {
+      const fetchSpy = vi.fn();
+      vi.stubGlobal("fetch", fetchSpy);
+      enqueueHostCommand.mockResolvedValue({
+        persisted: true,
+        hadPredecessor: true,
+      });
+      loadHostCommandQueue.mockResolvedValue([
+        { command_id: "old", payload: {} },
+        { command_id: "mine", payload: {} },
+      ]);
+      const { submitDocumentCommand } = await import("./api");
+      const result = await submitDocumentCommand(
+        path,
+        "SetTrackMeta",
+        {},
+        {
+          command_id: "mine",
+        },
+      );
+      expect(result.queued).toBe(true);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("posts the chained payload from the persisted record", async () => {
+      const fetchSpy = vi.fn(async () => new Response("{}", { status: 200 }));
+      vi.stubGlobal("fetch", fetchSpy);
+      enqueueHostCommand.mockResolvedValue({
+        persisted: true,
+        hadPredecessor: true,
+      });
+      loadHostCommandQueue.mockResolvedValue([
+        { command_id: "mine", payload: { chained: true } },
+      ]);
+      const { submitDocumentCommand } = await import("./api");
+      await submitDocumentCommand(
+        path,
+        "SetTrackMeta",
+        { chained: false },
+        {
+          command_id: "mine",
+        },
+      );
+      const init = (
+        fetchSpy.mock.calls[0] as unknown as [string, RequestInit]
+      )[1];
+      expect(JSON.parse(init.body as string).payload).toEqual({
+        chained: true,
+      });
+    });
+  });
+
   describe("guest queue outcomes", () => {
     const fader = { track_id: "host", fader_db: -3 };
     const queuedId = () =>
