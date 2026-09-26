@@ -107,6 +107,38 @@ function resolveInspectorTrackId(args: Record<string, unknown>): string | null {
   return s.selection?.kind === "track" ? s.selection.trackId : null;
 }
 
+function moveSelectedTrack(
+  args: Record<string, unknown>,
+  direction: -1 | 1,
+): Promise<ExecuteResult> {
+  const invoked = useDawStore.getState();
+  const trackId =
+    invoked.selection?.kind === "track" ? invoked.selection.trackId : null;
+  const projectPath = invoked.projectPath;
+  return enqueueTrackMutate(async () => {
+    const s = useDawStore.getState();
+    if (
+      !trackId ||
+      s.selection?.kind !== "track" ||
+      s.selection.trackId !== trackId ||
+      s.projectPath !== projectPath ||
+      (args.trackId !== undefined && args.trackId !== trackId) ||
+      !s.project
+    ) {
+      return { status: "disabled", reason: "Track selection changed" };
+    }
+    const current = s.project.tracks.findIndex((t) => t.id === trackId);
+    const next = current + direction;
+    if (current < 0 || next < 0 || next >= s.project.tracks.length) {
+      return {
+        status: "disabled",
+        reason: direction < 0 ? "Already at top" : "Already at bottom",
+      };
+    }
+    return applyTrackReorder(trackId, next);
+  });
+}
+
 function formatAmp(amp: number): string {
   const rounded = Math.round(amp * 100) / 100;
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2);
@@ -1046,33 +1078,11 @@ export function registerDawCommands(): void {
   });
 
   registerCommand("track.moveUp", async (args) => {
-    return enqueueTrackMutate(async () => {
-      const s = useDawStore.getState();
-      const trackId = resolveInspectorTrackId(args);
-      if (!trackId || !s.project) {
-        return { status: "disabled", reason: "No track selected in inspector" };
-      }
-      const current = s.project.tracks.findIndex((t) => t.id === trackId);
-      if (current <= 0) {
-        return { status: "disabled", reason: "Already at top" };
-      }
-      return applyTrackReorder(trackId, current - 1);
-    });
+    return moveSelectedTrack(args, -1);
   });
 
   registerCommand("track.moveDown", async (args) => {
-    return enqueueTrackMutate(async () => {
-      const s = useDawStore.getState();
-      const trackId = resolveInspectorTrackId(args);
-      if (!trackId || !s.project) {
-        return { status: "disabled", reason: "No track selected in inspector" };
-      }
-      const current = s.project.tracks.findIndex((t) => t.id === trackId);
-      if (current < 0 || current >= s.project.tracks.length - 1) {
-        return { status: "disabled", reason: "Already at bottom" };
-      }
-      return applyTrackReorder(trackId, current + 1);
-    });
+    return moveSelectedTrack(args, 1);
   });
 
   registerCommand("media.import", async (args) => {
