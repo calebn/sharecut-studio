@@ -73,7 +73,7 @@ Each `HistoryEntry` may include:
 - `operation` — stable tool name (e.g. `ripple_delete`, `approve_edits`, `render_preview`)
 - `params` — echoed invocation args (`timeline_start`, `fade_ms`, `track_id`, …)
 
-`history_list` / `history-status` return flat `entries` plus grouped `groups` that pair before/after mutation snapshots into one user action. Each group includes a human-readable **`title`** (operation + time range / tracks when `params` are present). The History tab virtualizes long group lists (≥200 steps) so a many-entry history keeps the DOM bounded.
+`history_list` / `history-status` return flat `entries` plus grouped `groups` that pair before/after mutation snapshots into one user action. Each group includes a human-readable **`title`** (operation + time range / tracks when `params` are present). Mutation groups also carry `before_id`/`after_id` and snapshot groups `id`; the History tab keys rows (selection, focus) on these entry ids so an external undo + new edit cannot inherit a discarded step's selection. The History tab virtualizes long group lists (≥200 steps) so a many-entry history keeps the DOM bounded.
 
 `history diff` compares two snapshot indices and returns clip/decision/mix deltas (see `history/diff.py`) plus a **`summary`** string list (see `history/summary.py`) for GUI/CLI/MCP consumers.
 

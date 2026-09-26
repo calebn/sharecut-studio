@@ -171,6 +171,11 @@ export interface HistoryGroup {
   before_index?: number;
   after_index?: number;
   index?: number;
+  /** History entry ids (mutation pairs); from `services/history.py`. */
+  before_id?: string;
+  after_id?: string;
+  /** History entry id (snapshot groups). */
+  id?: string;
 }
 
 export interface TranscriptWordView {

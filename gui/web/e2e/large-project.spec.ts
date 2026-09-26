@@ -252,6 +252,48 @@ test.describe("large project benchmark (opt-in fixture)", () => {
           await expect(redo).toBeDisabled(HEAVY);
         }),
       );
+      profiles.push(
+        await profile(page, cdp, "history-keyboard", async () => {
+          const historyList = historyPanel.locator(".history-list");
+          const virtualized = await historyList.evaluate((el) =>
+            el.classList.contains("is-virtualized"),
+          );
+          if (!virtualized) {
+            return;
+          }
+          await historyList.evaluate((el) => {
+            el.scrollTop = 0;
+          });
+          const first = historyPanel.locator(
+            'button.history-row[data-history-index="0"]',
+          );
+          await expect(first).toBeVisible(HEAVY);
+          const lastMounted = await historyPanel
+            .locator("button.history-row")
+            .evaluateAll((rows) =>
+              Math.max(
+                ...rows.map((row) =>
+                  Number(row.getAttribute("data-history-index")),
+                ),
+              ),
+            );
+          await first.focus();
+          // Tab past the initially mounted window at normal speed.
+          for (let i = 0; i <= lastMounted; i++) {
+            await page.keyboard.press("Tab");
+          }
+          await expect
+            .poll(() =>
+              page.evaluate(() =>
+                Number(
+                  document.activeElement?.getAttribute("data-history-index") ??
+                    -1,
+                ),
+              ),
+            )
+            .toBe(lastMounted + 1);
+        }),
+      );
     }
 
     const endurance: (Pick<Profile, "domNodes" | "heapBytes"> & {

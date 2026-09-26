@@ -2,9 +2,9 @@
  * Virtualize a long list of rows (transcript turns, history groups).
  *
  * Owns the threshold (with hysteresis), stable measurement keys, the rem-based
- * size estimate, flex-gap parity, and a range extractor that keeps "pinned"
- * turns mounted (active, selected, focused, pending scroll target) so
- * follow / scroll requests / focus never target an unmounted row.
+ * size estimate, flex-gap parity, and a range extractor that keeps the
+ * caller's "pinned" rows mounted so follow, scroll requests and focus never
+ * target an unmounted row.
  */
 
 import {
@@ -14,6 +14,7 @@ import {
   type VirtualItem,
 } from "@tanstack/react-virtual";
 import {
+  type CSSProperties,
   type Key,
   type RefObject,
   useCallback,
@@ -53,12 +54,38 @@ export function withPinnedIndexes(
   return [...new Set([...indexes, ...extra])].sort((a, b) => a - b);
 }
 
+/** Props every mounted virtual row slot needs: list-item ARIA, measurement, and position. */
+export interface VirtualRowSlotProps {
+  role: "listitem";
+  "aria-setsize": number;
+  "aria-posinset": number;
+  "data-index": number;
+  ref: (el: Element | null) => void;
+  style: CSSProperties;
+}
+
+export function virtualRowSlotProps(
+  item: VirtualItem,
+  count: number,
+  measureElement: (el: Element | null) => void,
+): VirtualRowSlotProps {
+  return {
+    role: "listitem",
+    "aria-setsize": count,
+    "aria-posinset": item.index + 1,
+    "data-index": item.index,
+    ref: measureElement,
+    style: { transform: `translateY(${item.start}px)` },
+  };
+}
+
 export interface VirtualRows {
   virtualized: boolean;
   /** Mounted virtual rows (empty when not virtualized). */
   items: VirtualItem[];
   totalSize: number;
-  measureElement: (el: Element | null) => void;
+  /** Spread onto each mounted row slot. */
+  slotProps: (item: VirtualItem) => VirtualRowSlotProps;
 }
 
 export interface VirtualRowsOptions {
@@ -113,6 +140,7 @@ export function useVirtualRows(
     virtualized,
     items: virtualized ? virtualizer.getVirtualItems() : [],
     totalSize: virtualizer.getTotalSize(),
-    measureElement: virtualizer.measureElement,
+    slotProps: (item) =>
+      virtualRowSlotProps(item, count, virtualizer.measureElement),
   };
 }
