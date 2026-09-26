@@ -47,6 +47,10 @@ export type KeymapCommand = {
   notes?: string;
 };
 
+/** Browsers may keep Mod+1–9 for tab switching before the page sees it. */
+const BROWSER_TAB_CHORD_NOTE =
+  "a browser tab may keep Mod+1–4 for tab switching";
+
 export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
   {
     id: "presence.unfollow",
@@ -128,7 +132,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireMod: true,
     requireShift: false,
     when: "always",
-    notes: "Mod+1",
+    notes: `Mod+1; ${BROWSER_TAB_CHORD_NOTE}, so use the transport Restore chip there (desktop app unaffected)`,
   },
   {
     id: "layout.timeline",
@@ -139,7 +143,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireMod: true,
     requireShift: false,
     when: "always",
-    notes: "Mod+2",
+    notes: `Mod+2; ${BROWSER_TAB_CHORD_NOTE}, so use the transport layout control there (desktop app unaffected)`,
   },
   {
     id: "layout.text",
@@ -150,7 +154,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireMod: true,
     requireShift: false,
     when: "always",
-    notes: "Mod+3",
+    notes: `Mod+3; ${BROWSER_TAB_CHORD_NOTE}, so use View › Layout there (desktop app unaffected)`,
   },
   {
     id: "layout.review",
@@ -161,7 +165,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireMod: true,
     requireShift: false,
     when: "always",
-    notes: "Mod+4",
+    notes: `Mod+4; ${BROWSER_TAB_CHORD_NOTE}, so use View › Layout there (desktop app unaffected)`,
   },
   {
     id: "navigation.nudgePlayheadBack",
