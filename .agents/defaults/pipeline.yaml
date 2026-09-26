@@ -204,6 +204,10 @@ align:
   fine_step_sec: 0.02
   # Equal-length stems and manifest-pinned offsets are locked at their placement; true re-scores them.
   realign: false
+  # Moves above this need waveform xcorr confirmation, are never auto-waived unattended,
+  # and are export_qc drift errors until accepted.
+  large_move_sec: 1.0
+  large_move_min_peak: 0.1
   bleed_ngram: 3
   # Clustered bleed matches needed to trust the bleed clock.
   min_bleed_matches: 5
