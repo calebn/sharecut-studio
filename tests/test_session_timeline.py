@@ -315,3 +315,9 @@ def test_clip_source_to_timeline_shift() -> None:
     late = Clip(id="b", track_id="t", source_start=0.0, source_end=10.0, timeline_start=3.0)
     assert clip_source_to_timeline_shift(lead) == -4.0
     assert clip_source_to_timeline_shift(late) == 3.0
+    from podcast_mcp.engines.session_timeline import _Span
+
+    assert (
+        clip_source_to_timeline_shift(_Span(timeline_start=2.0, source_start=5.0, source_end=9.0))
+        == -3.0
+    )
