@@ -22,7 +22,11 @@ from podcast_mcp.engines.reconciliation_state import (
     reconciliation_status,
 )
 from podcast_mcp.engines.transcribe import TranscriptionEngine
-from podcast_mcp.engines.transcript_reconcile import reconcile_transcript
+from podcast_mcp.engines.transcript_reconcile import (
+    ReconciliationResult,
+    _reconcile_word,
+    reconcile_transcript,
+)
 from podcast_mcp.history.session import run_mutation
 from podcast_mcp.models import (
     Clip,
@@ -81,6 +85,75 @@ def _two_track_project(tmp_path: Path) -> EpisodeProject:
         ),
     ]
     return project
+
+
+def test_extracted_reconcile_word_exact_contract() -> None:
+    transcript = Transcript(
+        track_id="host",
+        words=[TranscriptWord(text="bleed", start=1.0, end=1.5, confidence=0.9)],
+    )
+    result = ReconciliationResult()
+    _reconcile_word(
+        transcript,
+        0,
+        {"audibility_status": "bleed", "dominant_track": "guest", "reason": "dominant"},
+        result,
+        update_status=True,
+        apply_suppression=True,
+        start_sec=0.0,
+        end_sec=2.0,
+    )
+    assert result.to_dict() == {
+        "suppress": [
+            {
+                "track_id": "host",
+                "word_index": 0,
+                "text": "bleed",
+                "start": 1.0,
+                "end": 1.5,
+                "audibility_status": "bleed",
+                "dominant_track": "guest",
+                "reason": "dominant",
+            }
+        ],
+        "unsuppress": [],
+        "reattribute": [
+            {
+                "track_id": "host",
+                "word_index": 0,
+                "text": "bleed",
+                "start": 1.0,
+                "end": 1.5,
+                "audibility_status": "bleed",
+                "dominant_track": "guest",
+                "reason": "dominant",
+                "attributed_to_track": "guest",
+            }
+        ],
+        "status_updates": 1,
+        "applied": False,
+        "suppress_count": 1,
+        "unsuppress_count": 0,
+        "reattribute_count": 1,
+    }
+    assert transcript.words[0].suppressed is True
+    assert transcript.words[0].audibility_status == "bleed"
+    assert transcript.words[0].dominant_track == "guest"
+
+    outside = ReconciliationResult()
+    _reconcile_word(
+        transcript,
+        0,
+        {"audibility_status": "audible"},
+        outside,
+        update_status=True,
+        apply_suppression=True,
+        start_sec=2.0,
+        end_sec=None,
+    )
+    assert outside.to_dict()["status_updates"] == 0
+    assert outside.unsuppress == []
+    assert transcript.words[0].suppressed is True
 
 
 def test_analysis_policy_bleed_defaults():

@@ -12,6 +12,7 @@ from podcast_mcp.engines.ffmpeg import (
     FFmpegEngine,
     RenderSegment,
     _annotate_vf,
+    _effect_filter,
     _escape_drawtext,
 )
 from podcast_mcp.models import (
@@ -25,6 +26,28 @@ from podcast_mcp.models import (
     Track,
     TrackRole,
 )
+
+
+@pytest.mark.parametrize(
+    ("effect", "params", "expected"),
+    [
+        ("highpass", {"frequency": 100}, "highpass=f=100"),
+        (
+            "acompressor",
+            {"makeup_db": 2},
+            "acompressor=threshold=-18dB:ratio=3:attack=15:release=150:makeup=2.0",
+        ),
+        ("loudnorm", {}, "loudnorm=I=-16:TP=-1.5:LRA=11"),
+        ("afftdn", {}, "afftdn=nr=12:nf=-25"),
+        ("bandreject", {}, "bandreject=f=6500:width_type=h:w=3000"),
+        ("deesser", {}, "deesser=i=0.5:f=0.5"),
+        ("agate", {}, "agate=threshold=-30dB:range=-20dB:attack=5:release=50"),
+        ("equalizer", {}, "equalizer=f=1000:t=q:w=1.0:g=0"),
+        ("unknown", {}, None),
+    ],
+)
+def test_extracted_effect_filter_exact_contract(effect, params, expected):
+    assert _effect_filter(ProcessingEffect(effect=effect, params=params)) == expected
 
 
 def test_probe_sample_wav(sample_wav: Path):

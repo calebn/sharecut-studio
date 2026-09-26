@@ -93,13 +93,68 @@ async def test_run_hello_register_http_ping_error():
     ):
         await client.run(max_attempts=1)
 
-    # Proxy runs as a task; give it a turn to finish after recv empties.
-    await asyncio.sleep(0.05)
+    # The relay ends the session before the in-flight HTTP proxy can finish.
+    # Cleanup cancels it rather than sending through the closed relay socket.
     types = [m["type"] for m in fake.sent]
     assert types[0] == "hello"
     assert types[1] == "register"
-    assert "http_response" in types
+    assert "http_response" not in types
     assert "pong" in types
+
+
+@pytest.mark.asyncio
+async def test_dispatch_cancels_and_awaits_all_proxies_on_disconnect():
+    cfg = RelayConfig(host_token="tok", host_id="hid")
+    client = TunnelClient(cfg)
+    started: set[str] = set()
+    stopped: set[str] = set()
+
+    async def http_proxy(_http, _raw, *, send):
+        started.add("http")
+        try:
+            await asyncio.Event().wait()
+        finally:
+            stopped.add("http")
+
+    async def ws_proxy(_raw, *, send, streams):
+        started.add("ws")
+        streams["stream"] = asyncio.Queue(maxsize=1)
+        streams["stream"].put_nowait("old")
+        nonlocal_streams.append(streams)
+        try:
+            await asyncio.Event().wait()
+        finally:
+            stopped.add("ws")
+
+    nonlocal_streams: list[dict[str, asyncio.Queue[str | None]]] = []
+    client._proxy_http = http_proxy  # type: ignore[method-assign]
+    client._proxy_ws = ws_proxy  # type: ignore[method-assign]
+
+    class DisconnectWs:
+        def __init__(self):
+            self.messages = iter(
+                [
+                    {"type": "http", "id": "request"},
+                    {"type": "ws_open", "id": "stream"},
+                    {"type": "ws_data", "id": "stream", "text": "queued"},
+                ]
+            )
+
+        async def recv(self):
+            try:
+                result = next(self.messages)
+            except StopIteration:
+                await asyncio.sleep(0)
+                raise ConnectionError("relay dropped") from None
+            await asyncio.sleep(0)
+            return json.dumps(result)
+
+    with pytest.raises(ConnectionError, match="relay dropped"):
+        await client._serve_messages(DisconnectWs(), object(), AsyncMock())
+
+    assert started == stopped == {"http", "ws"}
+    assert len(nonlocal_streams) == 1
+    assert nonlocal_streams[0] == {}
 
 
 @pytest.mark.asyncio

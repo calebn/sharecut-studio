@@ -1066,6 +1066,59 @@ def test_snapshot_handler_registry_keeps_field_metadata(ctype, payload, field, e
     assert snap["last_command_id"] == "cmd-7"
 
 
+@pytest.mark.parametrize(
+    ("ctype", "playing", "dry_run"),
+    [("PlayOsAudio", False, False), ("AuditionInViewer", True, True)],
+)
+def test_playback_materializer_exact_fields_and_order(ctype, playing, dry_run) -> None:
+    from podcast_mcp.services.session_sync.snapshot import apply_command, empty_snapshot
+
+    payload = {
+        "timeline_start_sec": 1.25,
+        "timeline_end_sec": 2.5,
+        "source": "track:host",
+        "track_id": "host",
+        "query": "hello",
+        "match_index": 2,
+        "tier": "raw",
+        "selection": {"track_id": "host"},
+    }
+    snap = apply_command(
+        empty_snapshot(),
+        {
+            "type": ctype,
+            "payload": payload,
+            "server_seq": 7,
+            "client_id": "viewer-1",
+            "role": "viewer",
+            "command_id": "cmd-7",
+            "ts_ns": 99,
+        },
+    )
+    expected = {
+        "playhead_sec": 1.25,
+        "is_playing": playing,
+        "region": {"start_sec": 1.25, "end_sec": 2.5},
+        "source": "track:host",
+        "audition_mode": "raw",
+        "track_id": "host",
+        "solo_tracks": {"host": True},
+        "viewer_mute": {},
+        "query": "hello",
+        "match_index": 2,
+        "tier": "raw",
+        "dry_run": dry_run,
+        "wav": None,
+        "compare_segments": None,
+        "selection": {"track_id": "host"},
+    }
+    assert list(snap["fields"]) == list(expected)
+    assert {key: row["value"] for key, row in snap["fields"].items()} == expected
+    assert all(
+        row["server_seq"] == 7 and row["client_id"] == "viewer-1" for row in snap["fields"].values()
+    )
+
+
 def test_hub_fanout_delivers_applied(minimal_project) -> None:
     import asyncio
 
