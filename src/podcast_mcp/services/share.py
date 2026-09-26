@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import threading
 import uuid
 from collections.abc import Sequence
@@ -55,6 +54,7 @@ from podcast_mcp.services.review_media import (
     upload_review_version_to_object_store,
 )
 from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.util.atomic_render import render_atomic
 
 log = logging.getLogger(__name__)
 
@@ -888,20 +888,10 @@ def _render_pending_preview_png(wav: Path, kind: str) -> Path:
     png = _pending_preview_png_path(wav, kind)
     if png.is_file():
         return png
-    tmp = png.with_name(f"{png.stem}.{os.getpid()}.partial.png")
     eng = FFmpegEngine()
-    published = False
-    try:
-        if kind == "wave":
-            eng.render_showwavespic(wav, tmp)
-        else:
-            eng.render_spectrogram(wav, tmp)
-        os.replace(tmp, png)
-        published = True
-    finally:
-        if not published:
-            tmp.unlink(missing_ok=True)
-    return png
+    if kind == "wave":
+        return render_atomic(png, lambda tmp: eng.render_showwavespic(wav, tmp))
+    return render_atomic(png, lambda tmp: eng.render_spectrogram(wav, tmp))
 
 
 def share_pending_preview_wav_cached(
@@ -1166,20 +1156,18 @@ def share_audition_context_image(
     if dest.is_file():
         return dest.resolve()
     src = track_diagnostics_audio_path(ws.project, track_id)
-    tmp = dest.with_name(f"{dest.stem}.{os.getpid()}.partial.png")
     duration = end - start
     eng = FFmpegEngine()
-    published = False
-    try:
-        if image_kind == "wave":
-            eng.render_showwavespic(src, tmp, start_sec=start, duration_sec=duration)
-        else:
-            eng.render_spectrogram(src, tmp, start_sec=start, duration_sec=duration)
-        os.replace(tmp, dest)
-        published = True
-    finally:
-        if not published:
-            tmp.unlink(missing_ok=True)
+    if image_kind == "wave":
+        render_atomic(
+            dest,
+            lambda tmp: eng.render_showwavespic(src, tmp, start_sec=start, duration_sec=duration),
+        )
+    else:
+        render_atomic(
+            dest,
+            lambda tmp: eng.render_spectrogram(src, tmp, start_sec=start, duration_sec=duration),
+        )
     resolved = _require_under_artifacts(ws.project, dest)
     if not resolved.is_file():
         raise FileNotFoundError("diagnostic image not found")

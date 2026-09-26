@@ -6,6 +6,7 @@ from typing import Any
 
 from podcast_mcp.edits.inaudible_cuts import optimize_source_cut_range
 from podcast_mcp.edits.tighten_reasons import is_review_only_reason
+from podcast_mcp.edits.timeline_span import source_span_timeline_bounds
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import (
     CombinedTranscript,
@@ -15,7 +16,6 @@ from podcast_mcp.models import (
     Transcript,
 )
 from podcast_mcp.util.text import normalize_text
-from podcast_mcp.util.timebase import SourceSec
 
 
 @dataclass
@@ -39,12 +39,7 @@ def _timeline_span_for_source(
     src_end: float,
 ) -> tuple[float | None, float | None]:
     """Map a source-clock span to session timeline (None if fully cut away)."""
-    spans = SessionTimeline(project).map_source_span(
-        track_id, SourceSec(src_start), SourceSec(src_end)
-    )
-    if not spans:
-        return None, None
-    return float(spans[0][0]), float(spans[-1][1])
+    return source_span_timeline_bounds(SessionTimeline(project), track_id, src_start, src_end)
 
 
 def _with_timeline_spans(project: EpisodeProject, match: TranscriptMatch) -> TranscriptMatch:

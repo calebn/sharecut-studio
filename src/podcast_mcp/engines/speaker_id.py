@@ -19,7 +19,7 @@ from podcast_mcp.util.progress import (
     resolve_progress_task,
 )
 from podcast_mcp.util.timebase import TimelineSec
-from podcast_mcp.util.tracks import dialogue_track_ids
+from podcast_mcp.util.tracks import dialogue_track_ids, existing_stem_path
 
 
 @dataclass
@@ -218,8 +218,8 @@ def resolve_speaker_backend(
 
 
 def _stem_path_and_source(project: EpisodeProject, track_id: str) -> tuple[Path | None, str | None]:
-    processed = project.artifacts_dir() / "tracks" / f"{track_id}.wav"
-    if processed.is_file():
+    processed = existing_stem_path(project, track_id)
+    if processed is not None:
         return processed, "processed"
     track = project.track_by_id(track_id)
     if not track or not track.media:

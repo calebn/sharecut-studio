@@ -15,6 +15,7 @@ from podcast_mcp.edits.timeline_ops import (
     ripple_delete,
     split_clips_at,
 )
+from podcast_mcp.edits.timeline_span import source_span_timeline_bounds
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import (
     ClipJoinMode,
@@ -24,7 +25,7 @@ from podcast_mcp.models import (
     TrackRole,
 )
 from podcast_mcp.util.review import reject_by_id
-from podcast_mcp.util.timebase import SourceSec, TimelineSec
+from podcast_mcp.util.timebase import TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids
 
 # How close a clip edge must sit to a pad point to receive the pad fades. This
@@ -43,12 +44,10 @@ def _defaults_all() -> dict:
 def _mapped_edit_to_timeline_range(
     project: EpisodeProject, edit: EditDecision
 ) -> tuple[float, float] | None:
-    spans = SessionTimeline(project).map_source_span(
-        edit.track_id, SourceSec(edit.start), SourceSec(edit.end)
+    start, end = source_span_timeline_bounds(
+        SessionTimeline(project), edit.track_id, edit.start, edit.end
     )
-    if not spans:
-        return None
-    return float(spans[0][0]), float(spans[-1][1])
+    return (start, end) if start is not None and end is not None else None
 
 
 def _edit_to_timeline_range(project: EpisodeProject, edit: EditDecision) -> tuple[float, float]:

@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any, Protocol
 
+from podcast_mcp.edits.ranges import merge_intervals
 from podcast_mcp.models import Clip, EpisodeProject
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 
@@ -113,14 +114,7 @@ def _candidates_timeline(idx: _TrackIndex, lo: float, hi: float) -> tuple[_Span,
 def _merge_intervals(
     intervals: list[tuple[float, float]], merge_gap: float
 ) -> list[tuple[float, float]]:
-    intervals.sort()
-    merged: list[tuple[float, float]] = []
-    for s, e in intervals:
-        if merged and s - merged[-1][1] <= merge_gap:
-            merged[-1] = (merged[-1][0], max(merged[-1][1], e))
-        else:
-            merged.append((s, e))
-    return merged
+    return merge_intervals(intervals, gap=merge_gap)
 
 
 def map_timeline_spans_over_clips(

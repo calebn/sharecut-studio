@@ -6,20 +6,24 @@ from collections.abc import Iterable
 SPAN_EPS_S = 1e-9
 
 
-def merge_timeline_ranges(
-    ranges: list[tuple[float, float]],
+def merge_intervals(
+    intervals: Iterable[tuple[float, float]], *, gap: float = 0.0
 ) -> list[tuple[float, float]]:
-    if not ranges:
-        return []
-    sorted_ranges = sorted(ranges, key=lambda r: r[0])
-    merged: list[tuple[float, float]] = [sorted_ranges[0]]
-    for start, end in sorted_ranges[1:]:
-        prev_start, prev_end = merged[-1]
-        if start <= prev_end + 1e-6:
-            merged[-1] = (prev_start, max(prev_end, end))
+    """Merge sorted or unsorted overlapping intervals within ``gap`` seconds."""
+    ordered = sorted(intervals)
+    merged: list[tuple[float, float]] = []
+    for start, end in ordered:
+        if merged and start <= merged[-1][1] + gap:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
         else:
             merged.append((start, end))
     return merged
+
+
+def merge_timeline_ranges(
+    ranges: list[tuple[float, float]],
+) -> list[tuple[float, float]]:
+    return merge_intervals(ranges, gap=1e-6)
 
 
 def subtract_ranges_from_intervals(

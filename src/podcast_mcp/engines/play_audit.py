@@ -13,6 +13,7 @@ from podcast_mcp.engines.timeline_render import RENDER_SEMANTICS_REV
 from podcast_mcp.models import AutomationEnvelope, EpisodeProject
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.tracks import mixed_dialogue_track_ids
+from podcast_mcp.util.tracks import stem_path as track_stem_path
 
 log = logging.getLogger(__name__)
 
@@ -145,7 +146,7 @@ def _write_hash(path: Path, h: str) -> str:
 
 
 def stem_path(project: EpisodeProject, track_id: str) -> Path:
-    return project.artifacts_dir() / "tracks" / f"{track_id}.wav"
+    return track_stem_path(project, track_id)
 
 
 def stem_hash_path(project: EpisodeProject, track_id: str) -> Path:

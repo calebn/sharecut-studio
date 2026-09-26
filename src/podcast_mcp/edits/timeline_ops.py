@@ -35,7 +35,7 @@ from podcast_mcp.edits.inaudible_cuts import (
     recommend_micro_fades,
 )
 from podcast_mcp.edits.mute_regions import intersect_mute_regions, mute_regions_payload
-from podcast_mcp.edits.ranges import merge_timeline_ranges
+from podcast_mcp.edits.ranges import merge_intervals, merge_timeline_ranges
 from podcast_mcp.edits.transcript_cuts import TranscriptMatch, search_transcript
 from podcast_mcp.edits.transcript_sync import (
     apply_batch_transcript_removes,
@@ -903,17 +903,7 @@ def list_clips(project: EpisodeProject, track_id: str | None = None) -> dict:
 def _merge_occupied_intervals(
     intervals: list[tuple[float, float]],
 ) -> list[tuple[float, float]]:
-    if not intervals:
-        return []
-    ordered = sorted(intervals)
-    merged: list[tuple[float, float]] = [ordered[0]]
-    for start, end in ordered[1:]:
-        prev_start, prev_end = merged[-1]
-        if start <= prev_end + 1e-9:
-            merged[-1] = (prev_start, max(prev_end, end))
-        else:
-            merged.append((start, end))
-    return merged
+    return merge_intervals(intervals, gap=1e-9)
 
 
 def _expand_intervals(

@@ -12,6 +12,7 @@ from typing import Any
 import numpy as np
 
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.util.dsp import linear_rms
 from podcast_mcp.util.tracks import track_audio_path
 
 log = logging.getLogger(__name__)
@@ -90,7 +91,7 @@ def nisqa_discontinuity_delta(
 
     def _mos_proxy(x: np.ndarray) -> float:
         # Rough no-ref speech quality proxy: higher when energy is mid-band stable
-        rms = float(np.sqrt(np.mean(x.astype(np.float64) ** 2) + 1e-12))
+        rms = linear_rms(x, epsilon=1e-12)
         return float(max(1.0, min(5.0, 3.5 + 10.0 * np.log10(rms + 1e-6) / 20.0)))
 
     mos_c = _mos_proxy(center)

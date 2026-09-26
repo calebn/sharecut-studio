@@ -16,14 +16,13 @@ from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.transcript_gated_play import gate_stem_window, word_intervals
 from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress_task
-from podcast_mcp.util.tracks import dialogue_track_ids
+from podcast_mcp.util.tracks import dialogue_track_ids, existing_stem_path
 
 log = logging.getLogger(__name__)
 
 
 def _stem_path(project: EpisodeProject, track_id: str) -> Path | None:
-    p = project.artifacts_dir() / "tracks" / f"{track_id}.wav"
-    return p if p.is_file() else None
+    return existing_stem_path(project, track_id)
 
 
 def _track_duration(project: EpisodeProject, track_id: str) -> float:

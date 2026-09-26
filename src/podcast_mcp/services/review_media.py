@@ -16,6 +16,7 @@ from podcast_mcp.edits.review_versions import (
 )
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.util.datetime_utils import now_iso as _now_iso
 from podcast_mcp.util.object_store import (
     ObjectStoreClient,
     ObjectStoreConfig,
@@ -37,10 +38,6 @@ def _object_store_client(
         config_loader=load_object_store_config,
         client_factory=ObjectStoreClient,
     )
-
-
-def _now_iso() -> str:
-    return datetime.now(UTC).isoformat()
 
 
 def review_guest_audio_path(project: EpisodeProject, version_id: str) -> Path:

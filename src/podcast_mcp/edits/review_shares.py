@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 import threading
 import uuid
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +28,7 @@ from podcast_mcp.edits.share_registry import (
     share_is_usable,
 )
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.util.datetime_utils import now_iso as _now_iso
 
 _SHARES_NAME = "shares.json"
 _sidecar_lock = threading.Lock()
@@ -38,10 +38,6 @@ def shares_path(project: EpisodeProject) -> Path:
     from podcast_mcp.edits.review_versions import review_artifacts_dir
 
     return review_artifacts_dir(project) / _SHARES_NAME
-
-
-def _now_iso() -> str:
-    return datetime.now(UTC).isoformat()
 
 
 def _load(path: Path) -> list[dict[str, Any]]:
