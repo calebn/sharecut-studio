@@ -733,7 +733,7 @@ def export_deliverables(project: EpisodeProject, defaults: dict[str, Any]) -> St
             extras.append("SRT+MD")
 
         prog.set_phase("qc", "Writing export QC…")
-        qc = write_export_qc(project)
+        qc = write_export_qc(project, defaults=defaults)
     parts = [f"{len(written)} audio files"]
     parts.extend(extras)
     if qc.get("ok"):
@@ -743,13 +743,16 @@ def export_deliverables(project: EpisodeProject, defaults: dict[str, Any]) -> St
     return ", ".join(parts)
 
 
-def write_export_qc(project: EpisodeProject) -> dict[str, Any]:
-    """Roll up pre-ship QC (reconciliation staleness + mastering) into export_qc.json.
+def write_export_qc(
+    project: EpisodeProject, *, defaults: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """Roll up pre-ship QC (reconciliation, mastering, alignment drift) into export_qc.json.
 
     Non-blocking by design (matches master_loudness's QC pattern): always writes the
     report so an agent/user can check `ok`/`issues` before treating the export as
     final, rather than raising and aborting an otherwise-successful export.
     """
+    from podcast_mcp.edits.align_accept_status import alignment_drift_report
     from podcast_mcp.engines.reconciliation_state import reconciliation_status
     from podcast_mcp.engines.session_timeline import timebase_qc_report
 
@@ -775,11 +778,15 @@ def write_export_qc(project: EpisodeProject) -> dict[str, Any]:
             issues.extend(master_qc["issues"])
 
     issues.extend(timebase["issues"])
+    alignment = alignment_drift_report(project, defaults=defaults)
+    issues.extend(alignment["issues"])
     warnings = list(timebase.get("warnings") or [])
+    warnings.extend(alignment["warnings"])
 
     qc: dict[str, Any] = {
         "reconciliation": recon,
         "timebase": timebase,
+        "alignment": alignment,
         "master_qc": master_qc,
         "warnings": warnings,
         "issues": issues,

@@ -7,11 +7,13 @@ from pathlib import Path
 from typing import Any, Literal
 
 from podcast_mcp.edits.conversation_align import (
+    LOCKED_METHODS,
     alignment_fingerprint,
     large_move_sec_from_defaults,
 )
 from podcast_mcp.edits.pipeline_unattended import is_unattended
-from podcast_mcp.models import EpisodeProject
+from podcast_mcp.engines.session_timeline import SessionTimeline
+from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
 from podcast_mcp.util.workspace_paths import workspace_relpath
 
@@ -192,6 +194,73 @@ def align_status_report(
         "large_move_sec": threshold,
         "large_moves": large_align_moves(plans, threshold=threshold),
         "hint": None if clear or mode == "off" else GATE_HINT,
+    }
+
+
+def alignment_drift_report(
+    project: EpisodeProject,
+    *,
+    defaults: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Relative track-vs-reference drift for export QC.
+
+    Ripple cuts shift every track alike and cancel out. A dialogue track still
+    sitting more than ``align.large_move_sec`` off the reference clock, whose plan
+    was not locked and whose alignment no person accepted, is an issue (a warning
+    when ``align.accept.mode`` is ``off``).
+    """
+    threshold = large_move_sec_from_defaults(defaults)
+    payload = load_align_artifact(project)
+    ref_id = (payload or {}).get("reference_track_id")
+    if payload is None or payload.get("skipped_reason") or not ref_id:
+        return {
+            "checked": False,
+            "threshold_sec": threshold,
+            "tracks": {},
+            "issues": [],
+            "warnings": [],
+        }
+    data = load_status(project)
+    waived_by_unattended = (data or {}).get("status") == "waived" and (data or {}).get(
+        "source"
+    ) == "unattended"
+    accepted = (
+        status_is_clear_payload(data, fingerprint=alignment_fingerprint(project))
+        and not waived_by_unattended
+    )
+    if data and not accepted:
+        state = "waived by unattended" if waived_by_unattended else str(data.get("status"))
+    else:
+        state = "missing"
+    mode = align_mode_from_defaults(defaults)
+    locked = {
+        p.get("track_id") for p in payload.get("plans") or [] if p.get("method") in LOCKED_METHODS
+    }
+    st = SessionTimeline(project)
+    tracks: dict[str, float] = {}
+    issues: list[str] = []
+    warnings: list[str] = []
+    for t in project.tracks:
+        if t.role != TrackRole.DIALOGUE or t.id == ref_id:
+            continue
+        rel = st.max_relative_drift(t.id, str(ref_id))
+        tracks[t.id] = round(rel, 3)
+        if rel > threshold and t.id not in locked and not accepted:
+            msg = (
+                f"Track '{t.id}' sits {rel:.1f}s off the reference clock ('{ref_id}') and the "
+                f"alignment was not accepted by a person (align status: {state}). Listen with "
+                "`play --compare`, fix with `move_clips`, then `podcast align done`, "
+                "or re-run align_tracks."
+            )
+            (warnings if mode == "off" else issues).append(msg)
+    return {
+        "checked": True,
+        "threshold_sec": threshold,
+        "accepted": accepted,
+        "reference_track_id": ref_id,
+        "tracks": tracks,
+        "issues": issues,
+        "warnings": warnings,
     }
 
 
