@@ -3826,6 +3826,7 @@ def test_rollback_retry_after_backs_off_and_caps():
     assert rollback_retry_after_ns(1, 0) == 30 * s
     assert rollback_retry_after_ns(2, 0) == 60 * s
     assert rollback_retry_after_ns(20, 5) == 5 + 1800 * s
+    assert rollback_retry_after_ns(10_000, 0) == 1800 * s  # exponent is clamped
 
 
 def test_failed_deferred_retry_backs_off(minimal_project, sample_wav, monkeypatch):
