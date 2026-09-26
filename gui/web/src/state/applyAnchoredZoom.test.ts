@@ -3,6 +3,16 @@ import { MAX_CONTENT_PX } from "../utils/timelineZoom.generated";
 import { MAX_ZOOM_PX_PER_SEC, ZOOM_STEP } from "../utils/zoom";
 import { noteZoomPointerClientX } from "../utils/zoomPointer";
 import { useDawStore, zoomReclampPatch } from "./dawStore";
+import { timelineViewportRegistry } from "./timelineViewportRegistry";
+
+function testTimelineElement(el: HTMLElement | null) {
+  timelineViewportRegistry.setTimelineElement(el);
+  return {};
+}
+function testLeadPx(px: number) {
+  timelineViewportRegistry.setLeadPx(px);
+  return {};
+}
 
 type FakeTimelineOptions = {
   left?: number;
@@ -37,7 +47,7 @@ function fakeTimelineEl({
 describe("applyAnchoredZoom", () => {
   beforeEach(() => {
     noteZoomPointerClientX(null);
-    useDawStore.setState({ _timelineLeadPx: 0 });
+    useDawStore.setState({ ...testLeadPx(0) });
   });
 
   afterEach(() => {
@@ -64,7 +74,7 @@ describe("applyAnchoredZoom", () => {
       zoomPxPerSec: 40 / 6, // fitted-ish narrow zoom
       scrollLeft: 0,
       userZoomed: false,
-      _timelineEl: el,
+      ...testTimelineElement(el),
     });
 
     const before = useDawStore.getState().zoomPxPerSec;
@@ -96,7 +106,7 @@ describe("applyAnchoredZoom", () => {
       zoomPxPerSec: startZoom,
       scrollLeft: 100,
       userZoomed: false,
-      _timelineEl: el,
+      ...testTimelineElement(el),
     });
 
     const anchorSec = (clientX - 0 + 100) / startZoom;
@@ -117,10 +127,10 @@ describe("applyAnchoredZoom", () => {
       project: { timeline_duration_sec: 60 } as never,
       zoomPxPerSec: 10,
       userZoomed: false,
-      _timelineEl: el,
+      ...testTimelineElement(el),
     };
     // 1 s sits under a pointer at x=210 when the view is scrolled to −200.
-    useDawStore.setState({ ...base, scrollLeft: -200, _timelineLeadPx: 200 });
+    useDawStore.setState({ ...base, scrollLeft: -200, ...testLeadPx(200) });
     useDawStore.getState().applyAnchoredZoom(20, 210);
     let s = useDawStore.getState();
     expect((210 + s.scrollLeft) / s.zoomPxPerSec).toBeCloseTo(1, 9);
@@ -128,10 +138,10 @@ describe("applyAnchoredZoom", () => {
 
     // Zooming out there would want −5 px: padded views allow it, unpadded
     // views keep the 0 floor.
-    useDawStore.setState({ ...base, scrollLeft: 0, _timelineLeadPx: 200 });
+    useDawStore.setState({ ...base, scrollLeft: 0, ...testLeadPx(200) });
     useDawStore.getState().applyAnchoredZoom(5, 10);
     expect(useDawStore.getState().scrollLeft).toBe(-5);
-    useDawStore.setState({ ...base, scrollLeft: 0, _timelineLeadPx: 0 });
+    useDawStore.setState({ ...base, scrollLeft: 0, ...testLeadPx(0) });
     useDawStore.getState().applyAnchoredZoom(5, 10);
     s = useDawStore.getState();
     expect(s.scrollLeft).toBe(0);
@@ -147,8 +157,8 @@ describe("applyAnchoredZoom", () => {
       playheadSec: 30,
       scrollLeft: 100, // 30 s at the center of a 400px viewport
       userZoomed: false,
-      _timelineEl: fakeTimelineEl(),
-      _timelineLeadPx: 200,
+      ...testTimelineElement(fakeTimelineEl()),
+      ...testLeadPx(200),
     });
     useDawStore.getState().applyAnchoredZoom(20);
     const s = useDawStore.getState();
@@ -163,8 +173,8 @@ describe("applyAnchoredZoom", () => {
       zoomPxPerSec: 1,
       playheadSec: 105,
       scrollLeft: 105 - 200 - 0.9,
-      _timelineEl: fakeTimelineEl(),
-      _timelineLeadPx: 200,
+      ...testTimelineElement(fakeTimelineEl()),
+      ...testLeadPx(200),
     });
     for (let i = 0; i < 4; i++) {
       useDawStore
@@ -181,8 +191,8 @@ describe("applyAnchoredZoom", () => {
       project: { timeline_duration_sec: 60 } as never,
       zoomPxPerSec: 10,
       scrollLeft: 50 * 10 - 200,
-      _timelineEl: fakeTimelineEl(),
-      _timelineLeadPx: 200,
+      ...testTimelineElement(fakeTimelineEl()),
+      ...testLeadPx(200),
     });
     useDawStore.getState().applyAnchoredZoom(2.5, 100);
     const s = useDawStore.getState();
@@ -195,12 +205,12 @@ describe("applyAnchoredZoom", () => {
       playheadSec: 15,
       zoomPxPerSec: 40,
       scrollLeft: 0,
-      _timelineLeadPx: 0,
+      ...testLeadPx(0),
     });
     useDawStore.getState().fitToWindow(300);
     expect(useDawStore.getState().scrollLeft).toBe(0);
 
-    useDawStore.setState({ _timelineLeadPx: 150 });
+    useDawStore.setState({ ...testLeadPx(150) });
     useDawStore.getState().fitToWindow(300);
     const s = useDawStore.getState();
     expect((s.scrollLeft + 150) / s.zoomPxPerSec).toBeCloseTo(15, 9);
@@ -216,7 +226,7 @@ describe("applyAnchoredZoom", () => {
       zoomPxPerSec: 10,
       scrollLeft: 50,
       userZoomed: false,
-      _timelineEl: el,
+      ...testTimelineElement(el),
     });
 
     const anchorSec = (250 - 100 + 50) / 10;
@@ -236,7 +246,7 @@ describe("applyAnchoredZoom", () => {
       zoomPxPerSec: 10,
       scrollLeft: 0,
       userZoomed: false,
-      _timelineEl: el,
+      ...testTimelineElement(el),
     });
 
     const leftX = 50;
@@ -260,7 +270,7 @@ describe("applyAnchoredZoom", () => {
       zoomPxPerSec: 10,
       scrollLeft: 0,
       userZoomed: false,
-      _timelineEl: el,
+      ...testTimelineElement(el),
     });
 
     expect(useDawStore.getState().measureTimelineViewport()).toBe(400);
@@ -292,7 +302,7 @@ describe("applyAnchoredZoom", () => {
       project: { timeline_duration_sec: 60 } as never,
       zoomPxPerSec: 10,
       scrollLeft: 0,
-      _timelineEl: fakeTimelineEl(),
+      ...testTimelineElement(fakeTimelineEl()),
     });
     zoomIn(50);
     expect(useDawStore.getState().zoomPxPerSec).toBe(MAX_ZOOM_PX_PER_SEC);
@@ -322,8 +332,8 @@ describe("applyAnchoredZoom", () => {
       project: { timeline_duration_sec: 60 } as never,
       zoomPxPerSec: 48000,
       scrollLeft: 30 * 48000 - 200, // 30 s at the centre of 400 px
-      _timelineEl: fakeTimelineEl(),
-      _timelineLeadPx: 0,
+      ...testTimelineElement(fakeTimelineEl()),
+      ...testLeadPx(0),
     });
     const seen: Array<[number, number]> = [];
     const unsub = useDawStore.subscribe((st) =>
@@ -346,7 +356,7 @@ describe("applyAnchoredZoom", () => {
     vi.stubGlobal("visualViewport", { width: 390 });
     vi.stubGlobal("innerWidth", 1280);
     useDawStore.setState({
-      _timelineEl: null,
+      ...testTimelineElement(null),
       shellBreakpoint: "phone",
     });
     expect(useDawStore.getState().measureTimelineViewport()).toBe(390);

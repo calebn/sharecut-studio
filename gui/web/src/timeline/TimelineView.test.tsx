@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { projectFromDocumentSnapshot } from "../document/projectPatch";
 import { estimateTimelineViewportWidth, useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
+import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject, sampleComment } from "../test/fixtures";
 import { stubRaf } from "../test/raf";
@@ -245,7 +246,7 @@ describe("TimelineView fixed playhead (#385)", () => {
     const area = container.querySelector(".timeline-area") as HTMLElement;
     expect(area.style.getPropertyValue("--timeline-lead")).toBe("200px");
     expect(area.style.getPropertyValue("--timeline-fixed-line")).toBe("200px");
-    expect(useDawStore.getState()._timelineLeadPx).toBe(200);
+    expect(timelineViewportRegistry.getLeadPx()).toBe(200);
   });
 
   it("treats a write's late echo as programmatic, a person's scroll as not", () => {
@@ -337,7 +338,7 @@ describe("TimelineView fixed playhead (#385)", () => {
     expect(useDawStore.getState().scrollLeft).toBe(-150);
     unmount();
     expect(useDawStore.getState().scrollLeft).toBe(0);
-    expect(useDawStore.getState()._timelineLeadPx).toBe(0);
+    expect(timelineViewportRegistry.getLeadPx()).toBe(0);
   });
 });
 

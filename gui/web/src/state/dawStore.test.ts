@@ -2,11 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { minimalProject } from "../test/fixtures";
 import type { SessionState } from "../types/session";
 import { estimateTimelineViewportWidth, useDawStore } from "./dawStore";
+import { timelineViewportRegistry } from "./timelineViewportRegistry";
+
+function testTimelineElement(el: HTMLElement | null) {
+  timelineViewportRegistry.setTimelineElement(el);
+  return {};
+}
 
 describe("dawStore timeline viewport width", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
-    useDawStore.setState({ shellBreakpoint: "desktop", _timelineEl: null });
+    timelineViewportRegistry.clear();
+    useDawStore.setState({ shellBreakpoint: "desktop" });
   });
 
   it("estimates the time column per shell", () => {
@@ -36,7 +43,10 @@ describe("dawStore timeline viewport width", () => {
 
   it("follows a shell breakpoint change before the timeline measures", () => {
     vi.stubGlobal("visualViewport", { width: 390 });
-    useDawStore.setState({ _timelineEl: null, timelineViewportWidth: 777 });
+    useDawStore.setState({
+      ...testTimelineElement(null),
+      timelineViewportWidth: 777,
+    });
     useDawStore.getState().setShellBreakpoint("phone");
     expect(useDawStore.getState().timelineViewportWidth).toBe(390);
   });
@@ -45,7 +55,10 @@ describe("dawStore timeline viewport width", () => {
     vi.stubGlobal("visualViewport", { width: 390 });
     const el = document.createElement("div");
     Object.defineProperty(el, "clientWidth", { value: 777 });
-    useDawStore.setState({ _timelineEl: el, timelineViewportWidth: 777 });
+    useDawStore.setState({
+      ...testTimelineElement(el),
+      timelineViewportWidth: 777,
+    });
     useDawStore.getState().setShellBreakpoint("phone");
     expect(useDawStore.getState().timelineViewportWidth).toBe(777);
   });
@@ -57,7 +70,7 @@ describe("dawStore timeline viewport width", () => {
     Object.defineProperty(el, "clientWidth", { value: 0 });
     useDawStore.setState({
       shellBreakpoint: "desktop",
-      _timelineEl: el,
+      ...testTimelineElement(el),
       timelineViewportWidth: estimateTimelineViewportWidth("desktop"),
     });
     useDawStore.getState().setShellBreakpoint("phone");
@@ -168,6 +181,17 @@ describe("dawStore listen-first transport", () => {
     expect(s.auditionEpoch).toBe(0);
     expect(s.highlightStaleRender).toBe(false);
     expect(s.renderPreviewBusy).toBe(false);
+  });
+
+  it("publishes a project switch as one consistent cross-slice snapshot", () => {
+    useDawStore.setState({ isPlaying: true, followingClientId: "peer" });
+    const seen: Array<[string, boolean, string | null]> = [];
+    const unsubscribe = useDawStore.subscribe((state) => {
+      seen.push([state.projectPath, state.isPlaying, state.followingClientId]);
+    });
+    useDawStore.getState().hydrate("/tmp/next.json", minimalProject());
+    unsubscribe();
+    expect(seen).toEqual([["/tmp/next.json", false, null]]);
   });
 
   it("keeps transport during same-path hydration and changes the epoch only on project switch", () => {

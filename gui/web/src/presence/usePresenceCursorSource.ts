@@ -1,5 +1,6 @@
 import { type RefObject, useEffect } from "react";
 import { useDawStore } from "../state/dawStore";
+import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
 import type { PresenceCursor } from "../types/session";
 import { LANE_HEIGHT } from "../utils/layout";
 import { clientXToTimelineSec } from "../utils/timelinePointer";
@@ -69,7 +70,7 @@ export function usePresenceCursorSource(
           e.target,
           e.clientX,
           e.clientY,
-          s._lanesEl,
+          timelineViewportRegistry.getLanesElement(),
           s.scrollLeft,
           s.zoomPxPerSec,
           canvasSec,

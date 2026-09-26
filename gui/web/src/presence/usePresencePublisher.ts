@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { selectionToWire } from "../session/wire";
 import { useDawStore } from "../state/dawStore";
+import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
 import type { DawState } from "../state/types";
 import type { PresenceCursor } from "../types/session";
 import { timelineTimeViewportWidth } from "../utils/timelineViewport";
@@ -123,7 +124,9 @@ export function usePresencePublisher(
         viewport: zoomScrollToViewport(
           s.scrollLeft,
           s.zoomPxPerSec,
-          timelineTimeViewportWidth(useDawStore.getState()._timelineEl),
+          timelineTimeViewportWidth(
+            timelineViewportRegistry.getTimelineElement(),
+          ),
         ),
       });
     };
