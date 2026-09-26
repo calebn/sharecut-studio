@@ -3379,3 +3379,81 @@ def test_upsert_source_keeps_clipping_on_none_and_clears_on_empty(minimal_projec
     _upsert_source(project, clipping_regions=[], **fields)
     assert src.clipping_regions == []
     assert src.clipping_truncated is False
+
+
+def test_land_hashes_each_keeper_once_outside_the_project_locks(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    """Landing hashes each keeper before any project lock; the locked part only stats (#365)."""
+    import time
+
+    from podcast_mcp.services.record import landing as landing_mod
+    from podcast_mcp.util.file_locks import shared_file_lock
+    from podcast_mcp.util.project_state import (
+        project_commit_lock_path,
+        project_state_lock,
+        snapshot_project,
+    )
+
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=400_000)
+    uploader = RecordUploadService(ws.project)
+    for segment, join_ms in enumerate((0, 100_000, 200_000)):
+        _ack(
+            uploader,
+            session_id=room["session_id"],
+            take=0,
+            pid=guest,
+            segment=segment,
+            join_offset_ms=join_ms,
+            nbytes=480 + 8 * segment,
+        )
+    state_lock = project_state_lock(ws.project)
+    file_lock = shared_file_lock(project_commit_lock_path(ws.project), timeout=30)
+    real_hash = landing_mod.sha256_file
+    observed: list[tuple[bool, bool]] = []
+
+    def spy(path):
+        got: list[bool] = []
+
+        def probe() -> None:
+            acquired = state_lock.acquire(blocking=False)
+            got.append(acquired)
+            if acquired:
+                state_lock.release()
+
+        thread = threading.Thread(target=probe)
+        thread.start()
+        thread.join()
+        observed.append((got[0], file_lock.is_locked))
+        time.sleep(0.5)
+        return real_hash(path)
+
+    monkeypatch.setattr(landing_mod, "sha256_file", spy)
+    done = threading.Event()
+    waits: list[float] = []
+
+    def snapshots() -> None:
+        while not done.is_set():
+            started = time.monotonic()
+            snapshot_project(ws.project)
+            waits.append(time.monotonic() - started)
+            time.sleep(0.02)
+
+    prober = threading.Thread(target=snapshots)
+    prober.start()
+    try:
+        result = RecordLandingService(ws).land(align=lambda _p: None)
+    finally:
+        done.set()
+        prober.join()
+    assert len(result["clips"]) == 3
+    assert len(observed) == 3
+    assert all(state_free for state_free, _ in observed)
+    assert not any(file_held for _, file_held in observed)
+    assert waits
+    assert max(waits) < 0.5
