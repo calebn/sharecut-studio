@@ -1,6 +1,7 @@
 export { Avatar } from "./Avatar";
 export { BottomSheet, type BottomSheetSize } from "./BottomSheet";
 export { Button, type ButtonVariant } from "./Button";
+export { ClipLed, type ClipLedProps } from "./ClipLed";
 export { CloseButton } from "./CloseButton";
 export { CommandButton, type CommandButtonProps } from "./CommandButton";
 export { CommandMenuItem } from "./CommandMenuItem";

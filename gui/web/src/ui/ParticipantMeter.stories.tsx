@@ -6,7 +6,7 @@ import { Avatar, LevelMeter } from "./index";
 
 /**
  * Layout sketch, not a shipped component: how per-participant meters could
- * sit in the record room roster (issue #170, wiring in #174). Rows reuse
+ * sit in the record room roster (issue #170). Rows reuse
  * `Roster.tsx`'s `<ul className="record-roster">` markup with `.cluster`
  * items; each row is an Avatar, a name and a compact LevelMeter driven by
  * `usePeakMeter`, the same loop `useInputPeakDb` runs on a real mic.
@@ -78,7 +78,7 @@ const meta: Meta = {
       description: {
         component:
           "Layout sketch (story-only, not in the library): LevelMeter in " +
-          "`record-roster` rows for the record room (#170, wiring in #174).",
+          "`record-roster` rows for the record room (#170).",
       },
     },
   },
