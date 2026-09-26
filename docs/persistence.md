@@ -95,7 +95,12 @@ UTC intake day, description, issue URL, and publisher queue state. ZIPs live in
 `bundles/<opaque-id>.zip` on the same persistent volume. The relay writes and
 fsyncs a ZIP before committing its queued row; SQLite `BEGIN IMMEDIATE`
 serializes the daily global and per-IP admission caps across workers. The
-background publisher retries GitHub failures with capped backoff. Both status
+background publisher holds a per-store file lock through GitHub publication and
+fences local updates by a durable claim token. The `post_started` field prevents
+automatic duplicate POST after a crash or ambiguous response; such rows remain
+`publish_uncertain` until the GitHub marker appears or an operator intervenes.
+Permanent GitHub client errors become `failed`; pre-POST failures retry with
+capped backoff. Both status
 and public ZIP access expire after 30 days, and the publisher deletes expired
 rows/files. Keep the volume private and durable; only opaque ZIP links are
 public. The GitHub token stays in the relay environment, never in report rows.

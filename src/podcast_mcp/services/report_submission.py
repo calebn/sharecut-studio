@@ -82,7 +82,7 @@ def get_report_status(status_url: str) -> dict[str, str | None]:
     result = response.json()
     status = result.get("status")
     issue_url = result.get("issue_url")
-    if status not in {"queued", "published"} or (
+    if status not in {"queued", "published", "publish_uncertain", "failed"} or (
         issue_url is not None
         and (not isinstance(issue_url, str) or not issue_url.startswith("https://github.com/"))
     ):

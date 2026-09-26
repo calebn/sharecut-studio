@@ -587,7 +587,8 @@ src/podcast_mcp/
   no expiry; prefer `--expires-at` on the CLI. Record shares are link-access only
   in this PR.
 - **TLS**: Caddy handles HTTPS on the public edge.  The relay never sees plaintext from
-  the public internet in production. Access logs redact `/r/{token}`, `/rec/{token}`, and `/mcp/{token}`
+  the public internet in production. Access logs redact `/r/{token}`, `/rec/{token}`, `/mcp/{token}`,
+  `/api/reports/{id}`, and `/api/reports/bundles/{id}`
   path segments (see `deploy/relay/Caddyfile*`).
 - **No filesystem paths in URLs**: tokens map to workspaces internally; guests never
   see absolute paths.
@@ -649,7 +650,8 @@ Old tunnel clients ignore unknown frame types (guest socket stays silent; HTTP p
 A self-hosted relay can accept consented bug reports at `POST /api/reports`. Configure
 `PODCAST_REPORT_STORE` on a persistent volume, `PODCAST_REPORT_PUBLIC_BASE_URL`
 (the public HTTPS origin), and server-only `PODCAST_REPORT_GITHUB_TOKEN` with issue
-write access. The Studio host uses `PODCAST_REPORT_RELAY_URL` (HTTPS, or loopback
+write access. Create the repository's `beta-report` issue label before enabling
+intake. The Studio host uses `PODCAST_REPORT_RELAY_URL` (HTTPS, or loopback
 HTTP for local development). No account is required. The relay validates a bounded
 diagnostics ZIP, stores it before queueing publication, and creates a GitHub issue
 with the `beta-report` label. GitHub issues cannot accept ZIP attachments via its
@@ -660,11 +662,14 @@ The JSON POST has a 7 MiB body cap to accommodate the base64 encoding of a 5 MiB
 ZIP; expanded ZIP content is capped at 8 MiB and 34 members. The public intake
 allows three reports per source IP and 100 globally per UTC day. SQLite serializes
 these counters across relay workers and retains a bounded queue of 1,000 reports.
-The publisher retries GitHub failures with capped exponential backoff without a
-second user submission. It checks recent `beta-report` issues for a stable report
-marker before publishing after a crash; GitHub issue creation and the local queue
-cannot be committed atomically, so a rare duplicate issue remains possible if
-GitHub has not yet returned the new issue during reconciliation. `GET /api/reports/{id}` shows queued/published status;
+The publisher retries failures before GitHub issue creation with capped
+exponential backoff. A per-store lock serializes publishers through reconciliation
+and publication, even when GitHub pagination is slow. A persisted claim token
+fences local completion. After a crash or ambiguous network result after POST
+begins, the worker reconciles by a stable report marker; if no issue appears it
+holds the row as `publish_uncertain` for operator review rather than submitting
+another issue. Definitive GitHub client errors become `failed`.
+`GET /api/reports/{id}` shows queued, published, `publish_uncertain`, or failed status;
 `GET /api/reports/bundles/{id}` serves the opaque ZIP link during retention. The
 optional `proof_of_work` request field is accepted but unused by default.
 
