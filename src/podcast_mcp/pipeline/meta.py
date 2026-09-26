@@ -655,6 +655,17 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         affects=("analyze_fillers_pauses", "tighten_from_transcript"),
     ),
     ParamField(
+        path="tighten.acoustic_gap_filler.vad_backend",
+        label="Acoustic breath VAD",
+        description="Breath rejection backend for acoustic gap candidates (Silero is opt-in).",
+        type="enum",
+        default="heuristic",
+        enum=("heuristic", "silero"),
+        group="advanced",
+        section="tighten",
+        affects=("analyze_fillers_pauses", "tighten_from_transcript"),
+    ),
+    ParamField(
         path="balance.dialogue_lufs",
         label="Dialogue LUFS",
         description="Target integrated loudness for dialogue gain staging.",

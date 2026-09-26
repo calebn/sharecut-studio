@@ -13,6 +13,7 @@ import numpy as np
 
 from podcast_mcp.config import bounded_float
 from podcast_mcp.edits.audio_cache import TrackAudioCache
+from podcast_mcp.edits.breath_detect import classify_breath_samples
 from podcast_mcp.util.dsp import autocorr_peak, bool_runs, bridge_short_dips, frame_rms_db
 
 # Hard limits on YAML overrides.  ``min_gap_sec`` may only be raised (shorter
@@ -54,6 +55,7 @@ class AcousticGapConfig:
     min_gap_sec: float = MIN_GAP_SEC_FLOOR
     max_run_sec: float = MAX_RUN_SEC_CEIL
     max_frames: int = MAX_FRAMES_CEIL
+    vad_backend: str = "heuristic"
 
     @classmethod
     def from_tighten(cls, tighten: dict[str, Any] | None) -> AcousticGapConfig:
@@ -81,6 +83,7 @@ class AcousticGapConfig:
                     MAX_FRAMES_CEIL,
                 )
             ),
+            vad_backend=("silero" if raw.get("vad_backend") == "silero" else "heuristic"),
         )
 
 
@@ -121,6 +124,7 @@ def find_voiced_gap_runs(
     min_run_sec: float = MIN_RUN_SEC_FLOOR,
     max_run_sec: float = MAX_RUN_SEC_CEIL,
     max_frames: int = MAX_FRAMES_CEIL,
+    vad_backend: str = "heuristic",
 ) -> list[AcousticGapRun]:
     """Find short voiced runs wholly inside one inter-word gap.
 
@@ -158,6 +162,16 @@ def find_voiced_gap_runs(
         if not (min_run_sec <= dur <= max_run_sec) or dur > _MAX_GAP_COVERAGE * gap:
             continue
         if not _run_is_voiced(samples, sr, i, j, hop):
+            continue
+        # Classify only this run. A separate breath elsewhere in the gap must
+        # not veto a voiced candidate at a different time.
+        run_samples = cache.window(start, end)
+        if (
+            classify_breath_samples(
+                run_samples, start, sample_rate=sr, vad_backend=vad_backend, candidate_run=True
+            )
+            is not None
+        ):
             continue
         confidence = (float(np.mean(levels[i:j])) - floor) / 24.0
         runs.append(

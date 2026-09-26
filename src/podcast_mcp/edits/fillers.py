@@ -815,6 +815,7 @@ def _collect_acoustic_candidates(
             min_gap_sec=cfg.min_gap_sec,
             max_run_sec=cfg.max_run_sec,
             max_frames=cfg.max_frames,
+            vad_backend=cfg.vad_backend,
         )
         lo, hi = gap_start + _ACOUSTIC_EDGE_MARGIN_SEC, gap_end - _ACOUSTIC_EDGE_MARGIN_SEC
         for run in runs:

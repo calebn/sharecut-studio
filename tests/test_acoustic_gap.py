@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import wave
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -43,6 +44,7 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
+from podcast_mcp.pipeline.meta import PARAM_FIELDS
 
 RATE = 16_000
 
@@ -206,6 +208,30 @@ def test_aperiodic_burst_and_short_blip_are_not_fillers() -> None:
     assert not _voiced(np.ones(10, dtype=np.float32), RATE)
 
 
+def test_breath_rejection_is_local_to_each_voiced_run() -> None:
+    # A quiet, breath-like voiced run is rejected; it cannot veto a later
+    # louder voiced run in the same ASR gap.
+    samples = _tone(3.0, 0.65, 0.9, amp=0.036)
+    samples += _tone(3.0, 1.3, 1.65, amp=0.2)
+
+    runs = find_voiced_gap_runs(_cache(samples), 0.4, 2.0)
+
+    assert len(runs) == 1
+    assert 1.25 <= runs[0].start < runs[0].end <= 1.7
+
+
+def test_acoustic_gap_silero_is_opt_in_and_receives_only_candidate_samples() -> None:
+    cache = _cache(_tone(2.0, 0.5, 0.9))
+    with patch(
+        "podcast_mcp.edits.acoustic_gap.classify_breath_samples", return_value=None
+    ) as classify:
+        assert find_voiced_gap_runs(cache, 0.2, 1.4, vad_backend="silero")
+
+    assert classify.call_count == 1
+    assert classify.call_args.kwargs["vad_backend"] == "silero"
+    assert classify.call_args.args[0].size < cache.window(0.2, 1.4).size
+
+
 # --- config -----------------------------------------------------------------
 
 
@@ -228,6 +254,20 @@ def test_config_defaults_and_bounds() -> None:
         {"acoustic_gap_filler": {"min_gap_sec": "bad", "max_run_sec": 0.5, "max_frames": 1}}
     )
     assert lowered == AcousticGapConfig(min_gap_sec=0.35, max_run_sec=0.5, max_frames=20)
+    assert (
+        AcousticGapConfig.from_tighten(
+            {"acoustic_gap_filler": {"vad_backend": "silero"}}
+        ).vad_backend
+        == "silero"
+    )
+    assert (
+        AcousticGapConfig.from_tighten(
+            {"acoustic_gap_filler": {"vad_backend": "unknown"}}
+        ).vad_backend
+        == "heuristic"
+    )
+    field = next(p for p in PARAM_FIELDS if p.path == "tighten.acoustic_gap_filler.vad_backend")
+    assert field.type == "enum" and field.enum == ("heuristic", "silero")
 
 
 def test_disabled_config_adds_no_candidates() -> None:
@@ -241,6 +281,15 @@ def test_disabled_config_adds_no_candidates() -> None:
 
     assert found == []
     assert skips == {}
+
+
+def test_configured_breath_backend_reaches_acoustic_detector() -> None:
+    defaults = {"tighten": {"acoustic_gap_filler": {"vad_backend": "silero"}}}
+    with patch("podcast_mcp.edits.fillers.find_voiced_gap_runs", return_value=[]) as detector:
+        _add_acoustic_candidates([], _two_words(), defaults, audio_cache=_cache(np.zeros(RATE * 3)))
+
+    detector.assert_called_once()
+    assert detector.call_args.kwargs["vad_backend"] == "silero"
 
 
 def test_missing_audio_is_counted_only_when_there_is_a_gap_to_scan() -> None:

@@ -110,6 +110,7 @@ Pipeline auto-tighten stays **off** (`tighten.enabled: false`) until the golden-
 | `tighten.acoustic_gap_filler.min_gap_sec` | `0.35` | Shortest gap scanned (floor `0.35`) |
 | `tighten.acoustic_gap_filler.max_run_sec` | `1.5` | Longest voiced run proposed (ceiling `1.5`) |
 | `tighten.acoustic_gap_filler.max_frames` | `600` | 10 ms frames per gap (ceiling `600`, ~6 s); longer gaps are skipped |
+| `tighten.acoustic_gap_filler.vad_backend` | `heuristic` | Breath rejection for each candidate run; `silero` is opt-in and falls back to the heuristic when unavailable |
 
 Propose summaries include `N discourse kept` (`discourse:{token}` skip counts) and, when relevant, `N acoustic (review)` / `N acoustic skipped` (`acoustic:*` skip counts). Full table and symptom → knob guide: [filler-cut-quality.md](filler-cut-quality.md).
 

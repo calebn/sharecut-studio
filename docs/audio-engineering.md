@@ -209,6 +209,12 @@ point, not a tuned constant — like the other thresholds in
 tune it by ear against real recordings before switching the default away from
 `heuristic`.
 
+The same sample-window classifiers reject breath-shaped acoustic gap filler
+candidates. Configure `tighten.acoustic_gap_filler.vad_backend` separately; its
+default remains `heuristic`. Classification is confined to each proposed run,
+and Silero falls back to the heuristic if its model cannot load. Tune against
+real recordings by ear before changing either default.
+
 ## Agent audition context (v2)
 
 Default `audition_context_tool` (`detail=summary`) runs **windowed** astats/hum on
