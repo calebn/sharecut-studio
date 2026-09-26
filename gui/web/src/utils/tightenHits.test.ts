@@ -7,6 +7,7 @@ import {
   isHarshTightenHit,
   isTightenPending,
   listTightenHits,
+  tightenClassOfReason,
   tightenHitCanGoTo,
   tightenHitCanPreview,
   tightenSnippet,
@@ -202,5 +203,13 @@ describe("tightenHits", () => {
     )[0];
     expect(tightenHitCanGoTo(hit)).toBe(false);
     expect(tightenHitCanPreview(hit)).toBe(false);
+  });
+});
+
+describe("tightenClassOfReason", () => {
+  it("classifies a bare reason code", () => {
+    expect(tightenClassOfReason("restart:partial:we")).toBe("restart");
+    expect(tightenClassOfReason("tangent")).toBeNull();
+    expect(tightenClassOfReason(null)).toBeNull();
   });
 });

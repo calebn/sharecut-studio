@@ -4,6 +4,7 @@ import type {
   PipelineJobSnapshot,
 } from "../types/pipeline";
 import { getByPath, setByPath } from "./configPath";
+import { capitalize } from "./format";
 
 export const TIGHTEN_INTENSITY_PATH = "tighten.intensity";
 export const TIGHTEN_ANALYZE_STEP = "analyze_fillers_pauses";
@@ -33,7 +34,7 @@ export function currentTightenIntensity(
 }
 
 export function tightenIntensityLabel(value: string): string {
-  return value.charAt(0).toUpperCase() + value.slice(1);
+  return capitalize(value);
 }
 
 /**

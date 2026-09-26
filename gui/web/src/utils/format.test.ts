@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { plural } from "./format";
+import { capitalize, plural } from "./format";
 
 describe("plural", () => {
   it("returns the singular form when count is 1", () => {
@@ -14,5 +14,12 @@ describe("plural", () => {
   it("uses an explicit plural form when given one", () => {
     expect(plural(2, "child", "children")).toBe("children");
     expect(plural(1, "child", "children")).toBe("child");
+  });
+});
+
+describe("capitalize", () => {
+  it("upper-cases the first character", () => {
+    expect(capitalize("medium")).toBe("Medium");
+    expect(capitalize("")).toBe("");
   });
 });
