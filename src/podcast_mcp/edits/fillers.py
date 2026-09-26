@@ -21,6 +21,7 @@ from podcast_mcp.edits.cut_quality import (
     recommend_cut_fade_ms,
 )
 from podcast_mcp.edits.filler_pacing import apply_filler_pacing
+from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.tighten_intensity import with_tighten_intensity
 from podcast_mcp.edits.tighten_reasons import ACOUSTIC_FILLER_REASON
 from podcast_mcp.edits.transcript_cuts import append_remove_decision
@@ -83,14 +84,19 @@ def _cut_span_is_bleed_not_owner(
     end: float,
     *,
     speaker_context: _SpeakerCutContext | None = None,
+    word_index: CutWordIndex | None = None,
 ) -> bool:
-    tr = project.transcript_for_track(track_id)
-    if tr:
-        for w in tr.words:
-            if w.end <= start or w.start >= end:
-                continue
-            if _word_not_owner(w, track_id):
-                return True
+    if word_index is not None:
+        if word_index.has_bleed_overlap(start, end):
+            return True
+    else:
+        tr = project.transcript_for_track(track_id)
+        if tr:
+            for w in tr.words:
+                if w.end <= start or w.start >= end:
+                    continue
+                if _word_not_owner(w, track_id):
+                    return True
     try:
         from podcast_mcp.engines.speaker_id import assess_speaker_cut_role
 
@@ -560,6 +566,7 @@ def _peer_speaking_in_gap(
     track_id: str,
     gap_start: float,
     gap_end: float,
+    peer_indexes: dict[str, _SpanIndex] | None = None,
 ) -> bool:
     """True when another dialogue transcript has audible words in the gap.
 
@@ -567,6 +574,10 @@ def _peer_speaking_in_gap(
     a cut here ripples the muted track too.
     """
     from podcast_mcp.models import TrackRole
+
+    if peer_indexes is not None:
+        index = peer_indexes.get(track_id)
+        return index.overlaps(gap_start, gap_end) if index is not None else False
 
     for tr in project.transcripts:
         if tr.track_id == track_id:
@@ -649,6 +660,7 @@ def _retained_pause_floor_sec(
     gap_start: float,
     gap_end: float,
     defaults: dict[str, Any],
+    peer_indexes: dict[str, _SpanIndex] | None = None,
 ) -> tuple[float, bool]:
     """How much pause air to keep; solo thinking pauses keep more than turn gaps.
 
@@ -661,7 +673,7 @@ def _retained_pause_floor_sec(
     solo_floor = float(tighten.get("min_retained_solo_pause_sec", 0.55))
     if solo_floor < turn_floor:
         solo_floor = turn_floor
-    if _peer_speaking_in_gap(project, track_id, gap_start, gap_end):
+    if _peer_speaking_in_gap(project, track_id, gap_start, gap_end, peer_indexes):
         return turn_floor, False
     return solo_floor, True
 
@@ -728,6 +740,7 @@ def _collect_candidates(
     *,
     project: EpisodeProject | None = None,
     skip_counts: dict[str, int] | None = None,
+    peer_indexes: dict[str, _SpanIndex] | None = None,
 ) -> list[_CutCandidate]:
     """Find filler-cluster, repetition, and long-pause candidates (read-only).
 
@@ -752,7 +765,7 @@ def _collect_candidates(
                 gap_start, gap_end = word.end, words[i + 1].start
                 if project is not None:
                     retain, solo = _retained_pause_floor_sec(
-                        project, track_id, gap_start, gap_end, defaults
+                        project, track_id, gap_start, gap_end, defaults, peer_indexes
                     )
                     trim_end = _pause_trim_end_for_timeline_floor(
                         project, track_id, gap_start, gap_end, retain
@@ -802,6 +815,27 @@ class _SpanIndex:
         return idx > 0 and self._max_end[idx - 1] > start
 
 
+def _peer_speech_indexes(project: EpisodeProject) -> dict[str, _SpanIndex]:
+    from podcast_mcp.models import TrackRole
+
+    dialogue = [
+        tr
+        for tr in project.transcripts
+        if (track := project.track_by_id(tr.track_id)) is not None
+        and track.role == TrackRole.DIALOGUE
+    ]
+    return {
+        tr.track_id: _SpanIndex(
+            (w.start, w.end)
+            for peer in dialogue
+            if peer.track_id != tr.track_id
+            for w in peer.words
+            if not w.suppressed
+        )
+        for tr in project.transcripts
+    }
+
+
 def _acoustic_scan_gaps(
     words: list[TranscriptWord], cfg: AcousticGapConfig
 ) -> Iterator[tuple[TranscriptWord, TranscriptWord]]:
@@ -849,6 +883,7 @@ def _collect_acoustic_candidates(
     defaults: dict[str, Any] | None = None,
     project: EpisodeProject | None = None,
     skip_counts: dict[str, int] | None = None,
+    peer_indexes: dict[str, _SpanIndex] | None = None,
 ) -> list[_CutCandidate]:
     """Review-only ``filler:acoustic`` candidates for voiced runs in owner gaps."""
     candidates: list[_CutCandidate] = []
@@ -858,7 +893,9 @@ def _collect_acoustic_candidates(
             _count_skip(skip_counts, "acoustic:not_owner")
             continue
         # A peer speaking in the gap makes voiced energy here most likely bleed.
-        if project is not None and _peer_speaking_in_gap(project, track_id, gap_start, gap_end):
+        if project is not None and _peer_speaking_in_gap(
+            project, track_id, gap_start, gap_end, peer_indexes
+        ):
             _count_skip(skip_counts, "acoustic:peer_speaking")
             continue
         reference = _flanking_speech_rms(audio_cache, word, nxt, defaults or {})
@@ -911,6 +948,7 @@ def _add_acoustic_candidates(
     project: EpisodeProject | None = None,
     audio_cache: TrackAudioCache | None = None,
     skip_counts: dict[str, int] | None = None,
+    peer_indexes: dict[str, _SpanIndex] | None = None,
 ) -> list[_CutCandidate]:
     """``candidates`` plus acoustic gap candidates when enabled and audio decoded."""
     cfg = AcousticGapConfig.from_tighten(defaults.get("tighten"))
@@ -932,6 +970,7 @@ def _add_acoustic_candidates(
         defaults=defaults,
         project=project,
         skip_counts=skip_counts,
+        peer_indexes=peer_indexes,
     )
     if not extra:
         return candidates
@@ -1014,6 +1053,8 @@ def _analyze_candidate(
     *,
     audio_cache: TrackAudioCache | None = None,
     speaker_context: _SpeakerCutContext | None = None,
+    word_index: CutWordIndex | None = None,
+    peer_indexes: dict[str, _SpanIndex] | None = None,
 ) -> _AnalyzedCut | None:
     """Waveform-optimize, risk-assess, and fade-size one candidate. Read-only w.r.t.
     project (no mutation) -- safe to call from multiple threads concurrently, as
@@ -1037,6 +1078,7 @@ def _analyze_candidate(
         defaults=defaults,
         cache=jump_cache,
         audio_cache=audio_cache,
+        word_index=word_index,
     )
     cut_start, cut_end = opt.start, opt.end
     if candidate.strictly_bounded:
@@ -1056,7 +1098,12 @@ def _analyze_candidate(
     cut_start, cut_end = extended
 
     if _cut_span_is_bleed_not_owner(
-        project, track_id, cut_start, cut_end, speaker_context=speaker_context
+        project,
+        track_id,
+        cut_start,
+        cut_end,
+        speaker_context=speaker_context,
+        word_index=word_index,
     ):
         return None
 
@@ -1089,6 +1136,7 @@ def _analyze_candidate(
             defaults=defaults,
             cache=jump_cache,
             audio_cache=audio_cache,
+            word_index=word_index,
         )
 
     reason = candidate.reason
@@ -1103,17 +1151,20 @@ def _analyze_candidate(
     # prior ripples punched holes; pad the shortfall with silence after ripple.
     if candidate.cut_kind == "pause" and replace_gap is None:
         nxt_start = None
-        tr = project.transcript_for_track(track_id)
-        if tr:
-            for w in tr.words:
-                if w.suppressed or w.end <= w.start:
-                    continue
-                if w.start + 1e-6 >= cut_end:
-                    nxt_start = w.start
-                    break
+        if word_index is not None:
+            nxt_start = word_index.next_start(project, track_id, cut_end - 1e-6, audible=True)
+        else:
+            tr = project.transcript_for_track(track_id)
+            if tr:
+                for w in tr.words:
+                    if w.suppressed or w.end <= w.start:
+                        continue
+                    if w.start + 1e-6 >= cut_end:
+                        nxt_start = w.start
+                        break
         if nxt_start is not None and nxt_start > cut_end:
             floor, _solo = _retained_pause_floor_sec(
-                project, track_id, cut_start, nxt_start, defaults
+                project, track_id, cut_start, nxt_start, defaults, peer_indexes
             )
             retain_start, retain_end = _contiguous_retain_before_word(
                 project, track_id, cut_end, nxt_start
@@ -1255,7 +1306,14 @@ def analyze_fillers_and_pauses(
     Resolves ``tighten.intensity`` the same way (:func:`~podcast_mcp.edits.tighten_intensity.with_tighten_intensity`).
     """
     defaults = with_tighten_intensity(defaults)
-    candidates = _collect_candidates(transcript, defaults, project=project, skip_counts=skip_counts)
+    peer_indexes = _peer_speech_indexes(project)
+    candidates = _collect_candidates(
+        transcript,
+        defaults,
+        project=project,
+        skip_counts=skip_counts,
+        peer_indexes=peer_indexes,
+    )
     acoustic_enabled = AcousticGapConfig.from_tighten(defaults.get("tighten")).enabled
     audio_caches = (
         build_track_audio_caches(project, [transcript.track_id])
@@ -1270,8 +1328,10 @@ def analyze_fillers_and_pauses(
         project=project,
         audio_cache=audio_cache,
         skip_counts=skip_counts,
+        peer_indexes=peer_indexes,
     )
     speaker_context = _speaker_cut_context(project) if candidates else None
+    word_index = CutWordIndex.build(project, transcript.track_id) if candidates else None
     results = [
         _analyze_candidate(
             project,
@@ -1279,6 +1339,8 @@ def analyze_fillers_and_pauses(
             defaults,
             audio_cache=audio_cache,
             speaker_context=speaker_context,
+            word_index=word_index,
+            peer_indexes=peer_indexes,
         )
         for candidate in candidates
     ]

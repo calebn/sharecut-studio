@@ -7,8 +7,12 @@ import numpy as np
 import pytest
 
 from podcast_mcp.edits.inaudible_cuts import (
+    CutWordIndex,
     InaudibleCutConfig,
     _distance_to_nearest_boundary,
+    _nearest_word_boundary,
+    _next_word_start_at_or_after,
+    _retained_word_boundaries,
     detect_track_cut_mode,
     optimize_source_cut_range,
     optimize_timeline_cut_range,
@@ -73,6 +77,38 @@ def _project(tmp_path: Path) -> EpisodeProject:
         )
     ]
     return p
+
+
+def test_cut_word_index_matches_unsorted_direct_scans(tmp_path: Path) -> None:
+    p = _project(tmp_path)
+    p.transcripts[0].words = [
+        TranscriptWord(text="late", start=3.0, end=3.2, audibility_status="bleed"),
+        TranscriptWord(text="early", start=1.0, end=1.2),
+        TranscriptWord(text="mid", start=2.0, end=2.2),
+        TranscriptWord(text="hidden", start=2.5, end=2.7, suppressed=True),
+    ]
+    index = CutWordIndex.build(p, "host")
+    for t in (0.0, 1.1, 1.6, 2.1, 3.1, 4.0):
+        assert _nearest_word_boundary(p, "host", t, 0.5, index) == _nearest_word_boundary(
+            p, "host", t, 0.5
+        )
+        assert _next_word_start_at_or_after(p, "host", t, index) == (
+            _next_word_start_at_or_after(p, "host", t)
+        )
+    for start, end in ((1.0, 1.2), (2.0, 2.3), (3.1, 3.2)):
+        expected = _retained_word_boundaries(p, "host", exclude_start=start, exclude_end=end)
+        assert (
+            _retained_word_boundaries(
+                p, "host", exclude_start=start, exclude_end=end, word_index=index
+            )
+            == expected
+        )
+        for t in (0.0, 1.0, 1.6, 2.3, 3.1, 4.0):
+            assert index.retained_view(start, end).distance(t) == _distance_to_nearest_boundary(
+                t, expected
+            )
+    assert index.has_bleed_overlap(3.1, 3.15)
+    assert not index.has_bleed_overlap(1.0, 1.2)
 
 
 def test_detect_track_cut_mode(tmp_path):
