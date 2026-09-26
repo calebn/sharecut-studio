@@ -1,3 +1,4 @@
+import { ClipLed } from "./ClipLed";
 import {
   ariaValueNow,
   DEFAULT_DANGER_DB,
@@ -69,7 +70,7 @@ function zoneGradient(
  *
  * Pure: it renders whatever the driver hands it — level, peak hold, and the
  * latched clip flag — so Storybook can show every state without a microphone
- * and the record UI can wire it to `useInputPeakDb` (#174). The root's
+ * and the record UI can wire it to `useInputPeakDb`. The root's
  * `data-zone` tints the numeric readout. Zones are real
  * dBFS thresholds, not decoration: green below `warnDb`, amber to
  * `dangerDb`, red above. Red starts before the 0 dBFS ceiling on purpose —
@@ -156,17 +157,7 @@ export function LevelMeter({
             </div>
           )}
         </div>
-        <div
-          className="ui-meter-clip"
-          data-lit={clipped}
-          data-testid="clip-led"
-          aria-hidden="true"
-        >
-          <span className="ui-meter-clip-led" />
-          <span className="ui-meter-clip-text">
-            {clipped ? "Clipped" : "Clip"}
-          </span>
-        </div>
+        <ClipLed lit={clipped} showText />
         {showNumeric && (
           <span className="ui-meter-numeric" aria-hidden="true">
             {formatDb(levelDb)}

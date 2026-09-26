@@ -27,7 +27,7 @@ organisms; domain screens are templates, colocated with their domain component
 
 | Level | Contents | Examples |
 | ----- | -------- | -------- |
-| **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, Pill, Timecode, EmptyState, SurfaceLadder (token reference) |
+| **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference) |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, BottomSheet |
 | **Templates** | Assembled, context-specific domain screens built from the library, shown with static / representative content and locked domain copy — no live app state | ConsentGate, Declined, LiveComments, HostUploadRoster (record room), Transport, ListenHero |
@@ -226,3 +226,5 @@ both themes, in story mode and on its docs page, before merging.
   longer renders a white docs canvas): StudioDocsContainer builds the docs
   theme from Studio tokens; the toolbar decorator reuses useTheme's
   applyTheme (#209).
+- 2026-09-25 — Added `Atoms/ClipLed`, the clip LED shared by `LevelMeter`
+  and the REC indicator (#174). Clipping is sample peak only.

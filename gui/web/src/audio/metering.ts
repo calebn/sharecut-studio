@@ -2,7 +2,7 @@
  * Pure DSP for input peak metering.
  *
  * The recording meter's job is overload protection, so everything here is
- * peak-oriented (see the metering reference in issue #170): a peak meter
+ * peak-oriented (sample peak only; see issue #174 for the decision): a peak meter
  * answers "did anything get too hot," which is the question a person about
  * to record is asking. Kept pure so the math is unit-testable without an
  * AudioContext; the rAF loop lives in `usePeakMeter`, and the display-side
@@ -11,11 +11,12 @@
 import { linearToDb } from "../utils/audio";
 
 /**
- * Default clip-latch threshold in dBFS (sample peak).
+ * Default clip threshold in dBFS, **sample peak only**.
  *
- * Why −1: sample peaks under-read inter-sample (true) peaks, and EBU R128
- * caps production true peak at −1 dBTP. Latching at −1 dBFS sample peak is
- * the conservative, literature-backed safety margin.
+ * Sharecut does not oversample or detect inter-sample (true) peaks. The
+ * -1 dBFS margin is headroom for overs this meter cannot see. The same
+ * threshold drives the live LED, the encoder's clip regions, the post-take
+ * report and the timeline flags.
  */
 export const DEFAULT_CLIP_DB = -1;
 /** Bottom of the meter scale, dBFS. A peak hold below it is dropped. */
