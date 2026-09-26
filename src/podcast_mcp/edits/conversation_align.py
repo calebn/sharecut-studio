@@ -13,7 +13,7 @@ import logging
 import statistics
 import subprocess
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -59,6 +59,10 @@ COMMON_BLEED_WORDS = frozenset(
 BLEED_AGREE_SEC = 0.75
 LOCKED_METHODS = frozenset({"hold", "manual"})  # keep placement unless align.realign
 UNCONFIRMED_HOLD = "unconfirmed_hold"
+LARGE_MOVE_SEC = 1.0  # moves above this need waveform xcorr confirmation
+LARGE_MOVE_MIN_PEAK = 0.1
+ACOUSTIC_CONFIRM_MIN_WINDOWS = 3
+_ACOUSTIC_METHODS = frozenset({"bleed_acoustic", "bleed_near_identity"})
 BLEED_IDENTITY_SEC = 1.0  # |bleed| below this → acoustic confirm (not blind identity)
 ACOUSTIC_MIN_PEAK = 0.05
 ACOUSTIC_FLOOR_SEC = 0.05  # |lag| below this → treat as synced
@@ -77,6 +81,12 @@ LATE_JOIN_MIN_LEAD_SEC = 2.0  # first island must start after leading file silen
 SILENCE_REFINE_WINDOW_SEC = 2.0
 SILENCE_REFINE_STEP_SEC = 0.05
 SILENCE_REFINE_MAX_DRIFT_SEC = 0.3  # keep candidate when silence-mid wanders farther
+
+
+def large_move_sec_from_defaults(defaults: dict[str, Any] | None) -> float:
+    """``align.large_move_sec`` (moves above it are confirmed, gated and QC-checked)."""
+    cfg = (defaults or {}).get("align") or {}
+    return float(cfg.get("large_move_sec", LARGE_MOVE_SEC))
 
 
 def resolve_align_bound_sec(
@@ -589,6 +599,7 @@ def acoustic_clip_offset(
     starts: list[float] | None = None,
     source_starts: list[float] | None = None,
     min_peak: float = ACOUSTIC_MIN_PEAK,
+    source_shift_sec: float = 0.0,
     sample_rate: int = 8000,
     min_rms: float = 0.01,
     cancel_check: Callable[[], bool] | None = None,
@@ -597,6 +608,9 @@ def acoustic_clip_offset(
 
     Uses ``-estimate_offset_sec(ref, source)`` so positive delays the source clip and
     negative advances it (``source_start`` trim) — matching ``offset_to_clip_geometry``.
+
+    Source windows start at ``ref_start - source_shift_sec`` (confirm a candidate plan
+    offset; the residual lag is returned).
     """
     import numpy as np
 
@@ -620,7 +634,7 @@ def acoustic_clip_offset(
         starts=starts,
     )
     if source_starts is None:
-        source_starts = list(ref_starts)
+        source_starts = [s - source_shift_sec for s in ref_starts]
     pairs: list[tuple[float, float]] = []
     for ref_start, src_start in zip(ref_starts, source_starts, strict=True):
         if ref_start < 0 or src_start < 0:
@@ -747,6 +761,78 @@ def _confirm_small_bleed(
         "bleed_near_identity",
         0.0,
         f"bleed={bleed_off:+.3f}s disagrees with {acoustic.detail}; held at 0",
+    )
+
+
+def _confirm_large_move(
+    plan: ClipAlignPlan,
+    *,
+    ref_audio: Path | None,
+    src_audio: Path | None,
+    large_move_sec: float,
+    min_peak: float,
+    agree_sec: float,
+    confirm_fn: Callable[[Path, Path, float], AcousticOffset | None] | None,
+    prev_plan: ClipAlignPlan | None,
+    cancel_check: Callable[[], bool] | None = None,
+) -> ClipAlignPlan:
+    """Keep a move above ``large_move_sec`` only when waveform xcorr confirms it.
+
+    Unconfirmed candidates are held at identity (``unconfirmed_hold``) and kept in
+    ``candidate_offset_sec`` so a person can listen and nudge.
+    """
+    if (
+        plan.method in LOCKED_METHODS | _ACOUSTIC_METHODS | {"reference"}
+        or abs(plan.offset_sec) <= large_move_sec
+    ):
+        return plan
+    candidate = plan.offset_sec
+    if (
+        prev_plan is not None
+        and prev_plan.candidate_offset_sec is not None
+        and abs(prev_plan.candidate_offset_sec - candidate) < 1e-9
+        and prev_plan.acoustic_confirmed is not None
+    ):
+        return replace(prev_plan)
+
+    acoustic: AcousticOffset | None = None
+    if confirm_fn is not None:
+        acoustic = confirm_fn(ref_audio or Path("ref"), src_audio or Path("src"), candidate)
+        why = acoustic.detail if acoustic is not None else "no correlated window"
+    elif ref_audio is not None and src_audio is not None:
+        acoustic = acoustic_clip_offset(
+            ref_audio,
+            src_audio,
+            source_shift_sec=candidate,
+            min_peak=min_peak,
+            cancel_check=cancel_check,
+        )
+        why = acoustic.detail if acoustic is not None else "no correlated window"
+    else:
+        why = "no audio to cross-correlate"
+
+    if (
+        acoustic is not None
+        and acoustic.n_windows >= ACOUSTIC_CONFIRM_MIN_WINDOWS
+        and abs(acoustic.offset_sec) <= agree_sec
+    ):
+        return replace(
+            plan,
+            offset_sec=candidate + acoustic.offset_sec,
+            candidate_offset_sec=candidate,
+            acoustic_confirmed=True,
+            detail=f"{plan.detail}; confirmed by {acoustic.detail}",
+        )
+    return replace(
+        plan,
+        offset_sec=0.0,
+        method=UNCONFIRMED_HOLD,
+        candidate_offset_sec=candidate,
+        acoustic_confirmed=False,
+        detail=(
+            f"{plan.method} candidate {candidate:+.2f}s not confirmed by waveform xcorr "
+            f"({why}); held at 0 - listen and nudge if real; {plan.detail}"
+        ),
     )
 
 
@@ -1224,6 +1310,9 @@ def plan_conversation_alignment(
     realign = bool(cfg.get("realign", False))
     min_bleed = int(cfg.get("min_bleed_matches", MIN_BLEED_MATCHES))
     min_bleed_share = float(cfg.get("bleed_min_share", BLEED_MIN_SHARE))
+    large_move_sec = large_move_sec_from_defaults(defaults)
+    large_min_peak = float(cfg.get("large_move_min_peak", LARGE_MOVE_MIN_PEAK))
+    confirm_fn = (defaults or {}).get("_align_acoustic_confirm_fn")
     bleed_identity_sec = float(cfg.get("bleed_identity_sec", BLEED_IDENTITY_SEC))
     acoustic_min_peak = float(cfg.get("acoustic_min_peak", ACOUSTIC_MIN_PEAK))
     acoustic_floor_sec = float(cfg.get("acoustic_floor_sec", ACOUSTIC_FLOOR_SEC))
@@ -1336,6 +1425,17 @@ def plan_conversation_alignment(
                     cancel_check=cancel_check,
                     bleed_ref_tokens=ref_tokens,
                     min_bleed_share=min_bleed_share,
+                )
+                scored = _confirm_large_move(
+                    scored,
+                    ref_audio=ref_audio,
+                    src_audio=src_audio,
+                    large_move_sec=large_move_sec,
+                    min_peak=large_min_peak,
+                    agree_sec=acoustic_agree_sec,
+                    confirm_fn=confirm_fn,
+                    prev_plan=offsets.get((track.id, clip.id)),
+                    cancel_check=cancel_check,
                 )
                 scored.track_id = track.id
                 scored.clip_id = clip.id

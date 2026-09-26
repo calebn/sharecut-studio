@@ -323,6 +323,33 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         affects=("align_tracks",),
     ),
     ParamField(
+        path="align.large_move_sec",
+        label="Large move threshold (s)",
+        description=(
+            "Moves above this need waveform confirmation, are never auto-waived unattended, "
+            "and fail export QC until accepted."
+        ),
+        type="number",
+        default=1.0,
+        minimum=0.1,
+        maximum=30,
+        group="common",
+        section="align",
+        affects=("align_tracks", "require_align_accept", "export_deliverables"),
+    ),
+    ParamField(
+        path="align.large_move_min_peak",
+        label="Large move min xcorr peak",
+        description="Minimum correlation peak when confirming a large move against the waveform.",
+        type="number",
+        default=0.1,
+        minimum=0,
+        maximum=1,
+        group="advanced",
+        section="align",
+        affects=("align_tracks",),
+    ),
+    ParamField(
         path="align.min_bleed_matches",
         label="Min bleed matches",
         description="Agreed bleed n-grams required before trusting the bleed clock.",

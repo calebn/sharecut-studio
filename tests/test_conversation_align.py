@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 
 from podcast_mcp.edits.conversation_align import (
+    AcousticOffset,
     AlignResult,
     ClipAlignPlan,
     _is_common_ngram,
@@ -348,7 +349,9 @@ def test_late_join_occupancy_into_host_silence(tmp_path: Path) -> None:
             ("guest", 463.0, guest_words),
         ],
     )
-    result = plan_conversation_alignment(proj)
+    result = plan_conversation_alignment(
+        proj, defaults={"_align_acoustic_confirm_fn": _confirm(residual=0.0)}
+    )
     guest = next(p for p in result.plans if p.track_id == "guest")
     assert guest.method in {"gaps_late", "gaps"}
     assert abs(guest.offset_sec) > 2.0
@@ -419,14 +422,101 @@ def test_plan_bleed_preferred(tmp_path: Path) -> None:
             ("guest", 90.0, guest_words),
         ],
     )
-    result = plan_conversation_alignment(proj, defaults={"align": {"min_bleed_matches": 2}})
+    result = plan_conversation_alignment(
+        proj,
+        defaults={"align": {"min_bleed_matches": 2}, "_align_acoustic_confirm_fn": _confirm()},
+    )
     assert result.skipped_reason is None
     guest = next(p for p in result.plans if p.track_id == "guest")
     assert guest.method == "bleed"
-    assert abs(guest.offset_sec - 5.0) < 0.1
+    assert guest.acoustic_confirmed is True
+    assert abs(guest.offset_sec - 5.02) < 0.01
     apply_alignment_plans(proj, result)
     gclip = next(c for c in proj.clips if c.track_id == "guest")
-    assert abs(gclip.timeline_start - 5.0) < 0.1
+    assert abs(gclip.timeline_start - 5.02) < 0.01
+
+
+def test_large_bleed_move_without_confirmation_is_held(tmp_path: Path) -> None:
+    proj = _bleed5_project(tmp_path)
+    result = plan_conversation_alignment(proj, defaults={"align": {"min_bleed_matches": 2}})
+    guest = next(p for p in result.plans if p.track_id == "guest")
+    assert guest.method == "unconfirmed_hold"
+    assert guest.offset_sec == 0
+    assert guest.candidate_offset_sec == pytest.approx(5.0, abs=0.01)
+    assert guest.acoustic_confirmed is False
+    assert "held unconfirmed" in result.summary()
+    apply_alignment_plans(proj, result)
+    gclip = next(c for c in proj.clips if c.track_id == "guest")
+    assert gclip.timeline_start == 0
+
+
+def test_large_move_rejected_when_residual_or_windows_disagree(tmp_path: Path) -> None:
+    for stub in (_confirm(residual=0.6), _confirm(n=2)):
+        proj = _bleed5_project(tmp_path)
+        result = plan_conversation_alignment(
+            proj,
+            defaults={"align": {"min_bleed_matches": 2}, "_align_acoustic_confirm_fn": stub},
+        )
+        guest = next(p for p in result.plans if p.track_id == "guest")
+        assert guest.method == "unconfirmed_hold"
+        assert guest.offset_sec == 0
+
+
+def test_late_join_without_confirmation_is_held(tmp_path: Path) -> None:
+    proj = _late_join_project(tmp_path)
+    result = plan_conversation_alignment(proj)
+    guest = next(p for p in result.plans if p.track_id == "guest")
+    assert guest.method == "unconfirmed_hold"
+    assert guest.candidate_offset_sec is not None
+    assert abs(guest.candidate_offset_sec) > 2.0
+
+
+def test_confirm_runs_once_across_passes(tmp_path: Path) -> None:
+    calls: list[float] = []
+
+    def counting(_r: Path, _s: Path, cand: float) -> AcousticOffset:
+        calls.append(cand)
+        return AcousticOffset(0.02, peak=0.3, n_windows=5, detail="acoustic")
+
+    proj = _bleed5_project(tmp_path)
+    plan_conversation_alignment(
+        proj,
+        defaults={"align": {"min_bleed_matches": 2}, "_align_acoustic_confirm_fn": counting},
+    )
+    assert len(calls) == 1
+
+
+def test_acoustic_clip_offset_source_shift(tmp_path: Path) -> None:
+    ref = tmp_path / "ref.wav"
+    src = tmp_path / "src.wav"
+    ref.write_bytes(b"x")
+    src.write_bytes(b"y")
+    audio = np.ones(8000, dtype=np.float32) * 0.5
+    src_starts: list[float] = []
+
+    def load(path, *, start_sec, **_k):
+        if path == src:
+            src_starts.append(start_sec)
+        return audio
+
+    def estimate(_ref, _src, **_k):
+        from podcast_mcp.engines.align import AlignmentResult
+
+        return AlignmentResult(reference=ref, source=src, offset_sec=0.04, correlation_peak=0.9)
+
+    with (
+        patch("podcast_mcp.edits.conversation_align._probe_duration_sec", return_value=600.0),
+        patch("podcast_mcp.engines.align.load_mono_window", side_effect=load),
+        patch("podcast_mcp.engines.align.estimate_offset_from_arrays", side_effect=estimate),
+    ):
+        out = acoustic_clip_offset(
+            ref, src, starts=[15.0, 25.0, 45.0], source_shift_sec=20.0, min_peak=0.05
+        )
+        assert out is not None
+        assert src_starts == [5.0, 25.0]
+        src_starts.clear()
+        acoustic_clip_offset(ref, src, source_shift_sec=3.0)
+        assert src_starts and all(s >= 0 for s in src_starts)
 
 
 def test_same_length_prior_holds(tmp_path: Path) -> None:
@@ -1025,7 +1115,10 @@ def test_bleed_scores_against_reference_not_concatenated_peers(tmp_path: Path) -
             ("third", 100.0, third),
         ],
     )
-    result = plan_conversation_alignment(proj, defaults={"align": {"min_bleed_matches": 2}})
+    result = plan_conversation_alignment(
+        proj,
+        defaults={"align": {"min_bleed_matches": 2}, "_align_acoustic_confirm_fn": _confirm()},
+    )
     guest_plan = next(p for p in result.plans if p.track_id == "guest")
     assert guest_plan.method.startswith("bleed")
     assert abs(guest_plan.offset_sec - 5.0) < 0.5
@@ -1097,6 +1190,98 @@ def _tok(words: list[TranscriptWord]) -> list[WordToken]:
     return [
         WordToken(text=w.text, start=w.start, end=w.end, confidence=w.confidence) for w in words
     ]
+
+
+def _confirm(residual: float = 0.02, n: int = 5, peak: float = 0.3):
+    return lambda _r, _s, _c: AcousticOffset(
+        residual, peak=peak, n_windows=n, detail=f"acoustic median={residual:+.3f}s"
+    )
+
+
+def _late_join_project(tmp_path: Path) -> EpisodeProject:
+    host_words = [
+        TranscriptWord(text="welcome", start=1.0, end=1.4, confidence=0.9),
+        TranscriptWord(text="everyone", start=1.4, end=1.9, confidence=0.9),
+        TranscriptWord(text="today", start=1.9, end=2.3, confidence=0.9),
+        TranscriptWord(text="we", start=10.0, end=10.2, confidence=0.9),
+        TranscriptWord(text="have", start=10.2, end=10.5, confidence=0.9),
+        TranscriptWord(text="news", start=10.5, end=10.9, confidence=0.9),
+        # Continuous host speech through where guest would land at identity
+        *[
+            TranscriptWord(
+                text=f"h{i}",
+                start=float(i),
+                end=float(i) + 0.8,
+                confidence=0.9,
+            )
+            for i in range(12, 46, 2)
+        ],
+        # Host silence ~46-66s (room for guest first island)
+        TranscriptWord(text="unique", start=66.0, end=66.4, confidence=0.9),
+        TranscriptWord(text="host", start=66.4, end=66.7, confidence=0.9),
+        TranscriptWord(text="line", start=66.7, end=67.0, confidence=0.9),
+        TranscriptWord(text="more", start=80.0, end=80.4, confidence=0.9),
+        TranscriptWord(text="host", start=80.4, end=80.7, confidence=0.9),
+        TranscriptWord(text="talk", start=80.7, end=81.0, confidence=0.9),
+    ]
+    guest_words = [
+        # Whisper silence hallucination — must not be first island
+        TranscriptWord(text="you.", start=0.9, end=9.0, confidence=0.5),
+        TranscriptWord(text="its", start=30.0, end=30.3, confidence=0.9),
+        TranscriptWord(text="me", start=30.3, end=30.5, confidence=0.9),
+        TranscriptWord(text="the", start=31.28, end=31.36, confidence=0.9),
+        TranscriptWord(text="favorite", start=31.36, end=31.72, confidence=0.9),
+        TranscriptWord(text="speaker", start=31.72, end=33.46, confidence=0.9),
+        TranscriptWord(text="here", start=35.64, end=35.92, confidence=0.9),
+        TranscriptWord(text="friend", start=75.0, end=75.4, confidence=0.9),
+        TranscriptWord(text="again", start=75.4, end=75.8, confidence=0.9),
+        TranscriptWord(text="today", start=75.8, end=76.2, confidence=0.9),
+        TranscriptWord(text="more", start=90.0, end=90.3, confidence=0.9),
+        TranscriptWord(text="guest", start=90.3, end=90.6, confidence=0.9),
+        TranscriptWord(text="talk", start=90.6, end=91.0, confidence=0.9),
+    ]
+    # First utterance ~[30, 35.92], silence mid ~56 -> delay ~20-26s (not 0 / wall).
+    proj = _project(
+        tmp_path,
+        [
+            ("host", 474.0, host_words),
+            ("guest", 463.0, guest_words),
+        ],
+    )
+    return proj
+
+
+def _bleed5_project(tmp_path: Path) -> EpisodeProject:
+    host_words = [
+        TranscriptWord(text="hello", start=10.0, end=10.3, confidence=0.9),
+        TranscriptWord(text="there", start=10.3, end=10.6, confidence=0.9),
+        TranscriptWord(text="friend", start=10.6, end=11.0, confidence=0.9),
+        TranscriptWord(text="yes", start=20.0, end=20.2, confidence=0.9),
+        TranscriptWord(text="indeed", start=20.2, end=20.5, confidence=0.9),
+        TranscriptWord(text="okay", start=20.5, end=20.8, confidence=0.9),
+        TranscriptWord(text="unique", start=30.0, end=30.4, confidence=0.9),
+        TranscriptWord(text="host", start=30.4, end=30.7, confidence=0.9),
+        TranscriptWord(text="only", start=30.7, end=31.0, confidence=0.9),
+    ]
+    guest_words = [
+        TranscriptWord(text="hello", start=5.0, end=5.3, confidence=0.9),
+        TranscriptWord(text="there", start=5.3, end=5.6, confidence=0.9),
+        TranscriptWord(text="friend", start=5.6, end=6.0, confidence=0.9),
+        TranscriptWord(text="yes", start=15.0, end=15.2, confidence=0.9),
+        TranscriptWord(text="indeed", start=15.2, end=15.5, confidence=0.9),
+        TranscriptWord(text="okay", start=15.5, end=15.8, confidence=0.9),
+        TranscriptWord(text="guest", start=25.0, end=25.3, confidence=0.9),
+        TranscriptWord(text="reply", start=25.3, end=25.6, confidence=0.9),
+        TranscriptWord(text="here", start=25.6, end=25.9, confidence=0.9),
+    ]
+    proj = _project(
+        tmp_path,
+        [
+            ("host", 100.0, host_words),
+            ("guest", 90.0, guest_words),
+        ],
+    )
+    return proj
 
 
 def test_bleed_rejects_sparse_repeated_phrase() -> None:
@@ -1241,7 +1426,10 @@ def test_manifest_pinned_offset_is_manual_lock(tmp_path: Path) -> None:
 
     redo = plan_conversation_alignment(
         _manifest_project(tmp_path),
-        defaults={"align": {"min_bleed_matches": 2, "realign": True}},
+        defaults={
+            "align": {"min_bleed_matches": 2, "realign": True},
+            "_align_acoustic_confirm_fn": _confirm(),
+        },
     )
     assert next(p for p in redo.plans if p.track_id == "guest").method != "manual"
 
