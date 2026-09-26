@@ -8,6 +8,7 @@ from podcast_mcp.edits.transcript_reuse import (
     TranscriptOverwriteRefused,
     merge_transcripts_by_key,
     plan_transcription,
+    run_transcribe_plan,
     stamp_audio_identity,
 )
 from podcast_mcp.engines.transcribe import TranscribeJob
@@ -172,3 +173,45 @@ def test_allow_edited_overwrites_in_unattended_run(job):
     p = _project(_tr(audio_sha256=sha256_file(job.audio), user_edited=True))
     plan = plan_transcription(p, [job], overwrite=True, unattended=True, allow_edited=True)
     assert plan.run == [job] and plan.overwrite_edited == ["host"]
+
+
+def test_run_transcribe_plan_without_jobs_only_stamps(job):
+    p = _project(_tr())
+    plan = plan_transcription(p, [job], overwrite=False, unattended=True)
+
+    def no_engine():
+        raise AssertionError("engine must not be built when nothing runs")
+
+    assert run_transcribe_plan(p, plan, no_engine, use_cache=True) == []
+    assert p.transcripts[0].audio_sha256 == sha256_file(job.audio)
+
+
+def test_run_transcribe_plan_forwards_stamps_and_merges(job, tmp_path, caplog):
+    from unittest.mock import MagicMock
+
+    from podcast_mcp.transcript_context import TranscriptContext
+
+    other = Transcript(track_id="guest", words=[])
+    p = _project(
+        _tr(audio_sha256=sha256_file(job.audio), user_edited=True),
+        other,
+        workspace=str(tmp_path),
+    )
+    p.workspace_path().mkdir(parents=True, exist_ok=True)
+    TranscriptContext(terms=["Kaczynski"], vocabulary_revision="rev-1").save(p.workspace_path())
+    plan = plan_transcription(p, [job], overwrite=True, unattended=False)
+    engine = MagicMock()
+    engine.transcribe_all_dialogue.return_value = [
+        Transcript(track_id="host", words=[TranscriptWord(text="asr", start=0, end=0.5)])
+    ]
+    with caplog.at_level("WARNING"):
+        out = run_transcribe_plan(p, plan, lambda: engine, use_cache=False, language="en")
+    kwargs = engine.transcribe_all_dialogue.call_args.kwargs
+    assert kwargs["jobs"] == [job] and kwargs["audio_hashes"] == plan.audio_hashes
+    assert kwargs["use_cache"] is False and kwargs["language"] == "en"
+    assert "Kaczynski" in kwargs["initial_prompt"]
+    assert [t.vocabulary_revision for t in out] == ["rev-1"]
+    keys = {t.key: t for t in p.transcripts}
+    assert keys[("host", None)].words[0].text == "asr"
+    assert keys[("guest", None)] is other
+    assert "overwrites edited transcript for track host" in caplog.text
