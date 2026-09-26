@@ -300,9 +300,12 @@ def _placement_rows(
     by_id: dict[str, list[dict[str, Any]]],
     by_source: dict[str, list[dict[str, Any]]],
     clip: Clip,
+    current_clip_ids: set[str],
 ) -> list[dict[str, Any]]:
-    """Rows for ``clip``: its own id, or the same source with an overlapping range (split pieces)."""
+    """Rows for ``clip``: its own id, or verified source/split inheritance."""
     out = list(by_id.get(clip.id, []))
+    if out:
+        return out
     candidates = (
         by_source.get(clip.source_id, []) if clip.source_id is not None else by_source.get("", [])
     )
@@ -323,8 +326,17 @@ def _placement_rows(
                 or clip.source_end < float(r["source_end"])
             )
         )
-        if overlap > 1e-6 and (clip.source_id is not None or split_piece):
+        if overlap > 1e-6 and (
+            clip.source_id is not None
+            or (
+                split_piece
+                and isinstance(r.get("clip_id"), str)
+                and r["clip_id"] not in current_clip_ids
+            )
+        ):
             out.append(r)
+    if clip.source_id is None and len({str(r.get("clip_id")) for r in out}) != 1:
+        return []
     return out
 
 
@@ -374,8 +386,10 @@ def _unexplained_drift(
             continue
         rows = [r for r in (*locked, *accepted_rows) if str(r.get("track_id")) == t.id]
         by_id, by_source = _index_placement_rows(rows) if not accepted else ({}, {})
+        clips = clips_for_track(project, t.id)
+        current_clip_ids = {clip.id for clip in clips}
         worst = 0.0
-        for clip in clips_for_track(project, t.id):
+        for clip in clips:
             rel = st.clip_relative_drift(clip, ref_id)
             worst = max(worst, abs(rel))
             if (
@@ -383,7 +397,7 @@ def _unexplained_drift(
                 or abs(rel) <= threshold
                 or any(
                     _still_placed(r, rel, threshold)
-                    for r in _placement_rows(by_id, by_source, clip)
+                    for r in _placement_rows(by_id, by_source, clip, current_clip_ids)
                 )
             ):
                 continue
