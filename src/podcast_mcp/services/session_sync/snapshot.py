@@ -100,7 +100,9 @@ def apply_command(snap: dict[str, Any], cmd: dict[str, Any]) -> dict[str, Any]:
             "end_sec": float(payload["end_sec"]),
         }
         set_f("region", region)
-        set_f("playhead_sec", float(payload.get("playhead_sec", region["start_sec"])))
+        sec = normalize_presence_playhead(payload.get("playhead_sec", region["start_sec"]))
+        if sec is not None:
+            set_f("playhead_sec", sec)
         if "is_playing" in payload:
             set_f("is_playing", bool(payload["is_playing"]))
         if "query" in payload:

@@ -61,12 +61,16 @@ class SessionControlService:
         query: str | None = None,
         selection: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        if end_sec <= start_sec:
+        start = normalize_presence_playhead(start_sec)
+        end = normalize_presence_playhead(end_sec)
+        if start is None or end is None:
+            raise ValueError("start_sec and end_sec must be finite numbers >= 0")
+        if end <= start:
             raise ValueError("end_sec must be after start_sec")
         payload: dict[str, Any] = {
-            "start_sec": float(start_sec),
-            "end_sec": float(end_sec),
-            "playhead_sec": float(start_sec),
+            "start_sec": start,
+            "end_sec": end,
+            "playhead_sec": start,
             "is_playing": bool(playing),
             "query": query,
         }
