@@ -60,7 +60,7 @@ def _public_ipv4_literals(relative: Path, content: bytes) -> list[str]:
     found: list[str] = []
     for match in _IPV4_LITERAL.finditer(content):
         literal = match.group().decode()
-        # ipaddress rejects zero-padded octets; canonicalise so 008.008.004.004 is still caught.
+        # ipaddress rejects zero-padded octets; canonicalise so padded forms (008 for 8) are caught.
         canonical = ".".join(str(int(octet)) for octet in literal.split("."))
         try:
             address = ipaddress.ip_address(canonical)
