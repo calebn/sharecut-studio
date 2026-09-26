@@ -1,7 +1,12 @@
 import { useRef, useState } from "react";
 import { updatePendingEdit } from "../api";
+import { isHandleDrag } from "../edit/dragThreshold";
 import { useDaw } from "../state/useDaw";
 import type { PendingEditView } from "../types/project";
+import {
+  pendingReasonLabel,
+  pendingTypeLabel,
+} from "../utils/pendingEditLabels";
 import { pendingOverlayWidthPx } from "./pendingOverlayWidth";
 
 interface PendingEditOverlayProps {
@@ -61,6 +66,13 @@ export function PendingEditOverlay({
   dragRef.current = drag;
 
   const commitDrag = async (state: DragState, clientX: number) => {
+    if (!isHandleDrag(state.originX, clientX)) {
+      // A click (the sliver at session zoom is all handle): pointerdown
+      // already selected the edit; never move or re-snap it.
+      setDrag(null);
+      setPreview(null);
+      return;
+    }
     const dx = (clientX - state.originX) / zoomPxPerSec;
     let tlStart = state.baseStart;
     let tlEnd = state.baseEnd;
@@ -113,7 +125,7 @@ export function PendingEditOverlay({
                 key={`${edit.id}-${i}`}
                 className={`pending-overlay${isMute ? " mute" : isSplit ? " split" : " remove"}${selectedId === edit.id ? " selected" : ""}`}
                 style={{ left, width }}
-                title={`${edit.type}: ${edit.reason ?? ""}`}
+                title={`${pendingTypeLabel(edit.type)}: ${pendingReasonLabel(edit.reason)}`}
               >
                 <button
                   type="button"

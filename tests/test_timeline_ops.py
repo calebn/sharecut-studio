@@ -1445,3 +1445,14 @@ def test_insert_room_tone_pad_falls_back_without_bed() -> None:
         c for c in p.clips if c.track_id == "host" and c.source_id == room_tone_source_id("host")
     ]
     assert pads == []
+
+
+def test_track_fade_max_ms_dialogue_only() -> None:
+    from podcast_mcp.edits.join_modes import track_fade_max_ms
+
+    cfg = {"render": {"join_fade_max_ms": 25}}
+    host = Track(id="host", label="Host", role=TrackRole.DIALOGUE, speaker="Host")
+    bed = Track(id="bed", label="Bed", role=TrackRole.MUSIC)
+    assert track_fade_max_ms(host, cfg) == 25
+    assert track_fade_max_ms(bed, cfg) is None
+    assert track_fade_max_ms(None, cfg) is None

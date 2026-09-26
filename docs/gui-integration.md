@@ -316,13 +316,15 @@ Configurable production spine — **visible params are the source of truth for R
 
 A project with no source media or timeline clips stays **Fresh** despite empty-track creation invalidations; it does not show an audio error for the absent premix. The project view includes a non-sensitive `has_source_audio` track flag so guest shares still identify playable media after local media paths are redacted, including when source duration is unknown. Opening a different project resets per-project transport and error state; refreshing the same project preserves it. A refresh started for an earlier project cannot apply its result to the currently open project or clear that project's refresh progress.
 
+Each track in the project view carries `fade_max_ms`: the longest edge fade the server accepts for clips on that track (`render.join_fade_max_ms` for dialogue tracks, `null` for other roles). The fade drag and the clip inspector clamp to it, and to the clip length, before sending `SetClipFade`.
+
 UI shows determinate progress (`current/total`), total elapsed, and a per-step table with runtime plus a short **summary** (counts of fixes/changes from each step’s return value — e.g. reconcile suppress counts, tighten cuts applied). Concurrent runs are rejected. Skill: **podcast-pipeline-tune**.
 
 Passes 0–8: History Undo/Redo, pending Approve/Reject (bulk + nudge), applied Restore, clip fades/join, FX bypass, transcript correct/suppress, envelope points, chapter/social markers, blade/delete structural tools, and project/track/audio ingest via `POST /api/document/command`, plus document WS command-typed Applied slices (SHELL/DETAIL/TRACKS/CLIPS/FX/ENVELOPES/MIX/COMMENTS; client overlays `words[]` by source clocks) and agent selection sync. Guest shares with `suggest`/`edit` use `POST /api/review/{token}/daw/document/command` — see [daw-editing.md](daw-editing.md).
 
 ### Timeline layers (bottom → top)
 
-1. **Clips** — pyramid waveform tiles (two-tone peak + RMS), quiet wash and snap ticks, fade triangles, crossfade border, width-tiered role/duration labels  
+1. **Clips** — pyramid waveform tiles (two-tone peak + RMS), quiet wash and snap ticks, fade regions with edge handles (a zero-length fade's handle sits just inside the clip edge it fades: fade-in at the start, fade-out at the end), crossfade border, width-tiered role/duration labels  
 2. **Levels** — volume automation polyline from `envelopes[]` (toggle)  
 3. **Edits** — applied ticks under pending regions (visual markers; dense stacks are
    non-interactive for WCAG 2.5.8); `remove` hatch vs `mute` solid (toggle)  

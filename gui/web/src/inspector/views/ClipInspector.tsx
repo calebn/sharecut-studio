@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { applyFadeRecommendations, setClipFade, setJoinMode } from "../../api";
+import { setClipFade, setJoinMode } from "../../api";
 import { execute } from "../../commands/execute";
+import { clampFadeMs, maxFadeMs } from "../../edit/fadeLimits";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import { canApplyPass12, canSuggestStructural } from "../../shareMode";
+import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import type { ClipRow } from "../../types/project";
 import {
@@ -33,6 +35,16 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
     setError(null);
   }, [clip.id, clip.fade_in_ms, clip.fade_out_ms, setError]);
 
+  const trackFadeMaxMs = useDawStore(
+    (s) =>
+      s.project?.tracks.find((t) => t.id === clip.track_id)?.fade_max_ms ??
+      null,
+  );
+  const fadeLimitMs = maxFadeMs(
+    clip.source_end - clip.source_start,
+    trackFadeMaxMs,
+  );
+
   const editable = canApplyPass12(projectPath, guestMode, shareCapabilities);
   const canStructural = canSuggestStructural(
     projectPath,
@@ -52,8 +64,12 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
       setError("Fade times must be non-negative integers (ms)");
       return;
     }
+    const cappedIn = clampFadeMs(fadeIn, fadeLimitMs);
+    const cappedOut = clampFadeMs(fadeOut, fadeLimitMs);
+    setFadeInStr(String(cappedIn));
+    setFadeOutStr(String(cappedOut));
     await run(async () => {
-      await setClipFade(projectPath, clip.id, fadeIn, fadeOut);
+      await setClipFade(projectPath, clip.id, cappedIn, cappedOut);
     });
   };
 
@@ -63,12 +79,6 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
     }
     await run(async () => {
       await setJoinMode(projectPath, clip.id, mode);
-    });
-  };
-
-  const applyRecommended = async () => {
-    await run(async () => {
-      await applyFadeRecommendations(projectPath, clip.track_id);
     });
   };
 
@@ -92,14 +102,6 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
   const joinSec = clip.timeline_start;
 
   const primaryActions = [];
-  if (editable) {
-    primaryActions.push({
-      label: "Apply recommended fades",
-      variant: "primary" as const,
-      disabled: busy,
-      onClick: () => void applyRecommended(),
-    });
-  }
   if (canStructural) {
     primaryActions.push(
       {
@@ -149,6 +151,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
               <input
                 type="number"
                 min={0}
+                max={fadeLimitMs}
                 step={1}
                 value={fadeInStr}
                 disabled={busy}
@@ -159,6 +162,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
               <input
                 type="number"
                 min={0}
+                max={fadeLimitMs}
                 step={1}
                 value={fadeOutStr}
                 disabled={busy}
@@ -166,6 +170,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
                 onChange={(e) => setFadeOutStr(e.target.value)}
               />
               <span>ms out</span>
+              <span className="ui-field-hint">max {fadeLimitMs} ms</span>
               <Button disabled={busy} onClick={() => void commitFades()}>
                 Apply fades
               </Button>

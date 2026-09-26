@@ -49,6 +49,8 @@ export interface TrackView {
   stem_is_fresh: boolean | null;
   has_source_audio?: boolean;
   media_path?: string | null;
+  /** Longest edge fade (ms) a clip on this track may take; null = uncapped. */
+  fade_max_ms?: number | null;
 }
 
 export interface PendingJoinRisk {

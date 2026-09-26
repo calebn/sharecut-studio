@@ -1,6 +1,6 @@
 import { fireEvent, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { rollClipJoin } from "../api";
+import { rollClipJoin, setClipFade } from "../api";
 import type { ClipRow } from "../types/project";
 import { ClipBlock } from "./ClipBlock";
 
@@ -19,6 +19,7 @@ const layers = vi.hoisted(() => [] as LayerProps[][]);
 vi.mock("../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api")>()),
   rollClipJoin: vi.fn(async () => undefined),
+  setClipFade: vi.fn(async () => undefined),
 }));
 
 // The layer is tested in WaveformLayer.test.tsx; here, what the clip gives it.
@@ -127,6 +128,79 @@ describe("ClipBlock waveform", () => {
       mediaRef: "stem:host",
       kind: "stem",
       mediaStartSec: 1,
+    });
+  });
+
+  it("gives zero-length fade handles no contradictory start/end class", () => {
+    const { container } = render(<ClipBlock {...base} />);
+    for (const which of ["in", "out"]) {
+      const handle = container.querySelector(
+        `button.fade-handle-zero.${which}`,
+      ) as HTMLElement;
+      expect(handle).toBeTruthy();
+      expect(handle.classList.contains("start")).toBe(false);
+      expect(handle.classList.contains("end")).toBe(false);
+    }
+  });
+
+  describe("fade handle drags", () => {
+    const dragIn = (
+      dxPx: number,
+      props: { fadeMaxMs?: number | null } = {},
+    ) => {
+      const view = render(<ClipBlock {...base} {...props} />);
+      const handle = view.container.querySelector(
+        "button.fade-handle-zero.in",
+      ) as HTMLElement;
+      fireEvent.pointerDown(handle, { clientX: 100, pointerId: 3 });
+      fireEvent.pointerMove(handle, { clientX: 100 + dxPx, pointerId: 3 });
+      // The zero-length handle unmounts once the preview has width; the
+      // region's own handle receives the release.
+      const release =
+        (view.container.querySelector(
+          ".fade-in-region .fade-handle",
+        ) as HTMLElement | null) ?? handle;
+      return { ...view, handle: release, dxPx };
+    };
+
+    beforeEach(() => {
+      vi.mocked(setClipFade).mockClear();
+    });
+
+    it("clamps to the track cap, shows it live and commits it", async () => {
+      const { container, handle } = dragIn(25, { fadeMaxMs: 40 });
+      expect(container.querySelector(".fade-readout.in")?.textContent).toBe(
+        "40 ms",
+      );
+      fireEvent.pointerUp(handle, { clientX: 125, pointerId: 3 });
+      await waitFor(() =>
+        expect(setClipFade).toHaveBeenCalledWith(
+          expect.anything(),
+          "c1",
+          40,
+          0,
+        ),
+      );
+    });
+
+    it("clamps an uncapped track to the clip length", async () => {
+      const { handle } = dragIn(250);
+      fireEvent.pointerUp(handle, { clientX: 350, pointerId: 3 });
+      await waitFor(() =>
+        expect(setClipFade).toHaveBeenCalledWith(
+          expect.anything(),
+          "c1",
+          2000,
+          0,
+        ),
+      );
+    });
+
+    it("never saves a click under the drag threshold", async () => {
+      const { handle } = dragIn(1);
+      fireEvent.pointerUp(handle, { clientX: 101, pointerId: 3 });
+      await Promise.resolve();
+      expect(setClipFade).not.toHaveBeenCalled();
     });
   });
 

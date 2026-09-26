@@ -3,16 +3,22 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands, execute } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
+import { shareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { minimalProject } from "../../test/fixtures";
 import type { TrackView } from "../../types/project";
 import { TrackInspector } from "./TrackInspector";
 
 const setTrackMetaCommand = vi.fn();
+const applyFadeRecommendations = vi.fn(
+  async (..._args: unknown[]) => undefined,
+);
 
 vi.mock("../../api", () => ({
   setTrackMetaCommand: (...args: unknown[]) => setTrackMetaCommand(...args),
   setEffectBypass: vi.fn(),
+  applyFadeRecommendations: (...args: unknown[]) =>
+    applyFadeRecommendations(...args),
 }));
 
 const hostTrack: TrackView = {
@@ -78,5 +84,31 @@ describe("TrackInspector", () => {
       reason: "guests hear Mix only",
     });
     expect(useDawStore.getState().auditionMode).toBe("mix");
+  });
+
+  it("smooths every join on the track from the track inspector", async () => {
+    const user = userEvent.setup();
+    render(<TrackInspector track={hostTrack} effects={[]} />);
+    await user.click(
+      screen.getByRole("button", { name: "Smooth all joins on this track" }),
+    );
+    expect(applyFadeRecommendations).toHaveBeenCalledWith(
+      "/tmp/ep.json",
+      "host",
+    );
+  });
+
+  it("hides the smooth-joins button from a guest without edit", () => {
+    useDawStore
+      .getState()
+      .hydrate(
+        shareProjectKey("tok"),
+        minimalProject({ tracks: [hostTrack] }),
+        "view",
+      );
+    render(<TrackInspector track={hostTrack} effects={[]} />);
+    expect(
+      screen.queryByRole("button", { name: /smooth all joins/i }),
+    ).toBeNull();
   });
 });

@@ -156,8 +156,9 @@ flowchart LR
 
 | UI label | Field |
 |----------|-------|
-| Range | decision `start`/`end` (source) → shown mapped on timeline |
-| Reason | agent/tool reason string |
+| Range | decision `start`/`end` (source) → shown mapped on timeline, as `m:ss.mmm` |
+| Reason | agent/tool reason string, shown once in words (for example "Suggested by guest") |
+| Join fade | `crossfade_ms` (applied as fade lengths on approve) |
 | Track | track id |
 | Actions | Approve / Reject / nudge |
 
@@ -176,7 +177,7 @@ flowchart LR
 |----------|-------|
 | When on mix | `timeline_start` … `timeline_end` |
 | From raw | `source_start` … `source_end` |
-| Fades | `fade_in_ms` / `fade_out_ms` |
+| Fades | `fade_in_ms` / `fade_out_ms` (handles at the clip's start / end edge); dialogue capped at 40 ms by default |
 | Join | `join_in_mode` |
 
 ---

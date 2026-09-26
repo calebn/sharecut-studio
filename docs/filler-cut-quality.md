@@ -182,7 +182,7 @@ Per-episode overrides: copy relevant keys from `tighten:` / `inaudible_cuts:` / 
 | `inaudible_cuts.min_word_margin_ms` | `5` | Min distance from retained word edges |
 | `inaudible_cuts.max_shift_ms` | `80` | Max boundary snap |
 | `analysis.heuristics.boundary_jump_db` | `12` | dB jump that triggers longer fades |
-| `render.join_fade_max_ms` | `40` | Cap dialogue edge fades (fade join mode); harsh-join recommendations scale up to this |
+| `render.join_fade_max_ms` | `40` | Cap dialogue edge fades (fade join mode); harsh-join recommendations scale up to this; the DAW reads it as `TrackView.fade_max_ms` |
 | `render.crossfade_curve` | `tri` | FFmpeg acrossfade curve when `join_in_mode=crossfade` |
 | `tighten.acoustic_gap_filler.enabled` | `true` | Propose review-only `filler:acoustic` cuts for voiced audio inside ASR gaps (see below) |
 | `tighten.acoustic_gap_filler.min_gap_sec` | `0.35` | Shortest inter-word gap scanned; values below `0.35` clamp up (max `10`) |

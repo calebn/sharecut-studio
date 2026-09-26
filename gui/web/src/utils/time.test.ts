@@ -5,8 +5,10 @@ import {
   formatTime,
   formatTimecodeCompact,
   formatTimecodePair,
+  formatTimeMs,
   formatTimeShort,
   niceTimeStep,
+  parseTimecode,
   transportTimecode,
 } from "./time";
 
@@ -134,5 +136,39 @@ describe("clampToSession", () => {
     expect(clampToSession(90, Number.NaN)).toBe(90);
     expect(clampToSession(-1, Number.NaN)).toBe(0);
     expect(clampToSession(5, 0)).toBe(0);
+  });
+});
+
+describe("formatTimeMs", () => {
+  it("prints m:ss.mmm, h:mm:ss.mmm from an hour, and rolls over cleanly", () => {
+    expect(formatTimeMs(1.999999)).toBe("0:02.000");
+    expect(formatTimeMs(2.38)).toBe("0:02.380");
+    expect(formatTimeMs(3723.5)).toBe("1:02:03.500");
+  });
+});
+
+describe("parseTimecode", () => {
+  it("reads m:ss.mmm, h:mm:ss.mmm and plain seconds", () => {
+    expect(parseTimecode("0:02.380")).toBeCloseTo(2.38, 9);
+    expect(parseTimecode("1:02:03.5")).toBeCloseTo(3723.5, 9);
+    expect(parseTimecode("12.5")).toBe(12.5);
+  });
+  it("rejects malformed times", () => {
+    for (const bad of [
+      "",
+      "a",
+      "1:60",
+      "1.5:00",
+      "1:2:3:4",
+      "1:75",
+      "1:60:00",
+    ]) {
+      expect(parseTimecode(bad), bad).toBeNull();
+    }
+  });
+  it("round-trips formatTimeMs", () => {
+    for (const sec of [0, 2.38, 61.005, 3723.5]) {
+      expect(parseTimecode(formatTimeMs(sec))).toBeCloseTo(sec, 3);
+    }
   });
 });

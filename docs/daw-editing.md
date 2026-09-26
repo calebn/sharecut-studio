@@ -82,7 +82,7 @@ Shipped:
 Shipped:
 
 - Pending Approve / Reject (inspector) + Impact **Approve/Reject all review-required**
-- `UpdatePendingEdit` — timeline edge drag + inspector source nudge with inaudible snap
+- `UpdatePendingEdit` — timeline edge drag (a pointer-up under 3 px only selects the edit) + inspector source nudge with inaudible snap; the nudge fields take `m:ss.mmm` (or plain seconds); the inspector shows the reason once in words, the type as a word (Cut / Mute / Split), and `crossfade_ms` as **Join fade** (approve applies it as fade lengths)
 - `RestoreAppliedEdit` / `revert_applied_edit` — re-insert clip material from `AppliedEditRecord` source clocks for ripple/punch cuts; mute archives (`params.mute`) subtract intersecting `Clip.mute_regions` without shifting the timeline. Records without source clocks → History undo
 - Inspector Seek / Play around footers (Current / Suggested / A/B on pending)
 
@@ -124,10 +124,10 @@ Shipped:
 
 Shipped:
 
-- Edge handles for fade lengths on clip blocks; join diamond selects clip
+- Edge handles for fade lengths on clip blocks (a drag shows the length live and clamps to the track's `fade_max_ms` and the clip length; a click under 3 px only selects); join diamond selects clip
 - Inspector: editable `fade_in_ms` / `fade_out_ms`, `join_in_mode` (fade / crossfade / cut)
-- Document commands `SetClipFade`, `SetJoinMode`, `ApplyFadeRecommendations` (track-scoped recommend+apply)
-- MCP `set_join_mode_tool`; dialogue fades capped at `render.join_fade_max_ms` via `set_clip_fade`
+- Document commands `SetClipFade`, `SetJoinMode`, `ApplyFadeRecommendations` (track-scoped recommend+apply; Track inspector **Smooth all joins on this track**)
+- MCP `set_join_mode_tool`; dialogue fades capped at `render.join_fade_max_ms` via `set_clip_fade`; the project view exposes the cap as `TrackView.fade_max_ms` (null = uncapped) so the drag and inspector inputs clamp before sending
 - Seek join / Play across join audition footer
 
 **Done when:** changing fade ms or join mode from the inspector updates `timeline.clips` and is audible on next audition.
