@@ -102,35 +102,29 @@ MCP: `publish_review_version_tool`, `list_review_versions_tool`, `set_active_rev
 
 Versions live under `artifacts/review/{id}/mix.wav` plus `mix.mp3` (guest ReviewApp)
 with metadata in `review.versions[]` (`mp3_relpath`, optional `object_store_key`).
-Publication creates a new version directory exclusively. If WAV copy or MP3 encoding fails,
-or publication is interrupted, it quarantines and removes that new directory and leaves existing
-versions and the source mix untouched. The directory's identity is recorded once at creation
-(the empty directory is removed if that read fails), and both generation cleanup and the
-service's persistence compensation use that recorded identity. Cleanup checks it, moves the
-directory into a private quarantine, and checks it again before removal. Linux and macOS pin the
-root and quarantine by descriptor; Windows runs the same quarantine on resolved paths.
-If another local writer replaces the public version name before cleanup's first identity check,
-cleanup leaves the replacement at its public path. A replacement that lands between that check
-and the quarantine rename is moved into the `.failed-review-*` quarantine under
-`artifacts/review/` and kept there: it is not restored to its public name and not deleted.
-Quarantines that are kept (identity mismatch or a failed removal) are not swept automatically
-yet; remove stale `.failed-review-*` directories by hand after inspection.
-The writer resolves a symlinked `artifacts/review/` root once
-so retargeting that symlink during a failed publication cannot redirect cleanup to another mix.
-If history or project persistence fails after media generation, the service checks the canonical
-project file, restores its prior history index and snapshots, then removes only the new,
-uncommitted version directory. A version already saved in
-the project keeps its media even when a later write reports an error. Cleanup failures are logged
-without masking the original persistence error. A version directory that is already gone when
-cleanup runs counts as nothing to clean and is not reported as a failure.
-The cleanup boundary assumes other local writers do not modify the private quarantine. A process
-with the same filesystem permissions can deliberately access and replace quarantine entries; the
-filesystem does not provide an atomic compare-and-remove directory operation against that actor.
-Directory creation and the identity read are separate operations, and atomic publication across
-non-cooperating writers is not yet provided. Identity is `(st_dev, st_ino)`: if the created
-directory is deleted and a replacement reuses its inode number, the replacement matches. Change
-time cannot strengthen this because writing `mix.wav` updates the directory's ctime, and birth
-time is not portable.
+Publication copies and encodes into a private `.staging-review-*` directory under the
+pinned review root. Under the project commit lock it atomically promotes the complete
+media directory to `{id}` with a no-replace rename, then records the version. Linux uses
+`renameat2(RENAME_NOREPLACE)` and macOS uses `renameatx_np(RENAME_EXCL)`; unsupported
+systems fail closed. An existing destination is never overwritten. A failed copy or
+encode leaves no public version.
+
+Generation and persistence failure cleanup use the directory identity recorded at
+staging creation, hold the project commit lock, and quarantine with descriptor-relative
+operations. A replacement before the first identity check is retained. If replacement
+lands between the check and quarantine rename, cleanup tries an atomic no-replace restore
+to the public name. If that name is occupied or restoration fails, the replacement stays
+in `.failed-review-*` for inspection. Cleanup never overwrites or deletes it.
+Quarantines with a matching ownership marker and directory identity become eligible for
+a bounded sweep after 24 hours; each publish inspects at most 32 entries. Legacy,
+mismatched, and partially removed quarantines stay for manual inspection.
+
+The review root is resolved once before staging so symlink retargeting cannot redirect
+cleanup. A saved version retains its media even if a later write reports an error.
+Cleanup failures are logged without masking the publication error. The boundary assumes
+other local writers do not deliberately modify private staging or quarantine contents.
+If the staging identity read fails, the private directory is retained because its identity cannot be proven; no public name is created. Identity is `(st_dev, st_ino)`; inode reuse after deletion remains a filesystem limit.
+
 If a published version's MP3 is missing, retry encoding writes a temporary MP3 beside it and
 publishes `mix.mp3` only after encoding succeeds. Python-level failures and interruptions remove
 the temporary output, so guest audio lookup continues to use the frozen WAV. The retry pins the
