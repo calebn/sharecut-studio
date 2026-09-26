@@ -991,9 +991,8 @@ ${DETACHED(BASE)}
 3. List related_issues: other open issues this work touches, overlaps or partially addresses but does NOT fully close (\`gh issue list -R ${REPO} --search <keywords>\`).
 4. Choose a branch name type/short-kebab (feat|fix|docs|chore|refactor|test).
 5. Post the plan on the issue as a comment wrapped in <details><summary>Implementation plan</summary>…</details>.
-${explicit
-  ? 'The user explicitly named this issue for this run: it is already sized and scoped as they want it. Do not set abort=true for size, ambition, or a judgment call that it "should" be split up — plan and implement it as written, as large as it is. Set abort=true ONLY if the issue is genuinely impossible to plan (e.g. it contradicts itself, or references code/behavior that does not exist and no reasonable reading resolves it), with abort_reason explaining exactly what is contradictory or missing.'
-  : 'If the issue needs an owner decision or is too large for one PR, set abort=true with abort_reason instead of planning.'}`,
+Never set abort=true for size, ambition, or a judgment call that the issue "should" be split up: plan and implement it as written, as large as it is. When it is large, order the work as a series of independently green commits inside the one PR.
+When the issue leaves a product or design choice open (options listed, "decide whether ..."), take the option you judge best, preferring the simpler and more conservative one, state the choice and why in the plan comment, and build it; the review and the owner can push back on the PR. Set abort=true ONLY if the issue is genuinely impossible to plan (it contradicts itself, references code or behaviour that does not exist and no reasonable reading resolves it) or a choice defines the product and has no conservative default, with abort_reason explaining exactly what is contradictory, missing or undecided.`,
     { label: `plan:${tag(issue)}`, phase: 'Plan', model: M.senior, effort: 'high', isolation: 'worktree', schema: S_PLAN },
     )
     return { issue, plan }

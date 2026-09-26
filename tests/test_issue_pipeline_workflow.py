@@ -436,6 +436,25 @@ def test_conflicting_prs_are_rebased_before_the_ci_wait() -> None:
     assert "before the CI wait" in CONTRIBUTING.read_text(encoding="utf-8")
 
 
+def test_planner_never_aborts_for_size() -> None:
+    """The owner never limited the pipeline by issue size: a big issue is planned as written."""
+    script = _script()
+    assert "too large for one PR" not in script
+    plan = script[
+        script.index("You are the planner for") : script.index("label: `plan:${tag(issue)}`")
+    ]
+    assert "Never set abort=true for size, ambition" in plan
+    assert "as large as it is" in plan
+    assert "independently green commits inside the one PR" in plan
+    # Open choices get a conservative default, stated in the plan; abort only when there is none.
+    assert "preferring the simpler and more conservative one" in plan
+    assert "has no conservative default" in plan
+    # The same rule applies to backlog and explicit runs.
+    assert "${explicit" not in plan
+    text = CONTRIBUTING.read_text(encoding="utf-8")
+    assert "The planner never aborts for size" in text
+
+
 def test_model_tiers() -> None:
     script = _script()
     assert "const M = { cheap: 'haiku', worker: 'sonnet', senior: 'opus' }" in script
