@@ -203,6 +203,7 @@ class SessionTimeline:
 
     def __init__(self, project: EpisodeProject) -> None:
         self._project = project
+        self._indexes: dict[str, tuple[tuple[_ClipKey, ...], _TrackIndex | None]] = {}
 
     def _index(self, track_id: str) -> _TrackIndex | None:
         keys = tuple(
@@ -210,9 +211,12 @@ class SessionTimeline:
             for c in self._project.clips
             if origin_track_id_for_clip(self._project, c) == track_id
         )
-        if not keys:
-            return None
-        return _build_index(keys)
+        cached = self._indexes.get(track_id)
+        if cached is not None and cached[0] == keys:
+            return cached[1]
+        index = _build_index(keys) if keys else None
+        self._indexes[track_id] = (keys, index)
+        return index
 
     # --- Point mapping ---
 
@@ -249,9 +253,22 @@ class SessionTimeline:
         A span crossing removed material may map to several intervals; parts
         entirely cut away are omitted. Adjacent results are merged.
         """
+        idx = self._index(track_id)
+        return self._map_source_span(idx, start, end)
+
+    def map_source_spans(
+        self, track_id: str, spans: Sequence[tuple[SourceSec, SourceSec]]
+    ) -> list[list[tuple[TimelineSec, TimelineSec]]]:
+        """Map a snapshot batch against one fresh clip index."""
+        idx = self._index(track_id)
+        return [self._map_source_span(idx, start, end) for start, end in spans]
+
+    @staticmethod
+    def _map_source_span(
+        idx: _TrackIndex | None, start: SourceSec, end: SourceSec
+    ) -> list[tuple[TimelineSec, TimelineSec]]:
         if end <= start:
             return []
-        idx = self._index(track_id)
         if idx is None:
             return [(TimelineSec(float(start)), TimelineSec(float(end)))]
         out: list[tuple[float, float]] = []
@@ -325,10 +342,12 @@ class SessionTimeline:
         if not tr or tl_end <= tl_start:
             return []
         raw: list[tuple[float, float]] = []
-        for w in tr.words:
-            if w.suppressed and not include_suppressed:
-                continue
-            for s, e in self.map_source_span(track_id, SourceSec(w.start), SourceSec(w.end)):
+        words = (w for w in tr.words if include_suppressed or not w.suppressed)
+        spans = self.map_source_spans(
+            track_id, [(SourceSec(w.start), SourceSec(w.end)) for w in words]
+        )
+        for mapped in spans:
+            for s, e in mapped:
                 cs = max(float(s), float(tl_start))
                 ce = min(float(e), float(tl_end))
                 if ce > cs + _EPS:
@@ -433,10 +452,11 @@ def timebase_qc_report(project: EpisodeProject) -> dict[str, Any]:
 
     for tr in project.transcripts:
         unmapped = 0
-        for w in tr.words:
-            if w.suppressed:
-                continue
-            spans = st.map_source_span(tr.track_id, SourceSec(w.start), SourceSec(w.end))
+        words = [w for w in tr.words if not w.suppressed]
+        mapped = st.map_source_spans(
+            tr.track_id, [(SourceSec(w.start), SourceSec(w.end)) for w in words]
+        )
+        for spans in mapped:
             if not spans:
                 unmapped += 1
         if unmapped:

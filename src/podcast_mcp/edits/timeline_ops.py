@@ -838,16 +838,16 @@ def shorten_word_gaps(
     ranges: list[tuple[float, float]] = []
     for tr in project.transcripts:
         words = tr.words
+        source_spans: list[tuple[SourceSec, SourceSec]] = []
         for i in range(len(words) - 1):
             gap = words[i + 1].start - words[i].end
             if gap > max_gap_sec:
                 trim = gap - max_gap_sec
                 src_start = words[i].end
                 src_end = words[i].end + trim
-                for tl_s, tl_e in st.map_source_span(
-                    tr.track_id, SourceSec(src_start), SourceSec(src_end)
-                ):
-                    ranges.append((float(tl_s), float(tl_e)))
+                source_spans.append((SourceSec(src_start), SourceSec(src_end)))
+        for mapped in st.map_source_spans(tr.track_id, source_spans):
+            ranges.extend((float(s), float(e)) for s, e in mapped)
 
     ranges.sort(key=lambda r: r[0])
     merged: list[tuple[float, float]] = []
@@ -857,13 +857,8 @@ def shorten_word_gaps(
         else:
             merged.append((start, end))
 
-    for start, end in reversed(merged):
-        ripple_delete(
-            project,
-            start,
-            end,
-            use_inaudible_opt=use_inaudible_opt,
-        )
+    if merged:
+        batch_ripple_delete(project, merged, use_inaudible_opt=use_inaudible_opt)
 
     return change_summary(
         project,
@@ -992,16 +987,21 @@ def _peer_speech_source_occupancy(
             v = float(mapped)
             peer_lo = v if peer_lo is None else min(peer_lo, v)
             peer_hi = v if peer_hi is None else max(peer_hi, v)
-        for w in tr.words:
-            if w.end <= w.start:
-                continue
-            if (
+        words = [
+            w
+            for w in tr.words
+            if w.end > w.start
+            and not (
                 peer_lo is not None
                 and peer_hi is not None
                 and (w.end < peer_lo - 1.0 or w.start > peer_hi + 1.0)
-            ):
-                continue
-            for tl_a, tl_b in st.map_source_span(peer_id, SourceSec(w.start), SourceSec(w.end)):
+            )
+        ]
+        mapped_spans = st.map_source_spans(
+            peer_id, [(SourceSec(w.start), SourceSec(w.end)) for w in words]
+        )
+        for spans in mapped_spans:
+            for tl_a, tl_b in spans:
                 a = max(float(tl_a), clip_tl0)
                 b = min(float(tl_b), clip_tl1)
                 if b <= a + 1e-9:

@@ -7,7 +7,11 @@ import pytest
 
 from podcast_mcp.edits.fillers import analyze_fillers_and_pauses
 from podcast_mcp.edits.transcript_cuts import search_transcript
-from podcast_mcp.edits.transcript_reconcile import maybe_auto_reconcile, run_reconciliation
+from podcast_mcp.edits.transcript_reconcile import (
+    maybe_auto_reconcile,
+    overlap_duplicate_report,
+    run_reconciliation,
+)
 from podcast_mcp.edits.transcript_refine_status import status_is_clear
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,
@@ -479,3 +483,34 @@ def test_search_transcript_excludes_suppressed_by_default(tmp_path: Path):
 
     matches_all = search_transcript(project, "bleed", track_id="host", include_suppressed=True)
     assert len(matches_all) == 1
+
+
+def test_overlap_report_matches_pairwise_for_unsorted_and_long_words(tmp_path: Path) -> None:
+    project = _two_track_project(tmp_path)
+    host = project.transcript_for_track("host")
+    guest = project.transcript_for_track("guest")
+    assert host is not None and guest is not None
+    host.words = [
+        TranscriptWord(text="late", start=8.0, end=8.4),
+        TranscriptWord(text="long", start=0.0, end=9.0),
+        TranscriptWord(text="middle", start=4.0, end=4.3),
+    ]
+    guest.words = [
+        TranscriptWord(text="end", start=8.2, end=8.5),
+        TranscriptWord(text="early", start=1.0, end=1.2),
+        TranscriptWord(text="middle", start=4.1, end=4.2),
+    ]
+    host.words.append(TranscriptWord(text="tail", start=8.3, end=8.35))
+    first, second = guest, host
+    expected = [
+        (ia, ib)
+        for ia, a in enumerate(first.words)
+        for ib, b in enumerate(second.words)
+        if min(a.end, b.end) > max(a.start, b.start)
+    ]
+    expected.sort(key=lambda pair: first.words[pair[0]].start)
+    with patch(
+        "podcast_mcp.edits.transcript_reconcile.compute_word_audibility_map", return_value=[]
+    ):
+        rows = overlap_duplicate_report(project)["pairs"]
+    assert [(row["word_index_a"], row["word_index_b"]) for row in rows] == expected

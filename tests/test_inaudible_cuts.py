@@ -8,6 +8,7 @@ import pytest
 
 from podcast_mcp.edits.inaudible_cuts import (
     InaudibleCutConfig,
+    _distance_to_nearest_boundary,
     detect_track_cut_mode,
     optimize_source_cut_range,
     optimize_timeline_cut_range,
@@ -25,6 +26,14 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
+
+
+def test_nearest_retained_boundary_matches_linear_scan() -> None:
+    boundaries = [0.0, 0.15, 2.5, 4.0, 4.0, 9.3]
+    for position in (-1.0, 0.0, 0.12, 3.3, 4.0, 12.0):
+        assert _distance_to_nearest_boundary(position, boundaries) == min(
+            abs(position - boundary) for boundary in boundaries
+        )
 
 
 def _project(tmp_path: Path) -> EpisodeProject:

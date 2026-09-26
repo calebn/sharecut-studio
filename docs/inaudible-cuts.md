@@ -51,7 +51,7 @@ If a waveform window cannot be decoded while optimizing a cut or scoring an opti
 
 - Transcript cuts: `cut_time_range`, `cut_text_match`, `cut_utterance`, `cut_words`, `apply_edit_plan`.
 - **Filler/pause tighten** — proposals and apply both use waveform optimization when `tighten.inaudible_opt: true` (default). Lexicon membership is in [filler-cut-quality.md](filler-cut-quality.md); discourse markers (`like`, `you know`, …) are demoted there and are not cut from fluent speech.
-- Timeline cuts: `ripple_delete`, `ripple_delete_text`, `shorten_gaps`, clip split/rejoin.
+- Timeline cuts: `ripple_delete`, `ripple_delete_text`, `shorten_gaps`, clip split/rejoin. `shorten_gaps` maps word gaps against one clip snapshot and applies the merged removals as one batch.
 - `strip_silence` rebuilds speech islands from silence detection (padding from silence interiors). It does **not** run `optimize_source_cut_range`; `--inaudible-opt` / `use_inaudible_opt` on strip are accepted for API compatibility and ignored. Joins still get micro-fades via `recommend_micro_fades`.
 
 NL editing tools and CLI commands are listed in [nl-editing.md](nl-editing.md).

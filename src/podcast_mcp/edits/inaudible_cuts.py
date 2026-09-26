@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import math
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -129,13 +130,14 @@ def _retained_word_boundaries(
                 bounds.extend([w.start, w.end])
         else:
             bounds.extend([w.start, w.end])
-    return bounds
+    return sorted(bounds)
 
 
 def _distance_to_nearest_boundary(t: float, boundaries: list[float]) -> float:
     if not boundaries:
         return float("inf")
-    return min(abs(t - b) for b in boundaries)
+    at = bisect_left(boundaries, t)
+    return min(abs(t - boundaries[i]) for i in (at - 1, at) if 0 <= i < len(boundaries))
 
 
 def _enforce_word_margin(
@@ -149,7 +151,9 @@ def _enforce_word_margin(
         return t
     if _distance_to_nearest_boundary(t, boundaries) >= margin_sec:
         return t
-    candidates = [b for b in boundaries if abs(b - orig_t) <= max_shift + 1e-9]
+    lo = bisect_left(boundaries, orig_t - max_shift - 1e-9)
+    hi = bisect_right(boundaries, orig_t + max_shift + 1e-9)
+    candidates = boundaries[lo:hi]
     safe = [b for b in candidates if _distance_to_nearest_boundary(b, boundaries) >= margin_sec]
     if safe:
         return min(safe, key=lambda b: abs(b - orig_t))

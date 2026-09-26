@@ -602,6 +602,13 @@ def test_shorten_word_gaps() -> None:
     assert summary["operation"] == "shorten_word_gaps"
 
 
+def test_shorten_word_gaps_uses_one_batch_delete() -> None:
+    p = _two_track_project()
+    with patch("podcast_mcp.edits.timeline_ops.batch_ripple_delete") as batch:
+        shorten_word_gaps(p, max_gap_sec=0.2, use_inaudible_opt=False)
+    assert batch.call_count == 1
+
+
 def test_batch_ripple_empty_ranges() -> None:
     p = _two_track_project()
     summary = batch_ripple_delete(p, [])
@@ -966,8 +973,8 @@ def test_room_tone_helpers_edge_cases() -> None:
             return_value=None,
         ),
         patch(
-            "podcast_mcp.engines.session_timeline.SessionTimeline.map_source_span",
-            return_value=[],
+            "podcast_mcp.engines.session_timeline.SessionTimeline.map_source_spans",
+            return_value=[[], []],
         ),
     ):
         assert _peer_speech_source_occupancy(p, "host", clip) == []
@@ -979,8 +986,8 @@ def test_room_tone_helpers_edge_cases() -> None:
             side_effect=lambda _tid, sec: type("S", (), {"__float__": lambda self: float(sec)})(),
         ),
         patch(
-            "podcast_mcp.engines.session_timeline.SessionTimeline.map_source_span",
-            side_effect=lambda _tid, a, b: [(20.0, 21.0)],  # outside clip 0-10
+            "podcast_mcp.engines.session_timeline.SessionTimeline.map_source_spans",
+            side_effect=lambda _tid, spans: [[(20.0, 21.0)] for _ in spans],
         ),
     ):
         assert _peer_speech_source_occupancy(p, "host", clip) == []
