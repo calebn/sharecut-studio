@@ -30,12 +30,16 @@ log = logging.getLogger(__name__)
 
 
 class RollbackOutcome(StrEnum):
-    """What ``roll_back_history`` found and did after a failed record/commit step."""
+    """What ``roll_back_history`` found and did to history after a failed record/commit step.
 
-    LANDED = "landed"  # the commit replaced the project file: history kept, memory matches it
-    UNKNOWN = "unknown"  # the project file could not be stat'ed: memory restored, disk kept
-    RESTORED = "restored"  # index, snapshots and memory are back at the checkpoint
-    KEPT = "kept"  # another writer recorded on top, or the rollback failed: memory adopts disk
+    Only ``project.history`` is handled here; the caller decides what other in-memory state
+    to keep (``rolled_back_on_failure``'s ``on_not_landed``).
+    """
+
+    LANDED = "landed"  # the commit replaced the project file: its history is kept
+    UNKNOWN = "unknown"  # landing unverified: index and snapshots stay on disk
+    RESTORED = "restored"  # index, snapshots and project.history are back at the checkpoint
+    KEPT = "kept"  # another writer recorded on top, or the rollback failed: history adopts disk
 
 
 @dataclass

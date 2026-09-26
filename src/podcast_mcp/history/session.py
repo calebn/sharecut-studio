@@ -41,7 +41,9 @@ class _PreMutateState:
     """In-memory state run_mutation puts back when its call did not land on disk (#489).
 
     Editable snapshot plus ``render`` (written by the audio bookkeeping); history is
-    restored separately by roll_back_history.
+    restored separately by roll_back_history. ``history/manager.py`` restores only
+    ``EDITABLE_FIELDS``; if a second caller needs editable + ``render``, move this next to
+    ``snapshot_from_project`` so one place defines the in-memory restore set.
     """
 
     editable: ProjectStateSnapshot
