@@ -65,3 +65,6 @@ examples/minimal_episode/artifacts/
 # Local-only ingest alignment probes (ephemeral; do not commit)
 scripts/find_*.py
 scripts/find_*.sh
+
+# Local lab runs (sharecut-podcast-lab make-run.sh --runs-dir; see docs/testing.md)
+.lab-runs/

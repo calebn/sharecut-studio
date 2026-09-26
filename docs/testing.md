@@ -323,6 +323,26 @@ Fixture registry: [fixture-catalog.md](fixture-catalog.md). Expansion plan: [e2e
 
 E2e runs use `--no-cov` so they do not affect the coverage gate when run standalone.
 
+### Local lab verification (private tape)
+
+For audio, pipeline and DAW behaviour that the Tier A fixtures are too small to show, verify locally against the maintainer's private practice tape: `calebn/sharecut-podcast-lab`, checked out at `~/projects/ShareCut_Podcast_Test`. It holds 28 minutes of 3-speaker Zoom stems locked at offset 0, a 2-minute excerpt, a seeded Whisper transcript, and a human "gold" edit. Its README covers the details.
+
+- **Local only.** The lab is private, so it is never a CI dependency. Don't copy its media into this repo; write Tier A tests for the behaviour you fix.
+- **Runs are disposable,** built from its frozen `source/` by `scripts/make-run.sh`. Issues that name the lab include the exact repro commands.
+- **Parallel agents share one checkout.** Isolate your *runs*, not the lab. From the root of your worktree:
+
+  ```bash
+  export LAB=~/projects/ShareCut_Podcast_Test
+  export LAB_RUNS_DIR=$PWD/.lab-runs                  # gitignored here; removed with the worktree
+  $LAB/scripts/make-run.sh repro --prep               # bare + stems/reconcile/precorrect, gates waived
+  cp -ac $LAB/runs/baseline $LAB_RUNS_DIR/scratch      # or clone the shared bare baseline (APFS, instant)
+  ```
+
+  - **Your branch's CLI:** the script uses `$PODCAST`, else `./.venv/bin/podcast` from the directory you run it in, and prints the branch and commit it's testing.
+  - **Read-only shared data:** `$LAB/runs/baseline` and `$LAB/source/` are never edited. Clone the baseline instead.
+  - **GUI port:** start the GUI on the free port the script prints (`podcast gui … --port N --no-open`), not 8765.
+  - **Transcription:** use `--source excerpt` (~2 min) for ASR checks. Full-length live ASR, and any full `pipeline run`, goes through `$LAB/scripts/with-asr-lock.sh`, so parallel lanes don't transcribe 3 × 28 min at once.
+
 ### Large-project browser profile (opt-in)
 
 Issue #29 has a disposable performance fixture rather than committed media.
