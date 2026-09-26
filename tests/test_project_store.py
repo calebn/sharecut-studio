@@ -3,7 +3,12 @@ from __future__ import annotations
 import json
 
 from podcast_mcp.models import EpisodeProject, save_project
-from podcast_mcp.project_store import ProjectStore, history_snapshot_ids, rollback_history
+from podcast_mcp.project_store import (
+    ProjectStore,
+    history_snapshot_ids,
+    history_snapshots_dir,
+    rollback_history,
+)
 
 
 def test_load_repairs_missing_workspace_dir(tmp_path) -> None:
@@ -38,7 +43,7 @@ def test_load_project_remaps_stale_absolute_workspace_dir(tmp_path) -> None:
 
 def test_rollback_history_restores_the_index_and_drops_only_new_snapshots(tmp_path):
     index_path = tmp_path / "history" / "index.json"
-    snaps = index_path.parent / "snapshots"
+    snaps = history_snapshots_dir(index_path)
     snaps.mkdir(parents=True)
     for entry_id in ("old", "new"):
         (snaps / f"{entry_id}.json").write_text("{}", encoding="utf-8")

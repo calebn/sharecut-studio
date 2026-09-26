@@ -17,7 +17,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.models.history import ProjectHistory
-from podcast_mcp.project_store import ProjectStore
+from podcast_mcp.project_store import ProjectStore, history_index_path, history_snapshot_path
 from podcast_mcp.util import atomic_json
 
 
@@ -364,3 +364,10 @@ def test_store_load_prefers_index_over_empty_history(minimal_project):
     minimal_project.write_text(json.dumps(data), encoding="utf-8")
     loaded = ProjectStore(minimal_project).load()
     assert [e.label for e in loaded.history.entries] == ["indexed"]
+
+
+def test_snapshot_file_uses_the_shared_layout(minimal_project):
+    proj = load_project(minimal_project)
+    entry = HistoryManager(minimal_project).record(proj, "snap", force=True)
+    assert entry.snapshot_file == f"history/snapshots/{entry.id}.json"
+    assert history_snapshot_path(history_index_path(proj), entry.id).is_file()

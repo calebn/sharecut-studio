@@ -16,6 +16,16 @@ def history_index_path(project: EpisodeProject) -> Path:
     return project.history_dir() / "index.json"
 
 
+def history_snapshots_dir(index_path: Path) -> Path:
+    """Directory holding the history snapshot files beside ``index_path``."""
+    return index_path.parent / "snapshots"
+
+
+def history_snapshot_path(index_path: Path, entry_id: str) -> Path:
+    """Snapshot file of history entry ``entry_id`` (``snapshots/<id>.json``)."""
+    return history_snapshots_dir(index_path) / f"{entry_id}.json"
+
+
 def restore_history_index(index_path: Path, payload: dict[str, Any] | None) -> None:
     """Put ``history/index.json`` back to ``payload`` read earlier (``None``: it did not exist)."""
     if payload is None:
@@ -25,8 +35,8 @@ def restore_history_index(index_path: Path, payload: dict[str, Any] | None) -> N
 
 
 def history_snapshot_ids(index_path: Path) -> set[str]:
-    """Entry ids that have a snapshot file beside ``index_path`` (``snapshots/<id>.json``)."""
-    return {p.stem for p in (index_path.parent / "snapshots").glob("*.json")}
+    """Entry ids that have a snapshot file beside ``index_path``."""
+    return {p.stem for p in history_snapshots_dir(index_path).glob("*.json")}
 
 
 def rollback_history(
@@ -38,9 +48,8 @@ def rollback_history(
     raises and leaves them in place.
     """
     restore_history_index(index_path, index_before)
-    snapshots = index_path.parent / "snapshots"
     for entry_id in new_entry_ids:
-        (snapshots / f"{entry_id}.json").unlink(missing_ok=True)
+        history_snapshot_path(index_path, entry_id).unlink(missing_ok=True)
 
 
 class ProjectStore:
