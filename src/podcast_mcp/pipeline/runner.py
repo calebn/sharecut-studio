@@ -22,6 +22,7 @@ from podcast_mcp.models import (
     PipelineStepLog,
 )
 from podcast_mcp.pipeline import steps as pipeline_steps
+from podcast_mcp.project_store import commit_landed
 from podcast_mcp.util.progress import (
     CancelledProgress,
     ProgressReporter,
@@ -149,11 +150,9 @@ def _complete_step(
         try:
             on_step_complete(name)
         except BaseException:
-            try:
-                landed = project_file_revision(project) != before
-            except OSError:
-                landed = False  # unknown: never claim a step that may not be saved
-            if not landed:
+            # None (the file cannot be stat'ed) counts as not landed: never claim a step
+            # that may not be saved.
+            if not commit_landed(project, before):
                 project.last_completed_step = previous_step
             raise
 
