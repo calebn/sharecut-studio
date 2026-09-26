@@ -1,3 +1,5 @@
+import { clampToSession } from "./time";
+
 /**
  * Convert a pointer clientX to timeline seconds.
  *
@@ -18,5 +20,5 @@ export function clientXToTimelineSec(
   const left = fromCanvas ? target.getBoundingClientRect().left : target.left;
   const zoom = zoomPxPerSec > 0 ? zoomPxPerSec : 1;
   const x = clientX - left + (fromCanvas ? 0 : scrollLeft);
-  return Math.max(0, Math.min(durationSec, x / zoom));
+  return clampToSession(x / zoom, durationSec);
 }

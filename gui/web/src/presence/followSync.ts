@@ -12,20 +12,11 @@ import type {
   PresenceViewport,
   SessionClient,
 } from "../types/session";
+import { clampToSession } from "../utils/time";
 import { MIN_VIEWPORT_SPAN_SEC } from "../utils/timelineZoom.generated";
 import { clampZoomPxPerSec } from "../utils/zoom";
 
 export { serverNowMs } from "./clock";
-
-/**
- * Clamp a session time to `[0, durationSec]`. The upper clamp is skipped
- * while the duration is unknown (not finite, e.g. before the project loads).
- */
-export function clampToSession(raw: number, durationSec: number): number {
-  return Number.isFinite(durationSec)
-    ? Math.max(0, Math.min(durationSec, raw))
-    : Math.max(0, raw);
-}
 
 export function expectedPlayheadSec(
   t: PresenceTransport,

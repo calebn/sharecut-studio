@@ -1,7 +1,7 @@
 import { memo, useCallback, useRef } from "react";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { useDawStore } from "../state/dawStore";
-import { formatRulerTime, niceTimeStep } from "../utils/time";
+import { clampToSession, formatRulerTime, niceTimeStep } from "../utils/time";
 import {
   MIN_TIMELINE_WIDTH_PX,
   viewportChunkRange,
@@ -123,7 +123,7 @@ export function TimeRuler({
   const secFromEvent = (el: HTMLElement, clientX: number) => {
     const rect = el.getBoundingClientRect();
     const x = clientX - rect.left;
-    return Math.max(0, Math.min(durationSec, x / zoomPxPerSec));
+    return clampToSession(x / zoomPxPerSec, durationSec);
   };
 
   return (

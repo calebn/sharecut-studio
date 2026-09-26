@@ -140,3 +140,13 @@ export function formatRulerTime(
   const ss = `${String(whole % 60).padStart(2, "0")}${frac}`;
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
 }
+
+/**
+ * Clamp a session time to `[0, durationSec]`. The upper clamp is skipped
+ * while the duration is unknown (not finite, e.g. before the project loads).
+ */
+export function clampToSession(raw: number, durationSec: number): number {
+  return Number.isFinite(durationSec)
+    ? Math.max(0, Math.min(durationSec, raw))
+    : Math.max(0, raw);
+}
