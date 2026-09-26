@@ -8,8 +8,9 @@ import re
 import sqlite3
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, NamedTuple
 
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.services.session_sync.service import sync_db_path
@@ -164,9 +165,23 @@ def _load_clipping(raw: Any) -> list[list[int]] | None:
     return [[int(a), int(b)] for a, b in parsed]
 
 
-# Per-file metadata columns set from upload parts: (select, upsert) SQL.
-_FILE_COLUMN_SQL: dict[str, tuple[str, str]] = {
-    "join_offset_ms": (
+def _load_int(raw: Any) -> int | None:
+    return None if raw is None else int(raw)
+
+
+FileColumn = Literal["join_offset_ms", "clipping_regions"]
+
+
+class _FileColumnSpec(NamedTuple):
+    select_sql: str
+    upsert_sql: str
+    # Decodes a stored or incoming value, so a replay is compared by value, not by serialization.
+    decode: Callable[[Any], Any]
+
+
+# Per-file metadata columns set from upload parts: select + upsert SQL and a value decoder.
+_FILE_COLUMNS: dict[FileColumn, _FileColumnSpec] = {
+    "join_offset_ms": _FileColumnSpec(
         """
         SELECT landed_ns, join_offset_ms AS current FROM record_upload_files
         WHERE session_id = ? AND take_index = ? AND participant_id = ?
@@ -179,8 +194,9 @@ _FILE_COLUMN_SQL: dict[str, tuple[str, str]] = {
         ON CONFLICT(session_id, take_index, participant_id, segment_index)
         DO UPDATE SET join_offset_ms = excluded.join_offset_ms
         """,
+        decode=_load_int,
     ),
-    "clipping_regions": (
+    "clipping_regions": _FileColumnSpec(
         """
         SELECT landed_ns, clipping_regions AS current FROM record_upload_files
         WHERE session_id = ? AND take_index = ? AND participant_id = ?
@@ -193,6 +209,7 @@ _FILE_COLUMN_SQL: dict[str, tuple[str, str]] = {
         ON CONFLICT(session_id, take_index, participant_id, segment_index)
         DO UPDATE SET clipping_regions = excluded.clipping_regions
         """,
+        decode=_load_clipping,
     ),
 }
 
@@ -394,7 +411,7 @@ class RecordUploadStore:
 
     def _set_file_column(
         self,
-        column: str,
+        column: FileColumn,
         value: int | str,
         *,
         label: str,
@@ -404,17 +421,17 @@ class RecordUploadStore:
         segment_index: int,
     ) -> None:
         """Upsert one per-file column. After land only an identical replay passes."""
-        select_sql, upsert_sql = _FILE_COLUMN_SQL[column]
+        spec = _FILE_COLUMNS[column]
         key = (session_id, take_index, participant_id, segment_index)
         with self._lock:
-            row = self._conn.execute(select_sql, key).fetchone()
+            row = self._conn.execute(spec.select_sql, key).fetchone()
             if row is not None and row["landed_ns"] is not None:
                 # A lost response makes the client re-send the final part:
                 # the same value is a no-op, a different one is refused.
-                if row["current"] == value:
+                if spec.decode(row["current"]) == spec.decode(value):
                     return
                 raise RecordUploadError(f"{label} refused after land")
-            self._conn.execute(upsert_sql, (*key, value))
+            self._conn.execute(spec.upsert_sql, (*key, value))
 
     def set_join_offset(
         self,

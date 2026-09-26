@@ -1449,6 +1449,27 @@ def test_old_upload_db_gains_the_clipping_column(tmp_path: Path):
     store.close()
 
 
+def test_clipping_replay_after_land_compares_values_not_json_text(tmp_path: Path):
+    from podcast_mcp.services.record.upload import RecordUploadStore
+
+    store = RecordUploadStore(tmp_path / "sync.db")
+    key: dict[str, Any] = {
+        "session_id": "s",
+        "take_index": 0,
+        "participant_id": "p_a",
+        "segment_index": 0,
+    }
+    store.set_clipping_regions(**key, regions=[[1, 2]])
+    # Stored with different spacing (compact separators), then landed.
+    store._conn.execute(
+        "UPDATE record_upload_files SET clipping_regions = ?, landed_ns = 1", ("[[1,2]]",)
+    )
+    store.set_clipping_regions(**key, regions=[[1, 2]])  # identical replay: no-op
+    with pytest.raises(RecordUploadError, match="clipping refused after land"):
+        store.set_clipping_regions(**key, regions=[[1, 3]])
+    store.close()
+
+
 def test_http_rejects_bad_clipping_with_400(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
