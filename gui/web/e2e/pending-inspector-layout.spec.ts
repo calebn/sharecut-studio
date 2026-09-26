@@ -1,5 +1,5 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
-import { e2eProjectPath } from "./env";
+import { openSuggestedPendingEdit } from "./pendingEdit";
 
 const REFINE_GATE =
   "Transcript refine is required before focus/tighten/NL edits. Run podcast-transcript-refine (whole-episode pass), then `podcast transcript refine-waive --reason ...` / transcript_refine_waive_tool.";
@@ -41,23 +41,6 @@ async function stubApproveEditsRefineGate(page: Page): Promise<void> {
   });
 }
 
-async function openPendingInspector(page: Page) {
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-  await expect(page.getByRole("heading", { level: 1 })).toContainText(
-    /aligned dialogue/i,
-  );
-  await page.getByRole("button", { name: "Suggest cut" }).click();
-  const panels = page.getByLabel("Editor panels");
-  await panels.getByRole("button", { name: "Impact" }).click();
-  await panels
-    .getByRole("button", { name: /guest:suggest/ })
-    .last()
-    .click();
-  await expect(
-    page.getByRole("heading", { name: "Pending edit" }),
-  ).toBeVisible();
-}
-
 async function clickApproveUntilError(
   page: Page,
   root: Locator,
@@ -88,7 +71,7 @@ test.describe("Pending inspector layout", () => {
   test("error, Ask, and A/B do not overlap at 1280px", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await stubApproveEditsRefineGate(page);
-    await openPendingInspector(page);
+    await openSuggestedPendingEdit(page);
     await page.getByRole("button", { name: "Approve", exact: true }).click();
     const error = page.locator(".modifier-error");
     const askHelp = page.getByText(/Hear Suggested, then approve/);
@@ -106,7 +89,7 @@ test.describe("Pending inspector layout", () => {
   test("tablet sheet keeps error above the A/B footer", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await stubApproveEditsRefineGate(page);
-    await openPendingInspector(page);
+    await openSuggestedPendingEdit(page);
     await page.setViewportSize({ width: 1024, height: 768 });
     await expect(page.locator(".daw-shell--tablet")).toBeVisible();
     await expect(
@@ -136,7 +119,7 @@ test.describe("Pending inspector layout", () => {
   test("phone sheet keeps error above the A/B footer", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await stubApproveEditsRefineGate(page);
-    await openPendingInspector(page);
+    await openSuggestedPendingEdit(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.locator(".daw-shell--phone")).toBeVisible();
     await page.getByRole("button", { name: "Timeline" }).click();

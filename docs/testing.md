@@ -438,6 +438,13 @@ bundle guard fails if E2E page flags or signal counters remain in emitted assets
 
 `expectPageAxeClean(page, selector)` can also check a focused surface; the open transport-menu test scopes its axe check to the menu while unrelated track-header and loading-timeline ARIA names are tracked in #114. Do not disable additional axe rules to hide failures.
 
+### Shared live project in Playwright
+
+Specs share one live project with `workers: 1`, so rows from earlier specs (for
+example `guest:suggest` pending edits) are still present. A spec that acts on a
+row it just created must wait for its own mutation's response first
+(`e2e/pendingEdit.ts` `openSuggestedPendingEdit`) rather than trusting `.last()`.
+
 ### Record-room Playwright scenarios
 
 The room-tone Accept browser scenario opts into a deterministic PCM harness in
