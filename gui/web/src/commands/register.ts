@@ -55,6 +55,7 @@ import type {
 } from "../state/types";
 import { errorMessage } from "../utils/apiError";
 import { bladeTrackIds } from "../utils/bladeTracks";
+import { clampToSession } from "../utils/time";
 import { discreteZoomFactor } from "../utils/zoom";
 import { type CommandContext, evaluateWhen } from "./context";
 import { registerCommand } from "./execute";
@@ -284,8 +285,8 @@ export function registerDawCommands(): void {
       return { status: "disabled", reason: "sec must be a number" };
     }
     const s = useDawStore.getState();
-    const duration = s.project?.timeline_duration_sec ?? Infinity;
-    s.setPlayheadSec(Math.max(0, Math.min(duration, sec)));
+    const duration = s.project?.timeline_duration_sec ?? Number.NaN;
+    s.setPlayheadSec(clampToSession(sec, duration));
     return { status: "ok" };
   });
 

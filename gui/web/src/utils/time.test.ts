@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  clampToSession,
   formatRulerTime,
   formatTime,
   formatTimecodeCompact,
@@ -122,5 +123,16 @@ describe("formatTimeShort", () => {
 
   it("clamps negative values to 0:00", () => {
     expect(formatTimeShort(-3)).toBe("0:00");
+  });
+});
+
+describe("clampToSession", () => {
+  it("clamps to the session, skipping the upper bound when unknown", () => {
+    expect(clampToSession(5, 60)).toBe(5);
+    expect(clampToSession(90, 60)).toBe(60);
+    expect(clampToSession(-1, 60)).toBe(0);
+    expect(clampToSession(90, Number.NaN)).toBe(90);
+    expect(clampToSession(-1, Number.NaN)).toBe(0);
+    expect(clampToSession(5, 0)).toBe(0);
   });
 });

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MAX_CONTENT_PX } from "../utils/timelineZoom.generated";
 import {
-  clampToSession,
   expectedPlayheadSec,
   followBannerDetail,
   isLocalPresenceClient,
@@ -19,15 +18,6 @@ import {
 } from "./followSync";
 
 describe("followSync", () => {
-  it("clamps to the session, skipping the upper bound when unknown", () => {
-    expect(clampToSession(5, 60)).toBe(5);
-    expect(clampToSession(90, 60)).toBe(60);
-    expect(clampToSession(-1, 60)).toBe(0);
-    expect(clampToSession(90, Number.NaN)).toBe(90);
-    expect(clampToSession(-1, Number.NaN)).toBe(0);
-    expect(clampToSession(5, 0)).toBe(0);
-  });
-
   it("clamps remote playhead ghosts", () => {
     const t = (v: number) => ({
       meta: { transport: { playing: false, playhead_sec: v, rate: 1 } },
