@@ -177,7 +177,7 @@ flowchart LR
 |----------|-------|
 | When on mix | `timeline_start` … `timeline_end` |
 | From raw | `source_start` … `source_end` |
-| Fades | `fade_in_ms` / `fade_out_ms` (handles at the clip's start / end edge); dialogue capped at 40 ms by default; both fades fit in the clip without overlapping (the clip inspector says when it clamped an entry); a click under 3 px on a handle only selects |
+| Fades | `fade_in_ms` / `fade_out_ms` (handles at the clip's start / end edge); dialogue capped at 40 ms by default (the cap shown in the inspector refreshes with every fade save); both fades fit in the clip without overlapping (the clip inspector says when it clamped an entry); a click under 3 px on a handle only selects |
 | Join | `join_in_mode` |
 
 ---

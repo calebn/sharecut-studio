@@ -132,7 +132,9 @@ class TrackView(BaseModel):
     stem_is_fresh: bool | None = None
     has_source_audio: bool = False
     media_path: str | None = None
-    # Longest edge fade (ms) a clip on this track may take; null = uncapped.
+    # Longest edge fade (ms) a clip on this track may take; null = uncapped. Display copy of
+    # the cap set_clip_fade enforces at write time (same track_fade_max_ms resolver); every
+    # TRACKS/CLIPS slice, including the one after each SetClipFade, rebuilds it.
     fade_max_ms: int | None = None
 
 

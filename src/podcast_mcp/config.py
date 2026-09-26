@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import math
 import os
 from pathlib import Path
@@ -41,12 +42,31 @@ def models_dir() -> Path:
     return d
 
 
+_PARSED_DEFAULTS: dict[str, tuple[tuple[int, int], dict[str, Any]]] = {}
+
+
+def _parsed_defaults(path: Path) -> dict[str, Any]:
+    """A private copy of *path*'s parsed YAML, re-read only when its mtime or size changes."""
+    st = path.stat()
+    stamp = (st.st_mtime_ns, st.st_size)
+    key = str(path)
+    hit = _PARSED_DEFAULTS.get(key)
+    if hit is None or hit[0] != stamp:
+        with path.open(encoding="utf-8") as f:
+            hit = (stamp, yaml.safe_load(f) or {})
+        _PARSED_DEFAULTS[key] = hit
+    return copy.deepcopy(hit[1])
+
+
 def load_defaults() -> dict[str, Any]:
+    """Pipeline defaults (``PODCAST_MCP_PIPELINE_DEFAULTS`` or the repo YAML) with the Whisper overlay.
+
+    The YAML is parsed once per file change (mtime/size); each caller gets its own copy.
+    """
     override = os.environ.get("PODCAST_MCP_PIPELINE_DEFAULTS")
     path = Path(override).expanduser() if override else _DEFAULTS_PATH
     if path.is_file():
-        with path.open(encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
+        data = _parsed_defaults(path)
         from podcast_mcp.whisper_models import apply_whisper_model_to_defaults
 
         apply_whisper_model_to_defaults(data)
