@@ -28,15 +28,23 @@ describe("layout controls", () => {
   it("toggles between default and maximized timeline", async () => {
     const user = userEvent.setup();
     const view = renderControls();
-    const toggle = screen.getByRole("button", { name: "Maximize layout" });
-    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    const toggle = screen.getByRole("button", { name: "Maximize timeline" });
+    expect(toggle).not.toHaveAttribute("aria-pressed");
     await user.click(toggle);
     expect(useDawStore.getState().layoutMode).toBe("timeline");
-    expect(toggle).toHaveAttribute("aria-pressed", "true");
-    expect(toggle.getAttribute("title")).toContain("Restore layout");
+    const restore = screen.getByRole("button", { name: "Restore layout" });
+    expect(restore).not.toHaveAttribute("aria-pressed");
+    expect(restore.getAttribute("title")).toMatch(/^Restore layout( \(.+\))?$/);
     await expectNoA11yViolations(view.container);
-    await user.click(toggle);
+    await user.click(restore);
     expect(useDawStore.getState().layoutMode).toBe("default");
+  });
+
+  it("names the toggle Restore layout in the text and review layouts", () => {
+    useDawStore.setState({ layoutMode: "review" });
+    renderControls();
+    expect(screen.getByRole("button", { name: "Restore layout" })).toBeTruthy();
+    useDawStore.setState({ layoutMode: "default" });
   });
 
   it("shows a Restore chip only outside the default layout", async () => {

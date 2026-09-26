@@ -1,3 +1,4 @@
+import { COMMANDS } from "../commands/catalog";
 import type { LayoutMode } from "../state/types";
 
 export type LayoutModeCopy = {
@@ -15,25 +16,25 @@ const DEFAULT_LAYOUT: LayoutModeCopy = {
   chipLabel: null,
 };
 
-/** Single source of layout copy for the View menu, toggle and Restore chip. */
+/** Layout copy for the View menu and Restore chip. Action labels come from the command catalog (`commands/catalog.ts`), which governance.test.ts keeps in step with the keymap and the capabilities manifest. */
 export const LAYOUT_MODES: readonly LayoutModeCopy[] = [
   DEFAULT_LAYOUT,
   {
     id: "timeline",
     command: "layout.timeline",
-    menuLabel: "Maximize timeline",
+    menuLabel: COMMANDS["layout.timeline"].label,
     chipLabel: "Timeline maximized",
   },
   {
     id: "text",
     command: "layout.text",
-    menuLabel: "Maximize transcript",
+    menuLabel: COMMANDS["layout.text"].label,
     chipLabel: "Transcript maximized",
   },
   {
     id: "review",
     command: "layout.review",
-    menuLabel: "Review layout",
+    menuLabel: COMMANDS["layout.review"].label,
     chipLabel: "Review layout",
   },
 ];

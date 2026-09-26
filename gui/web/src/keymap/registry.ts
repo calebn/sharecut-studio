@@ -625,6 +625,16 @@ export function displayShortcutFor(
   return cmd ? displayShortcutKeys(cmd, apple) : undefined;
 }
 
+/** `Label (⌘1)` tooltip; the bare label when the command has no shortcut. */
+export function titleWithShortcut(
+  label: string,
+  commandId: string,
+  apple: boolean = isApplePlatform(),
+): string {
+  const shortcut = displayShortcutFor(commandId, apple);
+  return shortcut ? `${label} (${shortcut})` : label;
+}
+
 const ARIA_MODIFIERS_APPLE: Record<string, string> = { Mod: "Meta" };
 const ARIA_MODIFIERS_OTHER: Record<string, string> = { Mod: "Control" };
 

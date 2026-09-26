@@ -10,6 +10,7 @@ import {
   keymapCommandById,
   matchKeymapCommand,
   matchKeymapCommands,
+  titleWithShortcut,
 } from "./registry";
 import { _resetKeymapOverridesForTests, setKeymapOverride } from "./remaps";
 
@@ -298,6 +299,13 @@ describe("remapped shortcuts", () => {
 });
 
 describe("shortcut helpers by command id", () => {
+  it("titleWithShortcut omits empty parentheses", () => {
+    expect(titleWithShortcut("Restore layout", "layout.default", true)).toBe(
+      "Restore layout (⌘1)",
+    );
+    expect(titleWithShortcut("Anything", "not.a.command")).toBe("Anything");
+  });
+
   it("format menu labels and aria-keyshortcuts per platform", () => {
     expect(displayShortcutFor("export.bounce", true)).toBe("⌘⇧B");
     expect(displayShortcutFor("not.a.command")).toBeUndefined();
