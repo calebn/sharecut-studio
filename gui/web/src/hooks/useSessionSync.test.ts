@@ -227,6 +227,44 @@ describe("useSessionSync presence", () => {
     expect(useRecordHostStore.getState().dropped).toBe(false);
   });
 
+  it("ignores the old socket's late close after a project switch", async () => {
+    const { useRecordHostStore } = await import("../record/hostStore");
+    const { sendRecordHostCommand } = await import("../record/hostWire");
+    useRecordHostStore.getState().resetConnection();
+    const { rerender } = renderHook(
+      ({ path }: { path: string }) =>
+        useSessionSync(
+          path,
+          vi.fn(),
+          () => ({}),
+          true,
+          0,
+          null,
+          false,
+          "k",
+          true,
+        ),
+      { initialProps: { path: "/tmp/ep.project.json" } },
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const old = FakeWebSocket.instances[0];
+    const lateClose = old.onclose;
+    old.close = () => undefined; // real sockets fire close later
+    rerender({ path: "/tmp/other.project.json" });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(old.onclose).toBeNull();
+    expect(useRecordHostStore.getState().connected).toBe(true);
+    act(() => lateClose?.());
+    expect(useRecordHostStore.getState().connected).toBe(true);
+    expect(useRecordHostStore.getState().dropped).toBe(false);
+    expect(sendRecordHostCommand("SetMuted", { muted: true })).toBe(true);
+  });
+
   it("advances the applied cursor to the published last_command_id", async () => {
     vi.useFakeTimers({
       toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],

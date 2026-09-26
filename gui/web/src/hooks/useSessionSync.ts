@@ -206,7 +206,7 @@ export function useSessionSync(
         }
       };
       socket.onclose = () => {
-        if (socket !== thisSocket) {
+        if (cancelled || socket !== thisSocket) {
           return;
         }
         sendRef.current = null;
@@ -230,7 +230,14 @@ export function useSessionSync(
         window.clearTimeout(retry);
       }
       bindRecordHostSend(null);
-      socket?.close();
+      if (socket) {
+        // A late close or open from this socket must not touch the next run's state.
+        socket.onopen = null;
+        socket.onmessage = null;
+        socket.onclose = null;
+        socket.onerror = null;
+        socket.close();
+      }
       sendRef.current = null;
       setWsReady(false);
       useRecordHostStore.getState().resetConnection();
