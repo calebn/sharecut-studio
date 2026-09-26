@@ -118,6 +118,9 @@ test.describe("browser compatibility matrix", () => {
       });
     });
     await openHostProject(page);
+    // The receiver must learn about the later mutation through document sync.
+    // A successful metadata poll would otherwise hydrate the same comment.
+    await page.route("**/api/project/meta?*", (route) => route.abort("failed"));
     const socketCount = () =>
       page.evaluate(
         () =>
