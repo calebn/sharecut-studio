@@ -40,6 +40,7 @@ def test_from_ms_clamps_to_the_file_and_drops_empties() -> None:
     out = clipping_regions_from_ms([[100, 250], [1900, 5000], [6000, 7000]], 2.0)
     assert [(r.start_s, r.end_s) for r in out] == [(0.1, 0.25), (1.9, 2.0)]
     assert clipping_regions_from_ms(None, 2.0) == []
+    assert clipping_regions_from_ms([[500, 500], [3000, 4000]], 2.0) == []
     unbounded = clipping_regions_from_ms([[0, 10_000]], None)
     assert unbounded[0].end_s == 10.0
 
