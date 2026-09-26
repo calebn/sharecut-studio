@@ -172,6 +172,8 @@ same bleed decision inputs and avoids repeated profile file reads.
 
 Writers of stems, premix and master (stem render, mix, master, export, Refresh, on-demand `ensure_stem`) hold the per-workspace render lock `artifacts/render.lock` (cross-process, re-entrant, 60 min timeout; #482). A second export or Refresh waits instead of mixing over the same premix. Lock order: render lock, then the project locks (`project_state_lock`, `project_commit_lock`); never take the render lock while holding those. Readers never take it.
 
+Each stem is published as render-to-sibling-temp, drop the `.hash`, `os.replace` the WAV, then write the new hash from the same project snapshot (#356), so a `.hash` only ever names the bytes beside it. Bleed-mute apply rewrites a stem the same way. Processed playback reads the stem's file identity before the freshness check and again after its extract; if a publish swapped the stem in between, it discards the extract and falls back to segment render.
+
 Configure via `performance.max_workers` in `pipeline.yaml`:
 
 ```yaml

@@ -94,3 +94,27 @@ def test_existing_stem_path_requires_file(minimal_project) -> None:
     stem.parent.mkdir(parents=True, exist_ok=True)
     stem.write_bytes(b"stem")
     assert existing_stem_path(project, "host") == stem
+
+
+def test_render_atomic_runs_before_replace_between_render_and_swap(tmp_path: Path) -> None:
+    dest = tmp_path / "stem.wav"
+    dest.write_bytes(b"old")
+    seen: dict[str, bytes] = {}
+
+    def render(tmp: Path) -> None:
+        tmp.write_bytes(b"new")
+        seen["render"] = dest.read_bytes()
+
+    render_atomic(dest, render, before_replace=lambda: seen.update(hook=dest.read_bytes()))
+    assert seen == {"render": b"old", "hook": b"old"}
+    assert dest.read_bytes() == b"new"
+
+    called: list[bool] = []
+
+    def fail(_tmp: Path) -> None:
+        raise RuntimeError("boom")
+
+    with pytest.raises(RuntimeError):
+        render_atomic(dest, fail, before_replace=lambda: called.append(True))
+    assert called == []
+    assert dest.read_bytes() == b"new"

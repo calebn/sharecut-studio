@@ -328,7 +328,9 @@ def test_play_ensure_stem(minimal_project, sample_wav) -> None:
         patch("podcast_mcp.engines.ffmpeg.FFmpegEngine") as eng_cls,
         patch("podcast_mcp.services.play.schedule_stem_waveforms") as waveforms,
     ):
-        eng_cls.return_value.render_dialogue_track = MagicMock()
+        eng_cls.return_value.render_dialogue_track = MagicMock(
+            side_effect=lambda _p, _t, out, _d: out.write_bytes(b"RIFF") or out
+        )
         stem = PlayService(ws).ensure_stem("host")
     assert stem.suffix == ".wav"
     eng_cls.return_value.render_dialogue_track.assert_called_once()
@@ -645,7 +647,13 @@ def test_play_long_rerender_rebuilds_stem(minimal_project, sample_wav) -> None:
     from podcast_mcp.engines.play_audit import write_stem_hash
 
     write_stem_hash(ws.project, "host")
-    mock_render = MagicMock(return_value=stem)
+
+    def _rebuild(_track_id):
+        # The real ensure_stem republishes the stem the rerender just invalidated.
+        stem.write_bytes(sample_wav.read_bytes())
+        return stem
+
+    mock_render = MagicMock(side_effect=_rebuild)
 
     def _extract(_src, out, *_a):
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -1417,3 +1425,145 @@ def test_play_resolve_source_with_mocked_search(minimal_project, sample_wav) -> 
     assert source == "export"
     assert start == pytest.approx(0.0)
     assert end == pytest.approx(3.0)
+
+
+def test_publish_stem_keeps_the_old_pair_until_the_new_bytes_land(
+    minimal_project, sample_wav
+) -> None:
+    from podcast_mcp.engines.play_audit import (
+        publish_stem,
+        read_stem_hash,
+        stem_path,
+        track_render_hash,
+        write_stem_hash,
+    )
+
+    ws = _dialogue_workspace(minimal_project, sample_wav)
+    stem = stem_path(ws.project, "host")
+    stem.parent.mkdir(parents=True, exist_ok=True)
+    stem.write_bytes(b"old")
+    write_stem_hash(ws.project, "host")
+    old_hash = track_render_hash(ws.project, "host")
+    other = ws.project.model_copy(deep=True)
+    other.clips[0].source_end = 1.0
+    assert track_render_hash(other, "host") != old_hash
+
+    def render(tmp: Path) -> None:
+        assert read_stem_hash(ws.project, "host") == old_hash
+        assert stem.read_bytes() == b"old"
+        tmp.write_bytes(b"new")
+
+    publish_stem(other, "host", render)
+    assert stem.read_bytes() == b"new"
+    assert read_stem_hash(ws.project, "host") == track_render_hash(other, "host")
+
+    def boom(tmp: Path) -> None:
+        tmp.write_bytes(b"half")
+        raise RuntimeError("boom")
+
+    with pytest.raises(RuntimeError):
+        publish_stem(ws.project, "host", boom)
+    assert stem.read_bytes() == b"new"
+    assert read_stem_hash(ws.project, "host") == track_render_hash(other, "host")
+    assert list(stem.parent.glob("*.partial*")) == []
+
+
+def test_overlapping_stem_renders_publish_one_at_a_time(
+    minimal_project, sample_wav, caplog
+) -> None:
+    import logging
+    import time
+
+    from podcast_mcp.engines.play_audit import read_stem_hash, track_render_hash
+    from podcast_mcp.pipeline import steps
+
+    ws_a = _dialogue_workspace(minimal_project, sample_wav)
+    ws_b = ProjectWorkspace.open(minimal_project)
+    ws_b.mutate(
+        "before cut",
+        "after cut",
+        lambda live: setattr(live.clips[0], "source_end", 1.0),
+    )
+    in_a, release = threading.Event(), threading.Event()
+    errors: list[BaseException] = []
+
+    def render(snapshot, _track, out, _defaults):
+        marker = str(snapshot.clips[0].source_end)
+        if marker == "2.0":
+            in_a.set()
+            release.wait(5)
+        out.write_bytes(marker.encode())
+        return out
+
+    def run(fn) -> None:
+        try:
+            fn()
+        except BaseException as exc:
+            errors.append(exc)
+
+    with (
+        patch(
+            "podcast_mcp.engines.ffmpeg.FFmpegEngine.render_dialogue_track", side_effect=render
+        ) as rendered,
+        patch("podcast_mcp.services.play.schedule_stem_waveforms"),
+        patch("podcast_mcp.pipeline.steps.schedule_stem_waveforms"),
+        caplog.at_level(logging.INFO, logger="podcast_mcp.util.project_state"),
+    ):
+        ta = threading.Thread(target=run, args=(lambda: PlayService(ws_a).ensure_stem("host"),))
+        ta.start()
+        assert in_a.wait(5)
+        tb = threading.Thread(
+            target=run,
+            args=(
+                lambda: steps.assemble_timeline(ws_b.project, {"performance": {"max_workers": 1}}),
+            ),
+        )
+        tb.start()
+        deadline = time.monotonic() + 5
+        while "waiting for another render" not in caplog.text and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert "waiting for another render" in caplog.text
+        assert rendered.call_count == 1
+        release.set()
+        ta.join(10)
+        tb.join(10)
+    assert not ta.is_alive()
+    assert not tb.is_alive()
+    assert errors == []
+    stem = ws_b.project.artifacts_dir() / "tracks" / "host.wav"
+    assert stem.read_bytes() == b"1.0"
+    assert read_stem_hash(ws_b.project, "host") == track_render_hash(ws_b.project, "host")
+
+
+def test_processed_play_skips_a_stem_published_during_the_extract(
+    minimal_project, sample_wav
+) -> None:
+    from podcast_mcp.engines.play_audit import publish_stem, stem_path, write_stem_hash
+
+    ws = _dialogue_workspace(minimal_project, sample_wav)
+    stem = stem_path(ws.project, "host")
+    stem.parent.mkdir(parents=True, exist_ok=True)
+    stem.write_bytes(sample_wav.read_bytes())
+    write_stem_hash(ws.project, "host")
+    other = ws.project.model_copy(deep=True)
+
+    def extract(_src, out, *_a):
+        out.write_bytes(sample_wav.read_bytes())
+        publish_stem(other, "host", lambda tmp: tmp.write_bytes(sample_wav.read_bytes()))
+        return out
+
+    def render_segment(_snapshot, _track_id, _start, _end, cache, _defaults):
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.write_bytes(sample_wav.read_bytes())
+        return cache
+
+    with (
+        patch("podcast_mcp.services.play.FFmpegEngine") as eng_cls,
+        patch("podcast_mcp.services.play.render_track_segment", side_effect=render_segment),
+    ):
+        eng_cls.return_value.extract_segment = MagicMock(side_effect=extract)
+        result = PlayService(ws).play(
+            PlayRequest(source="processed:host", start_sec=0.0, end_sec=0.5),
+            dry_run=True,
+        )
+    assert result.tier == "segment_render"

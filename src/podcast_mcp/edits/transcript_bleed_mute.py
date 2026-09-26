@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import functools
 import logging
-import tempfile
 from pathlib import Path
 from typing import Any
 
 from podcast_mcp.engines.play_audit import (
     STEM_DURATION_TOLERANCE_SEC,
+    clear_stem_hash,
     expected_stem_duration_sec,
     probe_stem_duration_sec,
     stem_is_fresh,
@@ -15,7 +16,9 @@ from podcast_mcp.engines.play_audit import (
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.transcript_gated_play import gate_stem_window, word_intervals
 from podcast_mcp.models import EpisodeProject, TrackRole
+from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress_task
+from podcast_mcp.util.project_state import render_lock
 from podcast_mcp.util.tracks import dialogue_track_ids, existing_stem_path
 
 log = logging.getLogger(__name__)
@@ -131,21 +134,21 @@ def apply_transcript_bleed_mute(
                 candidates.append(entry)
 
                 if not dry_run:
-                    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-                        tmp_path = Path(tmp.name)
-                    try:
-                        gate_stem_window(
+                    # Sibling temp + hash dropped before the swap (#356); the old temp in the
+                    # system dir could also fail os.replace across filesystems.
+                    with render_lock(project):
+                        render_atomic(
                             stem,
-                            intervals,
-                            tmp_path,
-                            duration_sec=dur,
-                            win_start=win_start,
-                            win_end=win_end,
+                            functools.partial(
+                                gate_stem_window,
+                                stem,
+                                intervals,
+                                duration_sec=dur,
+                                win_start=win_start,
+                                win_end=win_end,
+                            ),
+                            before_replace=functools.partial(clear_stem_hash, project, tid),
                         )
-                        tmp_path.replace(stem)
-                    finally:
-                        if tmp_path.is_file():
-                            tmp_path.unlink(missing_ok=True)
                     # Gate must not grow the stem past the timeline (wrong-clock pad).
                     after = probe_stem_duration_sec(project, tid)
                     if after is None or after > dur + STEM_DURATION_TOLERANCE_SEC:
