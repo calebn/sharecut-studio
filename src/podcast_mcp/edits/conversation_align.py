@@ -57,6 +57,8 @@ COMMON_BLEED_WORDS = frozenset(
     }
 )  # fmt: skip
 BLEED_AGREE_SEC = 0.75
+LOCKED_METHODS = frozenset({"hold", "manual"})  # keep placement unless align.realign
+UNCONFIRMED_HOLD = "unconfirmed_hold"
 BLEED_IDENTITY_SEC = 1.0  # |bleed| below this → acoustic confirm (not blind identity)
 ACOUSTIC_MIN_PEAK = 0.05
 ACOUSTIC_FLOOR_SEC = 0.05  # |lag| below this → treat as synced
@@ -109,6 +111,8 @@ class ClipAlignPlan:
     gap_offset_sec: float | None = None
     bleed_offset_sec: float | None = None
     same_length_prior: bool = False
+    candidate_offset_sec: float | None = None
+    acoustic_confirmed: bool | None = None
 
 
 @dataclass
@@ -122,10 +126,26 @@ class AlignResult:
             return self.skipped_reason
         moved = [p for p in self.plans if abs(p.offset_sec) > 1e-3]
         if not moved:
-            return f"{len(self.plans)} clips; all near identity (ref={self.reference_track_id})"
-        parts = [f"{p.track_id}:{p.offset_sec:+.2f}s/{p.method}" for p in moved[:6]]
-        extra = "" if len(moved) <= 6 else f" +{len(moved) - 6} more"
-        return f"{len(moved)} moved ({', '.join(parts)}{extra}); ref={self.reference_track_id}"
+            base = f"{len(self.plans)} clips; all near identity (ref={self.reference_track_id})"
+        else:
+            parts = [f"{p.track_id}:{p.offset_sec:+.2f}s/{p.method}" for p in moved[:6]]
+            extra = "" if len(moved) <= 6 else f" +{len(moved) - 6} more"
+            base = f"{len(moved)} moved ({', '.join(parts)}{extra}); ref={self.reference_track_id}"
+        notes: list[str] = []
+        locked = sorted({p.track_id for p in self.plans if p.method in LOCKED_METHODS})
+        if locked:
+            notes.append(
+                f"locked {', '.join(locked)} (same length / manifest; align.realign to re-align)"
+            )
+        held = [p for p in self.plans if p.method == UNCONFIRMED_HOLD]
+        if held:
+            notes.append(
+                "held unconfirmed "
+                + ", ".join(
+                    f"{p.track_id}:{(p.candidate_offset_sec or 0.0):+.2f}s" for p in held[:6]
+                )
+            )
+        return base if not notes else f"{base}; {'; '.join(notes)}"
 
 
 def words_to_tokens(words: list[TranscriptWord]) -> list[WordToken]:
@@ -426,6 +446,45 @@ def pick_reference_track(tracks: list[Track]) -> Track:
     with_dur = [(t, float(t.media.duration_sec or 0.0) if t.media else 0.0) for t in tracks]
     with_dur.sort(key=lambda x: x[1], reverse=True)
     return with_dur[0][0]
+
+
+def _manifest_pinned(project: EpisodeProject, track: Track) -> bool:
+    """True when ingest recorded a manually pinned offset for this track."""
+    meta = project.meta.ingest_alignment or {}
+    speaker = track.speaker or track.label or track.id
+    return any(
+        v.align_method == "manual"
+        for k, v in meta.items()
+        if k == speaker or k.startswith(f"{track.id}:")
+    )
+
+
+def _lock_plan(
+    project: EpisodeProject, track: Track, clip: Clip, *, same_len: bool
+) -> ClipAlignPlan | None:
+    """Identity lock for manifest-pinned or equal-length stems (None → score normally)."""
+    if _manifest_pinned(project, track):
+        method = "manual"
+        detail = (
+            "ingest manifest offset pinned (session_offset_sec); "
+            "locked - set align.realign to re-align"
+        )
+    elif same_len:
+        method = "hold"
+        detail = (
+            "equal file duration to reference (same_length_prior); "
+            "locked at identity - set align.realign to re-align"
+        )
+    else:
+        return None
+    return ClipAlignPlan(
+        track_id=track.id,
+        clip_id=clip.id,
+        offset_sec=0.0,
+        method=method,
+        detail=detail,
+        same_length_prior=same_len,
+    )
 
 
 def dialogue_align_units(
@@ -1162,6 +1221,7 @@ def plan_conversation_alignment(
     coarse_step = float(cfg.get("coarse_step_sec", 0.5))
     fine_step = float(cfg.get("fine_step_sec", 0.02))
     ngram_n = int(cfg.get("bleed_ngram", NGRAM_N))
+    realign = bool(cfg.get("realign", False))
     min_bleed = int(cfg.get("min_bleed_matches", MIN_BLEED_MATCHES))
     min_bleed_share = float(cfg.get("bleed_min_share", BLEED_MIN_SHARE))
     bleed_identity_sec = float(cfg.get("bleed_identity_sec", BLEED_IDENTITY_SEC))
@@ -1243,9 +1303,14 @@ def plan_conversation_alignment(
                     prog.advance(1, message=f"Pass {pass_i + 1}: reference {clip.id}")
                     continue
                 raise_if_cancelled(cancel_check)
+                same_len = any(durations_match(dur, rd) for rd in ref_durs)
+                locked = None if realign else _lock_plan(project, track, clip, same_len=same_len)
+                if locked is not None:
+                    offsets[(track.id, clip.id)] = locked
+                    prog.advance(1, message=f"Pass {pass_i + 1}: locked {clip.id}")
+                    continue
                 peer_ivs = [iv for (tid, _cid), iv in placed_iv.items() if tid != track.id]
                 union = union_intervals(peer_ivs)
-                same_len = any(durations_match(dur, rd) for rd in ref_durs)
                 # Peers = other tracks only (never self — self n-grams force Δ=0).
                 peers = [tok for t, _c, tok, _d in units if t.id != track.id]
                 src_audio = resolve_clip_wav(project, track, clip)
@@ -1342,8 +1407,13 @@ def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
                 plan.offset_sec + ref_shift,
                 media_duration=media_dur,
             )
-            if plan.method == "reference" or abs(plan.offset_sec + ref_shift) < 1e-9:
-                # Identity: reference clips (incl. sequential extras) and guests whose
+            if (
+                plan.method == "reference"
+                or plan.method in LOCKED_METHODS
+                or abs(plan.offset_sec + ref_shift) < 1e-9
+            ):
+                # Identity: reference clips (incl. sequential extras), locked (hold/manual)
+                # clips (splits, ripples and ingest placement stay) and guests whose
                 # rebased offset is zero keep their placement. Other offset-0 guests are
                 # rebased onto the reference lead-in like every other guest.
                 src_start = clip.source_start
@@ -1353,6 +1423,8 @@ def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
             clip.source_end = src_end
             clip.timeline_start = tl_start
             updated += 1
+            if plan.method == "manual":
+                continue  # keep the manifest's pinned meta entry
             session_start = src_start if tl_start <= 0 else 0.0
             content = tl_start if tl_start > 0 else 0.0
             speaker = track.speaker or track.label or track.id
@@ -1385,6 +1457,8 @@ def write_alignment_artifact(project: EpisodeProject, result: AlignResult) -> Pa
                 "gap_offset_sec": p.gap_offset_sec,
                 "bleed_offset_sec": p.bleed_offset_sec,
                 "same_length_prior": p.same_length_prior,
+                "candidate_offset_sec": p.candidate_offset_sec,
+                "acoustic_confirmed": p.acoustic_confirmed,
             }
             for p in result.plans
         ],

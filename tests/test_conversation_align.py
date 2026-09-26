@@ -25,6 +25,7 @@ from podcast_mcp.edits.conversation_align import (
     restore_clip_geometry,
     run_conversation_align,
     snapshot_clip_geometry,
+    write_alignment_artifact,
 )
 from podcast_mcp.engines.transcript_align import WordToken
 from podcast_mcp.models import (
@@ -32,6 +33,7 @@ from podcast_mcp.models import (
     EpisodeProject,
     MediaAsset,
     ProjectMeta,
+    SpeakerIngestAlignment,
     Track,
     TrackRole,
     Transcript,
@@ -383,7 +385,8 @@ def test_same_length_exact_holds_wall_occupancy(tmp_path: Path) -> None:
     )
     guest = next(p for p in result.plans if p.track_id == "guest")
     assert abs(guest.offset_sec) < 1.0
-    assert guest.method in {"same_length", "weak_hold", "gaps", "gaps_prior"}
+    assert guest.method in {"same_length", "weak_hold", "gaps", "gaps_prior", "hold"}
+    assert guest.method == "hold"
 
 
 def test_plan_bleed_preferred(tmp_path: Path) -> None:
@@ -1127,3 +1130,139 @@ def test_is_common_ngram_and_weighted_median() -> None:
     assert not _is_common_ngram("i don't zebra")
     assert _weighted_median([1.0, 2.0, 10.0], [1.0, 1.0, 1.0]) == 2.0
     assert _weighted_median([1.0, 10.0], [0.1, 5.0]) == 10.0
+
+
+_LONG = 1689.58
+
+
+def _three_track_project(tmp_path: Path) -> EpisodeProject:
+    """Host/audra/lana, equal length, sparse repeated bleed plus stray unique trigrams."""
+    tri1 = "alpha beta gamma"
+    tri2 = "delta echo foxtrot"
+    return _project(
+        tmp_path,
+        [
+            (
+                "host",
+                _LONG,
+                _sparse_repeat_words(0.0, unique=[(tri1, 100.0), (tri2, 200.0)]),
+            ),
+            ("audra", _LONG, _sparse_repeat_words(9.0, unique=[(tri1, 100.18)])),
+            (
+                "lana",
+                _LONG,
+                _sparse_repeat_words(17.0, unique=[(tri1, 135.6), (tri2, 235.6)]),
+            ),
+        ],
+    )
+
+
+def _geometry(proj: EpisodeProject) -> list[tuple[str, float, float, float]]:
+    return sorted((c.id, c.source_start, c.source_end, c.timeline_start) for c in proj.clips)
+
+
+def test_equal_duration_three_tracks_hold_identity_with_sparse_bleed(tmp_path: Path) -> None:
+    proj = _three_track_project(tmp_path)
+    before = _geometry(proj)
+    result = plan_conversation_alignment(proj)
+    for p in result.plans:
+        if p.track_id == "host":
+            continue
+        assert p.method == "hold"
+        assert p.offset_sec == 0.0
+        assert p.same_length_prior
+    apply_alignment_plans(proj, result)
+    assert _geometry(proj) == before
+    assert "locked" in result.summary()
+
+
+def test_equal_duration_hold_survives_ripple(tmp_path: Path) -> None:
+    proj = _three_track_project(tmp_path)
+    proj.clips = []
+    for tid in ("host", "audra", "lana"):
+        proj.clips.append(
+            Clip(
+                id=f"{tid}_a", track_id=tid, source_start=0.0, source_end=1375.4, timeline_start=0.0
+            )
+        )
+        proj.clips.append(
+            Clip(
+                id=f"{tid}_b",
+                track_id=tid,
+                source_start=1421.1,
+                source_end=_LONG,
+                timeline_start=1375.4,
+            )
+        )
+    before = _geometry(proj)
+    run_conversation_align(proj)
+    assert len(proj.clips) == 6
+    assert _geometry(proj) == before
+
+
+def test_realign_rescores_but_rejects_sparse_bleed(tmp_path: Path) -> None:
+    proj = _three_track_project(tmp_path)
+    result = plan_conversation_alignment(proj, defaults={"align": {"realign": True}})
+    for p in result.plans:
+        assert not p.method.startswith("bleed")
+        if p.method != "reference":
+            assert abs(p.offset_sec) <= 1.0
+
+
+def _manifest_project(tmp_path: Path) -> EpisodeProject:
+    host = [
+        TranscriptWord(text=w, start=t + j * 0.3, end=t + j * 0.3 + 0.3, confidence=0.9)
+        for t, tri in ((10.0, "hello there friend"), (20.0, "yes indeed okay"))
+        for j, w in enumerate(tri.split())
+    ]
+    guest = [
+        TranscriptWord(text=w, start=t + j * 0.3, end=t + j * 0.3 + 0.3, confidence=0.9)
+        for t, tri in ((5.0, "hello there friend"), (15.0, "yes indeed okay"))
+        for j, w in enumerate(tri.split())
+    ]
+    proj = _project(tmp_path, [("host", 100.0, host), ("guest", 90.0, guest)])
+    proj.meta.ingest_alignment = {
+        "Guest": SpeakerIngestAlignment(content_align_sec=3.0, align_method="manual")
+    }
+    next(c for c in proj.clips if c.track_id == "guest").timeline_start = 3.0
+    return proj
+
+
+def test_manifest_pinned_offset_is_manual_lock(tmp_path: Path) -> None:
+    proj = _manifest_project(tmp_path)
+    result = plan_conversation_alignment(proj, defaults={"align": {"min_bleed_matches": 2}})
+    guest = next(p for p in result.plans if p.track_id == "guest")
+    assert guest.method == "manual"
+    apply_alignment_plans(proj, result)
+    gclip = next(c for c in proj.clips if c.track_id == "guest")
+    assert gclip.timeline_start == 3.0
+    assert proj.meta.ingest_alignment is not None
+    assert proj.meta.ingest_alignment["Guest"].align_method == "manual"
+
+    redo = plan_conversation_alignment(
+        _manifest_project(tmp_path),
+        defaults={"align": {"min_bleed_matches": 2, "realign": True}},
+    )
+    assert next(p for p in redo.plans if p.track_id == "guest").method != "manual"
+
+
+def test_write_alignment_artifact_includes_candidate_fields(tmp_path: Path) -> None:
+    import json
+
+    proj = _project(tmp_path, [("host", 10.0, []), ("guest", 10.0, [])])
+    result = AlignResult(
+        plans=[
+            ClipAlignPlan(
+                track_id="guest",
+                clip_id="clip_guest",
+                offset_sec=0.0,
+                method="unconfirmed_hold",
+                candidate_offset_sec=4.2,
+                acoustic_confirmed=False,
+            )
+        ],
+        reference_track_id="host",
+    )
+    row = json.loads(write_alignment_artifact(proj, result).read_text())["plans"][0]
+    assert row["candidate_offset_sec"] == 4.2
+    assert row["acoustic_confirmed"] is False

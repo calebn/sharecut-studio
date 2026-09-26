@@ -313,6 +313,16 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         affects=("align_tracks",),
     ),
     ParamField(
+        path="align.realign",
+        label="Re-align locked stems",
+        description="Re-score equal-length and manifest-pinned stems instead of holding their placement.",
+        type="boolean",
+        default=False,
+        group="advanced",
+        section="align",
+        affects=("align_tracks",),
+    ),
+    ParamField(
         path="align.min_bleed_matches",
         label="Min bleed matches",
         description="Agreed bleed n-grams required before trusting the bleed clock.",

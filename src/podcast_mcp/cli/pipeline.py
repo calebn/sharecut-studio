@@ -28,6 +28,11 @@ def pipeline_run(
         "--unattended",
         help="Batch mode: auto-waive align + transcript refine gates (or set PODCAST_BATCH=1)",
     ),
+    realign: bool = typer.Option(
+        False,
+        "--realign",
+        help="Re-score locked stems in align_tracks (equal length / manifest-pinned offsets)",
+    ),
 ) -> None:
     ws = ProjectWorkspace.open(project)
     skip_steps = [s.strip() for s in skip.split(",") if s.strip()] if skip else None
@@ -37,6 +42,7 @@ def pipeline_run(
         skip_steps=skip_steps,
         progress=get_progress(),
         unattended=unattended,
+        config={"align": {"realign": True}} if realign else None,
     )
     typer.echo(f"Pipeline complete. Last step: {step}")
 
