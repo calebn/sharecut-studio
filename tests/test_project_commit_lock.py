@@ -111,12 +111,21 @@ def test_publication_encodes_while_another_process_holds_lock(
     assert ready.wait(30)
     monkeypatch.setattr(project_state, "PROJECT_COMMIT_LOCK_TIMEOUT_SEC", 0.3)
     encoded: list[str] = []
+    hashed: list[str] = []
+    original_hash = review_versions._hash_stage_wav
+
+    def spy_hash(stage, identity):
+        hashed.append(stage.name)
+        # Simulate hashing a large review WAV while another process owns the lock.
+        time.sleep(0.4)
+        return original_hash(stage, identity)
 
     def spy(self, wav, mp3, *, bitrate_kbps):
         encoded.append(mp3.name)
         _fake_mp3(self, wav, mp3, bitrate_kbps=bitrate_kbps)
 
     monkeypatch.setattr(review_versions.FFmpegEngine, "export_mp3", spy)
+    monkeypatch.setattr(review_versions, "_hash_stage_wav", spy_hash)
     try:
         with pytest.raises(Timeout):
             ReviewService(ProjectWorkspace.open(minimal_project)).publish(label="x")
@@ -124,6 +133,7 @@ def test_publication_encodes_while_another_process_holds_lock(
         release.set()
         proc.join(30)
     assert encoded == ["mix.mp3"]
+    assert len(hashed) == 1
     review_root = art / "review"
     assert not review_root.exists() or not any(review_root.iterdir())
     assert load_project(minimal_project).review.versions == []

@@ -159,8 +159,11 @@ promotion collisions, staging identity failures, post-promotion media changes, a
 cases cover replacement before and during quarantine, descriptor failures, missing
 directories, and a retained quarantine when removal fails. The stale quarantine sweep
 requires a trusted ownership marker and identity; stale stages are also recovered.
-The sweep rotates its bounded candidate inspection across calls, including separate CLI
-processes, while enumeration and deletion stay outside the project commit lock.
+The sweep streams O(N) entries with O(32) candidate memory, prioritizes the oldest
+eligible media, and deletes at most 32 outside both project locks. An active stage lease
+blocks recovery even when its directory mtime is old. Publication tests also verify
+private stage mode, no-follow output creation, root permissions, and a slow WAV hash
+while another process holds the commit lock.
 Subprocess tests race promotion and quarantine against an independent writer. Sweep tests
 keep fresh and symlinked entries, enforce the 32-entry cap, and retarget an ancestor
 symlink during root-relative quarantine creation. An identity-read failure retains only

@@ -9,6 +9,7 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -40,6 +41,7 @@ from podcast_mcp.services import PlayService, ProjectWorkspace, ReviewService
 from podcast_mcp.services.review_media import review_guest_audio_path
 from podcast_mcp.util.atomic_json import load_json_object
 from podcast_mcp.util.binaries import resolve_ffmpeg
+from podcast_mcp.util.project_state import project_state_lock
 
 requires_safe_cleanup = pytest.mark.skipif(
     not review_versions._SAFE_STALE_CLEANUP_SUPPORTED,
@@ -132,14 +134,21 @@ def test_failed_mp3_publish_removes_only_new_version(minimal_project, sample_wav
             mp3.write_bytes(b"partial mp3")
             raise RuntimeError("encode failed")
 
+    created = []
     with pytest.raises(RuntimeError, match="encode failed"):
-        publish_version(proj, label="new", eng=FailingEngine())
+        publish_version(
+            proj,
+            label="new",
+            eng=FailingEngine(),
+            on_media_created=lambda path, identity: created.append(identity),
+        )
 
     assert not (review_root / "failed-pub").exists()
     assert sentinel.read_bytes() == b"existing review mix"
     assert source.read_bytes() == sample_wav.read_bytes()
     assert proj.review.versions == []
     assert proj.review.active_version_id is None
+    assert created[0] not in review_versions._active_stage_leases
 
 
 def test_interrupted_publish_removes_new_version(minimal_project, sample_wav, monkeypatch):
@@ -413,6 +422,7 @@ def test_failed_publish_keeps_replacement_during_quarantine(tmp_path, monkeypatc
     assert (original / "mix.wav").read_bytes() == b"partial"
     assert (version_dir / "mix.wav").read_bytes() == b"replacement"
     assert not list(version_dir.parent.glob(".failed-review-*/media"))
+    assert not list(version_dir.parent.glob(".failed-review-*"))
 
 
 def test_publication_fails_closed_without_safe_directory_operations(
@@ -425,6 +435,68 @@ def test_publication_fails_closed_without_safe_directory_operations(
     assert not list((art / "review").glob("[!.]*"))
     assert not list((art / "review").glob(".staging-review-*"))
     assert load_project(minimal_project).review.versions == []
+
+
+@requires_safe_failed_cleanup
+def test_publication_rejects_writable_root_before_media_write(
+    minimal_project, sample_wav, monkeypatch
+):
+    project, art = _premix_project(minimal_project, sample_wav, monkeypatch)
+    root = art / "review"
+    root.mkdir()
+    root.chmod(0o777)
+
+    class UnexpectedEngine:
+        def export_mp3(self, wav, mp3, *, bitrate_kbps):
+            pytest.fail("encoding must not start in an untrusted review root")
+
+    with pytest.raises(PermissionError, match="owned and private"):
+        publish_version(project, label="new", eng=UnexpectedEngine())
+    assert not list(root.glob(".staging-review-*"))
+
+
+@requires_safe_failed_cleanup
+@pytest.mark.parametrize("name", ["mix.wav", "mix.mp3"])
+def test_staging_rejects_planted_output_symlink(minimal_project, sample_wav, monkeypatch, name):
+    project, art = _premix_project(minimal_project, sample_wav, monkeypatch)
+    outside = art / "outside-media"
+    outside.write_bytes(b"sentinel")
+
+    def plant(path, identity):
+        (path / name).symlink_to(outside)
+
+    with pytest.raises(FileExistsError):
+        publish_version(project, label="new", on_media_created=plant)
+    assert outside.read_bytes() == b"sentinel"
+    assert not project.review.versions
+
+
+def test_service_sweeps_before_taking_state_lock(minimal_project, sample_wav, monkeypatch):
+    _premix_project(minimal_project, sample_wav, monkeypatch)
+    acquired: list[bool] = []
+
+    def probe(project):
+        lock = project_state_lock(project)
+
+        def worker():
+            got = lock.acquire(timeout=0.5)
+            acquired.append(got)
+            if got:
+                lock.release()
+
+        thread = threading.Thread(target=worker)
+        thread.start()
+        thread.join(1)
+        assert not thread.is_alive()
+
+    monkeypatch.setattr("podcast_mcp.services.review.sweep_stale_quarantines", probe)
+    monkeypatch.setattr(
+        review_versions.FFmpegEngine,
+        "export_mp3",
+        lambda self, wav, mp3, *, bitrate_kbps: mp3.write_bytes(b"encoded"),
+    )
+    ReviewService(ProjectWorkspace.open(minimal_project)).publish(label="new")
+    assert acquired == [True]
 
 
 def test_failed_publish_keeps_quarantine_when_rmtree_fails(
@@ -554,11 +626,19 @@ def test_public_directory_invisible_during_encode(minimal_project, sample_wav, m
     class InspectingEngine:
         def export_mp3(self, wav, mp3, *, bitrate_kbps):
             assert wav.parent.name.startswith(review_versions._STAGING_PREFIX)
+            assert wav.parent.stat().st_mode & 0o777 == 0o700
             assert not (art / "review" / "invisible").exists()
             mp3.write_bytes(b"encoded")
 
-    publish_version(project, label="ready", eng=InspectingEngine())
+    created = []
+    publish_version(
+        project,
+        label="ready",
+        eng=InspectingEngine(),
+        on_media_created=lambda path, identity: created.append(identity),
+    )
     assert (art / "review" / "invisible" / "mix.mp3").read_bytes() == b"encoded"
+    assert created[0] not in review_versions._active_stage_leases
 
 
 def test_other_process_claims_public_name_before_promotion(
@@ -691,6 +771,8 @@ def test_stale_staging_is_reclaimed_and_fresh_staging_is_kept(
     fresh = root / ".staging-review-fresh"
     old.mkdir()
     fresh.mkdir()
+    old.chmod(0o700)
+    fresh.chmod(0o700)
     (old / "mix.wav").write_bytes(b"old")
     (fresh / "mix.wav").write_bytes(b"fresh")
     cutoff = time.time() - review_versions._STALE_QUARANTINE_AGE_SECONDS - 1
@@ -701,6 +783,32 @@ def test_stale_staging_is_reclaimed_and_fresh_staging_is_kept(
 
 
 @requires_safe_failed_cleanup
+def test_active_stage_lease_prevents_aged_sweep(minimal_project, sample_wav, monkeypatch):
+    project, _ = _premix_project(minimal_project, sample_wav, monkeypatch)
+
+    class SimpleEngine:
+        def export_mp3(self, wav, mp3, *, bitrate_kbps):
+            mp3.write_bytes(b"encoded")
+
+    created = []
+    stage_version(
+        project,
+        label="active",
+        eng=SimpleEngine(),
+        on_media_created=lambda path, identity: created.append((path, identity)),
+    )
+    stage, identity = created[0]
+    assert (stage / "mix.mp3").read_bytes() == b"encoded"
+    old = time.time() - review_versions._STALE_QUARANTINE_AGE_SECONDS - 1
+    os.utime(stage, (old, old))
+    review_versions.sweep_stale_quarantines(project)
+    assert stage.is_dir()
+    review_versions._release_stage_lease(identity)
+    review_versions.sweep_stale_quarantines(project)
+    assert not stage.exists()
+
+
+@requires_safe_failed_cleanup
 def test_quarantine_sweep_rotates_past_fresh_entries(minimal_project, sample_wav, monkeypatch):
     project, art = _premix_project(minimal_project, sample_wav, monkeypatch)
     root = art / "review"
@@ -708,10 +816,6 @@ def test_quarantine_sweep_rotates_past_fresh_entries(minimal_project, sample_wav
     for index in range(review_versions._STALE_QUARANTINE_LIMIT):
         _marked_quarantine(root, f".failed-review-{index:02}", stale=False)
     old = _marked_quarantine(root, ".failed-review-zz", stale=True)
-    offsets = iter((0, review_versions._STALE_QUARANTINE_LIMIT))
-    monkeypatch.setattr(review_versions.secrets, "randbelow", lambda _: next(offsets))
-    review_versions.sweep_stale_quarantines(project)
-    assert old.exists()
     review_versions.sweep_stale_quarantines(project)
     assert not old.exists()
 
@@ -1528,6 +1632,9 @@ def test_stage_version_creates_media_without_touching_project(
     assert not (art / "review" / ver.id).exists()
     assert project.review.versions == []
     assert project.review.active_version_id is None
+    assert created[0][1] in review_versions._active_stage_leases
+    discard_created_version(*created[0])
+    assert created[0][1] not in review_versions._active_stage_leases
 
 
 def test_attach_version_appends_and_optionally_activates(minimal_project, sample_wav, monkeypatch):
