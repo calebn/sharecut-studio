@@ -47,6 +47,75 @@ def _recv_until(ws, type_name: str, limit: int = 20) -> dict:
     raise AssertionError(f"did not receive type={type_name!r}")
 
 
+def test_document_ws_reports_a_busy_project_and_stays_open(minimal_project, monkeypatch):
+    from filelock import Timeout
+
+    from podcast_mcp.services.document_sync import DocumentSyncService
+
+    real = DocumentSyncService.submit
+    calls = {"n": 0}
+
+    def busy_once(self, command, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise Timeout("episode.project.json.lock")
+        return real(self, command, **kwargs)
+
+    monkeypatch.setattr(DocumentSyncService, "submit", busy_once)
+    client = TestClient(create_app())
+    url = f"/api/document/ws?path={quote(str(minimal_project))}&client_id=ws-busy&role=viewer"
+    msg = {
+        "type": "Command",
+        "command_type": "AddComment",
+        "payload": {"body": "retry me", "author": "ws", "timeline_start": 1.0},
+        "client_seq": 1,
+        "command_id": uuid4().hex,
+    }
+    with client.websocket_connect(url) as ws:
+        assert ws.receive_json()["type"] == "Snapshot"
+        ws.send_json(msg)
+        err = _recv_until(ws, "Error")
+        assert err["code"] == "project_busy"
+        ws.send_json(msg)
+        assert _recv_until(ws, "Echo")["ok"] is True
+
+
+@pytest.mark.parametrize("seq", ["omitted", None])
+def test_document_ws_without_client_seq_gets_a_server_assigned_sequence(minimal_project, seq):
+    client = TestClient(create_app())
+    url = f"/api/document/ws?path={quote(str(minimal_project))}&client_id=ws-noseq&role=viewer"
+    msg = {
+        "type": "Command",
+        "command_type": "AddComment",
+        "payload": {"body": "no seq", "author": "ws", "timeline_start": 1.0},
+    }
+    if seq != "omitted":
+        msg["client_seq"] = seq
+    with client.websocket_connect(url) as ws:
+        assert ws.receive_json()["type"] == "Snapshot"
+        ws.send_json(msg)
+        echo = _recv_until(ws, "Echo")
+        assert echo["command"]["client_seq"] == -1
+
+
+def test_document_ws_rejects_client_seq_zero(minimal_project):
+    client = TestClient(create_app())
+    url = f"/api/document/ws?path={quote(str(minimal_project))}&client_id=ws-zero&role=viewer"
+    with client.websocket_connect(url) as ws:
+        assert ws.receive_json()["type"] == "Snapshot"
+        ws.send_json(
+            {
+                "type": "Command",
+                "command_type": "AddComment",
+                "payload": {"body": "zero", "author": "ws", "timeline_start": 1.0},
+                "client_seq": 0,
+            }
+        )
+        err = _recv_until(ws, "Error")
+        assert "client_seq" in err["detail"]
+    assert load_project(minimal_project).comments == []
+
+
 def test_document_ws_snapshot_command_and_error(minimal_project):
     client = TestClient(create_app())
     url = (

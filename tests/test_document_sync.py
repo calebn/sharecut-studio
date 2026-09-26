@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import sqlite3
 from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
+from filelock import Timeout
 from pydantic import ValidationError
 
 from podcast_mcp.gui.server import create_app
@@ -18,6 +20,7 @@ from podcast_mcp.models import (
     MediaAsset,
     Track,
     TrackRole,
+    load_project,
 )
 from podcast_mcp.project_merge import ProjectMergeConflict
 from podcast_mcp.services import ProjectWorkspace
@@ -31,6 +34,8 @@ from podcast_mcp.services.document_sync.handlers import apply_command
 from podcast_mcp.services.document_sync.payloads import parse_document_command, validate_payload
 from podcast_mcp.services.history import HistoryService
 from podcast_mcp.services.session_sync.authz import authorize_client
+from podcast_mcp.services.session_sync.hub import get_hub
+from sqlite_helpers import FailingConnection
 
 
 def test_document_add_comment_and_idempotent(minimal_project):
@@ -1434,3 +1439,75 @@ def test_submit_refuses_a_journal_row_claimed_outside_the_transaction(minimal_pr
         pytest.raises(RuntimeError),
     ):
         svc.submit(_comment("first"))
+
+
+def test_busy_journal_fails_the_command_before_the_project_changes(minimal_project):
+    svc = DocumentSyncService.open(minimal_project)
+    store = svc.store
+    real = store._conn
+    store._conn = FailingConnection(real, "BEGIN IMMEDIATE")  # type: ignore[assignment]
+    try:
+        with pytest.raises(sqlite3.OperationalError):
+            svc.submit(_comment("first"))
+    finally:
+        store._conn = real
+    assert load_project(minimal_project).comments == []
+    assert _journal(svc) == []
+    assert svc.submit(_comment("first"))["ok"]
+    assert [c.body for c in load_project(minimal_project).comments] == ["first"]
+    assert len(_journal(svc)) == 1
+
+
+def test_journal_insert_failure_after_apply_keeps_the_edit_unjournaled(minimal_project):
+    """Pins the documented residual: an I/O failure after the apply keeps the edit with no row."""
+    svc = DocumentSyncService.open(minimal_project)
+    store = svc.store
+    real = store._conn
+    store._conn = FailingConnection(real, "INSERT INTO commands")  # type: ignore[assignment]
+    try:
+        with pytest.raises(sqlite3.OperationalError):
+            svc.submit(_comment("first"))
+    finally:
+        store._conn = real
+    assert [c.body for c in load_project(minimal_project).comments] == ["first"]
+    assert _journal(svc) == []
+    assert not real.in_transaction
+
+
+def test_command_id_retry_from_another_client_is_a_conflict(minimal_project):
+    svc = DocumentSyncService.open(minimal_project)
+    svc.submit(_comment("mine", seq=None, client_id="a", command_id="shared-id"))
+    with pytest.raises(DocumentSequenceConflictError):
+        svc.submit(_comment("mine", seq=None, client_id="b", command_id="shared-id"))
+    assert len(_journal(svc)) == 1
+
+
+def test_http_command_returns_503_when_the_project_lock_times_out(minimal_project, monkeypatch):
+    def busy(self, command, **kwargs):
+        raise Timeout("episode.project.json.lock")
+
+    monkeypatch.setattr(DocumentSyncService, "submit", busy)
+    client = TestClient(create_app())
+    r = client.post(
+        "/api/document/command",
+        params={"path": str(minimal_project)},
+        json={
+            "type": "AddComment",
+            "payload": {"body": "x", "author": "v", "timeline_start": 1.0},
+            "client_id": "v1",
+            "role": "viewer",
+            "client_seq": 1,
+        },
+    )
+    assert r.status_code == 503
+    assert "busy" in r.json()["detail"].lower()
+
+
+def test_submit_publishes_applied_inside_the_project_transaction(minimal_project, monkeypatch):
+    svc = DocumentSyncService.open(minimal_project)
+    depths: list[int] = []
+    monkeypatch.setattr(
+        get_hub(), "publish", lambda _key, _event: depths.append(svc.ws._transaction_depth)
+    )
+    svc.submit(_comment("ordered"))
+    assert depths and all(depth >= 1 for depth in depths)

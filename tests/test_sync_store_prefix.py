@@ -8,9 +8,9 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
-from sqlite_helpers import FailingConnection
 
 from podcast_mcp.services.session_sync.log import SyncStore
+from sqlite_helpers import FailingConnection
 
 
 def test_record_prefix_creates_prefixed_tables_without_touching_commands(

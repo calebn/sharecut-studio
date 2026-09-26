@@ -81,7 +81,10 @@ def test_render_snapshot_waits_for_mutation_to_commit(minimal_project):
     assert copied.name == "committed"
 
 
-def test_render_and_document_snapshots_share_workspace_lock(minimal_project):
+def test_render_snapshots_and_document_reads_share_the_state_lock(minimal_project):
+    """document_submit_lock is the in-process snapshot read lock. Writer serialization across
+    processes is pinned by test_document_submit_waits_for_another_process_holding_the_commit_lock
+    (test_project_commit_lock.py)."""
     from podcast_mcp.services.document_sync.service import document_submit_lock
 
     _, first = open_project(minimal_project)

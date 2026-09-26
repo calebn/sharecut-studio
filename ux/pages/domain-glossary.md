@@ -231,7 +231,7 @@ Do **not** rename MCP tool IDs lightly; UI labels can diverge.
 
 - `schemas/episode.project.schema.json` — validation for engineers  
 - `transcripts/*.json` caches — project JSON wins  
-- Internal sqlite session logs — sync plumbing  
+- Internal sqlite session logs — sync plumbing. One user-visible edge: if another Sharecut process holds the project for over 30 s, an edit is refused with a "project is busy, try again" message (HTTP 503 / a `project_busy` error) and can be retried unchanged.  
 - Python package layout — unless designing CLI flows  
 
 Link out when a designer needs depth; keep **Partner terms** as the default handout.
