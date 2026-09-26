@@ -38,7 +38,7 @@ def rollback_outcomes(monkeypatch):
         outcomes.append(outcome)
         return outcome
 
-    monkeypatch.setattr(session_mod, "roll_back_history", spy)
+    monkeypatch.setattr(rollback_mod, "roll_back_history", spy)
     return outcomes
 
 
@@ -409,6 +409,22 @@ def test_rolled_back_on_failure_rolls_back_and_reraises(minimal_project, monkeyp
     assert len(calls) == 1
 
 
+@pytest.mark.parametrize("outcome", list(RollbackOutcome))
+def test_rolled_back_on_failure_calls_on_not_landed_unless_landed(
+    minimal_project, monkeypatch, outcome
+):
+    _path, proj, _index_path = _setup(minimal_project)
+    monkeypatch.setattr(rollback_mod, "roll_back_history", lambda _p, _c: outcome)
+    calls = []
+    checkpoint = cast(rollback_mod.HistoryCheckpoint, object())
+    with pytest.raises(RuntimeError, match="boom"):
+        with rollback_mod.rolled_back_on_failure(
+            proj, checkpoint, on_not_landed=lambda: calls.append(1)
+        ):
+            raise RuntimeError("boom")
+    assert calls == ([] if outcome is RollbackOutcome.LANDED else [1])
+
+
 def test_roll_back_history_returns_restored_and_landed(minimal_project):
     path, proj, _index_path = _setup(minimal_project)
     store = ProjectStore(path)
@@ -555,3 +571,61 @@ def test_workspace_mutate_failure_leaves_ws_project_matching_disk(minimal_projec
     on_disk = load_project(path)
     assert _ids(ws.project) == _ids(on_disk)
     assert ws.project.history == on_disk.history
+
+
+def _fail_commit(monkeypatch) -> None:
+    def broken(self, project):
+        raise RuntimeError("commit")
+
+    monkeypatch.setattr(ProjectStore, "commit", broken)
+
+
+def test_a_raising_rollback_still_restores_memory_and_the_original_error_propagates(
+    minimal_project, monkeypatch, caplog
+):
+    path, proj, _index_path = _setup(minimal_project)
+
+    def broken_rollback(_project, _checkpoint):
+        raise RuntimeError("rollback")
+
+    monkeypatch.setattr(rollback_mod, "roll_back_history", broken_rollback)
+    _fail_commit(monkeypatch)
+    with caplog.at_level(logging.WARNING):
+        with pytest.raises(RuntimeError, match="commit"):
+            run_mutation(path, proj, "before", "after", _append_new)
+
+    assert _ids(proj) == ["unrecorded"]
+    assert "Could not finish rolling back" in caplog.text
+
+
+def test_an_interrupted_rollback_still_restores_memory(minimal_project, monkeypatch):
+    path, proj, _index_path = _setup(minimal_project)
+
+    def interrupted(_project, _checkpoint):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(rollback_mod, "roll_back_history", interrupted)
+    _fail_commit(monkeypatch)
+    with pytest.raises(KeyboardInterrupt):
+        run_mutation(path, proj, "before", "after", _append_new)
+
+    assert _ids(proj) == ["unrecorded"]
+
+
+def test_a_failed_memory_restore_is_logged_and_the_original_error_propagates(
+    minimal_project, monkeypatch, caplog
+):
+    path, proj, _index_path = _setup(minimal_project)
+    render_before = proj.render.model_copy(deep=True)
+
+    def broken_apply(*_a, **_k):
+        raise ValueError("restore")
+
+    monkeypatch.setattr(session_mod, "apply_snapshot_to_project", broken_apply)
+    _fail_commit(monkeypatch)
+    with caplog.at_level(logging.WARNING):
+        with pytest.raises(RuntimeError, match="commit"):
+            run_mutation(path, proj, "before", "after", _append_new)
+
+    assert "Could not restore the in-memory project" in caplog.text
+    assert proj.render == render_before

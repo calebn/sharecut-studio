@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -97,18 +97,44 @@ def roll_back_history(project: EpisodeProject, checkpoint: HistoryCheckpoint) ->
 
 @contextmanager
 def rolled_back_on_failure(
-    project: EpisodeProject, checkpoint: HistoryCheckpoint
+    project: EpisodeProject,
+    checkpoint: HistoryCheckpoint,
+    *,
+    on_not_landed: Callable[[], None] | None = None,
 ) -> Iterator[None]:
     """Run the block; on any failure (``BaseException``) roll back history since ``checkpoint``.
 
-    Wraps only the rollback; callers keep their own ``project_commit_lock`` scope. The
-    original error is re-raised (``roll_back_history`` only logs its own failures).
+    Wraps only the rollback; callers keep their own ``project_commit_lock`` scope. Unless the
+    commit landed, ``on_not_landed`` then runs (``run_mutation`` restores memory there), also
+    when the rollback itself raises. The original error is re-raised: an ``Exception`` from
+    the rollback or from ``on_not_landed`` is only logged.
     """
     try:
         yield
     except BaseException:
-        roll_back_history(project, checkpoint)
+        _compensate(project, checkpoint, on_not_landed)
         raise
+
+
+def _compensate(
+    project: EpisodeProject,
+    checkpoint: HistoryCheckpoint,
+    on_not_landed: Callable[[], None] | None,
+) -> None:
+    outcome = RollbackOutcome.UNKNOWN
+    try:
+        outcome = roll_back_history(project, checkpoint)
+    except Exception:
+        log.warning("Could not finish rolling back %s", checkpoint.index_path, exc_info=True)
+    finally:
+        if on_not_landed is not None and outcome is not RollbackOutcome.LANDED:
+            try:
+                on_not_landed()
+            except Exception:
+                log.warning(
+                    "Could not restore the in-memory project after a failed mutation",
+                    exc_info=True,
+                )
 
 
 def _commit_landed(project: EpisodeProject, checkpoint: HistoryCheckpoint) -> bool | None:
