@@ -48,6 +48,7 @@ ship unnoticed:
 {
   "reconciliation": {"stale": false, "fingerprint": "...", "last_reconciliation_hash": "..."},
   "master_qc": {"within_tolerance": true, "issues": []},
+  "alignment": {"checked": true, "accepted": true, "tracks": {"guest": 0.0}, "issues": []},
   "issues": [],
   "ok": true
 }
@@ -61,9 +62,11 @@ pipeline) and before telling the user the episode is ready.** If `ok` is `false`
   [podcast-transcript-reconcile](../podcast-transcript-reconcile/SKILL.md).
 - A `master_qc` issue — see the loudness QC section above.
 - Unmapped transcript words in `timebase.issues` — wrong clock or cut-away words.
+- An `alignment` issue - a track sits more than `align.large_move_sec` off the reference clock and no person accepted the alignment (`podcast-align-audio`: listen, nudge, `align done`).
 
-Source/timeline **drift** after edits is expected; it appears under `warnings` /
-`timebase.warnings` and does **not** flip `ok` by itself.
+Plain source/timeline **drift** after edits is expected; it appears under `warnings` /
+`timebase.warnings` and does **not** flip `ok` by itself. Relative align drift above
+`align.large_move_sec` without a person's accept is an issue (`alignment.issues`).
 
 This check is non-blocking by design (matches `master_qc.json`) — it reports, it
 doesn't raise, so an agent decides whether to re-run steps or ship as-is.

@@ -17,7 +17,7 @@ Transcript hub: **podcast-transcript-workflow** — [docs/transcript-workflow.md
 1. ingest_tracks
 2. transcribe_tracks
 3. align_tracks — conversation clock (bleed/gaps); default on; skip for unrelated clips
-4. require_align_accept — hard agent gate (`podcast align done` / waive; auto-waive if `--unattended`)
+4. require_align_accept — hard agent gate (`podcast align done` / waive; auto-waive small moves if `--unattended`, never moves above `align.large_move_sec`)
 5. merge_transcript
 6. render_dialogue_stems — pass-1 stems for audibility
 7. reconcile_transcript — **pass 1** (suppress bleed/inaudible)
@@ -45,7 +45,7 @@ Resume notes: `--from reconcile_transcript` starts at **pass 1**. For pass 2 onl
 
 `podcast pipeline run` and `podcast render-preview` report progress automatically (stderr / `--json-progress`). MCP tools inherit the same progress framework — relay tool headlines to the user; do not invent status. Spec: [docs/progress.md](../../docs/progress.md).
 
-**Unattended:** `podcast pipeline run --unattended` or `PODCAST_BATCH=1` auto-waives the align and refine gates when `align.accept.mode` / `analysis.transcript_refine.mode` are `waive_unattended` (default). Agents in MCP sessions leave this unset and clear gates with **podcast-align-audio** / **podcast-transcript-refine**.
+**Unattended:** `podcast pipeline run --unattended` or `PODCAST_BATCH=1` auto-waives the align (small moves only; a move above `align.large_move_sec` stops the run) and refine gates when `align.accept.mode` / `analysis.transcript_refine.mode` are `waive_unattended` (default). Agents in MCP sessions leave this unset and clear gates with **podcast-align-audio** / **podcast-transcript-refine**.
 
 **Performance:** `analyze_fillers_pauses`, `assemble_timeline`/`render_dialogue_stems`, and `export_deliverables` parallelize their internal per-track/per-candidate/per-format work by default (`performance.max_workers` in `pipeline.yaml`, `0` = auto). Step order itself never changes. Set `max_workers: 1` for deterministic single-threaded reproduction while debugging a specific cut/render issue. Details: [docs/pipeline.md#performance](../../../docs/pipeline.md#performance).
 

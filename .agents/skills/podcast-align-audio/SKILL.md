@@ -24,8 +24,8 @@ Order: `transcribe_tracks` → **`align_tracks`** → **`require_align_accept`**
 
 | Step | Who | Behavior |
 |------|-----|----------|
-| `align_tracks` | Deterministic scorer | Bleed phrase Δt when matches agree; else own-speech/VAD gaps; else late-join = first speech into a host silence (clear win vs identity); N speakers; whole-file clips only |
-| `require_align_accept` | Gate | Blocks until done/waived; `--unattended` auto-waives when `align.accept.mode=waive_unattended` |
+| `align_tracks` | Deterministic scorer | Locks first (equal-duration `hold`, manifest `manual`); bleed phrase Δt when at least 5 weighted matches agree; moves above `align.large_move_sec` need waveform confirmation else `unconfirmed_hold`; else own-speech/VAD gaps; else late-join = first speech into a host silence (clear win vs identity); N speakers; whole-file clips only |
+| `require_align_accept` | Gate | Blocks until done/waived; `--unattended` auto-waives small moves when `align.accept.mode=waive_unattended` but stops on any move above `align.large_move_sec` |
 
 ### Gate (interactive / MCP)
 
@@ -40,6 +40,8 @@ Order: `transcribe_tracks` → **`align_tracks`** → **`require_align_accept`**
 2. **`play --compare --start 0 --end 90`** (and opening windows).
 3. Nudge clips in Sharecut Studio (select-tool body drag, or `move_clips_tool` / `podcast edit move-clips`) if the rough clock is wrong. Do **not** use `move_segment_tool` for that — it shuffles a time range on every dialogue track.
 4. **`align done`** (or waive with reason). Re-running `align_tracks` resets pending.
+
+Reading the brief: `hold` / `manual` stems are locked (equal length or manifest-pinned) and keep their placement; set `align.realign` (or `pipeline run --realign`) to re-score. `unconfirmed_hold` rows keep the scorer's `candidate_offset_sec` at offset 0 because waveform xcorr did not confirm it; `align brief` lists `large_moves`. Listen, nudge with `move_clips_tool` if the candidate is real, then `align done`.
 
 Artifact: `artifacts/alignment/conversation_align.json`.
 

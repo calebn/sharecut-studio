@@ -12,7 +12,7 @@ Raw recordings often arrive as **several files** in one folder. The episode work
 
 ## Pipeline conversation align
 
-After `transcribe_tracks`, the default-on **`align_tracks`** step places dialogue clips on one session clock (bleed phrase Δt, else own-speech/VAD gaps; N speakers). **`require_align_accept`** gates later steps until listen/`podcast align done` (or unattended waive). Uncheck Align in the Pipeline pane when files are not one conversation. See [pipeline.md](pipeline.md) and skill **podcast-align-audio**.
+After `transcribe_tracks`, the default-on **`align_tracks`** step places dialogue clips on one session clock (bleed phrase Δt, else own-speech/VAD gaps; N speakers). **`require_align_accept`** gates later steps until listen/`podcast align done` (or unattended waive; never for moves above `align.large_move_sec`). Equal-length and manifest-pinned stems are locked (`hold`/`manual`) unless `align.realign`. Uncheck Align in the Pipeline pane when files are not one conversation. See [pipeline.md](pipeline.md) and skill **podcast-align-audio**.
 
 ## Record-session landing drift
 
@@ -154,7 +154,7 @@ Suggest sweeps **each** non-reference guest independently. Cost is O(guests × s
 | Session clock | `session_start_in_file_sec` | VAD sweep (`ingest suggest`) or RMS onset at consolidate |
 | Content fine-tune | `content_align_sec` / `session_offset_sec` | VAD turn-taking; optional transcript anchors |
 | Trim | — | `file_trim = session_start + extract_start - content_align` |
-| Placement | clip `source_start` / `timeline_start` | Whole-file (untrimmed) consolidate: `edits/ingest_placement.place_ingest_sources` (`offset_to_clip_geometry(content_align - session_start)`) so session t=0 is timeline 0 for every speaker; the raw WAV stays whole (non-destructive). Only the primary clip is placed; extra clips follow sequentially. `ingest consolidate` warns when a multi-source speaker's primary clip is placed, since the extras carry no session offset of their own. A lead-in longer than the primary file skips placement and `ingest consolidate` prints a `Warning:` line on stderr. Trimmed extracts (`--extract-start`, with or without `--extract-duration`) are not re-placed. Pipeline `align_tracks` rebases every guest offset (including a held offset of 0) onto the reference clip's placement, so a reference lead-in survives re-alignment. |
+| Placement | clip `source_start` / `timeline_start` | Whole-file (untrimmed) consolidate: `edits/ingest_placement.place_ingest_sources` (`offset_to_clip_geometry(content_align - session_start)`) so session t=0 is timeline 0 for every speaker; the raw WAV stays whole (non-destructive). Only the primary clip is placed; extra clips follow sequentially. `ingest consolidate` warns when a multi-source speaker's primary clip is placed, since the extras carry no session offset of their own. A lead-in longer than the primary file skips placement and `ingest consolidate` prints a `Warning:` line on stderr. Trimmed extracts (`--extract-start`, with or without `--extract-duration`) are not re-placed. Pipeline `align_tracks` rebases every guest offset (including a held offset of 0) onto the reference clip's placement, so a reference lead-in survives re-alignment. Locked `hold`/`manual` clips keep their placement; `unconfirmed_hold` guests are rebased like `weak_hold`. |
 
 Cross-speaker correlation uses `session.reference_speaker` as the reference (not the first-listed file).
 
@@ -189,7 +189,8 @@ Waveform PNGs under `artifacts/alignment/` (`showwavespic` via ffmpeg) show whet
   highlight the **first** non-reference guest (backward-compatible shape).
 - Weak correlation / missing anchors: rely on VAD + listening.
 - Pipeline `align_tracks` prefers consistent bleed n-grams, then own-speech gaps;
-  equal-duration pairs start at offset 0 (trust but verify).
+  equal-duration stems and manifest-pinned offsets are locked at their placement
+  (`hold` / `manual`); `align.realign` (or `pipeline run --realign`) re-scores them.
 
 ## Assigning speakers
 
