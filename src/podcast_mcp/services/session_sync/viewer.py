@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.services.session_sync.commands import SyncCommand
+from podcast_mcp.services.session_sync.commands import SyncCommand, normalize_presence_playhead
 from podcast_mcp.services.session_sync.service import SessionSyncService, next_client_seq
 
 
@@ -137,15 +137,17 @@ def publish_viewer_snapshot(
         )["snapshot"]
     # Paused scrub only - never journal playhead while transport is rolling
     # (local or remote). PresenceHeartbeat above already carries live playhead.
+    # An invalid playhead (negative, NaN, inf, bool) is skipped, not journaled.
+    scrub_sec = normalize_presence_playhead(snapshot.get("playhead_sec"))
     if (
-        "playhead_sec" in snapshot
+        scrub_sec is not None
         and not playing_now
         and not bool(latest.get("is_playing"))
-        and float(snapshot["playhead_sec"]) != float(current.get("playhead_sec") or 0.0)
+        and scrub_sec != float(current.get("playhead_sec") or 0.0)
     ):
         latest = svc.submit_control(
             "SetPlayhead",
-            {"playhead_sec": snapshot["playhead_sec"]},
+            {"playhead_sec": scrub_sec},
             client_id=client_id,
             role="viewer",
         )["snapshot"]
