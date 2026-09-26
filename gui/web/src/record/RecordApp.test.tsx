@@ -464,6 +464,79 @@ describe("RecordApp", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("keeps keeper upload status off the producer room after Stop", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = urlOf(input);
+      if (url.includes("/bootstrap")) {
+        return new Response(
+          JSON.stringify({
+            ...producerBootstrap,
+            build: { capture: true, monitor: true, upload: true },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("/upload")) {
+        return new Response(
+          JSON.stringify({
+            segments: [
+              {
+                take_index: 0,
+                participant_id: "p_g",
+                segment_index: 0,
+                acked_parts: [0],
+                file_ack: false,
+                landed: false,
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response("not found", { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { container } = render(<RecordApp token="prod-tok" />);
+    await userEvent.click(await screen.findByRole("button", { name: "Join" }));
+    await waitFor(() => {
+      expect(sockets[0]?.sent.some((raw) => raw.includes('"Join"'))).toBe(true);
+    });
+    await screen.findByRole("button", { name: "Leave" });
+    sockets[0]?.onmessage?.({
+      data: JSON.stringify({
+        plane: "record",
+        type: "Snapshot",
+        snapshot: {
+          ...guestSnap,
+          state: "stopped",
+          take_index: 0,
+          start_blockers: [],
+          participants: [
+            {
+              ...guestSnap.participants[0],
+              role: "producer",
+              display_name: "Pat",
+            },
+          ],
+        },
+      }),
+    });
+    await waitFor(() => {
+      expect(container.querySelector(".record-rec-label")?.textContent).toBe(
+        "Stopped",
+      );
+    });
+    expect(screen.queryByText(/Uploading your take/)).toBeNull();
+    expect(screen.queryByText(/waiting to land on the host/)).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Recover partial take" }),
+    ).toBeNull();
+    expect(screen.getByRole("button", { name: "Leave" })).toBeEnabled();
+    expect(
+      fetchMock.mock.calls.some(([input]) => urlOf(input).includes("/upload")),
+    ).toBe(false);
+  });
+
   it("blocks guest consent when local backup storage is unavailable", async () => {
     vi.mocked(createOpfsSink).mockRejectedValueOnce(new Error("quota"));
     vi.stubGlobal(
