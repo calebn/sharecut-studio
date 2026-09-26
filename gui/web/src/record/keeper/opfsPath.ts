@@ -1,4 +1,7 @@
 /** OPFS path helpers shared by the keeper store and the sync-access writer worker. */
+/** OPFS directory that holds every keeper, room-tone bed and storage probe. */
+export const KEEPER_OPFS_ROOT = "Sharecut Recordings";
+
 export function assertSafePart(part: string): string {
   if (
     !part ||

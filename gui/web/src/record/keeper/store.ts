@@ -1,6 +1,7 @@
 import { removeKeeperUnlessHeld } from "./deletionGuard";
 import {
   assertSafePart,
+  KEEPER_OPFS_ROOT,
   opfsDirHandle,
   opfsFileHandle,
   splitOpfsPath,
@@ -120,7 +121,7 @@ export function keeperWavPath(
 ): string {
   const segment = assertIndex(meta.segmentIndex);
   return [
-    "Sharecut Recordings",
+    KEEPER_OPFS_ROOT,
     assertSafePart(meta.sessionId),
     assertIndex(meta.takeIndex),
     assertSafePart(meta.participantId),
@@ -371,7 +372,7 @@ export function keeperDirPrefix(
   participantId: string,
 ): string {
   return [
-    "Sharecut Recordings",
+    KEEPER_OPFS_ROOT,
     assertSafePart(sessionId),
     assertIndex(takeIndex),
     assertSafePart(participantId),
@@ -383,7 +384,7 @@ export function roomToneWavPath(
   participantId: string,
 ): string {
   return [
-    "Sharecut Recordings",
+    KEEPER_OPFS_ROOT,
     assertSafePart(sessionId),
     "room-tone",
     `${assertSafePart(participantId)}.wav`,
@@ -632,7 +633,7 @@ async function assertOpfsWritable(
   root: FileSystemDirectoryHandle,
 ): Promise<void> {
   const name = probeFileName();
-  const keeperRoot = await root.getDirectoryHandle("Sharecut Recordings", {
+  const keeperRoot = await root.getDirectoryHandle(KEEPER_OPFS_ROOT, {
     create: true,
   });
   let writable: FileSystemWritableFileStream | undefined;

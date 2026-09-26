@@ -8,6 +8,12 @@ import {
   type Page,
   test,
 } from "@playwright/test";
+import { PCM_WAV_HEADER_BYTES } from "../src/audio/wavHeader";
+import { KEEPER_OPFS_ROOT } from "../src/record/keeper/opfsPath";
+import {
+  KEEPER_FRAME_BYTES,
+  KEEPER_SAMPLE_RATE,
+} from "../src/record/keeper/pcm";
 import { expectReadingSurfaceAxeClean } from "./axe";
 import {
   createRecordRoom,
@@ -90,17 +96,20 @@ async function beforeUnloadIsBlocked(page: Page): Promise<boolean> {
   });
 }
 
-const ONE_SECOND_KEEPER_WAV_BYTES = 44 + 48_000 * 2; // WAV header + 1 s of 48 kHz mono s16
+/** One second of keeper PCM (48 kHz mono s16). */
+const ONE_SECOND_KEEPER_PCM_BYTES = KEEPER_SAMPLE_RATE * KEEPER_FRAME_BYTES;
+const ONE_SECOND_KEEPER_WAV_BYTES =
+  PCM_WAV_HEADER_BYTES + ONE_SECOND_KEEPER_PCM_BYTES;
 
 type RecordingWav = { path: string; size: number; header: number[] };
 
-/** Every `.wav` under OPFS "Sharecut Recordings"; null when that directory does not exist. */
+/** Every `.wav` under the keeper OPFS root; null when that directory does not exist. */
 async function recordingWavs(page: Page): Promise<RecordingWav[] | null> {
-  return page.evaluate(async () => {
+  return page.evaluate(async (rootName) => {
     const root = await navigator.storage.getDirectory();
     let recordings: FileSystemDirectoryHandle;
     try {
-      recordings = await root.getDirectoryHandle("Sharecut Recordings");
+      recordings = await root.getDirectoryHandle(rootName);
     } catch (error) {
       if (error instanceof DOMException && error.name === "NotFoundError") {
         return null;
@@ -132,7 +141,7 @@ async function recordingWavs(page: Page): Promise<RecordingWav[] | null> {
     };
     await walk(recordings, "");
     return out;
-  });
+  }, KEEPER_OPFS_ROOT);
 }
 
 async function keeperWavBytes(page: Page): Promise<number> {
@@ -162,10 +171,10 @@ async function seedSparseRecoveryKeepers(
   participantId: string,
 ): Promise<void> {
   await page.evaluate(
-    async ({ sessionId, takeIndex, participantId }) => {
+    async ({ rootName, sessionId, takeIndex, participantId }) => {
       let dir = await navigator.storage.getDirectory();
       for (const part of [
-        "Sharecut Recordings",
+        rootName,
         sessionId,
         String(takeIndex),
         participantId,
@@ -199,7 +208,7 @@ async function seedSparseRecoveryKeepers(
         await writer.close();
       }
     },
-    { sessionId, takeIndex, participantId },
+    { rootName: KEEPER_OPFS_ROOT, sessionId, takeIndex, participantId },
   );
 }
 
@@ -893,7 +902,9 @@ test.describe("record lobby", () => {
         // this clears the 1 s post-kill check without waiting on a later flush.
         await expect
           .poll(async () => keeperWavBytes(guest), { timeout: 15_000 })
-          .toBeGreaterThan(44 + 48_000 * 2 * 1.5);
+          .toBeGreaterThan(
+            PCM_WAV_HEADER_BYTES + 1.5 * ONE_SECOND_KEEPER_PCM_BYTES,
+          );
 
         // Tear the page and its writer worker down with no keeper close.
         const ctx = guest.context();
@@ -913,7 +924,7 @@ test.describe("record lobby", () => {
         // More than 1 s of committed PCM; on main the swap file is discarded.
         await expect
           .poll(async () => keeperWavBytes(reopened), { timeout: 15_000 })
-          .toBeGreaterThan(44 + 48_000 * 2);
+          .toBeGreaterThan(ONE_SECOND_KEEPER_WAV_BYTES);
         const recover = reopened.getByRole("button", {
           name: "Recover partial take",
         });
@@ -1300,6 +1311,7 @@ test.describe("record lobby", () => {
               });
           }
           await expect(avaLanded).toBeVisible({ timeout: 60_000 });
+          await expect(uploadList.getByText(/^Pat:/)).toHaveCount(0);
           await expect(
             guest.getByText(
               "Landed on the host. The local backup is cleared automatically.",
@@ -1320,6 +1332,17 @@ test.describe("record lobby", () => {
               { timeout: 15_000 },
             )
             .toEqual(["Great answer", "Marker", "Producer note"]);
+          // Host keeper source ids are rec-<session>-<take>-<participant>-<segment>.
+          const hostSourcePrefix = `rec-${room.session_id}-0-${HOST_PARTICIPANT_ID}-`;
+          await expect
+            .poll(
+              async () =>
+                (await readSavedProject(projectPath)).timeline.clips.filter(
+                  (c) => c.source_id.startsWith(hostSourcePrefix),
+                ).length,
+              { timeout: 15_000 },
+            )
+            .toBeGreaterThan(0);
           const saved = await readSavedProject(projectPath);
           const ava = saved.timeline.tracks.find((t) => t.label === "Ava");
           expect(ava, "landed track for Ava").toBeTruthy();
@@ -1327,7 +1350,11 @@ test.describe("record lobby", () => {
             (c) => c.track_id === ava?.id,
           );
           expect(avaClips.length).toBeGreaterThanOrEqual(1);
-          for (const clip of avaClips) {
+          const hostClips = saved.timeline.clips.filter((c) =>
+            c.source_id.startsWith(hostSourcePrefix),
+          );
+          expect(hostClips.length).toBeGreaterThanOrEqual(1);
+          for (const clip of [...avaClips, ...hostClips]) {
             const source = saved.sources.find(
               (src) => src.id === clip.source_id,
             );
@@ -1341,6 +1368,9 @@ test.describe("record lobby", () => {
             (saved.review?.comments ?? []).find((c) => c.body === body);
           expect(byBody("Marker")?.author).toBe(guestId);
           expect(byBody("Great answer")?.author).toBe(guestId);
+          // The window is the host recording clock read before and after the press
+          // (so it already widens with the measured round trip on a loaded runner),
+          // plus the ±0.25 s landing contract from docs/recording-session.md.
           const landedNear = (body: string, fromMs: number, toMs: number) => {
             const comment = byBody(body);
             expect(comment, `review comment ${body}`).toBeTruthy();
