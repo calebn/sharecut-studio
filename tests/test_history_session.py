@@ -535,7 +535,11 @@ def test_failed_audio_bookkeeping_restores_render_state(
     assert rollback_outcomes == [RollbackOutcome.RESTORED]
 
 
-def test_landed_commit_keeps_memory_when_the_rollback_cannot_lock(
+def _no_lock(_project):
+    raise filelock.Timeout("lock")
+
+
+def test_unlocked_rollback_cannot_confirm_a_commit_that_changed_the_file(
     minimal_project, monkeypatch, rollback_outcomes
 ):
     path, proj, _index_path = _setup(minimal_project)
@@ -545,16 +549,33 @@ def test_landed_commit_keeps_memory_when_the_rollback_cannot_lock(
         original(self, project)
         raise RuntimeError("late")
 
-    def no_lock(_project):
-        raise filelock.Timeout("lock")
-
     monkeypatch.setattr(ProjectStore, "commit", commit_then_fail)
-    monkeypatch.setattr(rollback_mod, "project_commit_lock", no_lock)
+    monkeypatch.setattr(rollback_mod, "project_commit_lock", _no_lock)
     with pytest.raises(RuntimeError, match="late"):
         run_mutation(path, proj, "before", "after", _append_new)
 
-    assert _ids(proj) == _ids(load_project(path)) == ["unrecorded", "new"]
-    assert rollback_outcomes == [RollbackOutcome.LANDED]
+    assert rollback_outcomes == [RollbackOutcome.UNKNOWN]
+    assert _ids(proj) == ["unrecorded"]
+    assert _ids(load_project(path)) == ["unrecorded", "new"]
+
+
+def test_unlocked_rollback_restores_memory_when_the_commit_did_not_land(
+    minimal_project, monkeypatch, rollback_outcomes
+):
+    path, proj, index_path = _setup(minimal_project)
+
+    def commit_fails(self, project):
+        raise RuntimeError("early")
+
+    monkeypatch.setattr(ProjectStore, "commit", commit_fails)
+    monkeypatch.setattr(rollback_mod, "project_commit_lock", _no_lock)
+    with pytest.raises(RuntimeError, match="early"):
+        run_mutation(path, proj, "before", "after", _append_new)
+
+    assert rollback_outcomes == [RollbackOutcome.KEPT]
+    assert _ids(proj) == ["unrecorded"]
+    assert _ids(load_project(path)) == []
+    assert proj.history.model_dump(mode="json") == json.loads(index_path.read_text())
 
 
 def test_workspace_mutate_failure_leaves_ws_project_matching_disk(minimal_project, monkeypatch):
