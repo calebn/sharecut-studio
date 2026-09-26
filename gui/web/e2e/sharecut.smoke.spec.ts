@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
+import { hostOfflineQueueCount } from "./offlineQueue";
 
 test.describe("Sharecut Studio smoke", () => {
   test("loads fixture project shell and is axe-clean on chrome", async ({
@@ -90,26 +91,7 @@ test.describe("Sharecut Studio smoke", () => {
     await page.getByRole("button", { name: "Post comment" }).click();
     await expect.poll(() => commands.length).toBe(1);
     await expect
-      .poll(async () =>
-        page.evaluate(async (projectPath) => {
-          return new Promise<number>((resolve, reject) => {
-            const open = indexedDB.open("podcast-daw-offline", 1);
-            open.onerror = () => reject(open.error);
-            open.onsuccess = () => {
-              const db = open.result;
-              const request = db
-                .transaction("kv", "readonly")
-                .objectStore("kv")
-                .get(`host-queue:${projectPath}`);
-              request.onerror = () => reject(request.error);
-              request.onsuccess = () => {
-                db.close();
-                resolve((request.result as unknown[] | undefined)?.length ?? 0);
-              };
-            };
-          });
-        }, e2eProjectPath),
-      )
+      .poll(() => hostOfflineQueueCount(page, e2eProjectPath))
       .toBe(1);
     await expect(page.getByRole("alert")).toContainText("1 pending");
     await expect(
