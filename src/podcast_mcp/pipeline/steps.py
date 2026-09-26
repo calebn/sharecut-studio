@@ -16,7 +16,6 @@ from podcast_mcp.models import (
     ProcessingEffect,
     Track,
     TrackRole,
-    Transcript,
 )
 from podcast_mcp.pipeline.helpers import (
     artifact,
@@ -90,17 +89,12 @@ def ingest_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSumm
 
 def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.edits.pipeline_unattended import is_unattended
-    from podcast_mcp.edits.transcript_reuse import (
-        merge_transcripts_by_key,
-        plan_transcription,
-        stamp_audio_identity,
-    )
+    from podcast_mcp.edits.transcript_reuse import plan_transcription, run_transcribe_plan
     from podcast_mcp.engines.audio_audit import AnalysisPolicy
     from podcast_mcp.engines.transcribe import (
         collect_anomalous_asr_duration_flags,
         dialogue_transcribe_jobs,
     )
-    from podcast_mcp.transcript_context import load_transcript_context
 
     cfg = defaults.get("transcribe", {})
     pol = AnalysisPolicy.from_defaults(defaults)
@@ -113,34 +107,17 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         unattended=is_unattended(defaults=defaults),
         allow_edited=bool(cfg.get("overwrite_edited", False)),
     )
-    for track_id in plan.overwrite_edited:
-        log.warning("re-transcribing overwrites edited transcript for track %s", track_id)
-
-    transcripts: list[Transcript] = []
-    if plan.run:
-        engine = TranscriptionEngine(
+    transcripts = run_transcribe_plan(
+        project,
+        plan,
+        lambda: TranscriptionEngine(
             model_size=cfg.get("model", DEFAULT_WHISPER_MODEL),
             device="cpu",
-        )
-        ctx = load_transcript_context(project.workspace_path())
-        prompt = ctx.initial_prompt_text()
-        # Prompt and vocabulary_revision must come from this one load: a concurrent
-        # edit mints a newer revision, so these transcripts stay stale in Studio.
-        transcripts = engine.transcribe_all_dialogue(
-            project,
-            language=cfg.get("language", "en"),
-            initial_prompt=prompt,
-            max_word_sec=pol.max_word_audibility_sec,
-            jobs=plan.run,
-            audio_hashes=plan.audio_hashes,
-            use_cache=not overwrite,
-        )
-        for t in transcripts:
-            t.vocabulary_revision = ctx.vocabulary_revision
-        # A correction saved to one of these transcripts during ASR is not lost: the
-        # runner's save_merged merges words as one value, so both changing them conflicts.
-        merge_transcripts_by_key(project, transcripts)
-    stamp_audio_identity(project, plan)
+        ),
+        use_cache=not overwrite,
+        language=cfg.get("language", "en"),
+        max_word_sec=pol.max_word_audibility_sec,
+    )
     job_keys = {j.key for j in jobs}
     words = sum(len(t.words) for t in project.transcripts if t.key in job_keys)
     timing_flags = collect_anomalous_asr_duration_flags(

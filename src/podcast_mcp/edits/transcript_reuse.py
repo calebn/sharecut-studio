@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
 
-from podcast_mcp.engines.transcribe import TranscribeJob, cached_audio_keys
+from podcast_mcp.engines.transcribe import TranscribeJob, TranscriptionEngine, cached_audio_keys
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptKey
+from podcast_mcp.transcript_context import load_transcript_context
 from podcast_mcp.util.hashing import sha256_file
+
+log = logging.getLogger(__name__)
 
 
 class TranscriptOverwriteRefused(RuntimeError):
@@ -138,3 +144,42 @@ def stamp_audio_identity(project: EpisodeProject, plan: TranscribePlan) -> None:
             t.audio_sha256 = sha
         if t.audio_sha256 == sha:
             t.audio_size, t.audio_mtime_ns = plan.audio_stats[t.key]
+
+
+def run_transcribe_plan(
+    project: EpisodeProject,
+    plan: TranscribePlan,
+    make_engine: Callable[[], TranscriptionEngine],
+    *,
+    use_cache: bool,
+    **asr_options: Any,
+) -> list[Transcript]:
+    """Run ASR for ``plan.run``, apply the results to ``project`` and return them.
+
+    Warns for each edited transcript being replaced, stamps the vocabulary revision the
+    prompt came from, merges by ``(track, source)`` key, then records audio identity on
+    every planned transcript (reused ones too). ``make_engine`` is called only when ASR
+    runs; ``asr_options`` (``language``, ``max_word_sec``) go to ``transcribe_all_dialogue``.
+    """
+    for track_id in plan.overwrite_edited:
+        log.warning("re-transcribing overwrites edited transcript for track %s", track_id)
+    transcripts: list[Transcript] = []
+    if plan.run:
+        ctx = load_transcript_context(project.workspace_path())
+        # Prompt and vocabulary_revision must come from this one load: a concurrent
+        # edit mints a newer revision, so these transcripts stay stale in Studio.
+        transcripts = make_engine().transcribe_all_dialogue(
+            project,
+            initial_prompt=ctx.initial_prompt_text(),
+            jobs=plan.run,
+            audio_hashes=plan.audio_hashes,
+            use_cache=use_cache,
+            **asr_options,
+        )
+        for t in transcripts:
+            t.vocabulary_revision = ctx.vocabulary_revision
+        # A correction saved to one of these transcripts during ASR is not lost: the
+        # runner's save_merged merges words as one value, so both changing them conflicts.
+        merge_transcripts_by_key(project, transcripts)
+    stamp_audio_identity(project, plan)
+    return transcripts

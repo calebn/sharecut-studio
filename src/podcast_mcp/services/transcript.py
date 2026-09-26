@@ -1,22 +1,14 @@
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 
 from podcast_mcp.edits.transcript_cuts import format_transcript_timestamps
-from podcast_mcp.edits.transcript_reuse import (
-    merge_transcripts_by_key,
-    plan_transcription,
-    stamp_audio_identity,
-)
+from podcast_mcp.edits.transcript_reuse import plan_transcription, run_transcribe_plan
 from podcast_mcp.engines import TranscriptionEngine
 from podcast_mcp.engines.transcribe import dialogue_transcribe_jobs, track_transcribe_job
 from podcast_mcp.export.transcript import write_combined_transcript_markdown
 from podcast_mcp.services.workspace import ProjectWorkspace
-from podcast_mcp.transcript_context import load_transcript_context
 from podcast_mcp.whisper_models import resolve_whisper_model
-
-log = logging.getLogger(__name__)
 
 
 class TranscriptService:
@@ -25,25 +17,14 @@ class TranscriptService:
         self._engine = TranscriptionEngine(resolve_whisper_model(requested=model))
 
     def transcribe(self, track_id: str | None = None) -> list[str]:
-        ctx = load_transcript_context(self.ws.project.workspace_path())
-        prompt = ctx.initial_prompt_text()
-        # Prompt and vocabulary_revision must come from this one load: a concurrent
-        # edit mints a newer revision, so these transcripts stay stale in Studio.
-
         def mutate(p) -> list[str]:
             jobs = [track_transcribe_job(p, track_id)] if track_id else dialogue_transcribe_jobs(p)
             # An explicit transcribe is an attended overwrite: edited transcripts are
             # replaced with a warning, never silently, and nothing else is touched.
             plan = plan_transcription(p, jobs, overwrite=True, unattended=False)
-            for tid in plan.overwrite_edited:
-                log.warning("transcribe overwrites edited transcript for track %s", tid)
-            transcripts = self._engine.transcribe_all_dialogue(
-                p, initial_prompt=prompt, jobs=plan.run, audio_hashes=plan.audio_hashes
-            )
-            for t in transcripts:
-                t.vocabulary_revision = ctx.vocabulary_revision
-            merge_transcripts_by_key(p, transcripts)
-            stamp_audio_identity(p, plan)
+            # The ASR disk cache still counts (docs/transcript-workflow.md): unchanged
+            # audio, model and prompt reuse it.
+            transcripts = run_transcribe_plan(p, plan, lambda: self._engine, use_cache=True)
             return list(dict.fromkeys(t.track_id for t in transcripts))
 
         return self.ws.mutate("before transcribe", "after transcribe", mutate)
