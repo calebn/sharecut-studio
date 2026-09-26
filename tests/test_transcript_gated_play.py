@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import wave
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -148,6 +149,97 @@ def test_apply_gate_empty_and_fade() -> None:
     )
     assert faded[200] == 0.0
     assert 0.0 < faded[210] < 1.0
+
+
+def test_apply_gate_matches_sample_clock_reference() -> None:
+    samples = np.ones(2400, dtype=np.float32)
+    intervals = [(0.013, 0.061), (0.084, 0.12)]
+    rate = 12_000
+    start = 0.01
+    actual = _apply_gate(samples, intervals, timeline_start=start, sample_rate=rate)
+    clock = np.arange(samples.size, dtype=np.float64) / rate + start
+    expected = np.zeros_like(samples)
+    for begin, end in intervals:
+        indices = np.where((clock >= begin) & (clock < end))[0]
+        expected[indices] = 1
+        fade = min(int(0.012 * rate), indices.size)
+        expected[indices[:fade]] *= np.linspace(0, 1, fade, dtype=np.float32)
+        expected[indices[-fade:]] *= np.linspace(1, 0, fade, dtype=np.float32)
+    np.testing.assert_array_equal(actual, expected)
+
+
+def test_gate_stem_window_streams_and_preserves_outer_pcm(tmp_path: Path, monkeypatch) -> None:
+    source = tmp_path / "source.wav"
+    output = tmp_path / "gated.wav"
+    pcm = np.arange(48_000 * 3, dtype=np.int16)
+    with wave.open(str(source), "wb") as wav:
+        wav.setparams((1, 2, 48_000, 0, "NONE", "not compressed"))
+        wav.writeframes(pcm.tobytes())
+
+    def unexpected_decode(*args, **kwargs):
+        raise AssertionError("PCM gate must not decode the full stem")
+
+    monkeypatch.setattr(
+        "podcast_mcp.engines.transcript_gated_play._load_segment", unexpected_decode
+    )
+    gate_stem_window(source, [], output, duration_sec=3, win_start=1, win_end=2)
+    with wave.open(str(output), "rb") as wav:
+        result = np.frombuffer(wav.readframes(wav.getnframes()), dtype=np.int16)
+    np.testing.assert_array_equal(result[:48_000], pcm[:48_000])
+    np.testing.assert_array_equal(result[96_000:], pcm[96_000:])
+    assert not result[48_000:96_000].any()
+
+
+def test_gate_stem_window_in_place_is_atomic(tmp_path: Path) -> None:
+    path = tmp_path / "stem.wav"
+    pcm = np.full(48_000, 1000, dtype=np.int16)
+    with wave.open(str(path), "wb") as wav:
+        wav.setparams((1, 2, 48_000, 0, "NONE", "not compressed"))
+        wav.writeframes(pcm.tobytes())
+    gate_stem_window(path, [], path, duration_sec=1, win_start=0.25, win_end=0.5)
+    with wave.open(str(path), "rb") as wav:
+        result = np.frombuffer(wav.readframes(wav.getnframes()), dtype=np.int16)
+    assert result.size == pcm.size
+    np.testing.assert_array_equal(result[:12_000], pcm[:12_000])
+    assert not result[12_000:24_000].any()
+    np.testing.assert_array_equal(result[24_000:], pcm[24_000:])
+
+
+def test_gate_stem_window_matches_gate_across_stream_chunk(tmp_path: Path) -> None:
+    source = tmp_path / "source.wav"
+    output = tmp_path / "gated.wav"
+    pcm = np.full(96_000, 1000, dtype=np.int16)
+    with wave.open(str(source), "wb") as wav:
+        wav.setparams((1, 2, 48_000, 0, "NONE", "not compressed"))
+        wav.writeframes(pcm.tobytes())
+    intervals = [(0.9, 1.1)]
+    gate_stem_window(source, intervals, output, duration_sec=2, win_start=0, win_end=2)
+    with wave.open(str(output), "rb") as wav:
+        actual = np.frombuffer(wav.readframes(wav.getnframes()), dtype=np.int16)
+    expected = _apply_gate(pcm.astype(np.float32), intervals, timeline_start=0).astype(np.int16)
+    np.testing.assert_array_equal(actual, expected)
+
+
+def test_gate_stem_window_non_pcm16_uses_conversion(tmp_path: Path, monkeypatch) -> None:
+    source = tmp_path / "float.wav"
+    output = tmp_path / "out.wav"
+    with wave.open(str(source), "wb") as wav:
+        wav.setparams((1, 1, 48_000, 0, "NONE", "not compressed"))
+        wav.writeframes(bytes([100] * 100))
+    calls = []
+
+    def load(*args, **kwargs):
+        calls.append((args, kwargs))
+        return np.ones(100, dtype=np.float32)
+
+    monkeypatch.setattr("podcast_mcp.engines.transcript_gated_play._load_segment", load)
+    monkeypatch.setattr(
+        "podcast_mcp.engines.transcript_gated_play._write_wav", lambda samples, path: path
+    )
+    gate_stem_window(
+        source, [], output, duration_sec=100 / 48_000, win_start=0, win_end=100 / 48_000
+    )
+    assert len(calls) == 1
 
 
 def test_normalize_peak_handles_silence_and_signal() -> None:

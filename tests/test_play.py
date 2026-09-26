@@ -36,6 +36,66 @@ def test_parse_time_sec_invalid() -> None:
         parse_time_sec("not-a-time")
 
 
+def test_play_cache_eviction_keeps_recent_and_skips_other_files(
+    minimal_project, tmp_workspace, monkeypatch
+) -> None:
+    import time
+
+    from podcast_mcp.services import play as play_module
+
+    ws = ProjectWorkspace.open(minimal_project)
+    service = PlayService(ws)
+    cache = ws.project.artifacts_dir() / "play_cache"
+    cache.mkdir(parents=True)
+    old = cache / "compose_old.wav"
+    stale = cache / "pending_suggested_old.wav"
+    recent = cache / "ab_concat_recent.wav"
+    foreign = cache / "notes.txt"
+    for path in (old, stale, recent, foreign):
+        path.write_bytes(b"x")
+    now = time.time()
+    os.utime(old, (now - 7200, now - 7200))
+    os.utime(stale, (now - 8 * 86400, now - 8 * 86400))
+    monkeypatch.setattr(play_module, "_PLAY_CACHE_MAX_FILES", 1)
+    service._play_cache_dir()
+    assert not old.exists()
+    assert not stale.exists()
+    assert recent.exists()
+    assert foreign.exists()
+
+
+def test_play_cache_burst_has_hard_file_cap(minimal_project, monkeypatch) -> None:
+    from podcast_mcp.services import play as play_module
+
+    service = PlayService(ProjectWorkspace.open(minimal_project))
+    cache = service.project.artifacts_dir() / "play_cache"
+    cache.mkdir(parents=True)
+    for index in range(5):
+        (cache / f"compose_{index}.wav").write_bytes(b"x")
+    monkeypatch.setattr(play_module, "_PLAY_CACHE_MAX_FILES", 2)
+    monkeypatch.setattr(play_module, "_PLAY_CACHE_HARD_MAX_FILES", 3)
+    service._play_cache_dir()
+    assert len(list(cache.glob("*.wav"))) == 3
+
+
+def test_play_cache_retains_current_ab_inputs(minimal_project, monkeypatch) -> None:
+    from podcast_mcp.services import play as play_module
+
+    service = PlayService(ProjectWorkspace.open(minimal_project))
+    cache = service.project.artifacts_dir() / "play_cache"
+    cache.mkdir(parents=True)
+    first = cache / "ab_first.wav"
+    second = cache / "ab_second.wav"
+    extra = cache / "compose_extra.wav"
+    another = cache / "compose_another.wav"
+    for path in (first, second, extra, another):
+        path.write_bytes(b"x")
+    monkeypatch.setattr(play_module, "_PLAY_CACHE_HARD_MAX_FILES", 1)
+    service._ab_concat_path(first, second, 0.4)
+    assert first.exists() and second.exists()
+    assert sum(path.exists() for path in (extra, another)) == 1
+
+
 def test_timeline_to_source_with_clip(minimal_project, sample_wav, tmp_workspace) -> None:
     proj = load_project(minimal_project)
     raw = tmp_workspace / "raw"

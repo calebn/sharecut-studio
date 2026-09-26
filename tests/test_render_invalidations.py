@@ -21,6 +21,27 @@ from podcast_mcp.models import (
 )
 
 
+def test_render_status_probes_each_existing_stem_once(tmp_path, monkeypatch) -> None:
+    from podcast_mcp.engines import render_status
+    from podcast_mcp.models import EpisodeProject, Track, TrackRole
+
+    project = EpisodeProject.create("ep", str(tmp_path))
+    project.tracks = [Track(id="host", label="Host", role=TrackRole.DIALOGUE)]
+    stem = project.artifacts_dir() / "tracks" / "host.wav"
+    stem.parent.mkdir(parents=True)
+    stem.write_bytes(b"wav")
+    calls = []
+
+    def probe(_project, track_id):
+        calls.append(track_id)
+        return 1.0
+
+    monkeypatch.setattr(render_status, "probe_stem_duration_sec", probe)
+    report = render_status_report(project)
+    assert report["tracks"]["host"]["stem_duration_sec"] == 1.0
+    assert calls == ["host"]
+
+
 def _with_dialogue_track(proj_path, sample_wav):
     project = load_project(proj_path)
     if not project.tracks:

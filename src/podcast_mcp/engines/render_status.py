@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 from podcast_mcp.engines.play_audit import (
+    STEM_DURATION_TOLERANCE_SEC,
     expected_stem_duration_sec,
     premix_path,
     premix_stale_vs_mix,
     premix_stale_vs_stems,
     probe_stem_duration_sec,
     read_stem_hash,
-    stem_duration_matches_timeline,
-    stem_is_fresh,
     stem_path,
     track_render_hash,
 )
@@ -25,14 +24,18 @@ def render_status_report(project: EpisodeProject) -> dict:
         exists = stem.is_file()
         expected = expected_stem_duration_sec(project, tid) if exists else None
         actual = probe_stem_duration_sec(project, tid) if exists else None
-        duration_ok = stem_duration_matches_timeline(project, tid) if exists else False
-        fresh = stem_is_fresh(project, tid) if exists else False
+        duration_ok = expected is None or (
+            actual is not None and actual <= expected + STEM_DURATION_TOLERANCE_SEC
+        )
+        render_hash = track_render_hash(project, tid)
+        stored_hash = read_stem_hash(project, tid)
+        fresh = exists and stored_hash == render_hash and duration_ok
         entry = {
             "stem_path": str(stem) if exists else None,
             "stem_exists": exists,
             "stem_is_fresh": fresh,
-            "render_hash": track_render_hash(project, tid),
-            "stored_hash": read_stem_hash(project, tid),
+            "render_hash": render_hash,
+            "stored_hash": stored_hash,
             "expected_duration_sec": expected,
             "stem_duration_sec": actual,
             "duration_mismatch": exists and not duration_ok,

@@ -4,6 +4,7 @@ import hashlib
 import platform
 import re
 import shutil
+import time
 import wave
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -47,6 +48,10 @@ from podcast_mcp.util.tracks import track_audio_path
 # Full-stem rebuild on --rerender is only worth it for long windows. Short
 # auditions use segment render (faster, and avoids silent stem-slice races).
 _FULL_STEM_RERENDER_MIN_SEC = 60.0
+_PLAY_CACHE_MAX_AGE_SEC = 7 * 24 * 60 * 60
+_PLAY_CACHE_MIN_EVICT_AGE_SEC = 60 * 60
+_PLAY_CACHE_MAX_FILES = 512
+_PLAY_CACHE_HARD_MAX_FILES = 4096
 
 
 def _wav_peak_abs(path: Path) -> float | None:
@@ -139,6 +144,36 @@ class PlayService:
         self.ws = workspace
         self.project = workspace.project
         self._defaults = load_defaults()
+
+    def _play_cache_dir(self, *protected: Path) -> Path:
+        """Keep old generated auditions bounded without touching active outputs."""
+        out_dir = self.project.artifacts_dir() / "play_cache"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        now = time.time()
+        candidates: list[tuple[float, Path]] = []
+        for path in out_dir.glob("*.wav"):
+            if path.is_symlink() or not path.is_file():
+                continue
+            try:
+                modified = path.stat().st_mtime
+            except FileNotFoundError:
+                continue
+            candidates.append((modified, path))
+        candidates.sort(key=lambda item: item[0], reverse=True)
+        protected_paths = {path.resolve() for path in protected}
+        unprotected_index = 0
+        for index, (modified, path) in enumerate(candidates):
+            if path.resolve() in protected_paths:
+                continue
+            age = now - modified
+            if (
+                age > _PLAY_CACHE_MAX_AGE_SEC
+                or unprotected_index >= _PLAY_CACHE_HARD_MAX_FILES
+                or (index >= _PLAY_CACHE_MAX_FILES and age > _PLAY_CACHE_MIN_EVICT_AGE_SEC)
+            ):
+                path.unlink(missing_ok=True)
+            unprotected_index += 1
+        return out_dir
 
     def resolve_transport_path(
         self,
@@ -504,8 +539,7 @@ class PlayService:
         end: float,
         edit_hash: str,
     ) -> Path:
-        out_dir = self.project.artifacts_dir() / "play_cache"
-        out_dir.mkdir(parents=True, exist_ok=True)
+        out_dir = self._play_cache_dir()
         return out_dir / f"processed_{track_id}_{start:.2f}_{end:.2f}_{edit_hash}.wav"
 
     def _latest_export_wav(self) -> Path:
@@ -522,8 +556,7 @@ class PlayService:
         key = f"{src}:{mtime}:{label}:{start:.3f}:{end:.3f}:{extra}"
         digest = hashlib.sha256(key.encode()).hexdigest()[:16]
         safe = re.sub(r"[^a-z0-9_-]+", "_", label.lower())[:40]
-        out_dir = self.project.artifacts_dir() / "play_cache"
-        out_dir.mkdir(parents=True, exist_ok=True)
+        out_dir = self._play_cache_dir(src)
         return out_dir / f"{safe}_{digest}.wav"
 
     def _source_mtime_ns(self, source: str) -> int:
@@ -1011,8 +1044,7 @@ class PlayService:
             raise ValueError("before_index and after_index must differ")
 
         hist = HistoryService(self.ws)
-        out_dir = self.project.artifacts_dir() / "play_cache"
-        out_dir.mkdir(parents=True, exist_ok=True)
+        out_dir = self._play_cache_dir()
         # Include snapshot ids so re-recording the same indices cannot reuse
         # stale A/B wavs after history was rewritten (goto + new mutate).
         entries = list(self.project.history.entries)
@@ -1159,8 +1191,7 @@ class PlayService:
         return out if out.is_file() else None
 
     def _ab_concat_path(self, wav_a: Path, wav_b: Path, gap: float) -> Path:
-        out_dir = self.project.artifacts_dir() / "play_cache"
-        out_dir.mkdir(parents=True, exist_ok=True)
+        out_dir = self._play_cache_dir(wav_a, wav_b)
         key = (
             f"{wav_a.resolve()}:{wav_a.stat().st_mtime_ns}:"
             f"{wav_b.resolve()}:{wav_b.stat().st_mtime_ns}:{gap:.3f}"
@@ -1169,8 +1200,7 @@ class PlayService:
         return out_dir / f"ab_concat_{digest}.wav"
 
     def _pending_suggested_path(self, window: PendingPreviewWindow, *, source: str) -> Path:
-        out_dir = self.project.artifacts_dir() / "play_cache"
-        out_dir.mkdir(parents=True, exist_ok=True)
+        out_dir = self._play_cache_dir()
         mtime = self._source_mtime_ns(source)
         key = (
             f"pending:{window.edit_id}:{window.play_start:.3f}:"

@@ -121,6 +121,10 @@ MCP: `apply_transcript_gate_tool`. Transcript word flags are unchanged; this set
 `timeline.tracks[].transcript_gate` (history-snapshotted) and rewrites stem WAVs
 in the requested window. Undo restores the flag; `play processed:*` re-applies the
 gate via segment/stem render when the flag is set.
+For PCM16 mono stems, windowed gating streams one second of WAV frames at a time
+and copies frames outside the window unchanged. Other WAV formats use the
+conversion path. Rewriting a stem in place first writes a temporary WAV and
+replaces the original after the gate succeeds.
 
 ---
 
