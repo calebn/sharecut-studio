@@ -862,14 +862,17 @@ On the host, every failed `record.start` / `pause` / `resume` / `stop` /
 `land` command (from the keyboard, command palette or the panel buttons, which
 run the same commands) is announced, stored in
 `useRecordHostStore.transportError`, and shown in the Record room panel, which
-opens so the error is visible rather than only announced. Over the Share
+opens so the error is visible rather than only announced. When the panel is already open the failure is
+only shown there, inside its polite live region, and not also announced, so
+screen readers hear it once. Over the Share
 dialog the failure is only announced and nothing is stored. The next record
 command clears it, and the panel clears it whenever it closes (by any route,
 including **Copy links…**) or the project changes.
 
 If the host record WebSocket drops after it has connected, while a take is
 recording or paused (`useRecordHostStore.dropped`; not before the first
-connect or after an intentional teardown), the transport chip reads
+connect or after an intentional teardown; a replaced socket's late close after
+a project switch is ignored), the transport chip reads
 "REC (reconnecting)" with no live dot, its aria-label becomes "Record room
 reconnecting. Open record panel", and the Record room panel shows "Lost
 connection to the record room. Reconnecting…". Capture-health labels (failed,

@@ -231,7 +231,8 @@ flowchart TD
    host keeper warns that no local audio was captured, even if the mic never
    became available. If a host record command (Start, Pause, Resume, Stop,
    Land) fails, the Record room panel opens and shows the error; over the
-   Share dialog the failure is only announced. Closing the panel clears it.
+   Share dialog the failure is only announced, and an already open panel shows it
+   without announcing it a second time. Closing the panel clears it.
 8. Host Stop. The native leave warning stays until the keeper finishes saving
    the final WAV and metadata, then clears. The upload panel warns the guest
    to keep the tab open until the final file ACK, shows N/M chunks where all

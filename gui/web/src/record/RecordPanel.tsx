@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { hostRecordUploadTransport, loadHostRecordState } from "../api";
 import { execute } from "../commands/execute";
 import { useDaw } from "../state/useDaw";
-import { Button, CommandButton, Dialog } from "../ui";
+import { Button, Dialog } from "../ui";
 import { errorMessage } from "../utils/apiError";
 import { startBlockers } from "./blockers";
 import { HostUploadRoster } from "./HostUploadRoster";
@@ -136,6 +136,9 @@ export function RecordPanel({
   const host = snapshot?.participants.find(
     (person) => person.participant_id === "p_host",
   );
+  // Raw socket state on purpose: live comments send now or queue for upsert on
+  // reconnect, including before the first connect. `dropped` (below) is only for
+  // the "Reconnecting…" copy, which must not show before the first connect.
   const connected = useRecordHostStore((s) => s.connected);
   const liveComments = useRecordLiveComments({
     token: HOST_COMMENT_QUEUE_TOKEN,
@@ -204,7 +207,7 @@ export function RecordPanel({
   const hostSegments = useHostUploadSegments(uploadTransport, !!snapshot);
   const landFailed = hostSegments.some((row) => row.land_failed);
 
-  // Same path as the keyboard and palette: record.* owns clearing, storing and announcing errors.
+  // Same path as the keyboard and palette for all five buttons: record.* owns clearing, storing and announcing errors; transportBusy blocks double sends.
   const runTransport = (commandId: string) => {
     setTransportBusy(true);
     void execute(commandId, {}, { skipWhen: true }).finally(() => {
@@ -466,9 +469,13 @@ export function RecordPanel({
           >
             Stop
           </Button>
-          <CommandButton commandId="record.land" disabled={transportBusy}>
+          <Button
+            type="button"
+            disabled={transportBusy}
+            onClick={() => runTransport("record.land")}
+          >
             {landFailed ? "Retry land" : "Land"}
-          </CommandButton>
+          </Button>
           <Button
             type="button"
             onClick={() => {
