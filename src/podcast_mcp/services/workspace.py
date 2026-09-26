@@ -18,6 +18,7 @@ from podcast_mcp.project_merge import (
     RERUN_ADVICE,
     ConflictAdvice,
     ProjectMergeConflict,
+    adopt_project_state,
     merge_project_data,
     project_merge_data,
 )
@@ -108,7 +109,7 @@ class ProjectWorkspace:
             return  # nothing saved yet
         if signature == self._loaded_file_signature:
             return
-        _adopt_project_state(self.project, self._store.load())
+        adopt_project_state(self.project, self._store.load())
         # Writers are excluded by the lock, so this revision is exact.
         self._loaded_file_signature = signature
 
@@ -290,7 +291,7 @@ class ProjectWorkspace:
 
     def _adopt_saved(self, project: EpisodeProject) -> None:
         if project is not self.project:
-            _adopt_project_state(self.project, project)
+            adopt_project_state(self.project, project)
         self._merge_base = project_merge_data(self.project)
 
     def mutate(
@@ -351,15 +352,3 @@ class ProjectWorkspace:
         HistoryManager(path).record(loaded, "initial", force=True)
         store.commit(loaded)
         return ProjectWorkspace(path, loaded)
-
-
-def _adopt_project_state(target: EpisodeProject, source: EpisodeProject) -> None:
-    """Copy ``source``'s sections into ``target`` in place, so holders of ``target`` see them.
-
-    Not ``history.manager.apply_snapshot_to_project``: that copies only
-    ``EDITABLE_FIELDS``, and a merge also changes history and ``pipeline_runs``.
-    """
-    for name in type(target).model_fields:
-        value = getattr(source, name)
-        if getattr(target, name) != value:
-            setattr(target, name, value)

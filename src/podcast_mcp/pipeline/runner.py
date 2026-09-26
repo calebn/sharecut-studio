@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -22,6 +23,11 @@ from podcast_mcp.models import (
     PipelineStepLog,
 )
 from podcast_mcp.pipeline import steps as pipeline_steps
+from podcast_mcp.project_merge import (
+    ProjectMergeConflict,
+    project_merge_data,
+    publish_project_changes,
+)
 from podcast_mcp.project_store import commit_landed
 from podcast_mcp.util.progress import (
     CancelledProgress,
@@ -30,9 +36,44 @@ from podcast_mcp.util.progress import (
     progress_task,
     resolve_progress,
 )
-from podcast_mcp.util.project_state import project_commit_lock, project_file_revision
+from podcast_mcp.util.project_state import (
+    project_commit_lock,
+    project_file_revision,
+    project_state_lock,
+)
+
+logger = logging.getLogger(__name__)
 
 StepFn = Callable[[EpisodeProject, dict], str | None]
+
+
+def _run_step_published(
+    project: EpisodeProject, name: str, fn: StepFn, step_defaults: dict
+) -> str | None:
+    """Run ``fn`` on a private copy of ``project``; publish its changes in one locked swap (#357).
+
+    Render snapshots taken meanwhile see the project from before the step, never half of
+    it, and the step's FFmpeg work holds no ``project_state_lock``. A failed step still
+    publishes what it changed (as when steps mutated ``project`` in place).
+    """
+    with project_state_lock(project):
+        base = project_merge_data(project)
+        work = project.model_copy(deep=True)
+    try:
+        summary = fn(work, step_defaults)
+    except BaseException:
+        try:
+            publish_project_changes(project, base, work)
+        except ProjectMergeConflict:
+            logger.warning(
+                "pipeline step %s failed; its partial changes conflict with a concurrent "
+                "edit and were dropped",
+                name,
+            )
+        raise
+    publish_project_changes(project, base, work)
+    return summary
+
 
 AUDIO_AFFECTING_STEPS = frozenset(
     {
@@ -177,7 +218,8 @@ class PipelineRunner:
             id=uuid.uuid4().hex[:12],
             started_at=datetime.now(UTC).isoformat(),
         )
-        project.pipeline_runs.append(run)
+        with project_state_lock(project):
+            project.pipeline_runs.append(run)
 
         reporter = resolve_progress(progress)
         skip = set(skip_steps or [])
@@ -230,7 +272,7 @@ class PipelineRunner:
                     reporter.message("pipeline", f"Running {name}")
                     step_prog.set_phase("running", title)
                     try:
-                        summary = fn(project, step_defaults)
+                        summary = _run_step_published(project, name, fn, step_defaults)
                         log.status = "ok"
                         if summary:
                             log.message = summary

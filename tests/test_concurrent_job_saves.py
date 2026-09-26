@@ -18,6 +18,7 @@ from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project, save_
 from podcast_mcp.models.history import HistoryEntry, ProjectHistory
 from podcast_mcp.pipeline import runner as runner_mod
 from podcast_mcp.pipeline import steps
+from podcast_mcp.pipeline.runner import PipelineRunner
 from podcast_mcp.project_merge import HISTORY_CURSOR_CONFLICT, ProjectMergeConflict
 from podcast_mcp.project_store import (
     HISTORY_ENTRY_LIMIT,
@@ -37,6 +38,7 @@ from podcast_mcp.services import history as history_service_mod
 from podcast_mcp.services import workspace as workspace_mod
 from podcast_mcp.services.workspace import MERGED_HISTORY_LABEL
 from podcast_mcp.util.atomic_json import load_json_object
+from podcast_mcp.util.project_state import project_state_lock, snapshot_project
 
 
 def _two_tracks(minimal_project: Path) -> ProjectWorkspace:
@@ -748,3 +750,77 @@ def test_transcribe_step_conflicts_with_a_correction_saved_during_asr(minimal_pr
     assert host is not None
     assert host.words[0].text == "the"
     assert host.user_edited is True
+
+
+def _gains(project) -> tuple[float, float]:
+    return (
+        project.track_by_id("host").gain_db,
+        project.track_by_id("guest").gain_db,
+    )
+
+
+def _run_step_with_concurrent_edit(ws, monkeypatch, edit) -> dict:
+    """Run a step that sets both gains to 3.0 with ``edit`` applied to the live project midway."""
+    halfway, snapped = threading.Event(), threading.Event()
+    seen: dict = {}
+
+    def step(work, _defaults):
+        work.track_by_id("host").gain_db = 3.0
+        halfway.set()
+        assert snapped.wait(5)
+        work.track_by_id("guest").gain_db = 3.0
+        return "ok"
+
+    def observer() -> None:
+        assert halfway.wait(5)
+        seen["snapshot"] = _gains(snapshot_project(ws.project))
+        with project_state_lock(ws.project):
+            edit(ws.project)
+        snapped.set()
+
+    monkeypatch.setitem(runner_mod._STEP_MAP, "balance_tracks", step)
+    thread = threading.Thread(target=observer)
+    thread.start()
+    try:
+        PipelineRunner(defaults={}).run(ws.project, only_step="balance_tracks")
+    finally:
+        snapped.set()
+        thread.join(5)
+    return seen
+
+
+def test_a_render_snapshot_during_a_mutating_step_sees_it_whole_or_not_at_all(
+    minimal_project, monkeypatch
+) -> None:
+    ws = _two_tracks(minimal_project)
+    seen = _run_step_with_concurrent_edit(
+        ws, monkeypatch, lambda live: setattr(live.track_by_id("host"), "fader_db", -6.0)
+    )
+    assert seen["snapshot"] == (0.0, 0.0)
+    assert _gains(ws.project) == (3.0, 3.0)
+    assert ws.project.track_by_id("host").fader_db == -6.0
+
+
+def test_a_step_conflicting_with_a_concurrent_edit_publishes_nothing(
+    minimal_project, monkeypatch
+) -> None:
+    ws = _two_tracks(minimal_project)
+    with pytest.raises(ProjectMergeConflict):
+        _run_step_with_concurrent_edit(
+            ws, monkeypatch, lambda live: setattr(live.track_by_id("guest"), "gain_db", -1.0)
+        )
+    assert _gains(ws.project) == (0.0, -1.0)
+    assert ws.project.pipeline_runs[-1].steps[-1].status == "error"
+
+
+def test_a_failed_step_still_publishes_its_partial_changes(minimal_project, monkeypatch) -> None:
+    ws = _two_tracks(minimal_project)
+
+    def step(work, _defaults):
+        work.track_by_id("host").gain_db = 3.0
+        raise RuntimeError("boom")
+
+    monkeypatch.setitem(runner_mod._STEP_MAP, "balance_tracks", step)
+    with pytest.raises(RuntimeError):
+        PipelineRunner(defaults={}).run(ws.project, only_step="balance_tracks")
+    assert ws.project.track_by_id("host").gain_db == 3.0
