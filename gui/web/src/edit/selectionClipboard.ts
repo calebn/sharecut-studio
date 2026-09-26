@@ -1,4 +1,5 @@
 import type { ClipRow, ProjectView, Selection } from "../types/project";
+import { findTranscriptWord, transcriptWordRange } from "../utils/transcript";
 import type { ClipboardExtract, ClipboardPayload } from "./clipboard";
 
 function findClip(project: ProjectView, id: string): ClipRow | null {
@@ -100,22 +101,13 @@ export function wordTimelineSpan(
   trackId: string,
   wordIndex: number,
 ): { start: number; end: number; text: string } | null {
-  for (const u of project.transcript?.utterances ?? []) {
-    if (u.track_id !== trackId) {
-      continue;
-    }
-    for (const w of u.words ?? []) {
-      if (w.word_index === wordIndex) {
-        const start = w.timeline_start ?? w.start;
-        const end = w.timeline_end ?? w.end;
-        if (!(end > start)) {
-          return null;
-        }
-        return { start, end, text: w.text };
-      }
-    }
+  const word = findTranscriptWord(project, trackId, wordIndex);
+  if (!word) {
+    return null;
   }
-  return null;
+  const start = word.timeline_start ?? word.start;
+  const end = word.timeline_end ?? word.end;
+  return end > start ? { start, end, text: word.text } : null;
 }
 
 export function rangeTimelineSpan(
@@ -124,31 +116,13 @@ export function rangeTimelineSpan(
   startWordIndex: number,
   endWordIndex: number,
 ): { start: number; end: number; text: string } | null {
-  const lo = Math.min(startWordIndex, endWordIndex);
-  const hi = Math.max(startWordIndex, endWordIndex);
-  let start = Infinity;
-  let end = -Infinity;
-  const texts: string[] = [];
-  for (const u of project.transcript?.utterances ?? []) {
-    if (u.track_id !== trackId) {
-      continue;
-    }
-    for (const w of u.words ?? []) {
-      const wi = w.word_index;
-      if (wi == null || wi < lo || wi > hi) {
-        continue;
-      }
-      const s = w.timeline_start ?? w.start;
-      const e = w.timeline_end ?? w.end;
-      start = Math.min(start, s);
-      end = Math.max(end, e);
-      texts.push(w.text);
-    }
-  }
-  if (!(end > start) || !Number.isFinite(start)) {
-    return null;
-  }
-  return { start, end, text: texts.join(" ") };
+  const span = transcriptWordRange(
+    project,
+    trackId,
+    startWordIndex,
+    endWordIndex,
+  );
+  return span && span.end > span.start ? span : null;
 }
 
 function finishPayload(

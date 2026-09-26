@@ -16,6 +16,7 @@ import type {
   SessionSelection,
 } from "../types/session";
 import { Avatar } from "../ui/Avatar";
+import { transcriptWordRange } from "../utils/transcript";
 import { useTimelineMetrics } from "./timelineMetrics";
 
 type Props = {
@@ -102,39 +103,21 @@ function transcriptWordBox(
   ) {
     return null;
   }
-  const lo = Math.min(
+  const span = transcriptWordRange(
+    project,
+    sel.track_id,
     sel.word_index,
     sel.kind === "transcriptRange"
       ? (sel.word_end ?? sel.word_index)
       : sel.word_index,
   );
-  const hi = Math.max(
-    sel.word_index,
-    sel.kind === "transcriptRange"
-      ? (sel.word_end ?? sel.word_index)
-      : sel.word_index,
-  );
-  let t0 = Number.POSITIVE_INFINITY;
-  let t1 = Number.NEGATIVE_INFINITY;
-  for (const u of project?.transcript?.utterances ?? []) {
-    if (u.track_id !== sel.track_id) {
-      continue;
-    }
-    for (const w of u.words ?? []) {
-      if (w.word_index == null || w.word_index < lo || w.word_index > hi) {
-        continue;
-      }
-      t0 = Math.min(t0, w.timeline_start ?? w.start);
-      t1 = Math.max(t1, w.timeline_end ?? w.end);
-    }
-  }
-  if (!Number.isFinite(t0) || !Number.isFinite(t1) || t1 < t0) {
+  if (!span) {
     return null;
   }
   const idx = tracks.findIndex((t) => t.id === sel.track_id);
   return {
-    left: t0,
-    width: t1 - t0,
+    left: span.start,
+    width: span.end - span.start,
     minPx: SPAN_MIN_PX,
     top: (idx < 0 ? 0 : idx) * laneHeight,
   };

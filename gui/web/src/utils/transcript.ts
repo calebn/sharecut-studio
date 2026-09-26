@@ -1,9 +1,61 @@
 import { presenceAnchor } from "../presence/anchors";
 import type {
   CombinedUtterance,
+  ProjectView,
   TimelineSpan,
   TranscriptWordView,
 } from "../types/project";
+
+/** First indexed word on a track, in transcript order. */
+export function findTranscriptWord(
+  project: ProjectView | null,
+  trackId: string,
+  wordIndex: number,
+): TranscriptWordView | null {
+  for (const utterance of project?.transcript?.utterances ?? []) {
+    if (utterance.track_id !== trackId) {
+      continue;
+    }
+    for (const word of utterance.words ?? []) {
+      if (word.word_index === wordIndex) {
+        return word;
+      }
+    }
+  }
+  return null;
+}
+
+/** Inclusive indexed range on a track; uses mapped times when present. */
+export function transcriptWordRange(
+  project: ProjectView | null,
+  trackId: string,
+  startWordIndex: number,
+  endWordIndex: number,
+): { start: number; end: number; text: string } | null {
+  const lo = Math.min(startWordIndex, endWordIndex);
+  const hi = Math.max(startWordIndex, endWordIndex);
+  let start = Number.POSITIVE_INFINITY;
+  let end = Number.NEGATIVE_INFINITY;
+  const texts: string[] = [];
+  for (const utterance of project?.transcript?.utterances ?? []) {
+    if (utterance.track_id !== trackId) {
+      continue;
+    }
+    for (const word of utterance.words ?? []) {
+      const index = word.word_index;
+      if (index == null || index < lo || index > hi) {
+        continue;
+      }
+      start = Math.min(start, word.timeline_start ?? word.start);
+      end = Math.max(end, word.timeline_end ?? word.end);
+      texts.push(word.text);
+    }
+  }
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) {
+    return null;
+  }
+  return { start, end, text: texts.join(" ") };
+}
 
 /** Timeline intervals for a mapped utterance; empty when cut away / unmapped. */
 export function utteranceTimelineSpans(u: CombinedUtterance): TimelineSpan[] {

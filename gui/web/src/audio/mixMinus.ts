@@ -5,8 +5,6 @@ export const SIDETONE_GAIN_DB = -12;
 export const SIDETONE_MAX_GAIN_DB = 0;
 export const SIDETONE_LABEL = "sidetone";
 
-export const dbToGain = dbToLinear;
-
 export type MixMinusLink = {
   from: string;
   to: "speaker" | "tap" | "destination";
@@ -71,7 +69,7 @@ export class MixMinusGraph {
     this.recorded.push({ from: "speaker", to: "destination" });
     if (opts.sidetone) {
       this.sidetone = ctx.createGain();
-      this.sidetone.gain.value = dbToGain(this.sidetoneGainDb);
+      this.sidetone.gain.value = dbToLinear(this.sidetoneGainDb);
       this.sidetone.connect(this.speaker);
     }
   }
