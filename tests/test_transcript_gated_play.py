@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import struct
 import wave
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -220,26 +221,59 @@ def test_gate_stem_window_matches_gate_across_stream_chunk(tmp_path: Path) -> No
     np.testing.assert_array_equal(actual, expected)
 
 
-def test_gate_stem_window_non_pcm16_uses_conversion(tmp_path: Path, monkeypatch) -> None:
-    source = tmp_path / "float.wav"
+def test_gate_stem_window_rejects_non_pcm16(tmp_path: Path) -> None:
+    source = tmp_path / "pcm8.wav"
     output = tmp_path / "out.wav"
     with wave.open(str(source), "wb") as wav:
         wav.setparams((1, 1, 48_000, 0, "NONE", "not compressed"))
         wav.writeframes(bytes([100] * 100))
-    calls = []
+    with pytest.raises(ValueError, match="PCM16 WAV"):
+        gate_stem_window(
+            source, [], output, duration_sec=100 / 48_000, win_start=0, win_end=100 / 48_000
+        )
+    assert not output.exists()
 
-    def load(*args, **kwargs):
-        calls.append((args, kwargs))
-        return np.ones(100, dtype=np.float32)
 
-    monkeypatch.setattr("podcast_mcp.engines.transcript_gated_play._load_segment", load)
-    monkeypatch.setattr(
-        "podcast_mcp.engines.transcript_gated_play._write_wav", lambda samples, path: path
+def test_gate_stem_window_preserves_stereo_channels(tmp_path: Path) -> None:
+    source = tmp_path / "stereo.wav"
+    output = tmp_path / "out.wav"
+    pcm = np.tile(np.array([1000, -2000], dtype=np.int16), (48_000, 1))
+    with wave.open(str(source), "wb") as wav:
+        wav.setparams((2, 2, 48_000, 0, "NONE", "not compressed"))
+        wav.writeframes(pcm.tobytes())
+    gate_stem_window(source, [], output, duration_sec=1, win_start=0.25, win_end=0.5)
+    with wave.open(str(output), "rb") as wav:
+        assert wav.getnchannels() == 2
+        result = np.frombuffer(wav.readframes(wav.getnframes()), dtype=np.int16).reshape(-1, 2)
+    np.testing.assert_array_equal(result[:12_000], pcm[:12_000])
+    assert not result[12_000:24_000].any()
+    np.testing.assert_array_equal(result[24_000:], pcm[24_000:])
+
+
+def test_gate_stem_window_preserves_extensible_51_header_and_channels(tmp_path: Path) -> None:
+    source = tmp_path / "surround.wav"
+    output = tmp_path / "out.wav"
+    pcm = np.tile(np.arange(1, 7, dtype=np.int16) * 1000, (4800, 1))
+    guid = bytes.fromhex("0100000000001000800000aa00389b71")
+    fmt = struct.pack("<HHIIHHHHI", 65534, 6, 48_000, 48_000 * 12, 12, 16, 22, 16, 0x3F) + guid
+    payload = pcm.tobytes()
+    header = (
+        b"RIFF"
+        + struct.pack("<I", 4 + 8 + len(fmt) + 8 + len(payload))
+        + b"WAVEfmt "
+        + struct.pack("<I", len(fmt))
+        + fmt
+        + b"data"
+        + struct.pack("<I", len(payload))
     )
-    gate_stem_window(
-        source, [], output, duration_sec=100 / 48_000, win_start=0, win_end=100 / 48_000
-    )
-    assert len(calls) == 1
+    source.write_bytes(header + payload)
+    gate_stem_window(source, [], output, duration_sec=0.1, win_start=0.025, win_end=0.05)
+    raw = output.read_bytes()
+    assert raw[: len(header)] == header
+    result = np.frombuffer(raw[len(header) :], dtype="<i2").reshape(-1, 6)
+    np.testing.assert_array_equal(result[:1200], pcm[:1200])
+    assert not result[1200:2400].any()
+    np.testing.assert_array_equal(result[2400:], pcm[2400:])
 
 
 def test_normalize_peak_handles_silence_and_signal() -> None:
@@ -271,98 +305,30 @@ def test_load_segment_and_write_wav(tmp_path: Path) -> None:
     run.assert_called_once()
 
 
-def test_gate_full_stem(tmp_path: Path, monkeypatch) -> None:
-    seg = np.ones(4800, dtype=np.float32)
-    monkeypatch.setattr(
-        "podcast_mcp.engines.transcript_gated_play._load_segment",
-        lambda *args, **kwargs: seg.copy(),
-    )
-    captured: list[np.ndarray] = []
-
-    def _capture_write(samples, path, **kwargs):
-        captured.append(samples.copy())
-        return path
-
-    monkeypatch.setattr(
-        "podcast_mcp.engines.transcript_gated_play._write_wav",
-        _capture_write,
-    )
+def test_gate_full_stem(tmp_path: Path) -> None:
     stem = tmp_path / "host.wav"
-    stem.write_bytes(b"x")
     out = tmp_path / "gated.wav"
-    gate_stem_window(stem, [(0.0, 0.05)], out, duration_sec=0.1, win_start=0.0, win_end=0.1)
-    assert captured
-    assert float(np.max(captured[0])) > 0.0
+    with wave.open(str(stem), "wb") as wav:
+        wav.setparams((1, 2, 48_000, 0, "NONE", "not compressed"))
+        wav.writeframes(np.full(4800, 1000, dtype=np.int16).tobytes())
+    gate_stem_window(stem, [(0.0, 0.05)], out, duration_sec=0.1, win_start=0, win_end=0.1)
+    with wave.open(str(out), "rb") as wav:
+        gated = np.frombuffer(wav.readframes(wav.getnframes()), dtype=np.int16)
+    assert gated.max() > 0
+    assert not gated[2400:].any()
 
-    gate_stem_window(stem, [], out, duration_sec=0.1, win_start=0.0, win_end=0.1)
-    assert float(np.max(captured[-1])) == 0.0
 
-
-def test_gate_stem_window_preserves_outside(tmp_path: Path, monkeypatch) -> None:
-    from podcast_mcp.engines.transcript_gated_play import gate_stem_window
-
-    seg = np.ones(9600, dtype=np.float32)
-    monkeypatch.setattr(
-        "podcast_mcp.engines.transcript_gated_play._load_segment",
-        lambda *args, **kwargs: seg.copy(),
-    )
-    captured: list[np.ndarray] = []
-
-    def _capture_write(samples, path, **kwargs):
-        captured.append(samples.copy())
-        return path
-
-    monkeypatch.setattr(
-        "podcast_mcp.engines.transcript_gated_play._write_wav",
-        _capture_write,
-    )
+def test_gate_stem_window_edge_cases(tmp_path: Path) -> None:
     stem = tmp_path / "host.wav"
-    stem.write_bytes(b"x")
-    out = tmp_path / "gated.wav"
-    # Mute everything in [0, 0.1) (no intervals); keep [0.1, 0.2) original.
-    gate_stem_window(
-        stem,
-        [],
-        out,
-        duration_sec=0.2,
-        win_start=0.0,
-        win_end=0.1,
-    )
-    assert captured
-    out_s = captured[-1]
-    assert float(np.max(out_s[:4800])) == 0.0
-    assert float(np.min(out_s[4800:])) == 1.0
-
-
-def test_gate_stem_window_edge_cases(tmp_path: Path, monkeypatch) -> None:
-    from podcast_mcp.engines.transcript_gated_play import gate_stem_window
-
-    monkeypatch.setattr(
-        "podcast_mcp.engines.transcript_gated_play._load_segment",
-        lambda *args, **kwargs: np.zeros(0, dtype=np.float32),
-    )
-    wrote: list[Path] = []
-
-    def _write(samples, path, **kwargs):
-        wrote.append(path)
-        return path
-
-    monkeypatch.setattr(
-        "podcast_mcp.engines.transcript_gated_play._write_wav",
-        _write,
-    )
-    stem = tmp_path / "host.wav"
-    stem.write_bytes(b"src")
     out = tmp_path / "out.wav"
-    gate_stem_window(stem, [], out, duration_sec=0.1, win_start=0.0, win_end=0.1)
-    assert wrote == [out]
-
-    monkeypatch.setattr(
-        "podcast_mcp.engines.transcript_gated_play._load_segment",
-        lambda *args, **kwargs: np.ones(4800, dtype=np.float32),
-    )
+    with wave.open(str(stem), "wb") as wav:
+        wav.setparams((1, 2, 48_000, 0, "NONE", "not compressed"))
+        wav.writeframes(b"")
+    gate_stem_window(stem, [], out, duration_sec=0.1, win_start=0, win_end=0.1)
+    with wave.open(str(out), "rb") as wav:
+        assert wav.getnframes() == 0
     gate_stem_window(stem, [], out, duration_sec=0.1, win_start=0.5, win_end=0.2)
-    assert out.read_bytes() == b"src"
+    assert out.read_bytes() == stem.read_bytes()
 
 
 def test_apply_track_transcript_gate_branches(tmp_path: Path, monkeypatch) -> None:

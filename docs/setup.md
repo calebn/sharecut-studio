@@ -312,7 +312,7 @@ podcast play ab --project ... --before-index 53 --after-index 55 \
 
 Use `--dry-run` to write `artifacts/play_cache/*.wav` without opening a player (`afplay` on macOS, `ffplay` elsewhere). Response JSON includes `tier`: `raw`, `stem`, `segment_render`, `premix`, or `ab_concat` (history/WAV A/B).
 
-Playback cache cleanup runs when a new audition path is resolved. It removes WAVs older than seven days and, above 512 WAVs, the oldest entries written at least an hour ago; a 4096-WAV hard cap also bounds a burst of new previews. This includes composed, A/B, and pending previews. Non-WAV files are retained. Transcript gating of PCM16 mono stems streams one second at a time, changing only samples inside the requested window; other WAV formats use the conversion path.
+Playback cache cleanup runs when a new audition path is resolved. It removes WAVs older than seven days and, above 512 WAVs, the oldest entries written at least an hour ago; a 4096-WAV hard cap also bounds a burst of new previews. This includes composed, A/B, and pending previews. Non-WAV files are retained. Transcript gating of PCM16 stems streams one second at a time, preserving their channels and changing only samples inside the requested window; unsupported WAV formats raise an error.
 
 ## Sharecut Studio Extensions (self-hosted collaboration / optional provider)
 

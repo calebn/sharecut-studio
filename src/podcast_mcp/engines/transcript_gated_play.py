@@ -3,8 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import shutil
 import tempfile
-import wave
 from pathlib import Path
 from typing import Any
 
@@ -173,11 +173,12 @@ def _gate_pcm_chunk(
     *,
     first_frame: int,
     sample_rate: int,
+    channels: int,
 ) -> bytes:
     """Gate one PCM16 chunk using fade positions on the whole stem clock."""
-    samples = np.frombuffer(raw, dtype="<i2")
-    env = np.zeros(samples.size, dtype=np.float32)
-    last_frame = first_frame + samples.size
+    samples = np.frombuffer(raw, dtype="<i2").reshape(-1, channels)
+    env = np.zeros(samples.shape[0], dtype=np.float32)
+    last_frame = first_frame + samples.shape[0]
     fade = int(GATE_FADE_SEC * sample_rate)
     for start, end in intervals:
         lo = math.ceil(start * sample_rate)
@@ -197,7 +198,44 @@ def _gate_pcm_chunk(
             elif width == 1:
                 gain[:] = 0.0
         env[a - first_frame : b - first_frame] = gain
-    return (samples.astype(np.float32) * env).astype("<i2").tobytes()
+    return (samples.astype(np.float32) * env[:, np.newaxis]).astype("<i2").tobytes()
+
+
+def _pcm16_wave_info(source: Any) -> tuple[int, int, int, int]:
+    """Read RIFF PCM16 format and data bounds, including extensible channel layouts."""
+    if source.read(4) != b"RIFF":
+        raise ValueError("transcript gate requires a RIFF PCM16 WAV stem")
+    source.read(4)  # RIFF size
+    if source.read(4) != b"WAVE":
+        raise ValueError("transcript gate requires a RIFF PCM16 WAV stem")
+    channels = rate = 0
+    while header := source.read(8):
+        if len(header) != 8:
+            break
+        chunk_size = int.from_bytes(header[4:], "little")
+        chunk_start = source.tell()
+        if header[:4] == b"fmt ":
+            fmt = source.read(min(chunk_size, 40))
+            if len(fmt) < 16:
+                break
+            tag = int.from_bytes(fmt[:2], "little")
+            channels = int.from_bytes(fmt[2:4], "little")
+            rate = int.from_bytes(fmt[4:8], "little")
+            bits = int.from_bytes(fmt[14:16], "little")
+            pcm_guid = bytes.fromhex("0100000000001000800000aa00389b71")
+            if (
+                not (tag == 1 or (tag == 65534 and len(fmt) >= 40 and fmt[24:40] == pcm_guid))
+                or bits != 16
+                or channels < 1
+                or rate < 1
+            ):
+                raise ValueError("transcript gate requires an uncompressed PCM16 WAV stem")
+        elif header[:4] == b"data" and channels:
+            if chunk_size % (channels * 2):
+                raise ValueError("transcript gate requires complete PCM16 WAV frames")
+            return channels, rate, chunk_start, chunk_size
+        source.seek(chunk_start + chunk_size + (chunk_size % 2))
+    raise ValueError("transcript gate requires a valid PCM16 WAV stem")
 
 
 def _write_wav(
@@ -305,56 +343,45 @@ def gate_stem_window(
     win_end = min(duration_sec, win_end)
     if win_end <= win_start:
         if stem_path.resolve() != output_path.resolve():
-            output_path.write_bytes(stem_path.read_bytes())
+            shutil.copyfile(stem_path, output_path)
         return output_path
 
-    try:
-        with wave.open(str(stem_path), "rb") as source:
-            if (
-                source.getnchannels() == 1
-                and source.getsampwidth() == 2
-                and source.getcomptype() == "NONE"
-            ):
-                rate = source.getframerate()
-                first = max(0, min(source.getnframes(), round(win_start * rate)))
-                last = max(first, min(source.getnframes(), round(win_end * rate)))
-                output_path.parent.mkdir(parents=True, exist_ok=True)
-                with wave.open(str(output_path), "wb") as target:
-                    target.setparams(source.getparams())
-                    frame = 0
-                    while frame < source.getnframes():
-                        count = min(rate, source.getnframes() - frame)
-                        raw = source.readframes(count)
-                        left = max(0, first - frame)
-                        right = min(count, last - frame)
-                        if right > left:
-                            gated_chunk = _gate_pcm_chunk(
-                                raw[left * 2 : right * 2],
-                                intervals,
-                                first_frame=frame + left,
-                                sample_rate=rate,
-                            )
-                            raw = raw[: left * 2] + gated_chunk + raw[right * 2 :]
-                        target.writeframesraw(raw)
-                        frame += count
-                return output_path
-    except (EOFError, wave.Error):
-        pass
-
-    # Non-PCM stems retain the legacy conversion path.
-    seg = _load_segment(stem_path, 0.0, duration_sec)
-    if seg.size == 0:
-        _write_wav(seg, output_path)
-        return output_path
-
-    gated = _apply_gate(seg.copy(), intervals, timeline_start=0.0)
-    i0 = round(win_start * GATE_SAMPLE_RATE)
-    i1 = round(win_end * GATE_SAMPLE_RATE)
-    i0 = max(0, min(i0, seg.size))
-    i1 = max(i0, min(i1, seg.size))
-    out = seg.copy()
-    out[i0:i1] = gated[i0:i1]
-    _write_wav(out, output_path)
+    with stem_path.open("rb") as source:
+        channels, rate, data_start, data_bytes = _pcm16_wave_info(source)
+        bytes_per_frame = channels * 2
+        frames = data_bytes // bytes_per_frame
+        if data_start + data_bytes > stem_path.stat().st_size:
+            raise ValueError("transcript gate requires complete PCM16 WAV data")
+        first = max(0, min(frames, round(win_start * rate)))
+        last = max(first, min(frames, round(win_end * rate)))
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        source.seek(0)
+        with output_path.open("wb") as target:
+            remaining_header = data_start
+            while remaining_header:
+                chunk = source.read(min(64 * 1024, remaining_header))
+                target.write(chunk)
+                remaining_header -= len(chunk)
+            frame = 0
+            while frame < frames:
+                count = min(rate, frames - frame)
+                raw = source.read(count * bytes_per_frame)
+                left = max(0, first - frame)
+                right = min(count, last - frame)
+                if right > left:
+                    gated_chunk = _gate_pcm_chunk(
+                        raw[left * bytes_per_frame : right * bytes_per_frame],
+                        intervals,
+                        first_frame=frame + left,
+                        sample_rate=rate,
+                        channels=channels,
+                    )
+                    raw = (
+                        raw[: left * bytes_per_frame] + gated_chunk + raw[right * bytes_per_frame :]
+                    )
+                target.write(raw)
+                frame += count
+            shutil.copyfileobj(source, target, length=64 * 1024)
     return output_path
 
 
