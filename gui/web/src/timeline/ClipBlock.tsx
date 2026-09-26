@@ -133,6 +133,46 @@ type BodyDrag = {
   wasSelected: boolean;
 };
 
+/** Clip-local overlay spans for source regions, clamped to the visible window. */
+function RegionSpans({
+  regions,
+  className,
+  keyPrefix,
+  sourceStart,
+  sourceEnd,
+  zoomPxPerSec,
+}: {
+  regions: readonly { start_s: number; end_s: number }[] | undefined;
+  className: string;
+  keyPrefix: string;
+  sourceStart: number;
+  sourceEnd: number;
+  zoomPxPerSec: number;
+}) {
+  return (
+    <>
+      {(regions ?? []).map((region, i) => {
+        const start = Math.max(region.start_s, sourceStart);
+        const end = Math.min(region.end_s, sourceEnd);
+        if (!(end > start + 1e-9)) {
+          return null;
+        }
+        return (
+          <span
+            key={`${keyPrefix}-${region.start_s}-${region.end_s}-${i}`}
+            className={className}
+            style={{
+              left: (start - sourceStart) * zoomPxPerSec,
+              width: Math.max(1, (end - start) * zoomPxPerSec),
+            }}
+            aria-hidden
+          />
+        );
+      })}
+    </>
+  );
+}
+
 function clipLabel(role: string, durationSec: number, width: number): string {
   if (width < 24) {
     return "";
@@ -775,42 +815,22 @@ export function ClipBlockView({
           ))}
         </span>
       ) : null}
-      {(clip.mute_regions ?? []).map((region, i) => {
-        const start = Math.max(region.start_s, sourceStart);
-        const end = Math.min(region.end_s, sourceEnd);
-        if (!(end > start + 1e-9)) {
-          return null;
-        }
-        return (
-          <span
-            key={`mute-${region.start_s}-${region.end_s}-${i}`}
-            className="clip-mute-region"
-            style={{
-              left: (start - sourceStart) * zoomPxPerSec,
-              width: Math.max(1, (end - start) * zoomPxPerSec),
-            }}
-            aria-hidden
-          />
-        );
-      })}
-      {(clip.clipping_regions ?? []).map((region, i) => {
-        const start = Math.max(region.start_s, sourceStart);
-        const end = Math.min(region.end_s, sourceEnd);
-        if (!(end > start + 1e-9)) {
-          return null;
-        }
-        return (
-          <span
-            key={`clipping-${region.start_s}-${region.end_s}-${i}`}
-            className="clip-clipping-region"
-            style={{
-              left: (start - sourceStart) * zoomPxPerSec,
-              width: Math.max(1, (end - start) * zoomPxPerSec),
-            }}
-            aria-hidden
-          />
-        );
-      })}
+      <RegionSpans
+        regions={clip.mute_regions}
+        className="clip-mute-region"
+        keyPrefix="mute"
+        sourceStart={sourceStart}
+        sourceEnd={sourceEnd}
+        zoomPxPerSec={zoomPxPerSec}
+      />
+      <RegionSpans
+        regions={clip.clipping_regions}
+        className="clip-clipping-region"
+        keyPrefix="clipping"
+        sourceStart={sourceStart}
+        sourceEnd={sourceEnd}
+        zoomPxPerSec={zoomPxPerSec}
+      />
       {label && (
         <span className="clip-label">
           {trackLabel ? (
