@@ -31,7 +31,11 @@ describe("record transport command failures", () => {
     submit.mockReset();
     land.mockReset();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
-    useDawStore.setState({ recordPanelOpen: false, shareDialogOpen: false });
+    useDawStore.setState({
+      recordPanelOpen: false,
+      shareDialogOpen: false,
+      statusAnnouncement: "",
+    });
     useRecordHostStore.getState().setTransportError(null);
   });
 
@@ -71,6 +75,15 @@ describe("record transport command failures", () => {
     expect(useDawStore.getState().statusAnnouncement).toBe("nope");
     expect(useRecordHostStore.getState().transportError).toBeNull();
     expect(useDawStore.getState().recordPanelOpen).toBe(false);
+  });
+
+  it("shows a failure in the open panel without a second announcement", async () => {
+    useDawStore.setState({ recordPanelOpen: true });
+    submit.mockRejectedValue(new Error("nope"));
+    await execute("record.pause");
+    expect(useRecordHostStore.getState().transportError).toBe("nope");
+    expect(useDawStore.getState().recordPanelOpen).toBe(true);
+    expect(useDawStore.getState().statusAnnouncement).toBe("");
   });
 
   it("keeps a land failure visible", async () => {
