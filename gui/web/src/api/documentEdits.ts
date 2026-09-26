@@ -1,0 +1,515 @@
+import { hostFetch } from "../api/documentTransport";
+import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
+import { submitQueuedDocumentCommand } from "../services/commandQueue";
+import { useDawStore } from "../state/dawStore";
+import type { AutomationPoint } from "../types/project";
+import { ApiError, readApiError } from "../utils/apiError";
+import { withVolumeEnvelopePoints } from "../utils/envelopes";
+import { loadProjectPhase } from "./project";
+
+export async function submitDocumentCommand(
+  projectPath: string,
+  type: string,
+  payload: Record<string, unknown> = {},
+  opts?: {
+    command_id?: string;
+    client_seq?: number;
+    structural_mode?: "propose" | "apply";
+    offline?: boolean;
+    replaying?: boolean;
+    client_id?: string;
+  },
+): Promise<Record<string, unknown>> {
+  return submitQueuedDocumentCommand(projectPath, type, payload, opts);
+}
+
+export async function undoHistory(
+  projectPath: string,
+  opts?: { rerender?: boolean },
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "UndoHistory", {
+    rerender: opts?.rerender ?? false,
+  });
+}
+
+export async function redoHistory(
+  projectPath: string,
+  opts?: { rerender?: boolean },
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "RedoHistory", {
+    rerender: opts?.rerender ?? false,
+  });
+}
+
+export async function approveEdits(
+  projectPath: string,
+  ids: string[],
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "ApproveEdits", { ids });
+}
+
+export async function waiveTranscriptRefine(
+  projectPath: string,
+  reason: string,
+): Promise<void> {
+  const res = await hostFetch("/api/transcript/refine/waive", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path: projectPath, reason }),
+  });
+  if (!res.ok) {
+    throw new Error(await readApiError(res));
+  }
+}
+
+export async function rejectEdits(
+  projectPath: string,
+  ids: string[],
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "RejectEdits", { ids });
+}
+
+export async function updatePendingEdit(
+  projectPath: string,
+  id: string,
+  start: number,
+  end: number,
+  snap = true,
+  trackIds?: string[] | null,
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "UpdatePendingEdit", {
+    id,
+    start,
+    end,
+    snap,
+    ...(trackIds != null ? { track_ids: trackIds } : {}),
+  });
+}
+
+export async function restoreAppliedEdit(
+  projectPath: string,
+  id: string,
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "RestoreAppliedEdit", { id });
+}
+
+export async function setClipFade(
+  projectPath: string,
+  clipId: string,
+  fadeInMs: number,
+  fadeOutMs: number,
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "SetClipFade", {
+    clip_id: clipId,
+    fade_in_ms: fadeInMs,
+    fade_out_ms: fadeOutMs,
+  });
+}
+
+export async function trimClipEdge(
+  projectPath: string,
+  clipId: string,
+  edge: "in" | "out",
+  sourceSec: number,
+  mode: "ripple" = "ripple",
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "TrimClipEdge", {
+    clip_id: clipId,
+    edge,
+    source_sec: sourceSec,
+    mode,
+  });
+}
+
+export async function rollClipJoin(
+  projectPath: string,
+  leftClipId: string,
+  rightClipId: string,
+  deltaSec: number,
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "RollClipJoin", {
+    left_clip_id: leftClipId,
+    right_clip_id: rightClipId,
+    delta_sec: deltaSec,
+  });
+}
+
+export async function moveClips(
+  projectPath: string,
+  clips: Array<{
+    clip_id: string;
+    timeline_start: number;
+    track_id: string;
+  }>,
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "MoveClips", { clips });
+}
+
+export async function setJoinMode(
+  projectPath: string,
+  clipId: string,
+  joinInMode: string,
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "SetJoinMode", {
+    clip_id: clipId,
+    join_in_mode: joinInMode,
+  });
+}
+
+export async function applyFadeRecommendations(
+  projectPath: string,
+  trackId?: string | null,
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "ApplyFadeRecommendations", {
+    track_id: trackId ?? null,
+  });
+}
+
+export async function setEffectBypass(
+  projectPath: string,
+  trackId: string,
+  effectIndex: number,
+  bypass: boolean,
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "SetEffectBypass", {
+    track_id: trackId,
+    effect_index: effectIndex,
+    bypass,
+  });
+}
+
+export async function correctTranscriptWord(
+  projectPath: string,
+  trackId: string,
+  wordIndex: number,
+  text: string,
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "CorrectTranscriptWord", {
+    track_id: trackId,
+    word_index: wordIndex,
+    text,
+  });
+}
+
+export async function correctTranscriptPhrase(
+  projectPath: string,
+  trackId: string,
+  startWordIndex: number,
+  endWordIndex: number,
+  text: string,
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "CorrectTranscriptPhrase", {
+    track_id: trackId,
+    start_word_index: startWordIndex,
+    end_word_index: endWordIndex,
+    text,
+  });
+}
+
+export async function setTranscriptWordSuppressed(
+  projectPath: string,
+  trackId: string,
+  wordIndex: number,
+  suppressed: boolean,
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "SetTranscriptWordSuppressed", {
+    track_id: trackId,
+    word_index: wordIndex,
+    suppressed,
+  });
+}
+
+export async function setEnvelope(
+  projectPath: string,
+  trackId: string,
+  points: AutomationPoint[],
+  expectedPoints: AutomationPoint[],
+): Promise<void> {
+  let result: Record<string, unknown>;
+  try {
+    result = await submitDocumentCommand(projectPath, "SetEnvelope", {
+      track_id: trackId,
+      points,
+      // Echo the store's points verbatim: the host compares floats exactly.
+      expected_points: expectedPoints,
+    });
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 409) {
+      // Load the host's current points so redoing the edit uses a fresh baseline.
+      await refreshEnvelopes(projectPath).catch(() => undefined);
+    }
+    throw error;
+  }
+  if (result.queued === true) {
+    // Show the queued edit, and make it the next edit's baseline: replay
+    // applies queued commands in order, so the host will hold these points.
+    applyQueuedEnvelope(projectPath, trackId, points);
+  }
+}
+
+async function refreshEnvelopes(projectPath: string): Promise<void> {
+  const patch = await loadProjectPhase(projectPath, "envelopes");
+  if (useDawStore.getState().projectPath === projectPath) {
+    applyDocumentSnapshot({ patch }, { force: true });
+  }
+}
+
+function applyQueuedEnvelope(
+  projectPath: string,
+  trackId: string,
+  points: AutomationPoint[],
+): void {
+  useDawStore.setState((state) =>
+    state.projectPath === projectPath && state.project
+      ? {
+          project: {
+            ...state.project,
+            envelopes: withVolumeEnvelopePoints(
+              state.project.envelopes,
+              trackId,
+              points,
+            ),
+          },
+        }
+      : state,
+  );
+}
+
+export async function addChapter(
+  projectPath: string,
+  time: number,
+  title: string,
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "AddChapter", { time, title });
+}
+
+export async function updateChapter(
+  projectPath: string,
+  oldTime: number,
+  oldTitle: string,
+  time: number,
+  title: string,
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "UpdateChapter", {
+    old_time: oldTime,
+    old_title: oldTitle,
+    time,
+    title,
+  });
+}
+
+export async function deleteChapter(
+  projectPath: string,
+  time: number,
+  title: string,
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "DeleteChapter", { time, title });
+}
+
+export async function addSocialClip(
+  projectPath: string,
+  trackId: string,
+  start: number,
+  end: number,
+  title?: string | null,
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "AddSocialClip", {
+    track_id: trackId,
+    start,
+    end,
+    title: title ?? null,
+  });
+}
+
+export async function updateSocialClip(
+  projectPath: string,
+  id: string,
+  start: number,
+  end: number,
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "UpdateSocialClip", {
+    id,
+    start,
+    end,
+  });
+}
+
+export async function deleteSocialClip(
+  projectPath: string,
+  id: string,
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "DeleteSocialClip", { id });
+}
+
+export async function suggestPendingEdit(
+  projectPath: string,
+  trackId: string,
+  start: number,
+  end: number,
+  reason?: string | null,
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "SuggestPendingEdit", {
+    track_id: trackId,
+    start,
+    end,
+    reason: reason ?? null,
+  });
+}
+
+export async function splitAtTime(
+  projectPath: string,
+  atTime: number,
+  trackIds?: string[] | null,
+  reason?: string | null,
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "SplitAtTime", {
+    at_time: atTime,
+    track_ids: trackIds ?? null,
+    reason: reason ?? null,
+  });
+}
+
+export async function deleteClips(
+  projectPath: string,
+  clipIds: string[],
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "DeleteClip", {
+    clip_ids: clipIds,
+  });
+}
+
+export async function rippleDeleteClips(
+  projectPath: string,
+  clipIds: string[],
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "RippleDeleteClip", {
+    clip_ids: clipIds,
+  });
+}
+
+export async function duplicateSegment(
+  projectPath: string,
+  sourceStart: number,
+  sourceEnd: number,
+  insertAt: number,
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "DuplicateSegment", {
+    source_start: sourceStart,
+    source_end: sourceEnd,
+    insert_at: insertAt,
+  });
+}
+
+export async function moveSegment(
+  projectPath: string,
+  sourceStart: number,
+  sourceEnd: number,
+  insertAt: number,
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "MoveSegment", {
+    source_start: sourceStart,
+    source_end: sourceEnd,
+    insert_at: insertAt,
+  });
+}
+
+export async function pasteSegment(
+  projectPath: string,
+  insertAt: number,
+  duration: number,
+  extracts: Array<Record<string, unknown>>,
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "PasteSegment", {
+    insert_at: insertAt,
+    duration,
+    extracts,
+  });
+}
+
+export async function rippleDeleteRange(
+  projectPath: string,
+  start: number,
+  end: number,
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "RippleDeleteRange", {
+    start,
+    end,
+  });
+}
+
+/** Reload project view after a document-plane mutation. */
+export async function addTrackCommand(
+  projectPath: string,
+  opts?: {
+    track_id?: string;
+    label?: string;
+    role?: string;
+    speaker?: string;
+  },
+): Promise<Record<string, unknown>> {
+  return submitDocumentCommand(projectPath, "AddTrack", { ...(opts ?? {}) });
+}
+
+export async function setTrackMediaCommand(
+  projectPath: string,
+  trackId: string,
+  relPath: string,
+): Promise<Record<string, unknown>> {
+  return submitDocumentCommand(projectPath, "SetTrackMedia", {
+    track_id: trackId,
+    rel_path: relPath,
+  });
+}
+
+export async function setTrackMetaCommand(
+  projectPath: string,
+  trackId: string,
+  opts: { label?: string; role?: string; speaker?: string },
+): Promise<Record<string, unknown>> {
+  return submitDocumentCommand(projectPath, "SetTrackMeta", {
+    track_id: trackId,
+    ...opts,
+  });
+}
+
+export async function setTrackFaderCommand(
+  projectPath: string,
+  trackId: string,
+  faderDb: number,
+): Promise<Record<string, unknown>> {
+  return submitDocumentCommand(projectPath, "SetTrackFader", {
+    track_id: trackId,
+    fader_db: faderDb,
+  });
+}
+
+export async function setTrackMuteCommand(
+  projectPath: string,
+  trackId: string,
+  muted: boolean,
+): Promise<Record<string, unknown>> {
+  return submitDocumentCommand(projectPath, "SetTrackMute", {
+    track_id: trackId,
+    muted,
+  });
+}
+
+export async function removeTrackCommand(
+  projectPath: string,
+  trackId: string,
+): Promise<Record<string, unknown>> {
+  return submitDocumentCommand(projectPath, "RemoveTrack", {
+    track_id: trackId,
+  });
+}
+
+export async function reorderTrackCommand(
+  projectPath: string,
+  trackId: string,
+  index: number,
+): Promise<Record<string, unknown>> {
+  return submitDocumentCommand(projectPath, "ReorderTrack", {
+    track_id: trackId,
+    index,
+  });
+}

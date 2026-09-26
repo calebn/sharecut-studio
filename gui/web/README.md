@@ -36,6 +36,10 @@ It supplies the `main.cover` shell and centered content; callers provide an
 optional heading, body content, and any existing shell classes. Keep status or
 alert roles on the caller's content so each screen retains its own semantics.
 
+## API adapters
+
+`src/api.ts` is the stable named export facade used by components and tests. Domain adapters live in `src/api/`: project and media, waveform, document edits, pipeline and export jobs, shares and recording, bootstrap and diagnostics, comments, and session media. Internal adapters import each other directly rather than importing the facade. Document commands pass through `src/services/commandQueue.ts` and `src/api/documentTransport.ts` so host and guest queue semantics stay shared.
+
 ## Testing
 
 | Kind | Where | Notes |
