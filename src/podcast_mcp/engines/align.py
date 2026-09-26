@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -7,6 +8,13 @@ import numpy as np
 
 from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.process import run
+
+log = logging.getLogger(__name__)
+
+
+class AudioWindowUnavailableError(ValueError):
+    """An analysis window decoded no (or too little) audio, e.g. it starts past EOF."""
+
 
 _MAX_WAV_RATE = 192_000
 _MAX_WAV_CHANNELS = 8
@@ -237,7 +245,7 @@ def load_mono_window(
     r = run(cmd, capture_output=True, check=True)
     samples = np.frombuffer(r.stdout, dtype=np.float32)
     if samples.size == 0:
-        raise ValueError(f"no audio decoded from {path}")
+        raise AudioWindowUnavailableError(f"no audio decoded from {path}")
     return samples
 
 
@@ -252,7 +260,7 @@ def estimate_offset_from_arrays(
 ) -> AlignmentResult:
     n = min(len(ref), len(src))
     if n < sample_rate:
-        raise ValueError("analysis window too short for correlation")
+        raise AudioWindowUnavailableError("analysis window too short for correlation")
     ref = ref[:n] - np.mean(ref[:n])
     src = src[:n] - np.mean(src[:n])
     ref_std = float(np.std(ref)) or 1.0
@@ -360,8 +368,9 @@ def cross_speaker_offsets(
                 analysis_duration_sec=analysis_duration_sec,
                 max_lag_sec=max_lag_sec,
             )
-        except ValueError:
+        except AudioWindowUnavailableError as exc:
             # Analysis window past EOF (short recording): no usable correlation.
+            log.info("cross-speaker correlation skipped for %s: %s", name, exc)
             result = AlignmentResult(
                 reference=reference,
                 source=paths[0],

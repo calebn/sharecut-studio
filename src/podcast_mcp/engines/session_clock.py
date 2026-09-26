@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 
-from podcast_mcp.engines.align import load_mono_window
+from podcast_mcp.engines.align import AudioWindowUnavailableError, load_mono_window
 
 
 def first_speech_onset_sec(
@@ -28,7 +28,7 @@ def first_speech_onset_sec(
                 duration_sec=chunk_sec,
                 sample_rate=sample_rate,
             )
-        except ValueError:
+        except AudioWindowUnavailableError:
             return None
         if window.size == 0:
             return None

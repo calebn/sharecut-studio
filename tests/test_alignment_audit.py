@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
+from podcast_mcp.engines.align import AudioWindowUnavailableError
 from podcast_mcp.engines.alignment_audit import (
     render_comparison_waveforms,
     score_session_start_candidate,
@@ -154,7 +155,7 @@ def test_vad_speech_intervals_stops_at_past_eof_and_keeps_prior_speech(sample_wa
     speech = np.ones(2000, dtype=np.float32)
     with patch(
         "podcast_mcp.engines.alignment_audit.load_mono_window",
-        side_effect=[speech, speech, ValueError("no audio decoded")],
+        side_effect=[speech, speech, AudioWindowUnavailableError("no audio decoded")],
     ) as load_window:
         intervals = vad_speech_intervals(sample_wav, duration_sec=90.0)
 
@@ -217,3 +218,13 @@ def test_render_comparison_waveforms_window_before_track_start(tmp_path: Path) -
     )
     assert eng.render_timeline.call_args.kwargs["lead_in_sec"] == pytest.approx(4.99)
     eng.extract_segment.assert_not_called()
+
+
+def test_vad_speech_intervals_propagates_other_value_errors(sample_wav: Path) -> None:
+    with (
+        patch(
+            "podcast_mcp.engines.alignment_audit.load_mono_window", side_effect=ValueError("boom")
+        ),
+        pytest.raises(ValueError, match="boom"),
+    ):
+        vad_speech_intervals(sample_wav, duration_sec=1.0)

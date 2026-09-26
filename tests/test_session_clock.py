@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from unittest.mock import patch
+
+import pytest
 
 from podcast_mcp.engines.session_clock import (
     estimate_session_start_in_file,
@@ -121,3 +124,13 @@ def test_first_speech_onset_past_eof_returns_none(tmp_path: Path) -> None:
     clip = tmp_path / "short.wav"
     _tone(clip, duration=1.0)
     assert first_speech_onset_sec(clip, search_start_sec=60.0, search_end_sec=120.0) is None
+
+
+def test_first_speech_onset_propagates_other_value_errors(tmp_path: Path) -> None:
+    clip = tmp_path / "a.wav"
+    _tone(clip, duration=1.0)
+    with (
+        patch("podcast_mcp.engines.session_clock.load_mono_window", side_effect=ValueError("boom")),
+        pytest.raises(ValueError, match="boom"),
+    ):
+        first_speech_onset_sec(clip, search_start_sec=0.0, search_end_sec=1.0)
