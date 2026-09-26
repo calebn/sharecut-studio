@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from filelock import FileLock
 
 from podcast_mcp.gui.server import create_app
-from podcast_mcp.models import load_project, save_project
+from podcast_mcp.models import SourceClippingRegion, load_project, save_project
 from podcast_mcp.services import ProjectWorkspace
 from podcast_mcp.services.history import HistoryService
 from podcast_mcp.services.record.commands import RecordCommand
@@ -21,6 +21,7 @@ from podcast_mcp.services.record.landing import (
     _LAND_LOCKS,
     RecordLandingError,
     RecordLandingService,
+    _upsert_source,
     measure_keeper_drifts,
     record_land_lock_path,
     release_session_land_lock,
@@ -3320,3 +3321,24 @@ def test_reack_before_landing_replaces_clipping_regions(
     assert [(r.start_s, r.end_s) for r in source.clipping_regions] == [
         (pytest.approx(0.4), pytest.approx(0.5))
     ]
+
+
+def test_upsert_source_keeps_clipping_on_none_and_clears_on_empty(minimal_project):
+    project = load_project(minimal_project)
+    fields: dict[str, Any] = {
+        "source_id": "rec-x-0-p_aa-0",
+        "rel": "raw/rec-x.wav",
+        "speaker": "p_aa",
+        "duration_s": 2.0,
+        "sample_rate": 48000,
+        "channels": 1,
+    }
+    src = _upsert_source(
+        project, clipping_regions=[SourceClippingRegion(start_s=0.1, end_s=0.2)], **fields
+    )
+    # None means "unknown" (recovered or older segment): keep what we had.
+    _upsert_source(project, clipping_regions=None, **fields)
+    assert [(r.start_s, r.end_s) for r in src.clipping_regions] == [(0.1, 0.2)]
+    # [] means "checked, no clipping": clear.
+    _upsert_source(project, clipping_regions=[], **fields)
+    assert src.clipping_regions == []
