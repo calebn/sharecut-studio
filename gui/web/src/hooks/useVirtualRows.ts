@@ -22,11 +22,11 @@ import {
   useState,
 } from "react";
 import { remToPx } from "./useTabsHeight";
+import {
+  VIRTUALIZE_OFF_ROWS,
+  VIRTUALIZE_ON_ROWS,
+} from "./virtualRowThresholds";
 
-/** Switch virtualization on at this many rows… */
-export const VIRTUALIZE_ON_ROWS = 200;
-/** …and back off only below this many, so toggles near 200 do not flap layout. */
-export const VIRTUALIZE_OFF_ROWS = 150;
 const OVERSCAN = 8;
 
 export function nextVirtualized(count: number, prev: boolean): boolean {
