@@ -6,6 +6,7 @@ import asyncio
 import base64
 import io
 import json
+import sqlite3
 import threading
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
@@ -362,6 +363,24 @@ def test_status_and_download_share_id_and_retention_policy(
         assert client.get(f"/api/reports/bundles/{report_id}").status_code == 404
 
 
+def test_status_read_does_not_take_writer_lock(tmp_path: Path) -> None:
+    with reports._db(tmp_path) as db:
+        db.execute(
+            "INSERT INTO reports(id,created,day,ip,description,state) VALUES(?,?,?,?,?,'queued')",
+            ("report", reports.time.time(), "today", "ip", "A useful report"),
+        )
+    writer = sqlite3.connect(tmp_path / "reports.sqlite3", isolation_level=None)
+    try:
+        writer.execute("BEGIN IMMEDIATE")
+        with reports._db(tmp_path) as reader:
+            assert reader.execute("SELECT state FROM reports WHERE id='report'").fetchone() == (
+                "queued",
+            )
+    finally:
+        writer.execute("ROLLBACK")
+        writer.close()
+
+
 def test_stale_claim_cannot_commit_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     with reports._db(tmp_path) as db:
         db.execute(
@@ -442,6 +461,69 @@ def test_permanent_github_failure_is_actionable_without_retry(
     reports.process_queue(tmp_path, "https://relay.test", "token")
     with reports._db(tmp_path) as db:
         assert db.execute("SELECT attempts FROM reports WHERE id='report'").fetchone() == (1,)
+
+
+@pytest.mark.parametrize("first_status", [429, 403])
+def test_definitive_rate_limit_requeues_and_can_publish_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, first_status: int
+) -> None:
+    with reports._db(tmp_path) as db:
+        db.execute(
+            "INSERT INTO reports(id,created,day,ip,description,state) VALUES(?,?,?,?,?,'queued')",
+            ("report", reports.time.time(), "today", "ip", "A useful report"),
+        )
+    (tmp_path / "bundles").mkdir()
+    (tmp_path / "bundles/report.zip").write_bytes(bundle())
+    monkeypatch.setattr(reports, "_existing_issue", lambda *_: None)
+    statuses = [first_status, 201]
+    posts: list[int] = []
+
+    class Response:
+        def __init__(self, status: int) -> None:
+            self.status = status
+
+        def read(self, limit: int) -> bytes:
+            if self.status == 201:
+                return b'{"html_url":"https://github.com/calebn/sharecut-studio/issues/123"}'
+            return b'{"message":"You have exceeded a secondary rate limit"}'
+
+        def getheader(self, name: str) -> str | None:
+            if self.status == 429 and name == "Retry-After":
+                return "120"
+            return None
+
+    class Connection:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            pass
+
+        def request(self, method: str, path: str, **kwargs: object) -> None:
+            assert method == "POST"
+            posts.append(1)
+
+        def getresponse(self) -> Response:
+            return Response(statuses.pop(0))
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(reports.http.client, "HTTPSConnection", Connection)
+    reports.process_queue(tmp_path, "https://relay.test", "token")
+    with reports._db(tmp_path) as db:
+        assert db.execute(
+            "SELECT state,post_started FROM reports WHERE id='report'"
+        ).fetchone() == ("queued", 0)
+        assert (
+            db.execute("SELECT next_attempt FROM reports WHERE id='report'").fetchone()[0]
+            > reports.time.time()
+        )
+        db.execute("UPDATE reports SET next_attempt=0 WHERE id='report'")
+    reports.process_queue(tmp_path, "https://relay.test", "token")
+    with reports._db(tmp_path) as db:
+        assert db.execute("SELECT state,attempts FROM reports WHERE id='report'").fetchone() == (
+            "published",
+            2,
+        )
+    assert posts == [1, 1]
 
 
 def test_github_issue_title_is_bounded(monkeypatch: pytest.MonkeyPatch) -> None:

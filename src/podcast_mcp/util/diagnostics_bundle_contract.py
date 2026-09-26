@@ -14,6 +14,34 @@ MAX_MEMBERS = 34
 MAX_APP_VERSION_LENGTH = 80
 
 
+def is_safe_diagnostics_log_name(name: str) -> bool:
+    """Flat, printable log-member names accepted by the wire contract."""
+    return (
+        name.isprintable()
+        and len(name) <= 255
+        and "/" not in name
+        and "\\" not in name
+        and not name.startswith("..")
+        and name.endswith(".log")
+    )
+
+
+def diagnostics_log_archive_name(source_name: str, used: set[str]) -> str:
+    """Preserve readable basenames while bounding and uniquifying ZIP members."""
+    stem = source_name.removesuffix(".log")
+    stem = "".join(char if char.isprintable() and char not in "/\\" else "_" for char in stem)
+    while stem.startswith(".."):
+        stem = stem[1:]
+    stem = stem or "log"
+    number = 1
+    while True:
+        suffix = "" if number == 1 else f"-{number}"
+        candidate = f"{stem[: 255 - len(suffix) - 4]}{suffix}.log"
+        if candidate not in used:
+            return candidate
+        number += 1
+
+
 @dataclass(frozen=True)
 class BundlePreview:
     files: tuple[str, ...]
@@ -39,12 +67,10 @@ def validate_diagnostics_bundle(data: bytes) -> BundlePreview:
                 name = member.filename
                 mode = (member.external_attr >> 16) & 0xFFFF
                 if (
-                    not name.isprintable()
-                    or len(name) > 255
-                    or "/" in name
-                    or "\\" in name
-                    or name.startswith("..")
-                    or (name not in {"report.json", "README.txt"} and not name.endswith(".log"))
+                    (
+                        name not in {"report.json", "README.txt"}
+                        and not is_safe_diagnostics_log_name(name)
+                    )
                     or member.is_dir()
                     or (mode and stat.S_IFMT(mode) not in (0, stat.S_IFREG))
                     or member.flag_bits & 1
