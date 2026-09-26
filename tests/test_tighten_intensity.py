@@ -60,3 +60,34 @@ def test_every_preset_key_exists_in_shipped_defaults() -> None:
             if isinstance(value, dict):
                 for sub in value:
                     assert sub in base[key], f"{name}: {key}.{sub}"
+
+
+def test_user_tuned_scalar_beats_preset() -> None:
+    tighten = copy.deepcopy(load_defaults()["tighten"])
+    tighten["max_pause_sec"] = 1.0
+    out = apply_tighten_intensity(tighten, "light")
+    assert out["max_pause_sec"] == 1.0
+    assert out["min_retained_pause_sec"] == 0.5
+
+
+def test_user_extended_filler_words_kept_under_light() -> None:
+    shipped = load_defaults()["tighten"]
+    tighten = copy.deepcopy(shipped)
+    tighten["filler_words"] = [*shipped["filler_words"], "basically"]
+    out = apply_tighten_intensity(tighten, "light")
+    assert out["filler_words"] == tighten["filler_words"]
+
+
+def test_user_tuned_nested_key_beats_preset() -> None:
+    tighten = copy.deepcopy(load_defaults()["tighten"])
+    tighten["acoustic_gap_filler"]["enabled"] = False
+    out = apply_tighten_intensity(tighten, "aggressive")
+    assert out["acoustic_gap_filler"]["enabled"] is False
+    assert out["max_pause_sec"] == 0.8
+
+
+def test_explicit_shipped_baseline() -> None:
+    out = apply_tighten_intensity({"max_pause_sec": 1.0}, "light", shipped={"max_pause_sec": 1.2})
+    assert out["max_pause_sec"] == 1.0
+    out = apply_tighten_intensity({"max_pause_sec": 1.2}, "light", shipped={"max_pause_sec": 1.2})
+    assert out["max_pause_sec"] == 2.0
