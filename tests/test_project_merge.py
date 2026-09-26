@@ -10,6 +10,8 @@ import pytest
 from podcast_mcp.models import EpisodeProject, MediaAsset, Track, TrackRole
 from podcast_mcp.models.episode import PipelineRun
 from podcast_mcp.project_merge import (
+    RERUN_ADVICE,
+    ConflictAdvice,
     ProjectMergeConflict,
     merge_project_data,
     project_merge_data,
@@ -225,21 +227,29 @@ def test_lineage_conflict_message_names_the_undo():
 
 
 def test_conflict_message_ends_with_the_retry_advice():
-    msg = str(ProjectMergeConflict(["tracks[host].gain_db"], retry="re-render the preview"))
+    msg = str(
+        ProjectMergeConflict(
+            ["tracks[host].gain_db"], advice=ConflictAdvice(retry="re-render the preview")
+        )
+    )
     assert msg.endswith("conflicting at tracks[host].gain_db; re-render the preview")
     assert "re-run it" not in msg
 
 
-def test_undo_redo_retry_replaces_the_advice_only_for_undo_redo_conflicts():
-    kwargs = {"retry": "re-render", "undo_redo_retry": "check history_status"}
-    assert str(ProjectMergeConflict(["history.cursor"], **kwargs)).endswith(
+def test_undo_redo_advice_replaces_the_retry_only_for_undo_redo_conflicts():
+    advice = ConflictAdvice(retry="re-render", undo_redo="check history_status")
+    assert str(ProjectMergeConflict(["history.cursor"], advice=advice)).endswith(
         "; check history_status"
     )
-    assert str(ProjectMergeConflict(["history.lineage"], **kwargs)).endswith(
+    assert str(ProjectMergeConflict(["history.lineage"], advice=advice)).endswith(
         "; check history_status"
     )
-    assert str(ProjectMergeConflict(["tracks[host].gain_db"], **kwargs)).endswith("; re-render")
-    assert str(ProjectMergeConflict(["history.cursor"], retry="re-render")).endswith("; re-render")
+    assert str(ProjectMergeConflict(["tracks[host].gain_db"], advice=advice)).endswith(
+        "; re-render"
+    )
+    assert str(
+        ProjectMergeConflict(["history.cursor"], advice=ConflictAdvice(retry="re-render"))
+    ).endswith("; re-render")
 
 
 def test_merge_project_data_puts_the_retry_advice_on_its_conflict(tmp_path):
@@ -248,7 +258,12 @@ def test_merge_project_data_puts_the_retry_advice_on_its_conflict(tmp_path):
     _track(ours, "host")["gain_db"] = 2.0
     _track(theirs, "host")["gain_db"] = 5.0
     with pytest.raises(ProjectMergeConflict, match=r"; re-render the preview$"):
-        merge_project_data(base, ours, theirs, retry="re-render the preview")
+        merge_project_data(base, ours, theirs, advice=ConflictAdvice(retry="re-render the preview"))
+
+
+def test_default_conflict_advice_is_re_run_it():
+    assert ConflictAdvice() == RERUN_ADVICE
+    assert RERUN_ADVICE.for_paths(["history.cursor"]) == "re-run it"
 
 
 def test_history_cursor_moved_both_ways_conflicts_as_undo_redo(tmp_path):

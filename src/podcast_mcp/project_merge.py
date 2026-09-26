@@ -8,6 +8,7 @@ changes (base -> ours) with what other writers committed meanwhile
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from podcast_mcp.models import EpisodeProject
@@ -24,6 +25,23 @@ HISTORY_CURSOR_CONFLICT = "history.cursor"
 _UNDO_REDO_CONFLICTS = frozenset({HISTORY_LINEAGE_CONFLICT, HISTORY_CURSOR_CONFLICT})
 
 
+@dataclass(frozen=True)
+class ConflictAdvice:
+    """What a ``ProjectMergeConflict`` message tells the caller to do next."""
+
+    retry: str = "re-run it"
+    # Replaces ``retry`` for an undo/redo conflict (``history.lineage`` / ``history.cursor``).
+    undo_redo: str | None = None
+
+    def for_paths(self, paths: list[str]) -> str:
+        if self.undo_redo is not None and _UNDO_REDO_CONFLICTS.intersection(paths):
+            return self.undo_redo
+        return self.retry
+
+
+RERUN_ADVICE = ConflictAdvice()
+
+
 class _Missing:
     def __repr__(self) -> str:
         return "<missing>"
@@ -35,22 +53,20 @@ _MISSING: Any = _Missing()
 class ProjectMergeConflict(RuntimeError):
     """Another writer changed a value this job changed too; nothing was saved."""
 
-    def __init__(
-        self, paths: list[str], *, retry: str = "re-run it", undo_redo_retry: str | None = None
-    ) -> None:
-        """``retry`` is the advice ending the message (what the caller should do next).
-
-        ``undo_redo_retry``, when given, replaces it for an undo/redo conflict
-        (``history.lineage`` / ``history.cursor``).
-        """
+    def __init__(self, paths: list[str], *, advice: ConflictAdvice = RERUN_ADVICE) -> None:
+        """``advice`` ends the message: what the caller should do next."""
         self.paths = paths
         shown = ", ".join(paths[:5])
         if len(paths) > 5:
             shown += f" and {len(paths) - 5} more"
-        undo_redo = bool(_UNDO_REDO_CONFLICTS.intersection(paths))
-        what = "an undo or redo changed the project" if undo_redo else "project changed"
-        advice = undo_redo_retry if undo_redo and undo_redo_retry is not None else retry
-        super().__init__(f"{what} while this job ran, conflicting at {shown}; {advice}")
+        what = (
+            "an undo or redo changed the project"
+            if _UNDO_REDO_CONFLICTS.intersection(paths)
+            else "project changed"
+        )
+        super().__init__(
+            f"{what} while this job ran, conflicting at {shown}; {advice.for_paths(paths)}"
+        )
 
 
 def project_merge_data(project: EpisodeProject) -> dict[str, Any]:
@@ -63,12 +79,11 @@ def merge_project_data(
     ours: dict[str, Any],
     theirs: dict[str, Any],
     *,
-    retry: str = "re-run it",
-    undo_redo_retry: str | None = None,
+    advice: ConflictAdvice = RERUN_ADVICE,
 ) -> dict[str, Any]:
     """Merge ``ours`` and ``theirs``, both changed from ``base``; raise on a conflict.
 
-    ``retry`` / ``undo_redo_retry`` end the ``ProjectMergeConflict`` message.
+    ``advice`` ends the ``ProjectMergeConflict`` message.
     """
     conflicts: list[str] = []
     rest = [{k: v for k, v in side.items() if k != _HISTORY} for side in (base, ours, theirs)]
@@ -77,7 +92,7 @@ def merge_project_data(
         base.get(_HISTORY) or {}, ours.get(_HISTORY) or {}, theirs.get(_HISTORY) or {}, conflicts
     )
     if conflicts:
-        raise ProjectMergeConflict(conflicts, retry=retry, undo_redo_retry=undo_redo_retry)
+        raise ProjectMergeConflict(conflicts, advice=advice)
     merged[_HISTORY] = history
     return merged
 

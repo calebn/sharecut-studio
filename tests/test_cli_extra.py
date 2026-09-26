@@ -11,7 +11,7 @@ from podcast_mcp.cli.main import app
 from podcast_mcp.cli.speaker import speaker_app
 from podcast_mcp.cli.transcript_cmd import transcript_app
 from podcast_mcp.models import CombinedTranscript, CombinedUtterance, load_project, save_project
-from podcast_mcp.project_merge import ProjectMergeConflict
+from podcast_mcp.project_merge import ConflictAdvice, ProjectMergeConflict
 from podcast_mcp.services import HistoryRerenderError
 
 runner = CliRunner()
@@ -66,7 +66,8 @@ def test_history_diff_cli(tmp_path):
     "error",
     [
         ProjectMergeConflict(
-            ["tracks[host].gain_db"], retry="re-render the preview instead of repeating it"
+            ["tracks[host].gain_db"],
+            advice=ConflictAdvice(retry="re-render the preview instead of repeating it"),
         ),
         HistoryRerenderError("re-render the preview instead of repeating it"),
     ],
