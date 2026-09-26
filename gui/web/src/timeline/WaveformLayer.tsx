@@ -32,6 +32,7 @@ import {
   requestRaster,
   subscribeRasterDone,
   subscribeRasterDropped,
+  subscribeRasterFailed,
 } from "../waveform/rasterClient";
 import {
   drawLevel,
@@ -239,6 +240,11 @@ function WaveformLayerView({
       return;
     }
     const prefix = `${mediaKey}|`;
+    const askAgain = (key: string) => {
+      if (wanted.current.has(key)) {
+        bumpData();
+      }
+    };
     const offs = [
       subscribePyramid(mediaKey, bumpPyramid),
       subscribePcm(mediaKey, bumpData),
@@ -248,11 +254,9 @@ function WaveformLayerView({
         }
       }),
       // A queued job this layer skipped (another layer's) was dropped: ask again.
-      subscribeRasterDropped((key) => {
-        if (wanted.current.has(key)) {
-          bumpData();
-        }
-      }),
+      subscribeRasterDropped(askAgain),
+      // A job died with a crashed worker: ask again (a restarted one takes it).
+      subscribeRasterFailed(askAgain),
     ];
     return () => {
       for (const off of offs) {

@@ -45,6 +45,9 @@ export function fetchLimit(projectPath: string): number {
 /** Raster jobs outstanding in the worker. */
 export const RASTER_JOBS_OUTSTANDING = 4;
 
+/** Raster worker restarts after a crash, per page load, before backend `none`. */
+export const RASTER_WORKER_RESTARTS = 2;
+
 /**
  * One counter of waveform fetches in flight, shared by tiles and PCM so
  * together they stay within {@link fetchLimit}.
