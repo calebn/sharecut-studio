@@ -203,7 +203,10 @@ align:
   coarse_step_sec: 0.5
   fine_step_sec: 0.02
   bleed_ngram: 3
-  min_bleed_matches: 2
+  # Clustered bleed matches needed to trust the bleed clock.
+  min_bleed_matches: 5
+  # Weighted share of matched n-grams that must agree; common filler n-grams count 0.2x.
+  bleed_min_share: 0.3
   # |bleed Δt| below this → confirm with waveform xcorr (not blind identity).
   bleed_identity_sec: 1.0
   acoustic_min_peak: 0.05

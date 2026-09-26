@@ -11,6 +11,8 @@ import pytest
 from podcast_mcp.edits.conversation_align import (
     AlignResult,
     ClipAlignPlan,
+    _is_common_ngram,
+    _weighted_median,
     acoustic_clip_offset,
     apply_alignment_plans,
     bleed_phrase_offsets,
@@ -164,7 +166,7 @@ def test_whisper_jitter_bleed_holds_identity(tmp_path: Path) -> None:
 
     result = plan_conversation_alignment(
         proj,
-        defaults={"align": {}, "_align_acoustic_fn": synced_acoustic},
+        defaults={"align": {"min_bleed_matches": 2}, "_align_acoustic_fn": synced_acoustic},
     )
     guest = next(p for p in result.plans if p.track_id == "guest")
     assert guest.method == "bleed_near_identity"
@@ -216,7 +218,7 @@ def test_small_bleed_applies_when_acoustic_agrees(tmp_path: Path) -> None:
 
     result = plan_conversation_alignment(
         proj,
-        defaults={"align": {}, "_align_acoustic_fn": late_acoustic},
+        defaults={"align": {"min_bleed_matches": 2}, "_align_acoustic_fn": late_acoustic},
     )
     guest = next(p for p in result.plans if p.track_id == "guest")
     assert guest.method == "bleed_acoustic"
@@ -414,7 +416,7 @@ def test_plan_bleed_preferred(tmp_path: Path) -> None:
             ("guest", 90.0, guest_words),
         ],
     )
-    result = plan_conversation_alignment(proj)
+    result = plan_conversation_alignment(proj, defaults={"align": {"min_bleed_matches": 2}})
     assert result.skipped_reason is None
     guest = next(p for p in result.plans if p.track_id == "guest")
     assert guest.method == "bleed"
@@ -1020,7 +1022,7 @@ def test_bleed_scores_against_reference_not_concatenated_peers(tmp_path: Path) -
             ("third", 100.0, third),
         ],
     )
-    result = plan_conversation_alignment(proj)
+    result = plan_conversation_alignment(proj, defaults={"align": {"min_bleed_matches": 2}})
     guest_plan = next(p for p in result.plans if p.track_id == "guest")
     assert guest_plan.method.startswith("bleed")
     assert abs(guest_plan.offset_sec - 5.0) < 0.5
@@ -1062,3 +1064,66 @@ def test_apply_alignment_plans_rebases_offset_zero_guest(tmp_path: Path) -> None
     guest = next(c for c in proj.clips if c.track_id == "guest")
     assert (host.source_start, host.timeline_start) == (3.0, 0.0)
     assert (guest.source_start, guest.source_end, guest.timeline_start) == (3.0, 90.0, 0.0)
+
+
+def _sparse_repeat_words(offset: float, *, unique: list[tuple[str, float]]) -> list[TranscriptWord]:
+    words: list[TranscriptWord] = []
+    for k in range(20):
+        t = 1000.0 + offset + 30.0 * k
+        for j, w in enumerate(("i", "don't", "know")):
+            words.append(
+                TranscriptWord(text=w, start=t + j * 0.3, end=t + j * 0.3 + 0.25, confidence=0.9)
+            )
+    for tri, t in unique:
+        for j, w in enumerate(tri.split()):
+            words.append(
+                TranscriptWord(text=w, start=t + j * 0.3, end=t + j * 0.3 + 0.25, confidence=0.9)
+            )
+        # Side-specific separators stop neighbouring groups forming extra shared n-grams.
+        side = "s" if offset else "r"
+        for tag, dt in (("sep", -1.0), ("end", 1.0)):
+            words.append(
+                TranscriptWord(
+                    text=f"{tag}{side}{t:.0f}", start=t + dt, end=t + dt + 0.2, confidence=0.9
+                )
+            )
+    return sorted(words, key=lambda w: w.start)
+
+
+def _tok(words: list[TranscriptWord]) -> list[WordToken]:
+    return [
+        WordToken(text=w.text, start=w.start, end=w.end, confidence=w.confidence) for w in words
+    ]
+
+
+def test_bleed_rejects_sparse_repeated_phrase() -> None:
+    ref = _tok(
+        _sparse_repeat_words(
+            0.0, unique=[("alpha beta gamma", 100.0), ("delta echo foxtrot", 200.0)]
+        )
+    )
+    src = _tok(
+        _sparse_repeat_words(
+            17.0, unique=[("alpha beta gamma", 135.6), ("delta echo foxtrot", 235.6)]
+        )
+    )
+    off, _all, detail = bleed_phrase_offsets(ref, src)
+    assert off is None
+    assert detail is not None and "bleed rejected" in detail
+
+
+def test_bleed_common_ngrams_downweighted() -> None:
+    uniq_ref = [(f"w{k}a w{k}b w{k}c", 100.0 + 40.0 * k) for k in range(6)]
+    uniq_src = [(g, t - 5.0) for g, t in uniq_ref]
+    ref = _tok(_sparse_repeat_words(0.0, unique=uniq_ref))
+    src = _tok(_sparse_repeat_words(17.0, unique=uniq_src))
+    off, _all, _detail = bleed_phrase_offsets(ref, src, min_matches=5)
+    assert off is not None
+    assert off == pytest.approx(5.0, abs=0.05)
+
+
+def test_is_common_ngram_and_weighted_median() -> None:
+    assert _is_common_ngram("i don't know")
+    assert not _is_common_ngram("i don't zebra")
+    assert _weighted_median([1.0, 2.0, 10.0], [1.0, 1.0, 1.0]) == 2.0
+    assert _weighted_median([1.0, 10.0], [0.1, 5.0]) == 10.0
