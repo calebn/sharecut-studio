@@ -589,14 +589,15 @@ class _SsePublishReporter:
         )
 
 
-class PipelineJobManager:
-    """One pipeline/render_preview/bounce/export job plus N in-process agent jobs."""
+class _JobCatalog:
+    """Owns job identity, bounded history, and SSE subscriber bookkeeping.
+
+    Caller-held lock methods are suffixed ``_locked`` or documented at the method.
+    """
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._job: PipelineJob | None = None
-        # Retain finished jobs so waiters/SSE can still resolve after a
-        # successor job replaces ``_job`` (avoids lost completion).
         self._finished: dict[str, PipelineJob] = {}
         self._finished_order: list[str] = []
         self._finished_limit = 8
@@ -639,16 +640,6 @@ class PipelineJobManager:
         with self._lock:
             n = self._job._sse_listeners if self._job is not None else 0
             return n + sum(row._sse_listeners for row in self._agent_live.values())
-
-    def listening_progress_reporter(self) -> _SsePublishReporter | None:
-        """Publish-only SSE sink when the pipeline job itself has listeners."""
-        with self._lock:
-            job = self._job
-            if job is None or job.status not in _LIVE_STATUSES:
-                return None
-            if job._sse_listeners <= 0:
-                return None
-        return _SsePublishReporter(self)
 
     def _running_jobs_locked(self) -> list[PipelineJob]:
         running: list[PipelineJob] = []
@@ -753,15 +744,6 @@ class PipelineJobManager:
                 return self._agent_latest
             return self._finished.get(job_id)
 
-    def wait(self, job: PipelineJob, *, timeout: float | None = None) -> PipelineJob:
-        """Block until ``job`` leaves queued/running (host MCP pipeline_run)."""
-        deadline = None if timeout is None else time.monotonic() + timeout
-        while job.status in _LIVE_STATUSES:
-            if deadline is not None and time.monotonic() >= deadline:
-                raise TimeoutError(f"Timed out waiting for job {job.id}")
-            time.sleep(0.05)
-        return job
-
     def adopt_agent_job(
         self,
         *,
@@ -862,6 +844,156 @@ class PipelineJobManager:
         while len(self._finished_order) > self._finished_limit:
             old_id = self._finished_order.pop(0)
             self._finished.pop(old_id, None)
+
+
+class PipelineJobManager:
+    """Facade for one pipeline slot plus in-process agent jobs."""
+
+    def __init__(self) -> None:
+        self._catalog = _JobCatalog()
+        self._lock = self._catalog._lock
+
+    @property
+    def _job(self) -> PipelineJob | None:
+        return self._catalog._job
+
+    @_job.setter
+    def _job(self, value: PipelineJob | None) -> None:
+        self._catalog._job = value
+
+    @property
+    def _finished(self) -> dict[str, PipelineJob]:
+        return self._catalog._finished
+
+    @_finished.setter
+    def _finished(self, value: dict[str, PipelineJob]) -> None:
+        self._catalog._finished = value
+
+    @property
+    def _finished_order(self) -> list[str]:
+        return self._catalog._finished_order
+
+    @_finished_order.setter
+    def _finished_order(self, value: list[str]) -> None:
+        self._catalog._finished_order = value
+
+    @property
+    def _finished_limit(self) -> int:
+        return self._catalog._finished_limit
+
+    @_finished_limit.setter
+    def _finished_limit(self, value: int) -> None:
+        self._catalog._finished_limit = value
+
+    @property
+    def _agent_live_limit(self) -> int:
+        return self._catalog._agent_live_limit
+
+    @_agent_live_limit.setter
+    def _agent_live_limit(self, value: int) -> None:
+        self._catalog._agent_live_limit = value
+
+    @property
+    def _agent_live(self) -> dict[str, PipelineJob]:
+        return self._catalog._agent_live
+
+    @_agent_live.setter
+    def _agent_live(self, value: dict[str, PipelineJob]) -> None:
+        self._catalog._agent_live = value
+
+    @property
+    def _agent_claims(self) -> dict[str, PipelineJob]:
+        return self._catalog._agent_claims
+
+    @_agent_claims.setter
+    def _agent_claims(self, value: dict[str, PipelineJob]) -> None:
+        self._catalog._agent_claims = value
+
+    @property
+    def _agent_latest(self) -> PipelineJob | None:
+        return self._catalog._agent_latest
+
+    @_agent_latest.setter
+    def _agent_latest(self, value: PipelineJob | None) -> None:
+        self._catalog._agent_latest = value
+
+    @property
+    def _served_project(self) -> str | None:
+        return self._catalog._served_project
+
+    @_served_project.setter
+    def _served_project(self, value: str | None) -> None:
+        self._catalog._served_project = value
+
+    def set_served_project(self, project_path: Path | str | None) -> None:
+        return self._catalog.set_served_project(project_path)
+
+    def add_sse_subscriber_for(self, job: PipelineJob) -> bool:
+        return self._catalog.add_sse_subscriber_for(job)
+
+    def add_sse_subscriber(self) -> None:
+        return self._catalog.add_sse_subscriber()
+
+    def remove_sse_subscriber(self, job: PipelineJob | None = None) -> None:
+        return self._catalog.remove_sse_subscriber(job)
+
+    def sse_subscriber_count(self) -> int:
+        return self._catalog.sse_subscriber_count()
+
+    def _running_jobs_locked(self) -> list[PipelineJob]:
+        return self._catalog._running_jobs_locked()
+
+    def _visible_jobs_locked(self) -> list[PipelineJob]:
+        return self._catalog._visible_jobs_locked()
+
+    def _primary_job_locked(self, scope: str | None = None) -> PipelineJob | None:
+        return self._catalog._primary_job_locked(scope)
+
+    def status(self, project_path: str | None = None) -> dict[str, Any]:
+        return self._catalog.status(project_path)
+
+    def recent_snapshots(self, *, limit: int = 10) -> list[dict[str, Any]]:
+        return self._catalog.recent_snapshots(limit=limit)
+
+    def get_job(self, job_id: str | None = None) -> PipelineJob | None:
+        return self._catalog.get_job(job_id)
+
+    def adopt_agent_job(
+        self, *, tool_id: str, label: str, claim: str, project_path: str = ""
+    ) -> PipelineJob:
+        return self._catalog.adopt_agent_job(
+            tool_id=tool_id, label=label, claim=claim, project_path=project_path
+        )
+
+    def complete_agent_job(
+        self, job: PipelineJob, *, status: str, message: str | None = None, error: str | None = None
+    ) -> None:
+        return self._catalog.complete_agent_job(job, status=status, message=message, error=error)
+
+    def _forget_agent_locked(self, job: PipelineJob) -> None:
+        return self._catalog._forget_agent_locked(job)
+
+    def _archive_job(self, job: PipelineJob) -> None:
+        return self._catalog._archive_job(job)
+
+    def listening_progress_reporter(self) -> _SsePublishReporter | None:
+        """Publish-only SSE sink when the pipeline job itself has listeners."""
+        with self._lock:
+            job = self._job
+            if job is None or job.status not in _LIVE_STATUSES:
+                return None
+            if job._sse_listeners <= 0:
+                return None
+        return _SsePublishReporter(self)
+
+    def wait(self, job: PipelineJob, *, timeout: float | None = None) -> PipelineJob:
+        """Block until ``job`` leaves queued/running (host MCP pipeline_run)."""
+        deadline = None if timeout is None else time.monotonic() + timeout
+        while job.status in _LIVE_STATUSES:
+            if deadline is not None and time.monotonic() >= deadline:
+                raise TimeoutError(f"Timed out waiting for job {job.id}")
+            time.sleep(0.05)
+        return job
 
     def start(
         self,
