@@ -179,6 +179,8 @@ Bottom tabs default to ~40–45% of space below transport/status, capped so the 
 | `text` | `layout.text` — **Maximize transcript** | Expand transcript; shrink timeline; dock Correct word editor when a word is selected |
 | `review` | `layout.review` — **Review layout** | Comments tab + mix-oriented chrome |
 
+One transport control (an expand/collapse icon with a pressed state) maximizes the timeline, or restores from any layout; View › Layout radios reach the transcript and review layouts. A persistent "… · Restore" pill sits in the transport, which no layout hides (collapsed bar: "Restore"). The splitter is hidden outside the default layout. Status-bar chips only switch tabs; they never change the layout. The old per-pane **Focus** buttons are gone.
+
 Keyboard: `Mod+1` restore, `Mod+2` maximize timeline, `Mod+3` maximize transcript, `Mod+4` review layout. These work from anywhere except text inputs; bare digits do nothing. A browser tab may keep Ctrl/⌘+1–4 for tab switching (the desktop app does not); use the transport layout control or View › Layout there. View › Layout and View › Theme are radio groups (no cycling).
 
 The shell grid uses named areas (`banners / follow / transport / main / tabs / status`); modes only resize the `main` and `tabs` tracks, so banners, transport and status rows never move (`layout/shellGrid.test.ts`).
@@ -202,7 +204,7 @@ The host recording chip remains a full touch target in the collapsed tablet tran
 
 | Tier | Controls |
 |------|----------|
-| Primary (always visible) | Play/Stop, compact playhead timecode, **Comment** icon, **Fit** (except Listen), Menu icon |
+| Primary (always visible) | Play/Stop, compact playhead timecode, **Comment** icon, **Fit** (except Listen), Menu icon; desktop/tablet also **Layout** (maximize/restore) |
 | Menu → People | Live roster (follow / unfollow) when the bar is collapsed. Rows are `var(--touch-min)` (`2.75rem`) via `@container transport`. |
 | Menu → Project (host) | New / Open, **Connect agent…**, Bounce…, **Share…** (collaboration extension), Export deliverables. Home also has **Connect agent…** |
 | Menu (secondary) | One combined menu on phone and tablet: Project, Media, audition Mix/FX/Raw, **Refresh mix** when render is stale, layers, zoom, layout, theme, Fit if omitted from bar, Help (wide desktop splits layers/zoom/theme/focus into a **View** menu) |

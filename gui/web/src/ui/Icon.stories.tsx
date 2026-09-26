@@ -20,6 +20,8 @@ const ICONS = {
   timeline: true,
   text: true,
   more: true,
+  maximize: true,
+  restore: true,
 } satisfies Record<IconName, true>;
 
 const NAMES = Object.keys(ICONS) as IconName[];

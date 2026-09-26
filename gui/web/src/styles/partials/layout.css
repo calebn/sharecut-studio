@@ -300,12 +300,6 @@
   flex: 0 1 auto;
 }
 
-.focus-pane-btn {
-  font-size: var(--font-size-caption);
-  padding: var(--space-0) var(--space-3);
-  flex: 0 0 auto;
-}
-
 .track-headers-chrome {
   display: flex;
   align-items: flex-end;
@@ -326,12 +320,7 @@
   z-index: 0;
 }
 
-.track-headers-chrome .focus-pane-btn {
-  position: relative;
-  z-index: 1;
-}
-
-.track-headers-well {
+.track-headers-chrome .track-headers-well {
   flex: 1 1 auto;
   min-block-size: 0.5rem;
   border: 0;
@@ -340,13 +329,6 @@
   background: transparent;
   cursor: default;
   inline-size: 100%;
-}
-
-.tab-bar-focus {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  padding-right: var(--space-1);
 }
 
 .transcript-docked-editor {
@@ -1067,9 +1049,5 @@
 
   .track-headers-chrome {
     padding: 0;
-  }
-
-  .track-headers-chrome .focus-pane-btn {
-    display: none;
   }
 }

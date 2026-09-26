@@ -10,14 +10,11 @@ import { ingestFiles } from "../ingest/ingestFiles";
 import { canIngestMedia } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import { useTimelineMetrics } from "../timeline/timelineMetrics";
-import { FocusToggle } from "../ui";
 import { RULER_HEIGHT } from "../utils/layout";
 import { TrackHeader } from "./TrackHeader";
 import { reorderInsertIndex } from "./trackReorder";
 
 interface Props {
-  /** Desktop focus toggle in the ruler spacer; phone uses an empty spacer. */
-  showFocusToggle?: boolean;
   /** Host ingest “+ Track” row under the headers. */
   showAddTrack?: boolean;
   addDropOver?: boolean;
@@ -30,7 +27,6 @@ function deselectAllTracks(): void {
 }
 
 export function TrackHeadersColumn({
-  showFocusToggle = false,
   showAddTrack = false,
   addDropOver = false,
   addFileCount = 1,
@@ -135,9 +131,6 @@ export function TrackHeadersColumn({
           borderBottom: "1px solid var(--border)",
         }}
       >
-        {showFocusToggle ? (
-          <FocusToggle mode="timeline" label="Timeline" />
-        ) : null}
         {/*
           Pointer-only chrome; keyboard uses the well / Mod+Shift+A.
           Same pattern as .lane-seek / .envelope-hit: a div (not button) so

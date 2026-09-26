@@ -138,26 +138,14 @@ describe("TrackHeadersColumn deselect well", () => {
     expect(useDawStore.getState().selectedTrackIds).toEqual([]);
   });
 
-  it("keeps FocusToggle clickable over leftover chrome", async () => {
-    const user = userEvent.setup();
+  it("has no layout control in the ruler corner", async () => {
     const project = twoTrackProject();
     const { container } = render(
       <DawProvider projectPath="/tmp/p.json" initialProject={project}>
-        <TrackHeadersColumn showFocusToggle />
+        <TrackHeadersColumn />
       </DawProvider>,
     );
-    useDawStore.setState({
-      selectedTrackIds: ["host", "guest"],
-      selection: { kind: "track", trackId: "host" },
-      layoutMode: "default",
-    });
-    const focus = screen.getByRole("button", { name: "Focus" });
-    await user.click(focus);
-    expect(useDawStore.getState().layoutMode).toBe("timeline");
-    expect(useDawStore.getState().selectedTrackIds).toEqual(["host", "guest"]);
-    expect(
-      screen.getAllByRole("button", { name: "Deselect all tracks" }),
-    ).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: /Focus|Maximize/ })).toBeNull();
     await expectNoA11yViolations(container);
   });
 

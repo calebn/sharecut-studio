@@ -638,3 +638,8 @@
     transition-duration: var(--motion-press);
   }
 }
+
+.layout-chip {
+  white-space: nowrap;
+  flex: 0 0 auto;
+}

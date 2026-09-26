@@ -24,7 +24,7 @@ import type {
   EditBoundaryView,
   Selection,
 } from "../types/project";
-import { FocusToggle, ToggleButton } from "../ui";
+import { ToggleButton } from "../ui";
 import {
   findTurnIndexForUtterance,
   groupConsecutiveSpeakerTurns,
@@ -577,7 +577,6 @@ export function TranscriptPanel() {
           {intentLabel}
         </span>
         <div className="transcript-toolbar-actions">
-          <FocusToggle mode="text" label="Transcript" />
           <ToggleButton
             pressed={transcriptAnnotate}
             className="transcript-follow-btn transcript-annotate-btn"

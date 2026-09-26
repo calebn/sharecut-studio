@@ -6,7 +6,7 @@ test.describe("control state parity", () => {
     await page.emulateMedia({ reducedMotion: "reduce" });
   });
 
-  test("transcript Focus is quiet while Follow keeps an outline, with shared hover", async ({
+  test("transcript Annotate is quiet while Follow keeps an outline, with shared hover", async ({
     page,
   }) => {
     await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
@@ -19,13 +19,13 @@ test.describe("control state parity", () => {
       .getByRole("button", { name: "Transcript", exact: true })
       .click();
 
-    const focus = panels.getByRole("button", { name: /^Focus$|^Focused$/ });
+    const annotate = panels.locator(".transcript-annotate-btn");
     let follow = panels.getByRole("button", { name: /^Follow$|^Unlocked$/ });
-    await expect(focus).toBeVisible();
+    await expect(annotate).toBeVisible();
     await expect(follow).toBeVisible();
 
     expect(
-      await focus.evaluate((el) => el.classList.contains("ui-control")),
+      await annotate.evaluate((el) => el.classList.contains("ui-control")),
     ).toBe(true);
     expect(
       await follow.evaluate((el) => el.classList.contains("ui-control")),
@@ -36,45 +36,45 @@ test.describe("control state parity", () => {
       await follow.click();
       follow = panels.getByRole("button", { name: "Unlocked" });
     }
-    if ((await focus.getAttribute("aria-pressed")) === "true") {
-      await focus.click();
+    if ((await annotate.getAttribute("aria-pressed")) === "true") {
+      await annotate.click();
     }
 
-    await expect(focus).toHaveAttribute("aria-pressed", "false");
+    await expect(annotate).toHaveAttribute("aria-pressed", "false");
     await expect(follow).toHaveAttribute("aria-pressed", "false");
 
     // Clear sticky :hover from the unlock click before measuring rest.
     await page.getByRole("heading", { level: 1 }).hover();
 
-    const borderTop = (locator: typeof focus) =>
+    const borderTop = (locator: typeof annotate) =>
       locator.evaluate((el) => getComputedStyle(el).borderTopColor);
 
-    const focusRest = await borderTop(focus);
+    const annotateRest = await borderTop(annotate);
     const followRest = await borderTop(follow);
-    expect(followRest).not.toBe(focusRest);
-    expect(focusRest).toBe("rgba(0, 0, 0, 0)");
+    expect(followRest).not.toBe(annotateRest);
+    expect(annotateRest).toBe("rgba(0, 0, 0, 0)");
 
-    await focus.hover();
-    const focusHover = await borderTop(focus);
+    await annotate.hover();
+    const annotateHover = await borderTop(annotate);
     await page.getByRole("heading", { level: 1 }).hover();
     await follow.hover();
     const followHover = await borderTop(follow);
 
-    expect(focusHover).not.toBe(focusRest);
+    expect(annotateHover).not.toBe(annotateRest);
     expect(followHover).not.toBe(followRest);
-    expect(followHover).toBe(focusHover);
+    expect(followHover).toBe(annotateHover);
 
-    await focus.click();
-    await expect(focus).toHaveAttribute("aria-pressed", "true");
-    const focusedPaint = await focus.evaluate((el) => {
+    await annotate.click();
+    await expect(annotate).toHaveAttribute("aria-pressed", "true");
+    const annotatedPaint = await annotate.evaluate((el) => {
       const style = getComputedStyle(el);
       return {
         background: style.backgroundColor,
         border: style.borderTopColor,
       };
     });
-    expect(focusedPaint.background).not.toBe("rgba(0, 0, 0, 0)");
-    expect(focusedPaint.border).not.toBe("rgba(0, 0, 0, 0)");
+    expect(annotatedPaint.background).not.toBe("rgba(0, 0, 0, 0)");
+    expect(annotatedPaint.border).not.toBe("rgba(0, 0, 0, 0)");
   });
 
   test("active quiet tab hover keeps underline-only border", async ({
