@@ -1,6 +1,6 @@
 import { useId } from "react";
 import { Button } from "../ui";
-import { formatClock } from "./clock";
+import { formatElapsed } from "../utils/format";
 import type { TakeClipping, TakeClipRegion } from "./keeper/clipRegions";
 import {
   CLIPPING_JUNCTION_HINT,
@@ -58,7 +58,7 @@ export function TakeClippingReport({ report, roomState, jumpFor }: Props) {
       <ul className="stack">
         {report.regions.map((region) => {
           const jump = jumpFor ? jumpFor(region) : null;
-          const range = `${formatClock(region.startMs)}–${formatClock(region.endMs)}`;
+          const range = `${formatElapsed(region.startMs / 1000)}–${formatElapsed(region.endMs / 1000)}`;
           return (
             <li
               key={`${region.segmentIndex}-${region.startMs}`}
