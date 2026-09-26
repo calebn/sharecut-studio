@@ -17,6 +17,7 @@ from typing import Any
 
 from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_caches
 from podcast_mcp.edits.pending_preview import resolve_pending_preview
+from podcast_mcp.edits.tighten_intensity import normalize_tighten_intensity
 from podcast_mcp.engines.audio_audit import detect_mains_hum, measure_astats
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import PREMIX_HASH_NAME, PREMIX_NAME
@@ -382,12 +383,18 @@ def build_golden_ear(
     seed: int | None = None,
     pad_sec: float = DEFAULT_PAD_SEC,
     force: bool = False,
+    intensity: str | None = None,
 ) -> dict[str, Any]:
-    """Propose (no apply) on a relocated copy and write blinded A/B pairs."""
+    """Propose (no apply) on a relocated copy and write blinded A/B pairs.
+
+    ``intensity`` (light/medium/aggressive) picks the tighten preset to evaluate;
+    it is recorded only in the owner's ``key.json``, never the listener manifest.
+    """
     src_file = require_episode_project_file(project)
     out = Path(out_dir).expanduser().resolve()
     class_names = parse_classes(classes)
     cap = bound_limit(limit)
+    tier = normalize_tighten_intensity(intensity)
     pad = max(0.05, min(10.0, float(pad_sec)))
     for answers in (out / LISTEN_DIRNAME / "answers.csv", out / "answers.csv"):
         if answers_have_preferences(answers) and not force:
@@ -406,7 +413,7 @@ def build_golden_ear(
     ws = ProjectWorkspace.open(dest_file)
     edit_svc = EditService(ws)
     play = PlayService(ws)
-    edit_svc.propose_tighten()
+    edit_svc.propose_tighten(intensity=tier)
     candidates = _candidate_decisions(list(ws.project.edit_decisions), class_names)
     rng = random.Random(seed)
     rng.shuffle(candidates)
@@ -457,6 +464,7 @@ def build_golden_ear(
             )
             task.advance(1, message=pair_id)
     key = {
+        "intensity": tier,
         "source_project": str(src_file),
         "source_fingerprint": source_fingerprint(src_file),
         "workspace": str(out / "workspace"),

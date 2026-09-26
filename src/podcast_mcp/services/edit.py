@@ -348,11 +348,15 @@ class EditService:
             return format_edit_impact_markdown(report)
         return report
 
-    def propose_tighten(self, edit_mode: str | None = None) -> TightenProposal:
+    def propose_tighten(
+        self, edit_mode: str | None = None, intensity: str | None = None
+    ) -> TightenProposal:
         self._require_refine_clear()
 
         def mutate(p) -> TightenProposal:
-            return propose_tighten_edits(p, load_defaults(), edit_mode=edit_mode)
+            return propose_tighten_edits(
+                p, load_defaults(), edit_mode=edit_mode, intensity=intensity
+            )
 
         return self.ws.mutate("before propose edits", "after propose edits", mutate)
 

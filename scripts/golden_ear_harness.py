@@ -14,6 +14,7 @@ import argparse
 import json
 from pathlib import Path
 
+from podcast_mcp.edits.tighten_intensity import TIGHTEN_INTENSITIES
 from podcast_mcp.services.golden_ear import (
     DEFAULT_LIMIT,
     LISTEN_DIRNAME,
@@ -33,6 +34,7 @@ def main(argv: list[str] | None = None) -> int:
     build.add_argument("--classes")
     build.add_argument("--seed", type=int, default=None)
     build.add_argument("--force", action="store_true")
+    build.add_argument("--intensity", choices=TIGHTEN_INTENSITIES, default=None)
 
     score = sub.add_parser("score", help="Score a filled answers.csv against key.json.")
     score.add_argument("--dir", type=Path, required=True)
@@ -47,6 +49,7 @@ def main(argv: list[str] | None = None) -> int:
             classes=args.classes,
             seed=args.seed,
             force=args.force,
+            intensity=args.intensity,
         )
         print(json.dumps(result, indent=2))
         return 0
