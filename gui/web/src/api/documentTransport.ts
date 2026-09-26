@@ -23,16 +23,35 @@ export function postGuestDocumentCommand(
   });
 }
 
-export function postHostDocumentCommand(
+/**
+ * A host POST unanswered after this long is aborted and handled as a
+ * transport failure: its record stays queued and replays idempotently.
+ */
+export const HOST_COMMAND_TIMEOUT_MS = 60_000;
+
+export async function postHostDocumentCommand(
   projectPath: string,
   body: Record<string, unknown>,
 ): Promise<Response> {
-  return hostFetch(
-    `/api/document/command?path=${encodeURIComponent(projectPath)}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    },
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () =>
+      controller.abort(
+        new DOMException("Host document command timed out", "TimeoutError"),
+      ),
+    HOST_COMMAND_TIMEOUT_MS,
   );
+  try {
+    return await hostFetch(
+      `/api/document/command?path=${encodeURIComponent(projectPath)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      },
+    );
+  } finally {
+    clearTimeout(timer);
+  }
 }
