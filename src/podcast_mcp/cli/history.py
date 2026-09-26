@@ -7,13 +7,12 @@ import typer
 
 from podcast_mcp.cli.timed import timed_command
 from podcast_mcp.history import HistoryManager
-from podcast_mcp.project_merge import ProjectMergeConflict
-from podcast_mcp.services import HistoryRerenderError, HistoryService, ProjectWorkspace
+from podcast_mcp.services import HISTORY_RERENDER_ERRORS, HistoryService, ProjectWorkspace
 
 history_app = typer.Typer(help="Undo/redo snapshot history (non-destructive edits).")
 
-# A history move with --rerender fails with these after the move is saved; print the advice.
-_MOVE_ERRORS = (ValueError, ProjectMergeConflict, HistoryRerenderError)
+# Bad index/empty history, or a --rerender failure after the move is saved: print the advice.
+_MOVE_ERRORS: tuple[type[Exception], ...] = (ValueError, *HISTORY_RERENDER_ERRORS)
 
 
 @history_app.command("list")
