@@ -10,13 +10,18 @@ import numpy as np
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.engines.align import load_mono_window
-from podcast_mcp.util.dsp import bool_runs, db_to_amplitude
+from podcast_mcp.util.dsp import autocorr_peak, bool_runs, db_to_amplitude
 from podcast_mcp.util.tracks import track_audio_path
 
 if TYPE_CHECKING:
     from podcast_mcp.engines.vad_silero import SileroVAD
 
 log = logging.getLogger(__name__)
+
+# Acoustic-gap runs have already passed a permissive voicing check. Only
+# classify one as breath when short probes lack *clear* speech-pitch evidence.
+_CLEAR_PITCH_PEAK = 0.55
+_PITCH_FRAME_SEC = 0.04
 
 
 @dataclass(frozen=True)
@@ -135,6 +140,24 @@ def _find_breath_in_window_silero(
     return _first_breath_span(active, window_start, window_dur, min_duration_sec, max_duration_sec)
 
 
+def _has_clear_pitch(samples: np.ndarray, sample_rate: int) -> bool:
+    """Check at most three short probes; an uncertain voiced run stays reviewable."""
+    frame_size = max(1, round(sample_rate * _PITCH_FRAME_SEC))
+    if samples.size < frame_size:
+        return False
+    for fraction in (0.25, 0.5, 0.75):
+        start = min(samples.size - frame_size, round(samples.size * fraction - frame_size / 2))
+        peak = autocorr_peak(
+            samples[max(0, start) : max(0, start) + frame_size],
+            sample_rate,
+            fmin=70.0,
+            fmax=350.0,
+        )
+        if peak is not None and peak[1] >= _CLEAR_PITCH_PEAK:
+            return True
+    return False
+
+
 def classify_breath_samples(
     samples: np.ndarray,
     window_start: float,
@@ -192,7 +215,7 @@ def classify_breath_samples(
             return None
         if float(np.sqrt(np.mean(samples**2))) > speech_rms * 0.45:
             return None
-    return _find_breath_in_window(
+    breath = _find_breath_in_window(
         samples,
         window_start,
         sample_rate=sample_rate,
@@ -202,6 +225,9 @@ def classify_breath_samples(
         max_duration_sec=max_duration_sec,
         percentile=10.0 if candidate_run else 25.0,
     )
+    if candidate_run and breath is not None and _has_clear_pitch(samples, sample_rate):
+        return None
+    return breath
 
 
 def detect_adjacent_breath(

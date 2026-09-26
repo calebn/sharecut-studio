@@ -215,7 +215,11 @@ Detection (`edits/acoustic_gap.py`, shared DSP in `util/dsp.py`):
   of speech inside each flanking ASR word and uses the quieter word as its
   reference. Both windows must be finite and above the configured audibility
   floor; without that context the RMS classifier abstains and keeps the run for
-  review. This relative comparison is stable under overall gain changes.
+  review. If the RMS band marks a run as breath, three bounded 40 ms pitch
+  probes keep it reviewable when any has clear speech-pitch periodicity; only
+  low-energy, weakly periodic breath-like runs are rejected. This conservative
+  check can leave uncertain breaths for the listener, and the relative RMS and
+  normalized pitch comparisons are stable under overall gain changes.
   `vad_backend: silero` opts into the existing speech-probability classifier,
   which does not need the flanking RMS reference.
 - The proposed cut is bounded by the run, not the gap: waveform snapping and
