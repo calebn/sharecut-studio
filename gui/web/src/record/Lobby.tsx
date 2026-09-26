@@ -24,6 +24,7 @@ type Props = {
   devices: MediaDeviceInfo[];
   micError: string | null;
   settingsWarning: string | null;
+  micNotice?: string | null;
   deviceLocked?: boolean;
   permission: MicPermissionStatus;
   onAllowMic: () => void;
@@ -57,6 +58,7 @@ export function Lobby({
   devices,
   micError,
   settingsWarning,
+  micNotice,
   deviceLocked = false,
   permission,
   onAllowMic,
@@ -129,6 +131,7 @@ export function Lobby({
                 devices={devices}
                 error={micError}
                 settingsWarning={settingsWarning}
+                notice={micNotice}
                 deviceLocked={deviceLocked}
                 permission={permission}
                 onAllow={onAllowMic}

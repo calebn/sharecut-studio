@@ -198,6 +198,56 @@ describe("useMicStream", () => {
     expect(result.current.stream).toBeNull();
   });
 
+  it("falls back to the default input when a saved device id is stale", async () => {
+    const track = {
+      stop: vi.fn(),
+      getSettings: () => ({
+        echoCancellation: false,
+        autoGainControl: false,
+        noiseSuppression: false,
+      }),
+    };
+    const stale = new Error("no such device");
+    stale.name = "OverconstrainedError";
+    const gum = vi
+      .fn()
+      .mockRejectedValueOnce(stale)
+      .mockResolvedValueOnce({
+        getTracks: () => [track],
+        getAudioTracks: () => [track],
+      });
+    vi.stubGlobal("navigator", {
+      mediaDevices: {
+        getUserMedia: gum,
+        enumerateDevices: vi.fn(async () => []),
+      },
+    });
+    const { result } = renderHook(() => useMicStream(true, "dead-id"));
+    await waitFor(() => expect(result.current.stream).toBeTruthy());
+    expect(gum).toHaveBeenNthCalledWith(1, keeperAudioConstraints("dead-id"));
+    expect(gum).toHaveBeenNthCalledWith(2, keeperAudioConstraints());
+    expect(result.current.fellBackFrom).toBe("dead-id");
+    expect(result.current.error).toBeNull();
+  });
+
+  it("does not fall back when the microphone is blocked", async () => {
+    const denied = new Error("blocked");
+    denied.name = "NotAllowedError";
+    const gum = vi.fn().mockRejectedValue(denied);
+    vi.stubGlobal("navigator", {
+      mediaDevices: {
+        getUserMedia: gum,
+        enumerateDevices: vi.fn(async () => []),
+      },
+    });
+    const { result } = renderHook(() => useMicStream(true, "dead-id"));
+    await waitFor(() =>
+      expect(result.current.errorName).toBe("NotAllowedError"),
+    );
+    expect(gum).toHaveBeenCalledTimes(1);
+    expect(result.current.fellBackFrom).toBeNull();
+  });
+
   it("falls back to the default input once when a lost selected mic is unavailable", async () => {
     let ended: (() => void) | undefined;
     const makeTrack = () => ({
@@ -241,6 +291,7 @@ describe("useMicStream", () => {
     expect(gum).toHaveBeenNthCalledWith(2, keeperAudioConstraints("usb-mic"));
     expect(gum).toHaveBeenNthCalledWith(3, keeperAudioConstraints());
     expect(result.current.lost).toBe(false);
+    expect(result.current.fellBackFrom).toBe("usb-mic");
   });
 
   it("ignores repeated lost-state retries while reconnecting", async () => {

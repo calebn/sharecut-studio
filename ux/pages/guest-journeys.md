@@ -184,7 +184,9 @@ flowchart TD
    audio already written stays in the local keeper (at most the last couple of
    seconds are lost); after Stop, reopen the room link and use **Recover
    partial take**.
-7. If the microphone ends involuntarily, the local keeper closes its current
+7. If the saved microphone is no longer available, the lobby falls back to the
+   default input, shows a notice, and resets the saved choice to Default.
+   If the microphone ends involuntarily, the local keeper closes its current
    segment and a persistent warning offers **Reconnect microphone**. The room
    clock follows the shared take while REC says local capture failed and has no
    healthy dot. Reconnect changes the local label to waiting for microphone;

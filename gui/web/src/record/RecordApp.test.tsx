@@ -11,7 +11,10 @@ import {
   OpfsUnavailableError,
   parseKeeperMeta,
 } from "./keeper/store";
-import { MIC_ALLOW_LABEL } from "./micPermission";
+import {
+  MIC_ALLOW_LABEL,
+  MIC_SAVED_DEVICE_MISSING_COPY,
+} from "./micPermission";
 import { RecordApp } from "./RecordApp";
 import {
   CONSENT_COPY,
@@ -283,6 +286,36 @@ describe("RecordApp", () => {
     });
     expect(screen.getByRole("button", { name: "Accept" })).toBeInTheDocument();
     expect(screen.queryByText(ROOM_TONE_PROMPT_COPY)).toBeNull();
+  });
+
+  it("falls back from a stale saved microphone and forgets it", async () => {
+    localStorage.setItem("record:guest-tok:mic", "dead-id");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (urlOf(input).includes("/bootstrap")) {
+          return new Response(JSON.stringify(guestBootstrap), { status: 200 });
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+    getUserMedia.mockImplementationOnce(async () => {
+      const err = new Error("gone");
+      err.name = "OverconstrainedError";
+      throw err;
+    });
+    render(<RecordApp token="guest-tok" />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: MIC_ALLOW_LABEL }),
+    );
+    expect(
+      await screen.findByText(MIC_SAVED_DEVICE_MISSING_COPY),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(localStorage.getItem("record:guest-tok:mic")).toBe(""),
+    );
+    expect(getUserMedia).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("button", { name: "Accept" })).toBeInTheDocument();
   });
 
   it("accepts consent once and waits for the host", async () => {

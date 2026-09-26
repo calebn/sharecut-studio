@@ -493,8 +493,13 @@ permission revocation follows the same failed/pending recovery path even when
 the hook resets its `lost` flag: a missing local stream cannot show healthy
 REC during an active take. Retry is
 explicit (there is no unbounded auto-retry); repeated clicks during acquisition
-are ignored. If a selected device has been removed, reconnect tries the
-default available input once after that exact device fails. A successful
+are ignored. If a saved or selected device is missing (NotFoundError or
+OverconstrainedError on the exact deviceId), any acquisition (first open, Retry
+or reconnect) tries the default available input once. The lobby then shows
+"Your saved microphone isn't available, so the default input is in use.", the
+select shows Default, and the saved `record:<token>:mic` id is reset without
+re-opening the stream, so Retry no longer loops on a dead id. Blocked-permission
+errors never fall back. A successful
 reacquisition opens the next segment at the current recording-clock offset,
 extrapolated from the last room snapshot when the stream changes. Keeper gate
 transitions are applied in order so a quick reconnect cannot skip the

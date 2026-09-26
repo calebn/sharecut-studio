@@ -12,6 +12,7 @@ import {
   MIC_PROMPTING_COPY,
   MIC_UNAVAILABLE_COPY,
   micGrantFailed,
+  selectedMicMissing,
   statusFromGumError,
 } from "./micPermission";
 
@@ -30,6 +31,16 @@ describe("statusFromGumError", () => {
     expect(statusFromGumError("AbortError")).toBeNull();
     expect(statusFromGumError("NotReadableError")).toBeNull();
     expect(statusFromGumError("OverconstrainedError")).toBeNull();
+  });
+});
+
+describe("selectedMicMissing", () => {
+  it("is true only for a saved device id that is missing or overconstrained", () => {
+    expect(selectedMicMissing("OverconstrainedError", "dead")).toBe(true);
+    expect(selectedMicMissing("NotFoundError", "dead")).toBe(true);
+    expect(selectedMicMissing("OverconstrainedError", "")).toBe(false);
+    expect(selectedMicMissing("NotAllowedError", "dead")).toBe(false);
+    expect(selectedMicMissing(null, "dead")).toBe(false);
   });
 });
 

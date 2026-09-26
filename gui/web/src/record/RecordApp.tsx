@@ -13,6 +13,7 @@ import {
 } from "./keeper/store";
 import { useKeeperCapture } from "./keeper/useKeeperCapture";
 import { Lobby } from "./Lobby";
+import { MIC_SAVED_DEVICE_MISSING_COPY } from "./micPermission";
 import { useRecordMonitor } from "./monitor/useRecordMonitor";
 import { RecIndicator } from "./RecIndicator";
 import { Room } from "./Room";
@@ -128,6 +129,13 @@ export function RecordApp({ token }: { token: string }) {
     error !== "room_full" &&
     me.consented !== false;
   const mic = useMicPermission(micEnabled, deviceId);
+  const staleMic = mic.fellBackFrom !== null && mic.fellBackFrom === deviceId;
+  useEffect(() => {
+    if (staleMic) {
+      // Forget the dead id without re-opening the stream (setDeviceId would).
+      writeLocal(storageKey(token, "mic"), "");
+    }
+  }, [staleMic, token]);
   const [sink, setSink] = useState<ByteSink | null>(null);
   const [sinkError, setSinkError] = useState<string | null>(null);
   const [storageAttempt, setStorageAttempt] = useState(0);
@@ -395,8 +403,9 @@ export function RecordApp({ token }: { token: string }) {
                 onName={setName}
                 headphonesOk={headphonesOk}
                 onHeadphones={setHeadphonesOk}
-                deviceId={deviceId}
+                deviceId={staleMic ? "" : deviceId}
                 onDeviceId={setDeviceId}
+                micNotice={staleMic ? MIC_SAVED_DEVICE_MISSING_COPY : null}
                 onJoinProducer={() => setProducerJoined(true)}
                 onAccept={() => send("Consent", { accepted: true })}
                 onDecline={() => send("Consent", { accepted: false })}
