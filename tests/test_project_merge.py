@@ -218,4 +218,26 @@ def test_lineage_conflict_message_names_the_undo():
     msg = str(ProjectMergeConflict(["history.lineage"]))
     assert msg.startswith("an undo or redo changed the project while this job ran")
     assert msg.endswith("re-run it")
+    assert str(ProjectMergeConflict(["history.cursor"])).startswith(
+        "an undo or redo changed the project while this job ran"
+    )
     assert str(ProjectMergeConflict(["tracks[host].gain_db"])).startswith("project changed")
+
+
+def test_history_cursor_moved_both_ways_conflicts_as_undo_redo(tmp_path):
+    base = _base(tmp_path)
+    base["history"] = {
+        "cursor": 2,
+        "entries": [
+            _entry("e0", "2026-01-01T00:00:00"),
+            _entry("e1", "2026-01-01T00:00:01"),
+            _entry("e2", "2026-01-01T00:00:02"),
+        ],
+    }
+    ours, theirs = copy.deepcopy(base), copy.deepcopy(base)
+    ours["history"]["cursor"] = 0
+    theirs["history"]["cursor"] = 1
+    with pytest.raises(ProjectMergeConflict) as exc:
+        merge_project_data(base, ours, theirs)
+    assert "history.cursor" in exc.value.paths
+    assert str(exc.value).startswith("an undo or redo changed the project")
