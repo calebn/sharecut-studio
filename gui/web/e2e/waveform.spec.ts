@@ -13,6 +13,7 @@ import {
   waveformBackend,
   waveformTilesByMode,
   waveformTilesRendered,
+  waveformWorkerRestarts,
 } from "./waveformHook";
 
 const thresholds = JSON.parse(
@@ -125,7 +126,9 @@ test.describe("pyramid waveforms", () => {
     const backend = await waveformBackend(page);
     await expectPaintedWaveformTile(page);
 
-    expect(await crashWaveformWorker(page)).toBe(1);
+    // Against a baseline: the worker may already have restarted on its own.
+    const restarts = await waveformWorkerRestarts(page);
+    expect(await crashWaveformWorker(page)).toBe(restarts + 1);
     const rendered = await waveformTilesRendered(page);
     // Zoom in so the new worker has tiles to render.
     await page.locator(".timeline-scroll").click();

@@ -45,6 +45,13 @@ export async function crashWaveformWorker(page: Page): Promise<number> {
   });
 }
 
+/** Raster worker restarts since load, or -1 without the hook. */
+export async function waveformWorkerRestarts(page: Page): Promise<number> {
+  return page.evaluate(
+    () => (window as HookWindow).__SHARECUT_E2E_WAVEFORM?.workerRestarts ?? -1,
+  );
+}
+
 /** Finished raster tiles by mode since load (`pyramid`, `pcm`, `line`). */
 export async function waveformTilesByMode(
   page: Page,
