@@ -1,9 +1,11 @@
-/** Format seconds as m:ss for elapsed timers. */
+/** Format seconds as m:ss, or h:mm:ss from one hour, for elapsed timers. */
 export function formatElapsed(sec: number): string {
   const s = Math.max(0, Math.floor(sec));
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  return `${m}:${String(r).padStart(2, "0")}`;
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = String(s % 60).padStart(2, "0");
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${ss}`;
+  return `${m}:${ss}`;
 }
 
 /** Return `singular` when `count === 1`, else `pluralForm` (default `${singular}s`). Word only — callers render the count. */
