@@ -442,8 +442,9 @@ bundle guard fails if E2E page flags or signal counters remain in emitted assets
 
 Specs share one live project with `workers: 1`, so rows from earlier specs (for
 example `guest:suggest` pending edits) are still present. A spec that acts on a
-row it just created must wait for its own mutation's response first
-(`e2e/pendingEdit.ts` `openSuggestedPendingEdit`) rather than trusting `.last()`.
+row it just created must wait for its own mutation's response and select the row by the id it returns
+(`e2e/pendingEdit.ts` `openSuggestedPendingEdit`, Impact rows carry `data-pending-id`)
+rather than trusting `.last()`.
 
 ### Record-room Playwright scenarios
 

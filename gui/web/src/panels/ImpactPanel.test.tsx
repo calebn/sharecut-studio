@@ -56,6 +56,17 @@ describe("ImpactPanel transcript refine recovery", () => {
     useDawStore.setState({ guestMode: null, shareCapabilities: [] });
   });
 
+  it("marks each pending edit row with its id", () => {
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project()}>
+        <ImpactPanel />
+      </DawProvider>,
+    );
+    expect(
+      screen.getByRole("button", { name: /filler:um · host/ }),
+    ).toHaveAttribute("data-pending-id", "e1");
+  });
+
   it("offers a waiver after bulk approval is blocked without retrying approval", async () => {
     const user = userEvent.setup();
     vi.mocked(approveEdits).mockRejectedValue(

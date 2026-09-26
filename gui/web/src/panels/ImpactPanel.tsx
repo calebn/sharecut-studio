@@ -90,6 +90,7 @@ export function ImpactPanel() {
               <li key={e.id}>
                 <Button
                   variant="link"
+                  data-pending-id={e.id}
                   onClick={() =>
                     setSelection({
                       kind: "pending",
