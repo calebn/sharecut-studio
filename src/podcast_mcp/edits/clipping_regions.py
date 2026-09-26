@@ -11,7 +11,7 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable
 
-from podcast_mcp.edits.ranges import clamp_spans
+from podcast_mcp.edits.ranges import SPAN_EPS_S, clamp_spans
 from podcast_mcp.models import SourceClippingRegion, SourceRecording
 
 
@@ -32,7 +32,7 @@ def clip_clipping_truncated(source: SourceRecording | None, source_end: float) -
     if source is None or not source.clipping_truncated:
         return False
     last_end = source.clipping_regions[-1].end_s if source.clipping_regions else 0.0
-    return source_end > last_end + 1e-9
+    return source_end > last_end + SPAN_EPS_S
 
 
 def clip_clipping_payload(
