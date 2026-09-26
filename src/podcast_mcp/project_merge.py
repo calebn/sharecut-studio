@@ -11,7 +11,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from pydantic import ValidationError
+
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.util.project_state import project_state_lock
 
 # Lists of objects merge item by item when every item carries one of these keys
 # (first match wins) as strings, unique within each list. Other lists (e.g.
@@ -229,3 +232,43 @@ def _merge_history(base, ours, theirs, conflicts) -> dict[str, Any]:
         ids = [e["id"] for e in entries]
         cursor = ids.index(chosen) if chosen in ids else len(entries) - 1
     return {**ours, "entries": entries, "cursor": cursor}
+
+
+def adopt_project_state(target: EpisodeProject, source: EpisodeProject) -> None:
+    """Copy ``source``'s sections into ``target`` in place, so holders of ``target`` see them.
+
+    Not ``history.manager.apply_snapshot_to_project``: that copies only
+    ``EDITABLE_FIELDS``, and a merge also changes history and ``pipeline_runs``.
+    """
+    for name in type(target).model_fields:
+        value = getattr(source, name)
+        if getattr(target, name) != value:
+            setattr(target, name, value)
+
+
+def publish_project_changes(
+    project: EpisodeProject,
+    base: dict[str, Any],
+    work: EpisodeProject,
+    *,
+    advice: ConflictAdvice = RERUN_ADVICE,
+) -> None:
+    """Apply ``work``'s changes since ``base`` onto ``project`` in one ``project_state_lock`` hold (#357).
+
+    ``base`` is ``project_merge_data(project)`` taken when ``work`` was copied from it. A
+    render snapshot (``snapshot_project``) sees ``project`` before or after all of them,
+    never a mix. A change another thread made to ``project`` meanwhile is merged in with
+    ``merge_project_data`` (as ``save_merged`` merges saved ones); a value both changed
+    raises ``ProjectMergeConflict`` and publishes nothing.
+    """
+    with project_state_lock(project):
+        theirs = project_merge_data(project)
+        if theirs == base:
+            adopt_project_state(project, work)
+            return
+        merged = merge_project_data(base, project_merge_data(work), theirs, advice=advice)
+        try:
+            adopted = EpisodeProject.model_validate(merged)
+        except ValidationError as exc:
+            raise ProjectMergeConflict(["(merged project is invalid)"], advice=advice) from exc
+        adopt_project_state(project, adopted)
