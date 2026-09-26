@@ -213,13 +213,13 @@ def consolidate_speakers(
                 else:
                     trim_start = None
 
-                if i == 0 and trim_start is not None and extract_duration_sec is not None:
-                    eng.extract_segment(
-                        src_path,
-                        out,
-                        trim_start,
-                        trim_start + extract_duration_sec,
+                if i == 0 and trim_start is not None:
+                    trim_end = (
+                        trim_start + extract_duration_sec
+                        if extract_duration_sec is not None
+                        else eng.probe(src_path).duration_sec
                     )
+                    eng.extract_segment(src_path, out, trim_start, trim_end)
                 else:
                     # Whole-file real-time section — never blade/split for alignment.
                     eng.extract_segment(
@@ -258,7 +258,7 @@ def consolidate_speakers(
         cross_speaker_align_method=align_methods,
         transcript_overlap_sec=overlap_sec,
         ignored_sources=ignored,
-        session_trimmed=extract_start_sec is not None and extract_duration_sec is not None,
+        session_trimmed=extract_start_sec is not None,
     )
 
 
