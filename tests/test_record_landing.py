@@ -852,6 +852,34 @@ def test_land_on_stale_workspace_keeps_earlier_land(
     assert len(landed_tracks) == 2
 
 
+def test_land_discards_unsaved_workspace_edits(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    """Land re-reads the saved project, so unsaved edits on the workspace are dropped (#503)."""
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=1_000)
+    uploader = RecordUploadService(ws.project)
+    _ack(
+        uploader,
+        session_id=room["session_id"],
+        take=0,
+        pid=HOST_PARTICIPANT_ID,
+        segment=0,
+        join_offset_ms=0,
+    )
+    RecordLandingService(ws).land(align=lambda _p: None)
+    ws.project.meta.name = "unsaved rename"
+    _ack(uploader, session_id=room["session_id"], take=0, pid=guest, segment=0, join_offset_ms=0)
+    second = RecordLandingService(ws).land(align=lambda _p: None)
+    assert [clip["participant_id"] for clip in second["clips"]] == [guest]
+    assert ws.project.meta.name != "unsaved rename"
+    assert load_project(minimal_project).meta.name != "unsaved rename"
+
+
 def test_missing_acked_with_source_in_raw_stays_landed(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):

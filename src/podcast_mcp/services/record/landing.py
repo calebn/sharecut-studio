@@ -306,6 +306,14 @@ class RecordLandingService:
         align: AlignFn | None = None,
         drift_ms: float | None = None,
     ) -> dict[str, Any]:
+        """Land every file-ACKed keeper, room-tone bed and live comment of this room.
+
+        Land re-reads the saved project first (``workspace.reload()``, then
+        ``mutate(reload_first=True)``), so the workspace must hold no unsaved edits.
+        Once the file has changed since this workspace loaded or last committed it,
+        unsaved edits on ``workspace.project`` are discarded and the land commits on
+        the saved copy. Callers open a request-scoped ``ProjectWorkspace`` (#503).
+        """
         with _session_land_lock(self.session_id):
             try:
                 return self._land_locked(align=align, drift_ms=drift_ms)
@@ -668,6 +676,11 @@ class RecordLandingService:
         }
 
     def delete_take(self, take_index: int) -> dict[str, Any]:
+        """Discard take ``take_index`` (clips, sources, live comments), then land what remains.
+
+        Same precondition as ``land``: the discard and the land re-read the saved
+        project, so unsaved edits on ``workspace.project`` are discarded.
+        """
         take = parse_upload_index(take_index, name="take_index")
         with _session_land_lock(self.session_id):
             return self._delete_take_locked(take)
