@@ -309,11 +309,9 @@ describe("RecordApp", () => {
         return new Response("not found", { status: 404 });
       }),
     );
-    getUserMedia.mockImplementationOnce(async () => {
-      const err = new Error("gone");
-      err.name = "OverconstrainedError";
-      throw err;
-    });
+    const staleDevice = new Error("gone");
+    staleDevice.name = "OverconstrainedError";
+    getUserMedia.mockRejectedValueOnce(staleDevice);
     render(<RecordApp token="guest-tok" />);
     await userEvent.click(
       await screen.findByRole("button", { name: MIC_ALLOW_LABEL }),
