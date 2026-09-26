@@ -46,6 +46,7 @@ def document_submit_lock(project: EpisodeProject) -> threading.RLock:
 
 
 def _store_for(project: EpisodeProject) -> SyncStore:
+    """Cached document.db store. Write to it only through ``DocumentSyncService.submit`` (project lock first)."""
     key = str(document_db_path(project).resolve())
     with _STORE_LOCK:
         store = _STORE_CACHE.get(key)
@@ -197,7 +198,10 @@ class DocumentSyncService:
         # write lock is taken before the apply, so a busy journal or a handler error fails
         # the command before the project changes. Only an I/O failure of the journal INSERT
         # or COMMIT after the apply can leave an unlogged edit (a retry then applies it
-        # again). Undo/redo with rerender holds both locks for its render.
+        # again). Undo/redo with rerender holds both locks for its render. This is the only
+        # document.db writer and it takes the project lock first, so another writer waits on
+        # the project lock (30 s, then filelock.Timeout), not on sqlite's busy timeout; a busy
+        # sqlite lock that escapes anyway maps to the same 503 / project_busy in the routes.
         with self.ws.transaction(), store.write_transaction():
             self.project = self.ws.project
             existing = existing_document_command(store, command)
