@@ -232,41 +232,32 @@ class SyncStore:
             self._put_snapshot_unlocked(server_seq, data)
 
     @contextmanager
-    def _write_transaction(self) -> Iterator[None]:
-        """``BEGIN IMMEDIATE`` on this connection: one writer across every connection to the file.
-
-        Callers hold ``self._lock``. Re-entrant through a depth count this store owns (not
-        ``in_transaction``): a nested call joins the outer transaction. A failed body or
-        ``COMMIT`` rolls back (``immediate_transaction``), so the cached connection never
-        stays inside an open transaction.
-
-        Lock order: take a project lock (``ProjectWorkspace.transaction()`` /
-        ``project_commit_lock``) before this, never inside it.
-        """
-        if self._tx_depth:
-            self._tx_depth += 1
-            try:
-                yield
-            finally:
-                self._tx_depth -= 1
-            return
-        with immediate_transaction(self._conn):
-            self._tx_depth = 1
-            try:
-                yield
-            finally:
-                self._tx_depth = 0
-
-    @contextmanager
     def write_transaction(self) -> Iterator[None]:
-        """Hold this store's lock and one ``BEGIN IMMEDIATE`` across the body.
+        """Hold this store's lock and one ``BEGIN IMMEDIATE``: one writer across every connection.
 
-        Store writes inside (``append_and_apply``, ``mutate_snapshot``, ``reset``) join it.
+        Re-entrant through a depth count this store owns (not ``in_transaction``): store
+        writes inside (``append_and_apply``, ``mutate_snapshot``, ``reset``) and nested calls
+        join the outer transaction. A failed body or ``COMMIT`` rolls back
+        (``immediate_transaction``), so the cached connection never stays inside an open
+        transaction.
+
         Lock order: take a project lock (``ProjectWorkspace.transaction()`` /
         ``project_commit_lock``) before this, never inside it.
         """
-        with self._lock, self._write_transaction():
-            yield
+        with self._lock:
+            if self._tx_depth:
+                self._tx_depth += 1
+                try:
+                    yield
+                finally:
+                    self._tx_depth -= 1
+                return
+            with immediate_transaction(self._conn):
+                self._tx_depth = 1
+                try:
+                    yield
+                finally:
+                    self._tx_depth = 0
 
     def reset(
         self,
@@ -275,7 +266,7 @@ class SyncStore:
         guard: Callable[[dict[str, Any] | None], None] | None = None,
     ) -> None:
         """Drop the command log and clients, then write *empty_snap*."""
-        with self._lock, self._write_transaction():
+        with self.write_transaction():
             if guard is not None:
                 guard(self._get_snapshot_unlocked())
             self._conn.execute(self._sql["delete_all_commands"])
@@ -291,7 +282,7 @@ class SyncStore:
 
         Return ``None`` from *mutator* to skip the write.
         """
-        with self._lock, self._write_transaction():
+        with self.write_transaction():
             snap = self._get_snapshot_unlocked()
             if snap is None:
                 return None
@@ -457,7 +448,7 @@ class SyncStore:
         ``database is locked``.
         Returns ``(row, snapshot, idempotent)``.
         """
-        with self._lock, self._write_transaction():
+        with self.write_transaction():
             existing = (
                 self._find_by_client_seq_unlocked(client_id, client_seq)
                 if client_seq is not None
