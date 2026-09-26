@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -79,6 +82,9 @@ def write_status(
     }
     if accepted_drift is not None:
         payload["accepted_drift"] = accepted_drift
+        artifact = load_align_artifact(project)
+        if artifact is not None:
+            payload["accepted_plan_digest"] = _plan_digest(artifact)
     _write_status(project, payload)
     return payload
 
@@ -144,9 +150,9 @@ def status_is_clear_payload(
 
 
 def status_is_clear(project: EpisodeProject) -> bool:
-    return status_is_clear_payload(
-        load_status(project),
-        fingerprint=alignment_fingerprint(project),
+    data = load_status(project)
+    return status_is_clear_payload(data, fingerprint=alignment_fingerprint(project)) and (
+        _accept_covers_current_artifact(project, data)
     )
 
 
@@ -181,6 +187,18 @@ def _plan_move_sec(p: dict[str, Any]) -> float:
     return float(p.get("offset_sec") or 0.0)
 
 
+def _plan_digest(payload: dict[str, Any]) -> str:
+    """Identity of the candidate set accepted by a person, independent of clip edits."""
+    plans = payload.get("plans") or []
+    encoded = json.dumps(plans, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _accept_covers_current_artifact(project: EpisodeProject, data: dict[str, Any] | None) -> bool:
+    artifact = load_align_artifact(project)
+    return artifact is None or (data or {}).get("accepted_plan_digest") == _plan_digest(artifact)
+
+
 def large_align_moves(plans: list[dict[str, Any]], *, threshold: float) -> list[dict[str, Any]]:
     """Unlocked plan rows whose move (or held candidate) exceeds ``threshold`` seconds."""
     skip = LOCKED_METHODS | {REFERENCE_METHOD}
@@ -198,8 +216,10 @@ def align_status_report(
     stored_fp = (data or {}).get("align_fingerprint")
     status = (data or {}).get("status") or "pending"
     fingerprint_match = bool(data) and stored_fp == fp
-    clear = status_is_clear_payload(data, fingerprint=fp)
-    if data and status in ("done", "waived") and not fingerprint_match:
+    clear = status_is_clear_payload(data, fingerprint=fp) and _accept_covers_current_artifact(
+        project, data
+    )
+    if data and status in ("done", "waived") and not clear:
         effective = "pending"
         stale = True
     else:
@@ -253,7 +273,9 @@ def _accept_state(project: EpisodeProject) -> _AcceptState:
     if status not in ("done", "waived"):
         return _AcceptState(False, f"was not accepted by a person (align status: {status})", None)
     rows = list(data.get("accepted_drift") or [])
-    if status_is_clear_payload(data, fingerprint=alignment_fingerprint(project)):
+    if status_is_clear_payload(data, fingerprint=alignment_fingerprint(project)) and (
+        _accept_covers_current_artifact(project, data)
+    ):
         return _AcceptState(True, "", rows)
     return _AcceptState(False, f"accept is stale (alignment changed since `align {status}`)", rows)
 
@@ -274,21 +296,49 @@ def _current_drift_rows(project: EpisodeProject) -> list[dict[str, Any]]:
     return clip_drift_rows(project, str(payload["reference_track_id"]))
 
 
-def _placement_rows(rows: list[dict[str, Any]], clip: Clip) -> list[dict[str, Any]]:
+def _placement_rows(
+    by_id: dict[str, list[dict[str, Any]]],
+    by_source: dict[str, list[dict[str, Any]]],
+    clip: Clip,
+) -> list[dict[str, Any]]:
     """Rows for ``clip``: its own id, or the same source with an overlapping range (split pieces)."""
-    out: list[dict[str, Any]] = []
-    for r in rows:
+    out = list(by_id.get(clip.id, []))
+    candidates = (
+        by_source.get(clip.source_id, []) if clip.source_id is not None else by_source.get("", [])
+    )
+    for r in candidates:
         if r.get("clip_id") == clip.id:
-            out.append(r)
             continue
         if r.get("source_start") is None or r.get("source_end") is None:
             continue
         overlap = min(float(r["source_end"]), clip.source_end) - max(
             float(r["source_start"]), clip.source_start
         )
-        if r.get("source_id") == clip.source_id and overlap > 1e-6:
+        split_piece = (
+            clip.source_id is None
+            and float(r["source_start"]) <= clip.source_start
+            and clip.source_end <= float(r["source_end"])
+            and (
+                float(r["source_start"]) < clip.source_start
+                or clip.source_end < float(r["source_end"])
+            )
+        )
+        if overlap > 1e-6 and (clip.source_id is not None or split_piece):
             out.append(r)
     return out
+
+
+def _index_placement_rows(
+    rows: list[dict[str, Any]],
+) -> tuple[dict[str, list[dict[str, Any]]], dict[str, list[dict[str, Any]]]]:
+    by_id: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    by_source: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        by_id[str(row.get("clip_id"))].append(row)
+        source = row.get("source_id")
+        if isinstance(source, str) or source is None:
+            by_source[source or ""].append(row)
+    return by_id, by_source
 
 
 def _still_placed(row: dict[str, Any], rel: float, threshold: float) -> bool:
@@ -306,6 +356,7 @@ def _unexplained_drift(
     *,
     threshold: float,
     accepted_rows: list[dict[str, Any]],
+    accepted: bool = False,
 ) -> tuple[dict[str, float], dict[str, float]]:
     """(max |relative drift| per non-reference dialogue track, tracks whose drift needs a person).
 
@@ -322,12 +373,18 @@ def _unexplained_drift(
         if t.role != TrackRole.DIALOGUE or t.id == ref_id:
             continue
         rows = [r for r in (*locked, *accepted_rows) if str(r.get("track_id")) == t.id]
+        by_id, by_source = _index_placement_rows(rows) if not accepted else ({}, {})
         worst = 0.0
         for clip in clips_for_track(project, t.id):
             rel = st.clip_relative_drift(clip, ref_id)
             worst = max(worst, abs(rel))
-            if abs(rel) <= threshold or any(
-                _still_placed(r, rel, threshold) for r in _placement_rows(rows, clip)
+            if (
+                accepted
+                or abs(rel) <= threshold
+                or any(
+                    _still_placed(r, rel, threshold)
+                    for r in _placement_rows(by_id, by_source, clip)
+                )
             ):
                 continue
             flagged[t.id] = max(flagged.get(t.id, 0.0), abs(rel))
@@ -350,12 +407,13 @@ def _align_findings(
     *,
     threshold: float,
     person_rows: list[dict[str, Any]] | None,
+    accepted: bool = False,
 ) -> _AlignFindings:
     moves = large_align_moves(list((payload or {}).get("plans") or []), threshold=threshold)
     if payload is None or not _drift_checkable(payload):
         return _AlignFindings(moves=moves, drift={}, tracks={})
     tracks, drift = _unexplained_drift(
-        project, payload, threshold=threshold, accepted_rows=person_rows or []
+        project, payload, threshold=threshold, accepted_rows=person_rows or [], accepted=accepted
     )
     return _AlignFindings(moves=moves, drift=drift, tracks=tracks)
 
@@ -390,7 +448,13 @@ def alignment_drift_report(
         }
     ref_id = str(payload["reference_track_id"])
     state = _accept_state(project)
-    found = _align_findings(project, payload, threshold=threshold, person_rows=state.person_rows)
+    found = _align_findings(
+        project,
+        payload,
+        threshold=threshold,
+        person_rows=state.person_rows,
+        accepted=state.accepted,
+    )
     findings: list[str] = []
     if not state.accepted:
         findings = [
@@ -399,7 +463,8 @@ def alignment_drift_report(
             "then `podcast align done`, or re-run align_tracks."
             for tid, rel in found.drift.items()
         ]
-        if state.person_rows is None:
+        status_data = load_status(project) or {}
+        if status_data.get("accepted_plan_digest") != _plan_digest(payload):
             findings += [
                 f"Track '{p.get('track_id')}' clip '{p.get('clip_id')}' has an unconfirmed "
                 f"{_plan_move_sec(p):+.1f}s align candidate held at 0 and the alignment "
@@ -436,7 +501,9 @@ def require_or_waive_unattended(
         return "skipped (align.accept.mode=off)"
     data = load_status(project)
     fp = alignment_fingerprint(project)
-    if status_is_clear_payload(data, fingerprint=fp):
+    if status_is_clear_payload(data, fingerprint=fp) and _accept_covers_current_artifact(
+        project, data
+    ):
         return f"{(data or {}).get('status', 'done')} (fingerprint ok)"
 
     unattended_now = is_unattended(flag=unattended, defaults=defaults)

@@ -1536,6 +1536,55 @@ def test_hold_rebases_onto_reference_lead_in(tmp_path: Path) -> None:
     assert (g.source_start, g.timeline_start) == (3.0, 0.0)
 
 
+def test_equal_duration_hold_keeps_prior_guest_nudge(tmp_path: Path) -> None:
+    proj = _project(tmp_path, [("host", 100.0, []), ("guest", 100.0, [])])
+    guest = next(c for c in proj.clips if c.track_id == "guest")
+    guest.timeline_start = 5.0
+    result = plan_conversation_alignment(proj)
+    assert next(p for p in result.plans if p.track_id == "guest").method == "hold"
+    apply_alignment_plans(proj, result)
+    assert guest.timeline_start == 5.0
+
+
+def test_large_move_decode_failure_becomes_unconfirmed_hold(tmp_path: Path) -> None:
+    from podcast_mcp.edits import conversation_align as ca
+
+    plan = ClipAlignPlan(track_id="guest", clip_id="g", offset_sec=5.0, method="bleed")
+    with patch.object(
+        ca,
+        "acoustic_clip_offset",
+        side_effect=RuntimeError("acoustic confirm failed: could not decode any window"),
+    ):
+        held = _confirm_large_move(
+            plan,
+            ref_audio=tmp_path / "ref.wav",
+            src_audio=tmp_path / "src.wav",
+            large_move_sec=2.0,
+            min_peak=0.2,
+            agree_sec=0.3,
+            confirm_fn=None,
+            prev_plan=None,
+        )
+    assert (held.method, held.offset_sec, held.candidate_offset_sec) == (
+        "unconfirmed_hold",
+        0.0,
+        5.0,
+    )
+    assert "could not decode any window" in held.detail
+    with patch.object(ca, "acoustic_clip_offset", side_effect=RuntimeError("unrelated")):
+        with pytest.raises(RuntimeError, match="unrelated"):
+            _confirm_large_move(
+                plan,
+                ref_audio=tmp_path / "ref.wav",
+                src_audio=tmp_path / "src.wav",
+                large_move_sec=2.0,
+                min_peak=0.2,
+                agree_sec=0.3,
+                confirm_fn=None,
+                prev_plan=None,
+            )
+
+
 def test_locked_track_joins_peer_union_in_pass_one(tmp_path: Path) -> None:
     from podcast_mcp.edits import conversation_align as ca
 

@@ -408,3 +408,33 @@ def test_clip_relative_drift_ignores_sliver(tmp_path) -> None:
         [g],
     )
     assert SessionTimeline(p).clip_relative_drift(g, "host") == pytest.approx(0.0)
+
+
+def test_clip_relative_drift_visits_only_overlapping_reference_spans(tmp_path, monkeypatch) -> None:
+    from podcast_mcp.engines import session_timeline as timeline
+
+    host = [
+        Clip(
+            id=f"h{i}",
+            track_id="host",
+            source_start=float(i * 2),
+            source_end=float(i * 2 + 2),
+            timeline_start=float(i * 2),
+        )
+        for i in range(200)
+    ]
+    guest = Clip(
+        id="g", track_id="guest", source_start=201.0, source_end=202.0, timeline_start=206.0
+    )
+    p = _drift_project(tmp_path, "many-cut", host, [guest])
+    original = timeline._candidates_timeline
+    visited: list[int] = []
+
+    def bounded(index, lo, hi):
+        spans = original(index, lo, hi)
+        visited.append(len(spans))
+        return spans
+
+    monkeypatch.setattr(timeline, "_candidates_timeline", bounded)
+    assert abs(SessionTimeline(p).clip_relative_drift(guest, "host")) == pytest.approx(5.0)
+    assert visited and max(visited) <= 2

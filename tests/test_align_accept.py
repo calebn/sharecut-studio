@@ -690,3 +690,61 @@ def test_drift_report_stale_accept_keeps_accepted_unconfirmed_hold(tmp_path: Pat
     mark_align_done(p)
     _split_all(p, "guest", 50.0)
     assert alignment_drift_report(p)["issues"] == []
+
+
+def test_new_unconfirmed_candidate_after_stale_accept_blocks_export(tmp_path: Path) -> None:
+    from podcast_mcp.pipeline import steps
+
+    p = _two_track(tmp_path, guest_start=0.0)
+    _write_two_track_plans(p, method="weak_hold", offset=0.0)
+    mark_align_done(p)
+    _write_unconfirmed(p, 40.0, clip_id="clip_guest")
+    assert status_is_clear(p) is False
+    assert align_status_report(p)["stale"] is True
+    with pytest.raises(AlignAcceptRequiredError, match="unconfirmed_hold"):
+        require_or_waive_unattended(p, unattended=True)
+    issues = alignment_drift_report(p)["issues"]
+    assert len(issues) == 1
+    assert "unconfirmed +40.0s" in issues[0]
+    assert steps.write_export_qc(p)["ok"] is False
+
+
+def test_legacy_clips_do_not_borrow_other_clip_acceptance(tmp_path: Path) -> None:
+    p = _two_track(tmp_path, guest_start=20.0)
+    first = next(c for c in p.clips if c.track_id == "guest")
+    first.id = "first"
+    first.source_end = 50.0
+    _write_two_track_plans(p, method="manual", offset=20.0)
+    mark_align_done(p)
+    p.clips.append(
+        Clip(id="second", track_id="guest", source_start=10.0, source_end=40.0, timeline_start=40.0)
+    )
+    issues = alignment_drift_report(p)["issues"]
+    assert len(issues) == 1
+    assert "accept is stale" in issues[0]
+
+
+def test_accepted_many_split_clips_skip_row_matching(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.edits import align_accept_status as status
+
+    p = _two_track(tmp_path, guest_start=20.0)
+    p.clips = [c for c in p.clips if c.track_id == "host"] + [
+        Clip(
+            id=f"g{i}",
+            track_id="guest",
+            source_start=float(i),
+            source_end=float(i + 1),
+            timeline_start=float(i + 20),
+        )
+        for i in range(100)
+    ]
+    _write_two_track_plans(p)
+    mark_align_done(p)
+
+    def unexpected(*_args: object) -> None:
+        raise AssertionError("accepted alignment should not scan placement rows")
+
+    monkeypatch.setattr(status, "_placement_rows", unexpected)
+    assert alignment_drift_report(p)["issues"] == []
