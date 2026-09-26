@@ -65,6 +65,29 @@ def test_gate_accepts_verified_open_pr() -> None:
     assert verdict == {"mergeable": True, "head_sha": SHA, "blockers": []}
 
 
+def test_gate_accepts_nonfinal_part_without_closing_issue() -> None:
+    part = _pr()
+    part["body"] = "Part of #251\nRelated #252"
+    verdict = gate.evaluate_gate(part, part, _checks(), [], 0, _issue(), [_claim()], TOKEN, NOW, 6)
+    assert verdict == {"mergeable": True, "head_sha": SHA, "blockers": []}
+
+
+def test_gate_rejects_ambiguous_or_unrelated_issue_links() -> None:
+    ambiguous = _pr()
+    ambiguous["body"] = "Fixes #251\nPart of #251"
+    verdict = gate.evaluate_gate(
+        ambiguous, ambiguous, _checks(), [], 0, _issue(), [_claim()], TOKEN, NOW, 6
+    )
+    assert "PR body both closes and marks the claimed issue as a part" in verdict["blockers"]
+
+    unrelated = _pr()
+    unrelated["body"] = "Part of #252\nRelated #251"
+    verdict = gate.evaluate_gate(
+        unrelated, unrelated, _checks(), [], 0, _issue(), [_claim()], TOKEN, NOW, 6
+    )
+    assert "PR body does not link the claimed issue" in verdict["blockers"]
+
+
 def test_gate_rejects_moved_head_and_missing_or_failed_checks() -> None:
     checks = _checks()[:-1]
     checks[0]["state"] = "FAILURE"
@@ -106,7 +129,7 @@ def test_gate_rejects_wrong_base_issue_and_issue_hold() -> None:
     verdict = gate.evaluate_gate(before, after, _checks(), [], 0, issue, [_claim()], TOKEN, NOW, 6)
     assert not verdict["mergeable"]
     assert "PR does not target main" in verdict["blockers"]
-    assert "PR body does not close the claimed issue" in verdict["blockers"]
+    assert "PR body does not link the claimed issue" in verdict["blockers"]
     assert "PR body changed during gate collection" in verdict["blockers"]
     assert "hold label: needs-user-input" in verdict["blockers"]
 

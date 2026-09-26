@@ -13,7 +13,9 @@ This is the Codex entry point for the same quality bar as the Claude Code
 `AGENTS.md`, `.agents/rules/issue-claims.md`, and `docs/contributing.md`
 before changing the repo. The issue-claims rule is the shared protocol for
 Codex, Claude Code, and people. Keep the user's requested issue set and
-authorization in view throughout the run.
+authorization in view throughout the run. A newer chat message about another
+run does not silently cancel or narrow this run; follow an explicit stop or
+scope change from the user.
 
 ## Modes and authorization
 
@@ -38,22 +40,31 @@ linked PR. A claim is stale after six hours without a heartbeat and no open
 PR; a bare `in-progress` label is live for six hours after it was added.
 Report stale claims in a dry run; release them with the rule's comment and
 label updates only in a build run. Rank from issue text before reading code;
-prefer an actionable, unblocked issue of any size (smaller first among equal priorities). Explicit issue numbers still
-require an author and claim check. Do not quietly expand the requested issue
-set. Ask for a product decision only when the issue is genuinely blocked.
+prefer an actionable, unblocked issue of any size (smaller first among equal
+priorities). A named issue bypasses the backlog's actionable, blocker, and
+area ranking filters, but still needs the author, exclusion-label, open-PR,
+and claim checks. Do not quietly expand the requested issue set. Confirm that
+a cited dependency is still open before treating it as a blocker. Decide an
+ordinary open design choice in the plan, preferring a simpler conservative
+option and explaining why; ask the owner only when the choice defines the
+product and has no reasonable default.
 
-Also list open `pipeline:stalled` PRs by the allowed authors. Exclude any PR
-with `needs-user-input` or `do-not-merge`. A backlog run resumes eligible
-stalled PRs alongside new issues unless the user says `noResume`; an
-explicit-issue run considers only that issue's stalled PR. Never start a
-second PR for an issue with an open linked PR. A dry run lists resumable PRs
-but changes none of them.
+Also list open `pipeline:stalled` PRs by the allowed authors and orphaned PRs
+with a `pipeline:*` stage label whose issue claim was released or became stale.
+Exclude any PR with `needs-user-input` or `do-not-merge`. A backlog run resumes
+eligible stalled or orphaned PRs alongside new issues unless the user says
+`noResume`; an explicit-issue run considers only that issue's PR. Orphans
+resume from review. Never start a second active PR for an issue with an open
+linked PR. A dry run lists resumable PRs but changes none of them.
 
 ## Shared claim protocol
 
 Before planning a selected issue, re-read its labels and comments and check
-for an open linked PR. Follow `.agents/rules/issue-claims.md` to add
-`in-progress` and `pipeline:planning`, post the two-line `pipeline-claim`
+for an open PR with `Fixes`, `Closes`, `Resolves`, or `Part of #N` for that issue.
+When resuming, the PR being resumed is expected; a different held later part
+does not block the current part. A different active PR does. Follow
+`.agents/rules/issue-claims.md` to add `in-progress` and `pipeline:planning`,
+post the two-line `pipeline-claim`
 comment with a unique token and UTC heartbeat, and re-read comments. The
 earliest **live** claim wins (created time, then comment ID). If another
 claim wins, mark only your comment `released=lost-race`, leave its labels
@@ -89,7 +100,8 @@ remove another claimant's labels.
 
 To resume, re-read the PR, issue, labels, latest stall comment, review
 threads, feedback, and current head. Re-claim the issue using the race check
-before modifying the PR. Clear `pipeline:stalled` as the stage label moves.
+before modifying the PR, exempting only that PR and held later parts from the
+open-PR guard. Clear `pipeline:stalled` as the stage label moves.
 Resume at the gate only when the latest stall marker says `resume=gate`
 **and** posted review/feedback evidence covers the current head. If evidence
 is incomplete or the head changed, resume at review and cover all eight
@@ -105,8 +117,18 @@ action; do not loop indefinitely.
    provisions it if needed. The setup installs the check-only `pre-commit`
    runner in this worktree's `.venv`. Read the issue's labels and comments,
    then claim it as above before researching code or planning. Inspect only
-   the relevant code, callers, tests, and AGENTS.md rows, then post a concrete
-   plan.
+   the relevant code, callers, tests, and AGENTS.md rows. Delegate read-only
+   planning to Sol/medium by default. Use Sol/high for a multi-subsystem plan,
+   difficult security or concurrency reasoning, or a consequential design
+   choice. Escalate to Astra/high when a Sol/high plan remains ambiguous,
+   misses important constraints, or needs unusually broad judgment. Give the
+   planner the issue text, current code context, constraints, and a required
+   output of exact files, steps, tests, docs, and open decisions. The
+   coordinator checks that plan against the repo and posts it. Do not abort
+   for size, ambition, or a preference for smaller PRs. Plan large work as
+   independently green commits. Resolve an ordinary design choice in the
+   plan; hold only when the issue cannot reasonably be planned or a
+   product-defining choice has no conservative default.
 2. Move to `pipeline:implementing`. Implement through the domain, service,
    and adapter layers described in `docs/architecture.md`. Add tests and
    update docs in the same change. Run focused tests with `--no-cov` and the
@@ -114,9 +136,16 @@ action; do not loop indefinitely.
    required full suite and coverage gate on the PR's latest head; run a local
    full suite only for extensive changes or a specific diagnostic need.
 3. Commit focused, conventional changes on the branch and open a PR to `main`
-   when the run authorizes shipping. Use `Fixes #N` and `Related #M` lines as
-   appropriate. Record the PR number, branch, and exact head SHA. Move the
-   issue and PR to `pipeline:review`.
+   when the run authorizes shipping. Use `Fixes #N` on the final PR for the
+   issue and `Related #M` for issues touched but not closed. If the issue
+   needs an ordered series of PRs, use `Part of #N` on each non-final PR so
+   merging it leaves the issue open. Each part targets `main` and passes its
+   own review and CI gate. Only the lowest unmerged part is active; put
+   `do-not-merge` on later parts until promotion. After merging a part,
+   rebase the next part onto `main`, remove its hold, and hand it to the
+   pipeline with a `pipeline:stalled` label and `resume=review` marker. Record
+   each PR number, branch, and exact head SHA. Move the active issue and PR to
+   `pipeline:review`.
 4. Build one review packet from the final diff: changed code with enough
    context, callers and second-hop callers where relevant, sibling CLI/MCP/GUI
    paths, related tests, and applicable rules. When `scripts/review_packet.py`
@@ -153,27 +182,41 @@ action; do not loop indefinitely.
    and content posted cover the union of all lens reports. The coordinator
    posts any missing comments, then asks the verifier to recheck. Stall the
    pipeline if verification still fails.
-6. Only after posting and verification, classify every review item as fix,
-   follow-up, acknowledged information, or won't-do. Acknowledge a verified
+6. Only after posting and verification, fetch every unresolved PR review
+   thread and classify every review item as fix, follow-up, acknowledged
+   information, or won't-do. Acknowledge a verified
    observation that calls for no change in this PR with a concrete rationale;
    reply and resolve its thread without inventing a follow-up issue or an
-   owner hold. This disposition does not apply to an unresolved defect. Make safe fixes,
+   owner hold. This disposition does not apply to an unresolved defect. Fix
+   every valid finding in the PR when it touches the PR's code or area,
+   including nits, tests, and small optimizations in the final round. Reserve
+   follow-up issues for substantial unrelated work; search open issues first
+   and reuse a matching issue instead of filing a duplicate. Make safe fixes,
    add tests/docs, reply to each thread, and verify replies and resolutions.
    GitHub can leave thread replies inside a `PENDING` review even when the
    author sees them in a thread query. Submit each pending review with a
    `COMMENT` event, then verify its state is `COMMENTED` and re-read the
    threads. Do not count an author-visible pending reply as posted feedback.
-   File real follow-up issues for deferred work and add `Related #M` to the PR.
-   A won't-do item holds the PR for owner sign-off. Repeat review only on the
-   changed surface and affected adjacent code; keep the same eight-concern
-   coverage. Stop after two review/feedback rounds unless a concrete defect
-   needs another pass.
-7. Move the issue and PR to `pipeline:merging`, then wait for required CI on
+   Check the plan against the actual open thread IDs; re-plan once for missing
+   IDs and discard invented IDs. Stall if a real thread remains unplanned.
+   If a non-won't-do thread remains open after execution, make one more
+   feedback pass before the gate. Verify that execution answered every planned
+   item on the current head; retry once if it did not, then stall. File real
+   follow-up issues for deferred work and add `Related #M` without changing
+   the `Fixes #N` or `Part of #N` line. A won't-do item holds the PR for owner
+   sign-off. Repeat review on the changed surface and affected adjacent code;
+   keep the same eight-concern coverage. Stop after two review/feedback rounds
+   unless a concrete defect needs another pass.
+7. Move the issue and PR to `pipeline:merging`. Check mergeability before
+   waiting for CI: GitHub may not start checks on a conflicting PR. If it is
+   `DIRTY`, rebase onto fresh `main`, resolve both intents, push with
+   `--force-with-lease`, and record the new head. Then wait for required CI on
    the *latest* head. If it fails, classify the cause from logs and diff as
    PR-caused, flaky, or unrelated. Fix PR-caused failures;
    rerun confirmed flaky jobs; stall on unrelated or unresolved technical
-   failures. Never infer a check result or SHA from a prose report. A moved
-   head requires a fresh gate run.
+   failures. Re-check mergeability after CI in case `main` moved; rebase and
+   repeat CI and the gate if needed. Never infer a check result or SHA from a
+   prose report. A moved head requires a fresh gate run.
 
 Read `pr-multi-review` and `feedback` skills when using their detailed review
 or response procedure. Their autonomous modes belong to the Claude workflow;
@@ -181,6 +224,15 @@ this skill follows the user's current authorization and Codex's available
 tools. The eight reviewer lenses above are part of this skill's review stage,
 not an optional cost setting. Posting verification is separate from the
 reviewer who combines and posts comments.
+
+For GitHub operations, use an available authenticated `gh` CLI first. If a
+command is unavailable or denied, look for an equivalent GitHub connector or
+MCP tool and use it for the same read or write; do not silently omit a stage.
+When updating labels through a full-array API, read the latest labels first
+and preserve unrelated labels. Git fetch, edits, tests, and pushes still use
+the local tools. The merge gate needs complete current GitHub facts; if the
+gate script cannot run, do not substitute a model's prose verdict. Use an
+equivalent deterministic collection path or mark a technical stall.
 
 ## Gate and closeout
 
@@ -192,8 +244,9 @@ Keep a count of unresolved won't-do items from feedback. Run:
 ```
 
 The command reads GitHub's current head, required check rows, issue/PR stage
-and hold labels, target branch, closing issue reference, the oldest live claim,
-merge state, and paginated review threads; it
+and hold labels, target branch, an unambiguous `Fixes #N` or `Part of #N`
+reference to the claimed issue, the oldest live claim, merge state, and
+paginated review threads; it
 fails closed if collection fails, the claim is lost or stale, or the head
 moves. Pass `--stale-hours <hours>` only when the run deliberately uses a
 non-default claim lifetime. Also verify that review findings and feedback
@@ -212,15 +265,20 @@ status, and merge result.
 
 ## Cost discipline
 
-The current Codex task cannot change its own model mid-run. When the
-collaboration tool exposes `model` and `reasoning_effort` on `spawn_agent`,
-delegate bounded stages using this starting route:
+The current Codex task cannot change its own model mid-run. Keep a Sol/medium
+coordinator for claims, stage transitions, GitHub writes, evidence accounting,
+and the gate. Deterministic commands such as fetching rows, editing labels,
+running the packet builder, and invoking the gate should run directly; a
+separate model call for each command adds cost and can weaken evidence. When
+the collaboration tool exposes `model` and `reasoning_effort` on `spawn_agent`,
+delegate bounded reasoning and batched read-only tasks as follows:
 
 | Work | Model / effort | Return to coordinator |
 | --- | --- | --- |
-| Issue-text triage, claim/PR/CI inventory, review-post and reply verification | Luna / low | Facts with source URLs, exact IDs and head SHA, or a specific failure; no inferred gate verdict |
-| Routine plan, implementation, CI fix, feedback implementation, eight review lenses | Sol / medium | Changed files and focused checks, or a lens report with every finding and evidence |
-| Cross-layer architecture, difficult security/concurrency, conflicting review evidence, feedback decisions requiring judgment | Astra / high only when needed | A bounded decision with supporting code and tradeoffs |
+| Issue-text triage, batched claim/PR/CI inventory, independent review-post and reply verification | Luna / low | Facts with source URLs, exact IDs and head SHA, or a specific failure; no inferred gate verdict |
+| Routine issue plan, implementation, CI fix, feedback implementation, eight review lenses | Sol / medium | A concrete plan, changed files and focused checks, or a lens report with every finding and evidence |
+| Multi-subsystem plan, difficult security/concurrency, consequential design choice, hard review synthesis | Sol / high | A bounded plan or decision with supporting code and tradeoffs |
+| Unresolved Sol/high plan, unusually broad architecture or conflicting evidence | Astra / high | A bounded plan or decision that resolves the remaining uncertainty |
 
 Use a bounded positive `fork_turns` value that carries the user's run request
 when overriding the model; a full-history fork inherits the coordinator's
@@ -234,6 +292,9 @@ classification, the deterministic gate, and any authorized merge. A cheaper
 agent may collect or verify facts, but its prose never replaces the gate's
 current GitHub checks. If a selected model or override is unavailable, use an
 available model and record the fallback; never skip a stage to save tokens.
+Record why a plan was escalated above Sol/medium. Do not infer that a child used
+the requested model merely because the spawn call accepted an override;
+report the execution model only when the host exposes it.
 
 This is a Codex skill procedure, not the Claude JavaScript stage launcher.
 Do not start user-visible Codex tasks merely to route stages. Record the models

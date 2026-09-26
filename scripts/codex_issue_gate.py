@@ -18,6 +18,7 @@ CLAIM_MARK = re.compile(
     r"heartbeat=(\S+) released=(\S+) -->"
 )
 CLOSES_ISSUE = re.compile(r"(?im)^\s*(?:fixes|closes|resolves)\s+#(\d+)\s*$")
+PART_OF_ISSUE = re.compile(r"(?im)^\s*part\s+of\s+#(\d+)\s*$")
 
 
 def gh_json(*args: str) -> Any:
@@ -137,9 +138,13 @@ def evaluate_gate(
     if before.get("mergeStateStatus") != "CLEAN" or after.get("mergeStateStatus") != "CLEAN":
         blockers.append("PR merge state is not CLEAN")
     issue_number = issue.get("number")
-    refs = CLOSES_ISSUE.findall(after.get("body") or "")
-    if not isinstance(issue_number, int) or issue_number not in [int(ref) for ref in refs]:
-        blockers.append("PR body does not close the claimed issue")
+    body = after.get("body") or ""
+    closing_refs = {int(ref) for ref in CLOSES_ISSUE.findall(body)}
+    part_refs = {int(ref) for ref in PART_OF_ISSUE.findall(body)}
+    if not isinstance(issue_number, int) or issue_number not in closing_refs | part_refs:
+        blockers.append("PR body does not link the claimed issue")
+    elif issue_number in closing_refs & part_refs:
+        blockers.append("PR body both closes and marks the claimed issue as a part")
     if before.get("body") != after.get("body"):
         blockers.append("PR body changed during gate collection")
 
