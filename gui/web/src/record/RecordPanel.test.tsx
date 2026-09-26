@@ -749,6 +749,37 @@ describe("RecordPanel", () => {
     expect(screen.getByRole("button", { name: "Land" })).toBeEnabled();
   });
 
+  it("disables every transport button while Land is in flight", async () => {
+    let finish: ((value: { status: "ok" }) => void) | undefined;
+    exec.mockImplementationOnce(
+      () =>
+        new Promise<{ status: "ok" }>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    useRecordHostStore.getState().setSnapshot({
+      ...lobby,
+      state: "recording",
+      take_index: 1,
+      start_blockers: [],
+    });
+    render(<RecordPanel />);
+    const land = screen.getByRole("button", { name: "Land" });
+    await userEvent.click(land);
+    expect(land).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
+    await userEvent.click(land);
+    expect(
+      exec.mock.calls.filter(
+        (call) => (call as unknown[])[0] === "record.land",
+      ),
+    ).toHaveLength(1);
+    await act(async () => {
+      finish?.({ status: "ok" });
+    });
+    expect(screen.getByRole("button", { name: "Land" })).toBeEnabled();
+  });
+
   it("hides room tone capture while recording", () => {
     useRecordHostStore.getState().setSnapshot({
       ...lobby,
