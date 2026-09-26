@@ -1,6 +1,7 @@
 import { WaveformFetchError } from "../api";
 import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { listenerSet } from "./listenerSet";
 
 const MB = 1024 * 1024;
 
@@ -68,7 +69,7 @@ export const RASTER_JOB_RETRIES = 1;
  */
 export class FetchGate {
   private inflight = 0;
-  private readonly waiters = new Set<() => void>();
+  private readonly waiters = listenerSet();
 
   get active(): number {
     return this.inflight;
@@ -85,15 +86,12 @@ export class FetchGate {
 
   release(): void {
     this.inflight = Math.max(0, this.inflight - 1);
-    for (const wake of [...this.waiters]) {
-      wake();
-    }
+    this.waiters.emit();
   }
 
-  /** Called whenever a slot frees; returns an unsubscribe. */
+  /** Called whenever a slot frees; returns an unsubscribe. A waiter that throws does not stop the others. */
   onRelease(wake: () => void): () => void {
-    this.waiters.add(wake);
-    return () => this.waiters.delete(wake);
+    return this.waiters.subscribe(wake);
   }
 }
 
