@@ -22,6 +22,13 @@ describe("formatElapsed", () => {
     expect(formatElapsed(65)).toBe("1:05");
   });
 
+  it("switches to h:mm:ss from one hour", () => {
+    expect(formatElapsed(3599)).toBe("59:59");
+    expect(formatElapsed(3600)).toBe("1:00:00");
+    expect(formatElapsed(4500)).toBe("1:15:00");
+    expect(formatElapsed(37230)).toBe("10:20:30");
+  });
+
   it("clamps negative values to 0:00", () => {
     expect(formatElapsed(-3)).toBe("0:00");
   });

@@ -659,7 +659,7 @@ so it has no meter. Producers have no meter and no clip LED.
 **Surfaces.** The REC indicator (`RecIndicator`, and so the host transport chip
 on desktop and phone) gets a `ClipLed`, lit from the first region. During a take
 a live notice appears; after Stop a **Clipping report** lists the ranges
-(m:ss) with the recovery copy, rebuilt from OPFS after a reload. The host's
+(m:ss, or h:mm:ss from one hour) with the recovery copy, rebuilt from OPFS after a reload. The host's
 report has **Jump to** per range (source -> timeline via the landed source id
 `rec-{session}-{take}-p_host-{segment}`), disabled until the take lands. The
 timeline shows a `clipping` marker-lane row (one flag per region per track) and a
