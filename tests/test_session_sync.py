@@ -814,12 +814,15 @@ def test_set_playhead_drops_invalid_playhead(minimal_project) -> None:
         result = svc.submit_control("SetPlayhead", {"playhead_sec": bad}, client_id="agent-x")
         assert result["snapshot"]["playhead_sec"] == 3.0
         assert row("agent-x") == 3.0
-    svc.submit_control(
-        "SetRegion",
-        {"start_sec": 1.0, "end_sec": 2.0, "playhead_sec": float("inf")},
-        client_id="agent-r",
-    )
-    assert row("agent-r") is None
+    for bad in (-1.0, float("nan"), float("inf"), "4"):
+        result = svc.submit_control(
+            "SetRegion",
+            {"start_sec": 1.0, "end_sec": 2.0, "playhead_sec": bad},
+            client_id="agent-r",
+        )
+        assert result["snapshot"]["playhead_sec"] == 3.0
+        assert result["snapshot"]["region"] == {"start_sec": 1.0, "end_sec": 2.0}
+        assert row("agent-r") == 3.0
 
 
 def test_presence_and_ack_drop_invalid_playhead(minimal_project) -> None:
@@ -1580,6 +1583,9 @@ def test_session_control_seek_stop_mode(minimal_project) -> None:
     assert region["query"] == "x"
     with pytest.raises(ValueError, match="end_sec"):
         svc.set_region(5.0, 5.0)
+    for bad_start, bad_end in ((-5.0, 2.0), (float("nan"), 2.0), (1.0, float("inf"))):
+        with pytest.raises(ValueError, match="finite"):
+            svc.set_region(bad_start, bad_end)
     cleared = sync.submit_control("ClearRegion", {"stop": False})["snapshot"]
     assert cleared["region"] is None
     solo = sync.submit_control("SetMuteSolo", {"solo_tracks": {"host": True}})["snapshot"]
