@@ -346,6 +346,29 @@ describe("ClipBlock waveform", () => {
     expect(container.querySelector(".clip-mute-region")).toBeTruthy();
   });
 
+  it("tints the span where the recording clipped", () => {
+    const { container } = render(
+      <ClipBlock
+        {...base}
+        clip={{
+          ...clip,
+          source_start: 0,
+          source_end: 2,
+          clipping_regions: [
+            { start_s: 0.5, end_s: 1.0 },
+            { start_s: 5, end_s: 6 },
+          ],
+        }}
+        onRollPreview={vi.fn()}
+        onSelect={vi.fn()}
+        onHit={vi.fn()}
+      />,
+    );
+    const tints = container.querySelectorAll(".clip-clipping-region");
+    expect(tints).toHaveLength(1);
+    expect(tints[0]?.getAttribute("aria-hidden")).toBe("true");
+  });
+
   it("keeps trim-handle drags off the body-move path", () => {
     const onMovePreview = vi.fn();
     const { container } = render(

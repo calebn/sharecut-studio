@@ -8,6 +8,12 @@ export interface ClipMuteRegion {
   end_s: number;
 }
 
+/** Encoder-detected sample-peak clipping, in source seconds. */
+export interface ClippingRegion {
+  start_s: number;
+  end_s: number;
+}
+
 export interface ClipRow {
   id: string;
   track_id: string;
@@ -21,6 +27,8 @@ export interface ClipRow {
   source_id: string | null;
   origin_track_id?: string | null;
   mute_regions?: ClipMuteRegion[];
+  /** Source spans where the recording clipped, inside this clip window. */
+  clipping_regions?: ClippingRegion[];
 }
 
 export interface TrackView {

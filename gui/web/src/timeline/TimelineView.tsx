@@ -68,6 +68,7 @@ import { WaveformStatusSync } from "../waveform/WaveformStatusSync";
 import { AuditionOverlay } from "./AuditionOverlay";
 import { CommentPlaybackBubble } from "./CommentPlaybackBubble";
 import { CommentSelectionOverlay } from "./CommentSelectionOverlay";
+import { clippingFlags } from "./clippingFlags";
 import { selectFollowColorIndex } from "./followTarget";
 import { MarkerLane } from "./MarkerLane";
 import { Playhead } from "./Playhead";
@@ -370,16 +371,29 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   const chapters = project?.chapters ?? EMPTY_ARR;
   const socialClips = project?.social_clips ?? EMPTY_ARR;
   const comments = project?.comments ?? EMPTY_ARR;
+  const clipFlags = useMemo(
+    () =>
+      project ? clippingFlags(project.clips.tracks, project.tracks) : EMPTY_ARR,
+    [project],
+  );
   const liveRows = useMemo(
     () =>
       markerRows({
         chapters,
         socialClips,
         comments,
+        clippingFlags: clipFlags,
         showMarkers: layers.showMarkers,
         showComments: layers.showComments,
       }),
-    [chapters, socialClips, comments, layers.showMarkers, layers.showComments],
+    [
+      chapters,
+      socialClips,
+      comments,
+      clipFlags,
+      layers.showMarkers,
+      layers.showComments,
+    ],
   );
   const liveMarkerLaneHeightPx = markerLaneHeight(liveRows);
   const trackCount = project?.tracks.length ?? 0;
@@ -852,6 +866,11 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                       setSelection({ kind: "comment", id: c.id });
                       setPlayheadSec(c.timeline_start);
                       setActiveTab("comments");
+                    }}
+                    clippingFlags={clipFlags}
+                    onSelectClipping={(flag) => {
+                      setSelection({ kind: "track", trackId: flag.trackId });
+                      setPlayheadSec(flag.start);
                     }}
                   />
                   <div

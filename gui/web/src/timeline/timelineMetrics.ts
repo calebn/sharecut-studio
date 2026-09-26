@@ -18,6 +18,7 @@ import {
   MARKER_ROW_HEIGHT,
   MAX_FIT_LANE_HEIGHT,
 } from "../utils/layout";
+import type { ClippingFlag } from "./clippingFlags";
 
 export type TimelineMetrics = {
   laneHeight: number;
@@ -110,6 +111,7 @@ export type MarkerRows = {
   chapters: boolean;
   social: boolean;
   comments: boolean;
+  clipping: boolean;
 };
 
 /** Marker rows that have content to show; empty rows collapse. */
@@ -117,6 +119,7 @@ export function markerRows(input: {
   chapters: readonly ChapterMarker[];
   socialClips: readonly SocialClipView[];
   comments: readonly TimelineComment[];
+  clippingFlags?: readonly ClippingFlag[];
   showMarkers: boolean;
   showComments: boolean;
 }): MarkerRows {
@@ -124,13 +127,17 @@ export function markerRows(input: {
     chapters: input.showMarkers && input.chapters.length > 0,
     social: input.showMarkers && input.socialClips.length > 0,
     comments: input.showComments && input.comments.length > 0,
+    clipping: input.showMarkers && (input.clippingFlags?.length ?? 0) > 0,
   };
 }
 
 /** Marker lane height: one row per visible row, one quiet row when empty. */
 export function markerLaneHeight(rows: MarkerRows): number {
-  const count = [rows.chapters, rows.social, rows.comments].filter(
-    Boolean,
-  ).length;
+  const count = [
+    rows.chapters,
+    rows.social,
+    rows.comments,
+    rows.clipping,
+  ].filter(Boolean).length;
   return Math.max(1, count) * MARKER_ROW_HEIGHT;
 }

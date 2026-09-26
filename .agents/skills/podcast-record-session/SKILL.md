@@ -89,7 +89,12 @@ podcast record discard-take --project episode.project.json --take-index 0
    can run after transcribe — land does not invoke it. Optional room-tone WAVs
    land atomically at `raw/room-tone/{session}/{participant}.wav` on
    `track.room_tone` (the older shared `raw/room-tone/{participant}.wav`
-   path still works for existing projects). Reloading
+   path still works for existing projects). Each landed source carries
+   `clipping_regions` (sample peak at or above -1 dBFS from the encoder;
+   recovered crash segments and older clients have none), and `list_clips`
+   reports `clipping_regions` per clip: the source spans inside that clip's
+   window. The timeline shows them as flags in the marker lane and a red tint
+   on the clip. Reloading
    the same `/rec/` link reuses
    the host-minted `participant_id` + lease (7-day recovery window). A second
    tab is rejected (`lease_in_use`).

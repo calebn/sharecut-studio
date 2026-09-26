@@ -793,6 +793,24 @@ export function ClipBlockView({
           />
         );
       })}
+      {(clip.clipping_regions ?? []).map((region, i) => {
+        const start = Math.max(region.start_s, sourceStart);
+        const end = Math.min(region.end_s, sourceEnd);
+        if (!(end > start + 1e-9)) {
+          return null;
+        }
+        return (
+          <span
+            key={`clipping-${region.start_s}-${region.end_s}-${i}`}
+            className="clip-clipping-region"
+            style={{
+              left: (start - sourceStart) * zoomPxPerSec,
+              width: Math.max(1, (end - start) * zoomPxPerSec),
+            }}
+            aria-hidden
+          />
+        );
+      })}
       {label && (
         <span className="clip-label">
           {trackLabel ? (

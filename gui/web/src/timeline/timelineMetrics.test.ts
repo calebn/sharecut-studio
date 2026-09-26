@@ -86,7 +86,12 @@ describe("marker rows", () => {
 
   it("collapses to one quiet row when nothing is marked", () => {
     const rows = markerRows(base);
-    expect(rows).toEqual({ chapters: false, social: false, comments: false });
+    expect(rows).toEqual({
+      chapters: false,
+      social: false,
+      comments: false,
+      clipping: false,
+    });
     expect(markerLaneHeight(rows)).toBe(MARKER_ROW_HEIGHT);
   });
 
@@ -98,12 +103,39 @@ describe("marker rows", () => {
     );
     expect(
       markerRows({ ...base, chapters, comments, showComments: false }),
-    ).toEqual({ chapters: true, social: false, comments: false });
+    ).toEqual({
+      chapters: true,
+      social: false,
+      comments: false,
+      clipping: false,
+    });
   });
 
-  it("fills the full marker lane with all three rows", () => {
+  it("fills the full marker lane with the three content rows", () => {
     expect(
-      markerLaneHeight({ chapters: true, social: true, comments: true }),
+      markerLaneHeight({
+        chapters: true,
+        social: true,
+        comments: true,
+        clipping: false,
+      }),
     ).toBe(MARKER_LANE_HEIGHT);
+  });
+
+  it("adds a clipping row when recording flags exist and Markers is on", () => {
+    const flags = [{ id: "a:0", trackId: "t", label: "T", start: 1, end: 2 }];
+    expect(markerRows({ ...base, clippingFlags: flags }).clipping).toBe(true);
+    expect(
+      markerRows({ ...base, clippingFlags: flags, showMarkers: false })
+        .clipping,
+    ).toBe(false);
+    expect(
+      markerLaneHeight({
+        chapters: true,
+        social: true,
+        comments: true,
+        clipping: true,
+      }),
+    ).toBe(4 * MARKER_ROW_HEIGHT);
   });
 });
