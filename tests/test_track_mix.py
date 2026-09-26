@@ -13,6 +13,8 @@ import logging
 import os
 import re
 import shutil
+import threading
+import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -56,6 +58,7 @@ from podcast_mcp.services.document_sync.projection_types import ViewProjection
 from podcast_mcp.services.document_sync.projections import projection_for_command
 from podcast_mcp.services.history import HistoryService
 from podcast_mcp.services.play import PlayRequest, PlayService, _compose_gain_db
+from podcast_mcp.util.project_state import render_lock, render_lock_path
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -793,3 +796,113 @@ def test_a_premix_that_stays_stale_after_a_rebuild_warns(
         ):
             steps.ensure_current_premix(ws.project, defaults)
     assert "stems that stay stale: guest" in caplog.text
+
+
+def _wait_for_log(caplog, text: str, timeout: float = 5.0) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if text in caplog.text:
+            return True
+        time.sleep(0.02)
+    return False
+
+
+def test_render_lock_is_reentrant_and_serializes_threads(minimal_project, caplog):
+    ws = ProjectWorkspace.open(minimal_project)
+    held, release, order = threading.Event(), threading.Event(), []
+
+    def holder() -> None:
+        with render_lock(ws.project), render_lock(ws.project):
+            held.set()
+            release.wait(5)
+
+    def waiter() -> None:
+        with render_lock(ws.project):
+            order.append("b")
+
+    with caplog.at_level(logging.INFO, logger="podcast_mcp.util.project_state"):
+        a = threading.Thread(target=holder)
+        a.start()
+        assert held.wait(5)
+        b = threading.Thread(target=waiter)
+        b.start()
+        assert _wait_for_log(caplog, "waiting for another render")
+        assert order == []
+        release.set()
+        a.join(5)
+        b.join(5)
+    assert not a.is_alive()
+    assert not b.is_alive()
+    assert order == ["b"]
+    assert render_lock_path(ws.project).is_file()
+
+
+def test_export_and_render_preview_serialize_their_mix(minimal_project, caplog):
+    ws = _two_tracks(minimal_project)
+    _fresh_stems(ws.project)
+    ws.save()
+    eng = _mastering_engine()
+    original = eng.mix_tracks.side_effect
+    counter = threading.Lock()
+    state = {"active": 0, "max": 0}
+    in_mix, release = threading.Event(), threading.Event()
+    errors: list[BaseException] = []
+
+    def slow_mix(inputs, out):
+        with counter:
+            state["active"] += 1
+            state["max"] = max(state["max"], state["active"])
+            first = not in_mix.is_set()
+        if first:
+            in_mix.set()
+            release.wait(5)
+        try:
+            return original(inputs, out)
+        finally:
+            with counter:
+                state["active"] -= 1
+
+    eng.mix_tracks.side_effect = slow_mix
+
+    def run(fn) -> None:
+        try:
+            fn()
+        except BaseException as exc:
+            errors.append(exc)
+
+    with (
+        patch.object(steps, "ffmpeg", return_value=eng),
+        patch("podcast_mcp.services.pipeline.ffmpeg", return_value=eng),
+        patch("podcast_mcp.export.audio.export_episode_audio", return_value=[]),
+        patch.object(steps, "schedule_stem_waveforms"),
+        patch("podcast_mcp.render.maybe_auto_reconcile", return_value={}),
+        caplog.at_level(logging.INFO, logger="podcast_mcp.util.project_state"),
+    ):
+        te = threading.Thread(
+            target=run,
+            args=(
+                lambda: PipelineService(ProjectWorkspace.open(minimal_project)).export_audio(
+                    [{"ext": "mp3"}]
+                ),
+            ),
+        )
+        te.start()
+        assert in_mix.wait(5)
+        tr = threading.Thread(
+            target=run,
+            args=(
+                lambda: PipelineService(ProjectWorkspace.open(minimal_project)).render_preview(),
+            ),
+        )
+        tr.start()
+        assert _wait_for_log(caplog, "waiting for another render")
+        assert eng.mix_tracks.call_count == 1
+        release.set()
+        te.join(10)
+        tr.join(10)
+    assert not te.is_alive()
+    assert not tr.is_alive()
+    assert errors == []
+    assert state["max"] == 1
+    assert eng.mix_tracks.call_count == 2
+    assert eng.master_loudnorm.call_count == 1

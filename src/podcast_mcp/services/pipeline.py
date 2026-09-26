@@ -12,6 +12,7 @@ from podcast_mcp.pipeline.helpers import ffmpeg
 from podcast_mcp.render import render_preview_result, rerender_preview
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.progress import ProgressReporter
+from podcast_mcp.util.project_state import render_lock
 
 
 class PipelineService:
@@ -94,13 +95,14 @@ class PipelineService:
                 return rerender_preview(p, progress=progress)
 
             # mutate() re-reads the saved project under the cross-process lock, so Refresh renders it.
-            info = self.ws.mutate(
-                "before render preview",
-                "after render preview",
-                mutate,
-                operation="render_preview",
-            )
-            return info
+            # The render lock comes before mutate()'s project locks (lock order, #482).
+            with render_lock(self.ws.project):
+                return self.ws.mutate(
+                    "before render preview",
+                    "after render preview",
+                    mutate,
+                    operation="render_preview",
+                )
         return json.loads(render_preview_result(self.ws.project, rerender=False))
 
     def render_final(self) -> Path:
@@ -137,19 +139,20 @@ class PipelineService:
             total=2,
             prefer_parent=True,
         ) as prog:
-            raise_if_cancelled()
-            prog.set_phase("master", "Preparing mastered WAV…")
-            mastered = pipeline_steps.ensure_current_master(self.ws.project, defaults)
-            prog.advance(1, message="Mastered WAV ready")
-            raise_if_cancelled()
-            prog.set_phase("encode", "Writing deliverables…")
-            paths = export_episode_audio(
-                self.ws.project,
-                ffmpeg(),
-                mastered,
-                export_cfg,
-                max_workers=defaults.get("performance", {}).get("max_workers"),
-            )
+            with render_lock(self.ws.project):
+                raise_if_cancelled()
+                prog.set_phase("master", "Preparing mastered WAV…")
+                mastered = pipeline_steps.ensure_current_master(self.ws.project, defaults)
+                prog.advance(1, message="Mastered WAV ready")
+                raise_if_cancelled()
+                prog.set_phase("encode", "Writing deliverables…")
+                paths = export_episode_audio(
+                    self.ws.project,
+                    ffmpeg(),
+                    mastered,
+                    export_cfg,
+                    max_workers=defaults.get("performance", {}).get("max_workers"),
+                )
             self.ws.save_merged()
             prog.advance(1, message="Export complete")
             return paths

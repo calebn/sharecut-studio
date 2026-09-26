@@ -170,6 +170,8 @@ Tighten proposal snapshots speaker profiles and speaker-ID settings once before
 parallel candidate analysis. The read-only snapshot gives every candidate the
 same bleed decision inputs and avoids repeated profile file reads.
 
+Writers of stems, premix and master (stem render, mix, master, export, Refresh, on-demand `ensure_stem`) hold the per-workspace render lock `artifacts/render.lock` (cross-process, re-entrant, 60 min timeout; #482). A second export or Refresh waits instead of mixing over the same premix. Lock order: render lock, then the project locks (`project_state_lock`, `project_commit_lock`); never take the render lock while holding those. Readers never take it.
+
 Configure via `performance.max_workers` in `pipeline.yaml`:
 
 ```yaml

@@ -8,8 +8,10 @@ from podcast_mcp.engines.reconciliation_state import mark_reconciliation_stale
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.pipeline import PipelineRunner
 from podcast_mcp.util.progress import NullProgress, ProgressReporter, resolve_progress_task
+from podcast_mcp.util.project_state import with_render_lock
 
 
+@with_render_lock
 def rerender_preview(
     project: EpisodeProject,
     *,
