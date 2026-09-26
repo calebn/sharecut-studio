@@ -707,12 +707,18 @@ class RecordUploadStore:
         return list(segments.values())
 
 
+def record_artifacts_dir(workspace_dir: Path | str) -> Path:
+    """``artifacts/record/`` in a workspace: keeper uploads, ACKed WAVs and land locks."""
+    return Path(workspace_dir) / "artifacts" / "record"
+
+
 class RecordUploadService:
     def __init__(self, project: EpisodeProject) -> None:
         self._project = project
         self._store = cached_record_upload_store(sync_db_path(project))
-        self._root = Path(project.workspace_dir) / "artifacts" / "record" / "uploads"
-        self._acked = Path(project.workspace_dir) / "artifacts" / "record" / "acked"
+        record_dir = record_artifacts_dir(project.workspace_dir)
+        self._root = record_dir / "uploads"
+        self._acked = record_dir / "acked"
 
     def status(self, *, session_id: str, participant_id: str | None = None) -> dict[str, Any]:
         sid = parse_session_id(session_id)

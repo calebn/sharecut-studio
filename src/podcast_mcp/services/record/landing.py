@@ -10,6 +10,9 @@ from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any
 
+from filelock import FileLock
+from filelock import Timeout as FileLockTimeout
+
 from podcast_mcp.edits.clips_ops import new_clip_id
 from podcast_mcp.edits.comments import add_comment, delete_comment
 from podcast_mcp.edits.timeline_ops import room_tone_source_id
@@ -54,6 +57,7 @@ from podcast_mcp.services.record.upload import (
     parse_participant_id,
     parse_session_id,
     parse_upload_index,
+    record_artifacts_dir,
 )
 from podcast_mcp.services.waveform import schedule_track_waveforms
 from podcast_mcp.services.workspace import ProjectWorkspace
@@ -69,6 +73,10 @@ AlignFn = Callable[[EpisodeProject], None]
 
 _LAND_LOCKS_GUARD = threading.Lock()
 _LAND_LOCKS: dict[str, threading.Lock] = {}
+
+# A land includes WAV hashing, copies, and drift measurement, so allow more than the
+# 30 s project commit lock, but never wait forever on a hung process (#503).
+RECORD_LAND_LOCK_TIMEOUT_SEC = 120.0
 
 
 def _session_land_lock(session_id: str) -> threading.Lock:
@@ -95,7 +103,28 @@ def record_land_lock_path(workspace_dir: Path, session_id: str) -> Path:
     Per session, like the in-process lock, so overlapping rooms in one workspace do not
     block each other.
     """
-    return workspace_dir / "artifacts" / "record" / f"land-{session_id}.lock"
+    return record_artifacts_dir(workspace_dir) / f"land-{session_id}.lock"
+
+
+def remove_session_land_lock_file(workspace_dir: Path, session_id: str) -> None:
+    """Best-effort delete of a room's land lock file once the room has ended.
+
+    Skipped while any holder, in this or another process, still has the lock, and on
+    platforms that refuse to unlink an open file.
+    """
+    path = record_land_lock_path(workspace_dir, session_id)
+    if not path.exists():
+        return
+    probe = FileLock(str(path), thread_local=False)
+    try:
+        probe.acquire(timeout=0)
+    except FileLockTimeout:
+        return
+    try:
+        with suppress(OSError):
+            path.unlink()
+    finally:
+        probe.release()
 
 
 class RecordLandingError(ValueError):
@@ -304,17 +333,34 @@ class RecordLandingService:
         if not session_id:
             raise FileNotFoundError("no active record room")
         self.session_id = parse_session_id(session_id)
+        self._bound_project: EpisodeProject | None = None
+        self._bound_room: RecordSessionService | None = None
+        self._bound_upload: RecordUploadService | None = None
 
-    # Built from the current ``workspace.project`` on every use: ``reload()`` and
-    # ``mutate(reload_first=True)`` replace that object during a land (#503). The
-    # underlying sqlite stores are cached per workspace path, so this is cheap.
+    # Bound to the current ``workspace.project``: ``reload()`` and
+    # ``mutate(reload_first=True)`` replace that object during a land (#503), so the
+    # services are rebuilt only when the project object changes.
+    def _rebind(self) -> EpisodeProject:
+        project = self.workspace.project
+        if project is not self._bound_project:
+            self._bound_project = project
+            self._bound_room = None
+            self._bound_upload = None
+        return project
+
     @property
     def _room(self) -> RecordSessionService:
-        return RecordSessionService(self.workspace.project, session_id=self.session_id)
+        project = self._rebind()
+        if self._bound_room is None:
+            self._bound_room = RecordSessionService(project, session_id=self.session_id)
+        return self._bound_room
 
     @property
     def _upload(self) -> RecordUploadService:
-        return RecordUploadService(self.workspace.project)
+        project = self._rebind()
+        if self._bound_upload is None:
+            self._bound_upload = RecordUploadService(project)
+        return self._bound_upload
 
     @property
     def _comments(self) -> RecordLiveCommentStore:
@@ -327,14 +373,24 @@ class RecordLandingService:
         The session lock orders threads. The workspace file lock orders processes
         (GUI ACK auto-land vs. a CLI or MCP ``record land``), so each land's re-read
         of the saved project sees the previous land's commit and landed marks (#503).
+        Waits at most ``RECORD_LAND_LOCK_TIMEOUT_SEC`` for another process, then raises
+        ``RecordLandingError('land in progress')`` so callers can retry. Exclusion relies
+        on OS advisory file locks, which network or synced filesystems may not honour (see
+        recording-session.md § Timeline landing).
         """
         with _session_land_lock(self.session_id):
             file_lock = shared_file_lock(
                 record_land_lock_path(self.workspace.project.workspace_path(), self.session_id),
-                timeout=-1,
+                timeout=RECORD_LAND_LOCK_TIMEOUT_SEC,
             )
-            with file_lock.acquire():
+            try:
+                file_lock.acquire(timeout=RECORD_LAND_LOCK_TIMEOUT_SEC)
+            except FileLockTimeout as exc:
+                raise RecordLandingError("land in progress") from exc
+            try:
                 yield
+            finally:
+                file_lock.release()
 
     def _snapshot(self) -> RecordSnapshot:
         return RecordSnapshot.model_validate(self._room.snapshot())

@@ -24,6 +24,7 @@ from podcast_mcp.services.record.landing import (
     measure_keeper_drifts,
     record_land_lock_path,
     release_session_land_lock,
+    remove_session_land_lock_file,
     wav_pcm_info,
 )
 from podcast_mcp.services.record.landing_math import (
@@ -847,6 +848,138 @@ def test_land_waits_for_cross_process_land_lock(
     worker.join(timeout=10)
     assert not worker.is_alive()
     assert [clip["participant_id"] for clip in results[0]["clips"]] == [guest]
+
+
+def test_land_times_out_on_held_cross_process_land_lock(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    """A held land lock times out with 'land in progress' and leaks nothing (#503)."""
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=1_000)
+    _ack(
+        RecordUploadService(ws.project),
+        session_id=room["session_id"],
+        take=0,
+        pid=guest,
+        segment=0,
+        join_offset_ms=0,
+    )
+    monkeypatch.setattr("podcast_mcp.services.record.landing.RECORD_LAND_LOCK_TIMEOUT_SEC", 0.1)
+    other = FileLock(
+        str(record_land_lock_path(ws.project.workspace_path(), room["session_id"])),
+        thread_local=False,
+    )
+    other.acquire()
+    try:
+        with pytest.raises(RecordLandingError, match="land in progress"):
+            RecordLandingService(ws).land(align=lambda _p: None)
+    finally:
+        other.release()
+    clips = RecordLandingService(ws).land(align=lambda _p: None)["clips"]
+    assert [clip["participant_id"] for clip in clips] == [guest]
+
+
+def test_discard_waits_for_cross_process_land_lock(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    """A discard waits on another process's land lock too, like land (#503)."""
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=1_000)
+    _ack(
+        RecordUploadService(ws.project),
+        session_id=room["session_id"],
+        take=0,
+        pid=guest,
+        segment=0,
+        join_offset_ms=0,
+    )
+    RecordLandingService(ws).land(align=lambda _p: None)
+    other = FileLock(
+        str(record_land_lock_path(ws.project.workspace_path(), room["session_id"])),
+        thread_local=False,
+    )
+    other.acquire()
+    results: list[dict] = []
+    worker = threading.Thread(
+        target=lambda: results.append(RecordLandingService(ws).delete_take(0))
+    )
+    try:
+        worker.start()
+        worker.join(timeout=0.5)
+        assert worker.is_alive()
+        assert results == []
+    finally:
+        other.release()
+    worker.join(timeout=10)
+    assert not worker.is_alive()
+    assert len(results) == 1
+    assert ws.project.track_by_id(slug_of(guest)) is None
+
+
+def test_revoke_room_removes_land_lock_file(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    """Revoking a room deletes its land lock file (#503)."""
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=1_000)
+    _ack(
+        RecordUploadService(ws.project),
+        session_id=room["session_id"],
+        take=0,
+        pid=guest,
+        segment=0,
+        join_offset_ms=0,
+    )
+    RecordLandingService(ws).land(align=lambda _p: None)
+    lock = record_land_lock_path(ws.project.workspace_path(), room["session_id"])
+    assert lock.exists()
+    ShareService(ws).revoke_room(room["session_id"])
+    assert not lock.exists()
+
+
+def test_remove_session_land_lock_file_skips_held_and_missing(tmp_path):
+    path = record_land_lock_path(tmp_path, "s1")
+    remove_session_land_lock_file(tmp_path, "s1")
+    path.parent.mkdir(parents=True)
+    other = FileLock(str(path), thread_local=False)
+    other.acquire()
+    remove_session_land_lock_file(tmp_path, "s1")
+    assert path.exists()
+    other.release()
+    remove_session_land_lock_file(tmp_path, "s1")
+    assert not path.exists()
+
+
+def test_landing_services_rebind_after_reload(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    """Cached services are rebuilt when the workspace swaps its project object (#503)."""
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    _consent_room(ws, room)
+    svc = RecordLandingService(ws)
+    assert svc._upload is svc._upload
+    assert svc._room is svc._room
+    before_upload, before_room = svc._upload, svc._room
+    ws._loaded_file_signature = None  # force a real reload, as after another writer's save
+    ws.reload()
+    assert svc._upload is not before_upload
+    assert svc._room is not before_room
+    assert svc._upload._project is ws.project
+    assert svc._room.project is ws.project
 
 
 def test_land_on_stale_workspace_keeps_earlier_land(
