@@ -204,6 +204,7 @@ def consolidate_speakers(
                 out = output_dir / f"{_slug(name)}{suffix}.wav"
                 outs.append(out)
                 file_session_start = session_starts.get(name, 0.0)
+                duration = eng.probe(src_path).duration_sec
                 if i == 0 and extract_start_sec is not None:
                     trim_start = file_time_for_session(
                         file_session_start,
@@ -214,20 +215,20 @@ def consolidate_speakers(
                     trim_start = None
 
                 if i == 0 and trim_start is not None:
+                    if trim_start >= duration:
+                        raise ValueError(
+                            f"--extract-start {extract_start_sec}s maps to {trim_start:.2f}s "
+                            f"in {name}'s {src_path.name}, past its end ({duration:.2f}s)"
+                        )
                     trim_end = (
                         trim_start + extract_duration_sec
                         if extract_duration_sec is not None
-                        else eng.probe(src_path).duration_sec
+                        else duration
                     )
                     eng.extract_segment(src_path, out, trim_start, trim_end)
                 else:
                     # Whole-file real-time section — never blade/split for alignment.
-                    eng.extract_segment(
-                        src_path,
-                        out,
-                        0.0,
-                        eng.probe(src_path).duration_sec,
-                    )
+                    eng.extract_segment(src_path, out, 0.0, duration)
                 source_alignments.append(
                     AlignmentResult(
                         reference=primary,
