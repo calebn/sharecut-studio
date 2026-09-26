@@ -177,12 +177,14 @@ Testers do not have `podcast` on PATH. [`scripts/build_sidecar.py`](../scripts/b
 The launcher sets `PODCAST_GUI_DIST`, `PYTHONHOME` (uv standalone CPython under `sharecut-runtime/python/cpython-*`, preferred via freeze marker `sharecut-runtime/.python-home`), `PODCAST_MAGIC_LINK_PRINT=0`, and `PODCAST_GUI_OPENAPI=0`, rewrites `venv/pyvenv.cfg` `home` / `executable` / `base-executable` to that relocated prefix, then execs `python -P -m podcast_mcp.cli.main gui --host 127.0.0.1 --port <port> --no-open`. Packaged Tauri sets `PODCAST_SIDECAR_EPHEMERAL=1` so that port is `0` (OS-assigned); `podcast gui`, `tauri dev`, and AppImage smoke (sidecar run without the parent env) stay on **8765**. Relocate fixes two failures after AppImage/DMG/NSIS copy: (1) compiled prefix `/install` → `ModuleNotFoundError: No module named 'encodings'`; (2) Windows venv stub still pointing at the GHA path → `No Python at 'D:\a\sharecut-studio\...'`. FastAPI honors `PODCAST_GUI_DIST` in [`gui/static_assets.py`](../src/podcast_mcp/gui/static_assets.py) (`resolve_gui_static_root`). Layout inside the Mac app:
 
 - `Contents/MacOS/sharecut` — Tauri
-- `Contents/MacOS/sharecut-sidecar` — launcher (`bundle.externalBin`)
+- `Contents/MacOS/sharecut-sidecar`, `podcast`, and `podcast-mcp` — launchers (`bundle.externalBin`)
 - `Contents/Resources/sharecut-runtime/` — CPython, venv, web dist (`bundle.resources`)
 
 ### Packaged CLI
 
-The frozen build also compiles `podcast` and `podcast-mcp` console launchers. `podcast` forwards arguments to `python -P -m podcast_mcp.cli.main`; `podcast-mcp` forwards them to `python -P -m podcast_mcp.mcp.server` with inherited stdio for MCP's stdio transport. They share the packaged CLI environment isolation below. The GUI sidecar remains a GUI-subsystem executable on Windows; the dedicated launchers use the console subsystem so the shell waits and receives their output and exit status.
+The frozen build also compiles and bundles `podcast` and `podcast-mcp` console launchers. `podcast` forwards arguments to `python -P -m podcast_mcp.cli.main`; `podcast-mcp` forwards them to `python -P -m podcast_mcp.mcp.server` with inherited stdio for MCP's stdio transport. They share the packaged CLI environment isolation below. The GUI sidecar remains a GUI-subsystem executable on Windows; the dedicated launchers use the console subsystem so the shell waits and receives their output and exit status. Linux `.deb` installs both under `/usr/bin`; the release workflow uploads a separate `sharecut-linux-deb` artifact after checking those paths. AppImage contains them in its internal `usr/bin`, but does not install shell commands on the host.
+
+Windows NSIS asks whether to add the install directory (where both console launchers live) to the current user's PATH. The default is No, and silent installs leave PATH alone. On uninstall it removes that exact entry only when this installer added it; an existing entry is preserved. A new terminal is needed to see the changed PATH. macOS bundles the binaries inside the app; shell installation is a separate step.
 
 For packaged diagnostics and maintenance commands, invoke the compiled launcher as `sharecut-sidecar --cli <podcast arguments>` (macOS / Linux). The arguments (non-UTF-8 paths included) are forwarded to `python -P -m podcast_mcp.cli.main`; the invoking terminal's working directory is kept but is **not** added to the module search path (`-P`), and stdin/stdout/stderr are inherited. CLI mode always uses the bundled `PYTHONHOME`, removes `PYTHONPATH` / `PYTHONSTARTUP` / `PYTHONUSERBASE` / `VIRTUAL_ENV`, and sets `PYTHONNOUSERSITE=1`; other variables (including `PODCAST_*`) pass through, as with the pip `podcast` CLI.
 
@@ -321,7 +323,7 @@ arm64.
 imports the PFX into the current-user store and signs by thumbprint
 (`signtool sign /fd sha256 /tr http://timestamp.digicert.com /td sha256 /sha1`)
 so the PFX password is not on the `signtool` command line. Sidecar
-`sharecut-sidecar-*.exe` is signed **before** `tauri build`, then the NSIS
+All three launcher `.exe` files are signed **before** `tauri build`, then the NSIS
 `*_x64-setup.exe` after; each call also runs `signtool verify /pa`. The inner
 `SharecutStudio.exe` payload stays **unsigned** (this repo does not set
 `windows.certificateThumbprint` in `tauri.conf.json`, which would bake a
@@ -336,7 +338,7 @@ Signing steps use `set +x` and never print secret env. Each OS job writes
 `signed: yes` (job succeeded after verification), `attempted` (signing was
 requested but a later step failed), or `no` to the job summary. Windows signed
 jobs also note `windows payload exe: unsigned`. Artifact names
-(`sharecut-linux-appimage`, `sharecut-windows-nsis`, `sharecut-macos-x64-dmg`)
+(`sharecut-linux-appimage`, `sharecut-linux-deb`, `sharecut-windows-nsis`, `sharecut-macos-x64-dmg`)
 do not change when signing. Matrix `fail-fast: false`, so one green OS does not
 mean the whole signed matrix succeeded.
 

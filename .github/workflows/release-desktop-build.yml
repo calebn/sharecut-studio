@@ -261,11 +261,13 @@ jobs:
           stage="$PREPARED_SIDECAR_STAGE"
           mkdir -p "$stage"
           cp -R gui/desktop/binaries/sharecut-runtime "$stage/sharecut-runtime"
-          launcher_name="$(python3 scripts/build_sidecar.py \
-            --triple "${{ matrix.triple }}" --print-output-name)"
-          launcher="gui/desktop/binaries/${launcher_name}"
-          test -f "$launcher"
-          cp "$launcher" "$stage/"
+          for stem in sharecut-sidecar podcast podcast-mcp; do
+            launcher_name="${stem}-${{ matrix.triple }}"
+            if [[ "${{ matrix.bundle }}" == "nsis" ]]; then launcher_name="${launcher_name}.exe"; fi
+            launcher="gui/desktop/binaries/${launcher_name}"
+            test -f "$launcher"
+            cp "$launcher" "$stage/"
+          done
           python3 - <<'PY'
           import json
           import os
@@ -534,8 +536,6 @@ jobs:
           PREPARED_RUNTIME_TRIPLE: ${{ matrix.triple }}
         run: |
           set -euo pipefail
-          export PREPARED_RUNTIME_LAUNCHER="$(python3 scripts/build_sidecar.py \
-            --triple "$PREPARED_RUNTIME_TRIPLE" --print-output-name)"
           python3 - <<'PY'
           import json
           import os
@@ -560,11 +560,13 @@ jobs:
               raise SystemExit("prepared runtime interpreter is missing")
           if bundle != "nsis" and not os.access(runtime_python, os.X_OK):
               raise SystemExit("prepared runtime interpreter is not executable")
-          launcher = binaries / os.environ["PREPARED_RUNTIME_LAUNCHER"]
-          if not launcher.is_file():
-              raise SystemExit("prepared sidecar launcher is missing")
-          if bundle != "nsis" and not os.access(launcher, os.X_OK):
-              raise SystemExit("prepared sidecar launcher is not executable")
+          suffix = ".exe" if bundle == "nsis" else ""
+          for stem in ("sharecut-sidecar", "podcast", "podcast-mcp"):
+              launcher = binaries / f'{stem}-{os.environ["PREPARED_RUNTIME_TRIPLE"]}{suffix}'
+              if not launcher.is_file():
+                  raise SystemExit(f"prepared launcher is missing: {launcher}")
+              if bundle != "nsis" and not os.access(launcher, os.X_OK):
+                  raise SystemExit(f"prepared launcher is not executable: {launcher}")
           expected = json.loads(
               (binaries / "extension-entry-points.json").read_text(encoding="utf-8")
           )
@@ -649,7 +651,7 @@ jobs:
         if: ${{ needs.verify-source.outputs.trusted == 'true' && inputs.extension_artifact_name != '' && inputs.sign && matrix.bundle == 'app' && steps.signing.outputs.apple == 'yes' }}
         run: python scripts/build_sidecar.py --codesign-only
 
-      - name: Sign Windows sidecar
+      - name: Sign Windows launchers
         if: ${{ needs.verify-source.outputs.trusted == 'true' && inputs.sign && matrix.bundle == 'nsis' && steps.signing.outputs.windows == 'yes' }}
         env:
           WINDOWS_SIGN_CERT_PFX_B64: ${{ secrets.WINDOWS_SIGN_CERT_PFX_B64 }}
@@ -658,11 +660,17 @@ jobs:
           set +x
           set -euo pipefail
           shopt -s nullglob
-          files=(gui/desktop/binaries/sharecut-sidecar-*.exe)
-          if [[ ${#files[@]} -eq 0 ]]; then
-            echo "error: no sharecut-sidecar-*.exe to sign" >&2
+          triple="${{ matrix.triple }}"
+          files=(
+            "gui/desktop/binaries/sharecut-sidecar-${triple}.exe"
+            "gui/desktop/binaries/podcast-${triple}.exe"
+            "gui/desktop/binaries/podcast-mcp-${triple}.exe"
+          )
+          if [[ ${#files[@]} -ne 3 ]]; then
+            echo "error: expected three Windows launchers to sign" >&2
             exit 1
           fi
+          for file in "${files[@]}"; do test -f "$file"; done
           ./scripts/sign_windows_authenticode.sh "${files[@]}"
 
       - name: Tauri bundle (Windows NSIS)
@@ -728,6 +736,32 @@ jobs:
       - name: Linux AppImage
         if: matrix.bundle == 'appimage'
         run: ./scripts/build_linux_appimage.sh
+
+      - name: Linux Debian package
+        if: matrix.bundle == 'appimage'
+        working-directory: gui/desktop
+        run: npm run tauri -- build --bundles deb --config "$PODCAST_DISTRIBUTION_TAURI_CONFIG"
+
+      - name: Verify Debian CLI paths
+        if: matrix.bundle == 'appimage'
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          packages=(gui/desktop/src-tauri/target/release/bundle/deb/*.deb)
+          [[ ${#packages[@]} -eq 1 ]]
+          contents="$(dpkg-deb --contents "${packages[0]}")"
+          for stem in podcast podcast-mcp; do
+            grep -Eq "\./usr/bin/${stem}$" <<< "$contents"
+          done
+
+      - name: Upload Debian package
+        if: matrix.bundle == 'appimage'
+        uses: actions/upload-artifact@v7
+        with:
+          name: sharecut-linux-deb
+          path: gui/desktop/src-tauri/target/release/bundle/deb/*.deb
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Clean up Apple keychain
         if: ${{ always() && matrix.bundle == 'app' }}
