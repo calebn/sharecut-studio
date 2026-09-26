@@ -9,7 +9,7 @@ Intentional in-house chrome library under [`src/ui/`](../src/ui/). **No Radix / 
 | Button, ToggleButton, Field, FieldRow, InlineError | ClipBlock, TrackLane, Playhead |
 | Dialog, Menu, BottomSheet, `useDialogModal` | Timeline zoom / selection math |
 | CommandButton, CommandMenuItem, `useCommand` | Pipeline param schemas |
-| Icon (stroke SVGs, filled transport glyphs), LoadingScreen, ErrorScreen, FocusPull, FocusToggle, DefinitionList | Comment domain (`comments/` — use library Button/Field) |
+| Icon (stroke SVGs, filled transport glyphs), LoadingScreen, ErrorScreen, FocusPull, DefinitionList | Comment domain (`comments/` — use library Button/Field) |
 | SegmentedControl, Pill, Timecode, EmptyState | Transport wiring (`layout/TransportBar` over the presentational `layout/TransportFrame` and `layout/TransportPlayControls`); status wiring (`layout/StatusBar` over `layout/PipelineStatusChip`) |
 
 ## Public API
@@ -24,7 +24,7 @@ Import from [`src/ui/index.ts`](../src/ui/index.ts) (or `../ui`). Hooks used by 
 
 ### `.ui-control` interaction primitive
 
-`Button`, `ToggleButton`, `CommandButton` (including `bare`), and `FocusToggle` always apply `ui-control`. Domain classes may set padding / min-size / grouping layout; they must **not** re-declare `:hover` / `:focus-visible` / pressed paint unless a documented exception (e.g. stale-pill warning outline). Default `.ui-control:hover` (the `--color-hover` wash) does **not** apply to the primary / danger / link variants, `.pill`, `.status-chip`, `.status-pipeline`, `.trk-btn.mute` / `.solo`, or `.comment-mode-btn`; those exclusions sit inside `:where()` so the wash stays at (0,2,0) and any component that paints its own control (transport strip, Listen card) wins. Action pills still use their outline-on-hover exception. Pressed is the selected chip (`--color-chip-selected`) from `.ui-control`'s base rule; segment groups (`SegmentedControl`, which `ToolModeToggle` renders) keep the chip on hover. Hover is a wash and selected is a chip everywhere, including menus (checked menu radios add a check mark); the accent is never a selected state.
+`Button`, `ToggleButton`, and `CommandButton` (including `bare`, which the transport `LayoutToggle` / `LayoutRestoreChip` use) always apply `ui-control`. Domain classes may set padding / min-size / grouping layout; they must **not** re-declare `:hover` / `:focus-visible` / pressed paint unless a documented exception (e.g. stale-pill warning outline). Default `.ui-control:hover` (the `--color-hover` wash) does **not** apply to the primary / danger / link variants, `.pill`, `.status-chip`, `.status-pipeline`, `.trk-btn.mute` / `.solo`, or `.comment-mode-btn`; those exclusions sit inside `:where()` so the wash stays at (0,2,0) and any component that paints its own control (transport strip, Listen card) wins. Action pills still use their outline-on-hover exception. Pressed is the selected chip (`--color-chip-selected`) from `.ui-control`'s base rule; segment groups (`SegmentedControl`, which `ToolModeToggle` renders) keep the chip on hover. Hover is a wash and selected is a chip everywhere, including menus (checked menu radios add a check mark); the accent is never a selected state.
 
 | Modifier | Use |
 |----------|-----|
@@ -97,7 +97,7 @@ Every interactive library component has Vitest coverage including `expectNoA11yV
 | `EmptyState` | Quiet empty list or panel text (no fill or border, so it never reads as a disabled field). `as="li"` inside lists, `as="div"` in other blocks; do not add per-panel empty classes. Not for hints or notes (use the surface's note text) |
 | `FocusPull` | View-keyed lobby/room transition: 200ms outgoing blur/fade, then 250ms incoming fade/sharpen; initial mount stays static and reduced motion visually cuts instantly |
 | `LevelMeter` | Presentational peak meter (`role="meter"`, clamped `aria-valuenow`, polite clip announcement). Display helpers in `ui/metering.ts` (`dbToFraction`, `zoneForDb`, `formatDb`, `ariaValueNow`); DSP (`peakDbFromSamples`, `decayPeakHold`, `stepMeter`) in `audio/metering.ts`; `audio/usePeakMeter` owns the rAF loop and `record/useInputPeakDb` adapts a mic stream. Exists but not yet wired into DeviceCheck / the record room (#174) |
-| `DefinitionList`, screens, `FocusToggle`, `InspectorSeekFooter` | Existing chrome |
+| `DefinitionList`, screens, `InspectorSeekFooter` | Existing chrome |
 
 ## Overlays
 
