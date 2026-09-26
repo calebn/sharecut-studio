@@ -37,7 +37,11 @@
       "entitlements": "Entitlements.plist"
     },
     "windows": {
-      "digestAlgorithm": "sha256"
+      "digestAlgorithm": "sha256",
+      "nsis": {
+        "installMode": "currentUser",
+        "installerHooks": "nsis/cli-path.nsh"
+      }
     },
     "linux": {
       "appimage": {
@@ -52,9 +56,14 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["../binaries/sharecut-sidecar"],
+    "externalBin": [
+      "../binaries/sharecut-sidecar",
+      "../binaries/podcast",
+      "../binaries/podcast-mcp"
+    ],
     "resources": {
-      "../binaries/sharecut-runtime": "sharecut-runtime"
+      "../binaries/sharecut-runtime": "sharecut-runtime",
+      "nsis/cli-path.ps1": "resources/cli-path.ps1"
     }
   },
   "plugins": {

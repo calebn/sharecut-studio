@@ -41,6 +41,16 @@ if [[ ! -x "$SIDECAR" ]]; then
   exit 1
 fi
 
+for stem in podcast podcast-mcp; do
+  cli="squashfs-root/usr/bin/$stem"
+  if [[ ! -x "$cli" ]]; then
+    echo "error: $stem not found at $cli" >&2
+    exit 1
+  fi
+done
+"squashfs-root/usr/bin/podcast" --help | grep -q "Usage"
+"squashfs-root/usr/bin/podcast-mcp" --help >/dev/null
+
 echo "==> sharecut-sidecar --cli --help"
 if ! "$SIDECAR" --cli --help | grep -q "Usage"; then
   echo "error: sharecut-sidecar --cli --help did not print CLI usage" >&2

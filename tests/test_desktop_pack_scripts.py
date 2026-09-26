@@ -13,6 +13,45 @@ ROOT = Path(__file__).resolve().parents[1]
 TAURI_CONF = ROOT / "gui/desktop/src-tauri/tauri.conf.json"
 
 
+def test_cli_launchers_are_bundled_and_release_staged() -> None:
+    config = json.loads(TAURI_CONF.read_text(encoding="utf-8"))
+    assert config["bundle"]["externalBin"] == [
+        "../binaries/sharecut-sidecar",
+        "../binaries/podcast",
+        "../binaries/podcast-mcp",
+    ]
+    workflow = (ROOT / ".github/workflows/release-desktop-build.yml").read_text(encoding="utf-8")
+    assert "for stem in sharecut-sidecar podcast podcast-mcp; do" in workflow
+    assert 'for stem in ("sharecut-sidecar", "podcast", "podcast-mcp"):' in workflow
+    assert '"gui/desktop/binaries/podcast-${triple}.exe"' in workflow
+    assert '"gui/desktop/binaries/podcast-mcp-${triple}.exe"' in workflow
+    assert "--bundles deb" in workflow
+    assert "sharecut-linux-deb" in workflow
+    assert 'grep -Eq "\\./usr/bin/${stem}$"' in workflow
+    smoke = (ROOT / "scripts/smoke_linux_appimage.sh").read_text(encoding="utf-8")
+    assert "for stem in podcast podcast-mcp; do" in smoke
+
+
+def test_nsis_cli_path_is_optional_and_owned_entry_is_removed() -> None:
+    config = json.loads(TAURI_CONF.read_text(encoding="utf-8"))
+    nsis = config["bundle"]["windows"]["nsis"]
+    assert nsis["installMode"] == "currentUser"
+    hooks = ROOT / "gui/desktop/src-tauri" / nsis["installerHooks"]
+    assert hooks.is_file()
+    script = ROOT / "gui/desktop/src-tauri/nsis/cli-path.ps1"
+    assert config["bundle"]["resources"]["nsis/cli-path.ps1"] == "resources/cli-path.ps1"
+    text = hooks.read_text(encoding="utf-8")
+    assert "IfSilent sharecut_cli_path_done" in text
+    assert "MB_YESNO|MB_DEFBUTTON2" in text
+    assert "NSIS_HOOK_PREUNINSTALL" in text
+    assert "-Action add" in text and "-Action remove" in text
+    ps = script.read_text(encoding="utf-8")
+    assert "Registry]::CurrentUser" in ps
+    assert "$matches.Count -eq 0" in ps
+    assert "Test-Path -LiteralPath $marker" in ps
+    assert "$owned -ieq $normalized" in ps
+
+
 def test_desktop_build_notarizes_app_once_then_packs_dmg() -> None:
     text = (ROOT / "scripts/build_desktop.sh").read_text(encoding="utf-8")
     assert "npm run tauri -- build --bundles app" in text
