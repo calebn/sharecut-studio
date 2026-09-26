@@ -346,6 +346,7 @@ def suggest_pipeline_tuning(
     base_config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Heuristic Analyze: propose config patches from cleanup/health signals."""
+    from podcast_mcp.edits.conversation_align import equal_duration_dialogue
     from podcast_mcp.engines.audio_audit import AnalysisPolicy, analyze_cleanup
 
     defaults = load_defaults()
@@ -420,6 +421,20 @@ def suggest_pipeline_tuning(
                 }
             )
             set_by_path(proposed, "compression.makeup_db", 0.0)
+
+    pre = equal_duration_dialogue(project)
+    if pre is not None:
+        ids, dur = pre
+        reasons.append(
+            {
+                "code": "pre_aligned",
+                "message": (
+                    f"Dialogue tracks {', '.join(ids)} all run {dur:.2f}s - likely pre-aligned "
+                    "(e.g. Zoom per-person stems); align_tracks holds them at identity, "
+                    "or uncheck Align tracks."
+                ),
+            }
+        )
 
     if gate_overreach:
         # effects.gate is one global chain: lower it by 6 dB once per Analyze

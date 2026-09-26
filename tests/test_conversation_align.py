@@ -1454,3 +1454,14 @@ def test_write_alignment_artifact_includes_candidate_fields(tmp_path: Path) -> N
     row = json.loads(write_alignment_artifact(proj, result).read_text())["plans"][0]
     assert row["candidate_offset_sec"] == 4.2
     assert row["acoustic_confirmed"] is False
+
+
+def test_equal_duration_dialogue_helper(tmp_path: Path) -> None:
+    from podcast_mcp.edits.conversation_align import equal_duration_dialogue
+
+    assert equal_duration_dialogue(_project(tmp_path, [("host", 10.0, [])])) is None
+    assert (
+        equal_duration_dialogue(_project(tmp_path, [("host", 10.0, []), ("g", 12.0, [])])) is None
+    )
+    found = equal_duration_dialogue(_project(tmp_path, [("host", 10.0, []), ("g", 10.0, [])]))
+    assert found == (["g", "host"], 10.0)

@@ -546,3 +546,32 @@ def test_tighten_intensity_param_field() -> None:
     merged = merge_pipeline_config({})
     assert merged["tighten"]["intensity"] == "medium"
     assert merged["tighten"]["repetition_candidates"] is True
+
+
+def test_suggest_flags_equal_duration_dialogue(monkeypatch) -> None:
+    from podcast_mcp.engines import audio_audit
+    from podcast_mcp.models import EpisodeProject, MediaAsset, Track, TrackRole
+
+    monkeypatch.setattr(
+        audio_audit,
+        "analyze_cleanup",
+        lambda project, *, policy=None, progress=None: {"tracks": []},
+    )
+
+    def build(second: float) -> EpisodeProject:
+        p = EpisodeProject.create(name="t", workspace_dir="/tmp")
+        for tid, dur in (("host", 1689.58), ("guest", second)):
+            p.tracks.append(
+                Track(
+                    id=tid,
+                    label=tid,
+                    role=TrackRole.DIALOGUE,
+                    media=MediaAsset(path=f"raw/{tid}.wav", duration_sec=dur),
+                )
+            )
+        return p
+
+    same = suggest_pipeline_tuning(build(1689.58))
+    assert any(r["code"] == "pre_aligned" for r in same["reasons"])
+    diff = suggest_pipeline_tuning(build(1600.0))
+    assert not any(r["code"] == "pre_aligned" for r in diff["reasons"])
