@@ -21,9 +21,10 @@ def track_fade_max_ms(track: Track | None, defaults: dict | None = None) -> int 
     """Longest edge fade (ms) a clip on *track* may take; ``None`` when uncapped.
 
     Dialogue fades cap at ``render.join_fade_max_ms``; other roles are uncapped.
-    The project view (``TrackView.fade_max_ms``) and every writer (``cap_fade_ms`` /
-    ``clamp_clip_fades``) resolve the cap here; keep any future per-episode override inside
-    this function so they cannot diverge.
+    The project view (``TrackView.fade_max_ms``), ``cap_fade_ms`` (used by the batch fade
+    writers) and ``clamp_clip_fades`` (used by ``set_clip_fade``) resolve the cap here; keep
+    any future per-episode override inside this function so they cannot diverge. Only
+    ``clamp_clip_fades`` also bounds a fade by the clip length and the other edge's fade.
     """
     if track is None or track.role != TrackRole.DIALOGUE:
         return None
