@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { recordParticipant } from "../test/fixtures";
@@ -13,7 +13,26 @@ const host = recordParticipant({
 
 const guest = recordParticipant({ participant_id: "p_g", display_name: "Ava" });
 
+const producer = recordParticipant({
+  participant_id: "p_pat",
+  role: "producer",
+  display_name: "Pat",
+});
+
 describe("HostUploadRoster", () => {
+  it("never lists a producer, even after Stop", () => {
+    render(
+      <HostUploadRoster
+        stopped
+        participants={[host, guest, producer]}
+        segments={[]}
+      />,
+    );
+    const list = screen.getByRole("list", { name: "Upload status" });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(list).queryByText(/Pat/)).toBeNull();
+  });
+
   it("renders nothing while recording when no participant has uploaded", () => {
     const { container } = render(
       <HostUploadRoster
