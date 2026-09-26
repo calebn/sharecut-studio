@@ -217,14 +217,19 @@ async function runDeleteClip(
 }
 
 /**
- * Keep a failed record command visible: announce it, then store it and open the
- * Record room panel. Over the Share dialog it is only announced, so no stale
- * error waits in the store for the next time the panel opens.
+ * Keep a failed record command visible. An open Record room panel shows it in its
+ * aria-live region, so it is not announced again. Otherwise it is announced, then
+ * stored and the panel opens; over the Share dialog it is only announced, so no
+ * stale error waits in the store for the next time the panel opens.
  */
 function revealRecordFailure(reason: string): void {
   const daw = useDawStore.getState();
+  if (daw.recordPanelOpen) {
+    useRecordHostStore.getState().setTransportError(reason);
+    return;
+  }
   daw.announceStatus(reason);
-  if (daw.shareDialogOpen && !daw.recordPanelOpen) {
+  if (daw.shareDialogOpen) {
     return;
   }
   useRecordHostStore.getState().setTransportError(reason);
