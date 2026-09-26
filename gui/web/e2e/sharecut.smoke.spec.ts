@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
 import { hostOfflineQueueCount } from "./offlineQueue";
+import { interceptCommentCommands, postHostComment } from "./queuedComment";
 
 test.describe("Sharecut Studio smoke", () => {
   test("loads fixture project shell and is axe-clean on chrome", async ({
@@ -51,44 +52,9 @@ test.describe("Sharecut Studio smoke", () => {
   test("shows a queued host comment without a false submission error", async ({
     page,
   }) => {
-    const commands: Array<{
-      command_id: string;
-      client_id: string;
-      client_seq: number;
-      type: string;
-    }> = [];
-    let rejectAddComment = true;
-    await page.route("**/api/document/command?*", async (route) => {
-      if (route.request().method() !== "POST") {
-        await route.continue();
-        return;
-      }
-      const command = route
-        .request()
-        .postDataJSON() as (typeof commands)[number];
-      if (command.type !== "AddComment") {
-        await route.continue();
-        return;
-      }
-      commands.push(command);
-      if (rejectAddComment) {
-        await route.abort("failed");
-        return;
-      }
-      await route.continue();
-    });
+    const { commands, setOffline } = await interceptCommentCommands(page);
     await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-    await page
-      .getByLabel("Editor panels")
-      .getByRole("button", {
-        name: "Comments",
-      })
-      .click();
-    await page.getByRole("button", { name: "Comment mode" }).click();
-    await page.getByRole("slider", { name: "Comment time anchor" }).click();
-    await page.getByLabel("Author").fill("Host");
-    await page.getByPlaceholder("Feedback…").fill("Queued review note");
-    await page.getByRole("button", { name: "Post comment" }).click();
+    await postHostComment(page, "Queued review note");
     await expect.poll(() => commands.length).toBe(1);
     await expect
       .poll(() => hostOfflineQueueCount(page, e2eProjectPath))
@@ -99,7 +65,7 @@ test.describe("Sharecut Studio smoke", () => {
     ).toHaveCount(0);
     await expect(page.getByPlaceholder("Feedback…")).toHaveValue("");
 
-    rejectAddComment = false;
+    setOffline(false);
     await page.evaluate(() => window.dispatchEvent(new Event("online")));
     await expect.poll(() => commands.length).toBe(2);
     expect(commands[1]).toMatchObject({

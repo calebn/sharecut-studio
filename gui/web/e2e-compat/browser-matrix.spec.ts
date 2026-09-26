@@ -4,6 +4,10 @@ import { e2eProjectPath } from "../e2e/env";
 import { hostOfflineQueueCount } from "../e2e/offlineQueue";
 import { openHostProject } from "../e2e/overlayReachability";
 import {
+  interceptCommentCommands,
+  postHostComment,
+} from "../e2e/queuedComment";
+import {
   createRecordRoom,
   markSharecutE2e,
   openRecordLink,
@@ -45,39 +49,20 @@ test.describe("browser compatibility matrix", () => {
       .toBeGreaterThan(initial + 0.25);
     await page.getByRole("button", { name: "Pause" }).click();
     await expect(play).toBeVisible();
+    const paused = parseTimecodeSec(await clock.innerText());
+    await page.waitForTimeout(600);
+    expect(parseTimecodeSec(await clock.innerText())).toBe(paused);
     await expectPageAxeClean(page);
   });
 
   test("persists an offline comment across reload and replays its command", async ({
     page,
   }) => {
-    const commands: Array<{
-      command_id: string;
-      client_id: string;
-      client_seq: number;
-      type: string;
-    }> = [];
-    let offline = true;
-    await page.route("**/api/document/command?*", async (route) => {
-      if (route.request().method() !== "POST") return route.continue();
-      const command = route
-        .request()
-        .postDataJSON() as (typeof commands)[number];
-      if (command.type !== "AddComment") return route.continue();
-      commands.push(command);
-      if (offline) return route.abort("failed");
-      return route.continue();
-    });
+    const note = `Cross-browser queued note ${crypto.randomUUID()}`;
+    const { commands, forwarded, setOffline } =
+      await interceptCommentCommands(page);
     await openHostProject(page);
-    await page
-      .getByLabel("Editor panels")
-      .getByRole("button", { name: "Comments" })
-      .click();
-    await page.getByRole("button", { name: "Comment mode" }).click();
-    await page.getByRole("slider", { name: "Comment time anchor" }).click();
-    await page.getByLabel("Author").fill("Host");
-    await page.getByPlaceholder("Feedback…").fill("Cross-browser queued note");
-    await page.getByRole("button", { name: "Post comment" }).click();
+    await postHostComment(page, note);
     await expect.poll(() => commands.length).toBe(1);
     const queuedCount = () => hostOfflineQueueCount(page, e2eProjectPath);
     await expect.poll(queuedCount).toBe(1);
@@ -86,32 +71,51 @@ test.describe("browser compatibility matrix", () => {
       /aligned dialogue/i,
     );
     await expect.poll(queuedCount).toBe(1);
-    offline = false;
+    setOffline(false);
     await page.evaluate(() => window.dispatchEvent(new Event("online")));
-    await expect.poll(() => commands.length).toBe(2);
-    expect(commands[1]).toMatchObject(commands[0]!);
+    await expect
+      .poll(() =>
+        forwarded.some(
+          (command) =>
+            command.command_id === commands[0]?.command_id &&
+            command.client_id === commands[0]?.client_id &&
+            command.client_seq === commands[0]?.client_seq &&
+            command.type === "AddComment",
+        ),
+      )
+      .toBe(true);
     await expect.poll(queuedCount).toBe(0);
     await page
       .getByLabel("Editor panels")
       .getByRole("button", { name: "Comments" })
       .click();
-    await expect(
-      page.getByText("Cross-browser queued note").first(),
-    ).toBeVisible();
+    await expect(page.getByText(note, { exact: true }).first()).toBeVisible();
   });
 
-  test("reconnects the document socket after a drop", async ({ page }) => {
+  test("applies document updates after the socket reconnects", async ({
+    page,
+    browser,
+  }) => {
     await page.addInitScript(() => {
       const NativeWebSocket = window.WebSocket;
       const sockets: WebSocket[] = [];
+      const received: string[] = [];
       class TrackedWebSocket extends NativeWebSocket {
         constructor(url: string | URL, protocols?: string | string[]) {
           super(url, protocols);
-          if (String(url).includes("/api/document/ws")) sockets.push(this);
+          if (String(url).includes("/api/document/ws")) {
+            sockets.push(this);
+            this.addEventListener("message", (event) =>
+              received.push(String(event.data)),
+            );
+          }
         }
       }
       Object.defineProperty(window, "WebSocket", { value: TrackedWebSocket });
-      Object.assign(window, { __documentSockets: sockets });
+      Object.assign(window, {
+        __documentSockets: sockets,
+        __documentMessages: received,
+      });
     });
     await openHostProject(page);
     const socketCount = () =>
@@ -141,7 +145,32 @@ test.describe("browser compatibility matrix", () => {
       )
       .toBeGreaterThan(1);
     await expect.poll(socketCount).toBe(1);
-    await expect(page.getByRole("button", { name: "Play" })).toBeEnabled();
+    const note = `After reconnect ${crypto.randomUUID()}`;
+    const sender = await browser.newPage();
+    try {
+      await openHostProject(sender);
+      await postHostComment(sender, note);
+      await expect
+        .poll(() =>
+          page.evaluate(
+            (body) =>
+              (
+                window as unknown as Window & { __documentMessages: string[] }
+              ).__documentMessages.some((message) => message.includes(body)),
+            note,
+          ),
+        )
+        .toBe(true);
+      await page
+        .getByLabel("Editor panels")
+        .getByRole("button", { name: "Comments" })
+        .click();
+      await expect(
+        page.locator(".comment-card-body").getByText(note, { exact: true }),
+      ).toBeVisible();
+    } finally {
+      await sender.close();
+    }
   });
 
   test("rasterizes waveform tiles on every engine", async ({ page }) => {

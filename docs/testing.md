@@ -469,9 +469,10 @@ settles.
 After the full fast Playwright suite in bundled Chromium, `frontend-e2e` runs
 the focused `gui/web/e2e-compat/` matrix (`playwright.compat.config.ts`) in
 bundled Chromium and Playwright WebKit. It covers fixture Raw audition playback
-time advancing and pausing (the disposable fixture has no premix), a host
+time advancing and staying fixed after Pause (the disposable fixture has no premix), a host
 comment queued in IndexedDB across reload and replayed with the original
-command identity, and document WebSocket reconnection after a drop. It also
+command identity until the queue drains, and an update from a second page
+appearing through the reconnected document WebSocket. It also
 covers the phone listening shell under an `iPhone 13` touch profile (coarse
 pointer, viewport-derived x/y bounds), and the recording guest's
 microphone-consent-to-level path.
