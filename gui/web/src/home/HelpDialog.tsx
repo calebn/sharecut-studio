@@ -23,6 +23,7 @@ export function HelpDialog({ open, onClose }: Props) {
   const [submitted, setSubmitted] = useState<string | null>(null);
   const submitting = useRef(false);
   const activeReportUrl = useRef<string | null>(null);
+  const requestGeneration = useRef(0);
   const [reportStatus, setReportStatus] = useState<string | null>(null);
   const [reportAvailable, setReportAvailable] = useState(false);
   const [issueUrl, setIssueUrl] = useState<string | null>(null);
@@ -30,6 +31,7 @@ export function HelpDialog({ open, onClose }: Props) {
 
   useEffect(() => {
     if (!open) {
+      requestGeneration.current += 1;
       setBusy(false);
       setError(null);
       setBundle(null);
@@ -82,6 +84,8 @@ export function HelpDialog({ open, onClose }: Props) {
   }, [open, submitted, issueUrl, reportStatus]);
 
   const onCreate = useCallback(async () => {
+    requestGeneration.current += 1;
+    const generation = requestGeneration.current;
     submitting.current = false;
     activeReportUrl.current = null;
     setSubmitted(null);
@@ -92,18 +96,18 @@ export function HelpDialog({ open, onClose }: Props) {
     setError(null);
     try {
       const result = await createDiagnosticsBundle();
-      if (!open) {
+      if (!open || generation !== requestGeneration.current) {
         return;
       }
       setBundle(result);
       setSupportUrl(result.support_url);
     } catch (err) {
-      if (!open) {
+      if (!open || generation !== requestGeneration.current) {
         return;
       }
       setError(errorMessage(err));
     } finally {
-      if (open) {
+      if (open && generation === requestGeneration.current) {
         setBusy(false);
       }
     }
@@ -111,6 +115,7 @@ export function HelpDialog({ open, onClose }: Props) {
 
   const onSubmit = useCallback(async () => {
     if (!bundle || !consent || submitted || submitting.current) return;
+    const generation = requestGeneration.current;
     submitting.current = true;
     setBusy(true);
     setError(null);
@@ -122,16 +127,20 @@ export function HelpDialog({ open, onClose }: Props) {
         description,
         consent,
       });
+      if (!open || generation !== requestGeneration.current) return;
       activeReportUrl.current = result.status_url;
       setSubmitted(result.status_url);
       setReportStatus("queued");
     } catch (err) {
-      setError(errorMessage(err));
+      if (open && generation === requestGeneration.current)
+        setError(errorMessage(err));
     } finally {
-      submitting.current = false;
-      setBusy(false);
+      if (open && generation === requestGeneration.current) {
+        submitting.current = false;
+        setBusy(false);
+      }
     }
-  }, [bundle, consent, description, submitted]);
+  }, [bundle, consent, description, open, submitted]);
 
   const issueHref = bundle?.support_url ?? supportUrl;
   const fallbackHref =
@@ -211,7 +220,9 @@ export function HelpDialog({ open, onClose }: Props) {
                   ? "Report publication failed. Download the ZIP and contact support. "
                   : reportStatus === "publish_uncertain"
                     ? "Publication needs operator review; check status later. "
-                    : "Report queued for publication. "}
+                    : reportStatus === "published"
+                      ? "Report published. "
+                      : "Report queued for publication. "}
                 <a href={submitted} target="_blank" rel="noreferrer">
                   Check publication status
                 </a>

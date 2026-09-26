@@ -35,9 +35,11 @@ _TITLE_LIMIT = 180
 
 
 class PublishError(RuntimeError):
-    def __init__(self, status: int) -> None:
+    def __init__(self, status: int, *, retryable: bool = False, retry_after: float = 0) -> None:
         super().__init__(f"GitHub issue creation failed ({status})")
         self.status = status
+        self.retryable = retryable
+        self.retry_after = retry_after
 
 
 @contextmanager
@@ -89,18 +91,22 @@ def _db(root: Path) -> Iterator[sqlite3.Connection]:
     db = sqlite3.connect(root / "reports.sqlite3", timeout=10, isolation_level=None)
     db.execute("PRAGMA busy_timeout=10000")
     try:
-        with immediate_transaction(db):
-            db.execute(
-                "CREATE TABLE IF NOT EXISTS reports (id TEXT PRIMARY KEY, created REAL NOT NULL, "
-                "day TEXT NOT NULL, ip TEXT NOT NULL, description TEXT NOT NULL, "
-                "state TEXT NOT NULL, issue_url TEXT, attempts INTEGER NOT NULL DEFAULT 0, "
-                "claimed REAL NOT NULL DEFAULT 0, next_attempt REAL NOT NULL DEFAULT 0)"
-            )
-            columns = {row[1] for row in db.execute("PRAGMA table_info(reports)")}
-            if "claim_token" not in columns:
-                db.execute("ALTER TABLE reports ADD COLUMN claim_token TEXT")
-            if "post_started" not in columns:
-                db.execute("ALTER TABLE reports ADD COLUMN post_started INTEGER NOT NULL DEFAULT 0")
+        columns = {row[1] for row in db.execute("PRAGMA table_info(reports)")}
+        if not {"claim_token", "post_started"}.issubset(columns):
+            with immediate_transaction(db):
+                db.execute(
+                    "CREATE TABLE IF NOT EXISTS reports (id TEXT PRIMARY KEY, created REAL NOT NULL, "
+                    "day TEXT NOT NULL, ip TEXT NOT NULL, description TEXT NOT NULL, "
+                    "state TEXT NOT NULL, issue_url TEXT, attempts INTEGER NOT NULL DEFAULT 0, "
+                    "claimed REAL NOT NULL DEFAULT 0, next_attempt REAL NOT NULL DEFAULT 0)"
+                )
+                columns = {row[1] for row in db.execute("PRAGMA table_info(reports)")}
+                if "claim_token" not in columns:
+                    db.execute("ALTER TABLE reports ADD COLUMN claim_token TEXT")
+                if "post_started" not in columns:
+                    db.execute(
+                        "ALTER TABLE reports ADD COLUMN post_started INTEGER NOT NULL DEFAULT 0"
+                    )
         yield db
     finally:
         db.close()
@@ -181,7 +187,18 @@ def _publish(
         response = conn.getresponse()
         result = response.read(64 * 1024)
         if response.status != 201:
-            raise PublishError(response.status)
+            retry_header = response.getheader("Retry-After")
+            remaining = response.getheader("X-RateLimit-Remaining")
+            message = result.decode("utf-8", errors="replace").lower()
+            rate_limited = response.status == 429 or (
+                response.status == 403
+                and (retry_header is not None or remaining == "0" or "rate limit" in message)
+            )
+            try:
+                retry_after = max(0.0, float(retry_header)) if retry_header else 0.0
+            except ValueError:
+                retry_after = 0.0
+            raise PublishError(response.status, retryable=rate_limited, retry_after=retry_after)
         url = json.loads(result)["html_url"]
         if not isinstance(url, str) or not url.startswith(
             "https://github.com/calebn/sharecut-studio/issues/"
@@ -224,12 +241,19 @@ def process_queue(root: Path, public: str, token: str) -> None:
         report_id, description, previous_attempts, created, prior_state, post_started = row
         bundle = root / "bundles" / f"{report_id}.zip"
 
-        def update(state: str, *, issue_url: str | None = None, delay: float = 0) -> None:
+        def update(
+            state: str,
+            *,
+            issue_url: str | None = None,
+            delay: float = 0,
+            reset_post_started: bool = False,
+        ) -> None:
             with _db(root) as db, immediate_transaction(db):
                 db.execute(
                     "UPDATE reports SET state=?, issue_url=?, next_attempt=?, claimed=0, "
-                    "claim_token=NULL WHERE id=? AND state='publishing' AND claim_token=?",
-                    (state, issue_url, time.time() + delay, report_id, claim),
+                    "claim_token=NULL, post_started=CASE WHEN ? THEN 0 ELSE post_started END "
+                    "WHERE id=? AND state='publishing' AND claim_token=?",
+                    (state, issue_url, time.time() + delay, reset_post_started, report_id, claim),
                 )
 
         def mark_post_started() -> None:
@@ -261,7 +285,10 @@ def process_queue(root: Path, public: str, token: str) -> None:
                 mark_post_started,
             )
         except PublishError as exc:
-            if 400 <= exc.status < 500 and exc.status not in {408, 409, 429}:
+            if exc.retryable:
+                delay = min(3600, 30 * 2 ** min(previous_attempts + 1, 7))
+                update("queued", delay=max(delay, exc.retry_after), reset_post_started=True)
+            elif 400 <= exc.status < 500 and exc.status not in {408, 409}:
                 update("failed")
             else:
                 update("publish_uncertain", delay=3600)

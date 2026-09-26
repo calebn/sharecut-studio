@@ -10,7 +10,7 @@
 		format filter {
 			wrap console
 			fields {
-				request>uri regexp ^(/r/|/rec/|/mcp/|/api/review/|/api/rec/|/api/mcp/)[^/]+ /$1REDACTED
+				request>uri regexp ^(/r/|/rec/|/mcp/|/api/review/|/api/rec/|/api/mcp/|/api/reports/bundles/|/api/reports/)[^/]+ /$1REDACTED
 			}
 		}
 	}

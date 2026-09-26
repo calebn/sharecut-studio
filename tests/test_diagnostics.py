@@ -555,6 +555,44 @@ def test_produced_hidden_and_unicode_logs_pass_shared_preview(
     assert ".debug.log" in preview.files
 
 
+def test_long_duplicate_and_control_log_names_survive_producer_preview_and_relay(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import base64
+
+    from podcast_mcp.util.diagnostics_bundle_contract import validate_diagnostics_bundle
+    from podcast_relay import reports
+
+    _stub_health(monkeypatch)
+    directories = [tmp_path / "first", tmp_path / "second"]
+    long_name = "x" * 248 + ".log"
+    for directory in directories:
+        directory.mkdir()
+        (directory / long_name).write_text("diagnostic", encoding="utf-8")
+    (directories[0] / "bad\nname.log").write_text("control", encoding="utf-8")
+    monkeypatch.setattr(diagnostics_mod, "state_log_dirs", lambda: directories)
+    monkeypatch.setattr(diagnostics_mod, "sidecar_log_candidates", lambda: [])
+    report = DiagnosticsService().build_bundle(None, out_dir=tmp_path)
+    data = report.path.read_bytes()
+    preview = validate_diagnostics_bundle(data)
+    names = preview.files[2:]
+    assert len(names) == len(set(names)) == 3
+    assert all(len(name) <= 255 and name.isprintable() for name in names)
+    queued = reports._store_report(
+        tmp_path / "relay",
+        "https://relay.example.test",
+        json.dumps(
+            {
+                "description": "An episode fails to open",
+                "bundle": base64.b64encode(data).decode(),
+                "consent": True,
+            }
+        ).encode(),
+        "ip",
+    )
+    assert queued["status"] == "queued"
+
+
 def test_bundle_registry_uses_one_locked_initializer(tmp_path: Path) -> None:
     from fastapi import FastAPI, Request
 

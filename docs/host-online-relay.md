@@ -593,7 +593,7 @@ src/podcast_mcp/
 - **TLS**: Caddy handles HTTPS on the public edge.  The relay never sees plaintext from
   the public internet in production. Access logs redact `/r/{token}`, `/rec/{token}`, `/mcp/{token}`,
   `/api/reports/{id}`, and `/api/reports/bundles/{id}`
-  path segments (see `deploy/relay/Caddyfile*`).
+  path segments in both local and production Caddy configurations (see `deploy/relay/Caddyfile*`).
 - **No filesystem paths in URLs**: tokens map to workspaces internally; guests never
   see absolute paths.
 - **Diagnostics bundle**: host-only (`POST /api/diagnostics/bundle`). Guests cannot
@@ -663,7 +663,9 @@ API, so the public issue links to the ZIP on this relay. Both the description an
 ZIP are publicly accessible. The ZIP and status expire after 30 days.
 
 The JSON POST has a 7 MiB body cap to accommodate the base64 encoding of a 5 MiB
-ZIP; expanded ZIP content is capped at 8 MiB and 34 members. The public intake
+ZIP; expanded ZIP content is capped at 8 MiB and 34 members. The host uses
+flat, printable ZIP names, normalizing long, duplicate, or control-character
+log basenames before writing a bundle. Public intake
 allows three reports per source IP and 100 globally per UTC day. SQLite serializes
 these counters across relay workers and retains a bounded queue of 1,000 reports.
 The publisher retries failures before GitHub issue creation with capped
@@ -672,7 +674,8 @@ and publication, even when GitHub pagination is slow. A persisted claim token
 fences local completion. After a crash or ambiguous network result after POST
 begins, the worker reconciles by a stable report marker; if no issue appears it
 holds the row as `publish_uncertain` for operator review rather than submitting
-another issue. Definitive GitHub client errors become `failed`.
+another issue. Definitive rate-limit rejections (429 or a rate-limited 403)
+clear the post marker and retry with backoff; other definitive client errors become `failed`.
 `GET /api/reports/{id}` shows queued, published, `publish_uncertain`, or failed status;
 `GET /api/reports/bundles/{id}` serves the opaque ZIP link during retention. The
 optional `proof_of_work` request field is accepted but unused by default.

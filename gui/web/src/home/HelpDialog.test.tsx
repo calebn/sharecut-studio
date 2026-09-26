@@ -190,6 +190,10 @@ describe("HelpDialog", () => {
     expect(
       await screen.findByRole("link", { name: "Open published issue" }),
     ).toHaveAttribute("href", "https://github.com/example/issues/1");
+    expect(screen.getByText(/Report published/)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Report queued for publication/),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Submit report" }),
     ).toBeDisabled();
@@ -218,6 +222,72 @@ describe("HelpDialog", () => {
     expect(
       screen.queryByRole("link", { name: "Open published issue" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("ignores a submit completing after close and a new bundle", async () => {
+    const user = userEvent.setup();
+    const result = (name: string): DiagnosticsBundleResult => ({
+      path: `/tmp/${name}`,
+      filename: name,
+      support_url: "https://support.example.test",
+      size_bytes: 12,
+      files: ["report.json", "README.txt"],
+      app_version: "1.0",
+      created_at: "2026-09-26T00:00:00Z",
+    });
+    createMock
+      .mockResolvedValueOnce(result("report-a.zip"))
+      .mockResolvedValueOnce(result("report-b.zip"));
+    let finishA: (value: { status: string; status_url: string }) => void = () =>
+      undefined;
+    submitMock
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishA = resolve;
+          }),
+      )
+      .mockResolvedValueOnce({
+        status: "queued",
+        status_url: "https://relay.test/api/reports/b",
+      });
+    const { rerender } = render(<HelpDialog open onClose={() => undefined} />);
+    await user.click(
+      screen.getByRole("button", { name: "Create diagnostics bundle" }),
+    );
+    await screen.findByText(/report-a.zip/);
+    await user.type(
+      screen.getByLabelText("Describe the problem"),
+      "Episode cannot open",
+    );
+    await user.click(screen.getByRole("checkbox"));
+    await user.click(screen.getByRole("button", { name: "Submit report" }));
+    expect(submitMock).toHaveBeenCalledTimes(1);
+    rerender(<HelpDialog open={false} onClose={() => undefined} />);
+    rerender(<HelpDialog open onClose={() => undefined} />);
+    await user.click(
+      screen.getByRole("button", { name: "Create diagnostics bundle" }),
+    );
+    await screen.findByText(/report-b.zip/);
+    await user.type(
+      screen.getByLabelText("Describe the problem"),
+      "New bundle cannot open",
+    );
+    await user.click(screen.getByRole("checkbox"));
+    await user.click(screen.getByRole("button", { name: "Submit report" }));
+    expect(
+      await screen.findByRole("link", { name: "Check publication status" }),
+    ).toHaveAttribute("href", "https://relay.test/api/reports/b");
+    finishA({
+      status: "queued",
+      status_url: "https://relay.test/api/reports/a",
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("link", { name: "Check publication status" }),
+      ).toHaveAttribute("href", "https://relay.test/api/reports/b"),
+    );
+    expect(submitMock).toHaveBeenCalledTimes(2);
   });
 });
 

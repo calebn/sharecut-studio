@@ -25,7 +25,11 @@ from podcast_mcp.distribution import runtime_distribution_metadata
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.services.bootstrap import component_status
 from podcast_mcp.services.doctor import ffmpeg_probe_info, python_runtime_info, run_doctor_checks
-from podcast_mcp.util.diagnostics_bundle_contract import MAX_BUNDLE_BYTES
+from podcast_mcp.util.diagnostics_bundle_contract import (
+    MAX_BUNDLE_BYTES,
+    diagnostics_log_archive_name,
+    is_safe_diagnostics_log_name,
+)
 from podcast_mcp.util.model_assets import rnnoise_model_path
 from podcast_mcp.util.progress import resolve_progress_task
 from podcast_mcp.util.redact import sanitize
@@ -336,9 +340,7 @@ def _collect_logs(*, include_logs: bool, home: Path, workspace: Path | None) -> 
         if key is None or key in sidecar_seen:
             continue
         sidecar_seen.add(key)
-        name = (
-            "sidecar.log" if "sidecar.log" not in used_names else f"sidecar-{len(used_names)}.log"
-        )
+        name = diagnostics_log_archive_name("sidecar.log", used_names)
         used_names.add(name)
         collected[name] = sanitize(
             _read_log_tail(path),
@@ -372,9 +374,10 @@ def _collect_logs(*, include_logs: bool, home: Path, workspace: Path | None) -> 
             if resolved in sidecar_seen:
                 continue
             sidecar_seen.add(resolved)
-            name = path.name
-            if name in used_names:
-                name = f"{directory.name}-{path.name}"
+            preferred_name = (
+                f"{directory.name}-{path.name}" if path.name in used_names else path.name
+            )
+            name = diagnostics_log_archive_name(preferred_name, used_names)
             used_names.add(name)
             collected[name] = sanitize(
                 _read_log_tail(path),
@@ -499,7 +502,7 @@ class DiagnosticsService:
                     zf.writestr("report.json", report_text)
                     zf.writestr("README.txt", README)
                     for name, body in logs.items():
-                        if "/" in name or "\\" in name or name.startswith(".."):
+                        if not is_safe_diagnostics_log_name(name):
                             continue
                         zf.writestr(name, body)
                 size = tmp_path.stat().st_size

@@ -28,14 +28,15 @@ def test_caddyfile_prod_has_no_static_site_or_owner_hosts() -> None:
     assert "sudo" not in prod.lower()
 
 
-def test_production_access_log_redacts_report_ids() -> None:
-    prod = (ROOT / "deploy/relay/Caddyfile.prod").read_text(encoding="utf-8")
-    rule = next(line.strip() for line in prod.splitlines() if "request>uri regexp" in line)
-    pattern = rule.split("request>uri regexp ", 1)[1].split(" /$1REDACTED", 1)[0]
-    for path in ("/api/reports/opaque123", "/api/reports/bundles/opaque123"):
-        redacted = re.sub(pattern, r"/\1REDACTED", path)
-        assert "opaque123" not in redacted
-        assert redacted.endswith("REDACTED")
+def test_access_logs_redact_report_ids_in_both_caddy_configs() -> None:
+    for filename in ("Caddyfile.prod", "Caddyfile.local"):
+        config = (ROOT / "deploy/relay" / filename).read_text(encoding="utf-8")
+        rule = next(line.strip() for line in config.splitlines() if "request>uri regexp" in line)
+        pattern = rule.split("request>uri regexp ", 1)[1].split(" /$1REDACTED", 1)[0]
+        for path in ("/api/reports/opaque123", "/api/reports/bundles/opaque123"):
+            redacted = re.sub(pattern, r"/\1REDACTED", path)
+            assert "opaque123" not in redacted
+            assert redacted.endswith("REDACTED")
 
 
 def test_local_compose_is_a_relay_only_development_stack() -> None:
