@@ -7,7 +7,7 @@ import { minimalProject } from "../test/fixtures";
 import { StatusBar } from "./StatusBar";
 
 describe("StatusBar chips", () => {
-  it("only switch tabs and leave the layout alone", async () => {
+  it("reveal their tab: leave the timeline layout, keep other layouts", async () => {
     const user = userEvent.setup();
     const project = minimalProject();
     useDawStore.getState().hydrate("/tmp/p.json", project, null);
@@ -18,10 +18,15 @@ describe("StatusBar chips", () => {
       </DawProvider>,
     );
     await user.click(screen.getByRole("button", { name: /^Pending:/ }));
-    expect(useDawStore.getState().layoutMode).toBe("timeline");
+    expect(useDawStore.getState().layoutMode).toBe("default");
     expect(useDawStore.getState().activeTab).toBe("impact");
+    act(() => useDawStore.setState({ layoutMode: "review" }));
+    await user.click(screen.getByRole("button", { name: /^Pending:/ }));
+    expect(useDawStore.getState().layoutMode).toBe("review");
+    expect(useDawStore.getState().activeTab).toBe("impact");
+    act(() => useDawStore.setState({ layoutMode: "timeline" }));
     await user.click(screen.getByRole("button", { name: "Open comments" }));
-    expect(useDawStore.getState().layoutMode).toBe("timeline");
+    expect(useDawStore.getState().layoutMode).toBe("default");
     expect(useDawStore.getState().activeTab).toBe("comments");
     useDawStore.setState({ layoutMode: "default" });
   });

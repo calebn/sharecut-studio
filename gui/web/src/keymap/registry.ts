@@ -131,7 +131,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: false,
     requireMod: true,
     requireShift: false,
-    when: "always",
+    when: "layoutShell",
     notes: `Mod+1; ${BROWSER_TAB_CHORD_NOTE}, so use the transport Restore chip there (desktop app unaffected)`,
   },
   {
@@ -142,7 +142,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: false,
     requireMod: true,
     requireShift: false,
-    when: "always",
+    when: "layoutShell",
     notes: `Mod+2; ${BROWSER_TAB_CHORD_NOTE}, so use the transport layout control there (desktop app unaffected)`,
   },
   {
@@ -153,7 +153,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: false,
     requireMod: true,
     requireShift: false,
-    when: "always",
+    when: "layoutShell",
     notes: `Mod+3; ${BROWSER_TAB_CHORD_NOTE}, so use View › Layout there (desktop app unaffected)`,
   },
   {
@@ -164,7 +164,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: false,
     requireMod: true,
     requireShift: false,
-    when: "always",
+    when: "layoutShell",
     notes: `Mod+4; ${BROWSER_TAB_CHORD_NOTE}, so use View › Layout there (desktop app unaffected)`,
   },
   {

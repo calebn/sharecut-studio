@@ -93,7 +93,8 @@ export function buildCommandContext(): CommandContext {
     hasInspectorSelection: selection != null,
     following: s.followingClientId != null,
     recordPanelOpen: s.recordPanelOpen,
-    tightenPanelOpen: s.activeTab === "tighten",
+    // The timeline layout hides the bottom tabs, so the Tighten panel too.
+    tightenPanelOpen: s.activeTab === "tighten" && s.layoutMode !== "timeline",
   };
 }
 
@@ -118,6 +119,10 @@ export function evaluateWhen(
   switch (when) {
     case "always":
       return { ok: true };
+    case "layoutShell":
+      return ctx.shellBreakpoint !== "phone"
+        ? { ok: true }
+        : { ok: false, reason: "Layouts need the desktop or tablet shell" };
     case "layoutFocused":
       return ctx.layoutFocused
         ? { ok: true }
