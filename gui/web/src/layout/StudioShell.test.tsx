@@ -124,6 +124,17 @@ describe("StudioShell tablet peek", () => {
     expect(document.documentElement.dataset.focus).toBeUndefined();
   });
 
+  it("places the transport wrapper in the shell grid", () => {
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <StudioShell />
+      </DawProvider>,
+    );
+    expect(
+      container.querySelector(".daw-shell > .daw-shell-transport"),
+    ).toBeTruthy();
+  });
+
   it("paints DAW chrome while project is null without the ingest empty-session", () => {
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={null}>

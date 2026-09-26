@@ -2,36 +2,9 @@ import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { partial, rule } from "../test/cssRules";
 
 const here = dirname(fileURLToPath(import.meta.url));
-
-function partial(name: string): string {
-  return readFileSync(join(here, "../styles/partials", name), "utf8");
-}
-
-/** A selector list, trimmed, whitespace-collapsed and sorted, for comparison. */
-function selectorList(list: string): string {
-  return list
-    .split(",")
-    .map((s) => s.trim().replace(/\s+/g, " "))
-    .sort()
-    .join(",");
-}
-
-/**
- * The body of the first top-level rule whose selector list equals `selector`,
- * ignoring selector order, spacing and comments.
- */
-function rule(css: string, selector: string): string {
-  const want = selectorList(selector);
-  const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
-  for (const match of bare.matchAll(/(?:^|\n)([^\s{}@][^{}]*?)\{([^}]*)\}/g)) {
-    if (match[2] && selectorList(match[1] ?? "") === want) {
-      return match[2];
-    }
-  }
-  throw new Error(`No ${selector} rule`);
-}
 
 describe("timeline styles", () => {
   it("keeps the playhead in timeline.css, unlit until playing", () => {

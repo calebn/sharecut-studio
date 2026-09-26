@@ -32,25 +32,23 @@
   scrollbar-gutter: auto;
 }
 
-/* Desktop focus modes */
+/* Desktop/tablet focus layouts: only the main/tabs track sizes change. */
 .daw-shell--focus-timeline {
-  grid-template-rows: var(--transport-height) 1fr 0 var(--status-height);
+  --shell-tabs-row: 0;
 }
 
-.daw-shell--focus-timeline .bottom-tabs {
+.daw-shell--focus-timeline > .bottom-tabs {
   display: none;
 }
 
 .daw-shell--focus-text {
-  grid-template-rows: var(--transport-height) minmax(7.5rem, 28vh) 1fr var(
-      --status-height
-    );
+  --shell-main-row: minmax(7.5rem, 28vh);
+  --shell-tabs-row: minmax(0, 1fr);
 }
 
 .daw-shell--focus-review {
-  grid-template-rows: var(--transport-height) minmax(7.5rem, 32vh) 1fr var(
-      --status-height
-    );
+  --shell-main-row: minmax(7.5rem, 32vh);
+  --shell-tabs-row: minmax(0, 1fr);
 }
 
 .daw-shell--focus-text .daw-main .inspector,
@@ -77,8 +75,7 @@
   font-size: var(--font-size-small);
 }
 
-.transport-more-btn,
-.focus-mode-btn {
+.transport-more-btn {
   background: var(--color-bg-sunken);
   border: 1px solid var(--border);
   color: var(--text);
@@ -196,51 +193,26 @@ html[data-shell="tablet"] {
   grid-template-columns: 1fr;
 }
 
-/* Phone shell */
+/* Phone shell: same named areas; the nav row replaces tabs + status. */
 .daw-shell--phone {
-  grid-template-rows: var(--transport-height) minmax(0, 1fr) var(
-      --mobile-nav-height
-    );
+  grid-template-areas:
+    "banners"
+    "follow"
+    "transport"
+    "main"
+    "nav";
+  grid-template-rows:
+    auto auto var(--transport-height) minmax(0, 1fr)
+    var(--mobile-nav-height);
   height: 100vh;
   height: 100dvh;
   max-height: 100dvh;
   overflow: hidden;
 }
 
-.daw-shell--phone.daw-shell-guest,
-.daw-shell--phone.daw-shell--attention {
-  grid-template-rows: auto var(--transport-height) minmax(0, 1fr) var(
-      --mobile-nav-height
-    );
-}
-
-.daw-shell--phone.daw-shell--following {
-  grid-template-rows: auto var(--transport-height) minmax(0, 1fr) var(
-      --mobile-nav-height
-    );
-}
-
-.daw-shell--phone.daw-shell-guest.daw-shell--following,
-.daw-shell--phone.daw-shell--attention.daw-shell--following {
-  grid-template-rows: auto auto var(--transport-height) minmax(0, 1fr) var(
-      --mobile-nav-height
-    );
-}
-
-/* Listen owns its transport, so the shell has no header row to reserve. */
+/* Listen owns its transport, so the transport row collapses. */
 .daw-shell--phone.daw-shell--listen {
-  grid-template-rows: minmax(0, 1fr) var(--mobile-nav-height);
-}
-
-.daw-shell--phone.daw-shell--listen.daw-shell-guest,
-.daw-shell--phone.daw-shell--listen.daw-shell--following,
-.daw-shell--phone.daw-shell--listen.daw-shell--attention {
-  grid-template-rows: auto minmax(0, 1fr) var(--mobile-nav-height);
-}
-
-.daw-shell--phone.daw-shell--listen.daw-shell-guest.daw-shell--following,
-.daw-shell--phone.daw-shell--listen.daw-shell--attention.daw-shell--following {
-  grid-template-rows: auto auto minmax(0, 1fr) var(--mobile-nav-height);
+  grid-template-rows: auto auto 0 minmax(0, 1fr) var(--mobile-nav-height);
 }
 
 .daw-shell--phone .transport-secondary {
