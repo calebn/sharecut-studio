@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -1390,6 +1391,39 @@ def test_clipping_refused_after_land(minimal_project, sample_wav):
     with pytest.raises(RecordUploadError, match="clipping refused after land"):
         _ingest_final(svc, clipping="5-6")
     assert svc.status(session_id="room1")["segments"][0]["clipping_regions"] == [[1, 2]]
+
+
+def test_final_part_replay_after_land_is_idempotent(minimal_project, sample_wav):
+    ws = _seed_premix(minimal_project, sample_wav)
+    svc = RecordUploadService(ws.project)
+    pcm, digest, wav_hash = _pcm_part(32)
+    part: dict[str, Any] = {
+        "session_id": "room1",
+        "take_index": 0,
+        "participant_id": "p_aa",
+        "segment_index": 0,
+        "part_seq": 0,
+        "data": pcm,
+        "digest": digest,
+        "file_sha256": wav_hash,
+        "final": True,
+        "expected_parts": 1,
+        "join_offset_ms": 250,
+        "clipping": "1-2",
+    }
+    svc.ingest_part(**part)
+    svc.mark_landed(session_id="room1", take_index=0, participant_id="p_aa", segment_index=0)
+    replay = svc.ingest_part(**part)
+    assert replay["file_ack"] is True
+    assert replay["landed"] is True
+    assert replay["newly_acked"] is False
+    row = svc.status(session_id="room1")["segments"][0]
+    assert row["join_offset_ms"] == 250
+    assert row["clipping_regions"] == [[1, 2]]
+    with pytest.raises(RecordUploadError, match="join_offset refused after land"):
+        svc.ingest_part(**{**part, "join_offset_ms": 500})
+    with pytest.raises(RecordUploadError, match="clipping refused after land"):
+        svc.ingest_part(**{**part, "clipping": "5-6"})
 
 
 def test_old_upload_db_gains_the_clipping_column(tmp_path: Path):

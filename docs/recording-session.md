@@ -638,7 +638,9 @@ so it has no meter. Producers have no meter and no clip LED.
   records segment-relative clip regions, merges hits less than 1 s apart,
   caps them at 100 per segment, and writes them into the OPFS keeper metadata
   (`clippingRegions`). The final upload part also sends them as
-  `clipping=a-b,c-d` (ms, ascending, non-overlapping). The server stores them
+  `clipping=a-b,c-d` (ms, ascending, non-overlapping). After a segment lands, a
+  replayed final part with the same `join_offset_ms` and `clipping` is a no-op
+  (a lost response is retried); a different value is refused. The server stores them
   on `record_upload_files.clipping_regions`; landing writes
   `SourceRecording.clipping_regions` in source seconds. `list_clips` adds
   `ClipRow.clipping_regions`: the source regions intersected with each clip

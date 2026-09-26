@@ -164,6 +164,39 @@ def _load_clipping(raw: Any) -> list[list[int]] | None:
     return [[int(a), int(b)] for a, b in parsed]
 
 
+# Per-file metadata columns set from upload parts: (select, upsert) SQL.
+_FILE_COLUMN_SQL: dict[str, tuple[str, str]] = {
+    "join_offset_ms": (
+        """
+        SELECT landed_ns, join_offset_ms AS current FROM record_upload_files
+        WHERE session_id = ? AND take_index = ? AND participant_id = ?
+          AND segment_index = ?
+        """,
+        """
+        INSERT INTO record_upload_files (
+          session_id, take_index, participant_id, segment_index, join_offset_ms
+        ) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(session_id, take_index, participant_id, segment_index)
+        DO UPDATE SET join_offset_ms = excluded.join_offset_ms
+        """,
+    ),
+    "clipping_regions": (
+        """
+        SELECT landed_ns, clipping_regions AS current FROM record_upload_files
+        WHERE session_id = ? AND take_index = ? AND participant_id = ?
+          AND segment_index = ?
+        """,
+        """
+        INSERT INTO record_upload_files (
+          session_id, take_index, participant_id, segment_index, clipping_regions
+        ) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(session_id, take_index, participant_id, segment_index)
+        DO UPDATE SET clipping_regions = excluded.clipping_regions
+        """,
+    ),
+}
+
+
 def parse_participant_id(value: str) -> str:
     pid = str(value or "").strip()
     if pid != "p_host" and not _SAFE_ID.fullmatch(pid):
@@ -359,6 +392,30 @@ class RecordUploadStore:
             for row in rows
         ]
 
+    def _set_file_column(
+        self,
+        column: str,
+        value: int | str,
+        *,
+        label: str,
+        session_id: str,
+        take_index: int,
+        participant_id: str,
+        segment_index: int,
+    ) -> None:
+        """Upsert one per-file column. After land only an identical replay passes."""
+        select_sql, upsert_sql = _FILE_COLUMN_SQL[column]
+        key = (session_id, take_index, participant_id, segment_index)
+        with self._lock:
+            row = self._conn.execute(select_sql, key).fetchone()
+            if row is not None and row["landed_ns"] is not None:
+                # A lost response makes the client re-send the final part:
+                # the same value is a no-op, a different one is refused.
+                if row["current"] == value:
+                    return
+                raise RecordUploadError(f"{label} refused after land")
+            self._conn.execute(upsert_sql, (*key, value))
+
     def set_join_offset(
         self,
         *,
@@ -368,27 +425,15 @@ class RecordUploadStore:
         segment_index: int,
         join_offset_ms: int,
     ) -> None:
-        with self._lock:
-            row = self._conn.execute(
-                """
-                SELECT landed_ns FROM record_upload_files
-                WHERE session_id = ? AND take_index = ? AND participant_id = ?
-                  AND segment_index = ?
-                """,
-                (session_id, take_index, participant_id, segment_index),
-            ).fetchone()
-            if row is not None and row["landed_ns"] is not None:
-                raise RecordUploadError("join_offset refused after land")
-            self._conn.execute(
-                """
-                INSERT INTO record_upload_files (
-                  session_id, take_index, participant_id, segment_index, join_offset_ms
-                ) VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(session_id, take_index, participant_id, segment_index)
-                DO UPDATE SET join_offset_ms = excluded.join_offset_ms
-                """,
-                (session_id, take_index, participant_id, segment_index, join_offset_ms),
-            )
+        self._set_file_column(
+            "join_offset_ms",
+            join_offset_ms,
+            label="join_offset",
+            session_id=session_id,
+            take_index=take_index,
+            participant_id=participant_id,
+            segment_index=segment_index,
+        )
 
     def set_clipping_regions(
         self,
@@ -399,27 +444,15 @@ class RecordUploadStore:
         segment_index: int,
         regions: list[list[int]],
     ) -> None:
-        with self._lock:
-            row = self._conn.execute(
-                """
-                SELECT landed_ns FROM record_upload_files
-                WHERE session_id = ? AND take_index = ? AND participant_id = ?
-                  AND segment_index = ?
-                """,
-                (session_id, take_index, participant_id, segment_index),
-            ).fetchone()
-            if row is not None and row["landed_ns"] is not None:
-                raise RecordUploadError("clipping refused after land")
-            self._conn.execute(
-                """
-                INSERT INTO record_upload_files (
-                  session_id, take_index, participant_id, segment_index, clipping_regions
-                ) VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(session_id, take_index, participant_id, segment_index)
-                DO UPDATE SET clipping_regions = excluded.clipping_regions
-                """,
-                (session_id, take_index, participant_id, segment_index, json.dumps(regions)),
-            )
+        self._set_file_column(
+            "clipping_regions",
+            json.dumps(regions),
+            label="clipping",
+            session_id=session_id,
+            take_index=take_index,
+            participant_id=participant_id,
+            segment_index=segment_index,
+        )
 
     def set_expected_parts(
         self,
