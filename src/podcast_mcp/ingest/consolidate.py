@@ -44,6 +44,7 @@ class ConsolidateResult:
     cross_speaker_align_method: dict[str, str] = field(default_factory=dict)
     transcript_overlap_sec: dict[str, float] = field(default_factory=dict)
     ignored_sources: list[str] = field(default_factory=list)
+    session_trimmed: bool = False
 
 
 def _slug(name: str) -> str:
@@ -62,7 +63,9 @@ def _resolve_cross_speaker_offsets(
     align_mode: AlignMode,
     transcript_path: Path | None,
 ) -> tuple[dict[str, float], dict[str, str], dict[str, float], dict[str, float]]:
-    names = [name for name, paths in groups if paths]
+    ref_name = manifest.reference_speaker_name()
+    ordered = sorted((g for g in groups if g[1]), key=lambda g: g[0] != ref_name)
+    names = [name for name, _paths in ordered]
     offsets: dict[str, float] = {names[0]: 0.0} if names else {}
     methods: dict[str, str] = {names[0]: "reference"} if names else {}
     overlaps: dict[str, float] = {}
@@ -86,7 +89,7 @@ def _resolve_cross_speaker_offsets(
 
     audio_results: dict[str, AlignmentResult] = {}
     if align_mode in ("auto", "audio") and len(names) > 1:
-        cross_groups = [(name, [paths[0]]) for name, paths in groups if paths]
+        cross_groups = [(name, [paths[0]]) for name, paths in ordered]
         audio_results = cross_speaker_offsets(
             cross_groups,
             analysis_start_sec=session_analysis_start,
@@ -255,6 +258,7 @@ def consolidate_speakers(
         cross_speaker_align_method=align_methods,
         transcript_overlap_sec=overlap_sec,
         ignored_sources=ignored,
+        session_trimmed=extract_start_sec is not None and extract_duration_sec is not None,
     )
 
 

@@ -274,6 +274,7 @@ class IngestService:
     def apply_consolidated_tracks(self, result: ConsolidateResult) -> list[str]:
         def mutate(p) -> None:
             from podcast_mcp.edits.clips_ops import new_clip_id, set_track_clips
+            from podcast_mcp.edits.conversation_align import offset_to_clip_geometry
             from podcast_mcp.edits.track_media import (
                 media_asset_from_path,
                 refresh_timeline_duration,
@@ -334,23 +335,34 @@ class IngestService:
                 clips = []
                 timeline_at = 0.0
                 multi = len(speaker_sources) > 1
-                for src in speaker_sources:
+                for idx, src in enumerate(speaker_sources):
                     src_path = ws_path / src.path
                     dur = float(src.duration_sec or 0.0)
                     if dur <= 0 and src_path.is_file():
                         from podcast_mcp.engines.ffmpeg import FFmpegEngine
 
                         dur = float(FFmpegEngine().probe(src_path).duration_sec)
+                    src_start = 0.0
+                    tl_start = timeline_at if multi else 0.0
+                    if idx == 0 and not result.session_trimmed and dur > 0:
+                        # Session t=0 lands at timeline 0 (non-destructive clip trim).
+                        placement = result.cross_speaker_offsets.get(
+                            name, 0.0
+                        ) - result.session_start_in_file_sec.get(name, 0.0)
+                        src_start, _end, tl_start = offset_to_clip_geometry(
+                            placement, media_duration=dur
+                        )
+                        timeline_at = tl_start
                     clip = Clip(
                         id=new_clip_id(),
                         track_id=tid,
-                        source_start=0.0,
+                        source_start=src_start,
                         source_end=dur,
-                        timeline_start=timeline_at if multi else 0.0,
+                        timeline_start=tl_start,
                         source_id=src.id,
                     )
                     clips.append(clip)
-                    timeline_at += dur
+                    timeline_at += dur - src_start
                     meta_key = f"{tid}:{clip.id}" if multi else name
                     align_meta[meta_key] = SpeakerIngestAlignment(
                         session_start_in_file_sec=result.session_start_in_file_sec.get(name, 0.0),

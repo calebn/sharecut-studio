@@ -326,7 +326,8 @@ def cross_speaker_offsets(
     session_starts_in_file: dict[str, float] | None = None,
 ) -> dict[str, AlignmentResult]:
     """
-    Align each speaker's first source file to the first speaker's reference.
+    Align each speaker's first source file to the first listed speaker's reference
+    (callers order the list so the session reference speaker comes first).
 
     Returns per-speaker AlignmentResult; subtract offset_sec from extract when trimming.
     """
@@ -350,14 +351,23 @@ def cross_speaker_offsets(
         if not paths:
             continue
         src_file_start = starts.get(name, 0.0) + analysis_start_sec
-        result = estimate_offset_sec(
-            reference,
-            paths[0],
-            reference_start_sec=ref_file_start,
-            source_start_sec=src_file_start,
-            analysis_duration_sec=analysis_duration_sec,
-            max_lag_sec=max_lag_sec,
-        )
+        try:
+            result = estimate_offset_sec(
+                reference,
+                paths[0],
+                reference_start_sec=ref_file_start,
+                source_start_sec=src_file_start,
+                analysis_duration_sec=analysis_duration_sec,
+                max_lag_sec=max_lag_sec,
+            )
+        except ValueError:
+            # Analysis window past EOF (short recording): no usable correlation.
+            result = AlignmentResult(
+                reference=reference,
+                source=paths[0],
+                offset_sec=0.0,
+                correlation_peak=0.0,
+            )
         if result.correlation_peak < min_correlation_peak:
             out[name] = AlignmentResult(
                 reference=reference,
