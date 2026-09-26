@@ -30,11 +30,11 @@ const edit: PendingEditView = {
   applied: false,
 };
 
-function setup(zoomPxPerSec: number) {
+function setup(zoomPxPerSec: number, edits: PendingEditView[] = [edit]) {
   const onSelect = vi.fn();
   const view = render(
     <PendingEditOverlay
-      edits={[edit]}
+      edits={edits}
       trackId="host"
       zoomPxPerSec={zoomPxPerSec}
       selectedId={null}
@@ -49,6 +49,32 @@ describe("PendingEditOverlay handles", () => {
     vi.mocked(updatePendingEdit).mockClear();
     HTMLElement.prototype.setPointerCapture = vi.fn();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+  });
+
+  it("writes nothing when the 50 ms minimum clamps a drag back to the same bounds", () => {
+    const tiny = {
+      ...edit,
+      source_end: 0.05,
+      timeline_end: 0.05,
+      timeline_spans: [{ start: 0, end: 0.05 }],
+    };
+    const { container } = setup(10, [tiny]);
+    const start = container.querySelector(
+      ".pending-handle.start",
+    ) as HTMLElement;
+    fireEvent.pointerDown(start, { clientX: 100, pointerId: 1 });
+    fireEvent.pointerMove(start, { clientX: 130, pointerId: 1 });
+    fireEvent.pointerUp(start, { clientX: 130, pointerId: 1 });
+    expect(updatePendingEdit).not.toHaveBeenCalled();
+  });
+
+  it("discards a drag that comes back to within 3 px of its start", () => {
+    const { container } = setup(10);
+    const end = container.querySelector(".pending-handle.end") as HTMLElement;
+    fireEvent.pointerDown(end, { clientX: 100, pointerId: 1 });
+    fireEvent.pointerMove(end, { clientX: 140, pointerId: 1 });
+    fireEvent.pointerUp(end, { clientX: 101, pointerId: 1 });
+    expect(updatePendingEdit).not.toHaveBeenCalled();
   });
 
   it("selects on a pointer-up under 3 px and never updates", () => {

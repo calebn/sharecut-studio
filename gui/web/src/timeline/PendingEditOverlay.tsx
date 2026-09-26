@@ -66,13 +66,6 @@ export function PendingEditOverlay({
   dragRef.current = drag;
 
   const commitDrag = async (state: DragState, clientX: number) => {
-    if (!isHandleDrag(state.originX, clientX)) {
-      // A click (the sliver at session zoom is all handle): pointerdown
-      // already selected the edit; never move or re-snap it.
-      setDrag(null);
-      setPreview(null);
-      return;
-    }
     const dx = (clientX - state.originX) / zoomPxPerSec;
     let tlStart = state.baseStart;
     let tlEnd = state.baseEnd;
@@ -80,6 +73,17 @@ export function PendingEditOverlay({
       tlStart = Math.min(state.baseEnd - 0.05, state.baseStart + dx);
     } else {
       tlEnd = Math.max(state.baseStart + 0.05, state.baseEnd + dx);
+    }
+    if (
+      !isHandleDrag(state.originX, clientX) ||
+      (tlStart === state.baseStart && tlEnd === state.baseEnd)
+    ) {
+      // A click (the sliver at session zoom is all handle), a drag back to
+      // where it started, or one the 50 ms minimum clamps back to the same
+      // bounds: pointerdown already selected the edit; never move or re-snap it.
+      setDrag(null);
+      setPreview(null);
+      return;
     }
     const src = sourceFromTimelineDelta(
       state.sourceStart,

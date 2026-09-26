@@ -259,13 +259,14 @@
   left: auto;
 }
 
+/* White on at least 70% black (light theme --color-overlay-black-90): >= 8.5:1 over a pure-white lane, WCAG 1.4.3. */
 .fade-readout {
   position: absolute;
   top: 0;
   z-index: 5;
   padding: 0 var(--space-1);
   border-radius: var(--radius-xs);
-  background: var(--color-overlay-black-75);
+  background: var(--color-overlay-black-90);
   color: var(--color-clip-label);
   font-size: var(--font-size-micro);
   font-variant-numeric: tabular-nums;
