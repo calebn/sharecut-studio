@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { updateChapter, updateSocialClip } from "../api";
-import { HANDLE_DRAG_MIN_PX } from "../edit/dragThreshold";
+import { isHandleDrag } from "../edit/dragThreshold";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { isShareProjectKey } from "../shareMode";
 import { useDaw } from "../state/useDaw";
@@ -239,14 +239,13 @@ export function MarkerLane({
                     ) {
                       return;
                     }
-                    const dx =
-                      (e.clientX - socialDrag.current.startX) / zoomPxPerSec;
-                    const { mode, originStart, originEnd, id } =
+                    const { mode, originStart, originEnd, id, startX } =
                       socialDrag.current;
                     socialDrag.current = null;
-                    if (Math.abs(dx) * zoomPxPerSec < HANDLE_DRAG_MIN_PX) {
+                    if (!isHandleDrag(startX, e.clientX)) {
                       return;
                     }
+                    const dx = (e.clientX - startX) / zoomPxPerSec;
                     let start = originStart;
                     let end = originEnd;
                     if (mode === "move") {
