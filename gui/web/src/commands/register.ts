@@ -639,8 +639,16 @@ export function registerDawCommands(): void {
     return { status: "ok" };
   });
 
-  registerCommand("edit.cut", async (_args) => {
+  registerCommand("edit.cut", async (args) => {
     const s = useDawStore.getState();
+    if (
+      "clipId" in args &&
+      (typeof args.clipId !== "string" ||
+        s.selection?.kind !== "clip" ||
+        s.selection.id !== args.clipId)
+    ) {
+      return { status: "disabled", reason: "Selected clip changed" };
+    }
     if (
       !canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities) ||
       !s.project

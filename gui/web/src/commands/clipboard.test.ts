@@ -115,6 +115,14 @@ describe("edit.copy/cut/paste", () => {
     expect(api.pasteSegment).toHaveBeenCalled();
     expect(api.duplicateSegment).not.toHaveBeenCalled();
   });
+
+  it("does not cut a different clip after a selection-sheet action goes stale", async () => {
+    expect((await execute("edit.cut", { clipId: "another" })).status).toBe(
+      "disabled",
+    );
+    expect(api.rippleDeleteClips).not.toHaveBeenCalled();
+    expect(getClipboard()).toBeNull();
+  });
 });
 
 describe("phase-2 P0 edit/view/track commands", () => {

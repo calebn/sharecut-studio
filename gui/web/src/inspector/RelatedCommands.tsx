@@ -1,4 +1,7 @@
 import { commandById } from "../commands/catalog";
+import { buildCommandContext } from "../commands/context";
+import { canApplyPass12, canIngestMedia } from "../shareMode";
+import { useDaw } from "../state/useDaw";
 import type { Selection } from "../types/project";
 import { CommandButton, EmptyState } from "../ui";
 import {
@@ -16,8 +19,28 @@ type Props = {
  * discoverable in context.
  */
 export function RelatedCommands({ selection }: Props) {
+  const { liveSelection, project, canCut, canReorder } = useDaw((state) => ({
+    liveSelection: state.selection,
+    project: state.project,
+    canCut: canApplyPass12(
+      state.projectPath,
+      state.guestMode,
+      state.shareCapabilities,
+    ),
+    canReorder: canIngestMedia(
+      state.projectPath,
+      state.guestMode,
+      state.shareCapabilities,
+    ),
+  }));
   const related = relatedCommandsFor(selection);
-  const more = moreCommandsFor(selection);
+  // Permission subscriptions keep the list current after role changes.
+  // The command bus rechecks at click time.
+  const more = moreCommandsFor(selection, liveSelection, project, {
+    ...buildCommandContext(),
+    canApplyPass12: canCut,
+    canIngestMedia: canReorder,
+  });
 
   if (selection == null) {
     return null;

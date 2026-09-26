@@ -50,10 +50,10 @@ Selection opens a non-modal **half → full** [`BottomSheet`](../gui/web/src/ui/
 Every selection sheet follows the same three-zone layout for consistency:
 
 1. **Primary actions** — the inspector content itself (2-3 most common actions, large targets)
-2. **Related commands** ("You might also want…") — supported next actions for this selection, currently Copy for clips and single selected transcript words. Transcript ranges stay in Text; contextual range Copy is deferred under #32, while keyboard Copy remains available.
-3. **More** — a distinct overflow below Related. It currently truthfully reports when no additional safe action exists; unavailable, duplicate, and inspector-owned mutations are omitted. A functional context-filtered command list remains open in issue #32. Both zones live in `RelatedCommands` (`gui/web/src/inspector/RelatedCommands.tsx`), with typed mappings in `relatedCommandDescriptors.ts`.
+2. **Related commands** ("You might also want…") — supported next actions for this selection, currently Copy for clips and single selected transcript words. Transcript ranges stay in Text; keyboard Copy remains available there.
+3. **More** — context-filtered command overflow below Related. Clips offer Cut (copy to the session clipboard, then ripple-delete) to editors; tracks offer Move track up/down only for directions that exist. View-only guests do not see edit actions. Other selections show an accurate empty state when their safe actions already live in the inspector or Related zone. Both zones live in `RelatedCommands` (`gui/web/src/inspector/RelatedCommands.tsx`), with mappings in `relatedCommandDescriptors.ts`.
 
-Example: Clip selected → Related shows Copy; More reports no additional action because fade/delete are clip-inspector controls and seeking is already in its footer.
+Example: Clip selected → Related shows Copy; More shows Cut for editors. Fade/delete remain clip-inspector controls and seeking remains in its footer.
 
 ### Feature → home map
 
