@@ -86,7 +86,11 @@ podcast record discard-take --project episode.project.json --take-index 0
    Happy path skips `ingest suggest`. Land reports sample-count vs
    recording-clock `drift_ms` (`null` if unknown); `|drift| > 50 ms` or a
    missing `session_start` sets `align_fallback` so pipeline `align_tracks`
-   can run after transcribe — land does not invoke it. A nonzero `deferred_rollbacks_pending` means a stale-ACK rollback is still waiting to be retried; it retries on the next land, or undo the `record_land` step through history. Optional room-tone WAVs
+   can run after transcribe — land does not invoke it. A nonzero
+   `deferred_rollbacks_pending` means a stale-ACK rollback is still waiting
+   to be retried; a later land retries it once its backoff (30 s, doubling up
+   to 30 min) has passed, or undo the `record_land` step through history.
+   Optional room-tone WAVs
    land atomically at `raw/room-tone/{session}/{participant}.wav` on
    `track.room_tone` (the older shared `raw/room-tone/{participant}.wav`
    path still works for existing projects). Each landed source carries
