@@ -23,7 +23,8 @@ import type { RasterBackend, RasterJob, RasterMode } from "./types";
  * finished tiles), and then the backend is `none`.
  * `subscribeRasterFailed` reports the keys of jobs that died (an error reply,
  * a failed post, or a crash), each at most `RASTER_JOB_RETRIES` times before
- * the key is retired until reload. No `Worker` or `createImageBitmap` (jsdom)
+ * the key is retired until reload. The re-arm forgets crash charges on keys
+ * not yet retired, so two unrelated crashes do not retire an innocent tile. No `Worker` or `createImageBitmap` (jsdom)
  * means backend `none`: nothing renders.
  */
 
@@ -64,8 +65,14 @@ const backendListeners = listenerSet();
 const doneListeners = listenerSet<[key: string, entry: BitmapEntry]>();
 const droppedListeners = listenerSet<[key: string]>();
 const failedListeners = listenerSet<[key: string]>();
-/** Failures per tile key; a key over RASTER_JOB_RETRIES is retired until reload. */
+/** Failures per tile key (error replies, failed posts); see `retired`. */
 const failures = new Map<string, number>();
+/**
+ * Failures charged by worker crashes since the restart budget last re-armed.
+ * The re-arm forgets them for keys not yet retired, so only crashes close
+ * together retire a key.
+ */
+const crashFailures = new Map<string, number>();
 
 function supported(): boolean {
   return (
@@ -113,17 +120,32 @@ function emitFailed(keys: readonly string[]): void {
   }
 }
 
+/** A key over RASTER_JOB_RETRIES failures (both kinds) is retired until reload. */
 function retired(key: string): boolean {
-  return (failures.get(key) ?? 0) > RASTER_JOB_RETRIES;
+  return (
+    (failures.get(key) ?? 0) + (crashFailures.get(key) ?? 0) >
+    RASTER_JOB_RETRIES
+  );
 }
 
-/** Count one failure per key; returns the keys still worth asking again for. */
-function countFailures(keys: readonly string[]): string[] {
+/** Count one failure per key in `counts`; returns the keys still worth asking again for. */
+function countFailures(
+  keys: readonly string[],
+  counts: Map<string, number> = failures,
+): string[] {
   return [...new Set(keys)].filter((key) => {
-    const n = (failures.get(key) ?? 0) + 1;
-    failures.set(key, n);
-    return n <= RASTER_JOB_RETRIES;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+    return !retired(key);
   });
+}
+
+/** Crashes this far apart are unrelated: forget their charges on keys not yet retired. */
+function forgetCrashCharges(): void {
+  for (const key of crashFailures.keys()) {
+    if (!retired(key)) {
+      crashFailures.delete(key);
+    }
+  }
 }
 
 /** `w` crashed: restart it (queued jobs keep their buffers) or give up. */
@@ -136,8 +158,8 @@ function onCrash(w: Worker): void {
   if (restarts < RASTER_WORKER_RESTARTS) {
     restarts += 1;
     restartsSinceLoad += 1;
-    // A key in flight at repeated crashes is retired (a poison tile).
-    lost = countFailures(stopWorker());
+    // A key in flight at crashes close together is retired (a poison tile).
+    lost = countFailures(stopWorker(), crashFailures);
     if (ensureWorker()) {
       pump();
     }
@@ -169,9 +191,11 @@ function onMessage(msg: RasterOutMsg): void {
     tilesRendered += 1;
     tilesByMode[job.job.mode] += 1;
     failures.delete(job.key);
+    crashFailures.delete(job.key);
     tilesSinceCrash += 1;
-    if (tilesSinceCrash >= RASTER_RESTART_REARM_TILES) {
+    if (tilesSinceCrash === RASTER_RESTART_REARM_TILES) {
       restarts = 0;
+      forgetCrashCharges();
     }
     const entry: BitmapEntry = {
       bitmap: msg.bitmap,
@@ -421,6 +445,7 @@ export function resetRasterClient(): void {
   backend = "starting";
   queue.clear();
   failures.clear();
+  crashFailures.clear();
   restarts = 0;
   tilesSinceCrash = 0;
   restartsSinceLoad = 0;

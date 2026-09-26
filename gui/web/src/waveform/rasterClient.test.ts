@@ -383,6 +383,30 @@ describe("rasterClient", () => {
     expect(hasRaster("poison", false, 0)).toBe(true);
     expect(FakeRasterWorker.last!.posted).toHaveLength(0);
     expect(getRasterBackend()).not.toBe("none");
+    const w = FakeRasterWorker.last!;
+    for (let i = 0; i < RASTER_RESTART_REARM_TILES; i++) {
+      requestRaster(req(`t${i}`));
+      w.reply(doneMsg(w.posted.at(-1)!.msg.id));
+    }
+    // The re-arm forgets crash charges, but a retired key stays retired.
+    expect(hasRaster("poison", false, 0)).toBe(true);
+  });
+
+  it("forgets crash charges when the restart budget re-arms", () => {
+    subscribeRasterFailed((k) => requestRaster(req(k)));
+    requestRaster(req("a"));
+    FakeRasterWorker.last!.onerror?.();
+    const w = FakeRasterWorker.last!;
+    expect(w.posted).toHaveLength(1);
+    for (let i = 0; i < RASTER_RESTART_REARM_TILES; i++) {
+      requestRaster(req(`t${i}`));
+      w.reply(doneMsg(w.posted.at(-1)!.msg.id));
+    }
+    // An unrelated crash much later: "a" is asked for again, not retired.
+    w.onerror?.();
+    expect(getRasterBackend()).not.toBe("none");
+    expect(FakeRasterWorker.last!.posted).toHaveLength(1);
+    expect(hasRaster("a", false, 0)).toBe(true);
   });
 
   it("re-arms the restart budget after RASTER_RESTART_REARM_TILES finished tiles", () => {
