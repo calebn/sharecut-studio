@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -14,14 +15,16 @@ from podcast_mcp.history import HistoryManager
 from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project, save_project
 from podcast_mcp.pipeline import runner as runner_mod
 from podcast_mcp.pipeline import steps
-from podcast_mcp.project_merge import ProjectMergeConflict
+from podcast_mcp.project_merge import HISTORY_CURSOR_CONFLICT, ProjectMergeConflict
 from podcast_mcp.project_store import history_index_path, history_snapshot_ids
 from podcast_mcp.services import (
     EpisodeService,
+    HistoryRerenderError,
     HistoryService,
     PipelineService,
     ProjectWorkspace,
 )
+from podcast_mcp.services import history as history_service_mod
 from podcast_mcp.services import workspace as workspace_mod
 from podcast_mcp.services.workspace import MERGED_HISTORY_LABEL
 from podcast_mcp.util.atomic_json import load_json_object
@@ -515,7 +518,10 @@ def test_history_move_rerender_keeps_an_edit_saved_mid_render(minimal_project, m
     _index_matches_file(minimal_project)
 
 
-def test_history_undo_rerender_conflict_keeps_the_undo_and_says_not_to_repeat_it(minimal_project):
+@pytest.mark.parametrize(("move", "guest_gain"), [("undo", 0.0), ("redo", 3.0), ("goto", 0.0)])
+def test_history_move_rerender_conflict_keeps_the_move_and_says_not_to_repeat_it(
+    minimal_project, move, guest_gain
+):
     ws = _with_undoable_gain(minimal_project)
 
     def fake_render(project):
@@ -523,11 +529,77 @@ def test_history_undo_rerender_conflict_keeps_the_undo_and_says_not_to_repeat_it
         _other_sets_volume(minimal_project)
 
     with patch("podcast_mcp.services.history.rerender_preview", fake_render):
-        with pytest.raises(ProjectMergeConflict, match="instead of repeating the undo") as exc:
-            HistoryService(ws).undo(rerender=True)
+        with pytest.raises(
+            ProjectMergeConflict, match=f"the {move} is saved; .*instead of repeating the {move}"
+        ) as exc:
+            _move_history_with_rerender(ws, move)
 
     assert "timeline.tracks[host].fader_db" in exc.value.paths
     assert "re-run it" not in str(exc.value)
+    saved = load_project(minimal_project)
+    assert saved.track_by_id("guest").gain_db == guest_gain
+    assert saved.track_by_id("host").fader_db == -6.0
+    _index_matches_file(minimal_project)
+
+
+@pytest.mark.parametrize(("move", "guest_gain"), [("undo", 0.0), ("redo", 3.0), ("goto", 0.0)])
+def test_history_move_render_failure_keeps_the_move_and_says_not_to_repeat_it(
+    minimal_project, move, guest_gain
+):
+    ws = _with_undoable_gain(minimal_project)
+
+    def failing_render(_project):
+        raise OSError("ffmpeg failed")
+
+    with patch("podcast_mcp.services.history.rerender_preview", failing_render):
+        with pytest.raises(HistoryRerenderError, match=f"instead of repeating the {move}") as exc:
+            _move_history_with_rerender(ws, move)
+
+    assert "ffmpeg failed" in str(exc.value)
+    assert isinstance(exc.value.__cause__, OSError)
+    saved = load_project(minimal_project)
+    assert saved.track_by_id("guest").gain_db == guest_gain
+    assert saved.reconciliation_stale is True
+
+
+def test_history_move_rerender_cursor_clash_says_to_check_history_status(
+    minimal_project, monkeypatch
+):
+    ws = _with_undoable_gain(minimal_project)
+
+    def cursor_clash(_base, _ours, _theirs, **advice):
+        raise ProjectMergeConflict([HISTORY_CURSOR_CONFLICT], **advice)
+
+    monkeypatch.setattr(workspace_mod, "merge_project_data", cursor_clash)
+
+    def fake_render(_project):
+        _other_sets_volume(minimal_project)  # the file moves, so save_merged merges
+
+    with patch("podcast_mcp.services.history.rerender_preview", fake_render):
+        with pytest.raises(ProjectMergeConflict, match="check history_status") as exc:
+            HistoryService(ws).undo(rerender=True)
+
+    assert "is saved" not in str(exc.value)
+    assert str(exc.value).startswith("an undo or redo changed the project")
+
+
+def test_history_move_saves_its_stale_marks_before_another_commit(minimal_project):
+    ws = _with_undoable_gain(minimal_project)
+    other = threading.Thread(target=_other_sets_volume, args=(minimal_project,))
+    real_mark = history_service_mod.mark_reconciliation_stale
+
+    def mark_while_another_request_commits(project):
+        other.start()
+        other.join(timeout=0.2)
+        assert other.is_alive(), "the other commit must wait until the move is saved"
+        real_mark(project)
+
+    with patch.object(
+        history_service_mod, "mark_reconciliation_stale", mark_while_another_request_commits
+    ):
+        HistoryService(ws).undo()
+    other.join(timeout=5)
+    assert not other.is_alive()
     saved = load_project(minimal_project)
     assert saved.track_by_id("guest").gain_db == 0.0
     assert saved.track_by_id("host").fader_db == -6.0

@@ -5,7 +5,7 @@ from podcast_mcp.services.comment import CommentService
 from podcast_mcp.services.edit import EditService
 from podcast_mcp.services.episode import EpisodeService
 from podcast_mcp.services.gui_launch import GuiLaunchResult, ensure_viewer
-from podcast_mcp.services.history import HistoryService
+from podcast_mcp.services.history import HistoryRerenderError, HistoryService
 from podcast_mcp.services.ingest import IngestService
 from podcast_mcp.services.pipeline import PipelineService
 from podcast_mcp.services.play import PlayService
@@ -30,6 +30,7 @@ __all__ = [
     "EditService",
     "EpisodeService",
     "GuiLaunchResult",
+    "HistoryRerenderError",
     "HistoryService",
     "IngestService",
     "PipelineService",
