@@ -1,8 +1,10 @@
-"""Credential scanning stays enabled with full history and minimal permissions."""
+"""Credential scanning stays enabled; the public tree carries no private markers or public IPs."""
 
 from __future__ import annotations
 
+import ipaddress
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -10,6 +12,14 @@ from github_yaml import load_github_yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "secret-scan.yml"
+
+# Well-known resolver / placeholder addresses used as client IPs in tests.
+_PUBLIC_IPV4_ALLOWLIST = frozenset({"1.1.1.1", "9.9.9.9", "1.2.3.4"})
+# Lockfile version tuples (a.b.c.d) look like IPv4 literals; they hold no infra.
+_LOCKFILE_NAMES = frozenset(
+    {"uv.lock", "package-lock.json", "Cargo.lock", "pnpm-lock.yaml", "yarn.lock"}
+)
+_IPV4_LITERAL = re.compile(rb"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])")
 
 
 def test_secret_scan_covers_changes_and_scheduled_history() -> None:
@@ -35,6 +45,22 @@ def test_secret_scan_covers_changes_and_scheduled_history() -> None:
 
 def test_gitleaks_has_no_committed_ignore_baseline() -> None:
     assert not (ROOT / ".gitleaksignore").exists()
+
+
+def _public_ipv4_literals(relative: Path, content: bytes) -> list[str]:
+    """Return global IPv4 literals in a text blob that are not allowlisted."""
+    if relative.name in _LOCKFILE_NAMES or b"\0" in content[:8192]:
+        return []
+    found: list[str] = []
+    for match in _IPV4_LITERAL.finditer(content):
+        literal = match.group().decode()
+        try:
+            address = ipaddress.ip_address(literal)
+        except ValueError:
+            continue  # e.g. 999.1.1.1
+        if address.is_global and literal not in _PUBLIC_IPV4_ALLOWLIST:
+            found.append(literal)
+    return sorted(set(found))
 
 
 def _public_tree_violations(root: Path) -> list[str]:
@@ -82,6 +108,8 @@ def _public_tree_violations(root: Path) -> list[str]:
         offset = header_end + size + 2  # object bytes and trailing newline
         if object_type != b"blob":
             continue
+        for literal in _public_ipv4_literals(relative, content):
+            hits.append(f"{relative}: public IPv4 literal {literal}")
         content = content.lower()
         for marker in forbidden:
             if marker.lower() in content:
@@ -189,3 +217,35 @@ def test_public_tree_checks_gitlink_paths_without_reading_submodule_commits(
         )
 
     assert _public_tree_violations(tmp_path) == ["src/podcast_online: private provider source"]
+
+
+def test_public_tree_reports_tracked_public_ipv4_literal(tmp_path: Path) -> None:
+    _init_git_repo(tmp_path)
+    ip = "8.8." + "4.4"
+    (tmp_path / "tracked.txt").write_text(f"relay at {ip}\n")
+    subprocess.run(["git", "add", "tracked.txt"], cwd=tmp_path, check=True)
+    assert _public_tree_violations(tmp_path) == [f"tracked.txt: public IPv4 literal {ip}"]
+
+
+def test_public_tree_allows_private_documentation_and_allowlisted_ipv4(tmp_path: Path) -> None:
+    _init_git_repo(tmp_path)
+    (tmp_path / "tracked.txt").write_text(
+        "127.0.0.1 10.0.0.5 192.168.1.10 172.16.0.1 203.0.113.7 198.51.100.2 "
+        "0.0.0.0 1.1.1.1 999.1.1.1 v1.2.3.4.5\n"
+    )
+    subprocess.run(["git", "add", "tracked.txt"], cwd=tmp_path, check=True)
+    assert _public_tree_violations(tmp_path) == []
+
+
+def test_public_tree_skips_lockfiles_and_binary_blobs_for_ipv4(tmp_path: Path) -> None:
+    _init_git_repo(tmp_path)
+    ip = "8.8." + "4.4"
+    (tmp_path / "uv.lock").write_text('version = "' + "13.1." + '1.3"\n')
+    (tmp_path / "blob.bin").write_bytes(b"\0" + ip.encode())
+    subprocess.run(["git", "add", "uv.lock", "blob.bin"], cwd=tmp_path, check=True)
+    assert _public_tree_violations(tmp_path) == []
+
+
+def test_public_ipv4_literals_deduplicates() -> None:
+    ip = "8.8." + "4.4"
+    assert _public_ipv4_literals(Path("a.md"), f"{ip} {ip}".encode()) == [ip]

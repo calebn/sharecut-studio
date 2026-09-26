@@ -71,6 +71,11 @@ The repository intentionally carries no `.gitleaksignore` baseline; test fixture
 values that cannot be mistaken for live credentials.
 The companion public-tree provider/marker test scans blobs in the Git index, not ignored
 cache files or the mutable checkout, so staged public contents are the tested boundary.
+It also fails on any **public** (globally routable) IPv4 literal in a text blob. Private,
+loopback and documentation ranges (`203.0.113.0/24` etc.) pass. Lockfiles are skipped (version
+tuples). The three fixture resolver addresses in `_PUBLIC_IPV4_ALLOWLIST` are allowed. Use a
+documentation range for new examples rather than growing the allowlist, and keep real server
+addresses in the private operations repo.
 
 Before changing repository visibility, clone a fresh `--mirror`, fetch
 `refs/pull/*/head`, and scan that mirror. The regular workflow prevents new committed
