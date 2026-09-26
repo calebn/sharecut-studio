@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 from collections.abc import Collection, Iterable
 from pathlib import Path
@@ -27,6 +26,16 @@ def history_snapshots_dir(index_path: Path) -> Path:
 def history_snapshot_path(index_path: Path, entry_id: str) -> Path:
     """Snapshot file of history entry ``entry_id`` (``snapshots/<id>.json``)."""
     return history_snapshots_dir(index_path) / f"{entry_id}.json"
+
+
+def read_history_index(index_path: Path) -> ProjectHistory | None:
+    """``history/index.json`` parsed (``None``: it does not exist).
+
+    The one parser of the index. A present but unreadable or invalid index raises
+    ``ValueError`` (incl. ``pydantic.ValidationError``); each caller picks its fallback.
+    """
+    data = load_json_object(index_path)
+    return None if data is None else ProjectHistory.model_validate(data)
 
 
 def restore_history_index(index_path: Path, payload: dict[str, Any] | None) -> None:
@@ -139,12 +148,16 @@ class ProjectStore:
         return project
 
     def adopt_history_index(self, project: EpisodeProject) -> bool:
-        """Fill an empty in-memory history from ``history/index.json`` if one exists."""
-        index_path = history_index_path(project)
-        if not project.history.is_empty() or not index_path.is_file():
+        """Fill an empty in-memory history from ``history/index.json`` if one exists.
+
+        A corrupt index raises ``ValueError``.
+        """
+        if not project.history.is_empty():
             return False
-        data = json.loads(index_path.read_text(encoding="utf-8"))
-        project.history = ProjectHistory.model_validate(data)
+        history = read_history_index(history_index_path(project))
+        if history is None:
+            return False
+        project.history = history
         return True
 
     def _sync_history_index_to_project(self, project: EpisodeProject) -> None:
