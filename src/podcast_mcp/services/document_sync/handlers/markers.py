@@ -56,8 +56,8 @@ def delete_social_clip(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any
 def set_envelope(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     """Replace the volume envelope only if ``expected_points`` is still current.
 
-    Runs under ``document_submit_lock`` (from ``DocumentSyncService.submit``);
-    reload first so a long-lived WS service never checks a stale workspace.
+    Runs inside ``ProjectWorkspace.transaction()`` (from ``DocumentSyncService.submit``),
+    so no writer in any process commits between this check and the mutation.
     A conflict raises before mutation, history, or the command log.
     """
     track_id = str(p["track_id"])

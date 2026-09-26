@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import threading
 
-from podcast_mcp.services import ProjectWorkspace
+from podcast_mcp.services import ProjectWorkspace, transcript_refine
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.transcript_refine import TranscriptRefineService
@@ -20,14 +20,14 @@ def test_waive_does_not_overwrite_interleaved_document_command(
     command_started = threading.Event()
     release_waiver = threading.Event()
     failures: list[Exception] = []
-    original_reload = waiver._reload
+    original_waive = transcript_refine.mark_refine_waived
 
-    def pause_after_reload() -> None:
-        original_reload()
+    def pause_in_waive(*args, **kwargs):
         reloaded.set()
         assert release_waiver.wait(timeout=2)
+        return original_waive(*args, **kwargs)
 
-    monkeypatch.setattr(waiver, "_reload", pause_after_reload)
+    monkeypatch.setattr(transcript_refine, "mark_refine_waived", pause_in_waive)
 
     original_submit = documents.submit
 

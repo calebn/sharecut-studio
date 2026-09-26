@@ -17,7 +17,7 @@ from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project, save_
 from podcast_mcp.pipeline import runner as runner_mod
 from podcast_mcp.pipeline import steps
 from podcast_mcp.project_merge import HISTORY_CURSOR_CONFLICT, ProjectMergeConflict
-from podcast_mcp.project_store import history_index_path, history_snapshot_ids
+from podcast_mcp.project_store import ProjectStore, history_index_path, history_snapshot_ids
 from podcast_mcp.services import (
     EpisodeService,
     HistoryRerenderError,
@@ -210,13 +210,42 @@ def test_play_premix_rerender_keeps_an_edit_saved_mid_render(minimal_project):
     assert svc.project is ws.project
 
 
-def test_mutate_reload_first_discards_unsaved_edits(minimal_project):
+def test_mutate_adopts_a_newer_saved_project_in_place(minimal_project):
     ws = _two_tracks(minimal_project)
+    before = ws.project
     _other_sets_volume(minimal_project)
     ws.project.track_by_id("guest").gain_db = 5.0
-    ws.mutate("before", "after", lambda _p: None, reload_first=True)
+    ws.mutate("before", "after", lambda _p: None)
+    assert ws.project is before
     assert ws.project.track_by_id("guest").gain_db == 0.0
     assert ws.project.track_by_id("host").fader_db == -6.0
+
+
+def test_stale_workspace_mutate_keeps_another_writers_commit(minimal_project):
+    _two_tracks(minimal_project)
+    a = ProjectWorkspace.open(minimal_project)
+    b = ProjectWorkspace.open(minimal_project)
+    b.mutate("b", "b", lambda p: setattr(p.track_by_id("host"), "fader_db", -6.0))
+    a.mutate("a", "a", lambda p: setattr(p.track_by_id("guest"), "gain_db", 3.0))
+    saved = load_project(minimal_project)
+    assert saved.track_by_id("host").fader_db == -6.0
+    assert saved.track_by_id("guest").gain_db == 3.0
+
+
+def test_mutate_after_own_commit_does_not_reload(minimal_project, monkeypatch):
+    ws = _two_tracks(minimal_project)
+    ws.mutate("one", "one", lambda _p: None)
+    loads = {"n": 0}
+    original = ProjectStore.load
+
+    def counting(self):
+        loads["n"] += 1
+        return original(self)
+
+    monkeypatch.setattr(ProjectStore, "load", counting)
+    ws.mutate("two", "two", lambda _p: None)
+    ws.mutate("three", "three", lambda _p: None)
+    assert loads["n"] == 0
 
 
 def test_export_audio_keeps_an_edit_saved_during_export(minimal_project, tmp_path):

@@ -109,8 +109,9 @@ class ClipService:
     # builtins.list because the `list` method above shadows the builtin in
     # this class's annotation scope.
     def export(self, ids: Sequence[str] | None = None) -> builtins.list[dict[str, str]]:
-        exported = export_social_clips(
-            self.ws.project, self._defaults, ids=list(ids) if ids is not None else None
-        )
-        self.ws.save()
+        with self.ws.transaction() as project:
+            exported = export_social_clips(
+                project, self._defaults, ids=list(ids) if ids is not None else None
+            )
+            self.ws.save()
         return exported

@@ -72,7 +72,9 @@ def project_commit_lock(project: EpisodeProject) -> Iterator[None]:
 
     Lock order: the in-process ``project_state_lock`` RLock first, then the shared
     per-workspace file lock (re-entrant per thread). Never take the file lock without
-    the state lock. Raises ``filelock.Timeout`` after ``PROJECT_COMMIT_LOCK_TIMEOUT_SEC``.
+    the state lock. ``ProjectWorkspace.transaction()`` holds it from the reload through the
+    commit, so read-modify-write is serialized across processes (#213).
+    Raises ``filelock.Timeout`` after ``PROJECT_COMMIT_LOCK_TIMEOUT_SEC``.
     """
     with project_state_lock(project):
         file_lock = shared_file_lock(

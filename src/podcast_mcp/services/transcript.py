@@ -53,25 +53,26 @@ class TranscriptService:
         return json.dumps([t.model_dump() for t in p.transcripts], indent=2)
 
     def export_markdown(self) -> Path:
-        if not self.ws.project.combined_transcript:
-            self.ws.project.combined_transcript = self._engine.merge_transcripts(self.ws.project)
-        out = write_combined_transcript_markdown(self.ws.project)
-        self.ws.save()
+        with self.ws.transaction() as p:
+            if not p.combined_transcript:
+                p.combined_transcript = self._engine.merge_transcripts(p)
+            out = write_combined_transcript_markdown(p)
+            self.ws.save()
         return out
 
     def export_subtitles(self, fmt: str = "srt") -> Path:
         from podcast_mcp.export.names import sanitize_export_stem
         from podcast_mcp.export.transcript import utterances_to_srt, utterances_to_vtt
 
-        p = self.ws.project
-        if not p.combined_transcript:
-            p.combined_transcript = self._engine.merge_transcripts(p)
-        p.export_dir().mkdir(parents=True, exist_ok=True)
-        if fmt == "vtt":
-            out = p.export_dir() / f"{sanitize_export_stem(p.name)}.vtt"
-            out.write_text(utterances_to_vtt(p), encoding="utf-8")
-        else:
-            out = p.export_dir() / f"{sanitize_export_stem(p.name)}.srt"
-            out.write_text(utterances_to_srt(p), encoding="utf-8")
-        self.ws.save()
+        with self.ws.transaction() as p:
+            if not p.combined_transcript:
+                p.combined_transcript = self._engine.merge_transcripts(p)
+            p.export_dir().mkdir(parents=True, exist_ok=True)
+            if fmt == "vtt":
+                out = p.export_dir() / f"{sanitize_export_stem(p.name)}.vtt"
+                out.write_text(utterances_to_vtt(p), encoding="utf-8")
+            else:
+                out = p.export_dir() / f"{sanitize_export_stem(p.name)}.srt"
+                out.write_text(utterances_to_srt(p), encoding="utf-8")
+            self.ws.save()
         return out

@@ -13,6 +13,7 @@ from filelock import FileLock
 
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import SourceClippingRegion, load_project, save_project
+from podcast_mcp.project_store import ProjectStore
 from podcast_mcp.services import ProjectWorkspace
 from podcast_mcp.services.history import HistoryService
 from podcast_mcp.services.record.commands import RecordCommand
@@ -1057,6 +1058,8 @@ def test_land_discards_unsaved_workspace_edits(
     )
     RecordLandingService(ws).land(align=lambda _p: None)
     ws.project.meta.name = "unsaved rename"
+    # Another writer commits, so the saved file is newer than this workspace's copy.
+    ProjectWorkspace.open(minimal_project).mutate("b", "a", lambda p: None)
     _ack(uploader, session_id=room["session_id"], take=0, pid=guest, segment=0, join_offset_ms=0)
     second = RecordLandingService(ws).land(align=lambda _p: None)
     assert [clip["participant_id"] for clip in second["clips"]] == [guest]
@@ -1607,7 +1610,7 @@ def test_discard_drops_empty_track_and_repeat_keeps_landed(
 
 
 def test_discard_reloads_the_project_once(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    """Discard's own reload_first covers the follow-up land, so no second re-read (#503)."""
+    """Discard reads the saved project at most once (only when it changed); the follow-up land does not read it again (#503)."""
     _isolate()
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
@@ -1624,15 +1627,15 @@ def test_discard_reloads_the_project_once(minimal_project, sample_wav, tmp_works
     )
     RecordLandingService(ws).land(align=lambda _p: None)
     calls = {"n": 0}
-    original = ws.reload
+    original = ProjectStore.load
 
-    def counting():
+    def counting(self):
         calls["n"] += 1
-        return original()
+        return original(self)
 
-    monkeypatch.setattr(ws, "reload", counting)
+    monkeypatch.setattr(ProjectStore, "load", counting)
     RecordLandingService(ws).delete_take(0)
-    assert calls["n"] == 1
+    assert calls["n"] <= 1
     assert ws.project.track_by_id(slug_of(guest)) is None
 
 
