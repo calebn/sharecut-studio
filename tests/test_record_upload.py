@@ -1514,6 +1514,25 @@ def test_clipping_replay_after_land_compares_values_not_json_text(tmp_path: Path
     store.close()
 
 
+def test_clipping_truncated_null_on_landed_row_replays_as_false(tmp_path: Path):
+    from podcast_mcp.services.record.upload import RecordUploadStore
+
+    store = RecordUploadStore(tmp_path / "sync.db")
+    key: dict[str, Any] = {
+        "session_id": "s",
+        "take_index": 0,
+        "participant_id": "p_a",
+        "segment_index": 0,
+    }
+    store.set_clipping_regions(**key, regions=[[1, 2]])
+    # A row landed before the column existed (or before the flag was written) stores NULL.
+    store._conn.execute("UPDATE record_upload_files SET clipping_truncated = NULL, landed_ns = 1")
+    store.set_clipping_truncated(**key, truncated=False)  # identical replay: no-op
+    with pytest.raises(RecordUploadError, match="clipping_truncated refused after land"):
+        store.set_clipping_truncated(**key, truncated=True)
+    store.close()
+
+
 def test_http_rejects_bad_clipping_with_400(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):

@@ -171,6 +171,11 @@ def _load_int(raw: Any) -> int | None:
     return None if raw is None else int(raw)
 
 
+def _load_flag(raw: Any) -> int:
+    """0/1 flag column; NULL (rows from before the column existed) reads as 0, matching status()."""
+    return int(raw or 0)
+
+
 FileColumn = Literal["join_offset_ms", "clipping_regions", "clipping_truncated"]
 
 
@@ -226,7 +231,7 @@ _FILE_COLUMNS: dict[FileColumn, _FileColumnSpec] = {
         ON CONFLICT(session_id, take_index, participant_id, segment_index)
         DO UPDATE SET clipping_truncated = excluded.clipping_truncated
         """,
-        decode=_load_int,
+        decode=_load_flag,
     ),
 }
 
