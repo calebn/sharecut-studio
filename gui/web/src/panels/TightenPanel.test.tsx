@@ -565,6 +565,40 @@ describe("TightenPanel", () => {
     ).not.toBeDisabled();
   });
 
+  it("a Find hits job error replaces a stale intensity save error", async () => {
+    vi.mocked(putPipelineConfig).mockRejectedValueOnce(
+      new Error("save failed"),
+    );
+    renderPanel();
+    await screen.findByRole("option", { name: "Light" });
+    fireEvent.change(screen.getByLabelText("Intensity"), {
+      target: { value: "light" },
+    });
+    expect(await screen.findByText(/save failed/)).toBeTruthy();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Find hits" }),
+      ).not.toBeDisabled(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Find hits" }));
+    await waitFor(() =>
+      expect(useDawStore.getState().pipelineJob?.id).toBe("job1"),
+    );
+    expect(screen.queryByText(/save failed/)).toBeNull();
+    act(() => {
+      useDawStore.setState({
+        pipelineJob: job({
+          status: "error",
+          error: "Transcript refine is required",
+        }),
+      });
+    });
+    expect(
+      await screen.findByText("Transcript refine is required"),
+    ).toBeTruthy();
+    expect(screen.queryByText(/save failed/)).toBeNull();
+  });
+
   it("ignores an error from a job this panel did not start", async () => {
     useDawStore.setState({
       pipelineJob: job({ id: "other", status: "error", error: "nope" }),

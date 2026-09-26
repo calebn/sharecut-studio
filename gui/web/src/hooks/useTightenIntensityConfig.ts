@@ -14,7 +14,7 @@ export interface TightenIntensityConfig {
   saving: boolean;
   reload: () => void;
   setIntensity: (value: string) => Promise<void>;
-  /** Working set refetched right before a run; null when superseded. */
+  /** Working set refetched right before a run (clears saving and saveError); null when superseded. */
   fetchFresh: () => Promise<PipelineConfigResponse | null>;
 }
 
@@ -94,6 +94,11 @@ export function useTightenIntensityConfig(
   const fetchFresh = useCallback(async () => {
     if (!enabled) return null;
     const token = request.begin();
+    // A pre-run refetch supersedes any in-flight save (its finally no longer
+    // runs setSaving(false)) and starts a new action, so clear both the busy
+    // flag and a stale save error: the run's own result is what shows next.
+    setSaving(false);
+    setSaveError(null);
     const fresh = await loadPipelineConfig(projectPath);
     return request.isCurrent(token) ? fresh : null;
   }, [enabled, projectPath, request]);
