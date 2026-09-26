@@ -211,9 +211,13 @@ tune it by ear against real recordings before switching the default away from
 
 The same sample-window classifiers reject breath-shaped acoustic gap filler
 candidates. Configure `tighten.acoustic_gap_filler.vad_backend` separately; its
-default remains `heuristic`. Classification is confined to each proposed run,
-and Silero falls back to the heuristic if its model cannot load. Tune against
-real recordings by ear before changing either default.
+default remains `heuristic`. Classification is confined to each proposed run.
+The RMS classifier compares a run with short, audible windows inside both
+flanking transcript words; it abstains and leaves the run for review when
+either speech reference is missing or below the active audibility floor.
+Silero does not require that RMS reference. Model lookup happens once per
+classification, and model or inference failures fall back to the RMS heuristic.
+Tune against real recordings by ear before changing either default.
 
 ## Agent audition context (v2)
 

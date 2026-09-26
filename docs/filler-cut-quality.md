@@ -211,8 +211,13 @@ Detection (`edits/acoustic_gap.py`, shared DSP in `util/dsp.py`):
   run is a level plateau), and pass a speech-pitch (70–350 Hz) autocorrelation
   voicing check. Each surviving run is checked against the shared breath
   classifier using only that run's audio, so a breath elsewhere in the gap
-  cannot veto it. The default RMS heuristic can reject quiet voiced breaths;
-  `vad_backend: silero` opts into the existing speech-probability classifier.
+  cannot veto it. The default RMS heuristic compares the run with up to 200 ms
+  of speech inside each flanking ASR word and uses the quieter word as its
+  reference. Both windows must be finite and above the configured audibility
+  floor; without that context the RMS classifier abstains and keeps the run for
+  review. This relative comparison is stable under overall gain changes.
+  `vad_backend: silero` opts into the existing speech-probability classifier,
+  which does not need the flanking RMS reference.
 - The proposed cut is bounded by the run, not the gap: waveform snapping and
   breath handling may move it at most 50 ms past the run, and never within
   25 ms of either word. Pacing never widens it across the gap or adds a paced
@@ -232,8 +237,8 @@ Interaction with other proposals:
   ones a human already applied; new proposals that overlap an applied decision
   are skipped (`applied_overlap`).
 - Propose summaries report acoustic hits separately (`N acoustic (review)`) and
-  count skipped scans (`acoustic:*` skip reasons such as `no_audio`,
-  `peer_speaking`, `rejected`, `replaced_pause`).
+  count skipped scans and candidates (`acoustic:*` skip reasons such as
+  `no_audio`, `peer_speaking`, `breath`, `rejected`, `replaced_pause`).
 - The audition context adds an `acoustic_gap_filler` hypothesis per pending hit,
   with the edit's own span in `evidence`.
 

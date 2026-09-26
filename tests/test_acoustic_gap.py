@@ -208,16 +208,53 @@ def test_aperiodic_burst_and_short_blip_are_not_fillers() -> None:
     assert not _voiced(np.ones(10, dtype=np.float32), RATE)
 
 
-def test_breath_rejection_is_local_to_each_voiced_run() -> None:
-    # A quiet, breath-like voiced run is rejected; it cannot veto a later
-    # louder voiced run in the same ASR gap.
-    samples = _tone(3.0, 0.65, 0.9, amp=0.036)
-    samples += _tone(3.0, 1.3, 1.65, amp=0.2)
+@pytest.mark.parametrize("gain", [0.5, 1.0, 2.0])
+def test_no_speech_context_keeps_voiced_runs_for_review(gain: float) -> None:
+    samples = _tone(3.0, 0.65, 0.9, amp=0.036 * gain)
+    samples += _tone(3.0, 1.3, 1.65, amp=0.2 * gain)
 
     runs = find_voiced_gap_runs(_cache(samples), 0.4, 2.0)
 
-    assert len(runs) == 1
-    assert 1.25 <= runs[0].start < runs[0].end <= 1.7
+    assert len(runs) == 2
+
+
+@pytest.mark.parametrize("gain", [0.5, 1.0, 2.0])
+def test_contextual_breath_rejection_is_gain_stable_and_counted(gain: float) -> None:
+    samples = _tone(3.0, 0.2, 0.4, amp=0.2 * gain)
+    samples += _tone(3.0, 2.0, 2.2, amp=0.2 * gain)
+    samples += _tone(3.0, 0.65, 0.9, amp=0.036 * gain)
+    samples += _tone(3.0, 1.3, 1.65, amp=0.2 * gain)
+    skips: dict[str, int] = {}
+
+    found = _add_acoustic_candidates(
+        [], _two_words(), {"tighten": {}}, audio_cache=_cache(samples), skip_counts=skips
+    )
+
+    assert len(_acoustic(found)) == 1
+    assert 1.25 <= _acoustic(found)[0].start < _acoustic(found)[0].end <= 1.7
+    assert skips == {"acoustic:breath": 1}
+
+
+def test_audibility_override_reaches_public_proposal(tmp_path: Path) -> None:
+    samples = _tone(3.0, 0.2, 0.4)
+    samples += _tone(3.0, 2.0, 2.2)
+    samples += _tone(3.0, 0.65, 0.9, amp=0.036)
+    samples += _tone(3.0, 1.3, 1.65)
+    project = _project(tmp_path, samples, _two_words().words)
+    defaults = {"analysis": {"heuristics": {"audibility_rms_db": -10.0}}, "tighten": {}}
+
+    with (
+        patch(
+            "podcast_mcp.edits.tighten.build_track_audio_caches",
+            return_value={"host": _cache(samples)},
+        ),
+        patch("podcast_mcp.edits.tighten._analyze_candidate", return_value=None) as analyze,
+        patch("podcast_mcp.edits.breath_detect.load_defaults", side_effect=AssertionError),
+    ):
+        result = propose_tighten_edits(project, defaults)
+
+    assert sum(call.args[1].reason == "filler:acoustic" for call in analyze.call_args_list) == 2
+    assert result.skip_counts.get("acoustic:breath", 0) == 0
 
 
 def test_acoustic_gap_silero_is_opt_in_and_receives_only_candidate_samples() -> None:

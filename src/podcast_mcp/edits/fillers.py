@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import logging
+import math
 import re
 from bisect import bisect_left
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from itertools import pairwise
 from typing import Any
+
+import numpy as np
 
 from podcast_mcp.config import bounded_float
 from podcast_mcp.edits.acoustic_gap import AcousticGapConfig, find_voiced_gap_runs
@@ -28,6 +31,7 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
+from podcast_mcp.util.dsp import db_to_amplitude
 from podcast_mcp.util.text import normalize_text
 
 log = logging.getLogger(__name__)
@@ -787,6 +791,32 @@ def _acoustic_scan_gaps(
             yield word, nxt
 
 
+def _flanking_speech_rms(
+    audio_cache: TrackAudioCache,
+    word: TranscriptWord,
+    nxt: TranscriptWord,
+    defaults: dict[str, Any],
+) -> float | None:
+    """Use the quieter of two short word windows as local speech context."""
+    audibility_db = float(
+        defaults.get("analysis", {}).get("heuristics", {}).get("audibility_rms_db", -42.0)
+    )
+    floor = db_to_amplitude(audibility_db)
+    windows = (
+        audio_cache.window(max(word.start, word.end - 0.2), word.end),
+        audio_cache.window(nxt.start, min(nxt.end, nxt.start + 0.2)),
+    )
+    levels: list[float] = []
+    for samples in windows:
+        if not samples.size or not np.all(np.isfinite(samples)):
+            return None
+        level = float(np.sqrt(np.mean(samples**2)))
+        if not math.isfinite(level) or level <= floor:
+            return None
+        levels.append(level)
+    return min(levels)
+
+
 def _collect_acoustic_candidates(
     words: list[TranscriptWord],
     track_id: str,
@@ -794,6 +824,7 @@ def _collect_acoustic_candidates(
     audio_cache: TrackAudioCache,
     occupied: _SpanIndex,
     *,
+    defaults: dict[str, Any] | None = None,
     project: EpisodeProject | None = None,
     skip_counts: dict[str, int] | None = None,
 ) -> list[_CutCandidate]:
@@ -808,6 +839,11 @@ def _collect_acoustic_candidates(
         if project is not None and _peer_speaking_in_gap(project, track_id, gap_start, gap_end):
             _count_skip(skip_counts, "acoustic:peer_speaking")
             continue
+        reference = _flanking_speech_rms(audio_cache, word, nxt, defaults or {})
+
+        def count_breath_rejection() -> None:
+            _count_skip(skip_counts, "acoustic:breath")
+
         runs = find_voiced_gap_runs(
             audio_cache,
             gap_start,
@@ -816,6 +852,9 @@ def _collect_acoustic_candidates(
             max_run_sec=cfg.max_run_sec,
             max_frames=cfg.max_frames,
             vad_backend=cfg.vad_backend,
+            defaults=defaults,
+            speech_reference_rms=reference,
+            on_breath_rejected=count_breath_rejection,
         )
         lo, hi = gap_start + _ACOUSTIC_EDGE_MARGIN_SEC, gap_end - _ACOUSTIC_EDGE_MARGIN_SEC
         for run in runs:
@@ -868,6 +907,7 @@ def _add_acoustic_candidates(
         cfg,
         audio_cache,
         occupied,
+        defaults=defaults,
         project=project,
         skip_counts=skip_counts,
     )
