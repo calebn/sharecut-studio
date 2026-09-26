@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,8 @@ from podcast_mcp.services.record.upload import (
     CLIPPING_MAX_REGIONS,
     JOIN_OFFSET_MAX_MS,
     ROOM_TONE_MAX_PCM_BYTES,
+    ROOM_TONE_TAKE_INDEX,
+    LandRollbackKey,
     RecordUploadError,
     RecordUploadService,
     RecordUploadStore,
@@ -1568,30 +1571,51 @@ def test_http_rejects_bad_clipping_with_400(
 
 def test_land_rollbacks_defer_list_clear_and_survive_revoke(tmp_path):
     store = RecordUploadStore(tmp_path / "sync.db")
-    key = {
-        "session_id": "s1",
-        "take_index": 0,
-        "participant_id": "p_a",
-        "segment_index": 0,
-        "file_sha256": "aa",
-    }
-    store.defer_land_rollback(**key, raw_rel="r/one.wav", raw_revision=[1, 2], prior_json="{}")
-    store.defer_land_rollback(**key, raw_rel="r/other.wav", raw_revision=[9], prior_json="{1}")
+    key = LandRollbackKey("s1", 0, "p_a", 0, "aa")
+    store.defer_land_rollback(key, raw_rel="r/one.wav", raw_revision=[1, 2], prior_json="{}")
+    store.defer_land_rollback(key, raw_rel="r/other.wav", raw_revision=[9], prior_json="{1}")
     store.defer_land_rollback(
-        **{**key, "segment_index": 1, "file_sha256": "bb"},
+        LandRollbackKey("s1", 0, "p_a", 1, "bb"),
         raw_rel="r/two.wav",
         raw_revision=[3],
         prior_json="{}",
     )
     store.defer_land_rollback(
-        **{**key, "session_id": "s2"}, raw_rel="x.wav", raw_revision=[], prior_json="{}"
+        LandRollbackKey("s2", 0, "p_a", 0, "aa"), raw_rel="x.wav", raw_revision=[], prior_json="{}"
     )
     rows = store.land_rollbacks(session_id="s1")
     assert [r["raw_rel"] for r in rows] == ["r/one.wav", "r/two.wav"]
-    assert rows[0]["raw_revision"] == [1, 2]
+    assert json.loads(rows[0]["raw_revision"]) == [1, 2]
     assert rows[0]["prior_json"] == "{}"
     store.delete_segment(session_id="s1", take_index=0, participant_id="p_a", segment_index=0)
     assert len(store.land_rollbacks(session_id="s1")) == 2
-    store.clear_land_rollback(**key)
+    store.clear_land_rollback(key)
     assert [r["raw_rel"] for r in store.land_rollbacks(session_id="s1")] == ["r/two.wav"]
     assert len(store.land_rollbacks(session_id="s2")) == 1
+
+
+def test_land_rollback_failure_is_counted_and_backs_off(tmp_path):
+    store = RecordUploadStore(tmp_path / "sync.db")
+    key = LandRollbackKey("s1", 0, "p_a", 0, "aa")
+    store.defer_land_rollback(key, raw_rel="r/one.wav", raw_revision=[], prior_json="{}")
+    store.note_land_rollback_failure(key, retry_after_ns=123)
+    store.note_land_rollback_failure(key, retry_after_ns=123)
+    (row,) = store.land_rollbacks(session_id="s1")
+    assert row["attempts"] == 2
+    assert row["retry_after_ns"] == 123
+
+
+def test_land_rollbacks_purged_on_take_tombstone_and_session_clear(tmp_path):
+    store = RecordUploadStore(tmp_path / "sync.db")
+    for take in (0, 1, ROOM_TONE_TAKE_INDEX):
+        store.defer_land_rollback(
+            LandRollbackKey("s1", take, "p_a", 0, "aa"),
+            raw_rel="r/x.wav",
+            raw_revision=[],
+            prior_json="{}",
+        )
+    store.tombstone_take("s1", 0)
+    rows = store.land_rollbacks(session_id="s1")
+    assert sorted(int(r["take_index"]) for r in rows) == sorted([1, ROOM_TONE_TAKE_INDEX])
+    assert store.clear_session_land_rollbacks("s1") == 2
+    assert store.land_rollbacks(session_id="s1") == []

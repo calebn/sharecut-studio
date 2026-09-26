@@ -274,3 +274,32 @@ def test_media_from_remaining_clip_skips_stale_sources():
     skipped = media_from_remaining_clip(project, "t1", skip_source_ids=frozenset({"rec-a"}))
     assert skipped is not None and skipped.path == "raw/rec-b.wav"
     assert media_from_remaining_clip(project, "t1", skip_source_ids={"rec-a", "rec-b"}) is None
+
+
+def test_revert_fills_empty_track_media_from_restored_clip():
+    project = _project()
+    project.tracks.append(Track(id="t1", label="Ava", role=TrackRole.DIALOGUE, media=None))
+    project.sources.append(SourceRecording(id="rec-1", path="raw/new.wav", duration_sec=5.0))
+    clip = Clip(
+        id="c1",
+        track_id="t1",
+        source_start=0.0,
+        source_end=5.0,
+        timeline_start=0.0,
+        source_id="rec-1",
+    )
+    project.clips.append(clip)
+    prior = PriorRegistration(
+        track_id="t1",
+        source_id="rec-1",
+        rel="raw/new.wav",
+        room_tone=False,
+        track_existed=True,
+        source=SourceRecording(id="rec-1", path="raw/old.wav", duration_sec=5.0),
+        clip=clip.model_copy(deep=True),
+        media=MediaAsset(path="raw/old.wav", duration_sec=5.0),
+    )
+    assert revert_registration(project, prior) is True
+    track = project.track_by_id("t1")
+    assert track is not None and track.media is not None
+    assert track.media.path == "raw/old.wav"
