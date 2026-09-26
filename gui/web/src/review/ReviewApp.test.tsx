@@ -188,7 +188,9 @@ describe("ReviewApp", () => {
 
     render(<ReviewApp token="tok" />);
     expect(await screen.findByText("Host update")).toBeInTheDocument();
-    expect(registerTool).toHaveBeenCalledTimes(3);
+    await waitFor(() => {
+      expect(registerTool).toHaveBeenCalledTimes(3);
+    });
     await user.click(
       screen.getByRole("checkbox", { name: "Open comments only" }),
     );
