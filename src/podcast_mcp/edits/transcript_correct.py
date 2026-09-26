@@ -5,6 +5,13 @@ from podcast_mcp.models import EpisodeProject, TranscriptWord
 from podcast_mcp.util.text import has_meaningful_text
 
 
+def mark_transcript_user_edited(project: EpisodeProject, track_id: str) -> None:
+    """Flag a track's transcript(s) as hand-edited so re-transcription protects them."""
+    for tr in project.transcripts:
+        if tr.track_id == track_id:
+            tr.user_edited = True
+
+
 def correct_word(
     project: EpisodeProject,
     track_id: str,

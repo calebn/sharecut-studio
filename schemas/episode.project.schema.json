@@ -212,6 +212,15 @@
           "type": ["string", "null"],
           "description": "transcript_context.yaml vocabulary revision whose Whisper prompt produced this transcript."
         },
+        "audio_sha256": {
+          "type": ["string", "null"],
+          "description": "Full SHA-256 of the media these words were transcribed from; null for legacy or seeded transcripts."
+        },
+        "user_edited": {
+          "type": "boolean",
+          "default": false,
+          "description": "True once a user or agent edited the words (correct, suppress, verify, cleanup)."
+        },
         "words": { "type": "array", "items": { "$ref": "#/$defs/TranscriptWord" } }
       }
     },

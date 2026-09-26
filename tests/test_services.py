@@ -611,3 +611,39 @@ def test_pipeline_service_render_final(minimal_project, sample_wav):
         runner.return_value.run = MagicMock()
         out = PipelineService(ws).render_final()
     assert out == ws.project.export_dir()
+
+
+def _with_words(ws):
+    from podcast_mcp.models import Transcript, TranscriptWord
+
+    ws.project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="teh", start=0.0, end=0.5),
+                TranscriptWord(text="end", start=0.5, end=1.0),
+            ],
+        )
+    ]
+
+
+def test_edit_service_transcript_edits_flag_user_edited(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    _with_words(ws)
+    svc = EditService(ws)
+    assert ws.project.transcripts[0].user_edited is False
+    svc.correct_word("host", 0, "the")
+    assert ws.project.transcripts[0].user_edited is True
+    ws.project.transcripts[0].user_edited = False
+    svc.set_word_suppressed("host", 1, True)
+    assert ws.project.transcripts[0].user_edited is True
+
+
+def test_edit_service_failed_edit_leaves_transcript_unflagged(minimal_project):
+    import pytest
+
+    ws = ProjectWorkspace.open(minimal_project)
+    _with_words(ws)
+    with pytest.raises(ValueError):
+        EditService(ws).correct_word("host", 99, "x")
+    assert ws.project.transcripts[0].user_edited is False

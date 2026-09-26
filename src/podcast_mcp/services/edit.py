@@ -98,6 +98,7 @@ from podcast_mcp.edits.transcript_correct import (
     correct_phrase,
     correct_word,
     list_low_confidence,
+    mark_transcript_user_edited,
     set_word_suppressed,
     verify_words,
 )
@@ -134,6 +135,17 @@ from podcast_mcp.util.timeline_zoom import snap_tick_decimals
 from podcast_mcp.util.tracks import resolve_track
 
 log = logging.getLogger(__name__)
+
+
+def _user_transcript_edit(track_id: str, fn):
+    """Run a transcript edit, then flag the track's transcript as user-edited."""
+
+    def run(p):
+        result = fn(p)
+        mark_transcript_user_edited(p, track_id)
+        return result
+
+    return run
 
 
 class EditService:
@@ -1051,7 +1063,9 @@ class EditService:
         self.ws.mutate(
             "before correct word",
             "after correct word",
-            lambda p: correct_word(p, track_id, word_index, new_text),
+            _user_transcript_edit(
+                track_id, lambda p: correct_word(p, track_id, word_index, new_text)
+            ),
         )
 
     def correct_phrase(
@@ -1064,14 +1078,19 @@ class EditService:
         self.ws.mutate(
             "before correct phrase",
             "after correct phrase",
-            lambda p: correct_phrase(p, track_id, start_word_index, end_word_index, new_text),
+            _user_transcript_edit(
+                track_id,
+                lambda p: correct_phrase(p, track_id, start_word_index, end_word_index, new_text),
+            ),
         )
 
     def set_word_suppressed(self, track_id: str, word_index: int, suppressed: bool) -> dict:
         return self.ws.mutate(
             "before set word suppressed",
             "after set word suppressed",
-            lambda p: set_word_suppressed(p, track_id, word_index, suppressed),
+            _user_transcript_edit(
+                track_id, lambda p: set_word_suppressed(p, track_id, word_index, suppressed)
+            ),
         )
 
     def low_confidence_words(self, threshold: float = 0.7) -> list[dict]:
@@ -1085,7 +1104,11 @@ class EditService:
         def mutate(p) -> int:
             return verify_words(p, track_id, corrections)
 
-        return self.ws.mutate("before verify transcript", "after verify transcript", mutate)
+        return self.ws.mutate(
+            "before verify transcript",
+            "after verify transcript",
+            _user_transcript_edit(track_id, mutate),
+        )
 
     def apply_transcript_cleanup(
         self,
@@ -1102,7 +1125,7 @@ class EditService:
         return self.ws.mutate(
             "before transcript cleanup",
             "after transcript cleanup",
-            mutate,
+            _user_transcript_edit(track_id, mutate),
         )
 
     def add_chapter(self, at_time: float, title: str) -> dict:
