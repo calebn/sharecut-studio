@@ -562,6 +562,40 @@ def test_history_move_render_failure_keeps_the_move_and_says_not_to_repeat_it(
     assert saved.reconciliation_stale is True
 
 
+def test_history_move_render_failure_leaves_the_workspace_matching_the_file(minimal_project):
+    ws = _with_undoable_gain(minimal_project)
+
+    def partial_render(project):
+        project.track_by_id("host").fader_db = -3.0  # the render's partial change
+        raise OSError("ffmpeg failed")
+
+    with patch("podcast_mcp.services.history.rerender_preview", partial_render):
+        with pytest.raises(HistoryRerenderError):
+            HistoryService(ws).undo(rerender=True)
+
+    saved_fader = load_project(minimal_project).track_by_id("host").fader_db
+    assert saved_fader != -3.0
+    assert ws.reload().track_by_id("host").fader_db == saved_fader
+    ws.save()  # reusing the workspace must not persist the failed render
+    assert load_project(minimal_project).track_by_id("host").fader_db == saved_fader
+    with pytest.raises(RuntimeError, match="needs checkpoint"):
+        ws.save_merged()
+
+
+def test_discard_changes_drops_unsaved_edits_and_the_checkpoint(minimal_project):
+    ws = _two_tracks(minimal_project)
+    ws.checkpoint()
+    ws.project.track_by_id("host").gain_db = 9.0
+    project = ws.discard_changes()
+    assert project is ws.project
+    assert (
+        ws.project.track_by_id("host").gain_db
+        == load_project(minimal_project).track_by_id("host").gain_db
+    )
+    with pytest.raises(RuntimeError, match="needs checkpoint"):
+        ws.save_merged()
+
+
 def test_history_move_rerender_cursor_clash_says_to_check_history_status(
     minimal_project, monkeypatch
 ):

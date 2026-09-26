@@ -99,7 +99,7 @@ class HistoryService:
         seconds, so it runs between ``checkpoint()`` and ``save_merged()``: an edit another
         request commits meanwhile is merged in, not overwritten (#493). If the render or
         the merge fails, the move stays saved, so the error says to re-render the preview,
-        not to repeat the move.
+        not to repeat the move. A failed render also discards its unsaved changes from the workspace.
 
         Returns ``status()`` read after the save. When a concurrent edit was merged in,
         its cursor is the ``after merging concurrent edits`` entry, not the move's target.
@@ -120,6 +120,9 @@ class HistoryService:
             rerender_preview(project)
             preview = json.loads(render_preview_result(project, rerender=False))
         except Exception as exc:
+            # The move is saved; drop the render's partial in-memory state (and the
+            # checkpoint) so a reused workspace matches the file.
+            self.ws.discard_changes()
             raise HistoryRerenderError(
                 f"the {action} is saved, but re-rendering the preview failed ({exc}); "
                 f"re-render the preview instead of repeating the {action}"
