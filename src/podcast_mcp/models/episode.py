@@ -149,6 +149,10 @@ class Transcript(BaseModel):
     source_id: str | None = None
     # transcript_context.yaml vocabulary_revision whose Whisper prompt produced these words.
     vocabulary_revision: str | None = None
+    # Full SHA-256 of the media these words were transcribed from (None = legacy/seeded).
+    audio_sha256: str | None = None
+    # True once a user/agent correction, suppression or verify touched the words.
+    user_edited: bool = False
 
 
 class CombinedUtterance(BaseModel):

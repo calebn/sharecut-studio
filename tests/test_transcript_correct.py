@@ -120,3 +120,13 @@ def test_correct_word_allows_visible_text_with_format_characters() -> None:
     correct_word(p, "host", 0, "\u200bhello\ufeff")
 
     assert p.transcripts[0].words[0].text == "\u200bhello\ufeff"
+
+
+def test_edits_layer_corrections_do_not_flag_user_edited() -> None:
+    p = EpisodeProject.create("tc", "/tmp")
+    p.transcripts = [
+        Transcript(track_id="host", words=[TranscriptWord(text="teh", start=0.0, end=0.5)])
+    ]
+    apply_transcript_corrections(p, "host", words=[{"word_index": 0, "text": "the"}])
+    assert p.transcripts[0].words[0].text == "the"
+    assert p.transcripts[0].user_edited is False

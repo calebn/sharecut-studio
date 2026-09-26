@@ -66,6 +66,8 @@ Word `start`/`end` (and combined utterance times) are **source-media seconds** o
 
 Files under `transcripts/*.json` are **caches only**; `ProjectStore.commit()` may refresh them from the project.
 
+`transcripts.per_track[].audio_sha256` is the full SHA-256 of the media the words were transcribed from (stamped by the ASR step; legacy or seeded transcripts have none and are adopted on the next run). `transcripts.per_track[].user_edited` becomes true when a person or agent corrects, suppresses or verifies words; re-transcription refuses to replace such a transcript in unattended runs.
+
 `transcripts.per_track[].vocabulary_revision` records the `transcript_context.yaml` vocabulary revision whose Whisper prompt produced that transcript. Studio asks for re-transcription when any stored transcript has a different revision than the context; a project with no transcripts never asks. Single-track runs stamp only that track, and a failed or empty transcription leaves existing stamps unchanged.
 
 ## Timebase invariant
