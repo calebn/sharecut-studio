@@ -157,7 +157,7 @@ flowchart LR
 | UI label | Field |
 |----------|-------|
 | Range | decision `start`/`end` (source) → shown mapped on timeline, as `m:ss.mmm` |
-| Reason | agent/tool reason string, shown once in words (for example "Suggested by guest") |
+| Reason | agent/tool reason string, shown once in words (for example "Suggested by guest"; codes in `edits/edit_reasons.py`, each with a label) |
 | Join fade | `crossfade_ms` (applied as fade lengths on approve) |
 | Track | track id |
 | Actions | Approve / Reject / nudge |

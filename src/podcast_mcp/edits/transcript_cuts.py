@@ -4,6 +4,14 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
+from podcast_mcp.edits.edit_reasons import (
+    GUEST_SUGGEST_SPLIT_REASON,
+    NL_MANUAL_REASON,
+    NL_MATCH_REASON_PREFIX,
+    NL_RANGE_REASON,
+    NL_UTTERANCE_REASON_PREFIX,
+    NL_WORDS_REASON,
+)
 from podcast_mcp.edits.inaudible_cuts import optimize_source_cut_range
 from podcast_mcp.edits.tighten_reasons import is_review_only_reason
 from podcast_mcp.engines.session_timeline import SessionTimeline
@@ -170,7 +178,7 @@ def append_remove_decision(
     start: float,
     end: float,
     *,
-    reason: str = "nl:manual",
+    reason: str = NL_MANUAL_REASON,
     review_required: bool = True,
     applied: bool = False,
     crossfade_ms: int = 10,
@@ -209,7 +217,7 @@ def append_split_decision(
     at_time: float,
     track_ids: list[str],
     *,
-    reason: str = "guest:suggest_split",
+    reason: str = GUEST_SUGGEST_SPLIT_REASON,
     review_required: bool = True,
 ) -> EditDecision:
     """Append a pending blade/split decision (timeline clock, start == end)."""
@@ -239,7 +247,7 @@ def add_remove_decision(
     start: float,
     end: float,
     *,
-    reason: str = "nl:manual",
+    reason: str = NL_MANUAL_REASON,
     review_required: bool = True,
     applied: bool = False,
     crossfade_ms: int = 10,
@@ -399,7 +407,7 @@ def cut_time_range(
     start: float,
     end: float,
     *,
-    reason: str = "nl:range",
+    reason: str = NL_RANGE_REASON,
     review_required: bool = True,
     crossfade_ms: int = 10,
     use_inaudible_opt: bool | None = None,
@@ -440,7 +448,7 @@ def cut_text_match(
                 m.track_id,
                 m.start,
                 m.end,
-                reason=f"nl:match:{query[:40]}",
+                reason=f"{NL_MATCH_REASON_PREFIX}{query[:40]}",
                 review_required=review_required,
                 use_inaudible_opt=use_inaudible_opt,
             )
@@ -462,7 +470,7 @@ def cut_utterance(
         tid,
         start,
         end,
-        reason=f"nl:utterance:{text[:40]}",
+        reason=f"{NL_UTTERANCE_REASON_PREFIX}{text[:40]}",
         review_required=review_required,
         use_inaudible_opt=use_inaudible_opt,
     )
@@ -486,7 +494,7 @@ def cut_words(
         track_id,
         start,
         end,
-        reason="nl:words",
+        reason=NL_WORDS_REASON,
         review_required=review_required,
         use_inaudible_opt=use_inaudible_opt,
     )

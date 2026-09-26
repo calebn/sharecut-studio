@@ -7,6 +7,7 @@ import typer
 
 from podcast_mcp.cli.context import get_progress
 from podcast_mcp.cli.timed import timed_command
+from podcast_mcp.edits.edit_reasons import NL_RANGE_REASON
 from podcast_mcp.edits.tighten_intensity import normalize_tighten_intensity
 from podcast_mcp.services import EditService, ProjectWorkspace
 
@@ -72,7 +73,7 @@ def edit_cut_range_cmd(
     track: str = typer.Option(..., "--track"),
     start: float = typer.Option(..., "--start"),
     end: float = typer.Option(..., "--end"),
-    reason: str = typer.Option("nl:range", "--reason"),
+    reason: str = typer.Option(NL_RANGE_REASON, "--reason"),
     review: bool = typer.Option(True, "--review/--no-review"),
     inaudible_opt: bool = typer.Option(True, "--inaudible-opt/--no-inaudible-opt"),
 ) -> None:

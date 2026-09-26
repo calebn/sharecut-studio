@@ -46,6 +46,13 @@ from podcast_mcp.edits.chapters import (
 )
 from podcast_mcp.edits.decisions import update_pending_edit
 from podcast_mcp.edits.edit_log import list_applied_edits, revert_applied_edit
+from podcast_mcp.edits.edit_reasons import (
+    GUEST_SUGGEST_DELETE_REASON,
+    GUEST_SUGGEST_REASON,
+    GUEST_SUGGEST_RIPPLE_DELETE_REASON,
+    GUEST_SUGGEST_SPLIT_REASON,
+    NL_RANGE_REASON,
+)
 from podcast_mcp.edits.inaudible_cuts import (
     optimize_source_cut_range,
     optimize_timeline_cut_range,
@@ -157,7 +164,7 @@ class EditService:
         start: float,
         end: float,
         *,
-        reason: str = "nl:range",
+        reason: str = NL_RANGE_REASON,
         review_required: bool = True,
         use_inaudible_opt: bool | None = None,
     ) -> None:
@@ -926,7 +933,7 @@ class EditService:
                     p,
                     float(at_time),
                     tids,
-                    reason=reason or "guest:suggest_split",
+                    reason=reason or GUEST_SUGGEST_SPLIT_REASON,
                 )
                 return {"operation": "propose_split", "edit": decision.model_dump()}
             return split_clips_at(p, float(at_time), tids)
@@ -964,7 +971,11 @@ class EditService:
                         float(clip.source_start),
                         float(clip.source_end),
                         reason=reason
-                        or ("guest:suggest_ripple_delete" if ripple else "guest:suggest_delete"),
+                        or (
+                            GUEST_SUGGEST_RIPPLE_DELETE_REASON
+                            if ripple
+                            else GUEST_SUGGEST_DELETE_REASON
+                        ),
                         review_required=True,
                         applied=False,
                         scope="session" if ripple else "track",
@@ -1152,7 +1163,7 @@ class EditService:
                 track_id,
                 float(start),
                 float(end),
-                reason=reason or "guest:suggest",
+                reason=reason or GUEST_SUGGEST_REASON,
                 review_required=True,
                 applied=False,
                 decision_type=decision_type,

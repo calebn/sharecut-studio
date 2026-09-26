@@ -82,7 +82,7 @@ Shipped:
 Shipped:
 
 - Pending Approve / Reject (inspector) + Impact **Approve/Reject all review-required**
-- `UpdatePendingEdit` — timeline edge drag (a pointer-up under `HANDLE_DRAG_MIN_PX`, 3 px net, only selects the edit) + inspector source nudge with inaudible snap; the nudge fields take `m:ss.mmm` (or plain seconds); an untouched field sends its exact stored time; the inspector shows the reason once in words, the type as a word (Cut / Mute / Split), and `crossfade_ms` as **Join fade** (approve applies it as fade lengths)
+- `UpdatePendingEdit` — timeline edge drag (a pointer-up under `HANDLE_DRAG_MIN_PX`, 3 px net, only selects the edit) + inspector source nudge with inaudible snap; the nudge fields take `m:ss.mmm` (or plain seconds); an untouched field sends its exact stored time; the inspector shows the reason once in words (codes in `edits/edit_reasons.py`, labels pinned by `tests/test_edit_reasons.py`), the type as a word (Cut / Mute / Split), and `crossfade_ms` as **Join fade** (approve applies it as fade lengths)
 - `RestoreAppliedEdit` / `revert_applied_edit` — re-insert clip material from `AppliedEditRecord` source clocks for ripple/punch cuts; mute archives (`params.mute`) subtract intersecting `Clip.mute_regions` without shifting the timeline. Records without source clocks → History undo
 - Inspector Seek / Play around footers (Current / Suggested / A/B on pending)
 

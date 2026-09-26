@@ -4,6 +4,7 @@ import json
 
 from mcp.server import MCPServer
 
+from podcast_mcp.edits.edit_reasons import NL_RANGE_REASON
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.mcp.tools.agent_notify import agent_mutated
 from podcast_mcp.services import EditService, ProjectWorkspace
@@ -32,7 +33,7 @@ def cut_time_range_tool(
     track_id: str,
     start: float,
     end: float,
-    reason: str = "nl:range",
+    reason: str = NL_RANGE_REASON,
     review_required: bool = True,
     use_inaudible_opt: bool | None = None,
 ) -> str:
