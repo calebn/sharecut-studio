@@ -1,10 +1,12 @@
 import { Button } from "../ui";
+import type { TakeClipping } from "./keeper/clipRegions";
 import { LiveComments } from "./LiveComments";
 import { MicLossNotice } from "./MicLossNotice";
 import { MicMeter } from "./MicMeter";
 import { NoAudioNotice } from "./NoAudioNotice";
 import { RecIndicator } from "./RecIndicator";
 import { Roster } from "./Roster";
+import { TakeClippingReport } from "./TakeClippingReport";
 import {
   captureAttention,
   HEARING_COPY,
@@ -50,6 +52,8 @@ type Props = {
   keeperActions?: KeeperRecoveryActions;
   /** Own mic stream for the level meter; null hides it. */
   stream?: MediaStream | null;
+  /** This person's take clipping (live, then from local keeper metadata). */
+  clipping?: TakeClipping | null;
 };
 
 export function Room({
@@ -79,6 +83,7 @@ export function Room({
   onResumeUpload,
   keeperActions,
   stream = null,
+  clipping = null,
 }: Props) {
   const hostOffline =
     !connected &&
@@ -98,7 +103,15 @@ export function Room({
   return (
     <div className="stack">
       {/* No `offline`: the guest keeps recording locally; HOST_OFFLINE_COPY explains a drop. */}
-      <RecIndicator snapshot={snapshot} capture={capture} />
+      <RecIndicator
+        snapshot={snapshot}
+        capture={capture}
+        clipping={
+          me && me.role !== "producer"
+            ? (clipping?.regions.length ?? 0) > 0
+            : undefined
+        }
+      />
       <div aria-live="polite">
         {hostOffline ? (
           <p className="record-warn">{HOST_OFFLINE_COPY}</p>
@@ -138,6 +151,9 @@ export function Room({
           <p className="record-warn">{uploadSinkError}</p>
         ) : null}
         {monitorError ? <p className="record-warn">{monitorError}</p> : null}
+        {me && me.role !== "producer" ? (
+          <TakeClippingReport report={clipping} roomState={snapshot.state} />
+        ) : null}
         {upload ? (
           <UploadStatus
             progress={upload}

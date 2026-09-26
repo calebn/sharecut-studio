@@ -337,6 +337,7 @@ Journeys: [Guest journeys § 6–7](#/journeys).
 |---------|-----|----------------|
 | **Record lobby** | Guest (recorded) | Name, headphones, mic test, device picker, recording-consent notice. Wait for host Start. **Shipped (no screenshot yet).** |
 | **Record lobby** | Producer | Name only; **Not recorded** roster group; no mic, no consent. **Shipped (no screenshot yet).** |
+| **Record lobby / room / panel** | Recorded guest and host | **Own** peak meter (sample peak only) with a latching clip LED and headroom hint; REC indicator gets a take **clip LED**; live clipping notice during REC and a **Clipping report** after Stop (host: **Jump to** on the timeline). Producers and Full room have none. |
 | **Record room** | Guest | Persistent **REC** / **PAUSED** + clock; mute (zeros on the keeper + send stops); roster; local-recording copy; **Hearing the room.** Upload until ACK, then host timeline clips. **Shipped (no screenshot yet).** |
 | **Record panel** | Host | Start / Pause / Resume / Stop / **Land**; upload ACK roster. File ACK auto-lands clips; Land retries. **Shipped (no screenshot yet).** |
 | **Record room** | Producer | Same REC/PAUSED + **Not recorded** group; mix-minus of recorded peers; no keeper / upload. **Shipped (no screenshot yet).** |

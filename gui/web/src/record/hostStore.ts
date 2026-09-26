@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { TakeClipping } from "./keeper/clipRegions";
 import type { ByteSink } from "./keeper/store";
 import type { CaptureHealth, RecordSnapshot } from "./types";
 
@@ -14,6 +15,8 @@ type RecordHostState = {
   keeperSink: ByteSink | null;
   keeperStorageError: string | null;
   captureHealth: CaptureHealth;
+  takeClipping: TakeClipping | null;
+  setTakeClipping: (clipping: TakeClipping | null) => void;
   setCaptureHealth: (health: CaptureHealth) => void;
   setKeeperStorage: (sink: ByteSink | null, error: string | null) => void;
   setSnapshot: (snap: RecordSnapshot | null) => void;
@@ -34,6 +37,8 @@ export const useRecordHostStore = create<RecordHostState>((set) => ({
   keeperSink: null,
   keeperStorageError: null,
   captureHealth: null,
+  takeClipping: null,
+  setTakeClipping: (takeClipping) => set({ takeClipping }),
   setCaptureHealth: (captureHealth) => set({ captureHealth }),
   setKeeperStorage: (keeperSink, keeperStorageError) =>
     set({ keeperSink, keeperStorageError }),

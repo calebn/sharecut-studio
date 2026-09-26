@@ -37,6 +37,7 @@ const keeper = vi.hoisted(() =>
       noAudio?: boolean;
       micCheckFailed?: boolean;
       checkMic?: () => void;
+      clipping?: import("./keeper/clipRegions").TakeClipping | null;
     } => ({
       error: null,
       recordingLocally: args.enabled,
@@ -79,6 +80,23 @@ describe("useHostKeeperCapture", () => {
     useRecordHostStore.getState().setConnected(false);
     useRecordHostStore.getState().setCaptureHealth(null);
     bindRecordHostSend(null);
+  });
+
+  it("syncs live clipping into the host store and clears it on unmount", () => {
+    const live = {
+      takeIndex: recording.take_index,
+      known: true,
+      regions: [{ segmentIndex: 0, startMs: 1, endMs: 5, segmentStartMs: 1 }],
+    };
+    keeper.mockImplementationOnce((args) => ({
+      error: null,
+      recordingLocally: args.enabled,
+      clipping: live,
+    }));
+    const { unmount } = renderHook(() => useHostKeeperCapture());
+    expect(useRecordHostStore.getState().takeClipping).toEqual(live);
+    unmount();
+    expect(useRecordHostStore.getState().takeClipping).toBeNull();
   });
 
   it("passes the preflighted host sink to keeper capture", () => {

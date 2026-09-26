@@ -140,8 +140,11 @@ flowchart TD
   rec --> silent[No audio reaching the recorder]
   silent --> check[Check mic]
   check --> rec
+  rec --> clip[Mic clips: live notice + REC clip LED]
+  clip --> rec
   rec --> stop[Host Stop]
-  stop --> upload[Upload panel with N/M or stalled state]
+  stop --> report[Clipping report]
+  report --> upload[Upload panel with N/M or stalled state]
   upload --> recovery[Resume upload or Download local keeper]
   recovery --> upload
   upload --> staged[File uploaded; local OPFS WAV kept]

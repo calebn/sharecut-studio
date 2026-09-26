@@ -353,4 +353,42 @@ describe("Room", () => {
     );
     expect(screen.queryByTestId("mic-meter")).toBeNull();
   });
+
+  it("shows the clip LED and report for a recorded guest, not a producer", () => {
+    const clipping = {
+      takeIndex: 0,
+      known: true,
+      regions: [
+        { segmentIndex: 0, startMs: 1000, endMs: 2000, segmentStartMs: 1000 },
+      ],
+    };
+    const { rerender } = render(
+      <Room
+        snapshot={{ ...snapshot, state: "stopped" }}
+        me={me}
+        onMute={() => undefined}
+        onLeave={() => undefined}
+        clipping={clipping}
+      />,
+    );
+    expect(
+      screen.getByRole("img", { name: "Take: clipping detected" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Clipping report" }),
+    ).toBeInTheDocument();
+    rerender(
+      <Room
+        snapshot={{ ...snapshot, state: "stopped" }}
+        me={{ ...me, role: "producer" }}
+        onMute={() => undefined}
+        onLeave={() => undefined}
+        clipping={clipping}
+      />,
+    );
+    expect(screen.queryByTestId("clip-led")).toBeNull();
+    expect(
+      screen.queryByRole("heading", { name: "Clipping report" }),
+    ).toBeNull();
+  });
 });

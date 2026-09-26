@@ -13,6 +13,7 @@ describe("RecordTransportChip", () => {
     useRecordHostStore.getState().resetConnection();
     useRecordHostStore.getState().setSnapshot(null);
     useRecordHostStore.getState().setCaptureHealth(null);
+    useRecordHostStore.getState().setTakeClipping(null);
   });
 
   it("labels silent capture", () => {
@@ -73,5 +74,22 @@ describe("RecordTransportChip", () => {
     useRecordHostStore.getState().setCaptureHealth(health);
     render(<RecordTransportChip />);
     expect(screen.getByRole("button", { name })).toBeInTheDocument();
+  });
+
+  it("lights the clip LED and prefixes the label once the take clips", () => {
+    useRecordHostStore.getState().setSnapshot(recordSnapshot());
+    useRecordHostStore.getState().setTakeClipping({
+      takeIndex: 0,
+      known: true,
+      regions: [{ segmentIndex: 0, startMs: 1, endMs: 5, segmentStartMs: 1 }],
+    });
+    render(<RecordTransportChip />);
+    const chip = screen.getByRole("button", {
+      name: "Clipping detected. Recording. Open record panel",
+    });
+    expect(chip.querySelector("[data-testid='clip-led']")).toHaveAttribute(
+      "data-lit",
+      "true",
+    );
   });
 });

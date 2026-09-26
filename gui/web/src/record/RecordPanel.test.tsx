@@ -152,6 +152,7 @@ describe("RecordPanel", () => {
     useRecordHostStore.getState().setCaptureHealth(null);
     useRecordHostStore.getState().setKeeperStorage(null, null);
     useRecordHostStore.getState().resetConnection();
+    useRecordHostStore.getState().setTakeClipping(null);
   });
 
   it("disables Start with the no-one-joined reason", async () => {
@@ -203,6 +204,50 @@ describe("RecordPanel", () => {
     expect(dialog).toHaveTextContent("REC");
     expect(dialog).not.toHaveTextContent("REC: local capture failed");
     expect(screen.getByRole("button", { name: "Close" })).toBeEnabled();
+  });
+
+  it("lists clipping and jumps to the landed clip on the timeline", async () => {
+    const project = minimalProject();
+    useDawStore.getState().hydrate("/tmp/p.json", {
+      ...project,
+      clips: {
+        ...project.clips,
+        tracks: {
+          t1: [
+            {
+              id: "c9",
+              track_id: "t1",
+              source_start: 0,
+              source_end: 30,
+              timeline_start: 100,
+              timeline_end: 130,
+              fade_in_ms: 0,
+              fade_out_ms: 0,
+              join_in_mode: "fade",
+              source_id: "rec-room1-0-p_host-0",
+            },
+          ],
+        },
+      },
+    });
+    act(() => {
+      useRecordHostStore
+        .getState()
+        .setSnapshot({ ...lobby, state: "stopped", take_index: 0 });
+      useRecordHostStore.getState().setTakeClipping({
+        takeIndex: 0,
+        known: true,
+        regions: [
+          { segmentIndex: 0, startMs: 5000, endMs: 6000, segmentStartMs: 5000 },
+        ],
+      });
+    });
+    render(<RecordPanel />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: /Jump to/ }),
+    );
+    expect(useDawStore.getState().playheadSec).toBe(105);
+    expect(useDawStore.getState().recordPanelOpen).toBe(false);
   });
 
   it("shows your own mic meter while the panel is open", async () => {

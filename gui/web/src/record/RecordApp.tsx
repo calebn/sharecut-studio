@@ -36,6 +36,7 @@ import {
   useRecordSync,
 } from "./useRecordSync";
 import { useRoomToneCapture } from "./useRoomToneCapture";
+import { useTakeClipping } from "./useTakeClipping";
 
 function isNotFound(error: string): boolean {
   const lower = error.toLowerCase();
@@ -238,6 +239,15 @@ export function RecordApp({ token }: { token: string }) {
     retryNonce: uploadRetryNonce,
     captureExpected: me?.consented === true,
   });
+  const takeClipping = useTakeClipping({
+    sink,
+    sessionId: snapshot?.session_id ?? null,
+    participantId: me?.participant_id ?? null,
+    takeIndex: snapshot?.take_index ?? -1,
+    roomState: snapshot?.state,
+    captureSettled,
+    live: keeper.clipping,
+  });
   const keeperActions = useKeeperRecoveryActions({
     sink,
     sessionId: snapshot?.session_id ?? null,
@@ -396,6 +406,7 @@ export function RecordApp({ token }: { token: string }) {
               onResumeUpload={() => setUploadRetryNonce((value) => value + 1)}
               keeperActions={keeperActions}
               stream={producer || me?.consented !== true ? null : mic.stream}
+              clipping={takeClipping}
             />
           ) : (
             <div className="stack">

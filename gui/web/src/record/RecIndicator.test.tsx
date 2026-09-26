@@ -89,4 +89,18 @@ describe("RecIndicator", () => {
     expect(screen.getByText("REC: waiting for microphone")).toBeInTheDocument();
     expect(screen.queryByText("REC")).not.toBeInTheDocument();
   });
+
+  it("shows the take clip LED only when a state is provided", () => {
+    const rec = { ...base, state: "recording" as const };
+    const { rerender } = render(<RecIndicator snapshot={rec} />);
+    expect(screen.queryByTestId("clip-led")).toBeNull();
+    rerender(<RecIndicator snapshot={rec} clipping={false} />);
+    expect(
+      screen.getByRole("img", { name: "Take: no clipping" }),
+    ).toBeInTheDocument();
+    rerender(<RecIndicator snapshot={rec} clipping />);
+    expect(
+      screen.getByRole("img", { name: "Take: clipping detected" }),
+    ).toHaveAttribute("data-lit", "true");
+  });
 });

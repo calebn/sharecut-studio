@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { hostRecordUploadTransport, loadHostRecordState } from "../api";
 import { execute } from "../commands/execute";
 import { useDaw } from "../state/useDaw";
+import { sourceToTimeline } from "../timeline/clippingFlags";
 import { Button, Dialog } from "../ui";
 import { errorMessage } from "../utils/apiError";
 import { startBlockers } from "./blockers";
@@ -27,6 +28,7 @@ import { RecIndicator } from "./RecIndicator";
 import { RoomToneCapture } from "./RoomToneCapture";
 import { Roster } from "./Roster";
 import { StorageHeadroomWarning } from "./StorageHeadroomWarning";
+import { TakeClippingReport } from "./TakeClippingReport";
 import {
   captureAttention,
   HEARING_COPY,
@@ -34,6 +36,7 @@ import {
   LOCAL_KEEPER_COPY,
   LOCAL_KEEPER_PENDING_COPY,
   RECORD_ROOM_RECONNECTING_COPY,
+  recordSourceId,
   shouldApplyRecordSnapshot,
 } from "./types";
 import { UploadStatus } from "./UploadStatus";
@@ -87,14 +90,21 @@ export function RecordPanel({
     shareDialogOpen,
     projectPath,
     setShareDialogOpen,
+    project,
+    selectClip,
+    setPlayheadSec,
   } = useDaw((s) => ({
     recordPanelOpen: s.recordPanelOpen,
     setRecordPanelOpen: s.setRecordPanelOpen,
     shareDialogOpen: s.shareDialogOpen,
     projectPath: s.projectPath,
     setShareDialogOpen: s.setShareDialogOpen,
+    project: s.project,
+    selectClip: s.selectClip,
+    setPlayheadSec: s.setPlayheadSec,
   }));
   const snapshot = useRecordHostStore((s) => s.snapshot);
+  const takeClipping = useRecordHostStore((s) => s.takeClipping);
   const setSnapshot = useRecordHostStore((s) => s.setSnapshot);
   const captureHealth = useRecordHostStore((s) => s.captureHealth);
   const blockers = startBlockers(snapshot);
@@ -283,6 +293,7 @@ export function RecordPanel({
             snapshot={snapshot}
             capture={capture}
             offline={offline}
+            clipping={(takeClipping?.regions.length ?? 0) > 0}
           />
         ) : null}
         {offline ? (
@@ -348,6 +359,34 @@ export function RecordPanel({
             onResume={() => setUploadRetryNonce((value) => value + 1)}
             actions={keeperActions}
           />
+          {snapshot ? (
+            <TakeClippingReport
+              report={takeClipping}
+              roomState={snapshot.state}
+              jumpFor={(region) => {
+                const hit = project
+                  ? sourceToTimeline(
+                      project.clips.tracks,
+                      recordSourceId(
+                        snapshot.session_id,
+                        snapshot.take_index,
+                        "p_host",
+                        region.segmentIndex,
+                      ),
+                      region.segmentStartMs / 1000,
+                    )
+                  : null;
+                if (!hit) {
+                  return null;
+                }
+                return () => {
+                  selectClip(hit.clip.id, hit.trackId);
+                  setPlayheadSec(hit.timelineSec);
+                  setRecordPanelOpen(false);
+                };
+              }}
+            />
+          ) : null}
           {snapshot ? (
             <HostUploadRoster
               participants={snapshot.participants}

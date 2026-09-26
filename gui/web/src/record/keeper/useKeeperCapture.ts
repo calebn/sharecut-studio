@@ -8,8 +8,9 @@ import {
 import { errorMessage } from "../../utils/apiError";
 import { recordingClockMs } from "../clock";
 import type { RecordRole, RecordSnapshot } from "../types";
+import { type TakeClipping, takeRelativeMs } from "./clipRegions";
 import { type KeeperTap, openKeeperTap } from "./graph";
-import { KeeperSession } from "./session";
+import { type KeeperClipEvent, KeeperSession } from "./session";
 import { SILENT_PCM_TICK_MS, SilentPcmWatchdog } from "./silenceWatchdog";
 import { type ByteSink, createOpfsSink } from "./store";
 
@@ -55,8 +56,29 @@ export function useKeeperCapture({
   noAudio: boolean;
   micCheckFailed: boolean;
   checkMic: () => void;
+  /** Live clip regions of the current take, from the encoder. */
+  clipping: TakeClipping | null;
 } {
   const [error, setError] = useState<string | null>(null);
+  const [clipping, setClipping] = useState<TakeClipping | null>(null);
+  const clipSegments = useRef<{
+    takeIndex: number;
+    segments: Map<number, KeeperClipEvent>;
+  } | null>(null);
+  const onClipping = useCallback((event: KeeperClipEvent) => {
+    let current = clipSegments.current;
+    if (!current || current.takeIndex !== event.takeIndex) {
+      current = { takeIndex: event.takeIndex, segments: new Map() };
+      clipSegments.current = current;
+    }
+    current.segments.set(event.segmentIndex, event);
+    const regions = [...current.segments.values()]
+      .sort((a, b) => a.segmentIndex - b.segmentIndex)
+      .flatMap((e) =>
+        takeRelativeMs(e.segmentIndex, e.joinOffsetMs, e.regions),
+      );
+    setClipping({ takeIndex: event.takeIndex, regions, known: true });
+  }, []);
   const [writing, setWriting] = useState(false);
   const [unfinalizedCapture, setUnfinalizedCapture] = useState(false);
   const unfinalizedCaptureRef = useRef(false);
@@ -239,13 +261,17 @@ export function useKeeperCapture({
       try {
         const activeSink = sink ?? (await createOpfsSink());
         let session: KeeperSession | null = null;
-        session = new KeeperSession(activeSink, (failure) => {
-          if (cancelled || sessionRef.current !== session) {
-            return;
-          }
-          setWriting(false);
-          setError(failure.message);
-        });
+        session = new KeeperSession(
+          activeSink,
+          (failure) => {
+            if (cancelled || sessionRef.current !== session) {
+              return;
+            }
+            setWriting(false);
+            setError(failure.message);
+          },
+          { onClipping },
+        );
         await session.restoreCursor(
           sessionId,
           gateRef.current.snapshot?.take_index ?? -1,
@@ -291,6 +317,7 @@ export function useKeeperCapture({
     applyGate,
     captureGate,
     disposeSession,
+    onClipping,
   ]);
 
   useEffect(() => {
@@ -519,5 +546,6 @@ export function useKeeperCapture({
     noAudio,
     micCheckFailed,
     checkMic,
+    clipping,
   };
 }

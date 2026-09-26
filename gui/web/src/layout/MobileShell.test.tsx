@@ -101,6 +101,27 @@ describe("MobileShell", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("shows the lit clip LED in the mobile record status", () => {
+    useRecordHostStore
+      .getState()
+      .setSnapshot(recordSnapshot({ state: "recording" }));
+    useRecordHostStore.getState().setTakeClipping({
+      takeIndex: 0,
+      known: true,
+      regions: [{ segmentIndex: 0, startMs: 1, endMs: 5, segmentStartMs: 1 }],
+    });
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <MobileShell />
+      </DawProvider>,
+    );
+    const led = container.querySelector(
+      ".mobile-record-status [data-testid='clip-led']",
+    );
+    expect(led).toHaveAttribute("data-lit", "true");
+    useRecordHostStore.getState().setTakeClipping(null);
+  });
+
   it("does not show Stale render for a new empty project", () => {
     const project = minimalProject({
       render_status: {
