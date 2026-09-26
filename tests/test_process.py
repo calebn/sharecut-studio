@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-from podcast_mcp.util.process import run
+from podcast_mcp.util.process import CalledProcessError, run
 
 
 def test_run_rejects_non_sequence_argv() -> None:
@@ -21,6 +21,18 @@ def test_run_harmless_command() -> None:
     r = run([sys.executable, "-c", "print(1)"], capture_output=True, text=True)
     assert r.returncode == 0
     assert r.stdout.strip() == "1"
+
+
+def test_run_boolean_options_keep_subprocess_semantics() -> None:
+    failing = [sys.executable, "-c", "import sys; print('failed'); sys.exit(3)"]
+    result = run(failing, check=False, capture_output=True, text=True)
+    assert result.returncode == 3
+    assert result.stdout.strip() == "failed"
+    assert isinstance(result.stdout, str)
+    with pytest.raises(CalledProcessError) as exc:
+        run(failing, check=True, capture_output=True, text=False)
+    assert exc.value.returncode == 3
+    assert exc.value.stdout.strip() == b"failed"
 
 
 def test_popen_rejects_and_runs() -> None:

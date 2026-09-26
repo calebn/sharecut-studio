@@ -343,6 +343,13 @@ def test_play_transcript_query_mcp(tmp_path):
     assert data["play"]["tier"] == "segment_render"
 
 
+def test_play_transcript_query_requires_keyword_boolean_options() -> None:
+    from podcast_mcp.mcp.tools.play import play_transcript_query_tool
+
+    with pytest.raises(TypeError, match="positional"):
+        play_transcript_query_tool("episode.json", "hello", 0, 1.5, True)
+
+
 def test_play_audio_mcp(tmp_path):
     from unittest.mock import patch
 

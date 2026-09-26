@@ -58,6 +58,7 @@ def play_transcript_query_tool(
     query: str,
     match_index: int = 0,
     padding_sec: float = 1.5,
+    *,
     processed: bool = True,
     dry_run: bool = False,
     rerender: bool = False,

@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import typer
+import yaml
 from filelock import Timeout
 
 from podcast_mcp.cli.context import get_progress
@@ -138,8 +139,6 @@ def transcript_context_set_cmd(
         raise typer.BadParameter("Provide --file or at least one field flag")
     try:
         if context_file:
-            import yaml
-
             data = yaml.safe_load(context_file.read_text(encoding="utf-8")) or {}
             path = svc.update_context(values=data)
         else:

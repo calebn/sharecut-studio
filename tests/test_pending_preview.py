@@ -2,7 +2,16 @@ from __future__ import annotations
 
 import pytest
 
-from podcast_mcp.edits.pending_preview import resolve_pending_preview
+from podcast_mcp.edits.pending_preview import (
+    SKIP_REASON_MUTE,
+    SKIP_REASON_SESSION_ONLY,
+    SKIP_REASON_SPLIT,
+    SKIP_REASON_TOO_SHORT,
+    SKIP_REASON_TRACK,
+    SKIP_REASON_UNMAPPED,
+    _skip_reason,
+    resolve_pending_preview,
+)
 from podcast_mcp.models import (
     Clip,
     EditDecision,
@@ -34,6 +43,22 @@ def _project() -> EpisodeProject:
         )
     ]
     return proj
+
+
+@pytest.mark.parametrize(
+    ("type_val", "scope", "mappable", "duration", "expected"),
+    [
+        ("remove", "session", True, 1.0, None),
+        ("split", "session", False, 0.0, SKIP_REASON_SPLIT),
+        ("mute", "track", True, 1.0, SKIP_REASON_MUTE),
+        ("remove", "track", True, 1.0, SKIP_REASON_TRACK),
+        ("remove", "session", False, 1.0, SKIP_REASON_UNMAPPED),
+        ("remove", "session", True, 0.02, SKIP_REASON_TOO_SHORT),
+        ("future", "session", True, 1.0, SKIP_REASON_SESSION_ONLY),
+    ],
+)
+def test_skip_reason_preserves_preview_priority(type_val, scope, mappable, duration, expected):
+    assert _skip_reason(type_val, scope, mappable, duration) == expected
 
 
 def test_session_remove_can_skip() -> None:
