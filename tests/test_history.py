@@ -415,6 +415,7 @@ def test_record_if_changed_rolls_back_when_the_index_write_fails(minimal_project
     assert json.loads(index_path.read_text()) == index_before
     assert history_snapshot_ids(index_path) == ids_before
 
+
 def test_write_snapshot_round_trips_through_read(minimal_project):
     proj = load_project(minimal_project)
     rel = write_snapshot(proj, snapshot_from_project(proj), "shared-writer")
