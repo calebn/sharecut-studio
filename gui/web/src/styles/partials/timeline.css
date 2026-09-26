@@ -143,6 +143,16 @@
   background: var(--pending-mute);
 }
 
+.clip-clipping-region {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  margin-left: -1px; /* the clip border, as .clip-waveform */
+  z-index: 2;
+  pointer-events: none;
+  background: var(--clipping-region);
+}
+
 .clip-waveform-snap {
   position: absolute;
   top: 0;
@@ -514,6 +524,33 @@ button.join-diamond {
   top: 0.4375rem;
   height: 0.625rem;
   background: var(--comment-marker);
+  border-radius: var(--radius-xs);
+  pointer-events: none;
+}
+
+.clipping-marker {
+  position: absolute;
+  top: 0;
+  z-index: var(--z-clip);
+  height: var(--marker-row-height);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  min-width: var(--marker-row-height);
+  box-sizing: border-box;
+}
+
+.clipping-marker::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0.4375rem;
+  height: 0.625rem;
+  background: var(--clipping-marker);
   border-radius: var(--radius-xs);
   pointer-events: none;
 }

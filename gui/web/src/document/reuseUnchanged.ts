@@ -1,8 +1,15 @@
-import type { ClipMuteRegion, ClipRow, ProjectView } from "../types/project";
+import type {
+  ClipMuteRegion,
+  ClippingRegion,
+  ClipRow,
+  ProjectView,
+} from "../types/project";
 
-function sameMuteRegions(
-  a: ClipMuteRegion[] | undefined,
-  b: ClipMuteRegion[] | undefined,
+type SourceSpans = ClipMuteRegion[] | ClippingRegion[];
+
+function sameSourceSpans(
+  a: SourceSpans | undefined,
+  b: SourceSpans | undefined,
 ): boolean {
   if (a === b) {
     return true;
@@ -16,7 +23,8 @@ function sameMuteRegions(
 }
 
 /**
- * Same own keys with equal values; `mute_regions` compared per region.
+ * Same own keys with equal values; `mute_regions` and `clipping_regions`
+ * compared per region.
  * Any other nested value compares by identity, so a freshly parsed one never
  * matches. That is safe (the row only loses reuse), but a nested field added to
  * `ClipRow` or `TrackView` that should keep reuse needs its own case here.
@@ -30,10 +38,10 @@ function sameShallow<T extends object>(a: T, b: T): boolean {
     if (!Object.hasOwn(b, key)) {
       return false;
     }
-    if (key === "mute_regions") {
-      return sameMuteRegions(
-        a[key] as ClipMuteRegion[] | undefined,
-        b[key] as ClipMuteRegion[] | undefined,
+    if (key === "mute_regions" || key === "clipping_regions") {
+      return sameSourceSpans(
+        a[key] as SourceSpans | undefined,
+        b[key] as SourceSpans | undefined,
       );
     }
     return a[key] === b[key];

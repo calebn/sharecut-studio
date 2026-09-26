@@ -7,6 +7,7 @@ import {
 } from "../presence/anchors";
 import { presenceCursorFromPointer } from "../presence/usePresenceCursorSource";
 import { useDawStore } from "../state/dawStore";
+import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
 import type {
   ChapterMarker,
@@ -64,6 +65,7 @@ describe("MarkerLane", () => {
       chapters: true,
       social: false,
       comments: true,
+      clipping: false,
     });
     const rows = [...container.querySelectorAll(".marker-row")].map(
       (el) => el.classList[1],
@@ -76,13 +78,19 @@ describe("MarkerLane", () => {
       chapters: false,
       social: false,
       comments: false,
+      clipping: false,
     });
     expect(container.querySelector(".marker-lane.empty")).toBeTruthy();
     expect(container.querySelector(".marker-row")).toBeNull();
   });
 
   it("anchors each row so remote cursors land on it whatever layers are on", () => {
-    const all = renderLane({ chapters: true, social: true, comments: true });
+    const all = renderLane({
+      chapters: true,
+      social: true,
+      comments: true,
+      clipping: false,
+    });
     const row = all.container.querySelector(
       ".marker-row.comments",
     ) as HTMLElement;
@@ -105,6 +113,7 @@ describe("MarkerLane", () => {
       chapters: false,
       social: false,
       comments: true,
+      clipping: false,
     });
     expect(
       resolvePresenceAnchor(onlyComments.container, "markers:comments"),
@@ -119,6 +128,7 @@ describe("MarkerLane", () => {
       chapters: false,
       social: false,
       comments: false,
+      clipping: false,
     });
     expect(resolvePresenceAnchor(container, "markers")).toBe(
       container.querySelector(".marker-lane.empty"),
@@ -130,6 +140,7 @@ describe("MarkerLane", () => {
       chapters: true,
       social: true,
       comments: true,
+      clipping: false,
     });
     const chapter = container.querySelector(".chapter-marker") as HTMLElement;
     expect(chapter.style.left).toBe(`${2 * 10 - MARKER_ROW_HEIGHT / 2}px`);
@@ -139,7 +150,12 @@ describe("MarkerLane", () => {
   });
 
   describe("social clip drag", () => {
-    const rows = { chapters: false, social: true, comments: false };
+    const rows = {
+      chapters: false,
+      social: true,
+      comments: false,
+      clipping: false,
+    };
     // jsdom rects are empty, so any press lands on the end edge.
     const dragEnd = (zoom: number, dxPx: number) => {
       const { container } = renderLane(rows, zoom);
@@ -165,6 +181,45 @@ describe("MarkerLane", () => {
       expect(id).toBe("s1");
       expect(start).toBe(1);
       expect(end).toBeCloseTo(3 + 3 / 48000, 12);
+    });
+  });
+
+  describe("clipping flags", () => {
+    const flags = [
+      { id: "c1:0", trackId: "t1", label: "Ava", start: 5, end: 6 },
+    ];
+    const rows = {
+      chapters: false,
+      social: false,
+      comments: false,
+      clipping: true,
+    };
+
+    it("draws one labelled flag per region and selects it", async () => {
+      const onSelect = vi.fn();
+      const { container } = render(
+        <MarkerLane
+          chapters={[]}
+          socialClips={[]}
+          comments={[]}
+          rows={rows}
+          zoomPxPerSec={10}
+          width={400}
+          onSelectChapter={vi.fn()}
+          onSelectSocial={vi.fn()}
+          onSelectComment={vi.fn()}
+          clippingFlags={flags}
+          onSelectClipping={onSelect}
+        />,
+      );
+      const flag = container.querySelector(".clipping-marker") as HTMLElement;
+      expect(flag.getAttribute("aria-label")).toBe("Clipping on Ava at 0:05");
+      expect(flag.style.left).toBe("50px");
+      expect(flag.style.width).toBe(`${Math.max(MARKER_ROW_HEIGHT, 10)}px`);
+      fireEvent.click(flag);
+      expect(onSelect).toHaveBeenCalledWith(flags[0]);
+      expect(container.querySelector(".marker-row.clipping")).toBeTruthy();
+      await expectNoA11yViolations(container);
     });
   });
 });

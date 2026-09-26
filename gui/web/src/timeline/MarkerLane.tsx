@@ -9,10 +9,13 @@ import type {
   TimelineComment,
 } from "../types/project";
 import { MARKER_ROW_HEIGHT } from "../utils/layout";
+import { formatTimeShort } from "../utils/time";
+import type { ClippingFlag } from "./clippingFlags";
 import type { MarkerRows } from "./timelineMetrics";
 
 /** Point markers are row-square; center them on their time. */
 const MARKER_HALF = MARKER_ROW_HEIGHT / 2;
+const NO_FLAGS: readonly ClippingFlag[] = [];
 /** A social-clip drag shorter than this (px) is a click, not a move. */
 const SOCIAL_DRAG_MIN_PX = 3;
 
@@ -36,6 +39,9 @@ interface MarkerLaneProps {
   onSelectChapter: (chapter: ChapterMarker) => void;
   onSelectSocial: (clip: SocialClipView) => void;
   onSelectComment: (comment: TimelineComment) => void;
+  /** Recording clip flags, one per region per track. */
+  clippingFlags?: readonly ClippingFlag[];
+  onSelectClipping?: (flag: ClippingFlag) => void;
 }
 
 export function MarkerLane({
@@ -49,6 +55,8 @@ export function MarkerLane({
   onSelectChapter,
   onSelectSocial,
   onSelectComment,
+  clippingFlags = NO_FLAGS,
+  onSelectClipping,
 }: MarkerLaneProps) {
   const { projectPath, setSelection } = useDaw((s) => ({
     projectPath: s.projectPath,
@@ -69,7 +77,7 @@ export function MarkerLane({
     originEnd: number;
   } | null>(null);
 
-  if (!rows.chapters && !rows.social && !rows.comments) {
+  if (!rows.chapters && !rows.social && !rows.comments && !rows.clipping) {
     return (
       <div
         className="marker-lane empty"
@@ -301,6 +309,30 @@ export function MarkerLane({
               />
             );
           })}
+        </div>
+      )}
+      {rows.clipping && (
+        <div className="marker-row clipping" {...rowAnchor("clipping")}>
+          {clippingFlags.map((flag) => (
+            <button
+              key={flag.id}
+              type="button"
+              className="clipping-marker"
+              style={{
+                left: flag.start * zoomPxPerSec,
+                width: Math.max(
+                  MARKER_ROW_HEIGHT,
+                  (flag.end - flag.start) * zoomPxPerSec,
+                ),
+              }}
+              aria-label={`Clipping on ${flag.label} at ${formatTimeShort(flag.start)}`}
+              title={`Clipping on ${flag.label}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectClipping?.(flag);
+              }}
+            />
+          ))}
         </div>
       )}
     </div>

@@ -98,6 +98,20 @@ describe("reuseUnchanged", () => {
     );
   });
 
+  it("compares clipping regions element by element", () => {
+    const prev = project();
+    prev.clips.tracks.host![1]!.clipping_regions = [{ start_s: 1, end_s: 2 }];
+    const same = fresh(prev);
+    expect(reuseUnchanged(prev, same).clips.tracks.host![1]).toBe(
+      prev.clips.tracks.host![1],
+    );
+    const moved = fresh(prev);
+    moved.clips.tracks.host![1]!.clipping_regions = [{ start_s: 1, end_s: 3 }];
+    expect(reuseUnchanged(prev, moved).clips.tracks.host![1]).not.toBe(
+      prev.clips.tracks.host![1],
+    );
+  });
+
   it("keeps an unchanged track by id when another track changes", () => {
     const prev = project();
     const next = fresh(prev);
