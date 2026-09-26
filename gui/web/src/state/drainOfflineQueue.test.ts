@@ -42,6 +42,18 @@ describe("drainHostOfflineQueue", () => {
     });
   });
 
+  it("skips a record a live send dequeued after the snapshot", async () => {
+    const path = "/projects/episode.project.json";
+    hostQueue
+      .mockResolvedValueOnce([cmd("a"), cmd("b")])
+      .mockResolvedValue([cmd("b")]);
+    const { drainHostOfflineQueue } = await import("./drainOfflineQueue");
+    await drainHostOfflineQueue(path);
+    expect(submit).toHaveBeenCalledTimes(1);
+    expect(submit.mock.calls[0][3]).toMatchObject({ command_id: "b" });
+    expect(removeHostQueuedCommands).toHaveBeenCalledWith(path, ["b"]);
+  });
+
   it("requestHostDrain runs one more pass when asked mid-drain", async () => {
     const path = "/projects/episode.project.json";
     let current = [cmd("x")];
