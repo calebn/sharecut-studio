@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ClipLed } from "../ui";
-import { formatElapsed } from "../utils/format";
+import { formatTimeShort } from "../utils/time";
 import { recordingClockMs } from "./clock";
 import {
   type CaptureHealth,
@@ -66,7 +66,7 @@ export function RecIndicator({
         {label}
       </span>
       <span id={clockId} className="record-clock" aria-live="off">
-        {formatElapsed(clock / 1000)}
+        {formatTimeShort(clock / 1000)}
       </span>
       {clipping === undefined ? null : <ClipLed lit={clipping} label="Take" />}
     </div>

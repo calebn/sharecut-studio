@@ -4,6 +4,7 @@ import {
   formatTime,
   formatTimecodeCompact,
   formatTimecodePair,
+  formatTimeShort,
   niceTimeStep,
   transportTimecode,
 } from "./time";
@@ -104,4 +105,22 @@ describe("formatRulerTime", () => {
       expect(formatRulerTime(sec, step, "floor")).toBe(label);
     },
   );
+});
+
+describe("formatTimeShort", () => {
+  it("formats seconds as m:ss", () => {
+    expect(formatTimeShort(65)).toBe("1:05");
+    expect(formatTimeShort(65.9)).toBe("1:05");
+  });
+
+  it("switches to h:mm:ss from one hour", () => {
+    expect(formatTimeShort(3599)).toBe("59:59");
+    expect(formatTimeShort(3600)).toBe("1:00:00");
+    expect(formatTimeShort(4500)).toBe("1:15:00");
+    expect(formatTimeShort(37230)).toBe("10:20:30");
+  });
+
+  it("clamps negative values to 0:00", () => {
+    expect(formatTimeShort(-3)).toBe("0:00");
+  });
 });

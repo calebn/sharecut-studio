@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatElapsed, plural } from "./format";
+import { plural } from "./format";
 
 describe("plural", () => {
   it("returns the singular form when count is 1", () => {
@@ -14,22 +14,5 @@ describe("plural", () => {
   it("uses an explicit plural form when given one", () => {
     expect(plural(2, "child", "children")).toBe("children");
     expect(plural(1, "child", "children")).toBe("child");
-  });
-});
-
-describe("formatElapsed", () => {
-  it("formats seconds as m:ss", () => {
-    expect(formatElapsed(65)).toBe("1:05");
-  });
-
-  it("switches to h:mm:ss from one hour", () => {
-    expect(formatElapsed(3599)).toBe("59:59");
-    expect(formatElapsed(3600)).toBe("1:00:00");
-    expect(formatElapsed(4500)).toBe("1:15:00");
-    expect(formatElapsed(37230)).toBe("10:20:30");
-  });
-
-  it("clamps negative values to 0:00", () => {
-    expect(formatElapsed(-3)).toBe("0:00");
   });
 });

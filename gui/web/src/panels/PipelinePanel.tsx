@@ -16,7 +16,6 @@ import type {
 } from "../types/pipeline";
 import { Button, EmptyState, InlineError } from "../ui";
 import { errorMessage } from "../utils/apiError";
-import { formatElapsed } from "../utils/format";
 import {
   isPipelineKindJob,
   isPipelineRunning,
@@ -30,6 +29,7 @@ import {
   pipelineUnitsLabel,
   showIndeterminatePulse,
 } from "../utils/pipelineProgress";
+import { formatTimeShort } from "../utils/time";
 import { TranscriptVocabularyEditor } from "./TranscriptVocabularyEditor";
 import {
   WhisperDownloadDialog,
@@ -911,7 +911,7 @@ export function PipelinePanel() {
               announce
             />
             <span className="pipeline-elapsed">
-              Elapsed {formatElapsed(job.elapsed_sec)}
+              Elapsed {formatTimeShort(job.elapsed_sec)}
             </span>
           </div>
           {pct != null ? (
@@ -953,7 +953,7 @@ export function PipelinePanel() {
                   >
                     {s.status}
                   </td>
-                  <td>{formatElapsed(s.elapsed_sec)}</td>
+                  <td>{formatTimeShort(s.elapsed_sec)}</td>
                   <td className="pipeline-step-summary">
                     {s.error ?? s.summary ?? ""}
                   </td>
