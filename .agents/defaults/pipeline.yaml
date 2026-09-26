@@ -60,6 +60,7 @@ tighten:
   # aggressive override only the keys they name, and only where this config still
   # holds the shipped value (a key you changed wins) (edits/tighten_intensity.py).
   # CLI --intensity / MCP intensity= win over this key. Propose-time only.
+  # CLI/MCP read this file, not the GUI working set.
   intensity: medium
   # Tuning guide: docs/filler-cut-quality.md
   crossfade_ms: 25
