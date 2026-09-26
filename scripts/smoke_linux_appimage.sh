@@ -9,6 +9,7 @@ if [[ $# -lt 1 ]]; then
   exit 2
 fi
 IMG="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 if [[ ! -f "$IMG" ]]; then
   echo "error: AppImage not found: $1" >&2
   exit 1
@@ -50,6 +51,23 @@ for stem in podcast podcast-mcp; do
 done
 "squashfs-root/usr/bin/podcast" --help | grep -q "Usage"
 "squashfs-root/usr/bin/podcast-mcp" --help >/dev/null
+
+# Exercise the public AppImage entry point, before Tauri/WebKit starts.
+echo "==> AppImage --cli/--mcp"
+if ! "$IMG" --cli --help | grep -q "Usage"; then
+  echo "error: AppImage --cli --help did not print CLI usage" >&2
+  exit 1
+fi
+"$IMG" --mcp --help >/dev/null
+"$IMG" --cli info --project "$ROOT/tests/fixtures/aligned_dialogue/episode.project.json" >/dev/null
+set +e
+timeout 60 "$IMG" --cli --no-progress gui --no-open >/dev/null 2>&1
+outer_gui_status=$?
+set -e
+if [[ "$outer_gui_status" -ne 2 ]]; then
+  echo "error: AppImage --cli gui exited $outer_gui_status (want 2 refusal)" >&2
+  exit 1
+fi
 
 echo "==> sharecut-sidecar --cli --help"
 if ! "$SIDECAR" --cli --help | grep -q "Usage"; then
