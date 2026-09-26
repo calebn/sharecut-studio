@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { hostRecordUploadTransport, loadHostRecordState } from "../api";
+import { execute } from "../commands/execute";
 import { useDaw } from "../state/useDaw";
 import { Button, CommandButton, Dialog } from "../ui";
 import { errorMessage } from "../utils/apiError";
@@ -10,7 +11,6 @@ import {
   retryHostKeeperStorage,
 } from "./hostKeeperStorage";
 import { useRecordHostStore } from "./hostStore";
-import { submitHostRecordTransport } from "./hostTransport";
 import { sendRecordHostCommand } from "./hostWire";
 import { LiveComments } from "./LiveComments";
 import { HOST_COMMENT_QUEUE_TOKEN } from "./liveCommentQueue";
@@ -204,17 +204,26 @@ export function RecordPanel({
   const hostSegments = useHostUploadSegments(uploadTransport, !!snapshot);
   const landFailed = hostSegments.some((row) => row.land_failed);
 
-  const runTransport = (commandType: string) => {
+  // Same path as the keyboard and palette: record.* owns clearing, storing and announcing errors.
+  const runTransport = (commandId: string) => {
     setTransportBusy(true);
-    setTransportError(null);
-    void submitHostRecordTransport(commandType)
-      .catch((err: unknown) => {
-        setTransportError(errorMessage(err));
-      })
-      .finally(() => {
-        setTransportBusy(false);
-      });
+    void execute(commandId, {}, { skipWhen: true }).finally(() => {
+      setTransportBusy(false);
+    });
   };
+
+  // Single owner for clearing: a stored command failure lives only while this panel shows it.
+  useEffect(() => {
+    if (!recordPanelOpen) {
+      setTransportError(null);
+    }
+  }, [recordPanelOpen, setTransportError]);
+  useEffect(
+    () => () => {
+      setTransportError(null);
+    },
+    [projectPath, setTransportError],
+  );
 
   useEffect(() => {
     if (!recordPanelOpen || !projectPath) {
@@ -242,8 +251,9 @@ export function RecordPanel({
     };
   }, [recordPanelOpen, projectPath, setSnapshot]);
 
+  const dropped = useRecordHostStore((s) => s.dropped);
   const offline =
-    !connected &&
+    dropped &&
     (snapshot?.state === "recording" || snapshot?.state === "paused");
   const uploadBlocking = leaveBlocked(state ?? "", upload);
   const reconnectCopy = snapshot
@@ -257,10 +267,7 @@ export function RecordPanel({
   return (
     <Dialog
       open={recordPanelOpen}
-      onClose={() => {
-        setTransportError(null);
-        setRecordPanelOpen(false);
-      }}
+      onClose={() => setRecordPanelOpen(false)}
       title="Record room"
       closeDisabled={
         uploadBlocking || micLossNeedsAttention || captureUnavailable
@@ -432,7 +439,7 @@ export function RecordPanel({
               if (capturingRoomTone) {
                 roomTone.skip();
               }
-              runTransport("Start");
+              runTransport("record.start");
             }}
           >
             Start
@@ -440,14 +447,14 @@ export function RecordPanel({
           <Button
             type="button"
             disabled={!recording || transportBusy}
-            onClick={() => runTransport("Pause")}
+            onClick={() => runTransport("record.pause")}
           >
             Pause
           </Button>
           <Button
             type="button"
             disabled={!paused || transportBusy}
-            onClick={() => runTransport("Resume")}
+            onClick={() => runTransport("record.resume")}
           >
             Resume
           </Button>
@@ -455,7 +462,7 @@ export function RecordPanel({
             variant="danger"
             type="button"
             disabled={(!recording && !paused) || transportBusy}
-            onClick={() => runTransport("Stop")}
+            onClick={() => runTransport("record.stop")}
           >
             Stop
           </Button>

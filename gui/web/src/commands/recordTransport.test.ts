@@ -50,6 +50,9 @@ describe("record transport command failures", () => {
         "Room is not ready",
       );
       expect(useDawStore.getState().recordPanelOpen).toBe(true);
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Room is not ready",
+      );
     },
   );
 
@@ -61,11 +64,12 @@ describe("record transport command failures", () => {
     expect(useDawStore.getState().recordPanelOpen).toBe(false);
   });
 
-  it("does not open the Record panel over the Share dialog", async () => {
+  it("only announces a failure over the Share dialog", async () => {
     useDawStore.setState({ shareDialogOpen: true });
     submit.mockRejectedValue(new Error("nope"));
     await execute("record.stop");
-    expect(useRecordHostStore.getState().transportError).toBe("nope");
+    expect(useDawStore.getState().statusAnnouncement).toBe("nope");
+    expect(useRecordHostStore.getState().transportError).toBeNull();
     expect(useDawStore.getState().recordPanelOpen).toBe(false);
   });
 

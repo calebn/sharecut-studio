@@ -116,7 +116,7 @@ const lobby = recordSnapshot({
 
 describe("RecordPanel", () => {
   afterEach(() => {
-    useRecordHostStore.getState().setConnected(false);
+    useRecordHostStore.getState().resetConnection();
     Reflect.deleteProperty(navigator, "storage");
   });
 
@@ -146,7 +146,7 @@ describe("RecordPanel", () => {
     useRecordHostStore.getState().setConnected(true);
     useRecordHostStore.getState().setCaptureHealth(null);
     useRecordHostStore.getState().setKeeperStorage(null, null);
-    useRecordHostStore.getState().setConnected(false);
+    useRecordHostStore.getState().resetConnection();
   });
 
   it("disables Start with the no-one-joined reason", async () => {
@@ -340,7 +340,17 @@ describe("RecordPanel", () => {
       expect(screen.getByRole("button", { name: "Start" })).toBeEnabled();
     });
     await userEvent.click(screen.getByRole("button", { name: "Start" }));
-    expect(postTransport).toHaveBeenCalledWith("Start");
+    expect(exec).toHaveBeenCalledWith("record.start", {}, { skipWhen: true });
+  });
+
+  it("routes panel Stop through the record.stop command", async () => {
+    useRecordHostStore
+      .getState()
+      .setSnapshot({ ...lobby, state: "recording", take_index: 0 });
+    render(<RecordPanel />);
+    await userEvent.click(screen.getByRole("button", { name: "Stop" }));
+    expect(exec).toHaveBeenCalledWith("record.stop", {}, { skipWhen: true });
+    expect(postTransport).not.toHaveBeenCalled();
   });
 
   it("warns about low storage without disabling Start", async () => {
@@ -754,15 +764,40 @@ describe("RecordPanel", () => {
     useRecordHostStore
       .getState()
       .setSnapshot(recordSnapshot({ state: "recording" }));
+    useRecordHostStore.getState().setConnected(true);
     useRecordHostStore.getState().setConnected(false);
     render(<RecordPanel />);
     expect(screen.getByText(RECORD_ROOM_RECONNECTING_COPY)).toBeInTheDocument();
+  });
+
+  it("does not claim a reconnect before the host socket first opens", () => {
+    useRecordHostStore
+      .getState()
+      .setSnapshot(recordSnapshot({ state: "recording" }));
+    render(<RecordPanel />);
+    expect(screen.queryByText(RECORD_ROOM_RECONNECTING_COPY)).toBeNull();
   });
 
   it("renders a host record command failure from the store", () => {
     useRecordHostStore.getState().setTransportError("Room is not ready");
     render(<RecordPanel />);
     expect(screen.getByText("Room is not ready")).toBeInTheDocument();
+  });
+
+  it("clears a stored command failure when Copy links closes the panel", async () => {
+    useRecordHostStore.getState().setTransportError("Stop failed");
+    render(<RecordPanel />);
+    await userEvent.click(screen.getByRole("button", { name: "Copy links…" }));
+    expect(useRecordHostStore.getState().transportError).toBeNull();
+  });
+
+  it("clears a stored command failure when the project changes", () => {
+    useRecordHostStore.getState().setTransportError("Stop failed");
+    render(<RecordPanel />);
+    act(() =>
+      useDawStore.getState().hydrate("/tmp/other.json", minimalProject()),
+    );
+    expect(useRecordHostStore.getState().transportError).toBeNull();
   });
 
   it("does not rehydrate on WS connected and skips stale HTTP snapshots", async () => {
