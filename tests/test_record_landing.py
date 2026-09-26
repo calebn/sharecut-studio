@@ -9,6 +9,7 @@ from typing import Any
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
+from filelock import FileLock
 
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
@@ -21,6 +22,7 @@ from podcast_mcp.services.record.landing import (
     RecordLandingError,
     RecordLandingService,
     measure_keeper_drifts,
+    record_land_lock_path,
     release_session_land_lock,
     wav_pcm_info,
 )
@@ -805,6 +807,46 @@ def test_concurrent_land_keeps_one_clip(minimal_project, sample_wav, tmp_workspa
     rec_clips = [clip for clip in ws.project.clips if clip.source_id.startswith("rec-")]
     assert len(rec_clips) == 1
     assert len(landed) == 1
+
+
+def test_land_waits_for_cross_process_land_lock(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    """A land holding the workspace land lock in another process blocks this land (#503)."""
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=1_000)
+    _ack(
+        RecordUploadService(ws.project),
+        session_id=room["session_id"],
+        take=0,
+        pid=guest,
+        segment=0,
+        join_offset_ms=0,
+    )
+    # A separate FileLock instance opens its own OS lock, as another process would.
+    other = FileLock(
+        str(record_land_lock_path(ws.project.workspace_path(), room["session_id"])),
+        thread_local=False,
+    )
+    other.acquire()
+    results: list[dict] = []
+    worker = threading.Thread(
+        target=lambda: results.append(RecordLandingService(ws).land(align=lambda _p: None))
+    )
+    try:
+        worker.start()
+        worker.join(timeout=0.5)
+        assert worker.is_alive()
+        assert results == []
+    finally:
+        other.release()
+    worker.join(timeout=10)
+    assert not worker.is_alive()
+    assert [clip["participant_id"] for clip in results[0]["clips"]] == [guest]
 
 
 def test_land_on_stale_workspace_keeps_earlier_land(
