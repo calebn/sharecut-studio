@@ -597,6 +597,32 @@ def test_workspace_mutate_failure_leaves_ws_project_matching_disk(minimal_projec
     assert ws.project.history == on_disk.history
 
 
+def test_workspace_readopts_the_file_after_an_unlocked_rollback_of_a_landed_commit(
+    minimal_project, monkeypatch, rollback_outcomes
+):
+    path, _proj, _index_path = _setup(minimal_project)
+    ws = ProjectWorkspace.open(path)
+    original = ProjectStore.commit
+
+    def commit_then_fail(self, project):
+        original(self, project)
+        raise RuntimeError("late")
+
+    monkeypatch.setattr(ProjectStore, "commit", commit_then_fail)
+    monkeypatch.setattr(rollback_mod, "project_commit_lock", _no_lock)
+    with pytest.raises(RuntimeError, match="late"):
+        ws.mutate("before", "after", _append_new)
+
+    assert rollback_outcomes == [RollbackOutcome.UNKNOWN]
+    assert _ids(ws.project) == []  # memory went back to its pre-mutate state
+    on_disk = load_project(path)
+    assert _ids(on_disk) == ["new"]
+    # The cleared loaded-file signature makes the next transaction adopt the landed save.
+    with ws.transaction() as project:
+        assert _ids(project) == ["new"]
+        assert project.history == on_disk.history
+
+
 def _fail_commit(monkeypatch) -> None:
     def broken(self, project):
         raise RuntimeError("commit")
