@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef } from "react";
 import { Button, Field } from "../ui";
+import { MicMeter } from "./MicMeter";
 import {
   copyForMicStatus,
   MIC_ALLOW_LABEL,
@@ -42,9 +43,7 @@ export function DeviceCheck({
   grantHintId,
   headphonesHintId,
 }: Props) {
-  const meterId = useId();
   const selectId = useId();
-  const meterRef = useRef<HTMLMeterElement>(null);
   const selectRef = useRef<HTMLSelectElement>(null);
   const wasGranted = useRef(false);
   const granted = permission === "granted";
@@ -58,48 +57,6 @@ export function DeviceCheck({
     }
     wasGranted.current = granted;
   }, [granted]);
-
-  useEffect(() => {
-    if (!stream) {
-      return;
-    }
-    let ctx: AudioContext | null = null;
-    let raf = 0;
-    let cancelled = false;
-    try {
-      ctx = new AudioContext();
-      const source = ctx.createMediaStreamSource(stream);
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 256;
-      source.connect(analyser);
-      const data = new Uint8Array(analyser.fftSize);
-      const tick = () => {
-        if (cancelled) {
-          return;
-        }
-        analyser.getByteTimeDomainData(data);
-        let sum = 0;
-        for (const v of data) {
-          const n = (v - 128) / 128;
-          sum += n * n;
-        }
-        const level = Math.min(1, Math.sqrt(sum / data.length) * 4);
-        if (meterRef.current) {
-          meterRef.current.value = level;
-        }
-        raf = window.requestAnimationFrame(tick);
-      };
-      tick();
-    } catch {
-      void ctx?.close();
-      ctx = null;
-    }
-    return () => {
-      cancelled = true;
-      window.cancelAnimationFrame(raf);
-      void ctx?.close();
-    };
-  }, [stream]);
 
   return (
     <section className="stack" aria-labelledby="device-heading">
@@ -122,15 +79,7 @@ export function DeviceCheck({
               ))}
             </select>
           </Field>
-          <Field label="Level" htmlFor={meterId}>
-            <meter
-              ref={meterRef}
-              id={meterId}
-              min={0}
-              max={1}
-              defaultValue={0}
-            />
-          </Field>
+          <MicMeter stream={stream} label="Level" />
         </>
       ) : (
         <div className="cluster">

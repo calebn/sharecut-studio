@@ -395,6 +395,7 @@ export function RecordApp({ token }: { token: string }) {
               onRetryMic={mic.retry}
               onResumeUpload={() => setUploadRetryNonce((value) => value + 1)}
               keeperActions={keeperActions}
+              stream={producer || me?.consented !== true ? null : mic.stream}
             />
           ) : (
             <div className="stack">

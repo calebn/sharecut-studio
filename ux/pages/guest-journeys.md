@@ -129,7 +129,8 @@ flowchart TD
   open[Open record link] --> lobby[Lobby: name, headphones]
   lobby --> devices[Allow microphone]
   devices --> mic[Mic test, device picker]
-  mic --> roomTone[Record or skip 3s room tone]
+  mic --> meter[Own peak meter + clip LED]
+  meter --> roomTone[Record or skip 3s room tone]
   roomTone --> consent[Accept recording notice]
   consent --> wait[Wait for host Start]
   wait --> rec[REC: local dry WAV + mix-minus]
@@ -153,7 +154,8 @@ flowchart TD
 1. Guest lands on the record lobby (not ReviewApp).
 2. Name and headphones check, then browser **Allow microphone** (explicit
    grant; Consent stays disabled until granted **and** headphones are checked),
-   then mic test and device picker.
+   then mic test and device picker. Your own peak meter (sample peak only)
+   has a clip light and a headroom hint; nobody else's meter is shown.
    The desktop host's **Record room** panel also shows microphone permission
    status and **Retry** after denial. macOS and Windows point to system
    microphone privacy settings; Linux identifies its WebKit prompt and directs

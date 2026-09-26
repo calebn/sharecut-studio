@@ -15,6 +15,7 @@ import { sendRecordHostCommand } from "./hostWire";
 import { LiveComments } from "./LiveComments";
 import { HOST_COMMENT_QUEUE_TOKEN } from "./liveCommentQueue";
 import { MicLossNotice } from "./MicLossNotice";
+import { MicMeter } from "./MicMeter";
 import {
   copyForMicStatus,
   MIC_RETRY_LABEL,
@@ -289,6 +290,7 @@ export function RecordPanel({
             {RECORD_ROOM_RECONNECTING_COPY}
           </p>
         ) : null}
+        <MicMeter stream={stream} label="Your mic level" />
         <StorageHeadroomWarning
           visible={state === "lobby" || state === "stopped"}
           recheck={state === "stopped"}

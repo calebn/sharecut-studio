@@ -6,6 +6,11 @@ import { recordParticipant, recordSnapshot } from "../test/fixtures";
 import { Room } from "./Room";
 import { HEARING_COPY, HOST_OFFLINE_COPY, LOCAL_KEEPER_COPY } from "./types";
 
+vi.mock("./MicMeter", () => ({
+  MicMeter: ({ stream, label }: { stream: unknown; label: string }) =>
+    stream ? <div data-testid="mic-meter">{label}</div> : null,
+}));
+
 const me = recordParticipant({
   participant_id: "p_g",
   display_name: "Ava",
@@ -323,5 +328,29 @@ describe("Room", () => {
       />,
     );
     expect(screen.getByRole("button", { name: "Leave" })).toBeEnabled();
+  });
+
+  it("shows your own mic meter, but not for producers", () => {
+    const stream = {} as MediaStream;
+    const { rerender } = render(
+      <Room
+        snapshot={snapshot}
+        me={me}
+        onMute={() => undefined}
+        onLeave={() => undefined}
+        stream={stream}
+      />,
+    );
+    expect(screen.getByTestId("mic-meter")).toHaveTextContent("Your mic level");
+    rerender(
+      <Room
+        snapshot={snapshot}
+        me={{ ...me, role: "producer" }}
+        onMute={() => undefined}
+        onLeave={() => undefined}
+        stream={stream}
+      />,
+    );
+    expect(screen.queryByTestId("mic-meter")).toBeNull();
   });
 });
