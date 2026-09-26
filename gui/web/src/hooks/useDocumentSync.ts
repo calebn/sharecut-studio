@@ -12,6 +12,7 @@ import {
 } from "../document/cursor";
 import type { DocumentSnapshot } from "../document/projectPatch";
 import { getSessionToken } from "../sessionAuth";
+import { requestHostDrainLazy } from "../state/requestHostDrainLazy";
 import type { ProjectView } from "../types/project";
 import { documentClientId } from "../utils/documentClient";
 
@@ -55,11 +56,7 @@ export function useDocumentSync(
     let ws: WebSocket | null = null;
     let closed = false;
     let retry: ReturnType<typeof setTimeout> | null = null;
-    const drain = () => {
-      void import("../state/drainOfflineQueue")
-        .then(({ requestHostDrain }) => requestHostDrain(projectPath))
-        .catch(() => undefined);
-    };
+    const drain = () => requestHostDrainLazy(projectPath);
 
     const connect = () => {
       if (closed) {
