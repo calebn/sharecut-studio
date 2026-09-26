@@ -45,6 +45,8 @@ Crossfade curve for overlap mode only: `render.crossfade_curve` (default `tri`).
 
 Future cuts only — existing committed edits are not retroactively re-optimized.
 
+If a waveform window cannot be decoded while optimizing a cut or scoring an optional neural join, the safe fallback remains in effect and the failure is recorded at debug level for diagnosis.
+
 ## Covered operations
 
 - Transcript cuts: `cut_time_range`, `cut_text_match`, `cut_utterance`, `cut_words`, `apply_edit_plan`.

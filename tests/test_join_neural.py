@@ -21,6 +21,17 @@ from podcast_mcp.models import (
 )
 
 
+def test_decode_fallback_records_debug_reason(caplog, minimal_project: Path) -> None:
+    project = load_project(minimal_project)
+    with (
+        patch("podcast_mcp.edits.join_neural.track_audio_path", return_value=Path("bad.wav")),
+        patch("podcast_mcp.engines.align.load_mono_window", side_effect=ValueError("bad decode")),
+        caplog.at_level("DEBUG", logger="podcast_mcp.edits.join_neural"),
+    ):
+        assert join_neural._load_window(project, "host", 0.0, 0.5) is None
+    assert "bad decode" in caplog.text
+
+
 def test_joinqc_unavailable_returns_none() -> None:
     with patch.object(join_neural, "joinqc_available", return_value=False):
         assert join_neural.nisqa_discontinuity_delta(None, "t", 1.0) is None  # type: ignore[arg-type]

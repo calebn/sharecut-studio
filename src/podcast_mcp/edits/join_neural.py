@@ -78,7 +78,8 @@ def _load_window(
         return load_mono_window(
             path, start_sec=max(0.0, start), duration_sec=duration, sample_rate=sr
         )
-    except Exception:
+    except Exception as exc:
+        log.debug("Could not decode neural join window for %s: %s", track_id, exc)
         return None
 
 
