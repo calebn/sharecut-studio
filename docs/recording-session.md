@@ -273,6 +273,9 @@ part. The WAV header is written only after every part for that segment is
 ACK'd. Never mutate an ACK'd prefix. Mute writes zeros (see
 [Mute semantics](#mute-semantics)); file length does not change. Each keeper
 is tagged `session_start`, `join_offset_ms`, `sample_rate`, `samples_written`.
+The complete metadata also carries `clippingRegions` (segment-relative
+milliseconds, sample peak at or above -1 dBFS, merged when under 1 s apart,
+at most 100 per segment); recovered crash segments and older clients omit it.
 
 ## Mute semantics
 

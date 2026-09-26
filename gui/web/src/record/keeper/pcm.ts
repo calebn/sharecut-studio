@@ -1,3 +1,6 @@
+import { DEFAULT_CLIP_DB } from "../../audio/metering";
+import { dbToLinear } from "../../utils/audio";
+
 export const KEEPER_SAMPLE_RATE = 48_000;
 export const KEEPER_CHANNELS = 1;
 export const KEEPER_BITS = 16;
@@ -23,18 +26,41 @@ export function isKeeperPcmFormat(header: {
 /** Uncompressed keeper PCM throughput (mono, 16-bit). */
 export const KEEPER_BYTES_PER_SECOND = KEEPER_SAMPLE_RATE * KEEPER_FRAME_BYTES;
 
-export function floatToInt16(input: Float32Array, muted = false): Int16Array {
-  const out = new Int16Array(input.length);
+/** Linear sample-peak threshold shared with the live meter (-1 dBFS). */
+export const KEEPER_CLIP_THRESHOLD = dbToLinear(DEFAULT_CLIP_DB);
+
+export type KeeperEncoded = {
+  pcm: Int16Array;
+  /** First/last sample index at or above the clip threshold, if any. */
+  hot: { first: number; last: number } | null;
+};
+
+function encodeInt16(
+  input: Float32Array,
+  muted: boolean,
+  threshold: number,
+): KeeperEncoded {
+  const pcm = new Int16Array(input.length);
   if (muted) {
-    return out;
+    return { pcm, hot: null };
   }
+  let first = -1;
+  let last = -1;
   for (let i = 0; i < input.length; i++) {
     const s = input[i] ?? 0;
     const clipped = s < -1 ? -1 : s > 1 ? 1 : s;
-    out[i] =
+    pcm[i] =
       clipped < 0 ? Math.round(clipped * 32768) : Math.round(clipped * 32767);
+    if (Math.abs(s) >= threshold) {
+      if (first < 0) first = i;
+      last = i;
+    }
   }
-  return out;
+  return { pcm, hot: first < 0 ? null : { first, last } };
+}
+
+export function floatToInt16(input: Float32Array, muted = false): Int16Array {
+  return encodeInt16(input, muted, Number.POSITIVE_INFINITY).pcm;
 }
 
 export function resampleLinear(
@@ -68,4 +94,17 @@ export function toKeeperPcm(
 ): Int16Array {
   const resampled = resampleLinear(input, sourceRate, KEEPER_SAMPLE_RATE);
   return floatToInt16(resampled, muted);
+}
+
+/** Encode keeper PCM and report where the samples reached the clip threshold. */
+export function encodeKeeperPcm(
+  input: Float32Array,
+  sourceRate: number,
+  {
+    muted = false,
+    clipThreshold = KEEPER_CLIP_THRESHOLD,
+  }: { muted?: boolean; clipThreshold?: number } = {},
+): KeeperEncoded {
+  const resampled = resampleLinear(input, sourceRate, KEEPER_SAMPLE_RATE);
+  return encodeInt16(resampled, muted, clipThreshold);
 }

@@ -286,6 +286,25 @@ describe("keeper metadata", () => {
     );
   });
 
+  it("round-trips valid clip regions and rejects malformed ones", () => {
+    const withRegions = {
+      ...meta,
+      clippingRegions: [{ startMs: 1, endMs: 5 }],
+    };
+    const enc = (v: unknown) => new TextEncoder().encode(JSON.stringify(v));
+    expect(parseKeeperMeta(enc(withRegions))).toEqual(withRegions);
+    expect(
+      parseKeeperMeta(enc({ ...meta, clippingRegions: [] }))?.clippingRegions,
+    ).toEqual([]);
+    expect(
+      parseKeeperMeta(
+        enc({ ...meta, clippingRegions: [{ startMs: 5, endMs: 1 }] }),
+      ),
+    ).toBeNull();
+    expect(parseKeeperMeta(enc({ ...meta, clippingRegions: "x" }))).toBeNull();
+    expect(parseKeeperMeta(enc(meta))?.clippingRegions).toBeUndefined();
+  });
+
   it("keeps legacy metadata without a complete flag distinguishable", () => {
     const { complete: _omit, ...legacy } = meta;
     const bytes = new TextEncoder().encode(JSON.stringify(legacy));
