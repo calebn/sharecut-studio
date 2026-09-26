@@ -556,7 +556,7 @@ def test_drift_report_says_accept_is_stale(tmp_path: Path) -> None:
     _write_two_track_plans(p)
     mark_align_done(p)
     assert alignment_drift_report(p)["issues"] == []
-    next(c for c in p.clips if c.track_id == "guest").timeline_start = 35.0
+    next(c for c in p.clips if c.track_id == "guest").timeline_start = 20.0
     issues = alignment_drift_report(p)["issues"]
     assert len(issues) == 1
     assert "accept is stale" in issues[0]
@@ -604,3 +604,89 @@ def test_gui_fail_message_keeps_align_gate_listing(tmp_path: Path) -> None:
     shown = _gui_fail_message(str(exc.value)) or ""
     assert "guest -35.60s (bleed)" in shown
     assert shown.startswith("Unattended run will not auto-waive")
+
+
+def _split_all(p: EpisodeProject, track_id: str, at: float) -> None:
+    from podcast_mcp.edits.clips_ops import split_clip_at
+
+    clip = next(c for c in p.clips if c.track_id == track_id)
+    p.clips = [c for c in p.clips if c.id != clip.id] + list(split_clip_at(clip, at))
+
+
+def test_drift_report_locked_exemption_survives_split(tmp_path: Path) -> None:
+    p = _two_track(tmp_path)
+    _write_two_track_plans(p, method="manual")
+    mark_align_pending(p)
+    _split_all(p, "guest", 60.0)
+    assert alignment_drift_report(p)["issues"] == []
+    next(c for c in p.clips if c.track_id == "guest").timeline_start += 10.0
+    assert len(alignment_drift_report(p)["issues"]) == 1
+
+
+def test_drift_report_manual_exemption_on_later_reference_clip(tmp_path: Path) -> None:
+    from podcast_mcp.edits.conversation_align import (
+        AlignResult,
+        ClipAlignPlan,
+        write_alignment_artifact,
+    )
+
+    p = _two_track(tmp_path, guest_start=120.0)
+    p.clips = [c for c in p.clips if c.track_id != "host"] + [
+        Clip(id="h1", track_id="host", source_start=0, source_end=100, timeline_start=0),
+        Clip(id="h2", track_id="host", source_start=0, source_end=100, timeline_start=100),
+    ]
+    write_alignment_artifact(
+        p,
+        AlignResult(
+            plans=[
+                ClipAlignPlan(track_id="host", clip_id="h1", offset_sec=0.0, method="reference"),
+                ClipAlignPlan(track_id="host", clip_id="h2", offset_sec=0.0, method="reference"),
+                ClipAlignPlan(
+                    track_id="guest", clip_id="clip_guest", offset_sec=20.0, method="manual"
+                ),
+            ],
+            reference_track_id="host",
+        ),
+    )
+    mark_align_pending(p)
+    assert alignment_drift_report(p)["issues"] == []
+    next(c for c in p.clips if c.track_id == "guest").timeline_start = 140.0
+    assert len(alignment_drift_report(p)["issues"]) == 1
+
+
+def test_mark_align_done_records_accepted_drift(tmp_path: Path) -> None:
+    from podcast_mcp.edits.align_accept_status import load_status
+
+    p = _two_track(tmp_path)
+    _write_two_track_plans(p)
+    mark_align_done(p)
+    rows = (load_status(p) or {})["accepted_drift"]
+    assert [(r["track_id"], r["clip_id"]) for r in rows] == [("guest", "clip_guest")]
+    assert rows[0]["rel_drift_sec"] == pytest.approx(-35.6)
+    mark_align_waived(p, reason="listened")
+    assert len((load_status(p) or {})["accepted_drift"]) == 1
+    mark_align_waived(p, reason="unattended pipeline", source="unattended")
+    assert "accepted_drift" not in (load_status(p) or {})
+
+
+def test_drift_report_stale_accept_keeps_unmoved_clips(tmp_path: Path) -> None:
+    p = _two_track(tmp_path)
+    _write_two_track_plans(p)
+    mark_align_done(p)
+    _split_all(p, "host", 50.0)
+    _split_all(p, "guest", 50.0)
+    report = alignment_drift_report(p)
+    assert report["accepted"] is False
+    assert report["issues"] == []
+    next(c for c in p.clips if c.track_id == "guest").timeline_start += 10.0
+    issues = alignment_drift_report(p)["issues"]
+    assert len(issues) == 1
+    assert "accept is stale" in issues[0]
+
+
+def test_drift_report_stale_accept_keeps_accepted_unconfirmed_hold(tmp_path: Path) -> None:
+    p = _two_track(tmp_path, guest_start=0.0)
+    _write_unconfirmed(p, 40.0, clip_id="clip_guest")
+    mark_align_done(p)
+    _split_all(p, "guest", 50.0)
+    assert alignment_drift_report(p)["issues"] == []
