@@ -88,10 +88,6 @@ export function RecordApp({ token }: { token: string }) {
     writeLocal(storageKey(token, "name"), name);
   }, [name, token]);
 
-  useEffect(() => {
-    writeLocal(storageKey(token, "mic"), deviceId);
-  }, [deviceId, token]);
-
   const producer = bootstrap?.role === "producer";
   const heading = producer ? "Producer (not recorded)" : "Join the recording";
   const episodeName = bootstrap?.episode.name.trim() ?? "";
@@ -134,11 +130,10 @@ export function RecordApp({ token }: { token: string }) {
   const mic = useMicPermission(micEnabled, deviceId);
   const staleMic = mic.fellBackFrom !== null && mic.fellBackFrom === deviceId;
   useEffect(() => {
-    if (staleMic) {
-      // Forget the dead id without re-opening the stream (setDeviceId would).
-      writeLocal(storageKey(token, "mic"), "");
-    }
-  }, [staleMic, token]);
+    // One owner for the saved mic: a dead id is forgotten in storage without
+    // re-opening the stream (setDeviceId would); useMicStream skips it on Retry.
+    writeLocal(storageKey(token, "mic"), staleMic ? "" : deviceId);
+  }, [deviceId, staleMic, token]);
   const [sink, setSink] = useState<ByteSink | null>(null);
   const [sinkError, setSinkError] = useState<string | null>(null);
   const [storageAttempt, setStorageAttempt] = useState(0);

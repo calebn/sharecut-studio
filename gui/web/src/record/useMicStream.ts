@@ -16,7 +16,10 @@ export type MicStreamState = {
   pending: boolean;
   settledAttempt: number;
   lost: boolean;
-  /** Saved deviceId that could not be opened and was replaced by the default input. */
+  /**
+   * Saved deviceId that could not be opened and was replaced by the default input.
+   * Latched through a failed Retry; later acquisitions skip it while it is not listed.
+   */
   fellBackFrom: string | null;
   retry: () => void;
 };
@@ -45,6 +48,9 @@ export function useMicStream(
   const acquiringRef = useRef(false);
   const acquisitionGenerationRef = useRef(0);
   const deviceRefreshGenerationRef = useRef(0);
+  // Latched fallback: survives a failed acquisition so Retry/reconnect skip the dead id.
+  const fellBackFromRef = useRef<string | null>(null);
+  const devicesRef = useRef<MediaDeviceInfo[]>([]);
 
   const retry = useCallback(() => {
     if (!enabled || acquiringRef.current) {
@@ -64,6 +70,7 @@ export function useMicStream(
       setSettingsWarning(null);
       setPending(false);
       setSettledAttempt(resetKey);
+      fellBackFromRef.current = null;
       setFellBackFrom(null);
       lostRef.current = false;
       setLost(false);
@@ -85,13 +92,16 @@ export function useMicStream(
           !cancelled &&
           refreshGeneration === deviceRefreshGenerationRef.current
         ) {
-          setDevices(list.filter((d) => d.kind === "audioinput"));
+          const inputs = list.filter((d) => d.kind === "audioinput");
+          devicesRef.current = inputs;
+          setDevices(inputs);
         }
       } catch {
         if (
           !cancelled &&
           refreshGeneration === deviceRefreshGenerationRef.current
         ) {
+          devicesRef.current = [];
           setDevices([]);
         }
       }
@@ -110,14 +120,20 @@ export function useMicStream(
     const start = async () => {
       try {
         let next: MediaStream;
-        let usedDefault = false;
+        // An id that already fell back, and is still not listed, goes straight to the default.
+        const knownMissing =
+          deviceId !== "" &&
+          fellBackFromRef.current === deviceId &&
+          !devicesRef.current.some((d) => d.deviceId === deviceId);
+        const requested = knownMissing ? "" : deviceId;
+        let usedDefault = knownMissing;
         try {
           next = await navigator.mediaDevices.getUserMedia(
-            keeperAudioConstraints(deviceId),
+            keeperAudioConstraints(requested),
           );
         } catch (err) {
           const name = err instanceof Error ? err.name : "";
-          if (!selectedMicMissing(name, deviceId)) {
+          if (!selectedMicMissing(name, requested)) {
             throw err;
           }
           usedDefault = true;
@@ -152,7 +168,8 @@ export function useMicStream(
         setError(null);
         setErrorName(null);
         setStream(next);
-        setFellBackFrom(usedDefault ? deviceId : null);
+        fellBackFromRef.current = usedDefault ? deviceId : null;
+        setFellBackFrom(fellBackFromRef.current);
         lostRef.current = false;
         setLost(false);
         setPending(false);
@@ -161,7 +178,6 @@ export function useMicStream(
       } catch (err) {
         if (!cancelled) {
           setStream(null);
-          setFellBackFrom(null);
           setSettingsWarning(null);
           setErrorName(err instanceof Error ? err.name : null);
           setError(errorMessage(err));
