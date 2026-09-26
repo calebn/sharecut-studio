@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -70,6 +70,21 @@ describe("timeline styles", () => {
     expect(shared).toMatch(/right:\s*-1px/);
     expect(rule(css, ".clip-waveform")).toMatch(/overflow:\s*hidden/);
     expect(rule(css, ".clip-mute-region")).toMatch(/margin-left:\s*-1px/);
+  });
+
+  it("keeps the zero-length fade-out handle at the clip end", () => {
+    const css = partial("timeline.css");
+    const out = rule(css, ".fade-handle-zero.out");
+    expect(out).toMatch(/right:\s*0/);
+    expect(out).toMatch(/left:\s*auto/);
+    expect(rule(css, ".fade-handle-zero.in")).toMatch(/left:\s*0/);
+    const dir = join(here, "../styles/partials");
+    for (const name of readdirSync(dir)) {
+      if (name.endsWith(".css") && name !== "timeline.css") {
+        expect(partial(name), name).not.toMatch(/\.fade-handle\.(start|end)\b/);
+      }
+    }
+    expect(css).not.toMatch(/\.fade-(in|out)\s*[,{]/);
   });
 
   it("matches a grouped selector in any order or spacing", () => {
