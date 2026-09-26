@@ -13,11 +13,19 @@ from podcast_mcp import project_store as project_store_mod
 from podcast_mcp.engines.play_audit import premix_is_stale, write_stem_hash
 from podcast_mcp.gui.jobs import _gui_fail_message
 from podcast_mcp.history import HistoryManager
+from podcast_mcp.history.manager import snapshot_from_project
 from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project, save_project
+from podcast_mcp.models.history import HistoryEntry, ProjectHistory
 from podcast_mcp.pipeline import runner as runner_mod
 from podcast_mcp.pipeline import steps
 from podcast_mcp.project_merge import HISTORY_CURSOR_CONFLICT, ProjectMergeConflict
-from podcast_mcp.project_store import ProjectStore, history_index_path, history_snapshot_ids
+from podcast_mcp.project_store import (
+    HISTORY_ENTRY_LIMIT,
+    ProjectStore,
+    history_index_path,
+    history_snapshot_ids,
+    history_snapshot_path,
+)
 from podcast_mcp.services import (
     EpisodeService,
     HistoryRerenderError,
@@ -349,6 +357,45 @@ def test_save_merged_conflicts_when_another_writer_undid_during_the_job(minimal_
     ws.project.track_by_id("guest").gain_db = 1.0
     with pytest.raises(ProjectMergeConflict, match=r"history\.lineage"):
         ws.save_merged(history_label="after step")
+    _index_matches_file(minimal_project)
+
+
+def test_save_merged_conflicts_when_its_base_cursor_was_pruned(minimal_project):
+    seeded = load_project(minimal_project)
+    entries = []
+    snapshot = snapshot_from_project(seeded).model_dump_json(indent=2, by_alias=True)
+    index = history_index_path(seeded)
+    for i in range(HISTORY_ENTRY_LIMIT + 2):
+        entry_id = f"step-{i}"
+        path = history_snapshot_path(index, entry_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(snapshot, encoding="utf-8")
+        entries.append(
+            HistoryEntry(
+                id=entry_id,
+                label=f"step {i}",
+                snapshot_file=path.relative_to(seeded.workspace_path()).as_posix(),
+            )
+        )
+    seeded.history = ProjectHistory(cursor=0, entries=entries)
+    save_project(seeded, minimal_project)
+    ProjectStore(minimal_project)._sync_history_index_to_project(seeded)
+
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.checkpoint()
+    other = ProjectStore(minimal_project).load()
+    other.history.cursor = len(entries) - 1
+    ProjectStore(minimal_project).commit(other)
+    assert entries[0].id not in {
+        entry.id for entry in load_project(minimal_project).history.entries
+    }
+
+    ws.project.name = "long job edit"
+    with pytest.raises(ProjectMergeConflict, match=r"history\.lineage"):
+        ws.save_merged(history_label="after step")
+    saved = load_project(minimal_project)
+    assert saved.name != "long job edit"
+    assert entries[0].id not in {entry.id for entry in saved.history.entries}
     _index_matches_file(minimal_project)
 
 

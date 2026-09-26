@@ -72,6 +72,20 @@ def test_run_mutation_records_history(minimal_project):
     assert len(loaded.edit_decisions) == 1
 
 
+def test_run_mutation_reuses_pre_edit_snapshot_for_before_record(minimal_project, monkeypatch):
+    path, project = open_project(minimal_project)
+    original = session_mod.snapshot_from_project
+    calls = []
+
+    def capture(value):
+        calls.append(value)
+        return original(value)
+
+    monkeypatch.setattr(session_mod, "snapshot_from_project", capture)
+    run_mutation(path, project, "before edit", "after edit", lambda p: setattr(p, "name", "new"))
+    assert calls == [project]
+
+
 def test_render_snapshot_waits_for_mutation_to_commit(minimal_project):
     path, project = open_project(minimal_project)
     halfway = Event()

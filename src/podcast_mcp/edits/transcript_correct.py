@@ -35,6 +35,11 @@ def correct_word(
     word_index: int,
     new_text: str,
 ) -> None:
+    _correct_word(project, track_id, word_index, new_text)
+    rebuild_combined(project)
+
+
+def _correct_word(project: EpisodeProject, track_id: str, word_index: int, new_text: str) -> None:
     tr = project.transcript_for_track(track_id)
     if not tr:
         raise ValueError(f"no transcript for track {track_id!r}")
@@ -44,10 +49,20 @@ def correct_word(
         raise ValueError("correction text must not be empty")
     w = tr.words[word_index]
     tr.words[word_index] = w.model_copy(update={"text": new_text, "confidence": 1.0})
-    rebuild_combined(project)
 
 
 def correct_phrase(
+    project: EpisodeProject,
+    track_id: str,
+    start_word_index: int,
+    end_word_index: int,
+    new_text: str,
+) -> None:
+    _correct_phrase(project, track_id, start_word_index, end_word_index, new_text)
+    rebuild_combined(project)
+
+
+def _correct_phrase(
     project: EpisodeProject,
     track_id: str,
     start_word_index: int,
@@ -69,7 +84,6 @@ def correct_phrase(
     tokens = new_text.split()
     if not tokens:
         tr.words = tr.words[:start_word_index] + tr.words[end_word_index + 1 :]
-        rebuild_combined(project)
         return
 
     step = span / len(tokens)
@@ -79,7 +93,6 @@ def correct_phrase(
         e = t0 + (i + 1) * step if i < len(tokens) - 1 else t1
         replacement.append(TranscriptWord(text=tok, start=s, end=e, confidence=1.0))
     tr.words = tr.words[:start_word_index] + replacement + tr.words[end_word_index + 1 :]
-    rebuild_combined(project)
 
 
 def set_word_suppressed(
@@ -165,14 +178,14 @@ def apply_transcript_corrections(
         key=lambda x: int(x["word_index"]),
         reverse=True,
     ):
-        correct_word(project, track_id, int(item["word_index"]), str(item["text"]))
+        _correct_word(project, track_id, int(item["word_index"]), str(item["text"]))
         count += 1
     for item in sorted(
         phrases or [],
         key=lambda x: int(x["start_word_index"]),
         reverse=True,
     ):
-        correct_phrase(
+        _correct_phrase(
             project,
             track_id,
             int(item["start_word_index"]),
@@ -180,4 +193,6 @@ def apply_transcript_corrections(
             str(item["text"]),
         )
         count += 1
+    if count:
+        rebuild_combined(project)
     return count

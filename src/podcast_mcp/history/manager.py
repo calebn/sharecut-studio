@@ -83,10 +83,11 @@ class HistoryManager:
         force: bool = False,
         operation: str | None = None,
         params: dict | None = None,
+        snapshot: ProjectStateSnapshot | None = None,
     ) -> HistoryEntry:
         with project_commit_lock(project):
             return self._record_locked(
-                project, label, force=force, operation=operation, params=params
+                project, label, force=force, operation=operation, params=params, snapshot=snapshot
             )
 
     def undo(self, project: EpisodeProject) -> HistoryStatus:
@@ -111,13 +112,14 @@ class HistoryManager:
         force: bool = False,
         operation: str | None = None,
         params: dict | None = None,
+        snapshot: ProjectStateSnapshot | None = None,
     ) -> HistoryEntry:
         history = self._load_index(project)
-        snap = snapshot_from_project(project)
+        snap = snapshot if snapshot is not None else snapshot_from_project(project)
 
         if not force and history.cursor >= 0 and history.entries:
             current = self._read_snapshot(project, history.entries[history.cursor])
-            if current.model_dump() == snap.model_dump():
+            if current == snap:
                 return history.entries[history.cursor]
 
         entry_id = uuid.uuid4().hex[:12]

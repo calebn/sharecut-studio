@@ -81,6 +81,39 @@ def test_apply_transcript_corrections_word_and_phrase() -> None:
     assert words[-1].end == 3.0
 
 
+def test_apply_transcript_corrections_rebuilds_combined_once(monkeypatch) -> None:
+    from podcast_mcp.edits import transcript_correct
+
+    p = EpisodeProject.create("bulk", "/tmp")
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="one", start=0, end=1),
+                TranscriptWord(text="two", start=1, end=2),
+            ],
+        )
+    ]
+    original = transcript_correct.rebuild_combined
+    calls = []
+
+    def rebuild(project):
+        calls.append(project)
+        original(project)
+
+    monkeypatch.setattr(transcript_correct, "rebuild_combined", rebuild)
+    assert (
+        apply_transcript_corrections(
+            p,
+            "host",
+            words=[{"word_index": 0, "text": "first"}, {"word_index": 1, "text": "second"}],
+        )
+        == 2
+    )
+    assert calls == [p]
+    assert [word.text for word in p.transcripts[0].words] == ["first", "second"]
+
+
 @pytest.mark.parametrize(
     "text",
     [
