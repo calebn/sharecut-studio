@@ -10,7 +10,7 @@ Intentional in-house chrome library under [`src/ui/`](../src/ui/). **No Radix / 
 | Dialog, Menu, BottomSheet, `useDialogModal` | Timeline zoom / selection math |
 | CommandButton, CommandMenuItem, `useCommand` | Pipeline param schemas |
 | Icon (stroke SVGs, filled transport glyphs), LoadingScreen, ErrorScreen, FocusPull, FocusToggle, DefinitionList | Comment domain (`comments/` — use library Button/Field) |
-| SegmentedControl, Pill, Timecode, EmptyState | Transport wiring (`layout/TransportBar` over the presentational `layout/TransportFrame`) |
+| SegmentedControl, Pill, Timecode, EmptyState | Transport wiring (`layout/TransportBar` over the presentational `layout/TransportFrame` and `layout/TransportPlayControls`); status wiring (`layout/StatusBar` over `layout/PipelineStatusChip`) |
 
 ## Public API
 

@@ -1,4 +1,5 @@
 import type { RecordParticipant, RecordSnapshot } from "../record/types";
+import type { PipelineJobSnapshot } from "../types/pipeline";
 import type { ProjectView, TimelineComment, TrackView } from "../types/project";
 
 /** Minimal ProjectView for unit tests that need DawProvider / store hydrate. */
@@ -100,6 +101,27 @@ export function recordSnapshot(
     take_index: 0,
     participants: [],
     caps: { recorded: 4, producers: 2 },
+    ...overrides,
+  };
+}
+
+/** Fictional activity for tests and published, prop-only chrome stories. */
+export function pipelineJobSnapshot(
+  overrides: Partial<PipelineJobSnapshot> = {},
+): PipelineJobSnapshot {
+  return {
+    id: "sample-job",
+    project_path: "/tmp/sample/episode.project.json",
+    from_step: null,
+    only_step: null,
+    kind: "pipeline",
+    status: "running",
+    current: 1,
+    total: 3,
+    message: "Preparing mix preview",
+    error: null,
+    elapsed_sec: 12,
+    steps: [],
     ...overrides,
   };
 }
