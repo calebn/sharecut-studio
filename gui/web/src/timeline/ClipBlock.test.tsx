@@ -130,6 +130,18 @@ describe("ClipBlock waveform", () => {
     });
   });
 
+  it("gives zero-length fade handles no contradictory start/end class", () => {
+    const { container } = render(<ClipBlock {...base} />);
+    for (const which of ["in", "out"]) {
+      const handle = container.querySelector(
+        `button.fade-handle-zero.${which}`,
+      ) as HTMLElement;
+      expect(handle).toBeTruthy();
+      expect(handle.classList.contains("start")).toBe(false);
+      expect(handle.classList.contains("end")).toBe(false);
+    }
+  });
+
   it("gives the trim ghost its own layer over the ghost source range", () => {
     const { container } = render(
       <ClipBlock

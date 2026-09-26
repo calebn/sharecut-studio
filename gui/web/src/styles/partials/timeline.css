@@ -332,30 +332,6 @@ button.join-diamond {
   content: none;
 }
 
-.fade-in,
-.fade-out {
-  position: absolute;
-  top: 0;
-  width: 0;
-  height: 0;
-  border-style: solid;
-  pointer-events: none;
-}
-
-.fade-in {
-  left: 0;
-  border-width: 0 0 0.75rem 0.75rem;
-  border-color: transparent transparent var(--color-overlay-black-35)
-    transparent;
-}
-
-.fade-out {
-  right: 0;
-  border-width: 0 0.75rem 0.75rem 0;
-  border-color: transparent var(--color-overlay-black-35) transparent
-    transparent;
-}
-
 .pending-overlay {
   position: absolute;
   /* stylelint-disable meowtec/no-px -- user-approved: canvas overlay inset vs lane height */

@@ -322,7 +322,7 @@ Passes 0–8: History Undo/Redo, pending Approve/Reject (bulk + nudge), applied 
 
 ### Timeline layers (bottom → top)
 
-1. **Clips** — pyramid waveform tiles (two-tone peak + RMS), quiet wash and snap ticks, fade triangles, crossfade border, width-tiered role/duration labels  
+1. **Clips** — pyramid waveform tiles (two-tone peak + RMS), quiet wash and snap ticks, fade regions with edge handles (a zero-length fade's handle sits just inside the clip edge it fades: fade-in at the start, fade-out at the end), crossfade border, width-tiered role/duration labels  
 2. **Levels** — volume automation polyline from `envelopes[]` (toggle)  
 3. **Edits** — applied ticks under pending regions (visual markers; dense stacks are
    non-interactive for WCAG 2.5.8); `remove` hatch vs `mute` solid (toggle)  

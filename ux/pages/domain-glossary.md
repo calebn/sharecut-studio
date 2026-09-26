@@ -176,7 +176,7 @@ flowchart LR
 |----------|-------|
 | When on mix | `timeline_start` … `timeline_end` |
 | From raw | `source_start` … `source_end` |
-| Fades | `fade_in_ms` / `fade_out_ms` |
+| Fades | `fade_in_ms` / `fade_out_ms` (handles at the clip's start / end edge) |
 | Join | `join_in_mode` |
 
 ---

@@ -754,7 +754,7 @@ export function ClipBlockView({
       {showHandles && fadeInMs === 0 && (
         <button
           type="button"
-          className="fade-handle end fade-handle-zero in"
+          className="fade-handle fade-handle-zero in"
           title={fadeTip}
           aria-label={fadeTip}
           onPointerDown={(e) => startFadeDrag("in", e)}
@@ -765,7 +765,7 @@ export function ClipBlockView({
       {showHandles && fadeOutMs === 0 && (
         <button
           type="button"
-          className="fade-handle start fade-handle-zero out"
+          className="fade-handle fade-handle-zero out"
           title={fadeTip}
           aria-label={fadeTip}
           onPointerDown={(e) => startFadeDrag("out", e)}

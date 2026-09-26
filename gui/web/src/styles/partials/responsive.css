@@ -149,14 +149,6 @@
   outline: 1px solid var(--color-accent-strong);
 }
 
-.fade-handle.end {
-  right: -0.5rem;
-}
-
-.fade-handle.start {
-  left: -0.5rem;
-}
-
 .envelope-overlay .envelope-svg circle {
   /* stylelint-disable-next-line meowtec/no-px -- user-approved: canvas envelope hit stroke */
   stroke-width: 12px;
