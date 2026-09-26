@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { beginHostSend, hostSendDone } from "./hostSendOrder";
+import {
+  beginHostSend,
+  hostSendDone,
+  hostSendsFinished,
+} from "./hostSendOrder";
 
 describe("hostSendOrder", () => {
   it("exposes a command's in-flight send until it finishes", async () => {
@@ -57,5 +61,14 @@ describe("hostSendOrder", () => {
     await first.earlier;
     first.finish();
     second.finish();
+  });
+
+  it("counts finished sends per project", () => {
+    const before = hostSendsFinished("/count");
+    const send = beginHostSend("/count", "a");
+    expect(hostSendsFinished("/count")).toBe(before);
+    send.finish();
+    expect(hostSendsFinished("/count")).toBe(before + 1);
+    expect(hostSendsFinished("/other-count")).toBe(0);
   });
 });

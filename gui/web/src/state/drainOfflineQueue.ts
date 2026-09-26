@@ -1,11 +1,10 @@
 import { submitDocumentCommand } from "../api";
 import { shareProjectKey } from "../shareMode";
 import { isClientRejection, isRetryLater } from "../utils/apiError";
-import { hostSendDone } from "./hostSendOrder";
+import { hostSendDone, hostSendsFinished } from "./hostSendOrder";
 import {
   loadCommandQueue,
   loadHostCommandQueue,
-  type QueuedCommand,
   removeHostQueuedCommands,
 } from "./offlineStore";
 
@@ -40,8 +39,11 @@ export async function drainOfflineQueue(token: string): Promise<void> {
 export async function drainHostOfflineQueue(
   projectPath: string,
 ): Promise<void> {
+  // Read before the snapshot, so a send that finishes while it loads counts.
+  let finishedSeen = hostSendsFinished(projectPath);
   const queue = await loadHostCommandQueue(projectPath);
   const completed: string[] = [];
+  let present: Set<string> | null = null;
   for (const cmd of queue) {
     // This tab is still POSTing it live: replaying now would send it twice.
     // Stop to keep order, and drain again once that send settles.
@@ -50,16 +52,21 @@ export async function drainHostOfflineQueue(
       void live.then(() => requestHostDrain(projectPath));
       break;
     }
-    // A live send may have finished and dequeued it since the snapshot.
-    let current: QueuedCommand[];
-    try {
-      current = await loadHostCommandQueue(projectPath);
-    } catch {
-      // Unreadable queue: stop this pass but still remove what already
-      // committed below; the next drain retries the rest in order.
-      break;
+    // A live send that finished since the last read may have dequeued this
+    // record. Re-read only then: each read loads every queued payload.
+    if (hostSendsFinished(projectPath) !== finishedSeen) {
+      finishedSeen = hostSendsFinished(projectPath);
+      try {
+        present = new Set(
+          (await loadHostCommandQueue(projectPath)).map((c) => c.command_id),
+        );
+      } catch {
+        // Unreadable queue: stop this pass but still remove what already
+        // committed below; the next drain retries the rest in order.
+        break;
+      }
     }
-    if (!current.some((c) => c.command_id === cmd.command_id)) {
+    if (present && !present.has(cmd.command_id)) {
       continue;
     }
     try {
