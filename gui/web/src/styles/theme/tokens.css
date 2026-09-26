@@ -203,7 +203,7 @@
   --social-marker: var(--color-social-marker);
   --comment-marker: var(--color-comment-marker);
   --clipping-marker: var(--color-danger);
-  --clipping-region: var(--color-danger-muted);
+  --clipping-region: var(--color-clipping-region);
   --scrim: var(--color-scrim);
   --shadow: var(--color-shadow);
   --shadow-soft: var(--color-shadow-soft);
