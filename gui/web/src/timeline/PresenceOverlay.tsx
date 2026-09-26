@@ -4,6 +4,7 @@ import { presenceColorVar, rosterDisplayName } from "../presence/colors";
 import { createCursorMotion } from "../presence/cursorMotion";
 import {
   isObservingClient,
+  remotePlayheadSec,
   remotePresenceClients,
   serverNowMs,
 } from "../presence/followSync";
