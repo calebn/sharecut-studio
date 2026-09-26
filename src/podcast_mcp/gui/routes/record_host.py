@@ -8,7 +8,12 @@ from fastapi import APIRouter, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from podcast_mcp.gui.routes.deps import require_host, resolve_project
-from podcast_mcp.gui.routes.record_upload_http import UploadKindParam, ingest_record_upload_request
+from podcast_mcp.gui.routes.record_upload_http import (
+    ClippingParam,
+    ClippingTruncatedParam,
+    UploadKindParam,
+    ingest_record_upload_request,
+)
 from podcast_mcp.services import ProjectWorkspace
 from podcast_mcp.services.record.commands import RecordAuthzError
 from podcast_mcp.services.record.control import RecordControlService
@@ -102,15 +107,8 @@ async def post_host_record_upload(
     final: bool = Query(False),
     expected_parts: int | None = Query(None, ge=1),
     join_offset_ms: int | None = Query(None),
-    clipping: str | None = Query(
-        None,
-        max_length=4096,
-        description="Segment-relative sample-peak clip spans a-b,c-d in ms; final part only.",
-    ),
-    clipping_truncated: bool = Query(
-        False,
-        description="True when the encoder hit its 100-region cap and later clipping went unrecorded; needs clipping.",
-    ),
+    clipping: ClippingParam = None,
+    clipping_truncated: ClippingTruncatedParam = False,
     kind: UploadKindParam = None,
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),

@@ -12,6 +12,8 @@ from starlette.responses import JSONResponse
 
 from podcast_mcp.services.record.landing import RecordLandingError, RecordLandingService
 from podcast_mcp.services.record.upload import (
+    CLIPPING_MAX_REGIONS,
+    CLIPPING_PARAM_MAX_CHARS,
     ROOM_TONE_MAX_PCM_BYTES,
     ROOM_TONE_SEGMENT_INDEX,
     ROOM_TONE_TAKE_INDEX,
@@ -33,6 +35,23 @@ log = logging.getLogger(__name__)
 UploadKindParam = Annotated[
     Literal["keeper", "room_tone"] | None,
     Query(description="keeper or room_tone"),
+]
+
+ClippingParam = Annotated[
+    str | None,
+    Query(
+        max_length=CLIPPING_PARAM_MAX_CHARS,
+        description="Segment-relative sample-peak clip spans a-b,c-d in ms; final part only.",
+    ),
+]
+ClippingTruncatedParam = Annotated[
+    bool,
+    Query(
+        description=(
+            f"True when the encoder hit its {CLIPPING_MAX_REGIONS}-region cap and later "
+            "clipping went unrecorded; needs clipping."
+        ),
+    ),
 ]
 
 

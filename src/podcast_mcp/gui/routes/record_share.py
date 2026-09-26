@@ -15,6 +15,8 @@ from podcast_mcp.edits.share_capabilities import CAP_JOIN, CAP_MONITOR, has_capa
 from podcast_mcp.edits.share_registry import SHARE_KIND_RECORD
 from podcast_mcp.gui.routes.guest_ws_common import GuestWsGuard, guest_ws_reject
 from podcast_mcp.gui.routes.record_upload_http import (
+    ClippingParam,
+    ClippingTruncatedParam,
     UploadKindParam,
     ingest_record_upload_request,
 )
@@ -399,15 +401,8 @@ async def post_record_upload(
     final: bool = Query(False),
     expected_parts: int | None = Query(None, ge=1),
     join_offset_ms: int | None = Query(None),
-    clipping: str | None = Query(
-        None,
-        max_length=4096,
-        description="Segment-relative sample-peak clip spans a-b,c-d in ms; final part only.",
-    ),
-    clipping_truncated: bool = Query(
-        False,
-        description="True when the encoder hit its 100-region cap and later clipping went unrecorded; needs clipping.",
-    ),
+    clipping: ClippingParam = None,
+    clipping_truncated: ClippingTruncatedParam = False,
     kind: UploadKindParam = None,
     x_record_participant: str = Header(..., alias="X-Record-Participant"),
     x_record_lease: str = Header(..., alias="X-Record-Lease"),
