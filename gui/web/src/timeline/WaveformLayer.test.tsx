@@ -2,10 +2,16 @@ import { act, render } from "@testing-library/react";
 import { Profiler } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
+import {
+  CLIP_FILL,
+  readyEntry as ready,
+  restoreWaveformLayerDom,
+  stubWaveformLayerDom,
+  WAVEFORM_LAYER_PROPS,
+} from "../test/waveform";
 import { bitmapCache } from "../waveform/bitmapCache";
 import type { RasterRequest } from "../waveform/rasterClient";
-import type { MediaRef, ReadyEntry, StatusEntry } from "../waveform/types";
-import { clearWaveformFillCache } from "./waveformTheme";
+import type { StatusEntry } from "../waveform/types";
 
 const state = vi.hoisted(() => ({
   entries: {} as Record<string, unknown>,
@@ -21,6 +27,7 @@ const state = vi.hoisted(() => ({
   pcmRequests: [] as number[][],
   listeners: new Set<() => void>(),
   dropped: new Set<(key: string) => void>(),
+  failed: new Set<(key: string) => void>(),
 }));
 
 /** Set a status entry the way a poll would, notifying subscribers. */
@@ -77,6 +84,10 @@ vi.mock("../waveform/rasterClient", () => ({
     state.dropped.add(fn);
     return () => state.dropped.delete(fn);
   },
+  subscribeRasterFailed: (fn: (key: string) => void) => {
+    state.failed.add(fn);
+    return () => state.failed.delete(fn);
+  },
   hasRaster: (key: string, provisional: boolean) =>
     (state.rasters as { key: string; provisional: boolean }[]).some(
       (r) => r.key === key && r.provisional === provisional,
@@ -98,57 +109,8 @@ vi.mock("./quietWash", async (importOriginal) => {
 
 const { WaveformLayer } = await import("./WaveformLayer");
 
-const MEDIA_HASH = "a1".repeat(10);
-
-/** 60 s of 48 kHz media: levels of 64·4^ℓ frames per bin. */
-function ready(key = MEDIA_HASH): ReadyEntry {
-  const total = 48000 * 60;
-  const levels = [0, 1, 2, 3, 4, 5].map((l) => {
-    const spp = 64 * 4 ** l;
-    return { spp, bins: Math.ceil(total / spp) };
-  });
-  return {
-    status: "ready",
-    key,
-    sample_rate: 48000,
-    channels: 1,
-    total_frames: total,
-    base_spp: 64,
-    level_factor: 4,
-    bins_per_tile: 4096,
-    levels,
-  };
-}
-
-/** A ResizeObserver that reports at once, like a first layout. */
-class InstantResizeObserver {
-  private readonly cb: ResizeObserverCallback;
-  constructor(cb: ResizeObserverCallback) {
-    this.cb = cb;
-  }
-  observe(el: Element) {
-    this.cb(
-      [{ target: el } as ResizeObserverEntry],
-      this as unknown as ResizeObserver,
-    );
-  }
-  unobserve() {}
-  disconnect() {}
-}
-
-/** A computed lane fill, as `getComputedStyle` reports it. */
-const CLIP_FILL = "rgb(13, 126, 117)";
-
 const drawImage = vi.fn();
-const baseProps = {
-  mediaRef: "track:host" as MediaRef,
-  kind: "raw" as const,
-  mediaStartSec: 0,
-  clipLeftCss: 0,
-  clipWidthCss: 2000,
-  zoom: 100,
-  colorVar: "var(--clip-dialogue-0)",
-};
+const baseProps = WAVEFORM_LAYER_PROPS;
 
 function mount(props: Partial<typeof baseProps> = {}) {
   const onRender = vi.fn();
@@ -179,18 +141,7 @@ describe("WaveformLayer", () => {
     state.rasters = [];
     state.tileRequests = [];
     state.pcmRequests = [];
-    clearWaveformFillCache();
-    vi.stubGlobal("ResizeObserver", InstantResizeObserver);
-    vi.stubGlobal("devicePixelRatio", 1);
-    Object.defineProperty(HTMLElement.prototype, "clientHeight", {
-      configurable: true,
-      get: () => 50,
-    });
-    HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
-      clearRect: vi.fn(),
-      drawImage,
-    })) as unknown as typeof HTMLCanvasElement.prototype.getContext;
-    drawImage.mockClear();
+    stubWaveformLayerDom(drawImage);
     useDawStore.setState({
       projectPath: "/tmp/p.json",
       scrollLeft: 0,
@@ -201,8 +152,7 @@ describe("WaveformLayer", () => {
 
   afterEach(() => {
     bitmapCache.clear();
-    vi.unstubAllGlobals();
-    Reflect.deleteProperty(HTMLElement.prototype, "clientHeight");
+    restoreWaveformLayerDom();
   });
 
   it("draws nothing under the minimum clip width", () => {
@@ -342,24 +292,27 @@ describe("WaveformLayer", () => {
     expect(state.tileRequests).toHaveLength(asked);
   });
 
-  it("asks again for a skipped tile when the queued job it deferred to is dropped", () => {
-    mount();
-    const key = rasters()[0]!.key;
-    state.rasters = rasters().filter((r) => r.key !== key);
-    const before = rasters().length;
-    act(() => {
-      for (const fn of state.dropped) {
-        fn("not-a-tile-of-this-layer");
-      }
-    });
-    expect(rasters()).toHaveLength(before);
-    act(() => {
-      for (const fn of state.dropped) {
-        fn(key);
-      }
-    });
-    expect(rasters().filter((r) => r.key === key)).toHaveLength(1);
-  });
+  it.each(["dropped", "failed"] as const)(
+    "asks again for a wanted tile the client reports %s",
+    (which) => {
+      mount();
+      const key = rasters()[0]!.key;
+      state.rasters = rasters().filter((r) => r.key !== key);
+      const before = rasters().length;
+      act(() => {
+        for (const fn of state[which]) {
+          fn("not-a-tile-of-this-layer");
+        }
+      });
+      expect(rasters()).toHaveLength(before);
+      act(() => {
+        for (const fn of state[which]) {
+          fn(key);
+        }
+      });
+      expect(rasters().filter((r) => r.key === key)).toHaveLength(1);
+    },
+  );
 
   it("asks for a held pyramid under its own ref, and drops it on a project change", () => {
     const view = mount();

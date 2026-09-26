@@ -371,8 +371,15 @@ Revocation stops new requests only.
     that are no longer wanted, but caches results that arrive late. A provisional request never
     replaces a queued exact one. A `postMessage` that throws frees its slot,
     and a result whose job is gone is closed. Pending `rasterParity()` calls
-    settle with null on a reset or a worker failure. Its
-    backend is `none` without `Worker` (jsdom).
+    settle with null on a reset or a worker crash. Its
+    backend is `none` without `Worker` (jsdom). A worker that crashes
+    (`onerror`, e.g. out of memory, or `onmessageerror`) is restarted up to
+    `RASTER_WORKER_RESTARTS` (2) times per page load. Queued jobs go to the new
+    worker, and the reported backend stays until it is ready. After that the
+    backend is `none` until reload. `subscribeRasterFailed` reports the keys of
+    jobs that died: those in flight, and on the last crash the queued ones. A
+    worker that cannot be constructed means `none` at once. The listener sets
+    use `listenerSet.ts` (emit over a snapshot).
   - `bitmapCache.ts` holds the finished bitmaps and calls `close()` on
     every one it evicts. While a tile's exact bitmap is pending, it offers
     the nearest-zoom bitmap that overlaps as a stand-in. A bitmap rendered
@@ -412,7 +419,7 @@ starts at the ghost's source start and has the ghost's width.
   context. Without one, it draws a stand-in (the nearest zoom that overlaps,
   or a render from a coarser level that is already loaded) and asks for the
   data and a raster. A tile whose render is already queued or in flight is
-  skipped (`rasterClient.hasRaster`), so data events do not rebuild its job. If the queue later drops that job as unwanted, `subscribeRasterDropped` tells any layer that still wants the key, and it asks again.
+  skipped (`rasterClient.hasRaster`), so data events do not rebuild its job. If the queue later drops that job as unwanted (`subscribeRasterDropped`), or the job dies with a crashed worker (`subscribeRasterFailed`), any layer that still wants the key asks again.
   The mode is pyramid, or host PCM below level 0, drawn as
   a line under 4 frames per device column. Guests use level 0 bins
   stretched over several pixels.
