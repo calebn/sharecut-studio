@@ -163,6 +163,7 @@ export function TrackInspector({
             <DefItem label="Label">
               <FieldRow>
                 <input
+                  aria-label="Track label"
                   value={label}
                   onChange={(e) => setLabel(e.target.value)}
                   onBlur={() => void saveMeta()}
@@ -172,6 +173,7 @@ export function TrackInspector({
             <DefItem label="Speaker">
               <FieldRow>
                 <input
+                  aria-label="Track speaker"
                   value={speaker}
                   onChange={(e) => setSpeaker(e.target.value)}
                   onBlur={() => void saveMeta()}
@@ -181,6 +183,7 @@ export function TrackInspector({
             <DefItem label="Role">
               <FieldRow>
                 <select
+                  aria-label="Track role"
                   value={role}
                   onChange={(e) => {
                     const nextRole = e.target.value;
