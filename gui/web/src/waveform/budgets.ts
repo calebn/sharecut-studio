@@ -45,8 +45,21 @@ export function fetchLimit(projectPath: string): number {
 /** Raster jobs outstanding in the worker. */
 export const RASTER_JOBS_OUTSTANDING = 4;
 
-/** Raster worker restarts after a crash, per page load, before backend `none`. */
+/** Raster worker restarts after a crash before backend `none` (re-armed by RASTER_RESTART_REARM_TILES). */
 export const RASTER_WORKER_RESTARTS = 2;
+
+/**
+ * Finished tiles after a crash that re-arm the restart budget, so crashes
+ * spread over a long session do not add up to backend `none`.
+ */
+export const RASTER_RESTART_REARM_TILES = 64;
+
+/**
+ * Times a tile key that failed (an `error` reply, a `postMessage` that threw,
+ * or in flight at a worker crash) is reported for a re-request. Its next
+ * failure retires the key until reload, so a poison tile cannot loop.
+ */
+export const RASTER_JOB_RETRIES = 1;
 
 /**
  * One counter of waveform fetches in flight, shared by tiles and PCM so

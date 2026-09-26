@@ -7,13 +7,18 @@ import {
   stubRasterWorker,
 } from "../test/waveform";
 import { bitmapCache } from "./bitmapCache";
-import { RASTER_WORKER_RESTARTS } from "./budgets";
+import {
+  RASTER_JOB_RETRIES,
+  RASTER_RESTART_REARM_TILES,
+  RASTER_WORKER_RESTARTS,
+} from "./budgets";
 import {
   getRasterBackend,
   hasRaster,
   rasterParity,
   rasterTilesByMode,
   rasterTilesRendered,
+  rasterWorkerRestarts,
   requestRaster,
   resetRasterClient,
   startRasterWorker,
@@ -208,7 +213,7 @@ describe("rasterClient", () => {
   const fiveJobs = ["a", "b", "c", "d", "e"];
 
   it.each(["onerror", "onmessageerror"] as const)(
-    "restarts a worker after %s, re-sends queued jobs and reports the jobs that died",
+    "restarts a worker after %s (a lost reply holds its slot), re-sends queued jobs and reports the jobs that died",
     async (handler) => {
       const failed: string[] = [];
       subscribeRasterFailed((k) => failed.push(k));
@@ -301,6 +306,7 @@ describe("rasterClient", () => {
     }
     expect(getRasterBackend()).toBe("none");
     resetRasterClient();
+    expect(rasterWorkerRestarts()).toBe(0);
     requestRaster(req("a"));
     const before = FakeRasterWorker.created;
     FakeRasterWorker.last!.onerror?.();
@@ -308,7 +314,7 @@ describe("rasterClient", () => {
     expect(FakeRasterWorker.created).toBe(before + 1);
   });
 
-  it("ignores errors but keeps pumping", () => {
+  it("keeps pumping after an error reply", () => {
     for (const k of ["a", "b", "c", "d", "e"]) {
       requestRaster(req(k));
     }
@@ -316,6 +322,96 @@ describe("rasterClient", () => {
     w.reply({ type: "error", id: 1, message: "boom" });
     expect(w.posted).toHaveLength(5);
     expect(rasterTilesRendered()).toBe(0);
+  });
+
+  it("reports a render that threw, and retires the key after RASTER_JOB_RETRIES", () => {
+    const failed: string[] = [];
+    subscribeRasterFailed((k) => {
+      failed.push(k);
+      requestRaster(req(k));
+    });
+    requestRaster(req("a"));
+    const w = FakeRasterWorker.last!;
+    for (let i = 0; i <= RASTER_JOB_RETRIES; i++) {
+      w.reply({ type: "error", id: w.posted.at(-1)!.msg.id, message: "boom" });
+    }
+    expect(failed).toEqual(Array(RASTER_JOB_RETRIES).fill("a"));
+    expect(w.posted).toHaveLength(RASTER_JOB_RETRIES + 1);
+    expect(hasRaster("a", false, 0)).toBe(true);
+    requestRaster(req("a"));
+    expect(w.posted).toHaveLength(RASTER_JOB_RETRIES + 1);
+    expect(rasterTilesRendered()).toBe(0);
+  });
+
+  it("a finished render clears a key's failures", () => {
+    subscribeRasterFailed((k) => requestRaster(req(k)));
+    requestRaster(req("a"));
+    const w = FakeRasterWorker.last!;
+    w.reply({ type: "error", id: w.posted.at(-1)!.msg.id, message: "boom" });
+    w.reply(doneMsg(w.posted.at(-1)!.msg.id));
+    w.reply({ type: "error", id: 99, message: "late" });
+    requestRaster(req("a"));
+    expect(hasRaster("a", false, 0)).toBe(true);
+    w.reply({ type: "error", id: w.posted.at(-1)!.msg.id, message: "boom" });
+    // First failure since the success: reported and re-sent, not retired.
+    expect(w.posted).toHaveLength(4);
+  });
+
+  it("reports a job whose postMessage threw, and retires the key after RASTER_JOB_RETRIES", () => {
+    const failed: string[] = [];
+    subscribeRasterFailed((k) => {
+      failed.push(k);
+      requestRaster(req(k));
+    });
+    startRasterWorker();
+    const w = FakeRasterWorker.last!;
+    w.postMessage = () => {
+      throw new DOMException("detached", "DataCloneError");
+    };
+    requestRaster(req("a"));
+    expect(failed).toEqual(Array(RASTER_JOB_RETRIES).fill("a"));
+    expect(hasRaster("a", false, 0)).toBe(true);
+  });
+
+  it("retires a key that was in flight at repeated crashes", () => {
+    subscribeRasterFailed((k) => requestRaster(req(k)));
+    requestRaster(req("poison"));
+    for (let i = 0; i <= RASTER_JOB_RETRIES; i++) {
+      FakeRasterWorker.last!.onerror?.();
+    }
+    expect(hasRaster("poison", false, 0)).toBe(true);
+    expect(FakeRasterWorker.last!.posted).toHaveLength(0);
+    expect(getRasterBackend()).not.toBe("none");
+  });
+
+  it("re-arms the restart budget after RASTER_RESTART_REARM_TILES finished tiles", () => {
+    startRasterWorker();
+    for (let i = 0; i < RASTER_WORKER_RESTARTS; i++) {
+      FakeRasterWorker.last!.onerror?.();
+    }
+    const w = FakeRasterWorker.last!;
+    for (let i = 0; i < RASTER_RESTART_REARM_TILES; i++) {
+      requestRaster(req(`t${i}`));
+      w.reply(doneMsg(w.posted.at(-1)!.msg.id));
+    }
+    w.onerror?.();
+    expect(getRasterBackend()).not.toBe("none");
+    expect(FakeRasterWorker.created).toBe(RASTER_WORKER_RESTARTS + 2);
+  });
+
+  it("spends one restart when onerror and onmessageerror both fire for one crash", () => {
+    startRasterWorker();
+    const w = FakeRasterWorker.last!;
+    w.onerror?.();
+    w.onmessageerror?.();
+    expect(FakeRasterWorker.created).toBe(2);
+    expect(rasterWorkerRestarts()).toBe(1);
+    for (let i = 1; i < RASTER_WORKER_RESTARTS; i++) {
+      FakeRasterWorker.last!.onerror?.();
+    }
+    expect(getRasterBackend()).not.toBe("none");
+    expect(FakeRasterWorker.created).toBe(RASTER_WORKER_RESTARTS + 1);
+    expect(rasterWorkerRestarts()).toBe(RASTER_WORKER_RESTARTS);
   });
 
   it("reports a request it would drop as a duplicate", () => {
