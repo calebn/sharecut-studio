@@ -62,6 +62,18 @@ def _tone(total_sec: float, start: float, end: float, *, hz: float = 180.0, amp:
     return samples
 
 
+def _breath_like_run(total_sec: float, start: float, end: float, *, gain: float) -> np.ndarray:
+    """Broadband breath energy with enough weak voicing to reach the classifier."""
+    samples = np.zeros(int(total_sec * RATE), dtype=np.float32)
+    count = int((end - start) * RATE)
+    time = np.arange(count) / RATE
+    noise = np.random.default_rng(218).normal(0, 0.017, count)
+    samples[int(start * RATE) : int(start * RATE) + count] = (
+        gain * (noise + 0.025 * np.sin(2 * np.pi * 180 * time))
+    ).astype(np.float32)
+    return samples
+
+
 def _dbfs_sine(total_sec: float, hz: float, level_db: float) -> np.ndarray:
     t = np.arange(int(total_sec * RATE)) / RATE
     return (10 ** (level_db / 20) * np.sqrt(2) * np.sin(2 * np.pi * hz * t)).astype(np.float32)
@@ -222,7 +234,7 @@ def test_no_speech_context_keeps_voiced_runs_for_review(gain: float) -> None:
 def test_contextual_breath_rejection_is_gain_stable_and_counted(gain: float) -> None:
     samples = _tone(3.0, 0.2, 0.4, amp=0.2 * gain)
     samples += _tone(3.0, 2.0, 2.2, amp=0.2 * gain)
-    samples += _tone(3.0, 0.65, 0.9, amp=0.036 * gain)
+    samples += _breath_like_run(3.0, 0.65, 0.9, gain=gain)
     samples += _tone(3.0, 1.3, 1.65, amp=0.2 * gain)
     skips: dict[str, int] = {}
 
@@ -233,6 +245,22 @@ def test_contextual_breath_rejection_is_gain_stable_and_counted(gain: float) -> 
     assert len(_acoustic(found)) == 1
     assert 1.25 <= _acoustic(found)[0].start < _acoustic(found)[0].end <= 1.7
     assert skips == {"acoustic:breath": 1}
+
+
+@pytest.mark.parametrize("gain", [0.5, 1.0, 2.0])
+def test_quiet_periodic_word_stays_reviewable_with_speech_context(gain: float) -> None:
+    samples = _tone(3.0, 0.2, 0.4, amp=0.2 * gain)
+    samples += _tone(3.0, 2.0, 2.2, amp=0.2 * gain)
+    samples += _tone(3.0, 0.65, 0.9, amp=0.036 * gain)
+    skips: dict[str, int] = {}
+
+    found = _add_acoustic_candidates(
+        [], _two_words(), {"tighten": {}}, audio_cache=_cache(samples), skip_counts=skips
+    )
+
+    assert len(_acoustic(found)) == 1
+    assert 0.6 <= _acoustic(found)[0].start < _acoustic(found)[0].end <= 0.95
+    assert skips.get("acoustic:breath", 0) == 0
 
 
 def test_audibility_override_reaches_public_proposal(tmp_path: Path) -> None:

@@ -215,6 +215,10 @@ default remains `heuristic`. Classification is confined to each proposed run.
 The RMS classifier compares a run with short, audible windows inside both
 flanking transcript words; it abstains and leaves the run for review when
 either speech reference is missing or below the active audibility floor.
+For an acoustic candidate in the heuristic breath band, short pitch probes
+also keep clearly periodic speech-like runs reviewable; weakly periodic
+broadband breath-like runs may be rejected. This check does not alter adjacent
+cut breath co-removal.
 Silero does not require that RMS reference. Model lookup happens once per
 classification, and model or inference failures fall back to the RMS heuristic.
 Tune against real recordings by ear before changing either default.
