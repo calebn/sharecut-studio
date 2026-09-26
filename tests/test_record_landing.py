@@ -807,6 +807,51 @@ def test_concurrent_land_keeps_one_clip(minimal_project, sample_wav, tmp_workspa
     assert len(landed) == 1
 
 
+def test_land_on_stale_workspace_keeps_earlier_land(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    """A land whose workspace predates another land's commit keeps that land (#503)."""
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(
+        _cmd(
+            "Comment",
+            payload={
+                "id": "live-host-marker",
+                "take_index": 0,
+                "recording_ms": 0,
+                "pressed_wall_ms": 500,
+                "body": "Marker",
+            },
+        ),
+        now_wall_ms=600,
+    )
+    svc.submit(_cmd("Stop"), now_wall_ms=2_000)
+    # Opened before any land, like an upload request still reading its body.
+    stale = ProjectWorkspace.open(minimal_project)
+    uploader = RecordUploadService(ws.project)
+    _ack(
+        uploader,
+        session_id=room["session_id"],
+        take=0,
+        pid=HOST_PARTICIPANT_ID,
+        segment=0,
+        join_offset_ms=0,
+    )
+    first = RecordLandingService(ws).land(align=lambda _p: None)
+    assert [row["id"] for row in first["comments"]] == ["live-host-marker"]
+    _ack(uploader, session_id=room["session_id"], take=0, pid=guest, segment=0, join_offset_ms=0)
+    second = RecordLandingService(stale).land(align=lambda _p: None)
+    assert [clip["participant_id"] for clip in second["clips"]] == [guest]
+    saved = load_project(minimal_project)
+    assert [comment.id for comment in saved.comments] == ["live-host-marker"]
+    landed_tracks = {clip.track_id for clip in saved.clips if clip.source_id.startswith("rec-")}
+    assert len(landed_tracks) == 2
+
+
 def test_missing_acked_with_source_in_raw_stays_landed(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -2274,6 +2319,7 @@ def test_missing_acked_room_tone_lands_only_with_registered_bed(
     track = ws.project.track_by_id(slug_track_id(guest))
     assert track is not None
     track.room_tone = None
+    ws.save()  # land re-reads the saved project, so persist the cleared bed
     again = RecordLandingService(ws).land(align=lambda _p: None)
     assert again["clips"] == []
     beds_again = uploader.room_tone_status(session_id=room["session_id"])
