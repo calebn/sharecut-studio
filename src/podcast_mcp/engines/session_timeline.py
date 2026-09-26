@@ -17,7 +17,7 @@ from bisect import bisect_right
 from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Any
+from typing import Any, Protocol
 
 from podcast_mcp.models import Clip, EpisodeProject
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
@@ -180,7 +180,17 @@ def clip_timeline_point_to_source(clip: Clip, timeline_sec: float) -> float:
     return mapped[0]
 
 
-def clip_source_to_timeline_shift(clip: Clip) -> float:
+class SourcePlacement(Protocol):
+    """Anything placed on the timeline: a ``Clip`` or an index span."""
+
+    @property
+    def source_start(self) -> float: ...
+
+    @property
+    def timeline_start(self) -> float: ...
+
+
+def clip_source_to_timeline_shift(clip: SourcePlacement) -> float:
     """Seconds to add to a source time inside ``clip`` to reach the timeline clock.
 
     ``timeline = source + shift``; its negation is the file time of timeline 0 for
@@ -345,7 +355,7 @@ class SessionTimeline:
         idx = self._index(track_id)
         if idx is None:
             return True
-        return all(abs(s.timeline_start - s.source_start) <= _EPS for s in idx.by_timeline)
+        return all(abs(clip_source_to_timeline_shift(s)) <= _EPS for s in idx.by_timeline)
 
     def drift_at(self, track_id: str, tl_sec: TimelineSec) -> float:
         """Source-minus-timeline offset at a timeline position (0 if unmapped)."""
@@ -357,7 +367,7 @@ class SessionTimeline:
             return 0.0
         preceding = [s for s in idx.by_timeline if s.timeline_start <= float(tl_sec)]
         span = preceding[-1] if preceding else idx.by_timeline[0]
-        return span.source_start - span.timeline_start
+        return -clip_source_to_timeline_shift(span)
 
     def max_drift(self, track_id: str) -> float:
         """Largest absolute source-vs-timeline offset across the track's clips."""
@@ -365,7 +375,7 @@ class SessionTimeline:
         if idx is None:
             return 0.0
         return max(
-            (abs(s.source_start - s.timeline_start) for s in idx.by_timeline),
+            (abs(clip_source_to_timeline_shift(s)) for s in idx.by_timeline),
             default=0.0,
         )
 
