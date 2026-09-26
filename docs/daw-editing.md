@@ -110,6 +110,7 @@ Shipped:
 
 **Status: shipped.** Host-only **Tighten** tab (phone: More → Tighten) lists pending `filler:`, `pause:`, `repetition:`, and `restart:` decisions.
 
+- Host-only **Intensity** select (Light / Medium / Aggressive) edits the shared pipeline working set `tighten.intensity` (same value as the Pipeline tab). **Find hits** starts a host pipeline job running only `analyze_fillers_pauses` with `tighten.enabled` forced on for that run only (not persisted), so it re-proposes with the chosen tier and the list refreshes when the job finishes. It is disabled while any pipeline-slot job runs. See [filler-cut-quality.md § Intensity presets](filler-cut-quality.md#intensity-presets).
 - Search, class (filler/pause/repetition/restart), track, and “harsh cuts only” filters. Columns: time, track, class, ±3-word snippet, risk badge (risky / review), status. Repetition and restart proposals require individual review and are excluded from the default safe batch.
 - Per-hit command-bus actions: Preview (Suggested skip when `can_skip`), Skip (`RejectEdits`), Apply (`ApproveEdits`), Go to (seek + select). Shortcuts when the tab is open: `Enter`, `Backspace`, `P`, `Mod+Shift+Enter`.
 - **Apply eligible** with **Avoid harsh cuts** (default on) approves the listed hits except `review_required`, `:join_review` / `:risky` reason suffixes, or `join_risk.verdict` review as **one** `ApproveEdits` batch. `Mod+Shift+Enter` uses the same filtered list and checkbox state as the button. Confirm copy: “Apply 23 of 31 — 8 skipped as harsh”.

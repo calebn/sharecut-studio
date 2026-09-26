@@ -1,16 +1,87 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  loadPipelineConfig,
+  putPipelineConfig,
+  startPipelineRun,
+} from "../api";
 import { execute } from "../commands/execute";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
+import type {
+  PipelineConfigResponse,
+  PipelineJobSnapshot,
+} from "../types/pipeline";
 import type { PendingEditView } from "../types/project";
 import { TightenPanel } from "./TightenPanel";
 
 vi.mock("../commands/execute", () => ({
   execute: vi.fn(async () => ({ status: "ok" })),
 }));
+
+function pipelineCfg(): PipelineConfigResponse {
+  return {
+    defaults: {},
+    config: {
+      tighten: { intensity: "medium", enabled: false, max_pause_sec: 1.2 },
+    },
+    enabled_steps: [],
+    unattended: true,
+    steps: [],
+    params: [
+      {
+        path: "tighten.intensity",
+        label: "Tighten intensity",
+        description: "x",
+        type: "enum",
+        enum: ["light", "medium", "aggressive"],
+        default: "medium",
+        group: "common",
+        section: "tighten",
+        affects: ["analyze_fillers_pauses"],
+      },
+    ],
+    components: {},
+    step_names: [],
+  };
+}
+
+function job(
+  overrides: Partial<PipelineJobSnapshot> = {},
+): PipelineJobSnapshot {
+  return {
+    id: "job1",
+    project_path: "/tmp/p.json",
+    from_step: null,
+    only_step: "analyze_fillers_pauses",
+    kind: "pipeline",
+    status: "running",
+    current: null,
+    total: null,
+    message: null,
+    error: null,
+    elapsed_sec: 0,
+    steps: [],
+    ...overrides,
+  };
+}
+
+vi.mock("../api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api")>();
+  return {
+    ...actual,
+    loadPipelineConfig: vi.fn(async () => pipelineCfg()),
+    putPipelineConfig: vi.fn(
+      async (_p: string, body: { config?: Record<string, unknown> }) => ({
+        ...pipelineCfg(),
+        config: body.config ?? {},
+      }),
+    ),
+    startPipelineRun: vi.fn(async () => job()),
+  };
+});
 
 function pending(overrides: Partial<PendingEditView> = {}): PendingEditView {
   return {
@@ -98,12 +169,81 @@ function projectWithHits() {
 describe("TightenPanel", () => {
   beforeEach(() => {
     vi.mocked(execute).mockClear();
+    vi.mocked(loadPipelineConfig).mockClear();
+    vi.mocked(putPipelineConfig).mockClear();
+    vi.mocked(startPipelineRun).mockReset();
+    vi.mocked(startPipelineRun).mockImplementation(async () => job());
     useDawStore.getState().hydrate("/tmp/p.json", projectWithHits());
     useDawStore.setState({
       activeTab: "tighten",
       guestMode: null,
       shareCapabilities: [],
+      pipelineJob: null,
+      activityJob: null,
     });
+  });
+
+  it("changes intensity in the shared working set and finds hits for that tier", async () => {
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={projectWithHits()}>
+        <TightenPanel />
+      </DawProvider>,
+    );
+    await screen.findByRole("option", { name: "Aggressive" });
+    fireEvent.change(screen.getByLabelText("Intensity"), {
+      target: { value: "aggressive" },
+    });
+    await waitFor(() =>
+      expect(putPipelineConfig).toHaveBeenCalledWith("/tmp/p.json", {
+        config: expect.objectContaining({
+          tighten: expect.objectContaining({ intensity: "aggressive" }),
+        }),
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Find hits" }));
+    await waitFor(() =>
+      expect(startPipelineRun).toHaveBeenCalledWith(
+        "/tmp/p.json",
+        expect.objectContaining({
+          onlyStep: "analyze_fillers_pauses",
+          useWorkingSet: false,
+          config: expect.objectContaining({
+            tighten: expect.objectContaining({
+              intensity: "aggressive",
+              enabled: true,
+            }),
+          }),
+        }),
+      ),
+    );
+    await waitFor(() =>
+      expect(useDawStore.getState().pipelineJob?.id).toBe("job1"),
+    );
+    expect(useDawStore.getState().activeTab).toBe("tighten");
+    await expectNoA11yViolations(container);
+  });
+
+  it("disables Find hits while a pipeline job is running", async () => {
+    useDawStore.setState({ pipelineJob: job() });
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={projectWithHits()}>
+        <TightenPanel />
+      </DawProvider>,
+    );
+    await screen.findByRole("option", { name: "Light" });
+    expect(screen.getByRole("button", { name: "Find hits" })).toBeDisabled();
+  });
+
+  it("shows an inline error when the run cannot start", async () => {
+    vi.mocked(startPipelineRun).mockRejectedValue(new Error("busy"));
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={projectWithHits()}>
+        <TightenPanel />
+      </DawProvider>,
+    );
+    await screen.findByRole("option", { name: "Light" });
+    fireEvent.click(screen.getByRole("button", { name: "Find hits" }));
+    expect(await screen.findByText("busy")).toBeTruthy();
   });
 
   it("lists filler/pause hits and filters by search and class", async () => {
