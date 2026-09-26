@@ -154,7 +154,7 @@ Suggest sweeps **each** non-reference guest independently. Cost is O(guests × s
 | Session clock | `session_start_in_file_sec` | VAD sweep (`ingest suggest`) or RMS onset at consolidate |
 | Content fine-tune | `content_align_sec` / `session_offset_sec` | VAD turn-taking; optional transcript anchors |
 | Trim | — | `file_trim = session_start + extract_start - content_align` |
-| Placement | clip `source_start` / `timeline_start` | Whole-file (untrimmed) consolidate: `offset_to_clip_geometry(content_align - session_start)` so session t=0 is timeline 0 for every speaker; the raw WAV stays whole (non-destructive). Only the primary clip is placed; extra clips follow sequentially. Trimmed extracts are not re-placed. Pipeline `align_tracks` rebases guest offsets onto the reference clip's placement, so a reference lead-in survives re-alignment. |
+| Placement | clip `source_start` / `timeline_start` | Whole-file (untrimmed) consolidate: `edits/ingest_placement.place_ingest_sources` (`offset_to_clip_geometry(content_align - session_start)`) so session t=0 is timeline 0 for every speaker; the raw WAV stays whole (non-destructive). Only the primary clip is placed; extra clips follow sequentially. `ingest consolidate` warns when a multi-source speaker's primary clip is placed, since the extras carry no session offset of their own. A lead-in longer than the primary file skips placement and `ingest consolidate` prints a `Warning:` line on stderr. Trimmed extracts are not re-placed. Pipeline `align_tracks` rebases guest offsets onto the reference clip's placement, so a reference lead-in survives re-alignment. |
 
 Cross-speaker correlation uses `session.reference_speaker` as the reference (not the first-listed file).
 
