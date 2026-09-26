@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { presenceAnchor } from "../presence/anchors";
-import type { CombinedUtterance, ProjectView } from "../types/project";
+import type {
+  CombinedUtterance,
+  ProjectView,
+  TranscriptWordView,
+} from "../types/project";
 import {
   centeredScrollTop,
   findActiveUtteranceIndex,
@@ -408,6 +412,30 @@ describe("indexed transcript word lookup", () => {
     });
     expect(transcriptWordRange(project, "guest", 4, 4)?.text).toBe("ignore");
     expect(transcriptWordRange(project, "host", 50, 51)).toBeNull();
+  });
+
+  it("gets bounds without reading transcript text", () => {
+    const word = {
+      word_index: 0,
+      start: 7,
+      end: 7,
+    } as TranscriptWordView;
+    Object.defineProperty(word, "text", {
+      get: () => {
+        throw new Error("bounds-only lookup read word text");
+      },
+    });
+    const point = {
+      transcript: {
+        utterances: [u({ text: "point", start: 7, end: 7, words: [word] })],
+      },
+    } as ProjectView;
+    expect(
+      transcriptWordRange(point, "host", 0, 0, { boundsOnly: true }),
+    ).toEqual({
+      start: 7,
+      end: 7,
+    });
   });
 
   it("keeps zero-length word spans available for remote point selections", () => {
