@@ -8,7 +8,12 @@ export const MAX_CLIP_REGIONS = 100;
 const MERGE_SAMPLES = Math.round(
   (CLIP_REGION_MERGE_MS * KEEPER_SAMPLE_RATE) / 1000,
 );
-/** Live consumers are re-notified when the open region grows by this much. */
+/**
+ * Live consumers are re-notified when the open region grows by this much, so a
+ * live end time can lag the real end by up to this long until the segment
+ * closes. Anything that shows exact ends (e.g. a live timeline tint) must read
+ * `regionsMs()` at segment close, not trust the last notification.
+ */
 export const CLIP_REGION_EMIT_STEP_MS = 250;
 const EMIT_STEP_SAMPLES = Math.round(
   (CLIP_REGION_EMIT_STEP_MS * KEEPER_SAMPLE_RATE) / 1000,
