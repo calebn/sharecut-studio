@@ -15,7 +15,7 @@ from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project, save_
 from podcast_mcp.pipeline import runner as runner_mod
 from podcast_mcp.pipeline import steps
 from podcast_mcp.project_merge import ProjectMergeConflict
-from podcast_mcp.project_store import history_index_path
+from podcast_mcp.project_store import history_index_path, history_snapshot_ids
 from podcast_mcp.services import EpisodeService, PipelineService, ProjectWorkspace
 from podcast_mcp.services import workspace as workspace_mod
 from podcast_mcp.services.workspace import MERGED_HISTORY_LABEL
@@ -232,8 +232,7 @@ def _index_matches_file(minimal_project: Path) -> None:
 
 
 def _snapshots(ws: ProjectWorkspace) -> set[str]:
-    snap_dir = ws.project.workspace_path() / "history" / "snapshots"
-    return {p.name for p in snap_dir.glob("*")} if snap_dir.exists() else set()
+    return history_snapshot_ids(history_index_path(ws.project))
 
 
 def test_pipeline_step_conflict_leaves_history_index_matching_the_file(
@@ -256,7 +255,7 @@ def test_pipeline_step_conflict_leaves_history_index_matching_the_file(
     saved = load_project(minimal_project)
     assert "after merge_transcript" not in [e.label for e in saved.history.entries]
     assert "after merge_transcript" not in [e.label for e in ws.project.history.entries]
-    referenced = {Path(e.snapshot_file).name for e in saved.history.entries}
+    referenced = {Path(e.snapshot_file).stem for e in saved.history.entries}
     assert _snapshots(ws) - snaps_at_step <= referenced
 
 
@@ -420,3 +419,50 @@ def test_pipeline_run_reports_an_undo_before_the_first_step(minimal_project, mon
     assert ran == []
     assert "re-run it" in (_gui_fail_message(str(exc.value)) or "")
     _index_matches_file(minimal_project)
+
+
+def test_save_merged_keeps_snapshots_when_the_file_cannot_be_statted(minimal_project, monkeypatch):
+    ws = _two_tracks(minimal_project)
+    ws.checkpoint()
+    ws.project.track_by_id("host").gain_db = 2.0
+    history_before = ws.project.history.model_copy(deep=True)
+    real_revision = workspace_mod.project_file_revision
+    calls = {"n": 0}
+
+    def revision(project):
+        calls["n"] += 1
+        if calls["n"] > 1:
+            raise PermissionError("stat denied")
+        return real_revision(project)
+
+    def cache_boom(*_a, **_k):
+        raise OSError("cache")
+
+    monkeypatch.setattr(workspace_mod, "project_file_revision", revision)
+    monkeypatch.setattr(ws._store, "_mirror_transcript_cache", cache_boom)
+    with pytest.raises(OSError, match="cache"):
+        ws.save_merged(history_label="after step")
+    assert ws.project.history == history_before
+    saved = load_project(minimal_project)
+    assert "after step" in [e.label for e in saved.history.entries]
+    for entry in saved.history.entries:
+        assert (saved.workspace_path() / entry.snapshot_file).is_file()
+    _index_matches_file(minimal_project)
+
+
+def test_pipeline_step_commit_failure_does_not_mark_the_step_done(minimal_project, monkeypatch):
+    ws = _two_tracks(minimal_project)
+    before = ws.project.last_completed_step
+
+    def boom(*_a, **_k):
+        raise OSError("disk full")
+
+    def step(_project, _defaults):
+        monkeypatch.setattr(ws._store, "commit", boom)
+        return "done"
+
+    monkeypatch.setitem(runner_mod._STEP_MAP, "merge_transcript", step)
+    with pytest.raises(OSError, match="disk full"):
+        PipelineService(ws).run(only_step="merge_transcript")
+    assert ws.project.last_completed_step == before
+    assert load_project(minimal_project).last_completed_step == before

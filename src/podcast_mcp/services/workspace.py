@@ -109,7 +109,7 @@ class ProjectWorkspace:
         ``history/index.json`` and ``self.project.history`` are put back and snapshot files
         written during this call are removed, so ``self.project`` keeps only the job's own
         unsaved changes. If the project file was written but a later cache write failed,
-        the saved state is adopted. Cleanup failures are logged; the original error is the
+        the saved state is adopted. If the file cannot be stat'ed afterwards, only ``self.project.history`` is put back; the index and snapshots are left as they are. Cleanup failures are logged; the original error is the
         one raised. An unreadable index is restored from the saved project's history.
 
         Assumes every writer of ``episode.project.json`` and ``history/`` holds
@@ -160,11 +160,12 @@ class ProjectWorkspace:
         snapshots_before: set[str],
     ) -> None:
         """Best-effort cleanup after a failed ``save_merged``; logs and never raises."""
+        replaced: bool | None
         try:
             replaced = project_file_revision(self.project) != revision
         except OSError:
             log.warning("Could not stat the project file after a failed save", exc_info=True)
-            replaced = False
+            replaced = None  # unknown whether the commit landed
         if to_save is not None and replaced:
             # The project file was replaced; only a later write (transcript cache) failed.
             try:
@@ -173,6 +174,11 @@ class ProjectWorkspace:
                 log.warning("Could not adopt the saved project after a failed save", exc_info=True)
             return
         self.project.history = history_before
+        if replaced is None:
+            # The file may hold the new entries: keep the index and snapshots (orphans are
+            # harmless; deleting snapshots the saved file references would break undo).
+            log.warning("Leaving %s and its snapshots in place after a failed save", index_path)
+            return
         try:
             new_ids = history_snapshot_ids(index_path) - snapshots_before
             rollback_history(index_path, index_before, new_ids)
