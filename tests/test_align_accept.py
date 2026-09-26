@@ -578,11 +578,43 @@ def test_drift_report_flags_unconfirmed_hold_until_done(tmp_path: Path) -> None:
 
 
 def test_unattended_small_moves_pass_export_qc(tmp_path: Path) -> None:
+    from podcast_mcp.edits.align_accept_status import load_status
+
     p = _two_track(tmp_path, guest_start=0.4)
     _write_two_track_plans(p, offset=0.4)
     mark_align_pending(p)
     assert require_or_waive_unattended(p, unattended=True) == "waived (unattended)"
+    status = load_status(p) or {}
+    assert "accepted_drift" not in status
+    assert status.get("accepted_plan_digest")
+    assert status_is_clear(p)
+    assert align_status_report(p)["status"] == "waived"
+    assert require_or_waive_unattended(p, unattended=True) == "waived (fingerprint ok)"
     assert alignment_drift_report(p)["issues"] == []
+
+
+@pytest.mark.parametrize("corrupt", [False, True])
+def test_accepted_artifact_missing_or_unreadable_fails_closed(
+    tmp_path: Path, corrupt: bool
+) -> None:
+    from podcast_mcp.pipeline import steps
+
+    p = _two_track(tmp_path, guest_start=0.0)
+    _write_two_track_plans(p, method="weak_hold", offset=0.0)
+    mark_align_done(p)
+    artifact = align_artifact_path(p)
+    if corrupt:
+        artifact.write_text("{invalid", encoding="utf-8")
+    else:
+        artifact.unlink()
+    assert not status_is_clear(p)
+    assert align_status_report(p)["stale"] is True
+    with pytest.raises(AlignAcceptRequiredError, match="artifact"):
+        require_or_waive_unattended(p, unattended=True)
+    report = alignment_drift_report(p)
+    assert len(report["issues"]) == 1
+    assert "artifact" in report["issues"][0]
+    assert steps.write_export_qc(p)["ok"] is False
 
 
 def test_unattended_gate_stops_on_kept_placement_drift(tmp_path: Path) -> None:
