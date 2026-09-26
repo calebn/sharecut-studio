@@ -25,6 +25,32 @@ describe("Lobby", () => {
     Reflect.deleteProperty(navigator, "storage");
   });
 
+  it("renders a fixed storage notice without estimating device storage", () => {
+    const estimate = vi.fn(async () => ({ usage: 0, quota: 1 }));
+    Object.defineProperty(navigator, "storage", {
+      configurable: true,
+      value: { estimate },
+    });
+    render(
+      <Lobby
+        producer={false}
+        name="Ava"
+        onName={() => undefined}
+        headphonesOk
+        onHeadphones={() => undefined}
+        deviceId=""
+        onDeviceId={() => undefined}
+        onJoinProducer={() => undefined}
+        onAccept={() => undefined}
+        onDecline={() => undefined}
+        showMic
+        {...mic}
+        storageHeadroomNotice={null}
+      />,
+    );
+    expect(estimate).not.toHaveBeenCalled();
+  });
+
   it("warns about low storage without blocking consent", async () => {
     Object.defineProperty(navigator, "storage", {
       configurable: true,

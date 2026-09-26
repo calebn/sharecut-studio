@@ -103,4 +103,14 @@ describe("RecIndicator", () => {
       screen.getByRole("img", { name: "Take: clipping detected" }),
     ).toHaveAttribute("data-lit", "true");
   });
+
+  it("holds the preview clock fixed when a clock value is supplied", () => {
+    render(
+      <RecIndicator
+        snapshot={{ ...base, state: "recording", recording_ms: 70_000 }}
+        clockNowMs={1_000_000}
+      />,
+    );
+    expect(screen.getByText("1:10")).toBeInTheDocument();
+  });
 });

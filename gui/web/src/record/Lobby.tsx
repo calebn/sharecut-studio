@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { type ReactNode, useId } from "react";
 import { Button, Field } from "../ui";
 import { ConsentGate } from "./ConsentGate";
 import { DeviceCheck } from "./DeviceCheck";
@@ -40,6 +40,8 @@ type Props = {
   localStorageError?: string | null;
   onRetryStorage?: () => void;
   showRoomTone?: boolean;
+  /** Fixture notice for standalone previews; omit for the live storage check. */
+  storageHeadroomNotice?: ReactNode;
 };
 
 export function Lobby({
@@ -74,6 +76,7 @@ export function Lobby({
   localStorageError = null,
   onRetryStorage,
   showRoomTone = true,
+  storageHeadroomNotice,
 }: Props) {
   const nameId = useId();
   const phonesId = useId();
@@ -111,7 +114,11 @@ export function Lobby({
         </Button>
       ) : (
         <>
-          <StorageHeadroomWarning />
+          {storageHeadroomNotice === undefined ? (
+            <StorageHeadroomWarning />
+          ) : (
+            storageHeadroomNotice
+          )}
           <label className="cluster" htmlFor={phonesId}>
             <input
               id={phonesId}
