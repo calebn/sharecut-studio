@@ -166,6 +166,10 @@ revision while FFmpeg runs, the step retains new invalidations and fails before
 publishing `track_outputs.json`; retry the render for the new state. On-demand processed playback uses the same snapshot rule for
 full stems and segment cache keys.
 
+Tighten proposal snapshots speaker profiles and speaker-ID settings once before
+parallel candidate analysis. The read-only snapshot gives every candidate the
+same bleed decision inputs and avoids repeated profile file reads.
+
 Configure via `performance.max_workers` in `pipeline.yaml`:
 
 ```yaml

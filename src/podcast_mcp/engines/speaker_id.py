@@ -547,8 +547,8 @@ def score_window(
         return None
     samples = _decode_window_samples(path, start_sec, end_sec, cfg)
     emb = backend.embed(samples, cfg.sample_rate)
-    profs = profiles or load_all_profiles(project)
-    if not profs:
+    profs = profiles if profiles is not None else load_all_profiles(project)
+    if not profs and profiles is None:
         for tid in dialogue_track_ids(project):
             p = load_profile(project, tid)
             if p:
@@ -708,8 +708,11 @@ def assess_speaker_cut_role(
     src_end: float,
     cfg: SpeakerIdConfig,
     backend: SpeakerBackend | None = None,
+    *,
+    profiles: dict[str, SpeakerProfile] | None = None,
 ) -> dict[str, Any] | None:
-    profiles = load_all_profiles(project)
+    if profiles is None:
+        profiles = load_all_profiles(project)
     if not profiles:
         return None
     eng = backend or resolve_speaker_backend()
