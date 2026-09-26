@@ -309,9 +309,13 @@ class ShareService:
                 log.exception("failed to revoke record token %s", token)
         if not revoked:
             raise KeyError(f"record room not found: {session_id}")
-        from podcast_mcp.services.record.landing import release_session_land_lock
+        from podcast_mcp.services.record.landing import (
+            release_session_land_lock,
+            remove_session_land_lock_file,
+        )
 
         release_session_land_lock(session_id)
+        remove_session_land_lock_file(self.ws.project.workspace_path(), session_id)
         return {"session_id": session_id, "revoked": revoked}
 
     def revoke(self, token: str) -> dict[str, Any]:
