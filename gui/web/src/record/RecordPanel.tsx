@@ -2,9 +2,9 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { hostRecordUploadTransport, loadHostRecordState } from "../api";
 import { execute } from "../commands/execute";
 import { useDaw } from "../state/useDaw";
-import { sourceToTimeline } from "../timeline/clippingFlags";
 import { Button, Dialog } from "../ui";
 import { errorMessage } from "../utils/apiError";
+import { sourceIdPointToTimeline } from "../utils/timebase";
 import { startBlockers } from "./blockers";
 import { HostUploadRoster } from "./HostUploadRoster";
 import {
@@ -365,7 +365,7 @@ export function RecordPanel({
               roomState={snapshot.state}
               jumpFor={(region) => {
                 const hit = project
-                  ? sourceToTimeline(
+                  ? sourceIdPointToTimeline(
                       project.clips.tracks,
                       recordSourceId(
                         snapshot.session_id,

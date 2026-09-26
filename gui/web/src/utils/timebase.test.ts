@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { ClipRow } from "../types/project";
 import {
   clipsForOriginTrack,
+  sourceIdPointToTimeline,
   sourcePointToTimeline,
+  sourceSecInClipToTimeline,
   sourceSecOnClipToTimeline,
   timelinePointToSource,
 } from "./timebase";
@@ -101,5 +103,56 @@ describe("clipsForOriginTrack", () => {
 describe("sourceSecOnClipToTimeline", () => {
   it("maps a source second on one clip without bounds clipping", () => {
     expect(sourceSecOnClipToTimeline(clips[0]!, 10)).toBe(10);
+  });
+});
+
+describe("sourceSecInClipToTimeline", () => {
+  const c = clip({
+    source_start: 10,
+    source_end: 20,
+    timeline_start: 100,
+    timeline_end: 110,
+  });
+  it("maps inside the clip, includes both ends and rejects outside", () => {
+    expect(sourceSecInClipToTimeline(c, 12)).toBe(102);
+    expect(sourceSecInClipToTimeline(c, 20)).toBe(110);
+    expect(sourceSecInClipToTimeline(c, 9)).toBeNull();
+    expect(sourceSecInClipToTimeline(c, 21)).toBeNull();
+  });
+});
+
+describe("sourceIdPointToTimeline", () => {
+  const src = "rec-a-0-p_host-0";
+  const later = clip({
+    id: "b",
+    source_id: src,
+    source_start: 10,
+    source_end: 20,
+    timeline_start: 100,
+    timeline_end: 110,
+  });
+  it("finds the clip showing the source second", () => {
+    const tracks = {
+      t1: [
+        clip({
+          id: "a",
+          source_id: src,
+          source_start: 0,
+          source_end: 5,
+          timeline_start: 0,
+          timeline_end: 5,
+        }),
+        later,
+      ],
+    };
+    const hit = sourceIdPointToTimeline(tracks, src, 15);
+    expect(hit?.clip.id).toBe("b");
+    expect(hit?.timelineSec).toBe(105);
+    expect(hit?.trackId).toBe("t1");
+  });
+  it("returns null for other sources or cut-out spans", () => {
+    const tracks = { t1: [later] };
+    expect(sourceIdPointToTimeline(tracks, "other", 15)).toBeNull();
+    expect(sourceIdPointToTimeline(tracks, src, 50)).toBeNull();
   });
 });
