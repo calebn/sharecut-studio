@@ -1470,6 +1470,20 @@ def test_viewer_heartbeat_does_not_undo_concurrent_agent_seek(minimal_project, m
     assert original_snapshot(svc)["playhead_sec"] == 5.0
 
 
+def test_viewer_snapshot_skips_invalid_paused_playhead(minimal_project) -> None:
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+    svc.submit_control("SetPlayhead", {"playhead_sec": 3.0})
+    seq = svc.snapshot()["server_seq"]
+    for bad in (-1.0, float("nan"), float("inf"), True):
+        out = publish_viewer_snapshot(proj, {"client_id": "viewer-bad", "playhead_sec": bad})
+        assert out["playhead_sec"] == 3.0
+    assert SessionSyncService(proj).snapshot()["server_seq"] == seq
+    out = publish_viewer_snapshot(proj, {"client_id": "viewer-bad", "playhead_sec": 4.0})
+    assert out["playhead_sec"] == 4.0
+    assert SessionSyncService(proj).snapshot()["server_seq"] == seq + 1
+
+
 def test_session_meta_missing_and_present(minimal_project) -> None:
     meta = SessionSyncService.open(minimal_project).meta()
     assert meta["exists"] is False
