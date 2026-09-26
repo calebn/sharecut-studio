@@ -141,7 +141,7 @@ PresenceTab = Literal["transcript", "history", "impact", "tighten", "pipeline", 
 PRESENCE_TABS = set(get_args(PresenceTab))
 PresenceMobileMode = Literal["listen", "timeline", "text", "more"]
 PresenceAudition = Literal["mix", "fx", "raw"]
-PresenceSec = Annotated[float, Field(ge=0, allow_inf_nan=False)]
+PresenceSec = Annotated[float, Field(ge=0, allow_inf_nan=False, strict=True)]
 _PRESENCE_SEC: TypeAdapter[float] = TypeAdapter(PresenceSec)
 
 

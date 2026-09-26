@@ -772,7 +772,7 @@ def test_normalize_presence_playhead_matches_transport_rule() -> None:
         normalize_presence_playhead,
     )
 
-    for value in (0, 2.5, -1, float("nan"), float("inf"), "x", None, True):
+    for value in (0, 2.5, -1, float("nan"), float("inf"), "x", "12.5", None, True):
         transport = {"playing": False, "playhead_sec": value, "rate": 1}
         valid_meta = normalize_presence_meta({"transport": transport}) is not None
         got = normalize_presence_playhead(value)
@@ -780,6 +780,9 @@ def test_normalize_presence_playhead_matches_transport_rule() -> None:
             assert got is None
         else:
             assert (got is not None) == valid_meta, value
+    assert normalize_presence_playhead(3) == 3.0
+    assert normalize_presence_playhead("12.5") is None
+    assert normalize_presence_playhead(True) is None
 
 
 def test_presence_and_ack_drop_invalid_playhead(minimal_project) -> None:
