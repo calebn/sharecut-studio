@@ -267,7 +267,7 @@ async function submitHostDocumentCommand(
             command_id,
             client_seq,
             type,
-            payload,
+            payload: bodyBase.payload,
             created_at: Date.now(),
           },
           reason: detail,

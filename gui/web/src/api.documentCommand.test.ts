@@ -233,6 +233,38 @@ describe("host document command queue", () => {
       );
     });
 
+    it("records the chained payload it sent when the server refuses it", async () => {
+      enqueueHostCommand.mockResolvedValue({
+        persisted: true,
+        hadPredecessor: true,
+      });
+      loadHostCommandQueue.mockResolvedValue([
+        { command_id: "mine", payload: { chained: true } },
+      ]);
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => refine409()),
+      );
+      const { submitDocumentCommand } = await import("./api");
+      await expect(
+        submitDocumentCommand(
+          path,
+          "SetEnvelope",
+          { chained: false },
+          { command_id: "mine" },
+        ),
+      ).rejects.toBeTruthy();
+      expect(addHostConflict).toHaveBeenCalledWith(
+        path,
+        expect.objectContaining({
+          command: expect.objectContaining({
+            command_id: "mine",
+            payload: { chained: true },
+          }),
+        }),
+      );
+    });
+
     it("posts the chained payload from the persisted record", async () => {
       const fetchSpy = vi.fn(async () => new Response("{}", { status: 200 }));
       vi.stubGlobal("fetch", fetchSpy);
