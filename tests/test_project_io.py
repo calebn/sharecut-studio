@@ -69,29 +69,29 @@ def test_workspace_reload_skips_unchanged_file_and_reads_external_write(
 
     ws.project.name = "workspace update"
     ws.save()
+    # save() records the exact committed revision (writers are locked out), so no re-read.
     assert ws.reload().name == "workspace update"
-    assert loads == 2
+    assert loads == 1
 
     ws.mutate("before rename", "after rename", lambda project: setattr(project, "name", "mutated"))
     assert ws.reload().name == "mutated"
-    assert loads == 3
+    assert loads == 1
+
+    external = ProjectStore(minimal_project).load()
+    external.name = "later external"
+    ProjectStore(minimal_project).commit(external)
+    assert ws.reload().name == "later external"
+    assert loads == 2
 
 
-def test_workspace_mutation_does_not_cache_another_writers_revision(minimal_project, monkeypatch):
-    from podcast_mcp.services import workspace as workspace_module
-
+def test_workspace_mutation_records_its_own_revision_and_sees_later_writers(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
-    original_mutation = workspace_module.run_mutation
-
-    def interleaved_mutation(*args, **kwargs):
-        result = original_mutation(*args, **kwargs)
-        external = ProjectStore(minimal_project).load()
-        external.name = "later writer"
-        ProjectStore(minimal_project).commit(external)
-        return result
-
-    monkeypatch.setattr(workspace_module, "run_mutation", interleaved_mutation)
     ws.mutate("before rename", "after rename", lambda project: setattr(project, "name", "first"))
+    assert ws.reload().name == "first"
+
+    external = ProjectStore(minimal_project).load()
+    external.name = "later writer"
+    ProjectStore(minimal_project).commit(external)
     assert ws.reload().name == "later writer"
 
 
