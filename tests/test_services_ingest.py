@@ -745,3 +745,40 @@ def test_timeline_vad_without_clips_reads_track_media(
     assert iv == [(0.0, 1.0)]
     assert v.call_args.kwargs == {"start_sec": 1.0, "duration_sec": 2.0}
     assert _waveform_file_start(ws.project, host) == 0.0
+
+
+def test_timeline_vad_rejects_media_outside_workspace(
+    minimal_project: Path, sample_wav: Path
+) -> None:
+    from podcast_mcp.services.ingest import _timeline_vad_intervals
+
+    ws = _two_track_workspace(minimal_project, sample_wav)
+    host = ws.project.timeline.tracks[0]
+    host.media = MediaAsset(path="../outside.wav", duration_sec=2.0)
+    with pytest.raises(ValueError, match="path must be under workspace"):
+        _timeline_vad_intervals(ws.project, host, window_start_sec=0.0, window_end_sec=1.0)
+
+
+def test_timeline_vad_and_waveform_for_late_placed_clip(
+    minimal_project: Path, sample_wav: Path
+) -> None:
+    from podcast_mcp.models import Clip
+    from podcast_mcp.services.ingest import _timeline_vad_intervals, _waveform_file_start
+
+    ws = _two_track_workspace(minimal_project, sample_wav)
+    proj = ws.project
+    guest = next(t for t in proj.timeline.tracks if t.id == "guest")
+    proj.timeline.clips = [
+        Clip(id="c1", track_id="guest", source_start=0.0, source_end=10.0, timeline_start=3.0)
+    ]
+    calls: list[tuple[float, float]] = []
+
+    def fake_vad(_path, *, start_sec, duration_sec):
+        calls.append((start_sec, duration_sec))
+        return [(start_sec + 1.0, start_sec + 2.0)]
+
+    with patch("podcast_mcp.services.ingest.vad_speech_intervals", fake_vad):
+        iv = _timeline_vad_intervals(proj, guest, window_start_sec=0.0, window_end_sec=5.0)
+    assert calls == [(0.0, 2.0)]
+    assert iv == [(4.0, 5.0)]
+    assert _waveform_file_start(proj, guest) == -3.0

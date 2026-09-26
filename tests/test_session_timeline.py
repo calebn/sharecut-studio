@@ -306,3 +306,12 @@ def test_indexes_parked_clip_by_origin_media(tmp_path):
     st = SessionTimeline(p)
     assert st.source_to_timeline("host", SourceSec(1.0)) == pytest.approx(3.0)
     assert st.is_identity("guest")
+
+
+def test_clip_source_to_timeline_shift() -> None:
+    from podcast_mcp.engines.session_timeline import clip_source_to_timeline_shift
+
+    lead = Clip(id="a", track_id="t", source_start=4.0, source_end=10.0, timeline_start=0.0)
+    late = Clip(id="b", track_id="t", source_start=0.0, source_end=10.0, timeline_start=3.0)
+    assert clip_source_to_timeline_shift(lead) == -4.0
+    assert clip_source_to_timeline_shift(late) == 3.0
