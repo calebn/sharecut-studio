@@ -19,6 +19,9 @@ _IDENTITY_KEYS: tuple[tuple[str, ...], ...] = (("id",), ("track_id", "parameter"
 _HISTORY = "history"
 # Conflict path: one side undid/redid past the checkpoint state while the other recorded.
 HISTORY_LINEAGE_CONFLICT = "history.lineage"
+# Conflict path: both sides moved the undo cursor (undo/redo) to different entries.
+HISTORY_CURSOR_CONFLICT = "history.cursor"
+_UNDO_REDO_CONFLICTS = frozenset({HISTORY_LINEAGE_CONFLICT, HISTORY_CURSOR_CONFLICT})
 
 
 class _Missing:
@@ -39,7 +42,7 @@ class ProjectMergeConflict(RuntimeError):
             shown += f" and {len(paths) - 5} more"
         what = (
             "an undo or redo changed the project"
-            if HISTORY_LINEAGE_CONFLICT in paths
+            if _UNDO_REDO_CONFLICTS.intersection(paths)
             else "project changed"
         )
         super().__init__(f"{what} while this job ran, conflicting at {shown}; re-run it")
@@ -189,7 +192,11 @@ def _merge_history(base, ours, theirs, conflicts) -> dict[str, Any]:
         cursor = len(entries) - 1
     else:
         chosen = _merge(
-            _cursor_id(base), _cursor_id(ours), _cursor_id(theirs), "history.cursor", conflicts
+            _cursor_id(base),
+            _cursor_id(ours),
+            _cursor_id(theirs),
+            HISTORY_CURSOR_CONFLICT,
+            conflicts,
         )
         ids = [e["id"] for e in entries]
         cursor = ids.index(chosen) if chosen in ids else len(entries) - 1
