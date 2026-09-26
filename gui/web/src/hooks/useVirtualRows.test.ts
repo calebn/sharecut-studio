@@ -2,11 +2,13 @@ import type { VirtualItem } from "@tanstack/react-virtual";
 import { describe, expect, it, vi } from "vitest";
 import {
   nextVirtualized,
-  VIRTUALIZE_OFF_ROWS,
-  VIRTUALIZE_ON_ROWS,
   virtualRowSlotProps,
   withPinnedIndexes,
 } from "./useVirtualRows";
+import {
+  VIRTUALIZE_OFF_ROWS,
+  VIRTUALIZE_ON_ROWS,
+} from "./virtualRowThresholds";
 
 describe("nextVirtualized", () => {
   it("switches on at the upper threshold and off below the lower one", () => {

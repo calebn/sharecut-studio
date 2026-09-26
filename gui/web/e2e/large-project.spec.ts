@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { type CDPSession, expect, type Page, test } from "@playwright/test";
+import { VIRTUALIZE_ON_ROWS } from "../src/hooks/virtualRowThresholds";
 import { e2eProjectPath } from "./env";
 import { openHostProject } from "./overlayReachability";
 import { scrollToEnd } from "./scroll";
@@ -252,48 +253,45 @@ test.describe("large project benchmark (opt-in fixture)", () => {
           await expect(redo).toBeDisabled(HEAVY);
         }),
       );
-      profiles.push(
-        await profile(page, cdp, "history-keyboard", async () => {
-          const historyList = historyPanel.locator(".history-list");
-          const virtualized = await historyList.evaluate((el) =>
-            el.classList.contains("is-virtualized"),
-          );
-          if (!virtualized) {
-            return;
-          }
-          await historyList.evaluate((el) => {
-            el.scrollTop = 0;
-          });
-          const first = historyPanel.locator(
-            'button.history-row[data-history-index="0"]',
-          );
-          await expect(first).toBeVisible(HEAVY);
-          const lastMounted = await historyPanel
-            .locator("button.history-row")
-            .evaluateAll((rows) =>
-              Math.max(
-                ...rows.map((row) =>
-                  Number(row.getAttribute("data-history-index")),
-                ),
-              ),
+      // Each seeded before/after pair is one History step.
+      if (shape.historyEntries / 2 >= VIRTUALIZE_ON_ROWS) {
+        profiles.push(
+          await profile(page, cdp, "history-keyboard", async () => {
+            const historyList = historyPanel.locator(".history-list");
+            await expect(historyList).toHaveClass(/\bis-virtualized\b/, HEAVY);
+            await historyList.evaluate((el) => {
+              el.scrollTop = 0;
+            });
+            const first = historyPanel.locator(
+              'button.history-row[data-history-index="0"]',
             );
-          await first.focus();
-          // Tab past the initially mounted window at normal speed.
-          for (let i = 0; i <= lastMounted; i++) {
-            await page.keyboard.press("Tab");
-          }
-          await expect
-            .poll(() =>
+            await expect(first).toBeVisible(HEAVY);
+            const lastMounted = await historyPanel
+              .locator("button.history-row")
+              .evaluateAll((rows) =>
+                Math.max(
+                  ...rows.map((row) =>
+                    Number(row.getAttribute("data-history-index")),
+                  ),
+                ),
+              );
+            const focusedIndex = () =>
               page.evaluate(() =>
                 Number(
                   document.activeElement?.getAttribute("data-history-index") ??
                     -1,
                 ),
-              ),
-            )
-            .toBe(lastMounted + 1);
-        }),
-      );
+              );
+            await first.focus();
+            await expect.poll(focusedIndex, HEAVY).toBe(0);
+            // One Tab per step, past the initially mounted window at normal speed.
+            for (let index = 1; index <= lastMounted + 1; index++) {
+              await page.keyboard.press("Tab");
+              await expect.poll(focusedIndex, HEAVY).toBe(index);
+            }
+          }),
+        );
+      }
     }
 
     const endurance: (Pick<Profile, "domNodes" | "heapBytes"> & {
