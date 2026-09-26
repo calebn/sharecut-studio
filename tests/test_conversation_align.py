@@ -1041,3 +1041,24 @@ def test_apply_alignment_plans_rebases_on_reference_lead_in(tmp_path: Path) -> N
     guest = next(c for c in proj.clips if c.track_id == "guest")
     assert (host.source_start, host.timeline_start) == (3.0, 0.0)
     assert (guest.source_start, guest.timeline_start) == (5.0, 0.0)
+
+
+def test_apply_alignment_plans_rebases_offset_zero_guest(tmp_path: Path) -> None:
+    proj = _project(tmp_path, [("host", 100.0, []), ("guest", 90.0, [])])
+    next(c for c in proj.clips if c.track_id == "host").source_start = 3.0
+    guest_clip = next(c for c in proj.clips if c.track_id == "guest")
+    guest_clip.source_start = 1.0  # stale ingest geometry that must not survive
+    result = AlignResult(
+        plans=[
+            ClipAlignPlan(track_id="host", clip_id="clip_host", offset_sec=0.0, method="reference"),
+            ClipAlignPlan(
+                track_id="guest", clip_id="clip_guest", offset_sec=0.0, method="weak_hold"
+            ),
+        ],
+        reference_track_id="host",
+    )
+    apply_alignment_plans(proj, result)
+    host = next(c for c in proj.clips if c.track_id == "host")
+    guest = next(c for c in proj.clips if c.track_id == "guest")
+    assert (host.source_start, host.timeline_start) == (3.0, 0.0)
+    assert (guest.source_start, guest.source_end, guest.timeline_start) == (3.0, 90.0, 0.0)

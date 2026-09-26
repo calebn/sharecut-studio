@@ -1287,8 +1287,10 @@ def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
                 plan.offset_sec + ref_shift,
                 media_duration=media_dur,
             )
-            if abs(plan.offset_sec) < 1e-9:
-                # Identity: keep ingest placement (sequential extra clips stay put).
+            if plan.method == "reference" or abs(plan.offset_sec + ref_shift) < 1e-9:
+                # Identity: reference clips (incl. sequential extras) and guests whose
+                # rebased offset is zero keep their placement. Other offset-0 guests are
+                # rebased onto the reference lead-in like every other guest.
                 src_start = clip.source_start
                 src_end = clip.source_end
                 tl_start = clip.timeline_start
