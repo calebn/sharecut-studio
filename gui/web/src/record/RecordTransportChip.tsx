@@ -9,13 +9,15 @@ export function RecordTransportChip() {
   const snapshot = useRecordHostStore((s) => s.snapshot);
   const captureHealth = useRecordHostStore((s) => s.captureHealth);
   const dropped = useRecordHostStore((s) => s.dropped);
+  const takeClipping = useRecordHostStore((s) => s.takeClipping);
   if (!snapshot || snapshot.state === "lobby") {
     return null;
   }
 
   const live = snapshot.state === "recording" || snapshot.state === "paused";
   const offline = dropped && live;
-  const label =
+  const clipped = (takeClipping?.regions.length ?? 0) > 0;
+  const base =
     snapshot.state === "recording"
       ? captureHealth
         ? REC_CHIP_CAPTURE_LABEL[captureHealth]
@@ -27,6 +29,7 @@ export function RecordTransportChip() {
           ? REC_CHIP_OFFLINE_LABEL
           : "Paused. Open record panel"
         : "Open record panel";
+  const label = clipped ? `Clipping detected. ${base}` : base;
 
   return (
     <CommandButton
@@ -43,6 +46,7 @@ export function RecordTransportChip() {
         capture={captureHealth}
         offline={offline}
         clockId={clockId}
+        clipping={clipped}
       />
     </CommandButton>
   );

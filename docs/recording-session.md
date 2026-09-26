@@ -616,6 +616,47 @@ re-invite them as a **producer** (not recorded) instead.
 | Indicator | Mute badge | PAUSED on every client | REC off, then REC on take N+1 |
 | Timeline | Continuous file; zeros | Clips abut (paused time collapses) | Sequential takes + 2 s gap |
 
+## Metering and clipping
+
+**Sample peak only** (#174). Sharecut does not oversample or detect
+inter-sample (true) peaks; the -1 dBFS threshold (`DEFAULT_CLIP_DB`) is headroom
+for overs the meter cannot see. One threshold drives everything: the live LED,
+the encoder's clip regions, the post-take report and the timeline flags.
+
+**Own mic only.** Each recorded person (guest or host) sees only their own
+meter. Nothing is added to the record wire (`services/record/signal.py`,
+`hostWire.ts`, `useRecordSync` are unchanged), and remote-participant meters are
+out of scope. Surfaces: the device check (**Level**), the guest room (**Your mic
+level**) and the host Record room panel. `FullRoom` never calls `getUserMedia`,
+so it has no meter. Producers have no meter and no clip LED.
+
+**Two signal paths.**
+
+- *Monitor path* (`useInputPeakDb`, meter worklet): drives the visible meter and
+  its latching clip LED. Nothing is stored.
+- *Encode path* (`keeper/pcm.ts` -> `KeeperSession`): the ground truth. It
+  records segment-relative clip regions, merges hits less than 1 s apart,
+  caps them at 100 per segment, and writes them into the OPFS keeper metadata
+  (`clippingRegions`). The final upload part also sends them as
+  `clipping=a-b,c-d` (ms, ascending, non-overlapping). The server stores them
+  on `record_upload_files.clipping_regions`; landing writes
+  `SourceRecording.clipping_regions` in source seconds. `list_clips` adds
+  `ClipRow.clipping_regions`: the source regions intersected with each clip
+  window, so they follow cuts and moves.
+
+**Surfaces.** The REC indicator (`RecIndicator`, and so the host transport chip
+on desktop and phone) gets a `ClipLed`, lit from the first region. During a take
+a live notice appears; after Stop a **Clipping report** lists the ranges
+(m:ss) with the recovery copy, rebuilt from OPFS after a reload. The host's
+report has **Jump to** per range (source -> timeline via the landed source id
+`rec-{session}-{take}-p_host-{segment}`), disabled until the take lands. The
+timeline shows a `clipping` marker-lane row (one flag per region per track) and a
+red tint on the affected span of each clip.
+
+**Limitations.** Recovered crash segments, older clients and consolidated
+sources carry no regions. "No clipping detected" is shown only when every
+segment's metadata has `clippingRegions` (`known`).
+
 ## Live comments
 
 **Everyone** in the room can add a timeline comment **during** REC or PAUSED
@@ -1183,6 +1224,15 @@ also alarms and Check mic recovers it; a dithered, very quiet but live mic
 never alarms over 60 s; on Safari, take a phone call or let another app grab
 audio mid-take and confirm the `interrupted` state alarms and Check mic reports
 it; after sleep/wake or a backgrounded tab, no alarm on a healthy mic.
+
+### Metering and clipping (CI)
+
+Sample-peak clip regions are covered by `keeper/pcm.test.ts`,
+`keeper/clipRegions.test.ts`, `keeper/session.test.ts`,
+`keeper/clipCapture.integration.test.ts` (regions equal an independent scan of
+the written WAV within 1 ms), `keeper/takeClipping.test.ts`,
+`upload/params.test.ts`, `tests/test_record_upload.py`,
+`tests/test_record_landing.py` and `tests/test_clipping_regions.py`.
 
 ### Rest of the contract (CI when those PRs land)
 

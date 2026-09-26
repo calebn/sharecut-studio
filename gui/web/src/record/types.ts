@@ -278,3 +278,32 @@ export const HEADROOM_HINT_COPY =
   "Peaks should stay in the green. Record with headroom: you can always turn it up later, you cannot unclip.";
 export const METER_CLIPPED_COPY =
   "Your mic clipped. Move back or lower your input gain.";
+
+export const NO_CLIPPING_COPY = "No clipping detected on your mic.";
+export const CLIPPING_RECOVERY_COPY =
+  "Clipping cannot be undone in the recording. Lower your input gain and re-record any section that matters.";
+export const CLIPPING_JUNCTION_HINT =
+  "Available after the take lands on the timeline";
+
+/** Live notice while a take is recording and the encoder has seen clipping. */
+export function clippingLiveCopy(count: number): string {
+  return count === 1
+    ? "Your mic clipped during this take. Move back or lower your input gain."
+    : `Your mic has clipped ${count} times during this take. Move back or lower your input gain.`;
+}
+
+/** Post-take summary line. */
+export function clippingReportCopy(count: number, take: number): string {
+  const places = count === 1 ? "1 place" : `${count} places`;
+  return `Your mic clipped in ${places} in take ${take + 1}.`;
+}
+
+/** Mirrors Python `record_source_id`: the source id a landed keeper gets. */
+export function recordSourceId(
+  sessionId: string,
+  takeIndex: number,
+  participantId: string,
+  segmentIndex: number,
+): string {
+  return `rec-${sessionId}-${takeIndex}-${participantId}-${segmentIndex}`;
+}

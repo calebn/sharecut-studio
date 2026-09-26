@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { recordingClockMs } from "./clock";
+import { ClipLed } from "../ui";
+import { formatClock, recordingClockMs } from "./clock";
 import {
   type CaptureHealth,
   REC_CAPTURE_LABEL,
@@ -7,24 +8,20 @@ import {
   type RecordSnapshot,
 } from "./types";
 
-function formatClock(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
 export function RecIndicator({
   snapshot,
   capture = null,
   clockId,
   offline = false,
+  clipping,
 }: {
   snapshot: RecordSnapshot;
   capture?: CaptureHealth;
   clockId?: string;
   /** Host record socket is down; only affects recording and paused. */
   offline?: boolean;
+  /** Take clipping state; undefined hides the LED (producers). */
+  clipping?: boolean;
 }) {
   const [now, setNow] = useState(() => Date.now());
   const [markedAt, setMarkedAt] = useState(() => Date.now());
@@ -70,6 +67,7 @@ export function RecIndicator({
       <span id={clockId} className="record-clock" aria-live="off">
         {formatClock(clock)}
       </span>
+      {clipping === undefined ? null : <ClipLed lit={clipping} label="Take" />}
     </div>
   );
 }

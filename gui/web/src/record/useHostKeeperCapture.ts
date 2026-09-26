@@ -4,10 +4,13 @@ import { useDaw } from "../state/useDaw";
 import { prepareHostKeeperStorage } from "./hostKeeperStorage";
 import { useRecordHostStore } from "./hostStore";
 import { sendRecordHostCommand } from "./hostWire";
+import type { TakeClipping } from "./keeper/clipRegions";
 import { useKeeperCapture } from "./keeper/useKeeperCapture";
 import { type MicPermissionStatus, statusFromGumError } from "./micPermission";
 import { hostKeeperResetKey, type RecordSnapshot } from "./types";
+import { keeperCaptureSettled } from "./upload/useRecordUpload";
 import { useMicStream } from "./useMicStream";
+import { useTakeClipping } from "./useTakeClipping";
 
 export function useHostKeeperCapture(enabled = true): {
   error: string | null;
@@ -26,6 +29,7 @@ export function useHostKeeperCapture(enabled = true): {
   noAudio: boolean;
   micCheckFailed: boolean;
   checkMic: () => void;
+  clipping: TakeClipping | null;
 } {
   const { projectPath } = useDaw((s) => ({ projectPath: s.projectPath }));
   const snapshot = useRecordHostStore((s) => s.snapshot);
@@ -86,6 +90,20 @@ export function useHostKeeperCapture(enabled = true): {
     resetKey,
     onActivity: onKeeperActivity,
   });
+  const clipping = useTakeClipping({
+    sink,
+    sessionId,
+    participantId: hostOn ? "p_host" : null,
+    takeIndex: snapshot?.take_index ?? -1,
+    roomState: snapshot?.state,
+    captureSettled: keeperCaptureSettled(keeper),
+    live: keeper.clipping,
+  });
+  const setTakeClipping = useRecordHostStore((s) => s.setTakeClipping);
+  useEffect(() => {
+    setTakeClipping(clipping);
+    return () => setTakeClipping(null);
+  }, [clipping, setTakeClipping]);
   useEffect(() => {
     if (
       !hostOn ||
@@ -152,5 +170,6 @@ export function useHostKeeperCapture(enabled = true): {
     noAudio: keeper.noAudio,
     micCheckFailed: keeper.micCheckFailed,
     checkMic: keeper.checkMic,
+    clipping,
   };
 }

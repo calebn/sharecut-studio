@@ -91,6 +91,23 @@ describe("useKeeperCapture", () => {
     graphActivity();
     expect(onActivity).toHaveBeenCalledOnce();
   });
+  it("reports clip regions from the encoder for the current take", async () => {
+    const stream = { getTracks: () => [] } as unknown as MediaStream;
+    const { result } = renderHook(() =>
+      useKeeperCapture({ ...args, enabled: true, stream }),
+    );
+    await waitFor(() => {
+      expect(result.current.recordingLocally).toBe(true);
+    });
+    expect(result.current.clipping).toBeNull();
+    act(() => graphEmit.fn(new Float32Array(480).fill(0.95)));
+    await waitFor(() => {
+      expect(result.current.clipping?.regions).toHaveLength(1);
+    });
+    expect(result.current.clipping?.takeIndex).toBe(snap.take_index);
+    expect(result.current.clipping?.known).toBe(true);
+  });
+
   it("does not start a session until enabled", () => {
     const stream = { getTracks: () => [] } as unknown as MediaStream;
     const { result } = renderHook(() =>
