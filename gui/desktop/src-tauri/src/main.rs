@@ -719,25 +719,11 @@ fn main() {
     #[cfg(target_os = "linux")]
     if std::env::var_os("APPIMAGE").is_some() {
         if let Some((launcher, args)) = cli_links::appimage_command(std::env::args_os().skip(1)) {
-            let result = std::env::current_exe()
-                .and_then(|exe| cli_links::run_appimage_command(&exe, launcher, &args));
-            match result {
-                Ok(status) => {
-                    #[cfg(unix)]
-                    {
-                        use std::os::unix::process::ExitStatusExt;
-                        std::process::exit(
-                            status
-                                .code()
-                                .unwrap_or_else(|| 128 + status.signal().unwrap_or(1)),
-                        );
-                    }
-                }
-                Err(err) => {
-                    eprintln!("Sharecut Studio: could not run bundled {launcher}: {err}");
-                    std::process::exit(1);
-                }
-            }
+            let err = std::env::current_exe()
+                .and_then(|exe| cli_links::run_appimage_command(&exe, launcher, &args))
+                .expect_err("exec only returns when the bundled launcher could not start");
+            eprintln!("Sharecut Studio: could not run bundled {launcher}: {err}");
+            std::process::exit(1);
         }
     }
     let engine_port = Arc::new(Mutex::new(None::<u16>));

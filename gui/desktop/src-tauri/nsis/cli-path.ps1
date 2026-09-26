@@ -21,8 +21,10 @@ try {
   if ($Action -eq 'add') {
     if ($matches.Count -eq 0) {
       $next = (@($entries) + $InstallDir) -join ';'
-      $key.SetValue('Path', $next, $kind)
+      # Record ownership first. A failed marker write leaves PATH untouched;
+      # an interrupted registry write leaves a marker for uninstall recovery.
       [System.IO.File]::WriteAllText($marker, $normalized)
+      $key.SetValue('Path', $next, $kind)
       $changed = $true
     }
   } elseif (Test-Path -LiteralPath $marker) {

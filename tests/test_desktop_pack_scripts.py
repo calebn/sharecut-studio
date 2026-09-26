@@ -50,6 +50,9 @@ def test_nsis_cli_path_is_optional_and_owned_entry_is_removed() -> None:
     assert "$matches.Count -eq 0" in ps
     assert "Test-Path -LiteralPath $marker" in ps
     assert "$owned -ieq $normalized" in ps
+    assert ps.index("[System.IO.File]::WriteAllText($marker, $normalized)") < ps.index(
+        "$key.SetValue('Path', $next, $kind)"
+    )
 
 
 def test_desktop_build_notarizes_app_once_then_packs_dmg() -> None:
