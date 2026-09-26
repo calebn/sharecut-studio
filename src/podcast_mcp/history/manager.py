@@ -5,7 +5,7 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
-from podcast_mcp.history.rollback import roll_back_history, take_history_checkpoint
+from podcast_mcp.history.rollback import rolled_back_on_failure, take_history_checkpoint
 from podcast_mcp.models.episode import EpisodeProject
 from podcast_mcp.models.history import HistoryEntry, ProjectHistory, ProjectStateSnapshot
 from podcast_mcp.models.project_format import apply_editable_snapshot, snapshot_editable_state
@@ -210,15 +210,12 @@ def record_and_commit(
 ) -> HistoryEntry:
     """Record ``label`` and commit ``project`` as one locked step.
 
-    A failure rolls the new entry back (``history.rollback.roll_back_history``).
+    A failure rolls the new entry back (``history.rollback.rolled_back_on_failure``).
     """
     with project_commit_lock(project):
         checkpoint = take_history_checkpoint(store, project)
-        try:
+        with rolled_back_on_failure(project, checkpoint):
             entry = HistoryManager(store.project_path).record(project, label, force=force)
             checkpoint.start_commit(project)
             store.commit(project)
-        except BaseException:
-            roll_back_history(project, checkpoint)
-            raise
         return entry

@@ -17,7 +17,7 @@ from podcast_mcp.history.manager import (
     apply_snapshot_to_project,
     snapshot_from_project,
 )
-from podcast_mcp.history.rollback import roll_back_history, take_history_checkpoint
+from podcast_mcp.history.rollback import rolled_back_on_failure, take_history_checkpoint
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.project_store import (
     ProjectStore,
@@ -73,14 +73,11 @@ def _run_mutation_locked(
     log_len_before = len(project.editorial.edit_log)
     with project_commit_lock(project):
         checkpoint = take_history_checkpoint(store, project)
-        try:
+        with rolled_back_on_failure(project, checkpoint):
             mgr.record(project, label_before)
-        except BaseException:
-            roll_back_history(project, checkpoint)
-            raise
     checkpoint.own_indexes.append(project.history.model_dump(mode="json"))
     pre_mutate = snapshot_from_project(project)
-    try:
+    with rolled_back_on_failure(project, checkpoint):
         try:
             result = mutate(project)
         except BaseException:
@@ -110,7 +107,4 @@ def _run_mutation_locked(
             mgr.record(project, label_after, operation=operation, params=params)
             checkpoint.start_commit(project)
             store.commit(project)
-    except BaseException:
-        roll_back_history(project, checkpoint)
-        raise
     return result

@@ -5,6 +5,7 @@ import json
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
+from typing import cast
 
 import filelock
 import pytest
@@ -361,3 +362,17 @@ def test_failed_mutation_restores_a_corrupt_index_from_the_project_history(minim
     assert json.loads(index_path.read_text()) == history_before.model_dump(mode="json")
     assert history_snapshot_ids(index_path) == ids_before
     assert proj.history == history_before
+
+
+def test_rolled_back_on_failure_rolls_back_and_reraises(minimal_project, monkeypatch):
+    _path, proj, _index_path = _setup(minimal_project)
+    calls = []
+    monkeypatch.setattr(rollback_mod, "roll_back_history", lambda p, c: calls.append((p, c)))
+    checkpoint = cast(rollback_mod.HistoryCheckpoint, object())
+    with pytest.raises(KeyboardInterrupt):
+        with rollback_mod.rolled_back_on_failure(proj, checkpoint):
+            raise KeyboardInterrupt
+    assert calls == [(proj, checkpoint)]
+    with rollback_mod.rolled_back_on_failure(proj, checkpoint):
+        pass
+    assert len(calls) == 1

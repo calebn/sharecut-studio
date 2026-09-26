@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -76,6 +78,22 @@ def roll_back_history(project: EpisodeProject, checkpoint: HistoryCheckpoint) ->
             "Could not roll back %s after a failed mutation", checkpoint.index_path, exc_info=True
         )
         project.history = _history_on_disk(checkpoint)
+
+
+@contextmanager
+def rolled_back_on_failure(
+    project: EpisodeProject, checkpoint: HistoryCheckpoint
+) -> Iterator[None]:
+    """Run the block; on any failure (``BaseException``) roll back history since ``checkpoint``.
+
+    Wraps only the rollback; callers keep their own ``project_commit_lock`` scope. The
+    original error is re-raised (``roll_back_history`` only logs its own failures).
+    """
+    try:
+        yield
+    except BaseException:
+        roll_back_history(project, checkpoint)
+        raise
 
 
 def _roll_back_locked(project: EpisodeProject, checkpoint: HistoryCheckpoint) -> None:
