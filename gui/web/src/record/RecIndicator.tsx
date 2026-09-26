@@ -3,6 +3,7 @@ import { recordingClockMs } from "./clock";
 import {
   type CaptureHealth,
   REC_CAPTURE_LABEL,
+  REC_OFFLINE_SUFFIX,
   type RecordSnapshot,
 } from "./types";
 
@@ -17,10 +18,13 @@ export function RecIndicator({
   snapshot,
   capture = null,
   clockId,
+  offline = false,
 }: {
   snapshot: RecordSnapshot;
   capture?: CaptureHealth;
   clockId?: string;
+  /** Host record socket is down; only affects recording and paused. */
+  offline?: boolean;
 }) {
   const [now, setNow] = useState(() => Date.now());
   const [markedAt, setMarkedAt] = useState(() => Date.now());
@@ -44,6 +48,13 @@ export function RecIndicator({
   } else if (snapshot.state === "stopped") {
     label = "Stopped";
   }
+  const showOffline =
+    offline &&
+    !capture &&
+    (snapshot.state === "recording" || snapshot.state === "paused");
+  if (showOffline) {
+    label = `${label} ${REC_OFFLINE_SUFFIX}`;
+  }
   const clock = recordingClockMs(
     { ...snapshot, recording_ms: baseMs },
     now - markedAt,
@@ -51,7 +62,7 @@ export function RecIndicator({
   return (
     <div className="cluster record-indicator" role="status">
       <span className="record-rec-label" data-state={snapshot.state}>
-        {snapshot.state === "recording" && !capture ? (
+        {snapshot.state === "recording" && !capture && !showOffline ? (
           <span className="record-rec-dot" aria-hidden="true" />
         ) : null}
         {label}

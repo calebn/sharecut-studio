@@ -46,9 +46,11 @@ describe("MobileShell", () => {
     useDawStore.getState().setCommandPaletteOpen(false);
     useRecordHostStore.getState().setSnapshot(null);
     useRecordHostStore.getState().setCaptureHealth(null);
+    useRecordHostStore.getState().setConnected(true);
   });
 
   afterEach(() => {
+    useRecordHostStore.getState().setConnected(false);
     clearRegisteredCommands();
   });
 

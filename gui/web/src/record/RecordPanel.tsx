@@ -32,6 +32,7 @@ import {
   hostReconnectPauseCopyFromSnapshot,
   LOCAL_KEEPER_COPY,
   LOCAL_KEEPER_PENDING_COPY,
+  RECORD_ROOM_RECONNECTING_COPY,
   shouldApplyRecordSnapshot,
 } from "./types";
 import { UploadStatus } from "./UploadStatus";
@@ -241,6 +242,9 @@ export function RecordPanel({
     };
   }, [recordPanelOpen, projectPath, setSnapshot]);
 
+  const offline =
+    !connected &&
+    (snapshot?.state === "recording" || snapshot?.state === "paused");
   const uploadBlocking = leaveBlocked(state ?? "", upload);
   const reconnectCopy = snapshot
     ? hostReconnectPauseCopyFromSnapshot(snapshot)
@@ -264,7 +268,16 @@ export function RecordPanel({
     >
       <div className="stack record-panel">
         {snapshot ? (
-          <RecIndicator snapshot={snapshot} capture={capture} />
+          <RecIndicator
+            snapshot={snapshot}
+            capture={capture}
+            offline={offline}
+          />
+        ) : null}
+        {offline ? (
+          <p className="record-warn" role="status">
+            {RECORD_ROOM_RECONNECTING_COPY}
+          </p>
         ) : null}
         <StorageHeadroomWarning
           visible={state === "lobby" || state === "stopped"}

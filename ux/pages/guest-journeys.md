@@ -219,6 +219,8 @@ flowchart TD
    above every mode body. Reduced-motion settings keep
    the dot still. The control opens the Record room panel. PAUSED and local
    capture failure remain explicit states rather than a healthy REC dot.
+   If the host's connection to the record room drops mid-take, the control
+   reads "REC (reconnecting)" without the dot until the socket returns.
    After Stop, microphone loss no longer locks the host dialog. A take with no
    host keeper warns that no local audio was captured, even if the mic never
    became available. If a host record command (Start, Pause, Resume, Stop,

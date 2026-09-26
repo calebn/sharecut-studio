@@ -25,7 +25,12 @@ import {
   MIC_RETRY_LABEL,
 } from "./micPermission";
 import { RecordPanel } from "./RecordPanel";
-import { hostUploadLine, ROOM_TONE_PROMPT_COPY, storageLowCopy } from "./types";
+import {
+  hostUploadLine,
+  RECORD_ROOM_RECONNECTING_COPY,
+  ROOM_TONE_PROMPT_COPY,
+  storageLowCopy,
+} from "./types";
 
 const { exec, roomTone } = vi.hoisted(() => ({
   exec: vi.fn(async () => ({ status: "ok" as const })),
@@ -111,6 +116,7 @@ const lobby = recordSnapshot({
 
 describe("RecordPanel", () => {
   afterEach(() => {
+    useRecordHostStore.getState().setConnected(false);
     Reflect.deleteProperty(navigator, "storage");
   });
 
@@ -137,6 +143,7 @@ describe("RecordPanel", () => {
     useDawStore.setState({ recordPanelOpen: true, shareDialogOpen: false });
     useRecordHostStore.getState().setSnapshot(null);
     useRecordHostStore.getState().setTransportError(null);
+    useRecordHostStore.getState().setConnected(true);
     useRecordHostStore.getState().setCaptureHealth(null);
     useRecordHostStore.getState().setKeeperStorage(null, null);
     useRecordHostStore.getState().setConnected(false);
@@ -741,6 +748,15 @@ describe("RecordPanel", () => {
     });
     render(<RecordPanel />);
     expect(screen.queryByText(ROOM_TONE_PROMPT_COPY)).toBeNull();
+  });
+
+  it("shows reconnecting copy when the host socket drops mid-take", () => {
+    useRecordHostStore
+      .getState()
+      .setSnapshot(recordSnapshot({ state: "recording" }));
+    useRecordHostStore.getState().setConnected(false);
+    render(<RecordPanel />);
+    expect(screen.getByText(RECORD_ROOM_RECONNECTING_COPY)).toBeInTheDocument();
   });
 
   it("renders a host record command failure from the store", () => {
