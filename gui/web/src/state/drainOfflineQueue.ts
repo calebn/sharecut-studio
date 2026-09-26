@@ -5,6 +5,7 @@ import { hostSendDone } from "./hostSendOrder";
 import {
   loadCommandQueue,
   loadHostCommandQueue,
+  type QueuedCommand,
   removeHostQueuedCommands,
 } from "./offlineStore";
 
@@ -50,7 +51,14 @@ export async function drainHostOfflineQueue(
       break;
     }
     // A live send may have finished and dequeued it since the snapshot.
-    const current = await loadHostCommandQueue(projectPath);
+    let current: QueuedCommand[];
+    try {
+      current = await loadHostCommandQueue(projectPath);
+    } catch {
+      // Unreadable queue: stop this pass but still remove what already
+      // committed below; the next drain retries the rest in order.
+      break;
+    }
     if (!current.some((c) => c.command_id === cmd.command_id)) {
       continue;
     }

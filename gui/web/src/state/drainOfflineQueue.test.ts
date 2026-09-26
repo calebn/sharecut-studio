@@ -264,6 +264,27 @@ describe("drainHostOfflineQueue", () => {
       ["first", "second"],
     );
   });
+
+  it("still removes replayed records when a queue re-read fails", async () => {
+    const path = "/projects/episode.project.json";
+    const { beginHostSend } = await import("./hostSendOrder");
+    const other = beginHostSend(path, "other");
+    let unreadable = false;
+    hostQueue.mockImplementation(async () => {
+      if (unreadable) throw new Error("idb");
+      return [cmd("a"), cmd("b")];
+    });
+    submit.mockImplementationOnce(async () => {
+      // A live send finishes while "a" replays, then IndexedDB fails.
+      other.finish();
+      unreadable = true;
+      return { ok: true };
+    });
+    const { drainHostOfflineQueue } = await import("./drainOfflineQueue");
+    await expect(drainHostOfflineQueue(path)).resolves.toBeUndefined();
+    expect(submit.mock.calls.map((c) => c[3].command_id)).toEqual(["a"]);
+    expect(removeHostQueuedCommands).toHaveBeenCalledWith(path, ["a"]);
+  });
 });
 
 describe("drainOfflineQueue (guest)", () => {
