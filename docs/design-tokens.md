@@ -94,7 +94,15 @@ rejects any literal time on `transition*` and `animation*`, vendor-prefixed or
 not (`declaration-property-unit-disallowed-list`), and
 `tests/test_css_policy.py` checks both rules. FocusPull's timers
 (`FOCUS_PULL_EXIT_MS`, `FOCUS_PULL_ENTER_MS`) mirror `--motion-panel` and
-`--motion-state`, and a Vitest parity test keeps them equal.
+`--motion-state`, and a Vitest parity test keeps them equal. FocusPull keeps
+each view in a keyed grid slot while its phase changes, so view components
+keep their mount state and focus. A new destination during exit uses the
+remaining exit time; a new destination during enter starts its entrance
+immediately. The reduced-motion media rule shows the destination at once, and
+the component skips the timers when that preference is active. Switching to
+reduced motion during a transition completes it immediately. If focus was in
+the outgoing view, it moves to the incoming view when that view becomes
+visible.
 
 ## Surface ladder
 

@@ -636,6 +636,7 @@ button.pill.pill--info {
   display: grid;
 }
 
+.focus-pull-current,
 .focus-pull-exit,
 .focus-pull-pending,
 .focus-pull-enter {
