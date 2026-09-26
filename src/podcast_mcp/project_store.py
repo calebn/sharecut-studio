@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable
+import logging
+from collections.abc import Collection, Iterable
 from pathlib import Path
 from typing import Any
 
 from podcast_mcp.models import EpisodeProject, load_project, project_file_path, save_project
 from podcast_mcp.models.history import ProjectHistory
-from podcast_mcp.util.atomic_json import write_json_atomic
+from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
 from podcast_mcp.util.project_state import project_commit_lock
+
+log = logging.getLogger(__name__)
 
 
 def history_index_path(project: EpisodeProject) -> Path:
@@ -50,6 +53,44 @@ def rollback_history(
     restore_history_index(index_path, index_before)
     for entry_id in new_entry_ids:
         history_snapshot_path(index_path, entry_id).unlink(missing_ok=True)
+
+
+def history_index_to_restore(index_path: Path, fallback: ProjectHistory) -> dict[str, Any] | None:
+    """``history/index.json`` as a rollback puts it back (``None``: it does not exist).
+
+    An unreadable index falls back to ``fallback``, which the next commit writes anyway,
+    so a corrupt index does not stop every mutation or long job.
+    """
+    try:
+        return load_json_object(index_path)
+    except ValueError:
+        log.warning(
+            "Unreadable %s; a rollback restores it from the project's history",
+            index_path,
+            exc_info=True,
+        )
+        return fallback.model_dump(mode="json")
+
+
+def rollback_own_history(
+    index_path: Path,
+    index_before: dict[str, Any] | None,
+    own_indexes: Collection[dict[str, Any] | None],
+    own_entry_ids: Iterable[str],
+) -> bool:
+    """Undo this caller's history writes unless another writer recorded on top.
+
+    Call under ``project_commit_lock``. The index is rolled back only if it still equals
+    ``index_before`` or one of ``own_indexes`` (payloads this caller wrote); otherwise
+    nothing is touched and ``False`` is returned.
+    """
+    current = load_json_object(index_path)
+    if current != index_before and current not in own_indexes:
+        return False
+    ids = set(own_entry_ids)
+    if current != index_before or ids:
+        rollback_history(index_path, index_before, ids)
+    return True
 
 
 class ProjectStore:

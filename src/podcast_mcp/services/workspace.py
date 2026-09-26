@@ -21,10 +21,10 @@ from podcast_mcp.project_merge import (
 from podcast_mcp.project_store import (
     ProjectStore,
     history_index_path,
+    history_index_to_restore,
     history_snapshot_ids,
     rollback_history,
 )
-from podcast_mcp.util.atomic_json import load_json_object
 from podcast_mcp.util.project_state import (
     FileRevision,
     file_revision,
@@ -153,7 +153,7 @@ class ProjectWorkspace:
                 saved_project = self._store.load()
                 saved = project_merge_data(saved_project)
                 index_path = history_index_path(self.project)
-                index_before = _index_to_restore(index_path, saved_project)
+                index_before = history_index_to_restore(index_path, saved_project.history)
                 snapshots_before = history_snapshot_ids(index_path)
                 history_before = self.project.history.model_copy(deep=True)
                 to_save: EpisodeProject | None = None
@@ -296,23 +296,6 @@ class ProjectWorkspace:
         HistoryManager(path).record(loaded, "initial", force=True)
         store.commit(loaded)
         return ProjectWorkspace(path, loaded)
-
-
-def _index_to_restore(index_path: Path, saved: EpisodeProject) -> dict[str, Any] | None:
-    """``history/index.json`` as a failed ``save_merged`` puts it back (``None``: absent).
-
-    An unreadable index falls back to the saved project's history, which the next commit
-    writes anyway, so a corrupt index does not stop every long job.
-    """
-    try:
-        return load_json_object(index_path)
-    except ValueError:
-        log.warning(
-            "Unreadable %s; a failed save restores it from the project file",
-            index_path,
-            exc_info=True,
-        )
-        return saved.history.model_dump(mode="json")
 
 
 def _adopt_project_state(target: EpisodeProject, source: EpisodeProject) -> None:

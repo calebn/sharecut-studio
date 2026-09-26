@@ -265,6 +265,35 @@ def test_service_publish_removes_media_after_persistence_failure(
     assert ProjectWorkspace.open(minimal_project).project.review.versions == []
 
 
+def test_service_publish_keeps_media_when_history_was_not_rolled_back(
+    minimal_project, sample_wav, monkeypatch, caplog
+):
+    project = load_project(minimal_project)
+    art = Path(project.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    monkeypatch.setattr(review_versions, "_new_id", lambda: "new-version")
+
+    def export_mp3(self, wav, mp3, *, bitrate_kbps):
+        mp3.write_bytes(b"encoded")
+
+    monkeypatch.setattr(review_versions.FFmpegEngine, "export_mp3", export_mp3)
+    monkeypatch.setattr("podcast_mcp.history.session.rollback_own_history", lambda *a, **k: False)
+
+    def fail_commit(self, project):
+        raise RuntimeError("commit failed")
+
+    monkeypatch.setattr(ProjectStore, "commit", fail_commit)
+    ws = ProjectWorkspace.open(minimal_project)
+    with caplog.at_level(logging.WARNING):
+        with pytest.raises(RuntimeError, match="commit failed"):
+            ReviewService(ws).publish(label="new")
+
+    assert (art / "review" / "new-version").exists()
+    assert load_project(minimal_project).review.versions == []
+    assert "Review history changed during failed publication" in caplog.text
+
+
 def test_service_publish_preserves_media_if_commit_landed_before_error(
     minimal_project, sample_wav, monkeypatch
 ):

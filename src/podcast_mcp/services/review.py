@@ -18,8 +18,7 @@ from podcast_mcp.edits.review_versions import (
     version_audio_path,
 )
 from podcast_mcp.models import load_project
-from podcast_mcp.models.history import ProjectHistory
-from podcast_mcp.project_store import history_index_path, rollback_history
+from podcast_mcp.project_store import history_index_path
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.atomic_json import load_json_object
 from podcast_mcp.util.project_state import project_commit_lock, project_state_lock
@@ -109,34 +108,22 @@ class ReviewService:
         index_path: Path,
         history_before: dict[str, Any] | None,
     ) -> None:
-        """Undo only this publication's sidecars if canonical commit did not land."""
+        """Delete this publication's media if its version did not persist.
+
+        ``run_mutation`` already rolled back the history entries; the media is kept when
+        the index is not back to ``history_before`` (another writer recorded on top).
+        """
         try:
             persisted = load_project(self.ws.path)
-            if any(version.id == version_id for version in persisted.review.versions):
-                self.ws.project = persisted
-                return
-            expected_index = self.ws.project.history.model_dump(mode="json")
             self.ws.project = persisted
-            current_index = load_json_object(index_path)
-            if current_index not in (history_before, expected_index):
+            if any(version.id == version_id for version in persisted.review.versions):
+                return
+            if load_json_object(index_path) != history_before:
                 log.warning(
                     "Review history changed during failed publication; keeping %s", created_dir
                 )
                 return
-            if current_index != history_before:
-                old_ids = (
-                    {entry.id for entry in ProjectHistory.model_validate(history_before).entries}
-                    if history_before is not None
-                    else set()
-                )
-                new_ids = {
-                    entry.id
-                    for entry in ProjectHistory.model_validate(current_index).entries
-                    if entry.id not in old_ids
-                }
-                rollback_history(index_path, history_before, new_ids)
             clean_created_version(created_dir, identity)
-            self.ws.project = persisted
         except BaseException:
             log.warning("Could not clean uncommitted review version %s", created_dir, exc_info=True)
 

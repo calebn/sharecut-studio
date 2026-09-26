@@ -212,6 +212,7 @@ Podcast MCP treats **all editable project state** as undoable unless explicitly 
    - runs the domain mutation on `EpisodeProject`,
    - records a snapshot **after** the change (each `record` and the final record + commit take `project_commit_lock`; the mutation itself runs outside it, except in `ReviewService.publish`, which holds the lock across the whole `mutate` so failed-publication cleanup cannot race another process),
    - commits via `ProjectStore` (updates `episode.project.json` and mirrored `transcripts/*.json` caches).
+   - on failure, removes the history entries and snapshots it recorded (unless the commit landed or another writer recorded on top); see [history.md § Storage layout](history.md#storage-layout).
 3. **New features** add a service method that delegates to `mutate`; CLI/MCP handlers stay thin.
 4. **Batch work** (e.g. transcript cleanup, multi-cut approve) should use **one** `mutate` per user-confirmed step so a single undo reverts the whole batch.
 5. **Skills** that orchestrate mutations must mention `history_undo` and prefer batch tools where they exist.
