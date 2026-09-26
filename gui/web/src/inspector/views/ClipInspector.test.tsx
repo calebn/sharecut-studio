@@ -67,6 +67,70 @@ describe("ClipInspector fades", () => {
     expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c1", 200, 0);
   });
 
+  it("keeps both fades inside the clip", async () => {
+    useDawStore.getState().hydrate(
+      "/tmp/ep.json",
+      minimalProject({
+        tracks: [sampleTrack({ role: "music", fade_max_ms: null })],
+      }),
+    );
+    const user = userEvent.setup();
+    render(<ClipInspector clip={{ ...clip, source_end: 0.2 }} />);
+    const fadeIn = screen.getByLabelText("Fade in ms");
+    await user.clear(fadeIn);
+    await user.type(fadeIn, "150");
+    const fadeOut = screen.getByLabelText("Fade out ms");
+    await user.clear(fadeOut);
+    await user.type(fadeOut, "150");
+    await user.click(screen.getByRole("button", { name: "Apply fades" }));
+    expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c1", 150, 50);
+  });
+
+  it("keeps the typed value when the save fails", async () => {
+    useDawStore
+      .getState()
+      .hydrate(
+        "/tmp/ep.json",
+        minimalProject({ tracks: [sampleTrack({ fade_max_ms: 40 })] }),
+      );
+    vi.mocked(setClipFade).mockRejectedValueOnce(new Error("boom"));
+    render(<ClipInspector clip={clip} />);
+    await applyFades("500");
+    expect(await screen.findByRole("alert")).toHaveTextContent("boom");
+    expect(screen.getByLabelText("Fade in ms")).toHaveValue(500);
+    expect(screen.queryByText(/^Clamped/)).toBeNull();
+  });
+
+  it("waits for the clip's track before offering Apply", () => {
+    useDawStore
+      .getState()
+      .hydrate(
+        "/tmp/ep.json",
+        minimalProject({ tracks: [sampleTrack({ id: "guest" })] }),
+      );
+    render(<ClipInspector clip={clip} />);
+    expect(screen.queryByText(/^max /)).toBeNull();
+    expect(screen.getByRole("button", { name: "Apply fades" })).toBeDisabled();
+    expect(screen.getByLabelText("Fade in ms")).not.toHaveAttribute("max");
+  });
+
+  it("says when it clamped an entry", async () => {
+    useDawStore
+      .getState()
+      .hydrate(
+        "/tmp/ep.json",
+        minimalProject({ tracks: [sampleTrack({ fade_max_ms: 40 })] }),
+      );
+    const { rerender } = render(<ClipInspector clip={clip} />);
+    await applyFades("500");
+    expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c1", 40, 0);
+    rerender(<ClipInspector clip={{ ...clip, fade_in_ms: 40 }} />);
+    expect(
+      screen.getByText("Clamped to 40 ms in / 0 ms out"),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Fade in ms")).toHaveValue(40);
+  });
+
   it("no longer offers a track-wide fade button", () => {
     useDawStore
       .getState()

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { setClipFade, setJoinMode } from "../../api";
 import { execute } from "../../commands/execute";
-import { clampFadeMs, maxFadeMs } from "../../edit/fadeLimits";
+import { clampClipFades, maxFadeMs } from "../../edit/fadeLimits";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import { canApplyPass12, canSuggestStructural } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
@@ -28,6 +28,10 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
   const { busy, error, setError, run } = useProjectMutation();
   const [fadeInStr, setFadeInStr] = useState(String(clip.fade_in_ms));
   const [fadeOutStr, setFadeOutStr] = useState(String(clip.fade_out_ms));
+  const [clamped, setClamped] = useState<{
+    inMs: number;
+    outMs: number;
+  } | null>(null);
 
   useEffect(() => {
     setFadeInStr(String(clip.fade_in_ms));
@@ -35,15 +39,26 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
     setError(null);
   }, [clip.id, clip.fade_in_ms, clip.fade_out_ms, setError]);
 
-  const trackFadeMaxMs = useDawStore(
-    (s) =>
-      s.project?.tracks.find((t) => t.id === clip.track_id)?.fade_max_ms ??
-      null,
-  );
-  const fadeLimitMs = maxFadeMs(
-    clip.source_end - clip.source_start,
-    trackFadeMaxMs,
-  );
+  useEffect(() => {
+    setClamped(null);
+  }, [clip.id]);
+
+  // undefined: the clip's track is not in the view yet (cap unknown);
+  // null: the track is uncapped.
+  const trackFadeMaxMs = useDawStore((s) => {
+    const track = s.project?.tracks.find((t) => t.id === clip.track_id);
+    return track === undefined ? undefined : (track.fade_max_ms ?? null);
+  });
+  const capKnown = trackFadeMaxMs !== undefined;
+  const clipSec = clip.source_end - clip.source_start;
+  const fadeLimitMs = maxFadeMs(clipSec, trackFadeMaxMs);
+  // Shown while the saved lengths are the ones it describes.
+  const clampNotice =
+    clamped &&
+    clamped.inMs === clip.fade_in_ms &&
+    clamped.outMs === clip.fade_out_ms
+      ? `Clamped to ${clamped.inMs} ms in / ${clamped.outMs} ms out`
+      : null;
 
   const editable = canApplyPass12(projectPath, guestMode, shareCapabilities);
   const canStructural = canSuggestStructural(
@@ -64,13 +79,26 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
       setError("Fade times must be non-negative integers (ms)");
       return;
     }
-    const cappedIn = clampFadeMs(fadeIn, fadeLimitMs);
-    const cappedOut = clampFadeMs(fadeOut, fadeLimitMs);
-    setFadeInStr(String(cappedIn));
-    setFadeOutStr(String(cappedOut));
-    await run(async () => {
-      await setClipFade(projectPath, clip.id, cappedIn, cappedOut);
+    if (!capKnown) {
+      return;
+    }
+    const next = clampClipFades(fadeIn, fadeOut, clipSec, trackFadeMaxMs);
+    setClamped(null);
+    const saved = await run(async () => {
+      await setClipFade(projectPath, clip.id, next.inMs, next.outMs);
+      return true;
     });
+    if (!saved) {
+      // Keep the typed values next to the error; nothing was stored.
+      return;
+    }
+    // Show what the server stored: the reset effect only reruns when the
+    // clip's committed lengths change.
+    setFadeInStr(String(next.inMs));
+    setFadeOutStr(String(next.outMs));
+    if (next.inMs !== fadeIn || next.outMs !== fadeOut) {
+      setClamped(next);
+    }
   };
 
   const commitJoinMode = async (mode: string) => {
@@ -151,7 +179,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
               <input
                 type="number"
                 min={0}
-                max={fadeLimitMs}
+                max={capKnown ? fadeLimitMs : undefined}
                 step={1}
                 value={fadeInStr}
                 disabled={busy}
@@ -162,7 +190,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
               <input
                 type="number"
                 min={0}
-                max={fadeLimitMs}
+                max={capKnown ? fadeLimitMs : undefined}
                 step={1}
                 value={fadeOutStr}
                 disabled={busy}
@@ -170,8 +198,15 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
                 onChange={(e) => setFadeOutStr(e.target.value)}
               />
               <span>ms out</span>
-              <span className="ui-field-hint">max {fadeLimitMs} ms</span>
-              <Button disabled={busy} onClick={() => void commitFades()}>
+              {capKnown ? (
+                <span className="ui-field-hint" role="status">
+                  {clampNotice ?? `max ${fadeLimitMs} ms`}
+                </span>
+              ) : null}
+              <Button
+                disabled={busy || !capKnown}
+                onClick={() => void commitFades()}
+              >
                 Apply fades
               </Button>
             </FieldRow>
