@@ -13,7 +13,7 @@ from podcast_mcp.edits.fillers import (
     _resolve_analyzed_cuts,
     normalize_edit_mode,
 )
-from podcast_mcp.edits.tighten_intensity import apply_tighten_intensity
+from podcast_mcp.edits.tighten_intensity import with_tighten_intensity
 from podcast_mcp.edits.tighten_reasons import (
     REPETITION_REASON_PREFIX,
     RESTART_REASON_PREFIX,
@@ -89,11 +89,9 @@ def propose_tighten_edits(
     ``intensity`` (light/medium/aggressive) overrides ``tighten.intensity``; see
     :mod:`podcast_mcp.edits.tighten_intensity`.
     """
-    cfg = dict(defaults)
-    tighten = apply_tighten_intensity(dict(cfg.get("tighten") or {}), intensity)
+    cfg = with_tighten_intensity(defaults, intensity)
     if edit_mode is not None:
-        tighten["edit_mode"] = normalize_edit_mode(edit_mode)
-    cfg["tighten"] = tighten
+        cfg["tighten"]["edit_mode"] = normalize_edit_mode(edit_mode)
     # Decide what re-proposal keeps now, but only mutate the project after the
     # DSP gather/analysis below succeeds (the pipeline step path has no
     # ProjectWorkspace.mutate rollback).

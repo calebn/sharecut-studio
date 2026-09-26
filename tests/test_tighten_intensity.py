@@ -9,6 +9,7 @@ from podcast_mcp.edits.tighten_intensity import (
     TIGHTEN_INTENSITY_PRESETS,
     apply_tighten_intensity,
     normalize_tighten_intensity,
+    with_tighten_intensity,
 )
 
 
@@ -91,3 +92,11 @@ def test_explicit_shipped_baseline() -> None:
     assert out["max_pause_sec"] == 1.0
     out = apply_tighten_intensity({"max_pause_sec": 1.2}, "light", shipped={"max_pause_sec": 1.2})
     assert out["max_pause_sec"] == 2.0
+
+
+def test_with_tighten_intensity_copies_only_tighten() -> None:
+    cfg = {"tighten": {"intensity": "light"}, "performance": {"max_workers": 2}}
+    out = with_tighten_intensity(cfg)
+    assert out["tighten"]["max_pause_sec"] == 2.0
+    assert cfg["tighten"] == {"intensity": "light"}
+    assert out["performance"] is cfg["performance"]
