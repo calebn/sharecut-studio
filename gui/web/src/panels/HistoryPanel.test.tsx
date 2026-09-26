@@ -112,6 +112,17 @@ describe("HistoryPanel list", () => {
       </DawProvider>,
     );
 
+  const replaceGroupAfterId = (index: number, afterId: string) =>
+    act(() => {
+      const project = useDawStore.getState().project!;
+      const groups = project.history.groups.map((g, i) =>
+        i === index ? { ...g, after_id: afterId } : g,
+      );
+      useDawStore
+        .getState()
+        .setProject({ ...project, history: { ...project.history, groups } });
+    });
+
   it("ignores an older diff that resolves after the latest one", async () => {
     const resolvers = deferredDiffs();
     const { container } = renderList();
@@ -164,6 +175,32 @@ describe("HistoryPanel list", () => {
         .setProject({ ...project, history: { ...project.history, groups } });
     });
     expect(screen.queryByText("fade changed")).toBeNull();
+    expect(container.querySelector(".history-row.selected")).toBeNull();
+    expect(container.querySelector(".history-diff")).toBeNull();
+  });
+
+  it("keeps the selection cleared when the stale step's key comes back", async () => {
+    vi.mocked(loadHistoryDiff).mockResolvedValue(diffOf("fade changed"));
+    const { container } = renderList();
+    fireEvent.click(rowAt(container, 2)!);
+    await screen.findByText("fade changed");
+    replaceGroupAfterId(2, "replaced");
+    replaceGroupAfterId(2, "after-2");
+    expect(container.querySelector(".history-row.selected")).toBeNull();
+    expect(screen.queryByText("fade changed")).toBeNull();
+    expect(container.querySelector(".history-diff")).toBeNull();
+  });
+
+  it("drops an in-flight diff whose step left the history", async () => {
+    const resolvers = deferredDiffs();
+    const { container } = renderList();
+    fireEvent.click(rowAt(container, 2)!);
+    await waitFor(() => expect(resolvers).toHaveLength(1));
+    replaceGroupAfterId(2, "replaced");
+    await act(async () => resolvers[0]!(diffOf("late diff")));
+    replaceGroupAfterId(2, "after-2");
+    expect(screen.queryByText("late diff")).toBeNull();
+    expect(screen.queryByText("Loading…")).toBeNull();
     expect(container.querySelector(".history-row.selected")).toBeNull();
     expect(container.querySelector(".history-diff")).toBeNull();
   });

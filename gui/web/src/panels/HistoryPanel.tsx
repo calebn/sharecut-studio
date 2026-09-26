@@ -2,6 +2,7 @@ import {
   Fragment,
   type ReactNode,
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -49,6 +50,17 @@ export function HistoryPanel() {
   const selectionStale = selectedKey !== null && selectedIndex === -1;
   const shownDiff = selectionStale ? null : diff;
   const diffLoading = loading && !selectionStale;
+  // A step that left the list takes its selection, diff and pending load with
+  // it, so a reload that brings the same key back starts unselected.
+  useEffect(() => {
+    if (!selectionStale) {
+      return;
+    }
+    diffRequest.invalidate();
+    setSelectedKey(null);
+    setDiff(null);
+    setLoading(false);
+  }, [selectionStale, diffRequest]);
   // Pinned rows: the selected and the focused step.
   const pinned = useMemo(
     () => [selectedIndex, focusedIndex].filter((index) => index >= 0),
