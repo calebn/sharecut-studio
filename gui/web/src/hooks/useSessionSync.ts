@@ -233,7 +233,7 @@ export function useSessionSync(
       socket?.close();
       sendRef.current = null;
       setWsReady(false);
-      useRecordHostStore.getState().setConnected(false);
+      useRecordHostStore.getState().resetConnection();
     };
   }, [projectPath, enabled, applyRemote]);
 

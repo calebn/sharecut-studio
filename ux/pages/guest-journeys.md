@@ -186,9 +186,12 @@ flowchart TD
    partial take**.
 7. If the room reports a non-terminal error (for example an action that is not
    possible in the current state), a persistent alert explains it and offers
-   **Dismiss**; ended and full-room screens are unchanged.
+   **Dismiss**; ended and full-room screens are unchanged, and a later room
+   error never replaces the full-room screen.
    If the saved microphone is no longer available, the lobby falls back to the
    default input, shows a notice, and resets the saved choice to Default.
+   Retry then goes straight to the default input, and the notice stays even if
+   that Retry fails.
    If the microphone ends involuntarily, the local keeper closes its current
    segment and a persistent warning offers **Reconnect microphone**. The room
    clock follows the shared take while REC says local capture failed and has no
@@ -220,11 +223,13 @@ flowchart TD
    the dot still. The control opens the Record room panel. PAUSED and local
    capture failure remain explicit states rather than a healthy REC dot.
    If the host's connection to the record room drops mid-take, the control
-   reads "REC (reconnecting)" without the dot until the socket returns.
+   reads "REC (reconnecting)" without the dot until the socket returns (not
+   while the page is still making its first connection).
    After Stop, microphone loss no longer locks the host dialog. A take with no
    host keeper warns that no local audio was captured, even if the mic never
    became available. If a host record command (Start, Pause, Resume, Stop,
-   Land) fails, the Record room panel opens and shows the error.
+   Land) fails, the Record room panel opens and shows the error; over the
+   Share dialog the failure is only announced. Closing the panel clears it.
 8. Host Stop. The native leave warning stays until the keeper finishes saving
    the final WAV and metadata, then clears. The upload panel warns the guest
    to keep the tab open until the final file ACK, shows N/M chunks where all

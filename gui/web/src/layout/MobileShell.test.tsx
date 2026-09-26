@@ -50,7 +50,7 @@ describe("MobileShell", () => {
   });
 
   afterEach(() => {
-    useRecordHostStore.getState().setConnected(false);
+    useRecordHostStore.getState().resetConnection();
     clearRegisteredCommands();
   });
 

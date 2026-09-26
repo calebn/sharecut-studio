@@ -31,7 +31,7 @@ describe("TransportBar collapsed", () => {
   });
 
   afterEach(() => {
-    useRecordHostStore.getState().setConnected(false);
+    useRecordHostStore.getState().resetConnection();
   });
 
   it("shows host capture failure in the transport chip during REC", () => {

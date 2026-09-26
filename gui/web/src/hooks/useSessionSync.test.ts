@@ -199,6 +199,32 @@ describe("useSessionSync presence", () => {
       FakeWebSocket.instances[0].close();
     });
     expect(useRecordHostStore.getState().connected).toBe(false);
+    expect(useRecordHostStore.getState().dropped).toBe(true);
+  });
+
+  it("does not mark the host record socket dropped on unmount", async () => {
+    const { useRecordHostStore } = await import("../record/hostStore");
+    useRecordHostStore.getState().resetConnection();
+    const { unmount } = renderHook(() =>
+      useSessionSync(
+        "/tmp/ep.project.json",
+        vi.fn(),
+        () => ({}),
+        true,
+        0,
+        null,
+        false,
+        "k",
+        true,
+      ),
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(useRecordHostStore.getState().connected).toBe(true);
+    unmount();
+    expect(useRecordHostStore.getState().connected).toBe(false);
+    expect(useRecordHostStore.getState().dropped).toBe(false);
   });
 
   it("advances the applied cursor to the published last_command_id", async () => {
