@@ -1,5 +1,8 @@
 import type { startPipelineRun } from "../api";
-import type { PipelineConfigResponse } from "../types/pipeline";
+import type {
+  PipelineConfigResponse,
+  PipelineJobSnapshot,
+} from "../types/pipeline";
 import { getByPath, setByPath } from "./configPath";
 
 export const TIGHTEN_INTENSITY_PATH = "tighten.intensity";
@@ -53,4 +56,19 @@ export function tightenProposeRunOptions(
     unattended: cfg.unattended,
     useWorkingSet: false,
   };
+}
+
+/** Confirm text when Find hits would replace listed hits; null for an empty list. */
+export function findHitsConfirm(pendingCount: number): string | null {
+  if (pendingCount <= 0) return null;
+  return `Find hits re-runs tighten analysis and replaces pending hits in this list (${pendingCount} now), including ones you nudged. Continue?`;
+}
+
+/** Error of the Find hits job this panel started, once that job fails. */
+export function findHitsRunError(
+  jobId: string | null,
+  job: PipelineJobSnapshot | null,
+): string | null {
+  if (!jobId || job?.id !== jobId || job.status !== "error") return null;
+  return job.error || "Find hits failed.";
 }
