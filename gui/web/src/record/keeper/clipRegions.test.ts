@@ -65,6 +65,25 @@ describe("ClipRegionTracker", () => {
     });
   });
 
+  it("keeps merging a dense burst into the last region after the cap without truncating", () => {
+    const t = new ClipRegionTracker();
+    for (let i = 0; i < MAX_CLIP_REGIONS; i++) {
+      t.observe(ms(i * 5000), ms(i * 5000 + 10));
+    }
+    const lastStart = (MAX_CLIP_REGIONS - 1) * 5000;
+    // Each hit starts 900 ms after the previous one ends, so every hit merges.
+    let end = lastStart + 10;
+    for (let k = 0; k < 10; k++) {
+      const start = end + 900;
+      end = start + 10;
+      t.observe(ms(start), ms(end));
+    }
+    expect(t.truncated).toBe(false);
+    const out = t.regionsMs();
+    expect(out).toHaveLength(MAX_CLIP_REGIONS);
+    expect(out[out.length - 1]).toEqual({ startMs: lastStart, endMs: end + 1 });
+  });
+
   it("resets", () => {
     const t = new ClipRegionTracker();
     t.observe(1, 2);

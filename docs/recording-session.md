@@ -636,7 +636,7 @@ so it has no meter. Producers have no meter and no clip LED.
   its latching clip LED. Nothing is stored.
 - *Encode path* (`keeper/pcm.ts` -> `KeeperSession`): the ground truth. It
   records segment-relative clip regions, merges hits less than 1 s apart,
-  caps them at 100 per segment (later hits are dropped and flagged `clippingTruncated`, never stretched into the last region), and writes them into the OPFS keeper metadata
+  caps them at 100 per segment (a hit within 1 s of the 100th region still merges into it, so a dense burst can lengthen that region; a later hit that cannot merge is dropped and flags the segment `clippingTruncated`), and writes them into the OPFS keeper metadata
   (`clippingRegions`). Live consumers are notified when a region opens or the open region grows by 250 ms or more, so live end times lag by less than 250 ms until the segment closes. The final upload part also sends them as
   `clipping=a-b,c-d` (ms, ascending, non-overlapping). A capped segment also
   sends `clipping_truncated=true` (final part; needs `clipping`), stored as
