@@ -486,9 +486,10 @@ The ceiling was chosen under every engine's layout limit. Blink and WebKit store
   several pixels.
 - **Precision.** Tile geometry stays source-anchored (`t = k·512/zoom`, no
   accumulation), snap ticks round to 1 µs on client and server (`snap_tick_decimals`), presence
-  x-fractions carry 6 decimals, and drag thresholds are in pixels (roll
-  commit 0.5 px, move no-op 0.5 px or 0.1 ms, whichever is smaller, social-clip drag 3 px, ruler comment
-  span 4 px), so edits work at any zoom. Domain minimums (0.05 s spans,
+  x-fractions carry 6 decimals, and drag thresholds are in pixels (`edit/dragThreshold.ts`: a
+  handle click-vs-drag of 3 px net for fade, trim, roll, pending-cut and social-clip handles, a 5 px travel
+  before a clip-body move starts, and a 0.5 px roll commit; move no-op 0.5 px or 0.1 ms, whichever is
+  smaller; ruler comment span 4 px), so edits work at any zoom. Domain minimums (0.05 s spans,
   integer-ms fades) are unchanged.
 - **Bounded DOM.** The ruler, the Levels envelope and the waveform tiles
   mount only what meets the viewport: the ruler and envelope in 2048 px

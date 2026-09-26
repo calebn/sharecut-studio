@@ -16,10 +16,13 @@ import {
 import {
   type ClipMovePointerInfo,
   type ClipSelectMods,
-  MOVE_THRESHOLD_PX,
   waveformTicksToTimeline,
 } from "../edit/clipMove";
-import { isHandleDrag } from "../edit/dragThreshold";
+import {
+  isHandleDrag,
+  MOVE_THRESHOLD_PX,
+  ROLL_COMMIT_MIN_PX,
+} from "../edit/dragThreshold";
 import { clampFadeMs, maxFadeMs } from "../edit/fadeLimits";
 import { useSnapTicks } from "../hooks/useSnapTicks";
 import { isShareProjectKey } from "../shareMode";
@@ -187,9 +190,6 @@ function clipLabel(role: string, durationSec: number, width: number): string {
   }
   return `${role} · ${dur}`;
 }
-
-/** A roll shorter than this (px at the current zoom) is not committed. */
-const ROLL_COMMIT_MIN_PX = 0.5;
 
 function msToPx(ms: number, zoomPxPerSec: number): number {
   return Math.max(4, (ms / 1000) * zoomPxPerSec);

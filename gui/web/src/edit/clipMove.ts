@@ -3,8 +3,6 @@ import type { ClipRow, TrackView } from "../types/project";
 import { EMPTY_ARR, EMPTY_OBJ, EMPTY_SET } from "../utils/empty";
 import { originTrackId, sourceSecOnClipToTimeline } from "../utils/timebase";
 
-export const MOVE_THRESHOLD_PX = 5;
-
 export type ClipMoveItem = {
   clip_id: string;
   timeline_start: number;
