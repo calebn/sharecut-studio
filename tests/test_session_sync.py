@@ -610,6 +610,26 @@ def test_hub_unsubscribe_and_full_queue(minimal_project) -> None:
     hub.unsubscribe(key, q3)
 
 
+def test_hub_publish_only_schedules_delivery() -> None:
+    """Document submit publishes under the project and sqlite write locks: publish must not block."""
+    import asyncio
+
+    from podcast_mcp.services.session_sync.hub import SessionHub
+
+    hub = SessionHub()
+    loop = asyncio.new_event_loop()
+    key = "k-schedule"
+    try:
+        queue = hub.subscribe(key, loop)
+        hub.publish(key, {"n": 1})  # the loop is not running: a blocking publish would hang
+        assert queue.qsize() == 0
+        loop.run_until_complete(asyncio.sleep(0))
+        assert queue.get_nowait() == {"n": 1}
+        hub.unsubscribe(key, queue)
+    finally:
+        loop.close()
+
+
 def test_apply_ws_client_message_paths(minimal_project) -> None:
     from podcast_mcp.gui.server import apply_ws_client_message
 

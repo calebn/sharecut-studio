@@ -68,6 +68,11 @@ class FanoutHub:
             self._on_unsubscribed(key)
 
     def publish(self, key: str, event: dict[str, Any]) -> None:
+        """Schedule delivery of *event* on the subscribers' loop and return at once.
+
+        Must stay non-blocking: document submit publishes while holding the project lock and
+        the document.db write lock. Queue puts and overflow run on the loop, never here.
+        """
         with self._lock:
             subs = list(self._subs.get(key, ()))
             loop = self._loops.get(key)

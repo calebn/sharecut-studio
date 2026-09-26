@@ -254,8 +254,8 @@ class DocumentSyncService:
                 "snapshot": api_snap,
                 "server_seq": row["server_seq"],
             }
-            # Publish under the lock so in-process subscribers see Applied in server_seq
-            # order (publish only schedules).
+            # Publish under the locks so in-process subscribers see Applied in server_seq
+            # order. publish only schedules (test_hub_publish_only_schedules_delivery).
             get_hub().publish(self._project_key, event)
         return {"ok": True, **event}
 
@@ -270,6 +270,7 @@ class DocumentSyncService:
                 "snapshot": api_snap,
                 "server_seq": api_snap.get("server_seq", 0),
             }
+            # publish only schedules (test_hub_publish_only_schedules_delivery).
             get_hub().publish(self._project_key, event)
         return event
 
