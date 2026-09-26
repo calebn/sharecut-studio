@@ -56,6 +56,8 @@ podcast history-status --project episode.project.json   # JSON: cursor, can_undo
 
 `goto` / `undo` / `redo` **invalidate stem hash sidecars** so `play processed:*` does not trust WAVs built for another history cursor. Without `--rerender`, play falls back to **segment render** (fast A/B). Pass `--rerender` / `rerender=true` when you need full stems or premix.
 
+With `rerender=true` the move and its stale marks are committed first. The render then runs between `checkpoint()` and `save_merged()`, so an edit another request saved meanwhile is merged in as an `after merging concurrent edits` entry, and the returned cursor points at that entry. A same-value clash raises `ProjectMergeConflict`, but the move stays saved; the message says to re-render the preview, not to repeat the move.
+
 Bleed mute (`apply_transcript_gate_tool`) sets `track.transcript_gate` in the project snapshot. That flag is what makes history A/B audible: segment render re-applies the gate when the flag is on, and skips it after undo.
 
 Snapshots are recorded automatically before/after:
