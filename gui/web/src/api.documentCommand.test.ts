@@ -8,6 +8,7 @@ const enqueueCommand = vi.fn();
 const removeQueuedCommand = vi.fn();
 const addConflict = vi.fn();
 const applyDocumentResult = vi.fn();
+const requestHostDrain = vi.fn();
 
 const applyDocumentSnapshot = vi.fn();
 
@@ -16,6 +17,13 @@ vi.mock("./document/applyDocumentUpdate", () => ({
   applyDocumentSnapshot,
   mergeGuestActionDone: vi.fn(),
   mergeReturnedComment: vi.fn(),
+}));
+
+vi.mock("./state/drainOfflineQueue", () => ({ requestHostDrain }));
+
+vi.mock("./state/hostSendOrder", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./state/hostSendOrder")>()),
+  HOST_SEND_WAIT_MS: 200,
 }));
 
 vi.mock("./state/offlineStore", () => ({
@@ -127,6 +135,75 @@ describe("host document command queue", () => {
       await first;
       await assertion;
       expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(requestHostDrain).not.toHaveBeenCalled();
+    });
+
+    it("stays queued and requests a drain when the earlier send stalls", async () => {
+      let releaseFirst!: () => void;
+      const fetchSpy = vi
+        .fn()
+        .mockImplementationOnce(
+          () =>
+            new Promise<Response>((resolve) => {
+              releaseFirst = () => resolve(new Response("{}", { status: 200 }));
+            }),
+        )
+        .mockImplementation(async () => {
+          throw new Error("unexpected second post");
+        });
+      vi.stubGlobal("fetch", fetchSpy);
+      enqueueHostCommand
+        .mockReset()
+        .mockImplementation(
+          async (_path: string, cmd: { command_id: string }) => ({
+            persisted: true,
+            hadPredecessor: cmd.command_id === "second",
+          }),
+        );
+      const { submitDocumentCommand } = await import("./api");
+      const first = submitDocumentCommand(
+        path,
+        "SetTrackMeta",
+        {},
+        { command_id: "first" },
+      );
+      await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+      const result = await submitDocumentCommand(
+        path,
+        "ApproveEdits",
+        { ids: ["a"] },
+        { command_id: "second" },
+      );
+      expect(result).toMatchObject({ queued: true, command_id: "second" });
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      await vi.waitFor(() =>
+        expect(requestHostDrain).toHaveBeenCalledWith(path),
+      );
+      // Finish the stalled send so it does not linger in the shared registry.
+      releaseFirst();
+      await first;
+    });
+
+    it("stays queued and requests a drain when the queue is unreadable after waiting", async () => {
+      const fetchSpy = vi.fn();
+      vi.stubGlobal("fetch", fetchSpy);
+      enqueueHostCommand.mockResolvedValue({
+        persisted: true,
+        hadPredecessor: true,
+      });
+      loadHostCommandQueue.mockRejectedValue(new Error("idb"));
+      const { submitDocumentCommand } = await import("./api");
+      const result = await submitDocumentCommand(
+        path,
+        "SetTrackMeta",
+        {},
+        { command_id: "mine" },
+      );
+      expect(result.queued).toBe(true);
+      expect(fetchSpy).not.toHaveBeenCalled();
+      await vi.waitFor(() =>
+        expect(requestHostDrain).toHaveBeenCalledWith(path),
+      );
     });
 
     it("stays queued behind real leftovers", async () => {
@@ -151,6 +228,9 @@ describe("host document command queue", () => {
       );
       expect(result.queued).toBe(true);
       expect(fetchSpy).not.toHaveBeenCalled();
+      await vi.waitFor(() =>
+        expect(requestHostDrain).toHaveBeenCalledWith(path),
+      );
     });
 
     it("posts the chained payload from the persisted record", async () => {

@@ -55,16 +55,10 @@ export function useDocumentSync(
     let ws: WebSocket | null = null;
     let closed = false;
     let retry: ReturnType<typeof setTimeout> | null = null;
-    let drainInFlight = false;
     const drain = () => {
-      if (drainInFlight) return;
-      drainInFlight = true;
       void import("../state/drainOfflineQueue")
-        .then(({ drainHostOfflineQueue }) => drainHostOfflineQueue(projectPath))
-        .catch(() => undefined)
-        .finally(() => {
-          drainInFlight = false;
-        });
+        .then(({ requestHostDrain }) => requestHostDrain(projectPath))
+        .catch(() => undefined);
     };
 
     const connect = () => {

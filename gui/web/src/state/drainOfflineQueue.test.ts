@@ -15,30 +15,57 @@ vi.mock("./offlineStore", () => ({
   removeHostQueuedCommands,
 }));
 
+const cmd = (id: string): QueuedCommand => ({
+  command_id: id,
+  client_seq: 1,
+  type: "SetTrackMeta",
+  payload: {},
+  created_at: 0,
+});
+
 describe("drainHostOfflineQueue", () => {
-  it("stops at a command this tab is still sending live", async () => {
+  it("stops at this tab's in-flight send and drains again once it settles", async () => {
+    const path = "/projects/episode.project.json";
     const { beginHostSend } = await import("./hostSendOrder");
-    const send = beginHostSend("/projects/episode.project.json", "live");
-    hostQueue.mockResolvedValue([
-      {
-        command_id: "live",
-        client_seq: 1,
-        type: "SetTrackMeta",
-        payload: {},
-        created_at: 1,
-      },
-      {
-        command_id: "later",
-        client_seq: 2,
-        type: "SetTrackMeta",
-        payload: {},
-        created_at: 2,
-      },
-    ]);
+    const send = beginHostSend(path, "live");
+    let current = [cmd("live"), cmd("later")];
+    hostQueue.mockImplementation(async () => current);
     const { drainHostOfflineQueue } = await import("./drainOfflineQueue");
-    await drainHostOfflineQueue("/projects/episode.project.json");
-    send.finish();
+    await drainHostOfflineQueue(path);
     expect(submit).not.toHaveBeenCalled();
+    current = [cmd("later")];
+    send.finish();
+    await vi.waitFor(() => expect(submit).toHaveBeenCalledTimes(1));
+    expect(submit.mock.calls[0][3]).toMatchObject({
+      command_id: "later",
+      replaying: true,
+    });
+  });
+
+  it("requestHostDrain runs one more pass when asked mid-drain", async () => {
+    const path = "/projects/episode.project.json";
+    let current = [cmd("x")];
+    hostQueue.mockImplementation(async () => current);
+    removeHostQueuedCommands.mockImplementation(
+      async (_p: string, ids: string[]) => {
+        current = current.filter((c) => !ids.includes(c.command_id));
+      },
+    );
+    let releaseX!: () => void;
+    submit.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseX = () => resolve({ ok: true });
+        }),
+    );
+    const { requestHostDrain } = await import("./drainOfflineQueue");
+    const first = requestHostDrain(path);
+    await vi.waitFor(() => expect(submit).toHaveBeenCalledTimes(1));
+    current = [...current, cmd("b")];
+    const second = requestHostDrain(path);
+    releaseX();
+    await Promise.all([first, second]);
+    expect(submit.mock.calls.map((c) => c[3].command_id)).toEqual(["x", "b"]);
   });
 
   beforeEach(() => {
