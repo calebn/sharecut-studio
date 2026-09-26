@@ -29,6 +29,8 @@ Ingest must map everything to one **session timeline** (podcast real time):
 
 Do **not** use the same file timestamp on every recorder without `session_start_in_file_sec`.
 
+**Pre-aligned / manifest-pinned stems:** equal-length per-person stems (e.g. Zoom) and a pinned `session_offset_sec` (recorded as `align_method: manual`) are locked by pipeline `align_tracks` (`hold` / `manual`) and keep their placement; only `align.realign` (or `pipeline run --realign`) re-scores them.
+
 ## Workflow
 
 1. **One source file per speaker** in `ingest.yaml` — draft it with **`podcast ingest import DIR`** from a generic recorder export folder (audio-only; review labels) or author by hand.

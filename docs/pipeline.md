@@ -5,7 +5,7 @@ Default step order (see [transcript-workflow.md](transcript-workflow.md) for tra
 1. `ingest_tracks` — Probe audio, validate paths
 2. `transcribe_tracks` — faster-whisper per dialogue track (and per extra source file)
 3. `align_tracks` — Conversation-clock placement (bleed phrases / own-speech gaps); default on; uncheck for unrelated clips
-4. `require_align_accept` — Gate until align done/waived (`align.accept.mode`; auto-waive with `--unattended`)
+4. `require_align_accept` — Gate until align done/waived (`align.accept.mode`; auto-waive with `--unattended`, but never moves above `align.large_move_sec`)
 5. `merge_transcript` — Combined time-ordered script
 6. `render_dialogue_stems` — Pass-1 per-track stems for audibility
 7. `reconcile_transcript` — Pass 1: audibility/bleed suppress
@@ -22,7 +22,7 @@ Default step order (see [transcript-workflow.md](transcript-workflow.md) for tra
 18. `reconcile_transcript` — Pass 2: post-FX audibility refresh
 19. `mix_with_music` — Intro/outro/bed + ducking envelopes
 20. `master_loudness` — two-pass loudnorm to podcast target; rebuilds a missing or stale premix first; writes `artifacts/master_qc.json` verification report and `artifacts/mastered.hash`
-21. `export_deliverables` — re-masters when `mastered.hash` doesn't match the current premix. A master with no hash (mastered before #425) is re-mastered once, and an imported or legacy episode with only `mastered.wav` and no `premix.wav` is re-assembled, re-mixed and re-mastered instead of exported as-is; audio (WAV + configured FFmpeg formats), SRT, MD; writes `artifacts/export_qc.json` (reconciliation staleness + mastering QC rollup — check `ok` before shipping)
+21. `export_deliverables` — re-masters when `mastered.hash` doesn't match the current premix. A master with no hash (mastered before #425) is re-mastered once, and an imported or legacy episode with only `mastered.wav` and no `premix.wav` is re-assembled, re-mixed and re-mastered instead of exported as-is; audio (WAV + configured FFmpeg formats), SRT, MD; writes `artifacts/export_qc.json` (reconciliation staleness + mastering QC + unaccepted relative align drift rollup — check `ok` before shipping)
 
 Transcript quality runs **before** focus/tighten so search and narrative edits use reconciled, precorrected, refined text.
 
@@ -31,10 +31,13 @@ Transcript quality runs **before** focus/tighten so search and narrative edits u
 After ASR (while bleed phrases still exist in the transcript), **`align_tracks`**
 places each whole-file dialogue clip on one session clock:
 
-1. **Bleed n-grams** — same phrase on two+ tracks ⇒ median Δt (strong clock when matches agree). Sub-second Δt (`align.bleed_identity_sec`) is confirmed with waveform xcorr before apply; identity only when acoustic lag is ~0.
-2. Else **own-speech / VAD gaps** — occupancy excludes bleed copies and stretched ASR words; N-way union; hierarchical coarse→fine sweep over a bound from the longest dialogue file (`align.max_offset_sec: 0` = auto). Applied when confident about a multi-second move (not search-wall; near-exact equal lengths require a clear win over identity). Local **silence-midpoint** refine (±2s, capped to ~0.3s drift) polishes the peak.
-3. Else **late-join occupancy** — after leading file silence, park the first real speech island in a host silence long enough to hold it (silence-mid − utterance center, or silence start if mid would overhang). Apply only when turn-taking **clearly beats identity**. Method `gaps_late`; then the same local silence-mid refine. Sparse one-off bleed bigrams are for human/agent diagnosis, not the default clock.
-4. **Equal duration / weak hold** — near-exact file lengths (~50ms) soft-hold identity when gaps and late-join are not confident; otherwise `weak_hold` at 0.
+0. **Locks first** - equal-duration stems (within ~50 ms of the reference, `same_length_prior`) are held at identity as method `hold`; a manifest-pinned offset (`meta.ingest_alignment[*].align_method == "manual"`) is kept as method `manual`. Locked clips keep their geometry exactly (splits, ripples, ingest placement). Only `align.realign: true` (GUI/MCP config, or `podcast pipeline run --realign`) re-scores them.
+1. **Bleed n-grams** - same phrase on two+ tracks gives a weighted-median Δt. Bleed counts only when at least `align.min_bleed_matches` (5) n-grams cluster **and** carry at least `align.bleed_min_share` (0.3) of the weighted matches; n-grams made only of filler/stopwords ("i don't know") count 0.2x, and repeated phrases are down-weighted by their multiplicity. Sub-second Δt (`align.bleed_identity_sec`) is confirmed with waveform xcorr before apply; identity only when acoustic lag is ~0.
+2. Else **own-speech / VAD gaps** - occupancy excludes bleed copies and stretched ASR words; N-way union; hierarchical coarse-to-fine sweep over a bound from the longest dialogue file (`align.max_offset_sec: 0` = auto). Applied when confident about a multi-second move (not search-wall). Local **silence-midpoint** refine (±2s, capped to ~0.3s drift) polishes the peak.
+3. Else **late-join occupancy** - after leading file silence, park the first real speech island in a host silence long enough to hold it (silence-mid minus utterance center, or silence start if mid would overhang). Apply only when turn-taking **clearly beats identity**. Method `gaps_late`; then the same local silence-mid refine. Sparse one-off bleed bigrams are for human/agent diagnosis, not the default clock.
+4. **Weak hold** - when gaps and late-join are not confident, `weak_hold` at 0.
+
+**Large moves:** any candidate above `align.large_move_sec` (1.0 s) must be confirmed by waveform xcorr (at least 3 windows, peak at least `align.large_move_min_peak`, residual within `align.acoustic_agree_sec`). Unconfirmed candidates are held at 0 as `unconfirmed_hold`; the candidate stays in the artifact (`candidate_offset_sec`, `acoustic_confirmed`) and the step summary so a person can listen and nudge.
 
 Writes `meta.ingest_alignment`, clip geometry, and `artifacts/alignment/conversation_align.json`.
 Does **not** blade/split one WAV into multiple clips. Several raw files per speaker stay
@@ -42,7 +45,7 @@ several whole clips (`source_id`).
 
 **`require_align_accept`** blocks later steps until `podcast align done` / waive. Unattended /
 `PODCAST_BATCH=1` with `align.accept.mode: waive_unattended` keeps the scorer result and
-auto-waives (it does **not** skip the scorer). Uncheck **Align tracks** in the Pipeline
+auto-waives (it does **not** skip the scorer). It never auto-waives a move above `align.large_move_sec`: the gate stops and names the tracks so a person listens first. Uncheck **Align tracks** in the Pipeline
 pane when files are unrelated segments — the gate cascade-disables with it.
 `merge_transcript` still depends only on `transcribe_tracks` so skipping align does not
 disable ASR.
@@ -50,6 +53,8 @@ disable ASR.
 **v1 limits (documented, not solved here):** one offset per whole file (no clock-drift
 piecewise sync); mixdown/stereo “everyone on one track”; Whisper silence hallucinations
 beyond treating sparse own-speech as weak occupancy.
+
+`export_qc.json` includes an `alignment` block: relative track-vs-reference drift above `align.large_move_sec` on an unlocked track that no person accepted (missing/pending/stale, or waived by `unattended`) is an issue (`ok: false`; a warning when `align.accept.mode: off`).
 
 CLI/MCP: `podcast align status|brief|done|waive` / `align_*_tool`. Skill: **podcast-align-audio**.
 
@@ -62,9 +67,9 @@ Sharecut Studio Pipeline pane and MCP tools share a **working set** of enabled s
 - `GET`/`PUT` config and `POST` analyze — see [gui-integration.md](gui-integration.md) § Pipeline tab
 - Config payload includes `whisper_models` with per-model `cached`; GUI `transcribe.model` is a catalog picker that confirms before downloading via bootstrap (whisper-only). Pipeline `components.whisper.ok` requires the selected weights on disk. Pipeline **Run** (GUI/MCP/CLI) fails fast if `transcribe_tracks` would run and weights are missing — it never Hugging Face–pulls; use bootstrap or the picker Dialog to download.
 - MCP: `pipeline_get_config_tool`, `pipeline_set_config_tool`, `pipeline_analyze_tool`, then `pipeline_run` (skill **podcast-pipeline-tune**)
-- CLI: `podcast pipeline run --unattended` and optional `--skip a,b,c`
+- CLI: `podcast pipeline run --unattended`, optional `--skip a,b,c`, and `--realign` (re-score equal-length / manifest-pinned stems in `align_tracks`)
 - Enabling a step expands `depends_on`; missing FFmpeg/whisper/rnnoise show as component badges (bootstrap CTAs)
-- **Analyze** proposes static knobs from diagnostics (hum, noise floor, gate, bleed, clipping); any gate-overreach finding always proposes a milder `effects.gate` (-6 dB threshold, applied once per Analyze call regardless of how many tracks are flagged), seeded from the resolved `gate` preset when the working set has none (see [audio-engineering.md](audio-engineering.md#effect-presets-source-of-truth)); loudness measure→target still happens inside balance/master at run time
+- **Analyze** proposes static knobs from diagnostics (hum, noise floor, gate, bleed, clipping, pre-aligned equal-duration dialogue); any gate-overreach finding always proposes a milder `effects.gate` (-6 dB threshold, applied once per Analyze call regardless of how many tracks are flagged), seeded from the resolved `gate` preset when the working set has none (see [audio-engineering.md](audio-engineering.md#effect-presets-source-of-truth)); loudness measure→target still happens inside balance/master at run time
 
 ## Resume from a step
 
