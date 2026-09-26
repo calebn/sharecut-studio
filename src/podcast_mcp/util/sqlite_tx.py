@@ -1,4 +1,4 @@
-"""One ``BEGIN IMMEDIATE`` write-transaction helper for every sqlite store."""
+"""One ``BEGIN IMMEDIATE`` write-transaction helper for every sqlite store, and busy detection."""
 
 from __future__ import annotations
 
@@ -6,6 +6,19 @@ import contextlib
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
+
+_BUSY_CODES = frozenset({sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED})
+
+
+def is_sqlite_busy(exc: BaseException) -> bool:
+    """True for a sqlite busy/locked error: another connection held the write lock past the busy timeout."""
+    if not isinstance(exc, sqlite3.OperationalError):
+        return False
+    code = getattr(exc, "sqlite_errorcode", None)
+    if code is not None:
+        return (code & 0xFF) in _BUSY_CODES
+    text = str(exc).lower()
+    return "locked" in text or "busy" in text
 
 
 @contextmanager

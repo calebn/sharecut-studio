@@ -1482,9 +1482,14 @@ def test_command_id_retry_from_another_client_is_a_conflict(minimal_project):
     assert len(_journal(svc)) == 1
 
 
-def test_http_command_returns_503_when_the_project_lock_times_out(minimal_project, monkeypatch):
+@pytest.mark.parametrize(
+    "error",
+    [Timeout("episode.project.json.lock"), sqlite3.OperationalError("database is locked")],
+    ids=["project-lock", "sqlite-busy"],
+)
+def test_http_command_returns_503_when_the_project_is_busy(minimal_project, monkeypatch, error):
     def busy(self, command, **kwargs):
-        raise Timeout("episode.project.json.lock")
+        raise error
 
     monkeypatch.setattr(DocumentSyncService, "submit", busy)
     client = TestClient(create_app())
@@ -1501,6 +1506,27 @@ def test_http_command_returns_503_when_the_project_lock_times_out(minimal_projec
     )
     assert r.status_code == 503
     assert "busy" in r.json()["detail"].lower()
+    assert r.headers["X-Sharecut-Error-Code"] == "project_busy"
+
+
+def test_http_command_does_not_hide_other_sqlite_errors(minimal_project, monkeypatch):
+    def broken(self, command, **kwargs):
+        raise sqlite3.OperationalError("disk I/O error")
+
+    monkeypatch.setattr(DocumentSyncService, "submit", broken)
+    client = TestClient(create_app())
+    with pytest.raises(sqlite3.OperationalError):
+        client.post(
+            "/api/document/command",
+            params={"path": str(minimal_project)},
+            json={
+                "type": "AddComment",
+                "payload": {"body": "x", "author": "v", "timeline_start": 1.0},
+                "client_id": "v1",
+                "role": "viewer",
+                "client_seq": 1,
+            },
+        )
 
 
 def test_submit_publishes_applied_inside_the_project_transaction(minimal_project, monkeypatch):

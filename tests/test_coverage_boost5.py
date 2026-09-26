@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 import threading
 from urllib.parse import quote
 from uuid import uuid4
@@ -47,7 +48,8 @@ def _recv_until(ws, type_name: str, limit: int = 20) -> dict:
     raise AssertionError(f"did not receive type={type_name!r}")
 
 
-def test_document_ws_reports_a_busy_project_and_stays_open(minimal_project, monkeypatch):
+@pytest.mark.parametrize("error", ["project-lock", "sqlite-busy"])
+def test_document_ws_reports_a_busy_project_and_stays_open(minimal_project, monkeypatch, error):
     from filelock import Timeout
 
     from podcast_mcp.services.document_sync import DocumentSyncService
@@ -58,7 +60,9 @@ def test_document_ws_reports_a_busy_project_and_stays_open(minimal_project, monk
     def busy_once(self, command, **kwargs):
         calls["n"] += 1
         if calls["n"] == 1:
-            raise Timeout("episode.project.json.lock")
+            if error == "project-lock":
+                raise Timeout("episode.project.json.lock")
+            raise sqlite3.OperationalError("database is locked")
         return real(self, command, **kwargs)
 
     monkeypatch.setattr(DocumentSyncService, "submit", busy_once)
