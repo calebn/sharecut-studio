@@ -35,4 +35,24 @@ describe("listenerSet", () => {
     expect(b).toHaveBeenCalledOnce();
     expect(c).toHaveBeenCalledOnce();
   });
+
+  it("keeps notifying after a listener throws, and rethrows later", () => {
+    const deferred: (() => void)[] = [];
+    const spy = vi
+      .spyOn(globalThis, "queueMicrotask")
+      .mockImplementation((fn) => {
+        deferred.push(fn);
+      });
+    const l = listenerSet();
+    const after = vi.fn();
+    l.subscribe(() => {
+      throw new Error("boom");
+    });
+    l.subscribe(after);
+    l.emit();
+    spy.mockRestore();
+    expect(after).toHaveBeenCalledOnce();
+    expect(deferred).toHaveLength(1);
+    expect(() => deferred[0]!()).toThrow("boom");
+  });
 });
