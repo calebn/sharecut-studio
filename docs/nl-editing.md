@@ -21,7 +21,7 @@ Podcast MCP supports agent-driven editing in any **MCP-capable client**. Editing
 | `list_edit_decisions_tool` | List cuts |
 | `approve_edits_tool` / `reject_edits_tool` | Review workflow |
 | `edit_impact_report_tool` | Seconds removed summary |
-| `propose_edits` / `apply_edits` | Filler/pause tightening (`propose_edits` returns `{operation, edits, skip_counts, summary}`; discourse skips are `discourse:{token}`; optional `edit_mode=ripple|mute`). Default is listen-first review, not bulk apply. |
+| `propose_edits` / `apply_edits` | Filler/pause tightening (`propose_edits` returns `{operation, edits, skip_counts, summary}`; discourse skips are `discourse:{token}`; optional `edit_mode=ripple|mute`, optional `intensity=light|medium|aggressive` ([filler-cut-quality.md § Intensity presets](filler-cut-quality.md#intensity-presets))). Default is listen-first review, not bulk apply. |
 | `ripple_delete_tool` | Cross-track ripple delete by time |
 | `ripple_delete_text_tool` | Ripple delete by transcript query |
 | `move_segment_tool` / `move_by_text_tool` | Rearrange a time range on **all dialogue tracks** (shuffle, not clip-body drag) |

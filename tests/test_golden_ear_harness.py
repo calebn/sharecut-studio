@@ -89,7 +89,7 @@ def _patch_harness(
     join: dict | Exception | None = None,
     suggested_wav: Path | None = None,
 ) -> None:
-    def propose(self, edit_mode: str | None = None):
+    def propose(self, edit_mode: str | None = None, intensity: str | None = None):
         self.ws.project.edit_decisions = list(decisions)
         return list(decisions)
 
@@ -231,6 +231,8 @@ def test_build_on_aligned_dialogue_is_blinded_and_does_not_write_fixture(
     key = json.loads((out / "key.json").read_text(encoding="utf-8"))
     manifest = json.loads((out / LISTEN_DIRNAME / "manifest.json").read_text(encoding="utf-8"))
     dumped = json.dumps(manifest)
+    assert key["intensity"] == "medium"
+    assert "intensity" not in manifest
     assert "edit_file" not in dumped
     assert "verdict" not in dumped
     assert "risk" not in dumped
@@ -584,6 +586,7 @@ def test_script_build_invokes_service(tmp_path, monkeypatch):
         called["classes"] = kwargs["classes"]
         called["seed"] = kwargs["seed"]
         called["force"] = kwargs["force"]
+        called["intensity"] = kwargs["intensity"]
         return {"out_dir": str(out), "pair_count": 0, "skipped_unsuggestable": 0}
 
     monkeypatch.setattr(harness, "build_golden_ear", fake_build)
@@ -602,6 +605,8 @@ def test_script_build_invokes_service(tmp_path, monkeypatch):
             "--seed",
             "9",
             "--force",
+            "--intensity",
+            "aggressive",
         ]
     )
     assert code == 0
@@ -611,6 +616,7 @@ def test_script_build_invokes_service(tmp_path, monkeypatch):
     assert called["project"] == FIXTURE
     assert called["out"] == dest
     assert called["force"] is True
+    assert called["intensity"] == "aggressive"
 
 
 def test_script_build_uses_service_default_classes(tmp_path, monkeypatch):
@@ -619,12 +625,21 @@ def test_script_build_uses_service_default_classes(tmp_path, monkeypatch):
 
     def fake_build(project, out, **kwargs):
         called["classes"] = kwargs["classes"]
+        called["intensity"] = kwargs.get("intensity")
         return {"out_dir": str(out), "pair_count": 0, "skipped_unsuggestable": 0}
 
     monkeypatch.setattr(harness, "build_golden_ear", fake_build)
     assert harness.main(["build", "--project", str(FIXTURE), "--out", str(tmp_path / "out")]) == 0
     assert called["classes"] is None
+    assert called["intensity"] is None
     assert parse_classes(called["classes"]) == ("filler", "pause", "repetition", "restart")
+
+
+def test_build_rejects_unknown_intensity(tmp_path):
+    out = tmp_path / "o"
+    with pytest.raises(ValueError):
+        build_golden_ear(FIXTURE, out, intensity="extreme")
+    assert not (out / "key.json").exists()
 
 
 def test_build_real_aligned_dialogue_smoke(tmp_path):

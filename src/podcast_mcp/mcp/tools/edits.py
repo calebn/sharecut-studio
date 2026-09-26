@@ -334,7 +334,9 @@ def edit_impact_report_tool(project_path: str, markdown: bool = False) -> str:
     return report if isinstance(report, str) else to_json(report)
 
 
-def propose_edits(project_path: str, edit_mode: str | None = None) -> str:
+def propose_edits(
+    project_path: str, edit_mode: str | None = None, intensity: str | None = None
+) -> str:
     """Propose filler/pause tighten edits for review (does not apply them).
 
     Returns a JSON object ``{operation, edits, skip_counts, summary}`` (not a
@@ -342,12 +344,18 @@ def propose_edits(project_path: str, edit_mode: str | None = None) -> str:
     ``propose_edits``. ``skip_counts`` maps ``discourse:{token}`` to kept uses.
     ``edit_mode`` is ``ripple`` (default, from ``tighten.edit_mode``) or ``mute``.
     Mute proposes ``EditDecisionType.MUTE`` filler hits and skips pause
-    candidates (muting a pause is a no-op). Pipeline auto-tighten stays off;
+    candidates (muting a pause is a no-op). ``intensity`` is ``light`` /
+    ``medium`` / ``aggressive`` (default from ``tighten.intensity``, else medium):
+    a deterministic preset over existing tighten keys (light = clear um/uh only
+    and >=0.5 s pause air; aggressive = isolated fillers, borderline discourse
+    markers, 0.3 s solo pauses). Unknown values raise. Suggest a tier from the
+    episode (interview -> light, solo monologue -> aggressive); the pipeline
+    itself never chooses. Pipeline auto-tighten stays off;
     listen-first review before apply_edits / approve_edits. Not NL cut-by-text
     (cut_* tools) or narrative focus (focus tools).
     """
     ws = ProjectWorkspace.open(project_path)
-    proposal = EditService(ws).propose_tighten(edit_mode=edit_mode)
+    proposal = EditService(ws).propose_tighten(edit_mode=edit_mode, intensity=intensity)
     agent_mutated(ws)
     return to_json(
         {

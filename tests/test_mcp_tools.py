@@ -182,6 +182,10 @@ def test_propose_and_apply_edits(tmp_path):
     assert muted["operation"] == "propose_edits"
     assert muted["edits"]
     assert all(e["type"] == "mute" for e in muted["edits"])
+    light = json.loads(mcp_server.propose_edits(path, intensity="light"))
+    assert light["operation"] == "propose_edits"
+    with pytest.raises(ValueError):
+        mcp_server.propose_edits(path, intensity="extreme")
     out = mcp_server.propose_edits(path)
     proposed = json.loads(out)
     assert proposed["operation"] == "propose_edits"

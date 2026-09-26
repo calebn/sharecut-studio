@@ -7,6 +7,7 @@ import typer
 
 from podcast_mcp.cli.context import get_progress
 from podcast_mcp.cli.timed import timed_command
+from podcast_mcp.edits.tighten_intensity import normalize_tighten_intensity
 from podcast_mcp.services import EditService, ProjectWorkspace
 
 edit_app = typer.Typer(help="Transcript-driven cuts for natural language editing.")
@@ -20,9 +21,19 @@ def propose_edits_cmd(
         "--edit-mode",
         help="ripple (default from config) or mute (silence in place).",
     ),
+    intensity: str | None = typer.Option(
+        None,
+        "--intensity",
+        help="light, medium (default from tighten.intensity), or aggressive preset.",
+    ),
 ) -> None:
+    if intensity is not None:
+        try:
+            intensity = normalize_tighten_intensity(intensity)
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc), param_hint="--intensity") from exc
     ws = ProjectWorkspace.open(project)
-    proposal = EditService(ws).propose_tighten(edit_mode=edit_mode)
+    proposal = EditService(ws).propose_tighten(edit_mode=edit_mode, intensity=intensity)
     typer.echo(proposal.summary())
 
 

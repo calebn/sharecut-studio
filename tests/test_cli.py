@@ -193,6 +193,16 @@ def test_propose_edits_command(tmp_path):
         ["propose-edits", "--project", str(project_path), "--edit-mode", "mute"],
     )
     assert muted.exit_code == 0
+    light = runner.invoke(
+        app, ["propose-edits", "--project", str(project_path), "--intensity", "light"]
+    )
+    assert light.exit_code == 0
+    assert "proposed" in light.stdout
+    bad = runner.invoke(
+        app, ["propose-edits", "--project", str(project_path), "--intensity", "extreme"]
+    )
+    assert bad.exit_code != 0
+    assert "intensity" in bad.output.lower()
 
 
 def test_propose_edits_command_without_discourse_skips(tmp_path):
