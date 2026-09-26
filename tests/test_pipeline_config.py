@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import pytest
+
 from podcast_mcp.config import load_defaults
 from podcast_mcp.pipeline.meta import (
+    PARAM_FIELDS,
     cascade_disable,
     expand_enable,
+    get_by_path,
     ordered_step_metas,
     param_fields_payload,
 )
@@ -575,3 +579,20 @@ def test_suggest_flags_equal_duration_dialogue(monkeypatch) -> None:
     assert any(r["code"] == "pre_aligned" for r in same["reasons"])
     diff = suggest_pipeline_tuning(build(1600.0))
     assert not any(r["code"] == "pre_aligned" for r in diff["reasons"])
+
+
+@pytest.mark.parametrize("field", PARAM_FIELDS, ids=lambda f: f.path)
+def test_param_field_default_matches_yaml(field) -> None:
+    assert get_by_path(load_defaults(), field.path) == field.default
+
+
+def test_align_module_constants_match_yaml() -> None:
+    from podcast_mcp.edits import conversation_align as ca
+
+    align = load_defaults()["align"]
+    assert align["large_move_sec"] == ca.LARGE_MOVE_SEC
+    assert align["large_move_min_peak"] == ca.LARGE_MOVE_MIN_PEAK
+    assert align["min_bleed_matches"] == ca.MIN_BLEED_MATCHES
+    assert align["bleed_min_share"] == ca.BLEED_MIN_SHARE
+    assert align["bleed_identity_sec"] == ca.BLEED_IDENTITY_SEC
+    assert align["realign"] is False

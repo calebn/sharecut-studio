@@ -378,7 +378,7 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         label="Bleed identity threshold",
         description=(
             "When |bleed Δt| is below this, confirm with waveform xcorr before "
-            "applying or holding identity."
+            "applying or holding identity. Capped at align.large_move_sec."
         ),
         type="number",
         default=1.0,
