@@ -884,6 +884,58 @@ def test_land_discards_unsaved_workspace_edits(
     assert load_project(minimal_project).meta.name != "unsaved rename"
 
 
+def test_land_keeps_commit_made_during_copy_phase(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    """Another writer committing between the raw copy and the land mutation is kept (#503)."""
+    from podcast_mcp.edits.comments import add_comment
+    from podcast_mcp.services.record import landing as landing_module
+
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=1_000)
+    _ack(
+        RecordUploadService(ws.project),
+        session_id=room["session_id"],
+        take=0,
+        pid=guest,
+        segment=0,
+        join_offset_ms=0,
+    )
+    original_copy = landing_module._copy_into_raw
+    fired = {"done": False}
+
+    def copy_then_commit(*args, **kwargs):
+        result = original_copy(*args, **kwargs)
+        if not fired["done"]:
+            fired["done"] = True
+            other = ProjectWorkspace.open(minimal_project)
+            other.mutate(
+                "before note",
+                "after note",
+                lambda project: add_comment(
+                    project,
+                    body="Concurrent note",
+                    author="editor",
+                    timeline_start=0.5,
+                    comment_id="concurrent-note",
+                ),
+            )
+        return result
+
+    monkeypatch.setattr(landing_module, "_copy_into_raw", copy_then_commit)
+    out = RecordLandingService(ws).land(align=lambda _p: None)
+    assert fired["done"]
+    assert [clip["participant_id"] for clip in out["clips"]] == [guest]
+    saved = load_project(minimal_project)
+    assert "concurrent-note" in {comment.id for comment in saved.comments}
+    assert any(clip.source_id.startswith("rec-") for clip in saved.clips)
+    assert "concurrent-note" in {comment.id for comment in ws.project.comments}
+
+
 def test_missing_acked_with_source_in_raw_stays_landed(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):

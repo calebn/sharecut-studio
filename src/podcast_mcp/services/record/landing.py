@@ -516,6 +516,17 @@ class RecordLandingService:
                 "drift": drift_rows,
             }
 
+        # ``mutate`` runs on the project that ``reload_first`` re-reads under the
+        # project lock. It can be newer than the copy planned from above when a
+        # non-land writer (edit, share, comment) committed meanwhile. Land and
+        # discard are serialized by the session land lock, other writers are not.
+        # Everything written here is re-derived from ``project``:
+        # ``_copied_raw_matches``, the source/clip/track upserts, and
+        # ``_land_live_comments``, which upserts by id. The earlier inputs come from
+        # the record session store (``snap`` offsets, ``fallback``) or only widen what
+        # is re-applied (the room-tone set from ``_room_tone_missing``).
+        # Re-registering a bed is an idempotent upsert, so a stale planning read
+        # cannot drop or corrupt newer project state.
         def mutate(project: EpisodeProject) -> dict[str, Any]:
             landed_clips: list[dict[str, Any]] = []
             accepted: list[dict[str, Any]] = []
