@@ -28,6 +28,20 @@ from podcast_mcp.util.project_state import (
 )
 
 
+@pytest.fixture
+def rollback_outcomes(monkeypatch):
+    outcomes: list[RollbackOutcome] = []
+    original = rollback_mod.roll_back_history
+
+    def spy(project, checkpoint):
+        outcome = original(project, checkpoint)
+        outcomes.append(outcome)
+        return outcome
+
+    monkeypatch.setattr(session_mod, "roll_back_history", spy)
+    return outcomes
+
+
 def _decision(id_: str) -> EditDecision:
     return EditDecision(id=id_, track_id="host", type=EditDecisionType.REMOVE, start=0, end=1)
 
@@ -157,8 +171,7 @@ def test_failed_mutation_rolls_back_its_history(minimal_project, monkeypatch, st
     assert history_snapshot_ids(index_path) == ids_before
     assert proj.history == history_before
     assert HistoryManager(path).status(proj).total == 1
-    if stage in ("mutate", "mutate_interrupt"):
-        assert [d.id for d in proj.edit_decisions] == ["unrecorded"]
+    assert [d.id for d in proj.edit_decisions] == ["unrecorded"]
 
 
 def test_failed_mutation_keeps_the_redo_branch(minimal_project):
@@ -181,7 +194,9 @@ def test_failed_mutation_keeps_the_redo_branch(minimal_project):
     assert len(proj.history.entries) == 2
 
 
-def test_failed_mutation_keeps_entries_another_writer_recorded_on_top(minimal_project, caplog):
+def test_failed_mutation_keeps_entries_another_writer_recorded_on_top(
+    minimal_project, caplog, rollback_outcomes
+):
     path, proj, index_path = _setup(minimal_project)
 
     def fn(_p):
@@ -197,6 +212,7 @@ def test_failed_mutation_keeps_entries_another_writer_recorded_on_top(minimal_pr
     assert labels[-1] == "other writer"
     assert set(labels) <= {"initial", "before", "other writer"}
     assert "keeping its entries" in caplog.text
+    assert rollback_outcomes == [RollbackOutcome.KEPT]
     assert [e.label for e in proj.history.entries] == labels
 
 
@@ -219,10 +235,12 @@ def test_commit_that_landed_keeps_its_history(minimal_project, monkeypatch):
     assert _labels(path) == expected
     assert len(history_snapshot_ids(index_path)) == 3
     assert [e.label for e in proj.history.entries] == expected
+    assert [d.id for d in proj.edit_decisions] == ["unrecorded", "n"]
+    assert [d.id for d in load_project(path).edit_decisions] == ["unrecorded", "n"]
 
 
 def test_failed_mutation_leaves_history_on_disk_when_project_file_cannot_be_stated(
-    minimal_project, monkeypatch, caplog
+    minimal_project, monkeypatch, caplog, rollback_outcomes
 ):
     path, proj, index_path = _setup(minimal_project)
 
@@ -238,8 +256,12 @@ def test_failed_mutation_leaves_history_on_disk_when_project_file_cannot_be_stat
     history_before = proj.history.model_copy(deep=True)
     with caplog.at_level(logging.WARNING):
         with pytest.raises(RuntimeError, match="boom"):
-            run_mutation(path, proj, "before", "after", lambda p: None)
+            run_mutation(
+                path, proj, "before", "after", lambda p: p.edit_decisions.append(_decision("n"))
+            )
 
+    assert rollback_outcomes == [RollbackOutcome.UNKNOWN]
+    assert [d.id for d in proj.edit_decisions] == ["unrecorded"]
     assert "Could not stat" in caplog.text
     labels = [e["label"] for e in json.loads(index_path.read_text())["entries"]]
     assert "before" in labels
@@ -404,3 +426,132 @@ def test_roll_back_history_returns_restored_and_landed(minimal_project):
         store.commit(proj)
     assert rollback_mod.roll_back_history(proj, checkpoint) is RollbackOutcome.LANDED
     assert proj.history.entries[-1].label == "y"
+
+
+def _ids(project) -> list[str]:
+    return [d.id for d in project.edit_decisions]
+
+
+def _append_new(p) -> None:
+    p.edit_decisions.append(_decision("new"))
+
+
+def test_commit_lock_timeout_restores_the_project_in_memory(
+    minimal_project, monkeypatch, rollback_outcomes
+):
+    path, proj, index_path = _setup(minimal_project)
+    index_before = json.loads(index_path.read_text())
+    history_before = proj.history.model_copy(deep=True)
+    original = session_mod.project_commit_lock
+    calls = []
+
+    def lock(project):
+        calls.append(1)
+        if len(calls) == 2:
+            raise filelock.Timeout("lock")
+        return original(project)
+
+    monkeypatch.setattr(session_mod, "project_commit_lock", lock)
+    with pytest.raises(filelock.Timeout):
+        run_mutation(path, proj, "before", "after", _append_new)
+
+    assert _ids(proj) == ["unrecorded"]
+    assert proj.history == history_before
+    assert json.loads(index_path.read_text()) == index_before
+    assert _ids(load_project(path)) == []
+    assert rollback_outcomes == [RollbackOutcome.RESTORED]
+
+
+def test_failed_save_restores_memory_and_index(minimal_project, monkeypatch, rollback_outcomes):
+    path, proj, index_path = _setup(minimal_project)
+    index_before = json.loads(index_path.read_text())
+    ids_before = history_snapshot_ids(index_path)
+
+    def broken(*_a, **_k):
+        raise OSError("disk")
+
+    monkeypatch.setattr(project_store_mod, "save_project", broken)
+    with pytest.raises(OSError, match="disk"):
+        run_mutation(path, proj, "before", "after", _append_new)
+
+    assert _ids(proj) == ["unrecorded"]
+    assert json.loads(index_path.read_text()) == index_before
+    assert history_snapshot_ids(index_path) == ids_before
+    assert rollback_outcomes == [RollbackOutcome.RESTORED]
+
+
+def test_failed_transcript_mirror_after_save_keeps_the_saved_state(
+    minimal_project, monkeypatch, rollback_outcomes
+):
+    path, proj, _index_path = _setup(minimal_project)
+
+    def broken(*_a, **_k):
+        raise RuntimeError("mirror")
+
+    monkeypatch.setattr(ProjectStore, "_mirror_transcript_cache", broken)
+    with pytest.raises(RuntimeError, match="mirror"):
+        run_mutation(path, proj, "before", "after", _append_new)
+
+    assert _ids(proj) == ["unrecorded", "new"]
+    assert _ids(load_project(path)) == _ids(proj)
+    assert [e.label for e in proj.history.entries] == ["initial", "before", "after"]
+    assert rollback_outcomes == [RollbackOutcome.LANDED]
+
+
+def test_failed_audio_bookkeeping_restores_render_state(
+    minimal_project, monkeypatch, rollback_outcomes
+):
+    path, proj, _index_path = _setup(minimal_project)
+    render_before = proj.render.model_copy(deep=True)
+    fingerprints = iter(["a", "b"])
+    monkeypatch.setattr(session_mod, "audio_state_fingerprint", lambda _p: next(fingerprints))
+
+    def broken(*_a, **_k):
+        raise RuntimeError("bookkeeping")
+
+    monkeypatch.setattr(session_mod, "record_after_audio_mutation", broken)
+    with pytest.raises(RuntimeError, match="bookkeeping"):
+        run_mutation(path, proj, "before", "after", _append_new)
+
+    assert proj.render == render_before
+    assert not proj.render.reconciliation_stale
+    assert _ids(proj) == ["unrecorded"]
+    assert rollback_outcomes == [RollbackOutcome.RESTORED]
+
+
+def test_landed_commit_keeps_memory_when_the_rollback_cannot_lock(
+    minimal_project, monkeypatch, rollback_outcomes
+):
+    path, proj, _index_path = _setup(minimal_project)
+    original = ProjectStore.commit
+
+    def commit_then_fail(self, project):
+        original(self, project)
+        raise RuntimeError("late")
+
+    def no_lock(_project):
+        raise filelock.Timeout("lock")
+
+    monkeypatch.setattr(ProjectStore, "commit", commit_then_fail)
+    monkeypatch.setattr(rollback_mod, "project_commit_lock", no_lock)
+    with pytest.raises(RuntimeError, match="late"):
+        run_mutation(path, proj, "before", "after", _append_new)
+
+    assert _ids(proj) == _ids(load_project(path)) == ["unrecorded", "new"]
+    assert rollback_outcomes == [RollbackOutcome.LANDED]
+
+
+def test_workspace_mutate_failure_leaves_ws_project_matching_disk(minimal_project, monkeypatch):
+    path, _proj, _index_path = _setup(minimal_project)
+    ws = ProjectWorkspace.open(path)
+
+    def broken(self, project):
+        raise RuntimeError("commit")
+
+    monkeypatch.setattr(ProjectStore, "commit", broken)
+    with pytest.raises(RuntimeError, match="commit"):
+        ws.mutate("before", "after", _append_new)
+
+    on_disk = load_project(path)
+    assert _ids(ws.project) == _ids(on_disk)
+    assert ws.project.history == on_disk.history
