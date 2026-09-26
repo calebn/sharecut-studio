@@ -16,6 +16,31 @@ vi.mock("./offlineStore", () => ({
 }));
 
 describe("drainHostOfflineQueue", () => {
+  it("stops at a command this tab is still sending live", async () => {
+    const { beginHostSend } = await import("./hostSendOrder");
+    const send = beginHostSend("/projects/episode.project.json", "live");
+    hostQueue.mockResolvedValue([
+      {
+        command_id: "live",
+        client_seq: 1,
+        type: "SetTrackMeta",
+        payload: {},
+        created_at: 1,
+      },
+      {
+        command_id: "later",
+        client_seq: 2,
+        type: "SetTrackMeta",
+        payload: {},
+        created_at: 2,
+      },
+    ]);
+    const { drainHostOfflineQueue } = await import("./drainOfflineQueue");
+    await drainHostOfflineQueue("/projects/episode.project.json");
+    send.finish();
+    expect(submit).not.toHaveBeenCalled();
+  });
+
   beforeEach(() => {
     submit.mockReset().mockResolvedValue({ ok: true });
     hostQueue.mockReset();

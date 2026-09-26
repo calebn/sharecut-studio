@@ -1,6 +1,7 @@
 import { submitDocumentCommand } from "../api";
 import { shareProjectKey } from "../shareMode";
 import { isClientRejection, isRetryLater } from "../utils/apiError";
+import { isHostSendInFlight } from "./hostSendOrder";
 import {
   loadCommandQueue,
   loadHostCommandQueue,
@@ -41,6 +42,10 @@ export async function drainHostOfflineQueue(
   const queue = await loadHostCommandQueue(projectPath);
   const completed: string[] = [];
   for (const cmd of queue) {
+    // This tab is still POSTing it live: replaying now would send it twice.
+    if (isHostSendInFlight(projectPath, cmd.command_id)) {
+      break;
+    }
     try {
       const result = await submitDocumentCommand(
         projectPath,
