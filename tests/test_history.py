@@ -392,3 +392,24 @@ def test_record_if_changed_rolls_back_when_the_commit_fails(minimal_project, mon
         record_if_changed(minimal_project, "manual", force=True)
     assert json.loads(index_path.read_text()) == index_before
     assert history_snapshot_ids(index_path) == ids_before
+
+
+def test_record_if_changed_rolls_back_when_the_index_write_fails(minimal_project, monkeypatch):
+    import json
+
+    from podcast_mcp.models import load_project
+    from podcast_mcp.project_store import ProjectStore, history_index_path, history_snapshot_ids
+
+    record_if_changed(minimal_project, "initial", force=True)
+    index_path = history_index_path(load_project(minimal_project))
+    index_before = json.loads(index_path.read_text())
+    ids_before = history_snapshot_ids(index_path)
+
+    def save_index(self, project):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(HistoryManager, "_save_index", save_index)
+    with pytest.raises(RuntimeError, match="boom"):
+        record_if_changed(minimal_project, "manual", force=True)
+    assert json.loads(index_path.read_text()) == index_before
+    assert history_snapshot_ids(index_path) == ids_before

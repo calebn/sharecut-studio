@@ -107,8 +107,8 @@ def _run_mutation_locked(
         # record() and commit() each take the re-entrant lock; this outer hold makes
         # record(after) + commit one cross-process step so no other commit lands between them.
         with project_commit_lock(project):
-            checkpoint.start_commit(project)
             mgr.record(project, label_after, operation=operation, params=params)
+            checkpoint.start_commit(project)
             store.commit(project)
     except BaseException:
         roll_back_history(project, checkpoint)
