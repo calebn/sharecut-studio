@@ -84,6 +84,17 @@ def test_load_transcript_context_merges_episode(tmp_path: Path) -> None:
     assert "Bob" in ctx.guest_names
 
 
+def test_load_transcript_context_merges_nested_speaker_id(tmp_path: Path) -> None:
+    (tmp_path / "show_glossary.yaml").write_text(
+        yaml.safe_dump({"analysis": {"speaker_id": {"auto_suppress": True}}}),
+        encoding="utf-8",
+    )
+    ctx = load_transcript_context(tmp_path)
+    assert ctx.speaker_id.auto_suppress is True
+    # Sibling keys from the shipped transcript_glossary.yaml survive the nested merge.
+    assert ctx.speaker_id.mode == "auto"
+
+
 def test_replacements_sorted_longest_first() -> None:
     ctx = context_from_dict(
         {

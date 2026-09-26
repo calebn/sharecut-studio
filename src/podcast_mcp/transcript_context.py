@@ -11,6 +11,7 @@ from filelock import FileLock
 from podcast_mcp.config import repo_root
 from podcast_mcp.engines.asr_timing import DEFAULT_MAX_WORD_DURATION_SEC
 from podcast_mcp.util.atomic_json import write_text_atomic
+from podcast_mcp.util.dicts import deep_merge
 from podcast_mcp.util.file_locks import shared_file_lock
 
 _GLOBAL_DEFAULTS_PATH = repo_root() / ".agents" / "defaults" / "transcript_glossary.yaml"
@@ -134,16 +135,6 @@ def _load_yaml(path: Path) -> dict[str, Any]:
         return {}
     with path.open(encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
-
-
-def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
-    out = dict(base)
-    for key, value in override.items():
-        if isinstance(value, dict) and isinstance(out.get(key), dict):
-            out[key] = _deep_merge(out[key], value)
-        else:
-            out[key] = value
-    return out
 
 
 def _parse_replacements(raw: list[Any] | None) -> list[ReplacementRule]:
@@ -304,7 +295,7 @@ def context_to_dict(ctx: TranscriptContext) -> dict[str, Any]:
 def load_transcript_context(workspace: Path) -> TranscriptContext:
     merged: dict[str, Any] = _load_yaml(_GLOBAL_DEFAULTS_PATH)
     show_path = workspace / "show_glossary.yaml"
-    merged = _deep_merge(merged, _load_yaml(show_path))
+    merged = deep_merge(merged, _load_yaml(show_path))
     episode_path = workspace / "transcript_context.yaml"
-    merged = _deep_merge(merged, _load_yaml(episode_path))
+    merged = deep_merge(merged, _load_yaml(episode_path))
     return context_from_dict(merged)
