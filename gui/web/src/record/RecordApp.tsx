@@ -128,7 +128,7 @@ export function RecordApp({ token }: { token: string }) {
     error !== "room_full" &&
     me.consented !== false;
   const mic = useMicPermission(micEnabled, deviceId);
-  const staleMic = mic.fellBackFrom !== null && mic.fellBackFrom === deviceId;
+  const staleMic = mic.staleDeviceId !== null;
   useEffect(() => {
     // One owner for the saved mic: a dead id is forgotten in storage without
     // re-opening the stream (setDeviceId would); useMicStream skips it on Retry.

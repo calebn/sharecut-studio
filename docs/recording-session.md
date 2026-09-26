@@ -498,11 +498,7 @@ OverconstrainedError on the exact deviceId), any acquisition (first open, Retry
 or reconnect) tries the default available input once. The lobby then shows
 "Your saved microphone isn't available, so the default input is in use.", the
 select shows Default, and the saved `record:<token>:mic` id is reset without
-re-opening the stream. The fallback is latched in `useMicStream`
-(`fellBackFrom`): while the dead id is not in the enumerated input list, later
-Retry or reconnect attempts open the default input directly (one
-`getUserMedia` call), and a failed Retry keeps the notice. Once the device is
-listed again, the next acquisition tries it first. Blocked-permission
+re-opening the stream. The fallback is latched in `useMicStream` (exposed as `staleDeviceId`) until the saved id opens again or the guest picks another input. Turning the mic off (consent decline, full room, access ended) keeps the latch, so the dead id is never written back to storage. While latched, each acquisition enumerates inputs first: when that list is non-empty and still lacks the id, Retry or reconnect opens the default input directly (one `getUserMedia` call) and a failed Retry keeps the notice; when enumeration fails or is empty, or the device is listed again, the saved id is tried first. Blocked-permission
 errors never fall back. A successful
 reacquisition opens the next segment at the current recording-clock offset,
 extrapolated from the last room snapshot when the stream changes. Keeper gate
