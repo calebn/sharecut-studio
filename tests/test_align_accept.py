@@ -717,11 +717,26 @@ def test_legacy_clips_do_not_borrow_other_clip_acceptance(tmp_path: Path) -> Non
     _write_two_track_plans(p, method="manual", offset=20.0)
     mark_align_done(p)
     p.clips.append(
-        Clip(id="second", track_id="guest", source_start=10.0, source_end=40.0, timeline_start=40.0)
+        Clip(id="second", track_id="guest", source_start=10.0, source_end=40.0, timeline_start=30.0)
     )
     issues = alignment_drift_report(p)["issues"]
     assert len(issues) == 1
     assert "accept is stale" in issues[0]
+
+
+def test_legacy_split_inheritance_requires_unique_missing_parent() -> None:
+    from podcast_mcp.edits.align_accept_status import _index_placement_rows, _placement_rows
+
+    child = Clip(
+        id="child", track_id="guest", source_start=10.0, source_end=40.0, timeline_start=30.0
+    )
+    rows = [
+        {"clip_id": name, "source_id": None, "source_start": 0.0, "source_end": 50.0}
+        for name in ("parent-a", "parent-b")
+    ]
+    by_id, by_source = _index_placement_rows(rows)
+    assert _placement_rows(by_id, by_source, child, set()) == []
+    assert _placement_rows(by_id, by_source, child, {"parent-b"}) == [rows[0]]
 
 
 def test_accepted_many_split_clips_skip_row_matching(
