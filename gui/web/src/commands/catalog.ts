@@ -9,7 +9,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     id: "transport.togglePlay",
     category: "transport",
     label: "Play / pause",
-    when: "layoutFocused",
+    when: "editorFocused",
     breaksFollow: true,
   },
   "transport.seek": {

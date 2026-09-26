@@ -29,7 +29,7 @@
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
-        "layoutFocused"
+        "editorFocused"
       ],
       "surfaces": {
         "command": "transport.togglePlay",

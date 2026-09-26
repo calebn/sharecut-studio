@@ -43,7 +43,7 @@ const CATEGORY_ORDER: KeymapCategory[] = [
 const WHEN_HINTS: Record<string, string> = {
   always: "Always (when not typing in an input)",
   layoutShell: "Desktop or tablet shell (when not typing in an input)",
-  layoutFocused: "Timeline or transcript focused",
+  editorFocused: "Timeline or transcript focused",
   timelineFocused: "Timeline focused",
   commentMode: "Comment mode on",
   canSuggestStructural: "Structural edits allowed",

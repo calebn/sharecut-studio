@@ -66,7 +66,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     label: "Play / pause",
     keys: [" ", "Space"],
     bareKey: true,
-    when: "layoutFocused",
+    when: "editorFocused",
     notes: "When timeline or transcript is focused",
   },
   {
