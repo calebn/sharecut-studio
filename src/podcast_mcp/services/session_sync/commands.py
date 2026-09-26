@@ -147,7 +147,7 @@ _PRESENCE_SEC: TypeAdapter[float] = TypeAdapter(PresenceSec)
 
 class PresenceCursor(BaseModel):
     model_config = ConfigDict(extra="ignore")
-    t_sec: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    t_sec: PresenceSec | None = None
     track_id: str | None = Field(default=None, max_length=64)
     lane_pos: float | None = Field(default=None, ge=0, le=512, allow_inf_nan=False)
     anchor: str | None = Field(default=None, pattern=_ANCHOR_RE)
@@ -172,8 +172,8 @@ class PresenceViewport(BaseModel):
     keep its zoom), which can be wider than the range actually on screen."""
 
     model_config = ConfigDict(extra="ignore")
-    start_sec: float = Field(ge=0, allow_inf_nan=False)
-    end_sec: float = Field(ge=0, allow_inf_nan=False)
+    start_sec: PresenceSec
+    end_sec: PresenceSec
 
     @model_validator(mode="after")
     def _span(self) -> PresenceViewport:
@@ -195,7 +195,7 @@ class PresenceSelection(BaseModel):
     kind: PresenceSelectionKind
     id: str | None = Field(default=None, max_length=64)
     track_id: str | None = Field(default=None, max_length=64)
-    time: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    time: PresenceSec | None = None
     word_index: int | None = Field(default=None, ge=0)
     word_end: int | None = Field(default=None, ge=0)
 

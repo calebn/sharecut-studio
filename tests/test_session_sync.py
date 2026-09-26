@@ -785,6 +785,24 @@ def test_normalize_presence_playhead_matches_transport_rule() -> None:
     assert normalize_presence_playhead(True) is None
 
 
+def test_presence_time_fields_share_presence_sec_rule() -> None:
+    from podcast_mcp.services.session_sync.commands import (
+        normalize_presence_meta,
+        normalize_presence_playhead,
+    )
+
+    for value in (0, 2.5, -1, float("nan"), float("inf"), "1.5", True):
+        expected = normalize_presence_playhead(value) is not None
+        metas = (
+            {"cursor": {"t_sec": value}},
+            {"viewport": {"start_sec": value, "end_sec": 30.0}},
+            {"viewport": {"start_sec": 0.0, "end_sec": value if value != 0 else 30.0}},
+            {"selection": {"kind": "marker", "time": value}},
+        )
+        for meta in metas:
+            assert (normalize_presence_meta(meta) is not None) == expected, (meta, value)
+
+
 def test_presence_and_ack_drop_invalid_playhead(minimal_project) -> None:
     svc = SessionSyncService(load_project(minimal_project))
 
