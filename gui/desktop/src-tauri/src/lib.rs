@@ -1,5 +1,7 @@
 //! Pure helpers for the Sharecut Studio Tauri host (no WebView / sidecar IO).
 
+#[cfg(unix)]
+pub mod cli_links;
 mod close_guard;
 mod share_url;
 mod sidecar;

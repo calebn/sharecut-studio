@@ -18,6 +18,8 @@ use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 use tauri_plugin_shell::ShellExt;
 
+#[cfg(unix)]
+use sharecut::cli_links;
 mod media_capture;
 
 struct SidecarHandle {
@@ -169,17 +171,16 @@ fn handle_exit_requested(app: &tauri::AppHandle) -> Option<sharecut::CloseRisk> 
     }
 }
 
-#[cfg(target_os = "macos")]
-fn macos_guarded_menu(
-    app: &tauri::AppHandle<tauri::Wry>,
-) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
-    use tauri::menu::{
-        AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu, HELP_SUBMENU_ID,
-        WINDOW_SUBMENU_ID,
-    };
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn native_menu(app: &tauri::AppHandle<tauri::Wry>) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
+    #[cfg(target_os = "macos")]
+    use tauri::menu::{AboutMetadata, WINDOW_SUBMENU_ID};
+    use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu, HELP_SUBMENU_ID};
 
     let package = app.package_info();
+    #[cfg(target_os = "macos")]
     let config = app.config();
+    #[cfg(target_os = "macos")]
     let about = AboutMetadata {
         name: Some(package.name.clone()),
         version: Some(package.version.to_string()),
@@ -191,6 +192,7 @@ fn macos_guarded_menu(
             .map(|publisher| vec![publisher]),
         ..Default::default()
     };
+    #[cfg(target_os = "macos")]
     let guarded_quit = MenuItem::with_id(
         app,
         sharecut::GUARDED_QUIT_MENU_ID,
@@ -198,12 +200,37 @@ fn macos_guarded_menu(
         true,
         Some("CmdOrCtrl+Q"),
     )?;
+    let install_cli = MenuItem::with_id(
+        app,
+        cli_links::INSTALL_MENU_ID,
+        "Install Command Line Tools…",
+        true,
+        None::<&str>,
+    )?;
+    let remove_cli = MenuItem::with_id(
+        app,
+        cli_links::REMOVE_MENU_ID,
+        "Remove Command Line Tools…",
+        true,
+        None::<&str>,
+    )?;
+    #[cfg(target_os = "linux")]
+    let app_menu = Submenu::with_items(
+        app,
+        package.name.clone(),
+        true,
+        &[&install_cli, &remove_cli],
+    )?;
+    #[cfg(target_os = "macos")]
     let app_menu = Submenu::with_items(
         app,
         package.name.clone(),
         true,
         &[
             &PredefinedMenuItem::about(app, None, Some(about))?,
+            &PredefinedMenuItem::separator(app)?,
+            &install_cli,
+            &remove_cli,
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::services(app, None)?,
             &PredefinedMenuItem::separator(app)?,
@@ -239,6 +266,7 @@ fn macos_guarded_menu(
         true,
         &[&PredefinedMenuItem::fullscreen(app, None)?],
     )?;
+    #[cfg(target_os = "macos")]
     let window_menu = Submenu::with_id_and_items(
         app,
         WINDOW_SUBMENU_ID,
@@ -252,17 +280,108 @@ fn macos_guarded_menu(
         ],
     )?;
     let help_menu = Submenu::with_id_and_items(app, HELP_SUBMENU_ID, "Help", true, &[])?;
-    Menu::with_items(
-        app,
-        &[
-            &app_menu,
-            &file_menu,
-            &edit_menu,
-            &view_menu,
-            &window_menu,
-            &help_menu,
-        ],
-    )
+    #[cfg(target_os = "macos")]
+    {
+        Menu::with_items(
+            app,
+            &[
+                &app_menu,
+                &file_menu,
+                &edit_menu,
+                &view_menu,
+                &window_menu,
+                &help_menu,
+            ],
+        )
+    }
+    #[cfg(target_os = "linux")]
+    {
+        Menu::with_items(
+            app,
+            &[&app_menu, &file_menu, &edit_menu, &view_menu, &help_menu],
+        )
+    }
+}
+
+#[cfg(unix)]
+fn cli_bin_and_targets() -> Result<(PathBuf, [(String, PathBuf); 2]), String> {
+    if std::env::var_os("APPIMAGE").is_some() {
+        return Err("AppImage commands cannot be linked from a temporary mount. Use a .deb package or run the commands inside the AppImage.".into());
+    }
+    let home = std::env::var_os("HOME").ok_or("HOME is not set")?;
+    let exe = std::env::current_exe().map_err(|err| err.to_string())?;
+    let launchers = cli_links::targets(&exe).map_err(|err| err.to_string())?;
+    Ok((PathBuf::from(home).join(".local/bin"), launchers))
+}
+
+#[cfg(unix)]
+fn cli_action(app: &tauri::AppHandle, install: bool) {
+    let Some(win) = app.get_webview_window("main") else {
+        return;
+    };
+    let result = cli_bin_and_targets().and_then(|(bin, launchers)| {
+        let action = if install {
+            cli_links::install(&bin, &launchers)
+        } else {
+            cli_links::remove(&bin, &launchers)
+        };
+        action.map_err(|err| err.to_string())?;
+        let suffix =
+            if install && !cli_links::bin_on_path(&bin, std::env::var_os("PATH").as_deref()) {
+                format!(
+                    " Add {} to your shell PATH and open a new terminal.",
+                    bin.display()
+                )
+            } else {
+                String::new()
+            };
+        Ok(format!(
+            "Command line tools {} in {}.{}",
+            if install { "installed" } else { "removed" },
+            bin.display(),
+            suffix
+        ))
+    });
+    let (title, message) = match result {
+        Ok(message) => ("Command Line Tools", message),
+        Err(err) => ("Command Line Tools Error", err),
+    };
+    win.dialog()
+        .message(message)
+        .title(title)
+        .buttons(MessageDialogButtons::Ok)
+        .parent(&win)
+        .show(|_| {});
+}
+
+#[cfg(unix)]
+fn prompt_cli_once(app: &tauri::AppHandle) {
+    if cfg!(debug_assertions) || std::env::var_os("APPIMAGE").is_some() {
+        return;
+    }
+    let Ok(dir) = app.path().app_config_dir() else {
+        return;
+    };
+    let marker = dir.join("cli-tools-prompted-v1");
+    if marker.exists() {
+        return;
+    }
+    let Some(win) = app.get_webview_window("main") else {
+        return;
+    };
+    let prompt_win = win.clone();
+    win.dialog()
+        .message("Install the packaged podcast and podcast-mcp commands in ~/.local/bin? You can change this later from the app menu.")
+        .title("Command Line Tools")
+        .buttons(MessageDialogButtons::OkCancelCustom("Install".into(), "Later".into()))
+        .parent(&win)
+        .show(move |accepted| {
+            if let Err(err) = std::fs::create_dir_all(&dir) { eprintln!("Sharecut Studio: could not save CLI prompt preference: {err}"); }
+            else if let Err(err) = std::fs::OpenOptions::new().write(true).create_new(true).open(&marker) {
+                if err.kind() != io::ErrorKind::AlreadyExists { eprintln!("Sharecut Studio: could not save CLI prompt preference: {err}"); }
+            }
+            if accepted { cli_action(prompt_win.app_handle(), true); }
+        });
 }
 
 fn configure_sidecar_cmd(cmd: &mut Command) {
@@ -608,14 +727,16 @@ fn main() {
                 })
                 .build(),
         );
-    #[cfg(target_os = "macos")]
-    let builder = builder
-        .menu(macos_guarded_menu)
-        .on_menu_event(|app, event| {
-            if sharecut::is_guarded_quit_menu_item(event.id().as_ref()) {
-                app.exit(0);
-            }
-        });
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    let builder = builder.menu(native_menu).on_menu_event(|app, event| {
+        if sharecut::is_guarded_quit_menu_item(event.id().as_ref()) {
+            app.exit(0);
+        } else if event.id().as_ref() == cli_links::INSTALL_MENU_ID {
+            cli_action(app, true);
+        } else if event.id().as_ref() == cli_links::REMOVE_MENU_ID {
+            cli_action(app, false);
+        }
+    });
     builder
         .manage(SidecarState(Mutex::new(None)))
         .manage(LastOpenedShare(Mutex::new(None)))
@@ -669,6 +790,8 @@ fn main() {
                                     *guard = Some(port);
                                     drop(guard);
                                     open_engine_window(&handle, port);
+                                    #[cfg(unix)]
+                                    prompt_cli_once(&handle);
                                 }
                                 Err(_) => {
                                     show_sidecar_error(&handle, "engine port lock poisoned");
