@@ -315,9 +315,10 @@ class ShareService:
             remove_session_land_lock_file,
         )
 
+        # Purge first: it takes the land lock, which the release and file removal drop.
+        purge_session_land_rollbacks(self.ws.project, session_id)
         release_session_land_lock(session_id)
         remove_session_land_lock_file(self.ws.project.workspace_path(), session_id)
-        purge_session_land_rollbacks(self.ws.project, session_id)
         return {"session_id": session_id, "revoked": revoked}
 
     def revoke(self, token: str) -> dict[str, Any]:

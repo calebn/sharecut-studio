@@ -157,19 +157,53 @@ def remove_session_land_lock_file(workspace_dir: Path, session_id: str) -> None:
         probe.release()
 
 
+@contextmanager
+def room_land_lock(workspace_dir: Path, session_id: str) -> Iterator[None]:
+    """Hold one room's land lock: the in-process session lock, then the cross-process file lock.
+
+    Waits at most ``RECORD_LAND_LOCK_TIMEOUT_SEC`` for another process, then raises
+    ``RecordLandingError('land in progress')``.
+    """
+    with _session_land_lock(session_id):
+        file_lock = shared_file_lock(
+            record_land_lock_path(workspace_dir, session_id),
+            timeout=RECORD_LAND_LOCK_TIMEOUT_SEC,
+        )
+        try:
+            file_lock.acquire(timeout=RECORD_LAND_LOCK_TIMEOUT_SEC)
+        except FileLockTimeout as exc:
+            raise RecordLandingError("land in progress") from exc
+        try:
+            yield
+        finally:
+            file_lock.release()
+
+
+_UNDO_HINT = "undo the record_land step through history to remove the stale registration"
+
+
 def purge_session_land_rollbacks(project: EpisodeProject, session_id: str) -> None:
-    """Drop a revoked room's deferred rollbacks: landing can no longer retry them."""
+    """Drop a revoked room's deferred rollbacks: landing can no longer retry them.
+
+    Runs under the room's land lock, so an in-flight land finishes and defers its
+    rollbacks first instead of writing a row after the purge.
+    """
     try:
-        purged = RecordUploadService(project).clear_session_land_rollbacks(session_id)
+        with room_land_lock(project.workspace_path(), session_id):
+            purged = RecordUploadService(project).clear_session_land_rollbacks(session_id)
     except Exception:
-        log.exception("could not purge deferred land rollbacks session=%s", session_id)
+        log.exception(
+            "could not purge deferred land rollbacks session=%s; if a rollback was pending, %s",
+            session_id,
+            _UNDO_HINT,
+        )
         return
     if purged:
         log.warning(
-            "purged %d deferred land rollbacks of revoked room session=%s; undo the "
-            "record_land step through history to remove the stale registration",
+            "purged %d deferred land rollbacks of revoked room session=%s; %s",
             purged,
             session_id,
+            _UNDO_HINT,
         )
 
 
@@ -424,19 +458,8 @@ class RecordLandingService:
         on OS advisory file locks, which network or synced filesystems may not honour (see
         recording-session.md § Timeline landing).
         """
-        with _session_land_lock(self.session_id):
-            file_lock = shared_file_lock(
-                record_land_lock_path(self.workspace.project.workspace_path(), self.session_id),
-                timeout=RECORD_LAND_LOCK_TIMEOUT_SEC,
-            )
-            try:
-                file_lock.acquire(timeout=RECORD_LAND_LOCK_TIMEOUT_SEC)
-            except FileLockTimeout as exc:
-                raise RecordLandingError("land in progress") from exc
-            try:
-                yield
-            finally:
-                file_lock.release()
+        with room_land_lock(self.workspace.project.workspace_path(), self.session_id):
+            yield
 
     def _snapshot(self) -> RecordSnapshot:
         return RecordSnapshot.model_validate(self._room.snapshot())
