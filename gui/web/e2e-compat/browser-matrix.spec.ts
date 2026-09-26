@@ -116,8 +116,15 @@ test.describe("browser compatibility matrix", () => {
         await expect.poll(() => syntheticMicrophoneRequested(guest)).toBe(true);
         const level = guest.getByLabel("Level");
         await expect(level).toBeVisible();
+        // LevelMeter is a div role="meter"; silence reports aria-valuenow == aria-valuemin.
         await expect
-          .poll(() => level.evaluate((el) => (el as HTMLMeterElement).value))
+          .poll(async () => {
+            const [now, min] = await Promise.all([
+              level.getAttribute("aria-valuenow"),
+              level.getAttribute("aria-valuemin"),
+            ]);
+            return Number(now) - Number(min);
+          })
           .toBeGreaterThan(0);
       });
     });
