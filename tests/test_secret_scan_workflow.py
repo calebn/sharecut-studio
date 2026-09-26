@@ -25,9 +25,9 @@ _SERVER_IPV4_MARKERS = (
     ("138.68." + "214.23").encode(),
     ("216.40." + "34.41").encode(),
 )
-# Dotted quad not glued to a word or a longer dotted run (v1.2.3.4.5, SVG ``M8.5.2.1z``);
-# a sentence-final "." still matches.
-_IPV4_LITERAL = re.compile(rb"(?<!\w)(?<!\d\.)(?:\d{1,3}\.){3}\d{1,3}(?!\w|\.\d)")
+# Dotted quad not glued to a letter/digit or a longer dotted run (v1.2.3.4.5, SVG ``M8.5.2.1z``);
+# underscore-joined names (RELAY_<ip>, <ip>_prod) and a sentence-final "." still match.
+_IPV4_LITERAL = re.compile(rb"(?<![A-Za-z0-9])(?<!\d\.)(?:\d{1,3}\.){3}\d{1,3}(?![A-Za-z0-9]|\.\d)")
 
 
 def test_secret_scan_covers_changes_and_scheduled_history() -> None:
@@ -128,7 +128,7 @@ def _public_tree_violations(root: Path) -> list[str]:
             continue
         for literal in _public_ipv4_literals(relative, content):
             hits.append(f"{relative}: public IPv4 literal {literal}")
-        markers = forbidden
+        markers: tuple[bytes, ...] = forbidden
         if _skips_ipv4_scan(relative, content):
             markers = (*forbidden, *_SERVER_IPV4_MARKERS)
         content = content.lower()
@@ -280,11 +280,13 @@ def test_public_tree_skips_lockfiles_assets_and_binary_blobs_for_ipv4(tmp_path: 
     assert _public_tree_violations(tmp_path) == []
 
 
-def test_public_ipv4_literals_matches_sentence_final_and_zero_padded() -> None:
+def test_public_ipv4_literals_matches_sentence_final_padded_and_underscore_joined() -> None:
     ip = "8.8." + "4.4"
     padded = "008.008." + "004.004"
     assert _public_ipv4_literals(Path("a.md"), f"The relay lives at {ip}.".encode()) == [ip]
     assert _public_ipv4_literals(Path("a.md"), f"relay {padded}\n".encode()) == [padded]
+    assert _public_ipv4_literals(Path("a.env"), f"RELAY_{ip}\n".encode()) == [ip]
+    assert _public_ipv4_literals(Path("a.env"), f"{ip}_prod\n".encode()) == [ip]
 
 
 def test_public_ipv4_literals_deduplicates() -> None:
