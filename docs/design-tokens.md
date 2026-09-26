@@ -44,12 +44,7 @@ state**, most significant first.
 
 - Categories: `bg`, `text`, `border`, `accent`, `selection`, `warning`,
   `danger`, `success`, plus domain families (`clip-*`, `presence-*`,
-  `marker`, `waveform-*`, `envelope-*`). Recording clipping uses the
-  danger family: `--clipping-marker` (marker-lane flag and the clip tint's top
-  edge) aliases `--color-danger`; `--clipping-region` (clip tint) aliases its
-  own per-theme `--color-clipping-region` (danger at 45% dark / 40% light,
-  stronger than `--color-danger-muted` so it stays red over green and teal clip
-  fills).
+  `marker`, `waveform-*`, `envelope-*`). Recording clipping uses the danger family: `--clipping-marker` (marker-lane flag and the clip tint's top and bottom edges) aliases `--color-danger`; the clip tint (`--clipping-tint`) is `--clipping-hatch` (opaque danger 45deg stripes, defined in `tokens.css`) over `--clipping-region` (per-theme `--color-clipping-region`, danger at 45% dark / 40% light). An alpha tint alone blends toward grey over the teal dialogue fill, so the opaque hatch and edges carry the red.
 - Prominence modifiers: `-subtle`, `-muted`, `-strong`, `-solid`, `-emphasis`
   (established set — don't invent new ones; pick the nearest).
 - State modifiers as suffixes, at the **semantic** tier, from day one:

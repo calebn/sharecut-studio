@@ -204,6 +204,15 @@
   --comment-marker: var(--color-comment-marker);
   --clipping-marker: var(--color-danger);
   --clipping-region: var(--color-clipping-region);
+  --clipping-hatch: repeating-linear-gradient(
+    45deg,
+    var(--color-danger) 0 0.125rem,
+    transparent 0.125rem 0.5rem
+  );
+  --clipping-tint: var(--clipping-hatch), var(--clipping-region);
+  --clipping-edges:
+    inset 0 0.1875rem 0 var(--clipping-marker),
+    inset 0 -0.1875rem 0 var(--clipping-marker);
   --scrim: var(--color-scrim);
   --shadow: var(--color-shadow);
   --shadow-soft: var(--color-shadow-soft);
