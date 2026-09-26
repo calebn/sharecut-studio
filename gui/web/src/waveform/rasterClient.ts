@@ -1,5 +1,6 @@
 import { type BitmapEntry, bitmapCache } from "./bitmapCache";
 import { RASTER_JOBS_OUTSTANDING } from "./budgets";
+import { listenerSet } from "./listenerSet";
 import type {
   RasterInMsg,
   RasterOutMsg,
@@ -43,9 +44,9 @@ const tilesByMode: Record<RasterMode, number> = { pyramid: 0, pcm: 0, line: 0 };
 const queue = new Map<string, RasterRequest>();
 const sent = new Map<number, Sent>();
 const parityWaiters = new Map<number, (value: number | null) => void>();
-const backendListeners = new Set<() => void>();
-const doneListeners = new Set<(key: string, entry: BitmapEntry) => void>();
-const droppedListeners = new Set<(key: string) => void>();
+const backendListeners = listenerSet();
+const doneListeners = listenerSet<[key: string, entry: BitmapEntry]>();
+const droppedListeners = listenerSet<[key: string]>();
 
 function supported(): boolean {
   return (
@@ -58,9 +59,7 @@ function setBackend(next: RasterBackendState): void {
     return;
   }
   backend = next;
-  for (const fn of [...backendListeners]) {
-    fn();
-  }
+  backendListeners.emit();
 }
 
 /** Settle every pending `rasterParity()` with null. */
@@ -112,9 +111,7 @@ function onMessage(msg: RasterOutMsg): void {
     bitmapCache.set(job.key, entry);
     // An entry over the whole budget is evicted (and closed) on insert.
     if (bitmapCache.holds(job.key, entry)) {
-      for (const fn of [...doneListeners]) {
-        fn(job.key, entry);
-      }
+      doneListeners.emit(job.key, entry);
     }
   }
   pump();
@@ -188,9 +185,7 @@ function pump(): void {
   // Another layer may have skipped these keys (`hasRaster`) while they were
   // queued: tell it, so it asks again under its own `wanted`.
   for (const key of dropped) {
-    for (const fn of [...droppedListeners]) {
-      fn(key);
-    }
+    droppedListeners.emit(key);
   }
 }
 
@@ -243,16 +238,14 @@ export function hasRaster(
 export function subscribeRasterDone(
   listener: (key: string, entry: BitmapEntry) => void,
 ): () => void {
-  doneListeners.add(listener);
-  return () => doneListeners.delete(listener);
+  return doneListeners.subscribe(listener);
 }
 
 /** Called with the key of each queued job dropped because nobody wanted it. */
 export function subscribeRasterDropped(
   listener: (key: string) => void,
 ): () => void {
-  droppedListeners.add(listener);
-  return () => droppedListeners.delete(listener);
+  return droppedListeners.subscribe(listener);
 }
 
 /** `none` without Worker / createImageBitmap; `starting` until the worker reports. */
@@ -264,8 +257,7 @@ export function getRasterBackend(): RasterBackendState {
 }
 
 export function subscribeRasterBackend(listener: () => void): () => void {
-  backendListeners.add(listener);
-  return () => backendListeners.delete(listener);
+  return backendListeners.subscribe(listener);
 }
 
 /** Start the worker now (it otherwise starts with the first render). */
