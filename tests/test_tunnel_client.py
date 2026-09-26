@@ -337,6 +337,40 @@ async def test_proxy_http_unsafe_path():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "malformed",
+    [
+        {"headers": ["bad"]},
+        {"headers": []},
+        {"headers": {7: "bad"}},
+        {"headers": {"x-test": 7}},
+        {"body_b64": "%%%"},
+        {"body_b64": 7},
+        {"body_b64": None},
+    ],
+)
+async def test_proxy_http_rejects_malformed_relay_payload(malformed):
+    client = TunnelClient(RelayConfig())
+    http_client = MagicMock()
+    sent: list[dict] = []
+
+    async def send(payload: dict) -> None:
+        sent.append(payload)
+
+    await client._proxy_http(
+        http_client,
+        {"id": "r1", "path": "r/", "share_token": "tok", **malformed},
+        send=send,
+    )
+    http_client.stream.assert_not_called()
+    assert len(sent) == 1
+    assert sent[0]["type"] == "http_response"
+    assert sent[0]["status"] == 400
+    assert sent[0]["eof"] is True
+    assert base64.b64decode(sent[0]["body_b64"]) == b'{"detail":"invalid proxy request"}'
+
+
+@pytest.mark.asyncio
 async def test_proxy_http_does_not_follow_redirects():
     """object storage bypass needs 302 Location to reach the browser unchanged."""
     cfg = RelayConfig(local_gui_url="http://gui.test")

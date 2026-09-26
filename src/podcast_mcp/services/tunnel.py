@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import binascii
 import contextlib
 import json
 import logging
@@ -184,15 +185,34 @@ class TunnelClient:
         method = str(request_data.get("method") or "GET")
         path_suffix = str(request_data.get("path") or "")
         query = str(request_data.get("query") or "")
-        headers = {
-            k: v
-            for k, v in dict(request_data.get("headers") or {}).items()
-            if k.lower() not in _HOP_BY_HOP
-        }
-        headers[RELAYED_REQUEST_HEADER] = "1"
         share_token = str(request_data.get("share_token") or "")
-        body_b64 = str(request_data.get("body_b64") or "")
-        body = base64.b64decode(body_b64) if body_b64 else None
+        try:
+            raw_headers = request_data.get("headers", {})
+            if not isinstance(raw_headers, dict) or any(
+                not isinstance(k, str) or not isinstance(v, str) for k, v in raw_headers.items()
+            ):
+                raise ValueError("invalid relay request headers")
+            headers = {k: v for k, v in raw_headers.items() if k.lower() not in _HOP_BY_HOP}
+            headers[RELAYED_REQUEST_HEADER] = "1"
+            body_b64 = request_data.get("body_b64", "")
+            if not isinstance(body_b64, str):
+                raise ValueError("invalid relay request body")
+            body = base64.b64decode(body_b64, validate=True) if body_b64 else None
+        except (ValueError, binascii.Error) as exc:
+            log.warning("Rejected malformed relay HTTP request: %s", exc)
+            await send(
+                msg(
+                    "http_response",
+                    id=req_id,
+                    status=400,
+                    headers={"content-type": "application/json"},
+                    body_b64=base64.b64encode(b'{"detail":"invalid proxy request"}').decode(
+                        "ascii"
+                    ),
+                    eof=True,
+                )
+            )
+            return
 
         try:
             local_path = _map_local_path(path_suffix, share_token)
