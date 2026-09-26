@@ -48,7 +48,7 @@ Filler / hesitation pacing (`tighten.min_gap_after_filler_sec`, `filler_room_ton
    - *Remove topic X* → `search_transcript_tool` → confirm span → `cut_time_range_tool` or `cut_text_match_tool` with `review_required=true` unless user said auto-apply.
    - *Delete utterance N* → `cut_utterance_tool`.
    - *Tighten fillers* → skill **podcast-tighten-dialogue** (`propose_edits`, then
-     listen-first review / `approve_edits`; optional `intensity=light|medium|aggressive`, optional `edit_mode=mute` to silence
+     listen-first review / `approve_edits`; optional `intensity=light|medium|aggressive` (the GUI working-set tier is not read here; pass it explicitly), optional `edit_mode=mute` to silence
      in place; do not bulk `apply_edits` on a production episode). Tighten may
      also propose `filler:acoustic` hits (voiced audio the ASR missed inside a
      word gap); they are always review-only — play each before approving.
