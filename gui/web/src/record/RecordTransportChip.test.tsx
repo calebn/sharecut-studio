@@ -1,11 +1,16 @@
 import { render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { recordSnapshot } from "../test/fixtures";
 import { useRecordHostStore } from "./hostStore";
 import { RecordTransportChip } from "./RecordTransportChip";
 
 describe("RecordTransportChip", () => {
+  beforeEach(() => {
+    useRecordHostStore.getState().setConnected(true);
+  });
+
   afterEach(() => {
+    useRecordHostStore.getState().setConnected(false);
     useRecordHostStore.getState().setSnapshot(null);
     useRecordHostStore.getState().setCaptureHealth(null);
   });
@@ -20,6 +25,31 @@ describe("RecordTransportChip", () => {
       }),
     ).toBeInTheDocument();
     expect(screen.getByText("REC: no audio")).toBeInTheDocument();
+  });
+
+  it("shows a reconnecting label and no dot when the host socket drops", () => {
+    useRecordHostStore.getState().setSnapshot(recordSnapshot());
+    useRecordHostStore.getState().setConnected(false);
+    render(<RecordTransportChip />);
+    const chip = screen.getByRole("button", {
+      name: "Record room reconnecting. Open record panel",
+    });
+    expect(chip).toHaveAttribute("data-offline", "true");
+    expect(screen.getByText("REC (reconnecting)")).toBeInTheDocument();
+    expect(document.querySelector(".record-rec-dot")).toBeNull();
+  });
+
+  it("lets a capture problem outrank the offline label", () => {
+    useRecordHostStore.getState().setSnapshot(recordSnapshot());
+    useRecordHostStore.getState().setCaptureHealth("failed");
+    useRecordHostStore.getState().setConnected(false);
+    render(<RecordTransportChip />);
+    expect(
+      screen.getByRole("button", {
+        name: "Local capture failed. Open record panel",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("REC: local capture failed")).toBeInTheDocument();
   });
 
   it.each([

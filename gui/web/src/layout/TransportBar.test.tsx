@@ -27,6 +27,11 @@ describe("TransportBar collapsed", () => {
       .hydrate("/tmp/p.json", minimalProject({ timeline_duration_sec: 4000 }));
     useRecordHostStore.getState().setSnapshot(null);
     useRecordHostStore.getState().setCaptureHealth(null);
+    useRecordHostStore.getState().setConnected(true);
+  });
+
+  afterEach(() => {
+    useRecordHostStore.getState().setConnected(false);
   });
 
   it("shows host capture failure in the transport chip during REC", () => {

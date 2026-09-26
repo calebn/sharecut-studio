@@ -860,7 +860,14 @@ On the host, a failed `record.start` / `pause` / `resume` / `stop` / `land`
 command (from the keyboard, command palette or the panel) stores its error in
 `useRecordHostStore.transportError`, announces it, and opens the Record room
 panel (unless the Share dialog is open) so the error is visible rather than
-only announced. The next command or closing the panel clears it. Pending live comments queue with
+only announced. The next command or closing the panel clears it.
+
+If the host record WebSocket drops while a take is recording or paused
+(`useRecordHostStore.connected` false), the transport chip reads
+"REC (reconnecting)" with no live dot, its aria-label becomes "Record room
+reconnecting. Open record panel", and the Record room panel shows "Lost
+connection to the record room. Reconnecting…". Capture-health labels (failed,
+waiting for microphone, no audio) still take precedence on the chip. Pending live comments queue with
 idempotency keys and upsert on reconnect.
 
 If an OPFS write or close fails, the keeper latches a local-capture failure and

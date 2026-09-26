@@ -233,6 +233,17 @@ export const REC_CHIP_CAPTURE_LABEL = {
   silent: "No audio reaching the recorder. Open record panel",
 } as const satisfies Record<NonNullable<CaptureHealth>, string>;
 
+/** Appended to the REC label while the host record socket is down. */
+export const REC_OFFLINE_SUFFIX = "(reconnecting)";
+
+/** Transport chip aria-label while the host record socket is down mid-take. */
+export const REC_CHIP_OFFLINE_LABEL =
+  "Record room reconnecting. Open record panel";
+
+/** Record panel notice while the host record socket is down mid-take. */
+export const RECORD_ROOM_RECONNECTING_COPY =
+  "Lost connection to the record room. Reconnecting…";
+
 /**
  * Resolves the capture problem a REC surface shows while recording. A keeper
  * error outranks everything and mic trouble outranks no audio, so the REC

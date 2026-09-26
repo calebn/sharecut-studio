@@ -43,6 +43,15 @@ describe("RecIndicator", () => {
     expect(screen.getByText("Stopped")).toBeInTheDocument();
   });
 
+  it("appends the reconnecting suffix while live, not when stopped", () => {
+    const { rerender } = render(
+      <RecIndicator snapshot={{ ...base, state: "paused" }} offline />,
+    );
+    expect(screen.getByText("PAUSED (reconnecting)")).toBeInTheDocument();
+    rerender(<RecIndicator snapshot={{ ...base, state: "stopped" }} offline />);
+    expect(screen.getByText("Stopped")).toBeInTheDocument();
+  });
+
   it("shows REC: no audio without the live dot", () => {
     const { rerender } = render(
       <RecIndicator
