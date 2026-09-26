@@ -23,7 +23,7 @@ import {
   MOVE_THRESHOLD_PX,
   ROLL_COMMIT_MIN_PX,
 } from "../edit/dragThreshold";
-import { clampFadeMs, maxFadeMs } from "../edit/fadeLimits";
+import { clampFadeMs, edgeFadeMaxMs } from "../edit/fadeLimits";
 import { useSnapTicks } from "../hooks/useSnapTicks";
 import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -232,7 +232,6 @@ export function ClipBlockView({
   const bodyRef = useRef<BodyDrag | null>(null);
   const bodyMovedRef = useRef(false);
   const pointerHandledRef = useRef(false);
-  const fadeLimitMs = maxFadeMs(clip.source_end - clip.source_start, fadeMaxMs);
   const [fadePreview, setFadePreview] = useState<{
     edge: FadeEdge;
     inMs: number;
@@ -269,8 +268,14 @@ export function ClipBlockView({
   const label = clipLabel(role, durationSec, width);
   const fadeInMs = fadePreview?.inMs ?? clip.fade_in_ms;
   const fadeOutMs = fadePreview?.outMs ?? clip.fade_out_ms;
-  const fadeInW = fadeInMs > 0 ? msToPx(fadeInMs, zoomPxPerSec) : 0;
-  const fadeOutW = fadeOutMs > 0 ? msToPx(fadeOutMs, zoomPxPerSec) : 0;
+  // The handle that starts a fade drag holds pointer capture, so it stays
+  // mounted for the whole drag: a committed fade's region keeps its (4 px
+  // minimum) width while dragged to 0, and a zero-length handle stays until
+  // the new length is committed.
+  const fadeInW =
+    fadeInMs > 0 || clip.fade_in_ms > 0 ? msToPx(fadeInMs, zoomPxPerSec) : 0;
+  const fadeOutW =
+    fadeOutMs > 0 || clip.fade_out_ms > 0 ? msToPx(fadeOutMs, zoomPxPerSec) : 0;
   const growingOut =
     trimPreview != null && trimPreview.sourceEnd > clip.source_end + 1e-9;
   const growingIn =
@@ -313,23 +318,42 @@ export function ClipBlockView({
   });
   const waveKind = refKind(mediaRef);
 
+  /** Fade lengths for a drag of `d` to `clientX`: the dragged edge moves,
+   *  clamped to the track cap and to what the other edge leaves. */
+  const fadeAt = (d: FadeDrag, clientX: number) => {
+    const dxMs = ((clientX - d.originX) / zoomPxPerSec) * 1000;
+    const clipSec = clip.source_end - clip.source_start;
+    return d.edge === "in"
+      ? {
+          inMs: clampFadeMs(
+            d.baseIn + dxMs,
+            edgeFadeMaxMs(clipSec, fadeMaxMs, d.baseOut),
+          ),
+          outMs: d.baseOut,
+        }
+      : {
+          inMs: d.baseIn,
+          outMs: clampFadeMs(
+            d.baseOut - dxMs,
+            edgeFadeMaxMs(clipSec, fadeMaxMs, d.baseIn),
+          ),
+        };
+  };
+
   const commitFade = async (state: FadeDrag, clientX: number) => {
-    const dxMs = ((clientX - state.originX) / zoomPxPerSec) * 1000;
-    let nextIn = state.baseIn;
-    let nextOut = state.baseOut;
-    if (state.edge === "in") {
-      nextIn = clampFadeMs(state.baseIn + dxMs, fadeLimitMs);
-    } else {
-      nextOut = clampFadeMs(state.baseOut - dxMs, fadeLimitMs);
-    }
+    const next = fadeAt(state, clientX);
     try {
-      // A click (under the drag threshold) only selects; no undo entry.
-      if (isHandleDrag(state.originX, clientX)) {
+      // A click (under the drag threshold) only selects, and a drag that
+      // leaves both lengths unchanged (e.g. already at the cap) writes nothing.
+      if (
+        isHandleDrag(state.originX, clientX) &&
+        (next.inMs !== state.baseIn || next.outMs !== state.baseOut)
+      ) {
         await setClipFade(
           useDawStore.getState().projectPath,
           clip.id,
-          nextIn,
-          nextOut,
+          next.inMs,
+          next.outMs,
         );
       }
     } finally {
@@ -339,21 +363,30 @@ export function ClipBlockView({
   };
 
   const commitTrim = async (state: TrimDrag, clientX: number) => {
-    const dxSec = (clientX - state.originX) / zoomPxPerSec;
-    const proposed = magnetSec(
-      sourceSecFromTimelineDelta(state.edge, state.baseSourceSec, dxSec),
-      ticks,
-      zoomPxPerSec,
-    );
-    const sourceSec = clampTrimSourceSec(
-      state.edge,
-      proposed,
-      state.sourceStart,
-      state.sourceEnd,
-      neighborSourceLo,
-      neighborSourceHi,
-    );
     try {
+      // A click (under the drag threshold) only selects: no snap, no ripple,
+      // no undo entry.
+      if (!isHandleDrag(state.originX, clientX)) {
+        return;
+      }
+      const dxSec = (clientX - state.originX) / zoomPxPerSec;
+      const proposed = magnetSec(
+        sourceSecFromTimelineDelta(state.edge, state.baseSourceSec, dxSec),
+        ticks,
+        zoomPxPerSec,
+      );
+      const sourceSec = clampTrimSourceSec(
+        state.edge,
+        proposed,
+        state.sourceStart,
+        state.sourceEnd,
+        neighborSourceLo,
+        neighborSourceHi,
+      );
+      // A drag the snap or clamp puts back on the committed edge is a no-op.
+      if (Math.abs(sourceSec - state.baseSourceSec) < 1e-9) {
+        return;
+      }
       await trimClipEdge(
         useDawStore.getState().projectPath,
         clip.id,
@@ -378,7 +411,12 @@ export function ClipBlockView({
       mediaEnd: state.mediaEnd,
     });
     try {
-      if (Math.abs(delta) * zoomPxPerSec >= ROLL_COMMIT_MIN_PX) {
+      // A click (under the drag threshold) only selects; a roll the clamp
+      // shrinks under ROLL_COMMIT_MIN_PX is a no-op.
+      if (
+        isHandleDrag(state.originX, clientX) &&
+        Math.abs(delta) * zoomPxPerSec >= ROLL_COMMIT_MIN_PX
+      ) {
         await rollClipJoin(
           useDawStore.getState().projectPath,
           state.leftClipId,
@@ -484,20 +522,7 @@ export function ClipBlockView({
       return;
     }
     if (d.kind === "fade") {
-      const dxMs = ((e.clientX - d.originX) / zoomPxPerSec) * 1000;
-      if (d.edge === "in") {
-        setFadePreview({
-          edge: "in",
-          inMs: clampFadeMs(d.baseIn + dxMs, fadeLimitMs),
-          outMs: d.baseOut,
-        });
-      } else {
-        setFadePreview({
-          edge: "out",
-          inMs: d.baseIn,
-          outMs: clampFadeMs(d.baseOut - dxMs, fadeLimitMs),
-        });
-      }
+      setFadePreview({ edge: d.edge, ...fadeAt(d, e.clientX) });
       return;
     }
     if (d.kind === "roll") {
@@ -741,7 +766,7 @@ export function ClipBlockView({
               type="button"
               className="fade-handle end"
               title={fadeTip}
-              aria-label={fadeTip}
+              aria-label={`${fadeTip} · in ${fadeInMs} ms`}
               onPointerDown={(e) => startFadeDrag("in", e)}
               onPointerMove={onDragMove}
               onPointerUp={onDragUp}
@@ -759,7 +784,7 @@ export function ClipBlockView({
               type="button"
               className="fade-handle start"
               title={fadeTip}
-              aria-label={fadeTip}
+              aria-label={`${fadeTip} · out ${fadeOutMs} ms`}
               onPointerDown={(e) => startFadeDrag("out", e)}
               onPointerMove={onDragMove}
               onPointerUp={onDragUp}
@@ -772,23 +797,23 @@ export function ClipBlockView({
           {fadePreview.edge === "in" ? fadePreview.inMs : fadePreview.outMs} ms
         </span>
       ) : null}
-      {showHandles && fadeInMs === 0 && (
+      {showHandles && clip.fade_in_ms === 0 && (
         <button
           type="button"
           className="fade-handle fade-handle-zero in"
           title={fadeTip}
-          aria-label={fadeTip}
+          aria-label={`${fadeTip} · in ${fadeInMs} ms`}
           onPointerDown={(e) => startFadeDrag("in", e)}
           onPointerMove={onDragMove}
           onPointerUp={onDragUp}
         />
       )}
-      {showHandles && fadeOutMs === 0 && (
+      {showHandles && clip.fade_out_ms === 0 && (
         <button
           type="button"
           className="fade-handle fade-handle-zero out"
           title={fadeTip}
-          aria-label={fadeTip}
+          aria-label={`${fadeTip} · out ${fadeOutMs} ms`}
           onPointerDown={(e) => startFadeDrag("out", e)}
           onPointerMove={onDragMove}
           onPointerUp={onDragUp}

@@ -516,6 +516,35 @@ def test_set_clip_fade_caps_dialogue() -> None:
     assert clip.fade_out_ms == 40
 
 
+def test_set_clip_fade_bounds_fades_to_the_clip_length() -> None:
+    p = _two_track_project()
+    p.timeline.tracks.append(
+        Track(
+            id="bed",
+            label="Bed",
+            role=TrackRole.MUSIC,
+            media=MediaAsset(path="raw/bed.wav", duration_sec=10.0),
+        )
+    )
+    p.timeline.clips.append(
+        Clip(id="bed_1", track_id="bed", source_start=0.0, source_end=2.0, timeline_start=0.0)
+    )
+    clip = next(c for c in p.clips if c.id == "bed_1")
+    set_clip_fade(p, "bed_1", 5000, 5000)
+    assert (clip.fade_in_ms, clip.fade_out_ms) == (2000, 0)
+    set_clip_fade(p, "bed_1", 1500, 1500)
+    assert (clip.fade_in_ms, clip.fade_out_ms) == (1500, 500)
+
+
+def test_set_clip_fade_dialogue_fades_share_a_short_clip() -> None:
+    p = _two_track_project()
+    p.timeline.clips = [
+        Clip(id="short", track_id="host", source_start=0.0, source_end=0.06, timeline_start=0.0)
+    ]
+    set_clip_fade(p, "short", 40, 40)
+    assert (p.clips[0].fade_in_ms, p.clips[0].fade_out_ms) == (40, 20)
+
+
 def test_set_clip_join_mode() -> None:
     p = _two_track_project()
     clip = next(c for c in p.clips if c.track_id == "host")

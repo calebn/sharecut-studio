@@ -170,7 +170,7 @@ describe("MarkerLane", () => {
 
     it("treats a drag under 3 px as a click", async () => {
       dragEnd(10, 2);
-      await Promise.resolve();
+      await new Promise((r) => setTimeout(r, 0));
       expect(updateSocialClip).not.toHaveBeenCalled();
     });
 

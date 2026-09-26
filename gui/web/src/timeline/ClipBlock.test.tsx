@@ -1,6 +1,6 @@
 import { fireEvent, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { rollClipJoin, setClipFade } from "../api";
+import { rollClipJoin, setClipFade, trimClipEdge } from "../api";
 import type { ClipRow } from "../types/project";
 import { ClipBlock } from "./ClipBlock";
 
@@ -19,6 +19,7 @@ const layers = vi.hoisted(() => [] as LayerProps[][]);
 vi.mock("../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api")>()),
   rollClipJoin: vi.fn(async () => undefined),
+  trimClipEdge: vi.fn(async () => undefined),
   setClipFade: vi.fn(async () => undefined),
 }));
 
@@ -140,13 +141,15 @@ describe("ClipBlock waveform", () => {
       expect(handle).toBeTruthy();
       expect(handle.classList.contains("start")).toBe(false);
       expect(handle.classList.contains("end")).toBe(false);
+      // Blade mode's cursor rule targets .fade-handle.
+      expect(handle.classList.contains("fade-handle")).toBe(true);
     }
   });
 
   describe("fade handle drags", () => {
     const dragIn = (
       dxPx: number,
-      props: { fadeMaxMs?: number | null } = {},
+      props: { fadeMaxMs?: number | null; clip?: ClipRow } = {},
     ) => {
       const view = render(<ClipBlock {...base} {...props} />);
       const handle = view.container.querySelector(
@@ -154,13 +157,7 @@ describe("ClipBlock waveform", () => {
       ) as HTMLElement;
       fireEvent.pointerDown(handle, { clientX: 100, pointerId: 3 });
       fireEvent.pointerMove(handle, { clientX: 100 + dxPx, pointerId: 3 });
-      // The zero-length handle unmounts once the preview has width; the
-      // region's own handle receives the release.
-      const release =
-        (view.container.querySelector(
-          ".fade-in-region .fade-handle",
-        ) as HTMLElement | null) ?? handle;
-      return { ...view, handle: release, dxPx };
+      return { ...view, handle };
     };
 
     beforeEach(() => {
@@ -169,6 +166,7 @@ describe("ClipBlock waveform", () => {
 
     it("clamps to the track cap, shows it live and commits it", async () => {
       const { container, handle } = dragIn(25, { fadeMaxMs: 40 });
+      expect(handle.isConnected).toBe(true);
       expect(container.querySelector(".fade-readout.in")?.textContent).toBe(
         "40 ms",
       );
@@ -181,6 +179,8 @@ describe("ClipBlock waveform", () => {
           0,
         ),
       );
+      expect(container.querySelector(".fade-readout")).toBeNull();
+      expect(container.querySelector(".clip-block.fade-dragging")).toBeNull();
     });
 
     it("clamps an uncapped track to the clip length", async () => {
@@ -197,10 +197,157 @@ describe("ClipBlock waveform", () => {
     });
 
     it("never saves a click under the drag threshold", async () => {
-      const { handle } = dragIn(1);
+      const { container, handle } = dragIn(1);
       fireEvent.pointerUp(handle, { clientX: 101, pointerId: 3 });
-      await Promise.resolve();
+      await new Promise((r) => setTimeout(r, 0));
       expect(setClipFade).not.toHaveBeenCalled();
+      expect(container.querySelector(".fade-readout")).toBeNull();
+    });
+
+    it("drags a committed fade to zero from its region handle", async () => {
+      const { container } = render(
+        <ClipBlock {...base} clip={{ ...clip, fade_in_ms: 40 }} />,
+      );
+      const handle = container.querySelector(
+        ".fade-in-region .fade-handle",
+      ) as HTMLElement;
+      fireEvent.pointerDown(handle, { clientX: 100, pointerId: 3 });
+      fireEvent.pointerMove(handle, { clientX: 0, pointerId: 3 });
+      expect(handle.isConnected).toBe(true);
+      expect(container.querySelector(".fade-readout.in")?.textContent).toBe(
+        "0 ms",
+      );
+      fireEvent.pointerUp(handle, { clientX: 0, pointerId: 3 });
+      await waitFor(() =>
+        expect(setClipFade).toHaveBeenCalledWith(expect.anything(), "c1", 0, 0),
+      );
+      expect(container.querySelector(".fade-readout")).toBeNull();
+    });
+
+    it("keeps the two fades from overlapping", async () => {
+      const { container, handle } = dragIn(100, {
+        clip: { ...clip, fade_out_ms: 1500 },
+      });
+      expect(container.querySelector(".fade-readout.in")?.textContent).toBe(
+        "500 ms",
+      );
+      fireEvent.pointerUp(handle, { clientX: 200, pointerId: 3 });
+      await waitFor(() =>
+        expect(setClipFade).toHaveBeenCalledWith(
+          expect.anything(),
+          "c1",
+          500,
+          1500,
+        ),
+      );
+    });
+
+    it("writes nothing when a drag leaves the fade at the cap", async () => {
+      const { container } = render(
+        <ClipBlock
+          {...base}
+          fadeMaxMs={40}
+          clip={{ ...clip, fade_in_ms: 40 }}
+        />,
+      );
+      const handle = container.querySelector(
+        ".fade-in-region .fade-handle",
+      ) as HTMLElement;
+      fireEvent.pointerDown(handle, { clientX: 100, pointerId: 3 });
+      fireEvent.pointerMove(handle, { clientX: 110, pointerId: 3 });
+      fireEvent.pointerUp(handle, { clientX: 110, pointerId: 3 });
+      await new Promise((r) => setTimeout(r, 0));
+      expect(setClipFade).not.toHaveBeenCalled();
+    });
+
+    it("discards a drag that comes back to within 3 px of its start", async () => {
+      const { container, handle } = dragIn(25);
+      fireEvent.pointerMove(handle, { clientX: 101, pointerId: 3 });
+      fireEvent.pointerUp(handle, { clientX: 101, pointerId: 3 });
+      await new Promise((r) => setTimeout(r, 0));
+      expect(setClipFade).not.toHaveBeenCalled();
+      expect(container.querySelector(".fade-readout")).toBeNull();
+    });
+
+    it("shows and commits the out-edge readout", async () => {
+      const { container } = render(<ClipBlock {...base} fadeMaxMs={40} />);
+      const handle = container.querySelector(
+        "button.fade-handle-zero.out",
+      ) as HTMLElement;
+      fireEvent.pointerDown(handle, { clientX: 100, pointerId: 3 });
+      fireEvent.pointerMove(handle, { clientX: 75, pointerId: 3 });
+      expect(container.querySelector(".fade-readout.out")?.textContent).toBe(
+        "40 ms",
+      );
+      expect(handle.isConnected).toBe(true);
+      fireEvent.pointerUp(handle, { clientX: 75, pointerId: 3 });
+      await waitFor(() =>
+        expect(setClipFade).toHaveBeenCalledWith(
+          expect.anything(),
+          "c1",
+          0,
+          40,
+        ),
+      );
+    });
+
+    it("names each fade handle with its length", () => {
+      const { container } = render(
+        <ClipBlock {...base} clip={{ ...clip, fade_out_ms: 30 }} />,
+      );
+      const zeroIn = container.querySelector(
+        "button.fade-handle-zero.in",
+      ) as HTMLElement;
+      expect(zeroIn.getAttribute("aria-label")).toMatch(/ · in 0 ms$/);
+      const regionOut = container.querySelector(
+        ".fade-out-region .fade-handle",
+      ) as HTMLElement;
+      expect(regionOut.getAttribute("aria-label")).toMatch(/ · out 30 ms$/);
+    });
+  });
+
+  describe("trim and roll handle clicks", () => {
+    beforeEach(() => {
+      vi.mocked(trimClipEdge).mockClear();
+      vi.mocked(rollClipJoin).mockClear();
+    });
+
+    it("a click on a trim handle only selects", async () => {
+      const onSelect = vi.fn();
+      const { container } = render(<ClipBlock {...base} onSelect={onSelect} />);
+      const h = container.querySelector(".trim-handle.out") as HTMLElement;
+      fireEvent.pointerDown(h, { clientX: 100, pointerId: 5 });
+      fireEvent.pointerUp(h, { clientX: 101, pointerId: 5 });
+      await new Promise((r) => setTimeout(r, 0));
+      expect(onSelect).toHaveBeenCalledWith("c1");
+      expect(trimClipEdge).not.toHaveBeenCalled();
+    });
+
+    it("commits a trim drag", async () => {
+      const { container } = render(<ClipBlock {...base} />);
+      const h = container.querySelector(".trim-handle.out") as HTMLElement;
+      fireEvent.pointerDown(h, { clientX: 100, pointerId: 5 });
+      fireEvent.pointerMove(h, { clientX: 150, pointerId: 5 });
+      fireEvent.pointerUp(h, { clientX: 150, pointerId: 5 });
+      await waitFor(() =>
+        expect(trimClipEdge).toHaveBeenCalledWith(
+          expect.anything(),
+          "c1",
+          "out",
+          expect.any(Number),
+        ),
+      );
+    });
+
+    it("a click on the join diamond never rolls", async () => {
+      const { container } = render(
+        <ClipBlock {...base} prevClip={{ ...clip, id: "c0" }} />,
+      );
+      const d = container.querySelector("button.join-diamond") as HTMLElement;
+      fireEvent.pointerDown(d, { clientX: 100, pointerId: 6 });
+      fireEvent.pointerUp(d, { clientX: 101, pointerId: 6 });
+      await new Promise((r) => setTimeout(r, 0));
+      expect(rollClipJoin).not.toHaveBeenCalled();
     });
   });
 
@@ -513,16 +660,16 @@ describe("ClipBlock waveform", () => {
       vi.mocked(rollClipJoin).mockClear();
     });
 
-    it("commits a 1 px roll at deep zoom (a 21 µs join move)", async () => {
-      rollBy(48000, 1);
+    it("commits a 3 px roll at deep zoom (a 62 µs join move)", async () => {
+      rollBy(48000, 3);
       await waitFor(() => expect(rollClipJoin).toHaveBeenCalledTimes(1));
       const delta = vi.mocked(rollClipJoin).mock.calls[0]?.[3];
-      expect(delta).toBeCloseTo(1 / 48000, 12);
+      expect(delta).toBeCloseTo(3 / 48000, 12);
     });
 
-    it("skips a roll under half a pixel", async () => {
+    it("skips a roll under the drag threshold", async () => {
       rollBy(50, 0.4);
-      await Promise.resolve();
+      await new Promise((r) => setTimeout(r, 0));
       expect(rollClipJoin).not.toHaveBeenCalled();
     });
   });

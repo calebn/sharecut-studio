@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import math
+
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.clips_ops import abutting_pairs, clips_for_track
 from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms
-from podcast_mcp.models import ClipJoinMode, EpisodeProject, Track, TrackRole
+from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject, Track, TrackRole
 from podcast_mcp.util.change_summary import change_summary
 from podcast_mcp.util.tracks import dialogue_track_ids, resolve_track
 
@@ -19,6 +21,9 @@ def track_fade_max_ms(track: Track | None, defaults: dict | None = None) -> int 
     """Longest edge fade (ms) a clip on *track* may take; ``None`` when uncapped.
 
     Dialogue fades cap at ``render.join_fade_max_ms``; other roles are uncapped.
+    The project view (``TrackView.fade_max_ms``) and every writer (``cap_fade_ms`` /
+    ``clamp_clip_fades``) resolve the cap here; keep any future per-episode override inside
+    this function so they cannot diverge.
     """
     if track is None or track.role != TrackRole.DIALOGUE:
         return None
@@ -35,6 +40,25 @@ def cap_fade_ms(
     cap = track_fade_max_ms(project.track_by_id(track_id), defaults)
     fade = max(0, fade_ms)
     return fade if cap is None else min(fade, cap)
+
+
+def clamp_clip_fades(
+    project: EpisodeProject,
+    clip: Clip,
+    fade_in_ms: int,
+    fade_out_ms: int,
+    defaults: dict | None = None,
+) -> tuple[int, int]:
+    """Edge fades *clip* may take: each capped for its track and bounded by the clip
+    length, and fade-out bounded by what fade-in leaves so the two never overlap.
+
+    The DAW mirrors this rule in ``gui/web/src/edit/fadeLimits.ts`` (``clampClipFades``).
+    """
+    cfg = defaults or load_defaults()
+    clip_ms = max(0, math.floor((clip.source_end - clip.source_start) * 1000))
+    fade_in = min(cap_fade_ms(project, clip.track_id, fade_in_ms, cfg), clip_ms)
+    fade_out = min(cap_fade_ms(project, clip.track_id, fade_out_ms, cfg), clip_ms - fade_in)
+    return fade_in, fade_out
 
 
 def set_clip_join_mode(
