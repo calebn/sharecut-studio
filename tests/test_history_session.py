@@ -199,9 +199,10 @@ def test_failed_mutation_keeps_entries_another_writer_recorded_on_top(
 ):
     path, proj, index_path = _setup(minimal_project)
 
-    def fn(_p):
+    def fn(p):
         other = ProjectStore(path).load()
         HistoryManager(path).record(other, "other writer", force=True)
+        p.edit_decisions.append(_decision("n"))
         raise RuntimeError("boom")
 
     with caplog.at_level(logging.WARNING):
@@ -214,6 +215,8 @@ def test_failed_mutation_keeps_entries_another_writer_recorded_on_top(
     assert "keeping its entries" in caplog.text
     assert rollback_outcomes == [RollbackOutcome.KEPT]
     assert [e.label for e in proj.history.entries] == labels
+    # Only history adopts disk; the editable layers return to their pre-mutate values.
+    assert _ids(proj) == ["unrecorded"]
 
 
 def test_commit_that_landed_keeps_its_history(minimal_project, monkeypatch):
