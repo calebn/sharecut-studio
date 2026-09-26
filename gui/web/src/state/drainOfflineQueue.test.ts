@@ -292,6 +292,40 @@ describe("drainHostOfflineQueue", () => {
     expect(submit.mock.calls.map((c) => c[3].command_id)).toEqual(["a"]);
     expect(removeHostQueuedCommands).toHaveBeenCalledWith(path, ["a"]);
   });
+
+  it("replays another tab's in-flight record with its original identity", async () => {
+    const path = "/projects/episode.project.json";
+    // Another tab is still POSTing "foreign"; this tab's registry does not know it.
+    hostQueue.mockResolvedValue([
+      {
+        command_id: "foreign",
+        client_id: "other-tab",
+        client_seq: 7,
+        type: "SetTrackMeta",
+        payload: { label: "A" },
+        created_at: 1,
+      },
+      cmd("mine"),
+    ]);
+    const { drainHostOfflineQueue } = await import("./drainOfflineQueue");
+
+    await drainHostOfflineQueue(path);
+
+    expect(submit.mock.calls.map((c) => c[3].command_id)).toEqual([
+      "foreign",
+      "mine",
+    ]);
+    expect(submit.mock.calls[0][3]).toMatchObject({
+      command_id: "foreign",
+      client_id: "other-tab",
+      client_seq: 7,
+      replaying: true,
+    });
+    expect(removeHostQueuedCommands).toHaveBeenCalledWith(path, [
+      "foreign",
+      "mine",
+    ]);
+  });
 });
 
 describe("drainOfflineQueue (guest)", () => {
