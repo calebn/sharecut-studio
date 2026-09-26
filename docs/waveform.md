@@ -334,7 +334,7 @@ Revocation stops new requests only.
   shell; tiles 64 or 32 MB; PCM 32 MB; 4 fetches in flight on the host and
   3 through a share, tiles and PCM combined; the caches re-trim when the
   shell breakpoint changes; a slot freed by either store
-  wakes both, via `waveformFetchGate.onRelease`).
+  wakes both, via `waveformFetchGate.onRelease`, a `listenerSet`).
   - `pyramidStore.ts`: missing data tiles are queued by priority (visible,
     overscan, prefetch), deduplicated, and fetched in runs of up to
     `max_tiles_per_request`. A 429 holds the run back until `Retry-After` and then re-queues it. Any
@@ -368,28 +368,35 @@ Revocation stops new requests only.
     otherwise the CPU rasterizer plus `createImageBitmap`. It falls back to
     the CPU after a context loss.
   - `rasterClient.ts` keeps at most 4 jobs outstanding. It drops queued jobs
-    that are no longer wanted, but caches results that arrive late. A provisional request never
-    replaces a queued exact one. A `postMessage` that throws frees its slot and reports the key,
-    and a result whose job is gone is closed. Pending `rasterParity()` calls
-    settle with null on a reset or a worker crash. Its
-    backend is `none` without `Worker` (jsdom). A worker that crashes
-    (`onerror`, e.g. out of memory, or `onmessageerror`, whose lost reply would
-    hold its slot forever) is restarted up to `RASTER_WORKER_RESTARTS` (2)
-    times; `RASTER_RESTART_REARM_TILES` (64) finished tiles after a crash re-arm
+    that are no longer wanted, but caches results that arrive late. A
+    provisional request never replaces a queued exact one. A `postMessage`
+    that throws frees its slot and reports the key, and a result whose job
+    is gone is closed. Pending `rasterParity()` calls settle with null on a
+    reset or a worker crash. Its backend is `none` without `Worker` (jsdom).
+    A worker that crashes (`onerror`, e.g. out of memory, or
+    `onmessageerror`, whose lost reply would hold its slot forever) is
+    restarted up to `RASTER_WORKER_RESTARTS` (2) times;
+    `RASTER_RESTART_REARM_TILES` (64) finished tiles after a crash re-arm
     that budget. Queued jobs go to the new worker, and the reported backend
     stays until it is ready. `rasterWorkerRestarts()` (E2E hook
     `workerRestarts`) counts restarts since load, so a restart can be told
-    apart from normal running. Once the budget is spent the backend is `none`
-    until reload. `subscribeRasterFailed` reports the keys of jobs that died: a
-    render that threw (an `error` reply), a `postMessage` that threw, those in
-    flight at a crash, and on the last crash the queued ones. A key is reported
-    at most `RASTER_JOB_RETRIES` (1) time; its next failure retires it until
-    reload (`requestRaster` refuses it and `hasRaster` is true), so a poison
-    tile cannot loop. A key in flight at repeated crashes is retired the same
-    way, so a poison tile cannot spend the restart budget. A worker that cannot
-    be constructed means `none` at once. The listener sets here and the ready listeners in `statusStore.ts`
-    use `listenerSet.ts` (emit over a snapshot; a listener that throws is
-    rethrown in a microtask and does not stop the others).
+    apart from normal running. Once the budget is spent the backend is
+    `none` until reload. `subscribeRasterFailed` reports the keys of jobs
+    that died: a render that threw (an `error` reply), a `postMessage` that
+    threw, those in flight at a crash, and on the last crash the queued
+    ones. A key is reported at most `RASTER_JOB_RETRIES` (1) time; its next
+    failure retires it until reload (`requestRaster` refuses it and
+    `hasRaster` is true), so a poison tile cannot loop. An `onerror` crash
+    charges a failure to each key in flight, so a key in flight at crashes
+    close together is retired the same way and a poison tile cannot spend
+    the restart budget. The re-arm forgets crash charges on keys not yet
+    retired, so two unrelated crashes do not retire an innocent tile. An
+    `onmessageerror` restart charges nothing: only one reply was lost. A
+    worker that cannot be constructed means `none` at once. The listener
+    sets here, the ready listeners in `statusStore.ts` and the `FetchGate`
+    waiters in `budgets.ts` use `listenerSet.ts` (emit over a snapshot; a
+    listener that throws is rethrown in a microtask and does not stop the
+    others).
   - `bitmapCache.ts` holds the finished bitmaps and calls `close()` on
     every one it evicts. While a tile's exact bitmap is pending, it offers
     the nearest-zoom bitmap that overlaps as a stand-in. A bitmap rendered
