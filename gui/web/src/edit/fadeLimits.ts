@@ -1,9 +1,14 @@
+/** Clip length in whole ms (floored, never negative), as `join_modes.clamp_clip_fades` computes it. */
+function clipLengthMs(clipDurationSec: number): number {
+  return Math.max(0, Math.floor(clipDurationSec * 1000));
+}
+
 /** Longest edge fade (ms) a clip may take: the track's cap (null = uncapped) and the clip length. */
 export function maxFadeMs(
   clipDurationSec: number,
   trackFadeMaxMs?: number | null,
 ): number {
-  const clipMs = Math.max(0, Math.floor(clipDurationSec * 1000));
+  const clipMs = clipLengthMs(clipDurationSec);
   return trackFadeMaxMs == null
     ? clipMs
     : Math.max(0, Math.min(trackFadeMaxMs, clipMs));
@@ -24,7 +29,7 @@ export function edgeFadeMaxMs(
   trackFadeMaxMs: number | null | undefined,
   otherEdgeMs: number,
 ): number {
-  const clipMs = Math.max(0, Math.floor(clipDurationSec * 1000));
+  const clipMs = clipLengthMs(clipDurationSec);
   return Math.max(
     0,
     Math.min(

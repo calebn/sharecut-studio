@@ -7,6 +7,12 @@ import {
 } from "./fadeLimits";
 
 describe("maxFadeMs", () => {
+  it("floors the clip length to whole ms and never goes negative", () => {
+    expect(maxFadeMs(0.0259, null)).toBe(25);
+    expect(maxFadeMs(-1, 40)).toBe(0);
+    expect(edgeFadeMaxMs(-1, null, 0)).toBe(0);
+  });
+
   it("takes the smaller of the track cap and the clip length", () => {
     expect(maxFadeMs(2, 40)).toBe(40);
     expect(maxFadeMs(0.025, 40)).toBe(25);
