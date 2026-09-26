@@ -27,7 +27,7 @@ def resolve_clip_audio_path(
     Resolved paths must stay under the project workspace.
     """
     if clip.source_id:
-        src = next((s for s in project.sources if s.id == clip.source_id), None)
+        src = project.source_by_id(clip.source_id)
         if src is None:
             raise ValueError(f"clip {clip.id} source_id {clip.source_id!r} is not in sources[]")
         path = resolve_under_workspace(project, src.path)

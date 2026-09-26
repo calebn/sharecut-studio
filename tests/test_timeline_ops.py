@@ -1373,6 +1373,21 @@ def test_room_tone_bed_span_skips_silent_bed(monkeypatch: pytest.MonkeyPatch) ->
     assert _room_tone_bed_span(p, "host", duration_sec=0.25) is None
 
 
+def test_room_tone_bed_span_skips_missing_source(monkeypatch: pytest.MonkeyPatch) -> None:
+    from podcast_mcp.edits.timeline_ops import _room_tone_bed_span
+
+    p = _two_track_project()
+    host = p.track_by_id("host")
+    assert host is not None
+    host.room_tone = MediaAsset(path="raw/room-tone/p_host.wav", duration_sec=3.0)
+    monkeypatch.setattr(
+        "podcast_mcp.engines.audio_audit.measure_window_rms_db",
+        lambda *_args, **_kwargs: pytest.fail("missing source reached audio analysis"),
+    )
+
+    assert _room_tone_bed_span(p, "host", duration_sec=0.25) is None
+
+
 def test_insert_room_tone_pad_tiles_recorded_bed() -> None:
     from podcast_mcp.edits.timeline_ops import insert_room_tone_pad, room_tone_source_id
 
