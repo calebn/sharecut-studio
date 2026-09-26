@@ -13,6 +13,15 @@ interface Send {
 }
 
 const sends = new Map<string, Send[]>();
+const finishedCount = new Map<string, number>();
+
+/**
+ * How many live sends this tab has finished for the project. It changes only
+ * after a send's own queue cleanup, so the drain re-reads the queue only then.
+ */
+export function hostSendsFinished(projectPath: string): number {
+  return finishedCount.get(projectPath) ?? 0;
+}
 
 /** How long a live host command waits behind this tab's earlier sends before it stays queued for the drain. */
 export const HOST_SEND_WAIT_MS = 5_000;
@@ -56,6 +65,7 @@ export function beginHostSend(
       const rest = (sends.get(projectPath) ?? []).filter((s) => s !== entry);
       if (rest.length > 0) sends.set(projectPath, rest);
       else sends.delete(projectPath);
+      finishedCount.set(projectPath, hostSendsFinished(projectPath) + 1);
       resolveDone();
     },
   };

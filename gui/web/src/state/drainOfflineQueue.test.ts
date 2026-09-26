@@ -42,16 +42,22 @@ describe("drainHostOfflineQueue", () => {
     });
   });
 
-  it("skips a record a live send dequeued after the snapshot", async () => {
+  it("skips a record a live send dequeued while an earlier one replayed", async () => {
     const path = "/projects/episode.project.json";
-    hostQueue
-      .mockResolvedValueOnce([cmd("a"), cmd("b")])
-      .mockResolvedValue([cmd("b")]);
+    const { beginHostSend } = await import("./hostSendOrder");
+    const liveA = beginHostSend(path, "a");
+    let current = [cmd("x"), cmd("a"), cmd("b")];
+    hostQueue.mockImplementation(async () => current);
+    submit.mockImplementationOnce(async () => {
+      // The live send of "a" commits and dequeues itself while "x" replays.
+      current = [cmd("x"), cmd("b")];
+      liveA.finish();
+      return { ok: true };
+    });
     const { drainHostOfflineQueue } = await import("./drainOfflineQueue");
     await drainHostOfflineQueue(path);
-    expect(submit).toHaveBeenCalledTimes(1);
-    expect(submit.mock.calls[0][3]).toMatchObject({ command_id: "b" });
-    expect(removeHostQueuedCommands).toHaveBeenCalledWith(path, ["b"]);
+    expect(submit.mock.calls.map((c) => c[3].command_id)).toEqual(["x", "b"]);
+    expect(removeHostQueuedCommands).toHaveBeenCalledWith(path, ["x", "b"]);
   });
 
   it("requestHostDrain runs one more pass when asked mid-drain", async () => {
@@ -181,6 +187,7 @@ describe("drainHostOfflineQueue", () => {
     await drainHostOfflineQueue("/projects/episode.project.json");
 
     expect(submit).toHaveBeenCalledTimes(100);
+    expect(hostQueue).toHaveBeenCalledTimes(1);
     expect(removeHostQueuedCommands).toHaveBeenCalledOnce();
     expect(removeHostQueuedCommands).toHaveBeenCalledWith(
       "/projects/episode.project.json",
