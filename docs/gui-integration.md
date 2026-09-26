@@ -422,3 +422,7 @@ Implementation: [`src/podcast_mcp/gui/`](../src/podcast_mcp/gui/) (`server.py` w
   `GET /api/record/state` + `POST /api/record/command` plus
   `GET`/`POST`/`DELETE /api/record/upload`. Mix-minus plays remote
   tracks only (`gui/web/src/audio/mixMinus.ts`). It never loads `/api/review/`.
+Transcript utterance mapping batches source-to-timeline word spans once per
+track and indexes the words for repeated utterance overlap queries. The API
+retains original transcript word order and indexes, including suppressed and
+zero-duration words; views that omit words skip this work.
