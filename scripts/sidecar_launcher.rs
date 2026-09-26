@@ -5,7 +5,10 @@
 //! subcommands are allowed is Python's call (`PODCAST_PACKAGED_CLI`, see
 //! `services/gui_launch.py`); this launcher never parses the CLI grammar.
 
-#![cfg_attr(windows, windows_subsystem = "windows")]
+#![cfg_attr(
+    all(windows, not(any(podcast_cli, podcast_mcp_cli))),
+    windows_subsystem = "windows"
+)]
 
 #[path = "sidecar_shared.rs"]
 mod sidecar_shared;
@@ -25,6 +28,7 @@ const PACKAGED_CLI_ENV: &str = "PODCAST_PACKAGED_CLI";
 /// `-P`: never put the (untrusted) caller cwd on `sys.path`. Not `-I`/`-E`,
 /// which would ignore the `PYTHONHOME` relocation below.
 const PYTHON_MODULE_ARGS: [&str; 3] = ["-P", "-m", "podcast_mcp.cli.main"];
+const MCP_MODULE_ARGS: [&str; 3] = ["-P", "-m", "podcast_mcp.mcp.server"];
 /// Dummy CLI port; Python resolved_bind_port honors PODCAST_SIDECAR_EPHEMERAL.
 const GUI_ARGS: [&str; 6] = ["gui", "--host", "127.0.0.1", "--port", "8765", "--no-open"];
 /// Shell env (pyenv / conda / venv) that would point the frozen runtime at a
@@ -41,10 +45,17 @@ const FOREIGN_PYTHON_ENV: [&str; 5] = [
 enum LauncherMode {
     Gui,
     Cli(Vec<OsString>),
+    Mcp(Vec<OsString>),
 }
 
 fn parse_mode(args: impl IntoIterator<Item = OsString>) -> LauncherMode {
     let mut args = args.into_iter();
+    if cfg!(podcast_mcp_cli) {
+        return LauncherMode::Mcp(args.collect());
+    }
+    if cfg!(podcast_cli) {
+        return LauncherMode::Cli(args.collect());
+    }
     match args.next() {
         Some(first) if first == CLI_FLAG => LauncherMode::Cli(args.collect()),
         _ => LauncherMode::Gui,
@@ -249,10 +260,11 @@ fn python_command(
     detach: impl FnOnce(&mut Command),
 ) -> Command {
     let mut cmd = Command::new(py);
-    cmd.env("PODCAST_GUI_DIST", dist).args(PYTHON_MODULE_ARGS);
+    cmd.env("PODCAST_GUI_DIST", dist);
     match mode {
         LauncherMode::Gui => {
-            cmd.current_dir(runtime)
+            cmd.args(PYTHON_MODULE_ARGS)
+                .current_dir(runtime)
                 .env_remove(PACKAGED_CLI_ENV)
                 .env("PODCAST_MAGIC_LINK_PRINT", "0")
                 .env("PODCAST_GUI_OPENAPI", "0")
@@ -260,7 +272,12 @@ fn python_command(
             apply_python_home(&mut cmd, runtime, true);
             detach(&mut cmd);
         }
-        LauncherMode::Cli(args) => {
+        LauncherMode::Cli(args) | LauncherMode::Mcp(args) => {
+            cmd.args(if matches!(mode, LauncherMode::Mcp(_)) {
+                MCP_MODULE_ARGS
+            } else {
+                PYTHON_MODULE_ARGS
+            });
             for key in FOREIGN_PYTHON_ENV {
                 cmd.env_remove(key);
             }
@@ -298,7 +315,7 @@ fn report_windows_cli_unsupported() {
 
 fn main() {
     let mode = parse_mode(env::args_os().skip(1));
-    #[cfg(windows)]
+    #[cfg(all(windows, not(any(podcast_cli, podcast_mcp_cli))))]
     {
         if matches!(mode, LauncherMode::Cli(_)) {
             report_windows_cli_unsupported();
@@ -386,12 +403,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(any(podcast_cli, podcast_mcp_cli)))]
     fn missing_cli_flag_preserves_gui_mode() {
         assert_eq!(parse_mode(Vec::<OsString>::new()), LauncherMode::Gui);
         assert_eq!(parse_mode(os_args(&["--other"])), LauncherMode::Gui);
     }
 
     #[test]
+    #[cfg(not(any(podcast_cli, podcast_mcp_cli)))]
     fn cli_mode_forwards_every_argument_after_flag() {
         assert_eq!(
             parse_mode(os_args(&["--cli", "doctor", "--json"])),
@@ -400,6 +419,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(any(podcast_cli, podcast_mcp_cli)))]
     fn cli_flag_alone_forwards_no_arguments() {
         assert_eq!(parse_mode(os_args(&["--cli"])), LauncherMode::Cli(vec![]));
         let detached = Cell::new(false);
@@ -412,6 +432,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    #[cfg(not(any(podcast_cli, podcast_mcp_cli)))]
     fn cli_mode_forwards_non_utf8_arguments() {
         use std::os::unix::ffi::OsStringExt;
         let latin1 = OsString::from_vec(b"epis\xf3dio.json".to_vec());
@@ -419,6 +440,34 @@ mod tests {
         assert_eq!(mode, LauncherMode::Cli(vec![latin1.clone()]));
         let cmd = build(&mode, &Cell::new(false));
         assert_eq!(cmd.get_args().last(), Some(latin1.as_os_str()));
+    }
+
+    #[test]
+    #[cfg(podcast_cli)]
+    fn podcast_binary_forwards_arguments_without_mode_flag() {
+        let args = os_args(&["doctor", "--json"]);
+        let mode = parse_mode(args.clone());
+        assert_eq!(mode, LauncherMode::Cli(args));
+        assert_eq!(
+            build(&mode, &Cell::new(false))
+                .get_args()
+                .collect::<Vec<_>>(),
+            vec!["-P", "-m", "podcast_mcp.cli.main", "doctor", "--json"]
+        );
+    }
+
+    #[test]
+    #[cfg(podcast_mcp_cli)]
+    fn podcast_mcp_binary_forwards_arguments_to_server() {
+        let args = os_args(&["--version"]);
+        let mode = parse_mode(args.clone());
+        assert_eq!(mode, LauncherMode::Mcp(args));
+        assert_eq!(
+            build(&mode, &Cell::new(false))
+                .get_args()
+                .collect::<Vec<_>>(),
+            vec!["-P", "-m", "podcast_mcp.mcp.server", "--version"]
+        );
     }
 
     #[test]

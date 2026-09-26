@@ -170,10 +170,14 @@ def is_windows_triple(triple: str) -> bool:
     return "windows" in triple
 
 
-def sidecar_output_name(triple: str) -> str:
+def launcher_output_name(stem: str, triple: str) -> str:
     if is_windows_triple(triple):
-        return f"{SIDECAR_STEM}-{triple}.exe"
-    return f"{SIDECAR_STEM}-{triple}"
+        return f"{stem}-{triple}.exe"
+    return f"{stem}-{triple}"
+
+
+def sidecar_output_name(triple: str) -> str:
+    return launcher_output_name(SIDECAR_STEM, triple)
 
 
 def write_script_launcher(path: Path, *, windows: bool) -> None:
@@ -204,7 +208,7 @@ def require_rustc() -> str:
     return rustc
 
 
-def compile_rust_launcher(dest: Path) -> None:
+def compile_rust_launcher(dest: Path, *, variant: str = "sidecar") -> None:
     """Compile ``sidecar_launcher.rs`` to ``dest``; compiler errors surface as-is."""
     rustc = require_rustc()
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -218,6 +222,8 @@ def compile_rust_launcher(dest: Path) -> None:
         str(dest),
         str(LAUNCHER_RS),
     ]
+    if variant != "sidecar":
+        cmd.extend(["--cfg", f"{variant}_cli"])
     try:
         subprocess.check_call(cmd)
     except subprocess.CalledProcessError as exc:
@@ -228,6 +234,13 @@ def compile_rust_launcher(dest: Path) -> None:
     if not dest.is_file():
         raise SystemExit(f"rustc did not produce {dest}")
     print(f"compiled launcher: {dest}")
+
+
+def compile_launchers(binaries: Path, triple: str) -> None:
+    """Build the GUI sidecar and both console entry points from one Rust source."""
+    compile_rust_launcher(binaries / sidecar_output_name(triple))
+    for stem, variant in (("podcast", "podcast"), ("podcast-mcp", "podcast_mcp")):
+        compile_rust_launcher(binaries / launcher_output_name(stem, triple), variant=variant)
 
 
 def assert_production_web_dist(dist: Path) -> None:
@@ -684,7 +697,7 @@ def main(argv: list[str] | None = None) -> int:
         assert_production_web_dist(runtime / "web-dist")
         # Always rebuild the launcher: a cached one may predate `--cli` or be a
         # --dry-run shell script. Cheap next to the freeze, which is reused.
-        compile_rust_launcher(launcher)
+        compile_launchers(binaries, triple)
         print(f"reusing complete freeze: {runtime}")
         return 0
 
@@ -692,7 +705,7 @@ def main(argv: list[str] | None = None) -> int:
     clear_freeze_complete(runtime)
     copy_web_dist(runtime, rebuild=args.rebuild_web)
     freeze_python(runtime, extension_wheels_dir=args.extension_wheels_dir)
-    compile_rust_launcher(launcher)
+    compile_launchers(binaries, triple)
     print(f"runtime: {runtime}")
     if sys.platform == "darwin" and identity:
         codesign_runtime(runtime, identity)
