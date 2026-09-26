@@ -319,6 +319,7 @@ Record rooms reuse this sqlite file — **no new DB, no sidecar JSON.** Spec:
 | Local keeper WAV | Guest/host origin-private OPFS (`Sharecut Recordings/…`). Not sqlite. |
 | Chunk ACK | `record_upload_parts` / `record_upload_files` in this DB (`join_offset_ms`, `clipping_regions` JSON `[[start_ms,end_ms],...]` and `clipping_truncated` from the final part, `landed_ns`); part files under `artifacts/record/`; landing copies ACK'd WAV into `raw/` + clips. |
 | Live comments | `record_live_comments` in this DB (PK `session_id, comment_id`); snapshot attaches unlanded rows; landing writes `review.comments[]` |
+| Write atomicity | Append, apply, snapshot write and the `Comment` live-comment row run in one `BEGIN IMMEDIATE` on the record store's connection, so independent connections (other processes) serialize and a failed apply leaves no command row |
 
 Do not mix playhead heartbeats into record ops. Share registry + `shares.json`
 hold token `kind` / `session_id` / role; this DB holds the live room.

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import itertools
+import sqlite3
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -20,6 +22,7 @@ from podcast_mcp.services.record.live_comments import (
     RecordLiveCommentError,
     drop_cached_record_live_comment_stores,
     live_comment_store_for,
+    upsert_live_comment,
 )
 from podcast_mcp.services.record.participants import RecordParticipantStore
 from podcast_mcp.services.record.reducer import (
@@ -638,10 +641,13 @@ class RecordSessionService:
                 client_seq=int(row["client_seq"]),
                 command_id=str(row["command_id"]),
             )
-            out = apply_record_command(current, applied, now_wall_ms=wall).model_dump()
-            if cmd.type == "Comment":
-                self._upsert_comment(cmd)
-            return out
+            return apply_record_command(current, applied, now_wall_ms=wall).model_dump()
+
+        side_effect: Callable[[sqlite3.Connection, dict[str, Any]], None] | None = None
+        if cmd.type == "Comment":
+
+            def side_effect(conn: sqlite3.Connection, _row: dict[str, Any]) -> None:
+                self._upsert_comment(cmd, conn=conn)
 
         _row, _snap, idempotent = self._store.append_and_apply(
             command_id=cmd.command_id,
@@ -653,6 +659,7 @@ class RecordSessionService:
             causation_id=None,
             apply_fn=apply_fn,
             empty_snap_fn=self._empty,
+            side_effect_fn=side_effect,
         )
         if _row["type"] == "RemoveParticipant":
             self._removed_ids.add((self.session_id, str(_row["payload"]["participant_id"])))
@@ -688,17 +695,24 @@ class RecordSessionService:
         cmd.payload["recording_ms"] = recording_ms_at(take, wall_ms=pressed)
         cmd.payload["author"] = cmd.participant_id or ""
 
-    def _upsert_comment(self, cmd: RecordCommand) -> None:
+    def _upsert_comment(
+        self, cmd: RecordCommand, *, conn: sqlite3.Connection | None = None
+    ) -> None:
+        kwargs: dict[str, Any] = {
+            "session_id": self.session_id,
+            "comment_id": str(cmd.payload.get("id") or cmd.command_id),
+            "take_index": int(cmd.payload["take_index"]),
+            "recording_ms": int(cmd.payload["recording_ms"]),
+            "pressed_wall_ms": int(cmd.payload["pressed_wall_ms"]),
+            "author": str(cmd.payload.get("author") or cmd.participant_id or ""),
+            "body": str(cmd.payload.get("body") or ""),
+        }
         try:
-            self._comments.upsert(
-                session_id=self.session_id,
-                comment_id=str(cmd.payload.get("id") or cmd.command_id),
-                take_index=int(cmd.payload["take_index"]),
-                recording_ms=int(cmd.payload["recording_ms"]),
-                pressed_wall_ms=int(cmd.payload["pressed_wall_ms"]),
-                author=str(cmd.payload.get("author") or cmd.participant_id or ""),
-                body=str(cmd.payload.get("body") or ""),
-            )
+            if conn is None:
+                self._comments.upsert(**kwargs)
+            else:
+                # Inside the command's write transaction: commits or rolls back with it.
+                upsert_live_comment(conn, **kwargs)
         except RecordLiveCommentError as exc:
             raise RecordStateError(str(exc)) from exc
 

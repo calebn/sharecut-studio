@@ -1071,7 +1071,11 @@ Token metadata: share registry + `artifacts/review/shares.json` hold `kind`,
 `record_participants` (lease **hashes** only). All record stores share the
 session-sync SQLite initializer so concurrent room startup cannot race while
 switching `sync.db` into WAL mode. **No new sqlite file, no new
-sidecar JSON.**
+sidecar JSON.** Append, apply, snapshot write and the `Comment` live-comment row
+are one `BEGIN IMMEDIATE` transaction on the record store's connection
+(`SyncStore.append_and_apply` with its `side_effect_fn` hook), so independent
+connections (other processes) serialize and a failed apply leaves no command
+row; `mutate_snapshot` and `reset` are transactional too (#332).
 
 | Data | How |
 |------|-----|

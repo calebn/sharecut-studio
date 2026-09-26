@@ -83,7 +83,7 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 | **Take** | One Start→Stop; lands sequentially | `takes[]` in record snapshot | Record room; timeline after landing |
 | **Pause** | Host stops the recording clock; monitor stays live; paused time collapses | `pauses[]` in record snapshot | Record room (PAUSED) |
 | **Producer** | Joins to listen and comment; not recorded | record role `producer`; "Not recorded" roster group | Record room roster |
-| **Live marker (comment)** | Comment added during recording (`M` → `body` `"Marker"`); not a chapter marker | session sync until landing → `review.comments[]` | Record room; then Listen / Comments |
+| **Live marker (comment)** | Comment added during recording (`M` → `body` `"Marker"`); not a chapter marker | session sync until landing → `review.comments[]` | Record room; then Listen / Comments; stored with its record command in one step, so a failed marker never half-applies |
 | **Segment** | One continuous stretch of a keeper; leave/rejoin/pause → one clip each | `segments[]` per participant per take | Timeline clips after landing |
 
 ---

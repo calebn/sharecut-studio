@@ -7,7 +7,8 @@ import re
 import sqlite3
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -228,6 +229,23 @@ class SyncStore:
         with self._lock:
             self._put_snapshot_unlocked(server_seq, data)
 
+    @contextmanager
+    def _write_transaction(self) -> Iterator[None]:
+        """``BEGIN IMMEDIATE`` on this connection: one writer across every connection to the file.
+
+        Re-entrant: inside an open transaction it just runs the body.
+        """
+        if self._conn.in_transaction:
+            yield
+            return
+        self._conn.execute("BEGIN IMMEDIATE")
+        try:
+            yield
+        except BaseException:
+            self._conn.execute("ROLLBACK")
+            raise
+        self._conn.execute("COMMIT")
+
     def reset(
         self,
         empty_snap: dict[str, Any],
@@ -235,7 +253,7 @@ class SyncStore:
         guard: Callable[[dict[str, Any] | None], None] | None = None,
     ) -> None:
         """Drop the command log and clients, then write *empty_snap*."""
-        with self._lock:
+        with self._lock, self._write_transaction():
             if guard is not None:
                 guard(self._get_snapshot_unlocked())
             self._conn.execute(self._sql["delete_all_commands"])
@@ -251,7 +269,7 @@ class SyncStore:
 
         Return ``None`` from *mutator* to skip the write.
         """
-        with self._lock:
+        with self._lock, self._write_transaction():
             snap = self._get_snapshot_unlocked()
             if snap is None:
                 return None
@@ -402,51 +420,43 @@ class SyncStore:
         causation_id: str | None,
         apply_fn,
         empty_snap_fn,
+        side_effect_fn: Callable[[sqlite3.Connection, dict[str, Any]], None] | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any], bool]:
-        """Append (or load idempotent row) and materialize snapshot under one lock.
+        """Append (or load the idempotent row), materialize the snapshot and run ``side_effect_fn``
+        in one write transaction.
 
-        Prevents concurrent writers from read-modify-writing stale snapshots.
+        Serializes every connection to the database file (other processes included); an
+        exception rolls back the command row too, so a retry applies it.
         Returns ``(row, snapshot, idempotent)``.
         """
-        with self._lock:
-            # Record commands (prefixed tables) may write live comments through
-            # a second connection inside apply_fn, so only session commands
-            # can hold this connection's write transaction across apply_fn.
-            transactional = not self._p
-            if transactional:
-                self._conn.execute("BEGIN IMMEDIATE")
-            try:
-                existing = (
-                    self._find_by_client_seq_unlocked(client_id, client_seq)
-                    if client_seq is not None
-                    else self._find_by_command_id_unlocked(command_id)
-                )
-                if existing is not None:
-                    if self.enforce_command_ids:
-                        self.require_same_command_id(existing, command_id)
-                    snap = self._get_snapshot_unlocked() or empty_snap_fn()
-                    if transactional:
-                        self._conn.execute("COMMIT")
-                    return existing, snap, True
-                row = self._append_command_unlocked(
-                    command_id=command_id,
-                    client_id=client_id,
-                    client_seq=client_seq,
-                    role=role,
-                    type=type,
-                    payload=payload,
-                    causation_id=causation_id,
-                )
+        with self._lock, self._write_transaction():
+            existing = (
+                self._find_by_client_seq_unlocked(client_id, client_seq)
+                if client_seq is not None
+                else self._find_by_command_id_unlocked(command_id)
+            )
+            if existing is not None:
+                if self.enforce_command_ids:
+                    self.require_same_command_id(existing, command_id)
                 snap = self._get_snapshot_unlocked() or empty_snap_fn()
-                snap = apply_fn(snap, row)
-                self._put_snapshot_unlocked(int(row["server_seq"]), snap)
-                if transactional:
-                    self._conn.execute("COMMIT")
-                return row, snap, False
-            except BaseException:
-                if transactional:
-                    self._conn.execute("ROLLBACK")
-                raise
+                return existing, snap, True
+            row = self._append_command_unlocked(
+                command_id=command_id,
+                client_id=client_id,
+                client_seq=client_seq,
+                role=role,
+                type=type,
+                payload=payload,
+                causation_id=causation_id,
+            )
+            snap = self._get_snapshot_unlocked() or empty_snap_fn()
+            snap = apply_fn(snap, row)
+            if side_effect_fn is not None:
+                # Same connection and transaction, so the side effect commits or rolls back
+                # with the command.
+                side_effect_fn(self._conn, row)
+            self._put_snapshot_unlocked(int(row["server_seq"]), snap)
+            return row, snap, False
 
     def commands_after(self, server_seq: int) -> list[dict[str, Any]]:
         with self._lock:
