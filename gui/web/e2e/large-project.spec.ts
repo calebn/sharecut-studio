@@ -8,6 +8,24 @@ import { scrollToEnd } from "./scroll";
 // are generous and only bound a hung run.
 const BENCHMARK_TEST_TIMEOUT_MS = 15 * 60_000;
 const HEAVY = { timeout: 5 * 60_000 };
+const DEFAULT_SCRUB_ROUNDS = 20;
+const SCRUB_KEY_PRESSES = 10;
+
+/** Rounds of the extended scrub session; a positive integer from the environment. */
+function scrubRounds(): number {
+  const raw = process.env.DAW_BENCHMARK_SCRUB_ROUNDS;
+  if (raw === undefined || raw === "") {
+    return DEFAULT_SCRUB_ROUNDS;
+  }
+  const rounds = Number(raw);
+  if (!Number.isInteger(rounds) || rounds < 1) {
+    throw new Error(
+      `DAW_BENCHMARK_SCRUB_ROUNDS must be a positive integer, got "${raw}"`,
+    );
+  }
+  return rounds;
+}
+const SCRUB_ROUNDS = scrubRounds();
 
 type Profile = {
   domNodes: number;
@@ -21,12 +39,14 @@ type BenchmarkShape = {
   firstClipId: string;
   lastClipId: string;
   utterances: number;
+  historyEntries: number;
 };
 
 type ProjectJson = {
   meta: { name: string };
   timeline: { clips: { id: string; timeline_start: number }[] };
   transcripts: { combined: { utterances: unknown[] } | null };
+  history?: { entries: unknown[] };
 };
 
 /** Counts come from the generated project itself, never from duplicated env defaults. */
@@ -48,6 +68,7 @@ function readBenchmarkShape(): BenchmarkShape {
     firstClipId: clips[0].id,
     lastClipId: clips[clips.length - 1].id,
     utterances: project.transcripts.combined?.utterances.length ?? 0,
+    historyEntries: project.history?.entries.length ?? 0,
   };
 }
 
@@ -64,6 +85,19 @@ async function nextPaint(page: Page): Promise<void> {
   );
 }
 
+/** DOM node count and post-GC heap, without timing. */
+async function sample(
+  page: Page,
+  cdp: CDPSession,
+): Promise<Pick<Profile, "domNodes" | "heapBytes">> {
+  const domNodes = await page.evaluate(
+    () => document.getElementsByTagName("*").length,
+  );
+  await cdp.send("HeapProfiler.collectGarbage");
+  const { usedSize } = await cdp.send("Runtime.getHeapUsage");
+  return { domNodes, heapBytes: usedSize };
+}
+
 async function profile(
   page: Page,
   cdp: CDPSession,
@@ -74,12 +108,7 @@ async function profile(
   await action();
   await nextPaint(page);
   const milliseconds = performance.now() - start;
-  const domNodes = await page.evaluate(
-    () => document.getElementsByTagName("*").length,
-  );
-  await cdp.send("HeapProfiler.collectGarbage");
-  const { usedSize } = await cdp.send("Runtime.getHeapUsage");
-  return { domNodes, heapBytes: usedSize, label, milliseconds };
+  return { ...(await sample(page, cdp)), label, milliseconds };
 }
 
 test.describe("large project benchmark (opt-in fixture)", () => {
@@ -181,7 +210,75 @@ test.describe("large project benchmark (opt-in fixture)", () => {
         await expect(history).toBeVisible(HEAVY);
         await expect(history).not.toHaveAttribute("aria-busy", /.*/, HEAVY);
         await scrollToEnd(history, "scrollTop", HEAVY.timeout);
+        if (shape.historyEntries > 0) {
+          const steps = Number(
+            /(\d+) steps/.exec(
+              (await page.locator(".history-toolbar").textContent()) ?? "",
+            )?.[1],
+          );
+          expect(steps).toBeGreaterThan(0);
+          await expect(
+            page.locator(`[data-history-index="${steps - 1}"]`),
+          ).toBeVisible(HEAVY);
+        }
       }),
+    );
+
+    if (shape.historyEntries > 0) {
+      const historyPanel = page.locator(".history-panel");
+      profiles.push(
+        await profile(page, cdp, "history-diff", async () => {
+          await historyPanel.locator("button.history-row").last().click();
+          await expect(historyPanel.locator(".history-summary")).toBeVisible(
+            HEAVY,
+          );
+        }),
+      );
+      // Writes to the generated project; build a fresh one per measurement.
+      profiles.push(
+        await profile(page, cdp, "history-undo-redo", async () => {
+          const undo = historyPanel.getByRole("button", {
+            name: "Undo",
+            exact: true,
+          });
+          const redo = historyPanel.getByRole("button", {
+            name: "Redo",
+            exact: true,
+          });
+          await expect(undo).toBeEnabled(HEAVY);
+          await undo.click();
+          await expect(redo).toBeEnabled(HEAVY);
+          await redo.click();
+          await expect(redo).toBeDisabled(HEAVY);
+        }),
+      );
+    }
+
+    const endurance: (Pick<Profile, "domNodes" | "heapBytes"> & {
+      round: number;
+    })[] = [];
+    profiles.push(
+      await profile(page, cdp, "scrub-endurance", async () => {
+        await page
+          .getByRole("button", { name: "Transcript", exact: true })
+          .click();
+        await expect(page.locator(".transcript-list")).toBeVisible(HEAVY);
+        for (let round = 0; round < SCRUB_ROUNDS; round++) {
+          const fraction = (round % 5) / 4;
+          await timeline.evaluate((el, f) => {
+            el.scrollLeft = (el.scrollWidth - el.clientWidth) * f;
+          }, fraction);
+          await slider.press(round % 2 === 0 ? "Home" : "End");
+          for (let i = 0; i < SCRUB_KEY_PRESSES; i++) {
+            await slider.press(round % 2 === 0 ? "ArrowRight" : "ArrowLeft");
+          }
+          await nextPaint(page);
+          endurance.push({ round: round + 1, ...(await sample(page, cdp)) });
+        }
+      }),
+    );
+    process.stdout.write(
+      `large-project endurance: ${JSON.stringify(endurance)}\n`,
     );
     process.stdout.write(
       `large-project benchmark: ${JSON.stringify(profiles)}\n`,
