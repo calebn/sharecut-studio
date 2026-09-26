@@ -82,6 +82,14 @@ def test_sidecar_output_names() -> None:
         mod.sidecar_output_name("x86_64-pc-windows-msvc")
         == "sharecut-sidecar-x86_64-pc-windows-msvc.exe"
     )
+    assert (
+        mod.launcher_output_name("podcast", "aarch64-apple-darwin")
+        == "podcast-aarch64-apple-darwin"
+    )
+    assert (
+        mod.launcher_output_name("podcast-mcp", "x86_64-pc-windows-msvc")
+        == "podcast-mcp-x86_64-pc-windows-msvc.exe"
+    )
 
 
 @pytest.mark.parametrize(
@@ -213,6 +221,29 @@ def test_launcher_compile_error_is_not_reported_as_missing_rustc(
     assert "required" not in str(exc.value)
 
 
+def test_compile_launchers_selects_three_modes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    mod = _load_build_sidecar()
+    commands: list[list[str]] = []
+    monkeypatch.setattr(mod, "require_rustc", lambda: "/usr/bin/rustc")
+
+    def record(cmd: list[str]) -> None:
+        commands.append(cmd)
+        Path(cmd[cmd.index("-o") + 1]).touch()
+
+    monkeypatch.setattr(mod.subprocess, "check_call", record)
+    mod.compile_launchers(tmp_path, "x86_64-pc-windows-msvc")
+    assert [Path(cmd[cmd.index("-o") + 1]).name for cmd in commands] == [
+        "sharecut-sidecar-x86_64-pc-windows-msvc.exe",
+        "podcast-x86_64-pc-windows-msvc.exe",
+        "podcast-mcp-x86_64-pc-windows-msvc.exe",
+    ]
+    assert "--cfg" not in commands[0]
+    assert commands[1][-2:] == ["--cfg", "podcast_cli"]
+    assert commands[2][-2:] == ["--cfg", "podcast_mcp_cli"]
+
+
 def test_ensure_recompiles_stale_script_launcher(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -229,7 +260,9 @@ def test_ensure_recompiles_stale_script_launcher(
     launcher.write_text("#!/bin/sh\nexec python -m podcast_mcp.cli.main gui\n", encoding="utf-8")
     compiled: list[Path] = []
     monkeypatch.setattr(mod.shutil, "which", lambda _name: "/usr/bin/rustc")
-    monkeypatch.setattr(mod, "compile_rust_launcher", compiled.append)
+    monkeypatch.setattr(
+        mod, "compile_launchers", lambda _binaries, _triple: compiled.append(launcher)
+    )
     monkeypatch.setattr(mod, "copy_web_dist", _fail)
     monkeypatch.setattr(mod, "freeze_python", _fail)
 

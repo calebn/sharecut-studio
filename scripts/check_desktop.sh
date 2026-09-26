@@ -42,6 +42,13 @@ trap 'rm -rf "$launcher_tmp"' EXIT
 clippy-driver --edition 2021 -D warnings scripts/sidecar_launcher.rs -o "$launcher_tmp/launcher"
 clippy-driver --edition 2021 -D warnings --test scripts/sidecar_launcher.rs -o "$launcher_tmp/launcher-test"
 "$launcher_tmp/launcher-test"
+for variant in podcast podcast_mcp; do
+  clippy-driver --edition 2021 -D warnings --cfg "${variant}_cli" \
+    scripts/sidecar_launcher.rs -o "$launcher_tmp/$variant"
+  clippy-driver --edition 2021 -D warnings --test --cfg "${variant}_cli" \
+    scripts/sidecar_launcher.rs -o "$launcher_tmp/$variant-test"
+  "$launcher_tmp/$variant-test"
+done
 
 cd gui/desktop/src-tauri
 
