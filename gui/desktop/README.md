@@ -65,6 +65,10 @@ artifacts and upload to object storage; do not put object storage credentials or
 in this repo. Apple Silicon notarized DMGs can stay `make desktop-build` on a
 Mac with `APPLE_*`.
 
+## AppImage command line tools
+
+Run the AppImage itself with `--cli <podcast arguments>` or `--mcp <podcast-mcp arguments>`. The native **Install Command Line Tools…** menu installs `~/.local/bin/podcast` and `podcast-mcp` wrappers that invoke the absolute AppImage path. The first successful engine launch offers this once. Keep the AppImage at that path, or use the menu to remove the wrappers before moving it and reinstall them afterward. Existing unrelated files and links are left alone.
+
 ## Deep links
 
 - Review URLs stay **`https://sharecut.studio/r/{token}`** (browser-first for guests). Do not mint `sharecut://`-only links.

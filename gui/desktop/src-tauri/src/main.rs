@@ -305,9 +305,6 @@ fn native_menu(app: &tauri::AppHandle<tauri::Wry>) -> tauri::Result<tauri::menu:
 
 #[cfg(unix)]
 fn cli_bin_and_targets() -> Result<(PathBuf, [(String, PathBuf); 2]), String> {
-    if std::env::var_os("APPIMAGE").is_some() {
-        return Err("AppImage commands cannot be linked from a temporary mount. Use a .deb package or run the commands inside the AppImage.".into());
-    }
     let home = std::env::var_os("HOME").ok_or("HOME is not set")?;
     let exe = std::env::current_exe().map_err(|err| err.to_string())?;
     let launchers = cli_links::targets(&exe).map_err(|err| err.to_string())?;
@@ -320,7 +317,15 @@ fn cli_action(app: &tauri::AppHandle, install: bool) {
         return;
     };
     let result = cli_bin_and_targets().and_then(|(bin, launchers)| {
-        let action = if install {
+        let action = if let Some(image) = std::env::var_os("APPIMAGE") {
+            let wrappers = cli_links::appimage_wrappers(std::path::Path::new(&image))
+                .map_err(|err| err.to_string())?;
+            if install {
+                cli_links::install_appimage(&bin, &wrappers)
+            } else {
+                cli_links::remove_appimage(&bin, &wrappers)
+            }
+        } else if install {
             cli_links::install(&bin, &launchers)
         } else {
             cli_links::remove(&bin, &launchers)
@@ -356,7 +361,7 @@ fn cli_action(app: &tauri::AppHandle, install: bool) {
 
 #[cfg(unix)]
 fn prompt_cli_once(app: &tauri::AppHandle) {
-    if cfg!(debug_assertions) || std::env::var_os("APPIMAGE").is_some() {
+    if cfg!(debug_assertions) {
         return;
     }
     let Ok(dir) = app.path().app_config_dir() else {
@@ -711,6 +716,30 @@ fn engine_navigation_allowed(url: &str, engine_port: Option<u16>) -> bool {
 }
 
 fn main() {
+    #[cfg(target_os = "linux")]
+    if std::env::var_os("APPIMAGE").is_some() {
+        if let Some((launcher, args)) = cli_links::appimage_command(std::env::args_os().skip(1)) {
+            let result = std::env::current_exe()
+                .and_then(|exe| cli_links::run_appimage_command(&exe, launcher, &args));
+            match result {
+                Ok(status) => {
+                    #[cfg(unix)]
+                    {
+                        use std::os::unix::process::ExitStatusExt;
+                        std::process::exit(
+                            status
+                                .code()
+                                .unwrap_or_else(|| 128 + status.signal().unwrap_or(1)),
+                        );
+                    }
+                }
+                Err(err) => {
+                    eprintln!("Sharecut Studio: could not run bundled {launcher}: {err}");
+                    std::process::exit(1);
+                }
+            }
+        }
+    }
     let engine_port = Arc::new(Mutex::new(None::<u16>));
     let nav_port = engine_port.clone();
     let builder = tauri::Builder::default()

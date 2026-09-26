@@ -26,7 +26,7 @@ podcast doctor
 
 `./install.sh` runs `uv sync --extra dev --extra gui --extra bootstrap --extra relay` when `uv` is available (pip fallback installs the same extras). It does **not** put `podcast` on your global `PATH` — use the venv or `uv run`.
 
-For a packaged Sharecut Studio app on macOS or Linux `.deb`, use the native app menu's **Install Command Line Tools…** to link the bundled `podcast` and `podcast-mcp` launchers into `~/.local/bin`. The app offers this once after its first successful engine start. Add `~/.local/bin` to your shell PATH if the app reports it missing. The same menu can remove links that belong to the current app. AppImage does not offer persistent command links because its mount is temporary.
+For a packaged Sharecut Studio app on macOS, Linux `.deb`, or AppImage, use the native app menu's **Install Command Line Tools…** to install `podcast` and `podcast-mcp` in `~/.local/bin`. The app offers this once after its first successful engine start. Add `~/.local/bin` to your shell PATH if the app reports it missing. The same menu removes only commands owned by this app. AppImage installs wrappers that call the absolute `.AppImage` path, so keep the AppImage at that path; before moving it, remove the wrappers, then install again from the new path. You can also run `SharecutStudio.AppImage --cli <podcast arguments>` or `SharecutStudio.AppImage --mcp <podcast-mcp arguments>` directly.
 
 The core install includes `filelock` to coordinate transcript-refine status
 decisions between local pipeline, CLI, and MCP processes.
