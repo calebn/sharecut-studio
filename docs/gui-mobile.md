@@ -244,7 +244,7 @@ Host offline command attention occupies its own shell row on phone, tablet, and 
 
 ## Testing
 
-- Vitest: `useViewportClass`, `BottomSheet`, mobile shell smoke, follow live region + Listen unfollow, layout CSS classes
+- Vitest: `useViewportClass`, `BottomSheet`, mobile shell smoke, follow live region + Listen unfollow, layout CSS classes, shell grid areas (`layout/shellGrid.test.ts`), layout controls; Playwright `e2e/layout-modes.spec.ts` (layout × attention × following geometry at 1512×805)
 - Playwright: phone viewport (`390×844`) asserts `.daw-shell--phone` + mode nav; `e2e/overlay-viewport.spec.ts` Menu + Share dialog reachability at `1280×715` and `390×844`; `e2e/presence-follow.spec.ts` two-client follow at 390 / 820 / 1440; desktop smoke unchanged
 - Manual / guest parity: [`gui/web/e2e/PARITY.md`](../gui/web/e2e/PARITY.md)
 
