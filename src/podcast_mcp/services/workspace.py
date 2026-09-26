@@ -296,7 +296,7 @@ class ProjectWorkspace:
         """Run ``fn`` on the saved project as an undoable mutation and commit it, inside ``transaction()``.
 
         The file lock is held from the reload through the commit, so no writer in any
-                process commits in between (#213). A slow ``fn`` holds it for its whole run.
+        process commits in between (#213). A slow ``fn`` holds it for its whole run.
         ``transaction()`` may first adopt the saved project in place: ``fn`` receives the
         current project, so do not keep sub-object references from before the call.
         """

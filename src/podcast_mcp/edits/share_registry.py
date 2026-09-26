@@ -205,16 +205,14 @@ class SqliteShareRegistry:
         """Drop cooldown rows whose reserved_until has passed. Returns count."""
         moment = now or _now()
         with self._lock, immediate_transaction(self._conn):
-            n = self._purge_expired_cooldown_unlocked(moment)
-            return n
+            return self._purge_expired_cooldown_unlocked(moment)
 
     def is_reserved(self, token: str, *, now: datetime | None = None) -> bool:
         """True if token is active or still in cooldown."""
         moment = now or _now()
         with self._lock, immediate_transaction(self._conn):
             self._purge_expired_cooldown_unlocked(moment)
-            reserved = self._is_reserved_unlocked(token, moment)
-            return reserved
+            return self._is_reserved_unlocked(token, moment)
 
     def get_active(self, token: str) -> dict[str, Any] | None:
         with self._lock:
