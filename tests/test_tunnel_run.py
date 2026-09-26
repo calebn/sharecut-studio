@@ -158,6 +158,69 @@ async def test_dispatch_cancels_and_awaits_all_proxies_on_disconnect():
 
 
 @pytest.mark.asyncio
+async def test_relay_disconnect_awaits_nested_websocket_pumps():
+    import websockets
+
+    client = TunnelClient(RelayConfig(local_gui_url="http://127.0.0.1:8765"))
+    up_started = asyncio.Event()
+    down_started = asyncio.Event()
+    stopped: set[str] = set()
+
+    class LocalWs:
+        def __aiter__(self):
+            return self.frames()
+
+        async def frames(self):
+            up_started.set()
+            try:
+                await asyncio.Event().wait()
+                yield "unreachable"
+            finally:
+                stopped.add("up")
+
+        async def send(self, _text):
+            down_started.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                stopped.add("down")
+
+    class LocalContext:
+        async def __aenter__(self):
+            return LocalWs()
+
+        async def __aexit__(self, *_args):
+            assert stopped == {"up", "down"}
+
+    class RelayWs:
+        def __init__(self):
+            self.calls = 0
+
+        async def recv(self):
+            self.calls += 1
+            if self.calls == 1:
+                return json.dumps(
+                    {
+                        "type": "ws_open",
+                        "id": "stream",
+                        "path": "api/review/daw/ws",
+                        "share_token": "tok",
+                    }
+                )
+            if self.calls == 2:
+                await up_started.wait()
+                return json.dumps({"type": "ws_data", "id": "stream", "text": "payload"})
+            await down_started.wait()
+            raise ConnectionError("relay dropped")
+
+    with patch.object(websockets, "connect", return_value=LocalContext()):
+        with pytest.raises(ConnectionError, match="relay dropped"):
+            await client._serve_messages(RelayWs(), object(), AsyncMock())
+
+    assert stopped == {"up", "down"}
+
+
+@pytest.mark.asyncio
 async def test_run_rejects_bad_hello():
     cfg = RelayConfig(host_token="tok")
     client = TunnelClient(cfg)

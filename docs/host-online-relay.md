@@ -28,6 +28,8 @@ backoff, re-hello + re-register shares). Guests see offline only while the tunne
 is down; once it reconnects, share URLs work again without restarting the CLI.
 Each disconnected session closes its stream queues and waits for its local HTTP
 and WebSocket proxy tasks to stop before the local HTTP client closes.
+Malformed relay HTTP headers or encoded bodies receive a small 400 response
+without reaching the local GUI.
 
 ---
 
