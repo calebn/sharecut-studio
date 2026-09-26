@@ -1722,3 +1722,89 @@ def test_join_continuity_verdicts_and_scorer_errors():
     ):
         analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
     assert project.edit_decisions
+
+
+def test_repetition_candidates_flag_off_skips_repetition():
+    from podcast_mcp.edits.fillers import _collect_candidates
+
+    words = [
+        TranscriptWord(text="the", start=0.0, end=0.15),
+        TranscriptWord(text="the", start=0.17, end=0.3),
+        TranscriptWord(text="store", start=0.35, end=0.6),
+    ]
+    project = _project_with_transcript(words)
+    off = {"tighten": {"filler_words": [], "repetition_candidates": False}}
+    assert _collect_candidates(project.transcripts[0], off, project=project) == []
+    on = {"tighten": {"filler_words": []}}
+    found = _collect_candidates(project.transcripts[0], on, project=project)
+    assert [c.reason for c in found] == ["repetition:word:the"]
+
+
+def test_intensity_tiers_are_nested_and_ordered():
+    from podcast_mcp.config import load_defaults
+    from podcast_mcp.edits.fillers import _collect_candidates
+    from podcast_mcp.edits.tighten_intensity import apply_tighten_intensity
+
+    spec = [
+        ("so", 0.0, 0.2, 0.95),
+        ("um", 0.25, 0.4, 0.95),
+        ("uh", 0.45, 0.6, 0.95),
+        ("we", 0.65, 0.8, 0.95),
+        ("like", 0.85, 1.0, 0.7),
+        ("went", 1.05, 1.3, 0.95),
+        ("the", 1.35, 1.5, 0.95),
+        ("the", 1.52, 1.7, 0.95),
+        ("store", 1.75, 2.0, 0.95),
+        ("then", 3.0, 3.2, 0.95),
+        ("okay", 5.8, 6.0, 0.95),
+        ("um", 6.05, 6.2, 0.95),
+        ("right", 6.25, 6.5, 0.95),
+    ]
+    words = [TranscriptWord(text=t, start=s, end=e, confidence=c) for t, s, e, c in spec]
+    project = _project_with_transcript(words)
+    hits: dict[str, list] = {}
+    for name in ("light", "medium", "aggressive"):
+        tighten = apply_tighten_intensity(load_defaults()["tighten"], name)
+        cands = _collect_candidates(project.transcripts[0], {"tighten": tighten}, project=project)
+        hits[name] = sorted(cands, key=lambda c: c.start)
+
+    def keys(name):
+        return [(c.reason, round(c.start, 2)) for c in hits[name]]
+
+    assert keys("light") == [("filler:um", 0.25), ("filler:uh", 0.45), ("pause:2.60s:solo", 3.2)]
+    assert set(keys("light")) < set(keys("medium")) < set(keys("aggressive"))
+    assert ("repetition:word:the", 1.35) in keys("medium")
+    assert ("filler:like", 0.85) in keys("aggressive")
+    pause_ends = [
+        next(c.end for c in hits[n] if c.reason.startswith("pause") and round(c.start, 2) == 3.2)
+        for n in hits
+    ]
+    assert pause_ends[0] < pause_ends[1] < pause_ends[2]
+
+
+def test_propose_tighten_edits_resolves_intensity(monkeypatch):
+    from podcast_mcp.edits import tighten as tighten_module
+
+    project = _project_with_transcript([TranscriptWord(text="hi", start=0.0, end=0.2)])
+    seen: list[dict] = []
+
+    def fake_collect(_transcript, defaults, **_kwargs):
+        seen.append(defaults["tighten"])
+        return []
+
+    monkeypatch.setattr(tighten_module, "build_track_audio_caches", lambda *_a: {})
+    monkeypatch.setattr(tighten_module, "_add_acoustic_candidates", lambda cands, *_a, **_k: cands)
+    monkeypatch.setattr(tighten_module, "_collect_candidates", fake_collect)
+
+    tighten_module.propose_tighten_edits(project, {"tighten": {"intensity": "light"}})
+    assert seen[-1]["max_pause_sec"] == 2.0
+    tighten_module.propose_tighten_edits(
+        project, {"tighten": {"intensity": "light"}}, intensity="aggressive"
+    )
+    assert seen[-1]["max_pause_sec"] == 0.8
+    assert seen[-1]["intensity"] == "aggressive"
+
+    before = list(project.edit_decisions)
+    with pytest.raises(ValueError):
+        tighten_module.propose_tighten_edits(project, {"tighten": {}}, intensity="bogus")
+    assert project.edit_decisions == before

@@ -535,3 +535,14 @@ def test_meta_path_helpers_and_unknown_step() -> None:
         raise AssertionError("expected KeyError")
     except KeyError:
         pass
+
+
+def test_tighten_intensity_param_field() -> None:
+    row = next(p for p in param_fields_payload() if p["path"] == "tighten.intensity")
+    assert row["type"] == "enum"
+    assert list(row["enum"]) == ["light", "medium", "aggressive"]
+    assert row["default"] == "medium"
+    assert row["section"] == "tighten"
+    merged = merge_pipeline_config({})
+    assert merged["tighten"]["intensity"] == "medium"
+    assert merged["tighten"]["repetition_candidates"] is True

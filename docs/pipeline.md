@@ -13,7 +13,7 @@ Default step order (see [transcript-workflow.md](transcript-workflow.md) for tra
 9. `require_transcript_refine` — Hard agent gate (`refine-done` / waive; auto-waive with `--unattended` / `PODCAST_BATCH=1` when mode is `waive_unattended`; after an active gate, a successful unattended run refreshes its waiver only for later suppression changes)
 10. `analyze_focus_cuts` — `artifacts/focus_outline.md`; off unless `focus.enabled`
 11. `focus_from_transcript` — No-op unless `focus.auto_apply`
-12. `analyze_fillers_pauses` — Mark filler words and long pauses (**no-op** unless `tighten.enabled`). Manual `propose_edits` uses `tighten.edit_mode` (`ripple` default, or `mute`).
+12. `analyze_fillers_pauses` — Mark filler words and long pauses (**no-op** unless `tighten.enabled`). Manual `propose_edits` uses `tighten.edit_mode` (`ripple` default, or `mute`); `tighten.intensity` (`light`/`medium`/`aggressive`, [filler-cut-quality.md § Intensity presets](filler-cut-quality.md#intensity-presets)) overlays preset values at propose time.
 13. `tighten_from_transcript` — Apply filler/pause edit decisions (**no-op** unless `tighten.enabled`)
 14. `clean_audio` — HPF per dialogue track
 15. `balance_tracks` — LUFS gain staging
@@ -91,6 +91,8 @@ Pipeline auto-tighten stays **off** (`tighten.enabled: false`) until the golden-
 | Key | Default | Role |
 |-----|---------|------|
 | `tighten.enabled` | `false` | Run `analyze_fillers_pauses` / `tighten_from_transcript` |
+| `tighten.intensity` | `medium` | `light` / `medium` / `aggressive` preset overlay applied at propose time |
+| `tighten.repetition_candidates` | `true` | Propose review-only `repetition:` / `restart:` hits (`light` turns this off) |
 | `tighten.filler_words` | um, uh, erm, ah, like, you know, sort of, kind of | Lexicon (ASR-normalized) |
 | `tighten.discourse_markers` | like, you know, sort of, kind of | Demoted tokens (adjacent-token phrase match): candidates only with an adjacent true disfluency/repeat, pause ≥ `discourse_pause_sec`, or ASR confidence &lt; `discourse_confidence_max`. Missing key = defaults; `[]` disables demotion. |
 | `tighten.discourse_pause_sec` | `0.35` | Flanking pause that qualifies a discourse marker |

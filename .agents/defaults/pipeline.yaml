@@ -56,9 +56,15 @@ tighten:
   # in place (Clip.mute_regions); pause candidates are skipped (muting a pause
   # is a no-op). See docs/filler-cut-quality.md § Mute vs cut.
   edit_mode: ripple
+  # light | medium | aggressive. medium = the values below unchanged; light /
+  # aggressive override only the keys they name (edits/tighten_intensity.py).
+  # CLI --intensity / MCP intensity= win over this key. Propose-time only.
+  intensity: medium
   # Tuning guide: docs/filler-cut-quality.md
   crossfade_ms: 25
   max_pause_sec: 1.2
+  # Propose review-only repetition:/restart: hits (light intensity turns this off).
+  repetition_candidates: true
   # Review-only local DSP candidates for voiced audio hidden in ASR gaps.
   # This never auto-applies: VAD can mistake breaths/noise for words.
   acoustic_gap_filler:

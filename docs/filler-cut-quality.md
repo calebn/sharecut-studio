@@ -29,7 +29,7 @@ Implementation: `edits/fillers.py`, `edits/cut_quality.py`, `edits/join_continui
 
 ## Policy
 
-- **Repetition and restart proposals** — Tighten detects same-track, timestamp-adjacent exact word repeats (`repetition:word:*`), repeated prefixes up to four words (`restart:phrase:*`), and only explicitly marked partial-word cut-offs (`stor- store`, `restart:partial:*`). Split repairs remove the repeated prefix and partial together (`I w- I went` removes `I w-`, retaining `I went`). The detector uses a bounded 0.45 s gap by default (`tighten.repeat_max_gap_sec`, capped at 2 s), skips suppressed/overlapping words and complete filler-lexicon spans (including split multi-word entries such as `you know`), and never compares across tracks. It consumes a matched repair window so periodic text cannot stack adjacent restart proposals. These remain proposal-only (`review_required: true`) because emphasis and semantic repairs (for example “store—no, park”) cannot be inferred safely from text alone; coalescing keeps each repeat/restart (and `filler:acoustic`) proposal's id and reason separate from adjacent cuts. The existing golden-ear A/B harness includes `filler`, `pause`, `repetition`, and `restart` by default; listen and approve each hit individually.
+- **Repetition and restart proposals** (off at `light` / `tighten.repetition_candidates: false`) — Tighten detects same-track, timestamp-adjacent exact word repeats (`repetition:word:*`), repeated prefixes up to four words (`restart:phrase:*`), and only explicitly marked partial-word cut-offs (`stor- store`, `restart:partial:*`). Split repairs remove the repeated prefix and partial together (`I w- I went` removes `I w-`, retaining `I went`). The detector uses a bounded 0.45 s gap by default (`tighten.repeat_max_gap_sec`, capped at 2 s), skips suppressed/overlapping words and complete filler-lexicon spans (including split multi-word entries such as `you know`), and never compares across tracks. It consumes a matched repair window so periodic text cannot stack adjacent restart proposals. These remain proposal-only (`review_required: true`) because emphasis and semantic repairs (for example “store—no, park”) cannot be inferred safely from text alone; coalescing keeps each repeat/restart (and `filler:acoustic`) proposal's id and reason separate from adjacent cuts. The existing golden-ear A/B harness includes `filler`, `pause`, `repetition`, and `restart` by default; listen and approve each hit individually.
 
 - **Leave isolated fillers in** — `tighten.min_filler_cluster: 2` (default). Only cut fillers that appear in clusters within `filler_cluster_gap_sec`.
 - **Discourse-safe selection** — Tokens in `tighten.discourse_markers` (default `like`, `you know`, `sort of`, `kind of`) remain in `filler_words` but are **not** cut unless at least one of: (a) an **adjacent** true disfluency (`um` / `uh` / `erm` / `ah`, or any other non-marker lexicon hit) or an immediate repeat (`like like`); (b) a pause ≥ `tighten.discourse_pause_sec` (default 0.35 s) on at least one side of the marker span; (c) ASR confidence < `tighten.discourse_confidence_max` (default 0.6). Multi-word markers match split ASR tokens via adjacent-token windows (`you`+`know` → `you know`). Pause and low-confidence are intentional escape hatches: a fluent quotative/comparative `like` with a ≥0.35 s flanking gap or ASR confidence below 0.6 still becomes `filler:like`. Fluent uses without those signals are counted as `discourse:{token}` (including isolated hits rejected by `min_filler_cluster`) and show up in the propose summary (`N discourse kept`). Accepted hits still use reason `filler:{token}`. Missing `discourse_markers` uses the defaults; explicit `[]` disables demotion.
@@ -124,39 +124,27 @@ Per-episode overrides: copy relevant keys from `tighten:` / `inaudible_cuts:` / 
 | Want `like` treated as a hard filler again | `discourse_markers` | Remove `like` from the list (empty list = no demotion) |
 | Want manual review on borderline cuts | `leave_in_if_risky` | **`false`** (marks `:risky`, `review_required`) |
 
-### Presets (starting points)
+### Intensity presets
 
-**Conservative (leave more in)** — interview / conversational show:
+`tighten.intensity` selects a named, deterministic overlay on the keys below. No model calls: the same transcript always yields the same proposals. The source of truth is `TIGHTEN_INTENSITY_PRESETS` in `edits/tighten_intensity.py`.
 
-```yaml
-tighten:
-  min_filler_cluster: 3
-  max_cut_risk_score: 0.5
-  min_retained_pause_sec: 0.25
-  min_gap_after_filler_sec: 0.32
-  leave_in_if_risky: true
-```
+| Tier | Overrides |
+|------|-----------|
+| `light` | `filler_words: [um, uh, erm]`, `min_filler_confidence: 0.5`, `max_cut_risk_score: 0.5`, `max_pause_sec: 2.0`, `min_retained_pause_sec: 0.5`, `min_retained_solo_pause_sec: 0.75`, `repetition_candidates: false`, `acoustic_gap_filler.enabled: false` (clear um/uh only; never trim a pause below 0.5 s) |
+| `medium` (default) | none: the shipped `tighten` block unchanged |
+| `aggressive` | `min_filler_cluster: 1`, `discourse_pause_sec: 0.2`, `discourse_confidence_max: 0.85`, `max_pause_sec: 0.8`, `min_retained_solo_pause_sec: 0.3`, `max_cut_risk_score: 0.8`, `repetition_candidates: true`, `acoustic_gap_filler.enabled: true` (isolated fillers, borderline discourse markers, 0.3 s solo pauses) |
 
-**Moderate (defaults)** — balanced podcast dialogue.
-
-**Aggressive (denser)** — narration or heavy polish (listen carefully):
-
-```yaml
-tighten:
-  min_filler_cluster: 1
-  max_cut_risk_score: 0.8
-  max_pause_sec: 0.9
-  min_retained_pause_sec: 0.12
-  min_gap_after_filler_sec: 0.2
-  filler_room_tone_replace: true
-  filler_pad_mode: silence
-  leave_in_if_risky: true
-```
+- **Precedence:** explicit argument (CLI `--intensity`, MCP `intensity=`, golden-ear `--intensity`) > `tighten.intensity` in config > `medium`. Unknown names raise; blank means `medium`; matching is case-insensitive.
+- `light` / `aggressive` override only the keys they name (nested dicts merge). To tune individual keys by hand, stay on `medium`.
+- Presets are **propose-only**: they change what is proposed, never auto-apply, and `tighten.enabled` is unchanged. Discourse-marker demotion stays on at every tier.
+- Surfaces: `podcast propose-edits --intensity`, MCP `propose_edits(intensity=...)`, the Tighten tab **Intensity** + **Find hits**, the Pipeline tab "Tighten intensity", and golden-ear `--intensity`.
 
 ### Key parameters reference
 
 | Key | Default | Role |
 |-----|---------|------|
+| `tighten.intensity` | `medium` | `light` / `medium` / `aggressive` preset overlay (see Intensity presets) |
+| `tighten.repetition_candidates` | `true` | Propose review-only `repetition:` / `restart:` hits (`light` turns this off) |
 | `tighten.min_filler_cluster` | `2` | Min fillers in a cluster before cutting |
 | `tighten.filler_cluster_gap_sec` | `2.0` | Max gap between fillers in one cluster |
 | `tighten.filler_words` | um, uh, … | Token list (ASR-normalized); includes discourse markers |

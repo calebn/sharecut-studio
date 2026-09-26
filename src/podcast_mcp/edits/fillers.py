@@ -714,7 +714,8 @@ def _collect_candidates(
 
     words = transcript.words
     candidates = _collect_filler_candidates(words, track_id, tighten, skip_counts=skip_counts)
-    candidates.extend(_collect_repetition_candidates(words, track_id, tighten))
+    if bool(tighten.get("repetition_candidates", True)):
+        candidates.extend(_collect_repetition_candidates(words, track_id, tighten))
     for i, word in enumerate(words):
         if word.suppressed:
             continue
