@@ -71,11 +71,16 @@ The repository intentionally carries no `.gitleaksignore` baseline; test fixture
 values that cannot be mistaken for live credentials.
 The companion public-tree provider/marker test scans blobs in the Git index, not ignored
 cache files or the mutable checkout, so staged public contents are the tested boundary.
-It also fails on any **public** (globally routable) IPv4 literal in a text blob. Private,
-loopback and documentation ranges (`203.0.113.0/24` etc.) pass. Lockfiles are skipped (version
-tuples). The three fixture resolver addresses in `_PUBLIC_IPV4_ALLOWLIST` are allowed. Use a
-documentation range for new examples rather than growing the allowlist, and keep real server
-addresses in the private operations repo.
+It also fails on any **public** (globally routable) IPv4 literal in a text blob, including
+sentence-final and zero-padded forms. Private, loopback and documentation ranges
+(`203.0.113.0/24` etc.) pass. Binary blobs, `*.lock` / `package-lock.json` (version tuples) and
+`.svg` / `.map` / `.min.js` assets (compact path data) are skipped. The three fixture addresses in
+`_PUBLIC_IPV4_ALLOWLIST` (two public resolvers and the `1.2.3.4` placeholder) are allowed. The
+scan covers dotted-quad IPv4 only, not IPv6 or decimal/hex-encoded addresses; it guards against
+accidental leaks, not deliberate obfuscation. On a false positive, rewrite the value (use a
+documentation range for examples) or, for a new generated asset type, add its suffix to
+`_IPV4_SKIP_SUFFIXES`, rather than growing the allowlist. Keep real server addresses in the
+private operations repo.
 
 Before changing repository visibility, clone a fresh `--mirror`, fetch
 `refs/pull/*/head`, and scan that mirror. The regular workflow prevents new committed
