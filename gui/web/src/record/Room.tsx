@@ -93,6 +93,7 @@ export function Room({
   );
   return (
     <div className="stack">
+      {/* No `offline`: the guest keeps recording locally; HOST_OFFLINE_COPY explains a drop. */}
       <RecIndicator snapshot={snapshot} capture={capture} />
       <div aria-live="polite">
         {hostOffline ? (
