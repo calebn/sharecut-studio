@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseWavHeader, wavPcmToFloat32 } from "../../audio/wavHeader";
 import { deferred } from "../../test/deferred";
 import { inspectKeeperRecovery } from "../upload/recovery";
+import { ClipRegionTracker } from "./clipRegions";
 import { sha256Hex } from "./fingerprint";
 import { KEEPER_SAMPLE_RATE, toKeeperPcm } from "./pcm";
 import type { KeeperGate } from "./segments";
@@ -938,6 +939,35 @@ describe("KeeperSession clipping", () => {
       segmentIndex: 0,
       regions: [{ startMs: 2000, endMs: 2010 }],
     });
+  });
+
+  it("re-emits while a hot run extends the open region", async () => {
+    const sink = new MemorySink();
+    const events: KeeperClipEvent[] = [];
+    const session = new KeeperSession(sink, undefined, {
+      onClipping: (e) => events.push(e),
+    });
+    await session.apply(recordingGate());
+    session.push(hot(480, 0, 480), rate);
+    session.push(hot(rate / 2, 0, rate / 2), rate);
+    expect(events.at(-1)?.regions).toEqual([{ startMs: 0, endMs: 510 }]);
+    await session.dispose();
+  });
+
+  it("writes clippingTruncated when the tracker hit the cap", async () => {
+    const spy = vi
+      .spyOn(ClipRegionTracker.prototype, "truncated", "get")
+      .mockReturnValue(true);
+    try {
+      const sink = new MemorySink();
+      const session = new KeeperSession(sink);
+      await session.apply(recordingGate());
+      session.push(hot(480, 0, 480), rate);
+      await session.dispose();
+      expect((await complete(sink)).clippingTruncated).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("starts each segment with a clean tracker", async () => {

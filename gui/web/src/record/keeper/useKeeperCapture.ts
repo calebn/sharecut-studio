@@ -72,12 +72,19 @@ export function useKeeperCapture({
       clipSegments.current = current;
     }
     current.segments.set(event.segmentIndex, event);
-    const regions = [...current.segments.values()]
-      .sort((a, b) => a.segmentIndex - b.segmentIndex)
-      .flatMap((e) =>
-        takeRelativeMs(e.segmentIndex, e.joinOffsetMs, e.regions),
-      );
-    setClipping({ takeIndex: event.takeIndex, regions, known: true });
+    const events = [...current.segments.values()].sort(
+      (a, b) => a.segmentIndex - b.segmentIndex,
+    );
+    const regions = events.flatMap((e) =>
+      takeRelativeMs(e.segmentIndex, e.joinOffsetMs, e.regions),
+    );
+    const truncated = events.some((e) => e.truncated);
+    setClipping({
+      takeIndex: event.takeIndex,
+      regions,
+      known: true,
+      ...(truncated ? { truncated: true } : {}),
+    });
   }, []);
   const [writing, setWriting] = useState(false);
   const [unfinalizedCapture, setUnfinalizedCapture] = useState(false);

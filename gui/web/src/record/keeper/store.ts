@@ -29,6 +29,8 @@ export type KeeperMeta = {
   byteLength?: number;
   /** Segment-relative sample-peak clip regions; absent on older segments. */
   clippingRegions?: KeeperClipRegion[];
+  /** The segment hit the clip-region cap; later clipping was dropped. */
+  clippingTruncated?: boolean;
 };
 
 /**
@@ -269,6 +271,8 @@ export function parseKeeperMeta(
     !Number.isFinite(raw.joinOffsetMs) ||
     raw.joinOffsetMs < 0 ||
     (raw.complete !== undefined && typeof raw.complete !== "boolean") ||
+    (raw.clippingTruncated !== undefined &&
+      typeof raw.clippingTruncated !== "boolean") ||
     (raw.fileSha256 !== undefined &&
       (typeof raw.fileSha256 !== "string" ||
         !/^[0-9a-f]{64}$/.test(raw.fileSha256))) ||
@@ -297,6 +301,9 @@ export function parseKeeperMeta(
       ? {}
       : { byteLength: raw.byteLength as number }),
     ...(clippingRegions === undefined ? {} : { clippingRegions }),
+    ...(raw.clippingTruncated === undefined
+      ? {}
+      : { clippingTruncated: raw.clippingTruncated as boolean }),
   };
 }
 

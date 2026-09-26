@@ -26,22 +26,43 @@ describe("ClipRegionTracker", () => {
   it("merges hits less than one second apart", () => {
     const t = new ClipRegionTracker();
     expect(t.observe(ms(0), ms(10))).toBe(true);
-    expect(t.observe(ms(1010), ms(1020))).toBe(false);
+    expect(t.observe(ms(1010), ms(1020))).toBe(true);
+    expect(t.observe(ms(1030), ms(1040))).toBe(false);
     expect(t.observe(ms(2100), ms(2110))).toBe(true);
     expect(t.regionsMs().map((r) => [r.startMs, r.endMs])).toEqual([
-      [0, 1021],
+      [0, 1041],
       [2100, 2111],
     ]);
   });
 
-  it("caps regions by extending the last one", () => {
+  it("re-notifies when the open region grows by the emit step", () => {
     const t = new ClipRegionTracker();
-    for (let i = 0; i < MAX_CLIP_REGIONS + 5; i++) {
-      t.observe(ms(i * 5000), ms(i * 5000 + 10));
+    expect(t.observe(ms(0), ms(10))).toBe(true);
+    expect(t.observe(ms(100), ms(200))).toBe(false);
+    expect(t.observe(ms(300), ms(400))).toBe(true);
+  });
+
+  it("stops at the cap and marks the segment truncated", () => {
+    const t = new ClipRegionTracker();
+    for (let i = 0; i < MAX_CLIP_REGIONS; i++) {
+      expect(t.observe(ms(i * 5000), ms(i * 5000 + 10))).toBe(true);
     }
+    expect(t.truncated).toBe(false);
+    const lastStart = (MAX_CLIP_REGIONS - 1) * 5000;
+    t.observe(ms(lastStart + 20), ms(lastStart + 30));
+    expect(t.observe(ms(lastStart + 60_000), ms(lastStart + 60_010))).toBe(
+      true,
+    );
+    expect(t.truncated).toBe(true);
+    expect(t.observe(ms(lastStart + 90_000), ms(lastStart + 90_010))).toBe(
+      false,
+    );
     const out = t.regionsMs();
     expect(out).toHaveLength(MAX_CLIP_REGIONS);
-    expect(out[out.length - 1]?.endMs).toBe((MAX_CLIP_REGIONS + 4) * 5000 + 11);
+    expect(out[out.length - 1]).toEqual({
+      startMs: lastStart,
+      endMs: lastStart + 31,
+    });
   });
 
   it("resets", () => {
@@ -49,6 +70,7 @@ describe("ClipRegionTracker", () => {
     t.observe(1, 2);
     t.reset();
     expect(t.regionsMs()).toEqual([]);
+    expect(t.truncated).toBe(false);
   });
 });
 

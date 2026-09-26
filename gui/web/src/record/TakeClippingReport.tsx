@@ -5,6 +5,7 @@ import type { TakeClipping, TakeClipRegion } from "./keeper/clipRegions";
 import {
   CLIPPING_JUNCTION_HINT,
   CLIPPING_RECOVERY_COPY,
+  CLIPPING_TRUNCATED_COPY,
   clippingLiveCopy,
   clippingReportCopy,
   NO_CLIPPING_COPY,
@@ -51,6 +52,9 @@ export function TakeClippingReport({ report, roomState, jumpFor }: Props) {
       <p className="record-warn">
         {clippingReportCopy(count, report.takeIndex)}
       </p>
+      {report.truncated ? (
+        <p className="record-hint">{CLIPPING_TRUNCATED_COPY}</p>
+      ) : null}
       <ul className="stack">
         {report.regions.map((region) => {
           const jump = jumpFor ? jumpFor(region) : null;

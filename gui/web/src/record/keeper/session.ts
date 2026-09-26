@@ -37,12 +37,14 @@ export const KEEPER_STALL_MESSAGE = "this device's storage couldn't keep up.";
 const WAV_HEADER_BYTES = 44;
 const BYTES_PER_SAMPLE = 2;
 
-/** A new or extended clipping region in the open segment (segment-relative). */
+/** Clipping in the open segment (segment-relative): a region opened, the open one grew by CLIP_REGION_EMIT_STEP_MS, the cap was hit, or the segment closed. */
 export type KeeperClipEvent = {
   takeIndex: number;
   segmentIndex: number;
   joinOffsetMs: number;
   regions: KeeperClipRegion[];
+  /** The segment hit MAX_CLIP_REGIONS; later clipping was dropped. */
+  truncated: boolean;
 };
 
 export type KeeperSessionOptions = {
@@ -431,7 +433,12 @@ export class KeeperSession {
       samplesWritten,
       complete,
       ...fingerprint,
-      ...(complete ? { clippingRegions: this.clipping.regionsMs() } : {}),
+      ...(complete
+        ? {
+            clippingRegions: this.clipping.regionsMs(),
+            ...(this.clipping.truncated ? { clippingTruncated: true } : {}),
+          }
+        : {}),
     };
     await this.bounded(
       writeKeeperMeta(this.sink, wavPath, meta),
@@ -451,6 +458,7 @@ export class KeeperSession {
       segmentIndex: open.segmentIndex,
       joinOffsetMs: open.joinOffsetMs,
       regions: this.clipping.regionsMs(),
+      truncated: this.clipping.truncated,
     });
   }
 

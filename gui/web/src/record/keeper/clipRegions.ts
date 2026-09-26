@@ -2,11 +2,16 @@ import { KEEPER_SAMPLE_RATE } from "./pcm";
 
 /** Hits closer together than this merge into one region. */
 export const CLIP_REGION_MERGE_MS = 1000;
-/** Per-segment cap; further hits extend the last region. */
+/** Per-segment cap; later hits that cannot merge into the last region are dropped and the segment is marked truncated. */
 export const MAX_CLIP_REGIONS = 100;
 
 const MERGE_SAMPLES = Math.round(
   (CLIP_REGION_MERGE_MS * KEEPER_SAMPLE_RATE) / 1000,
+);
+/** Live consumers are re-notified when the open region grows by this much. */
+export const CLIP_REGION_EMIT_STEP_MS = 250;
+const EMIT_STEP_SAMPLES = Math.round(
+  (CLIP_REGION_EMIT_STEP_MS * KEEPER_SAMPLE_RATE) / 1000,
 );
 
 /** Segment-relative clipping span in milliseconds. */
@@ -27,28 +32,47 @@ export type TakeClipping = {
   regions: TakeClipRegion[];
   /** True when every segment is known to have been checked for clipping. */
   known: boolean;
+  /** True when a segment hit MAX_CLIP_REGIONS and later clipping went unrecorded. */
+  truncated?: boolean;
 };
 
 /** Merges hot sample spans (in segment samples) into bounded regions. */
 export class ClipRegionTracker {
   private spans: { first: number; last: number }[] = [];
+  private notifiedLast = -1;
+  private capped = false;
 
   reset(): void {
     this.spans = [];
+    this.notifiedLast = -1;
+    this.capped = false;
   }
 
-  /** Record a hot run; returns true when it opened a new region. */
+  /** True once a hit was dropped because the segment reached MAX_CLIP_REGIONS. */
+  get truncated(): boolean {
+    return this.capped;
+  }
+
+  /**
+   * Record a hot run. Returns true when live consumers should re-read
+   * `regionsMs()`: a region opened, the open region grew by at least
+   * CLIP_REGION_EMIT_STEP_MS since the last true, or the cap was first hit.
+   */
   observe(first: number, last: number): boolean {
     const tail = this.spans[this.spans.length - 1];
-    if (
-      tail &&
-      (first - tail.last <= MERGE_SAMPLES ||
-        this.spans.length >= MAX_CLIP_REGIONS)
-    ) {
+    if (tail && first - tail.last <= MERGE_SAMPLES) {
       tail.last = Math.max(tail.last, last);
-      return false;
+      if (tail.last - this.notifiedLast < EMIT_STEP_SAMPLES) return false;
+      this.notifiedLast = tail.last;
+      return true;
+    }
+    if (this.spans.length >= MAX_CLIP_REGIONS) {
+      if (this.capped) return false;
+      this.capped = true;
+      return true;
     }
     this.spans.push({ first, last });
+    this.notifiedLast = last;
     return true;
   }
 
