@@ -244,3 +244,26 @@ def test_nested_write_transaction_joins_the_outer_one(tmp_path: Path) -> None:
         raise RuntimeError("outer failed")
     assert store.commands_after(0) == []
     store.close()
+
+
+def test_apply_fn_writing_through_another_connection_fails_and_rolls_back(tmp_path: Path) -> None:
+    """Pins the append_and_apply rule: writes inside go through the transaction's connection."""
+    db_path = tmp_path / "sync.db"
+    outer = SyncStore(db_path, table_prefix="record_")
+    other = SyncStore(db_path)
+    other._conn.execute("PRAGMA busy_timeout = 50")
+
+    def apply_through_another_connection(snapshot, row):
+        other.put_snapshot(1, {"n": 1})
+        return _count_apply(snapshot, row)
+
+    try:
+        with pytest.raises(sqlite3.OperationalError, match="locked"):
+            _record_append(outer, "nested", 1, apply_through_another_connection)
+        assert outer.commands_after(0) == []
+        assert (other.get_snapshot() or {}).get("n") is None
+        other.put_snapshot(2, {"n": 2})
+        assert (other.get_snapshot() or {})["n"] == 2
+    finally:
+        outer.close()
+        other.close()
