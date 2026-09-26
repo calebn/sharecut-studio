@@ -351,10 +351,12 @@ class RecordLandingService:
         *,
         align: AlignFn | None,
         drift_ms: float | None,
+        reload: bool = True,
     ) -> dict[str, Any]:
-        # Land callers open their workspace before the body read / land lock wait;
-        # adopt any land another request committed meanwhile (#503).
-        self.workspace.reload()
+        if reload:
+            # Land callers open their workspace before the body read / land lock wait;
+            # adopt any land another request committed meanwhile (#503).
+            self.workspace.reload()
         snap = self._snapshot()
         tombstoned = self._upload.tombstoned_takes(self.session_id)
         offsets = take_offsets_s(snap.takes, tombstoned=tombstoned)
@@ -742,7 +744,8 @@ class RecordLandingService:
         )
         self._upload.tombstone_take(self.session_id, take)
         self._comments.delete_take(self.session_id, take)
-        landed = self._land_locked(align=None, drift_ms=None)
+        # The discard mutation just re-read and committed the project under the land lock.
+        landed = self._land_locked(align=None, drift_ms=None, reload=False)
         after_agent_mutation(self.workspace)
         landed["discarded_take"] = take
         return landed
