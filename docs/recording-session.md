@@ -645,6 +645,10 @@ so it has no meter. Producers have no meter and no clip LED.
   `SourceRecording.clipping_regions` in source seconds. `list_clips` adds
   `ClipRow.clipping_regions`: the source regions intersected with each clip
   window, so they follow cuts and moves.
+  The spans are untrusted client metadata (at most 4096 chars and 100
+  ascending, disjoint spans, each ending within 24 h, clamped to the file on
+  landing). They only drive UI flags; do not use them to drive audio edits
+  without re-checking the audio.
 
 **Surfaces.** The REC indicator (`RecIndicator`, and so the host transport chip
 on desktop and phone) gets a `ClipLed`, lit from the first region. During a take
