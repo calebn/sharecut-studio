@@ -12,6 +12,8 @@ interface Send {
   done: Promise<void>;
 }
 
+import { raceTimeout } from "../utils/raceTimeout";
+
 const sends = new Map<string, Send[]>();
 const finishedCount = new Map<string, number>();
 
@@ -52,15 +54,12 @@ export function beginHostSend(
   sends.set(projectPath, [...list, entry]);
   return {
     earlier,
-    earlierWithin: (ms) => {
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      const timedOut = new Promise<boolean>((resolve) => {
-        timer = setTimeout(() => resolve(false), ms);
-      });
-      return Promise.race([earlier.then(() => true), timedOut]).finally(() =>
-        clearTimeout(timer),
-      );
-    },
+    earlierWithin: (ms) =>
+      raceTimeout(
+        earlier.then(() => true),
+        ms,
+        () => false,
+      ),
     finish: () => {
       const rest = (sends.get(projectPath) ?? []).filter((s) => s !== entry);
       if (rest.length > 0) sends.set(projectPath, rest);

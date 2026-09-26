@@ -1,4 +1,5 @@
 import { pcmWavHeader } from "../../audio/wavHeader";
+import { raceTimeout } from "../../utils/raceTimeout";
 import { ClipRegionTracker, type KeeperClipRegion } from "./clipRegions";
 import { keeperFileFingerprint } from "./fingerprint";
 import { encodeKeeperPcm, KEEPER_SAMPLE_RATE } from "./pcm";
@@ -504,23 +505,11 @@ export class KeeperSession {
     label: string,
     timeoutMs = this.operationTimeoutMs,
   ): Promise<T> {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(
-        () =>
-          reject(
-            new KeeperStallError(
-              `keeper ${label} timed out after ${timeoutMs}ms`,
-            ),
-          ),
-        timeoutMs,
+    return raceTimeout(operation, timeoutMs, () => {
+      throw new KeeperStallError(
+        `keeper ${label} timed out after ${timeoutMs}ms`,
       );
     });
-    try {
-      return await Promise.race([operation, timeout]);
-    } finally {
-      clearTimeout(timer);
-    }
   }
 
   private clearOpenSegment(): void {
