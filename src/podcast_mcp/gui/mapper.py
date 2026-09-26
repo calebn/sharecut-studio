@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from bisect import bisect_left, bisect_right
+from dataclasses import dataclass
 from typing import Any
 
 from podcast_mcp.edits.clips_ops import clips_for_track
@@ -7,6 +9,7 @@ from podcast_mcp.edits.pending_preview import preview_window_for_edit
 from podcast_mcp.edits.timeline_span import map_source_span_fields
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import AppliedEditRecord, EditDecision, EpisodeProject
+from podcast_mcp.util.timebase import SourceSec
 
 TIGHTEN_REASON_PREFIXES = ("filler:", "pause:", "repetition:", "restart:")
 
@@ -98,27 +101,63 @@ def map_pending_edits_to_timeline(
     return rows
 
 
+@dataclass(frozen=True)
+class _MappedWordIndex:
+    starts: list[float]
+    max_ends: list[float]
+    entries: list[tuple[int, Any]]
+    views: list[dict[str, Any]]
+
+
+def _mapped_word_index(
+    project: EpisodeProject, timeline: SessionTimeline, track_id: str
+) -> _MappedWordIndex:
+    tr = project.transcript_for_track(track_id)
+    words = tr.words if tr is not None else []
+    source_spans = [
+        (
+            SourceSec(float(w.start)),
+            SourceSec(float(w.end) if w.end > w.start else float(w.start) + 0.001),
+        )
+        for w in words
+    ]
+    mapped = timeline.map_source_spans(track_id, source_spans)
+    views = [
+        _word_view(timeline, track_id, i, w, spans)
+        for i, (w, spans) in enumerate(zip(words, mapped, strict=True))
+    ]
+    entries = sorted(enumerate(words), key=lambda pair: (pair[1].start, pair[0]))
+    starts = [float(w.start) for _, w in entries]
+    max_ends: list[float] = []
+    latest = float("-inf")
+    for _, w in entries:
+        latest = max(latest, float(w.end) if w.end > w.start else float(w.start) + 0.001)
+        max_ends.append(latest)
+    return _MappedWordIndex(starts, max_ends, entries, views)
+
+
 def _words_for_utterance(
     project: EpisodeProject,
     timeline: SessionTimeline,
     track_id: str,
     source_start: float,
     source_end: float,
+    index: _MappedWordIndex | None = None,
 ) -> list[dict[str, Any]]:
     """Per-track words overlapping the utterance, including suppressed chips."""
-    tr = project.transcript_for_track(track_id)
-    if tr is None:
-        return []
-    words: list[dict[str, Any]] = []
-    for word_index, word in enumerate(tr.words):
+    index = index if index is not None else _mapped_word_index(project, timeline, track_id)
+    upper = bisect_left(index.starts, source_end)
+    lower = bisect_right(index.max_ends, source_start, 0, upper)
+    selected: list[int] = []
+    for word_index, word in index.entries[lower:upper]:
         if word.end <= word.start:
             if not (source_start <= word.start < source_end):
                 continue
         else:
             if word.end <= source_start or word.start >= source_end:
                 continue
-        words.append(_word_view(timeline, track_id, word_index, word))
-    return words
+        selected.append(word_index)
+    return [index.views[i] for i in sorted(selected)]
 
 
 def _word_view(
@@ -126,11 +165,17 @@ def _word_view(
     track_id: str,
     word_index: int,
     word: Any,
+    spans: list[tuple[Any, Any]] | None = None,
 ) -> dict[str, Any]:
     src_end = float(word.start) + 0.001 if word.end <= word.start else float(word.end)
-    mappable, _spans, tl_start, tl_end = map_source_span_fields(
-        timeline, track_id, float(word.start), src_end
-    )
+    if spans is None:
+        mappable, _spans, tl_start, tl_end = map_source_span_fields(
+            timeline, track_id, float(word.start), src_end
+        )
+    else:
+        mappable = bool(spans)
+        tl_start = float(spans[0][0]) if spans else None
+        tl_end = float(spans[-1][1]) if spans else None
     return {
         "text": word.text,
         "start": float(word.start),
@@ -175,6 +220,7 @@ def map_transcript_utterances_to_timeline(
         return transcript
     timeline = SessionTimeline(project)
     mapped: list[dict[str, Any]] = []
+    word_indexes: dict[str, _MappedWordIndex] = {}
     for utterance in utterances:
         if not isinstance(utterance, dict):
             continue
@@ -195,8 +241,10 @@ def map_transcript_utterances_to_timeline(
         }
         row.pop("words", None)
         if include_words:
+            if track_id not in word_indexes:
+                word_indexes[track_id] = _mapped_word_index(project, timeline, track_id)
             row["words"] = _words_for_utterance(
-                project, timeline, track_id, source_start, source_end
+                project, timeline, track_id, source_start, source_end, word_indexes[track_id]
             )
         mapped.append(row)
     return {**transcript, "utterances": mapped}

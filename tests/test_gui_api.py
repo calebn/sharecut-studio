@@ -219,6 +219,46 @@ def test_map_transcript_utterances_to_timeline() -> None:
     assert u["words"][2]["suppressed"] is True
 
 
+def test_transcript_word_mapping_batches_unsorted_words_once_per_track(monkeypatch) -> None:
+    from podcast_mcp.engines.session_timeline import SessionTimeline
+
+    p = _minimal()
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="late", start=2.0, end=2.3),
+                TranscriptWord(text="point", start=1.1, end=1.1),
+                TranscriptWord(text="early", start=1.0, end=1.4),
+            ],
+        )
+    ]
+    combined = {
+        "utterances": [
+            {"track_id": "host", "start": 1.0, "end": 1.5},
+            {"track_id": "host", "start": 2.0, "end": 2.5},
+        ]
+    }
+    calls: list[int] = []
+    original = SessionTimeline.map_source_spans
+
+    def counted(self, track_id, spans):
+        calls.append(len(spans))
+        return original(self, track_id, spans)
+
+    monkeypatch.setattr(SessionTimeline, "map_source_spans", counted)
+    mapped = map_transcript_utterances_to_timeline(p, combined)
+    assert mapped is not None
+    assert [[w["text"] for w in row["words"]] for row in mapped["utterances"]] == [
+        ["point", "early"],
+        ["late"],
+    ]
+    assert [w["word_index"] for w in mapped["utterances"][0]["words"]] == [1, 2]
+    assert calls == [3]
+    map_transcript_utterances_to_timeline(p, combined, include_words=False)
+    assert calls == [3]
+
+
 def test_map_transcript_includes_suppressed_within_utterance() -> None:
     """Suppressed tokens that still overlap the utterance span stay visible."""
     p = _minimal()
