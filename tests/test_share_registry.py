@@ -9,7 +9,6 @@ from threading import Thread
 from unittest.mock import patch
 
 import pytest
-from sqlite_helpers import FailingConnection
 
 from podcast_mcp.edits.review_shares import (
     create_share,
@@ -29,6 +28,7 @@ from podcast_mcp.edits.share_registry import (
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services import ProjectWorkspace, ReviewService, ShareService
 from podcast_mcp.services.share import lookup_share
+from sqlite_helpers import FailingConnection
 
 
 def _iso(dt: datetime) -> str:

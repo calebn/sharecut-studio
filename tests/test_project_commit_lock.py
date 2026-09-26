@@ -209,6 +209,37 @@ def test_mutate_takes_the_lock_before_running_the_mutation(minimal_project, monk
     assert load_project(minimal_project).comments == []
 
 
+def test_document_submit_waits_for_another_process_holding_the_commit_lock(
+    minimal_project, monkeypatch
+):
+    project = load_project(minimal_project)
+    lock_path = project_commit_lock_path(project)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    svc = DocumentSyncService.open(minimal_project)
+    cmd = DocumentCommand(
+        type="AddComment",
+        payload={"body": "wait", "author": "v", "timeline_start": 1.0},
+        client_id="v",
+        role="viewer",
+        client_seq=1,
+    )
+    monkeypatch.setattr(project_state, "PROJECT_COMMIT_LOCK_TIMEOUT_SEC", 0.3)
+    ready, release = _CTX.Event(), _CTX.Event()
+    holder = _CTX.Process(target=_hold_lock, args=(str(lock_path), ready, release))
+    holder.start()
+    try:
+        assert ready.wait(60)
+        with pytest.raises(Timeout):
+            svc.submit(cmd)
+    finally:
+        release.set()
+        holder.join(60)
+    assert load_project(minimal_project).comments == []
+    assert svc.store.commands_after(0) == []
+    assert svc.submit(cmd)["ok"]
+    assert [c.body for c in load_project(minimal_project).comments] == ["wait"]
+
+
 def test_stale_workspace_keeps_a_commit_from_another_process(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     child = _CTX.Process(target=_child_add_comment, args=(str(minimal_project), "theirs"))

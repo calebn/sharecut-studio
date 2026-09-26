@@ -103,7 +103,8 @@ def existing_document_command(store: SyncStore, command: DocumentCommand) -> dic
     Explicit ``client_seq``: the row at ``(client_id, client_seq)`` is a retry when it has
     the same ``command_id`` or (older clients mint a new id per attempt) the same type and
     payload; any other edit there raises ``DocumentSequenceConflictError``. A ``command_id``
-    already journaled under another sequence must name the same edit too.
+    already journaled under another sequence must come from the same ``client_id`` and name
+    the same edit.
     """
     if command.client_seq is not None:
         row = store.find_by_client_seq(command.client_id, command.client_seq)
@@ -115,7 +116,8 @@ def existing_document_command(store: SyncStore, command: DocumentCommand) -> dic
                 )
             return row
     row = store.find_by_command_id(command.command_id)
-    if row is not None and not _same_edit(row, command):
+    if row is not None and (row["client_id"] != command.client_id or not _same_edit(row, command)):
+        # Scoped to the sender: another client's command_id never returns its row (or result).
         raise DocumentSequenceConflictError("command_id already names a different edit")
     return row
 
@@ -190,11 +192,13 @@ class DocumentSyncService:
             # Normalize first so a retry compares the stored payload.
             command.payload = validate_payload(command.type, command.payload)
         snap_proj = projection_for_command(command.type).value
-        # One cross-process step (#213, #377): retry check, project mutation, journal row.
-        # No writer in any process commits the project or claims this sequence in between,
-        # so a rejected command never leaves an unlogged edit. Undo/redo with rerender
-        # holds the lock for its render.
-        with self.ws.transaction():
+        # One cross-process step (#213, #377): the project lock, then the document.db write
+        # lock (never the reverse), then retry check, apply, journal row + snapshot. The
+        # write lock is taken before the apply, so a busy journal or a handler error fails
+        # the command before the project changes. Only an I/O failure of the journal INSERT
+        # or COMMIT after the apply can leave an unlogged edit (a retry then applies it
+        # again). Undo/redo with rerender holds both locks for its render.
+        with self.ws.transaction(), store.write_transaction():
             self.project = self.ws.project
             existing = existing_document_command(store, command)
             if existing is not None:
@@ -228,7 +232,7 @@ class DocumentSyncService:
                 empty_snap_fn=lambda: {"server_seq": 0},
             )
             if claimed:
-                # Only a writer outside ``transaction()`` could claim it between check and append.
+                # Unreachable while the write lock is held from the check; kept as a guard.
                 raise RuntimeError(
                     "document journal row was claimed outside the project transaction"
                 )
@@ -246,7 +250,9 @@ class DocumentSyncService:
                 "snapshot": api_snap,
                 "server_seq": row["server_seq"],
             }
-        get_hub().publish(self._project_key, event)
+            # Publish under the lock so in-process subscribers see Applied in server_seq
+            # order (publish only schedules).
+            get_hub().publish(self._project_key, event)
         return {"ok": True, **event}
 
     def publish_document_changed(self, *, projection: str = "shell") -> dict[str, Any]:
@@ -260,7 +266,7 @@ class DocumentSyncService:
                 "snapshot": api_snap,
                 "server_seq": api_snap.get("server_seq", 0),
             }
-        get_hub().publish(self._project_key, event)
+            get_hub().publish(self._project_key, event)
         return event
 
     def _apply(

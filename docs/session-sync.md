@@ -199,8 +199,10 @@ An explicit `client_seq` (>= 1) plus `client_id` names one edit (#377).
 
 - **Retry:** a command is a retry when it has the same `command_id`, or the same `type` and normalized `payload` (older clients send a new `command_id` per attempt). A retry returns the journaled row with `idempotent: true` and applies nothing.
 - **Conflict:** a different edit on a used `(client_id, client_seq)`, or a reused `command_id` with a different edit, raises `DocumentSequenceConflictError`: HTTP 409 with `detail.conflict`, or a WS `Error`. The client sends the new edit with a new sequence.
-- **Server-assigned:** omit `client_seq` (`null`) and the server assigns a negative sequence, starting at -1 per client. The host MCP/CLI helper, remote MCP guests and WS messages without `client_seq` use this, so separate processes never collide.
+- **Scope:** a `command_id` retry matches only the same `client_id`; another client reusing it gets the same conflict. Command ids must be unguessable (the GUI and `DocumentCommand` mint uuid4 hex).
+- **Server-assigned:** omit `client_seq` (`null`) and the server assigns a negative sequence, starting at -1 per client. The host MCP/CLI helper, remote MCP guests and WS messages without `client_seq` use this, so separate processes never collide. An explicit `client_seq` of 0 or less fails validation (HTTP 422, WS `Error`); it is not coerced.
 - **Offline queue:** replays keep their `command_id` and `client_seq`.
+- **Busy:** when another process holds the project lock past 30 s (`filelock.Timeout`), `POST /api/document/command` returns 503 and the WS sends an `Error` frame with `code=project_busy` and stays open. Retry the same command (same `command_id` / `client_seq`). Undo/redo with `rerender` holds the lock for its render. Other adapters: #488.
 - **Migration:** no `document.db` change. Legacy rows are compared without their stored `result`; old random positive MCP sequences stay as they are.
 
 ### Document command types
@@ -305,7 +307,7 @@ Phases 1–2 run the authority inside `podcast gui` (localhost). Remote humans a
 
 ## Document plane
 
-`DocumentSyncService` + `document.db` + handler registry. Each `submit` is one `ProjectWorkspace.transaction()` (#213): retry check, apply, and the journal row plus snapshot in one sqlite transaction, so no writer in any process commits between them and a rejected command leaves no unlogged edit. Hub fanout is still in-process only: another process's tabs resync on their next snapshot. Broader OT/CRDT concurrent cut editing remains out of scope. Passes 0–8 shipped history through markers, full-project WS fanout, agent selection, MCP notify, blade/delete, and track/media ingest — see [daw-editing.md](daw-editing.md) and [ROADMAP.md § Follow-up](../ROADMAP.md#follow-up) for remaining polish.
+`DocumentSyncService` + `document.db` + handler registry. Each `submit` is one `ProjectWorkspace.transaction()` (#213): the retry check, the apply, and the journal row plus snapshot run inside one document.db write transaction (BEGIN IMMEDIATE), which is taken before the apply. No writer in any process commits between them. A busy journal or a rejected command fails before the project changes. If the journal INSERT or COMMIT itself fails after the apply (disk full, I/O error), the edit stays saved with no journal row, and a retry applies it again. `Applied` is published while the transaction is held, so in-process subscribers receive events in `server_seq` order. Hub fanout is still in-process only: another process's tabs resync on their next snapshot. Broader OT/CRDT concurrent cut editing remains out of scope. Passes 0–8 shipped history through markers, full-project WS fanout, agent selection, MCP notify, blade/delete, and track/media ingest — see [daw-editing.md](daw-editing.md) and [ROADMAP.md § Follow-up](../ROADMAP.md#follow-up) for remaining polish.
 
 ## Recording session
 

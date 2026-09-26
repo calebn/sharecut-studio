@@ -9,6 +9,7 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from filelock import Timeout
 from pydantic import ValidationError
 from starlette.concurrency import run_in_threadpool
 
@@ -29,6 +30,7 @@ from podcast_mcp.services.session_sync.hub import get_hub
 from podcast_mcp.util.proxy_paths import is_relayed_request
 
 router = APIRouter()
+_PROJECT_BUSY = "Project is busy in another process; try again"
 
 
 def _submit_ws_command(
@@ -104,6 +106,8 @@ def post_document_command(
             detail=str(exc),
             headers={"X-Sharecut-Error-Code": "transcript_refine_required"},
         ) from exc
+    except Timeout as exc:
+        raise HTTPException(status_code=503, detail=_PROJECT_BUSY) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except PermissionError as exc:
@@ -195,6 +199,10 @@ async def document_ws(
                 await websocket.send_json({"type": "Error", "detail": str(exc)})
             except (KeyError, ValueError, PermissionError) as exc:
                 await websocket.send_json({"type": "Error", "detail": str(exc)})
+            except Timeout:
+                await websocket.send_json(
+                    {"type": "Error", "detail": _PROJECT_BUSY, "code": "project_busy"}
+                )
     finally:
         hub.unsubscribe(key, queue)
         if hub_task is not None:

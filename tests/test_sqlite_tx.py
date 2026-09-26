@@ -6,9 +6,9 @@ import sqlite3
 from pathlib import Path
 
 import pytest
-from sqlite_helpers import FailingConnection
 
 from podcast_mcp.util.sqlite_tx import immediate_transaction
+from sqlite_helpers import FailingConnection
 
 
 @pytest.fixture
