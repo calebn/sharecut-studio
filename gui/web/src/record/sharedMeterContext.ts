@@ -27,6 +27,12 @@ export function acquireMeterContext(): {
       throw error;
     }
     shared = { ctx, ready, users: 0 };
+    const created = shared;
+    // A failed worklet load must not poison later acquirers: drop the entry so
+    // the next acquire builds a fresh context. Holders still close it on release.
+    void ready.catch(() => {
+      if (shared === created) shared = null;
+    });
   }
   const entry = shared;
   entry.users += 1;
