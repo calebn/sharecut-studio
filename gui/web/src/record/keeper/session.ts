@@ -1,6 +1,7 @@
 import { pcmWavHeader } from "../../audio/wavHeader";
+import { ClipRegionTracker, type KeeperClipRegion } from "./clipRegions";
 import { keeperFileFingerprint } from "./fingerprint";
-import { KEEPER_SAMPLE_RATE, toKeeperPcm } from "./pcm";
+import { encodeKeeperPcm, KEEPER_SAMPLE_RATE } from "./pcm";
 import {
   emptyKeeperCursor,
   type KeeperGate,
@@ -36,7 +37,16 @@ export const KEEPER_STALL_MESSAGE = "this device's storage couldn't keep up.";
 const WAV_HEADER_BYTES = 44;
 const BYTES_PER_SAMPLE = 2;
 
+/** A new or extended clipping region in the open segment (segment-relative). */
+export type KeeperClipEvent = {
+  takeIndex: number;
+  segmentIndex: number;
+  joinOffsetMs: number;
+  regions: KeeperClipRegion[];
+};
+
 export type KeeperSessionOptions = {
+  onClipping?: (event: KeeperClipEvent) => void;
   maxQueuedSamples?: number;
   operationTimeoutMs?: number;
   closeBytesPerMs?: number;
@@ -98,6 +108,8 @@ export class KeeperSession {
     | null = null;
   private readonly onFailure?: (error: Error) => void;
   private mutex: Promise<void> = Promise.resolve();
+  private readonly clipping = new ClipRegionTracker();
+  private readonly onClipping?: (event: KeeperClipEvent) => void;
   readonly files: KeeperMeta[] = [];
   private readonly sink: ByteSink;
   private readonly maxQueuedSamples: number;
@@ -111,6 +123,7 @@ export class KeeperSession {
   ) {
     this.sink = sink;
     this.onFailure = onFailure;
+    this.onClipping = options.onClipping;
     this.maxQueuedSamples =
       options.maxQueuedSamples ?? KEEPER_MAX_QUEUED_SAMPLES;
     this.operationTimeoutMs =
@@ -157,7 +170,9 @@ export class KeeperSession {
     if (!this.writing || !this.current || !this.stream) {
       return;
     }
-    const int16 = toKeeperPcm(pcm, sourceRate, this.muted);
+    const { pcm: int16, hot } = encodeKeeperPcm(pcm, sourceRate, {
+      muted: this.muted,
+    });
     const queued = this.pendingSamples + this.inFlightSamples;
     if (queued + int16.length > this.maxQueuedSamples) {
       this.fail(
@@ -166,6 +181,12 @@ export class KeeperSession {
         ),
       );
       return;
+    }
+    if (hot) {
+      const base = this.samples + queued;
+      if (this.clipping.observe(base + hot.first, base + hot.last)) {
+        this.emitClipping();
+      }
     }
     this.pending.push(int16);
     this.pendingSamples += int16.length;
@@ -274,6 +295,7 @@ export class KeeperSession {
     if (plan.open) {
       this.current = plan.open;
       this.samples = 0;
+      this.clipping.reset();
       const wavPath = keeperWavPath({
         sessionId: this.sessionId,
         takeIndex: plan.open.takeIndex,
@@ -409,6 +431,7 @@ export class KeeperSession {
       samplesWritten,
       complete,
       ...fingerprint,
+      ...(complete ? { clippingRegions: this.clipping.regionsMs() } : {}),
     };
     await this.bounded(
       writeKeeperMeta(this.sink, wavPath, meta),
@@ -416,7 +439,19 @@ export class KeeperSession {
     );
     if (complete) {
       this.files.push(meta);
+      this.emitClipping();
     }
+  }
+
+  private emitClipping(): void {
+    const open = this.current;
+    if (!open || !this.onClipping) return;
+    this.onClipping({
+      takeIndex: open.takeIndex,
+      segmentIndex: open.segmentIndex,
+      joinOffsetMs: open.joinOffsetMs,
+      regions: this.clipping.regionsMs(),
+    });
   }
 
   /** Release a failed writable, waiting no longer than its close deadline. */

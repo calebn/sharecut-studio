@@ -7,6 +7,7 @@ import { KEEPER_SAMPLE_RATE, toKeeperPcm } from "./pcm";
 import type { KeeperGate } from "./segments";
 import {
   KEEPER_STALL_MESSAGE,
+  type KeeperClipEvent,
   KeeperSession,
   KeeperStallError,
 } from "./session";
@@ -902,5 +903,67 @@ describe("KeeperSession", () => {
     expect(session.files.map((f) => f.segmentIndex)).toEqual([1]);
     expect(sink.files.get(segmentPath(0))).toBe(orphan);
     expect(sink.files.has(keeperMetaPath(segmentPath(0)))).toBe(false);
+  });
+});
+
+describe("KeeperSession clipping", () => {
+  const hot = (n: number, at: number, total: number) => {
+    const out = new Float32Array(total);
+    out.fill(0.9, at, at + n);
+    return out;
+  };
+  const rate = KEEPER_SAMPLE_RATE;
+
+  async function complete(sink: MemorySink, segment = 0) {
+    const bytes = await sink.read(keeperMetaPath(segmentPath(segment)));
+    return JSON.parse(new TextDecoder().decode(bytes ?? new Uint8Array()));
+  }
+
+  it("offsets a hit by samples already committed and queued", async () => {
+    const sink = new MemorySink();
+    const events: KeeperClipEvent[] = [];
+    const session = new KeeperSession(sink, undefined, {
+      onClipping: (e) => events.push(e),
+    });
+    await session.apply(recordingGate());
+    session.push(new Float32Array(rate).fill(0.1), rate);
+    await session.flush();
+    session.push(new Float32Array(rate).fill(0.1), rate);
+    session.push(hot(480, 0, 480), rate);
+    await session.dispose();
+    const meta = await complete(sink);
+    expect(meta.clippingRegions).toEqual([{ startMs: 2000, endMs: 2010 }]);
+    expect(events[0]).toMatchObject({
+      takeIndex: 0,
+      segmentIndex: 0,
+      regions: [{ startMs: 2000, endMs: 2010 }],
+    });
+  });
+
+  it("starts each segment with a clean tracker", async () => {
+    const sink = new MemorySink();
+    const session = new KeeperSession(sink);
+    const gate = recordingGate();
+    await session.apply(gate);
+    session.push(hot(480, 0, 480), rate);
+    await session.apply({ ...gate, roomState: "paused" });
+    await session.apply({ ...gate, recordingMs: 5000 });
+    session.push(new Float32Array(480).fill(0.1), rate);
+    await session.dispose();
+    expect((await complete(sink, 0)).clippingRegions).toHaveLength(1);
+    expect((await complete(sink, 1)).clippingRegions).toEqual([]);
+  });
+
+  it("records nothing while muted", async () => {
+    const sink = new MemorySink();
+    const events: KeeperClipEvent[] = [];
+    const session = new KeeperSession(sink, undefined, {
+      onClipping: (e) => events.push(e),
+    });
+    await session.apply(recordingGate({ muted: true }));
+    session.push(hot(480, 0, 480), rate);
+    await session.dispose();
+    expect((await complete(sink)).clippingRegions).toEqual([]);
+    expect(events.every((e) => e.regions.length === 0)).toBe(true);
   });
 });

@@ -1,3 +1,4 @@
+import { type KeeperClipRegion, parseClipRegions } from "./clipRegions";
 import { removeKeeperUnlessHeld } from "./deletionGuard";
 import {
   assertSafePart,
@@ -26,6 +27,8 @@ export type KeeperMeta = {
   /** Fingerprint of the closed WAV, present on newly finalized segments. */
   fileSha256?: string;
   byteLength?: number;
+  /** Segment-relative sample-peak clip regions; absent on older segments. */
+  clippingRegions?: KeeperClipRegion[];
 };
 
 /**
@@ -273,6 +276,11 @@ export function parseKeeperMeta(
   ) {
     return null;
   }
+  const clippingRegions =
+    raw.clippingRegions === undefined
+      ? undefined
+      : parseClipRegions(raw.clippingRegions);
+  if (clippingRegions === null) return null;
   return {
     sessionId: raw.sessionId,
     takeIndex: raw.takeIndex,
@@ -288,6 +296,7 @@ export function parseKeeperMeta(
     ...(raw.byteLength === undefined
       ? {}
       : { byteLength: raw.byteLength as number }),
+    ...(clippingRegions === undefined ? {} : { clippingRegions }),
   };
 }
 

@@ -177,6 +177,8 @@ flowchart TD
    in the lobby. Failed backup readiness offers **Retry local backup**.
 6. While REC is on, guest sees the roster, clock, "Recording locally on this
    device," and **Hearing the room.** Press **M** for a Marker or type a note
+   The encoder notes where your mic clipped (sample peak) in the local keeper
+   metadata, so the report can survive a reload.
    (other guests in the record room never see it; after land it is an ordinary
    timeline comment on the host). While the local keeper is writing, a refresh
    or navigation asks for the browser's native leave confirmation; dismissing
