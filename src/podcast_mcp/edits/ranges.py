@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 
 def merge_timeline_ranges(
     ranges: list[tuple[float, float]],
@@ -48,3 +50,16 @@ def overlaps_remove_range(
             continue
         return True
     return False
+
+
+def clamp_spans(
+    spans: Iterable[tuple[float, float]], lo: float, hi: float
+) -> list[tuple[float, float]]:
+    """Overlap of each ``(start, end)`` span with ``[lo, hi]``; empty overlaps are dropped."""
+    out: list[tuple[float, float]] = []
+    for start, end in spans:
+        s = max(float(start), float(lo))
+        e = min(float(end), float(hi))
+        if e > s + 1e-9:
+            out.append((s, e))
+    return out

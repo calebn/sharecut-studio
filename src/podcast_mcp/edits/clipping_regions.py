@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from podcast_mcp.edits.ranges import clamp_spans
 from podcast_mcp.models import SourceClippingRegion, SourceRecording
 
 
@@ -35,10 +36,7 @@ def clip_clipping_payload(
     """Sorted ``{start_s, end_s}`` dicts for the source spans inside a clip window."""
     if source is None:
         return []
-    rows: list[dict[str, float]] = []
-    for region in source.clipping_regions:
-        start = max(float(region.start_s), float(source_start))
-        end = min(float(region.end_s), float(source_end))
-        if end > start + 1e-9:
-            rows.append({"start_s": start, "end_s": end})
-    return sorted(rows, key=lambda row: (row["start_s"], row["end_s"]))
+    spans = clamp_spans(
+        ((r.start_s, r.end_s) for r in source.clipping_regions), source_start, source_end
+    )
+    return [{"start_s": s, "end_s": e} for s, e in sorted(spans)]
