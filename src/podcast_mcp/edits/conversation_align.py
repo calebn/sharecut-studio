@@ -16,8 +16,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.ranges import merge_timeline_ranges
 from podcast_mcp.edits.track_media import refresh_timeline_duration
+from podcast_mcp.engines.session_timeline import clip_source_to_timeline_shift
 from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
 from podcast_mcp.engines.transcript_align import (
     WordToken,
@@ -1248,6 +1250,13 @@ def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
             continue
         clips_by_track[track.id] = len([c for c in project.clips if c.track_id == track.id])
 
+    ref_clips = (
+        clips_for_track(project, result.reference_track_id) if result.reference_track_id else []
+    )
+    # Plans are file-time offsets against the reference file; rebase them onto the
+    # reference clip's placement (an ingest lead-in keeps reference file L at timeline 0).
+    ref_shift = clip_source_to_timeline_shift(ref_clips[0]) if ref_clips else 0.0
+
     for track in project.tracks:
         if track.role != TrackRole.DIALOGUE:
             continue
@@ -1275,7 +1284,7 @@ def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
                 if src and src.duration_sec:
                     media_dur = float(src.duration_sec)
             src_start, src_end, tl_start = offset_to_clip_geometry(
-                plan.offset_sec,
+                plan.offset_sec + ref_shift,
                 media_duration=media_dur,
             )
             if abs(plan.offset_sec) < 1e-9:
