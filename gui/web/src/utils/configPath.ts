@@ -1,11 +1,21 @@
 /** Dot-path helpers for nested pipeline config objects. */
 
+const UNSAFE_SEGMENTS = new Set(["__proto__", "prototype", "constructor"]);
+
+function pathParts(path: string): string[] {
+  const parts = path.split(".");
+  if (parts.some((part) => UNSAFE_SEGMENTS.has(part))) {
+    throw new Error(`Unsafe config path: ${path}`);
+  }
+  return parts;
+}
+
 export function getByPath(
   data: Record<string, unknown>,
   path: string,
 ): unknown {
   let cur: unknown = data;
-  for (const part of path.split(".")) {
+  for (const part of pathParts(path)) {
     if (cur == null || typeof cur !== "object") {
       return undefined;
     }
@@ -19,7 +29,7 @@ export function setByPath(
   path: string,
   value: unknown,
 ): Record<string, unknown> {
-  const parts = path.split(".");
+  const parts = pathParts(path);
   const root = { ...data };
   let cur: Record<string, unknown> = root;
   for (let i = 0; i < parts.length - 1; i++) {

@@ -31,3 +31,16 @@ describe("setByPath", () => {
     expect(setByPath({ a: [1, 2] }, "a.b", 1)).toEqual({ a: { b: 1 } });
   });
 });
+
+describe("unsafe paths", () => {
+  it("rejects prototype segments", () => {
+    expect(() => setByPath({}, "__proto__.polluted", 1)).toThrow(
+      /Unsafe config path/,
+    );
+    expect(() => setByPath({}, "a.constructor.prototype", 1)).toThrow(
+      /Unsafe config path/,
+    );
+    expect(() => getByPath({}, "a.__proto__")).toThrow(/Unsafe config path/);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+});
