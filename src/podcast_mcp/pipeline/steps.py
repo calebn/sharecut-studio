@@ -25,6 +25,7 @@ from podcast_mcp.pipeline.helpers import (
 )
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.progress import resolve_progress_task
+from podcast_mcp.util.project_state import with_render_lock
 from podcast_mcp.whisper_models import DEFAULT_WHISPER_MODEL
 
 log = logging.getLogger(__name__)
@@ -377,6 +378,7 @@ def _saved_stem_inputs_changed(
     return _stem_inputs_changed(saved, render_project, rendered, render_roles)
 
 
+@with_render_lock
 def _render_track_stems(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.engines.play_audit import stem_is_fresh, track_render_hash, write_stem_hash
     from podcast_mcp.util.project_state import (
@@ -469,6 +471,7 @@ def assemble_timeline(project: EpisodeProject, defaults: dict[str, Any]) -> Step
     return _render_track_stems(project, defaults)
 
 
+@with_render_lock
 def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.engines.play_audit import mix_gains, premix_path, write_premix_hash
 
@@ -535,6 +538,7 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
     return f"{len(mixed)} tracks mixed, {music_envelopes} music envelopes"
 
 
+@with_render_lock
 def ensure_current_premix(project: EpisodeProject, defaults: dict[str, Any]) -> None:
     """Re-render stems and re-mix when ``premix.wav`` is missing or behind the project.
 
@@ -566,6 +570,7 @@ def ensure_current_premix(project: EpisodeProject, defaults: dict[str, Any]) -> 
         )
 
 
+@with_render_lock
 def ensure_current_master(project: EpisodeProject, defaults: dict[str, Any]) -> Path:
     """Master again unless ``mastered.wav`` came from the current, fresh premix."""
     from podcast_mcp.engines.play_audit import mastered_is_fresh, mastered_path, premix_is_stale
@@ -577,6 +582,7 @@ def ensure_current_master(project: EpisodeProject, defaults: dict[str, Any]) -> 
     return mastered_path(project)
 
 
+@with_render_lock
 def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.engines.play_audit import (
         clear_mastered_hash,
@@ -691,6 +697,7 @@ def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
     return "mastered (loudness unmeasured)"
 
 
+@with_render_lock
 def export_deliverables(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     mastered = ensure_current_master(project, defaults)
     eng = ffmpeg()
