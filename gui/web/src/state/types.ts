@@ -21,6 +21,15 @@ export interface LayerVisibility {
   showComments: boolean;
 }
 
+/** A failed inline word fix whose editor had already closed. */
+export interface TranscriptInlineEditFailure {
+  trackId: string;
+  wordIndex: number;
+  /** Word text when the fix was submitted; different text means it was fixed since. */
+  originalText: string;
+  message: string;
+}
+
 export type DawTab = PresenceTab;
 
 /** Phone bottom-nav mode (Listen / Timeline / Text / More). */
@@ -92,6 +101,10 @@ export interface DawState {
   commentDraft: CommentDraft | null;
   transcriptFollowPlayhead: boolean;
   transcriptAnnotate: boolean;
+  /** An inline transcript word fix is saving; outlives a TranscriptPanel remount (tab switch). */
+  transcriptInlineCommitPending: boolean;
+  /** Late failure of an inline word fix; outlives a TranscriptPanel remount. */
+  transcriptInlineEditFailure: TranscriptInlineEditFailure | null;
   showCutAwayUtterances: boolean;
   pipelineJob: PipelineJobSnapshot | null;
   /** Most recent Studio activity (pipeline or agent) for StatusBar chrome. */
@@ -193,6 +206,10 @@ export interface DawState {
   setActiveTab: (tab: DawTab) => void;
   setTranscriptFollowPlayhead: (on: boolean) => void;
   toggleTranscriptFollowPlayhead: () => void;
+  setTranscriptInlineCommitPending: (pending: boolean) => void;
+  setTranscriptInlineEditFailure: (
+    failure: TranscriptInlineEditFailure | null,
+  ) => void;
   setTranscriptAnnotate: (on: boolean) => void;
   toggleTranscriptAnnotate: () => void;
   setShowCutAwayUtterances: (on: boolean) => void;

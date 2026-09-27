@@ -36,7 +36,7 @@ import type {
   EditBoundaryView,
   Selection,
 } from "../types/project";
-import { InlineError, ToggleButton } from "../ui";
+import { Button, InlineError, ToggleButton } from "../ui";
 import {
   findTurnIndexForUtterance,
   groupConsecutiveSpeakerTurns,
@@ -60,16 +60,26 @@ const LOW_CONFIDENCE = 0.7;
 const EMPTY_UTTERANCES: CombinedUtterance[] = [];
 const EMPTY_BOUNDARIES: EditBoundaryView[] = [];
 
+/** The word's current text, or null when the transcript no longer has it. */
+function transcriptWordText(
+  utterances: readonly CombinedUtterance[],
+  trackId: string,
+  wordIndex: number,
+): string | null {
+  for (const u of utterances) {
+    if (u.track_id !== trackId) continue;
+    const word = (u.words ?? []).find((w) => w.word_index === wordIndex);
+    if (word) return word.text;
+  }
+  return null;
+}
+
 function transcriptWordExists(
   utterances: readonly CombinedUtterance[],
   trackId: string,
   wordIndex: number,
 ): boolean {
-  return utterances.some(
-    (u) =>
-      u.track_id === trackId &&
-      (u.words ?? []).some((w) => w.word_index === wordIndex),
-  );
+  return transcriptWordText(utterances, trackId, wordIndex) != null;
 }
 
 type WordRef = { trackId: string; wordIndex: number };
@@ -129,6 +139,10 @@ export function TranscriptPanel() {
     setTranscriptScrollRequest,
     setTranscriptViewAnchor,
     pointerKind,
+    transcriptInlineCommitPending,
+    setTranscriptInlineCommitPending,
+    transcriptInlineEditFailure,
+    setTranscriptInlineEditFailure,
   } = useDaw((s) => ({
     project: s.project,
     projectPath: s.projectPath,
@@ -149,6 +163,10 @@ export function TranscriptPanel() {
     setTranscriptScrollRequest: s.setTranscriptScrollRequest,
     setTranscriptViewAnchor: s.setTranscriptViewAnchor,
     pointerKind: s.pointerKind,
+    transcriptInlineCommitPending: s.transcriptInlineCommitPending,
+    setTranscriptInlineCommitPending: s.setTranscriptInlineCommitPending,
+    transcriptInlineEditFailure: s.transcriptInlineEditFailure,
+    setTranscriptInlineEditFailure: s.setTranscriptInlineEditFailure,
   }));
   const listRef = useRef<HTMLDivElement | null>(null);
   const activeRef = useRef<HTMLElement | null>(null);
@@ -193,11 +211,6 @@ export function TranscriptPanel() {
   const [inlineEdit, setInlineEdit] = useState<WordRef | null>(null);
   /** Word chip to refocus after Enter / Esc closes the inline editor. */
   const inlineFocusRestoreRef = useRef<WordRef | null>(null);
-  /** An inline commit is in flight; it can outlive its editor (mode switch). */
-  const inlineCommitPendingRef = useRef(false);
-  /** Failure of an inline commit whose editor had already closed. */
-  const [inlineEditError, setInlineEditError] = useState<string | null>(null);
-  const [inlineCommitPending, setInlineCommitPending] = useState(false);
   /** Word under the finger at pointerdown (long-press fires on release). */
   const pressedWordRef = useRef<WordRef | null>(null);
   const longPressReleasedRef = useRef(false);
@@ -305,8 +318,10 @@ export function TranscriptPanel() {
     // One correction at a time: a pending commit keeps its editor open.
     // No client timeout, like every useProjectMutation flow: a stalled request
     // holds the lock until it settles, and the saving status line says why.
-    if (inlineCommitPendingRef.current) return;
-    setInlineEditError(null);
+    // The lock lives in the DAW store so a tab switch that remounts this
+    // panel keeps it.
+    if (useDawStore.getState().transcriptInlineCommitPending) return;
+    setTranscriptInlineEditFailure(null);
     setInlineEdit(ref);
   };
   const closeInlineEdit = (ref: WordRef, restoreFocus: boolean) => {
@@ -341,6 +356,25 @@ export function TranscriptPanel() {
       setInlineEdit(null);
     }
   }, [inlineEdit, canCorrect, allUtterances]);
+
+  // A late failure is moot once its word's text changes by any path (inspector
+  // Apply, a later inline fix, a remote edit) or the word is gone.
+  useEffect(() => {
+    if (
+      transcriptInlineEditFailure &&
+      transcriptWordText(
+        allUtterances,
+        transcriptInlineEditFailure.trackId,
+        transcriptInlineEditFailure.wordIndex,
+      ) !== transcriptInlineEditFailure.originalText
+    ) {
+      setTranscriptInlineEditFailure(null);
+    }
+  }, [
+    transcriptInlineEditFailure,
+    allUtterances,
+    setTranscriptInlineEditFailure,
+  ]);
 
   // Keyboard close (Enter / Esc) returns focus to the word chip. Re-query it by
   // data-track-id / data-word-index rather than saving the element (as
@@ -653,6 +687,17 @@ export function TranscriptPanel() {
     return <p style={{ color: "var(--text-dim)" }}>No combined transcript.</p>;
   }
 
+  // One polite region under the toolbar: the saving status replaces the mode
+  // hint while an inline fix is pending, so no line is inserted and the list
+  // never shifts under the pointer.
+  let toolbarHint = TRANSCRIPT_MODE_HINT[intent];
+  if (intent === "navigate" && pointerKind === "coarse") {
+    toolbarHint = TRANSCRIPT_NAVIGATE_TOUCH_HINT;
+  }
+  if (transcriptInlineCommitPending) {
+    toolbarHint = TRANSCRIPT_INLINE_SAVING_STATUS;
+  }
+
   const mappedCount = allUtterances.length - cutAwayCount;
   const dockWordEditor =
     layoutMode === "text" &&
@@ -769,17 +814,23 @@ export function TranscriptPanel() {
         </div>
       </div>
       {canCorrect ? (
-        <p className="transcript-inline-status" role="status">
-          {inlineCommitPending ? TRANSCRIPT_INLINE_SAVING_STATUS : null}
+        <p className="transcript-mode-hint" role="status">
+          {toolbarHint}
         </p>
       ) : null}
-      <InlineError role="alert" message={inlineEditError} />
-      {canCorrect ? (
-        <p className="transcript-mode-hint">
-          {intent === "navigate" && pointerKind === "coarse"
-            ? TRANSCRIPT_NAVIGATE_TOUCH_HINT
-            : TRANSCRIPT_MODE_HINT[intent]}
-        </p>
+      {transcriptInlineEditFailure ? (
+        <div className="transcript-inline-failure">
+          <InlineError
+            role="alert"
+            message={transcriptInlineEditFailure.message}
+          />
+          <Button
+            variant="link"
+            onClick={() => setTranscriptInlineEditFailure(null)}
+          >
+            Dismiss
+          </Button>
+        </div>
       ) : null}
       {dockWordEditor && selection?.kind === "transcriptWord" ? (
         <div className="transcript-docked-editor">
@@ -984,11 +1035,15 @@ export function TranscriptPanel() {
                               restore,
                             )
                           }
-                          onBusyChange={(pending) => {
-                            inlineCommitPendingRef.current = pending;
-                            setInlineCommitPending(pending);
-                          }}
-                          onDetachedError={setInlineEditError}
+                          onBusyChange={setTranscriptInlineCommitPending}
+                          onDetachedError={(message) =>
+                            setTranscriptInlineEditFailure({
+                              trackId: u.track_id,
+                              wordIndex,
+                              originalText: w.text,
+                              message,
+                            })
+                          }
                         />
                       ) : undefined,
                     buttonProps: wordInteractive

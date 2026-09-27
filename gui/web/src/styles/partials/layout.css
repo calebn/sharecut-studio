@@ -314,11 +314,13 @@
   font-size: var(--font-size-caption);
 }
 
-.transcript-inline-status {
+.transcript-inline-failure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
   flex: 0 0 auto;
-  margin: 0;
-  color: var(--text-dim);
-  font-size: var(--font-size-caption);
+  margin: 0 0 var(--space-3);
 }
 
 .track-headers-chrome {

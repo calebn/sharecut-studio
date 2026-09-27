@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { useMountedRef } from "../hooks/useMountedRef";
 import { useProjectMutation } from "../hooks/useProjectMutation";
 import { InlineError } from "../ui/InlineError";
 import { errorMessage } from "../utils/apiError";
@@ -12,14 +13,16 @@ interface Props {
   /**
    * True when a commit starts, false once it settles, including after this
    * editor unmounted (mode switch, word removed). It must stay safe to call
-   * then: the handler may only touch the caller's own refs or state, never
-   * this editor's.
+   * then: the handler must only touch state that outlives this editor and
+   * its parent panel (the panel unmounts on a tab switch), e.g. the DAW
+   * store.
    */
   onBusyChange?: (busy: boolean) => void;
   /**
    * A commit that fails after this editor unmounted (mode switch, word
    * removed, editing no longer allowed) reports its message here, because
-   * the editor's own inline error is gone.
+   * the editor's own inline error is gone. The handler must outlive the
+   * parent panel too, e.g. write to the DAW store.
    */
   onDetachedError?: (message: string) => void;
 }
@@ -38,13 +41,7 @@ export function InlineWordEditor({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const busyRef = useRef(false);
   const errorId = useId();
-  const mountedRef = useRef(false);
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
+  const mountedRef = useMountedRef();
 
   useEffect(() => {
     inputRef.current?.focus();
