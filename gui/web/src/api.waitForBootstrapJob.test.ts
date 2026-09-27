@@ -7,9 +7,11 @@ type ErrHandler = (() => void) | null;
 
 class FakeEventSource {
   static instances: FakeEventSource[] = [];
+  static readonly CLOSED = 2;
   onmessage: Handler = null;
   onerror: ErrHandler = null;
   closed = false;
+  readyState = 0;
   url: string;
 
   constructor(url: string) {
@@ -19,6 +21,7 @@ class FakeEventSource {
 
   close() {
     this.closed = true;
+    this.readyState = FakeEventSource.CLOSED;
   }
 
   emit(data: unknown) {
@@ -76,7 +79,7 @@ describe("waitForBootstrapJob", () => {
     await expect(p).rejects.toThrow(/network down/);
   });
 
-  it("polls status-job on EventSource error and still resolves", async () => {
+  it("re-checks status-job on EventSource error", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url =
         typeof input === "string"
@@ -92,10 +95,34 @@ describe("waitForBootstrapJob", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const p = waitForBootstrapJob("job-poll", { pollMs: 20 });
+    const p = waitForBootstrapJob("job-poll");
     const es = FakeEventSource.instances[0]!;
     es.emitError();
     await expect(p).resolves.toMatchObject({ id: "job-poll", status: "ok" });
     expect(fetchMock).toHaveBeenCalled();
+  });
+
+  it("rejects when the stream is closed and the job is still running", async () => {
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          job: {
+            id: "job-stuck",
+            kind: "bootstrap",
+            components: ["whisper"],
+            whisper_model: "small.en",
+            status: "running",
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const p = waitForBootstrapJob("job-stuck");
+    const es = FakeEventSource.instances[0]!;
+    es.close();
+    es.emitError();
+    await expect(p).rejects.toThrow(/Lost connection/);
   });
 });

@@ -9,9 +9,11 @@ import type { PipelineJobSnapshot } from "./types/pipeline";
 
 class FakeEventSource {
   static instances: FakeEventSource[] = [];
+  static readonly CLOSED = 2;
   onmessage: ((ev: MessageEvent) => void) | null = null;
   onerror: (() => void) | null = null;
   closed = false;
+  readyState = 0;
   url: string;
 
   constructor(url: string) {
@@ -21,6 +23,15 @@ class FakeEventSource {
 
   close() {
     this.closed = true;
+    this.readyState = FakeEventSource.CLOSED;
+  }
+
+  emit(job: PipelineJobSnapshot) {
+    this.onmessage?.({ data: JSON.stringify({ job }) } as MessageEvent);
+  }
+
+  emitError() {
+    this.onerror?.();
   }
 }
 
@@ -44,6 +55,15 @@ function okJob(
     steps: [],
     result: { paths },
   };
+}
+
+async function waitForEventSource(): Promise<FakeEventSource> {
+  await vi.waitFor(() => {
+    if (FakeEventSource.instances.length === 0) {
+      throw new Error("no EventSource yet");
+    }
+  });
+  return FakeEventSource.instances[FakeEventSource.instances.length - 1]!;
 }
 
 describe("export job helpers", () => {
@@ -135,7 +155,7 @@ describe("export job helpers", () => {
     await expect(followExportJob("j4", "Bounce failed")).resolves.toEqual([]);
   });
 
-  it("followExportJob does not open EventSource (poll-only)", async () => {
+  it("resolves from the early status check without opening EventSource", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => {
@@ -187,14 +207,92 @@ describe("export job helpers", () => {
     );
     const ac = new AbortController();
     const pending = waitForPipelineJob("live", {
-      pollOnly: true,
       timeoutMs: 5_000,
-      pollMs: 20,
       signal: ac.signal,
     });
+    const es = await waitForEventSource();
     ac.abort();
     await expect(pending).rejects.toMatchObject({ name: "AbortError" });
-    expect(FakeEventSource.instances).toEqual([]);
+    expect(es.closed).toBe(true);
+  });
+
+  it("follows the job's SSE stream to done", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        return new Response(
+          JSON.stringify({ running: true, job: null, jobs: [] }),
+          { status: 200 },
+        );
+      }),
+    );
+    const pending = waitForPipelineJob("live", { timeoutMs: 5_000 });
+    const es = await waitForEventSource();
+    es.emit(okJob("live", "pipeline", ["/tmp/out.wav"]));
+    await expect(pending).resolves.toMatchObject({
+      id: "live",
+      status: "ok",
+    });
+    expect(es.closed).toBe(true);
+  });
+
+  it("does not poll status while the stream is open", async () => {
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({ running: true, job: null, jobs: [] }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const pending = waitForPipelineJob("live", { timeoutMs: 60_000 });
+    const es = await waitForEventSource();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    es.emit(okJob("live", "pipeline", []));
+    await pending;
+  });
+
+  it("rejects when the stream closes with no terminal job", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        return new Response(
+          JSON.stringify({ running: true, job: null, jobs: [] }),
+          { status: 200 },
+        );
+      }),
+    );
+    const pending = waitForPipelineJob("live", { timeoutMs: 5_000 });
+    const es = await waitForEventSource();
+    es.close();
+    es.emitError();
+    await expect(pending).rejects.toThrow(/Lost connection/);
+  });
+
+  it("resolves from a status re-check on SSE error", async () => {
+    let calls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        calls += 1;
+        const done = calls > 1;
+        return new Response(
+          JSON.stringify({
+            running: !done,
+            job: done ? okJob("live", "pipeline", ["/tmp/out.wav"]) : null,
+            jobs: [],
+          }),
+          { status: 200 },
+        );
+      }),
+    );
+    const pending = waitForPipelineJob("live", { timeoutMs: 5_000 });
+    const es = await waitForEventSource();
+    es.emitError();
+    await expect(pending).resolves.toMatchObject({
+      id: "live",
+      status: "ok",
+    });
   });
 
   it("bounceAudio and exportDeliverables POST then follow job_id", async () => {

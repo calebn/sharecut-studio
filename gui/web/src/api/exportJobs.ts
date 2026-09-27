@@ -105,11 +105,3 @@ export async function startExportJob(
   }
   throw new Error("Export did not return a job");
 }
-
-/**
- * Wait until a Studio job reaches ok|error|cancelled.
- *
- * Prefers SSE for the specific job id so completion is not lost when a later
- * job replaces the global ``/api/pipeline/status`` snapshot. Falls back to
- * status polling (manager retains finished jobs briefly).
- */
