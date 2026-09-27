@@ -505,6 +505,60 @@ describe("usePipelineJob", () => {
     }
   });
 
+  it("drops a post-done refetch that resolves after another job's stream attached", async () => {
+    vi.useFakeTimers();
+    const pipeA = job();
+    const pipeB = job({ id: "pipe-2" });
+    const runningA = {
+      running: true,
+      job: pipeA,
+      jobs: [pipeA],
+      running_count: 1,
+    } satisfies PipelineStatusResponse;
+    let resolveLate: (st: PipelineStatusResponse) => void = () => {};
+    loadPipelineStatus
+      .mockResolvedValueOnce(runningA) // bootstrap
+      .mockImplementationOnce(
+        () =>
+          new Promise<PipelineStatusResponse>((resolve) => {
+            resolveLate = resolve;
+          }),
+      ) // post-done refetch: still in flight when job B's stream attaches
+      .mockResolvedValue(runningA);
+    const setPipelineJob = vi.fn();
+    const { rerender, unmount } = renderHook(
+      ({ p }: { p: PipelineJobSnapshot }) =>
+        usePipelineJob(p, setPipelineJob, { enabled: true }),
+      { initialProps: { p: pipeA } },
+    );
+    try {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const streamA = FakeEventSource.instances.at(-1)!;
+      act(() => {
+        streamA.emit({ type: "done", job: job({ status: "ok" }) });
+      });
+      rerender({ p: pipeB });
+      const streamB = FakeEventSource.instances.at(-1)!;
+      expect(streamB.url).toContain("pipe-2");
+      act(() => {
+        streamB.emit({ type: "status", job: pipeB });
+      });
+      setPipelineJob.mockClear();
+      await act(async () => {
+        resolveLate(runningA);
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(streamB.close).not.toHaveBeenCalled();
+      expect(FakeEventSource.instances.length).toBe(2);
+      expect(setPipelineJob).not.toHaveBeenCalled();
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
+  });
+
   it("skips the scheduled reconnect when another job's stream attached during the wait", async () => {
     vi.useFakeTimers();
     const pipeA = job();

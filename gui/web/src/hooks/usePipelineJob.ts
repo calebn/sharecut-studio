@@ -289,7 +289,11 @@ export function usePipelineJob(
           closeStream();
           void loadPipelineStatus({ signal: abortRef.current?.signal })
             .then((st) => {
-              if (!mountedRef.current) {
+              // Same rule as pollStatusOnce / onStreamDown: a stream that
+              // attached while this refetch was in flight (discover tick, or a
+              // prop switch to another job) owns the chrome now, so a stale
+              // result must not overwrite it or reattach and close it.
+              if (!mountedRef.current || streamOwnsChrome()) {
                 return;
               }
               apply(st);
