@@ -1,7 +1,8 @@
+import { execute } from "../commands/execute";
 import { formatShortcutKeys, keymapCommandById } from "../keymap/registry";
 import { canSuggestStructuralOnProject } from "../shareMode";
 import { useDaw } from "../state/useDaw";
-import { CommandButton, Icon, SegmentedControl } from "../ui";
+import { ToolModeToggleView } from "./ToolModeToggleView";
 
 function toolTitle(commandId: string, fallback: string): string {
   const cmd = keymapCommandById(commandId);
@@ -9,6 +10,10 @@ function toolTitle(commandId: string, fallback: string): string {
     return fallback;
   }
   return `${cmd.label} (${formatShortcutKeys(cmd)})`;
+}
+
+function runTool(id: string): void {
+  void execute(id, {}, { skipWhen: true });
 }
 
 /** Select / Blade (and Comment when not compact) tool cluster. */
@@ -34,50 +39,18 @@ export function ToolModeToggle({ compact = false }: { compact?: boolean }) {
     shareCapabilities,
     project != null,
   );
-  const selectActive = toolMode === "select" && !commentMode;
-  const bladeActive = toolMode === "blade" && !commentMode;
 
   return (
-    <SegmentedControl
-      label="Timeline tool"
-      className={`tool-mode-toggle${compact ? " tool-mode-toggle--compact" : ""}`}
-    >
-      {allowed ? (
-        <>
-          <CommandButton
-            bare
-            commandId="tool.select"
-            className={`ui-control--quiet${selectActive ? " active" : ""}`}
-            aria-pressed={selectActive}
-            title={toolTitle("tool.select", "Select tool")}
-            aria-label="Select"
-          >
-            <Icon name="select" />
-          </CommandButton>
-          <CommandButton
-            bare
-            commandId="tool.blade"
-            className={`ui-control--quiet${bladeActive ? " active" : ""}`}
-            aria-pressed={bladeActive}
-            title={`${toolTitle("tool.blade", "Blade tool")}: split at click or playhead`}
-            aria-label="Blade"
-          >
-            <Icon name="blade" />
-          </CommandButton>
-        </>
-      ) : null}
-      {!compact ? (
-        <CommandButton
-          bare
-          commandId="review.toggleCommentMode"
-          className={`ui-control--quiet comment-mode-btn${commentMode ? " active" : ""}`}
-          aria-pressed={commentMode}
-          title="Comment mode: click/drag ruler to anchor feedback"
-          aria-label="Comment"
-        >
-          <Icon name="comment" />
-        </CommandButton>
-      ) : null}
-    </SegmentedControl>
+    <ToolModeToggleView
+      compact={compact}
+      structuralToolsAllowed={allowed}
+      toolMode={toolMode}
+      commentMode={commentMode}
+      selectTitle={toolTitle("tool.select", "Select tool")}
+      bladeTitle={toolTitle("tool.blade", "Blade tool")}
+      onSelect={() => runTool("tool.select")}
+      onBlade={() => runTool("tool.blade")}
+      onToggleComment={() => runTool("review.toggleCommentMode")}
+    />
   );
 }
