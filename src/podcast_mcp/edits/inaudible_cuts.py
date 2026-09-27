@@ -14,6 +14,7 @@ from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject, Track
+from podcast_mcp.util.intervals import HalfOpenIntervalIndex
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import track_audio_path
 
@@ -104,8 +105,7 @@ class CutWordIndex:
     first_live: tuple[int, ...]
     first_audible: tuple[int, ...]
     original_starts: tuple[float, ...]
-    bleed_starts: tuple[float, ...]
-    bleed_max_ends: tuple[float, ...]
+    bleed_index: HalfOpenIntervalIndex
 
     @classmethod
     def build(cls, project: EpisodeProject, track_id: str) -> CutWordIndex:
@@ -137,17 +137,12 @@ class CutWordIndex:
                     audible = min(audible, i)
             first_live[pos] = live
             first_audible[pos] = audible
-        bleed = sorted(
+        bleed = (
             (float(w.start), float(w.end))
             for w in words
             if w.audibility_status == "bleed"
             or (w.speaker_match_track and w.speaker_match_track != track_id)
         )
-        bleed_max_ends: list[float] = []
-        last_end = float("-inf")
-        for _start, end in bleed:
-            last_end = max(last_end, end)
-            bleed_max_ends.append(last_end)
         return cls(
             tuple(boundaries),
             tuple(retained),
@@ -155,13 +150,11 @@ class CutWordIndex:
             tuple(first_live),
             tuple(first_audible),
             tuple(float(w.start) for w in words),
-            tuple(start for start, _end in bleed),
-            tuple(bleed_max_ends),
+            HalfOpenIntervalIndex.build(bleed),
         )
 
     def has_bleed_overlap(self, start: float, end: float) -> bool:
-        before = bisect_left(self.bleed_starts, end)
-        return before > 0 and self.bleed_max_ends[before - 1] > start
+        return self.bleed_index.overlaps(start, end)
 
     def nearest_boundary(self, t: float, max_shift: float) -> float:
         if not self.boundaries:

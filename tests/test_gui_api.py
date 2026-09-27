@@ -259,6 +259,27 @@ def test_transcript_word_mapping_batches_unsorted_words_once_per_track(monkeypat
     assert calls == [3]
 
 
+def test_transcript_word_index_preserves_zero_width_boundary_rules() -> None:
+    from podcast_mcp.engines.session_timeline import SessionTimeline
+    from podcast_mcp.gui.mapper import _words_for_utterance
+
+    project = _minimal()
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="after", start=1.5, end=1.8),
+                TranscriptWord(text="just-before", start=1.0995, end=1.0995),
+                TranscriptWord(text="at-start", start=1.1, end=1.1),
+                TranscriptWord(text="long", start=0.5, end=2.0),
+                TranscriptWord(text="at-end", start=1.8, end=1.8),
+            ],
+        )
+    ]
+    rows = _words_for_utterance(project, SessionTimeline(project), "host", 1.1, 1.8)
+    assert [row["text"] for row in rows] == ["after", "at-start", "long"]
+
+
 def test_map_transcript_includes_suppressed_within_utterance() -> None:
     """Suppressed tokens that still overlap the utterance span stay visible."""
     p = _minimal()

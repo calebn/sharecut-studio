@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
 from typing import Any
 
@@ -9,6 +8,7 @@ from podcast_mcp.edits.pending_preview import preview_window_for_edit
 from podcast_mcp.edits.timeline_span import map_source_span_fields
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import AppliedEditRecord, EditDecision, EpisodeProject
+from podcast_mcp.util.intervals import HalfOpenIntervalIndex
 from podcast_mcp.util.timebase import SourceSec
 
 TIGHTEN_REASON_PREFIXES = ("filler:", "pause:", "repetition:", "restart:")
@@ -103,9 +103,8 @@ def map_pending_edits_to_timeline(
 
 @dataclass(frozen=True)
 class _MappedWordIndex:
-    starts: list[float]
-    max_ends: list[float]
-    entries: list[tuple[int, Any]]
+    intervals: HalfOpenIntervalIndex
+    words: list[Any]
     views: list[dict[str, Any]]
 
 
@@ -126,14 +125,10 @@ def _mapped_word_index(
         _word_view(timeline, track_id, i, w, spans)
         for i, (w, spans) in enumerate(zip(words, mapped, strict=True))
     ]
-    entries = sorted(enumerate(words), key=lambda pair: (pair[1].start, pair[0]))
-    starts = [float(w.start) for _, w in entries]
-    max_ends: list[float] = []
-    latest = float("-inf")
-    for _, w in entries:
-        latest = max(latest, float(w.end) if w.end > w.start else float(w.start) + 0.001)
-        max_ends.append(latest)
-    return _MappedWordIndex(starts, max_ends, entries, views)
+    intervals = HalfOpenIntervalIndex.build(
+        (float(start), float(end)) for start, end in source_spans
+    )
+    return _MappedWordIndex(intervals, words, views)
 
 
 def _words_for_utterance(
@@ -146,10 +141,9 @@ def _words_for_utterance(
 ) -> list[dict[str, Any]]:
     """Per-track words overlapping the utterance, including suppressed chips."""
     index = index if index is not None else _mapped_word_index(project, timeline, track_id)
-    upper = bisect_left(index.starts, source_end)
-    lower = bisect_right(index.max_ends, source_start, 0, upper)
     selected: list[int] = []
-    for word_index, word in index.entries[lower:upper]:
+    for word_index in index.intervals.overlapping_ordinals(source_start, source_end):
+        word = index.words[word_index]
         if word.end <= word.start:
             if not (source_start <= word.start < source_end):
                 continue
