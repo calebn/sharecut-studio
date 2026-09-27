@@ -130,33 +130,38 @@ class WsTaskSet:
         """Cancel and await every spawned task; log (never raise) task failures.
 
         Every task is awaited to completion first. If the coroutine calling
-        ``stop`` was itself cancelled meanwhile (server shutdown, outer cancel),
-        that cancel is re-raised afterwards instead of being swallowed. The
-        original ``CancelledError`` is re-raised (not a fresh instance) so
-        cancel-scope-based runtimes (anyio, used by Starlette's TestClient)
-        still recognize it as their own cancellation and unwind cleanly.
+        ``stop`` is cancelled *while* ``stop`` runs (server shutdown, outer
+        cancel), that cancel is re-raised afterwards instead of being swallowed.
+        A cancel already delivered before ``stop`` was entered (``stop`` running
+        in a ``finally`` that is unwinding it) is left alone: ``stop`` returns
+        normally so the caller's original in-flight ``CancelledError`` keeps
+        propagating with its identity and message intact. Cancel-scope-based
+        runtimes (anyio, used by Starlette's TestClient) only recognize their
+        own ``CancelledError`` instance, never a substitute.
         """
         tasks, self._tasks = self._tasks, []
         for task in tasks:
             task.cancel()
+        current = asyncio.current_task()
+        entry_cancelling = current.cancelling() if current is not None else 0
+
+        def _cancelled_during_stop() -> bool:
+            return current is not None and current.cancelling() > entry_cancelling
+
         outer_cancel: asyncio.CancelledError | None = None
         for task in tasks:
             try:
                 await task
             except asyncio.CancelledError as exc:
-                current = asyncio.current_task()
-                if current is not None and current.cancelling():
+                # The child's own cancel (caused by task.cancel() above) is
+                # expected; keep only a cancel aimed at *this* coroutine.
+                if _cancelled_during_stop():
                     outer_cancel = exc
             except Exception:
                 log.exception("%s pump exit", self._log_label)
-        current = asyncio.current_task()
-        if current is not None and current.cancelling():
-            # A cancellation aimed at *this* task may still be outstanding, or
-            # may be the one just caught above from a child. Prefer catching a
-            # still-undelivered one here, with its real identity intact, over
-            # the substitute we may have captured above — cancel-scope-based
-            # runtimes (anyio, used by Starlette's TestClient) only recognize
-            # their own CancelledError instance, not a fabricated one.
+        if _cancelled_during_stop():
+            # A cancel requested during stop() may still be undelivered; catch
+            # it here so the real instance is re-raised, not the child's.
             try:
                 await asyncio.sleep(0)
             except asyncio.CancelledError as exc:

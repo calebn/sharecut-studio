@@ -242,6 +242,38 @@ async def test_ws_task_set_stop_without_outer_cancel_returns_normally():
 
 
 @pytest.mark.asyncio
+async def test_ws_task_set_stop_in_finally_keeps_the_delivered_cancel():
+    """stop() in a finally unwinding a delivered cancel must not swap the exception."""
+    tasks = WsTaskSet("test")
+    stop_outcome: list[str] = []
+
+    async def _sleeper() -> None:
+        await asyncio.sleep(3600)
+
+    async def _route() -> None:
+        child = tasks.spawn(_sleeper())
+        try:
+            await asyncio.sleep(3600)
+        finally:
+            try:
+                await tasks.stop()
+                stop_outcome.append("returned")
+            except asyncio.CancelledError:
+                stop_outcome.append("raised")
+                raise
+            assert child.cancelled()
+
+    route = asyncio.create_task(_route())
+    await asyncio.sleep(0.01)
+    route.cancel("shutdown-msg")
+    with pytest.raises(asyncio.CancelledError) as excinfo:
+        await route
+    assert excinfo.value.args == ("shutdown-msg",)
+    assert stop_outcome == ["returned"]
+    assert route.cancelled()
+
+
+@pytest.mark.asyncio
 async def test_ws_task_set_logs_failures_and_is_reusable(caplog):
     async def _boom() -> None:
         raise RuntimeError("boom")
