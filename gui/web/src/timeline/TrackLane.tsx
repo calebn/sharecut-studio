@@ -345,6 +345,7 @@ export function TrackLaneView({
           <>
             <AppliedEditOverlay
               records={appliedRecords}
+              clips={clips}
               trackId={track.id}
               zoomPxPerSec={zoomPxPerSec}
               selectedId={selection?.kind === "applied" ? selection.id : null}

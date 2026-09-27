@@ -7,6 +7,10 @@ import {
 import { useQueuedReviewNotice } from "../inspector/useQueuedReviewNotice";
 import { isShareProjectKey } from "../shareMode";
 import { useDaw } from "../state/useDaw";
+import {
+  appliedEditTitle,
+  appliedRecordOnTimeline,
+} from "../timeline/appliedEditTicks";
 import { Button, InlineError } from "../ui";
 import { TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
 import { selectUnmappedPending } from "../utils/edits";
@@ -78,6 +82,37 @@ export function ImpactPanel() {
           </div>
         ))}
       </dl>
+
+      {project.applied_edits.records.length > 0 && (
+        <details className="impact-applied">
+          <summary>
+            Applied edits ({project.applied_edits.records.length})
+          </summary>
+          <ul className="impact-pending-list">
+            {project.applied_edits.records.map((rec) => (
+              <li key={rec.id}>
+                <Button
+                  variant="link"
+                  data-applied-id={rec.id}
+                  onClick={() =>
+                    setSelection({
+                      kind: "applied",
+                      id: rec.id,
+                      trackId: rec.track_ids[0] ?? "",
+                    })
+                  }
+                >
+                  {appliedEditTitle(rec)} ·{" "}
+                  {rec.track_ids.join(", ") || "session"}
+                  {appliedRecordOnTimeline(rec, project.clips.tracks)
+                    ? ""
+                    : " · not on timeline"}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
 
       {reviewRequired.length > 0 && (
         <div className="impact-bulk">

@@ -2,6 +2,7 @@ import type { RecordParticipant, RecordSnapshot } from "../record/types";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import type {
   AppliedEditRecord,
+  ClipRow,
   ProjectView,
   TimelineComment,
   TrackView,
@@ -96,6 +97,23 @@ export function appliedEditRecord(
     source_end: 3,
     reason: "Shorten the pause",
     params: {},
+    ...overrides,
+  };
+}
+
+/** Fictional clip row for timeline unit tests and stories. */
+export function clipRow(overrides: Partial<ClipRow> = {}): ClipRow {
+  return {
+    id: "clip-1",
+    track_id: "mira-voice",
+    source_start: 0,
+    source_end: 10,
+    timeline_start: 0,
+    timeline_end: 10,
+    fade_in_ms: 0,
+    fade_out_ms: 0,
+    join_in_mode: "fade",
+    source_id: null,
     ...overrides,
   };
 }
