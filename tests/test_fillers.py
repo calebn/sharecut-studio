@@ -79,6 +79,70 @@ def test_peer_speech_index_matches_direct_gap_scan() -> None:
         )
 
 
+def test_peer_speech_index_excludes_own_long_word_across_three_tracks(monkeypatch) -> None:
+    from podcast_mcp.edits.fillers import (
+        _peer_speaking_in_gap,
+        _peer_speech_indexes,
+        _PeerSpeechIndex,
+    )
+
+    project = _project_with_transcript([TranscriptWord(text="host", start=0.0, end=20.0)])
+    for track_id, role, words in (
+        (
+            "guest",
+            TrackRole.DIALOGUE,
+            [
+                TranscriptWord(text="late", start=8.0, end=9.0),
+                TranscriptWord(text="early", start=1.0, end=2.0),
+                TranscriptWord(text="muted", start=4.0, end=5.0, suppressed=True),
+            ],
+        ),
+        ("third", TrackRole.DIALOGUE, [TranscriptWord(text="third", start=11.0, end=12.0)]),
+        ("music", TrackRole.MUSIC, [TranscriptWord(text="song", start=6.0, end=7.0)]),
+    ):
+        project.tracks.append(
+            Track(
+                id=track_id,
+                label=track_id,
+                role=role,
+                media=MediaAsset(path=f"/tmp/ws/raw/{track_id}.wav", duration_sec=30.0),
+            )
+        )
+        project.transcripts.append(Transcript(track_id=track_id, words=words))
+
+    built: list[int] = []
+    original = _PeerSpeechIndex.build
+
+    def counted(spans):
+        items = list(spans)
+        built.append(len(items))
+        return original(items)
+
+    monkeypatch.setattr(_PeerSpeechIndex, "build", staticmethod(counted))
+    indexes = _peer_speech_indexes(project)
+    assert built == [4]  # One global pass; muted and music words are omitted.
+    assert len({id(index.shared) for index in indexes.values()}) == 1
+    for track_id in ("host", "guest", "third", "music"):
+        for start, end in (
+            (0.0, 1.0),
+            (1.0, 2.0),
+            (2.0, 4.0),
+            (4.0, 5.0),
+            (6.0, 7.0),
+            (8.0, 9.0),
+            (9.0, 11.0),
+            (11.0, 12.0),
+            (12.0, 20.0),
+            (20.0, 21.0),
+        ):
+            assert _peer_speaking_in_gap(project, track_id, start, end, indexes) == (
+                _peer_speaking_in_gap(project, track_id, start, end)
+            )
+    assert not indexes["host"].overlaps(6.0, 7.0)
+    assert indexes["host"].overlaps(8.0, 9.0)
+    assert indexes["guest"].overlaps(6.0, 7.0)
+
+
 def _passthrough_opt(start: float, end: float):
     from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
 

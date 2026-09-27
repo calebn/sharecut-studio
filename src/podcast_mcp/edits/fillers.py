@@ -33,6 +33,7 @@ from podcast_mcp.models import (
     TranscriptWord,
 )
 from podcast_mcp.util.dsp import db_to_amplitude
+from podcast_mcp.util.intervals import HalfOpenIntervalIndex
 from podcast_mcp.util.text import normalize_text
 
 log = logging.getLogger(__name__)
@@ -566,7 +567,7 @@ def _peer_speaking_in_gap(
     track_id: str,
     gap_start: float,
     gap_end: float,
-    peer_indexes: dict[str, _SpanIndex] | None = None,
+    peer_indexes: dict[str, _PeerTrackSpeechIndex] | None = None,
 ) -> bool:
     """True when another dialogue transcript has audible words in the gap.
 
@@ -660,7 +661,7 @@ def _retained_pause_floor_sec(
     gap_start: float,
     gap_end: float,
     defaults: dict[str, Any],
-    peer_indexes: dict[str, _SpanIndex] | None = None,
+    peer_indexes: dict[str, _PeerTrackSpeechIndex] | None = None,
 ) -> tuple[float, bool]:
     """How much pause air to keep; solo thinking pauses keep more than turn gaps.
 
@@ -740,7 +741,7 @@ def _collect_candidates(
     *,
     project: EpisodeProject | None = None,
     skip_counts: dict[str, int] | None = None,
-    peer_indexes: dict[str, _SpanIndex] | None = None,
+    peer_indexes: dict[str, _PeerTrackSpeechIndex] | None = None,
 ) -> list[_CutCandidate]:
     """Find filler-cluster, repetition, and long-pause candidates (read-only).
 
@@ -798,42 +799,72 @@ _ACOUSTIC_RUN_PAD_SEC = 0.05
 _ACOUSTIC_MIN_CUT_SEC = 0.1
 
 
-class _SpanIndex:
-    """Static half-open spans with O(log n) "does anything overlap" queries."""
+@dataclass(frozen=True)
+class _PeerSpeechIndex:
+    """One sorted speech sweep with the two longest distinct-track prefixes."""
 
-    def __init__(self, spans: Iterable[tuple[float, float]]) -> None:
-        ordered = sorted(spans)
-        self._starts = [start for start, _end in ordered]
-        self._max_end: list[float] = []
-        running = float("-inf")
-        for _start, end in ordered:
-            running = max(running, end)
-            self._max_end.append(running)
+    starts: tuple[float, ...]
+    first: tuple[tuple[str | None, float], ...]
+    second: tuple[tuple[str | None, float], ...]
+
+    @classmethod
+    def build(cls, spans: Iterable[tuple[float, float, str]]) -> _PeerSpeechIndex:
+        ordered = sorted((start, end, track_id) for start, end, track_id in spans if end > start)
+        first_track: str | None = None
+        second_track: str | None = None
+        first_end = second_end = float("-inf")
+        first: list[tuple[str | None, float]] = []
+        second: list[tuple[str | None, float]] = []
+        for _start, end, track_id in ordered:
+            if track_id == first_track:
+                first_end = max(first_end, end)
+            elif track_id == second_track:
+                second_end = max(second_end, end)
+                if second_end > first_end:
+                    first_track, second_track = second_track, first_track
+                    first_end, second_end = second_end, first_end
+            elif end > first_end:
+                second_track, second_end = first_track, first_end
+                first_track, first_end = track_id, end
+            elif end > second_end:
+                second_track, second_end = track_id, end
+            first.append((first_track, first_end))
+            second.append((second_track, second_end))
+        return cls(tuple(start for start, _end, _track in ordered), tuple(first), tuple(second))
+
+    def overlaps_except(self, track_id: str, start: float, end: float) -> bool:
+        if end <= start:
+            return False
+        before = bisect_left(self.starts, end)
+        if before == 0:
+            return False
+        first_track, first_end = self.first[before - 1]
+        if first_track == track_id:
+            return self.second[before - 1][1] > start
+        return first_end > start
+
+
+@dataclass(frozen=True)
+class _PeerTrackSpeechIndex:
+    shared: _PeerSpeechIndex
+    track_id: str
 
     def overlaps(self, start: float, end: float) -> bool:
-        idx = bisect_left(self._starts, end)
-        return idx > 0 and self._max_end[idx - 1] > start
+        return self.shared.overlaps_except(self.track_id, start, end)
 
 
-def _peer_speech_indexes(project: EpisodeProject) -> dict[str, _SpanIndex]:
+def _peer_speech_indexes(project: EpisodeProject) -> dict[str, _PeerTrackSpeechIndex]:
     from podcast_mcp.models import TrackRole
 
-    dialogue = [
-        tr
+    dialogue_ids = {track.id for track in project.tracks if track.role == TrackRole.DIALOGUE}
+    shared = _PeerSpeechIndex.build(
+        (float(w.start), float(w.end), tr.track_id)
         for tr in project.transcripts
-        if (track := project.track_by_id(tr.track_id)) is not None
-        and track.role == TrackRole.DIALOGUE
-    ]
-    return {
-        tr.track_id: _SpanIndex(
-            (w.start, w.end)
-            for peer in dialogue
-            if peer.track_id != tr.track_id
-            for w in peer.words
-            if not w.suppressed
-        )
-        for tr in project.transcripts
-    }
+        if tr.track_id in dialogue_ids
+        for w in tr.words
+        if not w.suppressed
+    )
+    return {tr.track_id: _PeerTrackSpeechIndex(shared, tr.track_id) for tr in project.transcripts}
 
 
 def _acoustic_scan_gaps(
@@ -878,12 +909,12 @@ def _collect_acoustic_candidates(
     track_id: str,
     cfg: AcousticGapConfig,
     audio_cache: TrackAudioCache,
-    occupied: _SpanIndex,
+    occupied: HalfOpenIntervalIndex,
     *,
     defaults: dict[str, Any] | None = None,
     project: EpisodeProject | None = None,
     skip_counts: dict[str, int] | None = None,
-    peer_indexes: dict[str, _SpanIndex] | None = None,
+    peer_indexes: dict[str, _PeerTrackSpeechIndex] | None = None,
 ) -> list[_CutCandidate]:
     """Review-only ``filler:acoustic`` candidates for voiced runs in owner gaps."""
     candidates: list[_CutCandidate] = []
@@ -948,7 +979,7 @@ def _add_acoustic_candidates(
     project: EpisodeProject | None = None,
     audio_cache: TrackAudioCache | None = None,
     skip_counts: dict[str, int] | None = None,
-    peer_indexes: dict[str, _SpanIndex] | None = None,
+    peer_indexes: dict[str, _PeerTrackSpeechIndex] | None = None,
 ) -> list[_CutCandidate]:
     """``candidates`` plus acoustic gap candidates when enabled and audio decoded."""
     cfg = AcousticGapConfig.from_tighten(defaults.get("tighten"))
@@ -960,7 +991,9 @@ def _add_acoustic_candidates(
         if next(_acoustic_scan_gaps(transcript.words, cfg), None) is not None:
             _count_skip(skip_counts, "acoustic:no_audio")
         return candidates
-    occupied = _SpanIndex((c.start, c.end) for c in candidates if c.cut_kind != "pause")
+    occupied = HalfOpenIntervalIndex.build(
+        (c.start, c.end) for c in candidates if c.cut_kind != "pause"
+    )
     extra = _collect_acoustic_candidates(
         transcript.words,
         transcript.track_id,
@@ -1002,7 +1035,9 @@ def _resolve_analyzed_cuts(
     for decision in existing:
         if decision.applied:
             applied_spans.setdefault(decision.track_id, []).append((decision.start, decision.end))
-    applied_index = {tid: _SpanIndex(spans) for tid, spans in applied_spans.items()}
+    applied_index = {
+        tid: HalfOpenIntervalIndex.build(spans) for tid, spans in applied_spans.items()
+    }
     pairs: list[tuple[_CutCandidate, _AnalyzedCut | None]] = []
     for candidate, result in zip(candidates, results, strict=True):
         index = applied_index.get(candidate.track_id)
@@ -1014,7 +1049,7 @@ def _resolve_analyzed_cuts(
     for candidate, result in pairs:
         if result is not None and candidate.cut_kind != "pause" and not candidate.strictly_bounded:
             word_spans.setdefault(candidate.track_id, []).append((result.start, result.end))
-    word_index = {tid: _SpanIndex(spans) for tid, spans in word_spans.items()}
+    word_index = {tid: HalfOpenIntervalIndex.build(spans) for tid, spans in word_spans.items()}
 
     dropped: set[int] = set()
     bounded_spans: dict[str, list[tuple[float, float]]] = {}
@@ -1030,7 +1065,9 @@ def _resolve_analyzed_cuts(
             dropped.add(idx)
             continue
         bounded_spans.setdefault(candidate.track_id, []).append((result.start, result.end))
-    bounded_index = {tid: _SpanIndex(spans) for tid, spans in bounded_spans.items()}
+    bounded_index = {
+        tid: HalfOpenIntervalIndex.build(spans) for tid, spans in bounded_spans.items()
+    }
 
     for idx, (candidate, result) in enumerate(pairs):
         if result is None or candidate.cut_kind != "pause":
@@ -1054,7 +1091,7 @@ def _analyze_candidate(
     audio_cache: TrackAudioCache | None = None,
     speaker_context: _SpeakerCutContext | None = None,
     word_index: CutWordIndex | None = None,
-    peer_indexes: dict[str, _SpanIndex] | None = None,
+    peer_indexes: dict[str, _PeerTrackSpeechIndex] | None = None,
 ) -> _AnalyzedCut | None:
     """Waveform-optimize, risk-assess, and fade-size one candidate. Read-only w.r.t.
     project (no mutation) -- safe to call from multiple threads concurrently, as

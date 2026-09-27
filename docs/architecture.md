@@ -36,6 +36,8 @@ Shared backend helpers keep caller policy explicit: `util/intervals.merge_interv
 The raw-media, diagnostics, waveform-pyramid, transcript-cache, recorder-import, consolidated-ingest, and playback-stem guards use `util/workspace_paths.resolve_within`. Callers keep their own input grammar and public error messages; the shared resolver checks the resolved path against the resolved allowed root, including symlink targets. Other artifact guards retain their own validation.
 The alignment energy VAD, heuristic/Silero breath scans, and silence-island scan use `util.dsp.bool_runs` for contiguous masks. Only alignment VAD bridges a single quiet chunk before extracting runs; each caller still owns its threshold, duration, and timestamp policy.
 
+`util.intervals.HalfOpenIntervalIndex` provides immutable overlap queries for transcript cut guards, filler spans, and GUI word projection. Callers keep their own word filtering and source-clock rules; the index preserves original word ordinals for view ordering.
+
 **Configuration seam:** `runtime_config.py` validates host relay and optional
 S3-compatible storage. Relay fields use explicit > environment > YAML > safe
 default; object-store fields use environment > YAML > disabled. `distribution.py` validates public build identity and exact trusted
