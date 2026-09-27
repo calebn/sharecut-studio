@@ -1036,6 +1036,23 @@ def test_submit_file_before_reflects_an_out_of_band_write(minimal_project):
     assert r2["snapshot"]["file_before"] != r1["snapshot"]["file"]
 
 
+def test_idempotent_retry_applied_carries_file_before(minimal_project):
+    svc = DocumentSyncService.open(minimal_project)
+    cmd = DocumentCommand(
+        type="AddComment",
+        payload={"body": "once", "author": "viewer", "timeline_start": 1.0},
+        client_id="c1",
+        role="viewer",
+        client_seq=1,
+    )
+    first = svc.submit(cmd)
+    again = svc.submit(cmd)
+
+    assert again["idempotent"] is True
+    assert again["snapshot"]["file_before"] == first["snapshot"]["file"]
+    assert again["snapshot"]["file"] == first["snapshot"]["file"]
+
+
 def test_document_snapshot_omits_file_when_revision_unknown(minimal_project, monkeypatch):
     from podcast_mcp.services import ProjectWorkspace
     from podcast_mcp.services.document_sync import DocumentSyncService
