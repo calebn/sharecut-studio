@@ -1,6 +1,11 @@
 import type { RecordParticipant, RecordSnapshot } from "../record/types";
 import type { PipelineJobSnapshot } from "../types/pipeline";
-import type { ProjectView, TimelineComment, TrackView } from "../types/project";
+import type {
+  AppliedEditRecord,
+  ProjectView,
+  TimelineComment,
+  TrackView,
+} from "../types/project";
 
 /** Minimal ProjectView for unit tests that need DawProvider / store hydrate. */
 export function minimalProject(
@@ -71,6 +76,25 @@ export function sampleComment(
     resolved: false,
     resolved_at: null,
     resolved_by: null,
+    ...overrides,
+  };
+}
+
+/** Fictional applied cut for timeline previews and component tests. */
+export function appliedEditRecord(
+  overrides: Partial<AppliedEditRecord> = {},
+): AppliedEditRecord {
+  return {
+    id: "edit-1",
+    applied_at: "2026-01-01T00:00:00Z",
+    operation: "remove",
+    track_ids: ["mira-voice"],
+    timeline_start: 2,
+    timeline_end: 3,
+    source_start: 2,
+    source_end: 3,
+    reason: "Shorten the pause",
+    params: {},
     ...overrides,
   };
 }

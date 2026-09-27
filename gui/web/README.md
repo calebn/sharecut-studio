@@ -42,6 +42,10 @@ allowlisting, and command dispatch; stories pass props and action callbacks.
 timeline at desktop and 360px widths, including comment-anchor mode. Its live
 adapter supplies DAW position and visible chunks; the story supplies fixed
 values and a production `PlayheadNeedle` without mounting DAW state.
+`Templates/AppliedEditOverlay` previews the production applied-edit ticks in
+the timeline lane with fictional visible, selected, dense, filtered and empty
+records, including 360px variants. The ticks are decorative and cannot select
+an edit; the live Impact panel owns selection.
 `Templates/CommentCard`, `Templates/CommentCompose`, and
 `Templates/GhostWordChips` show the shipped comment and transcript preview
 components with fictional, local-only state, including 360px phone variants.
