@@ -100,6 +100,11 @@ prop-only paint used by the live `Playhead`, which retains its direct DAW
 store subscription and transform updates without React rerenders. The story
 uses fictional comments and a fixed zoom; it does not mount the live timeline
 or subscribe to the DAW store.
+`Templates/TimeRuler` renders the production `TimeRulerView` with fixed
+position and visible-chunk props at desktop and 360px widths, plus comment
+anchor mode. The live `TimeRuler` adapter reads those values from DAW state
+and supplies the store-driven `Playhead`, preserving its per-frame transform.
+Storybook supplies `PlayheadNeedle` at a fixed position instead.
 
 `Templates/CommentCard`, `Templates/CommentCompose`, and
 `Templates/GhostWordChips` preview the production transcript comment card,
@@ -246,6 +251,9 @@ both themes, in story mode and on its docs page, before merging.
   (`primitives.css`) is the raw-value tier stories ultimately resolve to.
 
 ## Changelog
+
+- 2026-09-27 — Added `Templates/TimeRuler` with a prop-driven production
+  ruler view, desktop and 360px fixtures, and comment-anchor mode.
 
 - 2026-09-27 — Added `Templates/TimelineRange` with production audition,
   comment selection, and prop-only playhead paint at a 360px viewport.
