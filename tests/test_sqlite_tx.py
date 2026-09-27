@@ -7,7 +7,11 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp.util.sqlite_tx import immediate_transaction, is_sqlite_busy
+from podcast_mcp.util.sqlite_tx import (
+    DEFAULT_BUSY_TIMEOUT_PRAGMA,
+    immediate_transaction,
+    is_sqlite_busy,
+)
 from sqlite_helpers import FailingConnection
 
 
@@ -25,6 +29,11 @@ def _count(path: Path) -> int:
         return int(other.execute("SELECT COUNT(*) FROM t").fetchone()[0])
     finally:
         other.close()
+
+
+def test_default_busy_timeout_pragma_sets_five_seconds(conn) -> None:
+    conn.execute(DEFAULT_BUSY_TIMEOUT_PRAGMA)
+    assert conn.execute("PRAGMA busy_timeout").fetchone()[0] == 5000
 
 
 def test_commit_is_visible_to_another_connection(conn, tmp_path):

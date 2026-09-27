@@ -125,7 +125,7 @@ def test_wal_initialization_retries_while_another_process_holds_the_lock(
     connect.assert_called_once_with(
         str(tmp_path / "sync.db"), check_same_thread=False, isolation_level=None, timeout=0
     )
-    connection.execute.assert_called_with(session_sqlite._BUSY_TIMEOUT_PRAGMA)
+    connection.execute.assert_called_with(session_sqlite.DEFAULT_BUSY_TIMEOUT_PRAGMA)
 
 
 def test_wal_initialization_gives_up_after_the_deadline(
