@@ -446,13 +446,27 @@ export function TranscriptPanel() {
           )
         : null;
   // Pinned turns stay mounted when virtualized: follow and scroll requests
-  // always find their element, and focus/selection survive scrolling away.
+  // always find their element, and focus/selection and an open inline editor
+  // survive scrolling away.
   const pinnedTurns = useMemo(
     () =>
       [
         activeTurnIndex,
         focusedTurnIndex,
         selectedAnchor ? transcriptAnchorTurnIndex(turns, selectedAnchor) : -1,
+        // The inline editor's turn stays mounted so a commit in flight never
+        // remounts a second editor for the same word.
+        inlineEdit
+          ? transcriptAnchorTurnIndex(
+              turns,
+              presenceAnchor(
+                "transcript",
+                "word",
+                inlineEdit.trackId,
+                inlineEdit.wordIndex,
+              ),
+            )
+          : -1,
         transcriptScrollRequest
           ? transcriptAnchorTurnIndex(turns, transcriptScrollRequest)
           : requestTurnIndex,
@@ -460,6 +474,7 @@ export function TranscriptPanel() {
     [
       activeTurnIndex,
       focusedTurnIndex,
+      inlineEdit,
       requestTurnIndex,
       selectedAnchor,
       transcriptScrollRequest,
