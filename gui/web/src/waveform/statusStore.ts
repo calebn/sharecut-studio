@@ -32,7 +32,11 @@ type Poller = {
   timer: ReturnType<typeof setTimeout> | null;
   backoffMs: number;
   inflight: AbortController | null;
-  /** Another poll was asked for while one was in flight. */
+  /**
+   * Another poll was asked for while one was in flight. The same coalescing
+   * as `coalescedDrain` (state/drainOfflineQueue.ts); see the note there
+   * before adding a third copy.
+   */
   again: boolean;
   /** Keys whose tile 404 already triggered a refetch (until a poll drops them). */
   missing: Set<string>;

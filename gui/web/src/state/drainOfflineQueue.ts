@@ -178,6 +178,11 @@ type DrainRun = { again: boolean; done: Promise<void> };
  * Run `pass` now, or once more after the run in progress for `key`, so a
  * request made mid-run is never lost and overlapping requests never run two
  * passes at once. Never rejects.
+ *
+ * `waveform/statusStore.ts` (`poll`) keeps its own `again` flag: it is an
+ * abortable backoff poller, not an ordered replay. If a third "one more pass
+ * when asked mid-run" loop appears, extract a shared runner (for example
+ * `utils/coalescedRun.ts`) and move all three onto it instead of copying it.
  */
 function coalescedDrain(
   runs: Map<string, DrainRun>,
