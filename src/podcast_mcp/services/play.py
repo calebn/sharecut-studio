@@ -496,7 +496,7 @@ class PlayService:
                 stem,
             )
             if not out.is_file() or rerender:
-                self._render_atomic(
+                render_atomic(
                     out,
                     lambda tmp: FFmpegEngine().extract_segment(
                         stem, tmp, timeline_start, timeline_end
@@ -635,18 +635,8 @@ class PlayService:
             return 0
         return path.stat().st_mtime_ns
 
-    def _render_atomic(self, dest: Path, render: Callable[[Path], object]) -> Path:
-        """Render into a temp file beside ``dest``, then swap it in.
-
-        Each call renders into its own temp name, so concurrent plays of the
-        same cache key (other processes or other threads in this one) never
-        share a temp file or see a partially written WAV. A failed render
-        leaves neither ``dest`` nor the temp file.
-        """
-        return render_atomic(dest, render)
-
     def _join_parts_atomic(self, parts: list[Path], dest: Path) -> Path:
-        return self._render_atomic(dest, lambda tmp: FFmpegEngine().join_audio_parts(parts, tmp))
+        return render_atomic(dest, lambda tmp: FFmpegEngine().join_audio_parts(parts, tmp))
 
     def _play_follow_transcript(
         self,
@@ -706,7 +696,7 @@ class PlayService:
             f"follow_{track_id}_{fp}", start, end, segment, extra=f"gain={gain_db}"
         )
         if not out.is_file():
-            self._render_atomic(
+            render_atomic(
                 out,
                 lambda tmp: render_gated_track(
                     segment,
@@ -773,7 +763,7 @@ class PlayService:
             extra=_mix_cache_extra([(seg, gains_db[tid]) for tid, seg in segments]),
         )
         if not out.is_file():
-            self._render_atomic(
+            render_atomic(
                 out,
                 lambda tmp: render_gated_mix(
                     segments,
