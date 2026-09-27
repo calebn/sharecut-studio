@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useProjectMutation } from "../hooks/useProjectMutation";
 import { InlineError } from "../ui/InlineError";
+import { errorMessage } from "../utils/apiError";
 import { submitWordCorrection, wordCorrectionError } from "./wordCorrection";
 
 interface Props {
@@ -10,6 +11,12 @@ interface Props {
   onClose: (restoreFocus: boolean) => void;
   /** True when a commit starts, false once it settles (also after unmount). */
   onBusyChange?: (busy: boolean) => void;
+  /**
+   * A commit that fails after this editor unmounted (mode switch, word
+   * removed, editing no longer allowed) reports its message here, because
+   * the editor's own inline error is gone.
+   */
+  onDetachedError?: (message: string) => void;
 }
 
 /** In-place word text fix: Enter commits (one undo step), Esc / blur cancel. */
@@ -19,12 +26,20 @@ export function InlineWordEditor({
   initialText,
   onClose,
   onBusyChange,
+  onDetachedError,
 }: Props) {
   const { busy, error, setError, run, projectPath } = useProjectMutation();
   const [text, setText] = useState(initialText);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const busyRef = useRef(false);
   const errorId = useId();
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -44,18 +59,33 @@ export function InlineWordEditor({
     }
     busyRef.current = true;
     onBusyChange?.(true);
+    let failure: unknown;
     const ok = await run(async () => {
-      await submitWordCorrection(
-        projectPath,
-        trackId,
-        wordIndex,
-        wordIndex,
-        text,
-      );
+      try {
+        await submitWordCorrection(
+          projectPath,
+          trackId,
+          wordIndex,
+          wordIndex,
+          text,
+        );
+      } catch (e) {
+        failure = e;
+        throw e;
+      }
       return true;
     });
     busyRef.current = false;
     onBusyChange?.(false);
+    if (!mountedRef.current) {
+      // Closed mid-request: nothing here to focus or show the error in.
+      if (!ok) {
+        onDetachedError?.(
+          `Could not fix “${initialText}”: ${errorMessage(failure)}`,
+        );
+      }
+      return;
+    }
     // Leave focus wherever the user moved it while the request ran (e.g. the
     // comment composer). Only a still-focused input hands focus back to the chip.
     const hadFocus = document.activeElement === inputRef.current;

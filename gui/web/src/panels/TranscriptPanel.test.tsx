@@ -609,6 +609,37 @@ describe("TranscriptPanel", () => {
       }
     });
 
+    it("shows a failed commit after a mode switch closed its editor", async () => {
+      let reject: (e: Error) => void = () => {};
+      vi.mocked(correctTranscriptWord).mockImplementationOnce(
+        () =>
+          new Promise<void>((_r, rej) => {
+            reject = rej;
+          }),
+      );
+      const { container } = render(<TranscriptPanel />);
+      const q = within(container);
+      fireEvent.doubleClick(q.getByRole("button", { name: "hello" }));
+      const input = q.getByRole("textbox", { name: /Correct word/ });
+      fireEvent.change(input, { target: { value: "Hello" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      await vi.waitFor(() => expect(correctTranscriptWord).toHaveBeenCalled());
+      fireEvent.click(q.getByRole("button", { name: /Correct/i }));
+      expect(q.queryByRole("textbox", { name: /Correct word/ })).toBeNull();
+      await act(async () => {
+        reject(new Error("server said no"));
+      });
+      await vi.waitFor(() =>
+        expect(container.querySelector(".inline-error")).toHaveTextContent(
+          "Could not fix “hello”: server said no",
+        ),
+      );
+      fireEvent.click(q.getByRole("button", { name: /Correct/i }));
+      fireEvent.doubleClick(q.getByRole("button", { name: "there" }));
+      expect(q.getByRole("textbox", { name: /there/ })).toBeTruthy();
+      expect(container.querySelector(".inline-error")).toBeNull();
+    });
+
     it("keeps a pending editor when another word is double-clicked", async () => {
       let resolve: () => void = () => {};
       vi.mocked(correctTranscriptWord).mockImplementationOnce(

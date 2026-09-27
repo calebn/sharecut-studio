@@ -320,6 +320,77 @@ describe("InlineWordEditor", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("reports a failure that settles after unmount through onDetachedError", async () => {
+    let reject: (e: Error) => void = () => {};
+    vi.mocked(correctTranscriptWord).mockImplementationOnce(
+      () =>
+        new Promise<void>((_r, rej) => {
+          reject = rej;
+        }),
+    );
+    const onClose = vi.fn();
+    const onDetachedError = vi.fn();
+    const user = userEvent.setup();
+    const { unmount } = render(
+      <InlineWordEditor
+        trackId="host"
+        wordIndex={0}
+        initialText="hello"
+        onClose={onClose}
+        onDetachedError={onDetachedError}
+      />,
+    );
+    const input = screen.getByRole("textbox", { name: /Correct word/ });
+    await user.clear(input);
+    await user.type(input, "Hello{Enter}");
+    await waitFor(() => expect(correctTranscriptWord).toHaveBeenCalled());
+    unmount();
+    await act(async () => {
+      reject(new Error("network down"));
+    });
+    await waitFor(() =>
+      expect(onDetachedError).toHaveBeenCalledWith(
+        "Could not fix “hello”: network down",
+      ),
+    );
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("neither closes nor reports after unmount when the commit succeeds", async () => {
+    let resolve: () => void = () => {};
+    vi.mocked(correctTranscriptWord).mockImplementationOnce(
+      () =>
+        new Promise<void>((r) => {
+          resolve = r;
+        }),
+    );
+    const onClose = vi.fn();
+    const onDetachedError = vi.fn();
+    const onBusyChange = vi.fn();
+    const user = userEvent.setup();
+    const { unmount } = render(
+      <InlineWordEditor
+        trackId="host"
+        wordIndex={0}
+        initialText="hello"
+        onClose={onClose}
+        onDetachedError={onDetachedError}
+        onBusyChange={onBusyChange}
+      />,
+    );
+    const input = screen.getByRole("textbox", { name: /Correct word/ });
+    await user.clear(input);
+    await user.type(input, "Hello{Enter}");
+    await waitFor(() => expect(correctTranscriptWord).toHaveBeenCalled());
+    unmount();
+    await act(async () => {
+      resolve();
+    });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(onDetachedError).not.toHaveBeenCalled();
+    expect(onBusyChange).toHaveBeenLastCalledWith(false);
+  });
+
   it("has no axe violations", async () => {
     const { container } = render(
       <InlineWordEditor

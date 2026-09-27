@@ -35,7 +35,7 @@ import type {
   EditBoundaryView,
   Selection,
 } from "../types/project";
-import { ToggleButton } from "../ui";
+import { InlineError, ToggleButton } from "../ui";
 import {
   findTurnIndexForUtterance,
   groupConsecutiveSpeakerTurns,
@@ -194,6 +194,8 @@ export function TranscriptPanel() {
   const inlineFocusRestoreRef = useRef<WordRef | null>(null);
   /** An inline commit is in flight; it can outlive its editor (mode switch). */
   const inlineCommitPendingRef = useRef(false);
+  /** Failure of an inline commit whose editor had already closed. */
+  const [inlineEditError, setInlineEditError] = useState<string | null>(null);
   /** Word under the finger at pointerdown (long-press fires on release). */
   const pressedWordRef = useRef<WordRef | null>(null);
   const longPressReleasedRef = useRef(false);
@@ -300,6 +302,7 @@ export function TranscriptPanel() {
     cancelQueuedSeek();
     // One correction at a time: a pending commit keeps its editor open.
     if (inlineCommitPendingRef.current) return;
+    setInlineEditError(null);
     setInlineEdit(ref);
   };
   const closeInlineEdit = (ref: WordRef, restoreFocus: boolean) => {
@@ -744,6 +747,7 @@ export function TranscriptPanel() {
           </ToggleButton>
         </div>
       </div>
+      <InlineError role="alert" message={inlineEditError} />
       {canCorrect ? (
         <p className="transcript-mode-hint">
           {intent === "navigate" && pointerKind === "coarse"
@@ -955,6 +959,7 @@ export function TranscriptPanel() {
                           onBusyChange={(pending) => {
                             inlineCommitPendingRef.current = pending;
                           }}
+                          onDetachedError={setInlineEditError}
                         />
                       ) : undefined,
                     buttonProps: wordInteractive
