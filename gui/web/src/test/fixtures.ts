@@ -6,6 +6,7 @@ import type {
   TimelineComment,
   TrackView,
 } from "../types/project";
+import type { RenderInvalidationView } from "../utils/staleRender";
 
 /** Minimal ProjectView for unit tests that need DawProvider / store hydrate. */
 export function minimalProject(
@@ -95,6 +96,21 @@ export function appliedEditRecord(
     source_end: 3,
     reason: "Shorten the pause",
     params: {},
+    ...overrides,
+  };
+}
+
+/** Fictional stale region for timeline previews and component tests. */
+export function renderInvalidation(
+  overrides: Partial<RenderInvalidationView> = {},
+): RenderInvalidationView {
+  return {
+    id: "stale-cut",
+    track_ids: ["mira-voice"],
+    timeline_start: 2,
+    timeline_end: 5,
+    reason: "cut",
+    at: "2026-01-01T00:00:00Z",
     ...overrides,
   };
 }
