@@ -28,6 +28,7 @@ from podcast_mcp.engines.audio_audit import clipping_indicated
 from podcast_mcp.engines.render_status import render_status_report
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.util.text import count_noun
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids
 
@@ -1046,9 +1047,9 @@ def _summary(
     head = " | ".join(bits) if bits else "no dialogue tracks"
     extras = []
     if comments:
-        extras.append(f"{len(comments)} comments")
+        extras.append(count_noun(len(comments), "comment"))
     if warnings:
-        extras.append(f"{len(warnings)} warnings")
+        extras.append(count_noun(len(warnings), "warning"))
     if extras:
         return f"{head}  [{', '.join(extras)}]"
     return head

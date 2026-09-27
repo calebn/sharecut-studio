@@ -17,3 +17,8 @@ def has_meaningful_text(text: str) -> bool:
     return any(
         not char.isspace() and unicodedata.category(char) not in {"Cc", "Cf"} for char in text
     )
+
+
+def count_noun(n: int, noun: str) -> str:
+    """`1 issue` / `2 issues` / `0 issues` (regular English plural: appends `s` unless *n* == 1)."""
+    return f"{n} {noun}" if n == 1 else f"{n} {noun}s"

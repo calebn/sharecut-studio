@@ -159,7 +159,7 @@ def test_audition_context_includes_effects_and_comments(minimal_project, sample_
     assert host["effects"][0]["effect"] == "gate"
     assert len(ctx["comments"]) == 1
     assert ctx["comments"][0]["open_action_count"] == 1
-    assert "comments" in ctx["summary"] or "1 comments" in ctx["summary"]
+    assert "1 comment" in ctx["summary"]
 
 
 def test_audition_context_rejects_bad_detail(minimal_project, sample_wav, tmp_workspace):
@@ -441,7 +441,9 @@ def test_audition_context_helpers_edge_paths(minimal_project, sample_wav, tmp_wo
 
     # Summary with warnings only
     s = ac._summary([], ["warn1"], [])
-    assert "1 warnings" in s
+    assert "[1 warning]" in s
+    assert "warnings" not in s
+    assert "[2 comments, 2 warnings]" in ac._summary([], ["w1", "w2"], [{}, {}])
 
 
 def test_edits_in_window_midpoint_none_and_out_of_range(
