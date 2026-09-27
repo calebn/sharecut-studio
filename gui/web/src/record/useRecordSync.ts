@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { applyServerClock } from "../presence/clock";
 import { newClientId } from "../session/clientId";
-import { bindWsSender } from "../session/wsSend";
+import { bindWsSender, type WsSender } from "../session/wsSend";
 import {
   clearRecordParticipant,
   loadRecordParticipant,
@@ -108,9 +108,7 @@ export function useRecordSync(
   const [connected, setConnected] = useState(false);
   const [meId, setMeId] = useState<string | null>(null);
   const [lease, setLease] = useState<string | null>(null);
-  const sendRef = useRef<((frame: Record<string, unknown>) => void) | null>(
-    null,
-  );
+  const sendRef = useRef<WsSender | null>(null);
   const clientIdRef = useRef(newClientId());
   const nameRef = useRef(displayName);
   const retryMsRef = useRef(1000);

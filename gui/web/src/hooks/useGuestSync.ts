@@ -17,7 +17,7 @@ import type { DocumentSnapshot } from "../document/projectPatch";
 import { applyServerClock } from "../presence/clock";
 import { usePresencePublisher } from "../presence/usePresencePublisher";
 import { newClientId } from "../session/clientId";
-import { bindWsSender } from "../session/wsSend";
+import { bindWsSender, type WsSender } from "../session/wsSend";
 import { shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { mergeOfflineSnapshot } from "../state/offlineStore";
@@ -80,9 +80,7 @@ export function useGuestSync(
   const wsOpenRef = useRef(false);
   const connectIdRef = useRef(newClientId());
   const clientIdRef = useRef(connectIdRef.current);
-  const sendRef = useRef<((frame: Record<string, unknown>) => void) | null>(
-    null,
-  );
+  const sendRef = useRef<WsSender | null>(null);
   const [wsReady, setWsReady] = useState(false);
   const guestName = guestDisplayName();
 
