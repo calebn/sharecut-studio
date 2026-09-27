@@ -16,9 +16,11 @@ const BLOCKED_REASON: Record<string, string> = {
   no_fade_in: "this clip has no fade-in",
 };
 
-/** True when render treats this clip's incoming join as a hard cut. */
-export function isCutJoin(clip: Pick<ClipRow, "join_in_mode">): boolean {
-  return clip.join_in_mode === "cut";
+/** True when render treats this clip's incoming join as a hard cut (a track's first clip has no join). */
+export function isCutJoin(
+  clip: Pick<ClipRow, "join_in_mode" | "join_left_clip_id">,
+): boolean {
+  return clip.join_left_clip_id != null && clip.join_in_mode === "cut";
 }
 
 /** True when this clip's incoming join is set to crossfade (it may still be blocked). */

@@ -58,6 +58,28 @@ describe("proxyMath", () => {
     expect(b.fadeOutSec).toBeCloseTo(0.05);
   });
 
+  it("keeps a first clip's fade-in when its leftover mode is cut", () => {
+    const [c1] = buildSchedule(
+      [
+        clip({
+          id: "c1",
+          source_start: 0,
+          source_end: 2,
+          timeline_start: 0,
+          timeline_end: 2,
+          fade_in_ms: 20,
+          join_in_mode: "cut",
+          join_left_clip_id: null,
+        }),
+      ],
+      0,
+      10,
+      60,
+      200,
+    );
+    expect(c1.fadeInSec).toBeCloseTo(0.02);
+  });
+
   it("maps source seconds to chunk indices", () => {
     expect(chunkIndexForSource(0, 60)).toBe(0);
     expect(chunkIndexForSource(59.9, 60)).toBe(0);
