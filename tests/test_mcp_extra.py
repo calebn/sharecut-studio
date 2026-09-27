@@ -114,7 +114,7 @@ def test_mcp_pipeline_run_reports_export_qc_verdict(tmp_path):
         out = mcp_pipeline.pipeline_run(path, use_working_set=False)
     lines = out.splitlines()
     assert lines[0] == "Completed through export_deliverables"
-    assert lines[1].startswith("Export QC: FAILED (1 issues), 0 warnings")
+    assert lines[1].startswith("Export QC: FAILED (1 issue), 0 warnings")
     assert lines[2] == "  - bad thing"
 
 

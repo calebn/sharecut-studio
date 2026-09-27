@@ -33,7 +33,7 @@ def test_pipeline_run_prints_summaries_and_verdict(tmp_path):
     assert result.exit_code == 0
     assert "ok    ingest_tracks: 1 track" in result.stdout
     assert "ok    export_deliverables" in result.stdout
-    assert "Export QC: FAILED (1 issues), 1 warnings" in result.stdout
+    assert "Export QC: FAILED (1 issue), 1 warning" in result.stdout
     assert "- bad thing" in result.stdout
     assert "Pipeline complete. Last step: export_deliverables" in result.stdout
 

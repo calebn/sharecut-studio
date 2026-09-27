@@ -17,16 +17,24 @@ from podcast_mcp.util.progress import ProgressReporter
 from podcast_mcp.util.project_state import render_lock
 
 
+def _count(n: int, noun: str) -> str:
+    """`1 issue` / `2 issues` / `0 issues`."""
+    return f"{n} {noun}" if n == 1 else f"{n} {noun}s"
+
+
 def format_export_qc_lines(
     export_qc: Mapping[str, Any] | None, qc_path: Path | str | None
 ) -> list[str]:
-    """`Export QC: ok|FAILED (N issues), M warnings (<path>)` plus one `  - issue` line each; [] if no export ran."""
+    """`Export QC: ok|FAILED (N issue[s]), M warning[s] (<path>)` plus one `  - issue` line each; [] if no export ran."""
     if export_qc is None:
         return []
     verdict = "ok" if export_qc.get("ok") else "FAILED"
     issues = list(export_qc.get("issues") or [])
     warnings = list(export_qc.get("warnings") or [])
-    lines = [f"Export QC: {verdict} ({len(issues)} issues), {len(warnings)} warnings ({qc_path})"]
+    lines = [
+        f"Export QC: {verdict} ({_count(len(issues), 'issue')}), "
+        f"{_count(len(warnings), 'warning')} ({qc_path})"
+    ]
     lines.extend(f"  - {issue}" for issue in issues)
     return lines
 
