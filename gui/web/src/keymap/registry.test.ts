@@ -249,6 +249,68 @@ describe("keymap registry", () => {
   });
 });
 
+describe("Alt chords", () => {
+  it("matches Alt+= (key or macOS ≠) and Alt+NumpadAdd to track height increase", () => {
+    expect(
+      matchKeymapCommand(keyEvent({ key: "=", code: "Equal", altKey: true }))
+        ?.id,
+    ).toBe("view.trackHeightIncrease");
+    expect(
+      matchKeymapCommand(keyEvent({ key: "≠", code: "Equal", altKey: true }))
+        ?.id,
+    ).toBe("view.trackHeightIncrease");
+    expect(
+      matchKeymapCommand(
+        keyEvent({ key: "+", code: "NumpadAdd", altKey: true }),
+      )?.id,
+    ).toBe("view.trackHeightIncrease");
+  });
+
+  it("matches Alt+- (key or macOS –) to track height decrease", () => {
+    expect(
+      matchKeymapCommand(keyEvent({ key: "-", code: "Minus", altKey: true }))
+        ?.id,
+    ).toBe("view.trackHeightDecrease");
+    expect(
+      matchKeymapCommand(keyEvent({ key: "–", code: "Minus", altKey: true }))
+        ?.id,
+    ).toBe("view.trackHeightDecrease");
+  });
+
+  it("leaves plain = as zoom, never track height", () => {
+    expect(matchKeymapCommand(keyEvent({ key: "=", code: "Equal" }))?.id).toBe(
+      "view.zoomIn",
+    );
+    expect(
+      matchKeymapCommands(keyEvent({ key: "=", code: "Equal" })).map(
+        (c) => c.id,
+      ),
+    ).not.toContain("view.trackHeightIncrease");
+  });
+
+  it("does not match Mod+Alt+=", () => {
+    expect(
+      matchKeymapCommand(
+        keyEvent({
+          key: "=",
+          code: "Equal",
+          altKey: true,
+          metaKey: true,
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it("displays and formats Alt+= / Alt+-", () => {
+    const increase = keymapCommandById("view.trackHeightIncrease")!;
+    const decrease = keymapCommandById("view.trackHeightDecrease")!;
+    expect(formatShortcutKeys(increase)).toBe("Alt+=");
+    expect(displayShortcutKeys(increase, true)).toBe("⌥=");
+    expect(displayShortcutKeys(increase, false)).toBe("Alt+=");
+    expect(ariaKeyShortcutsFor("view.trackHeightDecrease")).toContain("Alt");
+  });
+});
+
 describe("displayShortcutKeys", () => {
   it("uses platform modifiers instead of Mod", () => {
     const bounce = keymapCommandById("export.bounce")!;

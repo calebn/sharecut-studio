@@ -280,6 +280,27 @@ export const COMMANDS: Record<string, CommandDef> = {
     notes: "Shift+ArrowDown: timeline focused",
     breaksFollow: true,
   },
+  "view.fitTracksHeight": {
+    id: "view.fitTracksHeight",
+    category: "view",
+    label: "Fit tracks to window height",
+    when: "always",
+    notes: "Toggle: fill the stage height, or a fixed track height",
+  },
+  "view.trackHeightIncrease": {
+    id: "view.trackHeightIncrease",
+    category: "view",
+    label: "Increase track height",
+    when: "timelineFocused",
+    notes: "Alt+=: timeline focused; 72 / 104 / 144 / 192 / 240 px",
+  },
+  "view.trackHeightDecrease": {
+    id: "view.trackHeightDecrease",
+    category: "view",
+    label: "Decrease track height",
+    when: "timelineFocused",
+    notes: "Alt+-: timeline focused",
+  },
   "history.undo": {
     id: "history.undo",
     category: "history",

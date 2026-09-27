@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**96** capabilities · **80** Sharecut Studio commands · **49** keyed · **163** MCP tools · **16** skills on rows (+ **18** hub skills).
+**99** capabilities · **83** Sharecut Studio commands · **51** keyed · **163** MCP tools · **16** skills on rows (+ **18** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -76,6 +76,9 @@ Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Documen
 | Switch phone mode | `view.setMobileMode` | — (not industry-standard; tab click) | `mobileNav` | — | — | — | — | anchor · look |
 | Waveform amplitude zoom in | `view.waveformZoomIn` | `ArrowUp` | `timeline.waveform` | — | — | — | — | time · look |
 | Waveform amplitude zoom out | `view.waveformZoomOut` | `ArrowDown` | `timeline.waveform` | — | — | — | — | time · look |
+| Fit tracks to window height | `view.fitTracksHeight` | — (toggle; View menu checkbox and transport icon) | `transport.fitTracksHeight`, `transport.viewMenu.fitTracksHeight` | — | — | — | — | none · none |
+| Increase track height | `view.trackHeightIncrease` | `Alt+=` | `transport.menu` | — | — | — | — | none · none |
+| Decrease track height | `view.trackHeightDecrease` | `Alt+-` | `transport.menu` | — | — | — | — | none · none |
 | Undo | `history.undo` | `Mod+Z` | `historyPanel`, `mobileShell.gesture.twoFingerTap` | `history_undo` | `podcast undo` | `podcast-history` | — | none · none |
 | Redo | `history.redo` | `Mod+Shift+Z` | `historyPanel` | `history_redo` | `podcast redo` | `podcast-history` | — | none · none |
 | Command cheatsheet | `ui.toggleCommandPalette` | `?` | `transport.menu` | — | — | — | — | none · none |

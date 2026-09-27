@@ -47,6 +47,7 @@ def _keymap_chords() -> dict[str, str]:
         cid = id_m.group(1)
         notes_m = re.search(r'notes:\s*"([^"]*)"', chunk)
         req_mod = "requireMod: true" in chunk
+        req_alt = "requireAlt: true" in chunk
         req_shift = "requireShift: true" in chunk
         keys_m = re.search(r"keys:\s*\[([^\]]+)\]", chunk)
         key_vals = [
@@ -88,6 +89,8 @@ def _keymap_chords() -> dict[str, str]:
                 continue
         if primary in (" ", "Space"):
             chord = "Space"
+        elif req_alt:
+            chord = f"Alt+{primary}"
         elif req_mod and req_shift:
             chord = f"Mod+Shift+{primary}"
         elif req_mod:

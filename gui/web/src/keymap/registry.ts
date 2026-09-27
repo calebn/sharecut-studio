@@ -38,6 +38,12 @@ export type KeymapCommand = {
   bareKey?: boolean;
   /** When true, require meta or ctrl (Mod+key chords). */
   requireMod?: boolean;
+  /**
+   * When true, require Alt/Option without Mod (Alt+key chords). Also
+   * matches the physical `e.code`, since macOS Option+= types "≠" and
+   * Option+- types "–".
+   */
+  requireAlt?: boolean;
   /** true = Shift required; false = Shift excluded; omit = Shift optional. */
   requireShift?: boolean;
   /** A toggle a held key must not flip back and forth (M saves the mix mute). */
@@ -475,6 +481,26 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     notes: "Shift+ArrowDown: timeline focused",
   },
   {
+    id: "view.trackHeightIncrease",
+    category: "view",
+    label: "Increase track height",
+    keys: ["=", "+"],
+    bareKey: false,
+    requireAlt: true,
+    when: "timelineFocused",
+    notes: "Alt+=: timeline focused; 72 / 104 / 144 / 192 / 240 px",
+  },
+  {
+    id: "view.trackHeightDecrease",
+    category: "view",
+    label: "Decrease track height",
+    keys: ["-"],
+    bareKey: false,
+    requireAlt: true,
+    when: "timelineFocused",
+    notes: "Alt+-: timeline focused",
+  },
+  {
     id: "ui.toggleCommandPalette",
     category: "ui",
     label: "Command cheatsheet",
@@ -571,6 +597,9 @@ function shortcutParts(cmd: KeymapCommand): string[] {
   const parts: string[] = [];
   if (cmd.requireMod) {
     parts.push("Mod");
+  }
+  if (cmd.requireAlt) {
+    parts.push("Alt");
   }
   if (cmd.requireShift) {
     parts.push("Shift");
@@ -679,8 +708,19 @@ export function keymapByCategory(): Record<KeymapCategory, KeymapCommand[]> {
   return out;
 }
 
+/**
+ * macOS Option+= / Option+- report `key` as "≠" / "–" (and Option+Shift+=
+ * variants), not "=" / "-", so Alt chords also match by physical `code`.
+ */
+const ALT_CODE_KEYS: Record<string, string> = {
+  Equal: "=",
+  Minus: "-",
+  NumpadAdd: "+",
+  NumpadSubtract: "-",
+};
+
 function eventKeyCandidates(
-  e: Pick<KeyboardEvent, "key" | "code" | "shiftKey">,
+  e: Pick<KeyboardEvent, "key" | "code" | "shiftKey" | "altKey">,
 ): string[] {
   const keys = [e.key];
   if (e.code === "Space" || e.key === " ") {
@@ -691,6 +731,9 @@ function eventKeyCandidates(
   }
   if (e.key.length === 1) {
     keys.push(e.key.toUpperCase(), e.key.toLowerCase());
+  }
+  if (e.altKey && ALT_CODE_KEYS[e.code]) {
+    keys.push(ALT_CODE_KEYS[e.code]);
   }
   return keys;
 }
@@ -711,7 +754,17 @@ export function matchKeymapCommands(
   const out: KeymapCommand[] = [];
 
   for (const cmd of KEYMAP_COMMANDS) {
-    if (cmd.requireMod) {
+    if (cmd.requireAlt) {
+      if (!e.altKey || mod) {
+        continue;
+      }
+      if (cmd.requireShift === true && !e.shiftKey) {
+        continue;
+      }
+      if (cmd.requireShift === false && e.shiftKey) {
+        continue;
+      }
+    } else if (cmd.requireMod) {
       if (!mod || e.altKey) {
         continue;
       }
