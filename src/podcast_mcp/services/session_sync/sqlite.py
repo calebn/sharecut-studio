@@ -54,13 +54,14 @@ def connect_session_db(db_path: Path) -> sqlite3.Connection:
     persists the journal mode on the database, so only the first connection
     needs to change it. A per-database thread lock (keyed by resolved path)
     serializes that one-time transition inside this process, so a retry on
-    one busy database never blocks another. Another process can still hold
-    the database lock, and SQLite may return busy for a journal-mode change
-    without invoking the busy handler, so the read-and-switch runs with the
-    busy handler off (``timeout=0``) and is retried every
-    ``_WAL_INIT_RETRY_SEC`` for up to ``_WAL_INIT_TIMEOUT_SEC``; the
-    connection then gets SQLite's default 5 s busy timeout back for its
-    writes.
+    one busy database never blocks another. The lock is dropped once the
+    switch succeeds, since later opens only read the persisted mode. Another
+    process can still hold the database lock, and SQLite may return busy for
+    a journal-mode change without invoking the busy handler, so the
+    read-and-switch runs with the busy handler off (``timeout=0``) and is
+    retried every ``_WAL_INIT_RETRY_SEC`` for up to
+    ``_WAL_INIT_TIMEOUT_SEC``; the connection then gets SQLite's default 5 s
+    busy timeout back for its writes.
     """
     connection = sqlite3.connect(
         str(db_path),
@@ -72,6 +73,9 @@ def connect_session_db(db_path: Path) -> sqlite3.Connection:
     try:
         with _wal_init_lock(db_path):
             _ensure_wal(connection)
+        # WAL now persists on the file, so later opens only read journal_mode; drop
+        # the lock so the registry does not grow with every sync.db this process opens.
+        _WAL_INIT_LOCKS.discard_idle(_wal_init_key(db_path))
         connection.execute(_BUSY_TIMEOUT_PRAGMA)
     except Exception:
         connection.close()
